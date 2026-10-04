@@ -10,6 +10,8 @@ type Membro = {
 };
 const state = vi.hoisted(() => ({
   insert: vi.fn(),
+  update: vi.fn(),
+  gia: null as Record<string, unknown> | null,
   role: { isCapocantiere: false, esisteCapo: false } as { isCapocantiere: boolean; esisteCapo: boolean; isCaposquadra?: boolean },
   crew: [] as Membro[],
   regole: undefined as RegoleCampo | undefined,
@@ -36,6 +38,7 @@ vi.mock("@tanstack/react-query", () => ({
     queryKey[0] === "campo-squadra" ? state.crew :
     queryKey[0] === "campo-regole-ordine" ? state.regole :
     queryKey[0] === "campo-ore-gia-registrate" ? state.oreGia :
+    queryKey[0] === "campo-rapportino-gia-oggi" ? state.gia :
     queryKey[0] === "campo-cantiere-coord" ? { lat: 45, lng: 9 } : undefined,
     isError: false, refetch: vi.fn() }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
@@ -48,6 +51,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   from: (table: string) => {
     const result = { data: table === "campo_rapportini" ? { id: "report" } : {}, error: null as Error | null };
     const query = { insert: (value: unknown) => { if (table === "campo_rapportini") state.insert(value); return query; },
+      update: (value: unknown) => { if (table === "campo_rapportini") state.update(value); return query; }, in: () => query,
       select: () => query, eq: () => query, single: async () => result, maybeSingle: async () => result,
       then: Promise.resolve(result).then.bind(Promise.resolve(result)) };
     return query;
@@ -55,7 +59,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
 } }));
 beforeEach(() => {
   vi.clearAllMocks();
-  state.role = { isCapocantiere: false, esisteCapo: false }; state.crew = []; state.regole = undefined; state.oreGia = null;
+  state.role = { isCapocantiere: false, esisteCapo: false }; state.crew = []; state.regole = undefined; state.oreGia = null; state.gia = null;
   vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-09-24T15:00:00+02:00"));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -77,7 +81,6 @@ describe("Il capocantiere, con le ore dalle timbrature", () => {
     state.role = { isCapocantiere: true, esisteCapo: true }; state.crew = squadra;
     state.regole = { chiCompila: "capo", oreDalle: "timbrature", avvisoScostamentoMinuti: 30 };
     render(<CampoRapportino />);
-    fireEvent.change(ore()!, { target: { value: "0" } }); avanti();
   };
 
   it("dice per ognuno cosa dicono le timbrature e non rimette chi è già registrato", () => {
@@ -119,7 +122,7 @@ describe("Il capocantiere, con le ore dalle timbrature", () => {
     apriSquadra();
     fireEvent.click(screen.getByRole("button", { name: "Seleziona chi ha timbrato (1)" }));
     fireEvent.change(screen.getByLabelText("Ore di Mario"), { target: { value: "8" } });
-    invia();
+    avanti(); invia();
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({
       presenze: [expect.objectContaining({ employee_id: "1", nome: "Mario", ore: 8 })],
     })));
@@ -130,7 +133,7 @@ describe("Il capocantiere, con le ore scritte a mano (come oggi)", () => {
   it("non mostra nulla di nuovo se l'azienda non ha scelto: ore vuote, nessun avviso", () => {
     state.role = { isCapocantiere: true, esisteCapo: true };
     state.crew = [{ key: "emp-1", employee_id: "1", nome: "Mario", ore_timbrate: 7.5 }];
-    render(<CampoRapportino />); fireEvent.change(ore()!, { target: { value: "0" } }); avanti();
+    render(<CampoRapportino />);
     expect(screen.queryByText(/timbrate/)).toBeNull();
     expect(screen.queryByRole("button", { name: /Seleziona chi ha timbrato/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Mario" }));
@@ -141,7 +144,7 @@ describe("Il capocantiere, con le ore scritte a mano (come oggi)", () => {
     state.role = { isCapocantiere: true, esisteCapo: true };
     state.regole = { ...REGOLE_COME_OGGI, avvisoScostamentoMinuti: 15 };
     state.crew = [{ key: "emp-1", employee_id: "1", nome: "Mario", ore_timbrate: 6 }];
-    render(<CampoRapportino />); fireEvent.change(ore()!, { target: { value: "0" } }); avanti();
+    render(<CampoRapportino />);
     fireEvent.click(screen.getByRole("button", { name: /Mario/ }));
     expect(screen.getByLabelText("Ore di Mario")).toHaveValue(null);
     fireEvent.change(screen.getByLabelText("Ore di Mario"), { target: { value: "8" } });
@@ -156,7 +159,7 @@ describe("L'operaio, secondo come lavora l'azienda", () => {
     render(<CampoRapportino />);
     expect(ore()).toBeNull();
     expect(screen.getByText("Le tue ore le registra il capocantiere")).toBeInTheDocument();
-    avanti(); invia();
+    invia();
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ ore_lavorate: 0, ore_straordinario: 0 })));
   });
 
@@ -166,7 +169,7 @@ describe("L'operaio, secondo come lavora l'azienda", () => {
     render(<CampoRapportino />);
     fireEvent.click(screen.getByRole("button", { name: /Scrivo io le mie ore/ }));
     fireEvent.change(ore()!, { target: { value: "6" } });
-    avanti(); invia();
+    invia();
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ ore_lavorate: 6 })));
   });
 
@@ -205,5 +208,105 @@ describe("L'operaio, secondo come lavora l'azienda", () => {
     fireEvent.change(ore()!, { target: { value: "3" } });
     avanti(); invia();
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ ore_lavorate: 3 })));
+  });
+});
+
+
+describe("Un rapportino diverso per chi lo compila", () => {
+  const squadra: Membro[] = [
+    { key: "emp-1", employee_id: "1", nome: "Mario" },
+    { key: "emp-2", employee_id: "2", nome: "Luca" },
+    { key: "emp-3", employee_id: "3", nome: "Anna" },
+  ];
+
+  it("l'operaio con un capo ha un passo solo: nessuna schermata di avanzamento, fine lavori o firma", () => {
+    state.role = { isCapocantiere: false, esisteCapo: true };
+    render(<CampoRapportino />);
+    expect(screen.queryByRole("button", { name: "Avanti" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Invia rapportino" })).toBeInTheDocument();
+    expect(screen.queryByText("Lavoro completato")).toBeNull();
+    expect(screen.queryByText(/Passo \d di/)).toBeNull();
+    expect(screen.getByText("Altro da segnalare (facoltativo)")).toBeInTheDocument();
+    expect(screen.queryByText("Firma simulata")).toBeNull();
+  });
+
+  it("chi lavora da solo, senza un capo nominato, ha i due passi di sempre", () => {
+    state.role = { isCapocantiere: false, esisteCapo: false };
+    render(<CampoRapportino />);
+    expect(screen.getByRole("button", { name: "Avanti" })).toBeInTheDocument();
+    expect(screen.getByText(/Passo 1 di 2/)).toBeInTheDocument();
+    expect(screen.queryByText("Altro da segnalare (facoltativo)")).toBeNull();
+  });
+
+  it("il capo sceglie chi ha lavorato già al primo passo e non vede le sue ore personali", () => {
+    state.role = { isCapocantiere: true, esisteCapo: true }; state.crew = squadra;
+    render(<CampoRapportino />);
+    expect(screen.getByText("Chi ha lavorato oggi?")).toBeInTheDocument();
+    expect(ore()).toBeNull();
+    expect(screen.getByText("Cosa hai fatto oggi?")).toBeInTheDocument();
+  });
+
+  it("«Stesse ore per tutti» scrive le ore a tutti i selezionati con un tocco", async () => {
+    state.role = { isCapocantiere: true, esisteCapo: true }; state.crew = squadra;
+    render(<CampoRapportino />);
+    expect(screen.queryByText("Stesse ore per tutti:")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Mario" }));
+    expect(screen.queryByText("Stesse ore per tutti:")).toBeNull(); // con uno solo non serve
+    fireEvent.click(screen.getByRole("button", { name: "Luca" }));
+    fireEvent.click(screen.getByRole("button", { name: "8 h" }));
+    expect(screen.getByLabelText("Ore di Mario")).toHaveValue(8);
+    expect(screen.getByLabelText("Ore di Luca")).toHaveValue(8);
+    avanti(); invia();
+    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({
+      presenze: [expect.objectContaining({ nome: "Mario", ore: 8 }), expect.objectContaining({ nome: "Luca", ore: 8 })],
+    })));
+  });
+
+  it("se in cantiere non c'è nessuno da segnare, il capo scrive le sue ore come tutti", () => {
+    state.role = { isCapocantiere: true, esisteCapo: true }; state.crew = [];
+    render(<CampoRapportino />);
+    expect(ore()).not.toBeNull();
+  });
+});
+
+describe("Il rapportino respinto si corregge e si rimanda", () => {
+  const respinto = {
+    id: "vecchio", created_at: "2026-09-24T08:00:00Z", stato: "rifiutato", motivo_rifiuto: "Mancano le foto del bagno",
+    descrizione_lavori: "Posa del telaio al primo piano", ore_lavorate: 7, ore_straordinario: 0,
+    foto_urls: ["https://local.invalid/foto1.jpg"], fasi_lavorate: [] as never[], presenze: [] as never[], materiali_usati: [{ nome: "Malta", quantita: 2, unita: "sacco" }],
+    meteo: "nuvoloso", percentuale_avanzamento: 0,
+  };
+
+  it("lo riapre già compilato, col motivo dell'ufficio", async () => {
+    state.gia = respinto;
+    render(<CampoRapportino />);
+    expect(screen.getByText("L’ufficio ha respinto questo rapportino")).toBeInTheDocument();
+    expect(screen.getByText("Motivo: Mancano le foto del bagno")).toBeInTheDocument();
+    expect(screen.queryByText(/Esiste già un rapportino per questa giornata/)).toBeNull();
+    await waitFor(() => expect(screen.getByDisplayValue("Posa del telaio al primo piano")).toBeInTheDocument());
+    expect(screen.getByLabelText("Ore ordinarie su questo cantiere")).toHaveValue(7);
+  });
+
+  it("lo rimanda aggiornando lo stesso rapportino, senza crearne un altro", async () => {
+    state.gia = respinto;
+    render(<CampoRapportino />);
+    await waitFor(() => expect(screen.getByDisplayValue("Posa del telaio al primo piano")).toBeInTheDocument());
+    fireEvent.change(screen.getByDisplayValue("Posa del telaio al primo piano"), { target: { value: "Posa del telaio e foto del bagno" } });
+    avanti();
+    fireEvent.click(screen.getByRole("button", { name: "Rimanda il rapportino" }));
+    await waitFor(() => expect(state.update).toHaveBeenCalledWith(expect.objectContaining({
+      stato: "inviato", motivo_rifiuto: null, approvato: false, pdf_url: null,
+      descrizione_lavori: "Posa del telaio e foto del bagno", ore_lavorate: 7,
+      materiali_usati: [expect.objectContaining({ nome: "Malta", quantita: 2, unita: "sacco" })],
+    })));
+    expect(state.insert).not.toHaveBeenCalled();
+  });
+
+  it("un rapportino già inviato o approvato resta bloccato: si corregge dall'ufficio", () => {
+    state.gia = { ...respinto, stato: "inviato" };
+    render(<CampoRapportino />);
+    expect(screen.getByText(/Esiste già un rapportino per questa giornata/)).toBeInTheDocument();
+    expect(screen.queryByText("L’ufficio ha respinto questo rapportino")).toBeNull();
+    expect(screen.getByRole("button", { name: "Avanti" })).toBeDisabled();
   });
 });

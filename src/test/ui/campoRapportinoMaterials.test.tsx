@@ -102,7 +102,19 @@ describe("Giornata e invio entro il giorno successivo", () => {
   it("ieri non eredita il meteo di oggi", async () => {
     state.reportDate = "2026-09-23"; state.weather = new Map([["2026-09-24", { code: 0 }]]);
     render(<CampoRapportino />);
-    await waitFor(() => expect(screen.getByRole("button", { name: /Sole/ })).not.toHaveClass("bg-primary/10"));
+    fireEvent.change(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Avanti" })); fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
+    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ meteo: null as null })));
+  });
+  it("il meteo non si sceglie: si salva da solo dalle previsioni, senza chiederlo", async () => {
+    state.weather = new Map([["2026-09-24", { code: 0 }]]);
+    render(<CampoRapportino />);
+    expect(screen.queryByText("Condizioni meteo")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Sole/ })).not.toBeInTheDocument();
+    await new Promise(resolve => setTimeout(resolve, 20)); // le previsioni si applicano appena arrivate
+    fireEvent.change(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Avanti" })); fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
+    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ meteo: "soleggiato" })));
   });
 });
 
@@ -140,12 +152,13 @@ describe("Rapportino mobile, interazione con API simulate", () => {
   it("l'operaio dichiara la lavorazione svolta, non una percentuale di avanzamento", () => {
     state.role = { isCapocantiere: false, esisteCapo: true };
     state.phases = [{ id: "p", name: "Tinteggiature", status: "da_iniziare", percentuale: 0 }];
-    render(<CampoRapportino />); fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
+    render(<CampoRapportino />);
+    // un passo solo: le lavorazioni stanno in «Altro da segnalare», senza avanzamento
     fireEvent.click(screen.getByRole("button", { name: "Tinteggiature" }));
-    expect(screen.getByText("Lavorazioni svolte oggi")).toBeInTheDocument();
-    expect(screen.getByText("· lavorata oggi")).toBeInTheDocument();
+    expect(screen.getByText(/servono ad attribuire le tue ore\. L'avanzamento lo dichiara il capocantiere/)).toBeInTheDocument();
+    expect(screen.queryByText("Segna completata")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Avanzamento attuale/)).not.toBeInTheDocument();
     expect(screen.queryByText("→ 0%")).not.toBeInTheDocument();
-    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
   });
   it("invia articolo, quantità decimale e unità scelti nell'interfaccia", async () => {
     openMaterials();
@@ -208,7 +221,7 @@ describe("Ore del rapportino: interazione e arrivo asincrono dei dati", () => {
     const now = new Date();
     state.weather = new Map([[`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`, { code: 0 }]]);
     const page = render(<CampoRapportino />);
-    await waitFor(() => expect(screen.getByRole("button", { name: /Sole/ })).toHaveClass("bg-primary/10"));
+    await waitFor(() => expect(screen.getByLabelText("Ore ordinarie su questo cantiere")).toBeInTheDocument());
     state.punches = [punch("entrata", "08:00"), punch("uscita", "12:00")]; page.rerender(<CampoRapportino />);
     await waitFor(() => expect(screen.getByLabelText("Ore ordinarie su questo cantiere")).toHaveValue(4));
   });
@@ -224,13 +237,16 @@ describe("Ore del rapportino: interazione e arrivo asincrono dei dati", () => {
   });
   it("scegliere un membro non assegna otto ore e blocca la presenza vuota", async () => {
     state.role = { isCapocantiere: true, esisteCapo: true }; state.crew = [{ key: "emp-e", employee_id: "e", nome: "Luca Bianchi" }];
-    render(<CampoRapportino />); fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
+    render(<CampoRapportino />);
     fireEvent.click(screen.getByRole("button", { name: "Luca Bianchi" }));
     expect(screen.getByLabelText("Ore di Luca Bianchi")).toHaveValue(null);
+    fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
     fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledWith(expect.stringContaining("ogni persona selezionata")));
     expect(state.insert).not.toHaveBeenCalled();
+    fireEvent.click(screen.getAllByRole("button", { name: "Passo precedente" })[0]);
     fireEvent.change(screen.getByLabelText("Ore di Luca Bianchi"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
     fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ presenze: [{ employee_id: "e", nome: "Luca Bianchi", ore: 3 }] })));
   });
@@ -244,15 +260,15 @@ describe("Ore del rapportino: interazione e arrivo asincrono dei dati", () => {
     state.role = { isCapocantiere: true, esisteCapo: true };
     state.crew = [{ key: "emp-e", employee_id: "e", nome: "Luca Bianchi" }];
     render(<CampoRapportino />);
-    fireEvent.change(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "3.5" } });
-    fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
+    // con una squadra da segnare il capo non ha un secondo campo «ore personali»: le ore sono le presenze
+    expect(screen.queryByLabelText("Ore ordinarie su questo cantiere")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Luca Bianchi" }));
     expect(screen.getByText(/Se hai lavorato anche tu/)).toBeInTheDocument();
-    expect(screen.getByText("Ore personali ordinarie")).toBeInTheDocument();
-    expect(screen.getByText("Presenze squadra")).toBeInTheDocument();
-    expect(screen.getByText("Da indicare")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Ore di Luca Bianchi"), { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
+    expect(screen.getByText("Ore personali ordinarie")).toBeInTheDocument();
+    expect(screen.getByText("Vedi presenze squadra")).toBeInTheDocument();
+    expect(screen.getByText("Presenze squadra")).toBeInTheDocument();
     expect(screen.getByText("4 h")).toBeInTheDocument();
-    expect(screen.getByText("3.5h")).toBeInTheDocument();
   });
 });

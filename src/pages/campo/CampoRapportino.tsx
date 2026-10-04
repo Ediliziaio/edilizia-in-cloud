@@ -1,11 +1,14 @@
 /**
- * Rapportino giornaliero SEMPLIFICATO (2 step):
- * 1. La giornata — descrizione, meteo, ore e foto: tutto quello che serve
- *    all'operaio "normale", in una schermata sola.
- * 2. Conferma e firma — fasi/squadra/materiali (solo se servono), riepilogo
- *    e FIRMA dell'operaio/capocantiere: il PDF generato all'invio esce già
- *    firmato da chi lo compila.
- * 3. SOLO se "lavoro completato": firma del cliente (obbligatoria).
+ * Rapportino giornaliero, diverso per chi lo compila:
+ *
+ * · OPERAIO con un capo sopra: UN passo solo — cosa ha fatto, ore (precompilate dalle
+ *   timbrature), foto. Fasi, materiali, mezzi, straordinario e firma stanno in
+ *   «Altro da segnalare», chiuso. Avanzamento, fine lavori e firma del cliente sono del capo.
+ * · CAPOCANTIERE / CAPOSQUADRA: passo 1 — chi ha lavorato (con le ore, anche «stesse ore per
+ *   tutti»), cosa è stato fatto, foto; passo 2 — avanzamento delle fasi, materiali, mezzi,
+ *   riepilogo e firma; passo 3 solo a fine lavori: firma del cliente (obbligatoria).
+ * · Chi lavora da solo, senza un capo nominato: i due passi di sempre.
+ * · Un rapportino RESPINTO dall'ufficio si riapre già compilato, col motivo, e si rimanda.
  *
  * Le ore vanno confermate: 0 per sole foto/note; nessuna presenza implicita.
  */
@@ -106,7 +109,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   const [params, setParams] = useSearchParams();
   const today = useCampoWorkDay();
   const yesterday = shiftWorkDay(today, -1);
-  const dayAllowed = validWorkDay(workDay) && (workDay === today || workDay === yesterday);
+  const dayAllowedBase = validWorkDay(workDay) && (workDay === today || workDay === yesterday);
   const dayLabel = validWorkDay(workDay) ? format(new Date(`${workDay}T12:00:00`), "d MMMM yyyy", { locale: it }) : "Data non valida";
 
   const [step, setStep] = useState(1);
@@ -141,9 +144,6 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   const [firmaClienteNome, setFirmaClienteNome] = useState("");
   const [firmaOperaio, setFirmaOperaio] = useState<string | null>(null);
 
-  // Con "lavoro completato" attivo si aggiunge lo step Firma cliente;
-  // sul giornaliero normale sono 2 step.
-  const totalSteps = lavoro_completato ? 3 : TOTAL_STEPS;
 
   // Acquisisci GPS all'inizio — una sola volta al mount (requestPosition è useCallback
   // con dep [companyId]; se companyId cambia da null a valore, l'effect rilancia una
@@ -212,6 +212,12 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   // vale il comportamento storico (chiunque dichiara le %) — le commesse
   // esistenti non si bloccano; il rigore scatta con la nomina.
   const puoDichiararePercentuali = !!ruoloCampo && (isCapocantiere || !ruoloCampo.esisteCapo);
+  // Operaio con un capo sopra: racconta la SUA giornata e basta, in un passo solo. Avanzamento,
+  // fine lavori e firma del cliente sono del capo.
+  const semplice = !!ruoloCampo && !faSquadra && ruoloCampo.esisteCapo;
+  // Con "lavoro completato" attivo si aggiunge lo step Firma cliente;
+  // sul giornaliero normale sono 2 step.
+  const totalSteps = semplice ? 1 : lavoro_completato ? 3 : TOTAL_STEPS;
 
   // ── Squadra del giorno ────────────────────────────────────────────────
   // Il flusso reale: il rapportino lo fa UNO (capocantiere), e dentro c'è
@@ -235,7 +241,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
     timbratura_aperta?: boolean;
   };
   const [presenzeSel, setPresenzeSel] = useState<Record<string, CampoHoursDraft>>({});
-  const { data: squadra = [] } = useQuery({
+  const { data: squadra = [], isLoading: squadraLoading } = useQuery({
     queryKey: ["campo-squadra", orderId, workDay],
     enabled: !!orderId && faSquadra,
     staleTime: 300_000,
@@ -259,14 +265,22 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
 
   // The existing DB unique key is author + site + workday. Never promise a
   // second report or overwrite an approved one; corrections go to the office.
+  type RapportinoEsistente = {
+    id: string; created_at: string; stato: string | null; motivo_rifiuto: string | null;
+    descrizione_lavori: string | null; ore_lavorate: number | null; ore_straordinario: number | null;
+    foto_urls: string[] | null; fasi_lavorate: { phase_id: string; percentuale: number }[] | null;
+    presenze: { employee_id?: string; subappaltatore_id?: string; ore?: number }[] | null;
+    materiali_usati: { nome: string; quantita: number; unita?: string; order_item_id?: string }[] | null;
+    meteo: string | null; percentuale_avanzamento: number | null;
+  };
   const { data: rapportinoGiaOggi } = useQuery({
     queryKey: ["campo-rapportino-gia-oggi", companyId, orderId, user?.id, workDay],
     enabled: !!companyId && !!orderId && !!user?.id && validWorkDay(workDay),
     staleTime: 30_000,
-    queryFn: async (): Promise<{ id: string; created_at: string } | null> => {
+    queryFn: async (): Promise<RapportinoEsistente | null> => {
       const { data, error } = await supabase
         .from("campo_rapportini")
-        .select("id, created_at")
+        .select("id, created_at, stato, motivo_rifiuto, descrizione_lavori, ore_lavorate, ore_straordinario, foto_urls, fasi_lavorate, presenze, materiali_usati, meteo, percentuale_avanzamento")
         .eq("order_id", orderId!)
         .eq("user_id", user!.id)
         .eq("company_id", companyId!)
@@ -274,9 +288,16 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
         .order("created_at", { ascending: false })
         .limit(1);
       if (error) throw error;
-      return (data?.[0] as { id: string; created_at: string } | undefined) ?? null;
+      return (data?.[0] as unknown as RapportinoEsistente | undefined) ?? null;
     },
   });
+  // Un rapportino RESPINTO (o rimasto in bozza) si corregge e si rimanda; uno inviato o approvato no.
+  const daRifare = !!rapportinoGiaOggi && (rapportinoGiaOggi.stato === "rifiutato" || rapportinoGiaOggi.stato === "bozza");
+  const bloccatoDaEsistente = !!rapportinoGiaOggi && !daRifare;
+  // Il respinto si rimanda anche oltre la scadenza: è l'ufficio che lo ha chiesto.
+  const dayAllowed = dayAllowedBase || daRifare;
+  const giornoOk = () => daRifare || reportDayAllowed(workDay);
+  const controllaGiorno = () => { if (!daRifare) assertReportDay(workDay); };
 
   const dayTime = useCampoDayTime(user?.id, companyId, workDay);
   const siteTime = dayTime.summary.byOrder.get(orderId ?? "");
@@ -298,6 +319,55 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
       return data as { ore: number; da: string };
     },
   });
+  // Il rapportino respinto si riapre già compilato: nessuno deve riscrivere la giornata da zero.
+  const riapertoFatto = useRef(false);
+  const presenzeRiapertoFatto = useRef(false);
+  useEffect(() => {
+    if (!daRifare || !rapportinoGiaOggi || riapertoFatto.current) return;
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled || riapertoFatto.current) return;
+      riapertoFatto.current = true;
+      const r = rapportinoGiaOggi;
+      setDescrizione(r.descrizione_lavori ?? "");
+      if (r.meteo) { setMeteo(r.meteo); meteoModificato.current = true; }
+      if (r.ore_lavorate != null) { oreModificate.current = true; setOreLavorate(Number(r.ore_lavorate)); }
+      setOreStraordinario(Number(r.ore_straordinario) || 0);
+      setPercentuale(Number(r.percentuale_avanzamento) || 0);
+      const foto = Array.isArray(r.foto_urls) ? r.foto_urls.filter((u): u is string => typeof u === "string") : [];
+      setFotoUrls(foto);
+      setFotoPreviews(foto);
+      if (Array.isArray(r.fasi_lavorate)) {
+        setFasiDichiarate(Object.fromEntries(r.fasi_lavorate.filter(f => f?.phase_id).map(f => [f.phase_id, Number(f.percentuale) || 0])));
+      }
+      if (Array.isArray(r.materiali_usati)) {
+        setMaterialiSel(Object.fromEntries(r.materiali_usati.map((m, i) => [
+          m.order_item_id ?? `libero_${i}`,
+          { nome: m.nome, quantita: Number(m.quantita) || 1, unita: m.unita },
+        ])));
+      }
+    });
+    return () => { cancelled = true; };
+  }, [daRifare, rapportinoGiaOggi]);
+  useEffect(() => {
+    // Le presenze si agganciano alle persone della squadra, che arriva dopo.
+    if (!daRifare || !rapportinoGiaOggi || presenzeRiapertoFatto.current || squadra.length === 0) return;
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (cancelled || presenzeRiapertoFatto.current) return;
+      presenzeRiapertoFatto.current = true;
+      const salvate = Array.isArray(rapportinoGiaOggi.presenze) ? rapportinoGiaOggi.presenze : [];
+      if (salvate.length === 0) return;
+      const next: Record<string, CampoHoursDraft> = {};
+      for (const p of salvate) {
+        const m = squadra.find(x => (p.employee_id && x.employee_id === p.employee_id) || (p.subappaltatore_id && x.subappaltatore_id === p.subappaltatore_id));
+        if (m) next[m.key] = Number(p.ore) > 0 ? Number(p.ore) : "";
+      }
+      setPresenzeSel(next);
+    });
+    return () => { cancelled = true; };
+  }, [daRifare, rapportinoGiaOggi, squadra]);
+
   // Azienda in cui il rapportino lo fa il capocantiere: l'operaio timbra e scrive
   // descrizione, foto, materiali, ma non le ore. Solo se il cantiere ha davvero
   // un capo (altrimenti nessuno le scriverebbe) e salvo «oggi il capo non c'era».
@@ -395,7 +465,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   // ── Upload foto ──────────────────────────────────────────────────────
   const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
-    if (!reportDayAllowed(workDay)) { toast.error(REPORT_DEADLINE_MESSAGE); return; }
+    if (!giornoOk()) { toast.error(REPORT_DEADLINE_MESSAGE); return; }
     if (!profile?.company_id || !orderId) {
       toast.error("Sessione non pronta, riprova");
       return;
@@ -419,7 +489,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
       try {
         // Comprimi: se il browser fallisce qualsiasi step, carica il file originale
         const compressed = await compressImage(file).catch((): null => null);
-        assertReportDay(workDay);
+        controllaGiorno();
         const payload: Blob = compressed ?? file;
 
         const path = `${profile.company_id}/${orderId}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
@@ -458,9 +528,9 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   // ── Salvataggio ──────────────────────────────────────────────────────
   const { mutate: salva, isPending: saving } = useMutation({
     mutationFn: async () => {
-      assertReportDay(workDay);
+      controllaGiorno();
       if (sessioneDaChiudere && !oreNonMie) throw new Error("Timbra prima l’uscita da questo cantiere, poi conferma le ore del rapportino.");
-      if (rapportinoGiaOggi) throw new Error("Esiste già un rapportino per questo cantiere e questa giornata. Per correggerlo contatta l’ufficio.");
+      if (bloccatoDaEsistente) throw new Error("Esiste già un rapportino per questo cantiere e questa giornata. Per correggerlo contatta l’ufficio.");
       if (!companyId || !orderId || !user?.id) {
         throw new Error("Sessione non pronta, ricarica la pagina");
       }
@@ -487,7 +557,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
       let firmaOperaioUrl: string | null = null;
       const ts = Date.now();
       const uploadFirma = async (dataUrl: string, suffix: string): Promise<string> => {
-        assertReportDay(workDay);
+        controllaGiorno();
         const blob = await (await fetch(dataUrl)).blob();
         const path = `${companyId}/${orderId}/firme/${ts}_${suffix}.png`;
         const { data: up, error: upErr } = await supabase.storage
@@ -510,60 +580,91 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
         firmaClienteUrl = await uploadFirma(firmaCliente, "cliente");
       }
 
-      // Inserisci rapportino
-      assertReportDay(workDay); // Recheck after permission lookup / slow uploads.
-      const { data: inserted, error } = await supabase
-        .from("campo_rapportini")
-        .insert({
-          company_id: companyId,
-          order_id: orderId,
-          user_id: user.id,
-          role_type: isSubappaltatore ? "subcontractor" : "employee",
-          data_lavoro: workDay,
-          ore_lavorate: orePayload,
-          ore_straordinario: !oreNonMie && oreStraordinario > 0 ? oreStraordinario : 0,
-          descrizione_lavori: descrizione || null,
-          foto_urls: fotoUrls,
-          lavoro_completato,
-          percentuale_avanzamento: percentuale,
-          gps_lat: lat || null,
-          gps_lng: lng || null,
-          gps_accuracy: accuracy || null,
-          meteo: meteo || null,
-          stato: "inviato",
-          // Fasi su cui l'operaio ha lavorato: se non ne dichiara, payload invariato
-          ...(fasiLavorate.length > 0 ? { fasi_lavorate: fasiLavorate } : {}),
-          // Squadra del giorno (solo capocantiere): chi c'era e quante ore.
-          // I subappaltatori sono presenza registrata, non costo orario.
-          ...(faSquadra && Object.keys(presenzeSel).length > 0
-            ? {
-                presenze: squadra
-                  .filter(m => m.key in presenzeSel)
-                  .map(m => ({
-                    ...(m.employee_id ? { employee_id: m.employee_id } : {}),
-                    ...(m.subappaltatore_id ? { subappaltatore_id: m.subappaltatore_id } : {}),
-                    nome: m.nome,
-                    ore: presenzeSel[m.key],
-                  })),
-              }
-            : {}),
-          // Materiali confermati oggi (facoltativi): stesso formato del vocale
-          ...(materialiPayload.length > 0 ? { materiali_usati: materialiPayload } : {}),
-          // Firma dell'autore su qualunque rapportino; firma cliente solo fine lavori
-          ...(firmaOperaioUrl ? { firma_operaio_url: firmaOperaioUrl } : {}),
-          ...(lavoro_completato && firmaClienteUrl
-            ? {
-                firma_cliente_url: firmaClienteUrl,
-                firma_cliente_nome: firmaClienteNome.trim(),
-                firma_cliente_at: new Date().toISOString(),
-              }
-            : {}),
-        })
-        .select("id")
-        .single();
+      // Inserisci rapportino — oppure, se l'ufficio lo aveva respinto, aggiorna lo stesso e rimandalo
+      controllaGiorno(); // Recheck after permission lookup / slow uploads.
+      const presenzeDaInviare = faSquadra && Object.keys(presenzeSel).length > 0
+        ? squadra
+            .filter(m => m.key in presenzeSel)
+            .map(m => ({
+              ...(m.employee_id ? { employee_id: m.employee_id } : {}),
+              ...(m.subappaltatore_id ? { subappaltatore_id: m.subappaltatore_id } : {}),
+              nome: m.nome,
+              ore: presenzeSel[m.key],
+            }))
+        : null;
+      const campi = {
+        ore_lavorate: orePayload,
+        ore_straordinario: !oreNonMie && oreStraordinario > 0 ? oreStraordinario : 0,
+        descrizione_lavori: descrizione || null,
+        foto_urls: fotoUrls,
+        lavoro_completato,
+        percentuale_avanzamento: percentuale,
+        gps_lat: lat || null,
+        gps_lng: lng || null,
+        gps_accuracy: accuracy || null,
+        meteo: meteo || null,
+        stato: "inviato",
+      };
+      // Firma dell'autore su qualunque rapportino; firma cliente solo fine lavori
+      const firme = {
+        ...(firmaOperaioUrl ? { firma_operaio_url: firmaOperaioUrl } : {}),
+        ...(lavoro_completato && firmaClienteUrl
+          ? {
+              firma_cliente_url: firmaClienteUrl,
+              firma_cliente_nome: firmaClienteNome.trim(),
+              firma_cliente_at: new Date().toISOString(),
+            }
+          : {}),
+      };
+      let inserted: { id: string };
+      if (daRifare && rapportinoGiaOggi) {
+        const { data: aggiornato, error: updError } = await supabase
+          .from("campo_rapportini")
+          .update({
+            ...campi,
+            motivo_rifiuto: null,
+            pdf_url: null,
+            approvato: false,
+            // Sul rimando si riscrive tutto quello che l'operaio vede nel modulo
+            fasi_lavorate: fasiLavorate,
+            presenze: presenzeDaInviare ?? [],
+            materiali_usati: materialiPayload,
+            ...firme,
+          })
+          .eq("id", rapportinoGiaOggi.id)
+          .eq("user_id", user.id)
+          .in("stato", ["rifiutato", "bozza"])
+          .select("id")
+          .maybeSingle();
+        if (updError) throw updError;
+        if (!aggiornato) throw new Error("Il rapportino è cambiato nel frattempo: ricarica la pagina e riprova.");
+        inserted = aggiornato;
+      } else {
+        const { data: nuovo, error } = await supabase
+          .from("campo_rapportini")
+          .insert({
+            company_id: companyId,
+            order_id: orderId,
+            user_id: user.id,
+            role_type: isSubappaltatore ? "subcontractor" : "employee",
+            data_lavoro: workDay,
+            ...campi,
+            // Fasi su cui l'operaio ha lavorato: se non ne dichiara, payload invariato
+            ...(fasiLavorate.length > 0 ? { fasi_lavorate: fasiLavorate } : {}),
+            // Squadra del giorno (solo capocantiere): chi c'era e quante ore.
+            // I subappaltatori sono presenza registrata, non costo orario.
+            ...(presenzeDaInviare ? { presenze: presenzeDaInviare } : {}),
+            // Materiali confermati oggi (facoltativi): stesso formato del vocale
+            ...(materialiPayload.length > 0 ? { materiali_usati: materialiPayload } : {}),
+            ...firme,
+          })
+          .select("id")
+          .single();
 
-      if (error?.code === "23505") throw new Error("Rapportino già presente per questa giornata. Apri lo storico del cantiere; non è stato creato un doppione.");
-      if (error) throw error;
+        if (error?.code === "23505") throw new Error("Rapportino già presente per questa giornata. Apri lo storico del cantiere; non è stato creato un doppione.");
+        if (error) throw error;
+        inserted = nuovo;
+      }
 
       // Le fasi dichiarate NON si applicano qui: l'avanzamento si muove
       // all'APPROVAZIONE del rapportino (OrdineRapportiniCampo). Prima si
@@ -591,6 +692,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
               foto_count: fotoUrls.length,
               descrizione_lavori: descrizione || null,
               origine: "app_campo",
+              ...(daRifare ? { rinviato: true } : {}),
             },
           } as never)
           .then(({ error: eventError }) => {
@@ -664,7 +766,9 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
               p_type: "rapportino_inviato",
               p_title: lavoro_completato
                 ? `Rapporto di fine lavori firmato dal cliente — ${orderCode}`
-                : `Nuovo rapportino da approvare — ${orderCode}`,
+                : daRifare
+                  ? `Rapportino corretto, da approvare — ${orderCode}`
+                  : `Nuovo rapportino da approvare — ${orderCode}`,
               p_body: lavoro_completato
                 ? `${firmaClienteNome.trim() || "Il cliente"} ha firmato il rapporto di fine lavori inviato da ${actorLabel}.`
                 : `${actorLabel} ha inviato un rapportino di ${orePayload}h${oreStraordinario > 0 ? ` (+${oreStraordinario}h straordinario)` : ""}.`,
@@ -681,7 +785,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
     },
     onSuccess: () => {
       navigator.vibrate?.([10, 50, 10]);
-      toast.success("Rapportino inviato!");
+      toast.success(daRifare ? "Rapportino rimandato!" : "Rapportino inviato!");
       queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", orderId] });
       // Header dettaglio lavoro: la % ordine è ricalcolata dal trigger DB
       queryClient.invalidateQueries({ queryKey: ["campo-lavoro", orderId] });
@@ -716,7 +820,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   const isUltimoStep = step >= totalSteps;
 
   const goNext = () => {
-    if (!reportDayAllowed(workDay)) { toast.error(REPORT_DEADLINE_MESSAGE); return; }
+    if (!giornoOk()) { toast.error(REPORT_DEADLINE_MESSAGE); return; }
     if (step < totalSteps) setStep(s => s + 1);
     else salva();
   };
@@ -747,231 +851,13 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
     setStep(s => s - 1);
   };
 
-  const METEO_OPTIONS = [
-    { value: "soleggiato", emoji: "☀️", label: "Sole" },
-    { value: "nuvoloso", emoji: "☁️", label: "Nuvolo" },
-    { value: "pioggia", emoji: "🌧️", label: "Pioggia" },
-    { value: "neve", emoji: "❄️", label: "Neve" },
-    { value: "vento", emoji: "💨", label: "Vento" },
-  ];
-
-  return (
-    <div className="mx-auto w-full max-w-3xl flex flex-col bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-background px-3 py-3 shadow-sm md:px-4">
-        <button
-          onClick={goBack}
-          aria-label="Indietro nel rapportino"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted active:bg-muted"
-        >
-          <ArrowLeft className="w-5 h-5 text-foreground" />
-        </button>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold text-muted-foreground">Rapportino — Passo {step} di {totalSteps}</p>
-          <RapportinoSiteContext orderId={orderId} companyId={companyId} />
-          <p className="mt-1 text-xs font-semibold">Giornata del {dayLabel}</p>
-          <div className="mt-2 h-1.5 w-full rounded-full bg-muted">
-            <div
-              className="h-1.5 rounded-full bg-primary transition-all duration-300"
-              style={{ width: `${(step / totalSteps) * 100}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Contenuto — spacing denso su mobile (regola no-spazio-vuoto) */}
-      <div className="space-y-3 px-3 py-3 md:space-y-4 md:px-4 md:py-5">
-        {!dayAllowed && <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm">{REPORT_DEADLINE_MESSAGE} I dati compilati restano visibili, ma non vengono spostati a oggi.</p>}
-        {rapportinoGiaOggi && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Esiste già un rapportino per questa giornata. Non ne viene creato un altro: per integrazioni o correzioni contatta l’ufficio.
-        </p>}
-
-        {/* ── Step 1: Descrizione ── */}
-        {step === 1 && (
-          <>
-            <div className="space-y-2 rounded-xl border bg-muted/40 p-3">
-              <label htmlFor="rapportino-giornata" className="text-sm font-semibold">Giornata di lavoro</label>
-              <select id="rapportino-giornata" value={workDay} disabled={saving || uploadingFoto}
-                onChange={e => {
-                  if (datiInseriti && !window.confirm("Cambiare giornata cancella i dati di questo modulo. Vuoi continuare?")) return;
-                  const next = new URLSearchParams(params); next.set("data", e.target.value); setParams(next, { replace: true });
-                }} className="h-12 w-full min-w-0 rounded-lg border bg-background px-3 text-base">
-                {!dayAllowed && <option value={workDay}>{dayLabel} — non inviabile</option>}
-                <option value={today}>Oggi · {format(new Date(`${today}T12:00:00`), "dd/MM/yyyy")}</option>
-                <option value={yesterday}>Ieri · {format(new Date(`${yesterday}T12:00:00`), "dd/MM/yyyy")}</option>
-              </select>
-              <p className="text-xs text-muted-foreground">{dayAllowed ? workDay === yesterday ? "Da inviare entro oggi alle 23:59." : "Da inviare entro domani alle 23:59." : "Giornata fuori termine."} Ora italiana. Un rapportino per autore, cantiere e giornata.</p>
-            </div>
-            <h2 className="text-lg font-black text-foreground md:text-xl">{workDay === today ? "Cosa hai fatto oggi?" : "Cosa hai fatto in questa giornata?"}</h2>
-            <textarea
-              className="w-full resize-none rounded-2xl border border-border bg-muted/60 px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-              rows={5}
-              placeholder="Es: Ho installato il telaio finestra al piano primo, sigillato con schiuma poliuretanica..."
-              value={descrizione}
-              onChange={e => setDescrizione(e.target.value)}
-            />
-            <div>
-              <p className="mb-2 text-sm font-semibold text-muted-foreground">Condizioni meteo</p>
-              <div className="grid grid-cols-5 gap-2">
-                {METEO_OPTIONS.map(m => (
-                  <button
-                    key={m.value}
-                    onClick={() => { meteoModificato.current = true; setMeteo(meteo === m.value ? "" : m.value); }}
-                    className={`flex min-h-12 flex-col items-center justify-center rounded-xl border p-2 transition-all ${
-                      meteo === m.value
-                        ? "bg-primary/10 border-primary/40"
-                        : "bg-muted border-border"
-                    }`}
-                  >
-                    <span className="text-lg">{m.emoji}</span>
-                    <span className="text-[10px] font-medium text-muted-foreground">{m.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            {/* Ore del solo cantiere: proposta verificabile, mai 8 ore implicite. */}
-            {sessioneDaChiudere && !oreNonMie && <div role="status" className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              <p>La timbratura è ancora aperta su questo cantiere. Prima dell’invio registra l’uscita: le ore non sono ancora definitive.</p>
-              <button type="button" className="min-h-11 underline" onClick={() => {
-                if (datiInseriti && !window.confirm("Aprire la timbratura lascia questo modulo. I dati non inviati andranno persi. Continuare?")) return;
-                navigate(`/campo/timbratura?order_id=${orderId}`);
-              }}>Vai a timbrare l’uscita</button>
-            </div>}
-            {oreNonMie ? (
-              <div role="status" className="space-y-2 rounded-2xl border bg-background p-4 shadow-sm">
-                <p className="text-sm font-semibold">Le tue ore le registra il capocantiere</p>
-                <p className="text-xs text-muted-foreground">
-                  {oreRegistrateDalCapo
-                    ? `${oreGiaRegistrate?.da || "Il tuo capo"} ha già segnato le tue ore di questa giornata (${oreInTesto(Number(oreGiaRegistrate?.ore) || 0)}). Non vanno scritte due volte: qui aggiungi descrizione, foto e materiali.`
-                    : "In questa azienda il rapportino del cantiere lo fa il capocantiere. Tu timbri entrata e uscita; qui puoi aggiungere descrizione, foto e materiali."}
-                </p>
-                <button type="button" className="min-h-11 text-sm text-primary underline" onClick={() => setOreMieForzate(true)}>
-                  {oreRegistrateDalCapo
-                    ? "Ho fatto altre ore, non comprese in queste"
-                    : "Oggi il capocantiere non c’era? Scrivo io le mie ore"}
-                </button>
-              </div>
-            ) : (
-            <div className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
-              <div>
-                {oreRegistrateDalCapo && (
-                  <p role="status" className="mb-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">
-                    {oreGiaRegistrate?.da || "Il tuo capo"} ha già segnato {oreInTesto(Number(oreGiaRegistrate?.ore) || 0)} per te in questa giornata:
-                    scrivi qui solo le ore in più, non quelle già segnate.
-                  </p>
-                )}
-                <label htmlFor="ore-cantiere" className="text-sm font-semibold">Ore ordinarie su questo cantiere</label>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {dayTime.isError ? "Timbrature non disponibili: inserisci le ore oppure riprova." :
-                    anomalieTimbrature ? "Ci sono timbrature da verificare: indica le ore effettive." :
-                    oreRilevate != null ? `Rilevate ${oreRilevate} h, pause escluse${siteTime?.provisional ? " · sessione ancora aperta" : ""}. Verifica prima di inviare.` :
-                    "Nessuna ora attribuita da proporre. Per sole foto o note, indica 0."}
-                </p>
-                {dayTime.isError && <button type="button" className="mt-2 min-h-11 text-sm text-primary underline" onClick={() => dayTime.refetch()}>Riprova timbrature</button>}
-                <div className="mt-3 flex items-center gap-3">
-                  <button type="button" aria-label="Riduci ore ordinarie"
-                    onClick={() => modificaOre(Math.max(0, Math.round(((oreLavorate === "" ? 0 : oreLavorate) - 0.5) * 10) / 10))}
-                    className="h-11 w-11 shrink-0 rounded-xl bg-muted flex items-center justify-center">
-                    <Minus className="w-4 h-4" />
-                  </button>
-                  <input id="ore-cantiere" type="number" min={0} max={24} step={0.1} inputMode="decimal"
-                    value={oreLavorate} placeholder="Da indicare"
-                    onChange={e => modificaOre(e.target.value === "" ? "" : Number(e.target.value))}
-                    className="min-w-0 w-full h-11 rounded-xl border bg-background px-3 text-center text-base" />
-                  <span className="text-sm text-muted-foreground">h</span>
-                  <button type="button" aria-label="Aumenta ore ordinarie"
-                    onClick={() => modificaOre(Math.min(24, Math.round(((oreLavorate === "" ? 0 : oreLavorate) + 0.5) * 10) / 10))}
-                    className="h-11 w-11 shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center">
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              <div className="border-t border-border pt-3">
-                <p className="mb-2 text-xs text-muted-foreground">Sono ore aggiuntive: se incluse nelle ore rilevate, sottraile dalle ordinarie qui sopra.</p>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm text-muted-foreground">Ore straordinario</p>
-                  <span className="text-primary font-bold">{oreStraordinario}h</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setOreStraordinario(o => Math.max(0, o - 0.5))}
-                    className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"
-                  >
-                    <Minus className="w-4 h-4 text-foreground" />
-                  </button>
-                  <input
-                    type="range"
-                    min={0}
-                    max={6}
-                    step={0.5}
-                    value={oreStraordinario}
-                    onChange={e => setOreStraordinario(Number(e.target.value))}
-                    className="flex-1 accent-primary"
-                  />
-                  <button
-                    onClick={() => setOreStraordinario(o => Math.min(6, o + 0.5))}
-                    className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center"
-                  >
-                    <Plus className="w-4 h-4 text-primary-foreground" />
-                  </button>
-                </div>
-              </div>
-            </div>
-            )}
-
-            <div className="rounded-2xl border bg-background p-4 shadow-sm">
-              <p className="mb-2 text-sm font-semibold text-muted-foreground">Foto cantiere</p>
-              <label className="block w-full">
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  multiple
-                  className="hidden"
-                  onChange={handleFotoChange}
-                  disabled={uploadingFoto || !dayAllowed || !!rapportinoGiaOggi}
-                />
-                <div className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-border bg-muted/60 p-6 transition-colors active:border-primary">
-                  {uploadingFoto ? (
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  ) : (
-                    <>
-                      <Camera className="w-8 h-8 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">Scatta o scegli foto</span>
-                    </>
-                  )}
-                </div>
-              </label>
-              {fotoPreviews.length > 0 && (
-                <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
-                  {fotoPreviews.map((p, i) => (
-                    <div key={i} className="relative">
-                      <img loading="lazy" src={p} className="aspect-square w-full rounded-xl object-cover" alt="preview" />
-                      <button
-                        onClick={() => {
-                          setFotoPreviews(prev => prev.filter((_, idx) => idx !== i));
-                          setFotoUrls(prev => prev.filter((_, idx) => idx !== i));
-                        }}
-                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
-                      >
-                        <X className="w-3 h-3 text-white" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* ── Step 2 (a): fasi, squadra e materiali del cantiere ── */}
-        {step === 2 && (
-          <>
-            <h2 className="text-lg font-black text-foreground md:text-xl">Conferma e firma</h2>
-
+  // Blocchi riusati: nel passo 2 per chi gestisce il cantiere, dentro «Altro da segnalare» per
+  // l'operaio con un capo (che racconta solo la sua giornata).
+  const bloccoAvanzamento = (
+    <>
             {/* Avanzamento generale SOLO senza fasi: con le fasi la % commessa
                 è derivata dal DB, chiederla di nuovo qui confonde. */}
-            {fasiCommessa.length === 0 && (
+            {fasiCommessa.length === 0 && puoDichiararePercentuali && (
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm text-muted-foreground">Avanzamento lavori</p>
@@ -994,6 +880,10 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
               </div>
             )}
 
+    </>
+  );
+  const bloccoSquadra = (
+    <>
             {/* ── Squadra del giorno: il capocantiere per tutto il cantiere,
                 il caposquadra per la sua squadra ── */}
             {faSquadra && squadra.length > 0 && (() => {
@@ -1070,9 +960,24 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                 </div>
                 {Object.keys(presenzeSel).length > 0 && (
                   <p role="status" className="mt-3 rounded-lg bg-primary/5 p-3 text-xs text-muted-foreground">
-                    Il costo della squadra usa le presenze selezionate, non le ore personali del passo 1.
+                    Il costo della squadra usa queste presenze.
                     Se hai lavorato anche tu, seleziona anche il tuo nome.
                   </p>
+                )}
+                {Object.keys(presenzeSel).length > 1 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Stesse ore per tutti:</span>
+                    {[4, 6, 8].map(h => (
+                      <button
+                        key={h}
+                        type="button"
+                        onClick={() => setPresenzeSel(prev => Object.fromEntries(Object.keys(prev).map(k => [k, h])))}
+                        className="min-h-11 rounded-full border border-border bg-muted px-4 text-sm font-semibold"
+                      >
+                        {h} h
+                      </button>
+                    ))}
+                  </div>
                 )}
                 {squadra.filter(m => m.key in presenzeSel).map(m => {
                   const diff = scostamento(presenzeSel[m.key], m.ore_timbrate, regole.avvisoScostamentoMinuti);
@@ -1120,6 +1025,10 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
               );
             })()}
 
+    </>
+  );
+  const bloccoFasi = (
+    <>
             {/* ── Fasi lavorate (solo se la commessa ha fasi non completate) ── */}
             {fasiDichiarabili.length > 0 && (
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
@@ -1196,6 +1105,10 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
               </div>
             )}
 
+    </>
+  );
+  const bloccoMateriali = (
+    <>
             {/* ── Materiali usati oggi (facoltativo) ── */}
             <div className="rounded-2xl border bg-background p-4 shadow-sm">
               <p className="text-sm font-semibold text-foreground">{workDay === today ? "Materiali usati oggi" : "Materiali usati nella giornata"}</p>
@@ -1294,14 +1207,238 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
               </div>
             </div>
 
-            {/* ── Mezzi e attrezzi di oggi: usati e dove restano stasera ── */}
-            {orderId && <MezziFineGiornata orderId={orderId} valori={mezziSel} onChange={setMezziSel} />}
+    </>
+  );
+  const bloccoMezzi = orderId ? <MezziFineGiornata orderId={orderId} valori={mezziSel} onChange={setMezziSel} /> : null;
+  const bloccoStraordinario = (
+              <div className={semplice ? "rounded-xl border bg-muted/30 p-3" : "border-t border-border pt-3"}>
+                <p className="mb-2 text-xs text-muted-foreground">Sono ore aggiuntive: se incluse nelle ore rilevate, sottraile dalle ordinarie qui sopra.</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-muted-foreground">Ore straordinario</p>
+                  <span className="text-primary font-bold">{oreStraordinario}h</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setOreStraordinario(o => Math.max(0, o - 0.5))}
+                    className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center"
+                  >
+                    <Minus className="w-4 h-4 text-foreground" />
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={6}
+                    step={0.5}
+                    value={oreStraordinario}
+                    onChange={e => setOreStraordinario(Number(e.target.value))}
+                    className="flex-1 accent-primary"
+                  />
+                  <button
+                    onClick={() => setOreStraordinario(o => Math.min(6, o + 0.5))}
+                    className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center"
+                  >
+                    <Plus className="w-4 h-4 text-primary-foreground" />
+                  </button>
+                </div>
+              </div>
+  );
+  // Chi fa la squadra dichiara le ore con le presenze: le sue ore personali compaiono solo se in cantiere non c'è nessuno da segnare.
+  const mostraOrePersonali = !faSquadra || (!squadraLoading && squadra.length === 0);
 
+  return (
+    <div className="mx-auto w-full max-w-3xl flex flex-col bg-background">
+      {/* Header */}
+      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-background px-3 py-3 shadow-sm md:px-4">
+        <button
+          onClick={goBack}
+          aria-label="Indietro nel rapportino"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted active:bg-muted"
+        >
+          <ArrowLeft className="w-5 h-5 text-foreground" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-muted-foreground">{totalSteps === 1 ? "Rapportino" : `Rapportino — Passo ${step} di ${totalSteps}`}</p>
+          <RapportinoSiteContext orderId={orderId} companyId={companyId} />
+          <p className="mt-1 text-xs font-semibold">Giornata del {dayLabel}</p>
+          <div className={`mt-2 h-1.5 w-full rounded-full bg-muted ${totalSteps === 1 ? "hidden" : ""}`}>
+            <div
+              className="h-1.5 rounded-full bg-primary transition-all duration-300"
+              style={{ width: `${(step / totalSteps) * 100}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Contenuto — spacing denso su mobile (regola no-spazio-vuoto) */}
+      <div className="space-y-3 px-3 py-3 md:space-y-4 md:px-4 md:py-5">
+        {!dayAllowed && <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm">{REPORT_DEADLINE_MESSAGE} I dati compilati restano visibili, ma non vengono spostati a oggi.</p>}
+        {daRifare && <div role="status" className="space-y-1 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+          <p className="font-semibold">{rapportinoGiaOggi?.stato === "bozza" ? "Questo rapportino è rimasto in bozza" : "L’ufficio ha respinto questo rapportino"}</p>
+          {rapportinoGiaOggi?.motivo_rifiuto?.trim() && <p>Motivo: {rapportinoGiaOggi.motivo_rifiuto.trim()}</p>}
+          <p>È già compilato: correggi quello che serve e {rapportinoGiaOggi?.stato === "bozza" ? "invialo" : "rimandalo"}.</p>
+        </div>}
+        {bloccatoDaEsistente && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Esiste già un rapportino per questa giornata. Non ne viene creato un altro: per integrazioni o correzioni contatta l’ufficio.
+        </p>}
+
+        {/* ── Step 1: Descrizione ── */}
+        {step === 1 && (
+          <>
+            <div className="space-y-2 rounded-xl border bg-muted/40 p-3">
+              <label htmlFor="rapportino-giornata" className="text-sm font-semibold">Giornata di lavoro</label>
+              <select id="rapportino-giornata" value={workDay} disabled={saving || uploadingFoto}
+                onChange={e => {
+                  if (datiInseriti && !window.confirm("Cambiare giornata cancella i dati di questo modulo. Vuoi continuare?")) return;
+                  const next = new URLSearchParams(params); next.set("data", e.target.value); setParams(next, { replace: true });
+                }} className="h-12 w-full min-w-0 rounded-lg border bg-background px-3 text-base">
+                {!dayAllowed && <option value={workDay}>{dayLabel} — non inviabile</option>}
+                <option value={today}>Oggi · {format(new Date(`${today}T12:00:00`), "dd/MM/yyyy")}</option>
+                <option value={yesterday}>Ieri · {format(new Date(`${yesterday}T12:00:00`), "dd/MM/yyyy")}</option>
+              </select>
+              <p className="text-xs text-muted-foreground">{dayAllowed ? workDay === yesterday ? "Da inviare entro oggi alle 23:59." : "Da inviare entro domani alle 23:59." : "Giornata fuori termine."} Ora italiana. Un rapportino per autore, cantiere e giornata.</p>
+            </div>
+            {faSquadra && squadraLoading && <p role="status" className="text-sm text-muted-foreground">Carico chi c’era in cantiere…</p>}
+            {bloccoSquadra}
+            <h2 className="text-lg font-black text-foreground md:text-xl">{workDay === today ? "Cosa hai fatto oggi?" : "Cosa hai fatto in questa giornata?"}</h2>
+            <textarea
+              className="w-full resize-none rounded-2xl border border-border bg-muted/60 px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+              rows={5}
+              placeholder="Es: Ho installato il telaio finestra al piano primo, sigillato con schiuma poliuretanica..."
+              value={descrizione}
+              onChange={e => setDescrizione(e.target.value)}
+            />
+            {/* Il meteo non si sceglie: si compila da solo dalle previsioni del cantiere (vedi sopra). Se uno lo scrive nella descrizione va bene. */}
+            {/* Ore del solo cantiere: proposta verificabile, mai 8 ore implicite. */}
+            {sessioneDaChiudere && !oreNonMie && <div role="status" className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <p>La timbratura è ancora aperta su questo cantiere. Prima dell’invio registra l’uscita: le ore non sono ancora definitive.</p>
+              <button type="button" className="min-h-11 underline" onClick={() => {
+                if (datiInseriti && !window.confirm("Aprire la timbratura lascia questo modulo. I dati non inviati andranno persi. Continuare?")) return;
+                navigate(`/campo/timbratura?order_id=${orderId}`);
+              }}>Vai a timbrare l’uscita</button>
+            </div>}
+            {oreNonMie ? (
+              <div role="status" className="space-y-2 rounded-2xl border bg-background p-4 shadow-sm">
+                <p className="text-sm font-semibold">Le tue ore le registra il capocantiere</p>
+                <p className="text-xs text-muted-foreground">
+                  {oreRegistrateDalCapo
+                    ? `${oreGiaRegistrate?.da || "Il tuo capo"} ha già segnato le tue ore di questa giornata (${oreInTesto(Number(oreGiaRegistrate?.ore) || 0)}). Non vanno scritte due volte: qui aggiungi descrizione, foto e materiali.`
+                    : "In questa azienda il rapportino del cantiere lo fa il capocantiere. Tu timbri entrata e uscita; qui puoi aggiungere descrizione, foto e materiali."}
+                </p>
+                <button type="button" className="min-h-11 text-sm text-primary underline" onClick={() => setOreMieForzate(true)}>
+                  {oreRegistrateDalCapo
+                    ? "Ho fatto altre ore, non comprese in queste"
+                    : "Oggi il capocantiere non c’era? Scrivo io le mie ore"}
+                </button>
+              </div>
+            ) : mostraOrePersonali ? (
+            <div className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
+              <div>
+                {oreRegistrateDalCapo && (
+                  <p role="status" className="mb-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">
+                    {oreGiaRegistrate?.da || "Il tuo capo"} ha già segnato {oreInTesto(Number(oreGiaRegistrate?.ore) || 0)} per te in questa giornata:
+                    scrivi qui solo le ore in più, non quelle già segnate.
+                  </p>
+                )}
+                <label htmlFor="ore-cantiere" className="text-sm font-semibold">Ore ordinarie su questo cantiere</label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {dayTime.isError ? "Timbrature non disponibili: inserisci le ore oppure riprova." :
+                    anomalieTimbrature ? "Ci sono timbrature da verificare: indica le ore effettive." :
+                    oreRilevate != null ? `Rilevate ${oreRilevate} h, pause escluse${siteTime?.provisional ? " · sessione ancora aperta" : ""}. Verifica prima di inviare.` :
+                    "Nessuna ora attribuita da proporre. Per sole foto o note, indica 0."}
+                </p>
+                {dayTime.isError && <button type="button" className="mt-2 min-h-11 text-sm text-primary underline" onClick={() => dayTime.refetch()}>Riprova timbrature</button>}
+                <div className="mt-3 flex items-center gap-3">
+                  <button type="button" aria-label="Riduci ore ordinarie"
+                    onClick={() => modificaOre(Math.max(0, Math.round(((oreLavorate === "" ? 0 : oreLavorate) - 0.5) * 10) / 10))}
+                    className="h-11 w-11 shrink-0 rounded-xl bg-muted flex items-center justify-center">
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <input id="ore-cantiere" type="number" min={0} max={24} step={0.1} inputMode="decimal"
+                    value={oreLavorate} placeholder="Da indicare"
+                    onChange={e => modificaOre(e.target.value === "" ? "" : Number(e.target.value))}
+                    className="min-w-0 w-full h-11 rounded-xl border bg-background px-3 text-center text-base" />
+                  <span className="text-sm text-muted-foreground">h</span>
+                  <button type="button" aria-label="Aumenta ore ordinarie"
+                    onClick={() => modificaOre(Math.min(24, Math.round(((oreLavorate === "" ? 0 : oreLavorate) + 0.5) * 10) / 10))}
+                    className="h-11 w-11 shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center">
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              {!semplice && bloccoStraordinario}
+            </div>
+            ) : null}
+
+            <div className="rounded-2xl border bg-background p-4 shadow-sm">
+              <p className="mb-2 text-sm font-semibold text-muted-foreground">Foto cantiere</p>
+              <label className="block w-full">
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleFotoChange}
+                  disabled={uploadingFoto || !dayAllowed || bloccatoDaEsistente}
+                />
+                <div className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-border bg-muted/60 p-6 transition-colors active:border-primary">
+                  {uploadingFoto ? (
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  ) : (
+                    <>
+                      <Camera className="w-8 h-8 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Scatta o scegli dalla galleria</span>
+                    </>
+                  )}
+                </div>
+              </label>
+              {fotoPreviews.length > 0 && (
+                <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                  {fotoPreviews.map((p, i) => (
+                    <div key={i} className="relative">
+                      <img loading="lazy" src={p} className="aspect-square w-full rounded-xl object-cover" alt="preview" />
+                      <button
+                        onClick={() => {
+                          setFotoPreviews(prev => prev.filter((_, idx) => idx !== i));
+                          setFotoUrls(prev => prev.filter((_, idx) => idx !== i));
+                        }}
+                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
+                      >
+                        <X className="w-3 h-3 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {semplice && (
+              <details className="rounded-2xl border bg-background p-4 shadow-sm">
+                <summary className="min-h-11 cursor-pointer text-sm font-semibold">Altro da segnalare (facoltativo)</summary>
+                <p className="mb-3 text-xs text-muted-foreground">Su cosa hai lavorato, materiali, mezzi e straordinario. Avanzamento e firme sono del capocantiere.</p>
+                <div className="space-y-3">
+                  {!oreNonMie && bloccoStraordinario}
+                  {bloccoFasi}
+                  {bloccoMateriali}
+                  {bloccoMezzi}
+                </div>
+              </details>
+            )}
+          </>
+        )}
+
+        {/* ── Step 2 (a): fasi, squadra e materiali del cantiere ── */}
+        {step === 2 && !semplice && (
+          <>
+            <h2 className="text-lg font-black text-foreground md:text-xl">Conferma e firma</h2>
+            {bloccoAvanzamento}
+            {bloccoFasi}
+            {bloccoMateriali}
+            {bloccoMezzi}
           </>
         )}
 
         {/* ── Step 2 (b): riepilogo, fine lavori e firma dell'autore ── */}
-        {step === 2 && (
+        {step === 2 && !semplice && (
           <>
             <h3 className="text-base font-black text-foreground">Riepilogo</h3>
 
@@ -1369,12 +1506,6 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                 <div className="pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground mb-1">Descrizione</p>
                   <p className="text-sm text-foreground">{descrizione}</p>
-                </div>
-              )}
-              {meteo && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Meteo</span>
-                  <span className="text-foreground capitalize">{meteo}</span>
                 </div>
               )}
             </div>
@@ -1456,7 +1587,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
           </button>
           <button
             onClick={goNext}
-            disabled={saving || uploadingFoto || !dayAllowed || !!rapportinoGiaOggi || (isUltimoStep && (firmeMancanti || sessioneDaChiudere))}
+            disabled={saving || uploadingFoto || !dayAllowed || bloccatoDaEsistente || (isUltimoStep && (firmeMancanti || sessioneDaChiudere))}
             className="flex-1 bg-primary text-white font-bold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-60"
           >
             {saving ? (
@@ -1469,7 +1600,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
             ) : (
               <>
                 <Send className="w-5 h-5" />
-                {lavoro_completato ? "Invia fine lavori" : "Invia rapportino"}
+                {lavoro_completato ? "Invia fine lavori" : daRifare ? "Rimanda il rapportino" : "Invia rapportino"}
               </>
             )}
           </button>
