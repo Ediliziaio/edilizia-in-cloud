@@ -252,25 +252,30 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                     className="w-full text-left flex items-center justify-between p-3 bg-muted/30 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                     onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
                   >
-                    <div className="flex items-center gap-3">
-                      <div>
-                        <p className="text-sm font-medium">
-                          {[r.autore?.first_name, r.autore?.last_name].filter(Boolean).join(" ") || "Registrazione manuale"}
-                          <span className="ml-1 text-muted-foreground text-xs">
-                            — {fmtSafeDate(r.data_lavoro, "d MMM yyyy")}
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <div className="min-w-0">
+                        {/* Diario: prima il giorno (è ciò che si cerca), poi chi l'ha scritto. */}
+                        <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                          <span className="whitespace-nowrap font-semibold">{fmtSafeDate(r.data_lavoro, "d MMM yyyy")}</span>
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {[r.autore?.first_name, r.autore?.last_name].filter(Boolean).join(" ") || "Registrazione manuale"}
                           </span>
                         </p>
-                        <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                        {/* Una riga di cosa si è fatto: con la sola data i rapportini sono tutti uguali. */}
+                        {r.descrizione_lavori && expandedId !== r.id && (
+                          <p className="mt-0.5 truncate text-xs text-slate-600">{r.descrizione_lavori}</p>
+                        )}
+                        <div className="flex items-center gap-1 mt-1 flex-wrap">
                           {r.ore_lavorate != null && (
-                            <Badge variant="outline" className="text-[10px] py-0">{r.ore_lavorate}h</Badge>
+                            <Badge variant="outline" className="text-[10px] py-0" title="Ore lavorate">{r.ore_lavorate}h</Badge>
                           )}
                           {r.ore_straordinario > 0 && (
-                            <Badge variant="outline" className="text-[10px] py-0 border-amber-300 text-amber-600">
+                            <Badge variant="outline" className="text-[10px] py-0 border-amber-300 text-amber-600" title="Ore di straordinario">
                               +{r.ore_straordinario}h str.
                             </Badge>
                           )}
                           {r.percentuale_avanzamento != null && (
-                            <Badge variant="outline" className="text-[10px] py-0">{r.percentuale_avanzamento}%</Badge>
+                            <Badge variant="outline" className="text-[10px] py-0" title="Avanzamento dichiarato nel rapportino">{r.percentuale_avanzamento}% avanz.</Badge>
                           )}
                           <StatoBadge stato={stato} />
                           {r.lavoro_completato && (

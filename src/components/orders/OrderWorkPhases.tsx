@@ -255,7 +255,9 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
     <Card className="shadow-none">
       <CardHeader className="gap-4 p-3 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1">
+          {/* Dentro le schede della commessa il titolo ripeterebbe la scheda stessa
+              e la sua descrizione: resta solo per chi usa uno screen reader. */}
+          <div className={cn("space-y-1", view && "sr-only")}>
           <CardTitle className="flex items-center gap-2 text-lg">
             <HardHat className="h-5 w-5 text-primary" />
             {view === "squadra" ? "Squadra e mezzi" : view === "lavorazioni" ? "Lavorazioni" : "Lavori e squadre"}
@@ -263,7 +265,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
           <p className="text-sm text-muted-foreground max-sm:hidden">{view === "squadra" ? "Organizza persone, ditte, mezzi e istruzioni." : "Segui le fasi del lavoro. Apri una fase per gestirne i dettagli."}</p>
           </div>
 
-          {(canEditOrders || puoSquadre) && <div className="flex flex-wrap items-center gap-2">
+          {(canEditOrders || puoSquadre) && <div className={cn("flex flex-wrap items-center gap-2", view && "sm:ml-auto")}>
             {/* Tre cose sole, sempre nello stesso ordine: le fasi, chi lavora,
                 e (a parte) persone e ditte con i costi. */}
             {canEditOrders && showWork && (

@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
+import { formatDateShort } from "@/lib/formatters";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,6 +51,13 @@ interface Props {
   onOpenTasks?: () => void;
 }
 const today = () => new Date().toLocaleDateString("en-CA");
+/** L'esito si legge dal colore: verde ok, ambra con riserve, rosso negativo. */
+const ESITO_CLASSE: Record<string, string> = {
+  positive: "border-emerald-300 bg-emerald-50 text-emerald-800",
+  reserves: "border-amber-300 bg-amber-50 text-amber-800",
+  negative: "border-red-300 bg-red-50 text-red-800",
+  pending: "border-slate-300 bg-slate-50 text-slate-700",
+};
 const selectClass = "h-10 w-full rounded-md border bg-background px-3 text-sm";
 
 export function OrderAcceptanceReports({
@@ -228,8 +237,14 @@ export function OrderAcceptanceReports({
                 <span className="block break-words font-medium">
                   {row.content.title}
                 </span>
-                <span className="text-sm text-muted-foreground">
-                  {row.content.date} · {outcomes[row.content.outcome]}
+                <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                  <span>{formatDateShort(row.content.date)}</span>
+                  <Badge
+                    variant="outline"
+                    className={cn("font-medium", ESITO_CLASSE[row.content.outcome])}
+                  >
+                    Esito: {outcomes[row.content.outcome]}
+                  </Badge>
                 </span>
               </span>
               <Badge variant="outline">

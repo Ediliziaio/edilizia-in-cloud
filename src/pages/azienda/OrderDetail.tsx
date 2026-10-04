@@ -52,7 +52,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
 import { OrderFinancialOverview } from "@/components/orders/OrderFinancialOverview";
-import { OrderHeaderSummary } from "@/components/orders/OrderHeaderSummary";
+import { OrderHeaderSummary, VoceRiepilogo } from "@/components/orders/OrderHeaderSummary";
 import { OrderDetailNavigation } from "@/components/orders/OrderDetailNavigation";
 import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
 import { CantiereViewNav } from "@/components/orders/CantiereViewNav";
@@ -1319,7 +1319,26 @@ function OrderDetailInner() {
       )}
 
       <div className="px-3 sm:px-6 py-3 sm:py-6 space-y-3 sm:space-y-6">
-        <OrderHeaderSummary compact={isMobile && activeTab !== "panoramica"}>
+        <OrderHeaderSummary
+          compact={activeTab !== "panoramica"}
+          riepilogo={
+            <span className="flex flex-wrap items-baseline gap-x-5 gap-y-0.5 text-sm font-semibold">
+              <VoceRiepilogo etichetta="Stato">
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: statuses.find(status => status.id === order.current_status_id)?.color || "#64748b" }} />
+                  {statuses.find(status => status.id === order.current_status_id)?.name || "Stato non impostato"}
+                </span>
+              </VoceRiepilogo>
+              {avanzamentoPct != null && !!phaseProgress?.total && (
+                <VoceRiepilogo etichetta="Avanzamento" senzaEtichettaMobile>{Math.round(Math.min(100, Math.max(0, avanzamentoPct)))}%</VoceRiepilogo>
+              )}
+              {permissions.canViewOrderAmounts && <>
+                <VoceRiepilogo etichetta="Incassato" soloDesktop>{formatCurrency(collectedGross)} <span className="font-normal text-slate-500">su {formatCurrency(cashTotalGross)}</span></VoceRiepilogo>
+                <VoceRiepilogo etichetta="Residuo" tono={saldoResiduoGross > 0.01 ? "attenzione" : "ok"}>{saldoResiduoGross > 0.01 ? formatCurrency(saldoResiduoGross) : "Saldato"}</VoceRiepilogo>
+              </>}
+            </span>
+          }
+        >
         <OrderFinancialOverview
           orderId={id!}
           totalAmount={agreedAmount}

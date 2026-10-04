@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -77,13 +78,26 @@ export function AppCantiere({
   const n = accessi.length;
 
   return (
-    <section aria-labelledby={`app-cantiere-${orderId}`} className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">
+    // Verde solo quando c'è qualcuno che la vede. «Nessuno la vede ancora» è un
+    // dato neutro, non un esito positivo: grigio, come le altre note di sezione.
+    <section
+      aria-labelledby={`app-cantiere-${orderId}`}
+      className={cn(
+        "rounded-xl border p-3",
+        n === 0
+          ? "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40"
+          : "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900 dark:bg-emerald-950/30",
+      )}
+    >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
-          <h3 id={`app-cantiere-${orderId}`} className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+          <h3
+            id={`app-cantiere-${orderId}`}
+            className={cn("text-sm font-semibold", n === 0 ? "text-slate-800 dark:text-slate-100" : "text-emerald-900 dark:text-emerald-100")}
+          >
             {n === 0 ? "Nell'app non la vede ancora nessuno" : `Nell'app la ${n === 1 ? "vede 1 persona" : `vedono ${n} persone`}`}
           </h3>
-          <p className="text-xs text-emerald-800/90 dark:text-emerald-200/80">
+          <p className={cn("text-xs", n === 0 ? "text-slate-600 dark:text-slate-300/80" : "text-emerald-800/90 dark:text-emerald-200/80")}>
             {n === 0
               ? "Chi metti al lavoro su una fase la trova da solo sul telefono, nei giorni della fase."
               : "Ognuno nei giorni del suo lavoro. Cambi una fase o una squadra e si aggiorna da solo."}
