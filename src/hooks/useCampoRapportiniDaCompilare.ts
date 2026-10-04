@@ -5,6 +5,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { leggiRegole } from "@/lib/campo/regoleCampo";
 import { useAuth } from "@/contexts/AuthContext";
 import { loadCampoDayPunches } from "@/lib/campo/loadTimePunches";
 import { campoDayWindow, campoReportHours, summarizeCampoTime } from "@/lib/campo/timeSummary";
@@ -20,6 +21,35 @@ export interface RapportinoMancante {
   prima_timbratura_at: string;
   prossima_timbratura_at: string | null;
   ore_in_cantiere_stimate: number;
+}
+
+/**
+ * Nelle aziende dove il rapportino lo fa il capocantiere, l'operaio semplice non
+ * riceve il promemoria: lui timbra e basta. Il promemoria resta a chi il
+ * rapportino lo deve fare (capocantiere, caposquadra), e dovunque il cantiere
+ * non abbia un capo. Se una lettura fallisce, il promemoria resta com'era.
+ */
+async function senzaChiHaGiaIlCapo(mancanti: RapportinoMancante[]): Promise<RapportinoMancante[]> {
+  const ordini = [...new Set(mancanti.map(m => m.order_id))];
+  if (!ordini.length) return mancanti;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const esiti = await Promise.all(ordini.map(async id => {
+      const [regole, ruolo] = await Promise.all([
+        db.rpc("campo_regole_per_ordine", { p_order_id: id }),
+        db.rpc("campo_mio_ruolo", { p_order_id: id }),
+      ]);
+      const r = leggiRegole(regole.error ? null : regole.data);
+      const ruoloMio = (ruolo.error ? {} : ruolo.data ?? {}) as { capocantiere?: boolean; caposquadra?: boolean; esiste_capo?: boolean };
+      const loFaIlCapo = r.chiCompila === "capo" && !!ruoloMio.esiste_capo && !ruoloMio.capocantiere && !ruoloMio.caposquadra;
+      return [id, loFaIlCapo] as const;
+    }));
+    const daNonRicordare = new Set(esiti.filter(([, escluso]) => escluso).map(([id]) => id));
+    return mancanti.filter(m => !daNonRicordare.has(m.order_id));
+  } catch {
+    return mancanti;
+  }
 }
 
 export function useCampoRapportiniDaCompilare(userId: string | undefined) {
@@ -56,7 +86,7 @@ export function useCampoRapportiniDaCompilare(userId: string | undefined) {
       // A draft/rejected report already has a unique daily key: its correction
       // is surfaced separately, not offered as a second daily insertion.
       const covered = new Set((reports.data ?? []).map(r => `${r.order_id}:${r.data_lavoro}`));
-      return days.flatMap(({ day, summary }) => (orders.data ?? [])
+      const mancanti: RapportinoMancante[] = days.flatMap(({ day, summary }) => (orders.data ?? [])
         .filter(o => !covered.has(`${o.id}:${day}`) && (summary.byOrder.get(o.id)?.workMinutes ?? 0) > 0).map(order => {
         const segments = summary.segments.filter(s => s.orderId === order.id && s.kind === "work");
         return {
@@ -70,6 +100,7 @@ export function useCampoRapportiniDaCompilare(userId: string | undefined) {
           ore_in_cantiere_stimate: campoReportHours(summary.byOrder.get(order.id)!.workMinutes),
         };
       }));
+      return senzaChiHaGiaIlCapo(mancanti);
     },
   });
 }

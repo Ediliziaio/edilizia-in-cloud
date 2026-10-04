@@ -5,19 +5,20 @@ const state = vi.hoisted(() => ({
   options: {} as { queryFn: () => Promise<unknown>; enabled: boolean; queryKey: string[] },
   company: "company" as string | null, punches: [] as CampoPunch[], load: vi.fn(), calls: [] as unknown[],
   reports: [] as { order_id: string; data_lavoro: string; stato: string }[], error: false,
+  chiCompila: "ognuno" as string, ruolo: {} as Record<string, boolean>, rpcError: false,
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ profile: { company_id: state.company } }) }));
 vi.mock("@/hooks/campo/useCampoWorkDay", () => ({ useCampoWorkDay: () => "2026-09-24" }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: (options: typeof state.options) => { state.options = options; return {}; } }));
 vi.mock("@/lib/campo/loadTimePunches", () => ({ loadCampoDayPunches: async (...args: unknown[]) => { state.load(...args); return state.punches; } }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (table: string) => {
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: async (name: string) => state.rpcError ? { data: null as unknown, error: new Error("rpc") as Error | null } : { error: null as Error | null, data: (name === "campo_regole_per_ordine" ? { chi_compila: state.chiCompila, ore_dalle: "capo", avviso_scostamento_minuti: null } : state.ruolo ) as unknown }, from: (table: string) => {
   const response = { data: table === "campo_rapportini" ? state.reports : ["A", "B"].map(id => ({ id, order_code: id })), error: state.error ? new Error("read failed") : null };
   const q = { select: () => q, eq: (...args: unknown[]) => { state.calls.push([table, ...args]); return q; }, in: () => q,
     then: Promise.resolve(response).then.bind(Promise.resolve(response)) }; return q;
 } } }));
 const punch = (day: string, time: string, tipo: string, order_id: string): CampoPunch => ({ tipo, order_id, timestamp_evento: `${day}T${time}:00+02:00` });
 beforeEach(() => {
-  vi.clearAllMocks(); state.company = "company"; state.reports = []; state.error = false; state.calls = [];
+  vi.clearAllMocks(); state.company = "company"; state.reports = []; state.error = false; state.calls = []; state.chiCompila = "ognuno"; state.ruolo = {}; state.rpcError = false;
   state.punches = [punch("2026-09-23", "08:00", "entrata", "A"), punch("2026-09-23", "12:00", "uscita", "A"), punch("2026-09-23", "13:00", "entrata", "B"), punch("2026-09-23", "16:00", "uscita", "B"), punch("2026-09-24", "08:00", "entrata", "A"), punch("2026-09-24", "09:00", "uscita", "A")];
   vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-09-24T15:00:00+02:00"));
 });
@@ -41,6 +42,32 @@ describe("Promemoria per giornata e cantiere", () => {
   });
   it("un errore di lettura non equivale a giornata già compilata", async () => {
     state.error = true; useCampoRapportiniDaCompilare("worker"); await expect(state.options.queryFn()).rejects.toThrow("read failed");
+  });
+  describe("secondo la regola dell'azienda", () => {
+    const giorni = async () => { useCampoRapportiniDaCompilare("worker"); return (await state.options.queryFn()) as unknown[]; };
+    it("se il rapportino lo fa il capocantiere, l'operaio semplice non riceve il promemoria", async () => {
+      state.chiCompila = "capo"; state.ruolo = { esiste_capo: true };
+      expect(await giorni()).toEqual([]);
+    });
+    it("il capocantiere e il caposquadra lo ricevono comunque", async () => {
+      state.chiCompila = "capo";
+      state.ruolo = { esiste_capo: true, capocantiere: true };
+      expect(await giorni()).toHaveLength(3);
+      state.ruolo = { esiste_capo: true, caposquadra: true };
+      expect(await giorni()).toHaveLength(3);
+    });
+    it("se il cantiere non ha un capo, nessuno scrive le ore al posto dell'operaio: il promemoria resta", async () => {
+      state.chiCompila = "capo"; state.ruolo = { esiste_capo: false };
+      expect(await giorni()).toHaveLength(3);
+    });
+    it("con «ognuno il suo» tutto come prima", async () => {
+      state.chiCompila = "ognuno"; state.ruolo = { esiste_capo: true };
+      expect(await giorni()).toHaveLength(3);
+    });
+    it("se la lettura delle regole fallisce, il promemoria resta com'era", async () => {
+      state.rpcError = true;
+      expect(await giorni()).toHaveLength(3);
+    });
   });
   it("senza azienda non abilita il caricamento", () => {
     state.company = null; useCampoRapportiniDaCompilare("worker"); expect(state.options.enabled).toBe(false);

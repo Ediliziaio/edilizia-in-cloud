@@ -79,6 +79,7 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { group: "Marketing", title: "Form & UTM", url: "/azienda/impostazioni/form-builder", keywords: ["form", "utm", "lead form", "acquisizione"] },
   { group: "Marketing", title: "Calendari marketing", url: "/azienda/impostazioni/calendari", keywords: ["calendario", "google calendar", "appuntamenti"] },
   { group: "Ordini", title: "Calendari lavori", url: "/azienda/impostazioni/calendari-lavori", keywords: ["squadre", "posa", "google calendar", "calendario lavori", "cantieri"] },
+  { group: "Ordini", title: "Rapportini e presenze", url: "/azienda/impostazioni/rapportini-cantiere", keywords: ["rapportino", "ore", "timbrature", "capocantiere", "operai", "presenze", "squadra", "cantiere"] },
   { group: "Marketing", title: "Lead Facebook", url: "/azienda/impostazioni/lead-forms", keywords: ["meta", "facebook", "instagram", "lead ads"] },
 
   // ── People ──

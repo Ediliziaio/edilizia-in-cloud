@@ -35,6 +35,8 @@ import { RapportinoSiteContext } from "@/components/campo/RapportinoSiteContext"
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoReportHours } from "@/lib/campo/timeSummary";
 import { validateRapportinoHours, type CampoHoursDraft } from "@/lib/campo/rapportinoHours";
+import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
+import { REGOLE_COME_OGGI, giaCoperto, oreInTesto, proponiOre, scostamento } from "@/lib/campo/regoleCampo";
 import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
 import { assertReportDay, campoWorkDay, reportDayAllowed, REPORT_DEADLINE_MESSAGE, shiftWorkDay, validWorkDay } from "@/lib/campo/workDay";
 
@@ -202,6 +204,10 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   // Il rapportino di squadra lo fa il capocantiere (tutto il cantiere) o il
   // caposquadra (la sua squadra): tanti operai il telefono non lo usano.
   const faSquadra = isCapocantiere || isCaposquadra;
+  // Come lavora QUESTA azienda (Impostazioni → Rapportini e presenze). Senza
+  // scelte, o se la lettura fallisce, si lavora come sempre.
+  const { data: regoleCampo } = useRegoleCampoOrdine(orderId);
+  const regole = regoleCampo ?? REGOLE_COME_OGGI;
   // FALLBACK di adozione: finché la commessa non ha un capocantiere nominato
   // vale il comportamento storico (chiunque dichiara le %) — le commesse
   // esistenti non si bloccano; il rigore scatta con la nomina.
@@ -221,6 +227,12 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
     sono_io?: boolean;
     /** Ha già mandato il suo rapportino: non si conta due volte. */
     rapportino_inviato?: boolean;
+    /** Un altro rapportino inviato o approvato lo include già nelle presenze. */
+    gia_registrato_da_altri?: boolean;
+    /** Ore timbrate su questo cantiere in questa giornata (null = nessuna timbratura). */
+    ore_timbrate?: number | null;
+    /** È ancora dentro: l'uscita non c'è, le ore non sono definitive. */
+    timbratura_aperta?: boolean;
   };
   const [presenzeSel, setPresenzeSel] = useState<Record<string, CampoHoursDraft>>({});
   const { data: squadra = [] } = useQuery({
@@ -238,7 +250,9 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
     setPresenzeSel(prev => {
       const next = { ...prev };
       if (m.key in next) delete next[m.key];
-      else next[m.key] = "";
+      // Con «le ore dalle timbrature» partono da quelle timbrate; il capo le
+      // controlla e le corregge. Senza timbratura (o ancora dentro) le scrive lui.
+      else next[m.key] = regole.oreDalle === "timbrature" ? proponiOre(m.ore_timbrate, m.timbratura_aperta) : "";
       return next;
     });
   };
@@ -269,6 +283,28 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   const oreRilevate = siteTime ? campoReportHours(siteTime.workMinutes) : null;
   const anomalieTimbrature = dayTime.summary.issues.some(issue => issue.kind !== "open_session");
   const sessioneDaChiudere = dayTime.isSuccess && dayTime.summary.state !== "out" && dayTime.summary.activeOrderId === orderId && workDay === today;
+
+  // Le MIE ore sono già nel rapportino di squadra di un collega? Qualunque sia
+  // il flusso dell'azienda, la stessa persona non si conta due volte nello
+  // stesso giorno e cantiere. Se la lettura fallisce si lavora come prima.
+  const { data: oreGiaRegistrate } = useQuery({
+    queryKey: ["campo-ore-gia-registrate", orderId, workDay, user?.id],
+    enabled: !!orderId && !!user?.id && !faSquadra && validWorkDay(workDay),
+    staleTime: 60_000,
+    queryFn: async (): Promise<{ ore: number; da: string } | null> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("campo_ore_gia_registrate", { p_order_id: orderId, p_giorno: workDay });
+      if (error || !data) return null;
+      return data as { ore: number; da: string };
+    },
+  });
+  // Azienda in cui il rapportino lo fa il capocantiere: l'operaio timbra e scrive
+  // descrizione, foto, materiali, ma non le ore. Solo se il cantiere ha davvero
+  // un capo (altrimenti nessuno le scriverebbe) e salvo «oggi il capo non c'era».
+  const [oreMieForzate, setOreMieForzate] = useState(false);
+  const oreRegistrateDalCapo = !!oreGiaRegistrate;
+  const oreLasciateAlCapo = regole.chiCompila === "capo" && !!ruoloCampo?.esisteCapo && !oreMieForzate;
+  const oreNonMie = !faSquadra && (oreRegistrateDalCapo || oreLasciateAlCapo);
   useEffect(() => {
     if (oreModificate.current || rapportinoGiaOggi || !dayTime.isSuccess || oreRilevate == null || anomalieTimbrature) return;
     let cancelled = false;
@@ -419,7 +455,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   const { mutate: salva, isPending: saving } = useMutation({
     mutationFn: async () => {
       assertReportDay(workDay);
-      if (sessioneDaChiudere) throw new Error("Timbra prima l’uscita da questo cantiere, poi conferma le ore del rapportino.");
+      if (sessioneDaChiudere && !oreNonMie) throw new Error("Timbra prima l’uscita da questo cantiere, poi conferma le ore del rapportino.");
       if (rapportinoGiaOggi) throw new Error("Esiste già un rapportino per questo cantiere e questa giornata. Per correggerlo contatta l’ufficio.");
       if (!companyId || !orderId || !user?.id) {
         throw new Error("Sessione non pronta, ricarica la pagina");
@@ -430,7 +466,9 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
         throw new Error("Non puoi inviare rapportini per un lavoro non assegnato");
       }
       const materialiPayload = buildRapportinoMaterials(materialiSel);
-      const orePayload = validateRapportinoHours(oreLavorate, oreStraordinario, faSquadra ? presenzeSel : {});
+      // Se le mie ore le registra il capo, qui non se ne scrivono: sommate due
+      // volte falserebbero il costo della commessa.
+      const orePayload = oreNonMie ? 0 : validateRapportinoHours(oreLavorate, oreStraordinario, faSquadra ? presenzeSel : {});
 
       // Fasi dichiarate dall'operaio: [{phase_id, percentuale}] (Fase C)
       const fasiLavorate = Object.entries(fasiDichiarate).map(([phase_id, percentuale]) => ({
@@ -479,7 +517,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
           role_type: isSubappaltatore ? "subcontractor" : "employee",
           data_lavoro: workDay,
           ore_lavorate: orePayload,
-          ore_straordinario: oreStraordinario > 0 ? oreStraordinario : 0,
+          ore_straordinario: !oreNonMie && oreStraordinario > 0 ? oreStraordinario : 0,
           descrizione_lavori: descrizione || null,
           foto_urls: fotoUrls,
           lavoro_completato,
@@ -542,7 +580,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
               rapportino_id: inserted.id,
               data_lavoro: workDay,
               ore_lavorate: orePayload,
-              ore_straordinario: oreStraordinario > 0 ? oreStraordinario : 0,
+              ore_straordinario: !oreNonMie && oreStraordinario > 0 ? oreStraordinario : 0,
               percentuale_avanzamento: percentuale,
               lavoro_completato,
               meteo: meteo || null,
@@ -788,13 +826,28 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
               </div>
             </div>
             {/* Ore del solo cantiere: proposta verificabile, mai 8 ore implicite. */}
-            {sessioneDaChiudere && <div role="status" className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            {sessioneDaChiudere && !oreNonMie && <div role="status" className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <p>La timbratura è ancora aperta su questo cantiere. Prima dell’invio registra l’uscita: le ore non sono ancora definitive.</p>
               <button type="button" className="min-h-11 underline" onClick={() => {
                 if (datiInseriti && !window.confirm("Aprire la timbratura lascia questo modulo. I dati non inviati andranno persi. Continuare?")) return;
                 navigate(`/campo/timbratura?order_id=${orderId}`);
               }}>Vai a timbrare l’uscita</button>
             </div>}
+            {oreNonMie ? (
+              <div role="status" className="space-y-2 rounded-2xl border bg-background p-4 shadow-sm">
+                <p className="text-sm font-semibold">Le tue ore le registra il capocantiere</p>
+                <p className="text-xs text-muted-foreground">
+                  {oreRegistrateDalCapo
+                    ? `${oreGiaRegistrate?.da || "Il tuo capo"} ha già segnato le tue ore di questa giornata (${oreInTesto(Number(oreGiaRegistrate?.ore) || 0)}). Non vanno scritte due volte: qui aggiungi descrizione, foto e materiali.`
+                    : "In questa azienda il rapportino del cantiere lo fa il capocantiere. Tu timbri entrata e uscita; qui puoi aggiungere descrizione, foto e materiali."}
+                </p>
+                {!oreRegistrateDalCapo && (
+                  <button type="button" className="min-h-11 text-sm text-primary underline" onClick={() => setOreMieForzate(true)}>
+                    Oggi il capocantiere non c’era? Scrivo io le mie ore
+                  </button>
+                )}
+              </div>
+            ) : (
             <div className="space-y-3 rounded-2xl border bg-background p-4 shadow-sm">
               <div>
                 <label htmlFor="ore-cantiere" className="text-sm font-semibold">Ore ordinarie su questo cantiere</label>
@@ -854,6 +907,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                 </div>
               </div>
             </div>
+            )}
 
             <div className="rounded-2xl border bg-background p-4 shadow-sm">
               <p className="mb-2 text-sm font-semibold text-muted-foreground">Foto cantiere</p>
@@ -932,14 +986,37 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
 
             {/* ── Squadra del giorno: il capocantiere per tutto il cantiere,
                 il caposquadra per la sua squadra ── */}
-            {faSquadra && squadra.length > 0 && (
+            {faSquadra && squadra.length > 0 && (() => {
+              // Come lavora l'azienda: con «le ore dalle timbrature» le ore partono da
+              // quelle timbrate; con l'avviso acceso si vede il confronto anche se le
+              // ore le scrive il capo.
+              const dalleTimbrature = regole.oreDalle === "timbrature";
+              const mostraTimbrate = dalleTimbrature || regole.avvisoScostamentoMinuti != null;
+              const timbratiDaSelezionare = squadra.filter(m =>
+                !giaCoperto(m) && !(m.key in presenzeSel) && (m.ore_timbrate ?? 0) > 0 && !m.timbratura_aperta);
+              return (
               <div className="rounded-2xl border bg-background p-4 shadow-sm">
                 <p className="text-sm font-semibold text-foreground">{workDay === today ? "Chi ha lavorato oggi?" : "Chi ha lavorato in questa giornata?"}</p>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  {isCapocantiere
-                    ? "Tocca chi era in cantiere e scrivi le sue ore. Chi ha già mandato il suo rapportino non va segnato di nuovo."
-                    : "Tocca chi della tua squadra era in cantiere e scrivi le sue ore. Chi ha già mandato il suo rapportino non va segnato di nuovo."}
+                  {dalleTimbrature
+                    ? "Le ore sono quelle timbrate in cantiere: controllale e correggile se serve. Chi non ha timbrato lo aggiungi tu, con le sue ore."
+                    : isCapocantiere
+                      ? "Tocca chi era in cantiere e scrivi le sue ore. Chi ha già mandato il suo rapportino non va segnato di nuovo."
+                      : "Tocca chi della tua squadra era in cantiere e scrivi le sue ore. Chi ha già mandato il suo rapportino non va segnato di nuovo."}
                 </p>
+                {dalleTimbrature && timbratiDaSelezionare.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPresenzeSel(prev => {
+                      const next = { ...prev };
+                      for (const m of timbratiDaSelezionare) next[m.key] = proponiOre(m.ore_timbrate, m.timbratura_aperta);
+                      return next;
+                    })}
+                    className="mb-3 min-h-11 rounded-full border border-primary px-4 text-sm font-semibold text-primary"
+                  >
+                    Seleziona chi ha timbrato ({timbratiDaSelezionare.length})
+                  </button>
+                )}
                 <div className="space-y-3">
                   {[...new Set(squadra.map(m => m.squadra ?? ""))].map(gruppo => (
                     <div key={gruppo || "da-soli"}>
@@ -947,13 +1024,19 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                       <div className="flex flex-wrap gap-2">
                         {squadra.filter(m => (m.squadra ?? "") === gruppo).map(m => {
                           const selected = m.key in presenzeSel;
-                          if (m.rapportino_inviato) {
+                          const coperto = giaCoperto(m);
+                          if (coperto) {
                             return (
                               <span key={m.key} className="min-h-11 rounded-full border border-dashed px-3 py-2 text-sm text-muted-foreground">
-                                {m.nome} · ha mandato il suo
+                                {m.nome} · {coperto === "suo" ? "ha mandato il suo" : "già registrato da un collega"}
                               </span>
                             );
                           }
+                          // cosa dicono le timbrature di questa persona (le ditte non timbrano)
+                          const nota = !mostraTimbrate || m.subappaltatore_id ? null
+                            : m.timbratura_aperta ? "ancora dentro"
+                            : (m.ore_timbrate ?? 0) > 0 ? `timbrate ${oreInTesto(m.ore_timbrate!)}`
+                            : "non ha timbrato";
                           return (
                             <button
                               key={m.key}
@@ -967,6 +1050,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                               }`}
                             >
                               {m.nome}{m.sono_io ? " (tu)" : ""}
+                              {nota && <span className="ml-1.5 text-xs font-normal opacity-80">· {nota}</span>}
                             </button>
                           );
                         })}
@@ -980,34 +1064,51 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                     Se hai lavorato anche tu, seleziona anche il tuo nome.
                   </p>
                 )}
-                {squadra.filter(m => m.key in presenzeSel).map(m => (
-                  <div key={m.key} className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/40 p-3">
-                    <p className="min-w-0 truncate text-sm font-medium text-foreground">
-                      {m.nome}
-                      {m.subappaltatore_id && (
-                        <span className="ml-1 text-xs text-muted-foreground">(subappaltatore)</span>
-                      )}
-                    </p>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <input
-                        type="number"
-                        min={0.1}
-                        max={24}
-                        step={0.1}
-                        inputMode="decimal"
-                        value={presenzeSel[m.key]}
-                        onChange={e =>
-                          setPresenzeSel(prev => ({ ...prev, [m.key]: e.target.value === "" ? "" : Number(e.target.value) }))
-                        }
-                        className="h-11 w-16 rounded-lg border border-border bg-background px-2 py-1.5 text-right text-base"
-                        aria-label={`Ore di ${m.nome}`}
-                      />
-                      <span className="text-xs text-muted-foreground">ore</span>
+                {squadra.filter(m => m.key in presenzeSel).map(m => {
+                  const diff = scostamento(presenzeSel[m.key], m.ore_timbrate, regole.avvisoScostamentoMinuti);
+                  return (
+                  <div key={m.key} className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="min-w-0 truncate text-sm font-medium text-foreground">
+                        {m.nome}
+                        {m.subappaltatore_id && (
+                          <span className="ml-1 text-xs text-muted-foreground">(subappaltatore)</span>
+                        )}
+                      </p>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={0.1}
+                          max={24}
+                          step={0.1}
+                          inputMode="decimal"
+                          value={presenzeSel[m.key]}
+                          onChange={e =>
+                            setPresenzeSel(prev => ({ ...prev, [m.key]: e.target.value === "" ? "" : Number(e.target.value) }))
+                          }
+                          className="h-11 w-16 rounded-lg border border-border bg-background px-2 py-1.5 text-right text-base"
+                          aria-label={`Ore di ${m.nome}`}
+                        />
+                        <span className="text-xs text-muted-foreground">ore</span>
+                      </div>
                     </div>
+                    {mostraTimbrate && !m.subappaltatore_id && (
+                      <p className={`mt-1.5 text-xs ${diff?.fuori ? "font-medium text-amber-700" : "text-muted-foreground"}`}>
+                        {m.timbratura_aperta
+                          ? "Non ha ancora timbrato l’uscita: scrivi tu le ore."
+                          : (m.ore_timbrate ?? 0) > 0
+                            ? diff?.fuori
+                              ? `Ha timbrato ${oreInTesto(m.ore_timbrate!)}: hai scritto ${diff.minuti > 0 ? "più" : "meno"} di ${oreInTesto(Math.abs(diff.minuti) / 60)}.`
+                              : `Ha timbrato ${oreInTesto(m.ore_timbrate!)}.`
+                            : "Non ha timbrato: scrivi tu le ore."}
+                      </p>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
-            )}
+              );
+            })()}
 
             {/* ── Fasi lavorate (solo se la commessa ha fasi non completate) ── */}
             {fasiDichiarabili.length > 0 && (
@@ -1202,7 +1303,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Ore personali ordinarie</span>
-                <span className="text-primary font-bold">{oreLavorate === "" ? (Object.keys(presenzeSel).length ? "Vedi presenze squadra" : "Da indicare") : `${oreLavorate}h`}</span>
+                <span className="text-primary font-bold">{oreNonMie ? "Le registra il capocantiere" : oreLavorate === "" ? (Object.keys(presenzeSel).length ? "Vedi presenze squadra" : "Da indicare") : `${oreLavorate}h`}</span>
               </div>
               {Object.keys(presenzeSel).length > 0 && (
                 <div className="space-y-1 border-t border-border pt-2">

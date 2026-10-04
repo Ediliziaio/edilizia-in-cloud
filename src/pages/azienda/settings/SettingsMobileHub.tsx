@@ -65,6 +65,7 @@ const SECTIONS: Section[] = [
       { to: "/azienda/impostazioni/stati-ordine",    label: "Stati ordine",     icon: ListOrdered, iconColor: "text-blue-600" },
       { to: "/azienda/impostazioni/cartelle-documenti", label: "Cartelle documenti", icon: FolderOpen, iconColor: "text-amber-600" },
       { to: "/azienda/impostazioni/calendari-lavori", label: "Calendari lavori", icon: HardHat,   iconColor: "text-orange-600" },
+      { to: "/azienda/impostazioni/rapportini-cantiere", label: "Rapportini e presenze", icon: ScrollText, iconColor: "text-orange-600" },
       { to: "/azienda/impostazioni/categorie-costi", label: "Categorie costi",  icon: FolderOpen,  iconColor: "text-emerald-600" },
       { to: "/azienda/impostazioni/fornitori",       label: "Fornitori",        icon: Truck,       iconColor: "text-amber-600" },
       { to: "/azienda/impostazioni/sopralluoghi",    label: "Sopralluoghi",     icon: ScrollText,  iconColor: "text-amber-600" },
@@ -127,6 +128,7 @@ const HIDDEN_ON_MOBILE = new Set<string>([
   "/azienda/impostazioni/sopralluoghi",       // Modelli dei sopralluoghi
   // I calendari su telefono si consultano, non si configurano (25/09/2026).
   "/azienda/impostazioni/calendari-lavori",   // Calendari lavori
+  "/azienda/impostazioni/rapportini-cantiere",// Rapportini e presenze (si sceglie una volta, al computer)
   "/azienda/impostazioni/calendari",          // Calendari marketing
 ]);
 

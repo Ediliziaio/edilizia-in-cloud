@@ -153,6 +153,7 @@ const SettingsMotiviPerdita = lazy(() => import("@/pages/azienda/settings/Settin
 const SettingsCustomFields = lazy(() => import("@/pages/azienda/settings/SettingsCustomFields"));
 const SettingsMarketingCalendars = lazy(() => import("@/pages/azienda/settings/SettingsMarketingCalendars"));
 const SettingsCalendariLavori = lazy(() => import("@/pages/azienda/settings/SettingsCalendariLavori"));
+const SettingsRapportiniCantiere = lazy(() => import("@/pages/azienda/settings/SettingsRapportiniCantiere"));
 const SettingsIntegrations = lazy(() => import("@/pages/azienda/settings/SettingsIntegrations"));
 const SettingsWhatsAppBot = lazy(() => import("@/pages/azienda/settings/SettingsWhatsAppBot"));
 const SettingsCostCategories = lazy(() => import("@/pages/azienda/settings/SettingsCostCategories"));
@@ -1262,6 +1263,7 @@ export default function CompanyRoutesContainer() {
           <Route path="sequenze" element={withCompanyPermission("canViewSettingsCustomization", <SettingsPipelines />)} />
           <Route path="calendari" element={withCompanyPermission("canViewSettingsCustomization", <SettingsMarketingCalendars />)} />
           <Route path="calendari-lavori" element={withCompanyPermission("canViewSettingsOrders", <SettingsCalendariLavori />)} />
+          <Route path="rapportini-cantiere" element={withCompanyPermission("canViewSettingsOrders", <SettingsRapportiniCantiere />)} />
           {/* IMP3: Persone & Accessi — pagina unica con 4 tab */}
           <Route path="persone" element={withCompanyPermission("canViewSettingsPeople", <SettingsPeople />)} />
           {/* Redirect delle 4 route precedenti → pagina unificata con tab corretto */}

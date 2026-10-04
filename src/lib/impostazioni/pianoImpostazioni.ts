@@ -38,6 +38,7 @@ export const REQUISITI_IMPOSTAZIONI: Record<string, RequisitoPiano> = {
   "stati-ordine": { moduli: ["orders"] },
   "cartelle-documenti": { moduli: ["orders", "customers"] },
   "calendari-lavori": { moduli: ["orders", "calendar"] },
+  "rapportini-cantiere": { moduli: ["orders"] },
   sopralluoghi: { funzioni: ["surveys_module"] },
   // Magazzino, acquisti, costi
   "qr-codici": { moduli: ["warehouse"] },
