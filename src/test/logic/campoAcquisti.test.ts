@@ -7,7 +7,7 @@ describe("Lettura della bolla o dello scontrino", () => {
     mittente: { ragione_sociale: "Tecnomat S.p.A." },
     righe_merce: [
       { codice_articolo: "SIL-1", descrizione: "Silicone neutro", unita_misura: "PZ", quantita: 2, prezzo_unitario_eur: 8.5, importo_eur: 17 },
-      { descrizione: "Viti inox 4x40", unita_misura: "conf", quantita: 1, prezzo_unitario_eur: null, importo_eur: 28.5 },
+      { descrizione: "Viti inox 4x40", unita_misura: "conf", quantita: 1, prezzo_unitario_eur: null as number | null, importo_eur: 28.5 },
     ],
     totali: { imponibile_eur: 37.3, iva_eur: 8.2, totale_documento_eur: 45.5 },
     confidence: 0.92,
@@ -63,7 +63,7 @@ describe("Tipo di documento e stato letti dall'operaio", () => {
     expect(tipoDocumentoDa("ritiro_ordine")).toBe("bolla");
   });
   it("dice in parole semplici a che punto è", () => {
-    const base = { modalita: "pagato_da_me" as const, motivo_rifiuto: null };
+    const base = { modalita: "pagato_da_me" as const, motivo_rifiuto: null as string | null };
     expect(descriviStato({ ...base, stato: "da_verificare", rimborso_stato: "da_rimborsare" })).toEqual({ testo: "In verifica dall’ufficio", tono: "attesa" });
     expect(descriviStato({ ...base, stato: "registrato", rimborso_stato: "da_rimborsare" }).testo).toBe("Registrata · rimborso in programma");
     expect(descriviStato({ ...base, stato: "registrato", rimborso_stato: "rimborsato" }).testo).toBe("Registrata · rimborsata");
