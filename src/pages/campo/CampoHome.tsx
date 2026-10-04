@@ -15,7 +15,7 @@ import {
   CalendarDays, Receipt, ClipboardCheck,
   ClipboardList,
   Ticket, CalendarDays as CalendarDaysIcon,
-  Sparkles, Navigation, Send, FilePenLine, Users
+  Sparkles, Navigation, Send, FilePenLine, Users, ShoppingBag
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1029,6 +1029,7 @@ function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; is
     ...(isOperaio ? [
       { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
       { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
+      { icon: ShoppingBag, label: "Merce", url: "/campo/merce", color: "text-orange-600 bg-orange-50" },
       { icon: CalendarDaysIcon, label: "Ferie", url: "/campo/ferie", color: "text-orange-600 bg-orange-50" },
       { icon: Ticket, label: "Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
       { icon: QrCode, label: "Tesserino", url: "/campo/tesserino", color: "text-blue-600 bg-blue-50" },

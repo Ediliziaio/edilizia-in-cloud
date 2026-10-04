@@ -58,6 +58,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PrelieviCampoCard } from "@/components/warehouse/PrelieviCampoCard";
+import { AcquistiCampoCard } from "@/components/warehouse/AcquistiCampoCard";
 import { ImpostazionePrelievoCampo } from "@/components/warehouse/ImpostazionePrelievoCampo";
 import {
   Select,
@@ -883,6 +884,7 @@ export default function Warehouse() {
       <div className="space-y-3 print:hidden">
         <ImpostazionePrelievoCampo />
         <PrelieviCampoCard />
+        <AcquistiCampoCard />
       </div>
 
       <div className="space-y-3 print:hidden">

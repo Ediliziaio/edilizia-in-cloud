@@ -19,6 +19,7 @@ const CampoRapportino     = lazy(() => import("@/pages/campo/CampoRapportino"));
 const CampoTimbratura     = lazy(() => import("@/pages/campo/CampoTimbratura"));
 const CampoSquadra        = lazy(() => import("@/pages/campo/CampoSquadra"));
 const CampoMagazzino      = lazy(() => import("@/pages/campo/CampoMagazzino"));
+const CampoMerce          = lazy(() => import("@/pages/campo/CampoMerce"));
 const CampoChat           = lazy(() => import("@/pages/campo/CampoChat"));
 const CampoDocumenti      = lazy(() => import("@/pages/campo/CampoDocumenti"));
 const CampoTesserino      = lazy(() => import("@/pages/campo/CampoTesserino"));
@@ -70,6 +71,7 @@ export default function CampoRoutesContainer() {
         <Route path="ferie" element={<CampoFerie />} />
         <Route path="cedolini" element={<CampoCedolini />} />
         <Route path="magazzino" element={<CampoMagazzino />} />
+        <Route path="merce" element={<CampoMerce />} />
         <Route path="mezzi" element={<CampoMezzi />} />
         <Route path="chat" element={<CampoChat />} />
         <Route path="chat/:channelId" element={<CampoChat />} />

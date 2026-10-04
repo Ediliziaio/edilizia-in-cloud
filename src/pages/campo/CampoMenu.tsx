@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Home, Calendar, Clock, CalendarDays, Receipt, Mic, MessageSquare,
   ShieldCheck, CreditCard, FileText, Ticket, Settings, LogOut,
-  ClipboardCheck, Search, CheckSquare, Package, ListChecks, Truck,
+  ClipboardCheck, Search, CheckSquare, Package, ListChecks, Truck, ShoppingBag,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
@@ -52,6 +52,7 @@ export default function CampoMenu() {
         { icon: ListChecks, label: "Avanzamento", url: "/campo/avanzamento", color: "text-cyan-600 bg-cyan-50" },
         { icon: Clock, label: "Timbratura", url: "/campo/timbratura", color: "text-lime-600 bg-lime-50" },
         { icon: Package, label: "Magazzino", url: "/campo/magazzino", color: "text-amber-700 bg-amber-50" },
+        { icon: ShoppingBag, label: "Merce presa", url: "/campo/merce", color: "text-orange-700 bg-orange-50" },
         ...(mieiMezzi.length > 0
           ? [{ icon: Truck, label: mieiMezzi.length > 1 ? "I miei mezzi" : "Il mio mezzo", url: "/campo/mezzi", color: "text-slate-700 bg-slate-100" }]
           : []),
