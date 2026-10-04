@@ -66,9 +66,12 @@ create policy campo_acquisti_lettura on public.campo_acquisti for select to auth
     user_id = (select auth.uid())
     or (
       company_id = (select p.company_id from public.profiles p where p.id = (select auth.uid()))
-      and exists (select 1 from public.user_roles ur
-                   where ur.user_id = (select auth.uid())
-                     and ur.role in ('company_admin', 'company_staff', 'super_admin'))
+      and (
+        public.e_amministratore_di(company_id)
+        or exists (select 1 from public.user_roles ur
+                    where ur.user_id = (select auth.uid())
+                      and ur.role in ('company_staff', 'super_admin'))
+      )
     )
   );
 
