@@ -15748,8 +15748,10 @@ export type Database = {
           gps_lng: number | null
           hr_timbratura_id: string | null
           id: string
+          in_sede: boolean
           note: string | null
           order_id: string | null
+          sede_id: string | null
           timestamp_evento: string | null
           tipo: string
           user_id: string | null
@@ -15763,8 +15765,10 @@ export type Database = {
           gps_lng?: number | null
           hr_timbratura_id?: string | null
           id?: string
+          in_sede?: boolean
           note?: string | null
           order_id?: string | null
+          sede_id?: string | null
           timestamp_evento?: string | null
           tipo: string
           user_id?: string | null
@@ -15778,8 +15782,10 @@ export type Database = {
           gps_lng?: number | null
           hr_timbratura_id?: string | null
           id?: string
+          in_sede?: boolean
           note?: string | null
           order_id?: string | null
+          sede_id?: string | null
           timestamp_evento?: string | null
           tipo?: string
           user_id?: string | null

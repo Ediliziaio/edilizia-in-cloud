@@ -8,11 +8,15 @@ export interface CampoPunch {
   tipo: string;
   timestamp_evento: string;
   order_id: string | null;
+  /** La persona ha dichiarato «sono in sede/magazzino»: tempo di sede, non ore da attribuire. */
+  in_sede?: boolean | null;
+  sede_id?: string | null;
 }
 
 export type CampoClockState = "out" | "working" | "paused";
 export interface CampoTimeSegment {
   orderId: string | null;
+  inSede: boolean;
   start: number;
   end: number;
   kind: "work" | "pause";
@@ -57,6 +61,10 @@ export function summarizeCampoTime(
   }).sort((a, b) => Date.parse(a.timestamp_evento) - Date.parse(b.timestamp_evento));
   let state: CampoClockState = "out";
   let orderId: string | null = null;
+  // Il luogo del tratto aperto: un cantiere, oppure la sede dichiarata, oppure nessuno dei due.
+  let inSede = false;
+  let sedeId: string | null = null;
+  let legStart: number | null = null;
   let openedAt = 0;
   let lastEvent: CampoPunch | null = null;
 
@@ -64,7 +72,7 @@ export function summarizeCampoTime(
     const start = Math.max(from, openedAt);
     const clippedEnd = Math.min(until, end);
     if (state !== "out" && clippedEnd > start) {
-      segments.push({ orderId, start, end: clippedEnd, kind: state === "paused" ? "pause" : "work", provisional });
+      segments.push({ orderId, inSede, start, end: clippedEnd, kind: state === "paused" ? "pause" : "work", provisional });
     }
   };
   for (const event of events) {
@@ -81,6 +89,9 @@ export function summarizeCampoTime(
       if (state !== "out") { append(at); issue("site_change"); }
       state = "working";
       orderId = event.order_id;
+      inSede = event.in_sede === true && !event.order_id;
+      sedeId = inSede ? event.sede_id ?? null : null;
+      legStart = at;
       openedAt = at;
     } else if (event.tipo === "pausa_inizio") {
       if (state !== "working") { issue("orphan_event"); continue; }
@@ -94,6 +105,8 @@ export function summarizeCampoTime(
       if (event.order_id && event.order_id !== orderId) {
         issue("site_change");
         orderId = event.order_id;
+        inSede = false;
+        sedeId = null;
       }
       state = "working";
       openedAt = at;
@@ -103,6 +116,9 @@ export function summarizeCampoTime(
       append(at); // A generic/mismatched exit closes the actual open session.
       state = "out";
       orderId = null;
+      inSede = false;
+      sedeId = null;
+      legStart = null;
     }
   }
   if (state !== "out") {
@@ -119,8 +135,16 @@ export function summarizeCampoTime(
     total.provisional ||= segment.provisional;
     byOrder.set(segment.orderId, total);
   }
+  // Ore di lavoro senza cantiere E senza sede dichiarata: solo queste vanno attribuite dall'ufficio.
+  const unassignedMinutes = segments
+    .filter(s => s.kind === "work" && s.orderId === null && !s.inSede)
+    .reduce((sum, s) => sum + (s.end - s.start) / 60_000, 0);
   return {
     segments, issues, byOrder, state, activeOrderId: orderId, lastEvent,
+    activeInSede: state !== "out" && inSede,
+    activeSedeId: state !== "out" ? sedeId : null,
+    legStartedAt: state !== "out" ? legStart : null,
+    unassignedMinutes,
     workMinutes: [...byOrder.values()].reduce((sum, s) => sum + s.workMinutes, 0),
     pauseMinutes: [...byOrder.values()].reduce((sum, s) => sum + s.pauseMinutes, 0),
   };

@@ -3,9 +3,9 @@
  * Timbratura integrata, cantieri assegnati, attività e accesso rapido.
  * Condizionale per operaio vs subappaltatore.
  */
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, isToday, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, startOfDay, isBefore } from "date-fns";
 import { it } from "date-fns/locale";
 import {
@@ -17,20 +17,15 @@ import {
   Ticket, CalendarDays as CalendarDaysIcon,
   Sparkles, Navigation, Send, FilePenLine, Users
 } from "lucide-react";
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useGPS } from "@/hooks/useGPS";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
 import { CampoCrewAgenda } from "@/components/campo/CampoCrewAgenda";
 import { CampoOggi } from "@/components/campo/CampoOggi";
 import { InterventiCampo } from "@/components/campo/InterventiCampo";
 import { useMiaGiornata } from "@/hooks/campo/useCampoGiornata";
-import { CampoPunchActions } from "@/components/campo/CampoPunchActions";
-import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
-import { campoPunchOrderId, campoReportHours, canRecordCampoPunch } from "@/lib/campo/timeSummary";
-import { refreshCampoTimeQueries } from "@/lib/campo/refreshTimeQueries";
+import { CampoTimbroCard } from "@/components/campo/CampoTimbroCard";
 // 🆕 GAP 5b: hook cantieri timbrati oggi senza rapportino
 import { useCampoRapportiniDaCompilare } from "@/hooks/useCampoRapportiniDaCompilare";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { PushConsentBanner } from "@/components/hr/PushConsentBanner";
 import { MioMezzoCampoCard } from "@/components/mezzi/MioMezzoCampoCard";
 import { isNative } from "@/lib/mobile";
+import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -113,6 +109,13 @@ export default function CampoHome() {
     },
   });
 
+  // «Oggi» e l'elenco dei cantieri dicono la stessa cosa: sul telefono, se «Oggi» c'è, l'elenco sta in «Lavori».
+  // Stessa richiesta di CampoOggi (stessa chiave): non costa niente in più.
+  const giornata = useMiaGiornata(14);
+  const giorni = giornata.data?.giorni ?? [];
+  const oggiVisibile = giornata.isLoading
+    || (!giornata.isError && !!giorni[0] && (giorni[0].cantieri.length > 0 || giorni.slice(1).some(g => g.cantieri.length > 0)));
+
   const ora = new Date().getHours();
   const saluto = ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera";
   // Banner push: se lo chiude, torna dopo 14 giorni.
@@ -155,227 +158,39 @@ export default function CampoHome() {
       {import.meta.env.PROD && !isNative && !pushBannerNascosto && (
         <PushConsentBanner onDismiss={nascondiPushBanner} />
       )}
+      {/* Timbratura: l'azione di ogni mattina, in cima. Un tocco per iniziare, un tocco per ogni posto. */}
+      {isOperaio && <CampoTimbroCard />}
+
       {/* Oggi: dove vai, cosa fai, con chi e chi chiamare — le TUE date */}
       {(isOperaio || isSubappaltatore) && <CampoOggi />}
 
-      {/* Timbratura — sempre in cima su mobile */}
-      {isOperaio && <TimbraturaCampo />}
-
       {isOperaio && <CampoCrewAgenda />}
+
+      {/* Da fare: prima le cose che aspettano te */}
+      <div className="space-y-3 md:space-y-6">
+        {isOperaio && <RapportiniDaCompilareOggi />}
+        {isOperaio && <RapportiniSospesi />}
+        {(isOperaio || isSubappaltatore) && <InterventiCampo />}
+        {isOperaio && <MioMezzoCampoCard />}
+        {isSubappaltatore && <CantieriSub />}
+      </div>
 
       {/* Azioni rapide — griglia 4 colonne su mobile */}
       <AccesaoRapido isOperaio={isOperaio} isSubappaltatore={isSubappaltatore} />
 
-      {/* Grid principale — 1 col mobile, 2 col desktop.
-          Priorità mobile: prima le cose da FARE (rapportini, cantieri),
-          poi l'assistente AI e il resto. */}
+      {/* Sul telefono bastano Oggi e Da fare: l'elenco dei cantieri è in «Lavori», il calendario
+          e l'assistente da tablet in su. Quando «Oggi» non c'è, l'elenco dei cantieri resta. */}
       <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">
-        {/* Cantieri assegnati */}
-        <div className="space-y-3 md:space-y-6">
-          {/* 🆕 GAP 5b: prompt rapportini di OGGI non ancora compilati (priorità alta) */}
-          {isOperaio && <RapportiniDaCompilareOggi />}
-          {(isOperaio || isSubappaltatore) && <InterventiCampo />}
+        <div className={cn("space-y-3 md:space-y-6", oggiVisibile && "hidden md:block")}>
           {isOperaio && <CantieriAssegnati />}
-          {isOperaio && <MioMezzoCampoCard />}
-          {isSubappaltatore && <CantieriSub />}
-          {isOperaio && <RapportiniSospesi />}
         </div>
-
-        {/* Colonna destra */}
         <div className="space-y-3 md:space-y-6">
-          {isOperaio && <AssistenteCampoOperaio />}
-          <MiniCalendarioCampo />
+          {isOperaio && <div className="hidden md:block"><AssistenteCampoOperaio /></div>}
+          <div className="hidden md:block"><MiniCalendarioCampo /></div>
           <MieAttivitaCampo />
         </div>
       </div>
     </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Timbratura Campo — integrata nella home
-// ─────────────────────────────────────────────────────────────────────────────
-function TimbraturaCampo() {
-  const { user, profile } = useAuth();
-  const queryClient = useQueryClient();
-  const companyId = profile?.company_id ?? null;
-  const dayTime = useCampoDayTime(user?.id, companyId);
-  const timbratureOggi = dayTime.todayPunches;
-  const isLoading = dayTime.isLoading;
-  const oreLavorate = campoReportHours(dayTime.summary.workMinutes);
-  const lastTimbro = dayTime.summary.lastEvent;
-  const isEntrato = dayTime.summary.state === "working";
-  const isInPausa = dayTime.summary.state === "paused";
-  const isUscito = dayTime.summary.state === "out" && timbratureOggi.length > 0;
-  const nonHaTimbrato = dayTime.summary.state === "out" && timbratureOggi.length === 0;
-  // GPS come nella pagina Timbratura dedicata: la posizione si chiede quando il
-  // widget monta (non al tap, o l'operaio aspetterebbe il fix col dito a
-  // mezz'aria) e si allega solo se è arrivata — la timbratura non aspetta mai
-  // il GPS. Prima il widget non salvava proprio posizione né cantiere: le
-  // timbrature dalla Home erano "di serie B" rispetto alla pagina dedicata.
-  const { lat, lng, accuracy, address, status: gpsStatus, requestPosition } = useGPS(companyId);
-  useEffect(() => {
-    if (companyId) void requestPosition();
-  }, [companyId, requestPosition]);
-
-  const { data: assignments = [], isLoading: loadingAssignments, isError: assignmentsError } = useCampoAssignments();
-  const [entrySite, setEntrySite] = useState("");
-  const selected = assignments.find(a => a.order_id === entrySite) ?? (entrySite === "" && assignments.length === 1 ? assignments[0] : null);
-  const active = assignments.find(a => a.order_id === dayTime.summary.activeOrderId);
-  const cantiereUnico = dayTime.summary.state !== "out"
-    ? (dayTime.summary.activeOrderId ? { id: dayTime.summary.activeOrderId, code: active?.order.order_code ?? "in corso" } : null)
-    : (selected ? { id: selected.order_id, code: selected.order.order_code } : null);
-  const canEnter = !loadingAssignments && !assignmentsError && (!!selected || entrySite === "__none__");
-  const timbraMutation = useMutation({
-    mutationFn: async (tipo: "entrata" | "uscita" | "pausa_inizio" | "pausa_fine") => {
-      if (!companyId || !user || !dayTime.isSuccess) throw new Error("Timbrature non disponibili, ricarica la pagina");
-      if (!canRecordCampoPunch(dayTime.summary.state, tipo) || (tipo === "entrata" && !canEnter)) {
-        throw new Error("Sequenza timbratura non valida per lo stato attuale");
-      }
-      const now = new Date().toISOString();
-      const gpsReady = gpsStatus === "success";
-      const note = [
-        cantiereUnico ? `Cantiere: ${cantiereUnico.code ?? cantiereUnico.id}` : null,
-        address ? `GPS: ${address}` : null,
-      ].filter(Boolean).join(" · ") || null;
-      const { error } = await supabase.from("campo_timbrature").insert({
-        company_id: companyId,
-        user_id: user!.id,
-        order_id: campoPunchOrderId(tipo, dayTime.summary.activeOrderId, selected?.order_id ?? null),
-        tipo,
-        timestamp_evento: now,
-        gps_lat: gpsReady ? lat : null,
-        gps_lng: gpsReady ? lng : null,
-        gps_accuracy: gpsReady ? Math.round(accuracy) : null,
-        note,
-        fonte: "app",
-      });
-      if (error) throw error;
-      // Registro HR: ci pensa il trigger DB (vedi CampoTimbratura).
-    },
-    onSuccess: async () => {
-      toast.success("Timbratura registrata");
-      await refreshCampoTimeQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["hr-timbrature"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-my-timbrature-today"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-live-status"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-giornate"] });
-    },
-    onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
-  });
-
-  const isMutating = timbraMutation.isPending || !dayTime.isSuccess;
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Clock className="h-4 w-4" /> Timbratura
-          </CardTitle>
-          {isEntrato && (
-            <span className="text-sm font-semibold text-amber-600">
-              {oreLavorate}h lavorate oggi
-            </span>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : dayTime.isError ? (
-          <div role="alert" className="space-y-2">
-            <p className="text-sm">Non riesco a leggere le timbrature. Riprova prima di registrare una nuova entrata.</p>
-            <Button variant="outline" onClick={() => dayTime.refetch()}>Riprova timbrature</Button>
-          </div>
-        ) : (
-          <>
-            {/* Stato attuale */}
-            <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
-              isEntrato ? "bg-green-50 text-green-700" :
-              isInPausa ? "bg-amber-50 text-amber-700" :
-              "bg-muted text-muted-foreground"
-            }`}>
-              <div className={`w-2 h-2 rounded-full shrink-0 ${
-                isEntrato ? "bg-green-500 animate-pulse" :
-                isInPausa ? "bg-amber-500 animate-pulse" :
-                "bg-slate-400"
-              }`} />
-              <span className="font-medium">
-                {isUscito ? "Fuori servizio" :
-                 isInPausa ? "In pausa" :
-                 isEntrato ? "In servizio" :
-                 "Non hai ancora timbrato"}
-              </span>
-              {lastTimbro?.timestamp_evento && (
-                <span className="ml-auto text-xs opacity-75">
-                  ultimo: {format(new Date(lastTimbro.timestamp_evento), "HH:mm")}
-                </span>
-              )}
-            </div>
-
-            {(dayTime.summary.byOrder.get(null)?.workMinutes ?? 0) > 0 && (
-              <p role="status" className="text-sm text-amber-700">{campoReportHours(dayTime.summary.byOrder.get(null)!.workMinutes)} h senza cantiere: vanno attribuite prima del consuntivo.</p>
-            )}
-            {dayTime.summary.issues.some(issue => issue.kind !== "open_session") && (
-              <p role="status" className="text-sm text-amber-700">Ci sono timbrature da verificare: controlla le ore prima di inviare il rapportino.</p>
-            )}
-
-            {/* Cosa verrà allegato alla timbratura: posizione e cantiere.
-                Stessi testi della pagina Timbratura — l'operaio sa PRIMA di
-                timbrare se la posizione c'è o no, niente sorprese dopo. */}
-            <p className="text-[11px] leading-snug text-muted-foreground">
-              {gpsStatus === "success" && <span className="text-green-600">GPS attivo — precisione {Math.round(accuracy)}m{address ? ` · ${address}` : ""}</span>}
-              {gpsStatus === "loading" && "Acquisizione GPS..."}
-              {(gpsStatus === "denied" || gpsStatus === "error" || gpsStatus === "idle") && "GPS non disponibile — timbratura senza posizione"}
-              {cantiereUnico && <span> · Cantiere {cantiereUnico.code ?? ""}</span>}
-            </p>
-
-            {(nonHaTimbrato || isUscito) && (
-              <div className="space-y-1.5">
-                <label htmlFor="campo-entry-site" className="text-sm font-medium">Dove inizi a lavorare?</label>
-                <select id="campo-entry-site" value={selected?.order_id ?? entrySite}
-                  onChange={e => setEntrySite(e.target.value)} disabled={loadingAssignments || assignmentsError}
-                  className="h-11 w-full min-w-0 rounded-lg border bg-background px-3 text-base">
-                  <option value="">Scegli il cantiere</option>
-                  {assignments.map(a => <option key={a.order_id} value={a.order_id}>{a.order.order_code} · {a.order.description}</option>)}
-                  <option value="__none__">Nessun cantiere — ore da attribuire</option>
-                </select>
-                {assignmentsError && <p role="alert" className="text-xs text-destructive">Elenco cantieri non disponibile: riprova dalla scheda cantieri.</p>}
-              </div>
-            )}
-
-            <CampoPunchActions state={dayTime.summary.state} busy={isMutating} canEnter={canEnter}
-              onPunch={tipo => timbraMutation.mutate(tipo)} />
-
-            {/* Timeline timbrature di oggi */}
-            {timbratureOggi.length > 0 && (
-              <div className="space-y-1 border-t pt-3">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Oggi</p>
-                {timbratureOggi.map((t: any) => (
-                  <div key={t.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <div className="w-1.5 h-1.5 rounded-full bg-border shrink-0" />
-                    <span className="font-medium tabular-nums">
-                      {format(new Date(t.timestamp_evento), "HH:mm")}
-                    </span>
-                    <span>—</span>
-                    <span>
-                      {t.tipo === "entrata" ? "Entrata" :
-                       t.tipo === "uscita" ? "Uscita" :
-                       t.tipo === "pausa_inizio" ? "Inizio pausa" :
-                       "Fine pausa"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 
@@ -1138,6 +953,9 @@ function MieAttivitaCampo() {
     enabled: !!user?.id && !!companyId,
     staleTime: 60_000,
   });
+
+  // Niente scheda «Nessuna attività in corso»: una scheda vuota è solo rumore.
+  if (!isLoading && tasks.length === 0) return null;
 
   return (
     <Card>
