@@ -186,6 +186,8 @@ export interface FamilyAxis {
   obbligatorio: boolean;
   sort_order: number;
   created_at: string;
+  /** Compare solo se un'altra variante ha uno di questi valori (vedi assiCondizionati.ts). */
+  visibile_se?: { asse: string; valori: string[] } | null;
 }
 
 export interface AxisValue {

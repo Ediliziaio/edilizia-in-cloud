@@ -68,6 +68,7 @@ import { schedaPosizione, scelteDaAssi } from "@/lib/serramenti/schedaPosizione"
 import { Checkbox } from "@/components/ui/checkbox";
 import { misuraDaTesto, quantitaDaTesto } from "@/lib/serramenti/righePreventivo";
 import { preferenzeDaRiga } from "@/lib/serramenti/pickerListino";
+import { conAssiVisibili, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
 import { ComplementiFinestra, ComplementiSuTutteLeFinestre, EliminaComplementoDialog } from "./ComplementiFinestra";
 import { useComplementiFinestre } from "./useComplementiFinestre";
 
@@ -990,7 +991,9 @@ export function SerramentoRow({
 
   // Carica family completa (con axes+values) per applicare le maggiorazioni
   // delle Variabili Prodotto al ricalcolo prezzo. Solo per righe listino.
-  const { family: familyWithAxes, isLoading: assiInCaricamento } = useFamily(family?.id);
+  const { family: familyCompleta, isLoading: assiInCaricamento } = useFamily(family?.id);
+  // Solo le varianti che si vedono con le scelte di questa riga (il monoblocco accende altezza cassonetto, tapparella…).
+  const familyWithAxes = useMemo(() => conAssiVisibili(familyCompleta ?? null, s.valori_assi), [familyCompleta, s.valori_assi]);
   // Griglia o varianti non ancora arrivate: un ricalcolo chiesto adesso aspetta
   // (vedi l'effetto dopo i gestori) invece di lasciare il prezzo vecchio.
   const datiInArrivo = !!family && (grigliaInCaricamento || assiInCaricamento);
@@ -1157,9 +1160,12 @@ export function SerramentoRow({
    * le maggiorazioni della nuova combinazione, lasciando L/A/Q invariati.
    */
   const handleAxisPatch = (axisCodice: string, valueId: string, scelta: string | null = null) => {
-    const nextSelections = { ...(s.valori_assi ?? {}), [axisCodice]: valueId };
+    const scelteMesse = { ...(s.valori_assi ?? {}), [axisCodice]: valueId };
+    // Le varianti che compaiono o spariscono (monoblocco sì/no) mettono in ordine le scelte della riga.
+    const ordinate = familyCompleta ? normalizzaSelezione(familyCompleta.axes, scelteMesse, scelteDopo(s.scelte_assi, axisCodice, scelta)) : null;
+    const nextSelections = ordinate ? ordinate.valori : scelteMesse;
     // La voce dentro il valore: il colore vero di «Colore Standard».
-    const nextScelte = scelteDopo(s.scelte_assi, axisCodice, scelta);
+    const nextScelte = ordinate ? ordinate.voci : scelteDopo(s.scelte_assi, axisCodice, scelta);
     // Stesso valore, un'altra voce (un altro colore della stessa fascia): il prezzo non cambia.
     if ((s.valori_assi ?? {})[axisCodice] === valueId) {
       onPatch({ scelte_assi: nextScelte });

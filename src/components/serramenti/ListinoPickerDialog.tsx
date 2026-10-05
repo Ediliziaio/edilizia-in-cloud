@@ -27,6 +27,7 @@ import { MisureForma, chiedeMisureForma, type MisureFormaValori } from "@/compon
 import { AnteprimaDisegnoFamiglia, MiniaturaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
 import { type DisegnoConfig, configDaFamiglia, disegnoDaConfig, haDisegno, misureTipiche } from "@/lib/serramenti/disegnoDaFamiglia";
 import { useState, useEffect, useMemo } from "react";
+import { conAssiVisibili, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
 import type { SrQuoteModelId } from "@/lib/serramenti/quoteModel";
 import { modelCatalogTypes, suggestedModelTypes } from "@/lib/serramenti/modelCatalog";
 import {
@@ -231,7 +232,9 @@ export function ListinoPickerDialog({
 
   // Il prodotto scelto arriva dal listino già con le sue variabili: niente
   // secondo caricamento, e «Aggiungi» non parte mai senza le variabili.
-  const familyWithAxes = riga?.famiglia ?? null;
+  const famigliaRiga = riga?.famiglia ?? null;
+  // Solo le varianti che si vedono con le scelte fatte (il monoblocco accende altezza cassonetto, tapparella…).
+  const familyWithAxes = useMemo(() => conAssiVisibili(famigliaRiga, axisSelection), [famigliaRiga, axisSelection]);
   const selectedFamily = useMemo(() => (riga ? comeListinoFamily(riga.famiglia) : null), [riga]);
 
   const { data: griglia = [], isLoading: loadingGriglia } = useListinoGriglia(selectedFamily?.id);
@@ -384,8 +387,9 @@ export function ListinoPickerDialog({
     // Gli assi sono del prodotto: la linea della scheda scelta, poi le scelte
     // dell'ultima posizione del preventivo, poi i valori di serie.
     const iniziale = selezioneIniziale(r, preferenzeAssi);
-    setAxisSelection(iniziale.valori);
-    setVociScelte(iniziale.voci);
+    const ordinate = normalizzaSelezione(r.famiglia.axes ?? [], iniziale.valori, iniziale.voci);
+    setAxisSelection(ordinate.valori);
+    setVociScelte(ordinate.voci);
     setSelectedSupplierProductLineId(null);
     setStep("misure");
   };
@@ -433,8 +437,9 @@ export function ListinoPickerDialog({
       } else {
         scegliRiga(prodotto.r, t, prodotto.l);
         if (partenza.valori) {
-          setAxisSelection({ ...partenza.valori });
-          setVociScelte({ ...(partenza.voci ?? {}) });
+          const ordinate = normalizzaSelezione(prodotto.r.famiglia.axes ?? [], { ...partenza.valori }, { ...(partenza.voci ?? {}) });
+          setAxisSelection(ordinate.valori);
+          setVociScelte(ordinate.voci);
         }
       }
     }
@@ -840,8 +845,10 @@ export function ListinoPickerDialog({
                           valueId={currentId}
                           scelta={vociScelte[axis.codice]}
                           onChange={(valueId, voce) => {
-                            setAxisSelection((prev) => ({ ...prev, [axis.codice]: valueId }));
-                            setVociScelte((prev) => scelteDopo(prev, axis.codice, voce));
+                            // Le varianti che compaiono o spariscono (monoblocco sì/no) mettono in ordine le scelte.
+                            const ordinate = normalizzaSelezione(famigliaRiga?.axes ?? [], { ...axisSelection, [axis.codice]: valueId }, scelteDopo(vociScelte, axis.codice, voce));
+                            setAxisSelection(ordinate.valori);
+                            setVociScelte(ordinate.voci);
                           }}
                           placeholder={isMissing ? "Da scegliere…" : "Seleziona…"}
                           aria-label={axis.nome}

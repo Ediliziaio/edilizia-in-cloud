@@ -890,3 +890,22 @@ describe("riga congelata senza disegno (preventivi già consegnati)", () => {
     expect(disegnoDaConfig({ v: 1, tipologia: "finestra_2_ante" }, 1200, 1400)).not.toBeNull();
   });
 });
+
+describe("monoblocco come scelta di ogni tipologia", () => {
+  const forme = (tip: string, monoblocco: boolean) => {
+    const d = disegnoDaConfig({ v: 1, tipologia: tip, monoblocco }, 1200, 1500);
+    const scena = d && d.tipo !== "persiana" ? disegnaSerramento((d.viste[0] as { disegno: SerramentoDisegno }).disegno) : null;
+    return scena?.forme ?? [];
+  };
+  it("«Con monoblocco» mette il cassonetto sopra a finestre, porte finestra e scorrevoli", () => {
+    for (const tip of ["finestra_2_ante", "porta_finestra_1_anta", "finestra_2_ante_sopraluce", "traslante_4_ante"]) {
+      expect(rett(forme(tip, true), "cassonetto"), tip).toHaveLength(1);
+      expect(rett(forme(tip, false), "cassonetto"), tip).toHaveLength(0);
+    }
+  });
+  it("non si mette sulle sagome né sul fisso", () => {
+    for (const tip of ["finestra_arco", "finestra_tonda", "fisso"]) {
+      expect(rett(forme(tip, true), "cassonetto"), tip).toHaveLength(0);
+    }
+  });
+});

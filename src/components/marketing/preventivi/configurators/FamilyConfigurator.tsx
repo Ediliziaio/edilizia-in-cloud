@@ -10,6 +10,7 @@
  *
  * Al conferma restituisce 1-2 `ConfiguredItem` (prodotto + posa opzionale).
  */
+import { conAssiVisibili, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
 import { useMemo, useState } from "react";
 import { ArrowLeft, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -85,13 +86,15 @@ export function FamilyConfigurator({
   onBack,
   onAddItems,
 }: FamilyConfiguratorProps) {
-  const family = item.family;
+  const famigliaCompleta = item.family;
   const [larghezza, setLarghezza] = useState<string>("1200");
   const [altezza, setAltezza] = useState<string>("1400");
   const [quantita, setQuantita] = useState<string>("1");
   const [selection, setSelection] = useState<AxisSelection>(() =>
-    defaultSelections(family),
+    normalizzaSelezione(famigliaCompleta.axes, defaultSelections(famigliaCompleta)).valori,
   );
+  // Solo le varianti che si vedono con le scelte fatte (il monoblocco accende altezza cassonetto, tapparella…).
+  const family = useMemo(() => conAssiVisibili(famigliaCompleta, selection), [famigliaCompleta, selection]);
   const [includePosa, setIncludePosa] = useState<boolean>(
     item.ha_posa_automatica && item.posa_linked,
   );
@@ -332,7 +335,7 @@ export function FamilyConfigurator({
                 <Select
                   value={selection[axis.codice] ?? ""}
                   onValueChange={(v) =>
-                    setSelection((prev) => ({ ...prev, [axis.codice]: v }))
+                    setSelection((prev) => normalizzaSelezione(famigliaCompleta.axes, { ...prev, [axis.codice]: v }).valori)
                   }
                 >
                   <SelectTrigger id={`axis-${axis.id}`}>

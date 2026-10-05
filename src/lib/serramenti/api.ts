@@ -390,7 +390,15 @@ const CAMPI_NON_COPIATI_IN_REVISIONE = new Set([
   "public_token", "public_url", "firmato_il", "firma_cliente_url",
 ]);
 
-export async function duplicaProgetto(originalId: string): Promise<{ newId: string; newCode: string; revision_number: number }> {
+/**
+ * `comeRevisione: false` = «Duplica» dall'elenco: una copia indipendente, con un numero tutto suo (lo dà il database,
+ * come per ogni preventivo nuovo) e nessun legame col preventivo di partenza.
+ */
+export async function duplicaProgetto(
+  originalId: string,
+  opzioni: { comeRevisione?: boolean } = {},
+): Promise<{ newId: string; newCode: string; revision_number: number }> {
+  const comeRevisione = opzioni.comeRevisione !== false;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
   const { data: orig, error: origErr } = await sb.from("sr_progetti").select("*").eq("id", originalId).maybeSingle();
@@ -404,7 +412,7 @@ export async function duplicaProgetto(originalId: string): Promise<{ newId: stri
     .or(`parent_id.eq.${radiceId},id.eq.${radiceId}`);
   if (serieErr) throw new Error(`Lettura revisioni fallita: ${serieErr.message}`);
   const righeSerie = (serie ?? []) as Array<{ id: string; code: string; revision_number: number | null }>;
-  const nextRev = Math.max(1, ...righeSerie.map((r) => r.revision_number ?? 1)) + 1;
+  const nextRev = comeRevisione ? Math.max(1, ...righeSerie.map((r) => r.revision_number ?? 1)) + 1 : 1;
   const codiceRadice = righeSerie.find((r) => r.id === radiceId)?.code ?? orig.code;
   const newCode = `${codiceRadice}-r${nextRev}`;
 
@@ -413,10 +421,16 @@ export async function duplicaProgetto(originalId: string): Promise<{ newId: stri
   );
   const { data: nuovo, error: nuovoErr } = await sb
     .from("sr_progetti")
-    .insert({ ...copiabili, code: newCode, stato: "bozza", parent_id: radiceId, revision_number: nextRev })
-    .select("id")
+    .insert(
+      comeRevisione
+        ? { ...copiabili, code: newCode, stato: "bozza", parent_id: radiceId, revision_number: nextRev }
+        // Copia indipendente: niente codice (lo assegna il database), niente padre.
+        // (e non resta sulla stessa opportunità: il suo valore sommerebbe due volte lo stesso preventivo).
+        : { ...copiabili, opportunita_id: null, stato: "bozza", parent_id: null },
+    )
+    .select("id, code")
     .single();
-  if (nuovoErr || !nuovo) throw new Error(`Creazione revisione fallita: ${nuovoErr?.message}`);
+  if (nuovoErr || !nuovo) throw new Error(`${comeRevisione ? "Creazione revisione" : "Duplicazione"} fallita: ${nuovoErr?.message}`);
   const newId = nuovo.id as string;
 
   const senzaCampiDelDatabase = (riga: Record<string, unknown>) =>
@@ -460,7 +474,7 @@ export async function duplicaProgetto(originalId: string): Promise<{ newId: stri
     throw e;
   }
 
-  return { newId, newCode, revision_number: nextRev };
+  return { newId, newCode: comeRevisione ? newCode : String(nuovo.code ?? newCode), revision_number: nextRev };
 }
 
 export async function addSerramento(

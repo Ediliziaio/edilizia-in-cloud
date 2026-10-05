@@ -152,6 +152,8 @@ export interface DisegnoConfig {
   coloreInterno?: string;
   coloreEsterno?: string;
   telaio?: string;
+  /** «Con monoblocco» su una qualunque tipologia: il serramento ha il cassonetto sopra (non vale per le sagome e i fissi). */
+  monoblocco?: boolean;
   /** Monoblocco: altezza del cassonetto, avvolgimento («Motorizzato…»), colori e zanzariera, dalle scelte. */
   altezzaCassonettoMm?: number;
   avvolgimento?: string;
@@ -226,6 +228,7 @@ export function configDaFamiglia(
   if (e("avvolgimento")) c.avvolgimento = e("avvolgimento");
   if (e("colore_tapparella")) c.coloreTapparella = e("colore_tapparella");
   if (e("colore_cassonetto")) c.coloreCassonetto = e("colore_cassonetto");
+  if (e("monoblocco")) c.monoblocco = /^\s*con\b/i.test(e("monoblocco") as string);
   if (e("zanzariera")) c.zanzariera = /^\s*con\b/i.test(e("zanzariera") as string);
   if (e("tipologia_vetro")) c.tipologiaVetro = e("tipologia_vetro");
   if (e("vetrocamera")) c.vetrocamera = e("vetrocamera");
@@ -267,7 +270,8 @@ export function disegnoDaConfig(config: DisegnoConfig, larghezzaMm: number, alte
   const tipologia = t === TIPOLOGIA_PERSONALIZZATA ? tipologiaDaDefinizione(config.definizione) : TIPOLOGIE_DISEGNO.find((x) => x.id === t);
   if (!tipologia) return null;
   // Monoblocco: la tipologia dà il cassonetto di serie, le scelte lo cambiano.
-  const mono = tipologia.monoblocco;
+  // Il monoblocco è anche una scelta di ogni tipologia («Con monoblocco»): cassonetto sopra, tranne che su sagome e fissi.
+  const mono = tipologia.monoblocco ?? (config.monoblocco && !tipologia.forma && t !== "fisso" ? { cassonettoMm: 200, tapparella: { motore: false } } : undefined);
   const monoblocco = mono
     ? {
         ...mono,

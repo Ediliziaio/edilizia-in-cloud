@@ -41,8 +41,7 @@ import {
   Search, ChevronRight, ChevronLeft, FileText, RectangleVertical, Sun,
   Inbox, X, Target, TrendingUp, Clock, FileCheck2, Euro,
   SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind, Zap, Flame, LayoutGrid, Waves,
-  Trash2, MoreHorizontal, ExternalLink, AlertTriangle, FileX2,
-} from "lucide-react";
+  Trash2, MoreHorizontal, ExternalLink, AlertTriangle, FileX2, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, isSameMonth } from "date-fns";
 import { it } from "date-fns/locale";
@@ -162,6 +161,40 @@ export function UnifiedPreventiviList() {
   const { role } = useAuth();
   const puoEliminare = role === "super_admin" || role === "company_admin";
   const [daCestinare, setDaCestinare] = useState<UnifiedRow | null>(null);
+  const [inDuplicazione, setInDuplicazione] = useState<string | null>(null);
+
+  /** Tipi che si sanno duplicare dall'elenco: la copia nasce in bozza, senza firme né invii, e si apre per adattarla. */
+  const sapDuplicare = (r: UnifiedRow) => r.tipo === "classico" || r.tipo === "serramenti" || r.tipo === "fotovoltaico";
+  const duplica = async (r: UnifiedRow) => {
+    if (inDuplicazione || !companyId) return;
+    setInDuplicazione(r.id);
+    try {
+      let vai: string;
+      if (r.tipo === "classico") {
+        const { duplicaPreventivo } = await import("@/lib/quotes/duplicaPreventivo");
+        const { avvisoSchedeNonAllegate } = await import("@/lib/quotes/allegatiPreventivo");
+        const { id, nonAllegate } = await duplicaPreventivo(r.id, companyId, { comeRevisione: false });
+        const avviso = avvisoSchedeNonAllegate(nonAllegate);
+        if (avviso) toast.warning(`Preventivo duplicato: ${avviso.conteggio}`, { description: avviso.descrizione, duration: 10000 });
+        vai = `/azienda/marketing/preventivi/${id}/modifica`;
+      } else if (r.tipo === "serramenti") {
+        const { duplicaProgetto } = await import("@/lib/serramenti/api");
+        const { newId } = await duplicaProgetto(r.id, { comeRevisione: false });
+        vai = `/azienda/serramenti/${newId}/modifica`;
+      } else {
+        const { data, error } = await supabase.rpc("fv_duplica_progetto" as never, { p_progetto_id: r.id } as never);
+        if (error || !data) throw error ?? new Error("La copia non è stata creata");
+        vai = `/azienda/marketing/fotovoltaico/${String(data)}`;
+      }
+      void queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && String(q.queryKey[0]).startsWith("unified-prev") });
+      toast.success("Preventivo duplicato", { description: "La copia parte in bozza: aprila e adattala." });
+      navigate(vai);
+    } catch (e) {
+      toast.error("Duplicazione non riuscita", { description: e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e) });
+    } finally {
+      setInDuplicazione(null);
+    }
+  };
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [cestinoOpen, setCestinoOpen] = useState(false);
@@ -1424,6 +1457,11 @@ export function UnifiedPreventiviList() {
                                 <DropdownMenuItem onClick={() => window.open(r.href, "_blank", "noopener,noreferrer")}>
                                   <ExternalLink className="mr-2 h-3.5 w-3.5" /> Apri in una nuova scheda
                                 </DropdownMenuItem>
+                                {sapDuplicare(r) && (
+                                  <DropdownMenuItem disabled={inDuplicazione === r.id} onClick={() => void duplica(r)}>
+                                    <Copy className="mr-2 h-3.5 w-3.5" /> {inDuplicazione === r.id ? "Duplico…" : "Duplica"}
+                                  </DropdownMenuItem>
+                                )}
                                 {puoEliminare && <DropdownMenuSeparator />}
                                 {puoEliminare && (
                                   <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDaCestinare(r)}>
