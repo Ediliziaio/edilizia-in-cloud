@@ -229,8 +229,9 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
         // Il disegno si congela ora: un listino cambiato dopo non cambia il PDF di questo preventivo.
         disegno_config: item.disegno_config ?? null,
         // Il colore lo decide la variabile «Colore»: dentro/fuori si ereditano solo se la riga non ce l'ha.
-        colore_interno: item.valori_assi?.colore ? null : (ultimaDaListino?.colore_interno ?? null),
-        colore_esterno: item.valori_assi?.colore ? null : (ultimaDaListino?.colore_esterno ?? null),
+        // Se nel selettore sono stati scelti a parte (finestra bicolore) valgono quelli.
+        colore_interno: item.colore_interno ?? (item.valori_assi?.colore ? null : (ultimaDaListino?.colore_interno ?? null)),
+        colore_esterno: item.colore_esterno ?? (item.valori_assi?.colore ? null : (ultimaDaListino?.colore_esterno ?? null)),
         // La nota della riga è quella del commerciale e il PDF la stampa come
         // «Note tecniche». Il conto del prezzo non è una nota: finiva nel PDF in
         // formato inglese («1.68 m² × €600.00/m²») e restava vecchio appena si

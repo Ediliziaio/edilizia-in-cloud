@@ -71,7 +71,8 @@ import {
 } from "@/lib/serramenti/pickerListino";
 import { SchedaLineaCompatta } from "./SchedaLineaCompatta";
 import { SceltaVariante } from "./SceltaVariante";
-import { scelteDopo } from "@/lib/listino/scelteVariante";
+import { gruppiColori, scelteDopo } from "@/lib/listino/scelteVariante";
+import { SceltaColore } from "./SceltaColore";
 import { misuraDaTesto, quantitaDaTesto } from "@/lib/serramenti/righePreventivo";
 import {
   applyMaggiorazioniAssi,
@@ -100,6 +101,9 @@ export interface ListinoPickResult {
   /** La voce scelta dentro ogni valore: il colore vero di «Colore Standard».
    *  Mappa { axis_codice -> voce }; il prezzo resta quello del valore. */
   scelte_assi?: Record<string, string>;
+  /** Colore interno ed esterno scelti a parte (finestra bicolore); null = quello della variabile «Colore». */
+  colore_interno?: string | null;
+  colore_esterno?: string | null;
   /** Il disegno automatico congelato (null se l'articolo non ne ha). */
   disegno_config?: DisegnoConfig | null;
   /** Snapshot modalita_prezzo_base del listino al momento del pick: dice se
@@ -177,6 +181,10 @@ export function ListinoPickerDialog({
   const [vociScelte, setVociScelte] = useState<Record<string, string>>({});
   // Le misure in più della sagoma (arco, trapezio).
   const [formaExtra, setFormaExtra] = useState<MisureFormaValori>({});
+  // Colore diverso dentro e fuori (finestra bicolore): si sceglie qui, senza aspettare di aver aggiunto la riga.
+  const [coloriDiversi, setColoriDiversi] = useState(false);
+  const [coloreInterno, setColoreInterno] = useState<string | null>(null);
+  const [coloreEsterno, setColoreEsterno] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
@@ -194,6 +202,7 @@ export function ListinoPickerDialog({
       setLarghezza(""); setAltezza(""); setQuantita("1"); setFormaExtra({});
       setAxisSelection({});
       setVociScelte({});
+      setColoriDiversi(false); setColoreInterno(null); setColoreEsterno(null);
       setSelectedSupplierProductLineId(null);
     }
   }, [open]);
@@ -262,13 +271,21 @@ export function ListinoPickerDialog({
     () => assiDaScegliere((familyWithAxes?.axes ?? []).slice().sort((a, b) => Number(b.codice === "apertura") - Number(a.codice === "apertura") || a.sort_order - b.sort_order)),
     [familyWithAxes],
   );
+  // Senza la variabile «Colore» restano solo i due campi; con la variabile, dentro e fuori diversi solo se serve.
+  const haAsseColore = axes.some((a) => a.codice === "colore");
+  const mostraColoriDentroFuori = !haAsseColore || coloriDiversi;
+  const gruppiDiColori = useMemo(() => gruppiColori(axes), [axes]);
+  const coloriRiga = useMemo(
+    () => (mostraColoriDentroFuori ? { coloreInterno, coloreEsterno } : {}),
+    [mostraColoriDentroFuori, coloreInterno, coloreEsterno],
+  );
   // Il disegno dell'articolo, con le misure scritte (o quelle tipiche) e le scelte fatte.
   const anteprimaDisegno = useMemo(() => {
     if (!familyWithAxes || !haDisegno(familyWithAxes)) return null;
     const tipiche = misureTipiche(familyWithAxes);
-    const config = configDaFamiglia(familyWithAxes, axisSelection, { voci: vociScelte, forma: formaExtra });
+    const config = configDaFamiglia(familyWithAxes, axisSelection, { ...coloriRiga, voci: vociScelte, forma: formaExtra });
     return config ? disegnoDaConfig(config, misuraDaTesto(larghezza) ?? tipiche.larghezzaMm, misuraDaTesto(altezza) ?? tipiche.altezzaMm) : null;
-  }, [familyWithAxes, axisSelection, larghezza, altezza, vociScelte, formaExtra]);
+  }, [familyWithAxes, axisSelection, larghezza, altezza, vociScelte, formaExtra, coloriRiga]);
 
   // La scheda della linea scelta (PVC Salamander 76): foto, dati e testo da
   // leggere al cliente. La linea è il valore dell'asse Linea, o la categoria.
@@ -390,6 +407,7 @@ export function ListinoPickerDialog({
     const ordinate = normalizzaSelezione(r.famiglia.axes ?? [], iniziale.valori, iniziale.voci);
     setAxisSelection(ordinate.valori);
     setVociScelte(ordinate.voci);
+    setColoriDiversi(false); setColoreInterno(null); setColoreEsterno(null);
     setSelectedSupplierProductLineId(null);
     setStep("misure");
   };
@@ -472,7 +490,9 @@ export function ListinoPickerDialog({
       valori_assi: { ...axisSelection },
       scelte_assi: { ...vociScelte },
       // Il disegno si congela con la riga: un listino cambiato dopo non cambia il PDF di questo preventivo.
-      disegno_config: configDaFamiglia(familyWithAxes, axisSelection, { voci: vociScelte, forma: formaExtra }),
+      disegno_config: configDaFamiglia(familyWithAxes, axisSelection, { ...coloriRiga, voci: vociScelte, forma: formaExtra }),
+      colore_interno: mostraColoriDentroFuori ? coloreInterno : null,
+      colore_esterno: mostraColoriDentroFuori ? coloreEsterno : null,
       modalita_prezzo: modalita,
     });
     onOpenChange(false);
@@ -857,6 +877,35 @@ export function ListinoPickerDialog({
                       </div>
                     );
                   })}
+                </div>
+                {/* Un colore solo: quello di «Colore». Dentro e fuori diversi (finestra bicolore) solo se serve. */}
+                <div className="mt-2.5">
+                  {haAsseColore && (
+                    <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-slate-700">
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 accent-orange-500"
+                        checked={coloriDiversi}
+                        onChange={(e) => {
+                          setColoriDiversi(e.target.checked);
+                          if (!e.target.checked) { setColoreInterno(null); setColoreEsterno(null); }
+                        }}
+                      />
+                      Colore diverso dentro e fuori
+                    </label>
+                  )}
+                  {mostraColoriDentroFuori && (
+                    <div className="mt-2 grid grid-cols-1 gap-2.5 md:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label className="flex h-5 items-center text-[11px] text-slate-700">Colore interno</Label>
+                        <SceltaColore value={coloreInterno} onChange={setColoreInterno} gruppi={gruppiDiColori} placeholder="Bianco RAL 9010" aria-label="Colore interno" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="flex h-5 items-center text-[11px] text-slate-700">Colore esterno</Label>
+                        <SceltaColore value={coloreEsterno} onChange={setColoreEsterno} gruppi={gruppiDiColori} placeholder="Antracite RAL 7016" aria-label="Colore esterno" />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Card>
             )}
