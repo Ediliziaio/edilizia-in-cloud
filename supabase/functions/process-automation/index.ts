@@ -27,6 +27,7 @@ import { mittenteDelPasso, dominiAmmessi, soloDominiDellAzienda } from "../_shar
 import { calendarioDelGiorno, giornoAmmesso, leggiSettimane } from "../_shared/attesaCalendario.ts";
 import { confrontoConOggi } from "../_shared/condizioniData.ts";
 import { romaVersoUtc, urlGestione } from "../_shared/appuntamentiPubblici.ts";
+import { fissaChiamataDaFascia } from "../_shared/chiamataDaFascia.ts";
 import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import {
@@ -2827,6 +2828,23 @@ Istruzione: ${aiPrompt}`;
     }
 
     case "crea_appuntamento": {
+      // Fascia scelta sul WhatsApp («15-16»): l'appuntamento nasce direttamente
+      // nel calendario scelto, nel primo slot libero della fascia. Giorno e ora
+      // restano nel payload per la conferma al cliente ({{giorno_chiamata}}).
+      if (ncfg.modo === "da_fascia_messaggio") {
+        if (!ncfg.calendario_id || !UUID_RE.test(String(ncfg.calendario_id))) return { success: false, error: "Scegli il calendario in cui fissare la chiamata" };
+        try {
+          const c = await fissaChiamataDaFascia(supabase, {
+            companyId, calendarId: String(ncfg.calendario_id), contactId: String(ncfg.contact_id || entityId),
+            messaggio: String(pPayload.message ?? ""), titolo: ncfg.titolo ? rv(String(ncfg.titolo)) : undefined,
+          });
+          pPayload.giorno_chiamata = c.giornoEsteso;
+          pPayload.ora_chiamata = c.ora;
+          return { success: true, output: { action: "crea_appuntamento", appuntamento_id: c.appointmentId, giorno: c.giorno, ora: c.ora, esistente: c.esistente } };
+        } catch (e) {
+          return { success: false, error: e instanceof Error ? e.message : String((e as any)?.message ?? e) };
+        }
+      }
       const title = ncfg.titolo || "Appuntamento automatico";
       const giorniDaOggi = ncfg.giorni_da_oggi == null || ncfg.giorni_da_oggi === "" ? 1 : Number(ncfg.giorni_da_oggi);
       if (!Number.isInteger(giorniDaOggi) || giorniDaOggi < 0) return { success: false, error: "I giorni devono essere un intero da zero in su" };

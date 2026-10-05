@@ -1910,8 +1910,13 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     configSchema: [
       { id: 'titolo', label: 'Titolo appuntamento', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Sopralluogo {{cantiere.nome}}' },
       { id: 'contact_id', label: 'ID Contatto', type: 'text', required: false, supportsVariables: true, placeholder: '{{contatto.id}}' },
-      { id: 'giorni_da_oggi', label: 'Fissa tra N giorni da oggi', type: 'number', required: true, defaultValue: 1, min: 0, max: 365 },
-      { id: 'orario', label: 'Ora appuntamento', type: 'time', required: false, defaultValue: '10:00' },
+      { id: 'modo', label: 'Quando', type: 'select', required: false, defaultValue: 'fisso', options: [
+        { value: 'fisso', label: 'Tra N giorni, a un\'ora fissa' },
+        { value: 'da_fascia_messaggio', label: 'Nella fascia scelta dal cliente sul WhatsApp (es. 15-16)' },
+      ], helpText: 'Con la fascia: oggi se c\'è ancora tempo (da mezz\'ora dopo la risposta), altrimenti il primo giorno utile; mai la domenica, mai oltre le 18. Primo slot libero del calendario.' },
+      { id: 'calendario_id', label: 'Calendario', type: 'calendar_select', required: false, helpText: 'Obbligatorio con «Nella fascia scelta dal cliente». Senza, l\'appuntamento non va in nessun calendario.' },
+      { id: 'giorni_da_oggi', label: 'Fissa tra N giorni da oggi', type: 'number', required: false, defaultValue: 1, min: 0, max: 365, helpText: 'Solo con «Tra N giorni».' },
+      { id: 'orario', label: 'Ora appuntamento', type: 'time', required: false, defaultValue: '10:00', helpText: 'Solo con «Tra N giorni».' },
       { id: 'tipo', label: 'Tipo', type: 'select', required: false, options: [
         { value: 'sopralluogo', label: 'Sopralluogo' }, { value: 'video_call', label: 'Video call' },
         { value: 'telefonata', label: 'Telefonata' }, { value: 'in_sede', label: 'In sede' },
