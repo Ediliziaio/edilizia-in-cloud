@@ -152,7 +152,8 @@ export function righeAllarmeAperto(riga: RigaAllarme, adesso: Date): Record<stri
   return {
     problema: `${etichettaMotivo(riga)}: ${riga.motivo === "credito_esaurito" ? "l'AI è ferma finché non si ricarica" : "da sistemare"}`,
     da: `${oraDiRoma(riga.aperto_il)} (${durataLeggibile(adesso.getTime() - Date.parse(riga.aperto_il))} fa)`,
-    chiamate_fallite: `almeno ${riga.conteggio}`,
+    // Per «credito in calo» il conteggio sono le letture del saldo ogni 5 minuti, non chiamate fallite.
+    ...(riga.motivo === "credito_basso" ? {} : { chiamate_fallite: `almeno ${riga.conteggio}` }),
     ...(piuColpiti(riga.funzioni, 3) ? { funzioni: piuColpiti(riga.funzioni, 3) } : {}),
     ...(riga.motivo === "chiave_non_valida" || riga.motivo === "limite_chiave"
       ? { chiavi: p.chiavi }

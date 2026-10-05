@@ -347,7 +347,7 @@ describe("Credito in calo: si avvisa PRIMA che finisca, se si conosce il saldo",
     expect(db.chiamate.find((c) => c.nome === "ai_allarme_registra")?.args).toMatchObject({ p_motivo: "credito_basso" });
     expect(notifica.mock.calls[0][1].oggetto).toBe("Credito OpenRouter in calo: restano 9,80 $");
     // la metrica porta il saldo: si potrà calcolare quanto si consuma
-    expect(db.metriche[0]).toMatchObject({ metric_type: "ai_sonda", metadata: expect.objectContaining({ saldo_usd: 9.8, ok: true }) });
+    expect(db.metriche[0]).toMatchObject({ metric_type: "ai_sonda", function_name: "openrouter-sonda", metadata: expect.objectContaining({ saldo_usd: 9.8, ok: true }) });
   });
 
   it("saldo sopra la soglia: nessun allarme; e un «in calo» aperto si chiude in silenzio", async () => {

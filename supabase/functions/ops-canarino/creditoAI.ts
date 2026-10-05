@@ -85,7 +85,11 @@ async function registraMetrica(supabase: SupabaseClient, sonda: EsitoSonda | nul
   try {
     await supabase.from("system_health_metrics").insert({
       metric_type: "ai_sonda",
-      function_name: "ops-canarino",
+      // Nome a parte: v_errori_piattaforma e admin_platform_health() contano ogni riga
+      // con status >= 400 per function_name. Col credito finito la sonda fallisce ogni
+      // 5 minuti (circa 288 righe al giorno): con «ops-canarino» sembrerebbe rotto il
+      // canarino, che invece sta facendo il suo lavoro.
+      function_name: "openrouter-sonda",
       status_code: sonda?.stato ?? null,
       latency_ms: sonda?.ms ?? null,
       error_message: sonda && !sonda.ok ? sonda.dettaglio : null,

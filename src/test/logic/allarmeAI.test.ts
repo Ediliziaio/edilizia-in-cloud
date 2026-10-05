@@ -279,6 +279,12 @@ describe("Le parole dell'avviso: motivo e urgenza già dall'oggetto", () => {
     expect(r.ricarica).toBe("https://openrouter.ai/settings/credits");
     expect(righeAllarmeAperto(riga({ motivo: "chiave_non_valida" }), ADESSO).chiavi).toBe("https://openrouter.ai/settings/keys");
   });
+
+  it("nel rapporto del mattino «credito in calo» non conta «chiamate fallite»: sono letture del saldo", () => {
+    const r = righeAllarmeAperto(riga({ motivo: "credito_basso", conteggio: 288 }), ADESSO);
+    expect("chiamate_fallite" in r).toBe(false);
+    expect(String(r.problema)).toContain("in calo");
+  });
 });
 
 describe("La sonda: distingue «credito finito» da «rete giù»", () => {
