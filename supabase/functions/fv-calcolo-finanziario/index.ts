@@ -189,7 +189,11 @@ Deno.serve(async (req: Request) => {
     const prezzo_vendita_netto = usaPrezzoManuale
       ? round2(prezzoManuale)
       : round2(prezzo_pieno_netto - sconto_eur_applicato);
-    const iva_aliquota = prog.iva_aliquota ?? 0.10;
+    // L'aliquota è una frazione (0.10). Un valore salvato in percentuale (10)
+    // avrebbe dato un prezzo IVA inclusa 11 volte quello vero: si riporta a
+    // frazione (05/10/2026; oggi tutti i progetti hanno 0.10).
+    const ivaSalvata = Number(prog.iva_aliquota ?? 0.10);
+    const iva_aliquota = ivaSalvata > 1 ? ivaSalvata / 100 : ivaSalvata;
     const prezzo_vendita_iva_inclusa = prezzo_vendita_netto * (1 + iva_aliquota);
     const margine_eur = prezzo_vendita_netto - costo_totale_netto;
     const margine_pct = prezzo_vendita_netto > 0 ? margine_eur / prezzo_vendita_netto : 0;

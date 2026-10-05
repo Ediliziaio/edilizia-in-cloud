@@ -364,7 +364,8 @@ export function costruisciDatiEdile(input: {
         prezzoUnitario: Number(v.prezzo_unitario) || 0,
         importo,
         fonte: v.fonte ?? null,
-        margineEur: importo - costo,
+        // Riga venduta senza costo: margine non noto, il PDF stampa «—» (05/10/2026).
+        margineEur: importo > 0 && costo <= 0 ? null : importo - costo,
       };
     }),
   }));

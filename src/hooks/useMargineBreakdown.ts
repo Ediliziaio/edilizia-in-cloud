@@ -11,13 +11,14 @@
  *   3. fetch tariffe_aziendali correlate (per costo_default e varianti default)
  *   4. fetch varianti default delle tariffe usate
  *   5. computeBreakdown: priorità costo = assegnata > default tariffa variante
- *      > costo_default tariffa > fallback legacy
+ *      > costo della tariffa (costoTariffa)
  *
  * Il hook è gated: ritorna null se l'utente non ha can_view_margins.
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { costoTariffa } from "@/lib/listino/costoTariffa";
 import type {
   MargineBreakdown,
   MargineQuoteItem,
@@ -73,8 +74,12 @@ function isAssegnabile(item: QuoteItemRow): boolean {
  * Ordine priorità costo (§7.1 masterprompt):
  *   1. variante_assegnata  — assegnazione esistente, usa costo_bloccato
  *   2. variante_default    — variante is_default=true della tariffa (preview)
- *   3. costo_default_tariffa — tariffe_aziendali.costo_default
- *   4. stimato             — fallback legacy (costo_interno/prezzo_costo/prezzo_acquisto)
+ *   3. costo_default_tariffa — il costo della tariffa secondo costoTariffa
+ *      (costo_interno, prezzo_costo, costo_default: la stessa regola della
+ *      pagina Tariffe). Prima costo_default veniva per primo: vuoto su quasi
+ *      tutte le voci, e dove costo_interno era lo 0 di default il margine
+ *      ignorava il costo vero in prezzo_costo (05/10/2026).
+ *   4. stimato             — nessun costo noto (0)
  */
 export function computeBreakdown(
   items: QuoteItemRow[],
@@ -128,11 +133,11 @@ export function computeBreakdown(
           fonte = "variante_default";
           varianteId = varianteDefault.id;
         } else {
-          // 3. costo_default tariffa (o fallback legacy)
+          // 3. costo della tariffa, con la regola unica di costoTariffa
           const t = item.tariffa_id ? tariffaById.get(item.tariffa_id) : null;
           if (t) {
-            const cd = t.costo_default ?? t.costo_interno ?? t.prezzo_costo ?? 0;
-            costoUnit = Number(cd);
+            const cd = costoTariffa(t) ?? 0;
+            costoUnit = cd;
             fonte = cd > 0 ? "costo_default_tariffa" : "stimato";
           }
         }

@@ -32,10 +32,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   GridBulkImportDialog,
+  campoImportoGriglia,
   type BulkParsedPayload,
 } from "./GridBulkImportDialog";
 import { applyMarkup, applyScontiFornitore } from "@/lib/priceMarkup";
 import { formatCurrency } from "@/lib/formatters";
+import { round2 } from "@/hooks/usePreventivoCosti";
+import { invalidaListinoNelPreventivatore } from "@/lib/serramenti/cacheListino";
 import type { MarkupTipo } from "@/types/articleFamily";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -91,6 +94,155 @@ interface Props {
 // bootstrap (deps [rows]) girerebbe in loop durante il caricamento.
 const EMPTY_ROWS: GridRow[] = [];
 
+type ModoPrezzo = "vendita" | "acquisto_markup";
+
+/**
+ * Le misure della griglia sono colonne INTEGER (listino_griglia.valore_x/y):
+ * fino al 05/10/2026 l'editor accettava 62,5 e il salvataggio falliva con un
+ * errore del database. Null se la misura va bene.
+ */
+export function problemaMisuraGriglia(v: number): string | null {
+  if (!Number.isFinite(v) || v <= 0) return "Scrivi una misura maggiore di zero, in millimetri.";
+  if (!Number.isInteger(v)) {
+    return `Le misure vanno in millimetri interi: ${v.toLocaleString("it-IT")} non si può salvare.`;
+  }
+  return null;
+}
+
+/**
+ * Netto e vendita di una cella dal prezzo di acquisto scritto (LORDO di
+ * listino se ci sono sconti fornitore, altrimenti netto). La vendita è al
+ * centesimo come nei motori dei preventivi (05/10/2026): prima si salvava con
+ * 4 decimali (es. 133,3330) e il preventivo serramenti, che legge la vendita
+ * salvata, partiva da un prezzo diverso da quello mostrato qui.
+ */
+export function prezziCellaDaAcquisto(
+  prezzoAcquisto: number,
+  p: { scontoFornitore1: number; scontoFornitore2: number; markupTipo: MarkupTipo; markupValore: number },
+): { netto: number; vendita: number } {
+  const netto =
+    p.scontoFornitore1 > 0 || p.scontoFornitore2 > 0
+      ? applyScontiFornitore(prezzoAcquisto, p.scontoFornitore1, p.scontoFornitore2)
+      : Math.max(0, prezzoAcquisto);
+  const vendita = round2(
+    applyMarkup({ prezzoAcquisto: netto, markupTipo: p.markupTipo, markupValore: p.markupValore })
+      .prezzoVendita,
+  );
+  return { netto, vendita };
+}
+
+export interface EsitoCsvGriglia {
+  /** Celle attuali con quelle del file sopra. */
+  celle: Map<string, Cell>;
+  /** Misure (mm) delle righe importate, ordinate. */
+  xs: number[];
+  ys: number[];
+  importate: number;
+  /** Righe illeggibili o senza il prezzo che il prodotto usa. */
+  scartate: number;
+  /** Solo «acquisto_markup»: righe senza prezzo di acquisto. */
+  senzaAcquisto: number;
+  /** Testo delle misure non intere scartate (es. «62,5»). */
+  misureNonIntere: string[];
+  /** Niente righe oltre l'intestazione. */
+  vuoto: boolean;
+}
+
+/**
+ * Legge il CSV della griglia (il formato di «Esporta CSV»: misura X, misura Y,
+ * prezzo_vendita, prezzo_acquisto) e lo unisce alle celle attuali.
+ *
+ * L'acquisto che manca resta mancante (05/10/2026): senza la quarta colonna
+ * diventava uguale alla vendita — margine zero nei prodotti a prezzo di
+ * vendita e, in quelli che ricavano la vendita dal listino del fornitore, la
+ * vendita presa per listino e ricaricata una seconda volta al salvataggio.
+ * Ora l'acquisto assente lascia quello che c'era (0 in una cella nuova); in
+ * «acquisto_markup», che legge solo l'acquisto, la riga senza acquisto non
+ * entra. Le misure non intere si scartano: il database le rifiuterebbe.
+ */
+export function leggiCsvGriglia(
+  testo: string,
+  modo: ModoPrezzo,
+  celleAttuali: ReadonlyMap<string, Cell>,
+): EsitoCsvGriglia {
+  const righe = testo.split(/\r?\n/).filter((l) => l.trim());
+  const esito: EsitoCsvGriglia = {
+    celle: new Map(celleAttuali),
+    xs: [],
+    ys: [],
+    importate: 0,
+    scartate: 0,
+    senzaAcquisto: 0,
+    misureNonIntere: [],
+    vuoto: righe.length < 2,
+  };
+  if (esito.vuoto) return esito;
+  // M-P (audit): i CSV di Excel italiano usano ';' come separatore e la
+  // virgola decimale ("120,50"): separatore dall'header, decimali normalizzati
+  // (virgola → punto, punto migliaia rimosso).
+  const sep = righe[0].includes(";") ? ";" : righe[0].includes("\t") ? "\t" : ",";
+  const numero = (raw: string | undefined): number => {
+    let s = (raw ?? "").trim();
+    if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+    return parseFloat(s);
+  };
+  // Cella vuota, testo o negativo = prezzo assente.
+  const importo = (raw: string | undefined): number | null => {
+    const n = numero(raw);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  const xs = new Set<number>();
+  const ys = new Set<number>();
+  // La prima riga è l'intestazione.
+  for (let i = 1; i < righe.length; i++) {
+    const parti = righe[i].split(sep).map((p) => p.trim());
+    if (parti.length < 3) {
+      esito.scartate++;
+      continue;
+    }
+    const x = numero(parti[0]);
+    const y = numero(parti[1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x <= 0 || y <= 0) {
+      esito.scartate++;
+      continue;
+    }
+    if (!Number.isInteger(x) || !Number.isInteger(y)) {
+      esito.misureNonIntere.push(Number.isInteger(x) ? parti[1] : parti[0]);
+      continue;
+    }
+    const vendita = importo(parti[2]);
+    const acquisto = importo(parti[3]);
+    const chiave = `${x}_${y}`;
+    const attuale = esito.celle.get(chiave);
+    if (modo === "acquisto_markup") {
+      if (acquisto === null) {
+        esito.senzaAcquisto++;
+        continue;
+      }
+      // La vendita qui è solo cache: al salvataggio si ricalcola dall'acquisto.
+      esito.celle.set(chiave, {
+        prezzo_vendita: vendita ?? attuale?.prezzo_vendita ?? 0,
+        prezzo_acquisto: acquisto,
+      });
+    } else {
+      if (vendita === null) {
+        esito.scartate++;
+        continue;
+      }
+      esito.celle.set(chiave, {
+        prezzo_vendita: vendita,
+        prezzo_acquisto: acquisto ?? attuale?.prezzo_acquisto ?? 0,
+      });
+    }
+    xs.add(x);
+    ys.add(y);
+    esito.importate++;
+  }
+  esito.xs = Array.from(xs).sort((a, b) => a - b);
+  esito.ys = Array.from(ys).sort((a, b) => a - b);
+  return esito;
+}
+
 export function FamilyGridEditor({
   familyId,
   asseXLabel,
@@ -107,7 +259,9 @@ export function FamilyGridEditor({
   const qc = useQueryClient();
 
   const { data: rows = EMPTY_ROWS, isLoading } = useQuery({
-    queryKey: queryKeys.articleFamilies.grid(familyId),
+    // Chiave sua (05/10/2026): sotto grid(id) poteva esserci prima la cache
+    // del simulatore (righe senza `id`) e il salvataggio aggiornava id undefined.
+    queryKey: queryKeys.articleFamilies.gridView(familyId, "editor"),
     enabled: !!companyId && !!familyId,
     queryFn: async (): Promise<GridRow[]> => {
       // Filtra per axis_config IS NULL: questo editor gestisce solo celle "flat"
@@ -184,56 +338,39 @@ export function FamilyGridEditor({
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const text = String(e.target?.result || "");
-        const lines = text.split(/\r?\n/).filter((l) => l.trim());
-        if (lines.length < 2) {
+        const esito = leggiCsvGriglia(String(e.target?.result || ""), prezzoBaseMode, cells);
+        if (esito.vuoto) {
           toast.error("CSV vuoto o senza dati");
           return;
         }
-        // M-P (audit): i CSV di Excel italiano usano ';' come separatore e la
-        // virgola decimale ("120,50") — con lo split fisso su ',' venivano
-        // parsati male in silenzio. Rileviamo il separatore dall'header e
-        // normalizziamo i decimali (virgola → punto, punto migliaia rimosso).
-        const sep = lines[0].includes(";") ? ";" : lines[0].includes("\t") ? "\t" : ",";
-        const parseCsvNumber = (raw: string): number => {
-          let s = raw.trim();
-          if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
-          return parseFloat(s);
-        };
-        // skip header
-        const newCells = new Map(cells);
-        const newXs = new Set(xAxis);
-        const newYs = new Set(yAxis);
-        let imported = 0;
-        let skipped = 0;
-        for (let i = 1; i < lines.length; i++) {
-          const parts = lines[i].split(sep).map((p) => p.trim());
-          if (parts.length < 3) {
-            skipped++;
-            continue;
-          }
-          const x = parseCsvNumber(parts[0]);
-          const y = parseCsvNumber(parts[1]);
-          const pv = parseCsvNumber(parts[2]);
-          const pa = parts.length >= 4 ? parseCsvNumber(parts[3]) : NaN;
-          if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(pv) || pv < 0) {
-            skipped++;
-            continue;
-          }
-          newCells.set(`${x}_${y}`, {
-            prezzo_vendita: pv,
-            prezzo_acquisto: Number.isFinite(pa) && pa >= 0 ? pa : pv,
-          });
-          newXs.add(x);
-          newYs.add(y);
-          imported++;
+        const note: string[] = [];
+        if (esito.scartate > 0) {
+          note.push(`${esito.scartate} righe ignorate (valori mancanti o non numerici).`);
         }
-        setXAxis(Array.from(newXs).sort((a, b) => a - b));
-        setYAxis(Array.from(newYs).sort((a, b) => a - b));
-        setCells(newCells);
+        if (esito.senzaAcquisto > 0) {
+          note.push(`${esito.senzaAcquisto} righe senza prezzo di acquisto ignorate.`);
+        }
+        if (esito.misureNonIntere.length > 0) {
+          const esempi = esito.misureNonIntere.slice(0, 3).map((m) => `«${m}»`).join(", ");
+          note.push(`Misure non intere scartate (${esempi}): servono millimetri interi.`);
+        }
+        if (esito.importate === 0) {
+          if (prezzoBaseMode === "acquisto_markup" && esito.senzaAcquisto > 0) {
+            toast.error("Nel file manca il prezzo di acquisto", {
+              description:
+                "Questo prodotto ricava la vendita dal listino del fornitore: serve la colonna prezzo_acquisto (la quarta).",
+            });
+          } else {
+            toast.error("Nessuna cella importata", { description: note.join(" ") || undefined });
+          }
+          return;
+        }
+        setXAxis(Array.from(new Set([...xAxis, ...esito.xs])).sort((a, b) => a - b));
+        setYAxis(Array.from(new Set([...yAxis, ...esito.ys])).sort((a, b) => a - b));
+        setCells(esito.celle);
         markDirty();
-        toast.success(`Importate ${imported} celle. Ricordati di salvare.`, {
-          description: skipped > 0 ? `${skipped} righe ignorate (valori mancanti o non numerici).` : undefined,
+        toast.success(`Importate ${esito.importate} celle. Ricordati di salvare.`, {
+          description: note.length > 0 ? note.join(" ") : undefined,
         });
       } catch (err) {
         toast.error("Errore parsing CSV", {
@@ -325,7 +462,8 @@ export function FamilyGridEditor({
   // M-23 (audit): parseInt troncava i decimali in silenzio ("62.5" → 62)
   // mentre l'import CSV usa parseFloat: un asse decimale importato non era
   // ricreabile a mano e i due percorsi divergevano. Parse allineato al CSV
-  // (virgola decimale inclusa).
+  // (virgola decimale inclusa). Dal 05/10/2026 il decimale si legge per
+  // rifiutarlo con un messaggio (problemaMisuraGriglia), non per troncarlo.
   const parseAxisValue = (raw: string): number => {
     let s = raw.trim();
     if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
@@ -334,8 +472,9 @@ export function FamilyGridEditor({
 
   const addX = () => {
     const v = parseAxisValue(newX);
-    if (!Number.isFinite(v) || v <= 0) {
-      toast.error("Valore X non valido");
+    const problema = problemaMisuraGriglia(v);
+    if (problema) {
+      toast.error("Valore X non valido", { description: problema });
       return;
     }
     if (xAxis.includes(v)) {
@@ -349,8 +488,9 @@ export function FamilyGridEditor({
 
   const addY = () => {
     const v = parseAxisValue(newY);
-    if (!Number.isFinite(v) || v <= 0) {
-      toast.error("Valore Y non valido");
+    const problema = problemaMisuraGriglia(v);
+    if (problema) {
+      toast.error("Valore Y non valido", { description: problema });
       return;
     }
     if (yAxis.includes(v)) {
@@ -415,19 +555,15 @@ export function FamilyGridEditor({
   /**
    * Dato il prezzo di acquisto (LORDO se scontiAttivi, NETTO altrimenti)
    * restituisce { netto, vendita }. Usato sia nel rendering delle celle che
-   * al salvataggio (prezzo_vendita = cache derivata).
+   * al salvataggio (prezzo_vendita = cache derivata, al centesimo).
    */
-  const computeCellPrices = (prezzoAcquistoInput: number) => {
-    const netto = scontiAttivi
-      ? applyScontiFornitore(prezzoAcquistoInput, scontoFornitore1, scontoFornitore2)
-      : Math.max(0, prezzoAcquistoInput);
-    const vendita = applyMarkup({
-      prezzoAcquisto: netto,
+  const computeCellPrices = (prezzoAcquistoInput: number) =>
+    prezziCellaDaAcquisto(prezzoAcquistoInput, {
+      scontoFornitore1,
+      scontoFornitore2,
       markupTipo,
       markupValore,
-    }).prezzoVendita;
-    return { netto, vendita };
-  };
+    });
 
   /**
    * Applica il payload del bulk import allo stato locale.
@@ -439,6 +575,10 @@ export function FamilyGridEditor({
    *  - NON salva sul DB: l'utente rivede la matrice e clicca "Salva griglia".
    */
   const applyBulk = (payload: BulkParsedPayload) => {
+    // Il campo che la modalità del prodotto legge davvero (05/10/2026): in
+    // «acquisto_markup» la vendita scritta qui si perdeva al salvataggio,
+    // ricalcolata da un acquisto rimasto a 0.
+    const campo = campoImportoGriglia(prezzoBaseMode, payload.targetField);
     const mergedX = Array.from(new Set([...xAxis, ...payload.xAxis])).sort((a, b) => a - b);
     const mergedY = Array.from(new Set([...yAxis, ...payload.yAxis])).sort((a, b) => a - b);
 
@@ -449,17 +589,50 @@ export function FamilyGridEditor({
       const next = new Map(prev);
       for (const [key, value] of payload.values.entries()) {
         const curr = next.get(key) ?? { prezzo_vendita: 0, prezzo_acquisto: 0 };
-        next.set(key, { ...curr, [payload.targetField]: value });
+        next.set(key, { ...curr, [campo]: value });
       }
       return next;
     });
     markDirty();
+
+    // Solo costi importati in un prodotto a prezzo di vendita: le celle nuove
+    // restano a vendita 0, e nel preventivo costerebbero 0.
+    if (prezzoBaseMode === "vendita" && campo === "prezzo_acquisto") {
+      const senzaVendita = Array.from(payload.values.keys()).filter(
+        (k) => !((cells.get(k)?.prezzo_vendita ?? 0) > 0),
+      ).length;
+      if (senzaVendita > 0) {
+        toast.warning(`${senzaVendita} celle senza prezzo di vendita`, {
+          description: "Nel preventivo costerebbero 0 €: scrivi la vendita prima di salvare.",
+        });
+      }
+    }
   };
 
   // Salvataggio: upsert-by-id + delete-by-diff (no empty window, no MatriceEditor loss)
   const saveGrid = useMutation({
     mutationFn: async () => {
       if (!companyId) throw new Error("Azienda non identificata");
+
+      // Misure non intere (05/10/2026): valore_x/valore_y sono INTEGER e il
+      // database rifiutava tutto il salvataggio con un errore illeggibile.
+      // Contano solo le misure con celle compilate, le sole che si salvano.
+      const nonIntere = new Set<number>();
+      for (const x of xAxis) {
+        for (const y of yAxis) {
+          if (!cells.has(`${x}_${y}`)) continue;
+          if (!Number.isInteger(x)) nonIntere.add(x);
+          if (!Number.isInteger(y)) nonIntere.add(y);
+        }
+      }
+      if (nonIntere.size > 0) {
+        const elenco = Array.from(nonIntere)
+          .map((v) => v.toLocaleString("it-IT"))
+          .join(", ");
+        throw new Error(
+          `Misure non intere (${elenco}): la griglia vuole millimetri interi. Togli queste misure e aggiungile senza decimali.`,
+        );
+      }
 
       // M-10 (audit): i prezzi vendita delle celle (mode acquisto_markup)
       // sono calcolati coi parametri sconti/markup dello STATE del form
@@ -509,7 +682,8 @@ export function FamilyGridEditor({
           // In mode=acquisto_markup il prezzo_vendita è CACHE DERIVATA da
           // (lordo × sconti fornitore → netto × markup). Lo ricalcoliamo al
           // save per garantire sempre coerenza col markup configurato sulla
-          // famiglia. In mode=vendita persistiamo l'input diretto.
+          // famiglia, arrotondato al centesimo come nei preventivi
+          // (05/10/2026). In mode=vendita persistiamo l'input diretto.
           const prezzoVenditaFinale =
             prezzoBaseMode === "acquisto_markup"
               ? computeCellPrices(c.prezzo_acquisto).vendita
@@ -642,10 +816,15 @@ export function FamilyGridEditor({
       // clearDirty PRIMA dell'invalidate: il refetch deve trovare la guardia
       // aperta per riallineare lo stato locale (id delle celle nuove inclusi).
       clearDirty();
+      // grid(id) è il prefisso delle tre letture (editor, simulatore,
+      // preventivo): le rinfresca tutte.
       qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.grid(familyId) });
       qc.invalidateQueries({
         queryKey: queryKeys.articleFamilies.gridHistory(familyId),
       });
+      // Il preventivo serramenti legge la griglia con chiavi sue (5 minuti di
+      // cache): senza questo un preventivo aperto continuava coi prezzi vecchi.
+      invalidaListinoNelPreventivatore(qc);
     },
     onError: (err: Error) => {
       captureVelocityError("family.grid.save", err, { companyId, familyId });
@@ -830,6 +1009,9 @@ export function FamilyGridEditor({
             <div className="flex items-center gap-1">
               <Input
                 type="number"
+                inputMode="numeric"
+                step={1}
+                min={1}
                 value={newX}
                 onChange={(e) => setNewX(e.target.value)}
                 placeholder="Aggiungi valore"
@@ -868,6 +1050,9 @@ export function FamilyGridEditor({
             <div className="flex items-center gap-1">
               <Input
                 type="number"
+                inputMode="numeric"
+                step={1}
+                min={1}
                 value={newY}
                 onChange={(e) => setNewY(e.target.value)}
                 placeholder="Aggiungi valore"
@@ -1092,6 +1277,7 @@ export function FamilyGridEditor({
         onApply={applyBulk}
         asseXLabel={asseXLabel}
         asseYLabel={asseYLabel}
+        prezzoBaseMode={prezzoBaseMode}
       />
     </Card>
   );

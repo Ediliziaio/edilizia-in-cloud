@@ -33,6 +33,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { VoceSim } from "@/lib/simulatore/tipi";
 import type { PrezzarioVoceConFonte } from "@/lib/prezzario/queries";
+import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
 
 // Tipo locale snello per il picker (solo i campi usati nel mapping → VoceSim).
 // `codice` non è nei tipi generati di `tariffe_aziendali` → leggiamo via cast
@@ -86,8 +87,10 @@ function tariffaToVoce(t: TariffaListino, ordine: number): VoceSim {
     riferimento_id: t.id,
     codice: t.codice ?? null,
     quantita: 1,
-    unita: t.unita_fatturazione ?? t.unita ?? "pz",
-    costo_unitario: t.costo_interno ?? t.prezzo_costo ?? t.costo_default ?? 0,
+    // Unità e costo con le regole uniche (05/10/2026): «pz» e 0 sono i default
+    // delle colonne nuove e nascondevano i valori veri scritti nelle altre.
+    unita: unitaTariffa(t),
+    costo_unitario: costoTariffa(t) ?? 0,
     ricarico_pct: 0,
     prezzo_unitario: t.prezzo_vendita ?? 0,
     vat_rate: 10,
@@ -252,7 +255,7 @@ export function AggiungiVociDialog({ open, onOpenChange, onAdd }: AggiungiVociDi
                 ) : (
                   listinoFiltrato.map((t) => {
                     const checked = selListino.has(t.id);
-                    const costo = t.costo_interno ?? t.prezzo_costo ?? t.costo_default ?? 0;
+                    const costo = costoTariffa(t) ?? 0;
                     return (
                       <label
                         key={t.id}

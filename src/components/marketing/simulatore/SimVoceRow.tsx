@@ -121,7 +121,9 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = 
             </Label>
             {voce.bene_significativo ? (
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-muted-foreground">Posa €</span>
+                {/* «di cui»: la posa è dentro il prezzo della riga, non in più. Scritta
+                    anche come riga a parte si contava due volte (05/10/2026). */}
+                <span className="text-[11px] text-muted-foreground" title="La parte di posa già compresa nel prezzo di questa riga">di cui posa €</span>
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -132,7 +134,7 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = 
                     onChange({ valore_posa_associata: parseNum(e.target.value) })
                   }
                   className="h-7 w-24 px-2 text-right tabular-nums"
-                  aria-label="Valore posa"
+                  aria-label="Di cui posa, già compresa nel prezzo"
                 />
               </div>
             ) : null}

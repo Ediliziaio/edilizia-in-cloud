@@ -94,3 +94,21 @@ describe("computo quote item mapping", () => {
     expect(inferComputoItemCategory(voce({ descrizione_breve: "Smaltimento macerie in discarica autorizzata" }))).toBe("smaltimento");
   });
 });
+
+describe("abbinamento tolto in revisione", () => {
+  it("«Rimuovi abbinamento» non fa tornare quello del server", () => {
+    const tolta = voce({ _matched_template_id: undefined, matched_family_id: "fam-server", _match_type: "none" });
+    const riga = buildComputoQuoteItemPayload(tolta, 0);
+    expect(riga.family_id ?? null).toBeNull();
+    expect(riga.article_template_id ?? null).toBeNull();
+    expect(riga.tariffa_id ?? null).toBeNull();
+  });
+
+  it("senza rimozione l'abbinamento del server resta", () => {
+    const riga = buildComputoQuoteItemPayload(
+      voce({ _matched_template_id: undefined, matched_family_id: "fam-server", _match_type: "vector" }),
+      0,
+    );
+    expect(riga.family_id).toBe("fam-server");
+  });
+});

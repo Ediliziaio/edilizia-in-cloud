@@ -63,6 +63,8 @@ export interface PricingResult {
   totale_vendita: number;
   totale_acquisto: number;
   warnings: string[];
+  /** Misura più grande della griglia: il prodotto non si fa a quella misura, il prezzo è 0. */
+  fuori_listino?: boolean;
 }
 
 /**
@@ -101,6 +103,36 @@ export function nearestGrid(
 }
 
 /**
+ * La cella della griglia per una misura: quella esatta, altrimenti la più
+ * piccola che la contiene (si paga la misura standard superiore, prassi dei
+ * listini serramenti). Null se la misura supera la griglia.
+ *
+ * È la regola del preventivatore serramenti (calcolaPrezzoProdotto) e del
+ * simulatore del listino. Fino al 05/10/2026 qui si usava la cella più
+ * VICINA (nearestGrid): 1250×1420 prendeva 1200×1400 invece di 1500×1800,
+ * cioè una finestra venduta al prezzo di una più piccola (−30% nell'esempio
+ * dei test), e una misura fuori listino prendeva il prezzo della cella più
+ * grande senza dirlo.
+ */
+export function cellaGriglia(
+  punti: GridPoint[],
+  x: number,
+  y: number,
+): { punto: GridPoint; esatta: boolean } | null {
+  const esatta = punti.find((p) => p.valore_x === x && p.valore_y === y);
+  if (esatta) return { punto: esatta, esatta: true };
+  const contenenti = punti
+    .filter((p) => p.valore_x >= x && p.valore_y >= y)
+    .sort(
+      (a, b) =>
+        a.valore_x * a.valore_y - b.valore_x * b.valore_y ||
+        a.valore_x - b.valore_x ||
+        a.valore_y - b.valore_y,
+    );
+  return contenenti.length > 0 ? { punto: contenenti[0], esatta: false } : null;
+}
+
+/**
  * Calcola prezzo vendita + acquisto per un'istanza di famiglia.
  * Funzione PURA: nessun side-effect, deterministica dati gli input.
  */
@@ -128,6 +160,7 @@ export function calcolaPrezzoFamiglia(
   let pv = 0;
   let pa = 0;
   let prezzo_griglia_base: number | null = null;
+  let fuori_listino = false;
 
   switch (family.modalita_prezzo_base) {
     case "pz":
@@ -153,14 +186,23 @@ export function calcolaPrezzoFamiglia(
         break;
       }
       {
-        const n = nearestGrid(griglia, larghezza_mm, altezza_mm);
-        if (!n.found) {
+        const cella = cellaGriglia(griglia, larghezza_mm, altezza_mm);
+        if (!cella) {
+          const maxX = Math.max(...griglia.map((p) => p.valore_x));
+          const maxY = Math.max(...griglia.map((p) => p.valore_y));
           warnings.push(
-            `Misura ${larghezza_mm}×${altezza_mm} non in griglia, usata più vicina`,
+            `Misura ${larghezza_mm}×${altezza_mm} fuori listino: la griglia arriva a ${maxX}×${maxY} mm`,
+          );
+          fuori_listino = true;
+          break;
+        }
+        if (!cella.esatta) {
+          warnings.push(
+            `Misura ${larghezza_mm}×${altezza_mm} non in griglia: prezzo della misura superiore ${cella.punto.valore_x}×${cella.punto.valore_y} mm`,
           );
         }
-        pv = n.pv;
-        pa = n.pa;
+        pv = cella.punto.prezzo_vendita;
+        pa = cella.punto.prezzo_acquisto_netto ?? 0;
         prezzo_griglia_base = pv;
       }
       break;
@@ -325,6 +367,14 @@ export function calcolaPrezzoFamiglia(
     });
   }
 
+  // Le varianti possono ridurre il prezzo (−8%, −20 €: ammesso dal 05/10/2026),
+  // ma un prezzo sotto zero non esiste: conta 0 e lo si dice.
+  if (pv < 0 || pa < 0) {
+    warnings.push("Le riduzioni delle varianti portano il prezzo sotto zero: conta 0 €, controlla le maggiorazioni");
+    pv = Math.max(0, pv);
+    pa = Math.max(0, pa);
+  }
+
   const unit_price_vendita = round2(pv);
   const unit_price_acquisto = round2(pa);
 
@@ -338,6 +388,7 @@ export function calcolaPrezzoFamiglia(
     totale_vendita: round2(unit_price_vendita * quantita),
     totale_acquisto: round2(unit_price_acquisto * quantita),
     warnings,
+    fuori_listino,
   };
 }
 
@@ -352,8 +403,10 @@ export function calcolaPrezzoFamiglia(
  */
 export function useFamilyGrid(familyId: string | undefined) {
   return useQuery({
+    // Chiave sua (05/10/2026): sotto grid(id) c'erano anche le righe
+    // dell'editor e del simulatore, senza `prezzo_acquisto_netto` → costo 0.
     queryKey: familyId
-      ? queryKeys.articleFamilies.grid(familyId)
+      ? queryKeys.articleFamilies.gridView(familyId, "preventivo")
       : ["article-families", "grid", "disabled"],
     enabled: !!familyId,
     staleTime: 5 * 60 * 1000,

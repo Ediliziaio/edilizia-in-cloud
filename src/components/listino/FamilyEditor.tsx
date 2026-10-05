@@ -83,6 +83,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { FamilyAxesEditor } from "./FamilyAxesEditor";
 import { FamilyGridEditor } from "./FamilyGridEditor";
+import { AvvisoCelleGriglia } from "./AvvisoCelleGriglia";
 import { PhotoTemplatePicker } from "./PhotoTemplatePicker";
 import { CampoTipoDisegno, type ValoreTipoDisegno } from "./CampoTipoDisegno";
 import { firstGallerySlugFor } from "@/lib/verticalMapping";
@@ -185,7 +186,7 @@ const PREZZO_MODE_CARDS: Array<{
     value: "vendita",
     label: "Prezzo di vendita",
     descrizione:
-      "Carico direttamente il prezzo finale al cliente. Nessun margine calcolato.",
+      "Carico direttamente il prezzo finale al cliente. Se scrivo anche il costo, il margine si calcola da solo.",
   },
   {
     value: "acquisto_markup",
@@ -1469,11 +1470,14 @@ export function FamilyEditor() {
                       </CardTitle>
                       <p className="text-sm text-muted-foreground">
                         Sconti fornitore e markup applicati su <strong>tutte</strong>{" "}
-                        le celle della matrice. Modificali e clicca{" "}
-                        <em>Salva parametri</em> per ricalcolare la vendita.
+                        le celle della matrice. Il prezzo di vendita di ogni cella
+                        si ricalcola quando salvi la griglia qui sotto.
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      {/* Celle rimaste coi prezzi di parametri vecchi: prima non
+                          lo diceva nessuno, e il preventivo le usava (05/10/2026). */}
+                      <AvvisoCelleGriglia family={family} parametriDaSalvare={isDirty} />
                       {/* Modalità prezzo */}
                       <div>
                         <Label>Modalità gestione prezzo</Label>
@@ -1743,22 +1747,61 @@ export function FamilyEditor() {
 
                     {/* Branch: prezzo vendita diretto */}
                     {prezzoBaseMode === "vendita" ? (
-                      <div>
-                        <Label htmlFor="f-prezzo-vendita">
-                          Prezzo di vendita (€)
-                        </Label>
-                        <Input
-                          id="f-prezzo-vendita"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={prezzoVendita}
-                          onChange={(e) => setPrezzoVendita(e.target.value)}
-                          className="max-w-xs"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Prezzo finale al cliente. Nessun margine calcolato.
-                        </p>
+                      // Il costo accanto al prezzo (05/10/2026): prima in questa
+                      // modalità non si vedeva, eppure il listino e il margine
+                      // del preventivo lo usano — più di mille prodotti lo avevano
+                      // salvato (da import o da un cambio di modalità) senza che
+                      // si potesse leggere o correggere.
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <Label htmlFor="f-prezzo-vendita">
+                              Prezzo di vendita ({modalita === "mq" ? "€/m²" : "€"}, IVA esclusa)
+                            </Label>
+                            <Input
+                              id="f-prezzo-vendita"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={prezzoVendita}
+                              onChange={(e) => setPrezzoVendita(e.target.value)}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Prezzo finale al cliente, prima dell'IVA.
+                            </p>
+                          </div>
+                          <div>
+                            <Label htmlFor="f-costo-vendita">
+                              Costo di acquisto ({modalita === "mq" ? "€/m²" : "€"}, facoltativo)
+                            </Label>
+                            <Input
+                              id="f-costo-vendita"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={prezzoAcquisto}
+                              onChange={(e) => setPrezzoAcquisto(e.target.value)}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Quanto lo paghi, IVA esclusa: serve al margine del preventivo, il cliente non lo vede.
+                            </p>
+                          </div>
+                        </div>
+                        {(() => {
+                          const vendita = parseDecimalField(prezzoVendita) || 0;
+                          const costo = parseDecimalField(prezzoAcquisto) || 0;
+                          if (!(vendita > 0) || !(costo > 0)) return null;
+                          const margine = vendita - costo;
+                          return (
+                            <p
+                              className={`text-xs ${margine < 0 ? "text-rose-700 dark:text-rose-400" : "text-muted-foreground"}`}
+                            >
+                              {margine < 0
+                                ? `Il costo supera il prezzo di ${formatCurrency(-margine)}: venduto così, ci perdi.`
+                                : `Margine: ${formatCurrency(margine)} (${((margine / vendita) * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% del prezzo).`}
+                            </p>
+                          );
+                        })()}
                       </div>
                     ) : (
                       /* Branch: acquisto + markup → vendita derivata */
@@ -2062,6 +2105,7 @@ export function FamilyEditor() {
                   markupValore={markupValore}
                   prezzoVenditaCalcolato={prezzoVenditaCalcolato}
                   vatRateAcquisto={vatRateAcquisto}
+                  vatRate={vatRate}
                   manodoperaModalita={manodoperaModalita}
                   manodoperaCostoAcquisto={manodoperaCostoAcquisto}
                   manodoperaPrezzoVendita={manodoperaPrezzoVendita}
@@ -2575,6 +2619,8 @@ interface RiepilogoSectionProps {
   markupValore: string;
   prezzoVenditaCalcolato: number;
   vatRateAcquisto: string;
+  /** IVA vendita del modulo (anche non ancora salvata). */
+  vatRate: string;
   manodoperaModalita: ManodoperaModalita;
   manodoperaCostoAcquisto: string;
   manodoperaPrezzoVendita: string;
@@ -2603,6 +2649,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
     markupValore,
     prezzoVenditaCalcolato,
     vatRateAcquisto,
+    vatRate,
     manodoperaModalita,
     manodoperaCostoAcquisto,
     manodoperaPrezzoVendita,
@@ -2747,7 +2794,9 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
             <div className="flex flex-wrap gap-1 text-xs">
               <Badge variant="outline">{macroNome}</Badge>
               <Badge variant="secondary">{family.unit_of_measure}</Badge>
-              <Badge variant="secondary">IVA {family.vat_rate}%</Badge>
+              {/* L'IVA del modulo, anche se non ancora salvata: prima il riepilogo
+                  mostrava quella vecchia subito dopo averla cambiata (05/10/2026). */}
+              <Badge variant="secondary">IVA {parseDecimalField(vatRate, 22)}%</Badge>
             </div>
             {family.descrizione ? (
               <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
@@ -2777,7 +2826,11 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
           {prezzoBaseMode === "acquisto_markup" ? (
             <div className="space-y-1.5 bg-muted/30 rounded-md p-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Listino lordo</span>
+                <span className="text-muted-foreground">
+                  {(parseDecimalField(scontoFornitore1) || 0) > 0 || (parseDecimalField(scontoFornitore2) || 0) > 0
+                    ? "Listino fornitore (lordo)"
+                    : "Costo di acquisto"}
+                </span>
                 <span className="font-medium">
                   {formatCurrency(parseDecimalField(prezzoAcquisto) || 0)}
                 </span>
@@ -2831,17 +2884,34 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
               ) : null}
               <div className="text-xs text-muted-foreground pt-1">
                 IVA acquisto {parseDecimalField(vatRateAcquisto) || 0}% · IVA vendita{" "}
-                {family.vat_rate}%
+                {parseDecimalField(vatRate, 22)}%
               </div>
             </div>
           ) : (
-            <div className="flex justify-between items-center bg-muted/30 rounded-md p-3">
-              <span className="text-sm text-muted-foreground">
-                Prezzo vendita diretto
-              </span>
-              <span className="text-lg font-bold text-primary">
-                {formatCurrency(parseDecimalField(prezzoVendita) || 0)}
-              </span>
+            <div className="space-y-1.5 bg-muted/30 rounded-md p-3 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Prezzo vendita diretto</span>
+                <span className="text-lg font-bold text-primary">
+                  {formatCurrency(parseDecimalField(prezzoVendita) || 0)}
+                </span>
+              </div>
+              {/* Il costo facoltativo della vendita diretta e il suo margine (05/10/2026). */}
+              {(parseDecimalField(prezzoAcquisto) || 0) > 0 && (parseDecimalField(prezzoVendita) || 0) > 0 ? (
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">
+                    Costo {formatCurrency(parseDecimalField(prezzoAcquisto) || 0)}
+                  </span>
+                  <span className="font-medium">
+                    Margine{" "}
+                    {(
+                      (((parseDecimalField(prezzoVendita) || 0) - (parseDecimalField(prezzoAcquisto) || 0)) /
+                        (parseDecimalField(prezzoVendita) || 1)) *
+                      100
+                    ).toLocaleString("it-IT", { maximumFractionDigits: 1 })}
+                    % sulla vendita
+                  </span>
+                </div>
+              ) : null}
             </div>
           )}
         </div>
@@ -3144,18 +3214,25 @@ function InlineCreateTariffaDialog({
     }
     setSaving(true);
     try {
+      const costo = Number.isFinite(costoNum) ? costoNum : 0;
       const { data, error } = await supabase
         .from("tariffe_aziendali")
         .insert({
           company_id: companyId,
           nome: nome.trim(),
           tipo,
-          // unita legacy = unita di fatturazione per retrocompat (vedi SettingsTariffe)
-          unita,
+          // La colonna legacy `unita` ha il CHECK pz/mq/ml/mc/h/piano/km/fisso:
+          // «gg» e «a_corpo» scritti così facevano fallire la creazione
+          // (05/10/2026). Stessa conversione di legacyUnitaFrom in
+          // SettingsTariffe; l'unità vera resta in unita_fatturazione.
+          unita: unita === "a_corpo" ? "fisso" : unita === "gg" ? "h" : unita,
           unita_fatturazione: unita,
           prezzo_vendita: venditaNum,
-          costo_interno: Number.isFinite(costoNum) ? costoNum : 0,
-          prezzo_costo: Number.isFinite(costoNum) ? costoNum : 0,
+          // Il costo nelle tre colonne che le varie pagine leggono, come fa
+          // il salvataggio della pagina Tariffe (prima mancava costo_default).
+          costo_interno: costo,
+          prezzo_costo: costo,
+          costo_default: costo,
           attivo: true,
         } as never)
         .select("id")

@@ -5,10 +5,12 @@
  *
  * Preventivo (come QuoteBuilder.tsx):
  *   1. `generate_quote_number(p_company_id)` → quote_number progressivo.
- *   2. INSERT `quotes` (status 'bozza', title = nome simulazione, vat_amount/
- *      subtotal/total dal risultato, contact_id dalla simulazione, created_by).
+ *   2. INSERT `quotes` (status 'bozza', title = nome simulazione, importi e
+ *      sconto % da `testataPreventivo`, contact_id dalla simulazione, created_by).
  *   3. RPC `save_quote_items_atomic(p_quote_id, p_company_id, p_items)` con le
- *      voci mappate (line_total è GENERATED a DB → non inviato).
+ *      voci mappate (line_total è GENERATED a DB → non inviato). Il database
+ *      ricalcola i totali dalle righe con lo sconto della testata: devono
+ *      tornare quelli della simulazione, e se non tornano lo diciamo.
  *   4. naviga a `/azienda/marketing/preventivi/:id`.
  *
  * Commessa (come CreateOrder.tsx):
@@ -48,7 +50,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
-import { mapVociToQuoteItems, mapToOrderPayload } from "@/lib/simulatore/trasforma";
+import { mapVociToQuoteItems, mapToOrderPayload, testataPreventivo } from "@/lib/simulatore/trasforma";
 import { round2 } from "@/lib/simulatore/calcoli";
 import type { SimulazioneDoc, SimulazioneRisultato } from "@/lib/simulatore/tipi";
 
@@ -164,10 +166,10 @@ export function TrasformaDialog({
       });
       const quoteNumber = (numData as string | null) || `OFF-${new Date().getFullYear()}-001`;
 
-      // 2) INSERT quotes (denormalizzati dal risultato della simulazione).
-      const subtotal = round2(risultato.ricavo_imponibile);
-      const vatAmount = round2(risultato.iva_totale);
-      const total = round2(risultato.prezzo_cliente);
+      // 2) INSERT quotes (denormalizzati dal risultato della simulazione). Lo
+      //    sconto sta in discount_percent: il database ricalcola i totali dalle
+      //    righe e, con lo sconto a zero, lo perdeva (05/10/2026).
+      const testata = testataPreventivo(doc, risultato);
       const quoteData: Record<string, unknown> = {
         company_id: companyId,
         quote_number: quoteNumber,
@@ -175,10 +177,7 @@ export function TrasformaDialog({
         title: titoloPreventivo,
         contact_id: contactId,
         created_by: user.id,
-        subtotal,
-        discount_amount: 0,
-        vat_amount: vatAmount,
-        total,
+        ...testata,
       };
       const { data: quoteRow, error: quoteErr } = await sb
         .from("quotes")
@@ -194,7 +193,7 @@ export function TrasformaDialog({
           doc.voci,
           companyId,
           quoteId,
-          doc.scenari.iva_mode,
+          doc.scenari,
         ).map((it) => ({
           name: it.name,
           description: it.description,
@@ -216,10 +215,26 @@ export function TrasformaDialog({
         if (rpcErr) throw rpcErr;
       }
 
+      // Il totale l'ha ricalcolato il database dalle righe: se non è quello
+      // della simulazione, chi apre il preventivo deve saperlo subito.
+      const { data: salvato } = await sb
+        .from("quotes")
+        .select("total")
+        .eq("id", quoteId)
+        .maybeSingle();
+      const totaleSalvato = Number((salvato as { total?: number | null } | null)?.total);
+      const diverso = Number.isFinite(totaleSalvato) && Math.abs(round2(totaleSalvato - testata.total)) > 0.01;
+
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
-      toast.success("Preventivo creato", {
-        description: `${quoteNumber} generato dalla simulazione.`,
-      });
+      if (diverso) {
+        toast.warning("Preventivo creato con un totale diverso", {
+          description: `${quoteNumber}: ${formatCurrency(totaleSalvato)} invece di ${formatCurrency(testata.total)}. Controlla le righe.`,
+        });
+      } else {
+        toast.success("Preventivo creato", {
+          description: `${quoteNumber} generato dalla simulazione.`,
+        });
+      }
       onOpenChange(false);
       navigate(`/azienda/marketing/preventivi/${quoteId}`);
     } catch (err) {
@@ -335,12 +350,32 @@ export function TrasformaDialog({
               </button>
             </div>
 
-            {/* Riepilogo importi */}
+            {/* Riepilogo importi — con lo sconto, prezzo pieno e sconto sopra
+                l'imponibile netto: è quello su cui si calcola l'IVA. Telefono:
+                basta lo sconto. */}
             <div className="rounded-xl border bg-card p-3 shadow-sm text-sm">
+              {risultato.sconto_valore > 0 && (
+                <>
+                  <div className="flex items-center justify-between max-sm:hidden">
+                    <span className="text-muted-foreground">Prezzo pieno</span>
+                    <span className="tabular-nums text-muted-foreground">
+                      {formatCurrency(risultato.ricavo_lordo)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      Sconto {Number(doc.scenari.sconto_pct).toLocaleString("it-IT")}%
+                    </span>
+                    <span className="tabular-nums text-muted-foreground">
+                      −{formatCurrency(risultato.sconto_valore)}
+                    </span>
+                  </div>
+                </>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Imponibile</span>
                 <span className="font-medium tabular-nums">
-                  {formatCurrency(risultato.ricavo_imponibile)}
+                  {formatCurrency(risultato.ricavo_netto)}
                 </span>
               </div>
               <div className="flex items-center justify-between">

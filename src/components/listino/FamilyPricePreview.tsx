@@ -173,9 +173,10 @@ export function FamilyPricePreview({ family }: Props) {
   // #1 — Dimensioni standard ricavate dalla griglia (per dropdown smart-fill)
   // (Calcolato dopo gridCells, vedi sotto.)
 
-  // Carica griglia se serve
+  // Carica griglia se serve. Chiave sua (05/10/2026): queste righe non hanno
+  // `id`, e sotto grid(id) l'editor della griglia le prendeva per le sue.
   const { data: gridCells = [] } = useQuery({
-    queryKey: queryKeys.articleFamilies.grid(family.id),
+    queryKey: queryKeys.articleFamilies.gridView(family.id, "anteprima"),
     enabled: !!companyId && !!family.id && family.modalita_prezzo_base === "griglia",
     queryFn: async (): Promise<GridCell[]> => {
       const { data, error } = await supabase
@@ -295,10 +296,30 @@ export function FamilyPricePreview({ family }: Props) {
     const ml = w / 1000;
     const mc = (w * h * 1000) / 1_000_000_000;
 
+    // Pass 0: prezzo proprio della variante (una marca, una potenza): prende il
+    // posto del prezzo base, al m² per i prodotti al m², mai sulle griglie —
+    // come calcolaPrezzoFamiglia e il preventivatore serramenti. Prima il
+    // simulatore lo ignorava e mostrava il prezzo base (05/10/2026).
+    const assiPrezzoProprio = new Set<string>();
+    if (family.modalita_prezzo_base !== "griglia") {
+      const perMq = family.modalita_prezzo_base === "mq";
+      for (const ax of family.axes) {
+        const selId = selection[ax.codice];
+        if (!selId) continue;
+        const v = ax.values.find((x) => x.id === selId);
+        if (!v || v.prezzo_vendita == null || !(Number(v.prezzo_vendita) > 0)) continue;
+        prezzoVendita = perMq ? Number(v.prezzo_vendita) * mq : Number(v.prezzo_vendita);
+        if (v.prezzo_acquisto != null && Number(v.prezzo_acquisto) > 0) {
+          prezzoAcquisto = perMq ? Number(v.prezzo_acquisto) * mq : Number(v.prezzo_acquisto);
+        }
+        assiPrezzoProprio.add(ax.codice);
+      }
+    }
+
     // Pass 1: percentuali
     for (const ax of family.axes) {
       const selId = selection[ax.codice];
-      if (!selId) continue;
+      if (!selId || assiPrezzoProprio.has(ax.codice)) continue;
       const v = ax.values.find((x) => x.id === selId);
       if (!v || v.maggiorazione_tipo !== "percentuale") continue;
       prezzoVendita *= 1 + Number(v.maggiorazione_valore) / 100;
@@ -308,7 +329,7 @@ export function FamilyPricePreview({ family }: Props) {
     // Pass 2: fisse
     for (const ax of family.axes) {
       const selId = selection[ax.codice];
-      if (!selId) continue;
+      if (!selId || assiPrezzoProprio.has(ax.codice)) continue;
       const v = ax.values.find((x) => x.id === selId);
       if (!v || v.maggiorazione_tipo === "none" || v.maggiorazione_tipo === "percentuale") continue;
       const vendAdd = Number(v.maggiorazione_valore);
@@ -331,6 +352,14 @@ export function FamilyPricePreview({ family }: Props) {
           prezzoAcquisto += acqAdd * mc;
           break;
       }
+    }
+
+    // Le riduzioni delle varianti (−8%, −20 €) non portano il prezzo sotto zero:
+    // conta 0, come nel preventivo (calcolaPrezzoFamiglia).
+    if (prezzoVendita < 0 || prezzoAcquisto < 0) {
+      warnings.push("Le riduzioni delle varianti portano il prezzo sotto zero: conta 0 €, controlla le maggiorazioni.");
+      prezzoVendita = Math.max(0, prezzoVendita);
+      prezzoAcquisto = Math.max(0, prezzoAcquisto);
     }
 
     const totVendita = prezzoVendita * q;
@@ -394,7 +423,7 @@ export function FamilyPricePreview({ family }: Props) {
           Simulatore prezzo
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Preview indicativa — il motore di calcolo definitivo è in FASE 5.
+          Prova il prezzo con misure e varianti: prezzi IVA esclusa, posa esclusa.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">

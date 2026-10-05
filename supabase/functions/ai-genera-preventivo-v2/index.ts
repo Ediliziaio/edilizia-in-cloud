@@ -9,6 +9,7 @@ import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { chargeAndLogDirect, estimateEmbeddingUsage } from "../_shared/ai-provider/directApi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { type CellaGrigliaAi, type PrezziFamigliaAi, prezzoFamigliaAi } from "../_shared/prezzoFamigliaAi.ts";
 
 // ── Shape dei record DB usati dall'edge function ───────────────────────────
 // Tipi minimali per sostituire `any` senza legarsi alle generated types (che
@@ -51,10 +52,11 @@ type TariffaRow = {
   [key: string]: unknown;
 };
 
+/** listino_griglia di un prodotto singolo: la colonna è prodotto_id, le misure valore_x/valore_y. */
 type ListinoGrigliaProdottoRow = {
-  article_template_id: string;
-  x_mm: number;
-  y_mm: number;
+  prodotto_id: string;
+  valore_x: number;
+  valore_y: number;
   prezzo_vendita: number | string;
   prezzo_acquisto: number | string | null;
 };
@@ -76,6 +78,7 @@ type ArticleFamilyAxisValueRow = {
   maggiorazione_tipo: string;
   maggiorazione_valore: number | string;
   maggiorazione_acquisto: number | string;
+  prezzo_vendita: number | string | null;
   attivo: boolean;
 };
 
@@ -115,6 +118,77 @@ type ClaudeJsonResponse = {
   note?: string;
   avvertenze?: string[];
 };
+
+/** Parole di una richiesta che non distinguono un prodotto da un altro. */
+const PAROLE_VUOTE = new Set([
+  "della", "delle", "dello", "degli", "dalla", "dalle", "nella", "nelle", "sulla", "sulle",
+  "come", "anche", "sono", "circa", "metri", "metro", "misura", "misure", "lavoro", "lavori",
+  "preventivo", "fare", "deve", "devono", "vuole", "cliente", "casa", "generico", "tipo",
+  "questo", "questa", "quello", "quella", "tutto", "tutti", "tutte", "nuovo", "nuova",
+  "nuovi", "nuove", "altezza", "larghezza", "pezzi", "pezzo", "totale", "dove",
+]);
+
+function senzaAccenti(testo: string): string {
+  return testo.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+/**
+ * Famiglie del listino scelte per parole della richiesta, quando il retrieval
+ * semantico non ne trova (famiglie senza embedding). Cerca la radice di ogni
+ * parola (finestr- per finestra e finestre) nel nome e nella descrizione; vale
+ * di più nel nome. Nessuna parola utile, o nessuna famiglia trovata: le prime in
+ * ordine di nome, come i prodotti senza retrieval. Stessi campi di
+ * match_families_semantic.
+ */
+async function famiglieDalTesto(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  companyId: string,
+  testo: string,
+  quante: number,
+): Promise<FamigliaMatch[]> {
+  const campi = "id,nome,descrizione,categoria_id,modalita_prezzo_base,unit_of_measure,prezzo_base_vendita,posa_tariffa_default_id";
+  const radici = [...new Set(
+    senzaAccenti(testo)
+      .split(/[^a-z]+/)
+      .filter((p) => p.length >= 4 && !PAROLE_VUOTE.has(p))
+      .map((p) => (p.length >= 5 ? p.slice(0, -1) : p)),
+  )].slice(0, 12);
+
+  if (radici.length > 0) {
+    const filtro = radici.flatMap((r) => [`nome.ilike.*${r}*`, `descrizione.ilike.*${r}*`]).join(",");
+    const { data, error } = await supabaseAdmin
+      .from("article_families")
+      .select(campi)
+      .eq("company_id", companyId)
+      .eq("attivo", true)
+      .or(filtro)
+      .order("nome")
+      .limit(200);
+    if (error) console.error("Famiglie per parole:", error.message);
+    const trovate = (data ?? []) as FamigliaMatch[];
+    if (trovate.length > 0) {
+      const punteggio = (f: FamigliaMatch) => {
+        const nome = senzaAccenti(String(f.nome ?? ""));
+        const descrizione = senzaAccenti(String(f.descrizione ?? ""));
+        return radici.reduce((s, r) => s + (nome.includes(r) ? 2 : descrizione.includes(r) ? 1 : 0), 0);
+      };
+      return trovate
+        .map((f) => ({ f, punti: punteggio(f) }))
+        .sort((a, b) => b.punti - a.punti)
+        .slice(0, quante)
+        .map((x) => x.f);
+    }
+  }
+
+  const { data } = await supabaseAdmin
+    .from("article_families")
+    .select(campi)
+    .eq("company_id", companyId)
+    .eq("attivo", true)
+    .order("nome")
+    .limit(quante);
+  return (data ?? []) as FamigliaMatch[];
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -240,13 +314,17 @@ Deno.serve(async (req) => {
               retrievalMode = "semantic";
             }
 
-            // 2. match_families_semantic (FASE 8.bis)
+            // 2. match_families_semantic (FASE 8.bis). Senza filtro di settore
+            // (05/10/2026): companies.vertical («serramentista», «generico»)
+            // non ha le stesse parole di article_families.vertical («serramenti»,
+            // «bagno»…), e il filtro scartava 3.177 famiglie attive su 3.185.
+            // Il listino dell'azienda è tutto suo: va tutto tra i candidati.
             const { data: famMatches, error: famErr } = await supabaseAdmin.rpc(
               "match_families_semantic",
               {
                 p_query_embedding: embeddingStr,
                 p_company_id: company_id,
-                p_vertical: vertical,
+                p_vertical: null,
                 p_match_threshold: MATCH_THRESHOLD,
                 p_match_count: MATCH_COUNT_FAMILIES,
               },
@@ -276,6 +354,19 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (famiglieMatched.length === 0) {
+      // Famiglie senza embedding (05/10/2026: nessuna delle 3.185 attive ne
+      // aveva uno, e la generazione non proponeva mai un prodotto del listino a
+      // famiglie). Si cercano per parole della richiesta nel nome; se nessuna
+      // parola trova niente, le prime in ordine di nome, come per i prodotti.
+      famiglieMatched = await famiglieDalTesto(
+        supabaseAdmin,
+        company_id,
+        `${descrizione ?? ""} ${tipo_lavoro ?? ""}`,
+        MATCH_COUNT_FAMILIES,
+      );
+    }
+
     if (!prodotti) {
       // Fallback legacy: ORDER BY name LIMIT 60
       const { data, error: prodottiErr } = await supabaseAdmin
@@ -296,20 +387,23 @@ Deno.serve(async (req) => {
       .map((p) => p.id);
     const griglieMap = new Map<string, Array<{ x_mm: number; y_mm: number; prezzo_vendita: number; prezzo_acquisto: number | null }>>();
     if (prodottiGrigliaIds.length > 0) {
+      // Colonne vere di listino_griglia (05/10/2026): prima article_template_id,
+      // x_mm e y_mm, che non esistono — la query falliva e con lei tutta la
+      // generazione, appena un prodotto a griglia entrava tra i candidati.
       const { data: listini, error: listErr } = await supabaseAdmin
         .from("listino_griglia")
-        .select("article_template_id,x_mm,y_mm,prezzo_vendita,prezzo_acquisto")
-        .in("article_template_id", prodottiGrigliaIds);
+        .select("prodotto_id,valore_x,valore_y,prezzo_vendita,prezzo_acquisto")
+        .in("prodotto_id", prodottiGrigliaIds);
       if (listErr) throw new Error(`Listino griglia query error: ${listErr.message}`);
       for (const punto of (listini ?? []) as ListinoGrigliaProdottoRow[]) {
-        const arr = griglieMap.get(punto.article_template_id) ?? [];
+        const arr = griglieMap.get(punto.prodotto_id) ?? [];
         arr.push({
-          x_mm: punto.x_mm,
-          y_mm: punto.y_mm,
+          x_mm: Number(punto.valore_x),
+          y_mm: Number(punto.valore_y),
           prezzo_vendita: Number(punto.prezzo_vendita) || 0,
           prezzo_acquisto: punto.prezzo_acquisto != null ? Number(punto.prezzo_acquisto) : null,
         });
-        griglieMap.set(punto.article_template_id, arr);
+        griglieMap.set(punto.prodotto_id, arr);
       }
     }
 
@@ -321,7 +415,16 @@ Deno.serve(async (req) => {
       maggiorazione_tipo: string;
       maggiorazione_valore: number;
       maggiorazione_acquisto: number;
+      /** Prezzo proprio della variante: sostituisce il prezzo base (non per la griglia). */
+      prezzo_vendita: number | null;
     };
+    /**
+     * Come si fa il prezzo della famiglia (05/10/2026): match_families_semantic
+     * dà solo il prezzo di vendita salvato, che per una famiglia «acquisto +
+     * ricarico» può essere vecchio. Il prezzo si rifà dal costo, come nel
+     * preventivo (calcolaPrezzoFamiglia), così l'anteprima dice lo stesso numero.
+     */
+    const prezziFamigliaMap = new Map<string, Omit<PrezziFamigliaAi, "modalita_prezzo_base">>();
     type Axis = {
       id: string;
       codice: string;
@@ -349,7 +452,7 @@ Deno.serve(async (req) => {
       if (axisIds.length > 0) {
         const { data: valRows } = await supabaseAdmin
           .from("article_family_axis_values")
-          .select("id,axis_id,valore,label,maggiorazione_tipo,maggiorazione_valore,maggiorazione_acquisto,attivo")
+          .select("id,axis_id,valore,label,maggiorazione_tipo,maggiorazione_valore,maggiorazione_acquisto,prezzo_vendita,attivo")
           .in("axis_id", axisIds)
           .eq("attivo", true);
         for (const v of (valRows ?? []) as ArticleFamilyAxisValueRow[]) {
@@ -361,9 +464,26 @@ Deno.serve(async (req) => {
             maggiorazione_tipo: v.maggiorazione_tipo,
             maggiorazione_valore: Number(v.maggiorazione_valore) || 0,
             maggiorazione_acquisto: Number(v.maggiorazione_acquisto) || 0,
+            prezzo_vendita: v.prezzo_vendita != null ? Number(v.prezzo_vendita) : null,
           });
           valuesByAxis.set(v.axis_id, arr);
         }
+      }
+      const { data: prezziRows } = await supabaseAdmin
+        .from("article_families")
+        .select("id,prezzo_base_mode,prezzo_base_vendita,prezzo_base_acquisto,sconto_fornitore_1,sconto_fornitore_2,markup_tipo,markup_valore")
+        .in("id", famiglieIds)
+        .eq("company_id", company_id);
+      for (const r of (prezziRows ?? []) as Array<Record<string, unknown>>) {
+        prezziFamigliaMap.set(String(r.id), {
+          prezzo_base_mode: (r.prezzo_base_mode as string | null) ?? null,
+          prezzo_base_vendita: Number(r.prezzo_base_vendita) || 0,
+          prezzo_base_acquisto: Number(r.prezzo_base_acquisto) || 0,
+          sconto_fornitore_1: Number(r.sconto_fornitore_1) || 0,
+          sconto_fornitore_2: Number(r.sconto_fornitore_2) || 0,
+          markup_tipo: (r.markup_tipo as string | null) ?? null,
+          markup_valore: Number(r.markup_valore) || 0,
+        });
       }
       for (const a of axesTyped) {
         const arr = familyAxesMap.get(a.family_id) ?? [];
@@ -679,9 +799,9 @@ REGOLE OUTPUT:
     }
 
     /**
-     * FASE 8.6 — Calcolo prezzo famiglia (port server-side di calcolaPrezzoFamiglia).
-     * Pure function: base + percentuali (in sort_order) + fissi (sort_order).
-     * Restituisce unit_price_vendita (rounded 2dp) o null se non calcolabile.
+     * FASE 8.6 — Prezzo della famiglia con la regola del preventivo
+     * (_shared/prezzoFamigliaAi.ts, 05/10/2026): vendita unitaria arrotondata,
+     * o null se non calcolabile, col motivo negli avvisi.
      */
     function calcolaPrezzoFamigliaServer(
       family: FamigliaMatch,
@@ -690,93 +810,32 @@ REGOLE OUTPUT:
       xMm: number | null,
       yMm: number | null,
       mlValue: number | null,
-      grid: Array<{ valore_x: number; valore_y: number; prezzo_vendita: number }> | undefined,
+      grid: CellaGrigliaAi[] | undefined,
       warnings: string[],
     ): number | null {
-      const mq = xMm != null && yMm != null ? (xMm / 1000) * (yMm / 1000) : null;
-      let pv = 0;
-      const baseMode = family.modalita_prezzo_base;
-      const baseV = Number(family.prezzo_base_vendita) || 0;
-      switch (baseMode) {
-        case "pz":
-        case "misura_libera":
-          pv = baseV;
-          break;
-        case "mq":
-          if (mq == null) {
-            warnings.push(`Famiglia '${family.nome}' mq: misure L×H mancanti.`);
-            return null;
-          }
-          pv = baseV * mq;
-          break;
-        case "griglia": {
-          if (xMm == null || yMm == null) {
-            warnings.push(`Famiglia '${family.nome}' griglia: misure L×H mancanti.`);
-            return null;
-          }
-          if (!grid || grid.length === 0) {
-            warnings.push(`Famiglia '${family.nome}' griglia: listino vuoto.`);
-            return null;
-          }
-          // exact then nearest
-          const exact = grid.find((g) => g.valore_x === xMm && g.valore_y === yMm);
-          if (exact) {
-            pv = exact.prezzo_vendita;
-          } else {
-            let best = grid[0];
-            let bestDist = Math.abs(best.valore_x - xMm) + Math.abs(best.valore_y - yMm);
-            for (let i = 1; i < grid.length; i++) {
-              const d = Math.abs(grid[i].valore_x - xMm) + Math.abs(grid[i].valore_y - yMm);
-              if (d < bestDist) {
-                best = grid[i];
-                bestDist = d;
-              }
-            }
-            pv = best.prezzo_vendita;
-            warnings.push(
-              `Famiglia '${family.nome}': misura ${xMm}×${yMm} non in griglia, usato nearest-neighbor.`,
-            );
-          }
-          break;
-        }
-        default:
-          pv = baseV;
-      }
-
-      const axesSorted = [...axes].sort((a, b) => a.sort_order - b.sort_order);
-      // 1. percentuali
-      for (const axis of axesSorted) {
-        const selValueId = selections[axis.codice];
-        if (!selValueId) {
-          if (axis.obbligatorio) {
-            warnings.push(`Famiglia '${family.nome}': asse "${axis.codice}" obbligatorio non selezionato.`);
-          }
-          continue;
-        }
-        const val = axis.values.find((v) => v.id === selValueId);
-        if (!val || val.maggiorazione_tipo !== "percentuale") continue;
-        pv = pv * (1 + val.maggiorazione_valore / 100);
-      }
-      // 2. fissi
-      for (const axis of axesSorted) {
-        const selValueId = selections[axis.codice];
-        if (!selValueId) continue;
-        const val = axis.values.find((v) => v.id === selValueId);
-        if (!val) continue;
-        switch (val.maggiorazione_tipo) {
-          case "fisso_pz":
-            pv += val.maggiorazione_valore;
-            break;
-          case "fisso_mq":
-            if (mq != null) pv += val.maggiorazione_valore * mq;
-            break;
-          case "fisso_ml":
-            if (mlValue != null) pv += val.maggiorazione_valore * mlValue;
-            break;
-          // fisso_mc / none / percentuale: no-op qui
-        }
-      }
-      return Math.round(pv * 100) / 100;
+      const prezzi = prezziFamigliaMap.get(family.id);
+      return prezzoFamigliaAi(
+        {
+          nome: family.nome,
+          prezzi: {
+            modalita_prezzo_base: family.modalita_prezzo_base,
+            prezzo_base_mode: prezzi?.prezzo_base_mode ?? null,
+            prezzo_base_vendita: prezzi?.prezzo_base_vendita ?? (Number(family.prezzo_base_vendita) || 0),
+            prezzo_base_acquisto: prezzi?.prezzo_base_acquisto ?? 0,
+            sconto_fornitore_1: prezzi?.sconto_fornitore_1 ?? 0,
+            sconto_fornitore_2: prezzi?.sconto_fornitore_2 ?? 0,
+            markup_tipo: prezzi?.markup_tipo ?? null,
+            markup_valore: prezzi?.markup_valore ?? 0,
+          },
+          assi: axes,
+          scelte: selections,
+          xMm,
+          yMm,
+          ml: mlValue,
+          griglia: grid,
+        },
+        warnings,
+      );
     }
 
     const enrichmentWarnings: string[] = [];

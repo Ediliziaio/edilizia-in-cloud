@@ -11,8 +11,13 @@ import {
   calcolaProvvigioni,
   calcolaCassa,
   calcolaIncidenze,
+  ripartoIvaVoci,
 } from "./calcoli";
+import { DEFAULT_SCENARI } from "./tipi";
 import type { VoceSim, FaseSim, ProvvigioneSim, SimulazioneRisultato } from "./tipi";
+
+/** Scenario completo in IVA mista (gli scenari a metà non sono uno ScenariConfig). */
+const SCENARIO_MISTA = { ...DEFAULT_SCENARI, iva_mode: "mista" as const, iva_rate_singola: 10 as const };
 
 const voce = (p: Partial<VoceSim>): VoceSim => ({
   id: "1", fase_id: null, descrizione: "x", fonte: "libera", riferimento_id: null,
@@ -72,8 +77,10 @@ describe("calcolaIva", () => {
     );
     expect(r.iva_totale).toBe(210);
   });
-  it("mista: bene significativo split 10/22", () => {
-    // bene 1000, posa 300 → 10% su 300+300=600, 22% su 700
+  it("mista: bene significativo split 10/22 (posa compresa nella riga)", () => {
+    // Riga da 1.000 € di cui 300 € di posa: bene 700, resto dell'intervento 300.
+    // 10% su posa 300 + bene fino a 300 = 600; 22% sui 400 di bene che superano.
+    // L'imponibile totale è la riga, 1.000 € (05/10/2026: prima se ne tassavano 1.300).
     const r = calcolaIva(
       [
         voce({
@@ -84,14 +91,134 @@ describe("calcolaIva", () => {
           valore_posa_associata: 300,
         }),
       ],
-      { iva_mode: "mista", iva_rate_singola: 10, iva_confronto: [], finanziamento: null },
+      SCENARIO_MISTA,
     );
     const r10 = r.riepilogo_iva.find((x) => x.aliquota === 10)!;
     const r22 = r.riepilogo_iva.find((x) => x.aliquota === 22)!;
     expect(r10.imponibile).toBe(600);
     expect(r10.imposta).toBe(60);
-    expect(r22.imponibile).toBe(700);
-    expect(r22.imposta).toBe(154);
+    expect(r22.imponibile).toBe(400);
+    expect(r22.imposta).toBe(88);
+    expect(r10.imponibile + r22.imponibile).toBe(1000);
+    expect(r.iva_totale).toBe(148);
+  });
+
+  it("mista: posa su una voce a parte, la caldaia del DM 29/12/1999", () => {
+    // Caldaia 2.000 € (bene, posa 0 sulla riga) + manodopera 800 € al 10%:
+    // limite 800 → 1.600 al 10% (800 di bene + 800 di manodopera), 1.200 al 22%.
+    const r = calcolaIva(
+      [
+        voce({ id: "c", quantita: 1, prezzo_unitario: 2000, bene_significativo: true }),
+        voce({ id: "m", quantita: 1, prezzo_unitario: 800, vat_rate: 10, is_manodopera: true }),
+      ],
+      SCENARIO_MISTA,
+    );
+    expect(r.riepilogo_iva).toEqual([
+      { aliquota: 10, imponibile: 1600, imposta: 160 },
+      { aliquota: 22, imponibile: 1200, imposta: 264 },
+    ]);
+  });
+
+  it("mista: beni dentro il limite tutti al 10%", () => {
+    const r = calcolaIva(
+      [voce({ quantita: 1, prezzo_unitario: 1000, bene_significativo: true, valore_posa_associata: 600 })],
+      SCENARIO_MISTA,
+    );
+    expect(r.riepilogo_iva).toEqual([{ aliquota: 10, imponibile: 1000, imposta: 100 }]);
+  });
+
+  it("mista: le voci al 22% non allargano il limite dei beni", () => {
+    // Bene 1.000 senza posa + progettazione 200 € al 22%: niente resto al 10%,
+    // il bene va tutto al 22%.
+    const r = calcolaIva(
+      [
+        voce({ id: "b", quantita: 1, prezzo_unitario: 1000, bene_significativo: true }),
+        voce({ id: "p", quantita: 1, prezzo_unitario: 200, vat_rate: 22 }),
+      ],
+      SCENARIO_MISTA,
+    );
+    expect(r.riepilogo_iva).toEqual([{ aliquota: 22, imponibile: 1200, imposta: 264 }]);
+  });
+});
+
+describe("ripartoIvaVoci", () => {
+  const MISTA = { iva_mode: "mista" as const, iva_rate_singola: 10 as const };
+
+  it("due beni si dividono l'eccedenza in proporzione al loro valore", () => {
+    // Beni 3.000 + 1.000, manodopera 1.000: limite 1.000, eccedenza 3.000 → 2.250 e 750.
+    const q = ripartoIvaVoci(
+      [
+        voce({ id: "a", quantita: 1, prezzo_unitario: 3000, bene_significativo: true }),
+        voce({ id: "b", quantita: 1, prezzo_unitario: 1000, bene_significativo: true }),
+        voce({ id: "m", quantita: 1, prezzo_unitario: 1000, vat_rate: 10 }),
+      ],
+      MISTA,
+    );
+    expect(q[0]).toEqual([{ aliquota: 10, imponibile: 750 }, { aliquota: 22, imponibile: 2250 }]);
+    expect(q[1]).toEqual([{ aliquota: 10, imponibile: 250 }, { aliquota: 22, imponibile: 750 }]);
+    expect(q[2]).toEqual([{ aliquota: 10, imponibile: 1000 }]);
+  });
+
+  it("i centesimi dell'eccedenza non si perdono", () => {
+    // Tre beni da 1 € e 1 centesimo di manodopera: eccedenza 2,99 € su tre righe uguali.
+    const q = ripartoIvaVoci(
+      [
+        voce({ id: "a", quantita: 1, prezzo_unitario: 1, bene_significativo: true }),
+        voce({ id: "b", quantita: 1, prezzo_unitario: 1, bene_significativo: true }),
+        voce({ id: "c", quantita: 1, prezzo_unitario: 1, bene_significativo: true }),
+        voce({ id: "m", quantita: 1, prezzo_unitario: 0.01, vat_rate: 10 }),
+      ],
+      MISTA,
+    );
+    const al22 = q.flat().filter((x) => x.aliquota === 22).map((x) => x.imponibile);
+    expect(al22).toEqual([1, 1, 0.99]);
+    expect(Math.round(al22.reduce((a, b) => a + b, 0) * 100)).toBe(299);
+  });
+
+  it("la posa non supera la riga, e una voce a zero resta a zero", () => {
+    const q = ripartoIvaVoci(
+      [
+        voce({ id: "a", quantita: 1, prezzo_unitario: 500, bene_significativo: true, valore_posa_associata: 900 }),
+        voce({ id: "z", quantita: 0, prezzo_unitario: 100, bene_significativo: true, valore_posa_associata: 50 }),
+      ],
+      MISTA,
+    );
+    expect(q[0]).toEqual([{ aliquota: 10, imponibile: 500 }, { aliquota: 22, imponibile: 0 }]);
+    expect(q[1]).toEqual([{ aliquota: 10, imponibile: 0 }, { aliquota: 22, imponibile: 0 }]);
+  });
+
+  it("in singola tutto all'aliquota unica, anche le voci con un'altra aliquota", () => {
+    const q = ripartoIvaVoci(
+      [voce({ quantita: 2, prezzo_unitario: 100, vat_rate: 22, bene_significativo: true })],
+      { iva_mode: "singola", iva_rate_singola: 10 },
+    );
+    expect(q).toEqual([[{ aliquota: 10, imponibile: 200 }]]);
+  });
+
+  it("le quote di ogni voce sommano al totale della voce (anche a caso)", () => {
+    let seme = 7;
+    const caso = () => {
+      seme = (seme * 16807) % 2147483647;
+      return seme / 2147483647;
+    };
+    for (let giro = 0; giro < 200; giro++) {
+      const voci = Array.from({ length: 1 + Math.floor(caso() * 6) }, (_, i) =>
+        voce({
+          id: `v${i}`,
+          quantita: Math.round(caso() * 1000) / 100,
+          prezzo_unitario: Math.round(caso() * 500000) / 100,
+          vat_rate: ([4, 10, 22] as const)[Math.floor(caso() * 3)],
+          bene_significativo: caso() < 0.4,
+          valore_posa_associata: caso() < 0.5 ? Math.round(caso() * 300000) / 100 : null,
+        }),
+      );
+      const q = ripartoIvaVoci(voci, MISTA);
+      voci.forEach((v, i) => {
+        const somma = q[i].reduce((a, x) => a + x.imponibile, 0);
+        expect(Math.round(somma * 100)).toBe(Math.round(calcolaVoce(v).imponibile_ricavo * 100));
+        for (const x of q[i]) expect(x.imponibile).toBeGreaterThanOrEqual(0);
+      });
+    }
   });
 });
 

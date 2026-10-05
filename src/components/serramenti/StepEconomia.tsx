@@ -44,6 +44,10 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { calcolaTotale, IVA_MISTA_SENTINEL } from "@/lib/serramenti/calcoli";
+import { calcolaCostoPosizione } from "@/lib/serramenti/pricing";
+import { useTariffeManodopera } from "@/lib/serramenti/queries";
+import { useFamilies } from "@/hooks/useFamilies";
+import { costoTariffa } from "@/lib/listino/costoTariffa";
 import {
   calcolaEcobonus, calcolaCashflow, calcolaPianoFinanziamento,
   ALIQUOTE_DETRAZIONE_SERRAMENTI, aliquotaDetrazioneSerramenti,
@@ -217,30 +221,51 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
     [detail.serramenti, detail.accessori],
   );
 
+  type CellaCosto = { id: string; prezzo_acquisto: number | null; supplier_product_line_id: string | null };
   const { data: costGridRows = [], isFetching: isFetchingGridCosts } = useQuery({
     queryKey: ["sr-margin-grid-costs", progettoId, costGridIds],
     enabled: canViewImpresa && costGridIds.length > 0,
     staleTime: 60_000,
-    queryFn: async (): Promise<Array<{ id: string; prezzo_acquisto: number | null }>> => {
+    queryFn: async (): Promise<CellaCosto[]> => {
       const { data, error } = await (supabase as any)
         .from("listino_griglia")
-        .select("id, prezzo_acquisto")
+        .select("id, prezzo_acquisto, supplier_product_line_id")
         .in("id", costGridIds);
       if (error) {
         console.warn("[StepEconomia] listino_griglia cost fetch failed:", error.message);
         return [];
       }
-      return (data ?? []).map((row: { id: string; prezzo_acquisto: number | null }) => ({
+      return (data ?? []).map((row: CellaCosto) => ({
         id: row.id,
         prezzo_acquisto: row.prezzo_acquisto == null ? null : Number(row.prezzo_acquisto),
+        supplier_product_line_id: row.supplier_product_line_id ?? null,
       }));
     },
   });
 
-  const prezzoAcquistoByGridId = useMemo(
-    () => new Map(costGridRows.map((row) => [row.id, row.prezzo_acquisto])),
+  const cellaById = useMemo(
+    () => new Map(costGridRows.map((row) => [row.id, row])),
     [costGridRows],
   );
+
+  // I prodotti del listino con le loro varianti (stessa cache della distinta)
+  // e il costo delle tariffe di posa: il costo di ogni riga si calcola con le
+  // stesse regole del suo prezzo (calcolaCostoPosizione).
+  const { families: famiglieListino, isLoading: famiglieInCaricamento } = useFamilies();
+  const famigliaById = useMemo(
+    () => new Map(famiglieListino.map((f) => [f.id, f])),
+    [famiglieListino],
+  );
+  const { data: tariffe = [] } = useTariffeManodopera();
+  const tariffeCosti = useMemo(() => {
+    const m = new Map<string, number>();
+    tariffe.forEach((t) => {
+      // Il costo dalle tre colonne con la regola unica (lib/listino/costoTariffa).
+      const costo = costoTariffa(t);
+      if (costo != null) m.set(t.id, costo);
+    });
+    return m;
+  }, [tariffe]);
 
   // ─── Margine € + Margine % ──────────────────────────────────────────────
   // Visibile SOLO a isAdmin. Margine reale sul NETTO: vendita imponibile
@@ -253,23 +278,11 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
     let righeConCosto = 0;
     let righeSenzaCosto = 0;
 
-    const addRiga = (
-      venditaRiga: number,
-      quantita: number,
-      costoEsplicito: number | null | undefined,
-      listinoVoceId: string | null | undefined,
-    ) => {
+    const conta = (venditaRiga: number, costoRiga: number | null) => {
       // Col prezzo scritto a mano le voci possono essere a 0 € ma avere un costo:
       // il margine è prezzo scritto meno i costi di tutte le voci.
       if (venditaRiga <= 0 && !totaleCalc.prezzo_manuale) return;
       righeConVendita += 1;
-      const explicit = Number(costoEsplicito ?? 0);
-      const gridCost = listinoVoceId ? prezzoAcquistoByGridId.get(listinoVoceId) : null;
-      const costoRiga = explicit > 0
-        ? explicit
-        : gridCost != null && gridCost > 0
-          ? Number(gridCost) * Math.max(1, quantita || 1)
-          : null;
       if (costoRiga != null && costoRiga > 0) {
         costoTotale += costoRiga;
         righeConCosto += 1;
@@ -278,31 +291,57 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
       }
     };
 
+    // Le righe del listino non salvano un costo: si calcola dal listino, con
+    // le misure, le varianti e la posa della riga (prima solo la cella della
+    // griglia, al lordo degli sconti fornitore: un prodotto a pezzo o al m²
+    // restava «senza costo» anche col costo scritto nel listino).
+    const costoDalListino = (riga: {
+      family_id?: string | null;
+      listino_voce_id?: string | null;
+      larghezza_mm?: number | null;
+      altezza_mm?: number | null;
+      quantita?: number | null;
+      valori_assi?: unknown;
+      posa_esclusa?: boolean | null;
+    }): number | null => {
+      const quantita = Math.max(1, Number(riga.quantita ?? 1) || 1);
+      const famiglia = riga.family_id ? famigliaById.get(riga.family_id) : undefined;
+      const cella = riga.listino_voce_id ? cellaById.get(riga.listino_voce_id) ?? null : null;
+      if (!famiglia) {
+        // Prodotto non più nel listino attivo: resta il costo della cella, se c'è.
+        const acquisto = Number(cella?.prezzo_acquisto ?? 0);
+        return acquisto > 0 ? acquisto * quantita : null;
+      }
+      const costo = calcolaCostoPosizione({
+        family: famiglia,
+        larghezza: riga.larghezza_mm ?? null,
+        altezza: riga.altezza_mm ?? null,
+        quantita,
+        cella,
+        selections: (riga.valori_assi ?? null) as Record<string, string> | null,
+        axes: famiglia.axes,
+        posaEsclusa: riga.posa_esclusa,
+        tariffeCosti,
+      });
+      return costo.prodotto != null ? costo.prodotto + costo.posa : null;
+    };
+
     detail.serramenti.forEach((s) => {
-      addRiga(
+      conta(
         Number(s.prezzo_totale ?? (s.prezzo_unitario ?? 0) * (s.quantita ?? 1)),
-        s.quantita ?? 1,
-        (s as { prezzo_costo_totale?: number | null }).prezzo_costo_totale,
-        s.listino_voce_id,
+        costoDalListino(s),
       );
     });
     detail.accessori.forEach((a) => {
-      const costoAccessorioTotale = (a as { prezzo_costo_totale?: number | null }).prezzo_costo_totale;
-      const costoAccessorioUnitario = (a as { prezzo_costo_unitario?: number | null }).prezzo_costo_unitario;
-      addRiga(
+      conta(
         Number(a.prezzo_totale ?? (a.prezzo_unitario ?? 0) * (a.quantita ?? 1)),
-        a.quantita ?? 1,
-        costoAccessorioTotale
-          ?? (costoAccessorioUnitario != null ? Number(costoAccessorioUnitario) * (a.quantita ?? 1) : null),
-        a.listino_voce_id,
+        costoDalListino(a),
       );
     });
     (detail.servizi ?? []).forEach((m) => {
-      addRiga(
+      conta(
         Number(m.prezzo_totale_vendita ?? (m.prezzo_unitario_vendita ?? 0) * (m.quantita ?? 1)),
-        m.quantita ?? 1,
         m.prezzo_totale_costo ?? Number(m.prezzo_unitario_costo ?? 0) * (m.quantita ?? 1),
-        null,
       );
     });
     const vendita = totaleCalc.imponibile_netto;
@@ -322,10 +361,12 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
       righeConVendita,
       righeConCosto,
       righeSenzaCosto,
-      isFetchingGridCosts,
+      // Finché listino o celle non sono arrivati i costi sono parziali: la UI
+      // lo tratta come il caricamento delle celle di prima.
+      isFetchingGridCosts: isFetchingGridCosts || famiglieInCaricamento,
     };
   }, [
-    canViewImpresa, isFetchingGridCosts, prezzoAcquistoByGridId,
+    canViewImpresa, isFetchingGridCosts, famiglieInCaricamento, cellaById, famigliaById, tariffeCosti,
     detail.serramenti, detail.accessori, detail.servizi,
     totaleCalc.imponibile_netto, totaleCalc.prezzo_manuale, discountEval.margineMinPct,
   ]);

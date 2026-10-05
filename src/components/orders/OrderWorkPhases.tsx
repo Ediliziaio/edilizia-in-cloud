@@ -28,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { matchesWorkFilter, summarizeWork, parseWorkAmount, validWorkDates, wouldDuplicateAssignment, type WorkFilter } from "@/lib/orders/workPlanning";
+import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
 import { WorkAssignmentRow as AssignmentRow, type AssignmentPatch } from "./WorkAssignmentRow";
 
 import {
@@ -1375,6 +1376,8 @@ interface AddAssignmentDialogProps {
 
 // Voce del listino manodopera aziendale (tariffe_aziendali): costo sostenuto
 // (prezzo_costo) + prezzo di vendita → il ricarico è visibile al volo.
+// prezzo_costo e unita arrivano già normalizzati dalla query (costoTariffa,
+// unitaTariffa), non sono le colonne grezze.
 interface TariffaManodopera {
   id: string;
   nome: string;
@@ -1429,11 +1432,17 @@ function AddAssignmentDialog({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("tariffe_aziendali")
-        .select("id, nome, unita, prezzo_costo, prezzo_vendita, attiva, attivo, external_team_id")
+        .select("id, nome, unita, unita_fatturazione, prezzo_costo, costo_interno, costo_default, prezzo_vendita, attiva, attivo, external_team_id")
         .eq("company_id", companyId)
         .order("nome");
       if (error) throw error;
-      return (data ?? []) as TariffaManodopera[];
+      // Costo e unità si normalizzano qui, una volta: tutto il dialog legge
+      // prezzo_costo e unita. Prima valeva il solo prezzo_costo, che può
+      // essere lo 0 di default quando il costo sta in costo_interno; e la
+      // `unita` legacy dice «h» anche per le tariffe a giornata (05/10/2026).
+      type Riga = TariffaManodopera & { costo_interno: number | null; costo_default: number | null; unita_fatturazione: string | null };
+      return ((data ?? []) as Riga[])
+        .map((t) => ({ ...t, prezzo_costo: costoTariffa(t), unita: unitaTariffa(t, "") || null }));
     },
   });
   // Ogni squadra puo' avere il SUO listino ("piu' squadre con listini

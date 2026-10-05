@@ -44,6 +44,18 @@ export function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
+/**
+ * L'incidenza come la vuole il database: tariffe_aziendali.incidenza_manodopera_pct
+ * è una FRAZIONE 0..1 (migration 20260620092852), mentre `incidenzaManodoperaPct`
+ * qui sotto è in percento, per mostrarla. Scrivere il percento salvava 35,5 al
+ * posto di 0,355: la pagina Tariffe mostrava 3550% e il salvataggio successivo
+ * lo schiacciava a 100% (05/10/2026). Quattro decimali = i due del percento.
+ */
+export function incidenzaFrazione(pct: number): number {
+  if (!Number.isFinite(pct) || pct <= 0) return 0;
+  return Math.min(1, Math.round(pct * 100) / 10000);
+}
+
 export function calcolaAnalisi(
   componenti: ComponenteAnalisi[],
   speseGeneraliPct: number,

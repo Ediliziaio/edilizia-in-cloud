@@ -253,7 +253,10 @@ describe("calcolaPrezzoFamiglia — griglia", () => {
     expect(r.warnings).toEqual([]);
   });
 
-  it("nearest neighbor 1250×1420 → usa 1200×1400 = 420 + warning", () => {
+  // Dal 05/10/2026 la misura si arrotonda per eccesso, come nel preventivatore
+  // serramenti: prima 1250×1420 prendeva la cella più vicina (1200×1400, 420 €)
+  // e la finestra si vendeva al prezzo di una più piccola.
+  it("misura non in griglia 1250×1420 → cella che la contiene 1500×1800 = 600 + warning", () => {
     const family = makeFamily({ modalita_prezzo_base: "griglia" });
     const r = calcolaPrezzoFamiglia(
       {
@@ -265,8 +268,27 @@ describe("calcolaPrezzoFamiglia — griglia", () => {
       },
       griglia,
     );
-    expect(r.unit_price_vendita).toBe(420);
-    expect(r.warnings.some((w) => w.includes("più vicina"))).toBe(true);
+    expect(r.unit_price_vendita).toBe(600);
+    expect(r.unit_price_acquisto).toBe(350);
+    expect(r.fuori_listino).toBe(false);
+    expect(r.warnings.some((w) => w.includes("misura superiore 1500×1800"))).toBe(true);
+  });
+
+  it("misura più grande della griglia → fuori listino, prezzo 0, non la cella più grande", () => {
+    const family = makeFamily({ modalita_prezzo_base: "griglia" });
+    const r = calcolaPrezzoFamiglia(
+      {
+        family,
+        selections: {},
+        larghezza_mm: 1600,
+        altezza_mm: 1000,
+        quantita: 1,
+      },
+      griglia,
+    );
+    expect(r.fuori_listino).toBe(true);
+    expect(r.unit_price_vendita).toBe(0);
+    expect(r.warnings.some((w) => w.includes("fuori listino"))).toBe(true);
   });
 
   it("griglia vuota → warning, prezzo 0", () => {

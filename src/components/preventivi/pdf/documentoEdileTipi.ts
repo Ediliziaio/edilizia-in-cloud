@@ -24,7 +24,8 @@ export interface DocEdileVoce {
   /** Citazione della fonte del prezzo (base d'asta): discreta, solo se c'è. */
   fonte?: string | null;
   /** Solo documento interno (show_margine): margine in euro della voce. */
-  margineEur?: number;
+  /** null: la riga non ha un costo, il suo margine non si può dire. */
+  margineEur?: number | null;
 }
 
 export interface DocEdileCapitolo {
@@ -44,8 +45,9 @@ export interface DocEdileTotali {
   detrazionePct: number;
   detrazioneEur: number;
   costoTot: number;
-  margineEur: number;
-  marginePct: number;
+  /** null: costi incompleti, il margine non si può dire (05/10/2026). */
+  margineEur: number | null;
+  marginePct: number | null;
   /**
    * Il prezzo pieno è scritto a mano in Economia, al posto della somma delle
    * righe: le righe possono essere a 0 €, e il documento non ne mostra gli

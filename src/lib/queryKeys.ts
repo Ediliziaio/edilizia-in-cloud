@@ -1137,6 +1137,13 @@ export const queryKeys = {
       ["article-families", "detail", familyId] as const,
     grid: (familyId: string | undefined) =>
       ["article-families", "grid", familyId] as const,
+    // Una chiave per ogni lettura della griglia (05/10/2026): editor, simulatore
+    // e preventivo leggono righe di forma diversa (con o senza id, costo con
+    // nomi diversi). Sotto la stessa chiave chi arrivava primo riempiva la cache
+    // per gli altri: l'editor salvava celle senza id, il preventivo leggeva
+    // costo 0. Iniziano tutte con grid(id): invalidare grid(id) le rinfresca tutte.
+    gridView: (familyId: string | undefined, vista: "editor" | "anteprima" | "preventivo") =>
+      ["article-families", "grid", familyId, vista] as const,
     // Storico prezzi griglia (RPC silvio_tool_lista_storico_prezzi_griglia).
     gridHistory: (familyId: string | undefined) =>
       ["article-families", "grid-history", familyId] as const,

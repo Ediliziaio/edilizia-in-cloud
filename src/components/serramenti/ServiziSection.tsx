@@ -33,6 +33,7 @@ import {
 } from "@/lib/serramenti/queries";
 import type { SrServizioRow, SrProgettoDetail } from "@/types/serramenti";
 import type { TariffaMinimal } from "@/lib/serramenti/api";
+import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
 import { SrCard } from "@/lib/serramenti/wizardUI";
 import { formatEuro } from "@/lib/serramenti/format";
 import { Badge } from "@/components/ui/badge";
@@ -123,9 +124,13 @@ export function ServiziSection({ progettoId, detail }: Props) {
       addMut.mutate({
         tariffa_id: t.id,
         descrizione: t.nome,
-        unita: t.unita ?? servizio.unita,
+        // L'unità vera della tariffa (la legacy `unita` scrive «h» per le giornate).
+        unita: unitaTariffa(t, servizio.unita),
         quantita: 1,
-        prezzo_unitario_costo: t.prezzo_costo != null ? Number(t.prezzo_costo) : null,
+        // costoTariffa, non il solo prezzo_costo: la pagina Tariffe tiene il
+        // costo in costo_interno e prezzo_costo può essere lo 0 di default
+        // (05/10/2026). listTariffeManodopera carica tutte e tre le colonne.
+        prezzo_unitario_costo: costoTariffa(t),
         prezzo_unitario_vendita: t.prezzo_vendita != null ? Number(t.prezzo_vendita) : null,
         position: righe.length,
       });
@@ -168,9 +173,9 @@ export function ServiziSection({ progettoId, detail }: Props) {
     addMut.mutate({
       tariffa_id: t.id,
       descrizione: t.nome,
-      unita: t.unita ?? "pz",
+      unita: unitaTariffa(t),
       quantita: 1,
-      prezzo_unitario_costo: t.prezzo_costo != null ? Number(t.prezzo_costo) : null,
+      prezzo_unitario_costo: costoTariffa(t),
       prezzo_unitario_vendita: t.prezzo_vendita != null ? Number(t.prezzo_vendita) : null,
       position: righe.length,
     });

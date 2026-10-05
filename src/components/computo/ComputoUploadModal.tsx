@@ -7,7 +7,12 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useCatalogItems } from "@/hooks/useCatalogItems";
+import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
 import {
   Dialog,
   DialogContent,
@@ -54,7 +59,11 @@ import {
   type ComputoTariffaCatalogItem,
 } from "@/components/quotes/MatchTariffaPickerDialog";
 import { buildComputoReviewSummary, canGenerateComputoQuote } from "@/lib/computo/reviewQuality";
-import { buildComputoQuoteItemPayload } from "@/lib/computo/quoteItemMapping";
+import {
+  buildComputoQuoteItemPayload,
+  costoEIvaDaListino,
+  type CostoEIvaAbbinati,
+} from "@/lib/computo/quoteItemMapping";
 import type { ComputoVoceLocal } from "@/types/computo";
 import type { CatalogItem } from "@/types/catalogItem";
 
@@ -141,6 +150,32 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
   const reviewSummary = useMemo(() => buildComputoReviewSummary(vociLocali), [vociLocali]);
   const canGenerateFromReview = useMemo(() => canGenerateComputoQuote(vociLocali), [vociLocali]);
 
+  // Costo e IVA delle voci del listino abbinate, per id (05/10/2026): prodotti
+  // e famiglie dal catalogo del preventivatore (lo stesso del selettore, già in
+  // cache), tariffe con la regola unica del costo. Valgono anche per gli
+  // abbinamenti fatti dal server, che arrivano col solo id.
+  const companyId = useEffectiveCompanyId();
+  const { items: catalogo } = useCatalogItems();
+  const { data: costiTariffe = [] } = useQuery({
+    queryKey: ["computo-costi-tariffe", companyId],
+    enabled: open && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tariffe_aziendali")
+        .select("id, costo_interno, prezzo_costo, costo_default")
+        .eq("company_id", companyId!);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const listinoPerId = useMemo(() => {
+    const perId = new Map<string, CostoEIvaAbbinati>();
+    for (const item of catalogo) perId.set(item.id, costoEIvaDaListino(item));
+    for (const t of costiTariffe) perId.set(t.id, { costo: costoTariffa(t), vat_rate: null });
+    return perId;
+  }, [catalogo, costiTariffe]);
+
   // Stato del picker articoli del listino (per abbinamento manuale)
   const [pickerVoceId, setPickerVoceId] = useState<string | null>(null);
   const [pickerInitialQuery, setPickerInitialQuery] = useState("");
@@ -219,7 +254,9 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
         prev.map((v) => {
           if (v.id !== tariffaPickerVoceId) return v;
           const newPrezzo = item.prezzo_vendita ?? v._prezzoImpresa;
-          const costo = item.costo_interno ?? item.prezzo_costo ?? undefined;
+          // Regola unica del costo (costoTariffa): lo 0 di default di
+          // costo_interno nascondeva il costo vero in prezzo_costo.
+          const costo = costoTariffa(item) ?? undefined;
           const ricaricoDaCosto = costo && costo > 0 ? ((newPrezzo - costo) / costo) * 100 : v._ricarico;
           return {
             ...v,
@@ -229,7 +266,8 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
             _matched_name: item.nome,
             _matched_tariffa_tipo: item.tipo,
             _matched_tariffa_cost: costo,
-            _matched_tariffa_unita: item.unita_fatturazione || item.unita || undefined,
+            // Stessa regola dell'unità del listino (unitaTariffa): il «pz» di default non vince sulla legacy.
+            _matched_tariffa_unita: unitaTariffa(item, "") || undefined,
             _match_type: "manual",
             _matched_unit_price: item.prezzo_vendita ?? undefined,
             _prezzoImpresa: newPrezzo,
@@ -340,7 +378,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
 
     const incluse = vociLocali
       .filter((v) => v._isIncluded)
-      .map((v, index) => buildComputoQuoteItemPayload(v, index));
+      .map((v, index) => buildComputoQuoteItemPayload(v, index, (id) => listinoPerId.get(id)));
 
     generatePreventivo(
       {

@@ -20,6 +20,7 @@
  *   - product → match su sku (se presente) o name esistente → UPDATE, non insert
  *   - family  → match su nome (stesso scope dell'indice parziale) → UPDATE campi da file
  *   - tariffa → match su nome → UPDATE prezzi/descrizione
+ *   Gli UPDATE scrivono solo i campi che il file valorizza (vedi soloValorizzati).
  *   Righe duplicate nello stesso file vengono scartate (skipped + errore visibile).
  *
  * Output:
@@ -96,6 +97,47 @@ function bool(v: unknown, fallback = true): boolean {
   const s = String(v).toLowerCase();
   return !["0", "false", "no", "n", "off"].includes(s);
 }
+function oggetto(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
+}
+
+/**
+ * Aggiornamento di una riga già in archivio: solo i campi che il file
+ * valorizza. Una cella vuota, o una colonna che il formato non ha, vuol dire
+ * «nessuna informazione», non «azzera»: prima un re-import senza costi
+ * portava a 0 costo e prezzo delle tariffe, uno senza IVA rimetteva gli
+ * articoli al 22% e uno senza categoria rifaceva «altro» il tipo (05/10/2026).
+ */
+function soloValorizzati(campi: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(campi).filter(([, v]) => v !== null && v !== undefined));
+}
+
+/**
+ * Campi personalizzati in aggiornamento: solo se il file ne porta, e sopra
+ * quelli che la riga ha già. Riscriverli con l'oggetto vuoto del file
+ * cancellava tutto, anche le chiavi di sistema delle tariffe
+ * (_costo_lavorazione, _gruppo_lavorazione).
+ */
+function campiPersonalizzatiAggiornati(esistenti: unknown, dalFile: unknown): Record<string, unknown> | null {
+  const file = oggetto(dalFile);
+  if (Object.keys(file).length === 0) return null;
+  return { ...oggetto(esistenti), ...file };
+}
+
+/** Accoda l'aggiornamento; senza campi da scrivere la riga conta come aggiornata e basta. */
+function accodaAggiornamento(
+  updates: Array<{ row: number; run: () => Promise<{ error: { message: string } | null }> }>,
+  res: ImportResult,
+  row: number,
+  payload: Record<string, unknown>,
+  run: (payload: Record<string, unknown>) => Promise<{ error: { message: string } | null }>,
+): void {
+  if (Object.keys(payload).length === 0) {
+    res.updated++;
+    return;
+  }
+  updates.push({ row, run: () => run(payload) });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -158,14 +200,16 @@ async function importProducts(
   // un solo duplicato faceva fallire l'intero chunk da 100 insert.
   const { data: existing, error: exErr } = await supabaseAdmin
     .from("article_templates")
-    .select("id, name, sku")
+    .select("id, name, sku, custom_field_values")
     .eq("company_id", companyId);
   if (exErr) throw exErr;
   const bySku = new Map<string, string>();
   const byName = new Map<string, string>();
+  const campiById = new Map<string, unknown>();
   for (const e of existing ?? []) {
     if (e.sku) bySku.set(String(e.sku).toLowerCase().trim(), e.id);
     if (e.name) byName.set(String(e.name).toLowerCase().trim(), e.id);
+    campiById.set(e.id, e.custom_field_values);
   }
 
   const inserts: any[] = [];
@@ -192,7 +236,8 @@ async function importProducts(
 
     const supplierName = str(r.supplier);
     const familyName = str(r.family);
-    const payload: Record<string, unknown> = {
+    // Quello che il file dice; null = cella vuota o colonna assente.
+    const dalFile: Record<string, unknown> = {
       name,
       sku,
       description: str(r.name),
@@ -200,28 +245,39 @@ async function importProducts(
       family_id: familyName ? familyMap.get(familyName.toLowerCase()) ?? null : null,
       supplier_id: supplierName ? supplierMap.get(supplierName.toLowerCase()) ?? null : null,
       unit_of_measure: str(r.unit),
-      unit_price: num(r.base_price) ?? 0,
+      unit_price: num(r.base_price),
       prezzo_vendita: num(r.list_price),
       standard_cost: num(r.cost),
       prezzo_acquisto_netto: num(r.cost),
       margine_minimo_percentuale: num(r.margin_pct),
-      vat_rate: num(r.vat_rate) ?? 22,
+      vat_rate: num(r.vat_rate),
       note_interne: [str(r.barcode) ? `Barcode: ${str(r.barcode)}` : null, str(r.notes)]
         .filter(Boolean)
         .join(" · ") || null,
-      custom_field_values: (r.custom_field_values ?? {}) as Record<string, unknown>,
     };
 
     const existingId = (skuKey ? bySku.get(sku!.toLowerCase().trim()) : undefined)
       ?? byName.get(name.toLowerCase().trim());
     if (existingId) {
-      // Non tocca modalita_prezzo/attivo dell'articolo esistente
-      updates.push({
-        row: i + 1,
-        run: () => supabaseAdmin.from("article_templates").update(payload).eq("id", existingId),
-      });
+      // Non tocca modalita_prezzo/attivo dell'articolo esistente, né i campi
+      // che il file lascia vuoti.
+      const payload = soloValorizzati(dalFile);
+      const campi = campiPersonalizzatiAggiornati(campiById.get(existingId), r.custom_field_values);
+      if (campi) payload.custom_field_values = campi;
+      accodaAggiornamento(updates, res, i + 1, payload,
+        (p) => supabaseAdmin.from("article_templates").update(p).eq("id", existingId));
     } else {
-      inserts.push({ ...payload, company_id: companyId, modalita_prezzo: "fisso", attivo: true });
+      // modalita_prezzo "pz": il CHECK ammette pz/mq/misura_libera/griglia, e
+      // il "fisso" di prima faceva fallire ogni blocco di inserimenti (05/10/2026).
+      inserts.push({
+        ...dalFile,
+        unit_price: dalFile.unit_price ?? 0,
+        vat_rate: dalFile.vat_rate ?? 22,
+        custom_field_values: oggetto(r.custom_field_values),
+        company_id: companyId,
+        modalita_prezzo: "pz",
+        attivo: true,
+      });
     }
   }
 
@@ -253,7 +309,7 @@ async function importFamilies(
   // senza pre-match l'insert violava l'unique e scartava l'intero chunk.
   const { data: existing, error: exErr } = await supabaseAdmin
     .from("article_families")
-    .select("id, nome")
+    .select("id, nome, custom_field_values")
     .eq("company_id", companyId)
     .eq("vertical", "generico")
     .eq("attivo", true)
@@ -261,8 +317,10 @@ async function importFamilies(
     .is("categoria_id", null);
   if (exErr) throw exErr;
   const byNome = new Map<string, string>();
+  const campiById = new Map<string, unknown>();
   for (const e of existing ?? []) {
     if (e.nome) byNome.set(String(e.nome).toLowerCase().trim(), e.id);
+    campiById.set(e.id, e.custom_field_values);
   }
 
   const inserts: any[] = [];
@@ -285,29 +343,47 @@ async function importFamilies(
     seenInFile.add(nomeKey);
 
     const supplierName = str(r.supplier);
+    // Prezzi, IVA e unità quando il file li porta: il modello «famiglie» non
+    // li ha, le righe dell'import AI sì (stesse colonne dei prodotti:
+    // list_price/base_price, cost, vat_rate, unit). Prima non si scriveva
+    // nessun prezzo e la famiglia nasceva a 0 € (05/10/2026).
+    const dalFile: Record<string, unknown> = {
+      descrizione: str(r.description),
+      supplier_id: supplierName ? supplierMap.get(supplierName.toLowerCase()) ?? null : null,
+      prezzo_base_vendita: num(r.list_price) ?? num(r.base_price),
+      prezzo_base_acquisto: num(r.cost),
+      vat_rate: num(r.vat_rate),
+      unit_of_measure: str(r.unit),
+    };
     const existingId = byNome.get(nomeKey);
     if (existingId) {
       // Aggiorna solo i campi che arrivano dal file — non tocca
       // modalita_prezzo_base (potrebbe essere una famiglia a griglia)
-      const payload = {
-        descrizione: str(r.description),
-        supplier_id: supplierName ? supplierMap.get(supplierName.toLowerCase()) ?? null : null,
-        custom_field_values: (r.custom_field_values ?? {}) as Record<string, unknown>,
-      };
-      updates.push({
-        row: i + 1,
-        run: () => supabaseAdmin.from("article_families").update(payload).eq("id", existingId),
-      });
+      const payload = soloValorizzati(dalFile);
+      const campi = campiPersonalizzatiAggiornati(campiById.get(existingId), r.custom_field_values);
+      if (campi) payload.custom_field_values = campi;
+      accodaAggiornamento(updates, res, i + 1, payload,
+        (p) => supabaseAdmin.from("article_families").update(p).eq("id", existingId));
     } else {
+      // "pz", non "fisso": il CHECK su modalita_prezzo_base ammette solo
+      // pz/mq/griglia/misura_libera, e "fisso" faceva fallire ogni blocco di
+      // inserimenti. Il file non dice la modalità: una famiglia importata ha
+      // un prezzo per pezzo (o per la sua unità), non a misure L×H.
+      // Sempre le stesse chiavi, coi default della tabella scritti a mano:
+      // nell'insert a blocchi una chiave assente in una riga ma presente in
+      // un'altra diventa NULL, non il DEFAULT (IVA NULL invece di 22).
       inserts.push({
+        ...dalFile,
+        prezzo_base_vendita: dalFile.prezzo_base_vendita ?? 0,
+        prezzo_base_acquisto: dalFile.prezzo_base_acquisto ?? 0,
+        vat_rate: dalFile.vat_rate ?? 22,
+        unit_of_measure: dalFile.unit_of_measure ?? "pz",
         company_id: companyId,
         nome,
-        descrizione: str(r.description),
-        supplier_id: supplierName ? supplierMap.get(supplierName.toLowerCase()) ?? null : null,
-        modalita_prezzo_base: "fisso",
+        modalita_prezzo_base: "pz",
         vertical: "generico",
         attivo: true,
-        custom_field_values: (r.custom_field_values ?? {}) as Record<string, unknown>,
+        custom_field_values: oggetto(r.custom_field_values),
       });
     }
   }
@@ -337,12 +413,14 @@ async function importTariffe(
   // re-import duplicava tutte le tariffe. Match per nome case-insensitive.
   const { data: existing, error: exErr } = await supabaseAdmin
     .from("tariffe_aziendali")
-    .select("id, nome")
+    .select("id, nome, custom_field_values")
     .eq("company_id", companyId);
   if (exErr) throw exErr;
   const byNome = new Map<string, string>();
+  const campiById = new Map<string, unknown>();
   for (const e of existing ?? []) {
     if (e.nome) byNome.set(String(e.nome).toLowerCase().trim(), e.id);
+    campiById.set(e.id, e.custom_field_values);
   }
 
   const inserts: any[] = [];
@@ -364,22 +442,47 @@ async function importTariffe(
     }
     seenInFile.add(nomeKey);
 
-    const payload = {
+    // Il costo nelle tre colonne che le pagine leggono (costo_interno,
+    // prezzo_costo, costo_default), come il salvataggio della pagina Tariffe:
+    // prima solo prezzo_costo, e costo_interno restava allo 0 di default.
+    const costo = num(r.costo_orario);
+    const categoria = str(r.categoria);
+    const dalFile: Record<string, unknown> = {
       descrizione: str(r.descrizione) ?? str(r.qualifica),
-      tipo: mapTariffaTipo(str(r.categoria)),
-      prezzo_costo: num(r.costo_orario) ?? 0,
-      prezzo_vendita: num(r.prezzo_orario) ?? 0,
+      // Senza categoria nel file il tipo resta quello che c'è: mapTariffaTipo
+      // di una cella vuota direbbe «altro».
+      tipo: categoria ? mapTariffaTipo(categoria) : null,
+      costo_interno: costo,
+      prezzo_costo: costo,
+      costo_default: costo,
+      prezzo_vendita: num(r.prezzo_orario),
       categoria_prodotto: str(r.qualifica) ?? str(r.ccnl),
-      custom_field_values: (r.custom_field_values ?? {}) as Record<string, unknown>,
     };
     const existingId = byNome.get(nomeKey);
     if (existingId) {
-      updates.push({
-        row: i + 1,
-        run: () => supabaseAdmin.from("tariffe_aziendali").update(payload).eq("id", existingId),
-      });
+      // Cella vuota = non toccare: prima costo e prezzo tornavano a 0.
+      const payload = soloValorizzati(dalFile);
+      const campi = campiPersonalizzatiAggiornati(campiById.get(existingId), r.custom_field_values);
+      if (campi) payload.custom_field_values = campi;
+      accodaAggiornamento(updates, res, i + 1, payload,
+        (p) => supabaseAdmin.from("tariffe_aziendali").update(p).eq("id", existingId));
     } else {
-      inserts.push({ ...payload, company_id: companyId, nome, unita: "h" });
+      // Tariffa nuova: quello che manca vale 0 (nessun costo noto), come i
+      // DEFAULT della tabella. I campi del file sono orari: unità «h» in
+      // entrambe le colonne (unita_fatturazione restava al «pz» di default).
+      inserts.push({
+        ...dalFile,
+        tipo: mapTariffaTipo(categoria),
+        costo_interno: costo ?? 0,
+        prezzo_costo: costo ?? 0,
+        costo_default: costo ?? 0,
+        prezzo_vendita: dalFile.prezzo_vendita ?? 0,
+        custom_field_values: oggetto(r.custom_field_values),
+        company_id: companyId,
+        nome,
+        unita: "h",
+        unita_fatturazione: "h",
+      });
     }
   }
 

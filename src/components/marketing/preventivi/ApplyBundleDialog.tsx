@@ -30,6 +30,9 @@ import { useBundlesList, type Bundle } from "@/hooks/useBundles";
 import { useFamilies } from "@/hooks/useFamilies";
 import { calcolaPrezzoFamiglia, type GridPoint } from "@/hooks/useFamilyPricing";
 import { formatCurrency } from "@/lib/formatters";
+import {
+  aliquotaComune, aliquotaValida, costoArticolo, costoTariffa, unitaTariffa,
+} from "@/lib/listino/costoTariffa";
 import { logger } from "@/utils/logger";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import type { TariffaPro } from "@/hooks/usePreventivoCosti";
@@ -99,7 +102,9 @@ export default function ApplyBundleDialog({
   tariffe,
 }: Props) {
   const { bundles, isLoading } = useBundlesList();
-  const { families } = useFamilies();
+  // Anche il kit a prezzo unico ora dipende dalle famiglie (il suo costo è
+  // quello delle voci): finché non sono caricate non si conferma.
+  const { families, isLoading: familiesLoading } = useFamilies();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const activeBundles = useMemo(() => bundles.filter((b) => b.attivo), [bundles]);
@@ -144,47 +149,18 @@ export default function ApplyBundleDialog({
     const warnings: string[] = [];
     let sort = currentSortOrder;
 
-    // Kit con prezzo offerta (i kit fotovoltaici): si vende a quel prezzo, come
-    // nel preventivatore FV. Prima si sommavano le voci, spesso a 0 €, e un kit
-    // senza voci diventava «Aggiungi 0 voci».
-    const prezzoKit = Number(selectedBundle.prezzo_offerta ?? 0);
-    if (prezzoKit > 0) {
-      const dettaglio = (selectedBundle.voci ?? [])
-        .map((v) => {
-          const nome = v.article_templates?.name ?? v.article_families?.nome ?? v.tariffe_aziendali?.nome;
-          return nome ? `${Number(v.quantita) || 1} × ${nome}` : null;
-        })
-        .filter(Boolean)
-        .join(", ");
-      items.push({
-        item_type: "product",
-        item_category: "prodotto",
-        name: selectedBundle.nome,
-        description: [
-          selectedBundle.fv_kwp != null ? `${Number(selectedBundle.fv_kwp).toLocaleString("it-IT")} kWp` : null,
-          Number(selectedBundle.fv_accumulo_kwh ?? 0) > 0
-            ? `accumulo ${Number(selectedBundle.fv_accumulo_kwh).toLocaleString("it-IT")} kWh`
-            : null,
-          dettaglio || null,
-        ].filter(Boolean).join(" · "),
-        quantity: 1,
-        unit_price: prezzoKit,
-        discount_percent: 0,
-        vat_rate: 22,
-        unit_of_measure: "kit",
-        sort_order: sort++,
-        article_template_id: null,
-        tariffa_id: null,
-        prezzo_acquisto: 0,
-        mostra_nel_pdf: true,
-        is_optional: false,
-      });
-      return { items, warnings, totalPreview: prezzoKit, nextSortOrder: sort };
-    }
-
     const familyMap = new Map<string, FamilyWithAxes>(
       families.map((f) => [f.id, f]),
     );
+
+    // IVA (05/10/2026: prima 22 fisso su kit, posa, articoli e tariffe, anche
+    // con prodotti al 10%). Famiglie e articoli hanno la loro aliquota; la posa
+    // segue il prodotto che installa; le righe senza un prodotto proprio — le
+    // tariffe sciolte e il kit a prezzo unico — prendono l'aliquota dei
+    // prodotti del pacchetto se è una sola, altrimenti il 22%.
+    const aliquoteProdotti: number[] = [];
+    const righeTariffaSciolta: QuoteItemPro[] = [];
+    let vociSaltate = 0;
 
     // Spread prima di sort — .sort() muta in-place, e `voci` arriva dalla React Query cache.
     // Senza copia l'ordine della cache cambierebbe ad ogni `expansion` memoizzata.
@@ -199,6 +175,7 @@ export default function ApplyBundleDialog({
         const family = familyMap.get(voce.family_id);
         if (!family) {
           warnings.push(`Famiglia ${voce.family_id} non trovata, voce saltata.`);
+          vociSaltate++;
           continue;
         }
 
@@ -246,6 +223,8 @@ export default function ApplyBundleDialog({
           ? `${voce.larghezza_mm_default}×${voce.altezza_mm_default}mm`
           : "";
         const description = [dimSummary, axisSummary].filter(Boolean).join(" — ");
+        const aliquotaFamiglia = aliquotaValida(family.vat_rate);
+        aliquoteProdotti.push(aliquotaFamiglia);
 
         items.push({
           item_type: "product",
@@ -255,7 +234,7 @@ export default function ApplyBundleDialog({
           quantity: qty,
           unit_price: result.unit_price_vendita,
           discount_percent: 0,
-          vat_rate: family.vat_rate,
+          vat_rate: aliquotaFamiglia,
           unit_of_measure: family.unit_of_measure,
           sort_order: sort++,
           article_template_id: null,
@@ -284,12 +263,13 @@ export default function ApplyBundleDialog({
               quantity: posaQty,
               unit_price: posaTariffa.prezzo_vendita,
               discount_percent: 0,
-              vat_rate: 22,
-              unit_of_measure: posaTariffa.unita ?? "pz",
+              // La posa ha l'IVA del prodotto che installa.
+              vat_rate: aliquotaFamiglia,
+              unit_of_measure: unitaTariffa(posaTariffa),
               sort_order: sort++,
               article_template_id: null,
               tariffa_id: posaTariffa.id,
-              prezzo_acquisto: posaTariffa.prezzo_costo ?? 0,
+              prezzo_acquisto: costoTariffa(posaTariffa) ?? 0,
               mostra_nel_pdf: true,
               is_optional: false,
               _parentIdx: undefined,
@@ -298,6 +278,8 @@ export default function ApplyBundleDialog({
         }
       } else if (voce.prodotto_id && voce.article_templates) {
         const art = voce.article_templates;
+        const aliquotaArticolo = aliquotaValida(art.vat_rate);
+        aliquoteProdotti.push(aliquotaArticolo);
         items.push({
           item_type: "product",
           item_category: "prodotto",
@@ -306,18 +288,19 @@ export default function ApplyBundleDialog({
           quantity: qty,
           unit_price: Number(art.prezzo_vendita ?? art.unit_price ?? 0),
           discount_percent: 0,
-          vat_rate: 22,
+          vat_rate: aliquotaArticolo,
           unit_of_measure: art.unit_of_measure ?? "pz",
           sort_order: sort++,
           article_template_id: voce.prodotto_id,
           tariffa_id: null,
-          prezzo_acquisto: Number(art.prezzo_acquisto_netto ?? 0),
+          // prezzo_acquisto_netto, poi standard_cost (prima solo il primo).
+          prezzo_acquisto: costoArticolo(art),
           mostra_nel_pdf: true,
           is_optional: false,
         });
       } else if (voce.tariffa_id && voce.tariffe_aziendali) {
         const t = voce.tariffe_aziendali;
-        items.push({
+        const riga: QuoteItemPro = {
           item_type: "service",
           item_category: "posa",
           name: `${t.nome}${vanoSuffix}`,
@@ -325,18 +308,76 @@ export default function ApplyBundleDialog({
           quantity: qty,
           unit_price: Number(t.prezzo_vendita ?? 0),
           discount_percent: 0,
+          // Provvisoria: si decide a fine giro, quando si conoscono i prodotti.
           vat_rate: 22,
-          unit_of_measure: t.unita ?? "pz",
+          // unita_fatturazione prima: la legacy `unita` dice «h» anche a giornata.
+          unit_of_measure: unitaTariffa(t),
           sort_order: sort++,
           article_template_id: null,
           tariffa_id: voce.tariffa_id,
-          prezzo_acquisto: 0,
+          // Prima 0: il margine di queste righe era sempre il 100%.
+          prezzo_acquisto: costoTariffa(t) ?? 0,
           mostra_nel_pdf: true,
           is_optional: false,
-        });
+        };
+        items.push(riga);
+        righeTariffaSciolta.push(riga);
       } else {
         warnings.push("Voce senza tipo valido, saltata.");
+        vociSaltate++;
       }
+    }
+
+    const aliquotaProdotti = aliquotaComune(aliquoteProdotti);
+    for (const riga of righeTariffaSciolta) riga.vat_rate = aliquotaProdotti;
+
+    // Kit con prezzo offerta (i kit fotovoltaici): si vende a quel prezzo, come
+    // nel preventivatore FV. Prima si sommavano le voci, spesso a 0 €, e un kit
+    // senza voci diventava «Aggiungi 0 voci».
+    const prezzoKit = Number(selectedBundle.prezzo_offerta ?? 0);
+    if (prezzoKit > 0) {
+      const dettaglio = (selectedBundle.voci ?? [])
+        .map((v) => {
+          const nome = v.article_templates?.name ?? v.article_families?.nome ?? v.tariffe_aziendali?.nome;
+          return nome ? `${Number(v.quantita) || 1} × ${nome}` : null;
+        })
+        .filter(Boolean)
+        .join(", ");
+      // Il kit prende il posto delle righe che il pacchetto avrebbe generato,
+      // quindi costa quanto loro (05/10/2026: era 0, e il margine del kit era
+      // sempre il 100%). Senza voci il costo non si conosce e resta 0, come
+      // nel preventivatore FV.
+      const costoKit = Math.round(
+        items.reduce((somma, it) => somma + it.prezzo_acquisto * it.quantity, 0) * 100,
+      ) / 100;
+      const senzaCosto = vociSaltate + items.filter((it) => !(it.prezzo_acquisto > 0)).length;
+      const avvisiKit = vociSorted.length > 0 && senzaCosto > 0
+        ? [`Costo del kit parziale: ${senzaCosto} ${senzaCosto === 1 ? "voce è" : "voci sono"} senza costo d'acquisto, il margine risulterà più alto del vero.`]
+        : [];
+      const rigaKit: QuoteItemPro = {
+        item_type: "product",
+        item_category: "prodotto",
+        name: selectedBundle.nome,
+        description: [
+          selectedBundle.fv_kwp != null ? `${Number(selectedBundle.fv_kwp).toLocaleString("it-IT")} kWp` : null,
+          Number(selectedBundle.fv_accumulo_kwh ?? 0) > 0
+            ? `accumulo ${Number(selectedBundle.fv_accumulo_kwh).toLocaleString("it-IT")} kWh`
+            : null,
+          dettaglio || null,
+        ].filter(Boolean).join(" · "),
+        quantity: 1,
+        unit_price: prezzoKit,
+        discount_percent: 0,
+        vat_rate: aliquotaProdotti,
+        unit_of_measure: "kit",
+        sort_order: currentSortOrder,
+        article_template_id: null,
+        tariffa_id: null,
+        prezzo_acquisto: costoKit,
+        mostra_nel_pdf: true,
+        is_optional: false,
+      };
+      return { items: [rigaKit], warnings: avvisiKit, totalPreview: prezzoKit, nextSortOrder: currentSortOrder + 1 };
     }
 
     // Applica sconto bundle (discount_percent) a tutte le voci se > 0
@@ -493,7 +534,8 @@ export default function ApplyBundleDialog({
               !expansion ||
               expansion.items.length === 0 ||
               gridBlocksConfirm ||
-              gridsLoading
+              gridsLoading ||
+              familiesLoading
             }
             title={
               gridBlocksConfirm

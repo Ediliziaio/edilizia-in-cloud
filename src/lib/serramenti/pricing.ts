@@ -379,5 +379,150 @@ export function applyMaggiorazioniAssi(
         break;
     }
   }
-  return pv;
+  // Le riduzioni delle varianti (−20 €) non portano mai il prezzo sotto zero.
+  return Math.max(0, pv);
+}
+
+// ─── Costo d'acquisto della posizione (per il margine) ────────────────────
+
+/** Le varianti come servono al costo: prezzo e maggiorazioni dal lato acquisto. */
+export type AsseCosto = {
+  codice: string;
+  values: Array<{
+    id: string;
+    maggiorazione_tipo: "none" | "percentuale" | "fisso_pz" | "fisso_mq" | "fisso_ml" | "fisso_mc";
+    maggiorazione_acquisto?: number | null;
+    prezzo_vendita?: number | null;
+    prezzo_acquisto?: number | null;
+  }>;
+};
+
+export type CostoPosizione = {
+  /** Costo del prodotto (varianti comprese) per tutta la quantità; null se il listino non ce l'ha. */
+  prodotto: number | null;
+  /** Costo della posa compresa nel prezzo (0 se esclusa o assente). */
+  posa: number;
+};
+
+/** I campi del prodotto che servono al costo: vanno bene sia ListinoFamily sia FamilyWithAxes. */
+export type FamigliaCosto = Pick<
+  ListinoFamily,
+  | "modalita_prezzo_base"
+  | "prezzo_base_mode"
+  | "prezzo_base_acquisto"
+  | "sconto_fornitore_1"
+  | "sconto_fornitore_2"
+  | "manodopera_modalita"
+  | "posa_tariffa_default_id"
+  | "posa_quantita_default"
+  | "manodopera_costo_acquisto"
+>;
+
+/**
+ * Il costo d'acquisto di una posizione del preventivo, con le stesse regole
+ * del suo prezzo di vendita (calcolaPrezzoProdotto, applyMaggiorazioniAssi,
+ * calcolaPosaInclusa) ma dal lato acquisto (05/10/2026). Prima il margine
+ * del preventivo prendeva il costo solo dalla cella della griglia: un
+ * prodotto a pezzo o al metro quadro risultava sempre «senza costo» anche
+ * col costo scritto nel listino, e la cella si leggeva al lordo degli sconti
+ * fornitore che il prezzo di vendita invece toglie.
+ *
+ *  - pz / misura libera: costo × pezzi; mq: costo × m² × pezzi;
+ *  - griglia: il costo della cella usata dalla riga;
+ *  - prodotto «acquisto + ricarico»: il costo salvato è il lordo di listino,
+ *    si tolgono gli sconti fornitore come per il prezzo (non per le celle di
+ *    una linea fornitore, che hanno il costo netto e il loro ricarico);
+ *  - varianti: prezzo d'acquisto proprio, maggiorazioni d'acquisto % e fisse;
+ *  - posa: costo della tariffa o importo manuale, se la riga non la esclude.
+ *
+ * `prodotto` è null quando il listino non ha un costo: il margine resta
+ * «incompleto» invece di valere il 100%.
+ */
+export function calcolaCostoPosizione(args: {
+  family: FamigliaCosto;
+  larghezza: number | null;
+  altezza: number | null;
+  quantita: number;
+  /** La cella della griglia usata dalla riga (solo per i prodotti a griglia). */
+  cella?: { prezzo_acquisto: number | null; supplier_product_line_id?: string | null } | null;
+  selections?: Record<string, string> | null;
+  axes?: AsseCosto[] | null;
+  posaEsclusa?: boolean | null;
+  /** Tariffa → costo per unità (tariffe_aziendali.prezzo_costo). */
+  tariffeCosti?: Map<string, number>;
+}): CostoPosizione {
+  const { family, larghezza: L, altezza: H } = args;
+  const quantita = args.quantita > 0 ? args.quantita : 1;
+  const modalita = family.modalita_prezzo_base ?? "pz";
+  const mq = L && H ? (L / 1000) * (H / 1000) * quantita : null;
+  const ml = L ? (L / 1000) * quantita : null;
+  const conSconti = family.prezzo_base_mode === "acquisto_markup";
+  const netto = (lordo: number) =>
+    conSconti
+      ? applyScontiFornitore(lordo, Number(family.sconto_fornitore_1 ?? 0), Number(family.sconto_fornitore_2 ?? 0))
+      : lordo;
+
+  // 1. Costo base, come il prezzo base.
+  let costo: number | null = null;
+  if (modalita === "griglia") {
+    const cella = args.cella;
+    const acquisto = Number(cella?.prezzo_acquisto ?? 0);
+    if (acquisto > 0) costo = (cella?.supplier_product_line_id ? acquisto : netto(acquisto)) * quantita;
+  } else {
+    const acquisto = netto(Number(family.prezzo_base_acquisto ?? 0));
+    if (acquisto > 0) {
+      if (modalita === "mq") costo = mq != null ? acquisto * mq : null;
+      else costo = acquisto * quantita;
+    }
+  }
+
+  // 2. Varianti: stesse regole di applyMaggiorazioniAssi, coi valori d'acquisto.
+  const selections = args.selections ?? {};
+  const axes = args.axes ?? [];
+  const scelto = (axis: AsseCosto) => {
+    const valueId = selections[axis.codice];
+    return valueId ? axis.values.find((v) => v.id === valueId) ?? null : null;
+  };
+  const assiPrezzoAssoluto = new Set<string>();
+  if (modalita !== "griglia") {
+    for (const axis of axes) {
+      const val = scelto(axis);
+      if (!val || val.prezzo_vendita == null || !(val.prezzo_vendita > 0)) continue;
+      assiPrezzoAssoluto.add(axis.codice);
+      // Il prezzo proprio della variante sostituisce la base; il costo solo
+      // se la variante ne ha uno (come calcolaPrezzoFamiglia).
+      const acquisto = Number(val.prezzo_acquisto ?? 0);
+      if (acquisto > 0) costo = modalita === "mq" && mq != null ? acquisto * mq : acquisto * quantita;
+    }
+  }
+  if (costo != null) {
+    for (const axis of axes) {
+      const val = scelto(axis);
+      if (!val || assiPrezzoAssoluto.has(axis.codice) || val.maggiorazione_tipo !== "percentuale") continue;
+      costo *= 1 + Number(val.maggiorazione_acquisto ?? 0) / 100;
+    }
+    for (const axis of axes) {
+      const val = scelto(axis);
+      if (!val || assiPrezzoAssoluto.has(axis.codice)) continue;
+      const delta = Number(val.maggiorazione_acquisto ?? 0);
+      if (val.maggiorazione_tipo === "fisso_pz") costo += delta * quantita;
+      else if (val.maggiorazione_tipo === "fisso_mq" && mq != null) costo += delta * mq;
+      else if (val.maggiorazione_tipo === "fisso_ml" && ml != null) costo += delta * ml;
+    }
+    // Come il prezzo: le riduzioni non portano il costo sotto zero.
+    costo = Math.max(0, costo);
+  }
+
+  // 3. Posa compresa nel prezzo: stesso calcolo di calcolaPosaInclusa, col costo.
+  let posa = 0;
+  if (!args.posaEsclusa) {
+    const qtyTotale = quantita * Number(family.posa_quantita_default ?? 1);
+    if (family.manodopera_modalita === "tariffa" && family.posa_tariffa_default_id) {
+      posa = (args.tariffeCosti?.get(family.posa_tariffa_default_id) ?? 0) * qtyTotale;
+    } else if (family.manodopera_modalita === "manuale") {
+      posa = Number(family.manodopera_costo_acquisto ?? 0) * qtyTotale;
+    }
+  }
+
+  return { prodotto: costo != null ? round2(costo) : null, posa: round2(posa) };
 }

@@ -257,24 +257,31 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
 
           {/* Breakdown materiali + manodopera (espandibile) */}
           {/* Telefono: i costi si guardano dal computer, come i margini. */}
-          {hasCosto && (
-            <Collapsible open={breakdownOpen} onOpenChange={setBreakdownOpen} className="max-sm:hidden">
+          {/* Anche senza costo (05/10/2026): il margine del preventivo dice «costi
+              incompleti», e il costo della riga si deve poter scrivere qui. */}
+          <Collapsible open={breakdownOpen} onOpenChange={setBreakdownOpen} className="max-sm:hidden">
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
                   className="mt-1 ml-1.5 inline-flex items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
                 >
                   <ChevronDown className={cn("h-3 w-3 transition-transform", breakdownOpen && "rotate-180")} />
-                  Costo unitario {formatCurrency(costoUnit)} · margine {marginePct.toFixed(0)}%
+                  {hasCosto
+                    ? `Costo unitario ${formatCurrency(costoUnit)} · margine ${marginePct.toFixed(0)}%`
+                    : importo > 0
+                      ? "Aggiungi il costo: serve al margine"
+                      : "Costo"}
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="mt-1.5 ml-1.5 space-y-1.5 rounded-lg bg-muted/40 p-2">
-                  {/* Barra proporzionale materiali/manodopera */}
-                  <div className="flex h-2 overflow-hidden rounded-full bg-muted">
-                    <div className="bg-sky-400" style={{ width: `${matQuota}%` }} title="Materiali" />
-                    <div className="bg-violet-400" style={{ width: `${100 - matQuota}%` }} title="Manodopera" />
-                  </div>
+                  {/* Barra proporzionale materiali/manodopera (solo se c'è un costo) */}
+                  {hasCosto && (
+                    <div className="flex h-2 overflow-hidden rounded-full bg-muted">
+                      <div className="bg-sky-400" style={{ width: `${matQuota}%` }} title="Materiali" />
+                      <div className="bg-violet-400" style={{ width: `${100 - matQuota}%` }} title="Manodopera" />
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <label className="flex items-center gap-1.5 text-[11px]">
                       <Package className="h-3 w-3 text-sky-500" />
@@ -306,7 +313,6 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 </div>
               </CollapsibleContent>
             </Collapsible>
-          )}
         </div>
 
         {/* Azioni (hover / sempre su mobile) */}

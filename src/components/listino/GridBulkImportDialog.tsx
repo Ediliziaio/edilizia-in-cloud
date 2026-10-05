@@ -35,6 +35,9 @@
  * Tipicamente i listini fornitore sono prezzi di ACQUISTO — il markup
  * (percentuale o fisso) viene poi applicato dal sistema per derivare la
  * vendita, se la famiglia è in modalità `acquisto_markup`.
+ * Dal 05/10/2026 la scelta parte dal campo che il prodotto usa davvero
+ * (`campoImportoGriglia`): vendita nei prodotti a prezzo di vendita, acquisto
+ * in `acquisto_markup`, dove è l'unica ammessa.
  *
  * Il parsing testuale riutilizza `parseCsvMatrix` + `matrixToCells` dalla feature
  * serramenti-listini, così la logica è testata (26 test in matrixImport.test)
@@ -81,6 +84,22 @@ import {
 export type BulkTargetField = "prezzo_acquisto" | "prezzo_vendita";
 export type AiProvider = "auto" | "openai" | "anthropic" | "gemini";
 
+/**
+ * Dove finiscono i valori importati (05/10/2026). In «acquisto_markup» il
+ * prodotto legge solo l'acquisto e ricava la vendita dal ricarico: una tabella
+ * importata come vendita si perdeva al salvataggio. In «vendita» si parte
+ * dalla vendita, il prezzo che usa il preventivo; l'acquisto (per il margine)
+ * resta una scelta esplicita. Prima si partiva sempre dall'acquisto: in un
+ * prodotto a prezzo di vendita le celle nuove restavano a vendita 0.
+ */
+export function campoImportoGriglia(
+  modo: "vendita" | "acquisto_markup",
+  scelto?: BulkTargetField,
+): BulkTargetField {
+  if (modo === "acquisto_markup") return "prezzo_acquisto";
+  return scelto ?? "prezzo_vendita";
+}
+
 export interface BulkParsedPayload {
   xAxis: number[];
   yAxis: number[];
@@ -97,6 +116,8 @@ interface Props {
   asseXLabel?: string;
   /** Label asse Y (es. "Altezza (mm)"). Solo UI. */
   asseYLabel?: string;
+  /** Modalità prezzo del prodotto: decide il campo di partenza (e l'unico in acquisto_markup). */
+  prezzoBaseMode?: "vendita" | "acquisto_markup";
 }
 
 interface DisplayParseResult extends MatrixParseResult {
@@ -208,10 +229,21 @@ export function GridBulkImportDialog({
   onApply,
   asseXLabel = "Larghezza",
   asseYLabel = "Altezza",
+  prezzoBaseMode = "vendita",
 }: Props) {
   const [text, setText] = useState("");
-  const [targetField, setTargetField] = useState<BulkTargetField>("prezzo_acquisto");
+  const [targetField, setTargetField] = useState<BulkTargetField>(() =>
+    campoImportoGriglia(prezzoBaseMode),
+  );
   const [mode, setMode] = useState<"text" | "image">("text");
+  const soloAcquisto = prezzoBaseMode === "acquisto_markup";
+  const campo = campoImportoGriglia(prezzoBaseMode, targetField);
+
+  // Ogni apertura riparte dal campo che il prodotto usa: la modalità prezzo
+  // può essere cambiata dall'ultima volta.
+  useEffect(() => {
+    if (open) setTargetField(campoImportoGriglia(prezzoBaseMode));
+  }, [open, prezzoBaseMode]);
 
   // Image tab state
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -351,7 +383,7 @@ export function GridBulkImportDialog({
       xAxis: result.xValues,
       yAxis: result.yValues,
       values: result.valueLookup,
-      targetField,
+      targetField: campo,
     });
     toast.success(
       `Matrice importata: ${result.cells.length} celle (${result.xValues.length}×${result.yValues.length})`,
@@ -386,7 +418,7 @@ export function GridBulkImportDialog({
               I valori della tabella sono:
             </Label>
             <RadioGroup
-              value={targetField}
+              value={campo}
               onValueChange={(v) => setTargetField(v as BulkTargetField)}
               className="flex flex-col gap-2"
             >
@@ -395,17 +427,27 @@ export function GridBulkImportDialog({
                 <Label htmlFor="target-acq" className="cursor-pointer flex-1">
                   <div className="font-medium">Prezzo di acquisto (fornitore)</div>
                   <div className="text-xs text-muted-foreground">
-                    Listino del fornitore. Il prezzo di vendita verrà calcolato dal
-                    markup configurato nella famiglia.
+                    {soloAcquisto
+                      ? "Listino del fornitore. Il prezzo di vendita verrà calcolato dal markup configurato nella famiglia."
+                      : "Quanto lo paghi al fornitore: serve al margine, il prezzo al cliente non cambia."}
                   </div>
                 </Label>
               </div>
-              <div className="flex items-start gap-2 p-3 rounded-md border hover:bg-muted/30">
-                <RadioGroupItem value="prezzo_vendita" id="target-vend" className="mt-0.5" />
-                <Label htmlFor="target-vend" className="cursor-pointer flex-1">
+              <div
+                className={`flex items-start gap-2 p-3 rounded-md border ${soloAcquisto ? "opacity-60" : "hover:bg-muted/30"}`}
+              >
+                <RadioGroupItem
+                  value="prezzo_vendita"
+                  id="target-vend"
+                  className="mt-0.5"
+                  disabled={soloAcquisto}
+                />
+                <Label htmlFor="target-vend" className={`flex-1 ${soloAcquisto ? "" : "cursor-pointer"}`}>
                   <div className="font-medium">Prezzo di vendita (cliente)</div>
                   <div className="text-xs text-muted-foreground">
-                    Prezzo di cartellino già maggiorato, da mostrare al cliente finale.
+                    {soloAcquisto
+                      ? "Non per questo prodotto: la vendita la calcola il ricarico sul prezzo del fornitore."
+                      : "Prezzo di cartellino già maggiorato, da mostrare al cliente finale."}
                   </div>
                 </Label>
               </div>

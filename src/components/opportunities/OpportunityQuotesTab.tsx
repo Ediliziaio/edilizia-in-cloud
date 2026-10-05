@@ -40,6 +40,8 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { ivaVoceNuova } from "@/hooks/usePreventivoCosti";
+import { costoArticolo } from "@/lib/listino/costoTariffa";
 import { allegaSchedeTecniche, avvisoSchedeNonAllegate } from "@/lib/quotes/allegatiPreventivo";
 import {
   gruppoPreventivo as gruppoDi, ordinaPreventivi, riepilogoPreventivi, scadenzaPreventivo, valoreProposto, visioneCliente,
@@ -98,17 +100,24 @@ interface QuoteItemRow {
   vat_rate: number;
   unit_of_measure: string;
   article_template_id: string | null;
+  /** Costo d'acquisto unitario dell'articolo scelto; 0 = non si conosce. */
+  prezzo_acquisto: number;
 }
 
-const emptyItem = (): QuoteItemRow => ({
+/**
+ * Riga vuota. L'IVA la passa chi aggiunge la riga: quella più usata nelle
+ * righe già scritte (ivaVoceNuova), 22 solo a preventivo vuoto (05/10/2026).
+ */
+const emptyItem = (vat_rate = 22): QuoteItemRow => ({
   name: "",
   description: "",
   quantity: 1,
   unit_price: 0,
   discount_percent: 0,
-  vat_rate: 22,
+  vat_rate,
   unit_of_measure: "pz",
   article_template_id: null,
+  prezzo_acquisto: 0,
 });
 
 export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Props) {
@@ -255,6 +264,25 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
     enabled: !!contactId,
   });
 
+  // Prezzo, costo e IVA degli articoli dalle colonne di oggi (05/10/2026): il
+  // selettore porta quelle vecchie (unit_price, standard_cost) e il costo vero
+  // sta in prezzo_acquisto_netto (17 articoli su 47 con standard_cost a 0).
+  // Senza costo il margine del preventivo risultava pieno.
+  const { data: articoliListino = [] } = useQuery({
+    queryKey: ["opportunity-quick-quote-articles", companyId],
+    enabled: !!companyId && showForm,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("article_templates")
+        .select("id, prezzo_vendita, unit_price, prezzo_acquisto_netto, standard_cost, vat_rate")
+        .eq("company_id", companyId!);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const articoliPerId = useMemo(() => new Map(articoliListino.map((a) => [a.id, a])), [articoliListino]);
+
   const { data: materials = [] } = useQuery({
     queryKey: ["quote-pdf-materials", companyId],
     enabled: !!companyId && showForm,
@@ -296,17 +324,21 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
   };
 
   const handleArticleSelect = (index: number, name: string, template?: ArticleTemplateData) => {
+    // Le colonne di oggi dell'articolo, se già caricate; altrimenti quelle del selettore.
+    const articolo = template ? articoliPerId.get(template.id) : undefined;
     setItems((prev) =>
       prev.map((it, i) =>
         i === index
           ? {
               ...it,
               name,
-              unit_price: template?.unit_price ?? it.unit_price,
-              vat_rate: template?.vat_rate ?? it.vat_rate,
+              unit_price: articolo?.prezzo_vendita ?? articolo?.unit_price ?? template?.unit_price ?? it.unit_price,
+              vat_rate: articolo?.vat_rate ?? template?.vat_rate ?? it.vat_rate,
               unit_of_measure: template?.unit_of_measure ?? it.unit_of_measure,
               description: template?.description ?? it.description,
               article_template_id: template?.id ?? null,
+              // Nome scritto a mano: non è più l'articolo, il suo costo non vale.
+              prezzo_acquisto: template ? costoArticolo(articolo ?? { standard_cost: template.standard_cost }) : 0,
             }
           : it
       )
@@ -395,6 +427,8 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
             unit_of_measure: it.unit_of_measure,
             sort_order: idx,
             article_template_id: it.article_template_id || null,
+            // Il costo dell'articolo scelto (05/10/2026): prima non si salvava.
+            prezzo_acquisto: it.prezzo_acquisto ?? 0,
           }))
         );
         if (itemsErr) throw itemsErr;
@@ -671,7 +705,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-semibold">Prodotti / Servizi</Label>
-              <Button size="sm" variant="ghost" onClick={() => setItems((prev) => [...prev, emptyItem()])}>
+              <Button size="sm" variant="ghost" onClick={() => setItems((prev) => [...prev, emptyItem(ivaVoceNuova(prev))])}>
                 <Plus className="h-3.5 w-3.5 mr-1" />
                 Riga
               </Button>

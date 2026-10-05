@@ -4,9 +4,10 @@
  * Configura un'istanza di `FamilyWithAxes` per l'aggiunta al preventivo.
  * Riusa `calcolaPrezzoFamiglia` (FASE 5.1) per il pricing; la logica delle
  * linee prodotto fornitore STEP 6 è volutamente semplificata: se la
- * famiglia ha griglia, viene usato il prezzo `prezzo_vendita` del punto più
- * vicino (nearestGrid) senza ricarico linea — chi usa listini avanzati può
- * continuare col vecchio wizard finché il flag è OFF.
+ * famiglia ha griglia, viene usato il `prezzo_vendita` della cella che
+ * contiene la misura (cellaGriglia, la misura superiore) senza ricarico
+ * linea — chi usa listini avanzati può continuare col vecchio wizard finché
+ * il flag è OFF. Una misura fuori listino non si aggiunge (05/10/2026).
  *
  * Al conferma restituisce 1-2 `ConfiguredItem` (prodotto + posa opzionale).
  */
@@ -31,12 +32,14 @@ import { AnteprimaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDiseg
 import { disegnoDaFamiglia, haDisegno } from "@/lib/serramenti/disegnoDaFamiglia";
 import {
   calcolaPrezzoFamiglia,
+  cellaGriglia,
   useFamilyGrid,
 } from "@/hooks/useFamilyPricing";
 import type { TariffaPro } from "@/hooks/usePreventivoCosti";
 import type { AxisSelection, FamilyWithAxes } from "@/types/articleFamily";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import type { CatalogItemFamily, ConfiguredItem } from "@/types/catalogItem";
+import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
 
 interface FamilyConfiguratorProps {
   confirmLabel?: string;
@@ -155,10 +158,10 @@ export function FamilyConfigurator({
   // TariffaPro usa `prezzo_costo`/`costo_interno` (non `prezzo_acquisto`).
   const posaAcq = manodoperaManuale
     ? manodoperaManuale.costo
-    : (tariffaPosa?.costo_interno ?? tariffaPosa?.prezzo_costo ?? 0);
+    : (costoTariffa(tariffaPosa) ?? 0);
   const posaUm = manodoperaManuale
     ? manodoperaManuale.unita
-    : (tariffaPosa?.unita_fatturazione ?? tariffaPosa?.unita ?? "h");
+    : unitaTariffa(tariffaPosa, "h");
   const posaNome = manodoperaManuale
     ? "Manodopera (importo manuale)"
     : (tariffaPosa?.nome ?? "Manodopera");
@@ -176,29 +179,31 @@ export function FamilyConfigurator({
     [family, selection, lMm, hMm],
   );
 
-  const canConfirm = misureValide && qty > 0;
+  // Misura fuori listino: il prodotto non si fa a quella misura, e una riga a
+  // 0 € nel preventivo non deve partire senza che nessuno se ne accorga.
+  const canConfirm = misureValide && qty > 0 && !pricing.fuori_listino;
+  // Gli avvisi del calcolo (misura arrotondata, variante obbligatoria non
+  // scelta, griglia vuota…): prima si calcolavano e non si vedevano.
+  const avvisi = [
+    ...pricing.warnings,
+    ...(!pricing.fuori_listino && misureValide && pricing.unit_price_vendita <= 0
+      ? ["Il prezzo di questo prodotto non è impostato nel listino: scrivilo nella riga del preventivo."]
+      : []),
+  ];
 
   function handleConfirm(): void {
     const prodottoTempId = uuid();
     const baseSort = currentSortOrder;
 
-    // Griglia info (se disponibile) per rigenerazione coerente in modifica.
-    // Usiamo nearest-neighbor Manhattan sul punto effettivo per recuperare
-    // supplier_catalog_id / supplier_product_line_id eventualmente presenti.
+    // Griglia info (se disponibile) per rigenerazione coerente in modifica:
+    // la stessa cella usata per il prezzo, con supplier_catalog_id /
+    // supplier_product_line_id eventualmente presenti.
     let supplierCatalogId: string | null = null;
     let supplierProductLineId: string | null = null;
     if (family.modalita_prezzo_base === "griglia" && grigliaPunti.length > 0) {
-      let nearest = grigliaPunti[0];
-      let minDist = Infinity;
-      for (const p of grigliaPunti) {
-        const d = Math.abs(p.valore_x - lMm) + Math.abs(p.valore_y - hMm);
-        if (d < minDist) {
-          minDist = d;
-          nearest = p;
-        }
-      }
-      supplierCatalogId = nearest.supplier_catalog_id ?? null;
-      supplierProductLineId = nearest.supplier_product_line_id ?? null;
+      const cella = cellaGriglia(grigliaPunti, lMm, hMm)?.punto;
+      supplierCatalogId = cella?.supplier_catalog_id ?? null;
+      supplierProductLineId = cella?.supplier_product_line_id ?? null;
     }
 
     const prodotto: QuoteItemPro = {
@@ -381,6 +386,21 @@ export function FamilyConfigurator({
             </p>
           </div>
         </div>
+      )}
+
+      {/* Telefono: solo l'avviso che blocca (misura fuori listino). */}
+      {avvisi.length > 0 && (
+        <ul
+          className={`space-y-1 rounded-md border px-3 py-2 text-xs ${
+            pricing.fuori_listino
+              ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300"
+              : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300 max-sm:hidden"
+          }`}
+        >
+          {avvisi.map((a) => (
+            <li key={a}>{a}</li>
+          ))}
+        </ul>
       )}
 
       <Card>

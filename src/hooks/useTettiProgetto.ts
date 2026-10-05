@@ -18,7 +18,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { calcRigaImporto, calcTotaliComputo, type ComputoRigaInput } from "@/lib/tetti/calcoli";
+import { calcMargineRiga, calcRigaImporto, calcTotaliComputo, type ComputoRigaInput } from "@/lib/tetti/calcoli";
 import {
   aLotti, cambiaITotali, condizioniDiPartenza, inFila, soloCampiDelForm,
   type PredefinitiAzienda,
@@ -414,13 +414,19 @@ export function useSaveComputo(progettoId: string | undefined) {
             sconto_pct: Number(r.sconto_pct) || 0,
           });
           // Margine reale della riga (coerente con VoceRow/calcTotaliComputo):
-          // costo riga = (materiali + manodopera) * quantità; il margine deriva
-          // dall'importo già ricalcolato. Clamp NaN→0 per non persistere sporco.
-          const costoRiga = (costo_materiali + costo_manodopera) * quantita;
-          const margine_eur_raw = importo - costoRiga;
-          const margine_pct_raw = importo > 0 ? (margine_eur_raw / importo) * 100 : 0;
-          const margine_eur = Number.isFinite(margine_eur_raw) ? margine_eur_raw : 0;
-          const margine_pct = Number.isFinite(margine_pct_raw) ? margine_pct_raw : 0;
+          // costo riga = (materiali + manodopera) * quantità. Una riga venduta
+          // senza costo non ha margine, non il 100% (05/10/2026): le colonne sono
+          // NOT NULL DEFAULT 0, quindi si salva 0 = «non calcolato», come fa
+          // bagnoDaQuote; l'editor mostra «Costi incompleti». Clamp NaN→0.
+          const margine = calcMargineRiga({
+            quantita,
+            prezzo_unitario: Number(r.prezzo_unitario) || 0,
+            sconto_pct: Number(r.sconto_pct) || 0,
+            costo_materiali,
+            costo_manodopera,
+          });
+          const margine_eur = margine.margineEur != null && Number.isFinite(margine.margineEur) ? margine.margineEur : 0;
+          const margine_pct = margine.marginePct != null && Number.isFinite(margine.marginePct) ? margine.marginePct : 0;
           return {
             progetto_id: progettoId,
             company_id: companyId,

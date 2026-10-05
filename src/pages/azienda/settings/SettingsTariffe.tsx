@@ -67,6 +67,8 @@ import { countTariffaUsage, totalTariffaUsage, countTariffaUsageBulk } from "@/l
 import { BulkPriceAdjustDialog } from "@/components/settings/BulkPriceAdjustDialog";
 import { TariffaUsageDialog } from "@/components/settings/TariffaUsageDialog";
 import { AnalisiPrezzoDialog } from "@/components/listino/AnalisiPrezzoDialog";
+import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
+import { incidenzaFrazione } from "@/lib/listino/analisiPrezzo";
 import ListinoManutenzione from "@/pages/azienda/settings/ListinoManutenzione";
 import { CostoLavorazioneEditor, type DipendenteCostoLavorazione } from "@/components/settings/CostoLavorazioneEditor";
 import { calcolaCostoLavorazione, campiConCostoLavorazione, costoLavorazioneModificato, GRUPPI_LAVORAZIONE, gruppoLavorazione, leggiCostoLavorazione, MODALITA_COSTO_LABEL, numeroCosto, oggettoCampi, type GruppoLavorazione } from "@/lib/tariffe/costoLavorazione";
@@ -152,7 +154,12 @@ const UM_DEFAULT_BY_TIPO: Record<string, UnitaFatturazione> = {
   altro: "pz",
 };
 
-/** Mappa unita_fatturazione → colonna legacy `unita` (CHECK: pz/mq/ml/mc/h/piano/km/fisso). */
+/**
+ * Mappa unita_fatturazione → colonna legacy `unita` (CHECK: pz/mq/ml/mc/h/piano/km/fisso).
+ * La conversione perde informazione (gg→h, kg→pz): chi legge l'unità deve
+ * usare unita_fatturazione e ripiegare su `unita` solo se manca, altrimenti
+ * un prezzo a giornata sembra a ore (vedi unitaTariffa, 05/10/2026).
+ */
 function legacyUnitaFrom(u: UnitaFatturazione): string {
   switch (u) {
     case "pz": case "mq": case "ml": case "mc": case "h": case "km": case "piano":
@@ -288,7 +295,7 @@ function KpiHeader({
     let sottoSoglia = 0; // #49 — voci con margine calcolabile sotto la soglia governance
     for (const t of tariffe) {
       const pv = t.prezzo_vendita ?? 0;
-      const pc = t.costo_interno ?? t.prezzo_costo ?? 0;
+      const pc = costoTariffa(t) ?? 0;
       if (pv > 0 && pc > 0) {
         const m = calcMargine(pv, pc);
         sumMarg += m;
@@ -360,13 +367,21 @@ export function TariffaDialog({
   const [codice, setCodice] = useState(editing?.codice ?? "");
   const [descrizione, setDescrizione] = useState(editing?.descrizione ?? "");
   const [tipo, setTipo] = useState<TipoTariffa>(editing?.tipo ?? "posa");
-  // FASE 6: unita_fatturazione è la nuova UM canonica (fissa alla creazione)
+  // FASE 6: unita_fatturazione è la nuova UM canonica (fissa alla creazione).
+  // unitaTariffa e non unita_fatturazione grezza: sulle voci scritte solo
+  // nella legacy `unita` è rimasto il «pz» di default, il campo è bloccato e
+  // salvando l'unità vera (mq, h, km…) si perdeva (05/10/2026).
   const [unitaFatturazione, setUnitaFatturazione] = useState<UnitaFatturazione>(
-    editing?.unita_fatturazione ?? UM_DEFAULT_BY_TIPO[editing?.tipo ?? "posa"] ?? "pz",
+    editing
+      ? (unitaTariffa(editing, UM_DEFAULT_BY_TIPO[editing.tipo] ?? "pz") as UnitaFatturazione)
+      : (UM_DEFAULT_BY_TIPO.posa ?? "pz"),
   );
   const [prezzoVendita, setPrezzoVendita] = useState(String(editing?.prezzo_vendita ?? ""));
+  // costoTariffa, non costo_interno ?? prezzo_costo: costo_interno nasce a 0
+  // (DEFAULT) e nascondeva il costo vero rimasto in prezzo_costo; salvando,
+  // quello 0 finiva su tutte e tre le colonne e il costo andava perso (05/10/2026).
   const [costoInterno, setCostoInterno] = useState(
-    String(editing?.costo_interno ?? editing?.prezzo_costo ?? ""),
+    String(costoTariffa(editing) ?? ""),
   );
   const [verticalAssociato, setVerticalAssociato] = useState<string>(
     editing ? (editing.vertical_associato ?? "") : (currentVertical ?? ""),
@@ -374,9 +389,11 @@ export function TariffaDialog({
   const [pianoBase, setPianoBase] = useState(String(editing?.piano_base ?? "1"));
   const [prezzoPianoAgg, setPrezzoPianoAgg] = useState(String(editing?.prezzo_piano_aggiuntivo ?? ""));
   const [fonte, setFonte] = useState(editing?.fonte ?? "");
+  // Due decimali, non l'intero: l'analisi prezzi salva p.es. 0,3162 e
+  // riaprire-e-salvare non deve arrotondarla a 32% (05/10/2026).
   const [incidenzaMdoPct, setIncidenzaMdoPct] = useState(
     editing?.incidenza_manodopera_pct != null
-      ? String(Math.round(editing.incidenza_manodopera_pct * 100))
+      ? String(Math.round(editing.incidenza_manodopera_pct * 10000) / 100)
       : "",
   );
   const [attivo, setAttivo] = useState<boolean>(editing?.attivo !== false);
@@ -384,7 +401,7 @@ export function TariffaDialog({
   const [externalTeamId, setExternalTeamId] = useState<string>(editing?.external_team_id ?? "");
   const [saving, setSaving] = useState(false);
   const costoSalvato = leggiCostoLavorazione(editing?.custom_field_values);
-  const costoModificato = costoLavorazioneModificato(costoSalvato, editing?.costo_interno ?? editing?.prezzo_costo ?? 0);
+  const costoModificato = costoLavorazioneModificato(costoSalvato, costoTariffa(editing) ?? 0);
   const [configCosto, setConfigCosto] = useState(() => ({ ...costoSalvato, modalita: costoModificato ? "manuale" as const : costoSalvato.modalita }));
   const [gruppo, setGruppo] = useState<GruppoLavorazione>(() => editing ? gruppoLavorazione(editing) : gruppoIniziale);
   const calcoloCosto = calcolaCostoLavorazione(configCosto, numeroCosto(costoInterno) ?? (configCosto.modalita === "manuale" ? 0 : null));
@@ -444,14 +461,14 @@ export function TariffaDialog({
       };
 
       const prezzoVenditaValue = parseNonNegative(prezzoVendita, "Prezzo vendita");
-      const costoInternoValue = isAdmin ? calcoloCosto.applicato! : (editing?.costo_interno ?? editing?.prezzo_costo ?? 0);
+      const costoInternoValue = isAdmin ? calcoloCosto.applicato! : (costoTariffa(editing) ?? 0);
       const prezzoPianoAggValue = parseNonNegative(prezzoPianoAgg, "Prezzo piano aggiuntivo");
       const pianoBaseValue = parseNonNegativeInt(pianoBase, "Piano base", 1);
 
       // Incidenza manodopera: input in % (0..100) → frazione 0..1 in DB. null se vuoto/non valido.
       const incidenzaMdo = (() => {
         const n = Number(incidenzaMdoPct.replace(",", "."));
-        return Number.isFinite(n) && n > 0 ? Math.min(1, n / 100) : null;
+        return Number.isFinite(n) && n > 0 ? incidenzaFrazione(n) : null;
       })();
 
       const payload: Record<string, unknown> = {
@@ -687,7 +704,7 @@ export function TariffaDialog({
                 type="number"
                 min="0"
                 max="100"
-                step="1"
+                step="0.01"
                 value={incidenzaMdoPct}
                 onChange={(e) => setIncidenzaMdoPct(e.target.value)}
                 placeholder="Es. 35"
@@ -825,7 +842,7 @@ export function TariffaDialog({
               <p className="my-2 text-xs text-muted-foreground">Il calcolo sopra imposta il costo base del listino. Nei margini delle commesse, assegnazioni già bloccate e varianti predefinite hanno precedenza. Non vengono cambiate da questo salvataggio.</p>
             <TariffaVariantiSection
               tariffaId={editing.id}
-              costoDefault={editing.costo_interno ?? editing.prezzo_costo ?? null}
+              costoDefault={costoTariffa(editing)}
               tariffaSquadraId={externalTeamId || null}
             />
             </details>
@@ -959,8 +976,10 @@ function StandardTariffeDialog({
           company_id: companyId,
           // Allineiamo anche il campo legacy `unita` al nuovo unita_fatturazione
           unita: d.unita_fatturazione ? legacyUnitaFrom(d.unita_fatturazione) : "pz",
-          // Allineiamo legacy prezzo_costo al costo_interno
+          // Il costo nelle tre colonne, come il salvataggio della voce
+          // (prima costo_default restava vuoto, 05/10/2026).
           prezzo_costo: d.costo_interno,
+          costo_default: d.costo_interno,
           attivo: true,
         };
       });
@@ -1188,12 +1207,12 @@ function TariffeTable({
   // Accessori per il sort ("tipo" è ordinabile dai tab gruppo, non serve qui)
   const accessors = useMemo(() => ({
     nome: (t: Tariffa) => t.nome.toLowerCase(),
-    unita: (t: Tariffa) => t.unita_fatturazione ?? t.unita ?? "",
+    unita: (t: Tariffa) => unitaTariffa(t, ""),
     prezzo_vendita: (t: Tariffa) => t.prezzo_vendita ?? 0,
-    costo: (t: Tariffa) => t.costo_interno ?? t.prezzo_costo ?? 0,
+    costo: (t: Tariffa) => costoTariffa(t) ?? 0,
     margine: (t: Tariffa) => {
       const pv = t.prezzo_vendita ?? 0;
-      const pc = t.costo_interno ?? t.prezzo_costo ?? 0;
+      const pc = costoTariffa(t) ?? 0;
       return pv > 0 && pc > 0 ? calcMargine(pv, pc) : -Infinity;
     },
     attivo: (t: Tariffa) => (t.attivo !== false ? 1 : 0),
@@ -1255,7 +1274,7 @@ function TariffeTable({
             </TableRow>
           ) : sortedItems.map((t) => {
             const pv = t.prezzo_vendita ?? 0;
-            const pc = t.costo_interno ?? t.prezzo_costo ?? 0;
+            const pc = costoTariffa(t) ?? 0;
             const hasBoth = pv > 0 && pc > 0;
             const margine = calcMargine(pv, pc);
             const sem = margineSemaforo(hasBoth ? margine : null, soglia);
@@ -1336,7 +1355,7 @@ function TariffeTable({
                   </div>
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
-                  {t.unita_fatturazione ?? t.unita ?? "—"}
+                  {unitaTariffa(t, "—")}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
                   {pv ? formatCurrency(pv) : <span className="text-muted-foreground">—</span>}
@@ -1487,7 +1506,7 @@ export default function SettingsTariffe() {
       return loadCatalogPages<Tariffa>(async (from, to) => {
       const { data, error } = await supabase
         .from("tariffe_aziendali")
-        .select("id, company_id, nome, descrizione, tipo, unita, unita_fatturazione, prezzo_vendita, prezzo_costo, costo_interno, vertical_associato, piano_base, prezzo_piano_aggiuntivo, attivo, external_team_id, codice, fonte, incidenza_manodopera_pct, custom_field_values")
+        .select("id, company_id, nome, descrizione, tipo, unita, unita_fatturazione, prezzo_vendita, prezzo_costo, costo_interno, costo_default, vertical_associato, piano_base, prezzo_piano_aggiuntivo, attivo, external_team_id, codice, fonte, incidenza_manodopera_pct, custom_field_values")
         .eq("company_id", companyId)
         .order("nome").order("id").range(from, to);
         return { data: data as unknown as Tariffa[], error };
@@ -1606,13 +1625,16 @@ export default function SettingsTariffe() {
         nome: `${t.nome} (copia)`,
         descrizione: t.descrizione ?? null,
         tipo: t.tipo,
-        unita: t.unita ?? null,
-        unita_fatturazione: t.unita_fatturazione ?? null,
+        // Unità come costi: la copia nasce con le due colonne coerenti.
+        unita: legacyUnitaFrom(unitaTariffa(t) as UnitaFatturazione),
+        unita_fatturazione: unitaTariffa(t),
         vertical_associato: t.vertical_associato ?? null,
         prezzo_vendita: t.prezzo_vendita ?? null,
-        costo_interno: t.costo_interno ?? t.prezzo_costo ?? 0,
-        costo_default: t.costo_interno ?? t.prezzo_costo ?? 0,
-        prezzo_costo: t.prezzo_costo ?? t.costo_interno ?? 0,
+        // Lo stesso costo nelle tre colonne: la copia nasce coerente anche
+        // quando l'originale le aveva disallineate (05/10/2026).
+        costo_interno: costoTariffa(t) ?? 0,
+        costo_default: costoTariffa(t) ?? 0,
+        prezzo_costo: costoTariffa(t) ?? 0,
         piano_base: t.piano_base ?? null,
         prezzo_piano_aggiuntivo: t.prezzo_piano_aggiuntivo ?? null,
         attivo: t.attivo !== false,
@@ -1703,13 +1725,13 @@ export default function SettingsTariffe() {
       if (lavorazioneFilter !== "all" && gruppoLavorazione(t) !== lavorazioneFilter) return false;
       // search — nome, descrizione, tipo, unità di fatturazione e vertical
       if (q) {
-        const haystack = `${t.nome} ${t.descrizione ?? ""} ${tipoLabel(t.tipo)} ${t.unita_fatturazione ?? t.unita ?? ""} ${t.vertical_associato ?? ""}`.toLowerCase();
+        const haystack = `${t.nome} ${t.descrizione ?? ""} ${tipoLabel(t.tipo)} ${unitaTariffa(t, "")} ${t.vertical_associato ?? ""}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       // margine (redditività) — solo per voci con margine calcolabile
       if (margineFilter !== "all") {
         const pv = t.prezzo_vendita ?? 0;
-        const pc = t.costo_interno ?? t.prezzo_costo ?? 0;
+        const pc = costoTariffa(t) ?? 0;
         const hasBoth = pv > 0 && pc > 0;
         if (!hasBoth) return false;
         const m = calcMargine(pv, pc);
@@ -1831,7 +1853,13 @@ export default function SettingsTariffe() {
       toast.info("Nessuna voce da esportare con i filtri attuali");
       return;
     }
-    const csv = buildTariffeExportCsv(filtered, { includeCosto: isAdmin });
+    // Costo e unità esportati sono quelli che la pagina mostra (costoTariffa,
+    // unitaTariffa), non le colonne grezze: per molte voci costo_interno è lo
+    // 0 di default e unita_fatturazione il «pz» di default (05/10/2026).
+    const csv = buildTariffeExportCsv(
+      filtered.map((t) => ({ ...t, costo_interno: costoTariffa(t) ?? undefined, unita_fatturazione: unitaTariffa(t, "") || undefined })),
+      { includeCosto: isAdmin },
+    );
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

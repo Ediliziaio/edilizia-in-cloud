@@ -51,6 +51,8 @@ export interface PrezziLineeTipologia {
 export interface EsitoPrezziLinee {
   valori: number;
   prodotti_prezzo: number;
+  /** Prodotti «acquisto + ricarico»: il prezzo di vendita al m² non li tocca (05/10/2026). */
+  prodotti_a_ricarico?: number;
 }
 
 export interface CopiaTipologia {

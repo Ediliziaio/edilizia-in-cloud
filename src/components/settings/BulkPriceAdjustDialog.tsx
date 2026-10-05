@@ -9,6 +9,8 @@ import {
   type AdjustTarget, type AdjustMode, type RoundMode, type PriceAdjustOptions,
 } from "@/lib/tariffe/priceAdjust";
 import type { Tariffa } from "@/pages/azienda/settings/SettingsTariffe/types";
+import { costoTariffa } from "@/lib/listino/costoTariffa";
+import { parseImporto } from "@/lib/listino/listinoFornitore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,8 +46,10 @@ export function BulkPriceAdjustDialog({
   const [amountStr, setAmountStr] = useState("5");
   const [round, setRound] = useState<RoundMode>("none");
 
+  // Virgola decimale e punto delle migliaia come negli altri campi del listino
+  // (parseImporto): con parseFloat «1.234,5» diventava 1,234 (05/10/2026).
   const amountAbs = useMemo(() => {
-    const n = parseFloat(amountStr.replace(",", "."));
+    const n = parseImporto(amountStr);
     return Number.isFinite(n) ? Math.abs(n) : NaN;
   }, [amountStr]);
 
@@ -55,8 +59,14 @@ export function BulkPriceAdjustDialog({
     [target, mode, amount, round],
   );
 
+  // Il costo di partenza è quello che la pagina mostra (costoTariffa): con il
+  // solo costo_interno, lo 0 di default delle voci col costo in prezzo_costo
+  // restava 0 dopo ogni rincaro e l'anteprima diceva «Costo: 0» (05/10/2026).
   const preview = useMemo(
-    () => items.map((t) => ({ t, res: computeAdjustedPrices(t, opts) })),
+    () => items.map((t) => ({
+      t,
+      res: computeAdjustedPrices({ prezzo_vendita: t.prezzo_vendita, costo_interno: costoTariffa(t) }, opts),
+    })),
     [items, opts],
   );
 
@@ -74,7 +84,9 @@ export function BulkPriceAdjustDialog({
     [preview],
   );
 
-  const amountValid = Number.isFinite(amountAbs) && amountAbs > 0;
+  // Un ribasso del 100% o più porta ogni prezzo a zero: non è un adeguamento.
+  const ribassoTroppo = mode === "percent" && direction === "diminuisci" && amountAbs >= 100;
+  const amountValid = Number.isFinite(amountAbs) && amountAbs > 0 && !ribassoTroppo;
   const canApply = amountValid && changed.length > 0;
 
   const mutation = useMutation({
@@ -232,6 +244,8 @@ export function BulkPriceAdjustDialog({
                 {items.length === 1 ? "voce" : "voci"}
                 {changed.length === 0 && " — nessuna voce ha un valore da adeguare per questa scelta"}
               </span>
+            ) : ribassoTroppo ? (
+              <span className="text-muted-foreground">Un ribasso deve stare sotto il 100%: oltre, i prezzi andrebbero a zero</span>
             ) : (
               <span className="text-muted-foreground">Inserisci un valore maggiore di zero</span>
             )}
@@ -269,7 +283,7 @@ export function BulkPriceAdjustDialog({
                           )}
                           {res.changedCosto && (
                             <span className="inline-flex items-center gap-1 text-muted-foreground">
-                              Costo: {formatCurrency(t.costo_interno ?? t.prezzo_costo ?? 0)}
+                              Costo: {formatCurrency(costoTariffa(t) ?? 0)}
                               <ArrowRight className="h-3 w-3" />
                               <span className="font-medium text-foreground">{formatCurrency(res.costo_interno ?? 0)}</span>
                             </span>

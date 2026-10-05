@@ -171,6 +171,18 @@ describe("dal modulo al documento", () => {
     expect(dati.capitoli[0].voci[0].margineEur).toBe(500);
   });
 
+  it("una voce venduta senza costo non ha un margine (non il 100%)", () => {
+    const dati = costruisciDatiEdile({
+      modulo: MODULI_EDILI.bagni, progetto: PROGETTO, template: {}, azienda: null, totali: TOTALI, media: [],
+      capitoli: [{ nome: "Posa", subtotale: 1000, voci: [
+        { id: "1", descrizione: "Posa gres", unita_misura: "mq", quantita: 10, prezzo_unitario: 100, importo: 1000, costo_materiali: 0, costo_manodopera: 0 },
+        { id: "2", descrizione: "Nota", unita_misura: "a_corpo", quantita: 1, prezzo_unitario: 0, importo: 0, costo_materiali: 0, costo_manodopera: 0 },
+      ] }],
+    });
+    expect(dati.capitoli[0].voci[0].margineEur).toBeNull();
+    expect(dati.capitoli[0].voci[1].margineEur).toBe(0);
+  });
+
   it("il preventivo può spegnere la rata del finanziamento", () => {
     const base = {
       modulo: MODULI_EDILI.bagni, template: {}, azienda: null as AziendaComune | null,

@@ -579,7 +579,7 @@ function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostr
       {mostraQta ? <Text style={[cella, { width: 44, textAlign: "right" }]}>{quantita(v.quantita)}</Text> : null}
       {mostraPrezzi ? <Text style={[cella, { width: 66, textAlign: "right", color: tema.grigio }]}>{formatCurrency(v.prezzoUnitario)}</Text> : null}
       {mostraImporti ? <Text style={[cella, { width: 74, textAlign: "right", fontFamily: tema.caratteri.forte }]}>{formatCurrency(v.importo)}</Text> : null}
-      {mostraMargine ? <Text style={[cella, { width: 58, textAlign: "right", color: "#15803D" }]}>{formatCurrency(v.margineEur ?? 0)}</Text> : null}
+      {mostraMargine ? <Text style={[cella, { width: 58, textAlign: "right", color: "#15803D" }]}>{v.margineEur != null ? formatCurrency(v.margineEur) : "—"}</Text> : null}
     </View>
   );
   return (
@@ -1685,7 +1685,10 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           <View wrap={false} style={{ marginTop: 14, borderWidth: 0.8, borderColor: "#B91C1C", borderStyle: "dashed", padding: 10 }}>
             <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: "#B91C1C", letterSpacing: 0.8 }}>MARGINALITÀ · RISERVATO, DA NON CONSEGNARE AL CLIENTE</Text>
             <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.inchiostro, marginTop: 4 }}>
-              {`Costo totale ${formatCurrency(totali.costoTot)} · margine ${formatCurrency(totali.margineEur)} (${percento(totali.marginePct)})`}
+              {/* Costi incompleti: niente margine (prima un 100% falso, poi «0 €»), 05/10/2026. */}
+              {totali.margineEur == null || totali.marginePct == null
+                ? `Costo totale ${formatCurrency(totali.costoTot)} · margine non calcolabile: costi incompleti`
+                : `Costo totale ${formatCurrency(totali.costoTot)} · margine ${formatCurrency(totali.margineEur)} (${percento(totali.marginePct)})`}
             </Text>
           </View>
         ) : null}

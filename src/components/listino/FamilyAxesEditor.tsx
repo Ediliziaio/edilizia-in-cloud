@@ -67,6 +67,7 @@ import type {
   AxisValue,
   AxisTipo,
   MaggiorazioneTipo,
+  ModalitaPrezzoBase,
 } from "@/types/articleFamily";
 import { AxisPresetsDialog } from "./AxisPresetsDialog";
 import { useQuery } from "@tanstack/react-query";
@@ -468,6 +469,19 @@ export function FamilyAxesEditor({ family }: Props) {
         ),
       );
       toast.success(`Maggiorazione applicata a ${ids.length} valori`);
+      // Fuori dalla griglia una variante col prezzo proprio usa quello, e la
+      // maggiorazione appena scritta non cambia il suo prezzo: va detto (05/10/2026).
+      if (family.modalita_prezzo_base !== "griglia") {
+        const scelti = new Set(ids);
+        const conPrezzoProprio = family.axes
+          .flatMap((a) => a.values)
+          .filter((v) => scelti.has(v.id) && v.prezzo_vendita != null && Number(v.prezzo_vendita) > 0).length;
+        if (conPrezzoProprio > 0) {
+          toast.info(
+            `${conPrezzoProprio === 1 ? "Un valore ha" : `${conPrezzoProprio} valori hanno`} un prezzo proprio: nei preventivi vale quello, la maggiorazione non lo cambia.`,
+          );
+        }
+      }
       clearSelection();
     } catch (err) {
       toast.error("Errore nell'applicazione della maggiorazione", {
@@ -477,17 +491,15 @@ export function FamilyAxesEditor({ family }: Props) {
   };
 
   // M-R (audit): parse+validazione condivisa dei prompt bulk. Virgola decimale
-  // accettata; valori negativi o non numerici rifiutati CON feedback — prima
-  // l'input invalido era un no-op silenzioso e il negativo finiva in DB.
-  const promptMaggiorazione = (label: string): number | null => {
+  // accettata; non numerici rifiutati CON feedback — prima l'input invalido
+  // era un no-op silenzioso. Il negativo è ammesso dal 05/10/2026 (una linea
+  // che costa meno, es. −8%): vedi leggiValoreBulk.
+  const promptMaggiorazione = (label: string, percentuale: boolean): number | null => {
     const v = window.prompt(label);
     if (v === null || v.trim() === "") return null; // annullato dall'utente
-    const n = Number(v.trim().replace(",", "."));
-    if (!Number.isFinite(n) || n < 0) {
-      toast.error("Valore non valido", {
-        description: "Inserisci un numero positivo, es. 10 oppure 10,5.",
-      });
-      return null;
+    const n = leggiValoreBulk(v, percentuale);
+    if (n === null) {
+      toast.error("Valore non valido", { description: aiutoValoreBulk(percentuale) });
     }
     return n;
   };
@@ -495,19 +507,16 @@ export function FamilyAxesEditor({ family }: Props) {
   // M-32 (audit): il bulk scriveva maggiorazione_acquisto = vendita in
   // silenzio (margine zero sulla maggiorazione, costo fornitore gonfiato).
   // Secondo prompt per il valore acquisto; invio vuoto = uguale alla vendita.
-  const promptMaggiorazioneAcquisto = (vendita: number): number | null => {
+  const promptMaggiorazioneAcquisto = (vendita: number, percentuale: boolean): number | null => {
     const v = window.prompt(
       "Valore ACQUISTO (costo fornitore) della maggiorazione — lascia vuoto per usare lo stesso valore della vendita:",
       String(vendita),
     );
     if (v === null) return null; // annullato: niente bulk
     if (v.trim() === "") return vendita;
-    const n = Number(v.trim().replace(",", "."));
-    if (!Number.isFinite(n) || n < 0) {
-      toast.error("Valore acquisto non valido", {
-        description: "Inserisci un numero positivo, es. 10 oppure 10,5.",
-      });
-      return null;
+    const n = leggiValoreBulk(v, percentuale);
+    if (n === null) {
+      toast.error("Valore acquisto non valido", { description: aiutoValoreBulk(percentuale) });
     }
     return n;
   };
@@ -693,10 +702,11 @@ export function FamilyAxesEditor({ family }: Props) {
             className="h-8 text-xs"
             onClick={() => {
               const n = promptMaggiorazione(
-                "Maggiorazione % da applicare ai selezionati (es. 10 per +10%):",
+                "Maggiorazione % da applicare ai selezionati (es. 10 per +10%, -8 per -8%):",
+                true,
               );
               if (n === null) return;
-              const acq = promptMaggiorazioneAcquisto(n);
+              const acq = promptMaggiorazioneAcquisto(n, true);
               if (acq !== null) bulkApplyMaggiorazione("percentuale", n, acq);
             }}
             disabled={updateAxisValue.isPending}
@@ -709,10 +719,11 @@ export function FamilyAxesEditor({ family }: Props) {
             className="h-8 text-xs"
             onClick={() => {
               const n = promptMaggiorazione(
-                "Maggiorazione € fissa (a pezzo) da applicare ai selezionati:",
+                "Maggiorazione € fissa (a pezzo) da applicare ai selezionati (es. 20, oppure -20 per uno sconto):",
+                false,
               );
               if (n === null) return;
-              const acq = promptMaggiorazioneAcquisto(n);
+              const acq = promptMaggiorazioneAcquisto(n, false);
               if (acq !== null) bulkApplyMaggiorazione("fisso_pz", n, acq);
             }}
             disabled={updateAxisValue.isPending}
@@ -919,8 +930,17 @@ export function FamilyAxesEditor({ family }: Props) {
                                     </Badge>
                                   ) : null}
                                   {v.prezzo_vendita != null && v.prezzo_vendita > 0 ? (
-                                    <Badge variant="outline" className="text-[10px] sm:text-xs border-emerald-300 text-emerald-700">
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] sm:text-xs border-emerald-300 text-emerald-700"
+                                      title={
+                                        family.modalita_prezzo_base === "griglia"
+                                          ? prezzoProprioVariante("griglia").aiuto
+                                          : undefined
+                                      }
+                                    >
                                       €{Number(v.prezzo_vendita).toLocaleString("it-IT")}
+                                      {family.modalita_prezzo_base === "mq" ? "/m²" : ""}
                                     </Badge>
                                   ) : null}
                                   {v.is_default ? (
@@ -1109,6 +1129,7 @@ export function FamilyAxesEditor({ family }: Props) {
         open={newValueAxisId !== null || editingValue !== null}
         value={editingValue}
         axisId={editingValue?.axis_id ?? newValueAxisId ?? ""}
+        modalitaPrezzoBase={family.modalita_prezzo_base}
         existingValori={
           editingValue
             ? family.axes
@@ -1642,14 +1663,87 @@ interface ValueFormValues {
 }
 
 // Importi del dialog: virgola decimale (la tastiera iOS con inputMode="decimal"
-// la produce) e punto delle migliaia, come nel listino fornitore; mai negativi.
-// Prima «1.234,56» diventava 0.
-const leggiImporto = (raw: string): number => Math.max(0, parseImporto(raw) || 0);
+// la produce) e punto delle migliaia, come nel listino fornitore. Prima
+// «1.234,56» diventava 0.
+// Il prezzo proprio della variante non è mai negativo; la maggiorazione sì
+// (05/10/2026): una linea che costa meno si scrive −8 (%), e il vecchio minimo
+// a 0 la riportava a 0% a ogni salvataggio, anche solo rinominando il valore.
+export const leggiPrezzo = (raw: string): number => Math.max(0, parseImporto(raw) || 0);
+export const leggiMaggiorazione = (raw: string): number => parseImporto(raw) || 0;
+
+/**
+ * Il tasto «±» accanto alla maggiorazione: la tastiera decimale di iOS non ha
+ * il meno, e da telefono una linea che costa meno non si poteva scrivere.
+ */
+export function cambiaSegno(raw: string): string {
+  const s = raw.trim();
+  if (!s || leggiMaggiorazione(s) === 0) return s;
+  return s.startsWith("-") ? s.slice(1) : `-${s}`;
+}
+
+/** Una riduzione percentuale oltre il 100% porterebbe il prezzo sotto zero. */
+export function problemaMaggiorazione(
+  tipo: MaggiorazioneTipo,
+  vendita: number,
+  acquisto: number,
+): string | null {
+  if (tipo === "percentuale" && (vendita < -100 || acquisto < -100)) {
+    return "Una riduzione non può superare il 100%: il prezzo andrebbe sotto zero.";
+  }
+  return null;
+}
+
+/** Valore dei prompt «Applica %/€» (stesse regole del dialog). Null se non va. */
+export function leggiValoreBulk(raw: string, percentuale: boolean): number | null {
+  const n = Number(raw.trim().replace(/[−–]/g, "-").replace(",", "."));
+  if (!Number.isFinite(n)) return null;
+  if (percentuale && n < -100) return null;
+  return n;
+}
+
+function aiutoValoreBulk(percentuale: boolean): string {
+  return percentuale
+    ? "Inserisci un numero da -100 in su: 10 per +10%, -8 per una linea che costa meno."
+    : "Inserisci un numero: 20, oppure -20 per una linea che costa meno.";
+}
+
+/**
+ * Unità e spiegazione del prezzo proprio della variante, per il prodotto che
+ * si sta modificando (05/10/2026). Nei preventivi (calcolaPrezzoFamiglia e il
+ * motore serramenti) sostituisce il prezzo base, moltiplicato per i m² nei
+ * prodotti al m², e non si applica ai prodotti a griglia, dove il prezzo è
+ * quello della cella L×H. Prima diceva «€» e «vale ovunque» per tutti: chi
+ * vende al m² scriveva il prezzo del pezzo intero.
+ */
+export function prezzoProprioVariante(
+  modalita: ModalitaPrezzoBase | null | undefined,
+): { unita: string; aiuto: string } {
+  if (modalita === "mq") {
+    return {
+      unita: "€/m²",
+      aiuto:
+        "Prezzo al m²: nel preventivo si moltiplica per la superficie e sostituisce il prezzo base al m², non lo modifica. Cambiarlo per questa variante non tocca le altre. Lasciato vuoto, conta la maggiorazione qui sotto.",
+    };
+  }
+  if (modalita === "griglia") {
+    return {
+      unita: "€",
+      aiuto:
+        "Questo prodotto prende il prezzo dalla griglia L×H: nei preventivi il prezzo proprio non si applica e conta la maggiorazione qui sotto.",
+    };
+  }
+  return {
+    unita: "€",
+    aiuto:
+      "Il prezzo proprio vale ovunque — ordini, commesse e preventivi (serramenti compresi) — quando la variante è un prodotto a sé: sostituisce il prezzo base, non lo modifica. Cambiarlo per questa variante non tocca le altre. Lasciato vuoto, conta la maggiorazione qui sotto.",
+  };
+}
 
 function ValueFormDialog({
   open,
   value,
   axisId,
+  modalitaPrezzoBase,
   existingValori,
   otherDefaultIds,
   nextSortOrder,
@@ -1660,6 +1754,7 @@ function ValueFormDialog({
   open: boolean;
   value: AxisValue | null;
   axisId: string;
+  modalitaPrezzoBase: ModalitaPrezzoBase;
   existingValori: string[];
   otherDefaultIds: string[];
   nextSortOrder: number;
@@ -1729,7 +1824,14 @@ function ValueFormDialog({
       : null;
   const vociPulite = pulisciVoci(dividiVoci(voci));
   const problemaElenco = problemaVoci(label.trim() || "Questo valore", vociPulite);
-  const canSave = label.trim() && valore.trim() && !conflict && !problemaElenco && !saving;
+  const problemaMagg = problemaMaggiorazione(
+    magTipo,
+    leggiMaggiorazione(magValore),
+    leggiMaggiorazione(magAcquisto),
+  );
+  const prezzoProprio = prezzoProprioVariante(modalitaPrezzoBase);
+  const canSave =
+    label.trim() && valore.trim() && !conflict && !problemaElenco && !problemaMagg && !saving;
 
   return (
     <Dialog
@@ -1836,21 +1938,21 @@ function ValueFormDialog({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
-                <label htmlFor="val-prezzo-v" className="text-xs text-muted-foreground">Prezzo vendita €</label>
+                <label htmlFor="val-prezzo-v" className="text-xs text-muted-foreground">
+                  Prezzo vendita {prezzoProprio.unita}
+                </label>
                 <Input id="val-prezzo-v" type="number" inputMode="decimal" step="0.01" min={0} value={prezzoV}
                   onChange={(e) => setPrezzoV(e.target.value)} placeholder="0,00" className="h-10 font-mono" />
               </div>
               <div className="space-y-1">
-                <label htmlFor="val-prezzo-a" className="text-xs text-muted-foreground">Prezzo acquisto €</label>
+                <label htmlFor="val-prezzo-a" className="text-xs text-muted-foreground">
+                  Prezzo acquisto {prezzoProprio.unita}
+                </label>
                 <Input id="val-prezzo-a" type="number" inputMode="decimal" step="0.01" min={0} value={prezzoA}
                   onChange={(e) => setPrezzoA(e.target.value)} placeholder="0,00" className="h-10 font-mono" />
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground">
-              Il <strong>prezzo proprio</strong> vale ovunque — ordini, commesse e preventivi (serramenti
-              compresi) — quando la variante è un prodotto a sé: sostituisce il prezzo base, non lo modifica.
-              Cambiarlo per questa variante non tocca le altre. Lasciato vuoto, conta la maggiorazione qui sotto.
-            </p>
+            <p className="text-[11px] text-muted-foreground">{prezzoProprio.aiuto}</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1914,16 +2016,29 @@ function ValueFormDialog({
                       Valore vendita
                       <span className="text-[10px] text-primary">(listino)</span>
                     </label>
-                    <Input
-                      id="val-mag-vendita"
-                      type="number"
-                      inputMode="decimal"
-                      step="0.01"
-                      min={0}
-                      value={magValore}
-                      onChange={(e) => setMagValore(e.target.value)}
-                      className="h-10 font-mono"
-                    />
+                    {/* Niente minimo a 0: una linea che costa meno è −8 (05/10/2026). */}
+                    <div className="flex gap-1.5">
+                      <Input
+                        id="val-mag-vendita"
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min={magTipo === "percentuale" ? -100 : undefined}
+                        value={magValore}
+                        onChange={(e) => setMagValore(e.target.value)}
+                        aria-invalid={!!problemaMagg}
+                        className="h-10 font-mono min-w-0 flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setMagValore((s) => cambiaSegno(s))}
+                        aria-label="Cambia segno al valore vendita"
+                        className="h-10 w-10 shrink-0 p-0 font-mono sm:hidden"
+                      >
+                        ±
+                      </Button>
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <label
@@ -1935,18 +2050,33 @@ function ValueFormDialog({
                         (costo fornitore)
                       </span>
                     </label>
-                    <Input
-                      id="val-mag-acquisto"
-                      type="number"
-                      inputMode="decimal"
-                      step="0.01"
-                      min={0}
-                      value={magAcquisto}
-                      onChange={(e) => setMagAcquisto(e.target.value)}
-                      className="h-10 font-mono"
-                    />
+                    <div className="flex gap-1.5">
+                      <Input
+                        id="val-mag-acquisto"
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min={magTipo === "percentuale" ? -100 : undefined}
+                        value={magAcquisto}
+                        onChange={(e) => setMagAcquisto(e.target.value)}
+                        aria-invalid={!!problemaMagg}
+                        className="h-10 font-mono min-w-0 flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setMagAcquisto((s) => cambiaSegno(s))}
+                        aria-label="Cambia segno al valore acquisto"
+                        className="h-10 w-10 shrink-0 p-0 font-mono sm:hidden"
+                      >
+                        ±
+                      </Button>
+                    </div>
                   </div>
                 </div>
+                {problemaMagg ? (
+                  <p className="text-xs text-destructive" role="alert">{problemaMagg}</p>
+                ) : null}
                 <p className="text-[11px] text-muted-foreground">
                   La differenza fra <strong>vendita</strong> e{" "}
                   <strong>acquisto</strong> è il margine per il serramentista
@@ -1962,24 +2092,20 @@ function ValueFormDialog({
                     <div className="flex justify-between">
                       <span>Prima:</span>
                       <span className="font-mono">
-                        {value.maggiorazione_tipo === "none"
-                          ? "Nessuna"
-                          : formattaMaggiorazione(value.maggiorazione_tipo, value.maggiorazione_valore)}
+                        {formattaMaggiorazione(value.maggiorazione_tipo, value.maggiorazione_valore) || "Nessuna"}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Dopo:</span>
                       <span className="font-mono">
-                        {magTipo === "none"
-                          ? "Nessuna"
-                          : magTipo === "percentuale"
-                            ? `+${magValore}%`
-                            : `+${magValore} €`}
+                        {/* Il segno dal numero: prima «+-8%». */}
+                        {formattaMaggiorazione(magTipo, leggiMaggiorazione(magValore)) || "Nessuna"}
                       </span>
                     </div>
                     {(() => {
                       const oldV = value.maggiorazione_tipo === "none" ? 0 : value.maggiorazione_valore;
-                      const newV = magTipo === "none" ? 0 : leggiImporto(magValore);
+                      // Qui magTipo non è mai "none" (blocco mostrato solo con una maggiorazione).
+                      const newV = leggiMaggiorazione(magValore);
                       const diff = newV - oldV;
                       const sameType = value.maggiorazione_tipo === magTipo;
                       if (!sameType) {
@@ -2013,8 +2139,8 @@ function ValueFormDialog({
                     "+500%" su un'interfaccia opaca). */}
                 <PricePreviewRow
                   tipo={magTipo}
-                  vendita={leggiImporto(magValore)}
-                  acquisto={leggiImporto(magAcquisto)}
+                  vendita={leggiMaggiorazione(magValore)}
+                  acquisto={leggiMaggiorazione(magAcquisto)}
                 />
               </>
             ) : null}
@@ -2040,11 +2166,11 @@ function ValueFormDialog({
                   is_default: isDefault,
                   attivo,
                   maggiorazione_tipo: magTipo,
-                  maggiorazione_valore: leggiImporto(magValore),
-                  maggiorazione_acquisto: leggiImporto(magAcquisto),
+                  maggiorazione_valore: leggiMaggiorazione(magValore),
+                  maggiorazione_acquisto: leggiMaggiorazione(magAcquisto),
                   codice: codiceArt.trim() || null,
-                  prezzo_vendita: prezzoV.trim() ? leggiImporto(prezzoV) : null,
-                  prezzo_acquisto: prezzoA.trim() ? leggiImporto(prezzoA) : null,
+                  prezzo_vendita: prezzoV.trim() ? leggiPrezzo(prezzoV) : null,
+                  prezzo_acquisto: prezzoA.trim() ? leggiPrezzo(prezzoA) : null,
                   sort_order: value?.sort_order ?? nextSortOrder,
                   opzioni: vociPulite,
                 },
@@ -2092,6 +2218,10 @@ function PricePreviewRow({
       style: "currency",
       currency: "EUR",
       maximumFractionDigits: 2, useGrouping: "always" }).format(n);
+  // Il segno lo porta il numero (05/10/2026): con le maggiorazioni negative
+  // ammesse, «+ -8%» e «+-8,00 €» avrebbero confuso chi controlla il prezzo.
+  const conSegnoEur = (n: number) => `${n < 0 ? "−" : "+"}${eur(Math.abs(n))}`;
+  const conSegnoPct = (n: number) => formattaMaggiorazione("percentuale", n) || "+0%";
 
   if (tipo === "percentuale") {
     const base = 1000;
@@ -2108,13 +2238,13 @@ function PricePreviewRow({
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Vendita → </span>
           <span className="font-mono">
-            {eur(base)} + {vendita}% = <strong>{eur(finV)}</strong>
+            {eur(base)} {conSegnoPct(vendita)} = <strong>{eur(finV)}</strong>
           </span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">Acquisto → </span>
           <span className="font-mono">
-            {eur(base)} + {acquisto}% = <strong>{eur(finA)}</strong>
+            {eur(base)} {conSegnoPct(acquisto)} = <strong>{eur(finA)}</strong>
           </span>
         </div>
         <div className="flex items-center justify-between pt-0.5 border-t">
@@ -2148,15 +2278,15 @@ function PricePreviewRow({
           Esempio con 1 {unita}
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Ricarico vendita</span>
+          <span className="text-muted-foreground">{vendita < 0 ? "Riduzione" : "Ricarico"} vendita</span>
           <span className="font-mono font-semibold">
-            +{eur(vendita)} / {unita}
+            {conSegnoEur(vendita)} / {unita}
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Ricarico acquisto</span>
+          <span className="text-muted-foreground">{acquisto < 0 ? "Riduzione" : "Ricarico"} acquisto</span>
           <span className="font-mono">
-            +{eur(acquisto)} / {unita}
+            {conSegnoEur(acquisto)} / {unita}
           </span>
         </div>
         <div className="flex items-center justify-between pt-0.5 border-t">

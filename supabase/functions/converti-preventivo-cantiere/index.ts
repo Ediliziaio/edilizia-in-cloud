@@ -203,17 +203,33 @@ Deno.serve(async (req) => {
           const misurePreventivo = mx != null || my != null
             ? { ...(mx != null ? { larghezza: Number(mx) } : {}), ...(my != null ? { altezza: Number(my) } : {}) }
             : null;
+          // order_items.quantity è un intero (9 viste dipendono dalla colonna):
+          // una quantità decimale (85,5 m², 7,5 ore) faceva fallire l'inserimento
+          // di TUTTE le righe e la commessa nasceva vuota (05/10/2026). La riga
+          // diventa 1 × il suo totale, con la quantità vera nella descrizione:
+          // i conti restano esatti.
+          const q = Number(r.quantity) || 1;
+          const intera = Number.isInteger(q);
+          const unitario = r.unit_price != null ? Number(r.unit_price) : null;
+          const costo = r.prezzo_acquisto != null ? Number(r.prezzo_acquisto) : 0;
+          const um = typeof r.unit_of_measure === "string" ? r.unit_of_measure : "";
+          const euro = (n: number) => n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const quantitaVera = intera
+            ? null
+            : `${q.toLocaleString("it-IT")}${um ? ` ${um}` : ""}${unitario != null ? ` × ${euro(unitario)} €` : ""}`;
           return {
             // NB: order_items NON ha company_id (l'azienda si legge dalla commessa):
             // passarlo faceva fallire in silenzio l'intera copia delle righe.
             order_id:         order.id,
             name:             String(r.name ?? ""),
-            description:      (r.description as string | null) ?? null,
-            quantity:         Number(r.quantity) || 1,
+            description:      quantitaVera
+              ? [quantitaVera, (r.description as string | null) ?? null].filter(Boolean).join(" — ")
+              : ((r.description as string | null) ?? null),
+            quantity:         intera ? q : 1,
             status:           "da_ordinare",
             position:         idx,
-            unit_price:       r.unit_price != null ? Number(r.unit_price) : null,
-            purchase_price:   r.prezzo_acquisto != null ? Number(r.prezzo_acquisto) : 0,
+            unit_price:       unitario == null ? null : intera ? unitario : round2(unitario * q),
+            purchase_price:   intera ? costo : round2(costo * q),
             vat_rate:         r.vat_rate != null ? Number(r.vat_rate) : null,
             discount_percent: r.discount_percent != null ? Number(r.discount_percent) : null,
             family_id:        suMisura ? (r.family_id as string) : null,

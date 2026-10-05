@@ -34,14 +34,23 @@ export interface BundleVoce {
     name: string;
     unit_price?: number | null;
     prezzo_vendita?: number;
-    prezzo_acquisto_netto?: number;
+    prezzo_acquisto_netto?: number | null;
+    standard_cost?: number | null;
     unit_of_measure?: string | null;
+    vat_rate?: number | null;
     immagine_url?: string | null;
   } | null;
+  // Costo nelle tre colonne (si legge con costoTariffa) e unità vera in
+  // unita_fatturazione: la legacy `unita` scrive «h» anche per le tariffe a
+  // giornata (05/10/2026).
   tariffe_aziendali?: {
     nome: string;
     prezzo_vendita?: number;
     unita?: string | null;
+    unita_fatturazione?: string | null;
+    costo_interno?: number | null;
+    prezzo_costo?: number | null;
+    costo_default?: number | null;
   } | null;
   article_families?: {
     nome: string;
@@ -91,6 +100,15 @@ export interface BundleUpsertInput {
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
+/** Voci col loro articolo/tariffa/famiglia: una sola select per lista e dettaglio. */
+const SELECT_BUNDLE_CON_VOCI = `*,
+           voci:bundle_voci(
+             *,
+             article_templates(name, unit_price, prezzo_vendita, prezzo_acquisto_netto, standard_cost, unit_of_measure, vat_rate, immagine_url),
+             tariffe_aziendali(nome, prezzo_vendita, unita, unita_fatturazione, costo_interno, prezzo_costo, costo_default),
+             article_families(nome, modalita_prezzo_base, immagine_url)
+           )`;
+
 export function useBundlesList(filters?: { vertical?: string; tipoLavoro?: BundleTipoLavoro }) {
   const companyId = useEffectiveCompanyId();
 
@@ -99,15 +117,7 @@ export function useBundlesList(filters?: { vertical?: string; tipoLavoro?: Bundl
     enabled: !!companyId,
     queryFn: async (): Promise<Bundle[]> => {
       let q = supabase.from("bundle_prodotti" as never)
-        .select(
-          `*,
-           voci:bundle_voci(
-             *,
-             article_templates(name, unit_price, prezzo_vendita, prezzo_acquisto_netto, unit_of_measure, immagine_url),
-             tariffe_aziendali(nome, prezzo_vendita, unita),
-             article_families(nome, modalita_prezzo_base, immagine_url)
-           )`,
-        )
+        .select(SELECT_BUNDLE_CON_VOCI)
         .eq("company_id", companyId!)
         .order("nome");
 
@@ -137,15 +147,7 @@ export function useBundle(bundleId: string | null | undefined) {
     enabled: !!bundleId,
     queryFn: async (): Promise<Bundle | null> => {
       const { data, error } = await supabase.from("bundle_prodotti" as never)
-        .select(
-          `*,
-           voci:bundle_voci(
-             *,
-             article_templates(name, unit_price, prezzo_vendita, prezzo_acquisto_netto, unit_of_measure, immagine_url),
-             tariffe_aziendali(nome, prezzo_vendita, unita),
-             article_families(nome, modalita_prezzo_base, immagine_url)
-           )`,
-        )
+        .select(SELECT_BUNDLE_CON_VOCI)
         .eq("id", bundleId!)
         .maybeSingle();
       if (error) throw new Error(error.message);

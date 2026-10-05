@@ -316,16 +316,28 @@ export default function ComputoEditor({
               <p className="text-2xl font-bold tabular-nums text-orange-700">{formatCurrency(totali.totale)}</p>
             </div>
 
-            {/* Margine (mostra solo se richiesto) */}
+            {/* Margine (mostra solo se richiesto). Con una voce venduta senza
+                costo il margine non si conosce: «—», non il 100% (05/10/2026). */}
             {showMargine && (
               <div className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2">
                 <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-700">
                   <TrendingUp className="h-3.5 w-3.5" /> Margine
                 </span>
-                <span className="text-right tabular-nums">
-                  <span className="block text-sm font-bold text-emerald-700">{formatCurrency(totali.margineEur)}</span>
-                  <span className="block text-[10px] text-emerald-600">{totali.marginePct.toFixed(1)}% · costo {formatCurrency(totali.costoTot)}</span>
-                </span>
+                {totali.margineEur == null ? (
+                  <span className="text-right tabular-nums">
+                    <span className="block text-sm font-bold text-slate-400">—</span>
+                    <span className="block text-[10px] text-amber-700">
+                      Costi incompleti{totali.righeSenzaCosto > 0 ? ` · ${totali.righeSenzaCosto} senza costo` : ""}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-right tabular-nums">
+                    <span className="block text-sm font-bold text-emerald-700">{formatCurrency(totali.margineEur)}</span>
+                    <span className="block text-[10px] text-emerald-600">
+                      {totali.marginePct != null ? `${totali.marginePct.toFixed(1)}%` : "—"} · costo {formatCurrency(totali.costoTot)}
+                    </span>
+                  </span>
+                )}
               </div>
             )}
 

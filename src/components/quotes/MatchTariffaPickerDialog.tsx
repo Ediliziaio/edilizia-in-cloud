@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
+import { costoTariffa } from "@/lib/listino/costoTariffa";
 
 export interface ComputoTariffaCatalogItem {
   id: string;
@@ -201,7 +202,8 @@ export function MatchTariffaPickerDialog({
             <div className="space-y-2">
               {filtered.map((tariffa) => {
                 const unit = formatUnit(tariffa);
-                const costo = tariffa.costo_interno ?? tariffa.prezzo_costo ?? null;
+                // Regola unica del costo (lo 0 di default di costo_interno non nasconde prezzo_costo).
+                const costo = costoTariffa(tariffa);
                 return (
                   <button
                     key={tariffa.id}

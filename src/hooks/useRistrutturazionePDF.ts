@@ -70,8 +70,9 @@ export interface RstPdfTotali {
   detrazionePct: number;
   detrazioneEur: number;
   costoTot: number;
-  margineEur: number;
-  marginePct: number;
+  /** null: costi incompleti, il margine non si può dire (05/10/2026). */
+  margineEur: number | null;
+  marginePct: number | null;
   /** Il prezzo pieno è quello scritto a mano: il documento non mostra gli importi delle righe. */
   prezzoManuale?: boolean;
 }

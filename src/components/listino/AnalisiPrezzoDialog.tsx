@@ -27,7 +27,8 @@ import {
 import { Loader2, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
-import { calcolaAnalisi, type TipoComponente } from "@/lib/listino/analisiPrezzo";
+import { calcolaAnalisi, incidenzaFrazione, type TipoComponente } from "@/lib/listino/analisiPrezzo";
+import { unitaTariffa } from "@/lib/listino/costoTariffa";
 
 const TIPI: Array<{ value: TipoComponente; label: string }> = [
   { value: "manodopera", label: "Manodopera" },
@@ -257,7 +258,8 @@ function AnalisiEditor({
       if (applica) {
         const patch: Record<string, unknown> = {
           prezzo_vendita: risultato.prezzoTotale,
-          incidenza_manodopera_pct: risultato.incidenzaManodoperaPct,
+          // La colonna è una frazione 0..1, il risultato è in percento (05/10/2026).
+          incidenza_manodopera_pct: incidenzaFrazione(risultato.incidenzaManodoperaPct),
           fonte: "analisi_prezzo",
         };
         if (aggiornaCosto) {
@@ -324,7 +326,7 @@ function AnalisiEditor({
     onError: (e: Error) => toast.error("Eliminazione non riuscita", { description: e.message }),
   });
 
-  const um = tariffa.unita_fatturazione ?? tariffa.unita ?? null;
+  const um = unitaTariffa(tariffa, "") || null;
 
   return (
     <div className="space-y-4">

@@ -84,10 +84,21 @@ import {
 } from "@/lib/listino/organizzaListino";
 import { CODICE_ASSE, VALORE_COLORE, VALORE_VETRO } from "@/lib/listino/standardSerramenti";
 import { translateListinoError } from "@/lib/listinoErrors";
+import { parseDecimalField } from "@/lib/listino/numeriEditor";
 
 /** Valore dei select per «nessuna tipologia» e «nessuna linea». */
 const NESSUNA = "__nessuna__";
 const LS_VISTA = "listino:view";
+
+/**
+ * Un prezzo scritto a mano: «550,50», «1.200,50», «550.50» o «1.200» (il punto
+ * con tre cifre dopo è delle migliaia). NaN se non è un numero.
+ */
+export function leggiPrezzoScritto(testo: string): number {
+  const s = testo.trim().replace(/[\s€]/g, "");
+  if (/^\d{1,3}(\.\d{3})+$/.test(s)) return Number(s.replace(/\./g, ""));
+  return parseDecimalField(s, Number.NaN);
+}
 
 function messaggioErrore(err: unknown): string {
   return err instanceof Error ? err.message : "Errore sconosciuto";
@@ -332,10 +343,9 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
 
   const handleDuplicate = async () => {
     if (!toDuplicate || !dupName.trim()) return;
-    // Virgola decimale all'italiana: "450,50" → 450.5.
-    const prezzoParsed = dupPrezzo.trim() === ""
-      ? undefined
-      : Number(dupPrezzo.trim().replace(/\./g, "").replace(",", "."));
+    // "450,50", "1.200,50", "450.50" e "1.200" (migliaia all'italiana). Prima
+    // si toglieva ogni punto e «550.50» diventava 55.050 € (05/10/2026).
+    const prezzoParsed = dupPrezzo.trim() === "" ? undefined : leggiPrezzoScritto(dupPrezzo);
     if (prezzoParsed != null && (!Number.isFinite(prezzoParsed) || prezzoParsed < 0)) {
       toast.error("Prezzo non valido", { description: "Scrivi un numero, per esempio 800 o 550,50" });
       return;
@@ -674,9 +684,17 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
     if (!tipologia?.macrocategoriaId) return;
     try {
       const esito = await prezziLinee.mutateAsync({ macrocategoriaId: tipologia.macrocategoriaId, ...dati });
+      // I prodotti a ricarico non prendono il prezzo di vendita al m² (lo
+      // calcola il ricarico): prima diventavano «vendita diretta» in silenzio.
+      const aRicarico = esito.prodotti_a_ricarico ?? 0;
       toast.success(`Prezzi delle linee di ${tipologia.nome} salvati`, {
         description:
-          esito.prodotti_prezzo > 0 ? `Nuovo prezzo al m² su ${esito.prodotti_prezzo} prodotti.` : undefined,
+          [
+            esito.prodotti_prezzo > 0 ? `Nuovo prezzo al m² su ${esito.prodotti_prezzo} prodotti.` : null,
+            aRicarico > 0
+              ? `${aRicarico === 1 ? "1 prodotto si vende" : `${aRicarico} prodotti si vendono`} a costo + ricarico: per loro conta il prezzo d'acquisto.`
+              : null,
+          ].filter(Boolean).join(" ") || undefined,
       });
       setPrezziAperti(null);
     } catch (err) {
@@ -1294,7 +1312,13 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
           open
           onOpenChange={setStandardSerramentiOpen}
           companyId={companyId}
-          famiglie={families.map((f) => ({ id: f.id, nome: f.nome, vertical: f.vertical }))}
+          famiglie={families.map((f) => ({
+            id: f.id,
+            nome: f.nome,
+            vertical: f.vertical,
+            modalita_prezzo_base: f.modalita_prezzo_base,
+            prezzo_base_mode: f.prezzo_base_mode,
+          }))}
           lineeIniziali={lineeSerramenti}
           prezzoIniziale={prezzoSerramenti}
           opzioniIniziali={opzioniSerramenti}

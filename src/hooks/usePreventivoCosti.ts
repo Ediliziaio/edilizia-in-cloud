@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { aliquotaComune, aliquotaValida, costoArticolo, costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -32,6 +33,8 @@ export interface TariffaPro {
   prezzo_costo: number;
   /** FASE 6: nuovo costo interno (posatore, attrezzatura). Se assente, leggi prezzo_costo. */
   costo_interno?: number | null;
+  /** Varianti costo (Sprint B): terzo posto del costo, dopo costo_interno e prezzo_costo. */
+  costo_default?: number | null;
   /** Legacy UM. */
   unita: string;
   /** FASE 6: UM canonica di fatturazione (pz/mq/ml/mc/kg/gg/h/a_corpo/km/piano). */
@@ -96,6 +99,76 @@ export function semaforo(
   return "green";
 }
 
+// ─── Righe di sconto, IVA delle voci nuove, costi mancanti (05/10/2026) ──────
+
+/** Righe che non sono né prodotti né servizi: non hanno un costo e non dettano l'IVA. */
+export const RIGHE_SENZA_COSTO = new Set(["nota", "subtotale", "sconto"]);
+
+/**
+ * L'importo di una riga «Sconto» va sempre in meno: si salva col prezzo
+ * NEGATIVO. Il database fa i totali sommando le righe (line_total) e il PDF le
+ * stampa come sono, così schermo, database e PDF dicono lo stesso numero.
+ * Prima il 100 scritto in una riga di sconto si AGGIUNGEVA al totale, con l'IVA.
+ */
+export function prezzoRigaSconto(valore: number): number {
+  const assoluto = Math.abs(Number(valore));
+  // Mai «-0»: in pagina diventerebbe «-0,00 €».
+  return Number.isFinite(assoluto) && assoluto > 0 ? -assoluto : 0;
+}
+
+/**
+ * La riga «Sconto» col prezzo in negativo, senza sconto di riga (uno sconto
+ * sullo sconto non vuol dire niente) e senza costo; le altre restano com'erano.
+ */
+export function normalizzaRigaSconto<
+  T extends { item_category?: string | null; unit_price: number; discount_percent?: number | null; prezzo_acquisto?: number | null },
+>(riga: T): T {
+  if (riga.item_category !== "sconto") return riga;
+  return { ...riga, unit_price: prezzoRigaSconto(riga.unit_price), discount_percent: 0, prezzo_acquisto: 0 };
+}
+
+type RigaConIva = { item_category?: string | null; vat_rate?: number | null };
+
+function aliquotaOppureNull(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
+}
+
+/** L'aliquota più usata tra le righe (a parità vince la prima incontrata); null se nessuna ne ha una valida. */
+export function aliquotaPiuUsata(righe: RigaConIva[]): number | null {
+  const conteggio = new Map<number, number>();
+  for (const r of righe) {
+    const aliquota = aliquotaOppureNull(r.vat_rate);
+    if (aliquota !== null) conteggio.set(aliquota, (conteggio.get(aliquota) ?? 0) + 1);
+  }
+  let scelta: number | null = null;
+  let max = 0;
+  for (const [aliquota, n] of conteggio) if (n > max) { max = n; scelta = aliquota; }
+  return scelta;
+}
+
+/**
+ * IVA di una voce nuova che non dipende da un prodotto preciso (tariffa dal
+ * listino, trasporto, nolo, riga libera, sconto), in quest'ordine:
+ *  1. l'aliquota più usata tra i PRODOTTI del preventivo;
+ *  2. senza prodotti, quella più usata tra le altre voci (posa, trasporto…);
+ *  3. preventivo vuoto: l'aliquota scelta col prezzo scritto a mano, se c'è;
+ *  4. 22%.
+ * Una voce LEGATA a un prodotto (posa automatica, smaltimento) prende invece
+ * l'IVA di quel prodotto: prima contava solo la maggioranza delle righe, e a
+ * preventivo vuoto la posa di un serramento al 10% nasceva al 22%.
+ */
+export function ivaVoceNuova(righe: RigaConIva[], ivaPreventivo?: number | null): number {
+  const voci = righe.filter((r) => !RIGHE_SENZA_COSTO.has(String(r.item_category ?? "prodotto")));
+  return (
+    aliquotaPiuUsata(voci.filter((r) => (r.item_category ?? "prodotto") === "prodotto")) ??
+    aliquotaPiuUsata(voci) ??
+    aliquotaOppureNull(ivaPreventivo) ??
+    22
+  );
+}
+
 export function calcolaTotaliPreventivo(
   items: Array<{
     quantity: number;
@@ -127,20 +200,36 @@ export function calcolaTotaliPreventivo(
   totale: number;
   costo_totale: number;
   overhead_totale: number;
+  /**
+   * Margine sul netto. Vale solo con `costi_completi`: altrimenti le righe
+   * senza costo contano zero e il margine esce gonfiato (fino al 100%).
+   */
   margine_totale_pct: number;
   /** Somma delle righe, sempre calcolata (anche col prezzo scritto a mano attivo). */
   somma_voci: number;
   /** true se il prezzo scritto a mano è attivo e ha preso il posto della somma delle righe. */
   prezzo_manuale: boolean;
+  /** Prodotti e servizi venduti senza un costo d'acquisto (05/10/2026). */
+  righe_senza_costo: number;
+  /** Ogni prodotto o servizio venduto ha un costo: solo allora il margine è un numero vero. */
+  costi_completi: boolean;
 } {
   // Skip optional items from totals
   const activeItems = items.filter((i) => !i.is_optional);
 
+  const manuale = Number(prezzo_manuale ?? 0);
+  const prezzoManualeAttivo = Number.isFinite(manuale) && manuale > 0;
+
   let sommaVociRaw = 0;
   let costo_totale = 0;
+  let righeVendute = 0;
+  let righe_senza_costo = 0;
   const iva_breakdown: Record<string, number> = {};
 
-  for (const it of activeItems) {
+  for (const voce of activeItems) {
+    // Una riga «Sconto» vale sempre in meno, anche se arriva col segno sbagliato
+    // (bozze vecchie): è la stessa correzione che si fa prima di salvarla.
+    const it = normalizzaRigaSconto(voce);
     // line_total nel database è numeric(..., 2): sommare le righe già arrotondate.
     const imponibile = round2(
       it.quantity * it.unit_price * (1 - (it.discount_percent || 0) / 100));
@@ -151,11 +240,17 @@ export function calcolaTotaliPreventivo(
 
     const pa = (it.prezzo_acquisto ?? 0) * it.quantity;
     costo_totale += pa;
+
+    // Prodotti e servizi venduti senza costo: il margine non si può dire. Col
+    // prezzo scritto a mano le voci stanno a 0 € ma restano vendute (come nel
+    // preventivatore serramenti).
+    if (!RIGHE_SENZA_COSTO.has(String(it.item_category ?? "prodotto")) && (imponibile > 0 || prezzoManualeAttivo)) {
+      righeVendute += 1;
+      if (!(Number(it.prezzo_acquisto) > 0)) righe_senza_costo += 1;
+    }
   }
 
   const somma_voci = round2(sommaVociRaw);
-  const manuale = Number(prezzo_manuale ?? 0);
-  const prezzoManualeAttivo = Number.isFinite(manuale) && manuale > 0;
   const subtotale = prezzoManualeAttivo ? manuale : sommaVociRaw;
 
   // subtotale_netto = ricavo reale dopo sconto globale preventivo
@@ -203,6 +298,8 @@ export function calcolaTotaliPreventivo(
     margine_totale_pct,
     somma_voci,
     prezzo_manuale: prezzoManualeAttivo,
+    righe_senza_costo,
+    costi_completi: righeVendute > 0 && righe_senza_costo === 0 && costo_totale > 0,
   };
 }
 
@@ -412,14 +509,21 @@ export function espondiBundle(
     tariffa_id?: string | null;
     quantita: number;
     sort_order: number;
-    article_templates?: { name: string; unit_price?: number | null; prezzo_vendita?: number; prezzo_acquisto_netto?: number; unit_of_measure?: string | null; vat_rate?: number | null } | null;
-    tariffe_aziendali?: { nome: string; prezzo_vendita?: number; prezzo_costo?: number; unita?: string | null } | null;
+    article_templates?: { name: string; unit_price?: number | null; prezzo_vendita?: number; prezzo_acquisto_netto?: number | null; standard_cost?: number | null; unit_of_measure?: string | null; vat_rate?: number | null } | null;
+    tariffe_aziendali?: { nome: string; prezzo_vendita?: number; prezzo_costo?: number | null; costo_interno?: number | null; costo_default?: number | null; unita?: string | null; unita_fatturazione?: string | null } | null;
   }>,
   // Parametro residuale: attualmente non impatta il calcolo del bundle (l'overhead
   // viene riapplicato dai totali del preventivo). Mantenuto nella signature per
   // retrocompatibilità con i caller esistenti.
   _overhead_pct: number
 ): import("@/types/quoteItem").QuoteItemPro[] {
+  // IVA, unità e costo come in ApplyBundleDialog (05/10/2026; prima 22 fisso,
+  // unità legacy, solo prezzo_costo): ogni articolo la sua aliquota; le
+  // tariffe sciolte quella degli articoli del bundle se è una sola, altrimenti
+  // 22 — fra due aliquote diverse scegliere sarebbe inventare (aliquotaComune).
+  const aliquotaArticoli = aliquotaComune(
+    voci.filter((v) => !!v.prodotto_id && !!v.article_templates).map((v) => v.article_templates?.vat_rate),
+  );
   return voci.map((voce, idx) => {
     const isArt = !!voce.prodotto_id && !!voce.article_templates;
     const name = isArt
@@ -428,13 +532,15 @@ export function espondiBundle(
     const unitPrice = isArt
       ? (voce.article_templates?.prezzo_vendita ?? voce.article_templates?.unit_price ?? 0)
       : (voce.tariffe_aziendali?.prezzo_vendita ?? 0);
+    // Costo con la regola unica: prezzo_acquisto_netto poi standard_cost per
+    // gli articoli, costo_interno/prezzo_costo/costo_default per le tariffe.
     const prezzoAcquisto = isArt
-      ? (voce.article_templates?.prezzo_acquisto_netto ?? 0)
-      : (voce.tariffe_aziendali?.prezzo_costo ?? 0);
+      ? costoArticolo(voce.article_templates)
+      : (costoTariffa(voce.tariffe_aziendali) ?? 0);
     const uom = isArt
       ? (voce.article_templates?.unit_of_measure ?? "pz")
-      : (voce.tariffe_aziendali?.unita ?? "servizio");
-    const vatRate = isArt ? (voce.article_templates?.vat_rate ?? 22) : 22;
+      : unitaTariffa(voce.tariffe_aziendali, "servizio");
+    const vatRate = isArt ? aliquotaValida(voce.article_templates?.vat_rate) : aliquotaArticoli;
 
     return {
       id: `bundle-${bundle.id}-${idx}`,
@@ -474,15 +580,19 @@ export interface BundleConVoci {
       name: string;
       unit_price?: number | null;
       prezzo_vendita?: number;
-      prezzo_acquisto_netto?: number;
+      prezzo_acquisto_netto?: number | null;
+      standard_cost?: number | null;
       unit_of_measure?: string | null;
       vat_rate?: number | null;
     } | null;
     tariffe_aziendali: {
       nome: string;
       prezzo_vendita?: number;
-      prezzo_costo?: number;
+      prezzo_costo?: number | null;
+      costo_interno?: number | null;
+      costo_default?: number | null;
       unita?: string | null;
+      unita_fatturazione?: string | null;
     } | null;
   }>;
 }
@@ -495,7 +605,7 @@ export function useBundleProdotti(companyId: string | undefined) {
       const { data } = await supabase
         .from("bundle_prodotti")
         .select(
-          "*, bundle_voci(*, article_templates(name, unit_price, prezzo_vendita, prezzo_acquisto_netto, unit_of_measure, vat_rate), tariffe_aziendali(nome, prezzo_vendita, prezzo_costo, unita))"
+          "*, bundle_voci(*, article_templates(name, unit_price, prezzo_vendita, prezzo_acquisto_netto, standard_cost, unit_of_measure, vat_rate), tariffe_aziendali(nome, prezzo_vendita, prezzo_costo, costo_interno, costo_default, unita, unita_fatturazione))"
         )
         .eq("company_id", companyId!)
         .eq("attivo", true)
@@ -541,14 +651,30 @@ export function usePreventivoCosti(companyId: string | undefined) {
         .order("nome");
       if (!data) return [] as TariffaPro[];
       return data.map((d: Record<string, unknown>) => {
-        const costoInterno = (d.costo_interno as number | null) ?? null;
-        const prezzoCosto = (d.prezzo_costo as number | null) ?? 0;
+        // Costo con la regola unica (costoTariffa, 05/10/2026): costo_interno,
+        // prezzo_costo, costo_default, vince il primo maggiore di zero. Prima
+        // `costo_interno ?? prezzo_costo`: lo 0 di default di costo_interno
+        // nascondeva il costo vero (135 tariffe su 336 al 05/10). Lo portano
+        // entrambe le colonne, così chi legge `costo_interno ?? prezzo_costo`
+        // (configuratori, dialog del listino) trova lo stesso numero.
+        const costo = costoTariffa({
+          costo_interno: d.costo_interno as number | null,
+          prezzo_costo: d.prezzo_costo as number | null,
+          costo_default: d.costo_default as number | null,
+        });
+        // Unità con la regola unica (unitaTariffa): un «pz» di default smentito
+        // dalla legacy `unita` non vale (35 tariffe al 05/10, p.es. una posa al
+        // mq che risultava a pezzo). Vale per i conti e per chi la legge dopo.
+        const unitaFatturazione = d.unita_fatturazione as string | null;
+        const unitaLegacy = d.unita as string | null;
         return {
           ...d,
-          prezzo_costo: costoInterno ?? prezzoCosto,
-          costo_interno: costoInterno,
+          prezzo_costo: costo ?? 0,
+          costo_interno: costo,
           prezzo_vendita: (d.prezzo_vendita as number | null) ?? 0,
-          unita_fatturazione: (d.unita_fatturazione as string | null) ?? null,
+          unita_fatturazione: unitaFatturazione || unitaLegacy
+            ? unitaTariffa({ unita_fatturazione: unitaFatturazione, unita: unitaLegacy })
+            : null,
         };
       }) as TariffaPro[];
     },
@@ -573,7 +699,9 @@ export function usePreventivoCosti(companyId: string | undefined) {
       return data.map((d) => ({
         ...d,
         prezzo_vendita: d.prezzo_vendita ?? d.unit_price ?? 0,
-        prezzo_acquisto_netto: d.prezzo_acquisto_netto ?? d.standard_cost ?? 0,
+        // Stessa regola delle tariffe: anche prezzo_acquisto_netto ha DEFAULT 0
+        // e da solo nasconderebbe standard_cost (costoArticolo).
+        prezzo_acquisto_netto: costoArticolo(d),
         modalita_prezzo: (d.modalita_prezzo ?? "pz") as ArticlePro["modalita_prezzo"],
       })) as ArticlePro[];
     },
@@ -711,17 +839,20 @@ export function usePreventivoCosti(companyId: string | undefined) {
   // calcolaTariffaAutomatica
   // FASE 6.4: supporta le 10 UM canoniche di unita_fatturazione.
   //  - 'a_corpo'   → prezzo fisso totale, qty sempre 1
-  //  - 'km'        → prezzo × kmCantiere (se passato)
   //  - 'piano'     → sovrapprezzo a scaglioni (anche fuori dal tipo tiro_piano)
-  //  - 'gg','h','mq','ml','mc','kg','pz' → prezzo × qty (qty già in UM corretta)
+  //  - 'km','gg','h','mq','ml','mc','kg','pz' → prezzo × qty (qty già in UM corretta)
+  // Al km la quantità sono i km (05/10/2026): la riga nasce con la distanza
+  // del cantiere (quantitaInizialeTariffa). Prima il conto era prezzo ×
+  // distanza a quantità 1, e senza distanza la riga andava a 0 €.
   const calcolaTariffaAutomatica = (
     tariffa: TariffaPro,
     qty: number,
     piano?: number,
-    kmCantiere?: number,
   ): { prezzo_vendita: number; prezzo_acquisto: number } => {
-    const um = (tariffa.unita_fatturazione ?? tariffa.unita ?? "pz").toLowerCase();
-    const costoUnit = tariffa.costo_interno ?? tariffa.prezzo_costo ?? 0;
+    // Unità e costo con la regola unica (05/10/2026): con `unita_fatturazione ??
+    // unita` una tariffa al km rimasta col «pz» di default si contava a pezzo.
+    const um = unitaTariffa(tariffa).toLowerCase();
+    const costoUnit = costoTariffa(tariffa) ?? 0;
     const pvUnit = tariffa.prezzo_vendita ?? 0;
 
     // tiro_piano legacy: prezzo base + extra per piano sopra soglia
@@ -743,19 +874,13 @@ export function usePreventivoCosti(companyId: string | undefined) {
       return { prezzo_vendita: pvUnit, prezzo_acquisto: costoUnit };
     }
 
-    // km: moltiplica per kmCantiere se presente, altrimenti 0
-    if (um === "km") {
-      const km = kmCantiere ?? 0;
-      return { prezzo_vendita: pvUnit * km, prezzo_acquisto: costoUnit * km };
-    }
-
     // piano (generico, non tiro_piano): moltiplica per il numero di piani
     if (um === "piano") {
       const n = piano ?? qty ?? 0;
       return { prezzo_vendita: pvUnit * n, prezzo_acquisto: costoUnit * n };
     }
 
-    // Default: pz, mq, ml, mc, kg, gg, h → × qty
+    // Default: pz, mq, ml, mc, kg, gg, h, km → × qty
     return {
       prezzo_vendita: pvUnit * qty,
       prezzo_acquisto: costoUnit * qty,

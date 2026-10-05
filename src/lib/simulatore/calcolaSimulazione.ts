@@ -17,9 +17,9 @@
  * (KPI + riga denormalizzata) riflettono questo finale (spese + sconto + provvigioni).
  * Le provvigioni NON toccano IVA / prezzo cliente / finanziamento (costo interno).
  *
- * IVA: delegata a `calcolaIva(doc.voci, doc.scenari, fattoreSconto)`, dove
- * `fattoreSconto = ricavo_netto/ricavo_lordo` scala gli imponibili al netto
- * scontato (coerente anche in mista 10/22 con beni significativi).
+ * IVA: delegata a `calcolaIva(doc.voci, doc.scenari, sconto_pct)`, che porta
+ * gli imponibili al netto scontato con 1 − sconto_pct/100 (coerente anche in
+ * mista 10/22 con beni significativi).
  * `prezzo_cliente` = ricavo_netto + `iva_totale`; `confronto_iva` enumera il
  * prezzo cliente per ogni aliquota in `scenari.iva_confronto`, anch'esso sul
  * ricavo netto.
@@ -60,12 +60,11 @@ export function calcolaSimulazione(doc: SimulazioneDoc): SimulazioneRisultato {
   const margine_finale_pct =
     eco.ricavo_netto > 0 ? round2((margine_finale_valore / eco.ricavo_netto) * 100) : 0;
 
-  // Fattore di sconto applicato agli imponibili IVA (netto/lordo). Con ricavo
-  // lordo nullo non c'è sconto da scalare → fattore neutro 1.
-  const fattoreSconto = ricavo_lordo > 0 ? eco.ricavo_netto / ricavo_lordo : 1;
-
   // ── IVA (singola o mista 10/22 + beni significativi), sul ricavo NETTO ──────
-  const { riepilogo_iva, iva_totale } = calcolaIva(doc.voci, doc.scenari, fattoreSconto);
+  // Lo sconto passa come %: calcolaIva applica 1 − sconto/100 come il database
+  // sui preventivi (05/10/2026: prima il fattore netto/lordo, che dopo gli
+  // arrotondamenti poteva spostare l'IVA di un centesimo rispetto al preventivo).
+  const { riepilogo_iva, iva_totale } = calcolaIva(doc.voci, doc.scenari, sconto_pct);
   const prezzo_cliente = round2(eco.ricavo_netto + iva_totale);
 
   // ── Confronto IVA (prezzo cliente per ogni aliquota richiesta) sul netto ───

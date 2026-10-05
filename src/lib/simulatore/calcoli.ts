@@ -4,9 +4,35 @@ import type {
 
 export const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
+const SCALA = 1_000_000n;
+/** Un fattore come intero con sei decimali (non finito → 0). */
+const scalato = (n: number): bigint => BigInt(Math.round((Number.isFinite(n) ? n : 0) * 1_000_000));
+
+/**
+ * prodottoArrotondato — prodotto dei fattori arrotondato al centesimo a metà
+ * lontano da zero, in aritmetica intera: come ROUND(…, 2) di Postgres.
+ *
+ * 05/10/2026: col round2 in virgola mobile i mezzi centesimi dei prodotti
+ * (297.359,55 × 0,9 = 267.623,595; 2,5 × 1,01 = 2,525) potevano andare dalla
+ * parte sbagliata, e il preventivo ricalcolato dal database usciva con un
+ * centesimo di differenza dalla simulazione. Fattori fino a sei decimali.
+ */
+export function prodottoArrotondato(...fattori: number[]): number {
+  let num = 100n;
+  let den = 1n;
+  for (const f of fattori) {
+    num *= scalato(f);
+    den *= SCALA;
+  }
+  const negativo = num < 0n;
+  const assoluto = negativo ? -num : num;
+  const centesimi = (assoluto * 2n + den) / (2n * den);
+  return Number(negativo ? -centesimi : centesimi) / 100;
+}
+
 export function calcolaVoce(v: VoceSim) {
-  const imponibile_costo = round2(v.quantita * v.costo_unitario);
-  const imponibile_ricavo = round2(v.quantita * v.prezzo_unitario);
+  const imponibile_costo = prodottoArrotondato(v.quantita, v.costo_unitario);
+  const imponibile_ricavo = prodottoArrotondato(v.quantita, v.prezzo_unitario);
   return { imponibile_costo, imponibile_ricavo, margine: round2(imponibile_ricavo - imponibile_costo) };
 }
 
@@ -93,30 +119,118 @@ export function calcolaIncidenze(
   };
 }
 
+/** Una parte dell'imponibile di una voce, con la sua aliquota IVA. */
+export interface QuotaIvaVoce {
+  aliquota: number;
+  imponibile: number;
+}
+
+/** Euro → centesimi interi (le quote si dividono senza perdere centesimi). */
+const centesimi = (n: number): number => Math.round(n * 100);
+
+/**
+ * ripartoIvaVoci — l'imponibile di ogni voce diviso per aliquota IVA, nello
+ * stesso ordine di `voci`. È l'unico conto dell'IVA della simulazione: lo usano
+ * il riepilogo ({@link calcolaIva}) e le righe del preventivo e della commessa
+ * (`trasforma.ts`), così il documento creato ha la stessa IVA della simulazione.
+ * Le quote di una voce sommano sempre al suo totale (`calcolaVoce`).
+ *
+ * - `singola`: tutta la voce all'aliquota unica dello scenario.
+ * - `mista`: ogni voce alla sua aliquota, tranne i beni significativi (art. 7
+ *   c. 1 lett. b L. 488/1999, DM 29/12/1999). La posa scritta sulla riga
+ *   (`valore_posa_associata`, già compresa nel totale della riga) è servizio al
+ *   10%; il resto della riga è il bene. Il conto si fa sull'intero intervento,
+ *   come `calcolaIvaMista` dei serramenti: con B = valore dei beni e S − B =
+ *   il resto dell'intervento al 10% (la posa delle righe dei beni e le altre
+ *   voci al 10%), i beni stanno al 10% fino a S − B e la parte che supera va
+ *   al 22%. Le voci al 22% o al 4% restano fuori dal limite, come le prestazioni
+ *   professionali dei serramenti.
+ *
+ * 05/10/2026: prima la posa finiva al 10% oltre al bene intero (10% su
+ * posa + min(B, posa) e 22% su B − posa): su una riga da 1.000 € con 300 € di
+ * posa si tassavano 1.300 € di imponibile.
+ *
+ * L'eccedenza al 22% si divide fra i beni in proporzione al loro valore, in
+ * centesimi (metodo dei resti più grandi): la somma per aliquota torna esatta.
+ */
+export function ripartoIvaVoci(
+  voci: VoceSim[],
+  scenari: Pick<ScenariConfig, "iva_mode" | "iva_rate_singola">,
+): QuotaIvaVoce[][] {
+  const valori = voci.map((v) => calcolaVoce(v).imponibile_ricavo);
+  if (scenari.iva_mode !== "mista") {
+    return voci.map((_, i) => [{ aliquota: scenari.iva_rate_singola, imponibile: valori[i] }]);
+  }
+
+  // Posa compresa nella riga (mai oltre il totale della riga) e valore del bene.
+  const posa = voci.map((v, i) =>
+    v.bene_significativo
+      ? round2(Math.min(Math.max(0, valori[i]), Math.max(0, Number(v.valore_posa_associata) || 0)))
+      : 0,
+  );
+  const beniCent = voci.map((v, i) =>
+    v.bene_significativo ? Math.max(0, centesimi(valori[i] - posa[i])) : 0,
+  );
+  const totBeniCent = beniCent.reduce((a, b) => a + b, 0);
+  // Il limite: il resto dell'intervento al 10%.
+  const limiteCent = voci.reduce(
+    (acc, v, i) =>
+      acc + (v.bene_significativo ? centesimi(posa[i]) : v.vat_rate === 10 ? centesimi(valori[i]) : 0),
+    0,
+  );
+  const eccedenzaCent = Math.max(0, totBeniCent - Math.max(0, limiteCent));
+
+  // Eccedenza al 22% divisa fra i beni: parte intera, poi i centesimi rimasti a
+  // chi ha il resto più grande (a parità, la voce che viene prima).
+  const quota22Cent = beniCent.map(() => 0);
+  if (eccedenzaCent > 0 && totBeniCent > 0) {
+    const resti: { i: number; resto: number }[] = [];
+    let assegnati = 0;
+    beniCent.forEach((b, i) => {
+      if (b <= 0) return;
+      const esatto = (b * eccedenzaCent) / totBeniCent;
+      quota22Cent[i] = Math.floor(esatto);
+      assegnati += quota22Cent[i];
+      resti.push({ i, resto: esatto - quota22Cent[i] });
+    });
+    resti.sort((a, b) => b.resto - a.resto || a.i - b.i);
+    for (let k = 0; k < eccedenzaCent - assegnati && k < resti.length; k++) {
+      quota22Cent[resti[k].i] += 1;
+    }
+  }
+
+  return voci.map((v, i) => {
+    if (!v.bene_significativo) return [{ aliquota: v.vat_rate, imponibile: valori[i] }];
+    const al22 = quota22Cent[i] / 100;
+    return [
+      { aliquota: 10, imponibile: round2(valori[i] - al22) },
+      { aliquota: 22, imponibile: al22 },
+    ];
+  });
+}
+
 /**
  * calcolaIva — riepilogo IVA dell'imponibile ricavo, per aliquota.
  *
  * - `iva_mode === "singola"`: tutto l'imponibile ricavo a `iva_rate_singola`,
  *   un'unica riga di riepilogo.
- * - `iva_mode === "mista"`: accumula per `vat_rate` di riga. Per le voci con
- *   `bene_significativo`, applica la regola dei beni significativi: con
- *   `B = imponibile_ricavo` e `posa = valore_posa_associata ?? 0`, si aggiunge
- *   `posa + min(B, posa)` all'aliquota agevolata 10% e `max(0, B − posa)` al 22%
- *   (invece di tutto B alla sua `vat_rate`).
+ * - `iva_mode === "mista"`: somma per aliquota le quote di {@link ripartoIvaVoci}
+ *   (aliquota di riga, beni significativi divisi fra 10% e 22%).
  *
- * `fattoreSconto` (default 1): scala proporzionalmente ogni imponibile prima del
- * calcolo dell'imposta, così l'IVA e il prezzo cliente si applicano al ricavo
- * NETTO (scontato) anziché al lordo, mantenendo coerente il riparto fra aliquote
- * anche in IVA mista. Con fattore 1 il comportamento è invariato.
- *
- * Per ogni riga di riepilogo `imposta = round2(imponibile × aliquota / 100)`,
- * ordinata per aliquota crescente; `iva_totale = round2(somma imposte)`.
+ * `scontoPct` (default 0): lo sconto cliente in %, che porta ogni imponibile al
+ * netto, così l'IVA e il prezzo cliente si applicano al ricavo NETTO. Per ogni
+ * aliquota, con G = imponibile lordo e f = 1 − sconto/100:
+ *   imponibile = G × f, imposta = G × aliquota/100 × f (al centesimo, esatti)
+ * — lo stesso conto del database sui preventivi (do_recalculate_quote_totals),
+ * così il preventivo creato dalla simulazione ha la stessa IVA al centesimo.
+ * Righe ordinate per aliquota crescente; `iva_totale = round2(somma imposte)`.
  */
 export function calcolaIva(
   voci: VoceSim[],
   scenari: ScenariConfig,
-  fattoreSconto = 1,
+  scontoPct = 0,
 ): { riepilogo_iva: RiepilogoIvaRiga[]; iva_totale: number } {
+  const fattore = 1 - (Number(scontoPct) || 0) / 100;
   // Imponibile ricavo accumulato per aliquota.
   const perAliquota = new Map<number, number>();
   const add = (aliquota: number, imponibile: number) => {
@@ -128,27 +242,17 @@ export function calcolaIva(
     const { ricavo_imponibile } = calcolaTotali(voci);
     perAliquota.set(scenari.iva_rate_singola, ricavo_imponibile);
   } else {
-    for (const v of voci) {
-      const { imponibile_ricavo: B } = calcolaVoce(v);
-      if (v.bene_significativo) {
-        const posa = v.valore_posa_associata ?? 0;
-        add(10, round2(posa + Math.min(B, posa)));
-        add(22, round2(Math.max(0, B - posa)));
-      } else {
-        add(v.vat_rate, B);
-      }
+    for (const quote of ripartoIvaVoci(voci, scenari)) {
+      for (const q of quote) add(q.aliquota, q.imponibile);
     }
   }
 
   const riepilogo_iva: RiepilogoIvaRiga[] = [...perAliquota.entries()]
-    .map(([aliquota, imponibile]) => {
-      const scontato = round2(imponibile * fattoreSconto);
-      return {
-        aliquota,
-        imponibile: scontato,
-        imposta: round2((scontato * aliquota) / 100),
-      };
-    })
+    .map(([aliquota, imponibile]) => ({
+      aliquota,
+      imponibile: prodottoArrotondato(imponibile, fattore),
+      imposta: prodottoArrotondato(imponibile, aliquota / 100, fattore),
+    }))
     .sort((a, b) => a.aliquota - b.aliquota);
 
   const iva_totale = round2(riepilogo_iva.reduce((acc, r) => acc + r.imposta, 0));
@@ -180,19 +284,23 @@ export interface EconomiaRisultato {
  *
  * - `spese_generali` = costo_diretto × spese_generali_pct/100.
  * - `costo_pieno` = costo_diretto + spese_generali.
- * - `sconto_valore` = ricavo_lordo × sconto_pct/100.
- * - `ricavo_netto` = ricavo_lordo − sconto_valore (imponibile effettivo).
+ * - `ricavo_netto` = round2(ricavo_lordo × (1 − sconto_pct/100)) (imponibile
+ *   effettivo); `sconto_valore` = ricavo_lordo − ricavo_netto.
  * - `margine_netto_valore` = ricavo_netto − costo_pieno; `margine_netto_pct` su
  *   ricavo_netto (0 se ricavo_netto ≤ 0, niente NaN).
  * - `utile_target` = costo_pieno × utile_pct/100 (utile d'impresa atteso).
+ *
+ * Netto prima e sconto per differenza (05/10/2026): è l'ordine del database sui
+ * preventivi, e sui mezzi centesimi il preventivo creato dalla simulazione
+ * usciva con un centesimo di differenza.
  *
  * Funzione pura: nessuna dipendenza da IVA o voci, solo aritmetica arrotondata.
  */
 export function calcolaEconomia(input: EconomiaInput): EconomiaRisultato {
   const spese_generali = round2((input.costo_diretto * input.spese_generali_pct) / 100);
   const costo_pieno = round2(input.costo_diretto + spese_generali);
-  const sconto_valore = round2((input.ricavo_lordo * input.sconto_pct) / 100);
-  const ricavo_netto = round2(input.ricavo_lordo - sconto_valore);
+  const ricavo_netto = prodottoArrotondato(input.ricavo_lordo, 1 - input.sconto_pct / 100);
+  const sconto_valore = round2(input.ricavo_lordo - ricavo_netto);
   const margine_netto_valore = round2(ricavo_netto - costo_pieno);
   const margine_netto_pct =
     ricavo_netto > 0 ? round2((margine_netto_valore / ricavo_netto) * 100) : 0;

@@ -10,6 +10,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
+import { invalidaListinoNelPreventivatore } from "@/lib/serramenti/cacheListino";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,43 +32,101 @@ interface Props {
   tariffaName: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ClientDb = { from: (tabella: string) => any };
+
+/** I prodotti collegati alla tariffa, senza quelli nel cestino (05/10/2026). */
+export async function caricaProdottiCollegati(
+  sb: ClientDb,
+  tariffaId: string,
+): Promise<ArticleFamilyLinked[]> {
+  const { data, error } = await sb
+    .from("article_families")
+    .select("id, nome, vertical, posa_quantita_default, posa_linked, manodopera_modalita")
+    .eq("posa_tariffa_default_id", tariffaId)
+    .is("deleted_at", null)
+    .order("nome", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as ArticleFamilyLinked[];
+}
+
+/**
+ * Scollega la tariffa da un prodotto (05/10/2026). Si toglie il collegamento;
+ * la posa passa a «nessuna» solo se il prodotto la prendeva da questa tariffa
+ * (modalità «tariffa»). Prima diventava «nessuna» sempre: un prodotto con la
+ * posa a prezzo manuale e un vecchio collegamento rimasto perdeva la sua posa.
+ * La modalità la decide la riga nel database al momento dell'aggiornamento,
+ * non l'elenco a schermo, che può essere vecchio.
+ *
+ * Ritorna la modalità della posa del prodotto; null se non c'era niente da
+ * scollegare (già fatto altrove, o niente permesso di modificare il listino).
+ */
+export async function scollegaTariffaDaProdotto(
+  sb: ClientDb,
+  familyId: string,
+  tariffaId: string,
+): Promise<string | null> {
+  const { data: daTariffa, error: errTariffa } = await sb
+    .from("article_families")
+    .update({ posa_tariffa_default_id: null, manodopera_modalita: "nessuna" })
+    .eq("id", familyId)
+    .eq("posa_tariffa_default_id", tariffaId)
+    .eq("manodopera_modalita", "tariffa")
+    .select("id");
+  if (errTariffa) throw errTariffa;
+  if ((daTariffa ?? []).length > 0) return "tariffa";
+  const { data: altri, error: errAltri } = await sb
+    .from("article_families")
+    .update({ posa_tariffa_default_id: null })
+    .eq("id", familyId)
+    .eq("posa_tariffa_default_id", tariffaId)
+    .select("id, manodopera_modalita");
+  if (errAltri) throw errAltri;
+  return ((altri ?? []) as Array<{ manodopera_modalita: string | null }>)[0]?.manodopera_modalita ?? null;
+}
+
+/** Cosa dire dopo «Scollega», secondo la posa che il prodotto aveva. */
+export function esitoScollegamento(modalita: string | null): { fatto: boolean; testo: string } {
+  switch (modalita) {
+    case "tariffa":
+      return { fatto: true, testo: "Prodotto scollegato. I preventivi futuri non avranno più manodopera automatica." };
+    case "manuale":
+      return { fatto: true, testo: "Tariffa scollegata. Il prodotto tiene la sua posa a prezzo manuale." };
+    case null:
+      return {
+        fatto: false,
+        testo: "Niente da scollegare: il prodotto era già scollegato, o non hai il permesso di modificare il listino.",
+      };
+    default:
+      return { fatto: true, testo: "Tariffa scollegata." };
+  }
+}
+
 export function TariffaProdottiCollegati({ tariffaId, tariffaName }: Props) {
   const qc = useQueryClient();
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["tariffa-prodotti-collegati", tariffaId],
-    queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from("article_families")
-        .select("id, nome, vertical, posa_quantita_default, posa_linked, manodopera_modalita")
-        .eq("posa_tariffa_default_id", tariffaId)
-        .order("nome", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as ArticleFamilyLinked[];
-    },
+    queryFn: () => caricaProdottiCollegati(supabase as unknown as ClientDb, tariffaId),
     enabled: !!tariffaId,
     staleTime: 30 * 1000,
   });
 
   const unlinkMut = useMutation({
-    mutationFn: async (familyId: string) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
-        .from("article_families")
-        .update({
-          posa_tariffa_default_id: null,
-          manodopera_modalita: "nessuna",
-        })
-        .eq("id", familyId);
-      if (error) throw error;
-    },
+    mutationFn: (familyId: string) =>
+      scollegaTariffaDaProdotto(supabase as unknown as ClientDb, familyId, tariffaId),
     onMutate: (familyId: string) => setUnlinkingId(familyId),
-    onSuccess: () => {
+    onSuccess: (modalita) => {
       qc.invalidateQueries({ queryKey: ["tariffa-prodotti-collegati", tariffaId] });
-      qc.invalidateQueries({ queryKey: ["sr-listino-families"] });
-      toast.success("Prodotto scollegato. I preventivi futuri non avranno più manodopera automatica.");
+      // Come dopo ogni modifica di un prodotto (useFamilyMutations): riaperto
+      // dalla cache vecchia, il prodotto mostrerebbe ancora la tariffa e la
+      // rimetterebbe al primo salvataggio; il preventivo serramenti ha le sue chiavi.
+      qc.invalidateQueries({ queryKey: queryKeys.articleFamilies.all });
+      invalidaListinoNelPreventivatore(qc);
+      const esito = esitoScollegamento(modalita);
+      if (esito.fatto) toast.success(esito.testo);
+      else toast.info(esito.testo);
     },
     onError: (e) => toast.error("Scollegamento fallito", { description: String(e) }),
     onSettled: () => setUnlinkingId(null),

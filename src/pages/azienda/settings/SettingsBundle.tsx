@@ -51,6 +51,7 @@ import {
   type BundleTipoLavoro,
 } from "@/hooks/useBundles";
 import type { AxisSelection } from "@/types/articleFamily";
+import { unitaTariffa } from "@/lib/listino/costoTariffa";
 
 type VoceType = "family" | "product" | "tariff";
 
@@ -212,17 +213,20 @@ export default function SettingsBundle() {
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await supabase.from("tariffe_aziendali" as never)
-        .select("id, nome, prezzo_vendita, unita")
+        .select("id, nome, prezzo_vendita, unita, unita_fatturazione")
         .eq("company_id", companyId!)
         .eq("attivo", true)
         .order("nome");
       if (error) throw error;
-      return (data ?? []) as Array<{
+      // L'unità vera (05/10/2026): la colonna legacy scrive «h» per le
+      // giornate e «pz» per i chili. Vedi unitaTariffa.
+      return ((data ?? []) as Array<{
         id: string;
         nome: string;
         prezzo_vendita: number | null;
         unita: string | null;
-      }>;
+        unita_fatturazione: string | null;
+      }>).map((t) => ({ ...t, unita: t.unita || t.unita_fatturazione ? unitaTariffa(t) : null }));
     },
     staleTime: 5 * 60 * 1000,
   });

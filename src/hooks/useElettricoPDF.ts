@@ -71,8 +71,9 @@ export interface ElePdfTotali {
   detrazionePct: number;
   detrazioneEur: number;
   costoTot: number;
-  margineEur: number;
-  marginePct: number;
+  /** null: costi incompleti, il margine non si può dire (05/10/2026). */
+  margineEur: number | null;
+  marginePct: number | null;
   /** Il prezzo pieno è quello scritto a mano: il documento non mostra gli importi delle righe. */
   prezzoManuale?: boolean;
 }
@@ -230,7 +231,7 @@ export async function enrichElettricoPdf(opts: ElePdfPayload): Promise<ElePdfEnr
 
   // 4) Totali complessivi (single source of truth = calcTotaliComputo).
   const scontoPct = Number(progetto.sconto_pct) || 0;
-  const ivaPct = Number(progetto.iva_pct ?? 10);
+  const ivaPct = Number(progetto.iva_pct ?? 22);
   const detrazionePct = Number(progetto.detrazione_pct) || 0;
   const allRows: ComputoRigaInput[] = computo.map((v) => ({
     capitolo_nome: v.capitolo_nome,

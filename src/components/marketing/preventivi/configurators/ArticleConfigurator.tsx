@@ -31,6 +31,7 @@ import type {
   ConfiguredItem,
   ModalitaPrezzoUnified,
 } from "@/types/catalogItem";
+import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
 
 interface ArticleConfiguratorProps {
   confirmLabel?: string;
@@ -116,8 +117,9 @@ export function ArticleConfigurator({
   }, [article.montaggio_tariffa_id, tariffe]);
 
   const posaUnit = tariffaPosa?.prezzo_vendita ?? 0;
-  const posaAcq = tariffaPosa?.costo_interno ?? tariffaPosa?.prezzo_costo ?? 0;
-  const posaUm = tariffaPosa?.unita_fatturazione ?? tariffaPosa?.unita ?? "h";
+  // Costo e unità della posa con le regole uniche (lib/listino/costoTariffa).
+  const posaAcq = costoTariffa(tariffaPosa) ?? 0;
+  const posaUm = unitaTariffa(tariffaPosa, "h");
   // Per articoli non esiste `posa_quantita_default` come in famiglia →
   // usiamo 1 × qty (posa singola per pezzo). In futuro si può leggere
   // article.montaggio_tipo per raffinare.

@@ -20,6 +20,7 @@
  */
 import Papa from "papaparse";
 import { neutralizeCsvFormula } from "@/lib/csvExport";
+import { costoTariffa } from "@/lib/listino/costoTariffa";
 
 // ── Enum canonici (mirror di SettingsTariffe/types.ts) ───────────────────────
 
@@ -519,7 +520,7 @@ export function buildTariffeExportCsv(
       fmt(r.prezzo_vendita),
     ];
     return opts.includeCosto
-      ? [...base, fmt(r.costo_interno ?? r.prezzo_costo), neutralizeCsvFormula(r.descrizione ?? "")]
+      ? [...base, fmt(costoTariffa(r)), neutralizeCsvFormula(r.descrizione ?? "")]
       : [...base, neutralizeCsvFormula(r.descrizione ?? "")];
   });
   return Papa.unparse({ fields, data }, { delimiter: ";" });

@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { mapVociToQuoteItems, mapToOrderPayload } from "./trasforma";
+import { mapVociToQuoteItems, mapToOrderPayload, testataPreventivo } from "./trasforma";
+import { calcolaSimulazione } from "./calcolaSimulazione";
+import { DEFAULT_SCENARI } from "./tipi";
 import type { VoceSim, SimulazioneDoc, SimulazioneRisultato } from "./tipi";
+
+const SINGOLA_10 = { iva_mode: "singola" as const, iva_rate_singola: 10 as const };
+const MISTA = { iva_mode: "mista" as const, iva_rate_singola: 10 as const };
 
 const voce = (p: Partial<VoceSim>): VoceSim => ({
   id: "1",
@@ -42,7 +47,7 @@ describe("mapVociToQuoteItems", () => {
         ordine: 0,
       }),
     ];
-    const [item] = mapVociToQuoteItems(voci, COMPANY, QUOTE);
+    const [item] = mapVociToQuoteItems(voci, COMPANY, QUOTE, SINGOLA_10);
 
     expect(item.quote_id).toBe(QUOTE);
     expect(item.company_id).toBe(COMPANY);
@@ -60,12 +65,21 @@ describe("mapVociToQuoteItems", () => {
 
   it("prezzo_acquisto = costo_unitario su ogni riga (margine corretto nel CRM)", () => {
     const voci = [voce({ quantita: 4, prezzo_unitario: 50, costo_unitario: 30 })];
-    const [item] = mapVociToQuoteItems(voci, COMPANY, QUOTE);
+    const [item] = mapVociToQuoteItems(voci, COMPANY, QUOTE, SINGOLA_10);
     expect(item.prezzo_acquisto).toBe(30);
   });
 
-  it("splitta il bene significativo in due righe 10/22 in IVA mista (FIX 3b)", () => {
-    // B = 1*1000 = 1000, posa = 300 → riga10 imponibile 600, riga22 imponibile 700.
+  it("in singola ogni riga prende l'aliquota unica della simulazione, non la sua", () => {
+    // La simulazione calcola il 10% su tutto: una riga al 22% faceva ricalcolare
+    // al database un'IVA diversa da quella simulata.
+    const voci = [voce({ quantita: 1, prezzo_unitario: 500, vat_rate: 22 })];
+    const [item] = mapVociToQuoteItems(voci, COMPANY, QUOTE, SINGOLA_10);
+    expect(item.vat_rate).toBe(10);
+  });
+
+  it("splitta il bene significativo nelle sue quote 10/22 in IVA mista, senza crescere", () => {
+    // Riga 1.000 € di cui 300 € di posa → 600 al 10%, 400 al 22%: in tutto 1.000
+    // (05/10/2026: prima 600 + 700, il preventivo cresceva della posa).
     const voci = [
       voce({
         descrizione: "Caldaia",
@@ -77,7 +91,7 @@ describe("mapVociToQuoteItems", () => {
         ordine: 2,
       }),
     ];
-    const items = mapVociToQuoteItems(voci, COMPANY, QUOTE, "mista");
+    const items = mapVociToQuoteItems(voci, COMPANY, QUOTE, MISTA);
     expect(items).toHaveLength(2);
 
     const riga10 = items.find((i) => i.vat_rate === 10)!;
@@ -88,18 +102,17 @@ describe("mapVociToQuoteItems", () => {
     expect(riga10.name).toContain("(bene significativo)");
     expect(riga10.prezzo_acquisto).toBe(700); // il costo resta sulla riga principale
     expect(riga22.quantity).toBe(1);
-    expect(riga22.unit_price).toBe(700);
+    expect(riga22.unit_price).toBe(400);
     expect(riga22.name).toContain("(eccedenza 22%)");
     expect(riga22.prezzo_acquisto).toBe(0);
-    // L'IVA somma combacia col simulato: 60 + 154 = 214.
+    expect(riga10.line_total + riga22.line_total).toBe(1000);
+    // L'IVA somma combacia col simulato: 60 + 88 = 148.
     const ivaSplit = riga10.unit_price * 0.1 + riga22.unit_price * 0.22;
-    expect(Math.round(ivaSplit * 100) / 100).toBe(214);
+    expect(Math.round(ivaSplit * 100) / 100).toBe(148);
   });
 
-  it("bene significativo: una sola riga 10 quando l'eccedenza è 0 (posa = metà di B)", () => {
-    // B = 600, posa = 300 → eccedenza 22 = max(0, 600-300) = 300 (>0, due righe).
-    // Per avere una sola riga serve posa ≥ B/... in realtà eccedenza 0 ⇔ posa ≥ B.
-    // B = 400, posa = 400 → riga10 = 400 + min(400,400) = 800; eccedenza 0.
+  it("bene significativo dentro il limite: una sola riga al 10%, pari alla voce", () => {
+    // Riga 400 € tutta di posa: niente bene oltre il limite, niente eccedenza.
     const voci = [
       voce({
         quantita: 1,
@@ -108,11 +121,17 @@ describe("mapVociToQuoteItems", () => {
         valore_posa_associata: 400,
       }),
     ];
-    const items = mapVociToQuoteItems(voci, COMPANY, QUOTE, "mista");
+    const items = mapVociToQuoteItems(voci, COMPANY, QUOTE, MISTA);
     expect(items).toHaveLength(1);
     expect(items[0].vat_rate).toBe(10);
-    // posa + min(B, posa) = 400 + 400 = 800 (coerente con calcolaIva).
-    expect(items[0].unit_price).toBe(800);
+    expect(items[0].unit_price).toBe(400);
+  });
+
+  it("bene significativo tutto oltre il limite: una sola riga al 22% col costo", () => {
+    const voci = [voce({ quantita: 2, prezzo_unitario: 500, costo_unitario: 300, bene_significativo: true })];
+    const items = mapVociToQuoteItems(voci, COMPANY, QUOTE, MISTA);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ vat_rate: 22, quantity: 1, unit_price: 1000, prezzo_acquisto: 600 });
   });
 
   it("bene significativo NON splittato in modalità singola (resta una riga)", () => {
@@ -125,7 +144,7 @@ describe("mapVociToQuoteItems", () => {
         vat_rate: 10,
       }),
     ];
-    const items = mapVociToQuoteItems(voci, COMPANY, QUOTE, "singola");
+    const items = mapVociToQuoteItems(voci, COMPANY, QUOTE, SINGOLA_10);
     expect(items).toHaveLength(1);
     expect(items[0].quantity).toBe(2);
     expect(items[0].unit_price).toBe(100);
@@ -143,7 +162,7 @@ describe("mapVociToQuoteItems", () => {
         ordine: 5,
       }),
     ];
-    const [item] = mapVociToQuoteItems(voci, COMPANY, QUOTE);
+    const [item] = mapVociToQuoteItems(voci, COMPANY, QUOTE, SINGOLA_10);
 
     expect(item.item_category).toBe("prodotto");
     expect(item.tariffa_id).toBeNull();
@@ -155,14 +174,19 @@ describe("mapVociToQuoteItems", () => {
     const voci = [
       voce({ fonte: "prezzario", riferimento_id: "prz-1", is_manodopera: false }),
     ];
-    const [item] = mapVociToQuoteItems(voci, COMPANY, QUOTE);
+    const [item] = mapVociToQuoteItems(voci, COMPANY, QUOTE, SINGOLA_10);
     expect(item.tariffa_id).toBeNull();
   });
 
-  it("arrotonda line_total a 2 decimali", () => {
-    const voci = [voce({ quantita: 3, prezzo_unitario: 0.335 })];
-    const [item] = mapVociToQuoteItems(voci, COMPANY, QUOTE);
-    expect(item.line_total).toBe(1.01); // 3 * 0.335 = 1.005 → 1.01
+  it("prezzo con più di due decimali: 1 × il totale di riga, come lo ricalcola il database", () => {
+    // unit_price è numeric(12,2): 0,335 diventerebbe 0,34 e la riga 1,02 invece di 1,01.
+    const voci = [voce({ quantita: 3, unita: "ml", prezzo_unitario: 0.335, costo_unitario: 0.2 })];
+    const [item] = mapVociToQuoteItems(voci, COMPANY, QUOTE, SINGOLA_10);
+    expect(item.quantity).toBe(1);
+    expect(item.unit_price).toBe(1.01); // 3 * 0.335 = 1.005 → 1.01
+    expect(item.line_total).toBe(1.01);
+    expect(item.prezzo_acquisto).toBe(0.6); // costo di riga
+    expect(item.description).toContain("3 ml");
   });
 
   it("mappa più voci preservando l'ordine dell'array", () => {
@@ -170,7 +194,7 @@ describe("mapVociToQuoteItems", () => {
       voce({ id: "a", descrizione: "A", ordine: 0 }),
       voce({ id: "b", descrizione: "B", ordine: 1 }),
     ];
-    const items = mapVociToQuoteItems(voci, COMPANY, QUOTE);
+    const items = mapVociToQuoteItems(voci, COMPANY, QUOTE, SINGOLA_10);
     expect(items).toHaveLength(2);
     expect(items[0].name).toBe("A");
     expect(items[1].name).toBe("B");
@@ -216,10 +240,10 @@ const doc = (p: Partial<SimulazioneDoc>): SimulazioneDoc => ({
 });
 
 describe("mapToOrderPayload", () => {
-  it("usa il ricavo imponibile come total_amount (netto IVA)", () => {
+  it("usa il ricavo netto come total_amount (IVA esclusa)", () => {
     const payload = mapToOrderPayload(
       doc({}),
-      risultato({ ricavo_imponibile: 5000, prezzo_cliente: 5500 }),
+      risultato({ ricavo_imponibile: 5000, ricavo_lordo: 5000, ricavo_netto: 5000, prezzo_cliente: 5500 }),
       { companyId: COMPANY, customerId: "cust-1", userId: "user-1", statusId: "st-1", description: "Lavori" },
     );
     expect(payload.p_order_data.total_amount).toBe(5000);
@@ -240,10 +264,10 @@ describe("mapToOrderPayload", () => {
   });
 
   it("vat_rate = aliquota EFFETTIVA in modalità mista (FIX 3a)", () => {
-    // iva_totale 214 su imponibile 1700 → 12.59% effettivo (non 22 fisso).
+    // iva_totale 214 su imponibile netto 1700 → 12.59% effettivo (non 22 fisso).
     const payload = mapToOrderPayload(
       doc({ scenari: { iva_mode: "mista", iva_rate_singola: 10, iva_confronto: [], finanziamento: null } }),
-      risultato({ ricavo_imponibile: 1700, iva_totale: 214 }),
+      risultato({ ricavo_imponibile: 1700, ricavo_netto: 1700, iva_totale: 214 }),
       { companyId: COMPANY, customerId: "c", userId: "u", statusId: "s", description: "d" },
     );
     expect(payload.p_order_data.vat_rate).toBe(12.59); // round2(214/1700*100)
@@ -338,13 +362,71 @@ describe("mapToOrderPayload", () => {
     const voci = [voce({ descrizione: "Voce A", quantita: 2, prezzo_unitario: 100, vat_rate: 22 })];
     const payload = mapToOrderPayload(
       doc({ voci }),
-      risultato({ ricavo_imponibile: 200 }),
+      risultato({ ricavo_imponibile: 200, ricavo_netto: 200 }),
       { companyId: COMPANY, customerId: "c", userId: "u", statusId: "s", description: "d" },
     );
     expect(payload.p_items).toHaveLength(1);
     expect(payload.p_items[0].name).toBe("Voce A");
     expect(payload.p_items[0].quantity).toBe(1); // FIX 1: sempre 1
     expect(payload.p_items[0].unit_price).toBe(200); // line_total 2 * 100
-    expect(payload.p_items[0].vat_rate).toBe(22);
+    // In singola la riga prende l'aliquota della simulazione (e della testata), non la sua.
+    expect(payload.p_items[0].vat_rate).toBe(10);
+    expect(payload.p_order_data.vat_rate).toBe(10);
+  });
+
+  it("lo sconto della simulazione resta: totale netto e sconto su ogni riga", () => {
+    // 10.000 € −10%: la commessa nasceva da 10.000 € (05/10/2026).
+    const d = doc({
+      voci: [voce({ descrizione: "Rifacimento bagno", quantita: 1, prezzo_unitario: 10000, costo_unitario: 6000 })],
+      scenari: { ...DEFAULT_SCENARI, iva_mode: "singola", iva_rate_singola: 10, sconto_pct: 10 },
+    });
+    const r = calcolaSimulazione(d);
+    const payload = mapToOrderPayload(d, r, { companyId: COMPANY, customerId: "c", userId: "u", statusId: "s", description: "d" });
+    expect(r.ricavo_netto).toBe(9000);
+    expect(payload.p_order_data.total_amount).toBe(9000);
+    expect(payload.p_order_data.vat_rate).toBe(10);
+    expect(payload.p_items[0]).toMatchObject({ unit_price: 10000, discount_percent: 10, purchase_price: 6000 });
+    // Come la legge la fattura dalla commessa: prezzo × (1 − sconto).
+    const nettoRighe = payload.p_items.reduce((s, it) => s + it.unit_price * it.quantity * (1 - it.discount_percent / 100), 0);
+    expect(nettoRighe).toBeCloseTo(9000, 6);
+  });
+
+  it("in mista i beni significativi diventano due righe con la loro aliquota", () => {
+    const d = doc({
+      voci: [
+        voce({ id: "c", descrizione: "Caldaia", quantita: 1, prezzo_unitario: 2000, costo_unitario: 1200, bene_significativo: true }),
+        voce({ id: "m", descrizione: "Posa caldaia", quantita: 8, unita: "h", prezzo_unitario: 100, costo_unitario: 40, vat_rate: 10, is_manodopera: true }),
+      ],
+      scenari: { ...DEFAULT_SCENARI, iva_mode: "mista", iva_rate_singola: 10 },
+    });
+    const r = calcolaSimulazione(d);
+    const payload = mapToOrderPayload(d, r, { companyId: COMPANY, customerId: "c", userId: "u", statusId: "s", description: "d" });
+    expect(payload.p_items.map((it) => [it.name, it.vat_rate, it.unit_price, it.purchase_price])).toEqual([
+      ["Caldaia (bene significativo)", 10, 800, 1200],
+      ["Caldaia (eccedenza 22%)", 22, 1200, 0],
+      ["Posa caldaia", 10, 800, 320],
+    ]);
+    expect(payload.p_items.map((it) => it.position)).toEqual([0, 1, 2]);
+    expect(payload.p_order_data.total_amount).toBe(2800);
+    // IVA: 1.600 × 10% + 1.200 × 22% = 424 → aliquota effettiva 15,14%.
+    expect(r.iva_totale).toBe(424);
+    expect(payload.p_order_data.vat_rate).toBe(15.14);
+  });
+});
+
+describe("testataPreventivo", () => {
+  it("porta sconto %, importo dello sconto, IVA e totale della simulazione", () => {
+    const d = doc({
+      voci: [voce({ quantita: 1, prezzo_unitario: 10000 })],
+      scenari: { ...DEFAULT_SCENARI, iva_mode: "singola", iva_rate_singola: 10, sconto_pct: 10 },
+    });
+    const r = calcolaSimulazione(d);
+    expect(testataPreventivo(d, r)).toEqual({
+      subtotal: 10000,
+      discount_percent: 10,
+      discount_amount: 1000,
+      vat_amount: 900,
+      total: 9900,
+    });
   });
 });

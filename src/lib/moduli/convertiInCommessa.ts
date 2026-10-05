@@ -18,7 +18,7 @@ export interface EsitoConversione {
   righe: number;
 }
 
-interface RigaCommessa {
+export interface RigaCommessa {
   name: string;
   description: string | null;
   quantity: number;
@@ -48,6 +48,60 @@ function scorporaIva(totaleIvato: number, aliquota: number): number {
 function arrotonda(n: unknown): number {
   const v = Number(n);
   return Number.isFinite(v) ? Math.round(v * 100) / 100 : 0;
+}
+
+// "always": anche a quattro cifre il punto delle migliaia (vedi formatCount).
+const QUANTITA_IT = new Intl.NumberFormat("it-IT", {
+  maximumFractionDigits: 3,
+  useGrouping: "always",
+} as unknown as Intl.NumberFormatOptions);
+const EURO_IT = new Intl.NumberFormat("it-IT", {
+  style: "currency",
+  currency: "EUR",
+  useGrouping: "always",
+} as unknown as Intl.NumberFormatOptions);
+
+/** L'unità come si scrive: mq → m², mc → m³; le altre restano com'erano. */
+function unitaLeggibile(unita: string | null | undefined): string {
+  const u = String(unita ?? "").trim();
+  if (u === "mq") return "m²";
+  if (u === "mc") return "m³";
+  return u;
+}
+
+/**
+ * Quantità, prezzo e costo della riga di commessa da quelli PER UNITÀ di una
+ * riga di preventivo (05/10/2026).
+ *
+ * `order_items.quantity` è un intero (create_order_atomic fa `::integer`, e
+ * nove viste dipendono dalla colonna): una quantità con decimali — 85,5 m² di
+ * una ristrutturazione, 7,5 ore di manodopera del fotovoltaico — faceva fallire
+ * tutta la conversione. Con i decimali la riga diventa 1 × il totale di riga,
+ * col costo di riga, e la quantità vera va in testa alla descrizione
+ * («85,5 m² × 30,00 €»). Il totale della commessa non cambia.
+ */
+export function quantitaPerCommessa(riga: {
+  quantita: number;
+  prezzoUnitario: number;
+  costoUnitario: number;
+  unita?: string | null;
+  descrizione?: string | null;
+}): Pick<RigaCommessa, "quantity" | "unit_price" | "purchase_price" | "description"> {
+  const quantita = Number(riga.quantita);
+  const prezzo = Number(riga.prezzoUnitario) || 0;
+  const costo = Number(riga.costoUnitario) || 0;
+  const descrizione = riga.descrizione?.trim() || null;
+  if (Number.isInteger(quantita)) {
+    return { quantity: quantita, unit_price: arrotonda(prezzo), purchase_price: arrotonda(costo), description: descrizione };
+  }
+  const unita = unitaLeggibile(riga.unita);
+  const quanto = `${QUANTITA_IT.format(quantita)}${unita ? ` ${unita}` : ""} × ${EURO_IT.format(prezzo)}`;
+  return {
+    quantity: 1,
+    unit_price: arrotonda(quantita * prezzo),
+    purchase_price: arrotonda(quantita * costo),
+    description: descrizione ? `${quanto} · ${descrizione}` : quanto,
+  };
 }
 
 /**
@@ -172,41 +226,50 @@ export async function convertiFvInCommessa(progettoId: string, userId: string): 
       .eq("progetto_id", progettoId).order("ordinamento", { ascending: true }),
   ]);
 
+  // Prezzi e costi qui sono per unità (per ora la manodopera): con una quantità
+  // con decimali la riga diventa 1 × il totale (quantitaPerCommessa).
   const righe: RigaCommessa[] = [];
   for (const c of componenti.data ?? []) {
     const nome = [c.marca, c.modello].filter(Boolean).join(" ").trim() || String(c.descrizione ?? "Componente");
     righe.push({
       name: nome.slice(0, 120),
-      description: c.descrizione && c.descrizione !== nome ? String(c.descrizione) : (c.categoria ? String(c.categoria) : null),
-      quantity: Number(c.quantita) || 1,
+      ...quantitaPerCommessa({
+        quantita: Number(c.quantita) || 1,
+        prezzoUnitario: Number(c.prezzo_unitario_vendita ?? c.prezzo_unitario_netto),
+        costoUnitario: Number(c.prezzo_unitario_netto),
+        descrizione: c.descrizione && c.descrizione !== nome ? String(c.descrizione) : (c.categoria ? String(c.categoria) : null),
+      }),
       status: "da_ordinare",
       position: righe.length,
-      unit_price: arrotonda(c.prezzo_unitario_vendita ?? c.prezzo_unitario_netto),
-      purchase_price: arrotonda(c.prezzo_unitario_netto),
       vat_rate: aliquota,
     });
   }
   for (const s of servizi.data ?? []) {
     righe.push({
       name: String(s.descrizione ?? s.tipo ?? "Servizio").slice(0, 120),
-      description: s.tipo ? String(s.tipo) : null,
-      quantity: Number(s.quantita) || 1,
+      ...quantitaPerCommessa({
+        quantita: Number(s.quantita) || 1,
+        prezzoUnitario: Number(s.prezzo_vendita ?? s.prezzo_netto),
+        costoUnitario: Number(s.prezzo_netto),
+        descrizione: s.tipo ? String(s.tipo) : null,
+      }),
       status: "da_ordinare",
       position: righe.length,
-      unit_price: arrotonda(s.prezzo_vendita ?? s.prezzo_netto),
-      purchase_price: arrotonda(s.prezzo_netto),
       vat_rate: aliquota,
     });
   }
   for (const m of manodopera.data ?? []) {
     righe.push({
       name: String(m.descrizione ?? "Manodopera").slice(0, 120),
-      description: "Manodopera",
-      quantity: Number(m.ore) || 1,
+      ...quantitaPerCommessa({
+        quantita: Number(m.ore) || 1,
+        prezzoUnitario: Number(m.tariffa_oraria_vendita ?? m.tariffa_oraria_netta),
+        costoUnitario: Number(m.tariffa_oraria_netta),
+        unita: "h",
+        descrizione: "Manodopera",
+      }),
       status: "da_ordinare",
       position: righe.length,
-      unit_price: arrotonda(m.tariffa_oraria_vendita ?? m.tariffa_oraria_netta),
-      purchase_price: arrotonda(m.tariffa_oraria_netta),
       vat_rate: aliquota,
     });
   }
@@ -283,16 +346,24 @@ export async function convertiRstInCommessa(progettoId: string, userId: string):
 
   const righe: RigaCommessa[] = (voci ?? []).map((v, idx) => {
     const quantita = Number(v.quantita) || 1;
-    // I costi del computo sono per riga: la commessa li vuole per unità.
-    const costoRiga = (Number(v.costo_materiali) || 0) + (Number(v.costo_manodopera) || 0);
     return {
       name: String(v.descrizione ?? "Voce di computo").slice(0, 120),
-      description: [v.capitolo_nome, v.unita_misura].filter(Boolean).join(" · ") || null,
-      quantity: quantita,
+      // I costi del computo sono già per unità (calcTotaliComputo li moltiplica
+      // per la quantità), come li vuole la commessa. 05/10/2026: qui si
+      // dividevano di nuovo per la quantità — 50 m² a 30 €/m² di costo
+      // diventavano 0,60 €/m², e la commessa mostrava un margine del 99%.
+      ...quantitaPerCommessa({
+        quantita,
+        prezzoUnitario: Number(v.prezzo_unitario),
+        costoUnitario: (Number(v.costo_materiali) || 0) + (Number(v.costo_manodopera) || 0),
+        unita: v.unita_misura,
+        // Con i decimali l'unità è già davanti, nella quantità.
+        descrizione: (Number.isInteger(quantita)
+          ? [v.capitolo_nome, v.unita_misura].filter(Boolean).join(" · ")
+          : v.capitolo_nome) || null,
+      }),
       status: "da_ordinare",
       position: idx,
-      unit_price: arrotonda(v.prezzo_unitario),
-      purchase_price: arrotonda(quantita > 0 ? costoRiga / quantita : costoRiga),
       vat_rate: aliquota,
     };
   });

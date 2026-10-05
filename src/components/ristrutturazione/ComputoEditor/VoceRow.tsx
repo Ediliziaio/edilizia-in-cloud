@@ -275,7 +275,9 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 <ChevronDown className={cn("h-3 w-3 transition-transform", breakdownOpen && "rotate-180")} />
                 {hasCosto
                   ? `Costo unitario ${formatCurrency(costoUnit)} · margine ${marginePct.toFixed(0)}%`
-                  : "Dettagli voce"}
+                  : importo > 0
+                    ? "Dettagli voce · aggiungi il costo: serve al margine"
+                    : "Dettagli voce"}
                 {voce.ambiente ? ` · 📍 ${voce.ambiente}` : ""}
               </button>
             </CollapsibleTrigger>
@@ -292,13 +294,15 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                     className="h-6 flex-1 px-1.5 text-[11px]"
                   />
                 </label>
-                {hasCosto && (
-                  <>
-                    {/* Barra proporzionale materiali/manodopera */}
-                    <div className="flex h-2 overflow-hidden rounded-full bg-muted">
-                      <div className="bg-sky-400" style={{ width: `${matQuota}%` }} title="Materiali" />
-                      <div className="bg-violet-400" style={{ width: `${100 - matQuota}%` }} title="Manodopera" />
-                    </div>
+                {/* I campi del costo anche quando manca (05/10/2026): il margine
+                    dice «costi incompleti» e qui lo si scrive. La barra solo con un costo. */}
+                <>
+                    {hasCosto && (
+                      <div className="flex h-2 overflow-hidden rounded-full bg-muted">
+                        <div className="bg-sky-400" style={{ width: `${matQuota}%` }} title="Materiali" />
+                        <div className="bg-violet-400" style={{ width: `${100 - matQuota}%` }} title="Manodopera" />
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-2">
                       <label className="flex items-center gap-1.5 text-[11px]">
                         <Package className="h-3 w-3 text-sky-500" />
@@ -327,8 +331,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                         />
                       </label>
                     </div>
-                  </>
-                )}
+                </>
               </div>
             </CollapsibleContent>
           </Collapsible>

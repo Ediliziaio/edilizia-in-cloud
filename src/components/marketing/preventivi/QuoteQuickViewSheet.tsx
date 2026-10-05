@@ -19,6 +19,7 @@ import { duplicaPreventivo } from "@/lib/quotes/duplicaPreventivo";
 import { avvisoSchedeNonAllegate } from "@/lib/quotes/allegatiPreventivo";
 import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { RIGHE_SENZA_COSTO } from "@/hooks/usePreventivoCosti";
 
 interface QuoteSummary {
   id: string;
@@ -99,11 +100,11 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("quote_items")
-        .select("id, name, quantity, unit_price, discount_percent, line_total, item_category, prezzo_acquisto")
+        .select("id, name, quantity, unit_price, discount_percent, line_total, item_category, prezzo_acquisto, is_optional")
         .eq("quote_id", quoteId!)
         .order("sort_order");
       if (error) throw error;
-      return data as Array<{ id: string; name: string; quantity: number; unit_price: number; discount_percent: number; line_total: number | null; item_category: string | null; prezzo_acquisto: number | null }>;
+      return data as Array<{ id: string; name: string; quantity: number; unit_price: number; discount_percent: number; line_total: number | null; item_category: string | null; prezzo_acquisto: number | null; is_optional: boolean | null }>;
     },
   });
 
@@ -146,12 +147,14 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
     },
   });
 
+  // Le righe facoltative non sono vendute: fuori da costo e ricavo, come nei
+  // totali del preventivo (05/10/2026).
   const costoTotale = useMemo(() => {
-    return items.reduce((s, it) => s + (it.prezzo_acquisto ?? 0) * (it.quantity ?? 0), 0);
+    return items.filter((it) => !it.is_optional).reduce((s, it) => s + (it.prezzo_acquisto ?? 0) * (it.quantity ?? 0), 0);
   }, [items]);
 
   const ricavoRighe = useMemo(() => {
-    return items.reduce((s, it) => s + (it.line_total ?? (it.quantity * it.unit_price * (1 - (it.discount_percent ?? 0) / 100))), 0);
+    return items.filter((it) => !it.is_optional).reduce((s, it) => s + (it.line_total ?? (it.quantity * it.unit_price * (1 - (it.discount_percent ?? 0) / 100))), 0);
   }, [items]);
   // Prezzo scritto a mano (21/09/2026): le righe sono a 0€, la somma delle
   // righe direbbe "margine -100%" su un preventivo che invece va benissimo.
@@ -162,6 +165,16 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
 
   const margineEur = ricavoNetto - costoTotale - (quote?.totale_overhead ?? 0);
   const marginePct = ricavoNetto > 0 ? (margineEur / ricavoNetto) * 100 : 0;
+  // Prodotti e servizi venduti senza costo (stesso criterio di
+  // calcolaTotaliPreventivo): con quelle righe a costo zero il margine usciva
+  // vicino al 100%. Si dice «costi incompleti» invece di un numero falso (05/10/2026).
+  const conPrezzoManuale = Number(quote?.prezzo_manuale ?? 0) > 0;
+  const righeSenzaCosto = items.filter((it) =>
+    !it.is_optional
+    && !RIGHE_SENZA_COSTO.has(String(it.item_category ?? "prodotto"))
+    && ((it.line_total ?? it.quantity * it.unit_price) > 0 || conPrezzoManuale)
+    && !(Number(it.prezzo_acquisto) > 0),
+  ).length;
 
   const status = (quote?.status as QuoteStatus) || "bozza";
   const statusCfg = QUOTE_STATUS_CONFIG[status] ?? QUOTE_STATUS_CONFIG.bozza;
@@ -229,13 +242,22 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
                   sub={quote.totale_overhead ? `+overhead ${formatCurrency(quote.totale_overhead)}` : undefined}
                   accent="orange"
                 />
-                <KpiBox
-                  icon={<TrendingUp className={`h-3.5 w-3.5 ${marginePct >= 20 ? "text-green-600" : marginePct >= 10 ? "text-yellow-600" : "text-red-600"}`} />}
-                  label="Margine"
-                  value={`${marginePct.toFixed(1)}%`}
-                  sub={formatCurrency(margineEur)}
-                  accent={marginePct >= 20 ? "green" : marginePct >= 10 ? "yellow" : "red"}
-                />
+                {righeSenzaCosto > 0 ? (
+                  <KpiBox
+                    icon={<TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />}
+                    label="Margine"
+                    value="—"
+                    sub={`Costi incompleti · ${righeSenzaCosto === 1 ? "1 riga" : `${righeSenzaCosto} righe`} senza costo`}
+                  />
+                ) : (
+                  <KpiBox
+                    icon={<TrendingUp className={`h-3.5 w-3.5 ${marginePct >= 20 ? "text-green-600" : marginePct >= 10 ? "text-yellow-600" : "text-red-600"}`} />}
+                    label="Margine"
+                    value={`${marginePct.toFixed(1)}%`}
+                    sub={formatCurrency(margineEur)}
+                    accent={marginePct >= 20 ? "green" : marginePct >= 10 ? "yellow" : "red"}
+                  />
+                )}
               </div>
 
               {/* Commerciale + provvigione */}

@@ -35,8 +35,15 @@ import {
   useScontiQuantita,
   useBundleProdotti,
   calcolaScontoQuantita,
+  ivaVoceNuova,
+  normalizzaRigaSconto,
+  prezzoRigaSconto,
+  semaforo,
 } from "@/hooks/usePreventivoCosti";
 import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventivoCosti";
+import { calcolaPrezzoFamiglia, type GridPoint } from "@/hooks/useFamilyPricing";
+import { unitaTariffa } from "@/lib/listino/costoTariffa";
+import { allineaRigheAlKm, quantitaInizialeTariffa } from "@/lib/listino/tariffaAlKm";
 import ApplyBundleDialog from "@/components/marketing/preventivi/ApplyBundleDialog";
 import { TariffePickerDialog } from "@/components/marketing/preventivi/TariffePickerDialog";
 import { AddItemDialog } from "@/components/marketing/preventivi/AddItemDialog";
@@ -336,6 +343,38 @@ function ContactCombobox({
 import { STEPS } from "./QuoteBuilder/constants";
 import { SedeSelect } from "@/components/sedi/SedeSelect";
 
+/**
+ * Le griglie prezzi delle famiglie «a griglia» scelte dall'AI (05/10/2026):
+ * servono a prezzo e costo della misura, come nel configuratore. Stessa
+ * lettura del rilievo per posizioni, a pagine perché le griglie sono grandi.
+ */
+async function caricaGriglieFamiglie(ids: string[]): Promise<Record<string, GridPoint[]>> {
+  const perFamiglia: Record<string, GridPoint[]> = {};
+  const PAGINA = 1000;
+  for (let da = 0; ; da += PAGINA) {
+    const { data, error } = await (supabase as never as typeof supabase)
+      .from("listino_griglia" as never)
+      .select("family_id, valore_x, valore_y, prezzo_vendita, prezzo_acquisto")
+      .in("family_id" as never, ids)
+      .order("id" as never)
+      .range(da, da + PAGINA - 1);
+    if (error) throw error;
+    const celle = (data ?? []) as Array<{
+      family_id: string; valore_x: number; valore_y: number; prezzo_vendita: number; prezzo_acquisto: number | null;
+    }>;
+    for (const c of celle) {
+      (perFamiglia[c.family_id] ??= []).push({
+        valore_x: Number(c.valore_x),
+        valore_y: Number(c.valore_y),
+        prezzo_vendita: Number(c.prezzo_vendita),
+        prezzo_acquisto_netto: c.prezzo_acquisto != null ? Number(c.prezzo_acquisto) : 0,
+      });
+    }
+    if (celle.length < PAGINA) break;
+  }
+  return perFamiglia;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function QuoteBuilder() {
@@ -394,6 +433,10 @@ export default function QuoteBuilder() {
   const [indirizzoLavori, setIndirizzoLavori] = useState("");
   const [pianoInstallazione, setPianoInstallazione] = useState(0);
   const [kmCantiere, setKmCantiere] = useState(0);
+  // Distanza quando il campo ha preso il fuoco, e l'ultima distanza seguita
+  // dalle righe al km: servono a riallinearle quando la distanza cambia.
+  const kmAlFocusRef = useRef(0);
+  const kmRigheRef = useRef<number | null>(null);
 
   // Commerciale assegnato al preventivo (per provvigioni e regole sconto)
   const [salespersonId, setSalespersonId] = useState<string | null>(null);
@@ -524,6 +567,9 @@ export default function QuoteBuilder() {
     calcolaPrezzoProdotto,
     calcolaTariffaAutomatica,
   } = usePreventivoCosti(companyId);
+  // Con tariffe al km nel listino la distanza del cantiere serve sempre: è la
+  // quantità delle loro righe (05/10/2026).
+  const haTariffeAlKm = useMemo(() => tariffe.some((t) => unitaTariffa(t) === "km"), [tariffe]);
 
   // FASE 7.3: sconti quantità e bundle suggestions
   const { data: scontiQuantita = [] } = useScontiQuantita(companyId);
@@ -830,7 +876,8 @@ export default function QuoteBuilder() {
     if (existingItems.length > 0) {
       setItems(
         existingItems.map((i): QuoteItemPro => {
-          return {
+          // Una riga «Sconto» salvata in positivo (prima del 05/10/2026) torna in negativo.
+          return normalizzaRigaSconto<QuoteItemPro>({
             id: i.id,
             item_type: i.item_type === "service" ? "service" : "product",
             item_category: (i.item_category || "prodotto") as QuoteItemPro["item_category"],
@@ -862,7 +909,7 @@ export default function QuoteBuilder() {
             parent_item_id: (i as { parent_item_id?: string | null }).parent_item_id ?? null,
             client_temp_id: i.id,
             parent_temp_id: (i as { parent_item_id?: string | null }).parent_item_id ?? null,
-          };
+          });
         })
       );
     }
@@ -985,20 +1032,17 @@ export default function QuoteBuilder() {
 
 
   // Items management
-  // IVA per le righe nuove: quella più usata nelle righe già presenti (un
-  // preventivo al 10% non deve nascere con una riga al 22% in mezzo); 22 solo
-  // se il preventivo è ancora vuoto.
-  const ivaPredefinita = (): number => {
-    const conteggio = new Map<number, number>();
-    for (const it of items) {
-      if (["nota", "subtotale", "sconto"].includes(String(it.item_category))) continue;
-      const iva = Number(it.vat_rate);
-      if (!Number.isFinite(iva)) continue;
-      conteggio.set(iva, (conteggio.get(iva) ?? 0) + 1);
-    }
-    let scelta = 22, max = 0;
-    for (const [iva, n] of conteggio) if (n > max) { max = n; scelta = iva; }
-    return scelta;
+  // IVA per le righe nuove che non dipendono da un prodotto (un preventivo al
+  // 10% non deve nascere con una riga al 22% in mezzo): la più usata tra i
+  // prodotti, poi tra le altre voci, poi quella del prezzo scritto a mano,
+  // infine 22 (ivaVoceNuova, 05/10/2026).
+  const ivaPredefinita = (): number => ivaVoceNuova(items, prezzoManualeIvaPct);
+  // Una voce legata a un prodotto (posa automatica, smaltimento) ha l'IVA di
+  // quel prodotto: prima prendeva la più usata nel preventivo, e a preventivo
+  // vuoto la posa di un serramento al 10% nasceva al 22%.
+  const ivaDelProdotto = (prodotto: QuoteItemPro | undefined): number => {
+    const iva = prodotto?.vat_rate == null ? NaN : Number(prodotto.vat_rate);
+    return prodotto?.item_category === "prodotto" && Number.isFinite(iva) ? iva : ivaPredefinita();
   };
 
   const addItem = (type: string = "product") => {
@@ -1044,13 +1088,22 @@ export default function QuoteBuilder() {
     ]);
   };
 
+  // Quantità e prezzi della riga nuova di una tariffa (05/10/2026). Al km la
+  // quantità sono i km — la distanza del cantiere, se c'è — e il prezzo è
+  // quello al km: «45 km × 0,80 €». Prima la riga nasceva «1 × (prezzo ×
+  // distanza)», e senza distanza a 0 € senza dirlo.
+  const prezziRigaTariffa = (tariffa: TariffaPro) => {
+    const { quantita, mancaDistanza } = quantitaInizialeTariffa(tariffa, kmCantiere);
+    if (mancaDistanza) {
+      toast.info(`«${tariffa.nome}» è al km: scrivi la distanza del cantiere nei dati del preventivo, oppure i km nella quantità della riga.`);
+    }
+    // Prezzo e costo di UNA unità (un km, un'ora, il prezzo a corpo): la quantità li moltiplica.
+    const unita = calcolaTariffaAutomatica(tariffa, 1, pianoInstallazione);
+    return { quantity: quantita, unit_price: unita.prezzo_vendita, prezzo_acquisto: unita.prezzo_acquisto };
+  };
+
   const addTariffa = (tariffa: TariffaPro, category: string) => {
-    const { prezzo_vendita, prezzo_acquisto } = calcolaTariffaAutomatica(
-      tariffa,
-      1,
-      pianoInstallazione,
-      kmCantiere,
-    );
+    const riga = prezziRigaTariffa(tariffa);
     setItems((prev) => [
       ...prev,
       {
@@ -1058,15 +1111,16 @@ export default function QuoteBuilder() {
         item_category: category,
         name: tariffa.nome,
         description: "",
-        quantity: 1,
-        unit_price: prezzo_vendita,
+        quantity: riga.quantity,
+        unit_price: riga.unit_price,
         discount_percent: 0,
         vat_rate: ivaPredefinita(),
-        unit_of_measure: tariffa.unita,
+        // L'unità con cui la tariffa si conta (unitaTariffa), non la legacy.
+        unit_of_measure: unitaTariffa(tariffa),
         sort_order: prev.length,
         article_template_id: null,
         tariffa_id: tariffa.id,
-        prezzo_acquisto,
+        prezzo_acquisto: riga.prezzo_acquisto,
         mostra_nel_pdf: true,
         is_optional: false,
       } as QuoteItemPro,
@@ -1076,12 +1130,7 @@ export default function QuoteBuilder() {
   const addSmaltimento = (parentIdx: number) => {
     const tariffa = tariffe.find((t) => t.tipo === "smaltimento");
     if (tariffa) {
-      const { prezzo_vendita, prezzo_acquisto } = calcolaTariffaAutomatica(
-        tariffa,
-        1,
-        pianoInstallazione,
-        kmCantiere,
-      );
+      const riga = prezziRigaTariffa(tariffa);
       setItems((prev) => [
         ...prev,
         {
@@ -1089,15 +1138,16 @@ export default function QuoteBuilder() {
           item_category: "smaltimento",
           name: tariffa.nome,
           description: "",
-          quantity: 1,
-          unit_price: prezzo_vendita,
+          quantity: riga.quantity,
+          unit_price: riga.unit_price,
           discount_percent: 0,
-          vat_rate: ivaPredefinita(),
-          unit_of_measure: tariffa.unita,
+          // Lo smaltimento viene chiesto dopo un prodotto: ne prende l'IVA.
+          vat_rate: ivaDelProdotto(items[parentIdx]),
+          unit_of_measure: unitaTariffa(tariffa),
           sort_order: prev.length,
           article_template_id: null,
           tariffa_id: tariffa.id,
-          prezzo_acquisto,
+          prezzo_acquisto: riga.prezzo_acquisto,
           mostra_nel_pdf: true,
           is_optional: false,
           _parentIdx: parentIdx,
@@ -1130,16 +1180,79 @@ export default function QuoteBuilder() {
   ) => {
     // Resolve cost prices and VAT for every row before updating state
     const resolved: QuoteItemPro[] = [];
+    // Righe con l'IVA presa dal listino (articolo o famiglia): le altre la
+    // ricevono in fondo, guardando i prodotti (05/10/2026).
+    const ivaDalListino: boolean[] = [];
+    const fuoriListino: string[] = [];
+
+    // Famiglie scelte dall'AI e, per quelle a griglia, le celle della griglia.
+    const famigliaDi = (familyId: string | null | undefined) =>
+      familyId ? articleFamilies.find((f) => f.id === familyId) : undefined;
+    const idGriglie = [...new Set(
+      righe
+        .map((r) => famigliaDi(r.family_id))
+        .filter((f): f is NonNullable<typeof f> => f?.modalita_prezzo_base === "griglia")
+        .map((f) => f.id),
+    )];
+    let griglie: Record<string, GridPoint[]> = {};
+    if (idGriglie.length > 0) {
+      try {
+        griglie = await caricaGriglieFamiglie(idGriglie);
+      } catch (e) {
+        // Senza griglia resta il prezzo dell'AI e il costo manca: il margine lo dice.
+        console.warn("[aggiungiSezione] griglie non caricate:", e);
+      }
+    }
 
     for (const r of righe) {
       let upv = r.unit_price ?? 0;
       let upa = 0;
       let vat_rate = ivaPredefinita();
+      let ivaPropria = false;
+      let quantita = r.quantita;
+      let unitaRiga = r.unita_misura || "pz";
 
-      if (r.article_template_id) {
+      const famiglia = famigliaDi(r.family_id);
+      if (famiglia) {
+        // Riga di famiglia (05/10/2026): IVA della famiglia e costo d'acquisto
+        // dal listino, al netto degli sconti fornitore (calcolaPrezzoFamiglia),
+        // come nel configuratore. Prima: l'IVA più usata nel preventivo e
+        // costo 0, cioè il 100% di margine su quella riga.
+        const ivaFamiglia = famiglia.vat_rate == null ? NaN : Number(famiglia.vat_rate);
+        if (Number.isFinite(ivaFamiglia)) {
+          vat_rate = ivaFamiglia;
+          ivaPropria = true;
+        }
+        const pricing = calcolaPrezzoFamiglia(
+          {
+            family: famiglia,
+            selections: r.axis_selections ?? {},
+            larghezza_mm: r.misure_x_mm ?? undefined,
+            altezza_mm: r.misure_y_mm ?? undefined,
+            quantita: r.quantita || 1,
+          },
+          griglie[famiglia.id],
+        );
+        if (pricing.fuori_listino) {
+          // Misura oltre la griglia: il prezzo dell'AI era quello di una finestra più piccola.
+          upv = 0;
+          fuoriListino.push(r.nome);
+        } else {
+          // Misure, griglia e ricarico sul costo: vale il listino di oggi, come
+          // per gli articoli a mq/griglia qui sotto (il server prendeva la
+          // cella più vicina e non applicava il ricarico).
+          const ricalcola =
+            famiglia.modalita_prezzo_base === "mq" ||
+            famiglia.modalita_prezzo_base === "griglia" ||
+            famiglia.prezzo_base_mode === "acquisto_markup";
+          if ((ricalcola || upv === 0) && pricing.unit_price_vendita > 0) upv = pricing.unit_price_vendita;
+        }
+        upa = pricing.unit_price_acquisto;
+      } else if (r.article_template_id) {
         const art = articoli.find((a) => a.id === r.article_template_id);
         if (art) {
           vat_rate = art.vat_rate ?? 22;
+          ivaPropria = true;
           const mx = r.misure_x_mm ?? undefined;
           const my = r.misure_y_mm ?? undefined;
           const calc = await calcolaPrezzoProdotto(art, r.quantita, mx, my);
@@ -1158,23 +1271,32 @@ export default function QuoteBuilder() {
       } else if (r.tariffa_id) {
         const tar = tariffe.find((t) => t.id === r.tariffa_id);
         if (tar) {
-          const qty = r.quantita || 1;
-          const calc = calcolaTariffaAutomatica(tar, qty, pianoInstallazione, kmCantiere);
+          // L'unità della tariffa, con cui il prezzo è scritto (05/10/2026). Al
+          // km la quantità sono i km: se l'AI non li sa (1) e il preventivo ha
+          // la distanza del cantiere, vale quella.
+          unitaRiga = unitaTariffa(tar);
+          if (unitaRiga === "km" && !(Number(r.quantita) > 1)) {
+            const { quantita: km, mancaDistanza } = quantitaInizialeTariffa(tar, kmCantiere);
+            if (!mancaDistanza) quantita = km;
+          }
+          const qty = quantita || 1;
+          const calc = calcolaTariffaAutomatica(tar, qty, pianoInstallazione);
           if (upv === 0) upv = qty > 0 ? calc.prezzo_vendita / qty : calc.prezzo_vendita;
           upa = qty > 0 ? calc.prezzo_acquisto / qty : calc.prezzo_acquisto;
         }
       }
 
+      ivaDalListino.push(ivaPropria);
       resolved.push({
         item_type: r.item_category === "prodotto" ? "product" : "service",
         item_category: r.item_category,
         name: r.nome,
         description: r.descrizione ?? "",
-        quantity: r.quantita,
+        quantity: quantita,
         unit_price: upv,
         discount_percent: 0,
         vat_rate,
-        unit_of_measure: r.unita_misura || "pz",
+        unit_of_measure: unitaRiga,
         sort_order: 0,
         // Vincolo DB (migration 20260917000012): family_id e article_template_id
         // mutualmente esclusivi. Se AI ha scelto famiglia, zeramo article id.
@@ -1189,6 +1311,32 @@ export default function QuoteBuilder() {
         family_id: r.family_id ?? null,
         axis_selections: r.axis_selections ?? null,
       } as QuoteItemPro);
+    }
+
+    // Le altre righe (posa, trasporto, voci senza listino): la posa di un
+    // prodotto (is_posa_di, il nome o l'id del prodotto) ne prende l'IVA; le
+    // altre l'IVA delle voci nuove, contando anche i prodotti appena arrivati.
+    const ivaAltreVoci = ivaVoceNuova(
+      [...items, ...resolved.filter((_, i) => ivaDalListino[i])],
+      prezzoManualeIvaPct,
+    );
+    const chiave = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+    righe.forEach((r, i) => {
+      if (ivaDalListino[i]) return;
+      let padre = -1;
+      if (r.is_posa_di) {
+        const rif = chiave(r.is_posa_di);
+        padre = righe.findIndex(
+          (x, j) => ivaDalListino[j] && [x.nome, x.article_template_id, x.family_id].some((v) => chiave(v) === rif),
+        );
+        // Riferimento non riconosciuto: il prodotto a listino più vicino sopra la posa.
+        for (let j = i - 1; padre < 0 && j >= 0; j--) if (ivaDalListino[j]) padre = j;
+      }
+      resolved[i] = { ...resolved[i], vat_rate: padre >= 0 ? resolved[padre].vat_rate : ivaAltreVoci };
+    });
+
+    if (fuoriListino.length > 0) {
+      toast.warning(`Misura fuori listino, prezzo da scrivere: ${fuoriListino.join(", ")}`);
     }
 
     setItems((prev) => {
@@ -1247,7 +1395,7 @@ export default function QuoteBuilder() {
         tariffe.find((t) => t.tipo === "posa");
       if (tariffa) {
         const { prezzo_vendita: pvP, prezzo_acquisto: paP } =
-          calcolaTariffaAutomatica(tariffa, qty, pianoInstallazione, kmCantiere);
+          calcolaTariffaAutomatica(tariffa, qty, pianoInstallazione);
         const upvP = qty > 0 ? pvP / qty : pvP;
         const upaP = qty > 0 ? paP / qty : paP;
         newItems.push({
@@ -1258,8 +1406,9 @@ export default function QuoteBuilder() {
           quantity: qty,
           unit_price: upvP,
           discount_percent: 0,
-          vat_rate: ivaPredefinita(),
-          unit_of_measure: tariffa.unita,
+          // La posa automatica è del prodotto appena aggiunto: stessa IVA.
+          vat_rate: newItem.vat_rate,
+          unit_of_measure: unitaTariffa(tariffa),
           sort_order: newItems.length,
           article_template_id: null,
           tariffa_id: tariffa.id,
@@ -1612,7 +1761,8 @@ export default function QuoteBuilder() {
     if (d.prezzoManuale !== undefined) setPrezzoManuale(d.prezzoManuale);
     if (d.prezzoManualeIvaPct !== undefined) setPrezzoManualeIvaPct(d.prezzoManualeIvaPct);
     if (d.provvigionePct !== undefined) setProvvigionePct(d.provvigionePct);
-    if (d.items !== undefined) setItems(d.items);
+    // Le bozze di prima del 05/10/2026 possono avere righe «Sconto» in positivo.
+    if (d.items !== undefined) setItems(d.items.map((it) => normalizzaRigaSconto(it)));
     if (d.paymentMethod !== undefined) setPaymentMethod(d.paymentMethod);
     if (d.paymentPhases !== undefined) setPaymentPhases(d.paymentPhases);
     if (d.bonusLines !== undefined) setBonusLines(d.bonusLines);
@@ -1775,15 +1925,20 @@ export default function QuoteBuilder() {
         indirizzo_lavori: indirizzoLavori || null,
         piano_installazione: pianoInstallazione || null,
         km_cantiere: kmCantiere || null,
-        totale_costo_interno: totaliPro.costo_totale || null,
-        totale_overhead: totaliPro.overhead_totale || null,
-        margine_totale_percentuale: totaliPro.margine_totale_pct || null,
+        // Costi incompleti (05/10/2026): con una riga venduta senza costo il
+        // margine contava zero quel costo, fino al 100%, e quel numero finiva
+        // in report, approvazioni e limite di sconto (compute_max_discount).
+        // Allora costo, overhead e margine si salvano vuoti: il limite di
+        // sconto torna alla sua stima prudente.
+        totale_costo_interno: totaliPro.costi_completi ? (totaliPro.costo_totale || null) : null,
+        totale_overhead: totaliPro.costi_completi ? (totaliPro.overhead_totale || null) : null,
+        margine_totale_percentuale: totaliPro.costi_completi ? (totaliPro.margine_totale_pct || null) : null,
         // Preventivi V2
         salesperson_id: salespersonId,
         sede_id: sedeId,
         render_url: renderUrl,
         render_session_id: renderSessionId,
-        margine_pct_snapshot: totaliPro.margine_totale_pct ?? null,
+        margine_pct_snapshot: totaliPro.costi_completi ? (totaliPro.margine_totale_pct ?? null) : null,
         firma_digitale_abilitata: pdfFirma,
         template_layout_override: layoutOverride || null,
         // MP-preventivi-v2: persistenza completa flag PDF (admin-only input).
@@ -1826,7 +1981,10 @@ export default function QuoteBuilder() {
       // Controllare ogni risultato: nessun falso successo dopo errori parziali.
       const salvaRigheAtomiche = async (idPreventivo: string) => {
         {
-          const payload = items.map((it, idx) => ({
+          // La riga «Sconto» parte col prezzo negativo (05/10/2026): il
+          // database fa i totali sommando le righe, come lo schermo.
+          const righeDaSalvare = items.map((voce) => normalizzaRigaSconto(voce));
+          const payload = righeDaSalvare.map((it, idx) => ({
             sort_order: idx,
             client_temp_id: it.client_temp_id ?? null,
             parent_temp_id: it.parent_temp_id ?? null,
@@ -2064,6 +2222,27 @@ export default function QuoteBuilder() {
               <span className="text-slate-500">Imponibile {formatCurrency(imponibilePreventivo)} + IVA {formatCurrency(vatAmount)}</span>
               <span className="font-semibold">Totale IVA inclusa <strong className="ml-2 text-lg text-primary">{formatCurrency(total)}</strong></span>
             </div>
+            {/* Margine per chi lo può vedere (05/10/2026). Con una riga venduta
+                senza costo non si mostra: contava zero quel costo, fino al 100%.
+                Telefono no: margini e costi si guardano dal computer. */}
+            {canViewImpresa && imponibilePreventivo > 0 && (
+              <div className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm max-sm:hidden ${totaliPro.costi_completi ? "border-slate-200" : "border-amber-300 bg-amber-50/60"}`}>
+                <span className="flex items-center gap-1.5 text-slate-600">
+                  <TrendingUp className="h-3.5 w-3.5" /> Margine
+                </span>
+                {totaliPro.costi_completi ? (
+                  <span className={`font-semibold tabular-nums ${{ red: "text-red-600", yellow: "text-amber-600", green: "text-emerald-700" }[semaforo(totaliPro.margine_totale_pct, impostazioni.margine_minimo_percentuale ?? 15, impostazioni.margine_target_default ?? 25)]}`}>
+                    {totaliPro.margine_totale_pct.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 font-semibold text-amber-700">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    Costi incompleti
+                    {totaliPro.righe_senza_costo > 0 && ` · ${totaliPro.righe_senza_costo === 1 ? "1 riga senza costo" : `${totaliPro.righe_senza_costo} righe senza costo`}`}
+                  </span>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
   ) : null;
@@ -2336,8 +2515,10 @@ export default function QuoteBuilder() {
                 className="flex w-full items-center justify-between rounded-lg border border-dashed px-3 py-3 text-left text-sm max-sm:border-border"
               >
                 <span>
-                  <span className="font-medium">Tipo di lavoro, commerciale, sede, indirizzo</span>
-                  <span className="block text-xs text-muted-foreground">{tipoLavoro || salespersonId || sedeId || indirizzoLavori ? "Compilati: tocca per vedere" : "Facoltativi: tocca per compilare"}</span>
+                  <span className="font-medium">
+                    Tipo di lavoro, commerciale, sede, indirizzo{impostazioni.chiedi_trasporto || haTariffeAlKm ? ", distanza" : ""}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">{tipoLavoro || salespersonId || sedeId || indirizzoLavori || kmCantiere > 0 ? "Compilati: tocca per vedere" : "Facoltativi: tocca per compilare"}</span>
                 </span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
@@ -2427,15 +2608,30 @@ export default function QuoteBuilder() {
                   </div>
                 </div>
               )}
-              {impostazioni.chiedi_trasporto && (
+              {/* Anche senza «Chiedi trasporto», se il listino ha tariffe al km:
+                  la distanza è la quantità delle loro righe (05/10/2026). */}
+              {(impostazioni.chiedi_trasporto || haTariffeAlKm) && (
                 <div>
                   <Label>Distanza cantiere (km)</Label>
                   <Input
                     type="number"
                     value={kmCantiere}
+                    onFocus={() => {
+                      kmAlFocusRef.current = kmCantiere;
+                      if (kmCantiere > 0) kmRigheRef.current = kmCantiere;
+                    }}
                     onChange={(e) =>
                       setKmCantiere(parseFloat(e.target.value) || 0)
                     }
+                    onBlur={() => {
+                      // Le righe al km che seguivano la distanza prendono quella nuova
+                      // (allineaRigheAlKm); a fine modifica, non a ogni cifra.
+                      const prima = kmAlFocusRef.current > 0 ? kmAlFocusRef.current : (kmRigheRef.current ?? 0);
+                      if (kmCantiere > 0 && kmCantiere !== prima) {
+                        setItems((prev) => allineaRigheAlKm(prev, prima, kmCantiere));
+                        kmRigheRef.current = kmCantiere;
+                      }
+                    }}
                     placeholder="0"
                   />
                 </div>
@@ -2840,26 +3036,26 @@ export default function QuoteBuilder() {
                                     }
                                   />
                                 </div>
+                                {/* Riga di sconto (05/10/2026): si scrive l'importo, si salva in
+                                    negativo e il totale scende. Prima il 100 scritto si sommava. */}
                                 <div className="col-span-6 2xl:col-span-3 max-sm:col-span-4">
-                                  <Label className="text-xs"><span className="max-sm:hidden">Prezzo unitario €</span><span className="sm:hidden">Prezzo €</span></Label>
+                                  <Label className="text-xs">{isSconto ? "Sconto €" : <><span className="max-sm:hidden">Prezzo unitario €</span><span className="sm:hidden">Prezzo €</span></>}</Label>
                                   <Input
                                     type="number"
                                     min={0}
                                     step={0.01}
-                                    aria-label={`Prezzo unitario: ${item.name || "riga"}`}
-                                    value={item.unit_price}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        idx,
-                                        "unit_price",
-                                        parseFloat(e.target.value) || 0
-                                      )
-                                    }
+                                    aria-label={`${isSconto ? "Importo sconto" : "Prezzo unitario"}: ${item.name || "riga"}`}
+                                    value={isSconto ? Math.abs(item.unit_price) : item.unit_price}
+                                    onChange={(e) => {
+                                      const valore = parseFloat(e.target.value) || 0;
+                                      updateItem(idx, "unit_price", isSconto ? prezzoRigaSconto(valore) : valore);
+                                    }}
                                     className={isSconto ? "text-red-600" : ""}
                                   />
                                 </div>
-                                {/* Telefono no: lo sconto di riga (c'è lo sconto del preventivo). */}
-                                <div className="col-span-4 2xl:col-span-2 max-sm:hidden">
+                                {/* Telefono no: lo sconto di riga (c'è lo sconto del preventivo).
+                                    Sulla riga di sconto non c'è: uno sconto dello sconto non vuol dire niente. */}
+                                {!isSconto && <div className="col-span-4 2xl:col-span-2 max-sm:hidden">
                                   <Label className="text-xs">Sconto %</Label>
                                   <Input
                                     type="number"
@@ -2875,7 +3071,7 @@ export default function QuoteBuilder() {
                                       )
                                     }
                                   />
-                                </div>
+                                </div>}
                                 <div className="col-span-4 2xl:col-span-2 max-sm:col-span-3">
                                   <Label className="text-xs">IVA%</Label>
                                   <Input
@@ -3075,7 +3271,8 @@ export default function QuoteBuilder() {
                   }))}
                 proposedTotal={total}
                 proposedMarginPct={
-                  totaliPro.costo_totale > 0 ? totaliPro.margine_totale_pct : null
+                  // Solo con tutti i costi: con una riga senza costo il margine è gonfiato.
+                  totaliPro.costi_completi ? totaliPro.margine_totale_pct : null
                 }
               />
             </details>

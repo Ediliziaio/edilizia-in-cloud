@@ -32,7 +32,14 @@ export interface TipologiaSelezionabile {
   id: string;
   nome: string;
   vertical?: string | null;
+  /** Come si vende oggi: griglia e «acquisto + ricarico» qui diventano al m² (05/10/2026). */
+  modalita_prezzo_base?: string | null;
+  prezzo_base_mode?: string | null;
 }
+
+/** Un prezzo che questo strumento sostituirebbe: la griglia L×H o il costo + ricarico. */
+const haPrezzoProprio = (f: TipologiaSelezionabile) =>
+  f.modalita_prezzo_base === "griglia" || f.prezzo_base_mode === "acquisto_markup";
 
 /** Le percentuali che hanno oggi colore e vetro nei Serramenti (null = il valore non c'è). */
 export interface OpzioniIniziali {
@@ -83,8 +90,12 @@ export function ImpostaStandardSerramentiDialog({
 
   const applica = useStandardSerramenti();
 
-  // Preselezione: i serramenti veri, non gli accessori.
-  const scelte = selezionate ?? new Set(serramenti.filter((f) => !ACCESSORIO.test(f.nome)).map((f) => f.id));
+  // Preselezione: i serramenti veri, non gli accessori; e non quelli con una
+  // griglia di prezzi o a costo + ricarico, che questo strumento trasforma in
+  // «al m², vendita diretta» (prima erano spuntati e cambiavano senza avviso).
+  const scelte =
+    selezionate ?? new Set(serramenti.filter((f) => !ACCESSORIO.test(f.nome) && !haPrezzoProprio(f)).map((f) => f.id));
+  const sceltiConPrezzoProprio = serramenti.filter((f) => scelte.has(f.id) && haPrezzoProprio(f));
 
   const standard: StandardSerramenti = {
     linee,
@@ -127,8 +138,8 @@ export function ImpostaStandardSerramentiDialog({
             Imposta il listino infissi
           </DialogTitle>
           <DialogDescription>
-            Il prezzo si dichiara una volta per la configurazione base — bianco, vetro standard, posa inclusa —
-            e vale per tutte le tipologie scelte. Le altre linee e le opzioni si scostano in percentuale.
+            Il prezzo si dichiara una volta per la configurazione base — bianco, vetro standard — e vale per
+            tutte le tipologie scelte. Le altre linee e le opzioni si scostano in percentuale.
           </DialogDescription>
         </DialogHeader>
 
@@ -197,7 +208,11 @@ export function ImpostaStandardSerramentiDialog({
             <section className="space-y-3">
               <div>
                 <h3 className="text-sm font-semibold">Prezzo al metro quadro della linea base</h3>
-                <p className="text-xs text-muted-foreground">Configurazione bianco, vetro standard, posa inclusa.</p>
+                {/* «Posa inclusa» e basta contava la posa due volte nei prodotti che
+                    hanno anche la manodopera collegata (05/10/2026). */}
+                <p className="text-xs text-muted-foreground">
+                  Configurazione bianco, vetro standard. Se la posa la aggiungi come manodopera, qui scrivi il prezzo senza posa.
+                </p>
               </div>
               <div className="grid grid-cols-3 gap-3 items-end">
                 <div>
@@ -260,7 +275,8 @@ export function ImpostaStandardSerramentiDialog({
                 Tipologie a cui applicarlo <span className="font-normal text-muted-foreground">({scelte.size} su {serramenti.length})</span>
               </h3>
               <p className="text-xs text-muted-foreground">
-                Tapparelle, zanzariere e cassonetti restano fuori: hanno prezzi loro.
+                Tapparelle, zanzariere e cassonetti restano fuori: hanno prezzi loro. Anche quelle con una griglia di
+                prezzi o a costo + ricarico partono non spuntate.
               </p>
               <div className="grid sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto border rounded-md p-2">
                 {serramenti.map((f) => (
@@ -276,9 +292,21 @@ export function ImpostaStandardSerramentiDialog({
                       }
                     />
                     <span className="truncate" title={f.nome}>{f.nome}</span>
+                    {haPrezzoProprio(f) && (
+                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                        {f.modalita_prezzo_base === "griglia" ? "griglia" : "a ricarico"}
+                      </span>
+                    )}
                   </label>
                 ))}
               </div>
+              {sceltiConPrezzoProprio.length > 0 && (
+                <p className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+                  <TriangleAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" aria-hidden="true" />
+                  {sceltiConPrezzoProprio.length === 1 ? "1 tipologia scelta ha" : `${sceltiConPrezzoProprio.length} tipologie scelte hanno`}{" "}
+                  oggi una griglia di prezzi o il prezzo da costo + ricarico: diventano al metro quadro con il prezzo qui sopra.
+                </p>
+              )}
             </section>
 
             {/* Anteprima */}

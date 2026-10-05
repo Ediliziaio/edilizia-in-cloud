@@ -201,9 +201,18 @@ function buildRiepilogoSheet(
 
   // ── KPI ──────────────────────────────────────────────────────────────────
   rowIdx = sectionTitle(ws, rowIdx, "Indicatori");
+  // Con lo sconto, il ricavo netto: è la base dell'IVA e del prezzo cliente (05/10/2026).
+  const conSconto: [string, number, string][] =
+    risultato.sconto_valore > 0
+      ? [
+          ["Sconto cliente", -risultato.sconto_valore, FMT_EUR],
+          ["Ricavo netto", risultato.ricavo_netto, FMT_EUR],
+        ]
+      : [];
   const kpi: [string, number, string][] = [
     ["Costo totale", risultato.costo_totale, FMT_EUR],
     ["Ricavo imponibile", risultato.ricavo_imponibile, FMT_EUR],
+    ...conSconto,
     ["Margine (valore)", risultato.margine_valore, FMT_EUR],
     ["Margine (%)", risultato.margine_pct, FMT_PCT],
     ["IVA totale", risultato.iva_totale, FMT_EUR],
@@ -240,7 +249,8 @@ function buildRiepilogoSheet(
   }
   const ivaTot = ws.getRow(rowIdx++);
   setCellText(ivaTot.getCell(1), "Totale");
-  setCellNum(ivaTot.getCell(2), risultato.ricavo_imponibile, FMT_EUR);
+  // Le righe sono al netto dello sconto: il totale anche (prima era il lordo).
+  setCellNum(ivaTot.getCell(2), risultato.ricavo_netto, FMT_EUR);
   setCellNum(ivaTot.getCell(3), risultato.iva_totale, FMT_EUR);
   for (let c = 1; c <= 3; c++) {
     ivaTot.getCell(c).font = { bold: true };

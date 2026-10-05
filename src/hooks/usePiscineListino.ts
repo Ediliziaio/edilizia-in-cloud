@@ -26,6 +26,7 @@ import type {
   PisUnitaMisura,
 } from "@/types/piscine";
 import type { AdottaPrezzarioInput } from "@/lib/prezzario/queries";
+import { costoTariffa, unitaTariffa, type CostiTariffa } from "@/lib/listino/costoTariffa";
 
 // Tipi pis_* non rigenerati: cast unico, riusato in tutto il file.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -340,7 +341,7 @@ export interface PrefillTariffaOption {
   nome: string;
   tipo: string | null;
   unita: string | null;
-  /** Costo da iniettare in `costo_manodopera` (costo_interno → prezzo_costo). */
+  /** Costo da iniettare in `costo_manodopera` (costoTariffa: primo > 0 fra costo_interno, prezzo_costo, costo_default). */
   costo: number;
   /** Prezzo di vendita listino, mostrato come riferimento nel picker. */
   prezzo_vendita: number;
@@ -423,7 +424,7 @@ export function usePrefillFromTariffa(term: string) {
       let q = sb()
         .from("tariffe_aziendali")
         .select(
-          "id, nome, tipo, unita, unita_fatturazione, prezzo_vendita, costo_interno, prezzo_costo",
+          "id, nome, tipo, unita, unita_fatturazione, prezzo_vendita, costo_interno, prezzo_costo, costo_default",
         )
         .eq("company_id", companyId!);
       // Le tariffe spente dal listino (colonna attivo) non si propongono.
@@ -436,14 +437,11 @@ export function usePrefillFromTariffa(term: string) {
         id: String(d.id),
         nome: (d.nome as string) ?? "Servizio",
         tipo: (d.tipo as string | null) ?? null,
-        unita:
-          (d.unita_fatturazione as string | null) ??
-          (d.unita as string | null) ??
-          null,
-        costo:
-          (d.costo_interno as number | null) ??
-          (d.prezzo_costo as number | null) ??
-          0,
+        // Unità e costo con le regole uniche (05/10/2026): «pz» è il default di
+        // unita_fatturazione e 0 quello di costo_interno, e da soli nascondevano
+        // l'unità e il costo veri scritti nelle altre colonne.
+        unita: d.unita_fatturazione || d.unita ? unitaTariffa(d as { unita_fatturazione?: string | null; unita?: string | null }) : null,
+        costo: costoTariffa(d as CostiTariffa) ?? 0,
         prezzo_vendita: (d.prezzo_vendita as number | null) ?? 0,
       }));
     },

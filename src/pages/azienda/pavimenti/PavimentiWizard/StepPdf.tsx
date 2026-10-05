@@ -120,7 +120,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
         })),
         {
           sconto_pct: Number(progetto.sconto_pct) || 0,
-          iva_pct: Number(progetto.iva_pct ?? 10),
+          iva_pct: Number(progetto.iva_pct ?? 22),
           // Il prezzo scritto a mano in Economia: senza, anteprima e firma
           // partivano dalle righe a 0 € e l'invio si bloccava su «totale 0».
           prezzo_manuale: progetto.prezzo_manuale ?? null,
@@ -134,7 +134,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
   const logoUrl = company?.logo_url ?? template?.logo_url ?? null;
   const clienteLabel =
     [progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente da definire";
-  const ivaPct = Number(progetto.iva_pct ?? 10);
+  const ivaPct = Number(progetto.iva_pct ?? 22);
 
   // ─── Checklist (non bloccante, eccetto computo vuoto) ──────────────────────
   const checks: ChecklistItem[] = [

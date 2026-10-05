@@ -704,7 +704,12 @@ export interface TariffaMinimal {
   nome: string;
   descrizione: string | null;
   unita: string | null;
+  /** Unità vera (la legacy `unita` non conosce gg/kg/a_corpo): leggere con unitaTariffa(). */
+  unita_fatturazione?: string | null;
   prezzo_costo: number | null;
+  /** Le altre due colonne del costo: leggere con costoTariffa() (lib/listino/costoTariffa). */
+  costo_interno?: number | null;
+  costo_default?: number | null;
   prezzo_vendita: number | null;
   categoria_prodotto: string | null;
   vertical_associato: string | null;
@@ -717,7 +722,9 @@ export async function listTariffeManodopera(searchQuery?: string, companyId?: st
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
     .from("tariffe_aziendali")
-    .select("id, nome, descrizione, unita, prezzo_costo, prezzo_vendita, categoria_prodotto, vertical_associato, tipo, attiva")
+    // Tutte e tre le colonne del costo e l'unità vera (05/10/2026): con il solo
+    // prezzo_costo le tariffe col costo in costo_interno risultavano a 0 €.
+    .select("id, nome, descrizione, unita, unita_fatturazione, prezzo_costo, costo_interno, costo_default, prezzo_vendita, categoria_prodotto, vertical_associato, tipo, attiva")
     .eq("attiva", true)
     .order("nome", { ascending: true })
     // La posa inclusa su una family puo' puntare a una tariffa oltre le prime

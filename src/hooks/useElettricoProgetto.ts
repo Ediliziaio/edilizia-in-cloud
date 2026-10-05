@@ -19,7 +19,7 @@ import { leggiModelloPreventivo } from "@/lib/moduli/modelloPreventivo";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { calcRigaImporto, calcTotaliComputo, type ComputoRigaInput } from "@/lib/elettrico/calcoli";
+import { calcMargineRiga, calcRigaImporto, calcTotaliComputo, type ComputoRigaInput } from "@/lib/elettrico/calcoli";
 import {
   aLotti, cambiaITotali, condizioniDiPartenza, inFila, soloCampiDelForm,
   type PredefinitiAzienda,
@@ -150,7 +150,8 @@ function totaliDaRighe(
 ): { totale_imponibile: number; totale: number } {
   const t = calcTotaliComputo(righe, {
     sconto_pct: Number(parametri.sconto_pct ?? 0),
-    iva_pct: Number(parametri.iva_pct ?? 10),
+    // Come il default della colonna iva_pct (22): prima qui c'era 10 (05/10/2026).
+    iva_pct: Number(parametri.iva_pct ?? 22),
     prezzo_manuale: Number(parametri.prezzo_manuale ?? 0) || null,
   });
   return { totale_imponibile: t.imponibile, totale: t.totale };
@@ -415,13 +416,19 @@ export function useSaveComputo(progettoId: string | undefined) {
             sconto_pct: Number(r.sconto_pct) || 0,
           });
           // Margine reale della riga (coerente con VoceRow/calcTotaliComputo):
-          // costo riga = (materiali + manodopera) * quantità; il margine deriva
-          // dall'importo già ricalcolato. Clamp NaN→0 per non persistere sporco.
-          const costoRiga = (costo_materiali + costo_manodopera) * quantita;
-          const margine_eur_raw = importo - costoRiga;
-          const margine_pct_raw = importo > 0 ? (margine_eur_raw / importo) * 100 : 0;
-          const margine_eur = Number.isFinite(margine_eur_raw) ? margine_eur_raw : 0;
-          const margine_pct = Number.isFinite(margine_pct_raw) ? margine_pct_raw : 0;
+          // costo riga = (materiali + manodopera) * quantità. Una riga venduta
+          // senza costo non ha margine, non il 100% (05/10/2026): le colonne sono
+          // NOT NULL DEFAULT 0, quindi si salva 0 = «non calcolato», come fa
+          // bagnoDaQuote; l'editor mostra «Costi incompleti». Clamp NaN→0.
+          const margine = calcMargineRiga({
+            quantita,
+            prezzo_unitario: Number(r.prezzo_unitario) || 0,
+            sconto_pct: Number(r.sconto_pct) || 0,
+            costo_materiali,
+            costo_manodopera,
+          });
+          const margine_eur = margine.margineEur != null && Number.isFinite(margine.margineEur) ? margine.margineEur : 0;
+          const margine_pct = margine.marginePct != null && Number.isFinite(margine.marginePct) ? margine.marginePct : 0;
           return {
             progetto_id: progettoId,
             company_id: companyId,
@@ -624,7 +631,8 @@ export function normalizeTemplate(row: Record<string, unknown> | null, companyId
     show_percorso: (r.show_percorso as boolean | null) ?? true,
     cover_title_size: (r.cover_title_size as number | null) ?? 30,
     cover_text_align: (r.cover_text_align as EleTemplatePdf["cover_text_align"]) ?? "left",
-    default_iva_pct: (r.default_iva_pct as number | null) ?? 10,
+    // Come il default della colonna default_iva_pct (22), non 10 (05/10/2026).
+    default_iva_pct: (r.default_iva_pct as number | null) ?? 22,
     default_detrazione_pct: (r.default_detrazione_pct as number | null) ?? 50,
     default_validita_giorni: (r.default_validita_giorni as number | null) ?? 30,
     // Anche questi due si perdevano qui: il logo di copertina e la galleria dei

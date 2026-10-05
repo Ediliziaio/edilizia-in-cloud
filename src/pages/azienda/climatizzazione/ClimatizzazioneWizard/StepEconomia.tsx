@@ -53,7 +53,8 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
   // Template del modulo (cached): serve a mostrare la rata solo se la promo è attiva.
   const { data: template } = useClmTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
-  const ivaPct = Number(form.iva_pct ?? 10);
+  // IVA di riserva = default della colonna iva_pct del modulo (22), non 10 (05/10/2026).
+  const ivaPct = Number(form.iva_pct ?? 22);
   const detrazionePct = Number(form.detrazione_pct ?? 0);
 
   // Totali ricalcolati live (puro, memoizzato): single source of truth dei numeri.
@@ -189,7 +190,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 <PctField
                   id="clm-iva"
                   label="IVA"
-                  value={form.iva_pct ?? 10}
+                  value={form.iva_pct ?? 22}
                   onCommit={(v) => onChange("iva_pct", v)}
                   hint="In edilizia spesso 10% (climatizzazione) o 4% (prima casa)."
                 />
@@ -293,29 +294,48 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 </div>
                 <div>
                   <p className="text-xs font-medium text-slate-800">Margine complessivo</p>
-                  <p className="text-[10px] text-muted-foreground">Imponibile netto − costi</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {totali.righeSenzaCosto > 0
+                      ? `${totali.righeSenzaCosto} ${totali.righeSenzaCosto === 1 ? "voce venduta" : "voci vendute"} senza costo`
+                      : "Imponibile netto − costi"}
+                  </p>
                 </div>
               </div>
               <div className="text-right">
-                <p
-                  className={cn(
-                    "text-base font-bold tabular-nums",
-                    totali.margineEur >= 0 ? "text-emerald-600" : "text-rose-600",
-                  )}
-                >
-                  {formatCurrency(totali.margineEur)}
-                </p>
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "text-[10px] tabular-nums",
-                    totali.margineEur >= 0
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-rose-200 bg-rose-50 text-rose-700",
-                  )}
-                >
-                  {totali.marginePct.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%
-                </Badge>
+                {/* Una voce venduta senza costo: il margine non si conosce, «—» e
+                    non il 100% (05/10/2026), come nei serramenti. */}
+                {totali.margineEur == null ? (
+                  <>
+                    <p className="text-base font-bold tabular-nums text-slate-400">—</p>
+                    <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[10px] text-amber-700">
+                      Costi incompleti
+                    </Badge>
+                  </>
+                ) : (
+                  <>
+                    <p
+                      className={cn(
+                        "text-base font-bold tabular-nums",
+                        totali.margineEur >= 0 ? "text-emerald-600" : "text-rose-600",
+                      )}
+                    >
+                      {formatCurrency(totali.margineEur)}
+                    </p>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] tabular-nums",
+                        totali.margineEur >= 0
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-rose-200 bg-rose-50 text-rose-700",
+                      )}
+                    >
+                      {totali.marginePct != null
+                        ? `${totali.marginePct.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`
+                        : "—"}
+                    </Badge>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
