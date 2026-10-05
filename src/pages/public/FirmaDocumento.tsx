@@ -84,25 +84,39 @@ async function apriDocumento(evento: { preventDefault: () => void }, url: string
  */
 function AnteprimaDocumento({ url }: { url: string }) {
   const [html, setHtml] = useState<string | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [errore, setErrore] = useState(false);
   const eHtml = (() => {
     try { return new URL(url).pathname.toLowerCase().endsWith('.html'); } catch { return false; }
   })();
 
   useEffect(() => {
-    if (!eHtml) return;
     let annullato = false;
+    let creato: string | null = null;
     setHtml(null);
+    setPdfUrl(null);
     setErrore(false);
     fetch(url)
-      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.text(); })
-      .then((t) => { if (!annullato) setHtml(t); })
+      .then(async (r) => { if (!r.ok) throw new Error(String(r.status)); return eHtml ? await r.text() : await r.blob(); })
+      .then((contenuto) => {
+        if (annullato) return;
+        if (typeof contenuto === 'string') { setHtml(contenuto); return; }
+        // La CSP della pagina (public/_headers, frame-src) non ammette frame verso
+        // supabase.co ma ammette blob:, e la fetch sì (connect-src): il PDF si
+        // scarica e si mostra da blob:. Il tipo lo forziamo noi: un file che non è
+        // un PDF non può eseguire niente nell'origine della pagina.
+        creato = URL.createObjectURL(new Blob([contenuto], { type: 'application/pdf' }));
+        setPdfUrl(creato);
+      })
       .catch(() => { if (!annullato) setErrore(true); });
-    return () => { annullato = true; };
+    return () => {
+      annullato = true;
+      if (creato) URL.revokeObjectURL(creato);
+    };
   }, [url, eHtml]);
 
   if (errore) return null;
-  if (eHtml && html === null) {
+  if ((eHtml ? html : pdfUrl) === null) {
     return (
       <div className="h-40 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-500">
         <Loader2 className="h-4 w-4 animate-spin mr-2" />Carico il preventivo…
@@ -112,7 +126,7 @@ function AnteprimaDocumento({ url }: { url: string }) {
   return (
     <iframe
       title="Anteprima del documento"
-      {...(eHtml ? { srcDoc: html ?? '', sandbox: '' } : { src: url })}
+      {...(eHtml ? { srcDoc: html ?? '', sandbox: '' } : { src: pdfUrl ?? undefined })}
       className="w-full h-[70vh] min-h-[420px] rounded-xl border border-slate-200 bg-white"
     />
   );
