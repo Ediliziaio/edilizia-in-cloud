@@ -39,6 +39,9 @@ export interface ContestoAllarmeAI {
 
 const limitatore = creaLimitatore();
 
+// p_azienda è un uuid: una stringa di altro tipo farebbe fallire l'intera registrazione.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const leggiEnv = (nome: string): string | undefined => {
   try {
     return (globalThis as { Deno?: { env: { get(k: string): string | undefined } } }).Deno?.env.get(nome);
@@ -76,7 +79,7 @@ async function registra(
       p_funzione: contesto.funzione ?? null,
       p_modello: contesto.modello ?? null,
       p_dettaglio: `${stato ?? ""} ${String(errore.messaggio ?? "").replace(/\s+/g, " ").trim()}`.trim().slice(0, 600) || null,
-      p_azienda: contesto.companyId ?? null,
+      p_azienda: contesto.companyId && UUID.test(contesto.companyId) ? contesto.companyId : null,
       p_conteggio: quante,
     }),
     signal: AbortSignal.timeout(5_000),

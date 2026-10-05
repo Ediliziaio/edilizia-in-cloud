@@ -76,6 +76,14 @@ describe("Un 402 diventa un allarme registrato, senza far aspettare chi chiama",
     expect(corpo.p_dettaglio).toContain("requires more credits");
   });
 
+  it("un id azienda che non è un uuid non fa perdere la segnalazione: parte senza azienda", async () => {
+    const { segnalaErroreAI } = await carica();
+    segnalaErroreAI(CORPO_402, { funzione: "persona_silvio", companyId: "non-un-uuid" });
+    await finisci();
+    const registra = chiamate.find((c) => c.url.endsWith("/rest/v1/rpc/ai_allarme_registra"))!;
+    expect(JSON.parse(String(registra.init.body)).p_azienda).toBeNull();
+  });
+
   it("alla prima segnalazione sveglia il canarino col segreto dei cron e il modo credito-ai", async () => {
     const { segnalaErroreAI } = await carica();
     segnalaErroreAI(CORPO_402, { funzione: "persona_silvio" });
