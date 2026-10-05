@@ -13,9 +13,10 @@ import {
   type AnteprimaPreventivo,
   type VistaAnteprima,
   formattaEuro,
+  formattaNumero,
   formattaQuantita,
   rigaDaPrezzare,
-  righeDaPrezzare,
+  righeSenzaPrezzo,
 } from "@/lib/preventivatore/anteprima";
 
 interface Props {
@@ -26,6 +27,12 @@ interface Props {
   className?: string;
 }
 
+/** «€ 120 cad.» per i pezzi, «€ 18 / mq» per le misure: il prezzo unitario dice a cosa si riferisce. */
+function perUnita(unita?: string | null): string {
+  const u = (unita ?? "").trim().toLowerCase();
+  return !u || u === "pz" || u === "cad" ? "cad." : `/ ${u}`;
+}
+
 function Mancante({ children }: { children: string }) {
   return <span className="italic text-slate-300">{children}</span>;
 }
@@ -33,7 +40,7 @@ function Mancante({ children }: { children: string }) {
 function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: Props) {
   const impresa = vista === "impresa";
   const aCorpo = Boolean(dati.prezzoACorpo);
-  const senzaPrezzo = aCorpo ? 0 : righeDaPrezzare(dati);
+  const senzaPrezzo = righeSenzaPrezzo(dati);
   const haRighe = dati.gruppi.some((g) => g.righe.length > 0);
   const nome = dati.cliente.nome?.trim();
 
@@ -79,7 +86,7 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: 
             <caption className="sr-only">Voci del preventivo</caption>
             <colgroup>
               <col />
-              <col className="w-[13%]" />
+              <col className="w-[17%]" />
               <col className="w-[22%]" />
               {impresa && <col className="w-[19%]" />}
             </colgroup>
@@ -115,10 +122,10 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: 
                         <p className="break-words font-semibold">{r.titolo}</p>
                         {r.dettaglio && <p className="break-words text-[10.5px] text-slate-500">{r.dettaglio}</p>}
                         {!impresa && r.prezzoUnitario != null && r.prezzoUnitario > 0 && r.quantita > 1 && (
-                          <p className="text-[10.5px] text-slate-400">{formattaEuro(r.prezzoUnitario)} cad.</p>
+                          <p className="text-[10.5px] text-slate-400">{formattaEuro(r.prezzoUnitario)} {perUnita(r.unita)}</p>
                         )}
                       </td>
-                      <td className="py-1.5 text-right tabular-nums">{formattaQuantita(r.quantita, r.unita)}</td>
+                      <td className="whitespace-nowrap py-1.5 text-right tabular-nums">{formattaQuantita(r.quantita, r.unita)}</td>
                       {impresa && (
                         <td className="py-1.5 text-right tabular-nums text-slate-600">
                           {r.costo != null && r.costo > 0 ? formattaEuro(r.costo) : <span className="text-slate-300">—</span>}
@@ -144,38 +151,59 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: 
         <p className="py-4 text-center text-slate-400">Qui compaiono le voci mano a mano che le aggiungi.</p>
       )}
 
+      {/* Il riepilogo resta in vista in fondo alla colonna anche quando le righe sono tante:
+          per chi scrive è il numero che si muove. Con la vista impresa c'è anche il margine. */}
       {dati.totali.length > 0 && (
-        <dl className="ml-auto mt-2 w-[68%] max-md:w-[80%]">
-          {dati.totali.map((v) => (
-            <div
-              key={v.id}
-              className={cn(
-                "flex justify-between gap-3 py-0.5 tabular-nums",
-                v.forte && "mt-1 border-t-2 border-eic-navy-deep pt-1.5 text-[15px] font-black",
+        <div className="sticky bottom-0 z-10 -mx-4 mt-2 border-t border-slate-200 bg-white px-4 pb-1 pt-1.5 max-md:-mx-3 max-md:px-3">
+          <dl className="ml-auto w-[68%] max-md:w-[80%]">
+            {dati.totali.map((v) => (
+              <div
+                key={v.id}
+                className={cn(
+                  "flex justify-between gap-3 py-0.5 tabular-nums",
+                  v.forte && "mt-1 border-t-2 border-eic-navy-deep pt-1.5 text-[15px] font-black",
+                )}
+              >
+                <dt className={cn(!v.forte && "text-slate-600")}>{v.etichetta}</dt>
+                <dd>{v.negativo ? "− " : ""}{formattaEuro(v.importo)}</dd>
+              </div>
+            ))}
+          </dl>
+
+          {impresa && dati.impresa && (
+            <div className="mt-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[11.5px] text-amber-900">
+              <p>
+                <b>Vista impresa</b> · costi {formattaEuro(dati.impresa.costi)} · margine{" "}
+                <b>{dati.impresa.margine != null && (dati.impresa.costiCompleti || dati.impresa.costi > 0) ? formattaEuro(dati.impresa.margine) : "—"}</b>
+                {dati.impresa.marginePct != null && <> ({dati.impresa.marginePct.toFixed(0)}%)</>}
+              </p>
+              {!dati.impresa.costiCompleti && dati.impresa.righeSenzaCosto > 0 && (
+                <p className="mt-0.5 text-amber-800">
+                  {dati.impresa.margine == null
+                    ? `Costi incompleti · ${dati.impresa.righeSenzaCosto} ${dati.impresa.righeSenzaCosto === 1 ? "voce" : "voci"} senza costo: il margine non si può calcolare.`
+                    : `Manca il costo su ${dati.impresa.righeSenzaCosto} ${dati.impresa.righeSenzaCosto === 1 ? "voce" : "voci"}: il margine è parziale.`}
+                </p>
               )}
-            >
-              <dt className={cn(!v.forte && "text-slate-600")}>{v.etichetta}</dt>
-              <dd>{v.negativo ? "− " : ""}{formattaEuro(v.importo)}</dd>
+              {dati.impresa.sottoTarget && dati.impresa.margineMinPct != null && (
+                <p className="mt-0.5 font-semibold text-red-700">Sotto il margine minimo ({dati.impresa.margineMinPct}%).</p>
+              )}
             </div>
-          ))}
-        </dl>
+          )}
+        </div>
       )}
 
-      {impresa && dati.impresa && (
-        <div className="mt-3 rounded-lg bg-amber-50 px-2.5 py-2 text-[11.5px] text-amber-900">
-          <p>
-            <b>Vista impresa</b> · costi {formattaEuro(dati.impresa.costi)} · margine{" "}
-            <b>{dati.impresa.costiCompleti || dati.impresa.costi > 0 ? formattaEuro(dati.impresa.margine) : "—"}</b>
-            {dati.impresa.marginePct != null && <> ({dati.impresa.marginePct.toFixed(0)}%)</>}
+      {dati.detrazione && dati.detrazione.pct > 0 && (
+        <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/70 px-2.5 py-2 text-emerald-900">
+          <p className="flex items-baseline justify-between gap-2">
+            <span className="font-medium">Detrazione indicativa ({formattaNumero(dati.detrazione.pct, Number.isInteger(dati.detrazione.pct) ? 0 : 1)}%)</span>
+            <b className="tabular-nums">{formattaEuro(dati.detrazione.importo)}</b>
           </p>
-          {!dati.impresa.costiCompleti && dati.impresa.righeSenzaCosto > 0 && (
-            <p className="mt-0.5 text-amber-800">
-              Manca il costo su {dati.impresa.righeSenzaCosto} {dati.impresa.righeSenzaCosto === 1 ? "voce" : "voci"}: il margine è parziale.
-            </p>
-          )}
-          {dati.impresa.sottoTarget && dati.impresa.margineMinPct != null && (
-            <p className="mt-0.5 font-semibold text-red-700">Sotto il margine minimo ({dati.impresa.margineMinPct}%).</p>
-          )}
+          <p className="mt-0.5 text-[10.5px] leading-snug text-emerald-800/90">
+            {dati.detrazione.massimale != null
+              ? `Calcolata sul tetto di spesa di ${formattaEuro(dati.detrazione.massimale)}${dati.detrazione.oltreMassimale ? ": la spesa lo supera" : ""}. `
+              : "Stima sull'imponibile netto. "}
+            Non sostituisce la valutazione di un fiscalista.
+          </p>
         </div>
       )}
 

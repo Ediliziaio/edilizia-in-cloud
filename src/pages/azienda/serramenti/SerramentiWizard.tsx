@@ -73,11 +73,11 @@ import { isSrQuoteModelId, makeSrQuoteModelSnapshot, readSrQuoteModelSnapshot, s
 import { findSerramentiTemplateModule } from "@/lib/moduli-vendita/serramentiTemplateModules";
 import {
   AnteprimaMobile, AnteprimaVeloce, BarraFasi, BottoneTotale, CorpoPreventivatore, PannelloAnteprima,
-  PiedePreventivatore, StatoDelSalvataggio, STICKY_ALTO, type StatoSalvataggio,
+  PiedePreventivatore, StatoDelSalvataggio, STICKY_ALTO, useAnteprimaNascosta, type StatoSalvataggio,
 } from "@/components/preventivatore";
 import { anteprimaSerramenti } from "@/lib/serramenti/anteprima";
 import { useCostoPosizioneListino } from "@/lib/serramenti/useCostoPosizioneListino";
-import { formattaEuro, righeDaPrezzare, type VistaAnteprima } from "@/lib/preventivatore/anteprima";
+import { formattaEuro, righeSenzaPrezzo, type VistaAnteprima } from "@/lib/preventivatore/anteprima";
 import { usePermissions } from "@/hooks/usePermissions";
 
 /** Telefono: i nomi dei passi nello stepper, corti perché stiano tutti in una riga. */
@@ -534,13 +534,7 @@ export default function SerramentiWizard() {
   const permissions = usePermissions();
   const puoVedereImpresa = permissions.canViewMargins || permissions.canViewCosts;
   const [vistaAnteprima, setVistaAnteprima] = useState<VistaAnteprima>("cliente");
-  const [anteprimaNascosta, setAnteprimaNascosta] = useState<boolean>(() => {
-    try { return localStorage.getItem("sr_anteprima_nascosta") === "1"; } catch { return false; }
-  });
-  const impostaAnteprimaNascosta = (v: boolean) => {
-    setAnteprimaNascosta(v);
-    try { localStorage.setItem("sr_anteprima_nascosta", v ? "1" : "0"); } catch { /* senza memoria vale per questa visita */ }
-  };
+  const [anteprimaNascosta, impostaAnteprimaNascosta] = useAnteprimaNascosta();
   const [anteprimaMobileAperta, setAnteprimaMobileAperta] = useState(false);
   const vistaImpresa = puoVedereImpresa && vistaAnteprima === "impresa";
   const { costoPosizione } = useCostoPosizioneListino(id, detail, vistaImpresa);
@@ -933,7 +927,7 @@ export default function SerramentiWizard() {
         completati={new Set(SR_WIZARD_STEPS.filter((p) => p.key !== currentStep && isWizardStepComplete(p.key, form, detail)).map((p) => p.key))}
         conAvviso={new Set(SR_WIZARD_STEPS.filter((p, idx) => idx < currentStepIndex && (
           (p.key === "cliente" && !isWizardStepComplete("cliente", form, detail))
-          || (p.key === "bom" && (!isWizardStepComplete("bom", form, detail) || (!datiAnteprima.prezzoACorpo && righeDaPrezzare(datiAnteprima) > 0)))
+          || (p.key === "bom" && (!isWizardStepComplete("bom", form, detail) || righeSenzaPrezzo(datiAnteprima) > 0))
         )).map((p) => p.key))}
         bloccati={new Set(isNew ? SR_WIZARD_STEPS.slice(1).map((p) => p.key) : [])}
         onSelect={(key) => void handleStepClick(key as SrWizardStep)}
@@ -941,8 +935,8 @@ export default function SerramentiWizard() {
         destra={
           <>
             {/* Sotto i 1280 px non c'è la colonna: l'anteprima si apre da qui. */}
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 xl:hidden" onClick={() => setAnteprimaMobileAperta(true)}>
-              <Eye className="h-4 w-4" /> Anteprima
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 xl:hidden" onClick={() => setAnteprimaMobileAperta(true)} aria-label="Apri l'anteprima" title="Apri l'anteprima">
+              <Eye className="h-4 w-4" /> <span className="hidden md:max-lg:inline">Anteprima</span>
             </Button>
             {/* Computer: se l'hai nascosta, da qui torna. */}
             {anteprimaNascosta && (

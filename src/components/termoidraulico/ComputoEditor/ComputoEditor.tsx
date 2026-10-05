@@ -2,24 +2,21 @@
  * ComputoEditor — il cuore del verticale: editor del computo metrico.
  *
  * Assembla le `CapitoloSection` raggruppando le `IdrComputoVoce[]` per
- * `capitolo_nome`, con un pannello riepilogo STICKY che ricalcola live
- * (imponibile, IVA, totale, margine, n° voci) via `calcTotaliComputo`.
+ * `capitolo_nome`. I totali non sono qui: li mostra l'anteprima a destra del
+ * preventivo (`components/preventivatore`), che si ricalcola a ogni modifica.
  *
  * Contratto: stato controllato `value: IdrComputoVoce[]` + `onChange`. I capitoli
  * "vuoti" (creati ma senza voci) non possono vivere nel flat array → li teniamo
  * in uno stato locale di soli NOMI (`emptyCapitoli`) così restano visibili e
  * ordinati finché non ricevono la prima voce.
  *
- * Purezza React: il modello a capitoli e i totali sono `useMemo`; nessun setState
+ * Purezza React: il modello a capitoli è un `useMemo`; nessun setState
  * in effect/render; gli id draft (nuove voci/capitoli) nascono solo da handler.
  */
 import { useMemo, useState, useCallback } from "react";
-import { Plus, Calculator, Sparkles, Eye, EyeOff, ListChecks, TrendingUp } from "lucide-react";
+import { Plus, Calculator, Sparkles, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/formatters";
-import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/termoidraulico/calcoli";
 import type { IdrComputoVoce } from "@/types/termoidraulico";
 import { toast } from "sonner";
 import { chiaviCapitoli, esitoRinomina, passaChiave } from "@/lib/moduli/capitoliComputo";
@@ -32,12 +29,6 @@ interface Props {
   onChange: (voci: IdrComputoVoce[]) => void;
   progettoId: string;
   companyId: string;
-  /** Sconto globale % (dallo step Economia) — riflesso nel riepilogo. */
-  scontoPct?: number;
-  /** IVA % (dallo step Economia) — riflessa nel riepilogo. */
-  ivaPct?: number;
-  /** Prezzo scritto a mano in Economia: prende il posto della somma delle righe. */
-  prezzoManuale?: number | null;
 }
 
 /** Capitolo derivato (raggruppamento per nome, ordine preservato). */
@@ -49,7 +40,7 @@ interface CapitoloGroup {
 const DEFAULT_CAPITOLO = "Generale";
 
 export default function ComputoEditor({
-  value, onChange, progettoId, companyId, scontoPct = 0, ivaPct = 22, prezzoManuale = null,
+  value, onChange, progettoId, companyId,
 }: Props) {
   const [showMargine, setShowMargine] = useState(false);
   const [globalPickerOpen, setGlobalPickerOpen] = useState(false);
@@ -81,23 +72,7 @@ export default function ComputoEditor({
     [capitoli, chiaviEreditate],
   );
 
-  // ─── Totali live ──────────────────────────────────────────────────────────
-  const totali = useMemo(() => {
-    const righe: ComputoRigaInput[] = value.map((v) => ({
-      capitolo_nome: v.capitolo_nome || DEFAULT_CAPITOLO,
-      quantita: v.quantita,
-      prezzo_unitario: v.prezzo_unitario,
-      sconto_pct: v.sconto_pct,
-      costo_materiali: v.costo_materiali,
-      costo_manodopera: v.costo_manodopera,
-    }));
-    return calcTotaliComputo(righe, { sconto_pct: scontoPct, iva_pct: ivaPct, prezzo_manuale: prezzoManuale });
-  }, [value, scontoPct, ivaPct, prezzoManuale]);
-
   const nVoci = value.length;
-  // Prezzo pieno prima dello sconto globale: la somma delle righe, o il prezzo
-  // scritto a mano in Economia. Le quote per capitolo restano sulle righe.
-  const imponibileLordo = totali.imponibileLordo;
 
   // ─── Mutazioni capitoli ────────────────────────────────────────────────────
 
@@ -205,171 +180,79 @@ export default function ComputoEditor({
   const isEmpty = capitoli.length === 0;
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
-      {/* ─── Colonna principale: capitoli ─────────────────────────────────── */}
-      <div className="min-w-0 space-y-3">
-        {/* Toolbar — sul telefono, a computo vuoto, i due bottoni sono già nel riquadro sotto. */}
-        <div className={cn("flex flex-wrap items-center justify-between gap-2", isEmpty && "max-sm:hidden")}>
-          <div className="flex items-center gap-2">
-            {/* Telefono: il titolo è già quello del passo; resta il conteggio delle voci. */}
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600 max-sm:hidden">
-              <Calculator className="h-4 w-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 max-sm:hidden">Computo metrico</h3>
-              <p className="text-[11px] text-muted-foreground">
-                {nVoci > 0
-                  ? `${nVoci} ${nVoci === 1 ? "voce" : "voci"} · ${capitoli.length} ${capitoli.length === 1 ? "capitolo" : "capitoli"}`
-                  : "Componi capitoli e voci dai listini"}
-              </p>
-            </div>
+    <div className="min-w-0 space-y-3">
+      {/* Toolbar — sul telefono, a computo vuoto, i due bottoni sono già nel riquadro sotto. */}
+      <div className={cn("flex flex-wrap items-center justify-between gap-2", isEmpty && "max-sm:hidden")}>
+        <div className="flex items-center gap-2">
+          {/* Telefono: il titolo è già quello del passo; resta il conteggio delle voci. */}
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600 max-sm:hidden">
+            <Calculator className="h-4 w-4" />
           </div>
-          <div className="flex items-center gap-2">
-            {/* Telefono no: i margini si guardano dal computer. */}
-            <button
-              type="button"
-              onClick={() => setShowMargine((s) => !s)}
-              className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors max-sm:hidden",
-                showMargine
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-border bg-background text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {showMargine ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-              Margini
-            </button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setGlobalPickerOpen(true)}
-              className="tap-compact h-8 gap-1.5"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-orange-500" /> Cerca voce
-            </Button>
-          </div>
-        </div>
-
-        {isEmpty ? (
-          <EmptyState onAddCapitolo={addCapitolo} onSearch={() => setGlobalPickerOpen(true)} />
-        ) : (
-          <div className="space-y-3">
-            {capitoli.map((cap, idx) => (
-              // Chiave stabile (vedi chiaviCapitoli): il nome si scrive dentro la
-              // sezione e si applica all'uscita dal campo, senza rimontarla.
-              <CapitoloSection
-                key={chiavi[idx]}
-                nome={cap.nome}
-                voci={cap.voci}
-                accentIndex={idx}
-                progettoId={progettoId}
-                companyId={companyId}
-                showMargine={showMargine}
-                onChange={(next) => replaceCapitoloVoci(cap.nome, next)}
-                onRename={(newName) => renameCapitolo(cap.nome, newName)}
-                onDeleteCapitolo={() => deleteCapitolo(cap.nome)}
-              />
-            ))}
-
-            <Button
-              variant="outline"
-              onClick={addCapitolo}
-              className="w-full gap-1.5 border-dashed text-muted-foreground hover:border-orange-300 hover:text-orange-700"
-            >
-              <Plus className="h-4 w-4" /> Aggiungi capitolo
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* ─── Pannello riepilogo sticky ────────────────────────────────────── */}
-      {/* Telefono: a computo vuoto il riepilogo a zero non serve. */}
-      <aside className={cn("lg:sticky lg:top-20 lg:self-start", isEmpty && "max-sm:hidden")}>
-        <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-          {/* Telefono: resta il totale che cresce mentre si scrive; capitoli, conteggio e
-              prezzo di zona sono già sulle testate dei capitoli e nel passo PDF. */}
-          <div className="border-b bg-gradient-to-br from-slate-50 to-white px-4 py-3 max-sm:hidden">
-            <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              <ListChecks className="h-3.5 w-3.5" /> Riepilogo computo
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900 max-sm:hidden">Computo metrico</h3>
+            <p className="text-[11px] text-muted-foreground">
+              {nVoci > 0
+                ? `${nVoci} ${nVoci === 1 ? "voce" : "voci"} · ${capitoli.length} ${capitoli.length === 1 ? "capitolo" : "capitoli"}`
+                : "Componi capitoli e voci dai listini"}
             </p>
           </div>
-          <div className="space-y-2.5 p-4 max-sm:p-3">
-            {/* Righe imponibile / IVA */}
-            <div className="space-y-1.5 text-sm">
-              <Row
-                label={totali.prezzoManuale ? "Prezzo scritto a mano" : "Imponibile"}
-                value={formatCurrency(scontoPct > 0 ? imponibileLordo : totali.imponibile)}
-              />
-              {scontoPct > 0 && (
-                <Row
-                  label={`Sconto ${scontoPct}%`}
-                  value={`−${formatCurrency(imponibileLordo - totali.imponibile)}`}
-                  muted
-                />
-              )}
-              <Row label={`IVA ${ivaPct}%`} value={formatCurrency(totali.iva)} muted />
-            </div>
-
-            {/* Totale grande */}
-            <div className="rounded-xl bg-orange-50/70 px-3 py-2.5">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-orange-700/80">Totale preventivo</p>
-              <p className="text-2xl font-bold tabular-nums text-orange-700">{formatCurrency(totali.totale)}</p>
-            </div>
-
-            {/* Margine (mostra solo se richiesto). Con una voce venduta senza
-                costo il margine non si conosce: «—», non il 100% (05/10/2026). */}
-            {showMargine && (
-              <div className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2">
-                <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-700">
-                  <TrendingUp className="h-3.5 w-3.5" /> Margine
-                </span>
-                {totali.margineEur == null ? (
-                  <span className="text-right tabular-nums">
-                    <span className="block text-sm font-bold text-slate-400">—</span>
-                    <span className="block text-[10px] text-amber-700">
-                      Costi incompleti{totali.righeSenzaCosto > 0 ? ` · ${totali.righeSenzaCosto} senza costo` : ""}
-                    </span>
-                  </span>
-                ) : (
-                  <span className="text-right tabular-nums">
-                    <span className="block text-sm font-bold text-emerald-700">{formatCurrency(totali.margineEur)}</span>
-                    <span className="block text-[10px] text-emerald-600">
-                      {totali.marginePct != null ? `${totali.marginePct.toFixed(1)}%` : "—"} · costo {formatCurrency(totali.costoTot)}
-                    </span>
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Mini-breakdown per capitolo */}
-            {totali.perCapitolo.length > 0 && (
-              <div className="space-y-1 border-t pt-2.5 max-sm:hidden">
-                <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Per capitolo</p>
-                {totali.perCapitolo.map((c) => {
-                  const quota = totali.sommaVoci > 0 ? (c.imponibile / totali.sommaVoci) * 100 : 0;
-                  return (
-                    <div key={c.nome} className="space-y-0.5">
-                      <div className="flex items-center justify-between gap-2 text-[11px]">
-                        <span className="truncate text-slate-600">{c.nome}</span>
-                        <span className="shrink-0 tabular-nums font-medium text-slate-700">{formatCurrency(c.imponibile)}</span>
-                      </div>
-                      <div className="h-1 overflow-hidden rounded-full bg-muted">
-                        <div className="h-full rounded-full bg-orange-300" style={{ width: `${Math.min(100, Math.max(2, quota))}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Conteggio voci */}
-            <div className="flex items-center justify-between border-t pt-2.5 text-[11px] text-muted-foreground max-sm:hidden">
-              <span>Voci totali</span>
-              <Badge variant="outline" className="tabular-nums">{nVoci}</Badge>
-            </div>
-          </div>
         </div>
-      </aside>
+        <div className="flex items-center gap-2">
+          {/* Telefono no: i margini si guardano dal computer. */}
+          <button
+            type="button"
+            onClick={() => setShowMargine((s) => !s)}
+            className={cn(
+              "inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors max-sm:hidden",
+              showMargine
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-border bg-background text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {showMargine ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+            Margini
+          </button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setGlobalPickerOpen(true)}
+            className="tap-compact h-8 gap-1.5"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-orange-500" /> Cerca voce
+          </Button>
+        </div>
+      </div>
+
+      {isEmpty ? (
+        <EmptyState onAddCapitolo={addCapitolo} onSearch={() => setGlobalPickerOpen(true)} />
+      ) : (
+        <div className="space-y-3">
+          {capitoli.map((cap, idx) => (
+            // Chiave stabile (vedi chiaviCapitoli): il nome si scrive dentro la
+            // sezione e si applica all'uscita dal campo, senza rimontarla.
+            <CapitoloSection
+              key={chiavi[idx]}
+              nome={cap.nome}
+              voci={cap.voci}
+              accentIndex={idx}
+              progettoId={progettoId}
+              companyId={companyId}
+              showMargine={showMargine}
+              onChange={(next) => replaceCapitoloVoci(cap.nome, next)}
+              onRename={(newName) => renameCapitolo(cap.nome, newName)}
+              onDeleteCapitolo={() => deleteCapitolo(cap.nome)}
+            />
+          ))}
+
+          <Button
+            variant="outline"
+            onClick={addCapitolo}
+            className="w-full gap-1.5 border-dashed text-muted-foreground hover:border-orange-300 hover:text-orange-700"
+          >
+            <Plus className="h-4 w-4" /> Aggiungi capitolo
+          </Button>
+        </div>
+      )}
 
       {/* Picker globale */}
       <AddVocePicker
@@ -377,16 +260,6 @@ export default function ComputoEditor({
         onOpenChange={setGlobalPickerOpen}
         onPick={handleGlobalPick}
       />
-    </div>
-  );
-}
-
-/** Riga label/valore del riepilogo. */
-function Row({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className={cn("text-[13px]", muted ? "text-muted-foreground" : "text-slate-600")}>{label}</span>
-      <span className={cn("tabular-nums", muted ? "text-[13px] text-muted-foreground" : "font-medium text-slate-800")}>{value}</span>
     </div>
   );
 }

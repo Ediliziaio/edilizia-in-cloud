@@ -153,7 +153,7 @@ describe("Serramenti nel guscio comune", () => {
     await screen.findByRole("navigation", { name: "Fasi del preventivo" });
     fireEvent.click(within(anteprima()).getByRole("button", { name: "Nascondi l'anteprima" }));
     await waitFor(() => expect(screen.queryByRole("complementary", { name: "Anteprima del preventivo", hidden: true })).toBeNull());
-    expect(localStorage.getItem("sr_anteprima_nascosta")).toBe("1");
+    expect(localStorage.getItem("preventivatore_anteprima_nascosta")).toBe("1");
     fireEvent.click(screen.getByRole("button", { name: /Mostra anteprima/ }));
     await waitFor(() => expect(anteprima()).toBeTruthy());
   });

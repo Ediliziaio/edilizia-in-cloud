@@ -4,6 +4,7 @@ import { navigateToSubdomain } from "@/utils/subdomainNav";
 // Apple Guideline 3.1.1 — su iOS nativo nascondiamo voci che linkano a checkout Stripe
 import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
+import { rottaDelGuscio } from "@/components/preventivatore/rotte";
 import { useAuth } from "@/contexts/AuthContext";
 import { etichettaRuoloAzienda, puoScegliereSettore } from "@/lib/auth/ruoloAzienda";
 import { usePermissions, type Permissions } from "@/hooks/usePermissions";
@@ -1809,9 +1810,8 @@ export function CompanyLayout() {
   // messaggio andava cercato (25/09/2026). Bloccata, ogni colonna scorre da sé.
   // I preventivatori col guscio comune (barra delle fasi, anteprima a destra e
   // piede fissi): con l'altezza libera scorre il documento intero e nessuna barra
-  // resta ferma da computer. Per ora Serramenti; gli altri moduli si aggiungono
-  // qui man mano che adottano `components/preventivatore`.
-  const isGuscioPreventivatore = /^\/azienda\/serramenti\/(nuovo|[^/]+\/modifica)\/?$/.test(location.pathname);
+  // resta ferma da computer. L'elenco dei moduli è in `components/preventivatore/rotte`.
+  const isGuscioPreventivatore = rottaDelGuscio(location.pathname);
   const isViewportEditor = isClassicQuoteEditor
     || isGuscioPreventivatore
     || /^\/azienda\/impostazioni\/template-preventivi\/?$/.test(location.pathname)

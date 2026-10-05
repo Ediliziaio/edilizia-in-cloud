@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dataEstesa, formattaEuro, formattaQuantita, rigaDaPrezzare, righeDaPrezzare } from "@/lib/preventivatore/anteprima";
+import { dataEstesa, formattaEuro, formattaQuantita, rigaDaPrezzare, righeDaPrezzare, righeSenzaPrezzo } from "@/lib/preventivatore/anteprima";
 import { faseAperta, minutiRimasti } from "@/lib/preventivatore/fasi";
 
 describe("Anteprima: formati all'italiana", () => {
@@ -33,6 +33,13 @@ describe("Anteprima: voci da prezzare", () => {
       { id: "b", titolo: "B", righe: [{ id: "3", titolo: "z", quantita: 1, prezzoUnitario: 0, totale: 0 }] },
     ];
     expect(righeDaPrezzare({ gruppi })).toBe(2);
+  });
+
+  it("col prezzo scritto a mano le righe a 0 € non sono da segnalare: il prezzo concordato le comprende", () => {
+    const gruppi = [{ id: "a", titolo: "A", righe: [{ id: "1", titolo: "x", quantita: 1, prezzoUnitario: null as number | null, totale: null as number | null }] }];
+    expect(righeSenzaPrezzo({ gruppi, prezzoACorpo: false })).toBe(1);
+    expect(righeSenzaPrezzo({ gruppi })).toBe(1);
+    expect(righeSenzaPrezzo({ gruppi, prezzoACorpo: true })).toBe(0);
   });
 });
 

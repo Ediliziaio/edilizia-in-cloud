@@ -32,7 +32,7 @@ export function CorpoPreventivatore({ children, anteprima, anteprimaNascosta, cl
       <div className="min-w-0 space-y-4">{children}</div>
       {conColonna && (
         <aside aria-label="Anteprima del preventivo" className="hidden min-w-0 xl:block">
-          <div className={cn("sticky max-h-[calc(100dvh-15rem)] overflow-y-auto overscroll-contain pb-3", STICKY_ANTEPRIMA)}>
+          <div className={cn("sticky max-h-[calc(100dvh-18rem)] overflow-y-auto overscroll-contain", STICKY_ANTEPRIMA)}>
             {anteprima}
           </div>
         </aside>

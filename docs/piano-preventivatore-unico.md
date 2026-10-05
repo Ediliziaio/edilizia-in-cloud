@@ -1,7 +1,7 @@
 # Piano: un solo preventivatore, con la barra delle fasi del Fotovoltaico e l'anteprima live del preventivo classico
 
-Stato (05/10/2026, sera): **Serramenti è fatto in locale** (ramo `preventivatore-unico`, due commit, non
-pubblicati); il resto è piano. Prototipo da aprire nel browser:
+Stato (05/10/2026, sera): **Serramenti e gli otto moduli edili sono fatti in locale** (ramo
+`preventivatore-unico`, non pubblicati); restano il Fotovoltaico e il preventivo classico. Prototipo da aprire nel browser:
 [`docs/anteprima-preventivatore-unico.html`](anteprima-preventivatore-unico.html) (3 moduli, computer e telefono, dati di esempio).
 
 ## 0. Decisioni prese e cosa è già fatto
@@ -23,10 +23,28 @@ Fatto per Serramenti (Lotti 0, 1, 2 e 3a):
   corto, quello per esteso è nella striscia «Passo X di N»;
 - 46 test nuovi, più i 26 file correlati verdi.
 
-Da fare: **3b** la riga che si modifica sul posto (le scelte «apertura», «colore» sono variabili del listino, non
-campi liberi: serve un disegno a parte, e un'altra sessione lavora su quei file), poi Fotovoltaico e preventivo
-classico sul guscio, un modulo edile pilota e gli altri sette. Nei moduli edili il Computo e l'Economia hanno già
-un riquadro dei totali a destra: col pannello nuovo sarebbero doppi (decisione da prendere).
+Fatto per gli **otto moduli edili** (Lotti 4 e 5, tutti insieme: sono copie quasi identiche, quindi un solo guscio
+e un solo adattatore al posto di otto cornici):
+- `components/preventivatore/GuscioEdile`: testata, barra delle fasi col totale, anteprima a destra, piede fisso e
+  tendina da telefono, uguali per tutti. Il wizard di ogni modulo tiene il suo stato e i suoi passi; la rotta del
+  modulo è in `components/preventivatore/rotte` (altezza bloccata) e un test controlla che l'elenco coincida con i
+  wizard che usano il guscio;
+- `lib/preventivatore/anteprimaComputo.ts`: dalle voci del computo all'anteprima. Non calcola niente di suo: usa
+  `calcTotaliComputo` e `calcRigaImporto` del modulo, gli stessi dello step Economia e del PDF;
+- **decisione di Florin: «sì toglili, solo anteprima a destra»**. Via il riquadro dei totali dal Computo
+  (`ComputoEditor`) e le card «Riepilogo per capitolo», «Totali complessivi» e «Margine complessivo» da Economia.
+  Restano i Parametri e ciò che non è un totale: Conto Termico e Casa Full Electric (termoidraulico), il riepilogo
+  per ambiente e il verdetto «Prezzo di zona» (ristrutturazione, ora sotto il computo), i pacchetti (bagni);
+- la detrazione indicativa (col tetto di spesa) e il margine (vista Impresa, «—» se un costo manca) sono ora
+  nell'anteprima; **il margine lo vede solo chi ha il permesso**: prima in Economia lo vedeva chiunque;
+- il riepilogo (totali, e il margine nella vista Impresa) sta **fisso in fondo alla colonna**: scorrono le righe, il
+  totale resta in vista (anche nella tendina da telefono). Sul tablet la barra cede l'etichetta del totale e il
+  pulsante dell'anteprima diventa solo l'occhio;
+- «nascondi l'anteprima» vale per tutti i preventivatori (una sola preferenza nel browser).
+
+Da fare: **3b** la riga che si modifica sul posto in Serramenti (le scelte «apertura», «colore» sono variabili del
+listino, non campi liberi: serve un disegno a parte, e un'altra sessione lavora su quei file), poi il Fotovoltaico e
+il preventivo classico sul guscio.
 
 ## 1. Cosa hai chiesto
 
@@ -169,13 +187,10 @@ lotto finito, non sono promesse).
 ## 6. Cosa mi serve da te
 
 Risposte già date: si parte da Serramenti, anteprima veloce di default, «Impresa» solo col permesso,
-anteprima stretta.
+anteprima stretta; nei moduli edili si tolgono i riquadri dei totali e resta solo l'anteprima a destra.
 
 Da decidere per i prossimi lotti:
-1. **Moduli edili** (bagni, tetti, clima, elettrico, termoidraulico, pavimenti, piscine, ristrutturazione): nel
-   Computo e in Economia c'è già un riquadro dei totali a destra. Col pannello nuovo lo tolgo (si vede tutto a
-   destra, una sola volta) o lo lascio?
-2. **Fotovoltaico**: aggiungere la colonna a destra gli toglie un po' dello spazio largo che ti piace (a 1440 px il
+1. **Fotovoltaico**: aggiungere la colonna a destra gli toglie un po' dello spazio largo che ti piace (a 1440 px il
    lavoro passa da ~1090 a ~700 px). Va bene, con la colonna nascondibile?
 
 ## 7. Fuori da questo piano

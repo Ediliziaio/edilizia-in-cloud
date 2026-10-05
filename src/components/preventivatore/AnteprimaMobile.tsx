@@ -19,7 +19,8 @@ export function AnteprimaMobile({ aperta, onApertaChange, children }: Props) {
           <SheetTitle className="text-base">Anteprima</SheetTitle>
           <SheetDescription className="text-xs">Il preventivo come lo vede il cliente, aggiornato mentre scrivi.</SheetDescription>
         </SheetHeader>
-        {children}
+        {/* Scorre solo l'anteprima, senza spazio interno: così il riepilogo fisso in fondo sta davvero in fondo. */}
+        <div className="mt-2 max-h-[calc(88dvh-8rem)] overflow-y-auto overscroll-contain">{children}</div>
       </SheetContent>
     </Sheet>
   );

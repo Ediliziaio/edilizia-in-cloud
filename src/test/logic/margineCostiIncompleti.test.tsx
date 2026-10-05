@@ -1,9 +1,12 @@
 // Il margine dei computi edili, a schermo: con una voce venduta senza costo si
 // legge «Costi incompleti» e «—», non un margine del 100% (05/10/2026).
-// Le otto copie di StepEconomia e ComputoEditor hanno lo stesso blocco: qui si
-// prova quella dei bagni.
+//
+// Dal preventivatore unico (05/10/2026) il margine non sta più nello step
+// Economia né nel riepilogo a destra del computo: lo mostra una volta sola
+// l'anteprima del preventivo, vista «Impresa», uguale per gli otto moduli. Qui si
+// prova quella dei bagni e che gli altri due posti non ne facciano una seconda copia.
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { BgnComputoVoce, BgnProgetto } from "@/types/bagni";
 
 vi.mock("@/hooks/useBagniProgetto", () => ({ useBgnTemplatePdf: () => ({ data: undefined as unknown }) }));
@@ -17,6 +20,9 @@ vi.mock("@/components/bagni/ComputoEditor/CapitoloSection", () => ({ default: ()
 
 import StepEconomia from "@/pages/azienda/bagni/BagniWizard/StepEconomia";
 import ComputoEditor from "@/components/bagni/ComputoEditor/ComputoEditor";
+import { AnteprimaVeloce } from "@/components/preventivatore";
+import { anteprimaComputo } from "@/lib/preventivatore/anteprimaComputo";
+import * as calcoliBagni from "@/lib/bagni/calcoli";
 
 const voce = (p: Partial<BgnComputoVoce>): BgnComputoVoce => ({
   id: "v1", progetto_id: "p1", company_id: "c1", capitolo_nome: "Sanitari", descrizione: "Voce",
@@ -30,37 +36,44 @@ const SENZA_COSTO = voce({ id: "b", descrizione: "Box doccia", quantita: 1, prez
 
 const form = { company_id: "c1", sconto_pct: 0, iva_pct: 10, detrazione_pct: 0 } as Partial<BgnProgetto>;
 
-describe("margine con costi incompleti — step Economia", () => {
+const anteprimaImpresa = (voci: BgnComputoVoce[]) =>
+  render(<AnteprimaVeloce vista="impresa" dati={anteprimaComputo(voci, form, calcoliBagni, { ivaDefault: 10 })} />);
+
+describe("margine con costi incompleti — anteprima del preventivo, vista impresa", () => {
   it("una voce venduta senza costo: «—» e «Costi incompleti», non 100%", () => {
-    render(<StepEconomia form={form} onChange={() => {}} computo={[CON_COSTO, SENZA_COSTO]} />);
-    const scheda = screen.getByText("Margine complessivo").closest("div.flex.items-center.justify-between") as HTMLElement;
-    expect(within(scheda).getByText("Costi incompleti")).toBeInTheDocument();
-    expect(within(scheda).getByText("—")).toBeInTheDocument();
-    expect(within(scheda).getByText("1 voce venduta senza costo")).toBeInTheDocument();
-    expect(within(scheda).queryByText(/%$/)).toBeNull();
-  });
-
-  it("costi completi: il margine resta quello di sempre", () => {
-    render(<StepEconomia form={form} onChange={() => {}} computo={[CON_COSTO]} />);
-    const scheda = screen.getByText("Margine complessivo").closest("div.flex.items-center.justify-between") as HTMLElement;
-    expect(within(scheda).getByText("40%")).toBeInTheDocument();
-    expect(within(scheda).queryByText("Costi incompleti")).toBeNull();
-  });
-});
-
-describe("margine con costi incompleti — riepilogo del computo", () => {
-  const apriMargini = () => fireEvent.click(screen.getByRole("button", { name: /Margini/ }));
-
-  it("una voce venduta senza costo: «—» e «Costi incompleti · 1 senza costo»", () => {
-    render(<ComputoEditor value={[CON_COSTO, SENZA_COSTO]} onChange={() => {}} progettoId="p1" companyId="c1" ivaPct={10} />);
-    apriMargini();
-    expect(screen.getByText("Costi incompleti · 1 senza costo")).toBeInTheDocument();
-    expect(screen.queryByText(/100(,0|\.0)?%/)).toBeNull();
+    anteprimaImpresa([CON_COSTO, SENZA_COSTO]);
+    const riquadro = screen.getByText(/Vista impresa/).closest("div") as HTMLElement;
+    expect(within(riquadro).getByText("—")).toBeInTheDocument();
+    expect(within(riquadro).getByText(/Costi incompleti · 1 voce senza costo/)).toBeInTheDocument();
+    expect(within(riquadro).queryByText(/%/)).toBeNull();
   });
 
   it("costi completi: margine in euro e in percentuale", () => {
-    render(<ComputoEditor value={[CON_COSTO]} onChange={() => {}} progettoId="p1" companyId="c1" ivaPct={10} />);
-    apriMargini();
-    expect(screen.getByText(/^40\.0% · costo/)).toBeInTheDocument();
+    anteprimaImpresa([CON_COSTO]);
+    const riquadro = screen.getByText(/Vista impresa/).closest("div") as HTMLElement;
+    expect(within(riquadro).getByText("€ 400")).toBeInTheDocument();
+    expect(within(riquadro).getByText(/\(40%\)/)).toBeInTheDocument();
+    expect(within(riquadro).queryByText(/Costi incompleti/)).toBeNull();
+  });
+});
+
+describe("il margine non ha una seconda copia", () => {
+  it("lo step Economia non ha più riepilogo, totali né margine: restano i parametri", () => {
+    render(<StepEconomia form={form} onChange={() => {}} computo={[CON_COSTO, SENZA_COSTO]} />);
+    expect(screen.getByText("Parametri")).toBeInTheDocument();
+    expect(screen.queryByText("Margine complessivo")).toBeNull();
+    expect(screen.queryByText("Totali complessivi")).toBeNull();
+    expect(screen.queryByText("Riepilogo per capitolo")).toBeNull();
+    expect(screen.queryByText(/Costi incompleti/)).toBeNull();
+  });
+
+  it("l'editor del computo non ha più il riepilogo a destra: i totali sono nell'anteprima", () => {
+    render(<ComputoEditor value={[CON_COSTO, SENZA_COSTO]} onChange={() => {}} progettoId="p1" companyId="c1" />);
+    expect(screen.queryByText("Riepilogo computo")).toBeNull();
+    expect(screen.queryByText("Totale preventivo")).toBeNull();
+    expect(screen.queryByText(/Costi incompleti/)).toBeNull();
+    // il resto dell'editor c'è: conteggio e pulsanti
+    expect(screen.getByText("2 voci · 1 capitolo")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Cerca voce/ })).toBeInTheDocument();
   });
 });

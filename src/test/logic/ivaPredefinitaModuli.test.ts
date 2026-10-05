@@ -2,6 +2,8 @@
 // (05/10/2026). Prima l'editor del computo partiva dal 22% anche dove la tabella
 // dice 10% (bagni, tetti) e lo step Economia e il salvataggio dal 10% dove la
 // tabella dice 22%: la stessa bozza mostrava due IVA diverse.
+// Dal preventivatore unico l'editor non calcola più i totali: l'IVA di riserva
+// dell'anteprima a destra la dice il wizard (`ivaDefault`).
 //
 // Default delle colonne (letti dal database il 05/10/2026, uguali alle migrazioni):
 //   <modulo>_progetti.iva_pct           bgn 10, tet 10, rst 22, clm/ele/idr/pav/pis 22
@@ -28,9 +30,15 @@ const MODULI = [
 ] as const;
 
 describe.each(MODULI)("IVA di riserva del modulo $cartella", ({ cartella, wizard, hook, progetto, template }) => {
-  it(`editor del computo: ${progetto}%`, () => {
+  it(`anteprima a destra: ${progetto}% di riserva, come la colonna del database`, () => {
+    const pagina = leggi(`pages/azienda/${cartella}/${wizard}.tsx`);
+    expect(pagina).toContain(`ivaDefault: ${progetto},`);
+    expect(pagina).not.toMatch(new RegExp(`ivaDefault: ${progetto === 10 ? 22 : 10}\\b`));
+  });
+
+  it("editor del computo: nessuna IVA, i totali non sono più lì", () => {
     const editor = leggi(`components/${cartella}/ComputoEditor/ComputoEditor.tsx`);
-    expect(editor).toContain(`ivaPct = ${progetto},`);
+    expect(editor).not.toMatch(/ivaPct|scontoPct|calcTotaliComputo/);
   });
 
   it(`step Economia: ${progetto}% nel calcolo e nel campo`, () => {

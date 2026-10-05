@@ -101,6 +101,19 @@ describe("AnteprimaVeloce", () => {
     expect(screen.getByText("€ 2.508")).toBeTruthy();
   });
 
+  it("il prezzo unitario dice a cosa si riferisce: «cad.» per i pezzi, «/ mq» per le misure", () => {
+    render(<AnteprimaVeloce dati={anteprima({
+      gruppi: [{ id: "g", titolo: "Lavori", righe: [
+        { id: "a", titolo: "Pezzi", quantita: 3, unita: "pz", prezzoUnitario: 800, totale: 2400 },
+        { id: "b", titolo: "Posa pavimento", quantita: 12.5, unita: "mq", prezzoUnitario: 18, totale: 225 },
+        { id: "c", titolo: "Radiatori", quantita: 6, unita: "cad", prezzoUnitario: 120, totale: 720 },
+      ] }],
+    })} />);
+    expect(screen.getByText("€ 800 cad.")).toBeTruthy();
+    expect(screen.getByText("€ 18 / mq")).toBeTruthy();
+    expect(screen.getByText("€ 120 cad.")).toBeTruthy();
+  });
+
   it("la voce senza prezzo è «da prezzare» e l'avviso dice quante ce ne sono", () => {
     render(<AnteprimaVeloce dati={anteprima()} />);
     expect(screen.getByText("da prezzare")).toBeTruthy();
@@ -124,6 +137,48 @@ describe("AnteprimaVeloce", () => {
     expect(screen.queryByText("da prezzare")).toBeNull();
     expect(screen.getByText("compresa")).toBeTruthy();
     expect(screen.queryByText(/senza prezzo/)).toBeNull();
+  });
+
+  it("la detrazione indicativa si legge col suo tetto di spesa, e dice quando lo si supera", () => {
+    const { rerender } = render(<AnteprimaVeloce dati={anteprima({ detrazione: { pct: 50, importo: 1254, massimale: 96000, oltreMassimale: false } })} />);
+    expect(screen.getByText("Detrazione indicativa (50%)")).toBeTruthy();
+    expect(screen.getByText("€ 1.254")).toBeTruthy();
+    expect(screen.getByText(/tetto di spesa di € 96\.000\./)).toBeTruthy();
+    expect(screen.queryByText(/la spesa lo supera/)).toBeNull();
+
+    rerender(<AnteprimaVeloce dati={anteprima({ detrazione: { pct: 36, importo: 34560, massimale: 96000, oltreMassimale: true } })} />);
+    expect(screen.getByText("Detrazione indicativa (36%)")).toBeTruthy();
+    expect(screen.getByText(/la spesa lo supera/)).toBeTruthy();
+
+    rerender(<AnteprimaVeloce dati={anteprima({ detrazione: { pct: 50, importo: 1254, massimale: null, oltreMassimale: false } })} />);
+    expect(screen.getByText(/Stima sull'imponibile netto/)).toBeTruthy();
+
+    rerender(<AnteprimaVeloce dati={anteprima({ detrazione: null })} />);
+    expect(screen.queryByText(/Detrazione indicativa/)).toBeNull();
+  });
+
+  it("un margine che non si conosce (voce venduta senza costo) è «—» con «Costi incompleti», non una cifra", () => {
+    render(<AnteprimaVeloce vista="impresa" dati={anteprima({ impresa: { costi: 1500, margine: null, marginePct: null, costiCompleti: false, righeSenzaCosto: 2 } })} />);
+    const riquadro = screen.getByText(/Vista impresa/).closest("div") as HTMLElement;
+    expect(within(riquadro).getByText("—")).toBeTruthy();
+    expect(within(riquadro).getByText(/Costi incompleti · 2 voci senza costo/)).toBeTruthy();
+    expect(within(riquadro).queryByText(/%/)).toBeNull();
+  });
+
+  it("il riepilogo sta in un blocco fisso in fondo alla colonna: scorrono le righe, il totale resta in vista", () => {
+    render(<AnteprimaVeloce dati={anteprima()} />);
+    const blocco = screen.getByText("€ 2.508").closest(".sticky") as HTMLElement;
+    expect(blocco).toBeTruthy();
+    expect(blocco.className).toContain("bottom-0");
+    expect(within(blocco).getByText("€ 2.508")).toBeTruthy();
+    // la detrazione e gli avvisi scorrono con le righe, non stanno nel blocco fisso
+    expect(within(blocco).queryByText(/senza prezzo/)).toBeNull();
+  });
+
+  it("senza niente da sommare non c'è riepilogo fisso, nemmeno nella vista impresa (non si mostra «margine —» a un preventivo vuoto)", () => {
+    const { container } = render(<AnteprimaVeloce vista="impresa" dati={anteprima({ gruppi: [], totali: [], totaleDocumento: null, impresa: { costi: 0, margine: null, marginePct: null, costiCompleti: false, righeSenzaCosto: 0 } })} />);
+    expect(container.querySelector(".sticky")).toBeNull();
+    expect(screen.queryByText(/Vista impresa/)).toBeNull();
   });
 
   it("la riga che si sta toccando si evidenzia", () => {

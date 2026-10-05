@@ -47,13 +47,28 @@ export interface VoceTotale {
 
 export interface MargineAnteprima {
   costi: number;
-  margine: number;
+  /**
+   * `null` quando il modulo non dà un margine a costi incompleti (i moduli edili:
+   * una voce venduta senza costo conterebbe a costo zero e il margine salirebbe
+   * verso il 100%). I serramenti danno il margine parziale e lo dicono.
+   */
+  margine: number | null;
   /** `null` quando i costi non sono completi: una percentuale sarebbe fuorviante. */
   marginePct: number | null;
   costiCompleti: boolean;
   righeSenzaCosto: number;
   sottoTarget?: boolean;
   margineMinPct?: number;
+}
+
+/** La detrazione fiscale indicativa (bonus casa): importo, aliquota e tetto di spesa. */
+export interface DetrazioneAnteprima {
+  pct: number;
+  importo: number;
+  /** Il tetto di spesa su cui si calcola; `null` = nessun massimale. */
+  massimale: number | null;
+  /** La spesa supera il tetto: la detrazione si ferma lì. */
+  oltreMassimale: boolean;
 }
 
 export interface AnteprimaPreventivo {
@@ -79,6 +94,8 @@ export interface AnteprimaPreventivo {
   note: string[];
   /** Solo se chi guarda può vedere i margini: costi e margine del preventivo. */
   impresa?: MargineAnteprima | null;
+  /** La detrazione indicativa, dove il modulo la prevede (il PDF la stampa). */
+  detrazione?: DetrazioneAnteprima | null;
 }
 
 /** Una riga senza prezzo: scritta a 0 € o non ancora prezzata. */
@@ -88,6 +105,14 @@ export const rigaDaPrezzare = (riga: Pick<RigaAnteprima, "totale">): boolean =>
 /** Quante righe del preventivo non hanno ancora un prezzo. */
 export function righeDaPrezzare(anteprima: Pick<AnteprimaPreventivo, "gruppi">): number {
   return anteprima.gruppi.reduce((n, g) => n + g.righe.filter(rigaDaPrezzare).length, 0);
+}
+
+/**
+ * Le righe senza prezzo di cui avvisare: col prezzo scritto a mano nessuna, perché
+ * il prezzo concordato le comprende.
+ */
+export function righeSenzaPrezzo(anteprima: Pick<AnteprimaPreventivo, "gruppi" | "prezzoACorpo">): number {
+  return anteprima.prezzoACorpo ? 0 : righeDaPrezzare(anteprima);
 }
 
 export function righeTotali(anteprima: Pick<AnteprimaPreventivo, "gruppi">): number {

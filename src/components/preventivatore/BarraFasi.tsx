@@ -60,7 +60,7 @@ export function BarraFasi({
 
   return (
     <div className={cn("border-b border-slate-200 bg-white shadow-[0_1px_0_rgba(15,23,42,0.05)]", className)}>
-      <div className="flex items-stretch px-4 sm:px-6 max-md:px-2">
+      <div className="flex items-stretch px-4 sm:px-6 max-md:px-2 lg:max-xl:px-3">
         <nav
           ref={rigaRef}
           aria-label={ariaLabel}
@@ -83,7 +83,7 @@ export function BarraFasi({
                 disabled={!cliccabile}
                 aria-current={attivo ? "step" : undefined}
                 className={cn(
-                  "relative flex shrink-0 items-center gap-2 whitespace-nowrap border-b-[3px] border-transparent px-3 py-2.5 text-sm font-medium transition-colors hover:bg-slate-50 xl:gap-2.5 xl:px-4",
+                  "relative flex shrink-0 items-center gap-2 whitespace-nowrap border-b-[3px] border-transparent px-2.5 py-2.5 text-sm font-medium transition-colors hover:bg-slate-50 lg:max-xl:px-2 xl:gap-2.5 xl:px-4",
                   attivo && "border-orange-500 bg-white font-semibold text-slate-900",
                   fatto && !attivo && "text-slate-700",
                   !attivo && !fatto && "text-slate-500",
@@ -124,7 +124,8 @@ export function BarraFasi({
           <div className="ml-2 flex shrink-0 items-center gap-3 border-l border-slate-200 pl-4 max-md:hidden">
             {totale && (
               <div className="flex flex-col items-end justify-center leading-tight" aria-live="polite">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{totale.etichetta ?? "Totale IVA incl."}</span>
+                {/* Tra 1024 e 1279 px la barra laterale dell'app toglie 240 px: l'etichetta cede il posto alle fasi. */}
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 lg:max-xl:hidden">{totale.etichetta ?? "Totale IVA incl."}</span>
                 <span className="text-xl font-bold tabular-nums tracking-tight text-slate-900">{totale.valore}</span>
               </div>
             )}
@@ -133,7 +134,7 @@ export function BarraFasi({
         )}
       </div>
       {/* Telefono: la fase la dicono già le pillole e il totale sta nella barra in basso. */}
-      <div className="flex items-center gap-3 border-t border-slate-100 bg-slate-50 px-4 py-1.5 text-xs text-slate-500 sm:px-6 max-md:hidden">
+      <div className="flex items-center gap-3 border-t border-slate-100 bg-slate-50 px-4 py-1.5 text-xs text-slate-500 sm:px-6 max-md:hidden lg:max-xl:px-3">
         <span>
           <strong className="text-slate-900">Passo {indice + 1} di {passi.length}</strong> · {passi[indice]?.label}
         </span>

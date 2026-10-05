@@ -5,6 +5,8 @@
  * controllato iniziale e le salva in modo DEBOUNCED via `useSaveComputo`
  * (replace bulk con ricalcolo importi lato hook). Mostra un indicatore di
  * salvataggio e un hint se il listino lavorazioni è vuoto (link alle Impostazioni).
+ * I totali non sono qui: li mostra l'anteprima a destra del preventivo, che riceve
+ * le voci a ogni modifica (`onVociChange`).
  *
  * Seeding dello stato (no setState in effect): il componente viene montato dal
  * wizard con `key={progettoId}`, quindi `useState(() => initialComputo)` cattura
@@ -26,14 +28,17 @@ import type { ComputoVoceLocal } from "@/types/computo";
 import ComputoEditor from "@/components/piscine/ComputoEditor/ComputoEditor";
 import type { SalesIntervention } from "@/lib/moduli-vendita/areas";
 import { LavorazioniDelModello } from "@/components/moduli/InterventoScelto";
+import type { StatoSalvataggio } from "@/components/preventivatore";
 
 interface Props {
   progettoId: string;
   initialComputo: PisComputoVoce[];
-  scontoPct: number;
-  ivaPct: number;
-  /** Prezzo scritto a mano in Economia: il riepilogo del computo parte da quello. */
-  prezzoManuale?: number | null;
+  /** A ogni modifica: l'anteprima a destra del preventivo si ricalcola con queste voci. */
+  onVociChange?: (voci: PisComputoVoce[]) => void;
+  /** Come sta salvando lo step (il suo autosave): il piede del preventivo lo riporta. */
+  onStato?: (stato: StatoSalvataggio | null) => void;
+  /** Il computo che arriva ha modifiche che il server non ha (il salvataggio all'uscita dal passo non è riuscito): si risalvano. */
+  initialDirty?: boolean;
   /** L'intervento della libreria, se il preventivo nasce da un modello. */
   model?: SalesIntervention;
 }
@@ -41,13 +46,13 @@ interface Props {
 const LISTINO_SETTINGS_HREF =
   "/azienda/piscine/listino";
 
-export default function StepComputo({ progettoId, initialComputo, scontoPct, ivaPct, prezzoManuale = null, model }: Props) {
+export default function StepComputo({ progettoId, initialComputo, initialDirty = false, onVociChange, onStato, model }: Props) {
   const companyId = useEffectiveCompanyId();
   const saveMut = useSaveComputo(progettoId);
 
   // Stato controllato del computo, seedato una volta dal server (vedi header).
   const [computo, setComputo] = useState<PisComputoVoce[]>(() => initialComputo);
-  const [dirty, setDirty] = useState(false);
+  const [dirty, setDirty] = useState(initialDirty);
   const [savedOnce, setSavedOnce] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -59,6 +64,7 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
   const handleChange = (next: PisComputoVoce[]) => {
     setComputo(next);
     setDirty(true);
+    onVociChange?.(next);
   };
 
   // Import AI: le voci estratte (già riviste nel modale) → PisComputoVoce, accodate.
@@ -117,10 +123,12 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
   const computoRef = useRef(computo);
   const dirtyRef = useRef(dirty);
   const saveRef = useRef(saveMut);
+  const statoRef = useRef(onStato);
   useEffect(() => {
     computoRef.current = computo;
     dirtyRef.current = dirty;
     saveRef.current = saveMut;
+    statoRef.current = onStato;
   });
 
   // ─── Autosave debounced (1.2s) ────────────────────────────────────────────
@@ -163,12 +171,23 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
         timerRef.current = null;
       }
       if (dirtyRef.current) {
-        void saveRef.current.mutateAsync(toPayload(computoRef.current)).catch(() => {
-          /* best-effort: il componente è già smontato, niente toast/setState */
-        });
+        // Il piede del preventivo dice la verità anche dopo l'uscita dal passo: «salvando», poi
+        // «salvato», o «modifiche» se non è riuscito (tornando al passo si riprova da sole).
+        statoRef.current?.("salvando");
+        void saveRef.current.mutateAsync(toPayload(computoRef.current))
+          .then(() => statoRef.current?.("salvato"))
+          .catch(() => statoRef.current?.("modifiche"));
+      } else {
+        statoRef.current?.(null);
       }
     };
   }, []);
+
+  // Il piede del preventivo dice com'è davvero il salvataggio: gli riportiamo il nostro.
+  const stato: StatoSalvataggio | null = saveMut.isPending ? "salvando" : dirty ? "modifiche" : savedOnce ? "salvato" : null;
+  useEffect(() => {
+    statoRef.current?.(stato);
+  }, [stato]);
 
   const statusLabel = useMemo(() => {
     if (saveMut.isPending) return { icon: "spin" as const, text: "Salvataggio…", cls: "text-muted-foreground" };
@@ -256,9 +275,6 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
           onChange={handleChange}
           progettoId={progettoId}
           companyId={companyId}
-          scontoPct={scontoPct}
-          ivaPct={ivaPct}
-          prezzoManuale={prezzoManuale}
         />
       ) : (
         <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed py-10 text-sm text-muted-foreground">
