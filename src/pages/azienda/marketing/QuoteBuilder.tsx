@@ -44,6 +44,7 @@ import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventiv
 import { calcolaPrezzoFamiglia, type GridPoint } from "@/hooks/useFamilyPricing";
 import { unitaTariffa } from "@/lib/listino/costoTariffa";
 import { allineaRigheAlKm, quantitaInizialeTariffa } from "@/lib/listino/tariffaAlKm";
+import { conAssiVisibili } from "@/lib/serramenti/assiCondizionati";
 import ApplyBundleDialog from "@/components/marketing/preventivi/ApplyBundleDialog";
 import { TariffePickerDialog } from "@/components/marketing/preventivi/TariffePickerDialog";
 import { AddItemDialog } from "@/components/marketing/preventivi/AddItemDialog";
@@ -1223,9 +1224,12 @@ export default function QuoteBuilder() {
           vat_rate = ivaFamiglia;
           ivaPropria = true;
         }
+        // Solo le varianti che si vedono con queste scelte (05/10/2026): una
+        // variante «con monoblocco» scelta dall'AI su una finestra senza non
+        // deve pesare sul prezzo, come nel configuratore.
         const pricing = calcolaPrezzoFamiglia(
           {
-            family: famiglia,
+            family: conAssiVisibili(famiglia, r.axis_selections ?? {}),
             selections: r.axis_selections ?? {},
             larghezza_mm: r.misure_x_mm ?? undefined,
             altezza_mm: r.misure_y_mm ?? undefined,

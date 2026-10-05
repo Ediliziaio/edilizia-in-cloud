@@ -9,7 +9,7 @@ import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { chargeAndLogDirect, estimateEmbeddingUsage } from "../_shared/ai-provider/directApi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
-import { type CellaGrigliaAi, type PrezziFamigliaAi, prezzoFamigliaAi } from "../_shared/prezzoFamigliaAi.ts";
+import { type CellaGrigliaAi, type CondizioneAsseAi, type PrezziFamigliaAi, prezzoFamigliaAi } from "../_shared/prezzoFamigliaAi.ts";
 
 // ── Shape dei record DB usati dall'edge function ───────────────────────────
 // Tipi minimali per sostituire `any` senza legarsi alle generated types (che
@@ -68,6 +68,7 @@ type ArticleFamilyAxisRow = {
   nome: string;
   sort_order: number;
   obbligatorio: boolean;
+  visibile_se?: unknown;
 };
 
 type ArticleFamilyAxisValueRow = {
@@ -161,6 +162,7 @@ async function famiglieDalTesto(
       .select(campi)
       .eq("company_id", companyId)
       .eq("attivo", true)
+      .is("deleted_at", null)
       .or(filtro)
       .order("nome")
       .limit(200);
@@ -185,9 +187,34 @@ async function famiglieDalTesto(
     .select(campi)
     .eq("company_id", companyId)
     .eq("attivo", true)
+    .is("deleted_at", null)
     .order("nome")
     .limit(quante);
   return (data ?? []) as FamigliaMatch[];
+}
+
+/**
+ * Tutte le righe di una lettura, a pagine di mille: PostgREST si ferma a mille
+ * righe, e con venti prodotti varianti e griglie arrivavano tagliate (una
+ * griglia da 125 celle × 20 prodotti sono 2.500 righe). Un errore ferma la
+ * lettura e finisce nel log: si usa quello che c'è, come prima.
+ */
+async function tutteLeRighe<T>(
+  pagina: (da: number, a: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+): Promise<T[]> {
+  const PASSO = 1000;
+  const righe: T[] = [];
+  for (let da = 0; da < 50_000; da += PASSO) {
+    const { data, error } = await pagina(da, da + PASSO - 1);
+    if (error) {
+      console.error("Lettura a pagine interrotta:", error.message);
+      break;
+    }
+    const blocco = (data ?? []) as T[];
+    righe.push(...blocco);
+    if (blocco.length < PASSO) break;
+  }
+  return righe;
 }
 
 Deno.serve(async (req) => {
@@ -432,6 +459,8 @@ Deno.serve(async (req) => {
       sort_order: number;
       obbligatorio: boolean;
       values: AxisValue[];
+      /** Compare solo se un'altra variante ha certi valori (monoblocco, 20281005100000). */
+      visibile_se: CondizioneAsseAi | null;
     };
     const familyAxesMap = new Map<string, Axis[]>();
     // NB: la tabella listino_griglia usa colonna `prezzo_acquisto` (NON `_netto` come
@@ -440,22 +469,56 @@ Deno.serve(async (req) => {
       string,
       Array<{ valore_x: number; valore_y: number; prezzo_vendita: number; prezzo_acquisto: number | null }>
     >();
+    if (famiglieMatched.length > 0) {
+      // Prezzi delle famiglie, e via quelle nel cestino (05/10/2026): il
+      // retrieval semantico guarda solo «attivo», e in produzione 465 prodotti
+      // nel cestino risultano ancora attivi.
+      const { data: prezziRows } = await supabaseAdmin
+        .from("article_families")
+        .select("id,deleted_at,prezzo_base_mode,prezzo_base_vendita,prezzo_base_acquisto,sconto_fornitore_1,sconto_fornitore_2,markup_tipo,markup_valore")
+        .in("id", famiglieMatched.map((f) => f.id))
+        .eq("company_id", company_id);
+      const nelCestino = new Set<string>();
+      for (const r of (prezziRows ?? []) as Array<Record<string, unknown>>) {
+        if (r.deleted_at) {
+          nelCestino.add(String(r.id));
+          continue;
+        }
+        prezziFamigliaMap.set(String(r.id), {
+          prezzo_base_mode: (r.prezzo_base_mode as string | null) ?? null,
+          prezzo_base_vendita: Number(r.prezzo_base_vendita) || 0,
+          prezzo_base_acquisto: Number(r.prezzo_base_acquisto) || 0,
+          sconto_fornitore_1: Number(r.sconto_fornitore_1) || 0,
+          sconto_fornitore_2: Number(r.sconto_fornitore_2) || 0,
+          markup_tipo: (r.markup_tipo as string | null) ?? null,
+          markup_valore: Number(r.markup_valore) || 0,
+        });
+      }
+      if (nelCestino.size > 0) famiglieMatched = famiglieMatched.filter((f) => !nelCestino.has(f.id));
+    }
     const famiglieIds = famiglieMatched.map((f) => f.id);
     if (famiglieIds.length > 0) {
-      const { data: axesRows } = await supabaseAdmin
-        .from("article_family_axes")
-        .select("id,family_id,codice,nome,sort_order,obbligatorio")
-        .in("family_id", famiglieIds);
-      const axesTyped = (axesRows ?? []) as ArticleFamilyAxisRow[];
+      const axesTyped = await tutteLeRighe<ArticleFamilyAxisRow>((da, a) =>
+        supabaseAdmin
+          .from("article_family_axes")
+          .select("id,family_id,codice,nome,sort_order,obbligatorio,visibile_se")
+          .in("family_id", famiglieIds)
+          .order("id")
+          .range(da, a)
+      );
       const axisIds = axesTyped.map((a) => a.id);
       const valuesByAxis = new Map<string, AxisValue[]>();
       if (axisIds.length > 0) {
-        const { data: valRows } = await supabaseAdmin
-          .from("article_family_axis_values")
-          .select("id,axis_id,valore,label,maggiorazione_tipo,maggiorazione_valore,maggiorazione_acquisto,prezzo_vendita,attivo")
-          .in("axis_id", axisIds)
-          .eq("attivo", true);
-        for (const v of (valRows ?? []) as ArticleFamilyAxisValueRow[]) {
+        const valRows = await tutteLeRighe<ArticleFamilyAxisValueRow>((da, a) =>
+          supabaseAdmin
+            .from("article_family_axis_values")
+            .select("id,axis_id,valore,label,maggiorazione_tipo,maggiorazione_valore,maggiorazione_acquisto,prezzo_vendita,attivo")
+            .in("axis_id", axisIds)
+            .eq("attivo", true)
+            .order("id")
+            .range(da, a)
+        );
+        for (const v of valRows) {
           const arr = valuesByAxis.get(v.axis_id) ?? [];
           arr.push({
             id: v.id,
@@ -469,24 +532,9 @@ Deno.serve(async (req) => {
           valuesByAxis.set(v.axis_id, arr);
         }
       }
-      const { data: prezziRows } = await supabaseAdmin
-        .from("article_families")
-        .select("id,prezzo_base_mode,prezzo_base_vendita,prezzo_base_acquisto,sconto_fornitore_1,sconto_fornitore_2,markup_tipo,markup_valore")
-        .in("id", famiglieIds)
-        .eq("company_id", company_id);
-      for (const r of (prezziRows ?? []) as Array<Record<string, unknown>>) {
-        prezziFamigliaMap.set(String(r.id), {
-          prezzo_base_mode: (r.prezzo_base_mode as string | null) ?? null,
-          prezzo_base_vendita: Number(r.prezzo_base_vendita) || 0,
-          prezzo_base_acquisto: Number(r.prezzo_base_acquisto) || 0,
-          sconto_fornitore_1: Number(r.sconto_fornitore_1) || 0,
-          sconto_fornitore_2: Number(r.sconto_fornitore_2) || 0,
-          markup_tipo: (r.markup_tipo as string | null) ?? null,
-          markup_valore: Number(r.markup_valore) || 0,
-        });
-      }
       for (const a of axesTyped) {
         const arr = familyAxesMap.get(a.family_id) ?? [];
+        const condizione = a.visibile_se as CondizioneAsseAi | null | undefined;
         arr.push({
           id: a.id,
           codice: a.codice,
@@ -494,6 +542,9 @@ Deno.serve(async (req) => {
           sort_order: Number(a.sort_order) || 0,
           obbligatorio: !!a.obbligatorio,
           values: valuesByAxis.get(a.id) ?? [],
+          visibile_se: condizione && typeof condizione.asse === "string" && Array.isArray(condizione.valori)
+            ? condizione
+            : null,
         });
         familyAxesMap.set(a.family_id, arr);
       }
@@ -502,11 +553,15 @@ Deno.serve(async (req) => {
         .filter((f) => f.modalita_prezzo_base === "griglia")
         .map((f) => f.id);
       if (gridFamilyIds.length > 0) {
-        const { data: famGridRows } = await supabaseAdmin
-          .from("listino_griglia")
-          .select("family_id,valore_x,valore_y,prezzo_vendita,prezzo_acquisto")
-          .in("family_id", gridFamilyIds);
-        for (const g of (famGridRows ?? []) as ListinoGrigliaFamigliaRow[]) {
+        const famGridRows = await tutteLeRighe<ListinoGrigliaFamigliaRow>((da, a) =>
+          supabaseAdmin
+            .from("listino_griglia")
+            .select("family_id,valore_x,valore_y,prezzo_vendita,prezzo_acquisto")
+            .in("family_id", gridFamilyIds)
+            .order("id")
+            .range(da, a)
+        );
+        for (const g of famGridRows) {
           const arr = familyGridsMap.get(g.family_id) ?? [];
           arr.push({
             valore_x: Number(g.valore_x),

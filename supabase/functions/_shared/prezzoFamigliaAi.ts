@@ -28,10 +28,18 @@ export interface PrezziFamigliaAi {
 
 export interface ValoreAsseAi {
   id: string;
+  /** Il valore del listino: lo legge la condizione di visibilità degli altri assi. */
+  valore?: string;
   maggiorazione_tipo: string;
   maggiorazione_valore: number;
   /** Prezzo proprio della variante: sostituisce il prezzo base (non per la griglia). */
   prezzo_vendita: number | null;
+}
+
+/** Variante che compare solo se un'altra (per codice) ha uno di questi valori, come «con monoblocco». */
+export interface CondizioneAsseAi {
+  asse: string;
+  valori: string[];
 }
 
 export interface AsseAi {
@@ -39,6 +47,39 @@ export interface AsseAi {
   sort_order: number;
   obbligatorio: boolean;
   values: ValoreAsseAi[];
+  visibile_se?: CondizioneAsseAi | null;
+}
+
+const condizioneValida = (c: unknown): c is CondizioneAsseAi =>
+  !!c && typeof c === "object" && typeof (c as CondizioneAsseAi).asse === "string" &&
+  Array.isArray((c as CondizioneAsseAi).valori);
+
+/**
+ * I codici degli assi che si vedono con queste scelte, con la regola di
+ * codiciVisibili (src/lib/serramenti/assiCondizionati.ts): un asse con la
+ * condizione si vede se quello che lo comanda è visibile e ha uno dei valori
+ * indicati. Un asse nascosto non si chiede e non pesa sul prezzo (05/10/2026):
+ * prima l'AI lo segnalava come «obbligatorio non selezionato» su 574 prodotti
+ * col monoblocco.
+ */
+export function codiciVisibiliAi(assi: AsseAi[], scelte: Record<string, string>): Set<string> {
+  const perCodice = new Map(assi.map((a) => [a.codice, a]));
+  const visibili = new Set(assi.filter((a) => !condizioneValida(a.visibile_se)).map((a) => a.codice));
+  let cambiato = true;
+  while (cambiato) {
+    cambiato = false;
+    for (const a of assi) {
+      if (visibili.has(a.codice) || !condizioneValida(a.visibile_se)) continue;
+      const comanda = perCodice.get(a.visibile_se.asse);
+      if (!comanda || !visibili.has(comanda.codice)) continue;
+      const scelto = comanda.values.find((v) => v.id === scelte[comanda.codice]);
+      if (scelto?.valore != null && a.visibile_se.valori.includes(scelto.valore)) {
+        visibili.add(a.codice);
+        cambiato = true;
+      }
+    }
+  }
+  return visibili;
 }
 
 export interface CellaGrigliaAi {
@@ -144,7 +185,8 @@ export function prezzoFamigliaAi(
         : netto;
   }
 
-  const ordinati = [...assi].sort((a, b) => a.sort_order - b.sort_order);
+  const visibili = codiciVisibiliAi(assi, scelte);
+  const ordinati = assi.filter((a) => visibili.has(a.codice)).sort((a, b) => a.sort_order - b.sort_order);
   const valore = (asse: AsseAi) => {
     const id = scelte[asse.codice];
     return id ? asse.values.find((v) => v.id === id) : undefined;

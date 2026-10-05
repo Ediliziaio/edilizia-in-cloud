@@ -13,6 +13,7 @@ import { calcolaPrezzoFamiglia, type GridPoint } from "@/hooks/useFamilyPricing"
 import { calcolaTotaliPreventivo, ivaVoceNuova, normalizzaRigaSconto } from "@/hooks/usePreventivoCosti";
 import { costoArticolo, unitaTariffa } from "@/lib/listino/costoTariffa";
 import { quantitaInizialeTariffa } from "@/lib/listino/tariffaAlKm";
+import { conAssiVisibili } from "@/lib/serramenti/assiCondizionati";
 import { quoteWriteVersion } from "@/lib/preventivi/quoteWriteVersion";
 import { esitoUpdateConGuardia, isConflittoModifica } from "@/lib/concorrenza";
 import { assertSavedQuoteAmounts } from "@/lib/preventivi/quoteSaveValidation";
@@ -85,7 +86,7 @@ describe("Righe generate dall'AI: famiglie e voci di servizio", () => {
       console, items, prezzoManualeIvaPct: null, ivaVoceNuova, calcolaPrezzoFamiglia, caricaGriglieFamiglie,
       articleFamilies: [famiglia], articoli: [], calcolaPrezzoProdotto: vi.fn(),
       tariffe: [tariffaPosa, tariffaTrasporto, tariffaKm], calcolaTariffaAutomatica, unitaTariffa, quantitaInizialeTariffa,
-      pianoInstallazione: 0, kmCantiere,
+      conAssiVisibili, pianoInstallazione: 0, kmCantiere,
       setItems: (fn: (prev: Riga[]) => Riga[]) => { aggiunte = fn([]); }, toast,
     });
     return { aggiungi: (righe: unknown[]) => g.aggiungiSezione("Serramenti", righe) as Promise<void>, righe: () => aggiunte, toast, caricaGriglieFamiglie };

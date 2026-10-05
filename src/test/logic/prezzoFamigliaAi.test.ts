@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { calcolaPrezzoFamiglia, type GridPoint } from "@/hooks/useFamilyPricing";
 import type { AxisValue, FamilyAxis, FamilyWithAxes } from "@/types/articleFamily";
 import { prezzoFamigliaAi } from "../../../supabase/functions/_shared/prezzoFamigliaAi";
+import { conAssiVisibili } from "@/lib/serramenti/assiCondizionati";
 
 /**
  * La generazione AI del preventivo (ai-genera-preventivo-v2) mostra un prezzo
@@ -54,8 +55,9 @@ function entrambi(
   y?: number,
   griglia?: GridPoint[],
 ) {
+  // Il preventivo prezza solo le varianti visibili, come il configuratore.
   const preventivo = calcolaPrezzoFamiglia(
-    { family: f, selections: scelte, larghezza_mm: x, altezza_mm: y, quantita: 1 },
+    { family: conAssiVisibili(f, scelte), selections: scelte, larghezza_mm: x, altezza_mm: y, quantita: 1 },
     griglia,
   );
   const avvisi: string[] = [];
@@ -172,6 +174,31 @@ describe("prezzo famiglia: generazione AI e preventivo dicono lo stesso numero",
     expect(sotto.preventivo.warnings.join(" ")).toContain("sotto zero");
     expect(sotto.ai).toBe(0);
     expect(sotto.avvisi.join(" ")).toContain("sotto zero");
+  });
+
+  it("varianti «solo con monoblocco»: nascoste non pesano e non si chiedono", () => {
+    const monoblocco = asse("monoblocco", 0, [
+      valore("senza"),
+      valore("con", { maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 150 }),
+    ]);
+    const cassonetto = {
+      ...asse("cassonetto", 1, [valore("h200", { maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 40 })], true),
+      visibile_se: { asse: "monoblocco", valori: ["con"] },
+    };
+    const f = famiglia({ axes: [monoblocco, cassonetto] });
+
+    // Senza monoblocco il cassonetto non c'è: niente +40 anche se l'AI l'ha scelto, niente «obbligatorio».
+    const senza = entrambi(f, { monoblocco: "senza", cassonetto: "h200" });
+    expect(senza.preventivo.unit_price_vendita).toBe(100);
+    expect(senza.ai).toBe(100);
+    expect(senza.avvisi.join(" ")).not.toContain("obbligatorio");
+
+    const con = entrambi(f, { monoblocco: "con", cassonetto: "h200" });
+    expect(con.preventivo.unit_price_vendita).toBe(290); // 100 + 150 + 40
+    expect(con.ai).toBe(290);
+
+    // Con monoblocco il cassonetto si chiede.
+    expect(entrambi(f, { monoblocco: "con" }).avvisi.join(" ")).toContain("obbligatorio");
   });
 
   it("asse obbligatorio non scelto: lo dice", () => {
