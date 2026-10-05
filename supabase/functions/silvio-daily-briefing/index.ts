@@ -25,6 +25,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireCompanyAccess, requireInternalSecret } from "../_shared/auth.ts";
 import { richiediAmministratoreAzienda } from "../_shared/amministraAzienda.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { destinatariBriefing } from "./destinatari.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi dal
 // briefing quotidiano mostrato all'utente.
@@ -63,6 +64,7 @@ serve(async (req: Request) => {
     const mode = body.mode ?? (body.user_id ? "user" : body.company_id ? "company" : "all_companies");
 
     let targets: Array<{ user_id: string; company_id: string }> = [];
+    let saltatiPerStato = 0;
 
     if (mode === "user" && body.user_id) {
       const { data: profile } = await supabaseAdmin
@@ -89,27 +91,36 @@ serve(async (req: Request) => {
       targets = (profiles ?? []).map((p: any) => ({ user_id: p.id, company_id: p.company_id }));
     } else if (mode === "all_companies") {
       requireInternalSecret(req, corsHeaders);
-      // Cron mode: tutti gli utenti con preferences enabled = true
+      // Cron mode: tutti gli utenti con preferences enabled = true, tranne chi
+      // sta in un'azienda sospesa, scaduta o cessata (destinatari.ts: sul Test
+      // Lab sospeso erano 4,3 $ in 14 giorni di messaggi che nessuno leggeva).
       const { data: prefs } = await supabaseAdmin
         .from("silvio_user_preferences")
         .select("user_id, company_id, last_briefing_at, daily_briefing_time, daily_briefing_enabled, min_severity")
         .eq("daily_briefing_enabled", true);
-      targets = ((prefs ?? []) as BriefingPreferenceRow[])
-        .filter((p) => {
-          if (!p.company_id) return false;
-          // Only run if not already sent today
-          if (p.last_briefing_at) {
-            const last = new Date(p.last_briefing_at);
-            const today = new Date();
-            if (last.toDateString() === today.toDateString()) return false;
-          }
-          return true;
-        })
-        .map((p) => ({ user_id: p.user_id, company_id: p.company_id as string }));
+      const preferenze = (prefs ?? []) as BriefingPreferenceRow[];
+      const idAziende = [...new Set(preferenze.map((p) => p.company_id).filter((id): id is string => !!id))];
+      let statoAzienda: Map<string, string | null> | null = null;
+      if (idAziende.length > 0) {
+        const { data: aziende, error: errAziende } = await supabaseAdmin
+          .from("companies").select("id, status").in("id", idAziende);
+        if (errAziende) {
+          // Senza gli stati non si filtra: meglio un briefing in più che nessuno a tutti.
+          console.error("[silvio-briefing] stato delle aziende non letto, nessun filtro:", errAziende.message);
+        } else {
+          statoAzienda = new Map(((aziende ?? []) as Array<{ id: string; status: string | null }>).map((a) => [a.id, a.status]));
+        }
+      }
+      const destinatari = destinatariBriefing(preferenze, statoAzienda, new Date());
+      targets = destinatari.targets;
+      saltatiPerStato = destinatari.saltatiPerStato;
+      if (saltatiPerStato > 0) {
+        console.log(`[silvio-briefing] ${saltatiPerStato} utenti saltati: azienda sospesa, scaduta o cessata`);
+      }
     }
 
     if (targets.length === 0) {
-      return jsonResponse({ ok: true, sent: 0, message: "Nessun target" }, 200, corsHeaders);
+      return jsonResponse({ ok: true, sent: 0, skipped_by_status: saltatiPerStato, message: "Nessun target" }, 200, corsHeaders);
     }
 
     let sent = 0;
@@ -133,6 +144,7 @@ serve(async (req: Request) => {
       total_targets: targets.length,
       sent,
       skipped,
+      skipped_by_status: saltatiPerStato,
       errors_count: errors.length,
       errors: errors.slice(0, 5),
     }, 200, corsHeaders);
