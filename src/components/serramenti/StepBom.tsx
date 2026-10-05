@@ -348,7 +348,10 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
     // Cambiando le scelte (apertura, colore, vetro…) il disegno congelato si aggiorna con loro.
     if (orig && orig.family_id && !orig.disegno_config?.nessuno && (patch.valori_assi !== undefined || patch.scelte_assi !== undefined || patch.colore_interno !== undefined || patch.colore_esterno !== undefined)) {
       const dopo = { ...orig, ...patch };
-      patch.disegno_config = configDaFamiglia(familiesById.get(orig.family_id), (dopo.valori_assi ?? {}) as Record<string, string>, { coloreInterno: dopo.colore_interno, coloreEsterno: dopo.colore_esterno, voci: dopo.scelte_assi, forma: formaDaConfig(orig.disegno_config) }) ?? orig.disegno_config ?? null;
+      // Serve il prodotto CON gli assi: `familiesById` è la scheda breve (senza assi né tipo di disegno) e non bastava,
+      // così il disegno congelato restava quello di quando la riga era stata aggiunta.
+      const famigliaConAssi = famiglieConAssi.find((f) => f.id === orig.family_id);
+      patch.disegno_config = configDaFamiglia(famigliaConAssi, (dopo.valori_assi ?? {}) as Record<string, string>, { coloreInterno: dopo.colore_interno, coloreEsterno: dopo.colore_esterno, voci: dopo.scelte_assi, forma: formaDaConfig(orig.disegno_config) }) ?? orig.disegno_config ?? null;
     }
     updateMut.mutate({ id, patch });
     // I complementi della finestra ne seguono misure, pezzi e posa.
