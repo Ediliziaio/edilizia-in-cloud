@@ -8,7 +8,7 @@
  * finestra sola. Le regole stanno in lib/serramenti/complementiFinestra.
  */
 import { useEffect, useMemo, useRef } from "react";
-import { ExternalLink, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { ExternalLink, Package, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -21,6 +21,9 @@ import {
 } from "@/components/ui/select";
 import type { SupplierProductLine } from "@/features/serramenti-listini/types";
 import { useFamily } from "@/hooks/useFamilies";
+import { MiniaturaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
+import { haDisegno } from "@/lib/serramenti/disegnoDaFamiglia";
+import type { FamilyWithAxes } from "@/types/articleFamily";
 import type { TipologiaListino } from "@/lib/listino/lineeListino";
 import { scelteDopo } from "@/lib/listino/scelteVariante";
 import { haProfondita, nomeBreve, nomeComplemento, prezzoComplemento } from "@/lib/serramenti/complementiFinestra";
@@ -33,6 +36,22 @@ import { BarraComplementi } from "./BarraComplementi";
 import { SceltaVariante } from "./SceltaVariante";
 
 type PatchComplemento = (patch: Partial<SrAccessorioRow>) => void;
+
+/** La miniatura del complemento: il disegno della persiana, altrimenti la foto del listino, altrimenti un riquadro. */
+function MiniaturaComplemento({ famiglia }: { famiglia: FamilyWithAxes | null | undefined }) {
+  const riquadro = "h-12 w-12 shrink-0 rounded border border-slate-200 bg-white";
+  if (famiglia && haDisegno(famiglia)) {
+    return <MiniaturaDisegnoFamiglia family={famiglia} className={riquadro} />;
+  }
+  if (famiglia?.immagine_url) {
+    return <img src={famiglia.immagine_url} alt="" loading="lazy" className={cn(riquadro, "object-contain")} />;
+  }
+  return (
+    <div className={cn(riquadro, "flex items-center justify-center bg-slate-50 text-slate-300")} aria-hidden="true">
+      <Package className="h-5 w-5" />
+    </div>
+  );
+}
 
 /**
  * Il prezzo di un complemento del listino, rifatto quando cambiano misure, pezzi
@@ -136,6 +155,7 @@ function useRicalcoloComplemento(
   // Le varianti con un valore acceso, o già scelte sulla riga.
   const assi = (famiglia?.axes ?? []).filter((ax) => ax.values.some((v) => v.attivo) || !!scelteRiga[ax.codice]);
   return {
+    famiglia,
     aggiorna,
     fuoriMisura,
     assi,
@@ -197,132 +217,148 @@ interface RigaProps {
 export function ComplementoRiga({
   a, tariffePrezzi, supplierLineMap, onPatch, onElimina, onCambiaModello, finestre,
 }: RigaProps) {
-  const { aggiorna, fuoriMisura, assi, scelteRiga, prezzoAutomatico, mancaMisura } =
+  const { famiglia, aggiorna, fuoriMisura, assi, scelteRiga, prezzoAutomatico, mancaMisura } =
     useRicalcoloComplemento(a, tariffePrezzi, supplierLineMap, onPatch);
   const dalListino = !!a.family_id;
   const nome = a.descrizione || nomeBreve(a.tipo);
   // Solo le misure che mancano: un cassonetto ha già la larghezza della finestra.
   const misureMancanti = [!a.larghezza_mm && "la larghezza", !a.altezza_mm && "l'altezza"].filter(Boolean).join(" e ");
 
+  const daPrezzare = !(Number(a.prezzo_unitario) > 0);
   return (
     <div className="rounded-md border border-slate-200 bg-white p-2">
-      <div className="flex flex-wrap items-end gap-x-2 gap-y-1.5">
-        <div className="min-w-[10rem] flex-1 basis-44">
-          {dalListino ? (
-            <div className="min-w-0 pb-0.5">
-              <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-orange-700">
-                <Sparkles className="h-2.5 w-2.5" />
-                {nomeComplemento(a)}
-              </div>
-              <div className="truncate text-xs font-medium text-slate-800" title={nome}>{nome}</div>
+      <div className="flex gap-2.5">
+        <MiniaturaComplemento famiglia={famiglia} />
+        <div className="min-w-0 flex-1">
+          {/* Nome e azioni */}
+          <div className="flex items-start gap-1.5">
+            <div className="min-w-0 flex-1">
+              {dalListino ? (
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-orange-700">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    {nomeComplemento(a)}
+                  </div>
+                  <div className="line-clamp-2 text-sm font-medium leading-tight text-slate-800" title={nome}>{nome}</div>
+                </div>
+              ) : (
+                <div className="flex min-w-0 gap-1">
+                  <Select value={a.tipo} onValueChange={(v) => onPatch({ tipo: v })}>
+                    <SelectTrigger className="h-8 w-32 shrink-0 text-xs" aria-label="Tipo di complemento">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SR_ACCESSORI_TIPI.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    defaultValue={a.descrizione ?? ""}
+                    onBlur={(e) => {
+                      const descrizione = e.target.value.trim() || null;
+                      if (descrizione !== (a.descrizione ?? null)) onPatch({ descrizione });
+                    }}
+                    placeholder="Descrizione"
+                    aria-label="Descrizione del complemento"
+                    className="h-8 min-w-0 text-xs"
+                  />
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="flex min-w-0 gap-1">
-              <Select value={a.tipo} onValueChange={(v) => onPatch({ tipo: v })}>
-                <SelectTrigger className="h-8 w-32 shrink-0 text-xs" aria-label="Tipo di complemento">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SR_ACCESSORI_TIPI.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex shrink-0 items-center">
+              {onCambiaModello && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={onCambiaModello}
+                  title={dalListino ? "Cambia modello" : "Scegli dal listino"}
+                  aria-label={dalListino ? `Cambia modello di ${nome}` : `Scegli ${nome} dal listino`}
+                  className="h-7 gap-1 px-2 text-[11px] text-slate-600"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  <span className="max-sm:hidden">{dalListino ? "Cambia" : "Dal listino"}</span>
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={onElimina}
+                className="h-7 w-7"
+                aria-label={`Elimina ${nome}`}
+              >
+                <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Misure, pezzi e prezzo: una riga sola */}
+          <div className="mt-1.5 flex flex-wrap items-end gap-x-2 gap-y-1.5">
+            <CampoMisura
+              id={`${a.id}-larghezza`}
+              etichetta="Largh."
+              valore={a.larghezza_mm}
+              onCambia={(mm) => aggiorna({ larghezza_mm: mm })}
+              manca={mancaMisura && !a.larghezza_mm}
+            />
+            <CampoMisura
+              id={`${a.id}-altezza`}
+              etichetta="Alt."
+              valore={a.altezza_mm}
+              onCambia={(mm) => aggiorna({ altezza_mm: mm })}
+              manca={mancaMisura && !a.altezza_mm}
+            />
+            {haProfondita(a) && (
+              <CampoMisura
+                id={`${a.id}-profondita`}
+                etichetta="Prof."
+                valore={a.profondita_mm ?? null}
+                onCambia={(mm) => onPatch({ profondita_mm: mm })}
+                manca={!a.profondita_mm}
+              />
+            )}
+            <div className="w-14">
+              <Label htmlFor={`${a.id}-pezzi`} className="text-[10px] text-muted-foreground">Pezzi</Label>
               <Input
-                defaultValue={a.descrizione ?? ""}
+                id={`${a.id}-pezzi`}
+                key={`${a.id}-pezzi-${a.quantita}`}
+                type="number"
+                min={1}
+                defaultValue={a.quantita}
                 onBlur={(e) => {
-                  const descrizione = e.target.value.trim() || null;
-                  if (descrizione !== (a.descrizione ?? null)) onPatch({ descrizione });
+                  const pezzi = quantitaDaTesto(e.target.value) ?? a.quantita;
+                  e.target.value = String(pezzi);
+                  if (pezzi !== a.quantita) aggiorna({ quantita: pezzi });
                 }}
-                placeholder="Descrizione"
-                aria-label="Descrizione del complemento"
-                className="h-8 min-w-0 text-xs"
+                className="h-8 px-2 text-xs"
               />
             </div>
-          )}
-        </div>
-
-        <CampoMisura
-          id={`${a.id}-larghezza`}
-          etichetta="Largh."
-          valore={a.larghezza_mm}
-          onCambia={(mm) => aggiorna({ larghezza_mm: mm })}
-          manca={mancaMisura && !a.larghezza_mm}
-        />
-        <CampoMisura
-          id={`${a.id}-altezza`}
-          etichetta="Alt."
-          valore={a.altezza_mm}
-          onCambia={(mm) => aggiorna({ altezza_mm: mm })}
-          manca={mancaMisura && !a.altezza_mm}
-        />
-        {haProfondita(a) && (
-          <CampoMisura
-            id={`${a.id}-profondita`}
-            etichetta="Prof."
-            valore={a.profondita_mm ?? null}
-            onCambia={(mm) => onPatch({ profondita_mm: mm })}
-            manca={!a.profondita_mm}
-          />
-        )}
-        <div className="w-14">
-          <Label htmlFor={`${a.id}-pezzi`} className="text-[10px] text-muted-foreground">Pezzi</Label>
-          <Input
-            id={`${a.id}-pezzi`}
-            key={`${a.id}-pezzi-${a.quantita}`}
-            type="number"
-            min={1}
-            defaultValue={a.quantita}
-            onBlur={(e) => {
-              const pezzi = quantitaDaTesto(e.target.value) ?? a.quantita;
-              e.target.value = String(pezzi);
-              if (pezzi !== a.quantita) aggiorna({ quantita: pezzi });
-            }}
-            className="h-8 px-2 text-xs"
-          />
-        </div>
-        <div className="w-24">
-          <Label htmlFor={`${a.id}-prezzo`} className="text-[10px] text-muted-foreground">€ cad.</Label>
-          <Input
-            id={`${a.id}-prezzo`}
-            key={`${a.id}-prezzo-${a.prezzo_unitario ?? ""}`}
-            type="number"
-            step="0.01"
-            defaultValue={a.prezzo_unitario ?? ""}
-            onBlur={(e) => {
-              const valore = e.target.value ? Number(e.target.value) : null;
-              if (valore !== a.prezzo_unitario) onPatch({ prezzo_unitario: valore });
-            }}
-            title={prezzoAutomatico ? "Dal listino: si ricalcola quando cambi misure, pezzi o varianti." : undefined}
-            className="h-8 px-2 text-xs"
-          />
-        </div>
-        <div className="w-20 pb-2 text-right text-xs font-semibold tabular-nums text-orange-600">
-          {formatEuro(a.prezzo_totale)}
-        </div>
-        <div className="flex items-center">
-          {onCambiaModello && (
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={onCambiaModello}
-              className="h-8 gap-1 px-2 text-[11px] text-slate-600"
-            >
-              <RefreshCw className="h-3 w-3" />
-              {dalListino ? "Cambia modello" : "Dal listino"}
-            </Button>
-          )}
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={onElimina}
-            className="h-8 w-8"
-            aria-label={`Elimina ${nome}`}
-          >
-            <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-          </Button>
+            <div className="w-24">
+              <Label htmlFor={`${a.id}-prezzo`} className="text-[10px] text-muted-foreground">Prezzo cad. (€)</Label>
+              <Input
+                id={`${a.id}-prezzo`}
+                key={`${a.id}-prezzo-${a.prezzo_unitario ?? ""}`}
+                type="number"
+                step="0.01"
+                defaultValue={a.prezzo_unitario ?? ""}
+                onBlur={(e) => {
+                  const valore = e.target.value ? Number(e.target.value) : null;
+                  if (valore !== a.prezzo_unitario) onPatch({ prezzo_unitario: valore });
+                }}
+                title={prezzoAutomatico ? "Dal listino: si ricalcola quando cambi misure, pezzi o varianti." : undefined}
+                className={cn("h-8 px-2 text-xs", daPrezzare && "border-amber-300 bg-amber-50/60")}
+              />
+            </div>
+            <div className="ml-auto min-w-[4.5rem] pb-1.5 text-right">
+              {daPrezzare ? (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">da prezzare</span>
+              ) : (
+                <span className="text-sm font-semibold tabular-nums text-orange-600">{formatEuro(a.prezzo_totale)}</span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -414,11 +450,13 @@ export function ComplementiFinestra({
   const misure = finestra.larghezza_mm && finestra.altezza_mm
     ? `${finestra.larghezza_mm} × ${finestra.altezza_mm} mm · ${finestra.quantita} pz`
     : null;
+  const totaleComplementi = complementi.reduce((somma, c) => somma + (Number(c.prezzo_totale) || 0), 0);
   return (
     <section aria-label="Complementi di questa finestra" className="rounded-md border border-orange-100 bg-orange-50/40 p-2.5">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
         <h4 className="text-[10px] font-semibold uppercase tracking-wide text-orange-700">
           Complementi di questa finestra{complementi.length > 0 ? ` · ${complementi.length}` : ""}
+          {totaleComplementi > 0 ? ` · ${formatEuro(totaleComplementi)}` : ""}
         </h4>
         <p className={cn("text-[10px]", misure ? "text-muted-foreground" : "font-medium text-amber-700")}>
           {misure
