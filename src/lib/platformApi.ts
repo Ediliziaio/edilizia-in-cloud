@@ -49,7 +49,7 @@ export const API_SCOPES: ScopeDef[] = [
   { value: "opportunities:write", label: "Opportunità (scrittura)", description: "crea/aggiorna_opportunita (include lettura)" },
   { value: "tasks:read", label: "Attività (lettura)", description: "lista_attivita" },
   { value: "tasks:write", label: "Attività (scrittura)", description: "crea_attivita (include lettura)" },
-  { value: "orders:read", label: "Commesse (lettura)", description: "cerca_commesse, riepiloghi, cantieri a rischio" },
+  { value: "orders:read", label: "Commesse (lettura)", description: "cerca_commesse, riepiloghi, cantieri a rischio, dove sono mezzi e attrezzi" },
   { value: "orders:write", label: "Commesse (scrittura)", description: "crea_commessa (include lettura)" },
   { value: "products:read", label: "Listino (lettura)", description: "lista_listino" },
   { value: "products:write", label: "Listino (scrittura)", description: "carica_voce_listino (include lettura)" },

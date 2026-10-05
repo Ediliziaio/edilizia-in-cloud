@@ -34,7 +34,9 @@ export interface SilvioPageContext {
     | "marketing_overview"
     | "personale_overview"
     | "talent_candidate"
-    | "selezioni_overview";
+    | "selezioni_overview"
+    | "mezzo"
+    | "mezzi_overview";
   /** ID UUID dell'entità — null per overview pagine senza ID */
   entity_id: string | null;
   /** Etichetta human-readable per UI ("Commessa", "Cliente", ecc.) */
@@ -67,6 +69,7 @@ const RULES: ContextRule[] = [
   { pattern: new RegExp(`^/azienda/marketing/preventivi/${UUID_RE}`),     entity_type: "quote",    route_label: "Preventivo", requiresId: true },
   { pattern: new RegExp(`^/azienda/personale/${UUID_RE}`),      entity_type: "employee", route_label: "Dipendente", requiresId: true },
   { pattern: new RegExp(`^/azienda/subappaltatori/${UUID_RE}`), entity_type: "supplier", route_label: "Subappaltatore", requiresId: true },
+  { pattern: new RegExp(`^/azienda/mezzi/${UUID_RE}`),          entity_type: "mezzo",    route_label: "Mezzo o attrezzo", requiresId: true },
 
   // ── Overview (senza ID) ──────────────────────────────────────────
   { pattern: /^\/azienda\/magazzino/,         entity_type: "warehouse_overview", route_label: "Magazzino",  requiresId: false },
@@ -74,6 +77,7 @@ const RULES: ContextRule[] = [
   { pattern: /^\/azienda\/commesse(?!\/)/,    entity_type: "cantiere_overview",  route_label: "Cantieri",   requiresId: false },
   { pattern: /^\/azienda\/marketing/,         entity_type: "marketing_overview", route_label: "Marketing",  requiresId: false },
   { pattern: /^\/azienda\/personale(?!\/)/,   entity_type: "personale_overview", route_label: "Personale",  requiresId: false },
+  { pattern: /^\/azienda\/mezzi\/inventario/, entity_type: "mezzi_overview",     route_label: "Mezzi e attrezzature", requiresId: false },
 ];
 
 /**
@@ -91,6 +95,15 @@ export function useSilvioPageContext(): SilvioPageContext | null {
         entity_type: "selezioni_overview",
         entity_id: null,
         route_label: "Selezioni HR",
+        route_path: pathname,
+      };
+    }
+    // Scheda «Mezzi e attrezzature» di Manodopera e Mezzi
+    if (pathname === "/azienda/manodopera" && tab === "mezzi") {
+      return {
+        entity_type: "mezzi_overview",
+        entity_id: null,
+        route_label: "Mezzi e attrezzature",
         route_path: pathname,
       };
     }

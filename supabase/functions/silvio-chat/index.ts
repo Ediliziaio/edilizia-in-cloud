@@ -92,7 +92,9 @@ interface CurrentPageContext {
     | "bank_overview"
     | "cantiere_overview"
     | "marketing_overview"
-    | "personale_overview";
+    | "personale_overview"
+    | "mezzo"
+    | "mezzi_overview";
   entity_id: string | null;
   route_label: string;
   route_path: string;
@@ -223,6 +225,7 @@ async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ct
       cantiere_overview:   "Sta guardando la lista Commesse/Cantieri.",
       marketing_overview:  "Sta guardando l'area Marketing & vendita.",
       personale_overview:  "Sta guardando la pagina Personale (dipendenti, presenze).",
+      mezzi_overview:      "Sta guardando Mezzi e attrezzature (parco mezzi, attrezzi, ponteggi). Per dove sono e chi li ha usa dove_sono_mezzi_attrezzi.",
     };
     return overviewLabels[entity_type] ?? `Sta guardando: ${route_label}`;
   }
@@ -290,6 +293,19 @@ async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ct
       if (error || !data) return "";
       const pd = (data.profile_data ?? {}) as { full_name?: string };
       return `Sta guardando il dipendente "${pd.full_name ?? "senza nome"}" (ruolo: ${data.role}).`;
+    }
+    if (entity_type === "mezzo") {
+      const { data, error } = await supabaseAdmin
+        .from("mezzi")
+        .select("id, nome, codice, targa, tipo")
+        .eq("id", entity_id)
+        .eq("company_id", companyId)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (error || !data) return "";
+      const genere = data.tipo === "attrezzatura" ? "dell'attrezzo" : "del mezzo";
+      const rif = data.codice ?? data.targa ?? data.nome;
+      return `Sta guardando la scheda ${genere} "${data.nome}"${data.codice ? ` (${data.codice})` : ""}${data.targa ? `, targa ${data.targa}` : ""}. Per dove si trova e chi l'ha avuto usa dove_sono_mezzi_attrezzi con cerca="${rif}".`;
     }
     if (entity_type === "supplier") {
       // Subappaltatore: leggiamo dalla view dashboard se disponibile, fallback su anagrafiche_native

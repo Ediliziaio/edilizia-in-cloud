@@ -49,7 +49,7 @@ export const API_SCOPE_GROUPS: ApiScopeGroup[] = [
     label: "Commesse",
     description: "Accesso alle commesse/cantieri",
     scopes: [
-      { id: "orders:read", label: "Leggi commesse", description: "Riepiloghi, flusso, cantieri a rischio" },
+      { id: "orders:read", label: "Leggi commesse", description: "Riepiloghi, flusso, cantieri a rischio, dove sono mezzi e attrezzi" },
       { id: "orders:write", label: "Crea commesse", description: "Crea commesse via assistente AI" },
     ],
   },

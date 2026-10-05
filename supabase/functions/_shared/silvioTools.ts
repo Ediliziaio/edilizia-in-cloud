@@ -76,7 +76,10 @@ export type ToolDomain =
   | "warehouse"
   | "operations"
   | "support"
-  | "marketing";
+  | "marketing"
+  // Parco mezzi e attrezzature (05/10/2026): ha un permesso suo
+  // (can_view_mezzi), diverso da quello delle commesse.
+  | "mezzi";
 
 export interface ToolContext {
   supabase: SupabaseClient;
@@ -214,6 +217,7 @@ const DOMAIN_RESULT_CONTRACTS: Partial<Record<ToolDomain, string>> = {
   filiera: "Distingui ordine, conferma fornitore, merce in arrivo, ricevuta e mancante; collega alla posa.",
   anomalie: "Distingui chi registra da chi causa; riporta causa, impatto euro, ricorrenza e controllo preventivo.",
   knowledge: "Usa come supporto, non sostituisce dati aziendali recenti; cita limiti e freschezza della fonte.",
+  mezzi: "'dove' e la posizione registrata; l'ultima lettura QR dice chi l'ha avuto in mano e quando: se non tornano, dillo. Cantiere tolto per permessi = non visibile, non 'in magazzino'.",
 };
 
 /**
@@ -8751,6 +8755,73 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "hr",
   },
 
+  // ── Mezzi e attrezzature: dove sono e chi li ha (05/10/2026) ──────────────
+  // Leggono le assegnazioni (persona, cantiere, furgone), i ponteggi montati,
+  // l'ultima lettura del QR e i problemi aperti. Le commesse arrivano sempre
+  // in elenchi con la chiave «commessa», così il filtro sulle commesse visibili
+  // (silvioToolExecution) toglie il cantiere e lascia il mezzo.
+  dove_sono_mezzi_attrezzi: {
+    schema: {
+      type: "function",
+      function: {
+        name: "dove_sono_mezzi_attrezzi",
+        description: "Dove si trovano mezzi e attrezzature (furgoni, escavatori, demolitori, generatori, ponteggi a mq...) e chi li ha: su quale cantiere, in carico a chi, a bordo di quale furgone, in magazzino, in officina o segnalati come non trovati; con l'ultima lettura del QR (chi e quando) e i guasti aperti. Usa per 'dov'e il demolitore', 'chi ha il furgone AB123CD', 'cosa ha in carico Mario', 'quanti mq di ponteggio sono liberi', 'cosa e in officina'. Senza parametri: il quadro del parco.",
+        parameters: {
+          type: "object",
+          properties: {
+            cerca: { type: "string", description: "Nome, codice dell'etichetta (es. ATT-0012), targa, marca o categoria. Vuoto = tutti." },
+            persona: { type: "string", description: "Nome e/o cognome di chi li ha in carico; \"io\" = chi sta chiedendo." },
+            classe: { type: "string", enum: ["mezzi", "attrezzature", "tutti"], description: "mezzi = veicoli e macchine; attrezzature = attrezzi, ponteggi, transenne." },
+            filtro: {
+              type: "string",
+              enum: ["in_magazzino", "sui_cantieri", "con_persone", "sui_furgoni", "in_officina", "fuori_servizio", "con_problemi", "non_si_trovano", "non_visti_da_30_giorni"],
+            },
+            limite: { type: "integer", minimum: 1, maximum: 40, default: 15 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_dove_sono_mezzi", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_cerca: String(args?.cerca ?? "").trim() || null,
+      p_persona: String(args?.persona ?? "").trim() || null,
+      p_classe: String(args?.classe ?? "").trim() || null,
+      p_filtro: String(args?.filtro ?? "").trim() || null,
+      p_limite: Math.min(Math.max(Number(args?.limite ?? 15) || 15, 1), 40),
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["*"],
+    riskLevel: "safe",
+    domain: "mezzi",
+  },
+
+  mezzi_del_cantiere: {
+    schema: {
+      type: "function",
+      function: {
+        name: "mezzi_del_cantiere",
+        description: "Cosa c'e su un cantiere: mezzi e attrezzi lasciati li, ponteggi montati (quanti mq, da quando) e furgoni con gli attrezzi a bordo di chi ci lavora. Usa per 'cosa c'e sul cantiere Rossi', 'che mezzi abbiamo in via Garibaldi', 'quanto ponteggio e montato da Bianchi'.",
+        parameters: {
+          type: "object",
+          properties: {
+            cantiere: { type: "string", description: "Codice della commessa (es. ORD-2026-001), oppure cliente o indirizzo del cantiere." },
+          },
+          required: ["cantiere"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_mezzi_del_cantiere", {
+      p_company_id: ctx.companyId,
+      p_cantiere: String(args?.cantiere ?? "").trim(),
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["*"],
+    riskLevel: "safe",
+    domain: "mezzi",
+  },
+
   carica_strumenti: {
     schema: {
       type: "function",
@@ -8764,7 +8835,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
               type: "array",
               items: {
                 type: "string",
-                enum: ["sicurezza", "magazzino", "persone", "clienti", "preventivi", "fatture", "banca", "cantieri", "posta", "campagne"],
+                enum: ["sicurezza", "magazzino", "persone", "clienti", "preventivi", "fatture", "banca", "cantieri", "mezzi", "posta", "campagne"],
               },
               description: "Aree da caricare. Puoi chiederne piu di una in una volta sola.",
             },
@@ -8827,6 +8898,7 @@ export const AREE_CARICABILI: Record<string, { etichetta: string; domini: ToolDo
   fatture: { etichetta: "fatture, scadenze, incassi", domini: ["fattura"] },
   banca: { etichetta: "banca, cassa, anomalie di spesa", domini: ["banking", "finance", "anomalie"] },
   cantieri: { etichetta: "cantieri, commesse, squadre, pose", domini: ["cantiere", "operations"] },
+  mezzi: { etichetta: "mezzi, attrezzi e ponteggi: dove sono e chi li ha", domini: ["mezzi"] },
   posta: { etichetta: "posta aziendale", domini: ["email"] },
   campagne: { etichetta: "campagne e marketing", domini: ["marketing"] },
 };
@@ -8912,7 +8984,8 @@ const AREA_TOOL_DOMAINS: Record<string, ToolDomain[] | null> = {
   // Tutto il resto e a un tool di distanza.
   finance: ["anomalie", "banking", "fattura", "finance"],
   fiscal: ["anomalie", "banking", "compliance", "fattura", "finance"],
-  operations: ["cantiere", "filiera", "operations", "warehouse"],
+  // `mezzi` (2 tool): «dov'e il demolitore» e una domanda di cantiere.
+  operations: ["cantiere", "filiera", "mezzi", "operations", "warehouse"],
   sales: ["crm", "preventivi", "sales"],
   marketing: ["crm", "email", "marketing", "sales"],
   hr: ["hr"],
@@ -8998,6 +9071,8 @@ export const DOMAIN_STAFF_PERMISSION: Partial<Record<ToolDomain, string>> = {
   filiera: "can_view_warehouse",
   anomalie: "can_view_financial_reports",
   email: "can_view_marketing_email",
+  //  · mezzi    = dove sono mezzi e attrezzi → la pagina Mezzi e attrezzature
+  mezzi: "can_view_mezzi",
   // Restano volutamente SENZA gate per-dominio (non espongono dati di
   // business riservati): `ai` (approvazioni/undo, già red+admin), `meta`
   // (promemoria personali), `knowledge` (KB interna), `generative` (bozze

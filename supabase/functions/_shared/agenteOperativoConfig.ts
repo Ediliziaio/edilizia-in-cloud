@@ -60,6 +60,7 @@ export const AREE_AGENTE = [
   "fatture",
   "banca",
   "cantieri",
+  "mezzi",
   "posta",
   "campagne",
 ];

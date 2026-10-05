@@ -74,9 +74,17 @@ Collegamenti verificati (05/10/2026, terza parte — migrazione `20281005230000_
   autorizzazione ministeriale.
 - **Registro attività**: montaggi, inventari e categorie entrano nel registro degli utenti.
 - **App del cantiere**: fine giornata, «I miei mezzi», pagina dell'attrezzo letto dal QR (già fatti).
+- **Silvio** (migrazione `20281005233000`): `dove_sono_mezzi_attrezzi` (per nome, codice
+  dell'etichetta, targa, categoria, persona — anche «io» — o filtro: in magazzino, in officina,
+  guasti, non si trovano, non letti da 30 giorni; senza niente il quadro del parco) e
+  `mezzi_del_cantiere` (mezzi lasciati lì, ponteggi montati, furgoni e attrezzi della squadra).
+  Area «mezzi» col permesso `can_view_mezzi`, a bordo con le domande di cantiere
+  (`domandeSuiMezzi.ts`) o con `carica_strumenti`; anche nel connettore per Claude/ChatGPT
+  (scope `orders:read`). La guida all'app (`guida_a`) porta alla pagina giusta, e la scheda di un
+  mezzo aperta dice a Silvio di quale si parla.
 
 Non collegato, di proposito: la pianificazione di Silvio (`cantiere_allocations`, `mezzo_id` senza
-legame) è vuota e non usata; Silvio non ha ancora strumenti per chiedere dov'è un attrezzo.
+legame) è vuota e non usata.
 
 Resta aperto:
 - Prova con un telefono vero, inquadrando un'etichetta stampata.

@@ -9,6 +9,7 @@
  * Council orchestrator (ai-council-orchestrator).
  */
 import { aiRouterComplete } from "./aiRouter.ts";
+import { isMezziQuestion } from "./domandeSuiMezzi.ts";
 
 export type Area =
   | "finance" | "operations" | "sales" | "marketing"
@@ -260,7 +261,7 @@ const CLASSIFIER_PROMPT = `Sei un classificatore di intent multi-area per un sis
 
 ## Aree disponibili
 - finance (cashflow, margini, banca, finanziamenti)
-- operations (cantieri, magazzino, acquisti, produzione)
+- operations (cantieri, magazzino, acquisti, produzione, mezzi e attrezzature)
 - sales (preventivi, trattative, conversion)
 - marketing (lead gen, campagne, SEO)
 - hr (assunzioni, presenze, busta paga, CCNL)
@@ -285,7 +286,7 @@ assistente_imprenditore, brain
 6. NON inventare aree o personas non in lista
 7. Se una sola area puo rispondere con i tool disponibili, resta single-area anche se la risposta deve essere articolata.
 8. Domande su target venduto/incasso/cassa/margine sono finance single-area: il modello finale deve integrare costi variabili e incassi senza esporre consulenti.
-9. Domande su calendario, pose, merce, magazzino e cantieri sono operations single-area salvo richiesta esplicita di impatto economico.
+9. Domande su calendario, pose, merce, magazzino, cantieri, mezzi e attrezzi (dove sono, chi li ha) sono operations single-area salvo richiesta esplicita di impatto economico.
 
 ## Output JSON obbligatorio
 {
@@ -332,7 +333,7 @@ export async function classifyQuery(opts: ClassifyOptions): Promise<QueryClassif
   if (isHiringDecisionQuestion(opts.query)) {
     return hiringDecisionClassification();
   }
-  if (isOperationalScheduleQuestion(opts.query)) {
+  if (isMezziQuestion(opts.query) || isOperationalScheduleQuestion(opts.query)) {
     return singleAreaClassification("operations", opts.currentPersona);
   }
   if (isSignatureDocumentQuestion(opts.query)) {
