@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Preventivatore unico — prototipo</title>
+<style>
+:root{
+  --navy:#1E3A5F; --orange:#F97316; --amber:#F59E0B; --green:#059669; --red:#DC2626; --blue:#2563eb;
+  --s50:#f8fafc; --s100:#f1f5f9; --s200:#e2e8f0; --s300:#cbd5e1; --s400:#94a3b8; --s500:#64748b; --s600:#475569; --s700:#334155; --s900:#0f172a;
+  --bg:#e9edf2;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--s900);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color-scheme:light}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.tb{position:sticky;top:0;z-index:60;display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;padding:10px 20px;background:var(--navy);color:#fff}
+.tb b{font-size:13px;letter-spacing:.02em;margin-right:4px}
+.tb .grp{display:flex;align-items:center;gap:8px;font-size:12px;color:#cbd5e1}
+.seg{display:inline-flex;border:1px solid rgba(255,255,255,.35);border-radius:9px;overflow:hidden}
+.seg button{border:0;background:transparent;color:#e2e8f0;padding:6px 11px;font-weight:600;font-size:12px}
+.seg button.on{background:#fff;color:var(--navy)}
+.stage{padding:18px 18px 40px;display:flex;justify-content:center}
+.app{width:100%;max-width:1360px;background:#fff;border:1px solid var(--s200);border-radius:14px;overflow:hidden;box-shadow:0 10px 34px rgba(15,23,42,.10)}
+/* testata */
+.ph{display:flex;align-items:center;gap:12px;padding:10px 24px;border-bottom:1px solid var(--s200);background:#fff;flex-wrap:wrap}
+.ph .back{border:0;background:var(--s100);width:30px;height:30px;border-radius:8px;color:var(--s600);font-size:15px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
+.chip.id{background:var(--s100);color:var(--s700);border-radius:5px}
+.chip.or{background:#ffedd5;color:#9a3412}
+.chip.gr{background:#d1fae5;color:#065f46}
+.chip.rd{background:#fee2e2;color:#b91c1c}
+.ph h1{margin:0;font-size:17px;font-weight:700;letter-spacing:-.01em}
+.ph .sub{color:var(--s500);font-size:12px}
+.ph .sp{flex:1}
+.save{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--s500)}
+.dot{width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block}
+.btn{border:1px solid var(--s300);background:#fff;border-radius:9px;padding:7px 13px;font-weight:600;font-size:13px;color:var(--s700)}
+.btn:hover{background:var(--s50)}
+.btn.pri{border:0;color:#fff;background:linear-gradient(135deg,var(--orange),var(--amber));box-shadow:0 4px 12px rgba(249,115,22,.3);font-weight:700;padding:8px 18px}
+.btn.pri:hover{filter:brightness(1.04)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+/* barra fasi */
+.tabs{background:#fff;border-bottom:1px solid var(--s200);display:flex;align-items:stretch;padding:0 24px}
+.tabs .list{display:flex;flex:1;min-width:0;overflow-x:auto}
+.tab{flex:0 0 auto;display:flex;align-items:center;gap:9px;padding:11px 15px;border:0;border-bottom:3px solid transparent;background:transparent;font-size:13px;font-weight:600;color:var(--s500);white-space:nowrap;position:relative}
+.tab:hover{background:var(--s50)}
+.tab .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;background:var(--s100);border:1px solid var(--s300);color:var(--s500)}
+.tab small{display:block;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--s400);font-weight:600;line-height:1.1}
+.tab span.t{display:block;line-height:1.15;text-align:left}
+.tab.done{color:var(--s700)}
+.tab.done .n{background:var(--green);border-color:var(--green);color:#fff}
+.tab.on{color:var(--s900);border-bottom-color:var(--orange);font-weight:700}
+.tab.on .n{background:linear-gradient(135deg,var(--orange),var(--amber));border-color:var(--orange);color:#fff;box-shadow:0 2px 8px rgba(249,115,22,.4)}
+.tab .warn{position:absolute;top:8px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--red)}
+.tot{display:flex;flex-direction:column;justify-content:center;align-items:flex-end;padding:4px 0 4px 18px;margin-left:10px;border-left:1px solid var(--s200);min-width:150px}
+.tot small{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--s500);font-weight:700}
+.tot b{font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.1}
+.tot b.flash,.pv-total b.flash{animation:fl .7s}
+@keyframes fl{0%{color:var(--orange);transform:scale(1.07)}100%{color:inherit;transform:none}}
+.prog{background:var(--s50);border-bottom:1px solid var(--s100);padding:5px 24px;display:flex;align-items:center;gap:12px;font-size:11.5px;color:var(--s500)}
+.prog .bar{flex:0 0 200px;height:4px;background:var(--s200);border-radius:9px;overflow:hidden}
+.prog .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--orange),var(--amber));transition:width .4s}
+/* corpo */
+.body{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:24px;padding:22px 24px 26px;background:var(--s50);align-items:start}
+.pt h2{margin:0 0 3px;font-size:21px;letter-spacing:-.02em}
+.pt p{margin:0 0 16px;color:var(--s500);font-size:13px}
+.card{background:#fff;border:1px solid var(--s200);border-radius:16px;padding:18px 20px;box-shadow:0 1px 2px rgba(15,23,42,.04);margin-bottom:14px}
+.card>h3{margin:0 0 13px;font-size:14.5px;display:flex;align-items:center;gap:9px}
+.card>h3:before{content:"";width:4px;height:16px;border-radius:2px;background:linear-gradient(180deg,var(--orange),var(--amber))}
+.card>h3 .act{margin-left:auto;font-size:12px;color:#ea580c;font-weight:700;cursor:pointer}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fld label{display:block;font-size:11.5px;font-weight:600;color:var(--s600);margin-bottom:4px}
+.fld input,.fld select{width:100%;border:1px solid var(--s300);border-radius:9px;padding:8px 10px;background:#fff;font-size:13.5px}
+.fld input:focus,.fld select:focus{outline:2px solid #fdba74;border-color:var(--orange)}
+.fld input[type=range]{padding:0;accent-color:var(--orange);height:26px}
+.callout{border-left:3px solid var(--orange);background:#fff7ed;color:#9a3412;border-radius:8px;padding:9px 13px;font-size:12.5px;margin-bottom:14px;display:flex;gap:9px}
+.callout.ok{border-color:#10b981;background:#ecfdf5;color:#065f46}
+.callout.wa{border-color:var(--amber);background:#fffbeb;color:#92400e}
+/* righe */
+.row{display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--s100)}
+.row:first-of-type{border-top:0}
+.row.hi{background:#fff7ed;margin:0 -20px;padding-left:20px;padding-right:20px}
+.thumb{width:54px;height:54px;border-radius:10px;background:var(--s100);display:grid;place-items:center;color:var(--s500)}
+.row .nm{font-weight:700;font-size:13.5px}
+.row .dt{color:var(--s500);font-size:12px}
+.opts{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.opts select{border:1px solid var(--s300);border-radius:7px;padding:3px 6px;font-size:12px;background:#fff}
+.rt{text-align:right}
+.rt .pr{font-weight:800;font-variant-numeric:tabular-nums;font-size:14px}
+.qty{display:inline-flex;align-items:center;border:1px solid var(--s300);border-radius:8px;overflow:hidden;margin-top:5px}
+.qty button{border:0;background:var(--s50);width:26px;height:26px;font-weight:800;color:var(--s600)}
+.qty b{min-width:28px;text-align:center;font-size:13px}
+.del{border:0;background:none;color:var(--s400);font-size:12px;margin-left:8px;text-decoration:underline}
+.add{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.add button{border:1px dashed #fdba74;background:#fff7ed;color:#9a3412;border-radius:9px;padding:7px 11px;font-weight:700;font-size:12.5px}
+.add button:hover{background:#ffedd5}
+.ph3{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.ph3 div{aspect-ratio:4/3;border-radius:10px;border:1px dashed var(--s300);display:grid;place-items:center;color:var(--s400);font-size:12px;background:var(--s50);text-align:center}
+.chk{display:flex;gap:9px;align-items:center;padding:7px 0;border-top:1px solid var(--s100);font-size:13px}
+.chk:first-of-type{border-top:0}
+.chk i{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:11px;font-weight:800;color:#fff;background:var(--green)}
+.chk i.no{background:var(--red)}
+/* anteprima */
+.pv{position:sticky;top:12px}
+.pv-h{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.pv-h .seg{border-color:var(--s300)}
+.pv-h .seg button{color:var(--s600);background:#fff;padding:5px 10px}
+.pv-h .seg button.on{background:var(--navy);color:#fff}
+.pv-h .sp{flex:1}
+.pv-h .spin{font-size:11px;color:var(--s500);display:none}
+.pv-h .spin.on{display:inline}
+.paper{background:#fff;border:1px solid var(--s200);border-radius:12px;box-shadow:0 6px 22px rgba(15,23,42,.08);padding:20px 22px;font-size:12px;position:relative}
+.paper.a4{aspect-ratio:210/297;overflow:hidden;padding:26px 28px}
+.paper .co{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--navy);padding-bottom:9px;margin-bottom:11px}
+.paper .logo{font-weight:900;color:var(--navy);font-size:15px;letter-spacing:-.02em}
+.paper .logo em{font-style:normal;color:var(--orange)}
+.paper .meta{text-align:right;color:var(--s500);font-size:10.5px;line-height:1.35}
+.paper h4{margin:10px 0 5px;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--s500)}
+.paper .cl{font-size:12.5px;line-height:1.4}
+.paper .miss{color:var(--s300);font-style:italic}
+.paper table{width:100%;border-collapse:collapse}
+.paper th{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--s500);text-align:left;padding:5px 4px;border-bottom:1px solid var(--s200)}
+.paper td{padding:6px 4px;border-bottom:1px solid var(--s100);vertical-align:middle}
+.paper td.n,.paper th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.paper tr.hi td{background:#fff7ed}
+.paper .tm{width:30px;height:30px;border-radius:6px;background:var(--s100);display:grid;place-items:center;color:var(--s500)}
+.paper .grp td{background:var(--s50);font-size:10px;letter-spacing:.07em;text-transform:uppercase;font-weight:700;color:var(--s600)}
+.paper .sum{margin-left:auto;width:62%;margin-top:9px}
+.paper .sum div{display:flex;justify-content:space-between;padding:2.5px 0;font-variant-numeric:tabular-nums}
+.paper .sum .t{border-top:2px solid var(--navy);margin-top:4px;padding-top:6px;font-weight:900;font-size:15px}
+.paper .box{margin-top:10px;border-radius:9px;padding:8px 10px;font-size:11.5px}
+.paper .box.det{background:#ecfdf5;color:#065f46}
+.paper .box.kpi{background:#eff6ff;color:#1e3a8a;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center}
+.paper .box.kpi b{display:block;font-size:14px}
+.paper .box.imp{background:#fef3c7;color:#92400e}
+.paper .sig{display:flex;gap:18px;margin-top:16px;color:var(--s400);font-size:10.5px}
+.paper .sig div{flex:1;border-top:1px solid var(--s300);padding-top:4px}
+.pv-total{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;padding:10px 14px;background:var(--navy);color:#fff;border-radius:11px}
+.pv-total small{font-size:11px;opacity:.8}
+.pv-total b{font-size:21px;font-variant-numeric:tabular-nums}
+.pv-note{margin:8px 2px 0;color:var(--s500);font-size:11px}
+/* footer */
+.ft{display:flex;align-items:center;gap:12px;padding:11px 24px;border-top:1px solid var(--s200);background:#fff;box-shadow:0 -4px 12px rgba(15,23,42,.04)}
+.ft .sp{flex:1}
+.ft .st{font-size:12px;color:var(--s500);display:flex;gap:6px;align-items:center}
+/* telefono */
+.ph-wrap{display:flex;justify-content:center;gap:28px;flex-wrap:wrap}
+.phone{width:390px;background:#fff;border:10px solid #0f172a;border-radius:38px;overflow:hidden;box-shadow:0 14px 40px rgba(15,23,42,.25);position:relative;height:790px;display:flex;flex-direction:column}
+.phone .scr{flex:1;overflow:auto;background:var(--s50);position:relative}
+.phone .ph{padding:8px 12px;gap:8px;flex-wrap:nowrap}
+.phone .ph h1{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.phone .pills{display:flex;gap:6px;padding:7px 10px;overflow-x:auto;background:#fff;border-bottom:1px solid var(--s200)}
+.pill{flex:0 0 auto;border:1px solid var(--s200);background:#fff;border-radius:99px;padding:3px 11px;font-size:11.5px;font-weight:600;color:var(--s500)}
+.pill.done{background:#ecfdf5;border-color:#a7f3d0;color:#065f46}
+.pill.on{background:var(--orange);border-color:var(--orange);color:#fff}
+.phone .pad{padding:12px 12px 14px}
+.phone .card{padding:13px 14px;border-radius:14px}
+.phone .g2{grid-template-columns:1fr}
+.phone .pt h2{font-size:16px}
+.phone .row{grid-template-columns:44px minmax(0,1fr) auto;gap:9px}
+.phone .row.hi{margin:0 -14px;padding-left:14px;padding-right:14px}
+.phone .thumb{width:44px;height:44px}
+.bbar{display:flex;gap:8px;align-items:center;padding:8px 10px;border-top:1px solid var(--s200);background:#fff}
+.bbar .tt{flex:1;border:0;background:var(--s100);border-radius:11px;padding:6px 11px;text-align:left}
+.bbar .tt small{display:block;font-size:10px;color:var(--s500);font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.bbar .tt b{font-size:16px;font-variant-numeric:tabular-nums}
+.sheet{position:absolute;left:0;right:0;bottom:0;top:78px;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -10px 30px rgba(15,23,42,.25);display:flex;flex-direction:column;z-index:20;transform:translateY(105%);transition:transform .28s}
+.sheet.on{transform:none}
+.sheet .gr{width:44px;height:4px;border-radius:9px;background:var(--s300);margin:8px auto 4px}
+.sheet .sc{overflow:auto;padding:6px 12px 14px;flex:1}
+.cap{max-width:380px;color:var(--s600);font-size:13px;padding-top:6px}
+.cap b{color:var(--s900)}
+@media (max-width:1100px){.body{grid-template-columns:1fr}.pv{position:static}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="tb">
+  <b>Prototipo · preventivatore unico</b>
+  <div class="grp">Modulo
+    <div class="seg" id="s-mod"><button data-v="sr" class="on">Serramenti</button><button data-v="bagno">Bagno</button><button data-v="fv">Fotovoltaico</button></div>
+  </div>
+  <div class="grp">Vista
+    <div class="seg" id="s-view"><button data-v="desk" class="on">Computer</button><button data-v="phone">Telefono</button></div>
+  </div>
+  <div class="grp" style="margin-left:auto">Dati di esempio: ogni cosa che tocchi aggiorna l’anteprima a destra</div>
+</div>
+<div class="stage"><div id="root"></div></div>
+
+<script>
+const eur = n => n.toLocaleString('it-IT',{style:'currency',currency:'EUR',maximumFractionDigits:0});
+const nf = (n,d=1) => n.toLocaleString('it-IT',{minimumFractionDigits:d,maximumFractionDigits:d});
+const ICON = {
+  win:'<svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="4" width="20" height="22" rx="1.5"/><line x1="15" y1="4" x2="15" y2="26"/><line x1="5" y1="15" x2="25" y2="15"/></svg>',
+  win1:'<svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="7" y="4" width="16" height="22" rx="1.5"/><line x1="7" y1="15" x2="23" y2="15"/><path d="M23 15 L9 9" stroke-dasharray="2 2"/></svg>',
+  door:'<svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="2" width="18" height="26" rx="1.5"/><line x1="15" y1="2" x2="15" y2="28"/><line x1="6" y1="19" x2="24" y2="19"/></svg>',
+  shut:'<svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="4" width="20" height="22" rx="1.5"/><line x1="5" y1="9" x2="25" y2="9"/><line x1="5" y1="14" x2="25" y2="14"/><line x1="5" y1="19" x2="25" y2="19"/></svg>',
+  net:'<svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5" y="4" width="20" height="22" rx="1.5"/><path d="M5 10 L25 10 M5 16 L25 16 M5 22 L25 22 M11 4 L11 26 M17 4 L17 26 M23 4 L23 26" stroke-width=".8"/></svg>',
+  box:'<svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="6" width="20" height="16" rx="2"/><path d="M3 11 L23 11"/></svg>',
+  tile:'<svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="20" height="20"/><path d="M13 3 V23 M3 13 H23"/></svg>',
+  sun:'<svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="7" width="20" height="13" rx="1"/><path d="M3 13.5 H23 M9.7 7 V20 M16.3 7 V20"/></svg>',
+  bat:'<svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M22 11 V16"/><path d="M12 10 L9 14 H12 L11 17" stroke-linejoin="round"/></svg>',
+  wrench:'<svg width="26" height="26" viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M16 5a5 5 0 0 0-4.5 6.8L4 19.3 6.7 22l7.5-7.5A5 5 0 0 0 21 10l-3 3-3-1-1-3z"/></svg>'
+};
+const APERTURE = {'1 anta':0,'2 ante':180,'Vasistas':60,'Scorrevole':420};
+const COLORI = {'Bianco':0,'Grigio antracite':.08,'Effetto legno':.12};
+
+const MOD = {
+  sr:{
+    label:'Serramenti', logo:'Bianchi<em>Infissi</em>', numero:'SR-2026-0412', titolo:'Sostituzione infissi', iva:.10,
+    steps:[
+      {t:'Contatto',k:'fields',f:'cli',h:'Chi è il cliente',s:'Cerca tra i contatti o scrivi il nome: i dati compaiono subito nel preventivo.'},
+      {t:'Immobile e contenuti',k:'fields',f:'imm',h:'Dove si lavora',s:'L’indirizzo serve per il sopralluogo e per il PDF.'},
+      {t:'Composizione offerta',k:'rows',h:'Cosa offri',s:'Scegli, cambia apertura e colore sulla riga: il prezzo e il disegno si aggiornano subito.'},
+      {t:'Foto e render',k:'media',h:'Foto e render',s:'Facoltativo: foto dello stato di fatto e render dei nuovi infissi.'},
+      {t:'Economia',k:'econ',h:'Sconto, detrazione, pagamento',s:'Il totale e il costo reale dopo la detrazione si vedono a destra mentre scrivi.'},
+      {t:'Consulenza e PDF',k:'emit',h:'Controlla ed emetti',s:'Tutto quello che manca è sulla lista: un clic ti porta al punto.'}
+    ],
+    catalogo:[
+      {id:'win',nome:'Finestra PVC 70 mm',base:640,icon:'win',gruppo:'Infissi',opt:true,dim:'120 × 140 cm'},
+      {id:'door',nome:'Portafinestra PVC',base:880,icon:'door',gruppo:'Infissi',opt:true,dim:'90 × 220 cm'},
+      {id:'shut',nome:'Persiana alluminio',base:310,icon:'shut',gruppo:'Complementi',opt:false,dim:'120 × 140 cm'},
+      {id:'net',nome:'Zanzariera avvolgibile',base:140,icon:'net',gruppo:'Complementi',opt:false,dim:'120 × 140 cm'}
+    ],
+    rows:[
+      {id:'win',qty:3,ap:'2 ante',col:'Bianco'},
+      {id:'door',qty:1,ap:'2 ante',col:'Bianco'},
+      {id:'shut',qty:4}
+    ]
+  },
+  bagno:{
+    label:'Bagno', logo:'Bianchi<em>Bagni</em>', numero:'BG-2026-0097', titolo:'Rifacimento bagno', iva:.10,
+    steps:[
+      {t:'Cliente',k:'fields',f:'cli',h:'Chi è il cliente',s:'Cerca tra i contatti o scrivi il nome.'},
+      {t:'Immobile',k:'fields',f:'imm2',h:'Dove si lavora',s:'Indirizzo e metri quadri del bagno.'},
+      {t:'Computo',k:'rows',h:'Le lavorazioni',s:'Aggiungi le voci dal listino: quantità e totale si aggiornano a destra.'},
+      {t:'Economia',k:'econ',h:'Sconto, detrazione, pagamento',s:'Il totale e il costo reale dopo la detrazione si vedono a destra.'},
+      {t:'Foto e media',k:'media',h:'Foto e render',s:'Facoltativo.'},
+      {t:'PDF',k:'emit',h:'Controlla ed emetti',s:'Tutto quello che manca è sulla lista.'}
+    ],
+    catalogo:[
+      {id:'dem',nome:'Demolizione e smaltimento',base:1200,icon:'wrench',gruppo:'Preparazione',um:'a corpo'},
+      {id:'idr',nome:'Impianto idraulico e scarichi',base:1800,icon:'wrench',gruppo:'Preparazione',um:'a corpo'},
+      {id:'gres',nome:'Rivestimenti in gres 60×120',base:62,icon:'tile',gruppo:'Finiture',um:'mq'},
+      {id:'san',nome:'Sanitari sospesi con cassetta',base:780,icon:'box',gruppo:'Finiture',um:'cad'},
+      {id:'doc',nome:'Box doccia in cristallo',base:890,icon:'box',gruppo:'Finiture',um:'cad'},
+      {id:'mob',nome:'Mobile bagno con lavabo',base:640,icon:'box',gruppo:'Finiture',um:'cad'}
+    ],
+    rows:[{id:'dem',qty:1},{id:'idr',qty:1},{id:'gres',qty:28},{id:'san',qty:1}]
+  },
+  fv:{
+    label:'Fotovoltaico', logo:'Bianchi<em>Solare</em>', numero:'FV-2026-0128', titolo:'Impianto fotovoltaico', iva:.10,
+    steps:[
+      {t:'Cliente',k:'fields',f:'cli',h:'Chi è il cliente',s:'Cerca tra i contatti o scrivi il nome.'},
+      {t:'Immobile',k:'fields',f:'imm',h:'Dove va l’impianto',s:'Con l’indirizzo si trova il tetto dal satellite.'},
+      {t:'Consumi',k:'fields',f:'cons',h:'Quanto consuma',s:'Bolletta alla mano: bastano i kWh annui.'},
+      {t:'Tetto',k:'fields',f:'tetto',h:'Il tetto',s:'Trovato dal satellite: correggi solo se serve.'},
+      {t:'Configurazione',k:'rows',h:'L’impianto',s:'Componenti dal listino: potenza, produzione e risparmio si aggiornano a destra.'},
+      {t:'Anteprima finanziaria',k:'econ',h:'Sconto, detrazione, pagamento',s:'Costo reale e rientro dell’investimento a destra.'},
+      {t:'Vista impresa',k:'imp',h:'Margine',s:'Costi e margine: ora basta l’interruttore «Impresa» sopra l’anteprima.'},
+      {t:'Generazione PDF',k:'emit',h:'Controlla ed emetti',s:'Tutto quello che manca è sulla lista.'}
+    ],
+    catalogo:[
+      {id:'mod',nome:'Modulo fotovoltaico 450 W',base:190,icon:'sun',gruppo:'Impianto',um:'cad',kwp:.45},
+      {id:'inv',nome:'Inverter ibrido 6 kW',base:1350,icon:'bat',gruppo:'Impianto',um:'cad'},
+      {id:'acc',nome:'Accumulo 10 kWh',base:4900,icon:'bat',gruppo:'Impianto',um:'cad'},
+      {id:'str',nome:'Struttura e installazione',base:2100,icon:'wrench',gruppo:'Posa e pratiche',um:'a corpo'},
+      {id:'pra',nome:'Pratiche e collaudo',base:450,icon:'wrench',gruppo:'Posa e pratiche',um:'a corpo'}
+    ],
+    rows:[{id:'mod',qty:14},{id:'inv',qty:1},{id:'acc',qty:1},{id:'str',qty:1},{id:'pra',qty:1}]
+  }
+};
+
+const fresh = () => ({
+  cli:{nome:'Mario Rossi',tel:'347 123 4567',mail:'mario.rossi@email.it'},
+  imm:{ind:'Via Garibaldi 12, Padova',tipo:'Appartamento',piano:'2',mq:'6,2'},
+  cons:{kwh:'4800',tar:'0,26'},
+  tetto:{orient:'Sud',incl:'30',sup:'38'},
+  sconto:5, detr:'50', acc:30
+});
+const S = { mod:'sr', view:'desk', step:2, pv:'riep', who:'cli', sheet:false, seen:new Set([0,1]), hi:null,
+  data:{sr:fresh(),bagno:fresh(),fv:fresh()},
+  rows:{sr:JSON.parse(JSON.stringify(MOD.sr.rows)),bagno:JSON.parse(JSON.stringify(MOD.bagno.rows)),fv:JSON.parse(JSON.stringify(MOD.fv.rows))} };
+S.data.bagno.imm.ind='Via Roma 4, Vicenza'; S.data.fv.imm.ind='Via dei Platani 7, Treviso';
+S.seen = {sr:new Set([0,1]),bagno:new Set([0,1]),fv:new Set([0,1,2,3])};
+S.stepOf = {sr:2,bagno:2,fv:4};
+
+const M = () => MOD[S.mod];
+const D = () => S.data[S.mod];
+const R = () => S.rows[S.mod];
+const cat = id => M().catalogo.find(c => c.id === id);
+
+function unit(r){
+  const c = cat(r.id); let p = c.base;
+  if(c.opt){ p += APERTURE[r.ap]||0; p = Math.round(p * (1 + (COLORI[r.col]||0))); }
+  return p;
+}
+function totals(){
+  const lordo = R().reduce((s,r)=> s + unit(r)*r.qty, 0);
+  const scontoV = Math.round(lordo * D().sconto/100);
+  const imp = lordo - scontoV;
+  const iva = Math.round(imp * M().iva);
+  const tot = imp + iva;
+  const det = D().detr === '0' ? 0 : Math.round(tot * Number(D().detr)/100);
+  return {lordo,scontoV,imp,iva,tot,det,reale:tot-det,acconto:Math.round(tot*D().acc/100)};
+}
+function kpiFv(){
+  const kwp = R().reduce((s,r)=> s + (cat(r.id).kwp||0)*r.qty, 0);
+  const prod = Math.round(kwp*1180);
+  const risp = Math.round(Math.min(prod*.62, Number(D().cons.kwh)*.78) * Number(String(D().cons.tar).replace(',','.')) + prod*.2*.09);
+  return {kwp,prod,risp};
+}
+const valid = i => {
+  const st = M().steps[i];
+  if(st.f==='cli') return !!D().cli.nome.trim();
+  if(st.f==='imm'||st.f==='imm2') return !!D().imm.ind.trim();
+  if(st.k==='rows') return R().length>0;
+  return true;
+};
+const warns = () => M().steps.map((s,i)=> i!==S.stepOf[S.mod] && S.seen[S.mod].has(i) && !valid(i));
+
+/* ---------- pezzi dell'anteprima ---------- */
+function paperRows(){
+  const groups = [];
+  R().forEach(r => { const c = cat(r.id); let g = groups.find(x=>x.n===c.gruppo); if(!g){g={n:c.gruppo,rows:[]};groups.push(g)} g.rows.push(r); });
+  const imp = S.who==='imp';
+  let html = `<table><thead><tr><th></th><th>Descrizione</th><th class="n">Qtà</th><th class="n">${imp?'Costo':'Prezzo'}</th><th class="n">Totale</th></tr></thead><tbody>`;
+  groups.forEach(g => {
+    html += `<tr class="grp"><td colspan="5">${g.n}</td></tr>`;
+    g.rows.forEach(r => {
+      const c = cat(r.id), u = unit(r);
+      const det = c.opt ? `${r.ap}, ${r.col.toLowerCase()}` : (c.dim||c.um||'');
+      const costo = Math.round(u*.64);
+      html += `<tr class="${S.hi===r.id?'hi':''}"><td style="width:36px"><div class="tm">${(ICON[c.opt && r.ap==='1 anta' ? 'win1' : c.icon]||'').replace(/width="\d+" height="\d+"/,'width="22" height="22"')}</div></td>
+        <td><b>${c.nome}</b><div style="color:var(--s500);font-size:10.5px">${det}</div></td>
+        <td class="n">${r.qty}${c.um&&c.um!=='a corpo'&&c.um!=='cad'?' '+c.um:''}</td>
+        <td class="n">${eur(imp?costo:u)}</td><td class="n"><b>${eur((imp?costo:u)*r.qty)}</b></td></tr>`;
+    });
+  });
+  return html + '</tbody></table>';
+}
+function paperBody(a4){
+  const t = totals(), d = D(), imp = S.who==='imp';
+  const seenEco = S.seen[S.mod].has(M().steps.findIndex(s=>s.k==='econ')) || S.stepOf[S.mod] >= M().steps.findIndex(s=>s.k==='econ');
+  const last = S.stepOf[S.mod] === M().steps.length-1;
+  const nome = d.cli.nome.trim(), ind = d.imm.ind.trim();
+  let h = `<div class="co"><div class="logo">${M().logo}</div><div class="meta">Preventivo ${M().numero}<br>05 ottobre 2026 · valido 30 giorni</div></div>
+    <h4>Cliente</h4><div class="cl">${nome?`<b>${esc(nome)}</b>`:'<span class="miss">Nome del cliente</span>'}<br>${ind?esc(ind):'<span class="miss">Indirizzo del lavoro</span>'}${d.cli.tel?` · ${esc(d.cli.tel)}`:''}</div>
+    <h4>${M().titolo}</h4>`;
+  if(S.mod==='fv'){ const k = kpiFv(); h += `<div class="box kpi"><div><b>${nf(k.kwp)} kWp</b>potenza</div><div><b>${k.prod.toLocaleString('it-IT')} kWh</b>all’anno</div><div><b>${eur(k.risp)}</b>risparmio/anno</div></div><div style="height:8px"></div>`; }
+  h += R().length ? paperRows() : '<div class="miss" style="padding:14px 0">Nessuna voce ancora: aggiungila dal passo «'+M().steps.find(s=>s.k==='rows').t+'».</div>';
+  h += `<div class="sum"><div><span>Imponibile</span><span>${eur(t.lordo)}</span></div>
+    ${d.sconto>0?`<div><span>Sconto ${d.sconto}%</span><span>− ${eur(t.scontoV)}</span></div>`:''}
+    <div><span>IVA ${Math.round(M().iva*100)}%</span><span>${eur(t.iva)}</span></div>
+    <div class="t"><span>Totale</span><span>${eur(t.tot)}</span></div></div>`;
+  if(imp){ const costo = R().reduce((s,r)=>s+Math.round(unit(r)*.64)*r.qty,0); const m = t.imp-costo; h += `<div class="box imp"><b>Vista impresa</b> · costi ${eur(costo)} · margine ${eur(m)} (${t.imp?Math.round(m/t.imp*100):0}%)</div>`; }
+  if(d.detr!=='0' && seenEco) h += `<div class="box det"><b>Detrazione ${d.detr}% in 10 anni</b> · recuperi ${eur(t.det)} · <b>costo reale ${eur(t.reale)}</b></div>`;
+  if(seenEco) h += `<h4>Pagamento</h4><div class="cl">Acconto ${d.acc}% (${eur(t.acconto)}) alla firma · saldo (${eur(t.tot-t.acconto)}) a fine lavori</div>`;
+  if(last || a4) h += `<div class="sig"><div>Firma del cliente</div><div>Firma dell’impresa</div></div>`;
+  return h;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function previewHTML(){
+  const t = totals();
+  const head = `<div class="pv-h">
+      <div class="seg" id="s-pv"><button data-v="riep" class="${S.pv==='riep'?'on':''}">Anteprima</button><button data-v="pdf" class="${S.pv==='pdf'?'on':''}">PDF vero</button></div>
+      <div class="seg" id="s-who"><button data-v="cli" class="${S.who==='cli'?'on':''}">Cliente</button><button data-v="imp" class="${S.who==='imp'?'on':''}">Impresa</button></div>
+      <span class="sp"></span><span class="spin" id="spin">aggiorno…</span></div>`;
+  const paper = S.pv==='pdf'
+    ? `<div class="paper a4">${paperBody(true)}<div style="position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:10px;color:var(--s400)">Pagina 1 di 4</div></div><div class="pv-note">Il documento vero (react-pdf), come lo riceve il cliente: si rifà ogni 1,5 secondi.</div>`
+    : `<div class="paper">${paperBody(false)}</div><div class="pv-note">Anteprima veloce: cambia mentre scrivi. Per il documento definitivo apri «PDF vero».</div>`;
+  return head + paper + `<div class="pv-total"><small>Totale IVA inclusa</small><b id="pvt">${eur(t.tot)}</b></div>`;
+}
+
+/* ---------- pezzi del form ---------- */
+function field(l, path, val, ph){ return `<div class="fld"><label>${l}</label><input data-bind="${path}" value="${esc(val)}" ${ph?`placeholder="${ph}"`:''}></div>`; }
+function formFields(st){
+  const d = D();
+  if(st.f==='cli') return `<div class="callout">Digita le prime lettere: se il cliente è già tra i contatti lo trovi e non riscrivi niente.</div>
+    <div class="card"><h3>Cliente</h3><div class="g2">${field('Nome e cognome','cli.nome',d.cli.nome,'Mario Rossi')}${field('Telefono','cli.tel',d.cli.tel)}</div><div style="height:12px"></div>${field('Email','cli.mail',d.cli.mail)}</div>`;
+  if(st.f==='imm') return `<div class="card"><h3>Indirizzo del lavoro</h3>${field('Indirizzo','imm.ind',d.imm.ind,'Via, numero, città')}<div style="height:12px"></div><div class="g2">
+      <div class="fld"><label>Tipo di immobile</label><select data-bind="imm.tipo"><option>Appartamento</option><option>Villetta</option><option>Edificio</option></select></div>${field('Piano','imm.piano',d.imm.piano)}</div></div>
+    ${S.mod==='sr'?`<div class="card"><h3>Contenuti del PDF <span class="act">Modifica</span></h3><div class="chk"><i>✓</i>Chi siamo e referenze</div><div class="chk"><i>✓</i>Garanzie e certificazioni</div><div class="chk"><i>✓</i>Come lavoriamo</div></div>`:''}`;
+  if(st.f==='imm2') return `<div class="card"><h3>Dove si lavora</h3>${field('Indirizzo','imm.ind',d.imm.ind,'Via, numero, città')}<div style="height:12px"></div><div class="g2">${field('Piano','imm.piano',d.imm.piano)}${field('Superficie del bagno (mq)','imm.mq',d.imm.mq)}</div></div>`;
+  if(st.f==='cons') return `<div class="card"><h3>Consumi</h3><div class="g2">${field('Consumo annuo (kWh)','cons.kwh',d.cons.kwh)}${field('Costo energia (€/kWh)','cons.tar',d.cons.tar)}</div></div><div class="callout ok">Con 4.800 kWh all’anno il consumo è nella media di una famiglia di 4 persone.</div>`;
+  if(st.f==='tetto') return `<div class="card"><h3>Tetto <span class="act">Trovato dal satellite</span></h3><div class="g2"><div class="fld"><label>Orientamento</label><select><option>Sud</option><option>Sud-Est</option><option>Sud-Ovest</option></select></div>${field('Inclinazione (°)','tetto.incl',d.tetto.incl)}</div><div style="height:12px"></div>${field('Superficie utile (mq)','tetto.sup',d.tetto.sup)}</div>`;
+  return '';
+}
+function rowEditor(){
+  const items = R().map(r => {
+    const c = cat(r.id), u = unit(r);
+    const ic = c.opt && r.ap==='1 anta' ? 'win1' : c.icon;
+    const opts = c.opt ? `<div class="opts"><select data-ap="${r.id}">${Object.keys(APERTURE).map(a=>`<option ${a===r.ap?'selected':''}>${a}</option>`).join('')}</select><select data-col="${r.id}">${Object.keys(COLORI).map(a=>`<option ${a===r.col?'selected':''}>${a}</option>`).join('')}</select></div>` : '';
+    return `<div class="row ${S.hi===r.id?'hi':''}" data-row="${r.id}"><div class="thumb">${ICON[ic]||''}</div>
+      <div><div class="nm">${c.nome}</div><div class="dt">${c.dim||c.um} · ${eur(u)} ${c.um&&c.um!=='cad'?c.um:'cad.'}</div>${opts}</div>
+      <div class="rt"><div class="pr">${eur(u*r.qty)}</div><div class="qty"><button data-q="-1" data-id="${r.id}">−</button><b>${r.qty}</b><button data-q="1" data-id="${r.id}">+</button></div><button class="del" data-del="${r.id}">togli</button></div></div>`;
+  }).join('');
+  const lib = M().catalogo.filter(c => !R().some(r=>r.id===c.id));
+  return `<div class="card"><h3>${M().steps[S.stepOf[S.mod]].t} <span class="act">Dal listino…</span></h3>${items || '<div class="dt" style="padding:8px 0">Nessuna voce: aggiungine una qui sotto.</div>'}
+    <div class="add">${lib.map(c=>`<button data-add="${c.id}">＋ ${c.nome}</button>`).join('') || '<span class="dt">Tutto il listino è già nell’offerta.</span>'}</div></div>`;
+}
+function formEcon(){
+  const d = D(), t = totals();
+  return `<div class="card"><h3>Prezzo</h3><div class="g2"><div class="fld"><label>Sconto: <b id="v-sc">${d.sconto}%</b></label><input type="range" min="0" max="15" step="1" value="${d.sconto}" data-rng="sconto"></div>
+    <div class="fld"><label>Detrazione fiscale</label><select data-bind="detr"><option value="50" ${d.detr==='50'?'selected':''}>Ristrutturazione 50%</option><option value="65" ${d.detr==='65'?'selected':''}>Ecobonus 65%</option><option value="0" ${d.detr==='0'?'selected':''}>Nessuna</option></select></div></div></div>
+    <div class="card"><h3>Pagamento</h3><div class="fld"><label>Acconto alla firma: <b id="v-ac">${d.acc}%</b></label><input type="range" min="0" max="50" step="5" value="${d.acc}" data-rng="acc"></div></div>
+    <div class="callout ok">Totale ${eur(t.tot)} · con la detrazione il costo reale è <b>&nbsp;${eur(t.reale)}</b></div>`;
+}
+function formMedia(){ return `<div class="card"><h3>Foto del cantiere <span class="act">＋ Aggiungi</span></h3><div class="ph3"><div>Facciata</div><div>Finestra soggiorno</div><div>Bagno</div><div>＋ foto</div></div></div>
+  <div class="card"><h3>Render</h3><div class="dt">Genera un render del nuovo ${S.mod==='sr'?'serramento':'lavoro'} sulla foto: usa 1 credito.</div></div>`; }
+function formImp(){ const t = totals(); const costo = R().reduce((s,r)=>s+Math.round(unit(r)*.64)*r.qty,0); return `<div class="card"><h3>Margine</h3><div class="g2"><div><div class="dt">Costi</div><b style="font-size:20px">${eur(costo)}</b></div><div><div class="dt">Margine</div><b style="font-size:20px;color:var(--green)">${eur(t.imp-costo)}</b></div></div></div>`; }
+function formEmit(){
+  const t = totals(), items = M().steps.map((s,i)=>({s,i,ok:valid(i)})).filter(x=>x.s.k!=='emit' && x.s.k!=='media' && x.s.k!=='imp' && x.s.k!=='econ');
+  const tutti = items.every(x=>x.ok);
+  return `<div class="card"><h3>Prima di emettere</h3>${items.map(x=>`<div class="chk"><i class="${x.ok?'':'no'}">${x.ok?'✓':'!'}</i><span style="flex:1">${x.s.t}${x.ok?'':' — manca qualcosa'}</span>${x.ok?'':`<button class="del" data-go="${x.i}">vai</button>`}</div>`).join('')}
+    <div class="chk"><i>✓</i><span style="flex:1">Totale ${eur(t.tot)} calcolato</span></div></div>
+    <div class="callout ${tutti?'ok':'wa'}">${tutti?'Tutto a posto: puoi emettere. Il PDF si genera e si salva nel preventivo.':'Manca ancora qualcosa: usa «vai» per tornare al punto.'}</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn pri" ${tutti?'':'disabled'}>Emetti e genera il PDF</button><button class="btn">Salva bozza</button><button class="btn" disabled>Invia al cliente</button></div>`;
+}
+function formHTML(){
+  const st = M().steps[S.stepOf[S.mod]], i = S.stepOf[S.mod];
+  let body = '';
+  if(st.k==='fields') body = formFields(st);
+  else if(st.k==='rows') body = rowEditor();
+  else if(st.k==='econ') body = formEcon();
+  else if(st.k==='media') body = formMedia();
+  else if(st.k==='imp') body = formImp();
+  else body = formEmit();
+  return `<div class="pt"><h2>Passo ${i+1} — ${st.h}</h2><p>${st.s}</p></div>${body}`;
+}
+
+/* ---------- guscio ---------- */
+function tabsHTML(){
+  const w = warns(), n = M().steps.length, cur = S.stepOf[S.mod];
+  const t = totals();
+  return `<div class="tabs"><div class="list">${M().steps.map((s,i)=>{
+      const done = S.seen[S.mod].has(i) && i<cur && valid(i);
+      return `<button class="tab ${i===cur?'on':done?'done':''}" data-tab="${i}"><span class="n">${done?'✓':i+1}</span><span class="t"><small>Passo ${i+1}</small>${s.t}</span>${w[i]?'<span class="warn" title="Manca qualcosa"></span>':''}</button>`;}).join('')}</div>
+    <div class="tot"><small>Totale IVA incl.</small><b id="tt">${eur(t.tot)}</b></div></div>
+    <div class="prog"><span><b style="color:var(--s900)">Passo ${cur+1} di ${n}</b> · ${M().steps[cur].t}</span><div class="bar"><i style="width:${Math.round((cur+1)/n*100)}%"></i></div><span>${Math.round((cur+1)/n*100)}% · ~${Math.max(1,Math.round((n-cur-1)*1.3))} min</span></div>`;
+}
+function headerHTML(){
+  return `<div class="ph"><button class="back" aria-label="Indietro">←</button><span class="chip id mono">${M().numero}</span><span class="chip or">Bozza</span>
+    <div><h1>${esc(D().cli.nome||'Nuovo cliente')} · ${M().titolo}</h1></div><span class="sp"></span>
+    <span class="save"><span class="dot"></span>Salvato alle 11:24</span><button class="btn">Duplica</button><button class="btn">⋯</button></div>`;
+}
+function footHTML(){
+  const cur = S.stepOf[S.mod], last = cur===M().steps.length-1;
+  return `<div class="ft"><span class="st"><span class="dot"></span>Salvataggio automatico</span><span class="sp"></span>
+    <button class="btn" data-nav="-1" ${cur===0?'disabled':''}>← Indietro</button><button class="btn">Salva bozza</button>${last?'':`<button class="btn pri" data-nav="1">Avanti →</button>`}</div>`;
+}
+function desk(){
+  return `<div class="app">${headerHTML()}<div id="tabs">${tabsHTML()}</div><div class="body"><div id="form">${formHTML()}</div><aside class="pv" id="pv">${previewHTML()}</aside></div>${footHTML()}</div>`;
+}
+function phone(){
+  const cur = S.stepOf[S.mod], t = totals(), last = cur===M().steps.length-1;
+  return `<div class="ph-wrap"><div class="phone"><div class="ph"><button class="back" aria-label="Indietro">←</button><div style="min-width:0;flex:1"><h1>${esc(D().cli.nome||'Nuovo cliente')} · ${M().titolo}</h1></div><span class="chip gr"><span class="dot"></span>Salvato</span></div>
+      <div class="pills" id="pills">${M().steps.map((s,i)=>`<button class="pill ${i===cur?'on':(S.seen[S.mod].has(i)&&i<cur&&valid(i))?'done':''}" data-tab="${i}">${i+1} ${s.t.split(' ')[0]}</button>`).join('')}</div>
+      <div class="scr"><div class="pad" id="form">${formHTML()}</div>
+        <div class="sheet ${S.sheet?'on':''}" id="sheet"><div class="gr"></div><div class="sc"><div class="pv-h"><div class="seg" id="s-who"><button data-v="cli" class="${S.who==='cli'?'on':''}">Cliente</button><button data-v="imp" class="${S.who==='imp'?'on':''}">Impresa</button></div><span class="sp"></span><button class="del" id="close-sheet">chiudi</button></div><div class="paper" id="pv">${paperBody(false)}</div></div></div></div>
+      <div class="bbar"><button class="tt" id="open-sheet"><small>Totale · tocca per l’anteprima ▴</small><b id="tt">${eur(t.tot)}</b></button>${last?'':`<button class="btn pri" data-nav="1">Avanti →</button>`}</div></div>
+    <div class="cap"><p><b>Sul telefono</b> le fasi diventano pillole, il totale resta sempre nella barra in basso e l’anteprima sale dal basso con un tocco. Niente colonna a destra, niente pannelli nascosti.</p><p>Stesso codice, stesse regole del computer: cambia solo la disposizione.</p></div></div>`;
+}
+function render(){
+  document.getElementById('root').innerHTML = S.view==='phone' ? phone() : desk();
+  document.querySelectorAll('#s-mod button').forEach(b=>b.classList.toggle('on',b.dataset.v===S.mod));
+  document.querySelectorAll('#s-view button').forEach(b=>b.classList.toggle('on',b.dataset.v===S.view));
+}
+let lastTot = null, timer = null;
+function refreshLive(){
+  const t = totals().tot, fl = lastTot!==null && lastTot!==t; lastTot = t;
+  const pvEl = document.getElementById('pv');
+  if(S.view==='desk'){
+    pvEl.innerHTML = previewHTML();
+    const sp = document.getElementById('spin');
+    if(S.pv==='pdf' && sp){ sp.classList.add('on'); clearTimeout(timer); timer = setTimeout(()=>sp.classList.remove('on'),900); }
+  } else { pvEl.innerHTML = paperBody(false); }
+  ['tt','pvt'].forEach(id=>{const e=document.getElementById(id); if(e){e.textContent=eur(t); if(fl){e.classList.remove('flash');void e.offsetWidth;e.classList.add('flash');}}});
+  const tabs = document.getElementById('tabs'); if(tabs) tabs.innerHTML = tabsHTML();
+  const pills = document.getElementById('pills'); if(pills) pills.innerHTML = M().steps.map((s,i)=>`<button class="pill ${i===S.stepOf[S.mod]?'on':(S.seen[S.mod].has(i)&&i<S.stepOf[S.mod]&&valid(i))?'done':''}" data-tab="${i}">${i+1} ${s.t.split(' ')[0]}</button>`).join('');
+}
+function go(i){
+  const n = M().steps.length; i = Math.max(0,Math.min(n-1,i));
+  S.seen[S.mod].add(S.stepOf[S.mod]); S.stepOf[S.mod] = i; S.hi = null; S.sheet = false; render(); lastTot = totals().tot;
+}
+function setPath(path,val){
+  const d = D(), p = path.split('.');
+  if(p.length===2) d[p[0]][p[1]] = val; else d[p[0]] = val;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  if(b.closest('#s-mod')){ S.mod = b.dataset.v; S.sheet=false; render(); lastTot = totals().tot; return; }
+  if(b.closest('#s-view')){ S.view = b.dataset.v; S.sheet=false; render(); lastTot = totals().tot; return; }
+  if(b.closest('#s-pv')){ S.pv = b.dataset.v; refreshLive(); return; }
+  if(b.closest('#s-who')){ S.who = b.dataset.v; refreshLive(); return; }
+  if(b.dataset.tab!==undefined){ go(Number(b.dataset.tab)); return; }
+  if(b.dataset.nav){ go(S.stepOf[S.mod] + Number(b.dataset.nav)); return; }
+  if(b.dataset.go){ go(Number(b.dataset.go)); return; }
+  if(b.id==='open-sheet'){ S.sheet = true; document.getElementById('sheet').classList.add('on'); return; }
+  if(b.id==='close-sheet'){ S.sheet = false; document.getElementById('sheet').classList.remove('on'); return; }
+  const rs = R();
+  if(b.dataset.q){ const r = rs.find(x=>x.id===b.dataset.id); r.qty = Math.max(1,r.qty+Number(b.dataset.q)); S.hi=r.id; document.getElementById('form').innerHTML = formHTML(); refreshLive(); return; }
+  if(b.dataset.del){ S.rows[S.mod] = rs.filter(x=>x.id!==b.dataset.del); S.hi=null; document.getElementById('form').innerHTML = formHTML(); refreshLive(); return; }
+  if(b.dataset.add){ const c = cat(b.dataset.add); rs.push(c.opt?{id:c.id,qty:1,ap:'1 anta',col:'Bianco'}:{id:c.id,qty:1}); S.hi=c.id; document.getElementById('form').innerHTML = formHTML(); refreshLive(); return; }
+});
+document.addEventListener('input', e => {
+  const t = e.target;
+  if(t.dataset.bind){ setPath(t.dataset.bind, t.value); refreshLive(); return; }
+  if(t.dataset.rng){ const v = Number(t.value); D()[t.dataset.rng] = v; const lab = document.getElementById(t.dataset.rng==='sconto'?'v-sc':'v-ac'); if(lab) lab.textContent = v+'%'; refreshLive(); return; }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if(t.dataset.ap){ const r = R().find(x=>x.id===t.dataset.ap); r.ap = t.value; S.hi=r.id; document.getElementById('form').innerHTML = formHTML(); refreshLive(); return; }
+  if(t.dataset.col){ const r = R().find(x=>x.id===t.dataset.col); r.col = t.value; S.hi=r.id; document.getElementById('form').innerHTML = formHTML(); refreshLive(); return; }
+});
+render(); lastTot = totals().tot;
+</script>
+</body>
+</html>
