@@ -124,3 +124,15 @@ describe("la scheda di una posizione nel preventivo", () => {
     ]);
   });
 });
+
+describe("monoblocco nel preventivo del cliente", () => {
+  const v = (codice: string, nomeAsse: string, valore: string) => ({ codice, nomeAsse, valore });
+  it("«Senza monoblocco» e «Senza zanzariera» non si scrivono", () => {
+    const scheda = schedaPosizione([v("colore", "Colore", "Bianco"), v("monoblocco", "Monoblocco", "Senza monoblocco"), v("zanzariera", "Zanzariera", "Senza zanzariera")]);
+    expect(scheda.altre).toEqual([]);
+  });
+  it("con il monoblocco si scrivono lui e i suoi dettagli", () => {
+    const scheda = schedaPosizione([v("monoblocco", "Monoblocco", "Con monoblocco"), v("altezza_cassonetto", "Altezza cassonetto", "200 mm"), v("zanzariera", "Zanzariera", "Con zanzariera")]);
+    expect(scheda.altre.map((a) => `${a.label}: ${a.value}`)).toEqual(["Monoblocco: Con monoblocco", "Altezza cassonetto: 200 mm", "Zanzariera: Con zanzariera"]);
+  });
+});

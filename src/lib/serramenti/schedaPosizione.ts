@@ -105,6 +105,8 @@ export function schedaPosizione(
   const altre: Array<{ label: string; value: string }> = [];
 
   for (const s of scelte) {
+    // «Senza monoblocco» / «Senza zanzariera» sono la risposta di serie: nel preventivo del cliente non si scrivono.
+    if (["monoblocco", "zanzariera"].includes(chiave(s.codice)) && /^senza\b/i.test(s.valore.trim())) continue;
     const r = ruolo(s);
     if (r === "linea") linea = testoDi(s);
     else if (r === "colore") colore = s;
