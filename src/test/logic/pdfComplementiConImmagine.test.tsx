@@ -36,7 +36,7 @@ describe("complementi con immagine nel PDF", () => {
     const template = createFullSerramentiTemplate({ company_id: "qa", ragione_sociale: "Impresa esempio" }, "finestre");
     const dati = await buildMockPdfData({ template, moduleId: "finestre", companyName: "Impresa esempio" });
     const finestra = dati.detail.serramenti[0];
-    const base = { progetto_id: dati.detail.progetto.id, company_id: "demo-company", position: 0, quantita: 1, prezzo_unitario: 252, prezzo_totale: 252, listino_voce_id: null, note: null, posa_esclusa: false } as const;
+    const base = { progetto_id: dati.detail.progetto.id, company_id: "demo-company", position: 0, quantita: 1, prezzo_unitario: 252, prezzo_totale: 252, listino_voce_id: null as string | null, note: null as string | null, posa_esclusa: false } as const;
     dati.detail.accessori = [
       { ...base, id: "a1", tipo: "tapparella", descrizione: "Tapparella Alluminio Coibentata", larghezza_mm: 1200, altezza_mm: 1400, serramento_id: finestra.id, family_id: "fam-tapp", valori_assi: {}, scelte_assi: {} },
       { ...base, id: "a2", tipo: "zanzariera", descrizione: "Zanzariera a molla", larghezza_mm: 1200, altezza_mm: 1400, serramento_id: finestra.id, family_id: "fam-nofoto", valori_assi: {}, scelte_assi: {} },
@@ -45,7 +45,7 @@ describe("complementi con immagine nel PDF", () => {
     const foto = process.env.FOTO_PROVA
       ? `data:image/jpeg;base64,${(await readFile(process.env.FOTO_PROVA)).toString("base64")}`
       : `data:image/png;base64,${(await readFile(path.resolve("public/templates/serramenti/cassonetto-pvc-isolato.png"))).toString("base64")}`;
-    const accessoriFamilies = { "fam-tapp": { immagine_url: foto, disegno_tipologia: null }, "fam-nofoto": { immagine_url: null, disegno_tipologia: null } };
+    const accessoriFamilies = { "fam-tapp": { immagine_url: foto as string | null, disegno_tipologia: null as string | null }, "fam-nofoto": { immagine_url: null as string | null, disegno_tipologia: null as string | null } };
     const bytes = await renderToBuffer(SerramentoPDF({ ...dati, accessoriFamilies }) as Parameters<typeof renderToBuffer>[0]);
     if (process.env.DUMP_PDF) await writeFile(process.env.DUMP_PDF, bytes);
     const doc = await getDocument({ data: new Uint8Array(bytes), useSystemFonts: true }).promise;
