@@ -6,8 +6,11 @@
 -- (article_family_axis_values.prezzo_vendita/prezzo_acquisto): una linea col
 -- prezzo proprio (migrazione 20280922170000) restava al prezzo vecchio nella
 -- tipologia copiata «+10%», mentre la finestra diceva «acquisto e vendita».
--- Unica modifica rispetto alla versione precedente: le due colonne dei
--- prezzi propri nella copia dei valori.
+-- Le modifiche rispetto alla versione precedente sono due: le due colonne
+-- dei prezzi propri nella copia dei valori, e la condizione di visibilità
+-- delle varianti (article_family_axes.visibile_se, migrazione 20281005100000)
+-- nella copia degli assi: senza, una tipologia copiata perdeva le varianti
+-- che compaiono solo «con monoblocco».
 
 CREATE OR REPLACE FUNCTION public.listino_copia_tipologia(p_macrocategoria_id uuid, p_nome text, p_suffisso_prodotti text DEFAULT NULL::text, p_variazione_pct numeric DEFAULT 0, p_con_prodotti boolean DEFAULT true)
  RETURNS jsonb
@@ -149,11 +152,13 @@ begin
       for v_ax in
         select * from public.article_family_axes where family_id = v_fam.id order by sort_order
       loop
+        -- Anche la condizione di visibilità (visibile_se, 20281005100000): si
+        -- riferisce agli altri assi per codice, che la copia tiene uguale.
         insert into public.article_family_axes
-          (family_id, company_id, nome, codice, descrizione, tipo, obbligatorio, sort_order)
+          (family_id, company_id, nome, codice, descrizione, tipo, obbligatorio, sort_order, visibile_se)
         values
           (v_new_fam, v_src.company_id, v_ax.nome, v_ax.codice, v_ax.descrizione, v_ax.tipo,
-           v_ax.obbligatorio, v_ax.sort_order)
+           v_ax.obbligatorio, v_ax.sort_order, v_ax.visibile_se)
         returning id into v_new_ax;
 
         insert into public.article_family_axis_values
