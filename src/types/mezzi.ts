@@ -11,11 +11,22 @@ export type MezzoPossesso = "proprieta" | "leasing" | "noleggio_lungo" | "nolegg
 export type MezzoStato = "in_servizio" | "in_officina" | "fuori_servizio";
 export type ContatoreUnita = "km" | "ore";
 
+/** Mezzi (con targa o da cantiere) e attrezzature: la decide il tipo (colonna generata `classe`). */
+export type MezzoClasse = "mezzo" | "attrezzatura";
+/** Un pezzo con la sua storia, oppure un parco a quantità (m² di ponteggio, transenne a pezzi). */
+export type MezzoGestione = "singola" | "quantita";
+export type UnitaQuantita = "mq" | "pz" | "ml" | "mc" | "kg";
+
 export type MezzoDocumentoCategoria =
   | "assicurazione" | "bollo" | "revisione" | "contratto"
-  | "verifica_periodica" | "libretto" | "altro";
+  | "verifica_periodica" | "libretto"
+  | "garanzia" | "taratura" | "manuale_ce" | "pimus" | "autorizzazione_ministeriale"
+  | "altro";
 
-export type MezzoManutenzioneTipo = "tagliando" | "riparazione" | "gomme" | "carrozzeria" | "altro";
+export type MezzoManutenzioneTipo =
+  | "tagliando" | "riparazione" | "gomme" | "carrozzeria"
+  | "manutenzione_ordinaria" | "sostituzione_parti" | "taratura" | "verifica"
+  | "altro";
 
 export type StatoScadenza = "scaduto" | "in_scadenza" | "valido" | "senza_scadenza" | "sostituito";
 
@@ -48,7 +59,128 @@ export interface Mezzo {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  /** Generata dal tipo: 'attrezzatura' per gli attrezzi, 'mezzo' per tutto il resto. */
+  classe?: MezzoClasse | null;
+  categoria_id?: string | null;
+  gestione?: MezzoGestione;
+  unita_misura?: UnitaQuantita | null;
+  quantita_totale?: number | null;
+  /** ATT-0012, MZ-0003: va sull'etichetta col QR. Lo assegna il database se manca. */
+  codice?: string | null;
 }
+
+/** Categoria degli attrezzi (Elettroutensili, Ponteggi e accesso…), per azienda. */
+export interface MezzoCategoria {
+  id: string;
+  company_id: string;
+  classe: MezzoClasse;
+  nome: string;
+  icona: string | null;
+  ordine: number;
+  attiva: boolean;
+  predefinita: boolean;
+}
+
+/** Una parte di un'attrezzatura a quantità montata su un cantiere (250 m² dal… al…). */
+export interface MezzoAllocazione {
+  id: string;
+  company_id: string;
+  mezzo_id: string;
+  order_id: string | null;
+  luogo: string | null;
+  quantita: number;
+  dal: string;
+  al: string | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+/** Riga della vista mezzi_disponibilita. */
+export interface MezzoDisponibilita {
+  mezzo_id: string;
+  company_id: string;
+  unita_misura: UnitaQuantita | null;
+  quantita_totale: number;
+  in_uso: number;
+  disponibile: number;
+  cantieri: number;
+}
+
+export type ScansioneAzione =
+  | "vista" | "prendo" | "cantiere" | "carico_su" | "magazzino" | "smarrito" | "monta" | "rientra" | "inventario";
+
+export interface MezzoScansione {
+  id: string;
+  company_id: string;
+  mezzo_id: string;
+  user_id: string | null;
+  hr_profilo_id: string | null;
+  order_id: string | null;
+  azione: ScansioneAzione;
+  quantita: number | null;
+  nota: string | null;
+  inventario_id: string | null;
+  created_at: string;
+}
+
+export interface MezzoInventario {
+  id: string;
+  company_id: string;
+  titolo: string;
+  classe: MezzoClasse | null;
+  categoria_id: string | null;
+  /** 'magazzino': si aspetta solo ciò che risulta in magazzino; 'ovunque': tutto. */
+  dove: "magazzino" | "ovunque";
+  note: string | null;
+  avviato_da: string | null;
+  chiuso_at: string | null;
+  chiuso_da: string | null;
+  created_at: string;
+}
+
+/** La scheda che vede il campo dopo una scansione (funzione _mezzo_scheda_campo). */
+export interface SchedaCampoAttrezzo {
+  id: string;
+  company_id: string;
+  codice: string | null;
+  nome: string;
+  tipo: MezzoTipo;
+  classe: MezzoClasse;
+  marca: string | null;
+  modello: string | null;
+  stato: MezzoStato;
+  foto_path: string | null;
+  categoria: string | null;
+  gestione: MezzoGestione;
+  unita_misura: UnitaQuantita | null;
+  quantita_totale: number | null;
+  disponibile: number | null;
+  veicolo: boolean;
+  dove: "mezzo" | "cantiere" | "persona" | "magazzino";
+  dove_nome: string | null;
+  order_id: string | null;
+  con_me: boolean;
+  montaggi: Array<{ id: string; order_id: string | null; cantiere: string | null; luogo: string | null; quantita: number; dal: string }>;
+  segnalazioni_aperte: number;
+}
+
+/** Cosa restituisce mezzo_da_codice. */
+export type EsitoCodice =
+  | { esito: "trovato"; vista: "ufficio"; id: string; company_id: string; codice: string }
+  | {
+      esito: "trovato";
+      vista: "campo";
+      id: string;
+      company_id: string;
+      codice: string;
+      ho_profilo: boolean;
+      mezzo: SchedaCampoAttrezzo;
+      cantieri: Array<{ id: string; nome: string }>;
+      miei_veicoli: Array<{ id: string; nome: string; targa: string | null }>;
+    }
+  | { esito: "libero"; codice: string; company_id: string; posso_registrare: boolean }
+  | { esito: "sconosciuto"; codice?: string };
 
 /** Mezzo con i nomi di chi o cosa lo ha in carico, per l'elenco e la scheda. */
 export interface MezzoConAssegnazione extends Mezzo {
@@ -73,7 +205,7 @@ export interface MezzoAssegnazione {
   created_at: string;
 }
 
-export type SegnalazioneTipo = "guasto" | "danno" | "km" | "altro";
+export type SegnalazioneTipo = "guasto" | "danno" | "km" | "smarrito" | "rubato" | "altro";
 export type SegnalazioneStato = "aperta" | "in_lavorazione" | "chiusa";
 
 export interface MezzoSegnalazione {
@@ -127,6 +259,8 @@ export const TIPI_SEGNALAZIONE: { value: SegnalazioneTipo; label: string }[] = [
   { value: "guasto", label: "Guasto" },
   { value: "danno", label: "Danno o incidente" },
   { value: "km", label: "Km aggiornati" },
+  { value: "smarrito", label: "Non si trova" },
+  { value: "rubato", label: "Furto" },
   { value: "altro", label: "Altro" },
 ];
 
@@ -216,23 +350,107 @@ export const STATI_MEZZO: { value: MezzoStato; label: string; cls: string }[] = 
   { value: "fuori_servizio", label: "Fuori servizio", cls: "bg-slate-100 text-slate-600 border-slate-200" },
 ];
 
-export const CATEGORIE_DOCUMENTO: { value: MezzoDocumentoCategoria; label: string; alert: number }[] = [
-  { value: "assicurazione", label: "Assicurazione", alert: 30 },
-  { value: "bollo", label: "Bollo", alert: 30 },
-  { value: "revisione", label: "Revisione", alert: 30 },
-  { value: "contratto", label: "Contratto leasing / noleggio", alert: 60 },
-  { value: "verifica_periodica", label: "Verifica periodica (gru, PLE)", alert: 60 },
-  { value: "libretto", label: "Libretto di circolazione", alert: 30 },
-  { value: "altro", label: "Altro documento", alert: 30 },
+/** I tipi della classe «mezzo»: tutto tranne l'attrezzatura. */
+export const TIPI_VEICOLO = TIPI_MEZZO.filter((t) => t.value !== "attrezzatura");
+
+/** Furgoni e auto: seguono chi li guida, hanno targa e libretto. */
+export const TIPI_CON_TARGA: MezzoTipo[] = ["furgone", "autocarro", "autovettura"];
+
+export const classeDi = (tipo: string): MezzoClasse => (tipo === "attrezzatura" ? "attrezzatura" : "mezzo");
+
+type VoceConClasse<T> = { value: T; label: string; classi: MezzoClasse[] };
+
+export const CATEGORIE_DOCUMENTO: (VoceConClasse<MezzoDocumentoCategoria> & { alert: number })[] = [
+  { value: "assicurazione", label: "Assicurazione", alert: 30, classi: ["mezzo", "attrezzatura"] },
+  { value: "bollo", label: "Bollo", alert: 30, classi: ["mezzo"] },
+  { value: "revisione", label: "Revisione", alert: 30, classi: ["mezzo"] },
+  { value: "contratto", label: "Contratto leasing / noleggio", alert: 60, classi: ["mezzo", "attrezzatura"] },
+  { value: "verifica_periodica", label: "Verifica periodica (gru, PLE)", alert: 60, classi: ["mezzo", "attrezzatura"] },
+  { value: "libretto", label: "Libretto di circolazione", alert: 30, classi: ["mezzo"] },
+  { value: "garanzia", label: "Garanzia", alert: 30, classi: ["attrezzatura", "mezzo"] },
+  { value: "taratura", label: "Taratura (strumenti di misura)", alert: 30, classi: ["attrezzatura"] },
+  { value: "manuale_ce", label: "Manuale e marcatura CE", alert: 30, classi: ["attrezzatura", "mezzo"] },
+  { value: "pimus", label: "PiMUS (ponteggi)", alert: 30, classi: ["attrezzatura"] },
+  { value: "autorizzazione_ministeriale", label: "Autorizzazione ministeriale (ponteggi)", alert: 60, classi: ["attrezzatura"] },
+  { value: "altro", label: "Altro documento", alert: 30, classi: ["mezzo", "attrezzatura"] },
 ];
 
-export const TIPI_MANUTENZIONE: { value: MezzoManutenzioneTipo; label: string }[] = [
-  { value: "tagliando", label: "Tagliando" },
-  { value: "riparazione", label: "Riparazione" },
-  { value: "gomme", label: "Gomme" },
-  { value: "carrozzeria", label: "Carrozzeria" },
-  { value: "altro", label: "Altro intervento" },
+export const TIPI_MANUTENZIONE: VoceConClasse<MezzoManutenzioneTipo>[] = [
+  { value: "tagliando", label: "Tagliando", classi: ["mezzo"] },
+  { value: "riparazione", label: "Riparazione", classi: ["mezzo", "attrezzatura"] },
+  { value: "gomme", label: "Gomme", classi: ["mezzo"] },
+  { value: "carrozzeria", label: "Carrozzeria", classi: ["mezzo"] },
+  { value: "manutenzione_ordinaria", label: "Manutenzione ordinaria", classi: ["attrezzatura"] },
+  { value: "sostituzione_parti", label: "Sostituzione di parti", classi: ["attrezzatura"] },
+  { value: "taratura", label: "Taratura", classi: ["attrezzatura"] },
+  { value: "verifica", label: "Verifica prima dell'uso", classi: ["attrezzatura"] },
+  { value: "altro", label: "Altro intervento", classi: ["mezzo", "attrezzatura"] },
 ];
+
+/** Le voci adatte alla classe, ma sempre anche quella già scelta (un dato vecchio non sparisce dal menu). */
+export function vociPerClasse<T extends string>(voci: VoceConClasse<T>[], classe: MezzoClasse, corrente?: string | null) {
+  return voci.filter((v) => v.classi.includes(classe) || v.value === corrente);
+}
+
+export const UNITA_QUANTITA: { value: UnitaQuantita; label: string; breve: string; esempio: string }[] = [
+  { value: "mq", label: "Metri quadri", breve: "m²", esempio: "ponteggi, casseri, teli" },
+  { value: "pz", label: "Pezzi", breve: "pz", esempio: "transenne, puntelli, morsetti" },
+  { value: "ml", label: "Metri lineari", breve: "m", esempio: "reti di cantiere, parapetti, tubi" },
+  { value: "mc", label: "Metri cubi", breve: "m³", esempio: "pannelli, materiale sfuso" },
+  { value: "kg", label: "Chili", breve: "kg", esempio: "giunti, morsetteria a peso" },
+];
+
+export const unitaBreve = (u: string | null | undefined) => UNITA_QUANTITA.find((x) => x.value === u)?.breve ?? (u ?? "");
+
+/** «250 m²», «12,5 m», «1.200 pz». */
+export function formatQuantita(n: number | null | undefined, unita: string | null | undefined): string {
+  if (n == null) return "—";
+  return `${NUMERO_IT_2.format(Number(n))} ${unitaBreve(unita)}`.trim();
+}
+
+/** Nomi pronti per l'esempio nel modulo, così chi registra un ponteggio non parte da zero. */
+export const ESEMPI_A_QUANTITA = [
+  { nome: "Ponteggio a telai", unita: "mq" as UnitaQuantita },
+  { nome: "Ponteggio a tubi e giunti", unita: "mq" as UnitaQuantita },
+  { nome: "Transenne", unita: "pz" as UnitaQuantita },
+  { nome: "Puntelli", unita: "pz" as UnitaQuantita },
+  { nome: "Rete da cantiere", unita: "ml" as UnitaQuantita },
+  { nome: "Casseri", unita: "mq" as UnitaQuantita },
+];
+
+export const AZIONI_SCANSIONE: Record<ScansioneAzione, string> = {
+  vista: "Visto",
+  prendo: "Preso in carico",
+  cantiere: "Lasciato in cantiere",
+  carico_su: "Caricato sul furgone",
+  magazzino: "Riportato in magazzino",
+  smarrito: "Segnalato: non si trova",
+  monta: "Montato",
+  rientra: "Rientrato",
+  inventario: "Contato in inventario",
+};
+
+/**
+ * Dal testo letto dallo scanner al codice: il QR contiene l'indirizzo
+ * …/q/ATT-0012?c=<azienda>, ma va bene anche il solo codice (etichette
+ * stampate da altri, codice scritto a mano).
+ */
+export function leggiCodiceScansionato(testo: string): { codice: string; companyId: string | null } | null {
+  const t = (testo ?? "").trim();
+  if (!t) return null;
+  if (/^https?:\/\//i.test(t)) {
+    // Un indirizzo: vale solo se è quello delle nostre etichette (/q/…).
+    try {
+      const url = new URL(t);
+      const m = url.pathname.match(/\/q\/([^/?#]+)/);
+      return m ? { codice: decodeURIComponent(m[1]).toUpperCase(), companyId: url.searchParams.get("c") } : null;
+    } catch {
+      return null;
+    }
+  }
+  const pulito = t.toUpperCase().replace(/\s+/g, "");
+  return pulito.length <= 40 ? { codice: pulito, companyId: null } : null;
+}
 
 export const STATO_SCADENZA_BADGE: Record<StatoScadenza, { label: string; cls: string }> = {
   scaduto: { label: "Scaduto", cls: "bg-red-100 text-red-700 border-red-200" },
@@ -297,6 +515,12 @@ export function formatData(iso: string | null): string {
 // TypeScript del progetto, da qui il cast (come in lib/formatters.ts).
 const NUMERO_IT = new Intl.NumberFormat("it-IT", {
   maximumFractionDigits: 1,
+  useGrouping: "always",
+} as unknown as Intl.NumberFormatOptions);
+
+/** Per le quantità: 12,5 m e 0,25 m² hanno bisogno di due decimali. */
+const NUMERO_IT_2 = new Intl.NumberFormat("it-IT", {
+  maximumFractionDigits: 2,
   useGrouping: "always",
 } as unknown as Intl.NumberFormatOptions);
 

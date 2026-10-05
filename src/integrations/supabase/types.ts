@@ -53685,6 +53685,12 @@ export type Database = {
       mezzi: {
         Row: {
           anno: number | null
+          categoria_id: string | null
+          classe: string | null
+          codice: string | null
+          gestione: string
+          quantita_totale: number | null
+          unita_misura: string | null
           assegnato_hr_profilo_id: string | null
           assegnato_order_id: string | null
           company_id: string
@@ -53713,6 +53719,11 @@ export type Database = {
         }
         Insert: {
           anno?: number | null
+          categoria_id?: string | null
+          codice?: string | null
+          gestione?: string
+          quantita_totale?: number | null
+          unita_misura?: string | null
           assegnato_hr_profilo_id?: string | null
           assegnato_order_id?: string | null
           company_id: string
@@ -53741,6 +53752,11 @@ export type Database = {
         }
         Update: {
           anno?: number | null
+          categoria_id?: string | null
+          codice?: string | null
+          gestione?: string
+          quantita_totale?: number | null
+          unita_misura?: string | null
           assegnato_hr_profilo_id?: string | null
           assegnato_order_id?: string | null
           company_id?: string
@@ -53769,6 +53785,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "mezzi_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "mezzi_categorie"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "mezzi_assegnato_hr_profilo_id_fkey"
             columns: ["assegnato_hr_profilo_id"]
             isOneToOne: false
@@ -53794,6 +53817,73 @@ export type Database = {
             columns: ["su_mezzo_id"]
             isOneToOne: false
             referencedRelation: "mezzi"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mezzi_allocazioni: {
+        Row: {
+          al: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          dal: string
+          id: string
+          luogo: string | null
+          mezzo_id: string
+          note: string | null
+          order_id: string | null
+          quantita: number
+          updated_at: string
+        }
+        Insert: {
+          al?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          dal?: string
+          id?: string
+          luogo?: string | null
+          mezzo_id: string
+          note?: string | null
+          order_id?: string | null
+          quantita: number
+          updated_at?: string
+        }
+        Update: {
+          al?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          dal?: string
+          id?: string
+          luogo?: string | null
+          mezzo_id?: string
+          note?: string | null
+          order_id?: string | null
+          quantita?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mezzi_allocazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mezzi_allocazioni_mezzo_id_fkey"
+            columns: ["mezzo_id"]
+            isOneToOne: false
+            referencedRelation: "mezzi"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mezzi_allocazioni_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -53872,6 +53962,53 @@ export type Database = {
             columns: ["su_mezzo_id"]
             isOneToOne: false
             referencedRelation: "mezzi"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mezzi_categorie: {
+        Row: {
+          attiva: boolean
+          classe: string
+          company_id: string
+          created_at: string
+          icona: string | null
+          id: string
+          nome: string
+          ordine: number
+          predefinita: boolean
+          updated_at: string
+        }
+        Insert: {
+          attiva?: boolean
+          classe: string
+          company_id: string
+          created_at?: string
+          icona?: string | null
+          id?: string
+          nome: string
+          ordine?: number
+          predefinita?: boolean
+          updated_at?: string
+        }
+        Update: {
+          attiva?: boolean
+          classe?: string
+          company_id?: string
+          created_at?: string
+          icona?: string | null
+          id?: string
+          nome?: string
+          ordine?: number
+          predefinita?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mezzi_categorie_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -54003,6 +54140,66 @@ export type Database = {
           },
         ]
       }
+      mezzi_inventari: {
+        Row: {
+          avviato_da: string | null
+          categoria_id: string | null
+          chiuso_at: string | null
+          chiuso_da: string | null
+          classe: string | null
+          company_id: string
+          created_at: string
+          dove: string
+          id: string
+          note: string | null
+          titolo: string
+          updated_at: string
+        }
+        Insert: {
+          avviato_da?: string | null
+          categoria_id?: string | null
+          chiuso_at?: string | null
+          chiuso_da?: string | null
+          classe?: string | null
+          company_id: string
+          created_at?: string
+          dove?: string
+          id?: string
+          note?: string | null
+          titolo: string
+          updated_at?: string
+        }
+        Update: {
+          avviato_da?: string | null
+          categoria_id?: string | null
+          chiuso_at?: string | null
+          chiuso_da?: string | null
+          classe?: string | null
+          company_id?: string
+          created_at?: string
+          dove?: string
+          id?: string
+          note?: string | null
+          titolo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mezzi_inventari_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "mezzi_categorie"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mezzi_inventari_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mezzi_manutenzioni: {
         Row: {
           company_id: string
@@ -54071,6 +54268,70 @@ export type Database = {
             columns: ["mezzo_id"]
             isOneToOne: false
             referencedRelation: "mezzi"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mezzi_scansioni: {
+        Row: {
+          azione: string
+          company_id: string
+          created_at: string
+          hr_profilo_id: string | null
+          id: string
+          inventario_id: string | null
+          mezzo_id: string
+          nota: string | null
+          order_id: string | null
+          quantita: number | null
+          user_id: string | null
+        }
+        Insert: {
+          azione?: string
+          company_id: string
+          created_at?: string
+          hr_profilo_id?: string | null
+          id?: string
+          inventario_id?: string | null
+          mezzo_id: string
+          nota?: string | null
+          order_id?: string | null
+          quantita?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          azione?: string
+          company_id?: string
+          created_at?: string
+          hr_profilo_id?: string | null
+          id?: string
+          inventario_id?: string | null
+          mezzo_id?: string
+          nota?: string | null
+          order_id?: string | null
+          quantita?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mezzi_scansioni_inventario_id_fkey"
+            columns: ["inventario_id"]
+            isOneToOne: false
+            referencedRelation: "mezzi_inventari"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mezzi_scansioni_mezzo_id_fkey"
+            columns: ["mezzo_id"]
+            isOneToOne: false
+            referencedRelation: "mezzi"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mezzi_scansioni_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -96132,6 +96393,18 @@ export type Database = {
         }
         Relationships: []
       }
+      mezzi_disponibilita: {
+        Row: {
+          cantieri: number | null
+          company_id: string | null
+          disponibile: number | null
+          in_uso: number | null
+          mezzo_id: string | null
+          quantita_totale: number | null
+          unita_misura: string | null
+        }
+        Relationships: []
+      }
       mezzi_scadenze: {
         Row: {
           alert_giorni_prima: number | null
@@ -96148,6 +96421,14 @@ export type Database = {
           stato: string | null
           targa: string | null
           titolo: string | null
+        }
+        Relationships: []
+      }
+      mezzi_ultima_vista: {
+        Row: {
+          company_id: string | null
+          mezzo_id: string | null
+          ultima_vista_at: string | null
         }
         Relationships: []
       }
@@ -103235,6 +103516,51 @@ export type Database = {
       }
       mc_aziende_visibili: { Args: never; Returns: string[] }
       mezzi_in_carico: { Args: never; Returns: Json }
+      campo_attrezzo_azione: {
+        Args: {
+          p_allocazione_id?: string
+          p_azione: string
+          p_mezzo_id: string
+          p_nota?: string
+          p_order_id?: string
+          p_quantita?: number
+          p_su_mezzo_id?: string
+        }
+        Returns: Json
+      }
+      mezzi_categorie_predefinite: {
+        Args: { p_company: string }
+        Returns: undefined
+      }
+      mezzi_inventario_chiudi: {
+        Args: {
+          p_inventario: string
+          p_riporta_in_magazzino?: boolean
+          p_segnala_mancanti?: boolean
+        }
+        Returns: Json
+      }
+      mezzi_inventario_conta: {
+        Args: {
+          p_codice?: string
+          p_inventario: string
+          p_mezzo_id?: string
+          p_quantita?: number
+        }
+        Returns: Json
+      }
+      mezzi_rientro: {
+        Args: { p_allocazione: string; p_data?: string; p_quantita: number }
+        Returns: undefined
+      }
+      mezzi_riserva_etichette: {
+        Args: { p_classe?: string; p_company: string; p_quanti: number }
+        Returns: string[]
+      }
+      mezzo_da_codice: {
+        Args: { p_codice: string; p_company?: string }
+        Returns: Json
+      }
       next_contratto_numero: { Args: { p_company_id: string }; Returns: string }
       norm_id_fiscale: { Args: { v: string }; Returns: string }
       normalized_order_balance_amount: {

@@ -244,6 +244,7 @@ const WarehouseManager = lazy(() => import("@/pages/azienda/WarehouseManager"));
 const ManodoperaPage = lazy(() => import("@/pages/azienda/manodopera/ManodoperaPage"));
 const OperaioDetail = lazy(() => import("@/pages/azienda/manodopera/OperaioDetail"));
 const MezzoDetail = lazy(() => import("@/pages/azienda/MezzoDetail"));
+const MezziInventario = lazy(() => import("@/pages/azienda/MezziInventario"));
 const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
 const AnalisiAcquisti = lazy(() => import("@/pages/azienda/AnalisiAcquisti"));
 const Calendar = lazy(() => import("@/pages/azienda/Calendar"));
@@ -618,6 +619,9 @@ export default function CompanyRoutesContainer() {
         <Route path="manodopera" element={<ErrorBoundary title="Errore in Manodopera e Mezzi"><ManodoperaPage /></ErrorBoundary>} />
         <Route path="manodopera/operai/:id" element={withCompanyPermission("canViewOperai", <ErrorBoundary title="Errore nella scheda dell'operaio"><OperaioDetail /></ErrorBoundary>)} />
         <Route path="mezzi" element={<Navigate to="/azienda/manodopera?tab=mezzi" replace />} />
+        {/* Inventario con lo scanner (05/10): rotte fisse prima di «mezzi/:id». */}
+        <Route path="mezzi/inventario" element={withCompanyPermission("canViewMezzi", <ErrorBoundary title="Errore nell'inventario"><MezziInventario /></ErrorBoundary>)} />
+        <Route path="mezzi/inventario/:id" element={withCompanyPermission("canViewMezzi", <ErrorBoundary title="Errore nell'inventario"><MezziInventario /></ErrorBoundary>)} />
         <Route path="mezzi/:id" element={withCompanyPermission("canViewMezzi", <ErrorBoundary title="Errore nella scheda del mezzo"><MezzoDetail /></ErrorBoundary>)} />
         <Route path="calendario" element={withCompanyPermission("canViewCalendar", <ErrorBoundary title="Errore nel caricamento calendario"><Calendar /></ErrorBoundary>)} />
         <Route path="clienti" element={withCompanyPermission("canViewCustomers", <ErrorBoundary title="Errore nel caricamento clienti"><CustomersList /></ErrorBoundary>)} />

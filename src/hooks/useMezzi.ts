@@ -3,9 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
 import { compressImage } from "@/lib/campo/foto-compressor";
+import { getSubdomainUrl } from "@/utils/subdomainNav";
 import type {
-  Mezzo, MezzoAssegnazione, MezzoConAssegnazione, MezzoDocumento, MezzoFoto, MezzoInCarico,
-  MezzoManutenzione, MezzoScadenza, MezzoSegnalazione, SegnalazioneStato, SegnalazioneTipo,
+  EsitoCodice, Mezzo, MezzoAllocazione, MezzoAssegnazione, MezzoCategoria, MezzoClasse, MezzoConAssegnazione,
+  MezzoDisponibilita, MezzoDocumento, MezzoFoto, MezzoInCarico, MezzoInventario, MezzoManutenzione, MezzoScadenza,
+  MezzoScansione, MezzoSegnalazione, SchedaCampoAttrezzo, SegnalazioneStato, SegnalazioneTipo,
 } from "@/types/mezzi";
 import { toast } from "sonner";
 
@@ -25,7 +27,29 @@ const chiavi = {
   costiParco: (companyId: string | null) => ["mezzi", "costi-parco", companyId] as const,
   commessa: (orderId: string | undefined) => ["mezzi", "commessa", orderId] as const,
   inCarico: (userId: string | undefined) => ["mezzi", "in-carico", userId] as const,
+  categorie: (companyId: string | null) => ["mezzi", "categorie", companyId] as const,
+  disponibilita: (companyId: string | null) => ["mezzi", "disponibilita", companyId] as const,
+  allocazioni: (mezzoId: string | undefined) => ["mezzi", "allocazioni", mezzoId] as const,
+  ultimeViste: (companyId: string | null) => ["mezzi", "ultime-viste", companyId] as const,
+  scansioni: (mezzoId: string | undefined) => ["mezzi", "scansioni", mezzoId] as const,
+  inventari: (companyId: string | null) => ["mezzi", "inventari", companyId] as const,
+  inventario: (id: string | undefined) => ["mezzi", "inventario", id] as const,
+  codice: (codice: string | undefined, companyId: string | null | undefined) => ["mezzi", "codice", codice, companyId] as const,
 };
+
+/** Il messaggio vero del database (i trigger scrivono in italiano: «Non basta: disponibili 250 m²»). */
+function messaggio(e: unknown, riserva: string): string {
+  if (e && typeof e === "object" && "message" in e && typeof (e as { message: unknown }).message === "string") {
+    return (e as { message: string }).message || riserva;
+  }
+  return riserva;
+}
+
+// Tabelle e funzioni nuove (05/10/2026): il client tipizzato su tabelle con
+// molte relazioni manda TypeScript in «instantiation excessively deep». Si
+// passa dal client senza tipi e si ritipizza il risultato qui sotto.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 
 // Il mezzo su cui è caricato un attrezzo è la stessa tabella. Su una relazione
 // con sé stessa PostgREST non trova il vincolo per nome («mezzi!mezzi_su_mezzo_id_fkey»
@@ -193,7 +217,8 @@ function useInvalidaMezzi() {
   return () => qc.invalidateQueries({ queryKey: ["mezzi"] });
 }
 
-export type MezzoInput = Partial<Omit<Mezzo, "company_id" | "created_at" | "updated_at" | "created_by" | "deleted_at">> & {
+// «classe» la calcola il database dal tipo (colonna generata): non si scrive.
+export type MezzoInput = Partial<Omit<Mezzo, "company_id" | "created_at" | "updated_at" | "created_by" | "deleted_at" | "classe">> & {
   nome: string;
 };
 
@@ -205,9 +230,11 @@ export function useSalvaMezzo() {
       if (!companyId) throw new Error("Azienda non trovata");
       const { id, ...resto } = pulisci(input as Record<string, unknown>, [
         "targa", "marca", "modello", "matricola", "note", "contatore_aggiornato_il",
-        "assegnato_hr_profilo_id", "assegnato_order_id",
+        "assegnato_hr_profilo_id", "assegnato_order_id", "codice", "categoria_id", "unita_misura",
       ]) as MezzoInput;
       if (typeof resto.targa === "string") resto.targa = resto.targa.toUpperCase().replace(/\s+/g, "");
+      // Se arriva un mezzo intero (con la classe, generata dal database), la classe non si scrive.
+      delete (resto as Record<string, unknown>).classe;
       if (id) {
         const { error } = await supabase.from("mezzi").update(resto).eq("id", id).eq("company_id", companyId);
         if (error) throw error;
@@ -221,11 +248,11 @@ export function useSalvaMezzo() {
       if (error) throw error;
       return data.id;
     },
-    onSuccess: () => {
+    onSuccess: (_id, v) => {
       invalida();
-      toast.success("Mezzo salvato");
+      toast.success(v.tipo === "attrezzatura" ? "Attrezzatura salvata" : "Mezzo salvato");
     },
-    onError: (e) => toast.error(e instanceof Error ? `Non ho salvato il mezzo: ${e.message}` : "Non ho salvato il mezzo"),
+    onError: (e) => toast.error(`Non ho salvato: ${messaggio(e, "errore sconosciuto")}`),
   });
 }
 
@@ -710,6 +737,51 @@ export function useMezziDellaCommessa(orderId: string | undefined) {
   });
 }
 
+export interface MontaggioSullaCommessa {
+  id: string;
+  mezzo_id: string;
+  nome: string;
+  unita_misura: string | null;
+  quantita_totale: number;
+  rata_mensile: number | null;
+  quantita: number;
+  dal: string;
+  al: string | null;
+  adesso: boolean;
+}
+
+/** Ponteggi e altre attrezzature a quantità montati sulla commessa (anche quelli già rientrati). */
+export function useMontaggiDellaCommessa(orderId: string | undefined) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["mezzi", "commessa-montaggi", orderId] as const,
+    enabled: !!orderId && !!companyId,
+    queryFn: async (): Promise<MontaggioSullaCommessa[]> => {
+      const { data, error } = await db
+        .from("mezzi_allocazioni")
+        .select("id, mezzo_id, quantita, dal, al, mezzo:mezzi!mezzi_allocazioni_mezzo_id_fkey(nome, unita_misura, quantita_totale, rata_mensile, deleted_at)")
+        .eq("order_id", orderId)
+        .eq("company_id", companyId)
+        .order("dal", { ascending: true });
+      if (error) throw error;
+      const oggi = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
+      type Riga = {
+        id: string; mezzo_id: string; quantita: number; dal: string; al: string | null;
+        mezzo: { nome: string; unita_misura: string | null; quantita_totale: number | null; rata_mensile: number | null; deleted_at: string | null } | null;
+      };
+      return ((data ?? []) as Riga[])
+        .filter((r) => r.mezzo && !r.mezzo.deleted_at)
+        .map((r) => ({
+          id: r.id, mezzo_id: r.mezzo_id, nome: r.mezzo!.nome, unita_misura: r.mezzo!.unita_misura,
+          quantita_totale: Number(r.mezzo!.quantita_totale ?? 0), rata_mensile: r.mezzo!.rata_mensile,
+          quantita: Number(r.quantita), dal: r.dal, al: r.al, adesso: !r.al || r.al > oggi,
+        }))
+        .sort((a, b) => Number(b.adesso) - Number(a.adesso) || a.nome.localeCompare(b.nome));
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
 /** Mette un mezzo sulla commessa (o lo toglie): lo storico lo registra il database. */
 export function useAssegnaMezzoACommessa() {
   const companyId = useEffectiveCompanyId();
@@ -859,4 +931,474 @@ export async function allegaLibretto(args: {
     });
     if (e2) throw e2;
   }
+}
+
+// ── Categorie degli attrezzi ─────────────────────────────────────────────────
+
+/**
+ * Le categorie dell'azienda. Chi non ne ha ancora (azienda nata dopo il
+ * 05/10/2026, o senza mezzi allora) riceve le predefinite alla prima apertura.
+ */
+export function useMezziCategorie() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiavi.categorie(companyId),
+    enabled: !!companyId,
+    queryFn: async (): Promise<MezzoCategoria[]> => {
+      const leggi = async () => {
+        const { data, error } = await db
+          .from("mezzi_categorie")
+          .select("id, company_id, classe, nome, icona, ordine, attiva, predefinita")
+          .eq("company_id", companyId)
+          .order("ordine", { ascending: true })
+          .order("nome", { ascending: true });
+        if (error) throw error;
+        return (data ?? []) as MezzoCategoria[];
+      };
+      const righe = await leggi();
+      if (righe.some((c) => c.classe === "attrezzatura")) return righe;
+      const { error } = await db.rpc("mezzi_categorie_predefinite", { p_company: companyId });
+      if (error) return righe; // senza categorie si lavora lo stesso
+      return leggi();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useSalvaCategoria() {
+  const companyId = useEffectiveCompanyId();
+  const invalida = useInvalidaMezzi();
+  return useMutation({
+    mutationFn: async (input: { id?: string; nome: string; classe?: MezzoClasse; ordine?: number; icona?: string | null }) => {
+      if (!companyId) throw new Error("Azienda non trovata");
+      const nome = input.nome.trim();
+      if (!nome) throw new Error("Scrivi il nome della categoria");
+      if (input.id) {
+        const { error } = await db.from("mezzi_categorie").update({ nome, ...(input.ordine != null ? { ordine: input.ordine } : {}) })
+          .eq("id", input.id).eq("company_id", companyId);
+        if (error) throw error;
+        return;
+      }
+      const { error } = await db.from("mezzi_categorie").insert({
+        company_id: companyId, nome, classe: input.classe ?? "attrezzatura", ordine: input.ordine ?? 500, icona: input.icona ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalida();
+      toast.success("Categoria salvata");
+    },
+    onError: (e) => {
+      const m = messaggio(e, "errore sconosciuto");
+      toast.error(/duplicate|uq_mezzi_categorie_nome/i.test(m) ? "C'è già una categoria con questo nome" : `Non ho salvato la categoria: ${m}`);
+    },
+  });
+}
+
+/** Gli attrezzi della categoria restano, senza categoria (on delete set null). */
+export function useEliminaCategoria() {
+  const companyId = useEffectiveCompanyId();
+  const invalida = useInvalidaMezzi();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await db.from("mezzi_categorie").delete().eq("id", id).eq("company_id", companyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalida();
+      toast.success("Categoria eliminata");
+    },
+    onError: (e) => toast.error(`Non ho eliminato la categoria: ${messaggio(e, "errore sconosciuto")}`),
+  });
+}
+
+// ── Attrezzature a quantità (ponteggi, transenne…) ───────────────────────────
+
+/** Totale, montato e disponibile di ogni attrezzatura a quantità dell'azienda. */
+export function useMezziDisponibilita() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiavi.disponibilita(companyId),
+    enabled: !!companyId,
+    queryFn: async (): Promise<Map<string, MezzoDisponibilita>> => {
+      const { data, error } = await db.from("mezzi_disponibilita").select("*").eq("company_id", companyId);
+      if (error) throw error;
+      return new Map(((data ?? []) as MezzoDisponibilita[]).map((r) => [r.mezzo_id, {
+        ...r,
+        quantita_totale: Number(r.quantita_totale ?? 0),
+        in_uso: Number(r.in_uso ?? 0),
+        disponibile: Number(r.disponibile ?? 0),
+        cantieri: Number(r.cantieri ?? 0),
+      }]));
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+export type AllocazioneConCantiere = MezzoAllocazione & { cantiere: string | null; aperta: boolean };
+
+/** I montaggi di un'attrezzatura a quantità, aperti prima, poi lo storico. */
+export function useMezzoAllocazioni(mezzoId: string | undefined) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiavi.allocazioni(mezzoId),
+    enabled: !!mezzoId && !!companyId,
+    queryFn: async (): Promise<AllocazioneConCantiere[]> => {
+      const { data, error } = await db
+        .from("mezzi_allocazioni")
+        .select("*, commessa:orders!mezzi_allocazioni_order_id_fkey(order_code, client_name, client_company)")
+        .eq("mezzo_id", mezzoId)
+        .eq("company_id", companyId)
+        .order("dal", { ascending: false })
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const oggi = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
+      type Riga = MezzoAllocazione & { commessa: { order_code: string | null; client_name: string | null; client_company: string | null } | null };
+      return ((data ?? []) as Riga[])
+        .map(({ commessa, ...a }) => ({
+          ...a,
+          quantita: Number(a.quantita),
+          cantiere: commessa ? [commessa.order_code, commessa.client_company || commessa.client_name].filter(Boolean).join(" · ") || null : null,
+          // Come nel database: rientrato «oggi» libera la quantità oggi stesso.
+          aperta: !a.al || a.al > oggi,
+        }))
+        .sort((x, y) => Number(y.aperta) - Number(x.aperta));
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+/** Monta una parte su un cantiere (o in un altro posto). Il database controlla che basti. */
+export function useMontaQuantita(mezzoId: string) {
+  const companyId = useEffectiveCompanyId();
+  const invalida = useInvalidaMezzi();
+  return useMutation({
+    mutationFn: async (input: { order_id: string | null; luogo?: string | null; quantita: number; dal?: string; note?: string | null }) => {
+      if (!companyId) throw new Error("Azienda non trovata");
+      const { error } = await db.from("mezzi_allocazioni").insert({
+        company_id: companyId,
+        mezzo_id: mezzoId,
+        order_id: input.order_id,
+        luogo: input.luogo?.trim() || null,
+        quantita: input.quantita,
+        ...(input.dal ? { dal: input.dal } : {}),
+        note: input.note?.trim() || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalida();
+      toast.success("Montaggio segnato");
+    },
+    onError: (e) => toast.error(messaggio(e, "Non ho segnato il montaggio")),
+  });
+}
+
+/** Rientro di tutto o di una parte (mezzi_rientro tiene lo storico giusto). */
+export function useRientroQuantita() {
+  const invalida = useInvalidaMezzi();
+  return useMutation({
+    mutationFn: async (input: { allocazioneId: string; quantita: number; data?: string | null }) => {
+      const { error } = await db.rpc("mezzi_rientro", {
+        p_allocazione: input.allocazioneId, p_quantita: input.quantita, p_data: input.data ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalida();
+      toast.success("Rientro segnato");
+    },
+    onError: (e) => toast.error(messaggio(e, "Non ho segnato il rientro")),
+  });
+}
+
+/** Per correggere uno sbaglio: il montaggio sparisce anche dai costi del cantiere. */
+export function useEliminaAllocazione() {
+  const companyId = useEffectiveCompanyId();
+  const invalida = useInvalidaMezzi();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await db.from("mezzi_allocazioni").delete().eq("id", id).eq("company_id", companyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalida();
+      toast.success("Montaggio eliminato");
+    },
+    onError: (e) => toast.error(messaggio(e, "Non ho eliminato il montaggio")),
+  });
+}
+
+// ── Codici, etichette e scansioni ────────────────────────────────────────────
+
+/** L'indirizzo che va nel QR: dal telefono apre la pagina dell'attrezzo (/q/…). */
+export function indirizzoQr(codice: string, companyId: string): string {
+  // Sottodominio dei lavori: chi scansiona di più è chi sta in cantiere. In
+  // locale getSubdomainUrl restituisce il solo percorso: serve l'indirizzo intero.
+  const url = getSubdomainUrl(`/q/${encodeURIComponent(codice)}?c=${companyId}`, "lavori");
+  return url.startsWith("http") || typeof window === "undefined" ? url : `${window.location.origin}${url}`;
+}
+
+/** Riserva N codici nuovi per stampare etichette vuote, da collegare poi agli attrezzi. */
+export function useRiservaEtichette() {
+  const companyId = useEffectiveCompanyId();
+  return useMutation({
+    mutationFn: async ({ quante, classe }: { quante: number; classe: MezzoClasse }): Promise<string[]> => {
+      const { data, error } = await db.rpc("mezzi_riserva_etichette", { p_company: companyId, p_quanti: quante, p_classe: classe });
+      if (error) throw error;
+      return ((data ?? []) as unknown[]).map((r) => (typeof r === "string" ? r : String((r as Record<string, unknown>).mezzi_riserva_etichette ?? "")));
+    },
+    onError: (e) => toast.error(messaggio(e, "Non ho riservato i codici")),
+  });
+}
+
+/** Legge un codice: ufficio → id della scheda; campo → scheda ridotta con le azioni. */
+export async function cercaCodiceMezzo(codice: string, companyId?: string | null): Promise<EsitoCodice> {
+  const { data, error } = await db.rpc("mezzo_da_codice", { p_codice: codice, p_company: companyId ?? null });
+  if (error) throw error;
+  return (data ?? { esito: "sconosciuto" }) as EsitoCodice;
+}
+
+export function useCodiceMezzo(codice: string | undefined, companyId: string | null | undefined) {
+  return useQuery({
+    queryKey: chiavi.codice(codice, companyId),
+    enabled: !!codice,
+    queryFn: () => cercaCodiceMezzo(codice!, companyId),
+    // Ogni lettura conta come «visto» (mezzi_scansioni): si legge all'apertura,
+    // non a ogni ritorno sulla scheda del telefono.
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+}
+
+export type AzioneAttrezzo = "prendo" | "cantiere" | "carico_su" | "magazzino" | "smarrito" | "monta" | "rientra";
+
+/** Le azioni rapide dopo una scansione (dal campo, ma anche dall'ufficio). */
+export function useAzioneAttrezzo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      mezzoId: string; azione: AzioneAttrezzo; orderId?: string | null; suMezzoId?: string | null;
+      quantita?: number | null; allocazioneId?: string | null; nota?: string | null;
+    }): Promise<SchedaCampoAttrezzo> => {
+      const { data, error } = await db.rpc("campo_attrezzo_azione", {
+        p_mezzo_id: input.mezzoId,
+        p_azione: input.azione,
+        p_order_id: input.orderId ?? null,
+        p_su_mezzo_id: input.suMezzoId ?? null,
+        p_quantita: input.quantita ?? null,
+        p_allocazione_id: input.allocazioneId ?? null,
+        p_nota: input.nota ?? null,
+      });
+      if (error) throw error;
+      return (data as { mezzo: SchedaCampoAttrezzo }).mezzo;
+    },
+    onSuccess: (nuova, v) => {
+      // La pagina aperta dalla scansione si aggiorna con la scheda restituita:
+      // rileggere il codice registrerebbe un'altra «vista».
+      qc.setQueriesData<EsitoCodice>({ queryKey: ["mezzi", "codice"] }, (vecchio) =>
+        vecchio && vecchio.esito === "trovato" && vecchio.vista === "campo" && vecchio.id === nuova.id
+          ? { ...vecchio, mezzo: nuova }
+          : vecchio,
+      );
+      qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "mezzi" && q.queryKey[1] !== "codice" });
+      const testo: Record<AzioneAttrezzo, string> = {
+        prendo: "Ora è in carico a te",
+        cantiere: "Segnato: lasciato in cantiere",
+        carico_su: "Segnato: caricato sul furgone",
+        magazzino: "Segnato: riportato in magazzino",
+        smarrito: "L'ufficio è stato avvisato",
+        monta: "Montaggio segnato",
+        rientra: "Rientro segnato",
+      };
+      toast.success(testo[v.azione]);
+    },
+    onError: (e) => toast.error(messaggio(e, "Non sono riuscito a segnarlo")),
+  });
+}
+
+/** Quando è stato visto l'ultima volta ogni mezzo (scansione o fine giornata). */
+export function useUltimeViste() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiavi.ultimeViste(companyId),
+    enabled: !!companyId,
+    queryFn: async (): Promise<Map<string, string>> => {
+      const { data, error } = await db.from("mezzi_ultima_vista").select("mezzo_id, ultima_vista_at").eq("company_id", companyId);
+      if (error) throw error;
+      return new Map(
+        ((data ?? []) as Array<{ mezzo_id: string; ultima_vista_at: string | null }>)
+          .filter((r) => r.ultima_vista_at)
+          .map((r) => [r.mezzo_id, r.ultima_vista_at as string]),
+      );
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
+export type ScansioneConNomi = MezzoScansione & { chi: string | null; cantiere: string | null };
+
+/** Le letture del QR di un mezzo, con chi e dove. */
+export function useMezzoScansioni(mezzoId: string | undefined) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiavi.scansioni(mezzoId),
+    enabled: !!mezzoId && !!companyId,
+    queryFn: async (): Promise<ScansioneConNomi[]> => {
+      const { data, error } = await db
+        .from("mezzi_scansioni")
+        .select("*, commessa:orders!mezzi_scansioni_order_id_fkey(order_code, client_name, client_company)")
+        .eq("mezzo_id", mezzoId)
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      type Riga = MezzoScansione & { commessa: { order_code: string | null; client_name: string | null; client_company: string | null } | null };
+      const righe = (data ?? []) as Riga[];
+      // I nomi dalle persone dell'azienda: profilo HR se c'è, sennò il profilo utente.
+      const hrIds = [...new Set(righe.map((r) => r.hr_profilo_id).filter(Boolean))] as string[];
+      const userIds = [...new Set(righe.filter((r) => !r.hr_profilo_id).map((r) => r.user_id).filter(Boolean))] as string[];
+      const [hr, utenti] = await Promise.all([
+        hrIds.length ? db.from("hr_profili").select("id, nome, cognome").in("id", hrIds) : Promise.resolve({ data: [] }),
+        userIds.length ? db.from("profiles").select("id, first_name, last_name").in("id", userIds) : Promise.resolve({ data: [] }),
+      ]);
+      const nomeHr = new Map(((hr.data ?? []) as Array<{ id: string; nome: string | null; cognome: string | null }>)
+        .map((p) => [p.id, [p.nome, p.cognome].filter(Boolean).join(" ")]));
+      const nomeUtente = new Map(((utenti.data ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null }>)
+        .map((p) => [p.id, [p.first_name, p.last_name].filter(Boolean).join(" ")]));
+      return righe.map(({ commessa, ...r }) => ({
+        ...r,
+        quantita: r.quantita != null ? Number(r.quantita) : null,
+        chi: (r.hr_profilo_id && nomeHr.get(r.hr_profilo_id)) || (r.user_id && nomeUtente.get(r.user_id)) || null,
+        cantiere: commessa ? [commessa.order_code, commessa.client_company || commessa.client_name].filter(Boolean).join(" · ") || null : null,
+      }));
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+// ── Inventari ────────────────────────────────────────────────────────────────
+
+export function useInventari() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiavi.inventari(companyId),
+    enabled: !!companyId,
+    queryFn: async (): Promise<Array<MezzoInventario & { contati: number }>> => {
+      const { data, error } = await db
+        .from("mezzi_inventari")
+        .select("*, conte:mezzi_scansioni(count)")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      type Riga = MezzoInventario & { conte: Array<{ count: number }> | null };
+      return ((data ?? []) as Riga[]).map(({ conte, ...i }) => ({ ...i, contati: conte?.[0]?.count ?? 0 }));
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useInventario(id: string | undefined) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiavi.inventario(id),
+    enabled: !!id && !!companyId,
+    queryFn: async () => {
+      const [inv, conte] = await Promise.all([
+        db.from("mezzi_inventari").select("*").eq("id", id).eq("company_id", companyId).maybeSingle(),
+        db.from("mezzi_scansioni").select("id, mezzo_id, quantita, created_at, user_id").eq("inventario_id", id).order("created_at", { ascending: false }),
+      ]);
+      if (inv.error) throw inv.error;
+      if (conte.error) throw conte.error;
+      return {
+        inventario: (inv.data ?? null) as MezzoInventario | null,
+        conte: ((conte.data ?? []) as Array<Pick<MezzoScansione, "id" | "mezzo_id" | "quantita" | "created_at" | "user_id">>)
+          .map((c) => ({ ...c, quantita: c.quantita != null ? Number(c.quantita) : null })),
+      };
+    },
+    staleTime: 5 * 1000,
+  });
+}
+
+export function useCreaInventario() {
+  const companyId = useEffectiveCompanyId();
+  const invalida = useInvalidaMezzi();
+  return useMutation({
+    mutationFn: async (input: Pick<MezzoInventario, "titolo" | "classe" | "categoria_id" | "dove">): Promise<string> => {
+      if (!companyId) throw new Error("Azienda non trovata");
+      const { data, error } = await db.from("mezzi_inventari")
+        .insert({ company_id: companyId, ...input, titolo: input.titolo.trim() })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return (data as { id: string }).id;
+    },
+    onSuccess: () => invalida(),
+    onError: (e) => toast.error(messaggio(e, "Non ho avviato l'inventario")),
+  });
+}
+
+export type EsitoConta = {
+  esito: "contato" | "aggiornato" | "gia_contato" | "sconosciuto";
+  atteso?: boolean;
+  codice?: string;
+  mezzo?: SchedaCampoAttrezzo;
+};
+
+export function useContaInventario(inventarioId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { codice?: string; mezzoId?: string; quantita?: number | null }): Promise<EsitoConta> => {
+      const { data, error } = await db.rpc("mezzi_inventario_conta", {
+        p_inventario: inventarioId,
+        p_codice: input.codice ?? null,
+        p_quantita: input.quantita ?? null,
+        p_mezzo_id: input.mezzoId ?? null,
+      });
+      if (error) throw error;
+      return data as EsitoConta;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: chiavi.inventario(inventarioId) });
+      qc.invalidateQueries({ queryKey: ["mezzi", "ultime-viste"] });
+    },
+    onError: (e) => toast.error(messaggio(e, "Non ho contato l'attrezzo")),
+  });
+}
+
+export function useAnnullaConta(inventarioId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (scansioneId: string) => {
+      const { error } = await db.from("mezzi_scansioni").delete().eq("id", scansioneId).eq("inventario_id", inventarioId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: chiavi.inventario(inventarioId) }),
+    onError: (e) => toast.error(messaggio(e, "Non ho tolto la conta")),
+  });
+}
+
+export function useChiudiInventario(inventarioId: string) {
+  const invalida = useInvalidaMezzi();
+  return useMutation({
+    mutationFn: async (input: { segnalaMancanti: boolean; riportaInMagazzino: boolean }) => {
+      const { data, error } = await db.rpc("mezzi_inventario_chiudi", {
+        p_inventario: inventarioId,
+        p_segnala_mancanti: input.segnalaMancanti,
+        p_riporta_in_magazzino: input.riportaInMagazzino,
+      });
+      if (error) throw error;
+      return data as { segnalati: number; riportati_in_magazzino: number };
+    },
+    onSuccess: (r) => {
+      invalida();
+      const parti = ["Inventario chiuso"];
+      if (r.segnalati) parti.push(`${r.segnalati} ${r.segnalati === 1 ? "segnalazione" : "segnalazioni"} all'ufficio`);
+      if (r.riportati_in_magazzino) parti.push(`${r.riportati_in_magazzino} riportati in magazzino`);
+      toast.success(parti.join(" · "));
+    },
+    onError: (e) => toast.error(messaggio(e, "Non ho chiuso l'inventario")),
+  });
 }

@@ -28,7 +28,8 @@ import {
 import {
   CATEGORIE_DOCUMENTO, STATO_SCADENZA_BADGE, aggiungiAnni, categoriaDocumentoLabel, documentiConStato,
   dataLetta, formatData, giorniTra, numeroLetto, oggiIso, testoLetto,
-  type MezzoDocumento, type MezzoDocumentoCategoria, type StatoScadenza,
+  vociPerClasse,
+  type MezzoClasse, type MezzoDocumento, type MezzoDocumentoCategoria, type StatoScadenza,
 } from "@/types/mezzi";
 
 const ORDINE: Record<StatoScadenza, number> = { scaduto: 0, in_scadenza: 1, valido: 2, senza_scadenza: 3, sostituito: 4 };
@@ -51,13 +52,15 @@ interface Props {
   puoModificare: boolean;
   /** Targa del mezzo: se la polizza letta ne porta un'altra, lo si dice. */
   targa?: string | null;
+  /** Per un attrezzo niente bollo e revisione: garanzia, taratura, PiMUS. */
+  classe?: MezzoClasse;
 }
 
 const MIME_DA_ESTENSIONE: Record<string, string> = {
   pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", heic: "image/heic", webp: "image/webp",
 };
 
-export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa }: Props) {
+export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa, classe = "mezzo" }: Props) {
   const { data: docs = [], isLoading, error, refetch } = useMezzoDocumenti(mezzoId);
   const salva = useSalvaDocumentoMezzo(mezzoId);
   const elimina = useEliminaDocumentoMezzo();
@@ -85,7 +88,7 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
   const set = <K extends keyof DocumentoInput>(k: K, v: DocumentoInput[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   const nuovo = () => {
-    setForm({ categoria: "assicurazione", alert_giorni_prima: 30 });
+    setForm(classe === "attrezzatura" ? { categoria: "garanzia", alert_giorni_prima: 30 } : { categoria: "assicurazione", alert_giorni_prima: 30 });
     setFile(null);
     setRinnovo(false);
     setAperto(true);
@@ -232,7 +235,7 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
       ) : conStato.length === 0 ? (
         <div className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground max-sm:py-4">
           <FileText className="mx-auto mb-2 h-8 w-8 opacity-40 max-sm:hidden" />
-          Nessun documento<span className="max-sm:hidden">. Inizia da assicurazione e revisione</span>.
+          Nessun documento<span className="max-sm:hidden">. {classe === "attrezzatura" ? "Garanzia, manuale, verifiche e tarature: con la scadenza arriva l'avviso" : "Inizia da assicurazione e revisione"}</span>.
           {puoModificare && (
             <div className="mt-3 max-sm:mt-2">
               <Button size="sm" variant="outline" className="max-sm:h-8 max-sm:text-xs" onClick={nuovo}><Plus className="mr-1 h-4 w-4" />Aggiungi documento</Button>
@@ -300,7 +303,7 @@ export function MezzoDocumentiSection({ mezzoId, companyId, puoModificare, targa
               <Select value={form.categoria ?? "assicurazione"} onValueChange={(v) => cambiaCategoria(v as MezzoDocumentoCategoria)}>
                 <SelectTrigger id="doc-categoria"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {CATEGORIE_DOCUMENTO.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                  {vociPerClasse(CATEGORIE_DOCUMENTO, classe, form.categoria).map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

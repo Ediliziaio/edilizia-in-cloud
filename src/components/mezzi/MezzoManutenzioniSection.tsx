@@ -24,8 +24,8 @@ import {
 } from "@/hooks/useMezzi";
 import {
   STATO_SCADENZA_BADGE, TIPI_MANUTENZIONE, aggiungiGiorni, formatContatore, formatData, oggiIso,
-  prossimoTagliando, tipoManutenzioneLabel,
-  type ContatoreUnita, type MezzoManutenzione, type MezzoManutenzioneTipo,
+  prossimoTagliando, tipoManutenzioneLabel, vociPerClasse,
+  type ContatoreUnita, type MezzoClasse, type MezzoManutenzione, type MezzoManutenzioneTipo,
 } from "@/types/mezzi";
 
 const euro = (n: number) => formatCurrency(n);
@@ -36,9 +36,12 @@ interface Props {
   contatoreAttuale: number | null;
   unita: ContatoreUnita;
   puoModificare: boolean;
+  /** Per un attrezzo: manutenzione ordinaria, parti, tarature (niente tagliandi e gomme). */
+  classe?: MezzoClasse;
 }
 
-export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale, unita, puoModificare }: Props) {
+export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale, unita, puoModificare, classe = "mezzo" }: Props) {
+  const attrezzo = classe === "attrezzatura";
   const { data: lista = [], isLoading, error, refetch } = useMezzoManutenzioni(mezzoId);
   const salva = useSalvaManutenzioneMezzo(mezzoId);
   const elimina = useEliminaManutenzioneMezzo();
@@ -59,7 +62,7 @@ export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale,
   const set = <K extends keyof ManutenzioneInput>(k: K, v: ManutenzioneInput[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   const nuovo = () => {
-    setForm({ tipo: "tagliando", data: oggi, contatore: contatoreAttuale });
+    setForm({ tipo: attrezzo ? "manutenzione_ordinaria" : "tagliando", data: oggi, contatore: contatoreAttuale });
     setFile(null);
     setAperto(true);
   };
@@ -110,7 +113,7 @@ export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale,
       <div className="rounded-xl border bg-card p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prossimo tagliando</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{attrezzo ? "Prossima manutenzione" : "Prossimo tagliando"}</p>
             {prossimo ? (
               <>
                 <p className="mt-1 text-base font-semibold">
@@ -125,7 +128,9 @@ export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale,
               </>
             ) : (
               <p className="mt-1 text-sm text-muted-foreground">
-                Segna l'ultimo tagliando con quando va fatto il prossimo: ti avvisiamo prima.
+                {attrezzo
+                  ? "Segna l'ultima manutenzione o taratura con quando va fatta la prossima: ti avvisiamo prima."
+                  : "Segna l'ultimo tagliando con quando va fatto il prossimo: ti avvisiamo prima."}
               </p>
             )}
           </div>
@@ -141,7 +146,7 @@ export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale,
         <p className="text-sm text-muted-foreground">
           {lista.length > 0 && costoUltimoAnno > 0
             ? `Spesi ${euro(costoUltimoAnno)} negli ultimi 12 mesi.`
-            : "Tagliandi, riparazioni, gomme: lo storico del mezzo."}
+            : attrezzo ? "Manutenzioni, riparazioni, tarature: lo storico dell'attrezzo." : "Tagliandi, riparazioni, gomme: lo storico del mezzo."}
         </p>
         {puoModificare && (
           <Button size="sm" onClick={nuovo} className="shrink-0">
@@ -163,7 +168,7 @@ export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale,
           Nessun intervento registrato.
           {puoModificare && (
             <div className="mt-3">
-              <Button size="sm" variant="outline" onClick={nuovo}><Plus className="mr-1 h-4 w-4" />Segna un tagliando</Button>
+              <Button size="sm" variant="outline" onClick={nuovo}><Plus className="mr-1 h-4 w-4" />{attrezzo ? "Segna un intervento" : "Segna un tagliando"}</Button>
             </div>
           )}
         </div>
@@ -227,7 +232,7 @@ export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale,
                 <Select value={form.tipo ?? "tagliando"} onValueChange={(v) => set("tipo", v as MezzoManutenzioneTipo)}>
                   <SelectTrigger id="man-tipo"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {TIPI_MANUTENZIONE.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                    {vociPerClasse(TIPI_MANUTENZIONE, classe, form.tipo).map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -269,7 +274,7 @@ export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale,
             </div>
 
             <div className="space-y-2 rounded-xl border bg-muted/30 p-3">
-              <p className="text-sm font-medium">Prossimo tagliando</p>
+              <p className="text-sm font-medium">{attrezzo ? "Prossima manutenzione" : "Prossimo tagliando"}</p>
               <p className="text-xs text-muted-foreground">Basta uno dei due: ti avvisiamo a 30 giorni o a {unita === "ore" ? "50 ore" : "1.000 km"} dal traguardo.</p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
@@ -289,7 +294,7 @@ export function MezzoManutenzioniSection({ mezzoId, companyId, contatoreAttuale,
                 </div>
               </div>
               {!prossimoValido && (
-                <p className="text-sm text-red-700">Il prossimo tagliando deve essere oltre i {unita} di oggi.</p>
+                <p className="text-sm text-red-700">{attrezzo ? "La prossima manutenzione" : "Il prossimo tagliando"} deve essere oltre i {unita} di oggi.</p>
               )}
             </div>
 

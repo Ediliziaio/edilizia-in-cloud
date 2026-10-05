@@ -35,6 +35,7 @@ const CampoAvanzamento    = lazy(() => import("@/pages/campo/CampoAvanzamento"))
 const CampoMenu           = lazy(() => import("@/pages/campo/CampoMenu"));
 const CampoAttivita       = lazy(() => import("@/pages/campo/CampoAttivita"));
 const CampoMezzi          = lazy(() => import("@/pages/campo/CampoMezzi"));
+const CampoAttrezzo       = lazy(() => import("@/pages/campo/CampoAttrezzo"));
 
 /** v8.6.115 — Lazy container. */
 export default function CampoRoutesContainer() {
@@ -73,6 +74,8 @@ export default function CampoRoutesContainer() {
         <Route path="magazzino" element={<CampoMagazzino />} />
         <Route path="merce" element={<CampoMerce />} />
         <Route path="mezzi" element={<CampoMezzi />} />
+        {/* L'attrezzo appena inquadrato col QR: dove sta, e cosa se ne fa. */}
+        <Route path="mezzi/scansione/:codice" element={<CampoAttrezzo />} />
         <Route path="chat" element={<CampoChat />} />
         <Route path="chat/:channelId" element={<CampoChat />} />
         <Route path="documenti" element={<CampoDocumenti />} />

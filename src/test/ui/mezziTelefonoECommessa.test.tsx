@@ -32,6 +32,7 @@ vi.mock("@/hooks/useMezzi", () => {
     useMezziDellaCommessa: () => ({ data: stato.sulCantiere, isLoading: false, error: null as Error | null, refetch: vi.fn() }),
     useCostiParco: () => ({ data: stato.costi }),
     useAssegnaMezzoACommessa: mutazione,
+    useMontaggiDellaCommessa: () => ({ data: [] as unknown[] }),
   };
 });
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => stato.permessi }));
@@ -75,7 +76,7 @@ describe("Il mio mezzo, dal telefono", () => {
   it("mette l'attrezzo nella scheda del furgone, nasconde la polizza rinnovata e avvisa della revisione scaduta", () => {
     stato.mieiMezzi = [furgone, demolitore];
     stato.link = new Map([[`${AZ}/m1/polizza-2026.pdf`, "https://firmato.example/polizza-2026"]]);
-    render(<CampoMezzi />);
+    render(<MemoryRouter><CampoMezzi /></MemoryRouter>);
 
     expect(screen.getByRole("heading", { name: "Il mio mezzo" })).toBeTruthy();
     expect(screen.getAllByRole("region")).toHaveLength(1);
@@ -94,7 +95,7 @@ describe("Il mio mezzo, dal telefono", () => {
 
   it("non accetta km più bassi di quelli già segnati", () => {
     stato.mieiMezzi = [furgone];
-    render(<CampoMezzi />);
+    render(<MemoryRouter><CampoMezzi /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: /Aggiorna km/ }));
     const campo = screen.getByLabelText("Km segnati adesso");
     fireEvent.change(campo, { target: { value: "83000" } });
@@ -107,7 +108,7 @@ describe("Il mio mezzo, dal telefono", () => {
 
   it("senza mezzi in carico lo dice", () => {
     stato.mieiMezzi = [];
-    render(<CampoMezzi />);
+    render(<MemoryRouter><CampoMezzi /></MemoryRouter>);
     expect(screen.getByText("Non hai mezzi in carico")).toBeTruthy();
   });
 });

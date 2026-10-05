@@ -16,10 +16,12 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useAssegnaMezzoACommessa, useCostiParco, useMezzi, useMezziDellaCommessa } from "@/hooks/useMezzi";
+import { useAssegnaMezzoACommessa, useCostiParco, useMezzi, useMezziDellaCommessa, useMontaggiDellaCommessa } from "@/hooks/useMezzi";
 import { formatCurrency } from "@/lib/formatters";
 import { IconaMezzo } from "@/components/mezzi/IconaMezzo";
-import { POSSESSI, aggiungiGiorni, costoAnnuoMezzo, formatData, giornoItaliano, giorniSovrapposti, oggiIso } from "@/types/mezzi";
+import {
+  POSSESSI, aggiungiGiorni, costoAnnuoMezzo, formatData, formatQuantita, giornoItaliano, giorniSovrapposti, giorniTra, oggiIso,
+} from "@/types/mezzi";
 import { useDistanzeCantieri } from "@/hooks/useDistanzaCantieri";
 import { TIPI_CHE_VIAGGIANO, formatKm, giorniLavorativiSovrapposti, kmStimati } from "@/lib/manodopera/km";
 import { TimelineUso } from "@/components/mezzi/TimelineUso";
@@ -42,6 +44,7 @@ export function MezziCommessaCard({ orderId }: Props) {
   const { data: mezzi = [], isLoading: loadingParco, isError: parcoError, refetch: refetchParco } = useMezzi();
   const { data: sulCantiere = [], isLoading, error, refetch } = useMezziDellaCommessa(puoVedere ? orderId : undefined);
   const { data: costiParco } = useCostiParco();
+  const { data: montaggi = [] } = useMontaggiDellaCommessa(puoVedere ? orderId : undefined);
   const assegna = useAssegnaMezzoACommessa();
 
   const [aperto, setAperto] = useState(false);
@@ -70,7 +73,26 @@ export function MezziCommessaCard({ orderId }: Props) {
     });
   }, [sulCantiere, costiParco, oggi, distanza?.km]);
 
-  const stimaTotale = righe.reduce((t, r) => t + (r.stima ?? 0), 0);
+  // Ponteggi e attrezzature a quantità: il costo annuo pesato sulla parte montata e sui giorni.
+  const righeMontaggi = useMemo(() => {
+    return montaggi.map((g) => {
+      const fine = g.al && g.al < oggi ? g.al : oggi;
+      const giorni = Math.max(0, giorniTra(g.dal, fine) + 1);
+      const costo = costiParco
+        ? costoAnnuoMezzo(
+            { rata_mensile: g.rata_mensile },
+            costiParco.documenti.filter((d) => d.mezzo_id === g.mezzo_id),
+            costiParco.manutenzioni.filter((x) => x.mezzo_id === g.mezzo_id),
+            oggi,
+          )
+        : null;
+      const quota = g.quantita_totale > 0 ? g.quantita / g.quantita_totale : 0;
+      const stima = costo && costo.totale > 0 ? Math.round(((costo.totale * giorni * quota) / 365) * 100) / 100 : null;
+      return { ...g, giorni, stima };
+    });
+  }, [montaggi, costiParco, oggi]);
+
+  const stimaTotale = righe.reduce((t, r) => t + (r.stima ?? 0), 0) + righeMontaggi.reduce((t, r) => t + (r.stima ?? 0), 0);
   const kmTotali = righe.reduce((t, r) => t + (r.km ?? 0), 0);
   const inizioTimeline = righe.length
     ? righe.flatMap((r) => r.periodi.map((p) => giornoItaliano(p.dal))).sort()[0]
@@ -80,7 +102,9 @@ export function MezziCommessaCard({ orderId }: Props) {
   const giaQui = new Set(righe.filter((r) => r.adesso).map((r) => r.mezzo_id));
   // Si mettono sul cantiere i mezzi che lavorano; un attrezzo a bordo di un
   // furgone segue il furgone e non si sposta da solo.
-  const disponibili = mezzi.filter((m) => !giaQui.has(m.id) && m.stato !== "fuori_servizio" && !m.su_mezzo_id);
+  // Le attrezzature a quantità (ponteggi) non vanno «sul cantiere» intere: si
+  // montano a m² o a pezzi dalla loro scheda.
+  const disponibili = mezzi.filter((m) => !giaQui.has(m.id) && m.stato !== "fuori_servizio" && !m.su_mezzo_id && m.gestione !== "quantita");
   const sceltoInfo = mezzi.find((m) => m.id === scelto);
 
   if (!puoVedere) return null;
@@ -102,7 +126,7 @@ export function MezziCommessaCard({ orderId }: Props) {
         <CardTitle className="flex min-w-0 items-center gap-2 text-base sm:text-lg">
           <Truck className="h-4 w-4 shrink-0 text-slate-600" />
           <span>Mezzi e attrezzature</span>
-          {righe.length > 0 && <span className="shrink-0 text-xs font-normal text-muted-foreground">({righe.length})</span>}
+          {righe.length + righeMontaggi.length > 0 && <span className="shrink-0 text-xs font-normal text-muted-foreground">({righe.length + righeMontaggi.length})</span>}
         </CardTitle>
         {puoModificare && (
           <Button size="sm" variant="outline" className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950" onClick={() => setAperto(true)} disabled={loadingParco || parcoError || disponibili.length === 0}>
@@ -125,7 +149,7 @@ export function MezziCommessaCard({ orderId }: Props) {
             Non riesco a caricare i mezzi.{" "}
             <button type="button" className="font-semibold underline" onClick={() => { void refetch(); void refetchParco(); }}>Riprova</button>
           </p>
-        ) : righe.length === 0 ? (
+        ) : righe.length === 0 && righeMontaggi.length === 0 ? (
           <p className="text-sm text-muted-foreground max-sm:text-xs">{mezzi.length === 0 ? "Il parco mezzi è vuoto. Registra prima il mezzo o l'attrezzatura, anche a noleggio, poi assegnalo al cantiere." : "Nessun mezzo è ancora passato da questo cantiere."}</p>
         ) : (
           <ul className="divide-y">
@@ -166,6 +190,30 @@ export function MezziCommessaCard({ orderId }: Props) {
                     <X className="h-4 w-4" />
                   </Button>
                 )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {righeMontaggi.length > 0 && (
+          <ul className="divide-y border-t">
+            {righeMontaggi.map((g) => (
+              <li key={g.id} className="flex items-center gap-3 py-2.5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                  <IconaMezzo tipo="attrezzatura" className="h-4 w-4 text-slate-600" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <Link to={`/azienda/mezzi/${g.mezzo_id}`} className="truncate text-sm font-medium hover:underline">{g.nome}</Link>
+                    <span className="text-xs font-medium text-slate-700">{formatQuantita(g.quantita, g.unita_misura)}</span>
+                    {g.adesso && (
+                      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[11px] text-emerald-700">Montato adesso</Badge>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {g.al ? `dal ${formatData(g.dal)} al ${formatData(g.al)}` : `dal ${formatData(g.dal)}`} · {g.giorni === 1 ? "1 giorno" : `${g.giorni} giorni`}
+                    {g.stima != null && <> · circa {formatCurrency(g.stima)}</>}
+                  </p>
+                </div>
               </li>
             ))}
           </ul>

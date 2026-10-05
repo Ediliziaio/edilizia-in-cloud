@@ -40,6 +40,7 @@ import { useAccessoRevocato } from "@/hooks/useAccessoRevocato";
 import { captureVelocityError } from "@/lib/velocity/sentry";
 import { BillingModeProvider } from "@/contexts/BillingModeContext";
 import { SubdomainRedirect } from "@/components/auth/SubdomainRedirect";
+import { RitornoDopoLogin } from "@/components/auth/RitornoDopoLogin";
 import ScrollToTop from "@/components/ScrollToTop";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Loader2 } from "lucide-react";
@@ -174,6 +175,8 @@ const PublicReview = lazy(() => import("@/pages/public/PublicReview"));
 // chat resta disponibile per i clienti via PublicChatWidgetPage (embed).
 const WhatsAppFab = lazy(() => import("@/components/landing/WhatsAppFab"));
 const DynamicQrRedirect = lazy(() => import("@/pages/public/DynamicQrRedirect"));
+// Etichette QR di attrezzi e mezzi (05/10/2026): /q/<codice>?c=<azienda>.
+const QrMezzo = lazy(() => import("@/pages/QrMezzo"));
 const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
 const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
 const FirmaOdV = lazy(() => import("@/pages/public/FirmaOdV"));
@@ -452,10 +455,10 @@ function CityOrNotFound() {
 
 const MARKETING_ANALYTICS_HOSTS = new Set(["ediliziaincloud.com", "www.ediliziaincloud.com"]);
 const PRIVATE_ANALYTICS_PREFIXES =
-  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|produttore-login|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|referral-login|commercialista-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|firma-sal|booking|prenota|appuntamento|nps|feedback|ref|talent-profile|candidatura)(\/|$)/;
+  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|produttore-login|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|referral-login|commercialista-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|firma-sal|booking|prenota|appuntamento|nps|feedback|ref|talent-profile|candidatura|q)(\/|$)/;
 
 const PRIVATE_APP_PREFIXES =
-  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|tecnico|campo|portale|portale-cliente|talent-profile|candidatura)(\/|$)/;
+  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|tecnico|campo|portale|portale-cliente|talent-profile|candidatura|q)(\/|$)/;
 
 function canTrackMarketingPage(pathname: string) {
   if (typeof window === "undefined") return false;
@@ -745,6 +748,7 @@ const App = () => (
               {/* Widget chatbot pubblico embeddable (usato da public/embed.js dentro iframe) */}
               <Route path="/widget" element={<PublicChatWidgetPage />} />
               <Route path="/qr/:token" element={<DynamicQrRedirect />} />
+              <Route path="/q/:codice" element={<QrMezzo />} />
               <Route path="/offerta/:token" element={<QuoteSignPage />} />
               <Route path="/firma/:token" element={<SignaturePage />} />
               <Route path="/firma-odv/:token" element={<FirmaOdV />} />
@@ -882,6 +886,7 @@ const App = () => (
                 components/ui/InstallPWAPrompt). */}
             {/* v8.6.99 — Auto-logout dopo 45gg dal login, e all'accesso chiuso */}
             <SessionTimeoutGuard />
+            <RitornoDopoLogin />
           </Suspense>
           </BillingModeProvider>
           </Force2FAGuard>

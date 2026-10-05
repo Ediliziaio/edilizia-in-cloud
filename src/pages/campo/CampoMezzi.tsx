@@ -8,9 +8,10 @@
  * I dati arrivano dalla RPC mezzi_in_carico: l'operaio non legge le tabelle dei
  * mezzi (valori, rate, fatture restano all'ufficio), solo quello che gli serve.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  AlertTriangle, Camera, CheckCircle2, ExternalLink, Gauge, Loader2, Package, RefreshCcw, Truck, Wrench, X,
+  AlertTriangle, Camera, CheckCircle2, ExternalLink, Gauge, Loader2, Package, RefreshCcw, ScanLine, Truck, Wrench, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -20,10 +21,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { IconaMezzo } from "@/components/mezzi/IconaMezzo";
+import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { useCopertineMezzi, useInviaSegnalazione, useMezzoSegnalazioni, useMieiMezzi, linkFileMezzo } from "@/hooks/useMezzi";
 import {
   STATO_SCADENZA_BADGE, categoriaDocumentoLabel, documentiConStato, formatContatore, formatData, giornoItaliano,
-  oggiIso, statoMezzo, statoSegnalazione, tipoMezzoLabel, tipoSegnalazioneLabel,
+  leggiCodiceScansionato, oggiIso, statoMezzo, statoSegnalazione, tipoMezzoLabel, tipoSegnalazioneLabel,
   type MezzoInCarico, type SegnalazioneTipo,
 } from "@/types/mezzi";
 import { cn } from "@/lib/utils";
@@ -45,10 +47,48 @@ export default function CampoMezzi() {
   const aBordo = (id: string) => mezzi.filter((m) => m.su_mezzo_id === id);
 
   const titolo = principali.length > 1 ? "I miei mezzi" : "Il mio mezzo";
+
+  // Scansiona l'etichetta di un attrezzo: si apre la sua pagina con le azioni
+  // (lo prendo io, lo lascio in cantiere…). «?scansiona=1» riapre lo scanner
+  // tornando da un attrezzo («Scansiona un altro»).
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [scanner, setScanner] = useState(() => searchParams.get("scansiona") === "1");
+  useEffect(() => {
+    if (searchParams.get("scansiona") !== "1") return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("scansiona");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+  const letto = useCallback(
+    (testo: string) => {
+      const c = leggiCodiceScansionato(testo);
+      if (!c) {
+        toast.error("Non riconosco questo codice.");
+        return;
+      }
+      navigate(`/campo/mezzi/scansione/${encodeURIComponent(c.codice)}${c.companyId ? `?c=${c.companyId}` : ""}`);
+    },
+    [navigate],
+  );
+  const lettoRef = useRef<(testo: string) => void>(letto);
+  useEffect(() => {
+    lettoRef.current = letto;
+  }, [letto]);
+  const suLettura = useCallback((t: string): void => {
+    lettoRef.current(t);
+  }, []);
+
   const header = (
-    <div>
-      <h1 className="text-lg font-bold tracking-tight text-foreground">{titolo}</h1>
-      <p className="mt-0.5 text-xs text-muted-foreground">Documenti per i controlli, km e segnalazioni all'ufficio.</p>
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h1 className="text-lg font-bold tracking-tight text-foreground">{titolo}</h1>
+        <p className="mt-0.5 text-xs text-muted-foreground">Documenti per i controlli, km e segnalazioni all'ufficio.</p>
+      </div>
+      <Button variant="outline" className="h-11 shrink-0 gap-2" onClick={() => setScanner(true)}>
+        <ScanLine className="h-4 w-4 text-orange-600" />Scansiona
+      </Button>
+      <BarcodeScanner open={scanner} onOpenChange={setScanner} onScan={suLettura} />
     </div>
   );
 
@@ -91,7 +131,7 @@ export default function CampoMezzi() {
         <div className="rounded-2xl border border-dashed bg-background px-4 py-10 text-center">
           <Truck className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
           <p className="text-sm font-medium">Non hai mezzi in carico</p>
-          <p className="mt-1 text-xs text-muted-foreground">Quando l'ufficio ti affida un mezzo, lo trovi qui con i suoi documenti.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Quando l'ufficio ti affida un mezzo, lo trovi qui con i suoi documenti. Per un attrezzo con l'etichetta QR, tocca «Scansiona».</p>
         </div>
       ) : (
         principali.map((m) => (
@@ -120,6 +160,7 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
   const ultime = segnalazioni.filter((s) => s.tipo !== "km").slice(0, 3);
   const stato = statoMezzo(mezzo.stato);
   const copertina = mezzo.foto_path ? link?.get(mezzo.foto_path) ?? null : null;
+  const mostraContatore = mezzo.tipo !== "attrezzatura" || mezzo.contatore != null;
 
   // Riserva se il link preparato manca (scaduto o non arrivato): si apre
   // prima la scheda, poi ci si mette il documento, così il telefono non la blocca.
@@ -174,13 +215,16 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Button variant="outline" className="h-12" onClick={() => setKm(true)}>
-            <Gauge className="mr-2 h-4 w-4" />
-            {mezzo.contatore_unita === "ore" ? "Aggiorna ore" : "Aggiorna km"}
-          </Button>
-          <Button className="h-12" onClick={() => setSegnala(true)}>
-            <Wrench className="mr-2 h-4 w-4" />Segnala un problema
+        {/* Un attrezzo senza contaore non ha km né ore da aggiornare. */}
+        <div className={cn("grid gap-2", mostraContatore ? "grid-cols-2" : "grid-cols-1")}>
+          {mostraContatore && (
+            <Button variant="outline" className="h-12 min-w-0 whitespace-normal leading-tight" onClick={() => setKm(true)}>
+              <Gauge className="mr-2 h-4 w-4 shrink-0" />
+              {mezzo.contatore_unita === "ore" ? "Aggiorna ore" : "Aggiorna km"}
+            </Button>
+          )}
+          <Button className="h-12 min-w-0 whitespace-normal leading-tight" onClick={() => setSegnala(true)}>
+            <Wrench className="mr-2 h-4 w-4 shrink-0" />Segnala un problema
           </Button>
         </div>
 
