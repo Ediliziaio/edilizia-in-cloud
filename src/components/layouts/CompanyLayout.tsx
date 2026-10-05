@@ -786,6 +786,8 @@ interface SettingsNavItem {
   visible: boolean;
   /** Voce di un gruppo con schede: resta accesa su tutte le sue pagine. */
   attivoSu?: (pathname: string) => boolean;
+  /** Solo tablet e computer: da telefono la voce sparisce (vedi useIsMobile). */
+  desktopOnly?: boolean;
 }
 interface SettingsNavGroup {
   label: string;
@@ -795,7 +797,7 @@ interface SettingsNavGroup {
 /** Costruisce i gruppi della sidebar impostazioni in base ai permessi.
  *  Il primo gruppo "Il mio account" è sempre visibile a tutti i ruoli.
  *  I gruppi aziendali sono visibili solo se l'utente ha i permessi necessari. */
-function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, piano: StatoPiano): SettingsNavGroup[] {
+function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, piano: StatoPiano, isMobile: boolean): SettingsNavGroup[] {
   // Una voce per argomento: dentro, le schede delle pagine (vedi SettingsLayout).
   const voceGruppo = (id: GruppoImpostazioni["id"], icon: React.ReactNode): SettingsNavItem => {
     const gruppo = GRUPPI_IMPOSTAZIONI.find((g) => g.id === id)!;
@@ -808,7 +810,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, piano: 
       attivoSu: (pathname) => percorsoNelGruppo(gruppo, pathname),
     };
   };
-  return [
+  const gruppi: SettingsNavGroup[] = [
     {
       label: "Il mio account",
       items: [
@@ -905,7 +907,8 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, piano: 
       label: "Integrazioni & API",
       items: [
         // v8.6.57 — "Crediti & Saldo" spostato in "La mia azienda" sopra
-        { to: "/azienda/impostazioni/integrazioni",   label: "Integrazioni",   icon: <Plug className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsIntegrations },
+        // Integrazioni solo da tablet e computer (richiesta 05/10/2026).
+        { to: "/azienda/impostazioni/integrazioni",   label: "Integrazioni",   icon: <Plug className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsIntegrations, desktopOnly: true },
         { to: "/azienda/impostazioni/api",            label: "API Platform",   icon: <Key className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsIntegrations },
         { to: "/azienda/impostazioni/webhook",        label: "Webhook",        icon: <Globe className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsIntegrations },
         { to: "/azienda/impostazioni/dominio-email",  label: "Dominio Email",  icon: <AtSign className="h-4 w-4" />, visible: isAdmin || permissions.canViewMarketingEmail },
@@ -921,11 +924,16 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, piano: 
         { to: "/azienda/impostazioni/fatturazione", label: "Fatturazione", icon: <FileText className="h-4 w-4" />, visible: isAdmin || permissions.canViewBilling },
       ],
     },
-  ].map((gruppo) => ({
+  ];
+  return gruppi.map((gruppo) => ({
     ...gruppo,
     // Le impostazioni seguono il piano (21/09/2026): una voce resta solo se
     // oltre al permesso c'è anche il modulo. Vedi pianoImpostazioni.ts.
-    items: gruppo.items.map((voce) => ({ ...voce, visible: voce.visible && impostazioneNelPiano(voce.to, piano) })),
+    // E le voci «solo tablet e computer» spariscono da telefono.
+    items: gruppo.items.map((voce) => ({
+      ...voce,
+      visible: voce.visible && impostazioneNelPiano(voce.to, piano) && !(voce.desktopOnly && isMobile),
+    })),
   }));
 }
 
@@ -942,10 +950,11 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
   const [query, setQuery] = useState("");
   const { pathname } = useLocation();
   const { stato: piano } = useStatoPiano();
+  const isMobile = useIsMobile();
 
   const allGroups = useMemo(
-    () => buildSettingsGroups(isAdmin, permissions, piano),
-    [isAdmin, permissions, piano]
+    () => buildSettingsGroups(isAdmin, permissions, piano, isMobile),
+    [isAdmin, permissions, piano, isMobile]
   );
 
   // Filtra gruppi per ricerca: se query vuota mostra tutto, altrimenti filtra per label

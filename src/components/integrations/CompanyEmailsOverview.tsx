@@ -1,16 +1,24 @@
 /**
  * CompanyEmailsOverview — Panoramica AZIENDALE degli account email connessi.
  *
- * Mostrata in /azienda/impostazioni/integrazioni (solo company_admin/super_admin).
- * Stesso pattern di CompanyCalendarsOverview ma per email_oauth_connections.
+ * Nel popup della scheda «Caselle email» in /azienda/impostazioni/integrazioni
+ * (solo company_admin/super_admin). Stesso pattern di CompanyCalendarsOverview
+ * ma per email_oauth_connections.
  *
  * La gestione dei MIEI account email (collega/disconnetti/cambia password) sta in
- * Mio Profilo → tab Email (EmailOAuthConnectionsCard). Qui in Integrazioni l'admin
- * vede l'elenco di TUTTI gli utenti dell'azienda con account email collegato —
+ * Mio Profilo → tab Email (EmailOAuthConnectionsCard). Qui l'admin vede
+ * l'elenco di TUTTI gli utenti dell'azienda con account email collegato —
  * utile per:
  *  - Capire chi ha email sync attivo
  *  - Diagnosticare errori sync (consecutive_errors > 0, status != connected)
  *  - Vedere a colpo d'occhio l'ultima sync e quante email sono state scaricate
+ *
+ * Due pezzi (05/10/2026): `useCaselleDelTeam` (i dati, usati anche dalla
+ * pagina per lo stato della scheda e il riquadro «Da sistemare») e
+ * `CaselleDelTeam` (l'elenco). La spiegazione dell'errore dice «premi
+ * Riconnetti», ma qui un amministratore guarda anche le caselle degli altri:
+ * per quelle si dice chi deve ricollegarla, e il pulsante c'è solo sulla
+ * propria.
  *
  * RLS richiesto: migration email_company_admin_select_view (2026-05-27).
  *
@@ -20,16 +28,13 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Mail, AlertCircle, CheckCircle2, ExternalLink, User2, Pause } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCompanyAdmin } from "@/hooks/useIsCompanyAdmin";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 import { spiegaErroreCasella } from "@/lib/email/spiegaErroreCasella";
+import { PallinoStato, type Tono } from "./StatoCollegamento";
 
 type ProfileLite = {
   id: string;
@@ -38,7 +43,7 @@ type ProfileLite = {
   email: string | null;
 };
 
-type EmailConnRow = {
+export type CasellaDelTeam = {
   id: string;
   user_id: string;
   provider: string;
@@ -57,6 +62,10 @@ function formatUserName(p: ProfileLite | null | undefined, fallbackUserId: strin
   if (!p) return `Utente ${fallbackUserId.slice(0, 6)}…`;
   const name = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
   return name || p.email || `Utente ${fallbackUserId.slice(0, 6)}…`;
+}
+
+export function nomeTitolareCasella(r: CasellaDelTeam): string {
+  return formatUserName(r.profile, r.user_id);
 }
 
 function formatRelativeTime(iso: string | null): string {
@@ -89,70 +98,36 @@ function providerLabel(provider: string, providerLabel: string | null): string {
   }
 }
 
-function StatusBadge({ status, consecutiveErrors }: { status: string; consecutiveErrors: number | null }) {
-  // Lo stato scritto in DB è "active" (mai "connected"): prima ogni casella
-  // viva risultava in errore.
-  const attiva = status === "active" || status === "connected";
-  const isOk = attiva && (consecutiveErrors ?? 0) === 0;
-  const isWarn = attiva && (consecutiveErrors ?? 0) > 0;
-  const isError = !attiva;
-  return (
-    <Badge
-      variant={isOk ? "default" : isWarn ? "secondary" : "destructive"}
-      className={cn(
-        "text-[10px] gap-1",
-        isOk && "bg-emerald-600 hover:bg-emerald-600",
-        isWarn && "bg-amber-500 hover:bg-amber-500 text-white",
-      )}
-    >
-      {isOk ? <CheckCircle2 className="h-2.5 w-2.5" /> : <AlertCircle className="h-2.5 w-2.5" />}
-      {isOk
-        ? "Attivo"
-        : isWarn
-          ? `${consecutiveErrors} errori consecutivi`
-          : isError
-            ? status === "expired" || status === "token_expired"
-              ? "Token scaduto"
-              : status === "disconnected"
-                ? "Disconnesso"
-                : "Errore"
-            : status}
-    </Badge>
-  );
+// Lo stato scritto in DB è "active" (mai "connected"): prima ogni casella
+// viva risultava in errore.
+const viva = (s: string) => s === "active" || s === "connected";
+
+/** Collegata ma non più letta. «disconnected» è una scelta, non un guasto. */
+export function casellaDaRicollegare(status: string): boolean {
+  return !viva(status) && status !== "disconnected";
 }
 
-function NonAdminPlaceholder() {
-  const navigate = useNavigate();
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Mail className="h-5 w-5 text-muted-foreground" />
-          <CardTitle className="text-base">Account email aziendali</CardTitle>
-        </div>
-        <CardDescription>
-          La panoramica degli account email aziendali è riservata agli
-          amministratori. Per gestire i tuoi account email (Gmail / Outlook /
-          IMAP) vai al tuo profilo.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button variant="outline" size="sm" onClick={() => navigate("/azienda/impostazioni/mio-profilo")}>
-          <User2 className="h-4 w-4 mr-2" />
-          Vai al mio profilo
-        </Button>
-      </CardContent>
-    </Card>
-  );
+function statoRiga(status: string, consecutiveErrors: number | null): { tono: Tono; label: string } {
+  const errori = consecutiveErrors ?? 0;
+  if (viva(status)) {
+    return errori > 0
+      ? { tono: "attenzione", label: errori === 1 ? "1 lettura non riuscita" : `${errori} letture non riuscite` }
+      : { tono: "ok", label: "Attiva" };
+  }
+  if (status === "disconnected") return { tono: "spento", label: "Scollegata" };
+  return { tono: "errore", label: "Da ricollegare" };
 }
 
-export default function CompanyEmailsOverview() {
+// Sempre lo stesso array vuoto: chi lo usa in un useMemo non ricalcola a ogni render.
+const NESSUNA: CasellaDelTeam[] = [];
+
+/** Le caselle collegate da tutta l'azienda (solo per gli amministratori). */
+export function useCaselleDelTeam() {
   const { effectiveCompany } = useAuth();
-  const navigate = useNavigate();
   const isAdmin = useIsCompanyAdmin();
   const companyId = (effectiveCompany as any)?.id;
 
-  const { data: rows = [], isLoading } = useQuery<EmailConnRow[]>({
+  const { data: righe = NESSUNA, isLoading } = useQuery<CasellaDelTeam[]>({
     queryKey: ["company-email-connections", companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -171,9 +146,9 @@ export default function CompanyEmailsOverview() {
         .order("status", { ascending: true })
         .order("last_synced_at", { ascending: false });
       if (error) throw error;
-      const righe = (data || []) as Array<Omit<EmailConnRow, "profile"> & { user_id: string | null }>;
+      const righe = (data || []) as Array<Omit<CasellaDelTeam, "profile"> & { user_id: string | null }>;
       const userIds = [...new Set(righe.map((r) => r.user_id).filter((x): x is string => !!x))];
-      const profili = new Map<string, EmailConnRow["profile"]>();
+      const profili = new Map<string, CasellaDelTeam["profile"]>();
       if (userIds.length > 0) {
         const { data: prof } = await supabase
           .from("profiles")
@@ -183,166 +158,128 @@ export default function CompanyEmailsOverview() {
           profili.set(p.id, p);
         }
       }
-      return righe.map((r) => ({ ...r, profile: (r.user_id && profili.get(r.user_id)) || null })) as EmailConnRow[];
+      return righe.map((r) => ({ ...r, profile: (r.user_id && profili.get(r.user_id)) || null })) as CasellaDelTeam[];
     },
     enabled: isAdmin && !!companyId,
   });
 
+  return { isAdmin, isLoading, righe };
+}
+
+/** L'elenco delle caselle del team, per provider, senza cornice. */
+export function CaselleDelTeam() {
+  const { user } = useAuth();
+  const { isAdmin, isLoading, righe } = useCaselleDelTeam();
+
   if (!isAdmin) {
-    return <NonAdminPlaceholder />;
+    return (
+      <p className="text-sm text-muted-foreground">
+        L'elenco delle caselle di tutta l'azienda lo vedono gli amministratori. Le tue caselle
+        (Gmail, Outlook, IMAP) le colleghi dal tuo profilo.
+      </p>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
+  }
+
+  if (righe.length === 0) {
+    return (
+      <div className="py-6 text-center text-sm text-muted-foreground">
+        Nessuno ha ancora collegato una casella. Ognuno collega la propria Gmail, Outlook o IMAP
+        dal suo profilo.
+      </div>
+    );
   }
 
   // Raggruppa per provider per UI più leggibile (Gmail / Outlook / IMAP)
-  const byProvider = rows.reduce<Record<string, EmailConnRow[]>>((acc, r) => {
+  const byProvider = righe.reduce<Record<string, CasellaDelTeam[]>>((acc, r) => {
     const key = r.provider || "altro";
     acc[key] = acc[key] || [];
     acc[key].push(r);
     return acc;
   }, {});
 
-  const viva = (s: string) => s === "active" || s === "connected";
-  const activeCount = rows.filter((r) => viva(r.status) && (r.consecutive_errors ?? 0) === 0).length;
-  const errorCount = rows.filter((r) => !viva(r.status) || (r.consecutive_errors ?? 0) > 0).length;
-
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Mail className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-base">Account email aziendali</CardTitle>
-          </div>
-          <CardDescription className="text-xs">
-            Panoramica di tutti gli account email (Gmail, Outlook, IMAP) collegati
-            dagli utenti della tua azienda. Per gestire i tuoi account vai a{" "}
-            <button
-              type="button"
-              onClick={() => navigate("/azienda/impostazioni/mio-profilo")}
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              Mio Profilo → Email
-            </button>
-            .
-          </CardDescription>
-        </div>
-        <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/impostazioni/mio-profilo")}>
-          <ExternalLink className="h-4 w-4 mr-1.5" />
-          Mio profilo
-        </Button>
-      </CardHeader>
-
-      <CardContent className="space-y-6">
-        {isLoading && (
-          <div className="space-y-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        )}
-
-        {!isLoading && rows.length === 0 && (
-          <div className="text-center py-6 text-sm text-muted-foreground">
-            Nessun utente dell'azienda ha ancora collegato un account email.
-            Invita gli utenti a connettere Gmail / Outlook / IMAP dal loro
-            profilo.
-          </div>
-        )}
-
-        {!isLoading && rows.length > 0 && (
-          <>
-            <div className="flex items-center gap-3 text-xs">
-              <span className="text-muted-foreground">Totale: {rows.length}</span>
-              <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-600 text-[10px] gap-1">
-                <CheckCircle2 className="h-2.5 w-2.5" />
-                {activeCount} attivo
-              </Badge>
-              {errorCount > 0 && (
-                <Badge variant="destructive" className="text-[10px] gap-1">
-                  <AlertCircle className="h-2.5 w-2.5" />
-                  {errorCount} con problemi
-                </Badge>
-              )}
+    <div className="space-y-5">
+      {Object.entries(byProvider).map(([provider, providerRows]) => {
+        const label = providerLabel(provider, providerRows[0]?.provider_label ?? null);
+        return (
+          <section key={provider} className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">{label}</h3>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {providerRows.length} {providerRows.length === 1 ? "casella" : "caselle"}
+              </span>
             </div>
-
-            {Object.entries(byProvider).map(([provider, providerRows]) => {
-              const label = providerLabel(provider, providerRows[0]?.provider_label ?? null);
-              return (
-                <section key={provider} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold">{label}</h3>
-                    <span className="text-xs text-muted-foreground">
-                      {providerRows.length} {providerRows.length === 1 ? "account" : "account"}
-                    </span>
-                  </div>
-                  <div className="border rounded-md divide-y">
-                    {providerRows.map((row) => (
-                      <EmailRow
-                        key={row.id}
-                        userName={formatUserName(row.profile, row.user_id)}
-                        emailAddress={row.email_address}
-                        status={row.status}
-                        consecutiveErrors={row.consecutive_errors}
-                        lastSyncAt={row.last_synced_at}
-                        lastError={row.last_sync_error}
-                        emailsFetched={row.emails_fetched_total}
-                        pollEnabled={row.poll_enabled}
-                      />
-                    ))}
-                  </div>
-                </section>
-              );
-            })}
-          </>
-        )}
-      </CardContent>
-    </Card>
+            <div className="divide-y rounded-lg border">
+              {providerRows.map((row) => (
+                <EmailRow key={row.id} riga={row} mio={row.user_id === user?.id} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
-function EmailRow({
-  userName,
-  emailAddress,
-  status,
-  consecutiveErrors,
-  lastSyncAt,
-  lastError,
-  emailsFetched,
-  pollEnabled,
-}: {
-  userName: string;
-  emailAddress: string;
-  status: string;
-  consecutiveErrors: number | null;
-  lastSyncAt: string | null;
-  lastError: string | null;
-  emailsFetched: number | null;
-  pollEnabled: boolean | null;
-}) {
+function EmailRow({ riga, mio }: { riga: CasellaDelTeam; mio: boolean }) {
+  const navigate = useNavigate();
+  const nome = nomeTitolareCasella(riga);
+  const stato = statoRiga(riga.status, riga.consecutive_errors);
+  const guasto = casellaDaRicollegare(riga.status);
+  const spiegazione = spiegaErroreCasella(riga.last_sync_error, riga.provider);
   return (
-    <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+    <div className="flex items-start justify-between gap-3 px-3 py-2.5 text-sm">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium truncate">{userName}</span>
-          <StatusBadge status={status} consecutiveErrors={consecutiveErrors} />
-          {pollEnabled === false && (
-            <Badge variant="outline" className="text-[10px] gap-1 text-muted-foreground">
-              <Pause className="h-2.5 w-2.5" />
-              Controllo spento
-            </Badge>
+          <span className="font-medium truncate">
+            {nome}
+            {mio && <span className="font-normal text-muted-foreground"> (tu)</span>}
+          </span>
+          <PallinoStato tono={stato.tono} title={stato.tono === "attenzione" ? spiegazione || undefined : undefined}>
+            {stato.label}
+          </PallinoStato>
+          {riga.poll_enabled === false && (
+            <span className="text-[11px] text-muted-foreground">· controllo spento</span>
           )}
         </div>
         <div className="text-xs text-muted-foreground truncate">
-          {emailAddress}
+          {riga.email_address}
         </div>
-        {lastError && status !== "active" && status !== "connected" && (
-          <div className="text-xs text-destructive mt-0.5" title={lastError}>
-            {spiegaErroreCasella(lastError)}
+        {guasto && (
+          <div className="mt-0.5 text-xs text-rose-700 dark:text-rose-400" title={riga.last_sync_error ?? undefined}>
+            {mio
+              ? spiegazione || "Il collegamento si è interrotto: ricollegala dal tuo profilo, ci vuole un minuto."
+              : `Il collegamento si è interrotto: deve ricollegarla ${nome} dal suo profilo.`}
           </div>
         )}
       </div>
-      <div className="text-xs text-muted-foreground whitespace-nowrap text-right">
-        <div>Controllata: {formatRelativeTime(lastSyncAt)}</div>
-        {typeof emailsFetched === "number" && emailsFetched > 0 && (
-          <div className="text-[10px] opacity-70">{emailsFetched.toLocaleString("it-IT")} email</div>
+      <div className="flex shrink-0 flex-col items-end gap-1.5 text-right">
+        <div className="text-xs text-muted-foreground whitespace-nowrap">
+          Controllata: {formatRelativeTime(riga.last_synced_at)}
+        </div>
+        {typeof riga.emails_fetched_total === "number" && riga.emails_fetched_total > 0 && (
+          <div className="text-[10px] text-muted-foreground tabular-nums">
+            {riga.emails_fetched_total.toLocaleString("it-IT")} email
+          </div>
+        )}
+        {guasto && mio && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7"
+            onClick={() => navigate("/azienda/impostazioni/mio-profilo?tab=email")}
+          >
+            Riconnetti
+          </Button>
         )}
       </div>
     </div>

@@ -3,6 +3,9 @@
  * Onboarding del "connected account": l'azienda incassa carta/link e EiC
  * trattiene una commissione (markup, modello tipo TS Pay). Tutto via edge
  * function sicura `payments-connect`. Qui solo onboarding/stato.
+ *
+ * In Integrazioni sta nel popup della scheda «Pagamenti con carta»
+ * (`senzaCornice`): al ritorno da Stripe (?stripe=) la pagina riapre il popup.
  */
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,22 +18,29 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { CreditCard, Loader2, CheckCircle2, ExternalLink } from "lucide-react";
 
-export default function StripePaymentsCard() {
+export type StatoIncassiCarta = { connected: boolean; charges_enabled: boolean; details_submitted?: boolean };
+
+/** Stato dell'account Stripe: stessa chiave per la card e per la pagina Integrazioni. */
+export function useStatoIncassiCarta(abilitato: boolean) {
+  return useQuery({
+    queryKey: ["stripe-connect-status"],
+    enabled: abilitato,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("payments-connect", { body: { action: "status" } });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      return data as StatoIncassiCarta;
+    },
+  });
+}
+
+export default function StripePaymentsCard({ senzaCornice = false }: { senzaCornice?: boolean } = {}) {
   const { canViewTesoreria, isAdmin, isLoading: permsLoading } = usePermissions();
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [connecting, setConnecting] = useState(false);
   const refreshedRef = useRef(false);
 
-  const { data: status, isLoading } = useQuery({
-    queryKey: ["stripe-connect-status"],
-    enabled: canViewTesoreria && !permsLoading,
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("payments-connect", { body: { action: "status" } });
-      if (error || data?.error) throw new Error(data?.error || error?.message);
-      return data as { connected: boolean; charges_enabled: boolean; details_submitted?: boolean };
-    },
-  });
+  const { data: status, isLoading } = useStatoIncassiCarta(canViewTesoreria && !permsLoading);
 
   // Al ritorno dall'onboarding Stripe (?stripe=connected) → rinfresca lo stato.
   useEffect(() => {
@@ -62,6 +72,32 @@ export default function StripePaymentsCard() {
 
   const active = status?.charges_enabled === true;
 
+  const contenuto = isLoading ? (
+    <div className="flex items-center justify-center py-3"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+  ) : active ? (
+    <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+      Account collegato: puoi incassare con carta e link di pagamento. La commissione di piattaforma è inclusa.
+    </p>
+  ) : (
+    <>
+      <p className="text-sm text-muted-foreground">
+        Abilita gli incassi con carta e link di pagamento sulle fatture. Verrai portato su Stripe per la verifica (IBAN, dati azienda).
+        {status?.connected && status?.details_submitted === false && " Onboarding non ancora completato."}
+      </p>
+      {isAdmin ? (
+        <Button size="sm" onClick={startOnboarding} disabled={connecting}>
+          {connecting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-1" />}
+          {status?.connected ? "Completa configurazione" : "Abilita incassi con carta"}
+        </Button>
+      ) : (
+        <p className="text-xs text-muted-foreground">Solo un amministratore può configurare i pagamenti.</p>
+      )}
+    </>
+  );
+
+  if (senzaCornice) return <div className="space-y-3">{contenuto}</div>;
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
@@ -72,29 +108,7 @@ export default function StripePaymentsCard() {
         {active && <Badge className="text-[10px] px-1.5 py-0 border-0 bg-emerald-100 text-emerald-700">Attivi</Badge>}
       </CardHeader>
       <CardContent className="space-y-3">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-3"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-        ) : active ? (
-          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            Account collegato: puoi incassare con carta e link di pagamento. La commissione di piattaforma è inclusa.
-          </p>
-        ) : (
-          <>
-            <p className="text-sm text-muted-foreground">
-              Abilita gli incassi con carta e link di pagamento sulle fatture. Verrai portato su Stripe per la verifica (IBAN, dati azienda).
-              {status?.connected && status?.details_submitted === false && " Onboarding non ancora completato."}
-            </p>
-            {isAdmin ? (
-              <Button size="sm" onClick={startOnboarding} disabled={connecting}>
-                {connecting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-1" />}
-                {status?.connected ? "Completa configurazione" : "Abilita incassi con carta"}
-              </Button>
-            ) : (
-              <p className="text-xs text-muted-foreground">Solo un amministratore può configurare i pagamenti.</p>
-            )}
-          </>
-        )}
+        {contenuto}
       </CardContent>
     </Card>
   );

@@ -139,3 +139,73 @@ export function EmailLogo({ className = "h-5 w-5" }: { className?: string }) {
     </svg>
   );
 }
+
+/** Calendari del team (Google, Apple, Outlook insieme): un calendario neutro, non il marchio di uno solo. */
+export function CalendariLogo({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="16" rx="2.5" fill="#fff" stroke="#1A73E8" strokeWidth="1.5" />
+      <path d="M3 10h18" stroke="#1A73E8" strokeWidth="1.5" />
+      <path d="M8 3v4M16 3v4" stroke="#1A73E8" strokeWidth="1.5" strokeLinecap="round" />
+      <rect x="7" y="13" width="3.5" height="3.5" rx="0.8" fill="#1A73E8" />
+    </svg>
+  );
+}
+
+/** Conti bancari (Open Banking): la banca, non il marchio di una banca. */
+export function BancaLogo({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
+      <g stroke="#0E7490" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3.5 9.5 12 4.5l8.5 5" />
+        <path d="M6 11v6.5M10 11v6.5M14 11v6.5M18 11v6.5" />
+        <path d="M3.5 20.5h17" />
+      </g>
+    </svg>
+  );
+}
+
+/** Pagamenti con carta: la carta, nel viola di Stripe che li gestisce. */
+export function CartaLogo({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
+      <rect x="2.5" y="5.5" width="19" height="13" rx="2.5" fill="#635BFF" />
+      <path d="M2.5 9.5h19" stroke="#fff" strokeWidth="1.8" />
+      <path d="M6 14.5h4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Claude: la «scintilla» terracotta, raggi alternati lunghi/corti attorno al centro. */
+const RAGGI_CLAUDE = Array.from({ length: 12 }, (_, i) => {
+  const a = (i * Math.PI) / 6;
+  const r = i % 2 === 0 ? 9.5 : 7;
+  const p = (n: number) => Math.round(n * 100) / 100;
+  return { x1: p(12 + Math.cos(a) * 2), y1: p(12 + Math.sin(a) * 2), x2: p(12 + Math.cos(a) * r), y2: p(12 + Math.sin(a) * r) };
+});
+
+export function ClaudeLogo({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
+      <g stroke="#D97757" strokeWidth="2.1" strokeLinecap="round">
+        {RAGGI_CLAUDE.map((l, i) => (
+          <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} />
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+/** ChatGPT: il nodo bianco (tre anelli a 60°) sul verde storico dell'app. */
+export function ChatGptLogo({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="11" fill="#10A37F" />
+      <g stroke="#fff" strokeWidth="1.4">
+        {[0, 60, 120].map((deg) => (
+          <rect key={deg} x="9.2" y="5.6" width="5.6" height="12.8" rx="2.8" transform={`rotate(${deg} 12 12)`} />
+        ))}
+      </g>
+    </svg>
+  );
+}

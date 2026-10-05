@@ -118,6 +118,7 @@ import { FeatureRoute } from "@/components/auth/FeatureRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { CompanyLayout } from "@/components/layouts/CompanyLayout";
 import { SettingsLayout } from "@/components/layouts/SettingsLayout";
+import { SoloTabletDesktop } from "@/components/layouts/SoloTabletDesktop";
 
 // Company pages
 const CompanyDashboard = lazy(() => import("@/pages/azienda/CompanyDashboard"));
@@ -1284,7 +1285,10 @@ export default function CompanyRoutesContainer() {
           <Route path="sicurezza" element={<Navigate to="/azienda/impostazioni/mio-profilo?tab=sicurezza" replace />} />
           <Route path="security-dashboard" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=dashboard" replace />} />
           <Route path="attivita" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=attivita" replace />} />
-          <Route path="integrazioni" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsIntegrations />)} />
+          {/* Integrazioni solo da tablet e computer (05/10/2026): da telefono si torna
+              alle Impostazioni. Le pagine di ritorno OAuth (integrazioni/*-callback)
+              sono rotte a parte e restano aperte. */}
+          <Route path="integrazioni" element={withCompanyPermission("canViewSettingsIntegrations", <SoloTabletDesktop avviso="Le integrazioni si gestiscono da tablet o computer."><SettingsIntegrations /></SoloTabletDesktop>)} />
           <Route path="whatsapp-bot" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsWhatsAppBot />)} />
           <Route path="lead-forms" element={withCompanyPermission("canViewSettingsIntegrations", <FacebookFormsPage />)} />
           {/* Apple Guideline 3.1.1 — SettingsCredits contiene RechargeDialog Stripe, blocco su iOS */}

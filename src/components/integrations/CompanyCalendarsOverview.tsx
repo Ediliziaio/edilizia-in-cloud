@@ -1,17 +1,22 @@
 /**
  * CompanyCalendarsOverview — Panoramica AZIENDALE dei calendari connessi.
  *
- * Mostrata in /azienda/impostazioni/integrazioni (solo company_admin/super_admin).
- * Sostituisce la vecchia sezione che embeddava GoogleCalendarConnectionTab +
- * AppleCalendarConnectionTab inline (troppo invasiva, mescolava preferenze
- * personali dell'admin con la vista aziendale).
- *
  * Pattern: la gestione dei MIEI calendari personali sta in /azienda/impostazioni/mio-profilo
- * (tab "calendari"). Qui in Integrazioni l'admin vede l'elenco di TUTTI gli utenti
- * dell'azienda che hanno collegato Google o Apple Calendar — utile per:
+ * (tab "calendari"). Qui l'admin vede l'elenco di TUTTI gli utenti
+ * dell'azienda che hanno collegato Google, Apple o Outlook Calendar — utile per:
  *  - Capire chi ha sync attivo
  *  - Diagnosticare errori token (status != connected)
  *  - Vedere a colpo d'occhio l'ultima sync
+ *
+ * Tre pezzi (05/10/2026):
+ *  - `useCalendariDelTeam`: i dati, usati anche dalla pagina Integrazioni per
+ *    lo stato della scheda e il riquadro «Da sistemare»;
+ *  - `CalendariDelTeam`: l'elenco senza cornice, nel popup della scheda
+ *    Calendari in Integrazioni;
+ *  - default export: l'elenco in una Card, nelle impostazioni dei calendari
+ *    (marketing e lavori).
+ * L'errore non si mostra più com'è salvato («Refresh token failed: { "error":
+ * "invalid_grant" … }»): si dice cosa fare e chi deve farlo.
  *
  * Per non-admin la sezione mostra solo un placeholder con CTA al proprio profilo.
  *
@@ -19,17 +24,17 @@
  * che permetta a company_admin/super_admin di leggere le connessioni degli altri
  * utenti della stessa azienda. Migration: 20260527_calendar_admin_company_view.sql
  */
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Calendar as CalendarIcon, AlertCircle, CheckCircle2, ExternalLink, User2 } from "lucide-react";
+import { Calendar as CalendarIcon, ExternalLink, User2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCompanyAdmin } from "@/hooks/useIsCompanyAdmin";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { PallinoStato, type Tono } from "./StatoCollegamento";
 
 type ProfileLite = {
   id: string;
@@ -71,6 +76,32 @@ type OutlookCalRow = {
   profile?: ProfileLite | null;
 };
 
+export type ProviderCalendario = "google" | "apple" | "outlook";
+
+/** Un calendario collegato, qualunque sia il provider. */
+export type CalendarioDelTeam = {
+  id: string;
+  user_id: string;
+  provider: ProviderCalendario;
+  account: string | null;
+  status: string;
+  last_sync_at: string | null;
+  last_error: string | null;
+  nome: string;
+};
+
+const PROVIDER: ProviderCalendario[] = ["google", "apple", "outlook"];
+const NOME_PROVIDER: Record<ProviderCalendario, string> = {
+  google: "Google Calendar",
+  apple: "Apple Calendar",
+  outlook: "Microsoft Outlook",
+};
+
+/** Collegato ma non funziona più. «disconnected» è una scelta di chi l'ha scollegato, non un guasto. */
+export function calendarioDaRicollegare(status: string): boolean {
+  return status !== "connected" && status !== "disconnected";
+}
+
 /**
  * Profili degli utenti collegati con una seconda query `.in()`.
  * NIENTE embed `profiles!user_id`: user_id punta ad auth.users e non esiste
@@ -106,22 +137,120 @@ function formatRelativeTime(iso: string | null): string {
   return d.toLocaleDateString("it-IT");
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const isOk = status === "connected";
-  const isWarn = status === "token_expired" || status === "auth_failed";
-  return (
-    <Badge
-      variant={isOk ? "default" : isWarn ? "secondary" : "destructive"}
-      className={cn(
-        "text-[10px] gap-1",
-        isOk && "bg-emerald-600 hover:bg-emerald-600",
-        isWarn && "bg-amber-500 hover:bg-amber-500 text-white",
-      )}
-    >
-      {isOk ? <CheckCircle2 className="h-2.5 w-2.5" /> : <AlertCircle className="h-2.5 w-2.5" />}
-      {status === "connected" ? "Connesso" : status === "token_expired" ? "Token scaduto" : status === "auth_failed" ? "Auth fallita" : status === "disconnected" ? "Disconnesso" : status}
-    </Badge>
-  );
+function statoRiga(status: string): { tono: Tono; label: string } {
+  if (status === "connected") return { tono: "ok", label: "Attivo" };
+  if (status === "disconnected") return { tono: "spento", label: "Scollegato" };
+  return { tono: "errore", label: "Da ricollegare" };
+}
+
+/** I calendari collegati da tutta l'azienda (solo per gli amministratori). */
+export function useCalendariDelTeam() {
+  const { effectiveCompany } = useAuth();
+  const isAdmin = useIsCompanyAdmin();
+  const companyId = (effectiveCompany as any)?.id;
+  const abilitato = isAdmin && !!companyId;
+
+  // A cosa serve, in concreto, ogni account collegato: quali calendari del
+  // gestionale ci scrivono dentro. Senza questo l'elenco dice solo "Tizio ha
+  // collegato Gmail", che non aiuta a capire cosa succede agli appuntamenti.
+  const { data: calendariPerAccount } = useQuery({
+    queryKey: ["calendari-per-account", companyId],
+    enabled: abilitato,
+    queryFn: async (): Promise<Map<string, string[]>> => {
+      const { data } = await supabase
+        .from("marketing_calendars")
+        .select("name, external_connection_id")
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .not("external_connection_id", "is", null);
+      const mappa = new Map<string, string[]>();
+      // `as unknown` di mezzo: le colonne dell'aggancio sono piu' recenti dei
+      // tipi generati, che qui vedrebbero un errore di colonna inesistente.
+      for (const c of (data ?? []) as unknown as Array<{ name: string; external_connection_id: string }>) {
+        mappa.set(c.external_connection_id, [...(mappa.get(c.external_connection_id) ?? []), c.name]);
+      }
+      return mappa;
+    },
+  });
+
+  const google = useQuery<GoogleCalRow[]>({
+    queryKey: ["company-google-calendars", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("google_calendar_connections")
+        .select("id, user_id, google_account_email, status, last_sync_at, last_error, updated_at")
+        .eq("company_id", companyId)
+        .order("status", { ascending: true })
+        .order("last_sync_at", { ascending: false });
+      if (error) throw error;
+      const righe = (data || []) as GoogleCalRow[];
+      const profili = await caricaProfili(righe.map((r) => r.user_id));
+      return righe.map((r) => ({ ...r, profile: profili.get(r.user_id) ?? null }));
+    },
+    enabled: abilitato,
+  });
+
+  const apple = useQuery<AppleCalRow[]>({
+    queryKey: ["company-apple-calendars", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("apple_calendar_connections")
+        .select("id, user_id, apple_id_email, status, last_sync_at, last_error, updated_at")
+        .eq("company_id", companyId)
+        .order("status", { ascending: true })
+        .order("last_sync_at", { ascending: false });
+      if (error) throw error;
+      const righe = (data || []) as AppleCalRow[];
+      const profili = await caricaProfili(righe.map((r) => r.user_id));
+      return righe.map((r) => ({ ...r, profile: profili.get(r.user_id) ?? null }));
+    },
+    enabled: abilitato,
+  });
+
+  const outlook = useQuery<OutlookCalRow[]>({
+    queryKey: ["company-outlook-calendars", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("outlook_calendar_connections")
+        .select("id, user_id, microsoft_account_email, status, last_sync_at, last_error, updated_at")
+        .eq("company_id", companyId)
+        .order("status", { ascending: true })
+        .order("last_sync_at", { ascending: false });
+      if (error) throw error;
+      const righe = (data || []) as OutlookCalRow[];
+      const profili = await caricaProfili(righe.map((r) => r.user_id));
+      return righe.map((r) => ({ ...r, profile: profili.get(r.user_id) ?? null }));
+    },
+    enabled: abilitato,
+  });
+
+  const righe = useMemo<CalendarioDelTeam[]>(() => {
+    const comune = (r: GoogleCalRow | AppleCalRow | OutlookCalRow, provider: ProviderCalendario, account: string | null) => ({
+      id: r.id,
+      user_id: r.user_id,
+      provider,
+      account,
+      status: r.status,
+      last_sync_at: r.last_sync_at,
+      last_error: r.last_error,
+      nome: formatUserName(r.profile, r.user_id),
+    });
+    return [
+      ...(google.data ?? []).map((r) => comune(r, "google", r.google_account_email)),
+      ...(apple.data ?? []).map((r) => comune(r, "apple", r.apple_id_email)),
+      ...(outlook.data ?? []).map((r) => comune(r, "outlook", r.microsoft_account_email)),
+    ];
+  }, [google.data, apple.data, outlook.data]);
+
+  return {
+    isAdmin,
+    isLoading: google.isLoading || apple.isLoading || outlook.isLoading,
+    righe,
+    calendariPerAccount: calendariPerAccount ?? new Map<string, string[]>(),
+  };
 }
 
 function NonAdminPlaceholder() {
@@ -148,98 +277,85 @@ function NonAdminPlaceholder() {
   );
 }
 
+/** L'elenco dei calendari del team, per provider, senza cornice. */
+export function CalendariDelTeam() {
+  const { user } = useAuth();
+  const { isAdmin, isLoading, righe, calendariPerAccount } = useCalendariDelTeam();
+
+  if (!isAdmin) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        L'elenco dei calendari di tutta l'azienda lo vedono gli amministratori. I tuoi calendari li
+        colleghi dal tuo profilo.
+      </p>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+    );
+  }
+
+  if (righe.length === 0) {
+    return (
+      <div className="py-6 text-center text-sm text-muted-foreground">
+        Nessuno ha ancora collegato un calendario. Ognuno collega il proprio Google, Outlook o
+        Apple Calendar dal suo profilo.
+      </div>
+    );
+  }
+
+  // I provider che nessuno usa stanno in una riga sola, non in un titolo con
+  // «Nessuna connessione» sotto (prima: due sezioni vuote su tre).
+  const usati = PROVIDER.filter((p) => righe.some((r) => r.provider === p));
+  const nonUsati = PROVIDER.filter((p) => !usati.includes(p));
+
+  return (
+    <div className="space-y-5">
+      {usati.map((p) => {
+        const delProvider = righe.filter((r) => r.provider === p);
+        const attivi = delProvider.filter((r) => r.status === "connected").length;
+        return (
+          <section key={p} className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">{NOME_PROVIDER[p]}</h3>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {attivi} di {delProvider.length} {delProvider.length === 1 ? "attivo" : "attivi"}
+              </span>
+            </div>
+            <div className="divide-y rounded-lg border">
+              {delProvider.map((row) => (
+                <CalendarRow
+                  key={row.id}
+                  riga={row}
+                  mio={row.user_id === user?.id}
+                  calendariUsati={calendariPerAccount.get(row.id) ?? []}
+                />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+      {nonUsati.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Nessuno ha collegato {nonUsati.map((p) => NOME_PROVIDER[p]).join(" o ")}.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function CompanyCalendarsOverview() {
-  const { effectiveCompany } = useAuth();
   const navigate = useNavigate();
   const isAdmin = useIsCompanyAdmin();
-  const companyId = (effectiveCompany as any)?.id;
-
-  // A cosa serve, in concreto, ogni account collegato: quali calendari del
-  // gestionale ci scrivono dentro. Senza questo l'elenco dice solo "Tizio ha
-  // collegato Gmail", che non aiuta a capire cosa succede agli appuntamenti.
-  const { data: calendariPerAccount = new Map<string, string[]>() } = useQuery({
-    queryKey: ["calendari-per-account", companyId],
-    enabled: isAdmin && !!companyId,
-    queryFn: async (): Promise<Map<string, string[]>> => {
-      const { data } = await supabase
-        .from("marketing_calendars")
-        .select("name, external_connection_id")
-        .eq("company_id", companyId)
-        .eq("is_active", true)
-        .not("external_connection_id", "is", null);
-      const mappa = new Map<string, string[]>();
-      // `as unknown` di mezzo: le colonne dell'aggancio sono piu' recenti dei
-      // tipi generati, che qui vedrebbero un errore di colonna inesistente.
-      for (const c of (data ?? []) as unknown as Array<{ name: string; external_connection_id: string }>) {
-        mappa.set(c.external_connection_id, [...(mappa.get(c.external_connection_id) ?? []), c.name]);
-      }
-      return mappa;
-    },
-  });
-
-  const { data: googleRows = [], isLoading: gLoading } = useQuery<GoogleCalRow[]>({
-    queryKey: ["company-google-calendars", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("google_calendar_connections")
-        .select("id, user_id, google_account_email, status, last_sync_at, last_error, updated_at")
-        .eq("company_id", companyId)
-        .order("status", { ascending: true })
-        .order("last_sync_at", { ascending: false });
-      if (error) throw error;
-      const righe = (data || []) as GoogleCalRow[];
-      const profili = await caricaProfili(righe.map((r) => r.user_id));
-      return righe.map((r) => ({ ...r, profile: profili.get(r.user_id) ?? null }));
-    },
-    enabled: isAdmin && !!companyId,
-  });
-
-  const { data: appleRows = [], isLoading: aLoading } = useQuery<AppleCalRow[]>({
-    queryKey: ["company-apple-calendars", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("apple_calendar_connections")
-        .select("id, user_id, apple_id_email, status, last_sync_at, last_error, updated_at")
-        .eq("company_id", companyId)
-        .order("status", { ascending: true })
-        .order("last_sync_at", { ascending: false });
-      if (error) throw error;
-      const righe = (data || []) as AppleCalRow[];
-      const profili = await caricaProfili(righe.map((r) => r.user_id));
-      return righe.map((r) => ({ ...r, profile: profili.get(r.user_id) ?? null }));
-    },
-    enabled: isAdmin && !!companyId,
-  });
-
-  const { data: outlookRows = [], isLoading: oLoading } = useQuery<OutlookCalRow[]>({
-    queryKey: ["company-outlook-calendars", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("outlook_calendar_connections")
-        .select("id, user_id, microsoft_account_email, status, last_sync_at, last_error, updated_at")
-        .eq("company_id", companyId)
-        .order("status", { ascending: true })
-        .order("last_sync_at", { ascending: false });
-      if (error) throw error;
-      const righe = (data || []) as OutlookCalRow[];
-      const profili = await caricaProfili(righe.map((r) => r.user_id));
-      return righe.map((r) => ({ ...r, profile: profili.get(r.user_id) ?? null }));
-    },
-    enabled: isAdmin && !!companyId,
-  });
 
   if (!isAdmin) {
     return <NonAdminPlaceholder />;
   }
-
-  const isLoading = gLoading || aLoading || oLoading;
-  const googleConnected = googleRows.filter((r) => r.status === "connected").length;
-  const appleConnected = appleRows.filter((r) => r.status === "connected").length;
-  const outlookConnected = outlookRows.filter((r) => r.status === "connected").length;
-  const hasAny = googleRows.length > 0 || appleRows.length > 0 || outlookRows.length > 0;
 
   return (
     <Card>
@@ -247,7 +363,7 @@ export default function CompanyCalendarsOverview() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <CalendarIcon className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-base">Account collegati dal team</CardTitle>
+            <CardTitle className="text-base">Calendari collegati dal team</CardTitle>
           </div>
           <CardDescription className="text-xs">
             Ogni persona collega il proprio account dal suo profilo: qui vedi chi l'ha fatto,
@@ -255,7 +371,7 @@ export default function CompanyCalendarsOverview() {
             gestisci qui sopra, o da{" "}
             <button
               type="button"
-              onClick={() => navigate("/azienda/impostazioni/mio-profilo")}
+              onClick={() => navigate("/azienda/impostazioni/mio-profilo?tab=calendari")}
               className="underline underline-offset-2 hover:text-foreground"
             >
               Mio Profilo → Calendari
@@ -263,154 +379,72 @@ export default function CompanyCalendarsOverview() {
             .
           </CardDescription>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/impostazioni/mio-profilo")}>
+        <Button variant="ghost" size="sm" onClick={() => navigate("/azienda/impostazioni/mio-profilo?tab=calendari")}>
           <ExternalLink className="h-4 w-4 mr-1.5" />
           Mio profilo
         </Button>
       </CardHeader>
 
-      <CardContent className="space-y-6">
-        {isLoading && (
-          <div className="space-y-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        )}
-
-        {!isLoading && !hasAny && (
-          <div className="text-center py-6 text-sm text-muted-foreground">
-            Nessun utente dell'azienda ha ancora collegato un calendario. Invita gli
-            utenti a connettere il proprio Google / Outlook / Apple Calendar dal loro profilo.
-          </div>
-        )}
-
-        {!isLoading && hasAny && (
-          <>
-            {/* Google */}
-            <section className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Google Calendar</h3>
-                <span className="text-xs text-muted-foreground">
-                  {googleConnected}/{googleRows.length} attivo
-                </span>
-              </div>
-              {googleRows.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nessuna connessione Google Calendar.</p>
-              ) : (
-                <div className="border rounded-md divide-y">
-                  {googleRows.map((row) => (
-                    <CalendarRow
-                      key={row.id}
-                      userName={formatUserName(row.profile, row.user_id)}
-                      accountEmail={row.google_account_email}
-                      status={row.status}
-                      lastSyncAt={row.last_sync_at}
-                      lastError={row.last_error}
-                      calendariUsati={calendariPerAccount.get(row.id) ?? []}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {/* Apple */}
-            <section className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Apple Calendar</h3>
-                <span className="text-xs text-muted-foreground">
-                  {appleConnected}/{appleRows.length} attivo
-                </span>
-              </div>
-              {appleRows.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nessuna connessione Apple Calendar.</p>
-              ) : (
-                <div className="border rounded-md divide-y">
-                  {appleRows.map((row) => (
-                    <CalendarRow
-                      key={row.id}
-                      userName={formatUserName(row.profile, row.user_id)}
-                      accountEmail={row.apple_id_email}
-                      status={row.status}
-                      lastSyncAt={row.last_sync_at}
-                      lastError={row.last_error}
-                      calendariUsati={calendariPerAccount.get(row.id) ?? []}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {/* Outlook */}
-            <section className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Microsoft Outlook</h3>
-                <span className="text-xs text-muted-foreground">
-                  {outlookConnected}/{outlookRows.length} attivo
-                </span>
-              </div>
-              {outlookRows.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nessuna connessione Outlook.</p>
-              ) : (
-                <div className="border rounded-md divide-y">
-                  {outlookRows.map((row) => (
-                    <CalendarRow
-                      key={row.id}
-                      userName={formatUserName(row.profile, row.user_id)}
-                      accountEmail={row.microsoft_account_email}
-                      status={row.status}
-                      lastSyncAt={row.last_sync_at}
-                      lastError={row.last_error}
-                      calendariUsati={calendariPerAccount.get(row.id) ?? []}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          </>
-        )}
+      <CardContent>
+        <CalendariDelTeam />
       </CardContent>
     </Card>
   );
 }
 
 function CalendarRow({
-  userName,
-  accountEmail,
-  status,
-  lastSyncAt,
-  lastError,
+  riga,
+  mio,
   calendariUsati = [],
 }: {
-  userName: string;
-  accountEmail: string | null;
-  status: string;
-  lastSyncAt: string | null;
-  lastError: string | null;
+  riga: CalendarioDelTeam;
+  mio: boolean;
   calendariUsati?: string[];
 }) {
+  const navigate = useNavigate();
+  const stato = statoRiga(riga.status);
+  const guasto = calendarioDaRicollegare(riga.status);
   return (
-    <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+    <div className="flex items-start justify-between gap-3 px-3 py-2.5 text-sm">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium truncate">{userName}</span>
-          <StatusBadge status={status} />
+          <span className="font-medium truncate">
+            {riga.nome}
+            {mio && <span className="font-normal text-muted-foreground"> (tu)</span>}
+          </span>
+          <PallinoStato tono={stato.tono}>{stato.label}</PallinoStato>
         </div>
         <div className="text-xs text-muted-foreground truncate">
-          {accountEmail ?? "—"}
+          {riga.account ?? "—"}
         </div>
         {calendariUsati.length > 0 && (
           <div className="mt-0.5 truncate text-xs text-muted-foreground">
             Ci scrivono: {calendariUsati.join(", ")}
           </div>
         )}
-        {lastError && status !== "connected" && (
-          <div className="text-xs text-destructive mt-0.5 truncate" title={lastError}>
-            {lastError}
+        {guasto && (
+          // Il testo originale dell'errore resta nel tooltip, per l'assistenza.
+          <div className="mt-0.5 text-xs text-rose-700 dark:text-rose-400" title={riga.last_error ?? undefined}>
+            {mio
+              ? "L'accesso al calendario si è interrotto: ricollegalo dal tuo profilo, ci vuole un minuto."
+              : `L'accesso al calendario si è interrotto: deve ricollegarlo ${riga.nome} dal suo profilo.`}
           </div>
         )}
       </div>
-      <div className="text-xs text-muted-foreground whitespace-nowrap">
-        Ultima sync: {formatRelativeTime(lastSyncAt)}
+      <div className="flex shrink-0 flex-col items-end gap-1.5">
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          Ultima sync: {formatRelativeTime(riga.last_sync_at)}
+        </span>
+        {guasto && mio && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7"
+            onClick={() => navigate("/azienda/impostazioni/mio-profilo?tab=calendari")}
+          >
+            Ricollega
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -2,38 +2,68 @@
  * SettingsIntegrations — Pagina /azienda/impostazioni/integrazioni.
  *
  * Refactor 2026-05-27 (stile GHL):
- *  - Shell minima: header + alert + sezione Calendari (inline) + grid uniforme.
  *  - Logiche di catalogo/manifesto: src/components/integrations/IntegrationsCatalog.tsx
  *  - Logiche di rendering grid + popup + filtri: IntegrationsGrid.tsx
  *  - Loghi brand SVG: brand-logos.tsx
  *
- * Vecchio file ~1335 righe ridotto a shell.
+ * Riordino del 05/10/2026: la pagina era due pagine in una. Sopra, cinque
+ * pannelli tecnici aperti (calendari e caselle del team, record DNS, conti
+ * bancari, Stripe) lunghi quasi duemila pixel; sotto, in fondo, la griglia
+ * delle integrazioni vere. I problemi erano sparsi fra i pannelli e il
+ * contatore «3/7» contava solo la griglia. Ora:
+ *  - in cima, solo se serve, il riquadro «Da sistemare»: un problema per riga,
+ *    con il pulsante che lo risolve;
+ *  - sotto, una sola griglia: ogni integrazione è una scheda, i pannelli di
+ *    prima stanno nel popup della loro scheda.
+ * Solo tablet e computer: da telefono la pagina non si apre (SoloTabletDesktop
+ * in companyRoutes.tsx).
  */
 import { useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
-import { AlertTriangle, ShieldCheck, Plug } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
-// Viste admin company-wide (NON i miei personali — quelli stanno in Mio Profilo).
-// - Calendari: GoogleCalendarConnectionTab + AppleCalendarConnectionTab in Mio Profilo
-// - Email: EmailOAuthConnectionsCard in Mio Profilo
-import CompanyCalendarsOverview from "@/components/integrations/CompanyCalendarsOverview";
-import CompanyEmailsOverview from "@/components/integrations/CompanyEmailsOverview";
-import BankConnectionsCard from "@/components/integrations/BankConnectionsCard";
 import { useStatoPiano } from "@/hooks/useStatoPiano";
 import { REQUISITI_SEZIONI, requisitoSoddisfatto } from "@/lib/impostazioni/pianoImpostazioni";
-import StripePaymentsCard from "@/components/integrations/StripePaymentsCard";
 // Popup components per integrazioni in modalità "popup"
 import GbpConnectionCard from "@/components/integrations/GbpConnectionCard";
 import GoogleAdsConnectionCard from "@/components/integrations/GoogleAdsConnectionCard";
-import ConnettoreAiPopup from "@/components/integrations/ConnettoreAiPopup";
+import { ConnettoreChatGptPopup, ConnettoreClaudePopup } from "@/components/integrations/ConnettoreAiPopup";
+import {
+  CalendariPopup,
+  CaselleEmailPopup,
+  ContiBancariPopup,
+  IncassiCartaPopup,
+} from "@/components/integrations/PopupIntegrazioniTeam";
+import { useOAuthGrants } from "@/hooks/useOAuthGrants";
+import { assistenteDelClient } from "@/lib/aiConnector";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 import { MetaTroubleshootDialog } from "@/components/integrations/MetaTroubleshootDialog";
+// Stato delle schede «di squadra»: stesse query dei loro popup (una sola chiamata).
+import { calendarioDaRicollegare, useCalendariDelTeam } from "@/components/integrations/CompanyCalendarsOverview";
+import { casellaDaRicollegare, nomeTitolareCasella, useCaselleDelTeam } from "@/components/integrations/CompanyEmailsOverview";
+import { useAutenticazioneDomini } from "@/components/integrations/EmailDomainAuthPanel";
+import {
+  contoDaRicollegare,
+  giorniAllaScadenza,
+  useConnessioniBanca,
+  type BankConnection,
+} from "@/components/integrations/BankConnectionsCard";
+import { useStatoIncassiCarta } from "@/components/integrations/StripePaymentsCard";
+import { IntegrazioniDaSistemare, type VoceDaSistemare } from "@/components/integrations/IntegrazioniDaSistemare";
+import {
+  BancaLogo,
+  CalendariLogo,
+  CartaLogo,
+  EmailLogo,
+  GoogleAdsLogo,
+  MetaAssetLogo,
+} from "@/components/integrations/brand-logos";
 // Nuovo catalogo + grid
 import {
   INTEGRATIONS_CATALOG,
@@ -42,11 +72,28 @@ import {
 import IntegrationsGrid, {
   type IntegrationConnectionStatus,
   type IntegrationStatusMap,
+  type PopupAperto,
 } from "@/components/integrations/IntegrationsGrid";
 import type { Integration, MetaWizardStep } from "@/types/integrations";
-import { EmailDomainAuthPanel } from "@/components/integrations/EmailDomainAuthPanel";
 
 const TOKEN_STALE_DAYS = 60;
+
+// Array vuoti fissi: usati nei useMemo, uno nuovo a ogni render li ricalcolerebbe sempre.
+const NESSUNA_CASELLA: Array<{ id: string; email_address: string; provider: string | null; status: string | null }> = [];
+const NESSUN_CONTO: BankConnection[] = [];
+
+/** «1 casella da ricollegare», «3 caselle da ricollegare». */
+function quante(n: number, una: string, tante: string): string {
+  return `${n} ${n === 1 ? una : tante}`;
+}
+
+/** «Anna», «Anna e Luca», «Anna, Luca e altri 2». */
+function elencoNomi(nomi: string[]): string {
+  const unici = [...new Set(nomi)];
+  if (unici.length <= 2) return unici.join(" e ");
+  if (unici.length === 3) return `${unici[0]}, ${unici[1]} e ${unici[2]}`;
+  return `${unici[0]}, ${unici[1]} e altri ${unici.length - 2}`;
+}
 
 // ── Popup wrappers ─────────────────────────────────────────────────────────
 // I componenti esistenti GbpConnectionCard e GoogleAdsConnectionCard sono già
@@ -89,23 +136,48 @@ export default function SettingsIntegrations() {
   const { effectiveCompany, user, role } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
 
-  // Assistente AI: quante chiavi (connessioni) attive e non scadute.
+  // Assistenti AI: quante chiavi attive e non scadute (le usano Claude Code e
+  // Claude Desktop) e quanti collegamenti OAuth, divisi per Claude e ChatGPT.
   const { data: aiKeys = [] } = useApiKeys(companyId);
   const aiKeysAttive = useMemo(
     () => aiKeys.filter((k) => k.is_active && (!k.expires_at || new Date(k.expires_at) > new Date())).length,
     [aiKeys],
   );
+  const { data: aiGrants = [] } = useOAuthGrants(companyId);
+  const { aiGrantsClaude, aiGrantsChatGpt } = useMemo(() => {
+    const chatgpt = aiGrants.filter((g) => assistenteDelClient(g.client_name) === "chatgpt").length;
+    return { aiGrantsClaude: aiGrants.length - chatgpt, aiGrantsChatGpt: chatgpt };
+  }, [aiGrants]);
   const userId = user?.id;
   const permissions = usePermissions();
   // Conti correnti e incassi con carta servono con tesoreria, preventivi o
-  // fatture: col piano Marketing non compaiono (21/09/2026).
+  // fatture: col piano Marketing non compaiono (21/09/2026). E solo a chi ha
+  // il permesso Tesoreria, come prima i loro pannelli.
   const { stato: piano } = useStatoPiano();
   const mostraContiCorrenti = requisitoSoddisfatto(REQUISITI_SEZIONI.conti_correnti, piano);
   const mostraPagamentiCarta = requisitoSoddisfatto(REQUISITI_SEZIONI.pagamenti_carta, piano);
+  const canViewTesoreria = permissions.canViewTesoreria && !permissions.isLoading;
+  // Una scheda che manca non ha nemmeno il popup: niente conti né Stripe senza piano e permesso.
+  const visibile: Record<string, boolean> = {
+    banca: mostraContiCorrenti && canViewTesoreria,
+    stripe: mostraPagamentiCarta && canViewTesoreria,
+  };
+  const catalogo = INTEGRATIONS_CATALOG.filter((i) => visibile[i.id] ?? true);
   // 13/7/2026: vale anche il permesso "Integrazioni & Canali" (Modifica), non solo il ruolo admin
   const canManageIntegrations = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsIntegrations;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  // Popup aperto (comandato da qui: lo aprono anche le righe «Da sistemare»).
+  // Al ritorno dal consenso della banca (?code=&state=, o ?error=&state=) o da
+  // Stripe (?stripe=) si riapre il popup giusto: è lì dentro che il
+  // collegamento si completa.
+  const [searchParams] = useSearchParams();
+  const [popup, setPopup] = useState<PopupAperto>(() => {
+    if (searchParams.get("code") || (searchParams.get("error") && searchParams.get("state"))) return { id: "banca" };
+    if (searchParams.get("stripe")) return { id: "stripe" };
+    return null;
+  });
 
   // ── Query: integrations table ─────────────────────────────────────────────
   const {
@@ -221,24 +293,41 @@ export default function SettingsIntegrations() {
   });
 
   // ── Query: Email OAuth (personale) ────────────────────────────────────────
-  const { data: emailConnections = [] } = useQuery({
+  const { data: emailConnections = NESSUNA_CASELLA } = useQuery({
     queryKey: ["email-oauth-connections-summary", companyId, userId],
     queryFn: async () => {
-      if (!companyId || !userId) return [];
+      if (!companyId || !userId) return NESSUNA_CASELLA;
       const { data, error } = await supabase
         .from("email_oauth_connections")
         .select("id, email_address, provider, status")
         .eq("company_id", companyId)
         .eq("user_id", userId);
-      if (error) return [];
-      return data || [];
+      if (error) return NESSUNA_CASELLA;
+      return data || NESSUNA_CASELLA;
     },
     enabled: !!companyId && !!userId,
   });
 
+  // ── Schede di squadra: calendari e caselle di tutti (solo admin), domini,
+  // conti, incassi. Le stesse query dei popup: si caricano una volta sola.
+  const calendariTeam = useCalendariDelTeam();
+  const caselleTeam = useCaselleDelTeam();
+  const domini = useAutenticazioneDomini();
+  const { data: contiBanca = NESSUN_CONTO } = useConnessioniBanca(visibile.banca);
+  const { data: incassiCarta } = useStatoIncassiCarta(visibile.stripe);
+
   // ── Derive: status map per ogni integrazione del catalogo ─────────────────
   const metaIntegration = integrations.find((i) => i.provider === "meta") ?? null;
   const googleAdsIntegration = integrations.find((i) => i.provider === "google_ads") ?? null;
+
+  // I miei calendari (per chi non vede quelli del team).
+  const mieiCalendari = useMemo(() => {
+    const elenco: Array<{ nome: string; status: string }> = [];
+    if (gcalConnection) elenco.push({ nome: "Google Calendar", status: gcalConnection.status ?? "" });
+    if (appleCalConnection) elenco.push({ nome: "Apple Calendar", status: appleCalConnection.status ?? "" });
+    if (outlookCalConnection) elenco.push({ nome: "Outlook", status: outlookCalConnection.status ?? "" });
+    return elenco;
+  }, [gcalConnection, appleCalConnection, outlookCalConnection]);
 
   const statuses: IntegrationStatusMap = useMemo(() => {
     const result: IntegrationStatusMap = {};
@@ -281,22 +370,82 @@ export default function SettingsIntegrations() {
     }
     result["google-ads"] = { status: gadsStatus, detail: null };
 
-    // Email
+    // Caselle email: per gli amministratori quelle di tutto il team (più il
+    // controllo dei domini), per gli altri le proprie.
     // Lo stato scritto dal DB è "active" (mai "connected"): con il confronto
     // sbagliato l'email risultava SEMPRE scollegata, anche con caselle attive.
     const isAttiva = (s: string | null) => s === "active" || s === "connected";
-    const emailConnected = emailConnections.some((c) => isAttiva(c.status));
-    const firstEmail = emailConnections.find((c) => isAttiva(c.status));
-    result["email"] = {
-      status: emailConnected ? "connected" : "disconnected",
-      detail: firstEmail?.email_address ?? null,
-    };
+    if (caselleTeam.isAdmin) {
+      const n = caselleTeam.righe.length;
+      const attive = caselleTeam.righe.filter((r) => isAttiva(r.status)).length;
+      const guaste = caselleTeam.righe.filter((r) => casellaDaRicollegare(r.status)).length;
+      const problemi = guaste + domini.daSistemare.length;
+      // Nel dettaglio le caselle da ricollegare; il dominio lo dicono lo
+      // stato della scheda e il riquadro «Da sistemare» («3 da sistemare» su
+      // 3 caselle sembrava dire che erano guaste tutte).
+      const nota = guaste > 0 ? ` · ${guaste} da ricollegare` : domini.daSistemare.length > 0 ? " · dominio da sistemare" : "";
+      result["email"] = {
+        status: problemi > 0 ? (attive > 0 ? "warning" : "error") : attive > 0 ? "connected" : "disconnected",
+        detail: n > 0 ? `${quante(n, "casella", "caselle")}${nota}` : null,
+      };
+    } else {
+      const firstEmail = emailConnections.find((c) => isAttiva(c.status));
+      const guaste = emailConnections.filter((c) => casellaDaRicollegare(c.status ?? "")).length;
+      result["email"] = {
+        status: guaste > 0 ? "warning" : firstEmail ? "connected" : "disconnected",
+        detail: firstEmail?.email_address ?? null,
+      };
+    }
 
-    // Assistente AI (Claude · ChatGPT): connesso se c'è una chiave attiva.
-    result["assistente-ai"] = {
-      status: aiKeysAttive > 0 ? "connected" : "disconnected",
-      detail: aiKeysAttive > 0 ? `${aiKeysAttive} ${aiKeysAttive === 1 ? "connessione" : "connessioni"}` : null,
-    };
+    // Calendari: stesso criterio delle caselle.
+    if (calendariTeam.isAdmin) {
+      const n = calendariTeam.righe.length;
+      const attivi = calendariTeam.righe.filter((r) => r.status === "connected").length;
+      const guasti = calendariTeam.righe.filter((r) => calendarioDaRicollegare(r.status)).length;
+      result["calendari"] = {
+        status: guasti > 0 ? (attivi > 0 ? "warning" : "error") : attivi > 0 ? "connected" : "disconnected",
+        detail: n > 0 ? `${quante(attivi, "attivo", "attivi")}${guasti > 0 ? ` · ${guasti} da ricollegare` : ""}` : null,
+      };
+    } else {
+      const attivo = mieiCalendari.find((x) => x.status === "connected");
+      const guasti = mieiCalendari.filter((x) => calendarioDaRicollegare(x.status)).length;
+      result["calendari"] = {
+        status: guasti > 0 ? "warning" : attivo ? "connected" : "disconnected",
+        detail: attivo?.nome ?? null,
+      };
+    }
+
+    // Conti bancari: da sistemare se un consenso è scaduto, in errore o scade
+    // entro 7 giorni; «in sospeso» se il consenso non è mai stato dato.
+    if (contiBanca.length > 0) {
+      const nConti = contiBanca.reduce((tot, c) => tot + (c.accounts_count ?? 0), 0);
+      const banche = [...new Set(contiBanca.map((c) => c.institution_name ?? "Banca"))].join(", ");
+      result["banca"] = {
+        status: contiBanca.some(contoDaRicollegare)
+          ? "warning"
+          : contiBanca.some((c) => c.status === "linked")
+            ? "connected"
+            : "pending",
+        detail: nConti > 0 ? `${banche} · ${quante(nConti, "conto", "conti")}` : banche,
+      };
+    } else {
+      result["banca"] = { status: "disconnected", detail: null };
+    }
+
+    // Pagamenti con carta: collegato ma con la verifica Stripe a metà = da sistemare.
+    result["stripe"] = incassiCarta?.charges_enabled
+      ? { status: "connected", detail: "Incassi attivi" }
+      : incassiCarta?.connected
+        ? { status: "warning", detail: "Configurazione da completare" }
+        : { status: "disconnected", detail: null };
+
+    // Assistenti AI, due card: Claude è connesso con una chiave attiva o un
+    // collegamento OAuth di Claude; ChatGPT solo con un collegamento OAuth
+    // (ChatGPT non usa chiavi).
+    const connessioni = (n: number) => (n > 0 ? quante(n, "connessione", "connessioni") : null);
+    const claudeTot = aiKeysAttive + aiGrantsClaude;
+    result["claude"] = { status: claudeTot > 0 ? "connected" : "disconnected", detail: connessioni(claudeTot) };
+    result["chatgpt"] = { status: aiGrantsChatGpt > 0 ? "connected" : "disconnected", detail: connessioni(aiGrantsChatGpt) };
 
     return result;
   }, [
@@ -305,37 +454,220 @@ export default function SettingsIntegrations() {
     gbpConnection,
     googleAdsIntegration,
     emailConnections,
+    caselleTeam.isAdmin,
+    caselleTeam.righe,
+    calendariTeam.isAdmin,
+    calendariTeam.righe,
+    mieiCalendari,
+    domini.daSistemare,
+    contiBanca,
+    incassiCarta,
     aiKeysAttive,
+    aiGrantsClaude,
+    aiGrantsChatGpt,
   ]);
-
-  // ── KPI: X di Y connesse ──────────────────────────────────────────────────
-  const connectedCount = Object.values(statuses).filter((s) => s.status === "connected").length;
-  const totalCount = INTEGRATIONS_CATALOG.length;
 
   // ── Stale token warnings (>60gg) ──────────────────────────────────────────
   const staleTokenWarnings = useMemo(() => {
-    const warnings: string[] = [];
+    const warnings: Array<{ nome: string; giorni: number }> = [];
     if (gcalConnection?.status === "connected" && (gcalConnection as any).updated_at) {
       const ageDays = Math.floor(
         (Date.now() - new Date((gcalConnection as any).updated_at).getTime()) / 86400000,
       );
-      if (ageDays > TOKEN_STALE_DAYS) warnings.push(`Google Calendar (${ageDays}gg)`);
+      if (ageDays > TOKEN_STALE_DAYS) warnings.push({ nome: "Google Calendar", giorni: ageDays });
     }
     if (appleCalConnection?.status === "connected" && (appleCalConnection as any).updated_at) {
       const ageDays = Math.floor(
         (Date.now() - new Date((appleCalConnection as any).updated_at).getTime()) / 86400000,
       );
-      if (ageDays > TOKEN_STALE_DAYS) warnings.push(`Apple Calendar (${ageDays}gg)`);
+      if (ageDays > TOKEN_STALE_DAYS) warnings.push({ nome: "Apple Calendar", giorni: ageDays });
     }
     if (
       outlookCalConnection?.status === "connected" &&
       outlookCalConnection.giorniDalRinnovo !== null &&
       outlookCalConnection.giorniDalRinnovo > TOKEN_STALE_DAYS
     ) {
-      warnings.push(`Outlook Calendar (${outlookCalConnection.giorniDalRinnovo}gg)`);
+      warnings.push({ nome: "Outlook", giorni: outlookCalConnection.giorniDalRinnovo });
     }
     return warnings;
   }, [gcalConnection, appleCalConnection, outlookCalConnection]);
+
+  // ── "Risolvi problemi" Meta (stile GHL) + wizard con passo iniziale ───────
+  // metaWizardStep = null → chiuso; "oauth" → ri-consenso permessi (Ricollega);
+  // "forms" → gestione moduli lead diretta dal kebab.
+  const [metaTroubleshootOpen, setMetaTroubleshootOpen] = useState(false);
+  const [metaWizardStep, setMetaWizardStep] = useState<MetaWizardStep | null>(null);
+  const [metaOpenDisconnect, setMetaOpenDisconnect] = useState(false);
+  const handleTroubleshoot = (item: IntegrationItem) => {
+    if (item.id === "meta") setMetaTroubleshootOpen(true);
+  };
+  const handleManageForms = (item: IntegrationItem) => {
+    if (item.id === "meta") setMetaWizardStep("forms");
+  };
+
+  // ── Da sistemare: un problema per riga, dal più grave ─────────────────────
+  const daSistemare = useMemo(() => {
+    const voci: VoceDaSistemare[] = [];
+    const apri = (id: string, scheda?: string) => () => setPopup({ id, scheda });
+    const profilo = (scheda: "calendari" | "email") => () =>
+      navigate(`/azienda/impostazioni/mio-profilo?tab=${scheda}`);
+
+    if (statuses.meta?.status === "error") {
+      voci.push({
+        id: "meta",
+        Logo: MetaAssetLogo,
+        titolo: "Facebook e Instagram",
+        messaggio: "Il collegamento non funziona più: lead e messaggi non arrivano. Controlla i permessi o ricollegalo.",
+        azione: "Risolvi",
+        onAzione: () => setMetaTroubleshootOpen(true),
+      });
+    }
+
+    if (visibile.banca) {
+      for (const c of contiBanca.filter(contoDaRicollegare)) {
+        const giorni = giorniAllaScadenza(c);
+        voci.push({
+          id: `banca-${c.id}`,
+          Logo: BancaLogo,
+          titolo: c.institution_name ?? "Conto bancario",
+          messaggio:
+            c.status === "expired"
+              ? "Il consenso della banca è scaduto: i movimenti non arrivano più."
+              : c.status === "error"
+                ? "La banca segnala un errore: i movimenti potrebbero non arrivare."
+                : giorni <= 0
+                  ? "Il consenso della banca scade oggi: ricollega il conto, così i movimenti non si fermano."
+                  : `Il consenso della banca scade fra ${quante(giorni, "giorno", "giorni")}: ricollega il conto prima.`,
+          azione: "Ricollega",
+          onAzione: apri("banca"),
+        });
+      }
+    }
+
+    // Caselle: del team per gli amministratori, le proprie per gli altri.
+    const caselleGuaste = caselleTeam.isAdmin
+      ? caselleTeam.righe.filter((r) => casellaDaRicollegare(r.status))
+      : [];
+    if (caselleGuaste.length > 0) {
+      voci.push({
+        id: "caselle",
+        Logo: EmailLogo,
+        titolo: "Caselle email",
+        messaggio: `${quante(caselleGuaste.length, "casella da ricollegare", "caselle da ricollegare")} (${elencoNomi(
+          caselleGuaste.map(nomeTitolareCasella),
+        )}): finché non ${caselleGuaste.length === 1 ? "si ricollega" : "si ricollegano"}, la posta non arriva nel gestionale.`,
+        azione: "Vedi",
+        onAzione: apri("email", "caselle"),
+      });
+    }
+    const mieGuaste = caselleTeam.isAdmin ? [] : emailConnections.filter((c) => casellaDaRicollegare(c.status ?? ""));
+    if (mieGuaste.length > 0) {
+      voci.push({
+        id: "mie-caselle",
+        Logo: EmailLogo,
+        titolo: mieGuaste.length === 1 ? "La tua casella email" : "Le tue caselle email",
+        messaggio: `${mieGuaste.map((c) => c.email_address).join(", ")}: il collegamento si è interrotto, la posta non arriva nel gestionale.`,
+        azione: "Ricollega",
+        onAzione: profilo("email"),
+      });
+    }
+
+    // Calendari: stesso schema.
+    const calendariGuasti = calendariTeam.isAdmin
+      ? calendariTeam.righe.filter((r) => calendarioDaRicollegare(r.status))
+      : [];
+    if (calendariGuasti.length > 0) {
+      voci.push({
+        id: "calendari",
+        Logo: CalendariLogo,
+        titolo: "Calendari",
+        messaggio: `${quante(calendariGuasti.length, "calendario da ricollegare", "calendari da ricollegare")} (${elencoNomi(
+          calendariGuasti.map((r) => r.nome),
+        )}): finché non ${calendariGuasti.length === 1 ? "si ricollega" : "si ricollegano"}, gli appuntamenti non arrivano.`,
+        azione: "Vedi",
+        onAzione: apri("calendari"),
+      });
+    }
+    const mieiGuasti = calendariTeam.isAdmin ? [] : mieiCalendari.filter((x) => calendarioDaRicollegare(x.status));
+    if (mieiGuasti.length > 0) {
+      voci.push({
+        id: "miei-calendari",
+        Logo: CalendariLogo,
+        titolo: "Il tuo calendario",
+        messaggio: `${mieiGuasti.map((x) => x.nome).join(" e ")}: l'accesso si è interrotto, gli appuntamenti non arrivano.`,
+        azione: "Ricollega",
+        onAzione: profilo("calendari"),
+      });
+    }
+
+    if (domini.daSistemare.length > 0) {
+      const uno = domini.daSistemare.length === 1;
+      voci.push({
+        id: "domini",
+        Logo: EmailLogo,
+        titolo: uno ? `Dominio ${domini.daSistemare[0].dominio}` : "Domini email",
+        messaggio: `${uno ? "Mancano" : `${domini.daSistemare.length} domini: mancano`} record DNS (SPF, DKIM o DMARC), le email rischiano di finire in spam.`,
+        azione: "Vedi i record",
+        onAzione: apri("email", "dominio"),
+      });
+    }
+
+    const gads = statuses["google-ads"]?.status;
+    if (gads === "error" || gads === "pending") {
+      voci.push({
+        id: "google-ads",
+        Logo: GoogleAdsLogo,
+        titolo: "Google Ads",
+        messaggio:
+          gads === "error"
+            ? "Il collegamento non funziona più: ricollegalo."
+            : "Il collegamento segnala un problema: le conversioni potrebbero non arrivare a Google.",
+        azione: "Apri",
+        onAzione: apri("google-ads"),
+      });
+    }
+
+    if (visibile.stripe && statuses.stripe?.status === "warning") {
+      voci.push({
+        id: "stripe",
+        Logo: CartaLogo,
+        titolo: "Pagamenti con carta",
+        messaggio: "La verifica su Stripe non è finita: gli incassi con carta non sono ancora attivi.",
+        azione: "Completa",
+        onAzione: apri("stripe"),
+      });
+    }
+
+    if (staleTokenWarnings.length > 0) {
+      const uno = staleTokenWarnings.length === 1;
+      voci.push({
+        id: "token-calendario",
+        Logo: CalendariLogo,
+        titolo: uno ? `Il tuo ${staleTokenWarnings[0].nome}` : "I tuoi calendari",
+        messaggio: uno
+          ? `L'accesso non si rinnova da ${staleTokenWarnings[0].giorni} giorni: se gli appuntamenti non arrivano, ricollegalo.`
+          : `${staleTokenWarnings.map((w) => w.nome).join(" e ")}: l'accesso non si rinnova da più di ${TOKEN_STALE_DAYS} giorni. Se gli appuntamenti non arrivano, ricollegali.`,
+        azione: "Apri profilo",
+        onAzione: profilo("calendari"),
+      });
+    }
+
+    return voci;
+  }, [
+    statuses,
+    visibile.banca,
+    visibile.stripe,
+    contiBanca,
+    caselleTeam.isAdmin,
+    caselleTeam.righe,
+    emailConnections,
+    calendariTeam.isAdmin,
+    calendariTeam.righe,
+    mieiCalendari,
+    domini.daSistemare,
+    staleTokenWarnings,
+    navigate,
+  ]);
 
   // ── Popup + wizard registry ───────────────────────────────────────────────
   const externalWizardRegistry = useMemo(
@@ -352,23 +684,15 @@ export default function SettingsIntegrations() {
     () => ({
       "google-business": GbpPopupContent,
       "google-ads": GoogleAdsPopupContent,
-      "assistente-ai": ConnettoreAiPopup,
+      claude: ConnettoreClaudePopup,
+      chatgpt: ConnettoreChatGptPopup,
+      email: CaselleEmailPopup,
+      calendari: CalendariPopup,
+      banca: ContiBancariPopup,
+      stripe: IncassiCartaPopup,
     }),
     [],
   );
-
-  // ── "Risolvi problemi" Meta (stile GHL) + wizard con passo iniziale ───────
-  // metaWizardStep = null → chiuso; "oauth" → ri-consenso permessi (Ricollega);
-  // "forms" → gestione moduli lead diretta dal kebab.
-  const [metaTroubleshootOpen, setMetaTroubleshootOpen] = useState(false);
-  const [metaWizardStep, setMetaWizardStep] = useState<MetaWizardStep | null>(null);
-  const [metaOpenDisconnect, setMetaOpenDisconnect] = useState(false);
-  const handleTroubleshoot = (item: IntegrationItem) => {
-    if (item.id === "meta") setMetaTroubleshootOpen(true);
-  };
-  const handleManageForms = (item: IntegrationItem) => {
-    if (item.id === "meta") setMetaWizardStep("forms");
-  };
 
   // ── Disconnect handler ────────────────────────────────────────────────────
   const handleDisconnect = (item: IntegrationItem) => {
@@ -384,30 +708,11 @@ export default function SettingsIntegrations() {
     toast.info("Apri la pagina dell'integrazione per disconnetterla.", {
       description: item.name,
     });
-    navigate(item.pageHref);
+    if (item.pageHref) navigate(item.pageHref);
   };
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          {/* Da 768 icona e titolo li mostra già la testata delle Impostazioni
-              (erano due volte): resta la riga sotto, con numeri e azioni. */}
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 md:hidden">
-            <Plug className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight md:hidden">Integrazioni</h1>
-            <p className="text-sm text-muted-foreground">
-              Collega servizi esterni e automatizza processi ·{" "}
-              <span className="font-medium text-foreground">{connectedCount}</span>
-              <span className="text-muted-foreground">/{totalCount}</span> connesse
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* Stato caricamento / errore della query principale integrations */}
       {isErrorIntegrations ? (
         <Alert variant="destructive">
@@ -440,38 +745,12 @@ export default function SettingsIntegrations() {
         </Alert>
       )}
 
-      {/* Stale token warning */}
-      {staleTokenWarnings.length > 0 && (
-        <Alert className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900/50">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertTitle className="text-sm">Token OAuth non più aggiornati</AlertTitle>
-          <AlertDescription className="text-xs text-amber-900 dark:text-amber-200">
-            Il token di <strong>{staleTokenWarnings.join(", ")}</strong> non si
-            aggiorna da più di {TOKEN_STALE_DAYS} giorni. Se la sincronizzazione
-            non funziona, riconnetti l'account dalla scheda relativa.
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* Quello che non funziona, prima di tutto il resto */}
+      <IntegrazioniDaSistemare voci={daSistemare} conAzioni={canManageIntegrations} />
 
-      {/* Viste admin: panoramica aziendale di calendari + email (chi ha collegato cosa).
-          La gestione dei MIEI account personali è in Mio Profilo → Calendari / Email.
-          Per non-admin entrambi i componenti mostrano solo un placeholder con CTA. */}
-      <CompanyCalendarsOverview />
-      <CompanyEmailsOverview />
-
-      {/* SPF/DKIM/DMARC dei domini delle caselle collegate: controllo
-          automatico, non su richiesta — se manca o è sbagliato lo si vede qui. */}
-      <EmailDomainAuthPanel haCaselle />
-
-      {/* Open Banking — collegamento conti correnti + import movimenti */}
-      {mostraContiCorrenti && <BankConnectionsCard />}
-
-      {/* Pagamenti con carta (Stripe Connect) — incassi con markup */}
-      {mostraPagamentiCarta && <StripePaymentsCard />}
-
-      {/* Grid integrazioni */}
+      {/* Grid integrazioni: una scheda per integrazione, i dettagli nel popup */}
       <IntegrationsGrid
-        items={INTEGRATIONS_CATALOG}
+        items={catalogo}
         statuses={statuses}
         canManage={canManageIntegrations}
         popupRegistry={popupRegistry}
@@ -479,6 +758,8 @@ export default function SettingsIntegrations() {
         onDisconnect={handleDisconnect}
         onTroubleshoot={handleTroubleshoot}
         onManageForms={handleManageForms}
+        popup={popup}
+        onPopupChange={setPopup}
       />
 
       {/* "Risolvi problemi" Meta: autorizzazioni, pagine mancanti, backfill lead */}

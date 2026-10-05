@@ -12,11 +12,12 @@
  * - «operativo»: in più agisce (crea contatti/opportunità/attività/commesse,
  *   listino, proposte d'ordine). Gli invii veri solo con l'opt-in separato.
  *
- * Client (verificato il 26/09/2026 sulle guide ufficiali): la chiave va in un
- * header, e oggi lo accettano Claude Code, Claude Desktop (via mcp-remote) e
- * claude.ai solo per le organizzazioni con «Request headers» (beta). ChatGPT
- * accetta soltanto connettori con accesso OAuth: finché il server non lo offre,
- * con ChatGPT non si collega.
+ * Client: con una CHIAVE nell'header si collegano Claude Code e Claude Desktop
+ * (config con mcp-remote). Con l'ACCESSO OAuth (live dal 27/09/2026: pagina
+ * /oauth/consent, registrazione dinamica dei client) si collegano claude.ai —
+ * sito, app desktop e telefono — e ChatGPT, che accetta solo OAuth (connettore
+ * personalizzato in Modalità sviluppatore). Con l'OAuth azienda e livello si
+ * scelgono nella pagina di consenso, non qui.
  *
  * Gli scope corrispondono uno a uno a quelli che gli strumenti del server
  * controllano (vedi supabase/functions/platform-mcp/index.ts).
@@ -100,25 +101,39 @@ export function configClaudeDesktop(chiave: string): string {
   return claudeDesktopConfig(chiave);
 }
 
+/** Le due card di Integrazioni. */
+export type AssistenteAi = "claude" | "chatgpt";
+
 /**
- * Passi per claude.ai (web, app desktop e telefono condividono i connettori).
- * La chiave in un header si può inserire solo dove l'organizzazione ha
- * «Request headers» (beta di Anthropic, per ora non per tutti): la aggiunge il
- * proprietario dell'organizzazione, una volta, e vale per tutti i membri.
+ * A quale card appartiene un collegamento OAuth, dal nome che il client si è
+ * registrato. Tutto ciò che non è ChatGPT va nella card Claude (la casa generica
+ * dei connettori MCP), così ogni collegamento resta visibile e revocabile.
  */
-export function passiClaudeWeb(chiave: string): { url: string; header: string; note: string[] } {
-  return {
-    url: MCP_ENDPOINT,
-    header: `x-api-key: ${chiave}`,
-    note: [
-      "Il proprietario dell'organizzazione Claude apre Impostazioni organizzazione → Connettori → Aggiungi → Personalizzato.",
-      "Incolla l'URL qui sotto e, in «Request headers», il nome x-api-key con la chiave come valore.",
-      "Se «Request headers» non c'è, la tua organizzazione non ha ancora questa opzione: usa Claude Desktop o Claude Code.",
-      "Una volta aggiunto, il connettore si usa anche dall'app Claude sul telefono.",
-    ],
-  };
+export function assistenteDelClient(clientName: string | null | undefined): AssistenteAi {
+  const n = (clientName ?? "").toLowerCase();
+  return n.includes("chatgpt") || n.includes("openai") ? "chatgpt" : "claude";
 }
 
-/** ChatGPT accetta solo connettori con accesso OAuth (niente chiavi negli header). */
-export const NOTA_CHATGPT =
-  "ChatGPT per ora non si collega: accetta solo connettori con accesso OAuth, che il gestionale non offre ancora. Nel frattempo usa Claude.";
+/** Claude sito, app e telefono: connettore personalizzato con accesso, nessuna chiave. */
+export const PASSI_CLAUDE_CONNETTORE: string[] = [
+  "Su claude.ai apri Impostazioni → Connettori → «Aggiungi connettore personalizzato». Nei piani Team ed Enterprise lo aggiunge il proprietario, da Impostazioni organizzazione → Connettori.",
+  "Dagli un nome (per esempio «Edilizia in Cloud») e incolla l'URL qui sotto.",
+  "Premi «Connetti»: si apre Edilizia in Cloud, entri con il tuo account e scegli azienda e livello.",
+  "Fatto: il connettore vale anche nell'app Claude sul telefono e in Claude Desktop.",
+];
+
+/** ChatGPT: connettore personalizzato in Modalità sviluppatore, accesso OAuth. */
+export const PASSI_CHATGPT: string[] = [
+  "Su chatgpt.com apri Impostazioni → Connettori (o «App e connettori») → Avanzate e attiva la «Modalità sviluppatore». Nei piani Business ed Enterprise può doverla abilitare l'amministratore dell'area di lavoro.",
+  "Torna in Connettori e premi «Crea» (o «Aggiungi connettore personalizzato»).",
+  "Nome: «Edilizia in Cloud» · URL del server MCP: quello qui sotto · Autenticazione: OAuth. Conferma che ti fidi dell'app e crea.",
+  "Si apre Edilizia in Cloud: entri con il tuo account e scegli azienda e livello.",
+  "In una nuova chat, dal «+» attiva la Modalità sviluppatore e scegli il connettore «Edilizia in Cloud».",
+];
+
+/**
+ * Requisiti ChatGPT (verificati a ottobre 2026): i connettori personalizzati
+ * passano dalla Modalità sviluppatore, che non c'è in tutti i piani.
+ */
+export const NOTA_PIANI_CHATGPT =
+  "Serve un piano ChatGPT con la Modalità sviluppatore: oggi Business, Enterprise ed Edu (con Pro solo letture; non c'è nei piani gratuiti). Il connettore si usa da chatgpt.com, non dall'app sul telefono. Le voci dei menu possono cambiare un po' da piano a piano.";

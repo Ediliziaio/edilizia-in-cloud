@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { macroAreas } from "@/lib/sidebarConfig";
 import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import { useStatoPiano } from "@/hooks/useStatoPiano";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { impostazioneNelPiano } from "@/lib/impostazioni/pianoImpostazioni";
 
 // 🆕 GAP 1 (Discoverability): personas AI nel command palette
@@ -67,6 +68,8 @@ const ENTITY_LABEL: Record<string, { label: string; route: (id: string) => strin
 interface SettingsItem {
   label: string;
   path: string;
+  /** Solo tablet e computer: da telefono non compare. */
+  desktopOnly?: boolean;
 }
 
 const SETTINGS_ITEMS: SettingsItem[] = [
@@ -108,7 +111,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
   { label: "Privacy & GDPR",             path: "/azienda/impostazioni/sicurezza-privacy?tab=privacy" },
   { label: "Security dashboard",         path: "/azienda/impostazioni/sicurezza-privacy?tab=dashboard" },
   { label: "Registro attività",          path: "/azienda/impostazioni/sicurezza-privacy?tab=attivita" },
-  { label: "Integrazioni",               path: "/azienda/impostazioni/integrazioni" },
+  { label: "Integrazioni",               path: "/azienda/impostazioni/integrazioni", desktopOnly: true },
   { label: "Crediti & saldo",            path: "/azienda/impostazioni/crediti" },
   { label: "API platform",               path: "/azienda/impostazioni/api" },
   { label: "Webhook",                    path: "/azienda/impostazioni/webhook" },
@@ -154,6 +157,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const isDemoBaseline = isDemoCompanyId(effectiveCompany?.id);
   // Le impostazioni fuori dal piano dell'azienda non si cercano (21/09/2026).
   const { stato: piano } = useStatoPiano();
+  const isMobile = useIsMobile();
 
   const { data: results = [], isFetching } = useGlobalSearch(query, effectiveCompany?.id);
 
@@ -273,9 +277,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     if (query.length < 2) return [];
     const q = query.toLowerCase();
     return SETTINGS_ITEMS.filter(
-      (item) => item.label.toLowerCase().includes(q) && impostazioneNelPiano(item.path, piano),
+      (item) =>
+        item.label.toLowerCase().includes(q) &&
+        impostazioneNelPiano(item.path, piano) &&
+        !(item.desktopOnly && isMobile),
     );
-  }, [query, piano]);
+  }, [query, piano, isMobile]);
 
   return (
     // shouldFilter={false}: questa palette filtra già tutto da sé — le voci di

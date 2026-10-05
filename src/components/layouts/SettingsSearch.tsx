@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { useStatoPiano } from "@/hooks/useStatoPiano";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { impostazioneNelPiano } from "@/lib/impostazioni/pianoImpostazioni";
 
 interface SettingsIndexEntry {
@@ -32,6 +33,8 @@ interface SettingsIndexEntry {
   group: string;
   description?: string;
   keywords?: string[];
+  /** Solo tablet e computer: da telefono non compare nei risultati. */
+  desktopOnly?: boolean;
 }
 
 // Index delle 49 voci settings — keyword facilitano i sinonimi italiani.
@@ -89,7 +92,7 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   // ── Sicurezza ──
   { group: "Sicurezza", title: "Sicurezza & Privacy", url: "/azienda/impostazioni/sicurezza-privacy", keywords: ["privacy", "gdpr", "log", "registro attivita", "dashboard sicurezza", "sicurezza"] },
   { group: "Sicurezza", title: "Esporta i dati", url: "/azienda/impostazioni/esporta-dati", keywords: ["esporta", "export", "backup", "csv", "zip", "portabilita", "migrazione", "commercialista"] },
-  { group: "Sicurezza", title: "Integrazioni", url: "/azienda/impostazioni/integrazioni", keywords: ["integrazione", "api esterna", "stripe", "gocardless", "google"] },
+  { group: "Sicurezza", title: "Integrazioni", url: "/azienda/impostazioni/integrazioni", keywords: ["integrazione", "api esterna", "stripe", "gocardless", "google"], desktopOnly: true },
   { group: "Sicurezza", title: "API Platform", url: "/azienda/impostazioni/api", keywords: ["api", "chiavi api", "token", "developer"] },
   { group: "Sicurezza", title: "Webhook", url: "/azienda/impostazioni/webhook", keywords: ["webhook", "eventi", "callback"] },
 
@@ -116,6 +119,7 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
   const navigate = useNavigate();
   // Le impostazioni fuori dal piano dell'azienda non si cercano (21/09/2026).
   const { stato: piano } = useStatoPiano();
+  const isMobile = useIsMobile();
 
   // Cmd/Ctrl+K shortcut
   useEffect(() => {
@@ -132,7 +136,7 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
   // Filtro fuzzy semplice: title + keywords + group + description
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const nelPiano = SETTINGS_INDEX.filter((e) => impostazioneNelPiano(e.url, piano));
+    const nelPiano = SETTINGS_INDEX.filter((e) => impostazioneNelPiano(e.url, piano) && !(e.desktopOnly && isMobile));
     if (!q) return nelPiano;
     return nelPiano.filter((e) => {
       const haystack = [
@@ -145,7 +149,7 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [query, piano]);
+  }, [query, piano, isMobile]);
 
   const grouped = useMemo(() => {
     const m = new Map<string, SettingsIndexEntry[]>();

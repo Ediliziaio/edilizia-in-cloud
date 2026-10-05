@@ -6,6 +6,10 @@
  * Flusso consenso: "Collega conto" → scegli banca → start-auth → redirect alla
  * banca → l'utente autorizza → ritorna su questa pagina con ?code=&state= →
  * finalize + sync automatici.
+ *
+ * In Integrazioni sta nel popup della scheda «Conti bancari» (`senzaCornice`):
+ * al ritorno dalla banca la pagina riapre il popup, così questo componente
+ * c'è e completa il collegamento. In Tesoreria resta una Card.
  */
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -61,17 +65,58 @@ interface BankConnectionsCardProps {
   redirectPath?: string;
   /** Chiamato dopo un collegamento/sync riuscito, per far aggiornare la pagina che ospita la card. */
   onChanged?: () => void;
+  /** Senza Card attorno: per stare in un popup (Integrazioni). */
+  senzaCornice?: boolean;
 }
 
 /** Giorni al termine del consenso PSD2 (90 gg): sotto i 7 la card lo dice e offre «Ricollega». */
-function giorniAllaScadenza(c: { expires_at: string | null }): number {
+export function giorniAllaScadenza(c: { expires_at: string | null }): number {
   if (!c.expires_at) return Infinity;
   return Math.ceil((new Date(c.expires_at).getTime() - Date.now()) / 864e5);
+}
+
+/** Va ricollegato: consenso scaduto, errore, o scadenza entro 7 giorni (lo stesso caso del pulsante «Ricollega»). */
+export function contoDaRicollegare(c: BankConnection): boolean {
+  return c.status === "expired" || c.status === "error" || giorniAllaScadenza(c) <= 7;
+}
+
+export type { BankConnection };
+
+/** Le banche collegate dall'azienda: stessa chiave per la card e per la pagina Integrazioni. */
+export function useConnessioniBanca(abilitato = true) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["bank-connections", companyId],
+    enabled: abilitato && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bank_connections")
+        .select("id, institution_name, status, accounts_count, last_sync_at, expires_at, error_message")
+        .eq("company_id", companyId!)
+        .neq("status", "disconnected")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as BankConnection[];
+    },
+  });
+}
+
+/**
+ * Il nome di un conto da mostrare. Alcune banche danno come nome un codice
+ * («domus-group-s-r-l-5980-bank-account-3»): quello no, meglio l'IBAN
+ * accorciato (IT60 ···· 1234).
+ */
+function nomeConto(a: BankAccount): string {
+  const nomeLeggibile = a.account_name && !/^[a-z0-9]+(?:-[a-z0-9]+)+$/.test(a.account_name) ? a.account_name : null;
+  const iban = a.iban ? a.iban.replace(/\s+/g, "") : null;
+  const ibanBreve = iban && iban.length > 8 ? `${iban.slice(0, 4)} ···· ${iban.slice(-4)}` : iban;
+  return [nomeLeggibile, ibanBreve].filter(Boolean).join(" · ") || a.account_name || "Conto";
 }
 
 export default function BankConnectionsCard({
   redirectPath = "/azienda/impostazioni/integrazioni",
   onChanged,
+  senzaCornice = false,
 }: BankConnectionsCardProps = {}) {
   const companyId = useEffectiveCompanyId();
   const { canViewTesoreria, isLoading: permsLoading } = usePermissions();
@@ -87,20 +132,7 @@ export default function BankConnectionsCard({
   const [disconnecting, setDisconnecting] = useState(false);
   const finalizingRef = useRef(false);
 
-  const { data: connections = [] } = useQuery({
-    queryKey: ["bank-connections", companyId],
-    enabled: !!companyId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("bank_connections")
-        .select("id, institution_name, status, accounts_count, last_sync_at, expires_at, error_message")
-        .eq("company_id", companyId!)
-        .neq("status", "disconnected")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as BankConnection[];
-    },
-  });
+  const { data: connections = [] } = useConnessioniBanca();
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["bank-accounts", companyId],
@@ -228,87 +260,84 @@ export default function BankConnectionsCard({
   if (permsLoading) return null;
   if (!canViewTesoreria) return null;
 
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Landmark className="h-4 w-4 text-blue-600" />
-          Conti bancari <span className="text-xs font-normal text-muted-foreground">(Open Banking)</span>
-        </CardTitle>
-        <Button size="sm" onClick={openConnect}>
-          <Plus className="h-4 w-4 mr-1" /> Collega conto
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {connections.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Collega il conto corrente dell'azienda per importare i movimenti e riconciliarli con fatture e costi.
-          </p>
-        ) : (
-          connections.map((c) => {
-            const st = STATUS_LABEL[c.status ?? ""] ?? { label: c.status ?? "—", cls: "bg-muted text-muted-foreground" };
-            const accs = accounts.filter((a) => a.connection_id === c.id);
-            return (
-              <div key={c.id} className="rounded-lg border p-3 space-y-2">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm">{c.institution_name ?? "Banca"}</span>
-                    <Badge className={`text-[10px] px-1.5 py-0 border-0 ${st.cls}`}>{st.label}</Badge>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {c.status === "linked" && (
-                      <Button size="sm" variant="outline" onClick={() => syncNow(c.id)} disabled={syncingId === c.id}>
-                        {syncingId === c.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
-                        Sincronizza
-                      </Button>
-                    )}
-                    {(c.status === "expired" || c.status === "error" || giorniAllaScadenza(c) <= 7) && (
-                      <Button size="sm" variant="outline" onClick={openConnect}>
-                        <RefreshCw className="h-3.5 w-3.5 mr-1" /> Ricollega
-                      </Button>
-                    )}
-                    <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-rose-600" onClick={() => setDisconnectId(c.id)} aria-label="Disconnetti conto">
-                      <Unlink className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-                {c.error_message && (
-                  <p className="flex items-start gap-1.5 text-[11px] text-rose-600">
-                    <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                    {c.error_message}
-                  </p>
-                )}
-                {c.status === "linked" && c.expires_at && giorniAllaScadenza(c) <= 7 && (
-                  <p className="flex items-start gap-1.5 text-[11px] text-amber-700">
-                    <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                    Il consenso scade il {new Date(c.expires_at).toLocaleDateString("it-IT")}
-                    {giorniAllaScadenza(c) <= 0 ? " (oggi)" : ` (fra ${giorniAllaScadenza(c)} giorni)`}: ricollega il conto prima, così i movimenti non si fermano.
-                  </p>
-                )}
-                {accs.length > 0 && (
-                  <div className="space-y-1">
-                    {accs.map((a) => (
-                      <div key={a.id} className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1.5">
-                          <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                          {a.account_name || a.iban || "Conto"}
-                        </span>
-                        {a.current_balance != null && (
-                          <span className="tabular-nums">{formatCurrency(Number(a.current_balance))}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {c.last_sync_at && (
-                  <p className="text-[10px] text-muted-foreground">Ultimo sync: {new Date(c.last_sync_at).toLocaleString("it-IT")}</p>
-                )}
-              </div>
-            );
-          })
-        )}
-      </CardContent>
+  const pulsanteCollega = (
+    <Button size="sm" onClick={openConnect} className="shrink-0">
+      <Plus className="h-4 w-4 mr-1" /> Collega conto
+    </Button>
+  );
 
+  const elenco = connections.length === 0 ? (
+    <p className="text-sm text-muted-foreground">
+      {senzaCornice
+        ? "Nessun conto collegato."
+        : "Collega il conto corrente dell'azienda per importare i movimenti e riconciliarli con fatture e costi."}
+    </p>
+  ) : (
+    connections.map((c) => {
+      const st = STATUS_LABEL[c.status ?? ""] ?? { label: c.status ?? "—", cls: "bg-muted text-muted-foreground" };
+      const accs = accounts.filter((a) => a.connection_id === c.id);
+      return (
+        <div key={c.id} className="rounded-lg border p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-sm">{c.institution_name ?? "Banca"}</span>
+              <Badge className={`text-[10px] px-1.5 py-0 border-0 ${st.cls}`}>{st.label}</Badge>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {c.status === "linked" && (
+                <Button size="sm" variant="outline" onClick={() => syncNow(c.id)} disabled={syncingId === c.id}>
+                  {syncingId === c.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+                  Sincronizza
+                </Button>
+              )}
+              {contoDaRicollegare(c) && (
+                <Button size="sm" variant="outline" onClick={openConnect}>
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" /> Ricollega
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-rose-600" onClick={() => setDisconnectId(c.id)} aria-label="Disconnetti conto">
+                <Unlink className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+          {c.error_message && (
+            <p className="flex items-start gap-1.5 text-[11px] text-rose-600">
+              <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+              {c.error_message}
+            </p>
+          )}
+          {c.status === "linked" && c.expires_at && giorniAllaScadenza(c) <= 7 && (
+            <p className="flex items-start gap-1.5 text-[11px] text-amber-700">
+              <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+              Il consenso scade il {new Date(c.expires_at).toLocaleDateString("it-IT")}
+              {giorniAllaScadenza(c) <= 0 ? " (oggi)" : ` (fra ${giorniAllaScadenza(c)} giorni)`}: ricollega il conto prima, così i movimenti non si fermano.
+            </p>
+          )}
+          {accs.length > 0 && (
+            <div className="space-y-1">
+              {accs.map((a) => (
+                <div key={a.id} className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                  <span className="flex min-w-0 items-center gap-1.5" title={a.account_name ?? undefined}>
+                    <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" />
+                    <span className="truncate">{nomeConto(a)}</span>
+                  </span>
+                  {a.current_balance != null && (
+                    <span className="tabular-nums">{formatCurrency(Number(a.current_balance))}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {c.last_sync_at && (
+            <p className="text-[10px] text-muted-foreground">Ultimo sync: {new Date(c.last_sync_at).toLocaleString("it-IT")}</p>
+          )}
+        </div>
+      );
+    })
+  );
+
+  const dialoghi = (
+    <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Collega un conto bancario</DialogTitle></DialogHeader>
@@ -355,6 +384,38 @@ export default function BankConnectionsCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
+  );
+
+  if (senzaCornice) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Il conto si collega in sola lettura, con il consenso della banca (PSD2, valido 90 giorni): i
+            movimenti arrivano da soli e si abbinano a fatture e costi.
+          </p>
+          {pulsanteCollega}
+        </div>
+        {elenco}
+        {dialoghi}
+      </div>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Landmark className="h-4 w-4 text-blue-600" />
+          Conti bancari <span className="text-xs font-normal text-muted-foreground">(Open Banking)</span>
+        </CardTitle>
+        {pulsanteCollega}
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {elenco}
+      </CardContent>
+      {dialoghi}
     </Card>
   );
 }

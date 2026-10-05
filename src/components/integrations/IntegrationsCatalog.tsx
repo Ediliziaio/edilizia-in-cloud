@@ -6,6 +6,10 @@
  * resta una shell: leggere/modificare integrazioni qui = aggiungere righe al
  * manifest, non riscrivere JSX.
  *
+ * Dal 05/10/2026 ogni integrazione è una scheda, anche quelle che prima erano
+ * pannelli aperti sopra la griglia (calendari e caselle del team, conti
+ * bancari, incassi con carta): i dettagli stanno nel loro popup.
+ *
  * Tipi di "gestisci":
  *  - "popup":           il click apre un Dialog con `popupComponent` dentro
  *  - "navigate":        il click naviga direttamente a `pageHref` (no popup)
@@ -13,20 +17,19 @@
  *                       proprio open state via prop `open`/`onOpenChange`)
  */
 import type React from "react";
-import { Sparkles } from "lucide-react";
 import {
+  BancaLogo,
   BrandIconShell,
+  CalendariLogo,
+  CartaLogo,
+  ChatGptLogo,
+  ClaudeLogo,
   GoogleAdsLogo,
   GoogleBusinessProfileLogo,
   MetaAssetLogo,
   WhatsAppLogo,
   EmailLogo,
 } from "./brand-logos";
-
-/** Logo del connettore assistente AI (Claude · ChatGPT). */
-function AssistenteAiLogo({ className }: { className?: string }) {
-  return <Sparkles className={className} />;
-}
 
 export type IntegrationCategory =
   | "ai"
@@ -43,7 +46,7 @@ export const CATEGORY_LABELS: Record<IntegrationCategory | "tutte", string> = {
   calendari: "Calendari",
   marketing: "Marketing & Ads",
   reputazione: "Reputazione",
-  pagamenti: "Pagamenti",
+  pagamenti: "Banca e incassi",
 };
 
 export const CATEGORY_ORDER: Array<IntegrationCategory | "tutte"> = [
@@ -60,9 +63,11 @@ export type IntegrationGestisciMode = "popup" | "navigate" | "external-wizard";
 
 /**
  * Renderizzato dentro un Dialog wrapper gestito da IntegrationsGrid.
- * Il componente riceve `onClose` per chiudere il dialog dall'interno.
+ * Il componente riceve `onClose` per chiudere il dialog dall'interno e, se ha
+ * più sezioni, `scheda` per aprirsi già su quella giusta (es. dal riquadro
+ * «Da sistemare»).
  */
-export type PopupComponentProps = { onClose: () => void };
+export type PopupComponentProps = { onClose: () => void; scheda?: string };
 
 /**
  * Renderizzato direttamente come Dialog (il componente gestisce il proprio open).
@@ -84,8 +89,14 @@ export type IntegrationItem = {
   gestisciMode: IntegrationGestisciMode;
   popupComponent?: React.FC<PopupComponentProps>;
   externalWizardComponent?: React.FC<ExternalWizardProps>;
-  /** Pagina dedicata (kebab menu → "Vai alla pagina") */
-  pageHref: string;
+  /** Pagina dedicata (kebab menu); senza, la voce di menu non c'è. */
+  pageHref?: string;
+  /** Voce di menu per la pagina dedicata (default: "Vai alla pagina"). */
+  pageLabel?: string;
+  /** Popup largo: per gli elenchi del team (persone, account, record DNS). */
+  popupLargo?: boolean;
+  /** Niente «Disconnetti» nel menu: si scollega altrove (es. dal profilo di ognuno). */
+  senzaDisconnetti?: boolean;
   /** Nascondi dalla griglia il pulsante "Gestisci" se non è connesso (raro) */
   hideManageWhenDisconnected?: boolean;
   /** Override label CTA quando non connesso (default: "Collega") */
@@ -105,89 +116,165 @@ export type IntegrationItem = {
 export function renderLogo(
   Logo: IntegrationItem["Logo"],
   shellClassName?: string,
+  logoClassName = "h-6 w-6",
 ): React.ReactElement {
   return (
     <BrandIconShell className={shellClassName}>
-      <Logo className="h-6 w-6" />
+      <Logo className={logoClassName} />
     </BrandIconShell>
   );
 }
 
 /**
- * Catalogo statico delle integrazioni. L'ordine qui = l'ordine nella griglia.
- * Per aggiungerne una nuova: append + categoria + Logo + gestisciMode + pageHref.
+ * Catalogo statico delle integrazioni. L'ordine qui = l'ordine nella griglia
+ * (per categoria, come le pillole del filtro).
+ * Per aggiungerne una nuova: append + categoria + Logo + gestisciMode.
  *
  * NOTA: il popupComponent/externalWizardComponent NON è incluso qui per evitare
- * import circolari e per tenere il manifest leggero. Viene passato dal grid
- * tramite la mappa `INTEGRATIONS_POPUP_REGISTRY` definita più sotto.
+ * import circolari e per tenere il manifest leggero. Viene passato dalla
+ * pagina alla grid (`popupRegistry`, `externalWizardRegistry`).
+ *
+ * Nomi corti (la scheda ne tiene due righe) e descrizioni di due o tre righe:
+ * prima «WhatsApp Business + Bot AI» si tagliava e le descrizioni finivano
+ * a metà frase.
  */
 export const INTEGRATIONS_CATALOG: IntegrationItem[] = [
+  // Claude e ChatGPT sono due card separate: si collegano in modo diverso
+  // (Claude anche con chiave per Claude Code/Desktop, ChatGPT solo con accesso
+  // OAuth) e ognuna mostra solo i propri collegamenti.
   {
-    id: "assistente-ai",
-    name: "Claude · ChatGPT",
+    id: "claude",
+    name: "Claude",
     description:
-      "Collega il gestionale al tuo assistente AI: fa domande sui tuoi dati, li estrae e — se vuoi — crea contatti, opportunità e attività. Solo sulla tua azienda.",
+      "Chiedi a Claude i dati del gestionale e fagli creare contatti e attività. Anche da Claude Code.",
     category: "ai",
-    Logo: AssistenteAiLogo,
+    Logo: ClaudeLogo,
     gestisciMode: "popup",
     pageHref: "/azienda/impostazioni/api",
+    pageLabel: "Chiavi API",
+    connectCtaLabel: "Collega",
+    manageCtaLabel: "Gestisci",
+  },
+  {
+    id: "chatgpt",
+    name: "ChatGPT",
+    description:
+      "Chiedi a ChatGPT i dati del gestionale e fagli creare contatti e attività. Serve la Modalità sviluppatore.",
+    category: "ai",
+    Logo: ChatGptLogo,
+    gestisciMode: "popup",
+    pageHref: "/azienda/impostazioni/api",
+    pageLabel: "Chiavi API",
+    connectCtaLabel: "Collega",
+    manageCtaLabel: "Gestisci",
+  },
+  {
+    // Prima «Email Provider»: la scheda guardava solo le caselle di chi
+    // apriva la pagina, mentre sopra c'era il pannello di tutto il team.
+    // Ora è una sola scheda: caselle del team + controllo del dominio.
+    id: "email",
+    name: "Caselle email",
+    description:
+      "Gmail, Outlook e IMAP del team: la posta arriva in Conversazioni. Con il controllo del dominio.",
+    category: "comunicazione",
+    Logo: EmailLogo,
+    gestisciMode: "popup",
+    popupLargo: true,
+    senzaDisconnetti: true,
+    pageHref: "/azienda/impostazioni/mio-profilo?tab=email",
+    pageLabel: "Le mie caselle",
     connectCtaLabel: "Collega",
     manageCtaLabel: "Gestisci",
   },
   {
     id: "whatsapp",
-    name: "WhatsApp Business + Bot AI",
+    name: "WhatsApp Business",
     description:
-      "Un solo collegamento per WhatsApp Business (invio messaggi e conversazioni clienti) e Bot AI Cantiere (rapportini, DDT, foto e presenze).",
+      "Messaggi ai clienti e Bot AI di cantiere per rapportini, DDT, foto e presenze: un solo collegamento.",
     category: "comunicazione",
     Logo: WhatsAppLogo,
     gestisciMode: "navigate",
     pageHref: "/azienda/whatsapp",
+    pageLabel: "Apri WhatsApp",
     connectCtaLabel: "Configura",
-    manageCtaLabel: "Apri WhatsApp",
+    manageCtaLabel: "Apri",
+  },
+  {
+    id: "calendari",
+    name: "Calendari",
+    description:
+      "Google, Apple e Outlook: gli appuntamenti del gestionale finiscono nei calendari di chi li ha collegati.",
+    category: "calendari",
+    Logo: CalendariLogo,
+    gestisciMode: "popup",
+    popupLargo: true,
+    senzaDisconnetti: true,
+    pageHref: "/azienda/impostazioni/mio-profilo?tab=calendari",
+    pageLabel: "I miei calendari",
+    connectCtaLabel: "Collega",
+    manageCtaLabel: "Gestisci",
   },
   {
     id: "meta",
-    name: "Facebook + Instagram (Meta)",
+    name: "Facebook e Instagram",
     description:
-      "Pagina e recensioni Facebook, Business Manager, Lead Ads e Instagram Business per i post social — un solo collegamento.",
+      "Pagina Facebook, Instagram, recensioni e Lead Ads: un solo collegamento per i social e i moduli contatto.",
     category: "marketing",
     Logo: MetaAssetLogo,
     gestisciMode: "external-wizard",
     pageHref: "/azienda/marketing/social",
+    pageLabel: "Apri Social",
     troubleshoot: true,
     leadFormsMenu: true,
-  },
-  {
-    id: "google-business",
-    name: "Google Business Profile",
-    description:
-      "Schede Google, recensioni e risposte automatiche. Sincronizza le recensioni nel CRM e gestisci la reputazione locale.",
-    category: "reputazione",
-    Logo: GoogleBusinessProfileLogo,
-    gestisciMode: "popup",
-    pageHref: "/azienda/marketing/reputazione",
   },
   {
     id: "google-ads",
     name: "Google Ads",
     description:
-      "Campagne Search, Performance Max e conversioni offline dal CRM (vendite e appuntamenti) verso Google Ads.",
+      "Campagne Search e Performance Max, con vendite e appuntamenti del CRM rimandati a Google come conversioni.",
     category: "marketing",
     Logo: GoogleAdsLogo,
     gestisciMode: "popup",
     pageHref: "/azienda/marketing/pubblicita",
+    pageLabel: "Apri Pubblicità",
   },
   {
-    id: "email",
-    name: "Email Provider",
+    id: "google-business",
+    name: "Google Business Profile",
     description:
-      "Connetti Gmail o Outlook personale (OAuth) per invio email transazionali e campagne con il tuo dominio.",
-    category: "comunicazione",
-    Logo: EmailLogo,
-    gestisciMode: "navigate",
-    pageHref: "/azienda/impostazioni/mio-profilo",
+      "La scheda Google dell'azienda: recensioni nel CRM e risposte automatiche per la reputazione in zona.",
+    category: "reputazione",
+    Logo: GoogleBusinessProfileLogo,
+    gestisciMode: "popup",
+    pageHref: "/azienda/marketing/reputazione",
+    pageLabel: "Apri Reputazione",
+  },
+  // Banca e incassi: le schede compaiono solo col piano e il permesso
+  // Tesoreria (filtro in SettingsIntegrations.tsx).
+  {
+    id: "banca",
+    name: "Conti bancari",
+    description:
+      "Il conto dell'azienda in sola lettura: i movimenti arrivano da soli e si abbinano a fatture e costi.",
+    category: "pagamenti",
+    Logo: BancaLogo,
+    gestisciMode: "popup",
+    senzaDisconnetti: true,
+    pageHref: "/azienda/tesoreria",
+    pageLabel: "Apri Tesoreria",
     connectCtaLabel: "Collega",
-    manageCtaLabel: "Gestisci email",
+    manageCtaLabel: "Gestisci",
+  },
+  {
+    id: "stripe",
+    name: "Pagamenti con carta",
+    description:
+      "Incassa con carta e link di pagamento dalle fatture. La verifica (IBAN, dati dell'azienda) si fa su Stripe.",
+    category: "pagamenti",
+    Logo: CartaLogo,
+    gestisciMode: "popup",
+    senzaDisconnetti: true,
+    connectCtaLabel: "Attiva",
+    manageCtaLabel: "Gestisci",
   },
 ];
