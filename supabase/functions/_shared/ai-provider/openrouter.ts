@@ -28,9 +28,11 @@ export interface OpenRouterResult {
     total_tokens: number;
   };
   cost_usd: number;
-  /** true = costo stimato localmente (header x-or-cost assente).
-   *  false = costo reale fornito da OpenRouter. */
+  /** true = costo stimato localmente (OpenRouter non ha mandato il costo).
+   *  false = costo reale fornito da OpenRouter (`usage.cost` nel corpo). */
   cost_is_estimated: boolean;
+  /** Id della generazione su OpenRouter (`gen-…`): serve a unire il registro all'export. */
+  generation_id?: string | null;
   finish_reason: string;
   latency_ms: number;
 }
@@ -94,7 +96,9 @@ async function chiamaOpenRouter(
             ? { "X-OR-Company": metadata.company_id }
             : {}),
         },
-        body: JSON.stringify(params),
+        // `usage: { include: true }`: senza, OpenRouter non manda il costo vero
+        // (`usage.cost`) e si ricade nella stima fissa 1,5/6 $ per milione di token.
+        body: JSON.stringify({ ...params, usage: { include: true } }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -163,6 +167,7 @@ async function chiamaOpenRouter(
       }
 
       const json = (await resp.json()) as {
+        id?: string;
         choices?: Array<{
           message?: {
             content?: string | null;
@@ -175,6 +180,8 @@ async function chiamaOpenRouter(
           prompt_tokens?: number;
           completion_tokens?: number;
           total_tokens?: number;
+          /** Costo vero della chiamata in USD, presente solo se richiesto con `usage: { include: true }`. */
+          cost?: number;
         };
       };
 
@@ -183,19 +190,28 @@ async function chiamaOpenRouter(
         throw makeAIError("unknown", "OpenRouter: no choices in response", false);
       }
 
-      // Costo REALE da OpenRouter (header x-or-cost).
-      // Se assente → stima locale dai token (meno precisa).
+      // Costo REALE da OpenRouter: sta nel corpo (`usage.cost`, in USD) se lo si
+      // chiede con `usage: { include: true }`. L'header `x-or-cost`, che questo
+      // codice cercava, nei dati di produzione non arriva mai: fino al 05/10/2026
+      // ogni chiamata passava dalla stima fissa 1,5/6 $ per milione di token, che
+      // dimezzava Sonnet 4 e gonfiava Haiku del 63%, e il registro la chiamava
+      // «non stimata». Se manca tutto si ricade sulla stima, dichiarandola.
+      const costoCorpo = typeof json.usage?.cost === "number" ? json.usage.cost : NaN;
       const costHeader = resp.headers.get("x-or-cost");
-      const costIsEstimated = !costHeader;
-      const costUsd = costHeader
-        ? Number(costHeader)
-        : estimateCost(json.usage ?? null, params.model);
+      const costoHeader = costHeader ? Number(costHeader) : NaN;
+      const costoVero = Number.isFinite(costoCorpo) && costoCorpo >= 0
+        ? costoCorpo
+        : Number.isFinite(costoHeader) && costoHeader >= 0
+        ? costoHeader
+        : null;
+      const costIsEstimated = costoVero === null;
+      const costUsd = costoVero ?? estimateCost(json.usage ?? null, params.model);
 
       if (costIsEstimated) {
         console.warn(JSON.stringify({
           level: "warn",
           fn: "callOpenRouter",
-          msg: "x-or-cost header assente — costo stimato localmente, potrebbe non rispecchiare il tuo piano OpenRouter",
+          msg: "costo non fornito da OpenRouter (né usage.cost né x-or-cost) — stimato localmente, potrebbe non rispecchiare la spesa vera",
           model: params.model,
           task_kind: metadata.task_kind,
         }));
@@ -212,6 +228,7 @@ async function chiamaOpenRouter(
         },
         cost_usd: isNaN(costUsd) ? 0 : costUsd,
         cost_is_estimated: costIsEstimated,
+        generation_id: typeof json.id === "string" ? json.id : null,
         finish_reason: choice.finish_reason ?? "stop",
         latency_ms: latencyMs,
       };

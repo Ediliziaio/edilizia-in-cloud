@@ -179,6 +179,9 @@ export async function claudeMessages(body: ClaudeMessagesBody): Promise<Response
       messages: oaMessages,
       max_tokens: body.max_tokens,
       ...(body.temperature != null ? { temperature: body.temperature } : {}),
+      // Senza questo OpenRouter non manda il costo vero (`usage.cost`) e
+      // claudeMessagesBilled ricade sulla stima per modello.
+      usage: { include: true },
     }),
   });
 
@@ -197,8 +200,9 @@ export async function claudeMessages(body: ClaudeMessagesBody): Promise<Response
   }
 
   const data = await orResp.json() as {
+    id?: string;
     choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
-    usage?: { prompt_tokens?: number; completion_tokens?: number };
+    usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
     model?: string;
   };
 
@@ -216,6 +220,10 @@ export async function claudeMessages(body: ClaudeMessagesBody): Promise<Response
     usage: {
       input_tokens: data.usage?.prompt_tokens ?? 0,
       output_tokens: data.usage?.completion_tokens ?? 0,
+      // Campi in più rispetto al formato Anthropic: chi non li conosce li ignora,
+      // claudeMessagesBilled li usa per registrare il costo VERO e l'id della generazione.
+      ...(typeof data.usage?.cost === "number" && data.usage.cost >= 0 ? { cost_usd: data.usage.cost } : {}),
+      ...(typeof data.id === "string" ? { generation_id: data.id } : {}),
     },
   };
 
@@ -241,6 +249,7 @@ export async function claudeMessages(body: ClaudeMessagesBody): Promise<Response
 // (meglio un consumo non fatturato una tantum che una feature morta).
 
 import { precallCheck as _precallCheck } from "./ai-provider/billing.ts";
+import type { TaskKind } from "./ai-provider/types.ts";
 import { chargeAndLogDirect as _chargeAndLogDirect, estimateTokenCostUsd as _estimateTokenCostUsd } from "./ai-provider/directApi.ts";
 
 export interface ClaudeBillingCtx {
@@ -266,7 +275,9 @@ export async function claudeMessagesBilled(
   //    Senza azienda non c'e' saldo da controllare: si passa al log-only.
   const pre = !billing.companyId ? { allow: true } as { allow: boolean; user_message_it?: string } : await _precallCheck(billing.supabase, {
     company_id: billing.companyId,
-    task_kind: billing.taskKind,
+    // taskKind è una stringa libera (le funzioni passano il proprio nome); la
+    // RPC accetta qualunque testo, il tipo stretto è solo di TypeScript.
+    task_kind: billing.taskKind as TaskKind,
     estimated_tokens_total: billing.estimatedTokensTotal ?? 4000,
   });
   if (!pre.allow) {
@@ -290,28 +301,38 @@ export async function claudeMessagesBilled(
   // 3. Addebito dai token effettivi. La risposta e' sempre in forma Anthropic
   //    (entrambi i path del proxy la garantiscono), quindi usage c'e'.
   const json = await resp.json() as {
-    usage?: { input_tokens?: number; output_tokens?: number };
+    usage?: { input_tokens?: number; output_tokens?: number; cost_usd?: number; generation_id?: string };
     model?: string;
   };
   try {
     const tokensIn = json.usage?.input_tokens ?? 0;
     const tokensOut = json.usage?.output_tokens ?? 0;
+    // Il costo VERO, se OpenRouter l'ha mandato (claudeMessages lo chiede con
+    // `usage: { include: true }`). Prima si stimava sempre per modello: il triage
+    // email L3 su Haiku era scritto a tariffa Sonnet (0,42 $ registrati contro
+    // 0,14 veri). La stima resta solo come ripiego, dichiarata.
+    const costoVero = typeof json.usage?.cost_usd === "number" ? json.usage.cost_usd : null;
     await _chargeAndLogDirect({
       supabase: billing.supabase,
       company_id: billing.companyId,
       task_kind: billing.taskKind,
       model_used: `anthropic/${body.model}`,
-      cost_usd_real: _estimateTokenCostUsd({
+      cost_usd_real: costoVero ?? _estimateTokenCostUsd({
         provider: "anthropic",
         model: body.model,
         inputTokens: tokensIn,
         outputTokens: tokensOut,
         fallbackCostUsd: 0.01,
       }),
-      cost_is_estimated: true,
+      cost_is_estimated: costoVero === null,
       tokens_prompt: tokensIn,
       tokens_completion: tokensOut,
-      metadata: { latency_ms: Date.now() - t0, via: "claudeMessagesBilled", ...(billing.metadata ?? {}) },
+      metadata: {
+        latency_ms: Date.now() - t0,
+        via: "claudeMessagesBilled",
+        generation_id: json.usage?.generation_id ?? null,
+        ...(billing.metadata ?? {}),
+      },
     });
   } catch (err) {
     console.error(`[claudeMessagesBilled] addebito fallito (${billing.taskKind}):`, (err as Error).message);

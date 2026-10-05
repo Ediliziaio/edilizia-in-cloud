@@ -1360,7 +1360,8 @@ export async function aiRouterComplete(
           fxUsdToEur,
           status: "success",
           durationMs,
-          metadata: { task: opts.taskKey },
+          // generation_id: l'id OpenRouter della chiamata, per unire il registro all'export per generazione
+          metadata: { task: opts.taskKey, generation_id: (data as { id?: string })?.id ?? null },
         });
         if (charge) {
           ledgerId = charge.ledgerId;

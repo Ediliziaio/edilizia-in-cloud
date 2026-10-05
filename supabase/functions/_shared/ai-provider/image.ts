@@ -11,6 +11,30 @@ import { type AIProviderError, makeAIError } from "./types.ts";
 import { expectedOutputSize } from "../imageDimensions.ts";
 import { segnalaErroreAI } from "../allarmeAI.ts";
 
+/**
+ * Il costo VERO di una generazione di immagine su OpenRouter sta nel corpo della
+ * risposta (`usage.cost`, in USD), e solo se lo si chiede con
+ * `usage: { include: true }`. L'header `x-or-cost`, che questo file cercava,
+ * nei dati non arriva mai: tutte le sessioni di render passate da OpenRouter
+ * hanno finito con il prezzo fisso di config (0,039 €), mentre la fattura di
+ * OpenRouter per GPT-5 Image era di circa 0,4 $ a immagine (settimana del 30/08:
+ * 3,37 $ addebitati contro 0,44 registrati). Header e corpo restano entrambi:
+ * il primo che c'è vince; se non c'è nessuno, `costUsd` è `undefined` e a
+ * decidere è il listino (render_provider_pricing).
+ */
+function costoOpenRouter(
+  json: Record<string, unknown>,
+  resp: Response,
+): { costUsd: number | undefined; stimato: boolean } {
+  const usage = (json.usage ?? {}) as { cost?: unknown };
+  const dalCorpo = typeof usage.cost === "number" && usage.cost >= 0 ? usage.cost : NaN;
+  if (Number.isFinite(dalCorpo)) return { costUsd: dalCorpo, stimato: false };
+  const header = resp.headers.get("x-or-cost");
+  const dalHeader = header ? Number(header) : NaN;
+  if (Number.isFinite(dalHeader) && dalHeader >= 0) return { costUsd: dalHeader, stimato: false };
+  return { costUsd: undefined, stimato: true };
+}
+
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const OPENAI_IMAGES_EDIT_ENDPOINT = "https://api.openai.com/v1/images/edits";
 const DEFAULT_TIMEOUT_MS = 180_000;
@@ -316,6 +340,7 @@ async function callOpenRouterGenerate(args: ProviderCallArgs): Promise<ProviderC
     model: args.model,
     messages: [{ role: "user", content: [{ type: "text", text: fullPrompt }] }],
     modalities: ["image", "text"],
+    usage: { include: true }, // senza, OpenRouter non manda il costo vero (vedi costoOpenRouter)
   };
 
   // Gli header devono essere ASCII puri: un em dash fa esplodere fetch()
@@ -374,16 +399,15 @@ async function callOpenRouterGenerate(args: ProviderCallArgs): Promise<ProviderC
       const imageDataUrl = extractOpenRouterImage(json);
       if (!imageDataUrl) throw makeAIError("unknown", "OpenRouter: nessuna immagine nella risposta", false);
 
-      // x-or-cost è il costo REALE della chiamata: meglio di ogni stima.
-      const costHeader = resp.headers.get("x-or-cost");
-      const costUsd = costHeader ? Number(costHeader) : undefined;
+      // Il costo REALE della chiamata: meglio di ogni stima.
+      const costo = costoOpenRouter(json, resp);
 
       return {
         imageDataUrl,
         modelUsed: args.model,
         rawResponse: json,
-        costUsd: Number.isFinite(costUsd) ? costUsd : undefined,
-        costIsEstimated: !costHeader,
+        costUsd: costo.costUsd,
+        costIsEstimated: costo.stimato,
         latencyMs,
       };
     } catch (e) {
@@ -579,6 +603,7 @@ async function callOpenRouterImage(
       },
     ],
     modalities: ["image", "text"],
+    usage: { include: true }, // senza, OpenRouter non manda il costo vero (vedi costoOpenRouter)
   };
 
   const backoff = [1500, 4000];
@@ -684,15 +709,14 @@ async function callOpenRouterImage(
         throw makeAIError("unknown", "OpenRouter: no image in response", false);
       }
 
-      const costHeader = resp.headers.get("x-or-cost");
-      const costUsd = costHeader ? Number(costHeader) : undefined;
+      const costo = costoOpenRouter(json, resp);
 
       return {
         imageDataUrl,
         modelUsed: args.model,
         rawResponse: json,
-        costUsd,
-        costIsEstimated: !costHeader,
+        costUsd: costo.costUsd,
+        costIsEstimated: costo.stimato,
         latencyMs,
       };
     } catch (e) {

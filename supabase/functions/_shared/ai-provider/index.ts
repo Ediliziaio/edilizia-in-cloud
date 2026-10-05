@@ -143,6 +143,7 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
           fallback_hops: hops,
           latency_ms: result.latency_ms,
           finish_reason: result.finish_reason,
+          generation_id: result.generation_id ?? null,
         },
       });
 
