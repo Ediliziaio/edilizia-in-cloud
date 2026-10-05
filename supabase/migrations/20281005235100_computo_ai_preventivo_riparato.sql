@@ -16,6 +16,10 @@
 -- partenza, calcolati dalle righe invece che dal line_total mandato dal
 -- browser.
 --
+-- La categoria di ripiego era «servizio», che il CHECK di quote_items non
+-- ammette: ora una voce senza categoria valida è posa se ha una tariffa,
+-- altrimenti prodotto.
+--
 -- Stessa firma, stessi permessi (CREATE OR REPLACE li conserva).
 
 CREATE OR REPLACE FUNCTION public.silvio_tool_apply_computo_review(
@@ -152,10 +156,15 @@ BEGIN
         NULLIF(v_item->>'item_type', ''),
         CASE WHEN NULLIF(v_item->>'tariffa_id', '') IS NULL THEN 'product' ELSE 'service' END
       ),
-      COALESCE(
-        NULLIF(v_item->>'item_category', ''),
-        CASE WHEN NULLIF(v_item->>'tariffa_id', '') IS NULL THEN 'prodotto' ELSE 'servizio' END
-      ),
+      -- Solo le categorie che il CHECK di quote_items ammette per una voce:
+      -- una tariffa senza categoria (o con una non ammessa, come «servizio»)
+      -- è posa, il resto prodotto, come categoriaRigaPreventivo nel browser.
+      CASE
+        WHEN v_item->>'item_category' IN ('prodotto', 'posa', 'trasporto', 'tiro_piano', 'smaltimento', 'nolo', 'pratica')
+          THEN v_item->>'item_category'
+        WHEN NULLIF(v_item->>'tariffa_id', '') IS NULL THEN 'prodotto'
+        ELSE 'posa'
+      END,
       COALESCE(NULLIF(v_item->>'name', ''), 'Voce senza nome'),
       NULLIF(v_item->>'description', ''),
       COALESCE(NULLIF(v_item->>'unit_of_measure', ''), 'cad'),
