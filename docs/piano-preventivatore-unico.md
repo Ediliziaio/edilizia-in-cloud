@@ -1,7 +1,7 @@
 # Piano: un solo preventivatore, con la barra delle fasi del Fotovoltaico e l'anteprima live del preventivo classico
 
-Stato (05/10/2026, sera): **Serramenti e gli otto moduli edili sono fatti in locale** (ramo
-`preventivatore-unico`, non pubblicati); restano il Fotovoltaico e il preventivo classico. Prototipo da aprire nel browser:
+Stato (05/10/2026, sera): **Serramenti, gli otto moduli edili e il Fotovoltaico sono fatti** (ramo
+`preventivatore-unico`); resta il preventivo classico. Prototipo da aprire nel browser:
 [`docs/anteprima-preventivatore-unico.html`](anteprima-preventivatore-unico.html) (3 moduli, computer e telefono, dati di esempio).
 
 ## 0. Decisioni prese e cosa è già fatto
@@ -42,9 +42,24 @@ e un solo adattatore al posto di otto cornici):
   pulsante dell'anteprima diventa solo l'occhio;
 - «nascondi l'anteprima» vale per tutti i preventivatori (una sola preferenza nel browser).
 
+Fatto per il **Fotovoltaico** (Lotto 2, «sì, aggiungi la colonna al fotovoltaico nascondibile»):
+- barra delle fasi con il totale IVA inclusa sempre in vista (dal primo dato che si può sommare), anteprima a destra
+  nascondibile (stessa preferenza degli altri), tendina da tablet e telefono, «Impresa» solo col permesso;
+- i conti non sono nuovi: `lib/fotovoltaico/componentiConfigurazione.ts` (le righe che la Fase 5 salva, ora usate
+  anche dal salvataggio), `prezzoPreventivo.ts` (copia del prezzo di `fv-calcolo-finanziario`: un test legge la
+  funzione del server e fallisce se le formule cambiano), `anteprima.ts` (dal wizard al contratto dell'anteprima).
+  Potenza, moduli e produzione compaiono dalla Fase 5 (o appena c'è un componente scelto); detrazione e risparmio
+  vengono dall'ultimo calcolo finanziario, e solo se è ancora sul totale di adesso, altrimenti l'anteprima dice di
+  ricalcolare;
+- per far stare la colonna (lavoro a ~740 px a 1440): otto fasi in riga fino a 1280 px, pulsanti dell'anteprima
+  nella striscia «Fase X di N», righe di manodopera, servizi ed extra che vanno a capo nelle carte strette, bollini
+  sul bordo della carta. Provato nel browser a 1280, 1440, 1920, tablet e telefono, Fasi 1-8;
+- un limite che c'era già: la bozza nel browser (`helpers.ts`) non conserva sconto, prezzo a corpo, manodopera,
+  servizi ed extra (solo i campi semplici); un progetto salvato li riprende dal database.
+
 Da fare: **3b** la riga che si modifica sul posto in Serramenti (le scelte «apertura», «colore» sono variabili del
-listino, non campi liberi: serve un disegno a parte, e un'altra sessione lavora su quei file), poi il Fotovoltaico e
-il preventivo classico sul guscio.
+listino, non campi liberi: serve un disegno a parte, e un'altra sessione lavora su quei file), poi il preventivo
+classico sul guscio.
 
 ## 1. Cosa hai chiesto
 
@@ -190,8 +205,10 @@ Risposte già date: si parte da Serramenti, anteprima veloce di default, «Impre
 anteprima stretta; nei moduli edili si tolgono i riquadri dei totali e resta solo l'anteprima a destra.
 
 Da decidere per i prossimi lotti:
-1. **Fotovoltaico**: aggiungere la colonna a destra gli toglie un po' dello spazio largo che ti piace (a 1440 px il
-   lavoro passa da ~1090 a ~700 px). Va bene, con la colonna nascondibile?
+1. ~~Fotovoltaico: la colonna a destra gli toglie un po' dello spazio largo (a 1440 px il lavoro passa da ~1090 a
+   ~740 px)~~ → deciso da Florin: «sì, aggiungi la colonna al fotovoltaico nascondibile», fatto.
+2. Nei moduli edili il costo unitario e il margine **per riga** («Costo unitario 1.900 € · margine 21%» e il
+   pulsante «Margini») li vede ancora chiunque: chiuderli dietro lo stesso permesso dell'anteprima?
 
 ## 7. Fuori da questo piano
 
