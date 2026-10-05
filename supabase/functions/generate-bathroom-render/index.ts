@@ -24,6 +24,7 @@ import { collectBathroomReferenceImages } from "../../../shared/render-reference
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE, QA_BLOCCO_RICOMPOSIZIONE_RESTYLING } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildBathroomPrompt } from "../../../shared/render-bathroom/bathroomPromptBuilder.ts";
+import { bathroomQaContext } from "../../../shared/render-bathroom/bathroomQa.ts";
 import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
 import { BATHROOM_REWRITER_PROFILE } from "../_shared/ai-provider/bathroomRewriterProfile.ts";
 import { normalizeBathroomSceneAnalysis } from "../../../shared/render-bathroom/bathroomSceneAnalysis.ts";
@@ -605,6 +606,9 @@ Deno.serve(async (req) => {
       // riempite piu' sotto, PRIMA del primo tentativo, e passate al modello
       // come immagini di riferimento etichettate.
       let catalogReferences: ImageReferenceInput[] = [];
+      // Categorie dei prodotti del catalogo davvero allegati: la foto generica dello
+      // stesso elemento (es. il mobile) non va mandata insieme a quella dell'azienda.
+      let categorieCatalogo: string[] = [];
       const generateCandidate = (prompt: string, soloProviderDiretto = false) => {
         const remaining = BAGNO_BUDGET_MS - jobElapsed() - 20_000;
         const perAttemptTimeout = Math.max(
@@ -702,11 +706,16 @@ Deno.serve(async (req) => {
         const catalogo = await loadCatalogReferences({
           supabase,
           companyId: session.company_id as string,
-          assetIds: (session.configurazione as Record<string, unknown> | null)?.catalogo_reference_ids,
+          // Il wizard salva il payload v2: i campi del form (sostituzione, doccia,
+          // catalogo_reference_ids…) stanno sotto `legacy_config`, non al livello alto.
+          // Leggere `session.configurazione` dava sempre undefined: nessuna foto del
+          // catalogo dell'azienda (e nessuna condivisa, vedi sotto) arrivava al modello.
+          assetIds: (normalizedConfig.legacy_config as { catalogo_reference_ids?: unknown } | undefined)?.catalogo_reference_ids,
           log: (entry) => console.log(JSON.stringify({ fn: "generate-bathroom-render", session_id, ...entry })),
         });
         if (catalogo.references.length > 0) {
           catalogReferences = catalogo.references;
+          categorieCatalogo = catalogo.assets.map((a) => a.categoria);
           composedPrompt = `${composedPrompt}\n\n${catalogo.legend}`;
           try {
             await supabase
@@ -728,20 +737,34 @@ Deno.serve(async (req) => {
         }));
       }
 
-      // RIFERIMENTI CONDIVISI (libreria uguale per tutti: tipo e tessitura reali).
+      // RIFERIMENTI CONDIVISI (libreria uguale per tutti: tipo e tessitura reali;
+      // dal 05/10/2026 anche termoarredo, nicchia e scarico della doccia, parete
+      // sopravasca e luci).
       // Entrano solo negli slot lasciati liberi dal catalogo dell'azienda: al
       // massimo 4 immagini in tutto, e la foto del prodotto dell'azienda vince.
+      // Il collector le restituisce gia' in ordine di priorita' (struttura →
+      // superfici grandi → dettagli, vedi bathroomReferences.ts): il taglio agli
+      // slot liberi tiene le piu' importanti.
       try {
-        const refsCondivise = collectBathroomReferenceImages((session.configurazione ?? {}) as Record<string, unknown>);
+        const refsCondivise = collectBathroomReferenceImages((normalizedConfig.legacy_config ?? {}) as unknown as Record<string, unknown>, { categorieCatalogo });
         const slotLiberi = 4 - catalogReferences.length;
+        if (refsCondivise.length > 0) {
+          console.log(JSON.stringify({
+            fn: "generate-bathroom-render", session_id, msg: "shared_references_scelte",
+            slot_liberi: Math.max(0, slotLiberi),
+            scelte: refsCondivise.map((r) => r.label.split(":")[0]),
+          }));
+        }
         if (refsCondivise.length > 0 && slotLiberi > 0) {
           const fetched = await fetchSharedReferenceImages(
             refsCondivise.slice(0, slotLiberi),
             (entry) => console.log(JSON.stringify({ fn: "generate-bathroom-render", session_id, ...entry })),
           );
           if (fetched.references.length > 0) {
+            // Image 1 = foto da modificare; le condivise seguono quelle del catalogo.
+            const primaCondivisa = 2 + catalogReferences.length;
             catalogReferences = [...catalogReferences, ...fetched.references];
-            composedPrompt = `${composedPrompt}\n\n${buildSharedReferenceLegend(fetched.references)}`;
+            composedPrompt = `${composedPrompt}\n\n${buildSharedReferenceLegend(fetched.references, primaCondivisa)}`;
           }
         }
       } catch (refErr) {
@@ -802,57 +825,9 @@ The bathroom must occupy the same image area as the source. No zooming out, no z
       // budget-gated. Graceful: se il provider vision fallisce, il render
       // passa comunque (callVisionQa ritorna {checked:false}).
       try {
-        const qaSpec = normalizedConfig.technical_specification;
-        const qaScene = normalizedConfig.scene_analysis;
-        const wallHungSelected = qaSpec.sanitaryWare.replace &&
-          String(qaSpec.sanitaryWare.toiletType ?? "").includes("sospeso");
-        const tubToShower = qaSpec.shower.replace && !qaSpec.bathtub.replace &&
-          qaScene.bathtub.present;
-        const showerToTub = qaSpec.bathtub.replace && !qaSpec.shower.replace &&
-          qaScene.shower.present;
-
-        // Cio' che il cliente HA ORDINATO. Senza questo elenco il QA bocciava
-        // proprio il lavoro richiesto: sessione 9703a2bd, brief con vasca
-        // freestanding al posto della doccia -> "invented_objects: freestanding
-        // bathtub not in source", "geometry_change: shower location moved".
-        // Stessa classe del falso positivo sul cassonetto infissi. Ogni falso
-        // positivo costa una generazione in piu' e ~40s.
-        const modificheAutorizzate: string[] = [];
-        if (showerToTub) {
-          modificheAutorizzate.push(
-            "the existing SHOWER is REMOVED and a NEW BATHTUB" +
-              (qaSpec.bathtub.type ? ` (${String(qaSpec.bathtub.type).replace(/_/g, " ")})` : "") +
-              " takes its place: the tub is ordered work, never an invented object, and the shower's disappearance is never a geometry change",
-          );
-        }
-        if (tubToShower) {
-          modificheAutorizzate.push(
-            "the existing BATHTUB is REMOVED and a NEW SHOWER takes its place: the shower is ordered work, never an invented object",
-          );
-        }
-        if (qaSpec.sanitaryWare.replace) {
-          modificheAutorizzate.push(
-            "the WC" + (wallHungSelected ? " (now WALL-HUNG)" : "") +
-              " and the other sanitary ware are REPLACED one-for-one with new models",
-          );
-        }
-        const bidetAction = String(qaSpec.sanitaryWare.bidetAction ?? "");
-        if (bidetAction === "aggiungi") {
-          modificheAutorizzate.push(
-            "a NEW BIDET is ADDED beside the WC: a bidet is NOT a second toilet and must never be reported as a duplicated fixture",
-          );
-        } else if (bidetAction === "rimuovi") {
-          modificheAutorizzate.push("the existing BIDET is REMOVED");
-        } else if (bidetAction === "sostituisci" || qaScene.sanitaryWare.bidetPresent) {
-          modificheAutorizzate.push(
-            "a bidet is present beside the WC (as in the source, or replaced): a bidet is NOT a second toilet",
-          );
-        }
-        if (qaSpec.vanity.replace) modificheAutorizzate.push("the VANITY/washbasin unit is replaced");
-        if (qaSpec.wallTiles.replace) modificheAutorizzate.push("the WALL TILES/cladding are replaced");
-        if (qaSpec.floor.replace) modificheAutorizzate.push("the FLOOR finish is replaced");
-        if (qaSpec.faucets.replace) modificheAutorizzate.push("taps and fittings are replaced");
-        if (qaSpec.lighting.replace) modificheAutorizzate.push("the lighting fixtures are replaced");
+        // Cosa è stato ordinato e quali violazioni cercare (shared/render-bathroom/bathroomQa.ts).
+        const { wallHungSelected, tubToShower, showerToTub, modificheAutorizzate } =
+          bathroomQaContext(normalizedConfig);
 
         const qaPrompt = [
           "You are a LENIENT quality inspector for a bathroom renovation render.",

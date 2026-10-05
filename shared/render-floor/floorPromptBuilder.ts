@@ -1,6 +1,7 @@
 import {
   DEFAULT_NEGATIVE_CONSTRAINTS,
   FINISH_DESCRIPTIONS,
+  NEGATIVE_CONSTRAINTS_RUGS_REMOVED,
 } from "./promptFragments.ts";
 import { ensureFloorRenderConfig } from "./floorRenderConfig.ts";
 import { validateFloorPromptConfig } from "./floorPromptValidation.ts";
@@ -90,7 +91,9 @@ Seamless material: ${spec.isSeamless ? "yes" : "no"}`;
 
   blocks.F = `[BLOCK F - LAYING PATTERN GEOMETRY]
 ${bullets(manifest.patternRules)}
-Pattern must be readable in the final render: if a large slab, show few large modules; if herringbone, show true herringbone; if Hungarian point, show true chevron-cut ends.`;
+${spec.isSeamless
+    ? "A continuous floor has no pattern: it must read as one uninterrupted surface from wall to wall."
+    : "Pattern must be readable in the final render: if a large slab, show few large modules; if herringbone, show true herringbone; if Hungarian point, show true chevron-cut ends."}`;
 
   blocks.G = `[BLOCK G - JOINTS / GROUT / SEAMS RULES]
 ${bullets(manifest.jointRules)}`;
@@ -119,7 +122,7 @@ ${bullets(normalizedConfig.integrity_constraints)}
 Image: ${photoMetaLine(normalizedConfig)}`;
 
   blocks.L = `[BLOCK L - NEGATIVE CONSTRAINTS]
-${bullets(DEFAULT_NEGATIVE_CONSTRAINTS)}`;
+${bullets(legacy.tappeti === "rimuovi" ? NEGATIVE_CONSTRAINTS_RUGS_REMOVED : DEFAULT_NEGATIVE_CONSTRAINTS)}`;
 
   blocks.M = `[BLOCK M - QUALITY BAR]
 ${bullets([

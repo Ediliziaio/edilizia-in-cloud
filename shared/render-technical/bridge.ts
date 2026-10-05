@@ -26,16 +26,23 @@
 // Cosa NON fa. Non inventa scelte che l'utente non ha fatto: dove il preset
 // non dice nulla resta il default, dichiarato e leggibile qui sotto.
 
-import type { ConfigurazioneGiardino } from "../render-garden/types.ts";
-import type { ConfigurazionePavimentoEsterno } from "../render-exterior-floor/types.ts";
-import type { ConfigurazionePortaInterna } from "../render-interior-door/types.ts";
-import type { ConfigurazionePortaBlindata } from "../render-security-door/types.ts";
+import type { ConfigurazioneGiardino, GardenLightingMode, GardenStyle, GroundCoverType, LawnType, PathType } from "../render-garden/types.ts";
+import type {
+  ConfigurazionePavimentoEsterno,
+  MaterialeCopingPiscina,
+  PatternPosaEsterna,
+  TipoBordoEsterna,
+  TipoGradinoEsterno,
+} from "../render-exterior-floor/types.ts";
+import type { ConfigurazionePortaInterna, InteriorDoorFinish } from "../render-interior-door/types.ts";
+import type { ConfigurazionePortaBlindata, SecurityDoorFinish } from "../render-security-door/types.ts";
 import {
   DEFAULT_EXTERIOR_FLOOR_CONFIG,
   DEFAULT_GARDEN_CONFIG,
   DEFAULT_INTERIOR_DOOR_CONFIG,
   DEFAULT_SECURITY_DOOR_CONFIG,
 } from "./defaults.ts";
+import { leggiOpzione } from "./opzioni.ts";
 
 export interface GenericTechnicalConfig {
   interventionPreset?: string;
@@ -45,6 +52,12 @@ export interface GenericTechnicalConfig {
   technicalDetails?: string;
   preserveNotes?: string;
   intensity?: string;
+  /**
+   * Scelte strutturate oltre al preset (opzioni.ts): finitura, lato fotografato,
+   * bordo vasca, gradini, stile del giardino… Assenti = «non specificato»: il
+   * ponte non tocca niente e il prompt resta quello di prima.
+   */
+  opzioni?: unknown;
 }
 
 export type BridgedModule =
@@ -139,6 +152,29 @@ export function bridgeGiardini(g: GenericTechnicalConfig): ConfigurazioneGiardin
   if (/siep/.test(richiesta)) c.siepi.attivo = true;
   if (/alber/.test(richiesta) && !/senza alber|niente alber|no alber/.test(richiesta)) c.alberi.attivo = true;
 
+  // Scelte strutturate del form: vincono sul testo libero, che le indovinava da parole chiave.
+  const stile = leggiOpzione(g, "giardini", "stile");
+  if (stile) c.stile = stile as GardenStyle;
+  const prato = leggiOpzione(g, "giardini", "prato");
+  if (prato) c.prato.tipo = prato as LawnType;
+  const camminamento = leggiOpzione(g, "giardini", "camminamento");
+  if (camminamento) {
+    c.camminamenti = { attivo: true, tipo: camminamento as PathType };
+    if (!c.interventi.includes("aggiunta_camminamenti") && !c.interventi.includes("restyling_completo")) {
+      c.interventi = [...c.interventi, "aggiunta_camminamenti"];
+    }
+    if (!c.target_zones.includes("area_camminamento")) c.target_zones = [...c.target_zones, "area_camminamento"];
+  }
+  const illuminazione = leggiOpzione(g, "giardini", "illuminazione");
+  if (illuminazione) c.illuminazione = illuminazione as GardenLightingMode;
+  const copertura = leggiOpzione(g, "giardini", "copertura_aiuole");
+  if (copertura) c.ground_cover = { attivo: true, tipo: copertura as GroundCoverType };
+  const alberi = leggiOpzione(g, "giardini", "alberi");
+  if (alberi) {
+    c.alberi = { ...c.alberi, attivo: true, quantita: Number(alberi) as 1 | 2 | 3 };
+    if (!c.interventi.includes("aggiunta_alberi")) c.interventi = [...c.interventi, "aggiunta_alberi"];
+  }
+
   const preserva = elenco(g.preserveNotes);
   if (preserva.length > 0) c.elementi_da_preservare = preserva;
   c.note_libere = noteLibere(g, [
@@ -193,9 +229,69 @@ export function bridgePavimentiEsterni(g: GenericTechnicalConfig): Configurazion
       c.inserimento.area_target = "vialetto";
       c.formato = "masselli 20x10";
       break;
+    // Materiali che la libreria descriveva ma che nessun preset raggiungeva.
+    case "gres_outdoor_standard":
+      c.materiale = "gres_outdoor";
+      c.finitura = "antiscivolo";
+      c.pattern_posa = "rettilineo";
+      c.giunto = "fuga_sottile";
+      c.formato = "60x60";
+      break;
+    case "ghiaia_stabilizzata":
+      c.materiale = "ghiaia_stabilizzata";
+      c.finitura = "naturale";
+      c.pattern_posa = "superficie_continua";
+      c.giunto = "nessuno_visibile";
+      delete c.larghezza_giunto_mm;
+      c.formato = "ghiaia 4-8 mm su grigliato stabilizzante";
+      break;
+    case "deck_legno":
+      c.operazione = "convert_to_deck";
+      c.materiale = "deck_legno";
+      c.finitura = "naturale";
+      c.pattern_posa = "doga_parallela";
+      c.giunto = "giunto_aperto_deck";
+      c.formato = "doghe 14x400";
+      break;
+    case "cotto_esterno":
+      c.materiale = "cotto_esterno";
+      c.finitura = "naturale";
+      c.pattern_posa = "a_correre";
+      c.giunto = "fuga_media";
+      c.larghezza_giunto_mm = 8;
+      c.formato = "cotto 15x30";
+      break;
+    case "cemento_architettonico":
+      c.materiale = "cemento_architettonico";
+      c.finitura = "spazzolato";
+      c.pattern_posa = "superficie_continua";
+      c.giunto = "fuga_sottile";
+      c.formato = "getto continuo a campiture con giunti di controllo";
+      break;
+    case "cemento_drenante":
+      c.materiale = "cemento_drenante";
+      c.finitura = "lavato";
+      c.pattern_posa = "superficie_continua";
+      c.giunto = "nessuno_visibile";
+      delete c.larghezza_giunto_mm;
+      c.formato = "getto continuo drenante";
+      break;
   }
   if (testo(g.targetArea)) c.inserimento.posizione_descrittiva = testo(g.targetArea);
   if (testo(g.colorAndFinish)) c.colore_nome = testo(g.colorAndFinish);
+
+  // Scelte strutturate (opzioni.ts). Il bordo vasca era fisso a «pietra chiara»:
+  // chi scriveva «travertino» nel testo libero si trovava il prompt che diceva
+  // pietra chiara e le note che dicevano travertino.
+  const coping = leggiOpzione(g, "pavimenti-esterni", "coping_materiale");
+  if (coping) c.coping_materiale = coping as MaterialeCopingPiscina;
+  const posa = leggiOpzione(g, "pavimenti-esterni", "posa");
+  if (posa) c.pattern_posa = posa as PatternPosaEsterna;
+  const gradini = leggiOpzione(g, "pavimenti-esterni", "gradini");
+  if (gradini) c.gradino = gradini as TipoGradinoEsterno;
+  const bordo = leggiOpzione(g, "pavimenti-esterni", "bordo");
+  if (bordo) c.bordo = bordo as TipoBordoEsterna;
+
   const preserva = elenco(g.preserveNotes);
   if (preserva.length > 0) c.elementi_da_preservare = preserva;
   c.note_libere = noteLibere(g, [
@@ -242,8 +338,51 @@ export function bridgePorteInterne(g: GenericTechnicalConfig): ConfigurazionePor
       c.glass = { enabled: true, type: "satinato", privacy_level: "medio" };
       c.frame = { tipo: "minimale", colore: "nero opaco", coprifilo: "minimale" };
       break;
+    // Tipologie che la libreria descriveva ma che nessun preset raggiungeva.
+    case "battente_classica":
+      c.door_type = "battente_classica";
+      c.leaf_config = "singola";
+      c.stile = "classico";
+      c.frame = { tipo: "coprifilo_classico", colore: "coordinato alla porta", coprifilo: "classico" };
+      c.hardware = { elementi: ["maniglia_classica", "cerniere_visibili"], finitura: "ottone" };
+      break;
+    case "a_libro":
+      c.door_type = "a_libro";
+      c.leaf_config = "libro_doppia";
+      c.frame = { tipo: "minimale", colore: "coordinato alla porta", coprifilo: "minimale" };
+      c.hardware = { elementi: ["maniglia_moderna"], finitura: "nero_opaco" };
+      break;
+    case "doppia_anta":
+      c.door_type = "doppia_anta";
+      c.leaf_config = "doppia_simmetrica";
+      c.frame = { tipo: "standard", colore: "coordinato alla porta", coprifilo: "standard" };
+      c.hardware = { elementi: ["maniglia_moderna", "cerniere_visibili"], finitura: "nero_opaco" };
+      // La doppia anta si sceglie per un vano largo: senza, la libreria la dichiara non costruibile.
+      c.apertura.larghezza_apparente = "ampia";
+      break;
+    case "tutta_altezza":
+      c.door_type = "tutta_altezza";
+      c.height = "tutta_altezza";
+      c.frame = { tipo: "minimale", colore: "coordinato alla porta", coprifilo: "minimale" };
+      c.hardware = { elementi: ["maniglia_moderna", "cerniere_scomparse"], finitura: "nero_opaco" };
+      c.apertura.altezza_apparente = "tutta_altezza";
+      c.apertura.rapporto_con_soffitto = "anta a tutta altezza fino al soffitto visibile";
+      break;
   }
   if (testo(g.colorAndFinish)) c.colore = testo(g.colorAndFinish);
+
+  // Scelte strutturate (opzioni.ts). La finitura era fissa a «laccato bianco»: con
+  // «rovere» nel colore il prompt diceva «white lacquered finish in rovere».
+  const finitura = leggiOpzione(g, "porte-interne", "finitura_anta");
+  if (finitura) c.finish = finitura as InteriorDoorFinish;
+  const vetro = leggiOpzione(g, "porte-interne", "vetro");
+  if (vetro === "satinato" || vetro === "trasparente" || vetro === "fume") {
+    c.finish = `vetro_${vetro}`;
+    c.glass = { enabled: true, type: vetro, privacy_level: vetro === "trasparente" ? "basso" : "medio" };
+  }
+  const maniglia = leggiOpzione(g, "porte-interne", "maniglia");
+  if (maniglia) c.hardware = { ...c.hardware, finitura: maniglia as ConfigurazionePortaInterna["hardware"]["finitura"] };
+
   const preserva = elenco(g.preserveNotes);
   if (preserva.length > 0) c.elementi_da_preservare = preserva;
   c.note_libere = noteLibere(g, [
@@ -289,6 +428,36 @@ export function bridgePorteBlindate(g: GenericTechnicalConfig): ConfigurazionePo
       break;
   }
   if (testo(g.colorAndFinish)) c.colore_lato_visibile = testo(g.colorAndFinish);
+
+  // Scelte strutturate (opzioni.ts). Il lato era fisso a «interno»: una foto dal
+  // pianerottolo riceveva un prompt che parlava della faccia interna.
+  const lato = leggiOpzione(g, "porte-blindate", "lato_foto");
+  if (lato === "interno") {
+    c.visible_side = "interno";
+    c.side_context = "lato_interno";
+  } else if (lato === "pianerottolo") {
+    c.visible_side = "esterno";
+    c.side_context = "pianerottolo";
+  } else if (lato === "esterno_villa") {
+    c.visible_side = "esterno";
+    c.side_context = "ingresso_villa";
+  }
+  const pannello = leggiOpzione(g, "porte-blindate", "finitura_pannello");
+  if (pannello) c.finitura_lato_visibile = pannello as SecurityDoorFinish;
+  if (lato || pannello) {
+    // Il riferimento del lato fotografato coincide con quanto si chiede di vedere:
+    // prima restava «effetto legno rovere chiaro» qualunque finitura si scegliesse.
+    if (c.visible_side === "interno") {
+      c.finitura_interna = c.finitura_lato_visibile;
+      c.colore_interno = c.colore_lato_visibile;
+    } else {
+      c.finitura_esterna = c.finitura_lato_visibile;
+      c.colore_esterno = c.colore_lato_visibile;
+    }
+  }
+  const maniglia = leggiOpzione(g, "porte-blindate", "maniglia");
+  if (maniglia) c.hardware = { ...c.hardware, finitura: maniglia as ConfigurazionePortaBlindata["hardware"]["finitura"] };
+
   const preserva = elenco(g.preserveNotes);
   if (preserva.length > 0) c.elementi_da_preservare = preserva;
   c.note_libere = noteLibere(g, [

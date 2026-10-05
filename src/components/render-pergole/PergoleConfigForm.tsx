@@ -23,6 +23,24 @@ import type {
   ZonaInstallazionePergola,
 } from "@/modules/render-pergole/lib/types";
 import { DettagliTelefono } from "@/components/render/DettagliTelefono";
+import {
+  coperturaEffettiva,
+  materialeCoerente,
+  normalizzaConfigPergola,
+  pergolaAddossata,
+  statiPerCopertura,
+  tipologiaConMontaggio,
+  tipologiaPerCopertura,
+} from "../../../shared/render-pergole/pergolaCoerenza.ts";
+import { ReferenceThumb } from "@/components/render/ReferenceThumb";
+import type { PhotoEntry } from "../../../shared/render-references/referencePicker.ts";
+import {
+  PERGOLA_COVER_PHOTOS,
+  PERGOLA_LIGHTING_PHOTOS,
+  PERGOLA_MATERIAL_PHOTOS,
+  PERGOLA_SIDE_PHOTOS,
+  PERGOLA_TYPE_PHOTOS,
+} from "../../../shared/render-references/pergolaReferences.ts";
 
 const OPERAZIONI: { value: TipoOperazionePergola; label: string; desc: string }[] = [
   { value: "add_new_pergola", label: "Aggiungi pergola", desc: "Inserisce una nuova struttura nel punto scelto." },
@@ -31,6 +49,7 @@ const OPERAZIONI: { value: TipoOperazionePergola; label: string; desc: string }[
   { value: "recolor_only", label: "Solo colore", desc: "Cambia solo finitura, senza geometria nuova." },
   { value: "change_cover_only", label: "Solo copertura", desc: "Mantiene struttura e cambia telo/vetro/lamelle." },
   { value: "add_side_closures", label: "Aggiungi chiusure", desc: "Aggiunge vetrate, ZIP o pannelli laterali." },
+  { value: "remove_side_closures", label: "Rimuovi chiusure", desc: "Toglie vetrate, ZIP o tende laterali e le loro guide." },
   { value: "change_open_state", label: "Stato apertura", desc: "Cambia solo lamelle/telo/screen." },
 ];
 
@@ -103,6 +122,20 @@ const STATI_CHIUSURE: { value: StatoChiusuraLaterale; label: string }[] = [
   { value: "raccolte", label: "Raccolte" },
 ];
 
+const VETRI: { value: "trasparente" | "satinato" | "fumé"; label: string }[] = [
+  { value: "trasparente", label: "Trasparente" },
+  { value: "satinato", label: "Satinato" },
+  { value: "fumé", label: "Fumé" },
+];
+
+const ANCORAGGI: { value: NonNullable<ConfigurazionePergole["installazione"]["ancoraggio_a_terra"]>; label: string }[] = [
+  { value: "pavimento", label: "Su pavimento" },
+  { value: "deck", label: "Su deck in legno" },
+  { value: "prato_con_plinti", label: "Plinti nel prato" },
+  { value: "bordo_piscina", label: "Bordo piscina" },
+  { value: "terrazzo", label: "Su terrazzo" },
+];
+
 const LUCI: { value: TipoIlluminazionePergola; label: string }[] = [
   { value: "nessuna", label: "Nessuna" },
   { value: "strip_led_perimetrale", label: "Strip LED perimetrale" },
@@ -111,6 +144,23 @@ const LUCI: { value: TipoIlluminazionePergola; label: string }[] = [
   { value: "applique_coordinate", label: "Applique coordinate" },
 ];
 
+/**
+ * La foto della scelta corrente (la stessa che il motore allega, qui a colori),
+ * accanto all'etichetta della tendina: l'utente vede il prodotto, non solo il nome.
+ * Senza foto (o se non si carica) non resta niente.
+ */
+function MiniaturaScelta({ foto, alt }: { foto?: PhotoEntry; alt: string }) {
+  if (!foto) return null;
+  return (
+    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md border border-black/10 bg-muted">
+      <ReferenceThumb photo={foto} alt={alt} />
+    </div>
+  );
+}
+
+const etichetta = <T extends string>(elenco: { value: T; label: string }[], valore: string) =>
+  elenco.find((item) => item.value === valore)?.label ?? valore.replace(/_/g, " ");
+
 interface Props {
   value: ConfigurazionePergole;
   onChange: (value: ConfigurazionePergole) => void;
@@ -118,25 +168,47 @@ interface Props {
 }
 
 export function PergoleConfigForm({ value, onChange, disabled }: Props) {
+  // Ogni scelta passa dalla stessa regola di coerenza del motore (pergolaCoerenza.ts):
+  // il form mostra quello che il render farà — una tipologia autoportante spegne
+  // l'interruttore e porta 4 montanti, una tipologia «telo» porta la copertura a telo.
+  const applica = (next: ConfigurazionePergole) => onChange(normalizzaConfigPergola(next));
   const set = <K extends keyof ConfigurazionePergole>(key: K, next: ConfigurazionePergole[K]) =>
-    onChange({ ...value, [key]: next });
+    applica({ ...value, [key]: next });
 
   const setInstallazione = <K extends keyof ConfigurazionePergole["installazione"]>(key: K, next: ConfigurazionePergole["installazione"][K]) =>
-    onChange({ ...value, installazione: { ...(value.installazione ?? DEFAULT_PERGOLE_CONFIG.installazione), [key]: next } });
+    applica({ ...value, installazione: { ...(value.installazione ?? DEFAULT_PERGOLE_CONFIG.installazione), [key]: next } });
 
   const setStruttura = <K extends keyof ConfigurazionePergole["struttura"]>(key: K, next: ConfigurazionePergole["struttura"][K]) =>
-    onChange({ ...value, struttura: { ...value.struttura, [key]: next } });
+    applica({ ...value, struttura: { ...value.struttura, [key]: next } });
 
   const setCopertura = <K extends keyof ConfigurazionePergole["copertura"]>(key: K, next: ConfigurazionePergole["copertura"][K]) =>
-    onChange({ ...value, copertura: { ...value.copertura, [key]: next } });
+    applica({ ...value, copertura: { ...value.copertura, [key]: next } });
 
   const setChiusure = <K extends keyof ConfigurazionePergole["chiusure_laterali"]>(key: K, next: ConfigurazionePergole["chiusure_laterali"][K]) =>
-    onChange({ ...value, chiusure_laterali: { ...value.chiusure_laterali, [key]: next } });
+    applica({ ...value, chiusure_laterali: { ...value.chiusure_laterali, [key]: next } });
 
   const setArredo = <K extends keyof ConfigurazionePergole["arredo"]>(key: K, next: ConfigurazionePergole["arredo"][K]) =>
-    onChange({ ...value, arredo: { ...value.arredo, [key]: next } });
+    applica({ ...value, arredo: { ...value.arredo, [key]: next } });
 
-  const wallMounted = value.installazione.addossata_si_no;
+  const wallMounted = pergolaAddossata(value.struttura.tipo, value.installazione.addossata_si_no);
+  /** L'interruttore cambia il montaggio della tipologia (che è quella che decide). */
+  const setAddossata = (checked: boolean) =>
+    applica({
+      ...value,
+      installazione: { ...value.installazione, addossata_si_no: checked },
+      struttura: { ...value.struttura, tipo: tipologiaConMontaggio(value.struttura.tipo, checked) },
+    });
+  /** Una copertura che la tipologia non porta nel nome cambia la tipologia (tranne in «solo copertura»). */
+  const setTipoCopertura = (tipo: TipoCoperturaPergola) =>
+    applica({
+      ...value,
+      copertura: { ...value.copertura, tipo },
+      struttura: value.operazione === "change_cover_only"
+        ? value.struttura
+        : { ...value.struttura, tipo: tipologiaPerCopertura(value.struttura.tipo, tipo, wallMounted) },
+    });
+  const coperturaScelta = coperturaEffettiva(value.operazione, value.struttura.tipo, value.copertura.tipo) ?? value.copertura.tipo;
+  const statiAmmessi = statiPerCopertura(coperturaScelta);
 
   return (
     <div className="space-y-6 max-md:space-y-4">
@@ -170,7 +242,7 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
             <Label className="text-sm font-semibold max-md:text-[13px]">Pergola addossata alla facciata</Label>
             <p className="text-xs text-muted-foreground max-md:hidden">Attacco a muro, quote porta-finestra e interferenze vengono vincolate nel prompt.</p>
           </div>
-          <Switch checked={wallMounted} onCheckedChange={(checked) => setInstallazione("addossata_si_no", checked)} disabled={disabled} />
+          <Switch checked={wallMounted} onCheckedChange={setAddossata} disabled={disabled} />
         </div>
         <Label className="text-sm font-semibold max-md:text-[13px]">Zona installazione</Label>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 max-sm:grid-cols-2 max-sm:gap-1.5">
@@ -203,14 +275,20 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4 max-md:grid-cols-2 max-md:gap-2">
         {/* Telefono: la tipologia a tutta riga (a metà il nome si tagliava). */}
         <div className="space-y-2 max-md:col-span-2">
-          <Label className="max-md:text-[11px]">Tipologia pergola</Label>
+          <div className="flex items-center gap-2">
+            <MiniaturaScelta foto={PERGOLA_TYPE_PHOTOS[value.struttura.tipo]} alt={etichetta(TIPI, value.struttura.tipo)} />
+            <Label className="max-md:text-[11px]">Tipologia pergola</Label>
+          </div>
           <Select value={value.struttura.tipo} onValueChange={(v) => setStruttura("tipo", v as TipoPergola)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{TIPI.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label className="max-md:text-[11px]">Materiale struttura</Label>
+          <div className="flex items-center gap-2">
+            <MiniaturaScelta foto={PERGOLA_MATERIAL_PHOTOS[materialeCoerente(value.struttura.tipo, value.struttura.materiale)]} alt={etichetta(MATERIALI, materialeCoerente(value.struttura.tipo, value.struttura.materiale))} />
+            <Label className="max-md:text-[11px]">Materiale struttura</Label>
+          </div>
           <Select value={value.struttura.materiale} onValueChange={(v) => setStruttura("materiale", v as MaterialeStrutturaPergola)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{MATERIALI.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
@@ -231,8 +309,11 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
 
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4 max-md:grid-cols-2 max-md:gap-2">
         <div className="space-y-2">
-          <Label className="max-md:text-[11px]">Tipo copertura</Label>
-          <Select value={value.copertura.tipo} onValueChange={(v) => setCopertura("tipo", v as TipoCoperturaPergola)} disabled={disabled}>
+          <div className="flex items-center gap-2">
+            <MiniaturaScelta foto={coperturaScelta ? PERGOLA_COVER_PHOTOS[coperturaScelta] : undefined} alt={etichetta(COPERTURE, coperturaScelta ?? "")} />
+            <Label className="max-md:text-[11px]">Tipo copertura</Label>
+          </div>
+          <Select value={coperturaScelta} onValueChange={(v) => setTipoCopertura(v as TipoCoperturaPergola)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{COPERTURE.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
@@ -241,11 +322,14 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
           <Label className="max-md:text-[11px]">Stato copertura / lamelle / telo</Label>
           <Select value={value.copertura.stato} onValueChange={(v) => setCopertura("stato", v as StatoCoperturaPergola)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{STATI_COPERTURA.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+            <SelectContent>{STATI_COPERTURA.filter((item) => statiAmmessi.includes(item.value)).map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label className="max-md:text-[11px]">Chiusure laterali</Label>
+          <div className="flex items-center gap-2">
+            <MiniaturaScelta foto={PERGOLA_SIDE_PHOTOS[value.chiusure_laterali.tipo]} alt={etichetta(CHIUSURE, value.chiusure_laterali.tipo)} />
+            <Label className="max-md:text-[11px]">Chiusure laterali</Label>
+          </div>
           <Select value={value.chiusure_laterali.tipo} onValueChange={(v) => setChiusure("tipo", v as TipoChiusuraLaterale)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{CHIUSURE.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
@@ -258,8 +342,47 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
             <SelectContent>{STATI_CHIUSURE.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
+        {/* Colore del telo e vetro: solo per la copertura che li ha; vuoto = non specificato. */}
+        {coperturaScelta === "telo_retraibile" && (
+          <div className="space-y-2 max-md:col-span-2">
+            <Label className="max-md:text-[11px]">Colore del telo</Label>
+            <div className="flex gap-2">
+              <Input type="color" value={value.copertura.colore_telo_hex || "#E8DFC8"} onChange={(e) => setCopertura("colore_telo_hex", e.target.value)} disabled={disabled} className="w-16 p-1 max-md:w-10 max-md:shrink-0" aria-label="Campione colore del telo" />
+              <Input value={value.copertura.colore_telo_nome ?? ""} onChange={(e) => setCopertura("colore_telo_nome", e.target.value)} placeholder="Es. Ecrù, Grigio perla" disabled={disabled} />
+            </div>
+          </div>
+        )}
+        {(coperturaScelta === "vetro" || coperturaScelta === "policarbonato") && (
+          <div className="space-y-2">
+            <Label className="max-md:text-[11px]">{coperturaScelta === "vetro" ? "Vetro" : "Lastre"}</Label>
+            <Select value={value.copertura.trasparenza && value.copertura.trasparenza !== "opaco" ? value.copertura.trasparenza : "non_specificato"} onValueChange={(v) => setCopertura("trasparenza", v === "non_specificato" ? undefined : (v as ConfigurazionePergole["copertura"]["trasparenza"]))} disabled={disabled}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="non_specificato">Non specificato</SelectItem>
+                {VETRI.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        {value.chiusure_laterali.tipo !== "nessuna" && (
+          <div className="space-y-2 max-md:col-span-2">
+            <Label className="max-md:text-[11px]">Colore chiusure</Label>
+            <div className="flex gap-2">
+              <Input type="color" value={value.chiusure_laterali.colore_hex || value.struttura.colore_hex} onChange={(e) => setChiusure("colore_hex", e.target.value)} disabled={disabled} className="w-16 p-1 max-md:w-10 max-md:shrink-0" aria-label="Campione colore delle chiusure" />
+              <Input
+                value={value.chiusure_laterali.colore_nome && value.chiusure_laterali.colore_nome !== "Coerente con struttura" ? value.chiusure_laterali.colore_nome : ""}
+                onChange={(e) => setChiusure("colore_nome", e.target.value || "Coerente con struttura")}
+                placeholder="Coerente con struttura"
+                disabled={disabled}
+              />
+            </div>
+          </div>
+        )}
         <div className="space-y-2">
-          <Label className="max-md:text-[11px]">Illuminazione integrata</Label>
+          <div className="flex items-center gap-2">
+            <MiniaturaScelta foto={PERGOLA_LIGHTING_PHOTOS[value.illuminazione]} alt={etichetta(LUCI, value.illuminazione)} />
+            <Label className="max-md:text-[11px]">Illuminazione integrata</Label>
+          </div>
           <Select value={value.illuminazione} onValueChange={(v) => set("illuminazione", v as TipoIlluminazionePergola)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{LUCI.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
@@ -307,12 +430,22 @@ export function PergoleConfigForm({ value, onChange, disabled }: Props) {
         </div>
         <div className="space-y-2">
           <Label className="max-md:text-[11px]">Montanti visibili</Label>
-          <Select value={String(value.installazione.numero_montanti ?? 2)} onValueChange={(v) => setInstallazione("numero_montanti", Number(v) as 2 | 4 | 6)} disabled={disabled}>
+          <Select value={String(value.installazione.numero_montanti ?? (wallMounted ? 2 : 4))} onValueChange={(v) => setInstallazione("numero_montanti", Number(v) as 2 | 4 | 6)} disabled={disabled}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="2">2 montanti</SelectItem>
+              {wallMounted && <SelectItem value="2">2 montanti</SelectItem>}
               <SelectItem value="4">4 montanti</SelectItem>
               <SelectItem value="6">6 montanti</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label className="max-md:text-[11px]">Ancoraggio a terra</Label>
+          <Select value={value.installazione.ancoraggio_a_terra ?? "auto"} onValueChange={(v) => setInstallazione("ancoraggio_a_terra", v === "auto" ? undefined : (v as ConfigurazionePergole["installazione"]["ancoraggio_a_terra"]))} disabled={disabled}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Dalla zona</SelectItem>
+              {ANCORAGGI.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>

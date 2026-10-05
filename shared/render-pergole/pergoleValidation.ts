@@ -1,3 +1,4 @@
+import { describeCoverGlass, describeTextileColour } from "./promptFragments.ts";
 import type { PergolaPromptValidationResult, PergolaRenderConfig } from "./types.ts";
 
 function includesAny(text: string, terms: string[]): boolean {
@@ -67,6 +68,16 @@ export function validatePergolePromptConfig(config: PergolaRenderConfig): Pergol
   }
   if (!includesAny(allText, ["drainage", "water", "gutter"])) {
     missingBusinessRules.push("drainage/water management rules must be present");
+  }
+  // Elementi del 04/10: se scelti per la copertura giusta, devono arrivare alla sua descrizione.
+  const copertura = config.legacy_config.copertura;
+  const coloreTelo = technical.coverType === "telo_retraibile" ? describeTextileColour(copertura?.colore_telo_nome, copertura?.colore_telo_hex) : null;
+  if (coloreTelo && !technical.coverDescription.includes(`fabric colour ${coloreTelo}`)) {
+    missingBusinessRules.push("the selected fabric colour must reach the cover description");
+  }
+  const vetro = describeCoverGlass(technical.coverType, copertura?.trasparenza);
+  if (vetro && !technical.coverDescription.includes(vetro)) {
+    missingBusinessRules.push("the selected glass finish must reach the cover description");
   }
 
   return {

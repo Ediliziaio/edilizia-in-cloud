@@ -1,4 +1,4 @@
-import { Bath, CheckCircle2, Grid3X3, Layers3, ShowerHead, Sparkles } from "lucide-react";
+import { Bath, CheckCircle2, Grid3X3, Heater, Layers3, Lightbulb, ShowerHead, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { BathroomRenderConfig } from "@/modules/render-bagno/lib/types";
@@ -44,6 +44,7 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
   const vanity = asRecord(legacy.vanity);
   const sanitary = asRecord(legacy.sanitari);
   const faucets = asRecord(legacy.rubinetteria);
+  const towelWarmer = asRecord(legacy.termoarredo);
   const activeSpecs = [
     spec.wallTiles.replace,
     spec.floor.replace,
@@ -52,6 +53,8 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
     spec.vanity.replace,
     spec.sanitaryWare.replace,
     spec.faucets.replace,
+    spec.towelWarmer?.replace,
+    spec.lighting.replace,
   ].filter(Boolean).length;
 
   return (
@@ -115,6 +118,7 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
                 <SpecRow label="Dimensione" value={valueFrom(bathtub, "dimensione_cm") ?? spec.bathtub.nominalSize} />
                 <SpecRow label="Materiale" value={valueFrom(bathtub, "materiale") ?? spec.bathtub.materialDescription} />
                 <SpecRow label="Rubinetteria" value={valueFrom(bathtub, "rubinetteria_vasca") ?? spec.bathtub.faucetPosition} />
+                {valueFrom(bathtub, "parete_doccia") ? <SpecRow label="Parete vetro" value={valueFrom(bathtub, "parete_doccia")} /> : null}
               </div>
             </div>
           ) : null}
@@ -130,6 +134,8 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
                 <SpecRow label="Vetro" value={valueFrom(shower, "box_vetro") ?? spec.shower.glassType} />
                 <SpecRow label="Piatto" value={valueFrom(shower, "piatto") ?? spec.shower.trayType} />
                 <SpecRow label="Profilo" value={valueFrom(shower, "profilo") ?? spec.shower.frameFinish} />
+                {valueFrom(shower, "nicchia") ? <SpecRow label="Nicchia" value={valueFrom(shower, "nicchia")} /> : null}
+                {valueFrom(shower, "scarico") ? <SpecRow label="Scarico" value={valueFrom(shower, "scarico")} /> : null}
               </div>
             </div>
           ) : null}
@@ -145,6 +151,32 @@ export function BathroomSelectionSummary({ renderPlan }: { renderPlan: BathroomR
                 <SpecRow label="Colore" value={valueFrom(vanity, "colore") ?? spec.vanity.colorLabel} />
                 <SpecRow label="Top" value={valueFrom(vanity, "piano") ?? spec.vanity.topDescription} />
                 <SpecRow label="Specchio" value={valueFrom(vanity, "specchio") ?? spec.vanity.mirrorType} />
+              </div>
+            </div>
+          ) : null}
+
+          {spec.towelWarmer?.replace ? (
+            <div className="rounded-xl border bg-muted/20 p-3 max-md:p-2.5">
+              <div className="mb-3 flex items-center gap-2">
+                <Heater className="h-4 w-4 text-cyan-600" />
+                <p className="text-sm font-semibold max-md:text-[13px]">Termoarredo</p>
+              </div>
+              <div className="grid gap-2 max-md:grid-cols-2 max-md:gap-1.5">
+                <SpecRow label="Azione" value={valueFrom(towelWarmer, "azione") ?? spec.towelWarmer.action} />
+                {spec.towelWarmer.action !== "rimuovi" ? <SpecRow label="Modello" value={valueFrom(towelWarmer, "tipo")} /> : null}
+                {spec.towelWarmer.action !== "rimuovi" ? <SpecRow label="Finitura" value={valueFrom(towelWarmer, "finitura")} /> : null}
+              </div>
+            </div>
+          ) : null}
+
+          {spec.lighting.replace ? (
+            <div className="rounded-xl border bg-muted/20 p-3 max-md:p-2.5">
+              <div className="mb-3 flex items-center gap-2">
+                <Lightbulb className="h-4 w-4 text-cyan-600" />
+                <p className="text-sm font-semibold max-md:text-[13px]">Illuminazione</p>
+              </div>
+              <div className="grid gap-2 max-md:grid-cols-2 max-md:gap-1.5">
+                <SpecRow label="Luci" value={valueFrom(legacy, "illuminazione_tipo")} />
               </div>
             </div>
           ) : null}

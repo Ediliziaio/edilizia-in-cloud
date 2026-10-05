@@ -24,6 +24,30 @@ import type {
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CatalogReferencePicker } from "@/components/render-bagno/CatalogReferencePicker";
+import { ReferenceThumb } from "@/components/render/ReferenceThumb";
+import type { PhotoEntry, PhotoTable } from "../../../shared/render-references/referencePicker.ts";
+import {
+  BASIN_PHOTOS,
+  BATHTUB_FAUCET_PHOTOS,
+  BATHTUB_MATERIAL_PHOTOS,
+  BATHTUB_TYPE_PHOTOS,
+  BIDET_PHOTOS,
+  FAUCET_FINISH_PHOTOS,
+  FAUCET_STYLE_PHOTOS,
+  FLUSH_PLATE_PHOTOS,
+  MIRROR_PHOTOS,
+  SANITARY_COLOUR_PHOTOS,
+  SHOWER_GLASS_PHOTOS,
+  SHOWER_HEAD_PHOTOS,
+  SHOWER_PROFILE_PHOTOS,
+  SHOWER_TRAY_PHOTOS,
+  SHOWER_TYPE_PHOTOS,
+  TILE_EFFECT_PHOTOS,
+  TOILET_PHOTOS,
+  VANITY_STYLE_PHOTOS,
+  VANITY_TOP_PHOTOS,
+} from "../../../shared/render-references/bathroomReferences.ts";
+import { DEFAULT_ILLUMINAZIONE_TIPO, DEFAULT_TERMOARREDO } from "@/components/render-bagno/defaultBathroomConfig";
 
 export type BathroomConfig = ConfigurazioneBagno;
 
@@ -31,8 +55,18 @@ type VisualOption = {
   value: string;
   label: string;
   hint?: string;
-  previewStyle: CSSProperties;
+  /** Campione disegnato: resta per le tinte unite e per l'anteprima «look bagno». */
+  previewStyle?: CSSProperties;
+  /** Foto vera della libreria: la stessa che il motore allega al render quando l'elemento cambia. */
+  photo?: Pick<PhotoEntry, "folder" | "filename">;
+  /** Testo alternativo della foto, quando il nome da solo non basta («Box doccia angolare»). */
+  alt?: string;
 };
+
+/** Aggiunge a ogni opzione la foto della tabella del motore (se c'è: le tinte unite restano campioni). */
+function conFoto(tabella: PhotoTable) {
+  return (option: VisualOption): VisualOption => (tabella[option.value] ? { ...option, photo: tabella[option.value] } : option);
+}
 
 function marbleStyle(base: string, vein: string, accent: string): CSSProperties {
   return {
@@ -163,7 +197,7 @@ const TILE_EFFECTS: VisualOption[] = [
   { value: "cotto_toscano", label: "Cotto toscano", hint: "Molto caldo e autentico", previewStyle: zelligeStyle("#bc6f46", "rgba(126,66,33,0.32)") },
   { value: "resina_spatolata", label: "Resina spatolata", hint: "Continua, senza fughe", previewStyle: resinStyle("#c8c2b8", "rgba(100,90,78,0.2)") },
   { value: "pietra_ardesia", label: "Pietra ardesia", hint: "Materica con rilievo", previewStyle: stoneStyle("#252a30", "rgba(6,8,10,0.44)") },
-];
+].map(conFoto(TILE_EFFECT_PHOTOS));
 
 const VANITY_TOP_OPTIONS: VisualOption[] = [
   { value: "marmo_bianco", label: "Marmo bianco", hint: "Chiaro e premium", previewStyle: marbleStyle("#eef1f4", "rgba(142,151,161,0.3)", "rgba(201,208,215,0.2)") },
@@ -171,7 +205,7 @@ const VANITY_TOP_OPTIONS: VisualOption[] = [
   { value: "quarzo", label: "Quarzo", hint: "Compatto e uniforme", previewStyle: stoneStyle("#d6d6d3", "rgba(115,115,110,0.18)") },
   { value: "legno", label: "Legno", hint: "Naturale e accogliente", previewStyle: woodStyle("#b57f54", "rgba(220,175,130,0.24)", "rgba(98,62,31,0.3)") },
   { value: "ceramica", label: "Ceramica", hint: "Pulita e pratica", previewStyle: solidStyle("#f4f4f2") },
-];
+].map(conFoto(VANITY_TOP_PHOTOS));
 
 const FAUCET_FINISH_OPTIONS: VisualOption[] = [
   { value: "cromo", label: "Cromo", hint: "Lucido a specchio", previewStyle: finishStyle("#bdc7d0", "rgba(255,255,255,0.72)") },
@@ -179,13 +213,43 @@ const FAUCET_FINISH_OPTIONS: VisualOption[] = [
   { value: "oro_spazzolato", label: "Oro spazzolato", hint: "Caldo e luxury", previewStyle: finishStyle("#caa35b", "rgba(255,255,255,0.45)") },
   { value: "oro_rosa", label: "Oro rosa", hint: "Morbido e ricercato", previewStyle: finishStyle("#c88c7f", "rgba(255,255,255,0.42)") },
   { value: "acciaio_spazzolato", label: "Acciaio spazzolato", hint: "Tecnico e sobrio", previewStyle: finishStyle("#91989f", "rgba(255,255,255,0.38)") },
-];
+].map((o) => conFoto(FAUCET_FINISH_PHOTOS)({ ...o, alt: `Rubinetto ${o.label.toLowerCase()}` }));
 
 const SANITARY_COLOR_OPTIONS: VisualOption[] = [
   { value: "bianco", label: "Bianco", hint: "Classico", previewStyle: solidStyle("#fbfbfa") },
   { value: "grigio_chiaro", label: "Grigio chiaro", hint: "Soft", previewStyle: solidStyle("#d7dade") },
   { value: "nero_opaco", label: "Nero opaco", hint: "Strong look", previewStyle: solidStyle("#17181c", "rgba(255,255,255,0.1)") },
-];
+].map((o) => conFoto(SANITARY_COLOUR_PHOTOS)({ ...o, alt: `Sanitario ${o.label.toLowerCase()}` }));
+
+// Tipi che si scelgono guardando: prima erano tendine col solo nome.
+const SHOWER_TYPE_OPTIONS: VisualOption[] = [
+  { value: "walk_in", label: "Walk-in", alt: "Doccia walk-in" },
+  { value: "nicchia_box", label: "Box nicchia", alt: "Box doccia in nicchia" },
+  { value: "frontale_box", label: "Box frontale", alt: "Box doccia frontale" },
+  { value: "angolare", label: "Angolare", alt: "Box doccia angolare" },
+  { value: "semicircolare", label: "Semicircolare", alt: "Box doccia semicircolare" },
+].map(conFoto(SHOWER_TYPE_PHOTOS));
+
+const BATHTUB_TYPE_OPTIONS: VisualOption[] = [
+  { value: "freestanding_ovale", label: "Freestanding ovale", alt: "Vasca freestanding ovale" },
+  { value: "freestanding_rettangolare", label: "Freestanding rettangolare", alt: "Vasca freestanding rettangolare" },
+  { value: "back_to_wall", label: "Back-to-wall", alt: "Vasca back-to-wall" },
+  { value: "incassata", label: "Incassata", alt: "Vasca incassata" },
+  { value: "angolare", label: "Angolare", alt: "Vasca angolare" },
+].map(conFoto(BATHTUB_TYPE_PHOTOS));
+
+const VANITY_STYLE_OPTIONS: VisualOption[] = [
+  { value: "sospeso_moderno", label: "Sospeso moderno", alt: "Mobile bagno sospeso moderno" },
+  { value: "sospeso_minimal", label: "Sospeso minimal", alt: "Mobile bagno sospeso minimal" },
+  { value: "a_terra_classico", label: "A terra classico", alt: "Mobile bagno a terra classico" },
+  { value: "a_terra_industrial", label: "A terra industrial", alt: "Mobile bagno a terra industrial" },
+].map(conFoto(VANITY_STYLE_PHOTOS));
+
+const TOILET_TYPE_OPTIONS: VisualOption[] = [
+  { value: "sospeso", label: "Sospeso", alt: "WC sospeso" },
+  { value: "a_terra", label: "A terra", alt: "WC a terra" },
+  { value: "rimless_sospeso", label: "Rimless sospeso", alt: "WC sospeso rimless" },
+].map(conFoto(TOILET_PHOTOS));
 
 const MIRROR_OPTIONS = [
   { value: "retroilluminato", label: "Retroilluminato" },
@@ -208,6 +272,69 @@ const FLUSH_PLATE_COLOR_OPTIONS: VisualOption[] = [
   { value: "oro_rosa", label: "Oro rosa", hint: "Coordinabile rubinetti", previewStyle: finishStyle("#c88c7f", "rgba(255,255,255,0.42)") },
   { value: "ottone_spazzolato", label: "Ottone", hint: "Champagne caldo", previewStyle: finishStyle("#caa35b", "rgba(255,255,255,0.45)") },
 ];
+
+/**
+ * Scelte facoltative (dal 04/10/2026): «non indicata» lascia il campo assente e il prompt
+ * resta quello di prima. Radix Select non accetta il valore vuoto: si usa questa sentinella.
+ */
+const NON_INDICATA = "non_indicata";
+
+const SHOWER_NICHE_OPTIONS = [
+  { value: NON_INDICATA, label: "Non indicata" },
+  { value: "nessuna", label: "Nessuna nicchia" },
+  { value: "verticale", label: "Verticale (30×60 cm circa)" },
+  { value: "orizzontale", label: "Orizzontale lunga (60-90 cm)" },
+];
+
+const SHOWER_DRAIN_OPTIONS = [
+  { value: NON_INDICATA, label: "Non indicato" },
+  { value: "canalina", label: "Canalina lineare" },
+  { value: "piletta", label: "Piletta" },
+];
+
+const BATH_SCREEN_OPTIONS = [
+  { value: NON_INDICATA, label: "Non indicata" },
+  { value: "nessuna", label: "Nessuna parete" },
+  { value: "fissa", label: "Parete fissa in vetro" },
+  { value: "girevole", label: "Parete girevole in vetro" },
+];
+
+const TOWEL_WARMER_ACTION_OPTIONS = [
+  { value: "sostituisci", label: "Sostituisci l'attuale" },
+  { value: "aggiungi", label: "Aggiungi (non c'è)" },
+  { value: "rimuovi", label: "Rimuovi" },
+];
+
+const TOWEL_WARMER_TYPE_OPTIONS = [
+  { value: "scaletta", label: "A scaletta" },
+  { value: "piastra_design", label: "A piastra (design)" },
+  { value: "tubi_verticali", label: "A tubi verticali" },
+];
+
+const TOWEL_WARMER_FINISH_OPTIONS: VisualOption[] = [
+  { value: "bianco", label: "Bianco", hint: "Classico", previewStyle: solidStyle("#f7f7f4") },
+  { value: "nero_opaco", label: "Nero opaco", hint: "Grafico", previewStyle: finishStyle("#17191d", "rgba(255,255,255,0.16)") },
+  { value: "antracite", label: "Antracite", hint: "Scuro morbido", previewStyle: solidStyle("#3d4146", "rgba(255,255,255,0.12)") },
+  { value: "cromo", label: "Cromo", hint: "Lucido", previewStyle: finishStyle("#c7d0d8", "rgba(255,255,255,0.75)") },
+  { value: "acciaio_spazzolato", label: "Acciaio satinato", hint: "Tecnico", previewStyle: finishStyle("#91989f", "rgba(255,255,255,0.38)") },
+];
+
+const LIGHTING_OPTIONS = [
+  { value: "faretti_incasso", label: "Faretti a incasso" },
+  { value: "led_lineare", label: "LED lineare a soffitto" },
+  { value: "applique_specchio", label: "Applique allo specchio" },
+  { value: "plafoniera", label: "Plafoniera" },
+];
+
+const FREESTANDING = ["freestanding_ovale", "freestanding_rettangolare"];
+
+/** Copia di `obj` con `key` = scelta, o senza `key` se la scelta è «non indicata». */
+function conScelta<T extends object>(obj: T, key: keyof T, scelta: string): T {
+  const copia = { ...obj } as Record<string, unknown>;
+  if (scelta === NON_INDICATA) delete copia[key as string];
+  else copia[key as string] = scelta;
+  return copia as T;
+}
 
 const QUICK_PAINT_PRESETS = [
   { label: "Bianco caldo", value: "#F5F5F0" },
@@ -263,14 +390,29 @@ function findVisualOption(options: VisualOption[], current: string): VisualOptio
   };
 }
 
+/**
+ * Miniatura quadrata (40 px) della scelta corrente accanto a una tendina: la stessa foto
+ * che il render riceve per quell'elemento. Senza foto (o se non si carica) non occupa spazio.
+ */
+function FotoDellaScelta({ photo, alt }: { photo?: Pick<PhotoEntry, "folder" | "filename">; alt: string }) {
+  if (!photo) return null;
+  return (
+    <span className="h-10 w-10 shrink-0 overflow-hidden rounded-md border border-slate-300 bg-white" data-foto-scelta="">
+      <ReferenceThumb photo={photo} alt={alt} className="object-contain" />
+    </span>
+  );
+}
+
 function VisualOptionGrid(props: {
   label: string;
   helper?: string;
   options: VisualOption[];
   value: string;
   onChange: (value: string) => void;
+  /** Foto di un prodotto intero (doccia, WC, rubinetto): si mostra tutta, non ritagliata come una texture. */
+  fotoIntera?: boolean;
 }) {
-  const { label, helper, options, value, onChange } = props;
+  const { label, helper, options, value, onChange, fotoIntera } = props;
 
   return (
     <div className="space-y-2">
@@ -297,11 +439,21 @@ function VisualOptionGrid(props: {
                   : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow",
               )}
             >
-              <div
-                className="h-16 w-full border-b border-black/5 max-md:h-11"
-                style={option.previewStyle}
-                aria-hidden="true"
-              />
+              {option.photo ? (
+                // Il campione disegnato resta sotto la foto: se la foto non si carica si vede lui.
+                <div
+                  className={cn("h-16 w-full overflow-hidden border-b border-black/5 max-md:h-11", fotoIntera && "bg-white p-0.5")}
+                  style={fotoIntera ? undefined : option.previewStyle}
+                >
+                  <ReferenceThumb photo={option.photo} alt={option.alt ?? option.label} className={fotoIntera ? "object-contain" : undefined} />
+                </div>
+              ) : (
+                <div
+                  className="h-16 w-full border-b border-black/5 max-md:h-11"
+                  style={option.previewStyle}
+                  aria-hidden="true"
+                />
+              )}
               <div className="space-y-1 px-2.5 py-2 max-md:px-2 max-md:py-1.5">
                 <div className="flex items-start justify-between gap-2 max-md:gap-1">
                   <span className="text-xs font-medium leading-tight max-md:line-clamp-2 max-md:text-[11px]">{option.label}</span>
@@ -644,91 +796,124 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
           </div>
           <AccordionContent className="space-y-3 pb-4">
             {catalogo(["box_doccia", "piatto_doccia", "soffione"], () => ({ sostituzione: { ...value.sostituzione, doccia: true }, doccia: { ...value.doccia, attivo: true } }))}
-            <div>
-              <Label className="text-xs max-md:text-[11px]">Tipo</Label>
-              <Select
-                value={value.doccia.tipo}
-                onValueChange={(type) =>
-                  update({ doccia: { ...value.doccia, tipo: type as BathroomConfig["doccia"]["tipo"] } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="walk_in">Walk-in</SelectItem>
-                  <SelectItem value="nicchia_box">Box nicchia</SelectItem>
-                  <SelectItem value="frontale_box">Box frontale</SelectItem>
-                  <SelectItem value="angolare">Angolare</SelectItem>
-                  <SelectItem value="semicircolare">Semicircolare</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <VisualOptionGrid
+              label="Tipo"
+              options={SHOWER_TYPE_OPTIONS}
+              value={value.doccia.tipo}
+              fotoIntera
+              onChange={(type) =>
+                update({ doccia: { ...value.doccia, tipo: type as BathroomConfig["doccia"]["tipo"] } })
+              }
+            />
             <div>
               <Label className="text-xs max-md:text-[11px]">Vetro box</Label>
-              <Select
-                value={value.doccia.box_vetro}
-                onValueChange={(glass) =>
-                  update({ doccia: { ...value.doccia, box_vetro: glass as BathroomConfig["doccia"]["box_vetro"] } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="trasparente">Trasparente</SelectItem>
-                  <SelectItem value="satinato">Satinato</SelectItem>
-                  <SelectItem value="fume">Fume</SelectItem>
-                  <SelectItem value="serigrafato">Serigrafato</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <FotoDellaScelta photo={SHOWER_GLASS_PHOTOS[value.doccia.box_vetro]} alt="Vetro del box doccia" />
+                <Select
+                  value={value.doccia.box_vetro}
+                  onValueChange={(glass) =>
+                    update({ doccia: { ...value.doccia, box_vetro: glass as BathroomConfig["doccia"]["box_vetro"] } })
+                  }
+                >
+                  <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="trasparente">Trasparente</SelectItem>
+                    <SelectItem value="satinato">Satinato</SelectItem>
+                    <SelectItem value="fume">Fume</SelectItem>
+                    <SelectItem value="serigrafato">Serigrafato</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div>
               <Label className="text-xs max-md:text-[11px]">Piatto doccia</Label>
-              <Select
-                value={value.doccia.piatto}
-                onValueChange={(tray) =>
-                  update({ doccia: { ...value.doccia, piatto: tray as BathroomConfig["doccia"]["piatto"] } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="filo_pavimento">Filo pavimento</SelectItem>
-                  <SelectItem value="rialzato_3cm">Rialzato 3 cm</SelectItem>
-                  <SelectItem value="rialzato_5cm">Rialzato 5 cm</SelectItem>
-                  <SelectItem value="pietra">Pietra</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <FotoDellaScelta photo={SHOWER_TRAY_PHOTOS[value.doccia.piatto]} alt="Piatto doccia" />
+                <Select
+                  value={value.doccia.piatto}
+                  onValueChange={(tray) =>
+                    update({ doccia: { ...value.doccia, piatto: tray as BathroomConfig["doccia"]["piatto"] } })
+                  }
+                >
+                  <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="filo_pavimento">Filo pavimento</SelectItem>
+                    <SelectItem value="rialzato_3cm">Rialzato 3 cm</SelectItem>
+                    <SelectItem value="rialzato_5cm">Rialzato 5 cm</SelectItem>
+                    <SelectItem value="pietra">Pietra</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div>
               <Label className="text-xs max-md:text-[11px]">Profilo</Label>
-              <Select
-                value={value.doccia.profilo}
-                onValueChange={(profile) =>
-                  update({ doccia: { ...value.doccia, profilo: profile as BathroomConfig["doccia"]["profilo"] } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cromato">Cromato</SelectItem>
-                  <SelectItem value="nero_opaco">Nero opaco</SelectItem>
-                  <SelectItem value="oro_spazzolato">Oro spazzolato</SelectItem>
-                  <SelectItem value="senza_profilo">Senza profilo</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <FotoDellaScelta photo={SHOWER_PROFILE_PHOTOS[value.doccia.profilo]} alt="Profilo del box doccia" />
+                <Select
+                  value={value.doccia.profilo}
+                  onValueChange={(profile) =>
+                    update({ doccia: { ...value.doccia, profilo: profile as BathroomConfig["doccia"]["profilo"] } })
+                  }
+                >
+                  <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cromato">Cromato</SelectItem>
+                    <SelectItem value="nero_opaco">Nero opaco</SelectItem>
+                    <SelectItem value="oro_spazzolato">Oro spazzolato</SelectItem>
+                    <SelectItem value="senza_profilo">Senza profilo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div>
               <Label className="text-xs max-md:text-[11px]">Soffione</Label>
-              <Select
-                value={value.doccia.soffione}
-                onValueChange={(showerhead) =>
-                  update({ doccia: { ...value.doccia, soffione: showerhead as BathroomConfig["doccia"]["soffione"] } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="a_parete">A parete</SelectItem>
-                  <SelectItem value="pioggia_soffitto">Pioggia soffitto</SelectItem>
-                  <SelectItem value="colonna_completa">Colonna completa</SelectItem>
-                  <SelectItem value="combinato">Combinato</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <FotoDellaScelta photo={SHOWER_HEAD_PHOTOS[value.doccia.soffione]} alt="Soffione della doccia" />
+                <Select
+                  value={value.doccia.soffione}
+                  onValueChange={(showerhead) =>
+                    update({ doccia: { ...value.doccia, soffione: showerhead as BathroomConfig["doccia"]["soffione"] } })
+                  }
+                >
+                  <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="a_parete">A parete</SelectItem>
+                    <SelectItem value="pioggia_soffitto">Pioggia soffitto</SelectItem>
+                    <SelectItem value="colonna_completa">Colonna completa</SelectItem>
+                    <SelectItem value="combinato">Combinato</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 max-md:gap-2">
+              <div>
+                <Label className="text-xs max-md:text-[11px]">Nicchia nella parete</Label>
+                <Select
+                  value={value.doccia.nicchia ?? NON_INDICATA}
+                  onValueChange={(niche) => update({ doccia: conScelta(value.doccia, "nicchia", niche) })}
+                >
+                  <SelectTrigger aria-label="Nicchia nella parete della doccia"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SHOWER_NICHE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs max-md:text-[11px]">Scarico</Label>
+                <Select
+                  value={value.doccia.scarico ?? NON_INDICATA}
+                  onValueChange={(drain) => update({ doccia: conScelta(value.doccia, "scarico", drain) })}
+                >
+                  <SelectTrigger aria-label="Scarico della doccia"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SHOWER_DRAIN_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -750,56 +935,53 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
           </div>
           <AccordionContent className="space-y-3 pb-4">
             {catalogo(["vasca"], () => ({ sostituzione: { ...value.sostituzione, vasca: true }, vasca: { ...value.vasca, attivo: true } }))}
-            <div>
-              <Label className="text-xs max-md:text-[11px]">Tipo</Label>
-              <Select
-                value={value.vasca.tipo}
-                onValueChange={(type) =>
-                  update({ vasca: { ...value.vasca, tipo: type as BathroomConfig["vasca"]["tipo"] } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="freestanding_ovale">Freestanding ovale</SelectItem>
-                  <SelectItem value="freestanding_rettangolare">Freestanding rettangolare</SelectItem>
-                  <SelectItem value="back_to_wall">Back-to-wall</SelectItem>
-                  <SelectItem value="incassata">Incassata</SelectItem>
-                  <SelectItem value="angolare">Angolare</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <VisualOptionGrid
+              label="Tipo"
+              options={BATHTUB_TYPE_OPTIONS}
+              value={value.vasca.tipo}
+              fotoIntera
+              onChange={(type) =>
+                update({ vasca: { ...value.vasca, tipo: type as BathroomConfig["vasca"]["tipo"] } })
+              }
+            />
             <div>
               <Label className="text-xs max-md:text-[11px]">Materiale</Label>
-              <Select
-                value={value.vasca.materiale}
-                onValueChange={(material) =>
-                  update({ vasca: { ...value.vasca, materiale: material as BathroomConfig["vasca"]["materiale"] } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="acrilico_bianco">Acrilico bianco</SelectItem>
-                  <SelectItem value="solid_surface">Solid surface</SelectItem>
-                  <SelectItem value="ghisa_smaltata">Ghisa smaltata</SelectItem>
-                  <SelectItem value="pietra">Pietra</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <FotoDellaScelta photo={BATHTUB_MATERIAL_PHOTOS[value.vasca.materiale]} alt="Materiale della vasca" />
+                <Select
+                  value={value.vasca.materiale}
+                  onValueChange={(material) =>
+                    update({ vasca: { ...value.vasca, materiale: material as BathroomConfig["vasca"]["materiale"] } })
+                  }
+                >
+                  <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="acrilico_bianco">Acrilico bianco</SelectItem>
+                    <SelectItem value="solid_surface">Solid surface</SelectItem>
+                    <SelectItem value="ghisa_smaltata">Ghisa smaltata</SelectItem>
+                    <SelectItem value="pietra">Pietra</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div>
               <Label className="text-xs max-md:text-[11px]">Rubinetteria vasca</Label>
-              <Select
-                value={value.vasca.rubinetteria_vasca}
-                onValueChange={(tap) =>
-                  update({ vasca: { ...value.vasca, rubinetteria_vasca: tap as BathroomConfig["vasca"]["rubinetteria_vasca"] } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="a_parete">A parete</SelectItem>
-                  <SelectItem value="a_pavimento">A pavimento</SelectItem>
-                  <SelectItem value="bordo_vasca">Bordo vasca</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <FotoDellaScelta photo={BATHTUB_FAUCET_PHOTOS[value.vasca.rubinetteria_vasca]} alt="Rubinetteria della vasca" />
+                <Select
+                  value={value.vasca.rubinetteria_vasca}
+                  onValueChange={(tap) =>
+                    update({ vasca: { ...value.vasca, rubinetteria_vasca: tap as BathroomConfig["vasca"]["rubinetteria_vasca"] } })
+                  }
+                >
+                  <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="a_parete">A parete</SelectItem>
+                    <SelectItem value="a_pavimento">A pavimento</SelectItem>
+                    <SelectItem value="bordo_vasca">Bordo vasca</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div>
               <Label className="text-xs max-md:text-[11px]">Dimensione vasca</Label>
@@ -822,6 +1004,23 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
                 Questa scala viene forzata nel prompt: la vasca non deve diventare una vaschetta piccola o decorativa.
               </p>
             </div>
+            {/* La parete sopravasca si monta solo su una vasca contro parete. */}
+            {!FREESTANDING.includes(value.vasca.tipo) ? (
+              <div>
+                <Label className="text-xs max-md:text-[11px]">Parete doccia sulla vasca</Label>
+                <Select
+                  value={value.vasca.parete_doccia ?? NON_INDICATA}
+                  onValueChange={(screen) => update({ vasca: conScelta(value.vasca, "parete_doccia", screen) })}
+                >
+                  <SelectTrigger aria-label="Parete doccia sulla vasca"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {BATH_SCREEN_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
           </AccordionContent>
         </AccordionItem>
 
@@ -842,23 +1041,15 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
           </div>
           <AccordionContent className="space-y-3 pb-4">
             {catalogo(["mobile_bagno", "lavabo", "specchio"], () => ({ sostituzione: { ...value.sostituzione, mobile_bagno: true }, vanity: { ...value.vanity, attivo: true } }))}
-            <div>
-              <Label className="text-xs max-md:text-[11px]">Stile</Label>
-              <Select
-                value={value.vanity.stile}
-                onValueChange={(style) =>
-                  update({ vanity: { ...value.vanity, stile: style as BathroomConfig["vanity"]["stile"] } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sospeso_moderno">Sospeso moderno</SelectItem>
-                  <SelectItem value="sospeso_minimal">Sospeso minimal</SelectItem>
-                  <SelectItem value="a_terra_classico">A terra classico</SelectItem>
-                  <SelectItem value="a_terra_industrial">A terra industrial</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <VisualOptionGrid
+              label="Stile"
+              options={VANITY_STYLE_OPTIONS}
+              value={value.vanity.stile}
+              fotoIntera
+              onChange={(style) =>
+                update({ vanity: { ...value.vanity, stile: style as BathroomConfig["vanity"]["stile"] } })
+              }
+            />
             <div>
               <Label className="text-xs max-md:text-[11px]">Colore mobile</Label>
               <Input
@@ -880,20 +1071,23 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
             />
             <div>
               <Label className="text-xs max-md:text-[11px]">Lavabo</Label>
-              <Select
-                value={value.vanity.lavabo}
-                onValueChange={(basin) =>
-                  update({ vanity: { ...value.vanity, lavabo: basin as BathroomConfig["vanity"]["lavabo"] } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="integrato">Integrato</SelectItem>
-                  <SelectItem value="appoggio_ovale">Appoggio ovale</SelectItem>
-                  <SelectItem value="appoggio_rettangolare">Appoggio rettangolare</SelectItem>
-                  <SelectItem value="semincasso">Semincasso</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <FotoDellaScelta photo={BASIN_PHOTOS[value.vanity.lavabo]} alt="Lavabo" />
+                <Select
+                  value={value.vanity.lavabo}
+                  onValueChange={(basin) =>
+                    update({ vanity: { ...value.vanity, lavabo: basin as BathroomConfig["vanity"]["lavabo"] } })
+                  }
+                >
+                  <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="integrato">Integrato</SelectItem>
+                    <SelectItem value="appoggio_ovale">Appoggio ovale</SelectItem>
+                    <SelectItem value="appoggio_rettangolare">Appoggio rettangolare</SelectItem>
+                    <SelectItem value="semincasso">Semincasso</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div>
               <Label className="text-xs max-md:text-[11px]">Larghezza (cm)</Label>
@@ -930,19 +1124,22 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
             </div>
             <div>
               <Label className="text-xs max-md:text-[11px]">Specchio</Label>
-              <Select
-                value={value.vanity.specchio || "retroilluminato"}
-                onValueChange={(mirror) =>
-                  update({ vanity: { ...value.vanity, specchio: mirror as NonNullable<BathroomConfig["vanity"]["specchio"]> } })
-                }
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {MIRROR_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <FotoDellaScelta photo={MIRROR_PHOTOS[value.vanity.specchio || "retroilluminato"]} alt="Specchio" />
+                <Select
+                  value={value.vanity.specchio || "retroilluminato"}
+                  onValueChange={(mirror) =>
+                    update({ vanity: { ...value.vanity, specchio: mirror as NonNullable<BathroomConfig["vanity"]["specchio"]> } })
+                  }
+                >
+                  <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MIRROR_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -981,39 +1178,35 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
             </div>
             {value.sanitari.azione_wc === "sostituisci" ? (
               <>
-                <div>
-                  <Label className="text-xs max-md:text-[11px]">Tipo WC</Label>
-                  <Select
-                    value={value.sanitari.tipo_wc}
-                    onValueChange={(type) =>
-                      update({ sanitari: { ...value.sanitari, tipo_wc: type as BathroomConfig["sanitari"]["tipo_wc"] } })
-                    }
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sospeso">Sospeso</SelectItem>
-                      <SelectItem value="a_terra">A terra</SelectItem>
-                      <SelectItem value="rimless_sospeso">Rimless sospeso</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <VisualOptionGrid
+                  label="Tipo WC"
+                  options={TOILET_TYPE_OPTIONS}
+                  value={value.sanitari.tipo_wc}
+                  fotoIntera
+                  onChange={(type) =>
+                    update({ sanitari: { ...value.sanitari, tipo_wc: type as BathroomConfig["sanitari"]["tipo_wc"] } })
+                  }
+                />
                 {value.sanitari.tipo_wc === "sospeso" || value.sanitari.tipo_wc === "rimless_sospeso" ? (
                   <div className="space-y-3 rounded-xl border bg-muted/20 p-3">
                     <div>
                       <Label className="text-xs max-md:text-[11px]">Piastra WC a parete</Label>
-                      <Select
-                        value={value.sanitari.piastra_wc || "rettangolare_sottile"}
-                        onValueChange={(plate) =>
-                          update({ sanitari: { ...value.sanitari, piastra_wc: plate as NonNullable<BathroomConfig["sanitari"]["piastra_wc"]> } })
-                        }
-                      >
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {FLUSH_PLATE_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-2">
+                        <FotoDellaScelta photo={FLUSH_PLATE_PHOTOS[value.sanitari.piastra_wc || "rettangolare_sottile"]} alt="Placca del WC" />
+                        <Select
+                          value={value.sanitari.piastra_wc || "rettangolare_sottile"}
+                          onValueChange={(plate) =>
+                            update({ sanitari: { ...value.sanitari, piastra_wc: plate as NonNullable<BathroomConfig["sanitari"]["piastra_wc"]> } })
+                          }
+                        >
+                          <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {FLUSH_PLATE_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <VisualOptionGrid
                       label="Colore piastra"
@@ -1051,24 +1244,28 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
             {value.sanitari.azione_bidet === "sostituisci" || value.sanitari.azione_bidet === "aggiungi" ? (
               <div>
                 <Label className="text-xs max-md:text-[11px]">Tipo bidet</Label>
-                <Select
-                  value={value.sanitari.tipo_bidet || "sospeso"}
-                  onValueChange={(type) =>
-                    update({ sanitari: { ...value.sanitari, tipo_bidet: type as "sospeso" | "a_terra" } })
-                  }
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sospeso">Sospeso</SelectItem>
-                    <SelectItem value="a_terra">A terra</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <FotoDellaScelta photo={BIDET_PHOTOS[value.sanitari.tipo_bidet || "sospeso"]} alt="Bidet" />
+                  <Select
+                    value={value.sanitari.tipo_bidet || "sospeso"}
+                    onValueChange={(type) =>
+                      update({ sanitari: { ...value.sanitari, tipo_bidet: type as "sospeso" | "a_terra" } })
+                    }
+                  >
+                    <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sospeso">Sospeso</SelectItem>
+                      <SelectItem value="a_terra">A terra</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             ) : null}
             <VisualOptionGrid
               label="Colore sanitari"
               options={SANITARY_COLOR_OPTIONS}
               value={value.sanitari.colore}
+              fotoIntera
               onChange={(color) =>
                 update({ sanitari: { ...value.sanitari, colore: color as BathroomConfig["sanitari"]["colore"] } })
               }
@@ -1098,26 +1295,131 @@ export function BathroomConfigForm({ value, onChange, companyId }: Props) {
               helper="Così la rubinetteria resta coerente in tutto il bagno"
               options={FAUCET_FINISH_OPTIONS}
               value={value.rubinetteria.finitura}
+              fotoIntera
               onChange={(finish) =>
                 update({ rubinetteria: { ...value.rubinetteria, finitura: finish as BathroomConfig["rubinetteria"]["finitura"] } })
               }
             />
             <div>
               <Label className="text-xs max-md:text-[11px]">Stile</Label>
+              <div className="flex items-center gap-2">
+                <FotoDellaScelta photo={FAUCET_STYLE_PHOTOS[value.rubinetteria.stile]} alt="Stile dei rubinetti" />
+                <Select
+                  value={value.rubinetteria.stile}
+                  onValueChange={(style) =>
+                    update({ rubinetteria: { ...value.rubinetteria, stile: style as BathroomConfig["rubinetteria"]["stile"] } })
+                  }
+                >
+                  <SelectTrigger className="min-w-0 flex-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="quadro_moderno">Quadro moderno</SelectItem>
+                    <SelectItem value="tondo_classico">Tondo classico</SelectItem>
+                    <SelectItem value="industrial">Industrial</SelectItem>
+                    <SelectItem value="vintage_crosshead">Vintage crosshead</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="termoarredo" className="rounded-xl border px-3 max-md:rounded-none max-md:border-0">
+          <div className="flex items-center gap-2 py-2.5 max-md:gap-3 max-md:py-1.5 max-md:[&>h3]:flex-1">
+            <Switch
+              aria-label="Cambia il termoarredo"
+              checked={value.sostituzione.termoarredo === true}
+              onCheckedChange={(checked) =>
+                update({
+                  sostituzione: { ...value.sostituzione, termoarredo: checked },
+                  termoarredo: { ...(value.termoarredo ?? DEFAULT_TERMOARREDO), attivo: checked },
+                })
+              }
+            />
+            <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
+              <span>Termoarredo</span>
+            </AccordionTrigger>
+          </div>
+          <AccordionContent className="space-y-3 pb-4">
+            <div>
+              <Label className="text-xs max-md:text-[11px]">Cosa fare</Label>
               <Select
-                value={value.rubinetteria.stile}
-                onValueChange={(style) =>
-                  update({ rubinetteria: { ...value.rubinetteria, stile: style as BathroomConfig["rubinetteria"]["stile"] } })
+                value={(value.termoarredo ?? DEFAULT_TERMOARREDO).azione}
+                onValueChange={(action) =>
+                  update({ termoarredo: { ...(value.termoarredo ?? { ...DEFAULT_TERMOARREDO, attivo: false }), azione: action as NonNullable<BathroomConfig["termoarredo"]>["azione"] } })
                 }
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Cosa fare col termoarredo"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="quadro_moderno">Quadro moderno</SelectItem>
-                  <SelectItem value="tondo_classico">Tondo classico</SelectItem>
-                  <SelectItem value="industrial">Industrial</SelectItem>
-                  <SelectItem value="vintage_crosshead">Vintage crosshead</SelectItem>
+                  {TOWEL_WARMER_ACTION_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+            </div>
+            {(value.termoarredo ?? DEFAULT_TERMOARREDO).azione !== "rimuovi" ? (
+              <>
+                <div>
+                  <Label className="text-xs max-md:text-[11px]">Modello</Label>
+                  <Select
+                    value={(value.termoarredo ?? DEFAULT_TERMOARREDO).tipo}
+                    onValueChange={(type) =>
+                      update({ termoarredo: { ...(value.termoarredo ?? { ...DEFAULT_TERMOARREDO, attivo: false }), tipo: type as NonNullable<BathroomConfig["termoarredo"]>["tipo"] } })
+                    }
+                  >
+                    <SelectTrigger aria-label="Modello del termoarredo"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {TOWEL_WARMER_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <VisualOptionGrid
+                  label="Finitura"
+                  options={TOWEL_WARMER_FINISH_OPTIONS}
+                  value={(value.termoarredo ?? DEFAULT_TERMOARREDO).finitura}
+                  onChange={(finish) =>
+                    update({ termoarredo: { ...(value.termoarredo ?? { ...DEFAULT_TERMOARREDO, attivo: false }), finitura: finish as NonNullable<BathroomConfig["termoarredo"]>["finitura"] } })
+                  }
+                />
+              </>
+            ) : null}
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="illuminazione" className="rounded-xl border px-3 max-md:rounded-none max-md:border-0">
+          <div className="flex items-center gap-2 py-2.5 max-md:gap-3 max-md:py-1.5 max-md:[&>h3]:flex-1">
+            <Switch
+              aria-label="Cambia l'illuminazione"
+              checked={value.sostituzione.illuminazione}
+              onCheckedChange={(checked) =>
+                update({
+                  sostituzione: { ...value.sostituzione, illuminazione: checked },
+                  ...(checked && !value.illuminazione_tipo?.trim() ? { illuminazione_tipo: DEFAULT_ILLUMINAZIONE_TIPO } : {}),
+                })
+              }
+            />
+            <AccordionTrigger className="flex-1 py-0 text-sm max-md:text-[13px]">
+              <span>Illuminazione</span>
+            </AccordionTrigger>
+          </div>
+          <AccordionContent className="space-y-3 pb-4">
+            <div>
+              <Label className="text-xs max-md:text-[11px]">Luci nuove</Label>
+              <Select
+                value={LIGHTING_OPTIONS.some((option) => option.value === value.illuminazione_tipo) ? value.illuminazione_tipo : ""}
+                onValueChange={(lighting) => update({ illuminazione_tipo: lighting })}
+              >
+                <SelectTrigger aria-label="Tipo di luci nuove"><SelectValue placeholder="Scegli il tipo di luci" /></SelectTrigger>
+                <SelectContent>
+                  {LIGHTING_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-[11px] text-muted-foreground max-md:hidden">
+                Il soffitto resta com'è: si aggiungono solo le luci scelte. Lo specchio retroilluminato si sceglie nel mobile.
+              </p>
             </div>
           </AccordionContent>
         </AccordionItem>

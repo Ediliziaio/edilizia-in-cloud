@@ -56,6 +56,14 @@ export function validateFacciataPromptConfig(config: FacciataRenderConfig): Facc
     missingBusinessRules.push("railing repaint must explicitly preserve geometry and structure");
   }
 
+  const shutters = config.technical_specification.elements.shutters;
+  if (shutters?.action === "repaint") {
+    if (!config.replacement_manifest.repaintActions.some((line) => /repaint the existing window shutters only/i.test(line) && /preserve their type, slats/i.test(line))) {
+      missingBusinessRules.push("shutter repaint must explicitly preserve the shutter model and geometry");
+    }
+    if (!shutters.colorHex) missingBusinessRules.push("shutter repaint must state the new colour");
+  }
+
   const groundFloorCladding = config.technical_specification.cladding.active && config.technical_specification.cladding.zone === "piano_terra";
   if (
     groundFloorCladding &&

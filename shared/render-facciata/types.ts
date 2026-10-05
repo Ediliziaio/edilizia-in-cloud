@@ -92,26 +92,45 @@ export interface ConfigMarcapiani {
   spessore?: string;
 }
 
+export type MaterialeDavanzale = "pietra" | "marmo" | "alluminio";
+
 export interface ConfigDavanzali {
   azione: "mantieni" | "sostituisci";
-  materiale?: "pietra" | "marmo" | "alluminio";
+  /** Dal 10/2026 si sceglie da un elenco; le sessioni vecchie possono avere testo libero. */
+  materiale?: MaterialeDavanzale;
   colore_hex?: string;
 }
 
+export type MaterialeZoccolatura = "intonaco" | "pietra" | "ceramica";
+
 export interface ConfigZoccolatura {
   azione: "mantieni" | "aggiungi" | "rimuovi";
-  tipo?: "intonaco" | "pietra" | "ceramica";
+  tipo?: MaterialeZoccolatura;
   colore_hex?: string;
   altezza_cm?: number;
 }
 
+/** Materiale di gronde e pluviali: gli stessi cinque del tetto (MaterialeGrondaia) e le stesse foto. */
+export type MaterialeGronde = "rame" | "zinco_titanio" | "acciaio_zincato" | "alluminio" | "pvc";
+
 export interface ConfigGronde {
   azione: "mantieni" | "sostituisci";
+  /** Usato solo per i materiali verniciati (alluminio, PVC): rame, zinco-titanio e acciaio zincato restano al naturale. */
   colore_hex?: string;
-  materiale?: "rame" | "alluminio" | "pvc";
+  /** Dal 10/2026 si sceglie da un elenco; le sessioni vecchie possono avere testo libero. */
+  materiale?: MaterialeGronde;
 }
 
 export interface ConfigBalconiRinghiere {
+  azione: "mantieni" | "vernicia";
+  colore_hex?: string;
+}
+
+/**
+ * Persiane e scuri ESISTENTI: solo riverniciatura, stesso modello (sostituirle è il
+ * render persiane). Assente = mantieni, come prima.
+ */
+export interface ConfigPersianeFacciata {
   azione: "mantieni" | "vernicia";
   colore_hex?: string;
 }
@@ -123,6 +142,7 @@ export interface ConfigElementiArchitettonici {
   zoccolatura: ConfigZoccolatura;
   gronde: ConfigGronde;
   balconi_ringhiere: ConfigBalconiRinghiere;
+  persiane?: ConfigPersianeFacciata;
 }
 
 export interface ConfigurazioneFacciata {
@@ -153,7 +173,8 @@ export type FacciataZoneId =
   | "cornici_finestre"
   | "davanzali"
   | "gronde"
-  | "balconi_ringhiere";
+  | "balconi_ringhiere"
+  | "persiane";
 
 export type FacciataOpeningPosition =
   | "far_left"
@@ -267,7 +288,8 @@ export interface FacciataZoneDirective {
     | "davanzali"
     | "zoccolatura"
     | "gronde"
-    | "balconi_ringhiere";
+    | "balconi_ringhiere"
+    | "persiane";
   action: "apply" | "add" | "remove" | "replace" | "repaint";
   summary: string;
 }
@@ -333,6 +355,8 @@ export interface FacciataTechnicalSpecification {
     baseCourse: FacciataElementSpec;
     gutters: FacciataElementSpec;
     railings: FacciataElementSpec;
+    /** Solo nei piani costruiti dal 10/2026 e solo se il form ha la voce persiane. */
+    shutters?: FacciataElementSpec;
   };
 }
 

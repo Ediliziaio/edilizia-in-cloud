@@ -33,17 +33,31 @@ export function validateFloorPromptConfig(config: FloorRenderConfig): FloorPromp
     }
   }
 
-  if (config.legacy_config.pattern_posa === "spina_di_pesce") {
+  // Un pavimento continuo non ha posa: la spina rimasta nel config non va pretesa.
+  const hasLayout = !config.technical_specification.isSeamless;
+
+  if (hasLayout && config.legacy_config.pattern_posa === "spina_di_pesce") {
     const text = config.replacement_manifest.patternRules.join(" ").toLowerCase();
     if (!text.includes("herringbone") || !text.includes("90 degrees")) {
       missingBusinessRules.push("classic herringbone must be explicit and not confused with chevron");
     }
   }
 
-  if (config.legacy_config.pattern_posa === "spina_ungherese") {
+  if (hasLayout && config.legacy_config.pattern_posa === "spina_ungherese") {
     const text = config.replacement_manifest.patternRules.join(" ").toLowerCase();
     if (!text.includes("hungarian") || !text.includes("chevron") || !text.includes("cut")) {
       missingBusinessRules.push("Hungarian point must describe angled cut ends");
+    }
+  }
+
+  if (config.legacy_config.tappeti === "rimuovi") {
+    const removals = config.replacement_manifest.removals.join(" ").toLowerCase();
+    const keepsRugs = [
+      ...config.replacement_manifest.objectInteractionRules,
+      ...config.integrity_constraints,
+    ].join(" ").toLowerCase();
+    if (!removals.includes("rug") || keepsRugs.includes("no moved rugs") || keepsRugs.includes("rugs and objects")) {
+      missingBusinessRules.push("rug removal must be explicit and not contradicted by rug preservation rules");
     }
   }
 

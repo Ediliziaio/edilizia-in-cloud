@@ -12,6 +12,8 @@ export interface ConfigVerniciatura {
   applica_a?: "tutte" | "parete_principale" | "parete_accento" | "specifiche";
   colore_accento_hex?: string;
   colore_accento_nome?: string;
+  /** Con `applica_a: "specifiche"`: quali pareti, a parole («parete dietro il divano»). */
+  pareti_specifiche?: string;
 }
 
 export interface ConfigPavimentoStanza {
@@ -23,6 +25,7 @@ export interface ConfigPavimentoStanza {
   finitura?: string;
   dimensione?: string;
   effetto_visivo?: string;
+  /** Essenza del legno (chiavi del render pavimento): vale solo se il pavimento è legno o effetto legno. */
   essenza_legno?: string;
   formato_piastrella?: string;
   larghezza_listello_mm?: number;
@@ -52,7 +55,7 @@ export interface ConfigSoffitto {
 
 export interface ConfigIlluminazione {
   attivo: boolean;
-  tipo?: "faretti_incassati" | "lampadario_centrale" | "led_strip_perimetrale" | "lampade_sospensione" | "applique_parete" | "misto";
+  tipo?: "faretti_incassati" | "binario" | "lampadario_centrale" | "led_strip_perimetrale" | "lampade_sospensione" | "applique_parete" | "misto";
   temperatura?: "calda_2700k" | "neutra_3000k" | "fredda_4000k";
   intensita_luce?: "soffusa" | "normale" | "forte";
 }

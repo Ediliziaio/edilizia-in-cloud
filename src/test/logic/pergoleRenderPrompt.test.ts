@@ -220,4 +220,66 @@ describe("pergole render prompt", () => {
     expect(text).toContain("doors and door-windows remain");
     expect(prompt.validation.isValid).toBe(true);
   });
+
+  // ── Correzioni A (audit 04/10): la stessa regola di coerenza del prompt della edge ──
+
+  it("la tipologia autoportante vince sull'interruttore «addossata» rimasto acceso", () => {
+    const prompt = buildPergolePrompt(baseConfig({ struttura: { ...baseConfig().struttura, tipo: "bioclimatica_autoportante" } }));
+    const text = prompt.userPrompt.toLowerCase();
+    expect(text).toContain("wall-mounted: no, freestanding / independent");
+    expect(text).toContain("no rear wall attachment");
+    expect(text).toContain("post count: 4");
+    expect(text).toContain("four corner posts");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("addossata con 4 montanti: posizioni coerenti col numero, nessun pilastro contro la facciata", () => {
+    const prompt = buildPergolePrompt(baseConfig({ installazione: { ...baseConfig().installazione, numero_montanti: 4 } }));
+    expect(prompt.userPrompt).toContain("2 intermediate posts evenly spaced along the front beam on the target paving");
+    expect(prompt.userPrompt).toContain("no posts against the facade: the rear beam is carried by the wall ledger");
+  });
+
+  it("tipologia telo con la copertura a lamelle rimasta dal default: copertura telo, stato coerente", () => {
+    const prompt = buildPergolePrompt(baseConfig({ struttura: { ...baseConfig().struttura, tipo: "telo_addossata" } }));
+    expect(prompt.userPrompt).toContain("Cover type: telo_retraibile");
+    expect(prompt.userPrompt).not.toContain("louvers tilted");
+    expect(prompt.normalizedConfig.legacy_config.copertura.tipo).toBe("telo_retraibile");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("solo copertura da bioclimatica a telo: la struttura si descrive senza lamelle", () => {
+    const prompt = buildPergolePrompt(baseConfig({ operazione: "change_cover_only", copertura: { tipo: "telo_retraibile", stato: "telo_disteso" } }));
+    expect(prompt.userPrompt).toContain("Typology: addossata");
+    expect(prompt.userPrompt).toContain("Structural language: wall-mounted pergola attached to the facade");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  // ── Elementi che mancavano (B, 04/10) ─────────────────────────────────
+
+  it("colore del telo e vetro della copertura arrivano alla descrizione della copertura", () => {
+    const telo = buildPergolePrompt(baseConfig({
+      struttura: { ...baseConfig().struttura, tipo: "telo_addossata" },
+      copertura: { tipo: "telo_retraibile", stato: "telo_disteso", colore_telo_nome: "Ecrù", colore_telo_hex: "#E8DFC8" },
+    }));
+    expect(telo.normalizedConfig.technical_specification.coverDescription).toContain("fabric colour Ecrù (#E8DFC8)");
+    expect(telo.validation.isValid).toBe(true);
+
+    const vetro = buildPergolePrompt(baseConfig({
+      struttura: { ...baseConfig().struttura, tipo: "vetro_autoportante" },
+      installazione: { ...baseConfig().installazione, addossata_si_no: false, numero_montanti: 4 },
+      copertura: { tipo: "vetro", stato: "chiusa", trasparenza: "satinato" },
+    }));
+    expect(vetro.userPrompt).toContain("satin frosted panels that diffuse the light");
+    expect(vetro.validation.isValid).toBe(true);
+
+    const opaco = buildPergolePrompt(baseConfig());
+    expect(opaco.normalizedConfig.technical_specification.coverDescription).toBe(
+      "bioclimatic orientable aluminum louvers, repeated blades in a precise roof grid, integrated perimeter frame",
+    );
+  });
+
+  it("ancoraggio a terra assente: dalla zona", () => {
+    const prompt = buildPergolePrompt(baseConfig({ installazione: { ...baseConfig().installazione, zona: "bordo_piscina", ancoraggio_a_terra: undefined } }));
+    expect(prompt.userPrompt).toContain("bordo piscina anchoring");
+  });
 });

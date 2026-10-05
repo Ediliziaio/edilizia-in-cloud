@@ -123,6 +123,34 @@ export function validateBathroomPromptConfig(config: BathroomRenderConfig): Bath
     }
   }
 
+  // Elementi indicati nel form dal 04/10/2026 (assenti nelle configurazioni vecchie):
+  // le combinazioni incompatibili le risolve il builder, qui si controlla che l'abbia fatto.
+  const { shower, bathtub, towelWarmer } = config.technical_specification;
+  if (shower.replace && shower.type === "semicircolare" && /linear channel drain running/i.test(shower.drainType)) {
+    missingBusinessRules.push("a semicircular quadrant tray cannot take a linear channel drain");
+  }
+  if (shower.replace && shower.wallNicheRule && shower.wallNiche && !/recessed .*niche/i.test(shower.wallNicheRule)) {
+    missingBusinessRules.push("a requested shower niche must state its size, position and lining");
+  }
+  if (
+    bathtub.replace && bathtub.screenRule &&
+    (bathtub.type === "freestanding_ovale" || bathtub.type === "freestanding_rettangolare") &&
+    !/^no bath screen/i.test(bathtub.screenRule)
+  ) {
+    missingBusinessRules.push("a freestanding bathtub cannot carry a glass bath screen");
+  }
+  if (towelWarmer?.replace) {
+    if (towelWarmer.action !== "rimuovi" && (!towelWarmer.typeLabel || !towelWarmer.finish)) {
+      missingBusinessRules.push("a new towel warmer must state its model and finish");
+    }
+    if (
+      towelWarmer.action === "rimuovi" && config.scene_analysis.towelWarmerPresent &&
+      !config.replacement_manifest.removals.some((rule) => rule.code === "remove_existing_towel_warmer")
+    ) {
+      missingBusinessRules.push("towel warmer removal must explicitly remove the existing radiator");
+    }
+  }
+
   if (
     config.technical_specification.floor.replace &&
     !config.technical_specification.wallTiles.replace &&

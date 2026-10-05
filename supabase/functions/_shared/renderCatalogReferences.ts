@@ -66,11 +66,12 @@ export function catalogReferenceLabel(asset: CatalogAssetForLegend): string {
  * preservazione): dice al modello cosa sono le immagini allegate e come usarle.
  * Stringa vuota se non ci sono reference.
  */
-export function buildCatalogLegend(assets: CatalogAssetForLegend[]): string {
+export function buildCatalogLegend(assets: CatalogAssetForLegend[], firstImage = 2): string {
   if (assets.length === 0) return "";
-  const righe = assets.map((a, i) => `${i + 1}. ${catalogReferenceLabel(a)}`);
+  // Numerazione assoluta come nel flusso infissi: Image 1 e' la foto da modificare.
+  const righe = assets.map((a, i) => `Image ${firstImage + i} — ${catalogReferenceLabel(a)}`);
   return [
-    "REFERENCE IMAGES ATTACHED — the customer's own product catalogue. Reproduce each product shown (shape, colour, finish, proportions) adapted to the room's perspective and lighting. Do NOT copy the reference photo's background, staging or framing into the scene.",
+    "REFERENCE IMAGES ATTACHED — the customer's own product catalogue (Image 1 is the source photo you must edit; these are invisible inputs). Reproduce each product shown (shape, colour, finish, proportions) adapted to the room's perspective and lighting. Do NOT copy the reference photo's background, staging or framing into the scene, and never show the reference photo itself in the result.",
     ...righe,
   ].join("\n");
 }

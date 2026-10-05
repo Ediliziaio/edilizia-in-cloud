@@ -6,11 +6,27 @@ import {
   DEFAULT_INTEGRITY_CONSTRAINTS,
   DEFAULT_QUALITY_DIRECTIVES,
   DEFAULT_WATER_REALISM_RULES,
+  EXTERIOR_CLADDING_DESCRIPTIONS,
   INTERIOR_FINISH_DESCRIPTIONS,
+  KEEP_EXISTING,
   POOL_TYPE_DESCRIPTIONS,
+  QUOTA_BORDO_DESCRIPTIONS,
+  REMOVED_POOL,
+  RESTORED_SURFACE_DESCRIPTIONS,
   WATER_LOOK_DESCRIPTIONS,
   WATER_SYSTEM_DESCRIPTIONS,
+  describeFinishWaterConflict,
+  describeRealSizeShort,
+  misureReali,
 } from "./promptFragments.ts";
+import { cambiaElemento, type ElementoPiscina } from "./piscineOperationScope.ts";
+import {
+  acquaIncompatibileConRivestimento,
+  formaEffettiva,
+  quotaBordoEffettiva,
+  sistemaBordoEffettivo,
+  vascaRialzata,
+} from "./piscineCoerenza.ts";
 import type {
   ConfigurazionePiscine,
   PiscinaBuildabilityEnvelope,
@@ -18,6 +34,7 @@ import type {
   PiscinaSceneAnalysis,
   PiscinaTargetAreaMap,
   PiscinaTechnicalSpecification,
+  SistemaBordoPiscina,
 } from "./types.ts";
 
 function uniq(values: string[]): string[] {
@@ -37,33 +54,95 @@ function lightingDescription(config: ConfigurazionePiscine): string {
   }
 }
 
-function allowsWholePoolFeatureChanges(config: ConfigurazionePiscine): boolean {
-  return config.operazione === "add_new_pool" || config.operazione === "replace_existing_pool";
+/** L'operazione cambia questo elemento? (piscineOperationScope.ts: una tabella per prompt e foto) */
+function cambia(config: ConfigurazionePiscine, elemento: ElementoPiscina): boolean {
+  return cambiaElemento(config.operazione, elemento);
+}
+
+/** Fuori ambito: si conserva com'è; in una rimozione sparisce con la piscina. */
+function keepOr(config: ConfigurazionePiscine, keep: string, removed: string): string {
+  return config.operazione === "remove_existing_pool" ? removed : keep;
+}
+
+/** Forma e bordo coerenti con la tipologia (piscineCoerenza.ts). */
+export function sistemaBordoPiscina(config: ConfigurazionePiscine): SistemaBordoPiscina {
+  return sistemaBordoEffettivo(config.piscina.tipo, config.piscina.sistema_bordo) as SistemaBordoPiscina;
+}
+
+/** Geometria della vasca da costruire, con i campi nuovi solo se valorizzati. */
+function newPoolGeometry(config: ConfigurazionePiscine): string {
+  const tipo = config.piscina.tipo;
+  const forma = formaEffettiva(tipo, config.piscina.forma);
+  const misure = misureReali(config.piscina.lunghezza_m, config.piscina.larghezza_m);
+  const quota = quotaBordoEffettiva(tipo, config.inserimento?.quota_bordo);
+  const cladding = vascaRialzata(tipo, config.inserimento?.quota_bordo) && config.finiture.rivestimento_esterno
+    ? EXTERIOR_CLADDING_DESCRIPTIONS[config.finiture.rivestimento_esterno]
+    : undefined;
+  return [
+    `${POOL_TYPE_DESCRIPTIONS[tipo]}; shape ${forma.replace(/_/g, " ")}; apparent size ${config.piscina.dimensione_apparente.replace(/_/g, " ")}`,
+    misure ? describeRealSizeShort(misure) : null,
+    quota ? `edge height: ${QUOTA_BORDO_DESCRIPTIONS[quota as keyof typeof QUOTA_BORDO_DESCRIPTIONS]}` : null,
+    cladding ? `exterior cladding: ${cladding}` : null,
+  ].filter(Boolean).join("; ");
 }
 
 function isStrictSurfaceOnlyOperation(config: ConfigurazionePiscine): boolean {
   return config.operazione === "recolor_waterlook_or_liner_only" || config.operazione === "change_coping_only";
 }
 
+/**
+ * Gli elementi che l'operazione non cambia si descrivono «come in foto» (o, in una
+ * rimozione, «tolti con la piscina»): prima comparivano col valore di default del form
+ * («Coping: travertine» in un render «solo acqua», la tipologia rettangolare in «solo bordo»).
+ */
 export function buildPiscinaTechnicalSpecification(config: ConfigurazionePiscine): PiscinaTechnicalSpecification {
-  const accessoryDescriptions = (config.comfort.accessori ?? []).map((item) => ACCESSORY_DESCRIPTIONS[item]);
-  const installationType = ["semi_incassata", "fuori_terra_premium", "minipiscina", "terrazzo_compatta"].includes(config.piscina.tipo)
+  const vasca = cambia(config, "vasca");
+  const sistema = sistemaBordoPiscina(config);
+  const finitura = config.finiture.rivestimento_interno;
+  const accessoryDescriptions = cambia(config, "accessori")
+    ? (config.comfort.accessori ?? []).map((item) => ACCESSORY_DESCRIPTIONS[item])
+    : [];
+  const installationType = !vasca
+    ? keepOr(config, KEEP_EXISTING.installation, REMOVED_POOL.installation)
+    : ["semi_incassata", "fuori_terra_premium", "minipiscina", "terrazzo_compatta"].includes(config.piscina.tipo)
     ? "raised / semi-inground / compact system with visible premium base and edge integration"
     : "in-ground pool inserted into the terrain with believable excavation and coping";
+  const ripristino = config.finiture.superficie_ripristino;
 
   return {
     poolTypology: config.piscina.tipo,
-    poolGeometry: `${POOL_TYPE_DESCRIPTIONS[config.piscina.tipo]}; shape ${config.piscina.forma.replace(/_/g, " ")}; apparent size ${config.piscina.dimensione_apparente.replace(/_/g, " ")}`,
+    poolGeometry: vasca ? newPoolGeometry(config) : keepOr(config, KEEP_EXISTING.geometry, REMOVED_POOL.geometry),
     installationType,
-    waterSystem: config.piscina.sistema_bordo,
-    waterSystemDescription: WATER_SYSTEM_DESCRIPTIONS[config.piscina.sistema_bordo],
-    interiorFinish: config.finiture.rivestimento_interno,
-    interiorFinishDescription: INTERIOR_FINISH_DESCRIPTIONS[config.finiture.rivestimento_interno],
-    waterLookDescription: `${WATER_LOOK_DESCRIPTIONS[config.piscina.colore_acqua]}; must be consistent with ${INTERIOR_FINISH_DESCRIPTIONS[config.finiture.rivestimento_interno]}`,
-    accessDescription: ACCESS_DESCRIPTIONS[config.comfort.accesso],
-    copingDescription: COPING_DESCRIPTIONS[config.finiture.coping],
-    deckDescription: AREA_DESCRIPTIONS[config.finiture.area_perimetrale],
-    lightingDescription: lightingDescription(config),
+    waterSystem: sistema,
+    waterSystemDescription: vasca
+      ? WATER_SYSTEM_DESCRIPTIONS[sistema]
+      : keepOr(config, KEEP_EXISTING.waterSystemRules, REMOVED_POOL.waterSystemRules),
+    interiorFinish: finitura,
+    interiorFinishDescription: cambia(config, "rivestimento")
+      ? INTERIOR_FINISH_DESCRIPTIONS[finitura]
+      : keepOr(config, KEEP_EXISTING.interiorFinishRules, REMOVED_POOL.interiorFinishRules),
+    // Colore impossibile su quel rivestimento (liner scuro + turchese): vince il rivestimento.
+    waterLookDescription: !cambia(config, "colore_acqua")
+      ? keepOr(config, KEEP_EXISTING.waterLook, REMOVED_POOL.waterLook)
+      : acquaIncompatibileConRivestimento(finitura, config.piscina.colore_acqua)
+      ? `${INTERIOR_FINISH_DESCRIPTIONS[finitura]}; ${describeFinishWaterConflict(finitura, config.piscina.colore_acqua)}`
+      : `${WATER_LOOK_DESCRIPTIONS[config.piscina.colore_acqua]}; must be consistent with ${INTERIOR_FINISH_DESCRIPTIONS[finitura]}`,
+    accessDescription: cambia(config, "accesso")
+      ? ACCESS_DESCRIPTIONS[config.comfort.accesso]
+      : keepOr(config, KEEP_EXISTING.access, REMOVED_POOL.access),
+    copingDescription: cambia(config, "coping")
+      ? COPING_DESCRIPTIONS[config.finiture.coping]
+      : keepOr(config, KEEP_EXISTING.coping, REMOVED_POOL.coping),
+    deckDescription: cambia(config, "area_perimetrale")
+      ? AREA_DESCRIPTIONS[config.finiture.area_perimetrale]
+      : config.operazione === "change_coping_only"
+      ? KEEP_EXISTING.surroundingsCopingJunction
+      : config.operazione === "remove_existing_pool"
+      ? (ripristino && RESTORED_SURFACE_DESCRIPTIONS[ripristino]) || "restore the ground as coherent lawn, patio, deck or hardscape matching the photographed context"
+      : KEEP_EXISTING.surroundings,
+    lightingDescription: cambia(config, "illuminazione")
+      ? lightingDescription(config)
+      : keepOr(config, KEEP_EXISTING.lighting, "remove the pool lights with the pool"),
     accessoryDescriptions,
   };
 }
@@ -100,7 +179,10 @@ export function buildPiscinaReplacementManifest(
       break;
     case "remove_existing_pool":
       removals.push("Remove the existing pool completely: water, basin, coping, ladder, skimmer/overflow details, pool lights and incompatible deck edges.");
-      replacements.push("Restore the target area as coherent lawn, patio, deck or hardscape matching the photographed context.");
+      // «Al posto della piscina» (campo nuovo): senza scelta, il ripristino di sempre.
+      replacements.push(config.finiture.superficie_ripristino && RESTORED_SURFACE_DESCRIPTIONS[config.finiture.superficie_ripristino]
+        ? `Restore the target area as ${RESTORED_SURFACE_DESCRIPTIONS[config.finiture.superficie_ripristino]}.`
+        : "Restore the target area as coherent lawn, patio, deck or hardscape matching the photographed context.");
       conversions.push("No residual basin ghost, blue water patch, coping outline or excavation scar may remain.");
       break;
     case "recolor_waterlook_or_liner_only":
@@ -123,15 +205,15 @@ export function buildPiscinaReplacementManifest(
       break;
   }
 
-  if ((allowsWholePoolFeatureChanges(config) || config.operazione === "add_access_system") && config.comfort.accesso !== "nessuno") {
+  if (cambia(config, "accesso") && config.comfort.accesso !== "nessuno") {
     additions.push(`Access detail: ${technical.accessDescription}.`);
   }
-  if ((allowsWholePoolFeatureChanges(config) || config.operazione === "add_pool_features") && config.comfort.illuminazione !== "nessuna") {
+  if (cambia(config, "illuminazione") && config.comfort.illuminazione !== "nessuna") {
     additions.push(`Lighting detail: ${technical.lightingDescription}.`);
   }
-  if (allowsWholePoolFeatureChanges(config) && config.comfort.arredo === "aggiungi_minimo") {
+  if (cambia(config, "arredo") && config.comfort.arredo === "aggiungi_minimo") {
     additions.push("Add only sparse coherent poolside furniture / sun loungers if there is enough visible space; avoid resort staging.");
-  } else if (allowsWholePoolFeatureChanges(config) && config.comfort.arredo === "rimuovi_superfluo") {
+  } else if (cambia(config, "arredo") && config.comfort.arredo === "rimuovi_superfluo") {
     removals.push("Declutter only small non-essential outdoor objects; do not remove fixed landscape or main furniture unless explicitly listed.");
   } else {
     conversions.push(isStrictSurfaceOnlyOperation(config)
@@ -162,14 +244,19 @@ export function buildPiscinaReplacementManifest(
 }
 
 export function buildPiscinaWaterRealismRules(config: ConfigurazionePiscine): string[] {
-  const systemRule = config.piscina.sistema_bordo === "skimmer"
+  if (config.operazione === "remove_existing_pool") return [...REMOVED_POOL.waterRealism];
+  const sistema = sistemaBordoPiscina(config);
+  const systemRule = !cambia(config, "vasca")
+    ? KEEP_EXISTING.waterRealismSystem
+    : sistema === "skimmer"
     ? "skimmer pool: waterline must sit slightly below coping; do not render an overflow/infinity edge"
-    : config.piscina.sistema_bordo === "infinity_edge"
+    : sistema === "infinity_edge"
       ? "infinity pool: only one plausible edge may visually spill toward the view/lower side; do not use if context is flat and enclosed"
       : "overflow pool: water level nearly flush with edge, continuous premium perimeter, no skimmer ambiguity";
 
-  const accessRule = isStrictSurfaceOnlyOperation(config) || config.operazione === "remove_existing_pool"
-    ? "preserve existing access geometry exactly; do not add or modify steps, ladders, beach shelf or lounge shelf in this operation scope"
+  // Fuori ambito anche con «aggiungi accessori»: prima lì passava la regola dei gradini di default.
+  const accessRule = !cambia(config, "accesso")
+    ? KEEP_EXISTING.waterRealismAccess
     : config.comfort.accesso === "spiaggetta" || config.comfort.accesso === "beach_entry"
       ? "shallow zone must be clearly readable with thinner transparent water and a smooth depth transition"
       : config.comfort.accesso.includes("grad")
@@ -180,12 +267,16 @@ export function buildPiscinaWaterRealismRules(config: ConfigurazionePiscine): st
     ...DEFAULT_WATER_REALISM_RULES,
     systemRule,
     accessRule,
-    `water look must follow interior finish: ${INTERIOR_FINISH_DESCRIPTIONS[config.finiture.rivestimento_interno]}`,
+    cambia(config, "rivestimento")
+      ? `water look must follow interior finish: ${INTERIOR_FINISH_DESCRIPTIONS[config.finiture.rivestimento_interno]}`
+      : "water look must stay exactly as photographed",
   ]);
 }
 
 export function buildPiscinaQualityDirectives(config: ConfigurazionePiscine): string[] {
-  const aboveGroundRule = ["fuori_terra_premium", "semi_incassata", "terrazzo_compatta"].includes(config.piscina.tipo)
+  const aboveGroundRule = !cambia(config, "vasca")
+    ? keepOr(config, "existing pool must keep its installation, base and edge exactly as photographed", "the former pool area must read as continuous ground, never as a filled-in basin")
+    : ["fuori_terra_premium", "semi_incassata", "terrazzo_compatta"].includes(config.piscina.tipo)
     ? "above-ground / semi-inground pool must show premium base, cladding and deck integration, never cheap or inflatable"
     : "in-ground pool must read as excavated and integrated into terrain with believable coping and deck/lawn junction";
 

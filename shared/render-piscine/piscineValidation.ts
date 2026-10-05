@@ -1,7 +1,72 @@
 import type {
+  ConfigurazionePiscine,
   PiscinaPromptValidationResult,
   PiscinaRenderConfig,
 } from "./types.ts";
+import { cambiaElemento } from "./piscineOperationScope.ts";
+import {
+  acquaIncompatibileConRivestimento,
+  formaEffettiva,
+  quotaBordoEffettiva,
+  sistemaBordoEffettivo,
+  vascaRialzata,
+} from "./piscineCoerenza.ts";
+import { MISURE_PISCINA_METRI } from "./types.ts";
+import { misureReali } from "./promptFragments.ts";
+
+const etichetta = (valore: string | null | undefined) => `«${(valore ?? "").replace(/_/g, " ")}»`;
+
+/** Un numero inserito nel campo misura, valido o no (per dire all'utente che non vale). */
+function numeroInserito(v: unknown): number | null {
+  if (v === undefined || v === null || v === "") return null;
+  const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
+  return Number.isFinite(n) ? n : NaN;
+}
+
+/**
+ * Avvisi per chi compila il form (italiano): scelte che si contraddicono e come le
+ * risolve il render. Lista vuota = niente da dire. Le stesse regole decidono prompt e
+ * foto (piscineCoerenza.ts), qui si spiegano soltanto.
+ */
+export function avvisiConfigurazionePiscina(config: ConfigurazionePiscine): string[] {
+  const avvisi: string[] = [];
+  const op = config.operazione;
+  const tipo = config.piscina?.tipo;
+  if (cambiaElemento(op, "vasca")) {
+    const forma = config.piscina?.forma;
+    if (forma && formaEffettiva(tipo, forma) !== forma) {
+      avvisi.push(`La tipologia ${etichetta(tipo)} non va con la forma ${etichetta(forma)}: il render userà la forma ${etichetta(formaEffettiva(tipo, forma))}.`);
+    }
+    const sistema = config.piscina?.sistema_bordo;
+    if (sistema && sistemaBordoEffettivo(tipo, sistema) !== sistema) {
+      avvisi.push(`La tipologia ${etichetta(tipo)} non va con il bordo ${etichetta(sistema)}: il render userà ${etichetta(sistemaBordoEffettivo(tipo, sistema))}.`);
+    }
+    const quota = config.inserimento?.quota_bordo;
+    if (quota && quota !== "a_filo_terreno" && !quotaBordoEffettiva(tipo, quota)) {
+      avvisi.push(`La quota del bordo ${etichetta(quota)} non va con la tipologia ${etichetta(tipo)}: il render segue la tipologia.`);
+    }
+    if (config.finiture?.rivestimento_esterno && !vascaRialzata(tipo, quota)) {
+      avvisi.push("Il rivestimento esterno si vede solo su una vasca rialzata (fuori terra, semi-incassata o con quota rialzata): così non entra nel render.");
+    }
+    const l = numeroInserito(config.piscina?.lunghezza_m);
+    const w = numeroInserito(config.piscina?.larghezza_m);
+    const { lunghezza: lim, larghezza: wim } = MISURE_PISCINA_METRI;
+    if ((l !== null && (Number.isNaN(l) || l < lim.min || l > lim.max)) || (w !== null && (Number.isNaN(w) || w < wim.min || w > wim.max))) {
+      avvisi.push(`Misure fuori scala: la lunghezza va da ${lim.min} a ${lim.max} m, la larghezza da ${wim.min} a ${wim.max} m. Una misura fuori scala non entra nel render.`);
+    }
+    const misure = misureReali(config.piscina?.lunghezza_m, config.piscina?.larghezza_m);
+    if (misure?.lunghezza && ["plunge_pool", "minipiscina", "terrazzo_compatta"].includes(tipo ?? "") && misure.lunghezza > 6) {
+      avvisi.push(`Una ${etichetta(tipo)} lunga ${misure.lunghezza} m non è più compatta: controlla tipologia o misure.`);
+    }
+    if (tipo === "biopiscina" && (/^mosaico_/.test(config.finiture?.rivestimento_interno ?? "") || ["turchese", "azzurra_classica"].includes(config.piscina?.colore_acqua ?? ""))) {
+      avvisi.push("In una biopiscina mosaico e acqua turchese o azzurra non sono credibili: meglio pietra, liner scuro e acqua grigio-verde naturale.");
+    }
+  }
+  if (cambiaElemento(op, "colore_acqua") && acquaIncompatibileConRivestimento(config.finiture?.rivestimento_interno, config.piscina?.colore_acqua)) {
+    avvisi.push(`Con il rivestimento ${etichetta(config.finiture?.rivestimento_interno)} l'acqua non può sembrare ${etichetta(config.piscina?.colore_acqua)}: il render segue il rivestimento.`);
+  }
+  return avvisi;
+}
 
 export function validatePiscinePromptConfig(config: PiscinaRenderConfig): PiscinaPromptValidationResult {
   const missingSections: string[] = [];
@@ -29,11 +94,14 @@ export function validatePiscinePromptConfig(config: PiscinaRenderConfig): Piscin
     config.buildability_envelope.groundPlaneRelation,
   ].join(" ").toLowerCase();
 
-  if (cfg.piscina.sistema_bordo === "infinity_edge" && config.buildability_envelope.infinityFeasibility !== "plausible") {
+  const vasca = cambiaElemento(cfg.operazione, "vasca");
+  const sistema = sistemaBordoEffettivo(cfg.piscina.tipo, cfg.piscina.sistema_bordo);
+  if (vasca && sistema === "infinity_edge" && config.buildability_envelope.infinityFeasibility !== "plausible") {
     missingBusinessRules.push("infinity-edge selected but context feasibility is limited; prompt must constrain it to a plausible edge or downgrade visually");
   }
   if (
-    cfg.piscina.sistema_bordo === "skimmer" &&
+    vasca &&
+    sistema === "skimmer" &&
     (
       allText.includes("infinity pool: only one plausible edge") ||
       allText.includes("overflow pool: water level nearly flush") ||
@@ -42,7 +110,7 @@ export function validatePiscinePromptConfig(config: PiscinaRenderConfig): Piscin
   ) {
     missingBusinessRules.push("skimmer selected but overflow/infinity language leaks into rules");
   }
-  if ((cfg.piscina.sistema_bordo === "sfioro" || cfg.piscina.sistema_bordo === "sfioro_nascosto") && !allText.includes("water level")) {
+  if (vasca && (sistema === "sfioro" || sistema === "sfioro_nascosto") && !allText.includes("water level")) {
     missingBusinessRules.push("overflow selected but water-level rules are missing");
   }
   if (cfg.operazione === "recolor_waterlook_or_liner_only" && !allText.includes("preserve exact pool shape")) {
@@ -72,11 +140,17 @@ export function validatePiscinePromptConfig(config: PiscinaRenderConfig): Piscin
   if (cfg.operazione === "add_access_system" && cfg.comfort.accesso === "nessuno") {
     missingBusinessRules.push("add_access_system requires a selected pool access feature");
   }
-  if ((cfg.comfort.accesso === "spiaggetta" || cfg.comfort.accesso === "beach_entry") && !allText.includes("shallow")) {
+  if (cambiaElemento(cfg.operazione, "accesso") && (cfg.comfort.accesso === "spiaggetta" || cfg.comfort.accesso === "beach_entry") && !allText.includes("shallow")) {
     missingBusinessRules.push("beach/baja shelf requires shallow-water rules");
   }
-  if (cfg.piscina.tipo === "fuori_terra_premium" && !allText.includes("above-ground")) {
+  if (vasca && cfg.piscina.tipo === "fuori_terra_premium" && !allText.includes("above-ground")) {
     missingBusinessRules.push("premium above-ground pool requires base/support logic");
+  }
+  // Le scelte che si contraddicono: il prompt le risolve (piscineCoerenza.ts), ma la
+  // configurazione non è quella che l'utente crede di aver scelto.
+  const avvisi = avvisiConfigurazionePiscina(cfg).length;
+  if (avvisi > 0) {
+    missingBusinessRules.push(`${avvisi} conflicting or out-of-range form choice(s): the prompt applies the pool type / interior finish precedence (avvisiConfigurazionePiscina)`);
   }
 
   return {

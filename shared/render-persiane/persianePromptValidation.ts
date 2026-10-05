@@ -1,3 +1,5 @@
+import { HEAD_BOX_DESCRIPTIONS, LEAF_COUNT_DESCRIPTIONS, hasHingedLeaves } from "./promptFragments.ts";
+import { TIPI_CON_CASSONETTO, anteCompatibili } from "./types.ts";
 import type { PersianePromptValidationResult, PersianeRenderConfig } from "./types.ts";
 
 export function validatePersianePromptConfig(config: PersianeRenderConfig): PersianePromptValidationResult {
@@ -27,9 +29,12 @@ export function validatePersianePromptConfig(config: PersianeRenderConfig): Pers
     missingBusinessRules.push("non-louvered shutter types must not carry louver instructions");
   }
 
+  // Il fermo a muro vale per le ante: per tapparella, veneziana esterna e
+  // brise-soleil «aperto 90» è il telo alzato o il sistema fisso.
   const openNinetyWithoutRule = config.technical_specification.some(
     (spec) =>
       spec.openingState === "aperto_90" &&
+      hasHingedLeaves(spec.targetType) &&
       !spec.hardwareRules.some((rule) => rule.toLowerCase().includes("90 degrees") || rule.toLowerCase().includes("wall plane")),
   );
   if (openNinetyWithoutRule) {
@@ -67,6 +72,26 @@ export function validatePersianePromptConfig(config: PersianeRenderConfig): Pers
   if (ralWithoutExactTone) {
     missingBusinessRules.push("RAL shutters must explicitly preserve the exact selected finish tone");
   }
+
+  // Elementi del 04/10: se scelti e validi per il tipo, devono arrivare al prompt.
+  const legacy = config.legacy_config;
+  const leafCountLost = config.technical_specification.some(
+    (spec) => !spec.recolorOnly && anteCompatibili(spec.targetType, legacy.numero_ante) &&
+      spec.leafConfiguration !== LEAF_COUNT_DESCRIPTIONS[legacy.numero_ante],
+  );
+  if (leafCountLost) missingBusinessRules.push("the selected leaf count must reach the leaf configuration");
+
+  const louverMovementLost = config.technical_specification.some(
+    (spec) => !spec.recolorOnly && Boolean(legacy.lamelle?.movimento) && spec.targetType && (spec.targetType === "veneziana_classica" || spec.targetType === "brise_soleil") &&
+      Boolean(spec.louverRule) && !/fixed slats|adjustable slats|blades fixed|blades pivoting/.test(spec.louverRule ?? ""),
+  );
+  if (louverMovementLost) missingBusinessRules.push("the selected slat movement (fixed/adjustable) must reach the louver rule");
+
+  const headBoxLost = config.technical_specification.some(
+    (spec) => !spec.recolorOnly && legacy.cassonetto && spec.targetType && TIPI_CON_CASSONETTO.has(spec.targetType) &&
+      !spec.hardwareRules.includes(`head box: ${HEAD_BOX_DESCRIPTIONS[legacy.cassonetto]}`),
+  );
+  if (headBoxLost) missingBusinessRules.push("the selected head box must reach the hardware rules");
 
   return {
     isValid: missingSections.length === 0 && missingBusinessRules.length === 0,

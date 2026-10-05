@@ -237,4 +237,183 @@ describe("persiane render pipeline", () => {
     expect(prompt.userPrompt.toLowerCase()).toContain("exact selected wood-effect identity");
     expect(prompt.validation.isValid).toBe(true);
   });
+
+  // ── Correzioni A (audit 04/10) ─────────────────────────────────────────
+
+  function tapparelle(existingType = "avvolgibile_esterno") {
+    return normalizePersianeSceneAnalysis({
+      facade_type: "intonaco",
+      openings: [{
+        id: "A", position: "center", opening_kind: "window", apparent_size: "medium",
+        has_existing_shutter: true, existing_shutter_type: existingType,
+        material_perceived: "PVC", color_perceived: "beige", has_side_guides: true, has_head_box: true, has_hinges: false,
+      }],
+    });
+  }
+
+  it("cambia colore delle tapparelle: tipo e materiale nascosti nel form non finiscono nel prompt", () => {
+    // Il form nasconde tipo e materiale in «cambia colore»: restano i default
+    // (veneziana classica, legno naturale). Prima la ricolorazione diceva
+    // «solid natural wood», «side-hinged mounting» e allegava una veneziana.
+    const config = baseConfig({
+      operazione: "cambia_colore", tipo: "veneziana_classica", materiale: "legno_naturale",
+      colore_nome: "Grigio antracite", colore_ral: "7016", colore_hex: "#383E42",
+      target_mode: "all_visible", applica_tutte_finestre: true,
+    });
+    const renderConfig = buildPersianeRenderConfig(config, { sceneAnalysis: tapparelle() });
+    const spec = renderConfig.technical_specification[0];
+    expect(spec.targetType).toBe("avvolgibile_esterno");
+    expect(spec.material).toBeNull();
+    expect(spec.materialDescription).toBeNull();
+
+    const prompt = buildPersianePrompt(renderConfig as unknown as Record<string, unknown>);
+    // tutto ciò che va al modello: blocchi e piano (il riscrittore legge specifica e aggiunte)
+    const tutto = `${prompt.userPrompt}\n${JSON.stringify(prompt.normalizedConfig.technical_specification)}\n${prompt.normalizedConfig.replacement_manifest.additions.join("\n")}`.toLowerCase();
+    expect(tutto).not.toContain("natural wood");
+    expect(tutto).not.toContain("side-hinged");
+    expect(tutto).not.toContain("veneziana classica");
+    expect(tutto).not.toContain("fermapersiane");
+    expect(tutto).toContain("keep the existing mounting, hinges, guides and fixing points exactly as photographed");
+    expect(prompt.userPrompt).toContain("avvolgibile esterno in Grigio antracite (RAL 7016)");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("cambia colore con tipo esistente non riconosciuto: si descrive l'esistente, mai il tipo di default", () => {
+    const config = baseConfig({ operazione: "cambia_colore", target_mode: "all_visible", applica_tutte_finestre: true });
+    const renderConfig = buildPersianeRenderConfig(config, { sceneAnalysis: tapparelle("qualcosa di strano") });
+    const spec = renderConfig.technical_specification[0];
+    expect(spec.targetType).toBeNull();
+    expect(spec.typeDescription).toBe("the existing shutter system exactly as photographed");
+    expect(spec.leafConfiguration).toBe("keep the existing leaf and panel layout exactly as photographed");
+    const prompt = buildPersianePrompt(renderConfig as unknown as Record<string, unknown>);
+    expect(prompt.userPrompt).toContain("existing typology in Grigio Antracite (RAL 7016)");
+    expect(prompt.userPrompt.toLowerCase()).not.toContain("slat width about");
+    expect(prompt.userPrompt.toLowerCase()).not.toContain("remove the existing shutter assembly");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("l'analisi che risponde «roller shutter» o «tapparella» riconosce l'avvolgibile", () => {
+    for (const parola of ["roller shutter", "rolling_shutter", "tapparella"]) {
+      expect(tapparelle(parola).openings[0].existingShutterType, parola).toBe("avvolgibile_esterno");
+    }
+  });
+
+  it("la tapparella non ruota su cardini: lo stato è la posizione del telo, senza fermi a muro", () => {
+    const meta = buildPersianePrompt(
+      buildPersianeRenderConfig(baseConfig({ tipo: "avvolgibile_esterno", materiale: "alluminio", stato_apertura: "aperto_45" }), { sceneAnalysis: tapparelle() }) as unknown as Record<string, unknown>,
+    );
+    expect(meta.userPrompt).toContain("raised halfway: the bottom rail sits about halfway down the opening");
+    expect(meta.userPrompt.toLowerCase()).not.toContain("hinge rotation");
+
+    const alzata = buildPersianePrompt(
+      buildPersianeRenderConfig(baseConfig({ tipo: "avvolgibile_esterno", materiale: "alluminio", stato_apertura: "aperto_90" }), { sceneAnalysis: tapparelle() }) as unknown as Record<string, unknown>,
+    );
+    expect(alzata.userPrompt).toContain("fully raised into the head box: the window is completely clear");
+    expect(alzata.userPrompt.toLowerCase()).not.toContain("hold-open hardware or visual contact with the wall plane");
+    expect(alzata.validation.isValid).toBe(true);
+  });
+
+  it("il brise-soleil è fisso: niente ante da aprire", () => {
+    const prompt = buildPersianePrompt(
+      buildPersianeRenderConfig(baseConfig({ tipo: "brise_soleil", materiale: "alluminio" }), { sceneAnalysis: buildAnalysis() }) as unknown as Record<string, unknown>,
+    );
+    expect(prompt.userPrompt).toContain("fixed installation with no hinged leaves");
+    expect(prompt.userPrompt).not.toContain("leaves aligned in the closed position");
+  });
+
+  it("le persiane a battente restano descritte come prima (stato chiuso)", () => {
+    const prompt = buildPersianePrompt(buildPersianeRenderConfig(baseConfig(), { sceneAnalysis: buildAnalysis() }) as unknown as Record<string, unknown>);
+    expect(prompt.userPrompt).toContain("fully closed, leaves aligned in the closed position with no hybrid half-open reading");
+  });
+
+  it("il colore del profilo a contrasto arriva col nome e il RAL, non solo come codice esadecimale", () => {
+    const prompt = buildPersianePrompt(
+      buildPersianeRenderConfig(baseConfig({ colore_profilo_diverso: true, colore_profilo_hex: "#383E42" }), { sceneAnalysis: buildAnalysis() }) as unknown as Record<string, unknown>,
+    );
+    expect(prompt.userPrompt).toContain("Outer frame/profile contrast color: Grigio antracite (RAL 7016, #383E42).");
+  });
+
+  it("ricolorare un «a libro» esistente non aggiunge la conversione a libro (e la validazione passa)", () => {
+    const scena = normalizePersianeSceneAnalysis({
+      openings: [{ id: "A", position: "center", opening_kind: "door_window", has_existing_shutter: true, existing_shutter_type: "a_libro" }],
+    });
+    const renderConfig = buildPersianeRenderConfig(baseConfig({ operazione: "cambia_colore", target_mode: "all_visible", applica_tutte_finestre: true }), { sceneAnalysis: scena });
+    expect(renderConfig.replacement_manifest.removals.some((rule) => rule.code.startsWith("convert_to_bifold"))).toBe(false);
+    expect(buildPersianePrompt(renderConfig as unknown as Record<string, unknown>).validation.isValid).toBe(true);
+  });
+
+  // ── Elementi che mancavano (B, 04/10) ─────────────────────────────────
+
+  it("numero di ante scelto: entra nella configurazione delle ante e, se diverso dalla foto, diventa una conversione", () => {
+    const renderConfig = buildPersianeRenderConfig(baseConfig({ numero_ante: 1 }), { sceneAnalysis: buildAnalysis() });
+    expect(renderConfig.technical_specification[0].leafConfiguration).toBe("exactly one leaf per opening, hinged on one jamb and covering the whole opening");
+    expect(renderConfig.replacement_manifest.removals.some((r) => r.code === "leaf_count_A" && r.summary.includes("changes from 2 to 1 leaf"))).toBe(true);
+    const prompt = buildPersianePrompt(renderConfig as unknown as Record<string, unknown>);
+    expect(prompt.userPrompt).toContain("Leaf/panel logic: exactly one leaf per opening");
+    expect(prompt.validation.isValid).toBe(true);
+  });
+
+  it("numero di ante che il tipo non può avere: ignorato (l'«a libro» resta a pannelli)", () => {
+    const renderConfig = buildPersianeRenderConfig(baseConfig({ tipo: "a_libro", numero_ante: 1 }), { sceneAnalysis: buildAnalysis() });
+    expect(renderConfig.technical_specification[0].leafConfiguration).toBe("bi-fold layout with 4 folding panels total");
+    const sei = buildPersianeRenderConfig(baseConfig({ tipo: "a_libro", numero_ante: 6 }), { sceneAnalysis: buildAnalysis() });
+    expect(sei.technical_specification[0].leafConfiguration).toContain("exactly six folding panels per opening");
+    expect(buildPersianePrompt(sei as unknown as Record<string, unknown>).validation.isValid).toBe(true);
+  });
+
+  it("lamelle fisse o orientabili: la scelta arriva alla regola delle lamelle, solo per i tipi che la prevedono", () => {
+    const orientabili = buildPersianePrompt(buildPersianeRenderConfig(
+      baseConfig({ lamelle: { larghezza_mm: 50, apertura: "parzialmente_aperte", movimento: "orientabili" } }),
+      { sceneAnalysis: buildAnalysis() },
+    ) as unknown as Record<string, unknown>);
+    expect(orientabili.userPrompt).toContain("adjustable slats that tilt together, linked by a slim vertical tilt rod on the inner face of the leaf");
+    expect(orientabili.validation.isValid).toBe(true);
+
+    const brise = buildPersianeRenderConfig(baseConfig({ tipo: "brise_soleil", lamelle: { larghezza_mm: 80, apertura: "parzialmente_aperte", movimento: "fisse" } }), { sceneAnalysis: buildAnalysis() });
+    expect(brise.technical_specification[0].louverRule).toContain("blades fixed at one constant angle on the side supports");
+
+    const gelosia = buildPersianeRenderConfig(baseConfig({ tipo: "gelosia", lamelle: { larghezza_mm: 50, apertura: "chiuse", movimento: "orientabili" } }), { sceneAnalysis: buildAnalysis() });
+    expect(gelosia.technical_specification[0].louverRule).not.toContain("tilt rod");
+  });
+
+  it("cassonetto della tapparella: a vista o nascosto, con la conversione rispetto a quello in foto", () => {
+    const aVista = buildPersianeRenderConfig(
+      baseConfig({ tipo: "avvolgibile_esterno", materiale: "alluminio", cassonetto: "esterno_a_vista" }),
+      { sceneAnalysis: tapparelle("avvolgibile_esterno") },
+    );
+    expect(aVista.technical_specification[0].hardwareRules).toContain(
+      "head box: a visible external head box (cassonetto) mounted on the facade right above the opening, same finish as the curtain, the side guides running down from its ends",
+    );
+    // in foto il cassonetto c'è già: nessuna conversione
+    expect(aVista.replacement_manifest.removals.some((r) => r.code.startsWith("head_box_"))).toBe(false);
+
+    const nascosto = buildPersianeRenderConfig(
+      baseConfig({ tipo: "avvolgibile_esterno", materiale: "alluminio", cassonetto: "a_scomparsa" }),
+      { sceneAnalysis: tapparelle("avvolgibile_esterno") },
+    );
+    const prompt = buildPersianePrompt(nascosto as unknown as Record<string, unknown>);
+    expect(prompt.userPrompt).toContain("the curtain comes out of a narrow slot under the lintel");
+    expect(prompt.userPrompt).toContain("Remove the external box above the opening and restore the wall and lintel cleanly");
+    expect(prompt.validation.isValid).toBe(true);
+
+    // su un tipo senza cassonetto la scelta non entra
+    const scuro = buildPersianeRenderConfig(baseConfig({ tipo: "scuro_pieno", cassonetto: "esterno_a_vista" }), { sceneAnalysis: buildAnalysis() });
+    expect(JSON.stringify(scuro.technical_specification)).not.toContain("head box:");
+  });
+
+  it("cambia colore ignora ante, cassonetto e lamelle scelti: descrive l'esistente", () => {
+    const renderConfig = buildPersianeRenderConfig(
+      baseConfig({ operazione: "cambia_colore", numero_ante: 1, cassonetto: "a_scomparsa", lamelle: { larghezza_mm: 50, apertura: "chiuse", movimento: "fisse" }, target_mode: "all_visible", applica_tutte_finestre: true }),
+      { sceneAnalysis: tapparelle("avvolgibile_esterno") },
+    );
+    const testo = JSON.stringify(renderConfig.technical_specification) + JSON.stringify(renderConfig.replacement_manifest);
+    expect(testo).not.toContain("exactly one leaf");
+    expect(testo).not.toContain("head box:");
+    expect(buildPersianePrompt(renderConfig as unknown as Record<string, unknown>).validation.isValid).toBe(true);
+  });
+
+  it("la veneziana esterna scorre su guide: niente «double-leaf»", () => {
+    const renderConfig = buildPersianeRenderConfig(baseConfig({ tipo: "veneziana_esterna", materiale: "alluminio" }), { sceneAnalysis: buildAnalysis() });
+    expect(renderConfig.technical_specification[0].leafConfiguration).toBe("single external venetian blind running in two side guides");
+  });
 });

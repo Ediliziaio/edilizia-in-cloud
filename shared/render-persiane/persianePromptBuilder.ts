@@ -1,7 +1,7 @@
 import {
   DEFAULT_NEGATIVE_CONSTRAINTS,
   DEFAULT_QUALITY_DIRECTIVES,
-  OPENING_STATE_DESCRIPTIONS,
+  describeOpeningState,
 } from "./promptFragments.ts";
 import { ensurePersianeRenderConfig } from "./persianeRenderConfig.ts";
 import { validatePersianePromptConfig } from "./persianePromptValidation.ts";
@@ -109,7 +109,7 @@ ${bullets(
       }
       return [
         `Opening ${spec.openingLabel}: ${spec.targetType?.replace(/_/g, " ") ?? "existing typology"} in ${spec.finish?.label ?? "existing finish"}.`,
-        `Opening mechanism / state: ${spec.openingState ? OPENING_STATE_DESCRIPTIONS[spec.openingState] : "remove shutter system completely"}.`,
+        `Opening mechanism / state: ${spec.openingState ? describeOpeningState(spec.targetType, spec.openingState) : "remove shutter system completely"}.`,
         spec.finish?.mode === "legno"
           ? `Exact finish identity: keep the precise ${spec.finish.label} look, with believable grain and no drift into another wood species or generic brown wood.`
           : `Exact finish identity: keep the precise ${spec.finish?.label ?? "selected finish"} with no drift into another RAL or approximate adjacent color.`,
@@ -122,7 +122,7 @@ ${bullets(
 ${bullets(
     normalizedConfig.technical_specification.map((spec) => {
       if (!spec.openingState) return `Opening ${spec.openingLabel}: no opening angle because the shutter system is removed.`;
-      return `Opening ${spec.openingLabel}: ${OPENING_STATE_DESCRIPTIONS[spec.openingState]}. ${spec.hardwareRules.join(" ")}`;
+      return `Opening ${spec.openingLabel}: ${describeOpeningState(spec.targetType, spec.openingState)}. ${spec.hardwareRules.join(" ")}`;
     }),
   )}`;
 

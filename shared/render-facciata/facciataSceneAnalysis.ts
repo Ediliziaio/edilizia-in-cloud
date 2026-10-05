@@ -81,10 +81,13 @@ function normalizeOpeningKind(value: unknown): FacciataSceneOpening["openingKind
   return "unknown";
 }
 
+// Le chiavi camelCase (corniciFinestre, corpiIlluminanti…) sono quelle dell'analisi GIÀ
+// normalizzata: il client e l'edge la rinormalizzano, e senza leggerle la seconda passata le
+// azzerava. Le chiavi che coincidono (marcapiani, davanzali, gronde…) si salvavano da sole.
 function buildFeatureSet(source: Record<string, unknown>): FacciataSceneFeatures {
   const nestedFeatures = asObject(source.features);
   return {
-    corniciFinestre: booleanOr(source.cornici_finestre ?? source.window_cornices ?? nestedFeatures.cornici_finestre ?? nestedFeatures.window_cornices, false),
+    corniciFinestre: booleanOr(source.cornici_finestre ?? source.window_cornices ?? nestedFeatures.cornici_finestre ?? nestedFeatures.window_cornices ?? nestedFeatures.corniciFinestre, false),
     marcapiani: booleanOr(source.marcapiani ?? source.string_courses ?? nestedFeatures.marcapiani ?? nestedFeatures.string_courses, false),
     davanzali: booleanOr(source.davanzali ?? source.sills ?? nestedFeatures.davanzali ?? nestedFeatures.sills, true),
     zoccolatura: booleanOr(source.zoccolatura ?? source.base_course ?? nestedFeatures.zoccolatura ?? nestedFeatures.base_course, false),
@@ -95,9 +98,9 @@ function buildFeatureSet(source: Record<string, unknown>): FacciataSceneFeatures
     persiane: booleanOr(source.persiane ?? source.shutters ?? nestedFeatures.persiane ?? nestedFeatures.shutters, false),
     portone: booleanOr(source.portone ?? source.entrance_door ?? nestedFeatures.portone ?? nestedFeatures.entrance_door, false),
     garage: booleanOr(source.garage ?? source.garage_door ?? nestedFeatures.garage ?? nestedFeatures.garage_door, false),
-    corpiIlluminanti: booleanOr(source.corpi_illuminanti ?? source.lights ?? nestedFeatures.corpi_illuminanti ?? nestedFeatures.lights, false),
-    citofoniCassette: booleanOr(source.citofoni_cassette ?? source.intercoms_mailboxes ?? nestedFeatures.citofoni_cassette ?? nestedFeatures.intercoms_mailboxes, false),
-    caviCanaline: booleanOr(source.cavi_canaline ?? source.cables ?? nestedFeatures.cavi_canaline ?? nestedFeatures.cables, false),
+    corpiIlluminanti: booleanOr(source.corpi_illuminanti ?? source.lights ?? nestedFeatures.corpi_illuminanti ?? nestedFeatures.lights ?? nestedFeatures.corpiIlluminanti, false),
+    citofoniCassette: booleanOr(source.citofoni_cassette ?? source.intercoms_mailboxes ?? nestedFeatures.citofoni_cassette ?? nestedFeatures.intercoms_mailboxes ?? nestedFeatures.citofoniCassette, false),
+    caviCanaline: booleanOr(source.cavi_canaline ?? source.cables ?? nestedFeatures.cavi_canaline ?? nestedFeatures.cables ?? nestedFeatures.caviCanaline, false),
     climatizzatori: booleanOr(source.climatizzatori ?? source.air_conditioners ?? nestedFeatures.climatizzatori ?? nestedFeatures.air_conditioners, false),
   };
 }
@@ -152,20 +155,30 @@ function normalizeOpening(input: Record<string, unknown>, index: number): Faccia
   };
 }
 
+/**
+ * Normalizza l'analisi della facciata. È IDEMPOTENTE: l'analisi passa di qui tre volte
+ * (edge dopo il modello, client al ritorno, edge prima del render) e dalla seconda in poi
+ * arriva già in camelCase con il sotto-oggetto `legacy`. Prima la seconda passata leggeva
+ * solo le chiavi snake_case: piani, aperture, finitura, colore e stato tornavano ai valori
+ * di ripiego («Floors: 2» per ogni edificio) e le cornici delle finestre sparivano.
+ * Le chiavi camelCase si leggono DOPO quelle di prima, quindi un'analisi grezza dà lo
+ * stesso risultato di sempre.
+ */
 export function normalizeFacciataSceneAnalysis(
   rawAnalysis: unknown,
   photoMeta?: FacciataPhotoMeta | null,
 ): FacciataSceneAnalysis {
   const source = asObject(rawAnalysis);
+  const legacySource = asObject(source.legacy);
   const legacy = {
-    tipo_edificio: stringOr(source.tipo_edificio ?? source.buildingType, "residenziale"),
-    numero_piani: numberOr(source.numero_piani ?? source.floors_count, 2),
-    numero_finestre: numberOr(source.numero_finestre ?? source.openings_visible ?? source.visible_openings, 4),
-    intonaco_attuale: stringOr(source.intonaco_attuale ?? source.current_plaster_finish, "intonaco civile"),
-    colore_attuale_hex: stringOr(source.colore_attuale_hex ?? source.current_facade_color ?? source.primary_color, "#D3D3D3"),
-    stato_conservazione: stringOr(source.stato_conservazione ?? source.current_condition, "discreto"),
-    elementi_presenti: stringArray(source.elementi_presenti ?? source.detected_elements),
-    note: typeof source.note === "string" ? source.note : undefined,
+    tipo_edificio: stringOr(source.tipo_edificio ?? source.buildingType ?? legacySource.tipo_edificio, "residenziale"),
+    numero_piani: numberOr(source.numero_piani ?? source.floors_count ?? source.floorsCount ?? legacySource.numero_piani, 2),
+    numero_finestre: numberOr(source.numero_finestre ?? source.openings_visible ?? source.visible_openings ?? source.openingsVisible ?? legacySource.numero_finestre, 4),
+    intonaco_attuale: stringOr(source.intonaco_attuale ?? source.current_plaster_finish ?? source.currentPlasterFinish ?? legacySource.intonaco_attuale, "intonaco civile"),
+    colore_attuale_hex: stringOr(source.colore_attuale_hex ?? source.current_facade_color ?? source.primary_color ?? legacySource.colore_attuale_hex ?? source.currentFacadeColor, "#D3D3D3"),
+    stato_conservazione: stringOr(source.stato_conservazione ?? source.current_condition ?? source.currentCondition ?? legacySource.stato_conservazione, "discreto"),
+    elementi_presenti: stringArray(source.elementi_presenti ?? source.detected_elements ?? legacySource.elementi_presenti),
+    note: typeof source.note === "string" ? source.note : typeof legacySource.note === "string" ? legacySource.note : undefined,
   };
 
   const openingsSource = Array.isArray(source.openings) ? source.openings : [];
@@ -177,18 +190,18 @@ export function normalizeFacciataSceneAnalysis(
     version: "2.0",
     buildingType: stringOr(source.building_type ?? source.buildingType ?? source.tipo_edificio, legacy.tipo_edificio),
     buildingStyle: stringOr(source.building_style ?? source.buildingStyle ?? source.architectural_style ?? source.stile_percepito, "residential Italian building"),
-    floorsCount: numberOr(source.floors_count ?? source.numero_piani, legacy.numero_piani),
-    openingsVisible: numberOr(source.openings_visible ?? source.visible_openings ?? source.numero_finestre, openings.length),
+    floorsCount: numberOr(source.floors_count ?? source.numero_piani ?? source.floorsCount, legacy.numero_piani),
+    openingsVisible: numberOr(source.openings_visible ?? source.visible_openings ?? source.numero_finestre ?? source.openingsVisible, openings.length),
     cameraAngle: stringOr(source.camera_angle ?? source.cameraAngle, "same photographed camera angle"),
     lightingCondition: stringOr(source.lighting_condition ?? source.lightingCondition ?? source.note_luce, "preserve the same daylight and shadows"),
     wallTexture: stringOr(source.wall_texture ?? source.wallTexture ?? source.texture_muro, "same wall texture"),
-    currentPlasterFinish: stringOr(source.current_plaster_finish ?? source.current_finish ?? source.intonaco_attuale, legacy.intonaco_attuale),
-    currentFacadeColor: stringOr(source.current_facade_color ?? source.primary_color ?? source.colore_attuale_hex, legacy.colore_attuale_hex),
-    currentCondition: stringOr(source.current_condition ?? source.stato_conservazione, legacy.stato_conservazione),
+    currentPlasterFinish: stringOr(source.current_plaster_finish ?? source.current_finish ?? source.intonaco_attuale ?? source.currentPlasterFinish, legacy.intonaco_attuale),
+    currentFacadeColor: stringOr(source.current_facade_color ?? source.primary_color ?? source.colore_attuale_hex ?? source.currentFacadeColor, legacy.colore_attuale_hex),
+    currentCondition: stringOr(source.current_condition ?? source.stato_conservazione ?? source.currentCondition, legacy.stato_conservazione),
     imageOrientation: normalizeOrientation(photoMeta),
-    groundContext: stringOr(source.ground_context ?? source.contesto_terra, "preserve street, pavement and ground context exactly"),
+    groundContext: stringOr(source.ground_context ?? source.contesto_terra ?? source.groundContext, "preserve street, pavement and ground context exactly"),
     preservedContext: Array.from(new Set([
-      ...stringArray(source.preserved_context ?? source.contesto_preservato),
+      ...stringArray(source.preserved_context ?? source.contesto_preservato ?? source.preservedContext),
       "sky",
       "road",
       "pavement",
@@ -241,6 +254,16 @@ const ALL_FACADE_ZONES: FacciataZoneId[] = [
   "davanzali",
   "gronde",
   "balconi_ringhiere",
+];
+
+/** Zone che sono una parte della parete: se una cambia, «entire facade» non è più intatta. */
+const PARTI_DELLA_PARETE: FacciataZoneId[] = [
+  "piano_terra",
+  "piani_superiori",
+  "zoccolatura",
+  "fasce_orizzontali",
+  "cantonali",
+  "marcapiano",
 ];
 
 export function createFacciataZoneTargeting(
@@ -346,6 +369,16 @@ export function createFacciataZoneTargeting(
     );
   }
 
+  if (config.elementi.persiane?.azione === "vernicia") {
+    addZone(
+      affectedZones,
+      "persiane",
+      "persiane",
+      "repaint",
+      "Repaint the existing window shutters only, keeping their model and geometry.",
+    );
+  }
+
   const activeSystems = Array.from(new Set(affectedZones.map((item) => item.system)));
   const allSystems: FacciataZoneDirective["system"][] = [
     "intonaco",
@@ -360,7 +393,19 @@ export function createFacciataZoneTargeting(
   ];
   const inactiveSystems = allSystems.filter((system) => !activeSystems.includes(system));
 
-  const affectedZoneIds = new Set(affectedZones.map((item) => item.zoneId));
+  // «Tutta la facciata» comprende piano terra e piani superiori; e se si lavora su una parte
+  // della parete (un piano, lo zoccolo, le fasce) la facciata intera non è più «intatta».
+  // Prima il prompt diceva insieme «Zones affected: entire facade» e «Zones untouched: ground
+  // floor, upper floors», oppure «affected: ground floor, upper floors» e «untouched: entire
+  // facade»: il modello sceglieva a caso quale parte lasciare com'era. Gli elementi (cornici,
+  // davanzali, gronde, ringhiere, persiane) non toccano la parete: con solo quelli la
+  // facciata resta intatta, come prima.
+  const affectedZoneIds = new Set<FacciataZoneId>(affectedZones.map((item) => item.zoneId));
+  if (affectedZoneIds.has("tutta")) {
+    affectedZoneIds.add("piano_terra");
+    affectedZoneIds.add("piani_superiori");
+  }
+  if (PARTI_DELLA_PARETE.some((zoneId) => affectedZoneIds.has(zoneId))) affectedZoneIds.add("tutta");
   const untouchedZones = ALL_FACADE_ZONES
     .filter((zoneId) => !affectedZoneIds.has(zoneId))
     .map((zoneId) => ({

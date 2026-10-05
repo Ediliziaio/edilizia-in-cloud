@@ -14,6 +14,8 @@ export interface SostituzioneElementi {
   rubinetteria: boolean;
   parete_colore: boolean;
   illuminazione: boolean;
+  /** Termoarredo / scaldasalviette. Assente nelle configurazioni salvate prima del 04/10/2026. */
+  termoarredo?: boolean;
 }
 
 export interface ConfigPiastrella {
@@ -57,6 +59,14 @@ export type BathroomShowerHeadType =
   | "colonna_completa"
   | "combinato";
 
+/**
+ * Nicchia portaoggetti incassata nella parete della doccia (non il box «in nicchia»,
+ * che è la doccia chiusa tra due pareti).
+ */
+export type BathroomShowerNiche = "nessuna" | "verticale" | "orizzontale";
+
+export type BathroomShowerDrain = "canalina" | "piletta";
+
 export interface ConfigDoccia {
   attivo: boolean;
   tipo: BathroomShowerType;
@@ -64,6 +74,10 @@ export interface ConfigDoccia {
   piatto: BathroomShowerTrayType;
   profilo: BathroomShowerProfileFinish;
   soffione: BathroomShowerHeadType;
+  /** Assente = non indicata: resta la regola di prima (nicchia «plausibile» per walk-in e box in nicchia). */
+  nicchia?: BathroomShowerNiche;
+  /** Assente = non indicato: lo scarico lo deduce il builder dal piatto. */
+  scarico?: BathroomShowerDrain;
 }
 
 export type BathroomBathtubType =
@@ -91,12 +105,17 @@ export type BathroomBathtubSize =
   | "180x80"
   | "190x90";
 
+/** Parete in vetro sopravasca (vasca usata anche come doccia). Solo per vasche contro parete. */
+export type BathroomBathScreen = "nessuna" | "fissa" | "girevole";
+
 export interface ConfigVasca {
   attivo: boolean;
   tipo: BathroomBathtubType;
   materiale: BathroomBathtubMaterial;
   rubinetteria_vasca: BathroomBathtubFaucetPosition;
   dimensione_cm?: BathroomBathtubSize;
+  /** Assente = non indicata: nessuna regola sul vetro della vasca (come prima). */
+  parete_doccia?: BathroomBathScreen;
 }
 
 export type BathroomVanityStyle =
@@ -193,6 +212,20 @@ export interface ConfigParete {
   colore_hex?: string;
 }
 
+export type BathroomTowelWarmerAction = "sostituisci" | "aggiungi" | "rimuovi";
+export type BathroomTowelWarmerType = "scaletta" | "piastra_design" | "tubi_verticali";
+export type BathroomTowelWarmerFinish = "bianco" | "nero_opaco" | "antracite" | "cromo" | "acciaio_spazzolato";
+
+export interface ConfigTermoarredo {
+  attivo: boolean;
+  azione: BathroomTowelWarmerAction;
+  tipo: BathroomTowelWarmerType;
+  finitura: BathroomTowelWarmerFinish;
+}
+
+/** Valori di `illuminazione_tipo` scelti dal form; un testo libero (vecchie sessioni) resta valido. */
+export type BathroomLightingType = "faretti_incasso" | "led_lineare" | "applique_specchio" | "plafoniera";
+
 export interface ConfigurazioneBagno {
   tipo_intervento: TipoIntervento;
   sostituzione: SostituzioneElementi;
@@ -204,6 +237,9 @@ export interface ConfigurazioneBagno {
   sanitari: ConfigSanitari;
   rubinetteria: ConfigRubinetteria;
   parete: ConfigParete;
+  /** Assente = non indicato (nessuna modifica al termoarredo, come prima). */
+  termoarredo?: ConfigTermoarredo;
+  /** Una chiave di BathroomLightingType (dal form) o un testo libero (vecchie configurazioni). */
   illuminazione_tipo?: string;
   note_libere?: string;
   /**
@@ -407,6 +443,8 @@ export interface BathroomShowerSpecification {
   handShowerType: string;
   mixerFinish: string;
   wallNiche: boolean;
+  /** Solo se la nicchia è stata indicata nel form: cosa costruire (o «nessuna nicchia»). */
+  wallNicheRule?: string;
   layoutRule: string;
 }
 
@@ -420,6 +458,8 @@ export interface BathroomBathtubSpecification {
   layoutRule: string;
   scaleRule: string;
   placementRule: string;
+  /** Solo se la parete sopravasca è stata indicata nel form. */
+  screenRule?: string;
 }
 
 export interface BathroomVanitySpecification {
@@ -466,6 +506,17 @@ export interface BathroomWallPaintSpecification {
 export interface BathroomLightingSpecification {
   replace: boolean;
   target: string;
+  /** Solo con un tipo del form che tocca il soffitto: il soffitto resta, si aggiungono le luci. */
+  ceilingRule?: string;
+}
+
+export interface BathroomTowelWarmerSpecification {
+  replace: boolean;
+  action: BathroomTowelWarmerAction;
+  /** null quando si rimuove. */
+  typeLabel: string | null;
+  finish: string | null;
+  placementRule: string;
 }
 
 export interface BathroomRemovalRule {
@@ -501,6 +552,8 @@ export interface BathroomRenderConfig {
     faucets: BathroomFaucetSpecification;
     wallPaint: BathroomWallPaintSpecification;
     lighting: BathroomLightingSpecification;
+    /** Solo quando il termoarredo cambia: assente nelle sessioni salvate prima. */
+    towelWarmer?: BathroomTowelWarmerSpecification;
   };
   replacement_manifest: BathroomReplacementManifest;
   removal_rules: string[];

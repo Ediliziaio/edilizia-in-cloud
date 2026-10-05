@@ -3,7 +3,7 @@ import {
 } from "./promptFragments.ts";
 import { ensurePergoleRenderConfig } from "./pergoleRenderConfig.ts";
 import { validatePergolePromptConfig } from "./pergoleValidation.ts";
-import type { PergolaPromptBuildResult, PergolaRenderConfig } from "./types.ts";
+import type { ConfigurazionePergole, PergolaPromptBuildResult, PergolaRenderConfig } from "./types.ts";
 
 function bullets(lines: Array<string | null | undefined>): string {
   return lines
@@ -26,7 +26,8 @@ function describeManifest(config: PergolaRenderConfig): string {
 }
 
 export function buildPergolePrompt(
-  rawConfig: Record<string, unknown>,
+  // la configurazione del form (tipata) o quella letta dal database (JSON)
+  rawConfig: ConfigurazionePergole | Record<string, unknown>,
   rawAnalysis?: unknown,
   photoMeta?: PergolaRenderConfig["photo_meta"],
 ): PergolaPromptBuildResult {

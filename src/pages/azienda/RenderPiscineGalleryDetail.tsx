@@ -56,6 +56,16 @@ function asString(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+/** Misure reali salvate dal form («8 × 4 m»), se ci sono. */
+function misure(piscina: Record<string, unknown>): string | null {
+  const metri = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? String(v).replace(".", ",") : null);
+  const l = metri(piscina.lunghezza_m);
+  const w = metri(piscina.larghezza_m);
+  if (l && w) return `${l} × ${w} m`;
+  if (l) return `lunga ${l} m`;
+  return w ? `larga ${w} m` : null;
+}
+
 export default function RenderPiscineGalleryDetail() {
   const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
@@ -244,7 +254,7 @@ export default function RenderPiscineGalleryDetail() {
           <div className="rounded-lg border p-3 space-y-1">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Piscina</p>
             <p className="font-medium capitalize">{label(asString(piscina.tipo)) ?? "Piscina"}</p>
-            <p className="text-muted-foreground capitalize">{label(asString(piscina.forma))} · {label(asString(piscina.dimensione_apparente))}</p>
+            <p className="text-muted-foreground capitalize">{label(asString(piscina.forma))} · {label(asString(piscina.dimensione_apparente))}{misure(piscina) ? ` · ${misure(piscina)}` : ""}</p>
           </div>
           <div className="rounded-lg border p-3 space-y-1">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Acqua e bordo</p>
@@ -255,6 +265,12 @@ export default function RenderPiscineGalleryDetail() {
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Rivestimento e solarium</p>
             <p className="font-medium capitalize">{label(asString(finiture.rivestimento_interno)) ?? "Non specificato"}</p>
             <p className="text-muted-foreground capitalize">{label(asString(finiture.area_perimetrale))}</p>
+            {asString(finiture.rivestimento_esterno) && (
+              <p className="text-muted-foreground">Esterno vasca: {label(asString(finiture.rivestimento_esterno))}</p>
+            )}
+            {cfg.operazione === "remove_existing_pool" && asString(finiture.superficie_ripristino) && (
+              <p className="text-muted-foreground">Al posto della piscina: {label(asString(finiture.superficie_ripristino))}</p>
+            )}
           </div>
           <div className="rounded-lg border p-3 space-y-1">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Inserimento e comfort</p>

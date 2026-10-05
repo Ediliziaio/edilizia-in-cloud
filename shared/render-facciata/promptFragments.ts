@@ -1,6 +1,9 @@
 import type {
   FacciataZoneId,
   FinituraIntonaco,
+  MaterialeDavanzale,
+  MaterialeGronde,
+  MaterialeZoccolatura,
   PosaRivestimento,
   SistemaCappotto,
   TipoInterventoFacciata,
@@ -80,6 +83,32 @@ export const INSULATION_SYSTEM_DESCRIPTIONS: Record<SistemaCappotto, string> = {
   fibra_legno: "ETICS thermal insulation with wood fiber boards and reinforced breathable render finish",
 };
 
+/**
+ * Gronde e pluviali. Rame, zinco-titanio e acciaio zincato restano al naturale (il loro
+ * colore è il metallo); alluminio e PVC sono verniciati e prendono il colore scelto.
+ */
+export const GUTTER_MATERIAL_DESCRIPTIONS: Record<MaterialeGronde, string> = {
+  rame: "natural copper half-round gutters and round downpipes with soldered joints and copper hangers",
+  zinco_titanio: "zinc-titanium half-round gutters and downpipes with an even blue-grey patina and soldered seams",
+  acciaio_zincato: "galvanized steel half-round gutters and downpipes with a silver spangled zinc finish",
+  alluminio: "pre-painted aluminium half-round gutters and downpipes with slim hangers",
+  pvc: "PVC half-round gutters and downpipes with clip-on brackets and moulded joints",
+};
+
+export const GUTTER_NATURAL_METALS: readonly MaterialeGronde[] = ["rame", "zinco_titanio", "acciaio_zincato"];
+
+export const SILL_MATERIAL_DESCRIPTIONS: Record<MaterialeDavanzale, string> = {
+  pietra: "natural stone sills",
+  marmo: "marble sills",
+  alluminio: "folded aluminium sills (thin pressed-metal profile)",
+};
+
+export const BASE_COURSE_MATERIAL_DESCRIPTIONS: Record<MaterialeZoccolatura, string> = {
+  intonaco: "a render plinth band in a harder washable finish, slightly proud of the wall",
+  pietra: "a natural stone slab plinth with thin joints",
+  ceramica: "a porcelain stoneware tile plinth with fine regular joints",
+};
+
 export const ZONE_LABELS: Record<FacciataZoneId, string> = {
   tutta: "entire facade",
   piano_terra: "ground floor",
@@ -92,6 +121,7 @@ export const ZONE_LABELS: Record<FacciataZoneId, string> = {
   davanzali: "window sills",
   gronde: "gutters and eaves line",
   balconi_ringhiere: "balcony railings",
+  persiane: "window shutters",
 };
 
 export const DEFAULT_NEGATIVE_CONSTRAINTS = [

@@ -14,7 +14,7 @@ You receive a JSON config describing ONE technical system to renovate on an exis
 
 HOW TO READ THE CONFIG:
 - "module_type": which system. Name it in the first sentence.
-- "richiesta_cliente": the customer's own words — preset, target area, material/system, colour and finish, technical details, what to preserve, intensity. Restate every value literally; these are the brief.
+- "richiesta_cliente": the customer's own words — preset, target area, material/system, colour and finish, technical details, what to preserve, intensity, plus any "scelte_strutturate" (structured choices such as door finish, photographed side, pool edge material, garden style). Restate every value literally; these are the brief.
 - "target_map": where exactly the change happens (opening, surface, zone) and its limits.
 - "replacement_manifest": removals, additions, replacements, preservation already formulated by the system. Fold them in faithfully.
 - "scene_analysis": the CURRENT scene. Use it to say what changes and what stays.
@@ -47,6 +47,9 @@ function compact(input: unknown): Record<string, unknown> {
       dettagli_tecnici: generica.technicalDetails,
       da_preservare: generica.preserveNotes,
       intensita: generica.intensity,
+      // Scelte strutturate oltre al preset (finitura, lato fotografato, bordo vasca, stile del giardino…):
+      // assenti nelle sessioni vecchie, e allora la chiave non compare nel JSON.
+      scelte_strutturate: generica.opzioni,
     },
     target_map: cfg.target_map,
     replacement_manifest: cfg.replacement_manifest,

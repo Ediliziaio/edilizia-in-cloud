@@ -15,6 +15,8 @@ import {
 import { editImage } from "../_shared/ai-provider/image.ts";
 import type { ImageReferenceInput } from "../_shared/ai-provider/image.ts";
 import { loadCatalogReferences } from "../_shared/renderCatalogReferences.ts";
+import { buildSharedReferenceLegend, fetchSharedReferenceImages } from "../_shared/renderReferenceFetch.ts";
+import { collectRoomReferenceImages } from "../../../shared/render-references/roomReferences.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE_RESTYLING } from "../_shared/ai-provider/visionQa.ts";
 import { buildRoomPrompt } from "../../../shared/render-room/stanzaPromptBuilder.ts";
 import { rewriteDomainPrompt } from "../_shared/ai-provider/domainRewriter.ts";
@@ -261,10 +263,13 @@ Deno.serve(async (req: Request) => {
       // rendono meglio dei blocchi di regole. Fallback silenzioso al prompt a
       // blocchi qui sopra se fallisce. Applicato PRIMA dello store, cosi'
       // prompt_used riflette cio' che e' stato davvero mandato al modello.
+      // Il rewriter legge le regole gia' scritte dal builder (manifest, preservazioni):
+      // quelle di QUESTO render. Prima riceveva session.config_snapshot, che al primo
+      // render e' vuoto e a una variante e' il manifest della configurazione precedente.
       try {
         const meta = await rewriteDomainPrompt(
           {
-            config: { config: cfg, analisi: session.config_snapshot ?? {} },
+            config: { config: cfg, analisi: normalizedConfig },
             metadata: {
               task_kind: "render_prompt_rewrite",
               company_id: companyId as string,
@@ -324,6 +329,32 @@ Deno.serve(async (req: Request) => {
         console.warn(JSON.stringify({
           lvl: "warn", fn: "generate-room-render", session_id,
           msg: "catalog_references_threw", error: String((catErr as Error)?.message ?? catErr),
+        }));
+      }
+
+      // RIFERIMENTI CONDIVISI (libreria uguale per tutti): foto del pavimento, del
+      // rivestimento pareti e dell'illuminazione a binario, solo per i sistemi attivi. Entrano negli slot lasciati
+      // liberi dal catalogo dell'azienda (al massimo 4 immagini in tutto) e PRIMA dello
+      // store, perche' prompt_used deve contenere la legenda che il modello legge.
+      try {
+        const refsCondivise = collectRoomReferenceImages(cfg);
+        const slotLiberi = 4 - catalogReferences.length;
+        if (refsCondivise.length > 0 && slotLiberi > 0) {
+          const fetched = await fetchSharedReferenceImages(
+            refsCondivise.slice(0, slotLiberi),
+            (entry) => console.log(JSON.stringify({ fn: "generate-room-render", session_id, ...entry })),
+          );
+          if (fetched.references.length > 0) {
+            // Image 1 = foto da modificare; le condivise seguono quelle del catalogo.
+            const primaCondivisa = 2 + catalogReferences.length;
+            catalogReferences = [...catalogReferences, ...fetched.references];
+            fullPrompt = `${fullPrompt}\n\n${buildSharedReferenceLegend(fetched.references, primaCondivisa)}`;
+          }
+        }
+      } catch (refErr) {
+        console.warn(JSON.stringify({
+          lvl: "warn", fn: "generate-room-render", session_id,
+          msg: "shared_references_threw", error: String((refErr as Error)?.message ?? refErr),
         }));
       }
 

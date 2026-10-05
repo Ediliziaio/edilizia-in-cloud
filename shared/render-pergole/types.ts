@@ -64,6 +64,32 @@ export type TipoIlluminazionePergola =
   | "downlight_lineari"
   | "applique_coordinate";
 
+// Elenchi delle opzioni vere, costruiti da un Record sul tipo: se un valore entra
+// nel tipo e non qui, TypeScript si ferma. Li usano i test (ogni opzione ha la sua
+// foto o un motivo per non averla) e il form.
+const tipiPergola: Record<TipoPergola, true> = {
+  addossata: true, autoportante: true, bioclimatica_addossata: true, bioclimatica_autoportante: true,
+  telo_addossata: true, telo_autoportante: true, vetro_addossata: true, vetro_autoportante: true,
+  legno_addossata: true, legno_autoportante: true,
+};
+const materialiPergola: Record<MaterialeStrutturaPergola, true> = {
+  alluminio: true, alluminio_effetto_legno: true, legno_lamellare: true, acciaio: true, misto: true,
+};
+const coperturePergola: Record<TipoCoperturaPergola, true> = {
+  lamelle_orientabili: true, telo_retraibile: true, vetro: true, policarbonato: true, listelli_legno: true, copertura_opaca_tecnica: true,
+};
+const chiusurePergola: Record<TipoChiusuraLaterale, true> = {
+  nessuna: true, vetrata_slide: true, screen_zip: true, tenda_tecnica: true, frangivento: true, pannelli_fissi: true, brise_soleil: true,
+};
+const luciPergola: Record<TipoIlluminazionePergola, true> = {
+  nessuna: true, strip_led_perimetrale: true, spot_integrati: true, downlight_lineari: true, applique_coordinate: true,
+};
+export const TIPI_PERGOLA = Object.keys(tipiPergola) as TipoPergola[];
+export const MATERIALI_PERGOLA = Object.keys(materialiPergola) as MaterialeStrutturaPergola[];
+export const COPERTURE_PERGOLA = Object.keys(coperturePergola) as TipoCoperturaPergola[];
+export const CHIUSURE_PERGOLA = Object.keys(chiusurePergola) as TipoChiusuraLaterale[];
+export const LUCI_PERGOLA = Object.keys(luciPergola) as TipoIlluminazionePergola[];
+
 export type ZonaInstallazionePergola =
   | "addossata_facciata"
   | "patio_centrale"

@@ -586,11 +586,13 @@ Deno.serve(async (req) => {
     // `requestSessionId` e' un `let` allargato a `string | null`: dentro una
     // closure TypeScript non puo' piu' fidarsi del controllo di non-nullita'
     // fatto sopra. Si fissa qui, dove il controllo e' ancora valido.
-    // RIFERIMENTI CONDIVISI — tessitura reale del rivestimento / finitura
-    // intonaco (Poly Haven CC0 + Wikimedia Commons, crediti in CREDITS.md).
+    // RIFERIMENTI CONDIVISI — una foto per ogni elemento che cambia: materiale e
+    // posa del rivestimento, finitura dell'intonaco, davanzali, gronde (shared/render-references/
+    // facadeReferences.ts). I campi del form stanno in `legacy_config` (payload v2).
     let sharedReferences: ImageReferenceInput[] = [];
     try {
-      const refsCondivise = collectFacadeReferenceImages(normalizedConfig.legacy_config as unknown as Record<string, unknown>);
+      const refsCondivise = collectFacadeReferenceImages(normalizedConfig.legacy_config);
+      console.log(JSON.stringify({ fn: "generate-facade-render", session_id: requestSessionId, msg: "shared_references_selected", refs: refsCondivise.map((r) => r.label.split(":")[0]) }));
       if (refsCondivise.length > 0) {
         const fetched = await fetchSharedReferenceImages(refsCondivise, (entry) => console.log(JSON.stringify({ fn: "generate-facade-render", session_id: requestSessionId, ...entry })));
         if (fetched.references.length > 0) {
@@ -709,6 +711,9 @@ Deno.serve(async (req) => {
 The previous attempt failed quality control with these violations:
 ${qaIssues.map((i) => `- ${i.category}: ${i.detail}`).join("\n")}
 Regenerate applying the FULL brief. ABSOLUTE rules: same number of storeys as the source, same windows/doors/balconies in the same positions, same camera and crop. Only the finishes/colors specified in the brief change.`,
+            // Il `prompt` porta già la legenda «Image 2…N»: senza le stesse immagini il
+            // retry la citerebbe a vuoto e rigenererebbe senza le foto di riferimento.
+            referenceImages: sharedReferences,
             preparedUrl: prepared.url,
             width: dimensions?.width ?? undefined,
             height: dimensions?.height ?? undefined,

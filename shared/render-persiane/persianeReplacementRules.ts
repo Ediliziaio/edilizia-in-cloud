@@ -1,8 +1,10 @@
 import {
-  OPENING_STATE_DESCRIPTIONS,
   SHUTTER_TYPE_DESCRIPTIONS,
+  describeOpeningState,
 } from "./promptFragments.ts";
+import { TIPI_CON_CASSONETTO, anteCompatibili } from "./types.ts";
 import type {
+  CassonettoPersiana,
   ExistingShutterType,
   PersianaRemovalRule,
   PersianaReplacementManifestTarget,
@@ -66,13 +68,57 @@ function buildSolidToLouverRule(opening: PersianeSceneOpening, spec: PersianaTec
 }
 
 function buildBiFoldConversionRule(opening: PersianeSceneOpening, spec: PersianaTechnicalSpecification): PersianaRemovalRule | null {
-  if (spec.targetType !== "a_libro") return null;
+  // Ricolorare un «a libro» esistente non è una conversione: la regola faceva
+  // fallire la validazione («recolor must not introduce geometric rules»).
+  if (spec.targetType !== "a_libro" || spec.recolorOnly) return null;
   return {
     code: `convert_to_bifold_${opening.id}`,
     openingIds: [opening.id],
     summary: `Render opening ${opening.label} as a true bi-fold shutter system, not as a simple battente shutter.`,
     repairInstruction: "Introduce multiple folding panels, visible hinge articulation and compact stacking logic; remove incompatible single-leaf or double-leaf swing-shutter construction cues.",
   };
+}
+
+/** Il numero di ante scelto è diverso da quello in foto: dirlo, o il modello tiene le ante che vede. */
+function buildLeafCountRule(
+  opening: PersianeSceneOpening,
+  spec: PersianaTechnicalSpecification,
+  numeroAnte: number | undefined,
+): PersianaRemovalRule | null {
+  if (spec.recolorOnly || !spec.targetType || !anteCompatibili(spec.targetType, numeroAnte)) return null;
+  if (!opening.hasExistingShutter || opening.leafCount <= 0 || opening.leafCount === numeroAnte) return null;
+  return {
+    code: `leaf_count_${opening.id}`,
+    openingIds: [opening.id],
+    summary: `Opening ${opening.label} changes from ${opening.leafCount} to ${numeroAnte} ${numeroAnte === 1 ? "leaf" : "leaves/panels"}.`,
+    repairInstruction: "Size every new leaf to the opening; remove hinges and hold-open hardware of leaves that no longer exist and patch their fixing points.",
+  };
+}
+
+/** Il cassonetto scelto non è quello in foto: toglierlo e ripristinare il muro, o aggiungerlo sopra l'apertura. */
+function buildHeadBoxRule(
+  opening: PersianeSceneOpening,
+  spec: PersianaTechnicalSpecification,
+  cassonetto: CassonettoPersiana | undefined,
+): PersianaRemovalRule | null {
+  if (spec.recolorOnly || !cassonetto || !spec.targetType || !TIPI_CON_CASSONETTO.has(spec.targetType)) return null;
+  if (cassonetto === "a_scomparsa" && opening.hasHeadBox) {
+    return {
+      code: `head_box_hidden_${opening.id}`,
+      openingIds: [opening.id],
+      summary: `Opening ${opening.label}: the visible head box goes away; the new box is concealed in the lintel.`,
+      repairInstruction: "Remove the external box above the opening and restore the wall and lintel cleanly, with no fixing marks; the curtain emerges from a slot under the lintel.",
+    };
+  }
+  if (cassonetto === "esterno_a_vista" && !opening.hasHeadBox) {
+    return {
+      code: `head_box_visible_${opening.id}`,
+      openingIds: [opening.id],
+      summary: `Opening ${opening.label}: add a visible external head box right above the opening.`,
+      repairInstruction: "Mount the box on the facade above the opening without covering the window frame, the lintel moulding or the sill.",
+    };
+  }
+  return null;
 }
 
 function buildRecolorOnlyRule(opening: PersianeSceneOpening, spec: PersianaTechnicalSpecification): PersianaRemovalRule | null {
@@ -123,6 +169,8 @@ export function buildPersianeReplacementManifest(config: Pick<
       maybePushRule(removals, buildBiFoldConversionRule(opening, spec));
       maybePushRule(removals, buildRecolorOnlyRule(opening, spec));
       maybePushRule(removals, buildTypeSwitchCleanupRule(opening, spec));
+      maybePushRule(removals, buildLeafCountRule(opening, spec, config.legacy_config.numero_ante));
+      maybePushRule(removals, buildHeadBoxRule(opening, spec, config.legacy_config.cassonetto));
     }
 
     if (spec.operation === "rimuovi") {
@@ -182,7 +230,7 @@ export function buildPersianeReplacementManifest(config: Pick<
         : `Render opening ${spec.openingLabel} as ${spec.typeDescription}.`,
       spec.materialDescription ? `Material for opening ${spec.openingLabel}: ${spec.materialDescription}.` : "",
       spec.finish ? `Finish for opening ${spec.openingLabel}: ${spec.finish.promptFragment}.` : "",
-      `Opening state for opening ${spec.openingLabel}: ${spec.openingState ? OPENING_STATE_DESCRIPTIONS[spec.openingState] : "match the selected state precisely"}.`,
+      `Opening state for opening ${spec.openingLabel}: ${spec.openingState ? describeOpeningState(spec.targetType, spec.openingState) : "match the selected state precisely"}.`,
       spec.louverRule ? `Louver rule for opening ${spec.openingLabel}: ${spec.louverRule}` : "",
       `Installation logic for opening ${spec.openingLabel}: ${spec.installationStyle}.`,
       ...spec.hardwareRules.map((item) => `Hardware for opening ${spec.openingLabel}: ${item}`),

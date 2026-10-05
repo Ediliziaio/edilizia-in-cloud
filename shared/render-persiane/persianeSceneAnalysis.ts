@@ -83,7 +83,9 @@ function normalizeShutterType(value: unknown, present: boolean): ExistingShutter
   if (raw.includes("scuro_pieno")) return "scuro_pieno";
   if (raw.includes("scuro_cornice")) return "scuro_cornice";
   if (raw.includes("gelosia")) return "gelosia";
-  if (raw.includes("avvolgibile")) return "avvolgibile_esterno";
+  // L'analisi a volte risponde in parole sue: una tapparella non riconosciuta
+  // diventava «unknown» e la ricolorazione ripiegava sul tipo nascosto del form.
+  if (raw.includes("avvolgibile") || raw.includes("tapparell") || raw.includes("roller") || raw.includes("rolling")) return "avvolgibile_esterno";
   if (raw.includes("a_libro")) return "a_libro";
   if (raw.includes("griglia")) return "griglia_sicurezza";
   if (raw.includes("brise")) return "brise_soleil";

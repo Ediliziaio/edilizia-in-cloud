@@ -9,21 +9,25 @@ import {
   buildPergolaTechnicalSpecification,
 } from "./pergoleReplacementRules.ts";
 import { DEFAULT_INTEGRITY_CONSTRAINTS } from "./promptFragments.ts";
+import { normalizzaConfigPergola } from "./pergolaCoerenza.ts";
 import type {
   ConfigurazionePergole,
   PergolaPhotoMeta,
   PergolaRenderConfig,
 } from "./types.ts";
 
-function asPergolaConfig(raw: Record<string, unknown>): ConfigurazionePergole {
+function asPergolaConfig(raw: ConfigurazionePergole | Record<string, unknown>): ConfigurazionePergole {
   return raw as unknown as ConfigurazionePergole;
 }
 
 export function buildPergoleRenderConfig(
-  config: ConfigurazionePergole,
+  configScelta: ConfigurazionePergole,
   rawAnalysis?: unknown,
   photoMeta?: PergolaPhotoMeta | null,
 ): PergolaRenderConfig {
+  // Tipologia, interruttore «addossata», copertura, stato, montanti e materiale resi
+  // coerenti (pergolaCoerenza.ts, la stessa regola del prompt della edge).
+  const config = normalizzaConfigPergola(configScelta);
   const scene = normalizePergolaSceneAnalysis(config, rawAnalysis, photoMeta);
   const target = buildPergolaTargetAreaMap(config, scene);
   const envelope = buildPergolaInstallabilityEnvelope(config, scene, target);
@@ -49,7 +53,7 @@ export function buildPergoleRenderConfig(
 }
 
 export function ensurePergoleRenderConfig(
-  rawConfig: Record<string, unknown>,
+  rawConfig: ConfigurazionePergole | Record<string, unknown>,
   rawAnalysis?: unknown,
   photoMeta?: PergolaPhotoMeta | null,
 ): PergolaRenderConfig {

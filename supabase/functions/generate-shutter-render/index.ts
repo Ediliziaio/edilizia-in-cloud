@@ -19,7 +19,10 @@ import {
 import { editImage } from "../_shared/ai-provider/image.ts";
 import type { ImageReferenceInput } from "../_shared/ai-provider/image.ts";
 import { buildSharedReferenceLegend, fetchSharedReferenceImages } from "../_shared/renderReferenceFetch.ts";
-import { collectShutterReferenceImages } from "../../../shared/render-references/shutterReferences.ts";
+import {
+  collectShutterReferenceImages,
+  shutterReferenceInputFromConfig,
+} from "../../../shared/render-references/shutterReferences.ts";
 import { callVisionQa, QA_BLOCCO_RICOMPOSIZIONE } from "../_shared/ai-provider/visionQa.ts";
 import { analyzeScene } from "../_shared/ai-provider/sceneAnalysis.ts";
 import { buildPersianePrompt } from "../../../shared/render-persiane/persianePromptBuilder.ts";
@@ -535,12 +538,19 @@ Deno.serve(async (req) => {
     // OpenRouter, che ignora la size e restituisce un quadrato, e per riempirlo
     // il modello inventa scena ai lati ridisegnando la facciata intorno alle
     // persiane. Il fallback resta come rete sull'errore.
-    // RIFERIMENTI CONDIVISI — foto reali del tipo/manto scelto (Wikimedia Commons,
-    // crediti in public/render-references/CREDITS.md), allegate al modello con
-    // una legenda appesa DOPO la prosa. Mai bloccanti: se il sito non risponde
-    // il render prosegue senza foto e lo si vede nei log.
+    // RIFERIMENTI CONDIVISI — una foto per ogni elemento che cambia (tipo, anta
+    // singola, cassonetto della tapparella, essenza del legno, materiale,
+    // montaggio, ferramenta: shared/render-references/
+    // shutterReferences.ts), allegate al modello con una legenda appesa DOPO la
+    // prosa. Nessun catalogo azienda prima: la numerazione parte da Image 2. Mai
+    // bloccanti: se il sito non risponde il render prosegue senza foto e lo si
+    // vede nei log.
     try {
-      const refsCondivise = collectShutterReferenceImages((() => { const c = (config || session.config || {}) as Record<string, unknown>; const lc = (c.legacy_config && typeof c.legacy_config === "object" ? c.legacy_config : {}) as Record<string, unknown>; const pick = (k: string) => (typeof c[k] === "string" ? c[k] : lc[k]) as string | undefined; return { tipo: pick("tipo"), materiale: pick("materiale"), operazione: pick("operazione") }; })());
+      // I campi del form stanno in legacy_config (piano v2); una chiave al livello
+      // alto vince (payload vecchi). Tipo, finitura, materiale, montaggio, ferramenta.
+      const refsCondivise = collectShutterReferenceImages(
+        shutterReferenceInputFromConfig((config || session.config || {}) as Record<string, unknown>),
+      );
       if (refsCondivise.length > 0) {
         const fetched = await fetchSharedReferenceImages(
           refsCondivise,

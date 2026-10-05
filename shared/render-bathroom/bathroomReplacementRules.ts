@@ -81,6 +81,38 @@ function buildBidetRemovalRule(config: BathroomRenderConfig): BathroomRemovalRul
   };
 }
 
+function buildTowelWarmerRule(config: BathroomRenderConfig): BathroomRemovalRule | null {
+  const { scene_analysis: scene, technical_specification: spec } = config;
+  const tw = spec.towelWarmer;
+  if (!tw?.replace || !scene.towelWarmerPresent) return null;
+  if (tw.action === "rimuovi") {
+    return {
+      code: "remove_existing_towel_warmer",
+      summary: "Remove the existing towel warmer / radiator completely because the user selected its removal.",
+      repairInstruction:
+        "Remove the radiator body, its brackets, valves and visible pipes. Rebuild the wall finish seamlessly where it stood, with no outline or holes left.",
+    };
+  }
+  return {
+    code: "replace_existing_towel_warmer",
+    summary: "Replace the existing towel warmer / radiator with the selected new model in the same wall position.",
+    repairInstruction:
+      "Remove the old radiator body and any bracket or valve that does not belong to the new model; repair the wall behind it seamlessly. There must be exactly one towel warmer in the final image.",
+  };
+}
+
+/** Parete sopravasca: «nessuna» toglie quella che c'è (solo se la vasca si rifà). */
+function buildBathScreenRemovalRule(config: BathroomRenderConfig): BathroomRemovalRule | null {
+  const { scene_analysis: scene, technical_specification: spec, legacy_config: legacy } = config;
+  if (!spec.bathtub.replace || !spec.bathtub.screenRule || !scene.bathtub.screenPresent) return null;
+  if (legacy?.vasca?.parete_doccia !== "nessuna") return null;
+  return {
+    code: "remove_existing_bath_screen",
+    summary: "Remove the existing glass bath screen: the selected bathtub has no screen.",
+    repairInstruction: "Remove the glass panel, its profiles and wall fixings; repair the wall finish seamlessly where they were.",
+  };
+}
+
 function buildWallHungWcConversionRule(config: BathroomRenderConfig): BathroomRemovalRule | null {
   const { technical_specification: spec } = config;
   if (!spec.sanitaryWare.replace || spec.sanitaryWare.toiletAction !== "sostituisci") return null;
@@ -108,6 +140,17 @@ export function buildBathroomReplacementManifest(config: BathroomRenderConfig): 
   dedupePush(removals, buildExistingTubReplacementRule(config));
   dedupePush(removals, buildBidetRemovalRule(config));
   dedupePush(removals, buildWallHungWcConversionRule(config));
+  dedupePush(removals, buildTowelWarmerRule(config));
+  dedupePush(removals, buildBathScreenRemovalRule(config));
+
+  const towelWarmer = spec.towelWarmer;
+  // Parete sopravasca montata solo su una vasca nuova contro parete (sulla freestanding no).
+  const screenKey = legacy?.vasca?.parete_doccia;
+  const bathScreenFitted = spec.bathtub.replace && Boolean(spec.bathtub.screenRule) &&
+    (screenKey === "fissa" || screenKey === "girevole") &&
+    spec.bathtub.type !== "freestanding_ovale" && spec.bathtub.type !== "freestanding_rettangolare";
+  const showerNicheBuilt = spec.shower.replace && Boolean(spec.shower.wallNicheRule) && spec.shower.wallNiche;
+  const drainChosen = spec.shower.replace && (legacy?.doccia?.scarico === "canalina" || legacy?.doccia?.scarico === "piletta");
 
   const replacements = [
     spec.wallTiles.replace
@@ -123,6 +166,14 @@ export function buildBathroomReplacementManifest(config: BathroomRenderConfig): 
     spec.faucets.replace ? `Update visible faucet finishes to ${spec.faucets.finish}.` : "Keep faucet finishes unchanged unless they are part of a replaced fixture.",
     spec.wallPaint.replace ? `Update non-tiled wall surfaces with ${spec.wallPaint.action}.` : "Keep non-tiled wall surfaces unchanged.",
     spec.lighting.replace ? `Update lighting with ${spec.lighting.target}.` : "Keep lighting unchanged.",
+    // Righe nuove solo quando il form indica l'elemento: senza, il manifest resta quello di prima.
+    ...(towelWarmer?.replace
+      ? [towelWarmer.action === "rimuovi"
+        ? "Remove the existing towel warmer / radiator."
+        : towelWarmer.action === "aggiungi"
+          ? `Add a new ${towelWarmer.typeLabel}, ${towelWarmer.finish}.`
+          : `Replace the towel warmer with a ${towelWarmer.typeLabel}, ${towelWarmer.finish}.`]
+      : []),
   ];
 
   const additions = [
@@ -144,6 +195,12 @@ export function buildBathroomReplacementManifest(config: BathroomRenderConfig): 
     spec.floor.replace
       ? `Floor finish must preserve the photographed perspective while showing ${spec.floor.reflectivityRule}. ${spec.floor.cutLayoutRule} ${spec.floor.veinContinuityRule ?? ""}`
       : "",
+    showerNicheBuilt ? `Inside the new shower, build ${spec.shower.wallNicheRule}.` : "",
+    drainChosen ? `The new shower drains through a ${spec.shower.drainType}.` : "",
+    bathScreenFitted ? `Fit ${spec.bathtub.screenRule}.` : "",
+    towelWarmer?.replace && towelWarmer.action !== "rimuovi"
+      ? `Install a ${towelWarmer.typeLabel}, ${towelWarmer.finish}. ${towelWarmer.placementRule}`
+      : "",
   ].filter(Boolean);
 
   const preserveExactly = Array.from(new Set([
@@ -156,15 +213,18 @@ export function buildBathroomReplacementManifest(config: BathroomRenderConfig): 
     !legacy.sostituzione.vasca && scene.bathtub.present ? "existing bathtub zone" : "",
     scene.windowPresent ? "window and outdoor light contribution" : "",
     scene.towelWarmerPresent ? "towel warmer / radiator if not selected for replacement" : "",
-  ].filter(Boolean)));
+  ].filter(Boolean)))
+    // Il termoarredo che cambia non si conserva (la lista dell'analisi lo nomina comunque).
+    .filter((item) => !(towelWarmer?.replace && /towel warmer/i.test(item)));
 
   const untouchedSurfaces = [
     !spec.wallTiles.replace ? "all wall tiles and grout joints" : "",
     !spec.floor.replace ? "the whole existing floor surface" : "",
     !spec.wallPaint.replace ? "non-tiled painted walls" : "",
-    "ceiling",
+    // Luci a soffitto scelte nel form: il soffitto resta, ma riceve le luci nuove.
+    spec.lighting.replace && spec.lighting.ceilingRule ? `ceiling — ${spec.lighting.ceilingRule}` : "ceiling",
     scene.windowPresent ? "window frame and glazing unless explicitly part of the edit" : "",
-    scene.towelWarmerPresent ? "towel warmer / radiator if unchanged" : "",
+    scene.towelWarmerPresent && !towelWarmer?.replace ? "towel warmer / radiator if unchanged" : "",
   ].filter(Boolean);
 
   const integrityConstraints = Array.from(new Set([

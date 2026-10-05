@@ -2,12 +2,16 @@ import type {
   AccessorioPiscina,
   AreaPerimetralePiscina,
   ColoreAcquaPiscina,
+  QuotaBordoPiscina,
+  RivestimentoEsternoPiscina,
   RivestimentoInternoPiscina,
   SistemaAccessoPiscina,
   SistemaBordoPiscina,
+  SuperficieRipristinoPiscina,
   TipoCopingPiscina,
   TipoPiscina,
 } from "./types.ts";
+import { MISURE_PISCINA_METRI } from "./types.ts";
 
 export const POOL_TYPE_DESCRIPTIONS: Record<TipoPiscina, string> = {
   interrata_rettangolare: "in-ground rectangular residential pool with crisp straight geometry and buildable proportions",
@@ -20,6 +24,7 @@ export const POOL_TYPE_DESCRIPTIONS: Record<TipoPiscina, string> = {
   fuori_terra_premium: "premium above-ground pool with architectural cladding/base, never inflatable or cheap-looking",
   minipiscina: "compact spa-like mini pool integrated into terrace/patio with precise coping and technical details",
   terrazzo_compatta: "compact terrace/rooftop-compatible pool, only if scene support and load/edge logic are visually plausible",
+  biopiscina: "natural swimming pool (biopiscina): a clear swimming zone beside a planted regeneration zone with aquatic plants and washed gravel, natural stone or timber edges, no tiles and no chlorine-blue look",
 };
 
 export const WATER_SYSTEM_DESCRIPTIONS: Record<SistemaBordoPiscina, string> = {
@@ -81,15 +86,26 @@ export const AREA_DESCRIPTIONS: Record<AreaPerimetralePiscina, string> = {
   ghiaia_drenante: "draining gravel perimeter, controlled texture, realistic containment edge",
 };
 
+/** Le coperture si vedono in parte: così restano leggibili anche acqua, rivestimento e gradini. */
+export const COVER_DESCRIPTIONS = {
+  copertura_isotermica:
+    "floating thermal bubble cover shown partly deployed: rolled on a reel at one short end with only a section pulled over the water, so the rest of the pool stays open and visible",
+  copertura_rigida:
+    "automatic slatted rigid cover shown partly closed over about a third of the pool, rolling out from a flush housing or bench at one end, the rest of the water left open and visible",
+} as const;
+
 export const ACCESSORY_DESCRIPTIONS: Record<AccessorioPiscina, string> = {
   illuminazione_subacquea: "subtle underwater lights integrated into pool walls, realistic soft glow only if lighting conditions support visibility",
   lama_dacqua: "linear water blade feature, physically attached to a wall/edge and flowing into pool, not decorative fantasy",
   cascata: "small architectural waterfall feature, scale-appropriate and connected to pool edge/wall",
   idromassaggio_integrato: "integrated spa/hydromassage zone, visible jets and seating only if selected, coherent with pool geometry",
-  copertura_isotermica: "thermal pool cover only if requested, physically aligned with water surface and stored/closed coherently",
-  copertura_rigida: "rigid pool cover with believable panels or shuttered surface, no arbitrary tarp look",
+  // Coperture: «chiusa» o «aperta» non era detto, e una copertura chiusa nasconde acqua,
+  // rivestimento e gradini che il resto del prompt chiede di mostrare. Si mostrano parzialmente.
+  copertura_isotermica: COVER_DESCRIPTIONS.copertura_isotermica,
+  copertura_rigida: COVER_DESCRIPTIONS.copertura_rigida,
   doccia_esterna: "outdoor shower near poolside, sparse and buildable, not a random decorative object",
   zona_prendisole: "minimal sunbathing area with restrained loungers only if space supports it",
+  recinzione_vetro: "glass pool safety fence: frameless clear glass panels about 1.2 m high on slim floor spigots, set back on the deck around the pool with a self-closing glass gate, keeping the view through",
 };
 
 export const DEFAULT_INTEGRITY_CONSTRAINTS = [
@@ -132,3 +148,125 @@ export const DEFAULT_NEGATIVE_CONSTRAINTS = [
   "do not add dusk or overcast atmosphere when source shows bright daylight",
   "do not change the time-of-day visible in the source",
 ];
+
+/**
+ * Quota del bordo rispetto al terreno (inserimento.quota_bordo). «A filo terreno» è il
+ * default e non aggiunge testo: lo dice già la relazione «in-ground».
+ */
+export const QUOTA_BORDO_DESCRIPTIONS: Record<Exclude<QuotaBordoPiscina, "a_filo_terreno">, string> = {
+  leggermente_rialzata: "coping raised slightly above the surrounding ground (about 10-20 cm), with a short visible side band below it",
+  semi_incassata: "basin partly sunk: a raised wall about 40-70 cm high shows on the exposed sides, topped by the coping",
+  fuori_terra: "basin standing fully above ground on a level base, walls rising about 1-1.3 m to the coping",
+};
+
+/** Pareti di una vasca rialzata (finiture.rivestimento_esterno): si dice solo se la vasca è rialzata. */
+export const EXTERIOR_CLADDING_DESCRIPTIONS: Record<RivestimentoEsternoPiscina, string> = {
+  doghe_legno_wpc: "wood-look WPC boards cladding the raised basin walls horizontally up to the coping",
+  pietra_naturale: "natural stone cladding on the raised basin walls, split-face stones with tight joints up to the coping",
+  gres_effetto_pietra: "large stone-look porcelain panels cladding the raised basin walls with thin aligned joints",
+  intonaco_liscio: "smooth rendered raised basin walls with no visible joints, finished by the coping on top",
+};
+
+/** Cosa va al posto della piscina tolta (finiture.superficie_ripristino, solo rimozione). */
+export const RESTORED_SURFACE_DESCRIPTIONS: Record<SuperficieRipristinoPiscina, string> = {
+  prato_raccordato: "continuous lawn over the former pool area, level with the surrounding grass, with no outline, dip or colour change where the basin was",
+  deck_wpc: "WPC wood-look deck over the former pool area, boards aligned to the perspective and flush with the surrounding ground",
+  solarium_gres: "outdoor porcelain paving over the former pool area, slabs and joints continuing the surrounding layout",
+  pietra_naturale: "natural stone paving over the former pool area, continuing the surrounding levels",
+  ghiaia_drenante: "draining gravel bed over the former pool area with a clean containment edge",
+};
+
+/** Una misura valida in metri (numero o stringa numerica nell'intervallo), altrimenti null. */
+function misura(value: unknown, limiti: { min: number; max: number }): number | null {
+  const n = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value.replace(",", ".")) : NaN;
+  return Number.isFinite(n) && n >= limiti.min && n <= limiti.max ? Math.round(n * 10) / 10 : null;
+}
+
+/**
+ * Misure reali della vasca (piscina.lunghezza_m / larghezza_m). La maggiore è la lunghezza,
+ * qualunque campo l'abbia. Null se nessuna misura valida: il prompt resta quello di sempre.
+ */
+export function misureReali(lunghezza: unknown, larghezza: unknown): { lunghezza: number | null; larghezza: number | null } | null {
+  const l = misura(lunghezza, MISURE_PISCINA_METRI.lunghezza);
+  const w = misura(larghezza, MISURE_PISCINA_METRI.larghezza);
+  if (l === null && w === null) return null;
+  if (l !== null && w !== null && w > l) return { lunghezza: w, larghezza: l };
+  return { lunghezza: l, larghezza: w };
+}
+
+const metri = (n: number) => String(n);
+
+/** «about 8 x 4 m»: forma corta per la geometria. */
+export function describeRealSizeShort(m: { lunghezza: number | null; larghezza: number | null }): string {
+  if (m.lunghezza !== null && m.larghezza !== null) return `real size about ${metri(m.lunghezza)} x ${metri(m.larghezza)} m`;
+  return m.lunghezza !== null ? `real length about ${metri(m.lunghezza)} m` : `real width about ${metri(m.larghezza as number)} m`;
+}
+
+/** Forma lunga, per l'impronta: come misurarla nella foto e che vince sulla classe apparente. */
+export function describeRealSize(m: { lunghezza: number | null; larghezza: number | null }): string {
+  return `${describeRealSizeShort(m)} inside the coping, overriding the apparent size class: scale it against visible references (a door is about 2.1 m high, a step about 17 cm, a garden chair about 80 cm) and never stretch it to fill the space`;
+}
+
+/** Colore dell'acqua impossibile su quel rivestimento: vince il rivestimento (piscineCoerenza.ts). */
+export function describeFinishWaterConflict(finish: string, water: string): string {
+  return `the selected water look (${water.replace(/_/g, " ")}) cannot appear over this interior finish (${finish.replace(/_/g, " ")}): the finish wins, render the water exactly as it really looks over this finish and ignore the conflicting tone`;
+}
+
+/**
+ * Elementi che l'operazione NON cambia (piscineOperationScope.ts): si conservano come
+ * sono in foto. Prima il prompt descriveva il valore di default del form come obiettivo.
+ */
+export const KEEP_EXISTING = {
+  typology: "existing pool, unchanged",
+  geometry: "keep the existing pool exactly as photographed: same outline, size, depth, position, steps and edge; this operation does not rebuild the basin",
+  installation: "existing installation, unchanged",
+  waterSystem: "existing edge system, unchanged",
+  waterSystemRules: "keep the existing waterline, edge and overflow behavior exactly as photographed",
+  interiorFinish: "existing interior finish, unchanged",
+  interiorFinishRules: "keep the existing interior finish exactly as photographed",
+  waterLook: "keep the existing water colour and transparency exactly as photographed",
+  access: "Preserve existing access features exactly; do not add or modify ladders, steps, beach shelf or lounge shelf.",
+  accessories: "no extra water features, spa, shower, cover, lighting or resort furniture in this operation scope",
+  lighting: "Preserve existing lighting exactly; do not add pool lights in this operation scope.",
+  coping: "keep the existing coping exactly as photographed",
+  surroundings: "keep the existing surroundings exactly as photographed",
+  surroundingsCopingJunction: "keep the existing surroundings; rebuild only the narrow strip that meets the new coping, with a crisp buildable junction",
+  footprint: "existing pool footprint exactly as photographed: same outline, size, position and orientation, no resize and no move",
+  size: "existing pool size, unchanged",
+  depth: "existing apparent depth, unchanged",
+  groundPlane: "keep the existing relation between pool, coping and ground exactly as photographed",
+  infinity: "existing edge system unchanged",
+  waterRealismSystem: "existing pool: keep the waterline, edge and overflow behavior exactly as photographed",
+  waterRealismAccess: "preserve existing access geometry exactly; do not add or modify steps, ladders, beach shelf or lounge shelf in this operation scope",
+} as const;
+
+/** Rimozione: nessun elemento della vasca resta, nessun testo lo descrive come da costruire. */
+export const REMOVED_POOL = {
+  typology: "none - the existing pool is removed",
+  geometry: "no pool remains: the former basin area becomes ground, as described in the manifest",
+  installation: "not applicable",
+  scale: "the restored ground continues the surrounding levels, materials and perspective",
+  waterSystem: "none - the pool is removed",
+  waterSystemRules: "no water, waterline, skimmer or overflow channel may remain",
+  interiorFinish: "none - removed with the pool",
+  interiorFinishRules: "no lining, tile or water may remain",
+  waterLook: "no water remains",
+  waterNote: "No water plane, reflection or caustic of the removed pool may remain.",
+  access: "Remove pool access features with the pool and restore the ground/hardscape coherently.",
+  coping: "removed together with the pool",
+  footprint: "the existing pool to remove, exactly where it is photographed",
+  size: "the area of the removed pool, unchanged in size",
+  depth: "not applicable: the basin is filled to the surrounding ground level",
+  groundPlane: "the former basin is filled to the surrounding ground level: no step, dip, edge band or excavation scar",
+  infinity: "not applicable",
+  copingRules: [
+    "no coping, edge band, skimmer or deck scar of the old pool may remain",
+    "restored ground/paving junctions must be crisp and follow the surrounding perspective",
+    "cut lines, joints, slab/plank direction and grass cuts must follow perspective",
+    "restored surfaces must not randomly expand into non-target garden areas",
+  ],
+  waterRealism: [
+    "no water may remain: no reflections, caustics, blue patch or waterline of the removed pool",
+    "the restored ground takes the light, shadows and perspective of the surrounding garden",
+  ],
+} as const;

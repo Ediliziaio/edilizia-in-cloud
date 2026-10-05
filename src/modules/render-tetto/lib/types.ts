@@ -56,6 +56,37 @@ export interface ConfigIsolamentoTetto {
   spessore_cm?: 6 | 8 | 10 | 12 | 14 | 16;
 }
 
+/**
+ * Lattonerie del manto (scossaline di bordo falda, colmi e displuvi in lamiera, converse
+ * di camini e pareti). Il PVC non si usa per le scossaline. Assente = mantieni.
+ */
+export type MaterialeLattoneria = Exclude<MaterialeGrondaia, "pvc">;
+
+export interface ConfigScossaline {
+  azione: "mantieni" | "sostituisci";
+  materiale?: MaterialeLattoneria;
+  /** Solo per i metalli verniciati (alluminio): rame, zinco-titanio e acciaio zincato restano al naturale. */
+  colore_hex?: string;
+}
+
+/** Comignoli esistenti: stessi numero, posizione, altezza e sezione; cambia solo la finitura. Assente = mantieni. */
+export interface ConfigComignoli {
+  azione: "mantieni" | "rinnova";
+  finitura?: "intonaco" | "mattoni" | "rame";
+  colore_hex?: string;
+}
+
+/** Fermaneve sulle falde target. Assente = nessuno nuovo. */
+export interface ConfigFermaneve {
+  attivo: boolean;
+  tipo?: "ganci" | "griglia";
+}
+
+/** Linea vita (dispositivo anticaduta) sul colmo. Assente = nessuna nuova. */
+export interface ConfigLineaVita {
+  attivo: boolean;
+}
+
 export interface ConfigTargetTetto {
   scope: TargetFaldeTetto;
   descrizione_zona?: string;
@@ -69,6 +100,10 @@ export interface ConfigurazioneTetto {
   grondaie: ConfigGrondaie;
   lucernari: ConfigLucernari;
   pannelli_solari?: ConfigPannelliSolari;
+  scossaline?: ConfigScossaline;
+  comignoli?: ConfigComignoli;
+  fermaneve?: ConfigFermaneve;
+  linea_vita?: ConfigLineaVita;
   note_libere?: string;
 }
 

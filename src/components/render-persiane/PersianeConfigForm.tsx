@@ -28,7 +28,10 @@ import {
 import type {
   AnalisiPersiane,
   AperturaLamelle,
+  CassonettoPersiana,
   ConfigurazionePersiane,
+  MovimentoLamelle,
+  NumeroAntePersiana,
   MaterialePersiana,
   PersianaFerramentaFinitura,
   PersianaInstallazione,
@@ -37,6 +40,18 @@ import type {
   TipoPersiana,
 } from "@/modules/render-persiane/lib/types";
 import { TIPI_CON_LAMELLE } from "@/modules/render-persiane/lib/types";
+import { TINTE_RAPIDE_PERSIANE, TIPI_FISSI, TIPI_SU_GUIDE } from "../../../shared/render-persiane/promptFragments.ts";
+import {
+  ANTE_PER_TIPO,
+  TIPI_CON_CASSONETTO,
+  TIPI_MOVIMENTO_LAMELLE,
+} from "../../../shared/render-persiane/types.ts";
+import { ReferenceThumb } from "@/components/render/ReferenceThumb";
+import {
+  SHUTTER_MATERIAL_PHOTOS,
+  SHUTTER_TYPE_PHOTOS,
+  SHUTTER_WOOD_FINISH_PHOTOS,
+} from "../../../shared/render-references/shutterReferences.ts";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DettagliTelefono } from "@/components/render/DettagliTelefono";
 import { etichettaAnalisiPersiane } from "@/components/render-persiane/etichetteAnalisiPersiane";
@@ -69,14 +84,8 @@ const MATERIALI: { value: MaterialePersiana; label: string; desc: string }[] = [
   { value: "fibra_vetro", label: "Fibra di vetro", desc: "Tecnico e stabile all'esterno" },
 ];
 
-const RAL_QUICK_COLORS = [
-  { ral: "9010", nome: "Bianco puro", hex: "#F7F5EF" },
-  { ral: "7016", nome: "Grigio antracite", hex: "#383E42" },
-  { ral: "6005", nome: "Verde muschio", hex: "#0F4336" },
-  { ral: "8017", nome: "Marrone cioccolato", hex: "#44322D" },
-  { ral: "1013", nome: "Bianco perla", hex: "#E3D9C6" },
-  { ral: "9005", nome: "Nero intenso", hex: "#101215" },
-];
+// Le stesse tinte che il motore riconosce per nome (il profilo a contrasto si salva solo come esadecimale).
+const RAL_QUICK_COLORS = TINTE_RAPIDE_PERSIANE;
 
 const EFFETTI_LEGNO = [
   { value: "rovere_chiaro", label: "Rovere chiaro", swatch: "linear-gradient(135deg, #d6bc95, #b08c62)" },
@@ -93,6 +102,48 @@ const STATI_APERTURA: { value: StatoApertura; label: string; desc: string }[] = 
   { value: "aperto_90", label: "Aperto 90°", desc: "Aperto completamente verso la parete" },
   { value: "anta_singola_aperta", label: "Anta singola aperta", desc: "Configurazione asimmetrica" },
 ];
+
+// Tapparella e veneziana esterna non hanno ante: le stesse chiavi, lette dal
+// motore come posizione del telo (vedi describeOpeningState).
+const STATI_TELO: { value: StatoApertura; label: string; desc: string }[] = [
+  { value: "chiuso", label: "Abbassata", desc: "Telo giù fino al davanzale" },
+  { value: "socchiuso", label: "Socchiusa", desc: "Giù, con le stecche appena aperte" },
+  { value: "aperto_45", label: "A metà", desc: "Telo alzato a metà finestra" },
+  { value: "aperto_90", label: "Alzata", desc: "Telo tutto nel cassonetto" },
+];
+
+const ETICHETTA_ANTE: Record<NumeroAntePersiana, string> = { 1: "1 anta", 2: "2 ante", 4: "4 pannelli", 6: "6 pannelli" };
+
+const CASSONETTI: { value: CassonettoPersiana; label: string }[] = [
+  { value: "esterno_a_vista", label: "Esterno a vista" },
+  { value: "a_scomparsa", label: "Nascosto nel muro" },
+];
+
+/** Bottoncino di scelta (stesso stile del selettore RAL / effetto legno). */
+function Pillola({ attiva, onClick, disabled, children }: { attiva: boolean; onClick: () => void; disabled?: boolean; children: string }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-all max-md:py-2 max-md:text-[13px] ${
+        attiva
+          ? "border-primary bg-primary/10 text-primary"
+          : "border-slate-300 bg-white text-muted-foreground hover:border-primary/60 hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Montaggi coerenti col tipo: le guide non reggono ante a battente, i cardini non reggono una tapparella. */
+function installazioniPerTipo(tipo: TipoPersiana): PersianaInstallazione[] {
+  if (TIPI_SU_GUIDE.has(tipo)) return ["guide_laterali", "su_telaio"];
+  if (TIPI_FISSI.has(tipo)) return ["brackets_architettonici", "su_telaio"];
+  if (tipo === "griglia_sicurezza") return ["su_telaio", "cardini_tradizionali"];
+  return ["cardini_tradizionali", "su_telaio", "brackets_architettonici"];
+}
 
 const APERTURE_LAMELLE: { value: AperturaLamelle; label: string }[] = [
   { value: "chiuse", label: "Chiuse" },
@@ -134,6 +185,13 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
   const showFullConfig = value.operazione !== "rimuovi";
   const showColorOnly = value.operazione === "cambia_colore";
   const showLamelle = TIPI_CON_LAMELLE.has(value.tipo) && showFullConfig;
+  // Lo stato del telo vale per il tipo scelto; in «cambia colore» il tipo è quello in foto.
+  const showGuidedStates = !showColorOnly && TIPI_SU_GUIDE.has(value.tipo);
+  const showFixedSystem = !showColorOnly && TIPI_FISSI.has(value.tipo);
+  const installazioniAmmesse = installazioniPerTipo(value.tipo);
+  const anteDelTipo = ANTE_PER_TIPO[value.tipo];
+  const haCassonetto = TIPI_CON_CASSONETTO.has(value.tipo);
+  const haMovimentoLamelle = TIPI_MOVIMENTO_LAMELLE.has(value.tipo);
   const openings = analysis?.openings ?? [];
   const canSelectSpecificOpenings = openings.length > 1;
   const selectedIds = value.selected_opening_ids ?? [];
@@ -287,6 +345,18 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                   if (TIPI_CON_LAMELLE.has(shutterType) && !value.lamelle) {
                     nextConfig.lamelle = { larghezza_mm: 50, apertura: "chiuse" };
                   }
+                  // Montaggio e stato che il nuovo tipo non può avere tornano al default del motore.
+                  if (value.installazione && !installazioniPerTipo(shutterType).includes(value.installazione)) {
+                    nextConfig.installazione = undefined;
+                  }
+                  if (TIPI_SU_GUIDE.has(shutterType) && value.stato_apertura === "anta_singola_aperta") {
+                    nextConfig.stato_apertura = "chiuso";
+                  }
+                  if (value.numero_ante && !ANTE_PER_TIPO[shutterType]?.includes(value.numero_ante)) nextConfig.numero_ante = undefined;
+                  if (value.cassonetto && !TIPI_CON_CASSONETTO.has(shutterType)) nextConfig.cassonetto = undefined;
+                  if (nextConfig.lamelle?.movimento && !TIPI_MOVIMENTO_LAMELLE.has(shutterType)) {
+                    nextConfig.lamelle = { ...nextConfig.lamelle, movimento: undefined };
+                  }
                   onChange(nextConfig);
                 }}
                 className={`rounded-xl border p-3 text-left transition-all max-md:p-2.5 ${
@@ -296,9 +366,17 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                 }`}
               >
                 <div className="flex items-start gap-3 max-md:items-center max-md:gap-2">
-                  <div className={`rounded-md p-2 max-md:p-1.5 ${value.tipo === shutterType ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-                    <Icon className="h-4 w-4" />
-                  </div>
+                  {SHUTTER_TYPE_PHOTOS[shutterType] ? (
+                    // La foto del tipo (la stessa che il motore allega, qui a colori); se non si carica resta l'icona sotto.
+                    <div className={`relative h-12 w-12 shrink-0 overflow-hidden rounded-md max-md:h-10 max-md:w-10 ${value.tipo === shutterType ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                      <Icon className="absolute inset-0 m-auto h-4 w-4" />
+                      <ReferenceThumb photo={SHUTTER_TYPE_PHOTOS[shutterType]} alt={label} className="relative" />
+                    </div>
+                  ) : (
+                    <div className={`rounded-md p-2 max-md:p-1.5 ${value.tipo === shutterType ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                  )}
                   <div>
                     <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{label}</p>
                     <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-md:hidden">{desc}</p>
@@ -307,6 +385,34 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Ante e cassonetto: solo per i tipi che li hanno; senza scelta il render segue la foto. */}
+      {showFullConfig && !showColorOnly && (anteDelTipo || haCassonetto) && (
+        <div className="space-y-3">
+          {anteDelTipo && (
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold max-md:text-[13px]">{value.tipo === "a_libro" ? "Pannelli per finestra" : "Ante per finestra"}</Label>
+              <div className="flex flex-wrap gap-2">
+                <Pillola attiva={!value.numero_ante} disabled={disabled} onClick={() => set("numero_ante", undefined)}>Come in foto</Pillola>
+                {anteDelTipo.map((n) => (
+                  <Pillola key={n} attiva={value.numero_ante === n} disabled={disabled} onClick={() => set("numero_ante", n)}>{ETICHETTA_ANTE[n]}</Pillola>
+                ))}
+              </div>
+            </div>
+          )}
+          {haCassonetto && (
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold max-md:text-[13px]">Cassonetto</Label>
+              <div className="flex flex-wrap gap-2">
+                <Pillola attiva={!value.cassonetto} disabled={disabled} onClick={() => set("cassonetto", undefined)}>Come in foto</Pillola>
+                {CASSONETTI.map((c) => (
+                  <Pillola key={c.value} attiva={value.cassonetto === c.value} disabled={disabled} onClick={() => set("cassonetto", c.value)}>{c.label}</Pillola>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -326,8 +432,17 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                     : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                 }`}
               >
-                <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{material.label}</p>
-                <p className="text-xs text-muted-foreground mt-1 max-md:hidden">{material.desc}</p>
+                <div className="flex items-center gap-3 max-md:gap-2">
+                  {SHUTTER_MATERIAL_PHOTOS[material.value] && (
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md border border-black/10 bg-muted">
+                      <ReferenceThumb photo={SHUTTER_MATERIAL_PHOTOS[material.value]} alt={material.label} />
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{material.label}</p>
+                    <p className="text-xs text-muted-foreground mt-1 max-md:hidden">{material.desc}</p>
+                  </div>
+                </div>
               </button>
             ))}
           </div>
@@ -404,7 +519,8 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
           ) : (
             <div className="grid gap-2 sm:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-1.5">
               {EFFETTI_LEGNO.map((effect) => {
-                const active = value.effetto_legno === effect.value;
+                // Senza scelta il motore usa il rovere chiaro: il form lo mostra selezionato.
+                const active = (value.effetto_legno ?? "rovere_chiaro") === effect.value;
                 return (
                   <button
                     key={effect.value}
@@ -415,8 +531,15 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                       active ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                     }`}
                   >
-                    <div className="h-10 rounded-lg border border-black/10 max-md:h-7" style={{ background: effect.swatch }} />
-                    <p className="text-sm font-medium mt-3 max-md:mt-2 max-md:text-[13px] max-md:leading-tight">{effect.label}</p>
+                    <div className="flex items-center gap-3 max-md:gap-2">
+                      {/* La foto dell'essenza (la stessa che il motore allega); il campione resta sotto e per il rovere chiaro, che non ha foto. */}
+                      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-black/10" style={{ background: effect.swatch }}>
+                        {SHUTTER_WOOD_FINISH_PHOTOS[effect.value] && (
+                          <ReferenceThumb photo={SHUTTER_WOOD_FINISH_PHOTOS[effect.value]} alt={effect.label} className="relative" />
+                        )}
+                      </div>
+                      <p className="text-sm font-medium max-md:text-[13px] max-md:leading-tight">{effect.label}</p>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-1 max-md:hidden">Usa questo effetto come riferimento materico del render.</p>
                   </button>
                 );
@@ -465,11 +588,11 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
         </div>
       )}
 
-      {showFullConfig && (
+      {showFullConfig && !(showFixedSystem) && (
         <div className="space-y-3">
-          <Label className="text-sm font-semibold max-md:text-[13px]">Stato apertura</Label>
+          <Label className="text-sm font-semibold max-md:text-[13px]">{showGuidedStates ? "Posizione del telo" : "Stato apertura"}</Label>
           <div className="grid gap-2 sm:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-1.5">
-            {STATI_APERTURA.map((state) => (
+            {(showGuidedStates ? STATI_TELO : STATI_APERTURA).map((state) => (
               <button
                 key={state.value}
                 type="button"
@@ -553,6 +676,26 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
               </Select>
             </div>
           </div>
+          {haMovimentoLamelle && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Label className="text-xs text-muted-foreground max-md:text-[11px]">Lamelle</Label>
+              {([undefined, "fisse", "orientabili"] as Array<MovimentoLamelle | undefined>).map((movimento) => (
+                <Pillola
+                  key={movimento ?? "non_specificato"}
+                  attiva={value.lamelle?.movimento === movimento}
+                  disabled={disabled}
+                  onClick={() =>
+                    onChange({
+                      ...value,
+                      lamelle: { ...(value.lamelle ?? { larghezza_mm: 50, apertura: "chiuse" as const }), movimento },
+                    })
+                  }
+                >
+                  {movimento === "fisse" ? "Fisse" : movimento === "orientabili" ? "Orientabili (con asta)" : "Non specificato"}
+                </Pillola>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -592,7 +735,7 @@ export function PersianeConfigForm({ value, onChange, disabled, analysis }: Prop
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {INSTALLAZIONI.map((item) => (
+                {INSTALLAZIONI.filter((item) => installazioniAmmesse.includes(item.value)).map((item) => (
                   <SelectItem key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>

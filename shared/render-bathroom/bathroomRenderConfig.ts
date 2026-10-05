@@ -1,5 +1,6 @@
 import {
   BASIN_DESCRIPTIONS,
+  BATH_SCREEN_DESCRIPTIONS,
   BATHTUB_FAUCET_DESCRIPTIONS,
   BATHTUB_MATERIAL_DESCRIPTIONS,
   BATHTUB_TYPE_DESCRIPTIONS,
@@ -8,16 +9,22 @@ import {
   FLUSH_PLATE_COLOR_DESCRIPTIONS,
   FLUSH_PLATE_DESCRIPTIONS,
   INTERVENTION_DESCRIPTIONS,
+  LIGHTING_ON_CEILING,
+  LIGHTING_TYPE_DESCRIPTIONS,
   POSA_DESCRIPTIONS,
   SANITARY_COLOR_DESCRIPTIONS,
   SANITARY_TYPE_DESCRIPTIONS,
+  SHOWER_DRAIN_DESCRIPTIONS,
   SHOWER_GLASS_DESCRIPTIONS,
   SHOWER_HEAD_DESCRIPTIONS,
+  SHOWER_NICHE_DESCRIPTIONS,
   SHOWER_PROFILE_DESCRIPTIONS,
   SHOWER_TRAY_DESCRIPTIONS,
   SHOWER_TYPE_DESCRIPTIONS,
   SHOWER_TYPE_LABELS,
   TILE_EFFECT_DESCRIPTIONS,
+  TOWEL_WARMER_FINISH_DESCRIPTIONS,
+  TOWEL_WARMER_TYPE_DESCRIPTIONS,
   VANITY_MIRROR_DESCRIPTIONS,
   VANITY_STYLE_DESCRIPTIONS,
   VANITY_TOP_DESCRIPTIONS,
@@ -25,8 +32,13 @@ import {
 import { normalizeBathroomSceneAnalysis } from "./bathroomSceneAnalysis.ts";
 import { buildBathroomReplacementManifest } from "./bathroomReplacementRules.ts";
 import type {
+  BathroomBathScreen,
+  BathroomLightingType,
   BathroomPhotoMeta,
   BathroomRenderConfig,
+  BathroomShowerDrain,
+  BathroomShowerNiche,
+  BathroomTowelWarmerSpecification,
   ConfigurazioneBagno,
 } from "./types.ts";
 
@@ -188,6 +200,11 @@ function describeWallPaintAction(action: string, colorHex?: string | null): stri
 function inferMirrorLighting(mirrorType: string): string {
   if (mirrorType === "backlit mirror") return "integrated backlighting";
   if (mirrorType.includes("storage")) return "functional frontal lighting";
+  // Tondo e verticale sono specchi semplici: «soft integrated mirror lighting» li
+  // trasformava in specchi retroilluminati, che sono un'altra scelta del form.
+  if (mirrorType === "round mirror" || mirrorType === "vertical full-height mirror") {
+    return "none — a plain mirror with no integrated lighting";
+  }
   return "soft integrated mirror lighting";
 }
 
@@ -202,7 +219,10 @@ function inferVanityInstallation(style: ConfigurazioneBagno["vanity"]["stile"]):
 }
 
 function inferBasinCount(config: ConfigurazioneBagno["vanity"]): 1 | 2 {
-  if (config.numero_lavabi === 2) return 2;
+  // La scelta esplicita vince: prima un mobile da 120-140 cm diventava sempre a
+  // doppio lavabo anche con «Singolo lavabo» scelto nel form (e il contratto dei
+  // conteggi chiedeva 2 lavabi). La larghezza decide solo se il numero manca.
+  if (config.numero_lavabi === 1 || config.numero_lavabi === 2) return config.numero_lavabi;
   if (config.larghezza_cm >= 120) return 2;
   return 1;
 }
@@ -279,9 +299,58 @@ function inferShowerTrayThickness(tray: ConfigurazioneBagno["doccia"]["piatto"])
   }
 }
 
-function inferShowerDrainType(tray: ConfigurazioneBagno["doccia"]["piatto"], type: ConfigurazioneBagno["doccia"]["tipo"]): string {
+function inferShowerDrainType(
+  tray: ConfigurazioneBagno["doccia"]["piatto"],
+  type: ConfigurazioneBagno["doccia"]["tipo"],
+  drain?: BathroomShowerDrain,
+): string {
+  const scelto = drain && SHOWER_DRAIN_DESCRIPTIONS[drain] ? drain : undefined;
+  // Una canalina lineare non segue il bordo curvo di un piatto semicircolare.
+  if (scelto === "canalina" && type === "semicircolare") {
+    return `${SHOWER_DRAIN_DESCRIPTIONS.piletta} (a linear channel cannot follow the curved quadrant tray)`;
+  }
+  if (scelto) return SHOWER_DRAIN_DESCRIPTIONS[scelto];
   if (tray === "filo_pavimento" || type === "walk_in") return "linear drain or discreet premium drain solution";
   return "credible standard shower waste aligned with the selected tray";
+}
+
+function validNiche(niche: unknown): BathroomShowerNiche | undefined {
+  return typeof niche === "string" && niche in SHOWER_NICHE_DESCRIPTIONS ? niche as BathroomShowerNiche : undefined;
+}
+
+const FREESTANDING = new Set(["freestanding_ovale", "freestanding_rettangolare"]);
+
+/** Parete sopravasca indicata nel form; su una vasca freestanding non si monta. */
+function inferBathScreenRule(type: ConfigurazioneBagno["vasca"]["tipo"], screen: unknown): string | undefined {
+  if (typeof screen !== "string" || !(screen in BATH_SCREEN_DESCRIPTIONS)) return undefined;
+  if (FREESTANDING.has(type) && screen !== "nessuna") {
+    return "no bath screen: a freestanding tub stands free of the walls and cannot carry a glass screen";
+  }
+  return BATH_SCREEN_DESCRIPTIONS[screen as BathroomBathScreen];
+}
+
+const TOWEL_WARMER_PLACEMENT: Record<BathroomTowelWarmerSpecification["action"], string> = {
+  sostituisci:
+    "Replace the photographed towel warmer / radiator in the same wall position, on the same pipe connections, with the new model; if the source photo shows none, install the new one on the most plausible free wall section near the shower or bathtub, never blocking a fixture, the door or the window.",
+  aggiungi:
+    "Add one new towel warmer on the most plausible free wall section near the shower or bathtub exit, bottom about 15-20 cm above the floor, with discreet valves at its base; never on the shower glass, in front of the window or blocking a fixture. If the source already has a radiator, the new towel warmer takes its place: never two.",
+  rimuovi:
+    "Remove the existing towel warmer / radiator completely, with its brackets, valves and visible pipes, and rebuild the wall finish seamlessly where it stood; if no towel warmer is visible, change nothing.",
+};
+
+/** Termoarredo: c'è nella specifica solo quando il form lo cambia (assente = come prima). */
+function buildTowelWarmerSpec(config: ConfigurazioneBagno): BathroomTowelWarmerSpecification | undefined {
+  const t = config.termoarredo;
+  if (!t || config.sostituzione.termoarredo !== true || t.attivo !== true) return undefined;
+  if (!(t.azione in TOWEL_WARMER_PLACEMENT)) return undefined;
+  const rimuovi = t.azione === "rimuovi";
+  return {
+    replace: true,
+    action: t.azione,
+    typeLabel: rimuovi ? null : TOWEL_WARMER_TYPE_DESCRIPTIONS[t.tipo] ?? TOWEL_WARMER_TYPE_DESCRIPTIONS.scaletta,
+    finish: rimuovi ? null : TOWEL_WARMER_FINISH_DESCRIPTIONS[t.finitura] ?? TOWEL_WARMER_FINISH_DESCRIPTIONS.bianco,
+    placementRule: TOWEL_WARMER_PLACEMENT[t.azione],
+  };
 }
 
 function inferShowerLayoutRule(type: ConfigurazioneBagno["doccia"]["tipo"]): string {
@@ -376,6 +445,7 @@ export function buildBathroomRenderConfig(
         : "material reflectivity coherent with the selected floor surface",
   };
 
+  const niche = validNiche(legacyConfig.doccia.nicchia);
   const shower = {
     replace: legacyConfig.sostituzione.doccia && legacyConfig.doccia.attivo,
     type: legacyConfig.doccia.tipo,
@@ -386,14 +456,20 @@ export function buildBathroomRenderConfig(
     frameFinish: SHOWER_PROFILE_DESCRIPTIONS[legacyConfig.doccia.profilo],
     trayType: SHOWER_TRAY_DESCRIPTIONS[legacyConfig.doccia.piatto],
     trayThickness: inferShowerTrayThickness(legacyConfig.doccia.piatto),
-    drainType: inferShowerDrainType(legacyConfig.doccia.piatto, legacyConfig.doccia.tipo),
+    drainType: inferShowerDrainType(legacyConfig.doccia.piatto, legacyConfig.doccia.tipo, legacyConfig.doccia.scarico),
     showerHeadType: SHOWER_HEAD_DESCRIPTIONS[legacyConfig.doccia.soffione],
     handShowerType: legacyConfig.doccia.soffione === "pioggia_soffitto" ? "matching hand shower where plausibly visible" : "hand shower coherent with the selected system",
     mixerFinish: faucetsFinish,
-    wallNiche: legacyConfig.doccia.tipo === "walk_in" || legacyConfig.doccia.tipo === "nicchia_box",
+    // Senza indicazione resta la regola di prima: nicchia «plausibile» per walk-in e box
+    // in nicchia (che però è la doccia tra due pareti, non una nicchia portaoggetti).
+    wallNiche: niche
+      ? niche !== "nessuna"
+      : legacyConfig.doccia.tipo === "walk_in" || legacyConfig.doccia.tipo === "nicchia_box",
+    ...(niche ? { wallNicheRule: SHOWER_NICHE_DESCRIPTIONS[niche] } : {}),
     layoutRule: inferShowerLayoutRule(legacyConfig.doccia.tipo),
   };
 
+  const bathScreen = inferBathScreenRule(legacyConfig.vasca.tipo, legacyConfig.vasca.parete_doccia);
   const bathtub = {
     replace: legacyConfig.sostituzione.vasca && legacyConfig.vasca.attivo,
     type: legacyConfig.vasca.tipo,
@@ -404,6 +480,7 @@ export function buildBathroomRenderConfig(
     layoutRule: inferTubLayoutRule(legacyConfig.vasca.tipo),
     scaleRule: inferTubScaleRule(legacyConfig.vasca),
     placementRule: inferTubPlacementRule(legacyConfig.vasca, sceneAnalysis.bathtub.position || sceneAnalysis.shower.position || "unknown"),
+    ...(bathScreen ? { screenRule: bathScreen } : {}),
   };
 
   const mirrorType = VANITY_MIRROR_DESCRIPTIONS[legacyConfig.vanity.specchio || "retroilluminato"];
@@ -460,10 +537,18 @@ export function buildBathroomRenderConfig(
     colorHex: legacyConfig.parete.colore_hex || null,
   };
 
+  // Il form sceglie un tipo (chiave); un testo libero di una configurazione vecchia resta com'è.
+  const lightingKey = legacyConfig.illuminazione_tipo?.trim() ?? "";
+  const lightingType = lightingKey in LIGHTING_TYPE_DESCRIPTIONS ? lightingKey as BathroomLightingType : undefined;
   const lighting = {
     replace: legacyConfig.sostituzione.illuminazione && Boolean(legacyConfig.illuminazione_tipo?.trim()),
-    target: legacyConfig.illuminazione_tipo?.trim() || "coherent upgraded bathroom lighting",
+    target: lightingType ? LIGHTING_TYPE_DESCRIPTIONS[lightingType] : legacyConfig.illuminazione_tipo?.trim() || "coherent upgraded bathroom lighting",
+    ...(lightingType && LIGHTING_ON_CEILING[lightingType]
+      ? { ceilingRule: "only the selected light fixtures are added to the ceiling: keep the ceiling height, plane and colour unchanged, no new false ceiling and no ceiling redesign" }
+      : {}),
   };
+
+  const towelWarmer = buildTowelWarmerSpec(legacyConfig);
 
   const provisional: BathroomRenderConfig = {
     schema_version: "bathroom_render_v2",
@@ -481,6 +566,7 @@ export function buildBathroomRenderConfig(
       faucets,
       wallPaint,
       lighting,
+      ...(towelWarmer ? { towelWarmer } : {}),
     },
     replacement_manifest: {} as BathroomRenderConfig["replacement_manifest"],
     removal_rules: [],

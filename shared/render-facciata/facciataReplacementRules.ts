@@ -153,6 +153,13 @@ export function buildFacciataReplacementManifest(config: Pick<
     repaintActions.push("Repaint balcony railings only; preserve the exact railing drawing, spacing, bars and balcony geometry.");
   }
 
+  // `shutters` c'è solo nei piani costruiti col form che ha la voce persiane: i piani salvati prima non ce l'hanno.
+  if (elements.shutters?.action === "repaint") {
+    repaintActions.push(
+      `Repaint the existing window shutters only${elements.shutters.colorHex ? ` in colour ${elements.shutters.colorHex}` : ""}; preserve their type, slats, frames, hinges, size and open or closed position exactly, and add no shutters where the photo shows none.`,
+    );
+  }
+
   if (config.legacy_config.tipo_intervento === "tinteggiatura" && !cladding.active && !insulation.active) {
     pushLine(
       removals,

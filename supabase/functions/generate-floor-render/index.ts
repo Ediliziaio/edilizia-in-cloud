@@ -575,8 +575,10 @@ Use short values. Do not describe a renovation.`;
           (entry) => console.log(JSON.stringify({ fn: "generate-floor-render", session_id, ...entry })),
         );
         if (fetched.references.length > 0) {
+          // Image 1 = foto da modificare; le condivise seguono quelle del catalogo.
+          const primaCondivisa = 2 + catalogReferences.length;
           catalogReferences = [...catalogReferences, ...fetched.references];
-          fullPrompt = `${fullPrompt}\n\n${buildSharedReferenceLegend(fetched.references)}`;
+          fullPrompt = `${fullPrompt}\n\n${buildSharedReferenceLegend(fetched.references, primaCondivisa)}`;
         }
       }
     } catch (refErr) {
@@ -612,6 +614,10 @@ Use short values. Do not describe a renovation.`;
         "- geometry_change: camera angle, perspective or crop clearly different from the source.",
         "- invented_objects: furniture or fixtures that are in neither the source photo nor the brief.",
         ...QA_BLOCCO_RICOMPOSIZIONE,
+        // Tappeti tolti su richiesta: la loro assenza non e' un cambiamento fuori bersaglio.
+        ...(normalizedConfig.legacy_config.tappeti === "rimuovi"
+          ? ["- The loose rugs were removed on purpose: their absence is expected and is NOT a non_target_change."]
+          : []),
         "When in doubt, PASS. The floor material/color CHANGE is expected — only scale errors, non-target changes and geometry breaks fail.",
       ].join("\n");
 

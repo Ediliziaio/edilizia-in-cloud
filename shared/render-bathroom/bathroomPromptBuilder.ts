@@ -48,7 +48,7 @@ function describeShowerSpec(config: BathroomRenderConfig): string {
     `shower head type: ${spec.showerHeadType}`,
     `hand shower type: ${spec.handShowerType}`,
     `mixer finish: ${spec.mixerFinish}`,
-    `wall niche: ${spec.wallNiche ? "requested / plausible if spatially coherent" : "not requested"}`,
+    `wall niche: ${spec.wallNicheRule ?? (spec.wallNiche ? "requested / plausible if spatially coherent" : "not requested")}`,
     `layout rule: ${spec.layoutRule}`,
   ].join("\n");
 }
@@ -64,7 +64,16 @@ function describeBathtubSpec(config: BathroomRenderConfig): string {
     `layout rule: ${spec.layoutRule}`,
     `scale rule: ${spec.scaleRule}`,
     `placement rule: ${spec.placementRule}`,
+    ...(spec.screenRule ? [`bath screen: ${spec.screenRule}`] : []),
   ].join("\n");
+}
+
+/** Righe del termoarredo nel blocco J: solo quando il form lo cambia (assente = blocco come prima). */
+function describeTowelWarmer(config: BathroomRenderConfig): string {
+  const tw = config.technical_specification.towelWarmer;
+  if (!tw?.replace) return "";
+  if (tw.action === "rimuovi") return `\nTowel warmer: REMOVE it. ${tw.placementRule}`;
+  return `\nTowel warmer (${tw.action === "aggiungi" ? "new, added" : "replacement"}): ${tw.typeLabel}, ${tw.finish}. ${tw.placementRule}`;
 }
 
 function describeVanitySpec(config: BathroomRenderConfig): string {
@@ -227,11 +236,15 @@ ${spec.floor.replace
       ].join("\n")
     : "Floor replacement not requested. Keep the existing floor unchanged."}`;
 
+  // Senza sostituzione dei rubinetti il blocco riportava comunque finitura e stile
+  // rimasti nel form («Primary finish: matte black» col default): una seconda
+  // istruzione che contraddiceva «keep faucet finishes unchanged» e la finitura del
+  // miscelatore doccia (quella esistente).
   blocks.J = `[BLOCK J – FAUCETS / METALS / ACCESSORIES]
 Faucet replacement requested: ${spec.faucets.replace ? "yes" : "no"}
-Primary finish: ${spec.faucets.finish}
-Primary style: ${spec.faucets.style}
-Reflectivity rule: ${spec.faucets.reflectivityRule}
+Primary finish: ${spec.faucets.replace ? spec.faucets.finish : "unchanged — keep the existing faucets and their finish exactly as photographed"}
+Primary style: ${spec.faucets.replace ? spec.faucets.style : "unchanged — keep the existing faucet models"}
+Reflectivity rule: ${spec.faucets.reflectivityRule}${describeTowelWarmer(normalizedConfig)}
 Only add accessories if explicitly requested or necessary for physical plausibility of the selected fixture type.`;
 
   blocks.K = `[BLOCK K – DEMOLITION / REMOVAL RULES]
@@ -330,6 +343,10 @@ ${bullets([
     showerCount = scene.shower.present ? 1 : 0;
     bathtubCount = scene.bathtub.present ? 1 : 0;
   }
+  // Parete sopravasca con doccetta: fa parte della vasca, non è una seconda doccia
+  // (con la conversione doccia→vasca il contratto dice «0 shower»).
+  const bathScreenFitted = spec.bathtub.replace && Boolean(spec.bathtub.screenRule) &&
+    !/^no bath screen/i.test(spec.bathtub.screenRule ?? "");
   const basinCount = spec.vanity.replace
     ? spec.vanity.basinCount
     : scene.vanity.present
@@ -338,9 +355,9 @@ ${bullets([
 
   blocks.CONTRACT = `[🚨 FIXTURE COUNT CONTRACT — ABSOLUTE PRIORITY, READ FIRST 🚨]
 This is ONE real Italian bathroom with real plumbing: each sanitary fixture exists ONCE. The final image MUST contain EXACTLY:
-- ${wcCount} toilet (WC)${wcCount === 1 ? " — the single replacement WC in the original sanitary position. NEVER render two toilets, never add an extra WC anywhere else in the room." : " — no toilet is visible in the source and none was requested: do not invent one."}
-- ${bidetCount} bidet${bidetRemoved ? " — the existing bidet is REMOVED: repair wall and floor seamlessly where it stood, no bidet anywhere in the final image." : bidetCount === 1 ? " — next to the WC, matching set." : " — do not invent a bidet."}
-- ${showerCount} shower and ${bathtubCount} bathtub${conversionLine ? ` — ${conversionLine}` : ""}
+- ${wcCount} toilet (WC)${wcCount === 1 ? (spec.sanitaryWare.replace ? " — the single replacement WC in the original sanitary position. NEVER render two toilets, never add an extra WC anywhere else in the room." : " — the existing WC, kept exactly as photographed in its original position. NEVER render two toilets, never add an extra WC anywhere else in the room.") : " — no toilet is visible in the source and none was requested: do not invent one."}
+- ${bidetCount} bidet${bidetRemoved ? " — the existing bidet is REMOVED: repair wall and floor seamlessly where it stood, no bidet anywhere in the final image." : bidetCount === 1 ? (spec.sanitaryWare.replace ? " — next to the WC, matching set." : " — the existing bidet, kept exactly as photographed next to the WC.") : " — do not invent a bidet."}
+- ${showerCount} shower and ${bathtubCount} bathtub${conversionLine ? ` — ${conversionLine}` : ""}${bathScreenFitted ? " The glass screen and hand shower fitted on the new bathtub belong to the bathtub: they are not a separate shower." : ""}
 - ${basinCount} washbasin${basinCount > 1 ? "s" : ""} on ONE single vanity unit — never a second vanity or extra basin.
 A count violation (a second toilet, a leftover bathtub after conversion, both tub and shower when only one is requested, a duplicated vanity) makes the render UNUSABLE for the customer regardless of any other quality. These counts override every other instruction below.`;
 

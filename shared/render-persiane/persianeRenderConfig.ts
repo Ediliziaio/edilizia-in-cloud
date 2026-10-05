@@ -1,14 +1,22 @@
 import {
+  BLADE_MOVEMENT_DESCRIPTIONS,
   HARDWARE_FINISH_DESCRIPTIONS,
+  HEAD_BOX_DESCRIPTIONS,
   INSTALLATION_DESCRIPTIONS,
+  LEAF_COUNT_DESCRIPTIONS,
+  LOUVER_MOVEMENT_DESCRIPTIONS,
   LOUVER_STATE_DESCRIPTIONS,
   MATERIAL_DESCRIPTIONS,
   SHUTTER_TYPE_DESCRIPTIONS,
+  describeProfileColor,
+  hasHingedLeaves,
 } from "./promptFragments.ts";
 import { buildPersianeReplacementManifest } from "./persianeReplacementRules.ts";
 import { createPersianeTargetSelection, normalizePersianeSceneAnalysis } from "./persianeSceneAnalysis.ts";
+import { TIPI_CON_CASSONETTO, TIPI_MOVIMENTO_LAMELLE, TIPI_PERSIANA, anteCompatibili } from "./types.ts";
 import type {
   ConfigurazionePersiane,
+  ExistingShutterType,
   PersianaFinishSpec,
   PersianaInstallazione,
   PersianaTechnicalSpecification,
@@ -78,15 +86,28 @@ function supportsLouvers(type: TipoPersiana | null): boolean {
 
 function buildLouverRule(config: ConfigurazionePersiane, targetType: TipoPersiana | null): string | null {
   if (!targetType || !supportsLouvers(targetType) || !config.lamelle) return null;
+  const movimento = config.lamelle.movimento && TIPI_MOVIMENTO_LAMELLE.has(targetType)
+    ? (targetType === "brise_soleil" ? BLADE_MOVEMENT_DESCRIPTIONS : LOUVER_MOVEMENT_DESCRIPTIONS)[config.lamelle.movimento]
+    : null;
   return [
     `render consistent louvers/slats from top to bottom`,
     `slat width about ${config.lamelle.larghezza_mm}mm`,
     LOUVER_STATE_DESCRIPTIONS[config.lamelle.apertura],
+    // fisse/orientabili solo se scelto: senza scelta la regola resta quella di prima
+    ...(movimento ? [movimento] : []),
   ].join("; ");
 }
 
-function buildLeafConfiguration(targetType: TipoPersiana | null, scene: PersianeSceneAnalysis["openings"][number]): string {
+function buildLeafConfiguration(
+  targetType: TipoPersiana | null,
+  scene: PersianeSceneAnalysis["openings"][number],
+  numeroAnte?: number,
+): string {
   if (!targetType) return "remove the existing shutter assembly";
+  // Il numero di ante scelto vince sulla foto; un numero che il tipo non può avere si ignora.
+  if (anteCompatibili(targetType, numeroAnte)) return LEAF_COUNT_DESCRIPTIONS[numeroAnte];
+  // La veneziana esterna scorre su guide come la tapparella: «double-leaf» era sbagliato.
+  if (targetType === "veneziana_esterna") return "single external venetian blind running in two side guides";
   if (targetType === "a_libro") {
     return scene.openingKind === "door_window" || scene.apparentSize.toLowerCase().includes("wide")
       ? "bi-fold layout with 6 folding panels total"
@@ -117,14 +138,74 @@ function buildHardwareRules(
     rules.push("show hinges/pintles and hold-open hardware coherent with traditional side-mounted shutters");
   }
 
-  if (config.stato_apertura === "aperto_90") {
+  // Il fermo a muro dei 90° vale per le ante: tapparelle e frangisole non ruotano.
+  if (config.stato_apertura === "aperto_90" && hasHingedLeaves(targetType)) {
     rules.push("if opened at 90 degrees, show believable hold-open hardware or visual contact with the wall plane");
   }
   if (config.fermapersiana_visibile && targetType && targetType !== "avvolgibile_esterno" && targetType !== "brise_soleil") {
     rules.push("show realistic fermapersiane / hold-open hardware where physically plausible");
   }
+  if (config.cassonetto && targetType && TIPI_CON_CASSONETTO.has(targetType)) {
+    rules.push(`head box: ${HEAD_BOX_DESCRIPTIONS[config.cassonetto]}`);
+  }
   rules.push(`installation style: ${INSTALLATION_DESCRIPTIONS[installation]}`);
   return rules;
+}
+
+/** Il tipo esistente, se è uno dei tipi veri (non «unknown», «nessuna», «battente_generica»). */
+function knownShutterType(type: ExistingShutterType): TipoPersiana | null {
+  return (TIPI_PERSIANA as string[]).includes(type) ? (type as TipoPersiana) : null;
+}
+
+const RECOLOR_KEEP_MOUNTING = "keep the existing mounting, hinges, guides and fixing points exactly as photographed";
+const RECOLOR_KEEP_LEAVES = "keep the existing leaf and panel layout exactly as photographed";
+const RECOLOR_KEEP_LOUVERS = "keep the existing louvers exactly as photographed: same slat count, width, angle and rhythm";
+const RECOLOR_UNKNOWN_TYPE = "the existing shutter system exactly as photographed";
+
+/**
+ * «Cambia colore» cambia solo la finitura. Tipo, materiale e lamelle nel form
+ * sono nascosti e restano i default (veneziana classica, legno naturale): prima
+ * finivano nel prompt — la ricolorazione di tapparelle in PVC diceva «Material:
+ * solid natural wood with authentic grain», «traditional side-hinged mounting» e,
+ * se l'analisi non riconosceva la tapparella, «veneziana classica» con lamelle,
+ * cardini e fermapersiane. Ora si descrive l'esistente, com'è in foto.
+ */
+function buildRecolorSpecification(
+  config: ConfigurazionePersiane,
+  opening: PersianeSceneAnalysis["openings"][number],
+  finish: PersianaFinishSpec | null,
+): PersianaTechnicalSpecification {
+  const existing = knownShutterType(opening.existingShutterType);
+  const hardwareFinish = HARDWARE_FINISH_DESCRIPTIONS[config.ferramenta_finitura ?? "verniciata_tinta"];
+  const hardwareRules = [
+    `hardware finish: ${hardwareFinish}`,
+    "keep every hinge, guide, bracket and hold-open device exactly where it is in the photo",
+    ...(config.stato_apertura === "aperto_90" && hasHingedLeaves(existing)
+      ? ["if opened at 90 degrees, show believable hold-open hardware or visual contact with the wall plane"]
+      : []),
+    `installation style: ${RECOLOR_KEEP_MOUNTING}`,
+  ];
+  return {
+    openingId: opening.id,
+    openingLabel: opening.label,
+    operation: config.operazione,
+    targetType: existing,
+    currentType: opening.existingShutterType,
+    material: null,
+    finish,
+    profileContrastColor: config.colore_profilo_diverso ? describeProfileColor(config.colore_profilo_hex) : null,
+    openingState: config.stato_apertura,
+    supportsLouvers: supportsLouvers(existing),
+    louverRule: supportsLouvers(existing) ? RECOLOR_KEEP_LOUVERS : null,
+    leafConfiguration: RECOLOR_KEEP_LEAVES,
+    installationStyle: RECOLOR_KEEP_MOUNTING,
+    typeDescription: existing ? SHUTTER_TYPE_DESCRIPTIONS[existing] : RECOLOR_UNKNOWN_TYPE,
+    materialDescription: null,
+    hardwareFinish,
+    hardwareRules,
+    recolorOnly: true,
+    keepGeometryExactly: true,
+  };
 }
 
 function buildTechnicalSpecification(
@@ -139,11 +220,8 @@ function buildTechnicalSpecification(
     .filter((opening) => targetSelection.selectedOpeningIds.includes(opening.id))
     .map((opening) => {
       const recolorOnly = config.operazione === "cambia_colore";
-      const targetType = config.operazione === "rimuovi"
-        ? null
-        : recolorOnly && opening.existingShutterType !== "unknown" && opening.existingShutterType !== "nessuna"
-          ? (opening.existingShutterType as TipoPersiana)
-          : config.tipo;
+      if (recolorOnly) return buildRecolorSpecification(config, opening, finish);
+      const targetType = config.operazione === "rimuovi" ? null : config.tipo;
 
       return {
         openingId: opening.id,
@@ -153,11 +231,11 @@ function buildTechnicalSpecification(
         currentType: opening.existingShutterType,
         material: config.operazione === "rimuovi" ? null : config.materiale,
         finish,
-        profileContrastColor: config.colore_profilo_diverso ? config.colore_profilo_hex ?? null : null,
+        profileContrastColor: config.colore_profilo_diverso ? describeProfileColor(config.colore_profilo_hex) : null,
         openingState: config.operazione === "rimuovi" ? null : config.stato_apertura,
         supportsLouvers: supportsLouvers(targetType),
         louverRule: buildLouverRule(config, targetType),
-        leafConfiguration: buildLeafConfiguration(targetType, opening),
+        leafConfiguration: buildLeafConfiguration(targetType, opening, config.numero_ante),
         installationStyle: INSTALLATION_DESCRIPTIONS[installation],
         typeDescription: targetType ? SHUTTER_TYPE_DESCRIPTIONS[targetType] : "no shutter system should remain visible",
         materialDescription: config.operazione === "rimuovi" ? null : MATERIAL_DESCRIPTIONS[config.materiale],

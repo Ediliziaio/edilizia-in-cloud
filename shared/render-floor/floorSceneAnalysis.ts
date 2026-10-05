@@ -1,3 +1,4 @@
+import { RUG_COVERAGE_ZONE } from "./promptFragments.ts";
 import type { AnalisiPavimento, FloorCoverageMap, FloorSceneAnalysis } from "./types.ts";
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -45,8 +46,10 @@ export function normalizeFloorSceneAnalysis(raw?: unknown): FloorSceneAnalysis {
   return {
     roomType: stringOr(source.room_type ?? legacy.tipo_stanza, "generic interior room"),
     estimatedSize: stringOr(source.estimated_size ?? legacy.dimensione_stimata, "not clearly estimated"),
+    // La «note» dell'analisi e' un'osservazione sul pavimento (finisce gia' in «Notes»):
+    // usata qui diventava «Camera / perspective: replace only the floor».
     cameraPerspective: stringOr(
-      source.camera_perspective ?? source.perspective ?? legacy.note,
+      source.camera_perspective ?? source.perspective,
       "photographed room perspective with visible floor plane and vanishing points",
     ),
     visibleFloorArea: stringOr(source.visible_floor_area ?? legacy.visible_floor_area, "main visible floor area in the photograph"),
@@ -95,7 +98,10 @@ export function normalizeFloorSceneAnalysis(raw?: unknown): FloorSceneAnalysis {
   };
 }
 
-export function buildFloorCoverageMap(scene: FloorSceneAnalysis): FloorCoverageMap {
+export function buildFloorCoverageMap(
+  scene: FloorSceneAnalysis,
+  options: { rimuoviTappeti?: boolean } = {},
+): FloorCoverageMap {
   const thresholds = scene.doorsAndThresholds.toLowerCase().includes("no clear")
     ? []
     : [scene.doorsAndThresholds];
@@ -114,7 +120,9 @@ export function buildFloorCoverageMap(scene: FloorSceneAnalysis): FloorCoverageM
     thresholds,
     raisedAreas,
     coveredOrOccludedZones: [
-      scene.rugsPresent ? "areas under existing rugs must stay occluded by the same rugs" : "",
+      options.rimuoviTappeti
+        ? RUG_COVERAGE_ZONE
+        : scene.rugsPresent ? "areas under existing rugs must stay occluded by the same rugs" : "",
       "floor portions hidden under furniture remain logically continuous but not visibly invented",
     ].filter(Boolean),
     furnitureContactZones: scene.obstacles,

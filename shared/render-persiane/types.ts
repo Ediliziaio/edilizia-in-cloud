@@ -41,6 +41,63 @@ export type PersianaInstallazione =
   | "guide_laterali"
   | "brackets_architettonici";
 
+/** Ante per apertura: 1 o 2 per i tipi a battente, 4 o 6 pannelli per l'«a libro». Assente = come in foto / due ante. */
+export type NumeroAntePersiana = 1 | 2 | 4 | 6;
+
+/** Lamelle fisse o orientabili (con asta di comando): la «linea» del listino persiane. */
+export type MovimentoLamelle = "fisse" | "orientabili";
+
+/** Cassonetto di tapparella e veneziana esterna: a vista sulla facciata o nascosto nel muro. */
+export type CassonettoPersiana = "esterno_a_vista" | "a_scomparsa";
+
+/** Quante ante può avere ogni tipo (i tipi assenti non hanno ante da contare). */
+export const ANTE_PER_TIPO: Partial<Record<TipoPersiana, NumeroAntePersiana[]>> = {
+  veneziana_classica: [1, 2],
+  scuro_pieno: [1, 2],
+  scuro_cornice: [1, 2],
+  gelosia: [1, 2],
+  a_libro: [4, 6],
+};
+
+/** Tipi dove fisse/orientabili è una scelta (la gelosia è fissa per definizione, la veneziana esterna orientabile). */
+export const TIPI_MOVIMENTO_LAMELLE = new Set<TipoPersiana>(["veneziana_classica", "brise_soleil"]);
+
+/** Tipi con un cassonetto: scorrono su guide e si avvolgono in alto. */
+export const TIPI_CON_CASSONETTO = new Set<TipoPersiana>(["avvolgibile_esterno", "veneziana_esterna"]);
+
+/** Il numero di ante vale per questo tipo? */
+export function anteCompatibili(tipo: TipoPersiana | null | undefined, numero: number | null | undefined): numero is NumeroAntePersiana {
+  return Boolean(tipo && numero && ANTE_PER_TIPO[tipo]?.includes(numero as NumeroAntePersiana));
+}
+
+/** Effetti legno del form (colore_mode = "legno"); "rovere_chiaro" è il default del motore. */
+export type EffettoLegnoPersiana = "rovere_chiaro" | "rovere_scuro" | "noce_nazionale" | "castagno" | "douglas";
+
+// Elenchi delle opzioni vere, costruiti da un Record sul tipo: se un valore entra
+// nel tipo e non qui, TypeScript si ferma. Li usano i test (ogni opzione ha la sua
+// foto o un motivo per non averla) e il form.
+const tipiPersiana: Record<TipoPersiana, true> = {
+  veneziana_classica: true, veneziana_esterna: true, scuro_pieno: true, scuro_cornice: true, gelosia: true,
+  avvolgibile_esterno: true, a_libro: true, griglia_sicurezza: true, brise_soleil: true,
+};
+const materialiPersiana: Record<MaterialePersiana, true> = {
+  legno_naturale: true, legno_composito: true, alluminio: true, pvc: true, acciaio: true, fibra_vetro: true,
+};
+const effettiLegno: Record<EffettoLegnoPersiana, true> = {
+  rovere_chiaro: true, rovere_scuro: true, noce_nazionale: true, castagno: true, douglas: true,
+};
+const ferramentePersiana: Record<PersianaFerramentaFinitura, true> = {
+  verniciata_tinta: true, nero_opaco: true, acciaio_satinato: true, ferro_micaceo: true, bronzo_scuro: true,
+};
+const installazioniPersiana: Record<PersianaInstallazione, true> = {
+  cardini_tradizionali: true, su_telaio: true, guide_laterali: true, brackets_architettonici: true,
+};
+export const TIPI_PERSIANA = Object.keys(tipiPersiana) as TipoPersiana[];
+export const MATERIALI_PERSIANA = Object.keys(materialiPersiana) as MaterialePersiana[];
+export const EFFETTI_LEGNO_PERSIANA = Object.keys(effettiLegno) as EffettoLegnoPersiana[];
+export const FERRAMENTE_PERSIANA = Object.keys(ferramentePersiana) as PersianaFerramentaFinitura[];
+export const INSTALLAZIONI_PERSIANA = Object.keys(installazioniPersiana) as PersianaInstallazione[];
+
 export const TIPI_CON_LAMELLE = new Set<TipoPersiana>([
   "veneziana_classica",
   "veneziana_esterna",
@@ -61,7 +118,13 @@ export interface ConfigurazionePersiane {
   lamelle?: {
     larghezza_mm: 40 | 50 | 60 | 80;
     apertura: AperturaLamelle;
+    /** Assente = non specificato (il prompt non ne parla, come prima). */
+    movimento?: MovimentoLamelle;
   };
+  /** Assente = come in foto, o due ante (vedi buildLeafConfiguration). */
+  numero_ante?: NumeroAntePersiana;
+  /** Solo tapparella e veneziana esterna; assente = non specificato. */
+  cassonetto?: CassonettoPersiana;
   colore_profilo_diverso?: boolean;
   colore_profilo_hex?: string;
   applica_tutte_finestre: boolean;

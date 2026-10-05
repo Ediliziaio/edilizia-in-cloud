@@ -112,8 +112,8 @@ function inferSurfaceAnalysis(
     description: stringOr(raw.description ?? raw.descrizione, fallbackDescription),
     effect: stringOr(raw.effect ?? raw.effetto, fallbackEffect),
     format: stringOr(raw.format ?? raw.formato, "unknown"),
-    layingPattern: stringOr(raw.laying_pattern ?? raw.posa, "unknown"),
-    groutColor: stringOr(raw.grout_color ?? raw.fuga_colore, "unknown"),
+    layingPattern: stringOr(raw.laying_pattern ?? raw.layingPattern ?? raw.posa, "unknown"),
+    groutColor: stringOr(raw.grout_color ?? raw.groutColor ?? raw.fuga_colore, "unknown"),
     coverage: optionalString(raw.coverage ?? raw.copertura),
   };
 }
@@ -133,10 +133,10 @@ function normalizeCurrentShower(source: Record<string, unknown>): BathroomCurren
     present,
     type: mappedType,
     position: normalizeZonePosition(source.position ?? source.posizione),
-    enclosureType: stringOr(source.enclosure_type ?? source.box_type, present ? "existing shower enclosure" : "none"),
-    glassType: stringOr(source.glass_type ?? source.vetro, present ? "not identified" : "none"),
-    trayType: stringOr(source.tray_type ?? source.piatto, present ? "not identified" : "none"),
-    frameFinish: stringOr(source.frame_finish ?? source.profilo, present ? "not identified" : "none"),
+    enclosureType: stringOr(source.enclosure_type ?? source.enclosureType ?? source.box_type, present ? "existing shower enclosure" : "none"),
+    glassType: stringOr(source.glass_type ?? source.glassType ?? source.vetro, present ? "not identified" : "none"),
+    trayType: stringOr(source.tray_type ?? source.trayType ?? source.piatto, present ? "not identified" : "none"),
+    frameFinish: stringOr(source.frame_finish ?? source.frameFinish ?? source.profilo, present ? "not identified" : "none"),
     notes: stringOr(source.notes ?? source.note_doccia, present ? "existing shower zone visible in the source bathroom" : "no current shower detected"),
   };
 }
@@ -156,8 +156,8 @@ function normalizeCurrentBathtub(source: Record<string, unknown>): BathroomCurre
     present,
     type: mappedType,
     position: normalizeZonePosition(source.position ?? source.posizione),
-    faucetType: stringOr(source.faucet_type ?? source.rubinetteria_vasca, present ? "not identified" : "none"),
-    screenPresent: booleanOr(source.screen_present ?? source.schermo_vasca, false),
+    faucetType: stringOr(source.faucet_type ?? source.faucetType ?? source.rubinetteria_vasca, present ? "not identified" : "none"),
+    screenPresent: booleanOr(source.screen_present ?? source.screenPresent ?? source.schermo_vasca, false),
     notes: stringOr(source.notes ?? source.note_vasca, present ? "existing bathtub visible in the source bathroom" : "no bathtub detected"),
   };
 }
@@ -170,32 +170,34 @@ function normalizeCurrentVanity(source: Record<string, unknown>): BathroomCurren
     typeRaw.includes("terra") || typeRaw.includes("floor") ? "floor_standing" :
     typeRaw.includes("console") ? "console" :
     present ? "unknown" : "none";
-  const basinCountRaw = source.basin_count ?? source.numero_lavabi;
+  const basinCountRaw = source.basin_count ?? source.basinCount ?? source.numero_lavabi;
   const basinCount = basinCountRaw === 2 ? 2 : present ? 1 : 0;
 
   return {
     present,
     type,
     position: normalizeZonePosition(source.position ?? source.posizione),
-    basinType: stringOr(source.basin_type ?? source.lavabo, present ? "not identified" : "none"),
+    basinType: stringOr(source.basin_type ?? source.basinType ?? source.lavabo, present ? "not identified" : "none"),
     basinCount,
-    mirrorPresent: booleanOr(source.mirror_present ?? source.presenza_specchio, present),
-    mirrorType: stringOr(source.mirror_type ?? source.tipo_specchio, present ? "not identified" : "none"),
+    mirrorPresent: booleanOr(source.mirror_present ?? source.mirrorPresent ?? source.presenza_specchio, present),
+    mirrorType: stringOr(source.mirror_type ?? source.mirrorType ?? source.tipo_specchio, present ? "not identified" : "none"),
     notes: stringOr(source.notes ?? source.note_mobile, present ? "existing vanity zone visible in the source bathroom" : "no vanity detected"),
   };
 }
 
 function normalizeSanitaryWare(source: Record<string, unknown>): BathroomCurrentSanitaryWare {
-  const wcPresent = booleanOr(source.wc_present ?? source.presenza_wc ?? source.presenza_sanitari, false);
-  const bidetPresent = booleanOr(source.bidet_present ?? source.presenza_bidet ?? wcPresent, false);
-  const wcTypeRaw = stringOr(source.wc_type ?? source.tipo_wc ?? source.sanitari_tipo, wcPresent ? "unknown" : "none").toLowerCase();
-  const bidetTypeRaw = stringOr(source.bidet_type ?? source.tipo_bidet, bidetPresent ? "unknown" : "none").toLowerCase();
+  const wcPresent = booleanOr(source.wc_present ?? source.wcPresent ?? source.presenza_wc ?? source.presenza_sanitari, false);
+  const bidetPresent = booleanOr(source.bidet_present ?? source.bidetPresent ?? source.presenza_bidet ?? wcPresent, false);
+  const wcTypeRaw = stringOr(source.wc_type ?? source.wcType ?? source.tipo_wc ?? source.sanitari_tipo, wcPresent ? "unknown" : "none").toLowerCase();
+  const bidetTypeRaw = stringOr(source.bidet_type ?? source.bidetType ?? source.tipo_bidet, bidetPresent ? "unknown" : "none").toLowerCase();
 
+  // «back_to_wall» contiene «wall»: va riconosciuto PRIMA del sospeso, altrimenti
+  // un vaso a terra filo muro diventava «wall_hung».
   const mapType = (raw: string, present: boolean) =>
-    raw.includes("sospeso") || raw.includes("wall")
-      ? "wall_hung"
-      : raw.includes("filo") || raw.includes("back")
-        ? "back_to_wall"
+    raw.includes("filo") || raw.includes("back")
+      ? "back_to_wall"
+      : raw.includes("sospeso") || raw.includes("wall")
+        ? "wall_hung"
         : raw.includes("terra") || raw.includes("floor")
           ? "floor_standing"
           : present
@@ -231,6 +233,19 @@ function normalizeLighting(source: Record<string, unknown>, legacy: Record<strin
   };
 }
 
+/**
+ * Normalizza l'analisi della scena. Accetta sia la risposta grezza del modello
+ * (snake_case, campi legacy in italiano) sia un'analisi GIÀ normalizzata
+ * (camelCase): ogni campo si legge in entrambe le forme, quindi normalizzare
+ * due volte non cambia niente.
+ *
+ * Prima leggeva solo lo snake_case, ma l'analisi gira normalizzata dappertutto:
+ * l'edge «analyze» la restituisce normalizzata, il wizard la ripassa a
+ * buildBathroomRenderConfig e l'edge la rilegge dal payload. Alla seconda
+ * passata sparivano sanitari, finestra, termoarredo, piastrelle attuali, numero
+ * di lavabi: il contratto dei conteggi diceva «0 toilet (WC) — do not invent
+ * one» su un bagno col WC (se i sanitari non si cambiavano).
+ */
 export function normalizeBathroomSceneAnalysis(
   rawAnalysis: unknown,
   photoMeta?: BathroomPhotoMeta | null,
@@ -244,7 +259,7 @@ export function normalizeBathroomSceneAnalysis(
     altezza_stimata: stringOr(source.altezza_stimata ?? legacySource.altezza_stimata, "altezza non identificata"),
     piastrelle_parete_attuali: stringOr(source.piastrelle_parete_attuali ?? legacySource.piastrelle_parete_attuali, "non identificabili"),
     pavimento_attuale: stringOr(source.pavimento_attuale ?? legacySource.pavimento_attuale, "non identificabile"),
-    colori_dominanti: stringArray(source.colori_dominanti ?? legacySource.colori_dominanti),
+    colori_dominanti: stringArray(source.colori_dominanti ?? legacySource.colori_dominanti ?? source.dominantColors),
     presenza_doccia: booleanOr(source.presenza_doccia ?? legacySource.presenza_doccia, false),
     tipo_doccia: optionalString(source.tipo_doccia ?? legacySource.tipo_doccia),
     presenza_vasca: booleanOr(source.presenza_vasca ?? legacySource.presenza_vasca, false),
@@ -253,7 +268,7 @@ export function normalizeBathroomSceneAnalysis(
     sanitari_tipo: optionalString(source.sanitari_tipo ?? legacySource.sanitari_tipo),
     rubinetteria_attuale: optionalString(source.rubinetteria_attuale ?? legacySource.rubinetteria_attuale),
     illuminazione_attuale: optionalString(source.illuminazione_attuale ?? legacySource.illuminazione_attuale),
-    stato_conservazione: normalizeCondition(source.stato_conservazione ?? legacySource.stato_conservazione),
+    stato_conservazione: normalizeCondition(source.stato_conservazione ?? legacySource.stato_conservazione ?? source.overallCondition),
     note: optionalString(source.note ?? legacySource.note),
   };
 
@@ -275,11 +290,11 @@ export function normalizeBathroomSceneAnalysis(
     vanity.type = normalizeCurrentVanity({ presenza_mobile: true, tipo_mobile: legacy.tipo_mobile }).type;
   }
 
-  const sanitaryWare = normalizeSanitaryWare(asObject(source.sanitary_ware));
+  const sanitaryWare = normalizeSanitaryWare(asObject(source.sanitary_ware ?? source.sanitaryWare));
   const lighting = normalizeLighting(asObject(source.lighting), legacy);
 
   const wallTiles = inferSurfaceAnalysis(
-    asObject(source.wall_tiles),
+    asObject(source.wall_tiles ?? source.wallTiles),
     legacy.piastrelle_parete_attuali,
     legacy.piastrelle_parete_attuali,
   );
@@ -289,18 +304,22 @@ export function normalizeBathroomSceneAnalysis(
     legacy.pavimento_attuale,
   );
 
+  const windowPresent = booleanOr(source.window_present ?? source.windowPresent, false);
+  const towelWarmerPresent = booleanOr(source.towel_warmer_present ?? source.towelWarmerPresent, false);
+
   const preserveRigidly = Array.from(new Set([
     ...stringArray(source.preserve_rigidly),
     ...stringArray(source.preserveAnchors),
+    ...stringArray(source.preserveRigidly),
     wallTiles.description !== "non identificabili" ? "existing non-target wall surfaces and grout rhythm" : "",
     floor.description !== "non identificabile" ? "existing non-target floor geometry and perspective" : "",
-    booleanOr(source.window_present, false) ? "window and its light contribution" : "",
-    booleanOr(source.towel_warmer_present, false) ? "towel warmer / radiator if not selected for change" : "",
+    windowPresent ? "window and its light contribution" : "",
+    towelWarmerPresent ? "towel warmer / radiator if not selected for change" : "",
     "room geometry and camera perspective",
   ].filter(Boolean)));
 
   const demolitionSensitiveAreas = Array.from(new Set([
-    ...stringArray(source.demolition_sensitive_areas),
+    ...stringArray(source.demolition_sensitive_areas ?? source.demolitionSensitiveAreas),
     shower.present ? "current shower contact lines with walls and floor" : "",
     bathtub.present ? "current bathtub perimeter, wall returns and adjacent tile cuts" : "",
     vanity.present ? "vanity splashback, plumbing wall and mirror zone" : "",
@@ -309,12 +328,12 @@ export function normalizeBathroomSceneAnalysis(
 
   return {
     version: "2.0",
-    roomType: normalizeRoomType(source.room_type ?? legacy.tipo_stanza),
-    estimatedSize: stringOr(source.estimated_size ?? legacy.dimensione_stimata, legacy.dimensione_stimata),
-    estimatedCeilingHeight: stringOr(source.estimated_ceiling_height ?? legacy.altezza_stimata, legacy.altezza_stimata),
-    layoutType: normalizeLayoutType(source.layout_type, shower.present, bathtub.present),
-    cameraPerspective: stringOr(source.camera_perspective, inferCameraPerspective(photoMeta)),
-    cameraAngle: stringOr(source.camera_angle, "same photographed bathroom angle"),
+    roomType: normalizeRoomType(source.room_type ?? source.roomType ?? legacy.tipo_stanza),
+    estimatedSize: stringOr(source.estimated_size ?? source.estimatedSize ?? legacy.dimensione_stimata, legacy.dimensione_stimata),
+    estimatedCeilingHeight: stringOr(source.estimated_ceiling_height ?? source.estimatedCeilingHeight ?? legacy.altezza_stimata, legacy.altezza_stimata),
+    layoutType: normalizeLayoutType(source.layout_type ?? source.layoutType, shower.present, bathtub.present),
+    cameraPerspective: stringOr(source.camera_perspective ?? source.cameraPerspective, inferCameraPerspective(photoMeta)),
+    cameraAngle: stringOr(source.camera_angle ?? source.cameraAngle, "same photographed bathroom angle"),
     dominantColors: legacy.colori_dominanti,
     overallCondition: legacy.stato_conservazione,
     wallTiles,
@@ -324,16 +343,16 @@ export function normalizeBathroomSceneAnalysis(
     vanity,
     sanitaryWare,
     lighting,
-    mirrorPresent: booleanOr(source.mirror_present, vanity.mirrorPresent),
-    towelWarmerPresent: booleanOr(source.towel_warmer_present, false),
-    towelWarmerType: stringOr(source.towel_warmer_type, "not identified"),
-    windowPresent: booleanOr(source.window_present, false),
-    windowPosition: normalizeZonePosition(source.window_position),
-    nichePresent: booleanOr(source.niche_present, false),
-    partitionPresent: booleanOr(source.partition_present ?? source.divider_present, false),
+    mirrorPresent: booleanOr(source.mirror_present ?? source.mirrorPresent, vanity.mirrorPresent),
+    towelWarmerPresent,
+    towelWarmerType: stringOr(source.towel_warmer_type ?? source.towelWarmerType, "not identified"),
+    windowPresent,
+    windowPosition: normalizeZonePosition(source.window_position ?? source.windowPosition),
+    nichePresent: booleanOr(source.niche_present ?? source.nichePresent, false),
+    partitionPresent: booleanOr(source.partition_present ?? source.partitionPresent ?? source.divider_present, false),
     preserveRigidly,
     demolitionSensitiveAreas,
-    noteAnalisi: stringOr(source.note_analisi ?? legacy.note, legacy.note || "preserve the same bathroom identity"),
+    noteAnalisi: stringOr(source.note_analisi ?? source.noteAnalisi ?? legacy.note, legacy.note || "preserve the same bathroom identity"),
     legacy,
   };
 }

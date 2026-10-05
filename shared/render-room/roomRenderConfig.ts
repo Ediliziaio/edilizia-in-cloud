@@ -1,10 +1,13 @@
 import { buildFloorPrompt } from "../render-floor/floorPromptBuilder.ts";
 import type { ConfigurazionePavimento, FloorPhotoMeta, PatternPosa, TipoPavimento } from "../render-floor/types.ts";
 import {
+  PLASTER_CLADDINGS,
   ROOM_INTEGRITY_CONSTRAINTS,
   ROOM_NEGATIVE_CONSTRAINTS,
   ROOM_QUALITY_DIRECTIVES,
   ROOM_TYPE_LABELS,
+  WALL_CLADDING_DESCRIPTIONS,
+  WALL_TARGET_DESCRIPTIONS,
 } from "./promptFragments.ts";
 import type {
   RoomIntervention,
@@ -130,6 +133,7 @@ function mapRoomFloorPattern(value: unknown): PatternPosa {
     opus_romanum: "opus_romanum",
     sfalsato_33: "sfalsato_33",
     esagonale: "esagonale",
+    modulare: "modulare",
   };
   return map[raw] ?? "rettilineo_dritto";
 }
@@ -149,7 +153,21 @@ function mapRoomFloorFinish(value: unknown): ConfigurazionePavimento["finitura"]
   return map[raw] ?? "opaco";
 }
 
-function normalizeRoomFloorConfig(rawFloor: Record<string, unknown>): ConfigurazionePavimento {
+/**
+ * Il pavimento della stanza (chiavi del form stanza: parquet_legno, spina_pesce, matte…)
+ * tradotto nella configurazione del render pavimento: la usano il prompt e le foto di
+ * riferimento (roomReferences.ts), così testo e foto descrivono lo stesso pavimento.
+ */
+/**
+ * Solo i materiali che imitano (gres, ceramica/mosaico, LVT) prendono l'effetto scelto nel
+ * form. Gli altri hanno il loro aspetto: il form della stanza parte da «cemento» e cambiando
+ * tipo l'effetto restava quello, così un parquet, un cotto o una moquette uscivano con
+ * «concrete look must show subtle mineral clouds» (e un «Laminato effetto legno» con la foto
+ * di un gres effetto cemento).
+ */
+export const ROOM_FLOOR_TYPES_WITH_FREE_EFFECT: TipoPavimento[] = ["gres_porcellanato", "ceramica", "vinile_lvt"];
+
+export function normalizeRoomFloorConfig(rawFloor: Record<string, unknown>): ConfigurazionePavimento {
   const type = mapRoomFloorType(rawFloor.tipo);
   const pattern = mapRoomFloorPattern(rawFloor.pattern ?? rawFloor.pattern_posa);
   const isWood = ["parquet_prefinito", "parquet_massello", "laminato", "vinile_lvt"].includes(type);
@@ -161,7 +179,9 @@ function normalizeRoomFloorConfig(rawFloor: Record<string, unknown>): Configuraz
     colore_mode: "free",
     colore_nome: str(rawFloor.colore_nome, type.replace(/_/g, " ")),
     colore_hex: str(rawFloor.colore_hex, "#b0b0b0"),
-    effetto_visivo: (str(rawFloor.effetto_visivo, isWood ? "legno" : isSeamless ? "resina" : undefined) || undefined) as ConfigurazionePavimento["effetto_visivo"],
+    effetto_visivo: (ROOM_FLOOR_TYPES_WITH_FREE_EFFECT.includes(type)
+      ? str(rawFloor.effetto_visivo, isWood ? "legno" : isSeamless ? "resina" : undefined) || undefined
+      : undefined) as ConfigurazionePavimento["effetto_visivo"],
     essenza_legno: (str(rawFloor.essenza_legno) || undefined) as ConfigurazionePavimento["essenza_legno"],
     variazione_tono: (str(rawFloor.variazione_tono, isWood ? "naturale" : "leggera") as ConfigurazionePavimento["variazione_tono"]),
     bisellatura: (str(rawFloor.bisellatura, isWood ? "microbisello" : "nessuna") as ConfigurazionePavimento["bisellatura"]),
@@ -232,7 +252,10 @@ export function normalizeRoomSceneAnalysis(rawAnalysis?: unknown, rawConfig?: un
 
 function buildPaintIntervention(paint: Record<string, unknown>): RoomIntervention {
   const targetKey = str(paint.applica_a, "tutte");
-  const target = targetKey.replace(/_/g, " ");
+  // «Specifiche» senza dire quali pareti arrivava al modello come «to specifiche»: ora le
+  // pareti scritte nel form diventano il bersaglio (senza testo resta com'era).
+  const pareteSpecifica = targetKey === "specifiche" ? str(paint.pareti_specifiche) : "";
+  const target = pareteSpecifica ? `only these walls: ${pareteSpecifica}` : targetKey.replace(/_/g, " ");
   const color = targetKey === "parete_accento"
     ? hexName(paint, "colore_accento_nome", "colore_accento_hex", "selected accent color")
     : hexName(paint, "colore_nome", "colore_hex", "selected wall color");
@@ -244,6 +267,7 @@ function buildPaintIntervention(paint: Record<string, unknown>): RoomInterventio
       targetKey === "parete_accento"
         ? "Paint one single accent wall plane only; do not repaint the remaining walls, ceiling, floor, furniture, trims, doors or windows."
         : "Paint only the selected wall zones; keep trim, sockets, furniture, windows and doors clean and unpainted.",
+      ...(pareteSpecifica ? ["Every wall plane not named in the target keeps its current colour and finish."] : []),
       "Preserve existing wall geometry, corners, shadows and imperfections unless painting naturally covers minor color variation.",
       "Color must follow the photographed wall plane and perspective without bleeding over edges or openings.",
     ],
@@ -285,6 +309,8 @@ function buildLightingIntervention(light: Record<string, unknown>): RoomInterven
   const type = str(light.tipo, "misto");
   const mountingRule = type === "misto"
     ? "Use the existing visible lighting points as anchors; add only subtle integrated support lighting if physically plausible."
+    : type === "binario"
+      ? "Mount one slim ceiling track (surface-mounted or recessed in a plasterboard channel) in straight runs parallel to the walls, with a few adjustable spot heads aimed at walls and work zones; feed it from a plausible ceiling point, no loose cables."
     : type === "lampadario_centrale" || type === "lampade_sospensione"
       ? "Use ceiling suspension points that are plausible in the photographed room; keep fixture scale proportional and avoid blocking sightlines."
       : type === "applique_parete"
@@ -296,7 +322,7 @@ function buildLightingIntervention(light: Record<string, unknown>): RoomInterven
   return {
     key: "lighting",
     label: "Lighting",
-    specification: `Install/adjust ${type.replace(/_/g, " ")} with ${str(light.temperatura, "warm neutral").replace(/_/g, " ")} color temperature and ${str(light.intensita_luce, "normal").replace(/_/g, " ")} intensity.`,
+    specification: `Install/adjust ${type === "binario" ? "ceiling track lighting with adjustable spot heads (binario)" : type.replace(/_/g, " ")} with ${str(light.temperatura, "warm neutral").replace(/_/g, " ")} color temperature and ${str(light.intensita_luce, "normal").replace(/_/g, " ")} intensity.`,
     replacementRules: [
       mountingRule,
       "Lighting fixtures must be physically mounted to plausible ceiling/wall positions.",
@@ -368,6 +394,10 @@ export function buildRoomReplacementManifest(
     const snapshot = floorPrompt.normalizedConfig;
     floorPromptExcerpt = [
       `Floor material: ${snapshot.technical_specification.materialDescription}`,
+      // Solo se l'essenza è scelta (e il pavimento è legno): le stanze salvate non ne hanno.
+      ...(snapshot.technical_specification.woodEssenceDescription
+        ? [`Wood essence: ${snapshot.technical_specification.woodEssenceDescription}`]
+        : []),
       `Format/scale: ${snapshot.technical_specification.formatRule}`,
       `Pattern: ${snapshot.replacement_manifest.patternRules.slice(0, 2).join(" ")}`,
       `Joints: ${snapshot.replacement_manifest.jointRules.slice(0, 2).join(" ")}`,
@@ -415,12 +445,17 @@ export function buildRoomReplacementManifest(
 
   const cladding = asRecord(cfg.rivestimento_pareti);
   if (bool(cladding.attivo)) {
+    const claddingType = str(cladding.tipo);
+    const claddingTarget = str(cladding.applica_a, "parete_principale");
+    const claddingColour = str(cladding.colore_hex);
     active.push(buildSimpleIntervention(
       "wall_cladding",
       "Wall cladding",
-      `Wall cladding ${str(cladding.tipo, "selected").replace(/_/g, " ")} on ${str(cladding.applica_a, "parete_principale").replace(/_/g, " ")} with color ${str(cladding.colore_hex, "selected")}.`,
+      `Wall cladding: ${WALL_CLADDING_DESCRIPTIONS[claddingType] ?? `${claddingType.replace(/_/g, " ") || "selected"} wall cladding`}, on ${WALL_TARGET_DESCRIPTIONS[claddingTarget] ?? claddingTarget.replace(/_/g, " ")}, ${claddingColour ? `colour ${claddingColour}` : "in the natural colour of the material"}.`,
       [
-        "Cladding must have believable thickness, seams and contact edges only on selected wall planes.",
+        PLASTER_CLADDINGS.includes(claddingType)
+          ? "The plaster is a thin continuous coat on the selected wall planes only: no seams, no panels, no change of wall thickness."
+          : "Cladding must have believable thickness, seams and contact edges only on selected wall planes.",
         "Do not cover windows, doors, switches, sockets, trims or furniture; cut cleanly around them.",
       ],
     ));
@@ -508,8 +543,11 @@ export function buildRoomTargetZonesMap(rawConfig?: unknown, scene?: RoomSceneAn
   const furniture = asRecord(cfg.arredo);
   const kitchen = asRecord(cfg.restyling_cucina);
 
+  const pareteSpecifica = str(paint.applica_a) === "specifiche" ? str(paint.pareti_specifiche) : "";
   const wallTargets = [
-    bool(paint.attivo) ? `paint target: ${str(paint.applica_a, "tutte").replace(/_/g, " ")}` : "",
+    bool(paint.attivo)
+      ? `paint target: ${pareteSpecifica ? `only ${pareteSpecifica}` : str(paint.applica_a, "tutte").replace(/_/g, " ")}`
+      : "",
     bool(wallpaper.attivo) ? `wallpaper target: ${str(wallpaper.applica_a, "parete_principale").replace(/_/g, " ")}` : "",
     bool(cladding.attivo) ? `cladding target: ${str(cladding.applica_a, "parete_principale").replace(/_/g, " ")}` : "",
   ].filter(Boolean);

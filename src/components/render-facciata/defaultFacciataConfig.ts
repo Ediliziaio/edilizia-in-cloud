@@ -31,6 +31,7 @@ export const DEFAULT_FACCIATA_CONFIG: ConfigurazioneFacciata = {
     zoccolatura: { azione: "mantieni" },
     gronde: { azione: "mantieni" },
     balconi_ringhiere: { azione: "mantieni" },
+    persiane: { azione: "mantieni" },
   },
   note_libere: "",
 };

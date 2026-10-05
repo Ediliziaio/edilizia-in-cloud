@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -39,10 +39,16 @@ import { preloadImage } from "@/lib/render/preloadImage";
 import { uploadRenderOriginal } from "@/lib/render/renderStorage";
 import { renderModuleHubConfigs } from "@/lib/render/renderModuleHubConfigs";
 import {
+  applicaSceltaTecnica,
+  cambiaOpzioneTecnica,
   getTechnicalRenderModuleSpec,
   type TechnicalRenderConfig,
   type TechnicalRenderModuleId,
+  type TechnicalRenderModuleSpec,
 } from "@/lib/render/technicalRenderModules";
+import { opzioniDelModulo, valoriApplicabili } from "../../../shared/render-technical/opzioni.ts";
+import { fotoDelPreset, fotoDellOpzione } from "../../../shared/render-technical/referenceImages.ts";
+import { ReferenceThumb } from "@/components/render/ReferenceThumb";
 import {
   getEdgeFunctionAuthHeaders,
   resolveEdgeFunctionErrorMessage,
@@ -98,6 +104,74 @@ const CATALOGO_PER_MODULO: Partial<Record<TechnicalRenderModuleId, { verticale: 
   "pavimenti-esterni": { verticale: "esterni", categorie: ["pavimento_esterno"] },
 };
 
+/** Valore del Select per «non specificato» (Radix non accetta la stringa vuota). */
+const NON_SPECIFICATO = "__non_specificato__";
+
+/**
+ * Riga di una tendina con la miniatura della foto che il motore allega per quella scelta.
+ * Il SelectValue del trigger riceve solo il testo (children espliciti): così l'immagine
+ * resta nella lista e non finisce nel campo chiuso.
+ */
+function RigaConFoto({ foto, label }: { foto: { folder: string; filename: string } | null; label: string }) {
+  if (!foto) return <>{label}</>;
+  return (
+    <span className="flex items-center gap-2">
+      <span className="h-10 w-10 shrink-0 overflow-hidden rounded border bg-muted">
+        <ReferenceThumb photo={foto} alt={`Esempio: ${label}`} />
+      </span>
+      <span>{label}</span>
+    </span>
+  );
+}
+
+/**
+ * Le scelte strutturate del modulo che hanno senso per il preset corrente
+ * (shared/render-technical/opzioni.ts). «Non specificato» lascia il prompt com'era.
+ */
+function OpzioniModuloTecnico({
+  spec,
+  config,
+  onScelta,
+}: {
+  spec: TechnicalRenderModuleSpec;
+  config: TechnicalRenderConfig;
+  /** valore null = «non specificato» */
+  onScelta: (chiave: string, valore: string | null) => void;
+}) {
+  const opzioni = opzioniDelModulo(spec.id)
+    .map((opzione) => ({ opzione, valori: valoriApplicabili(opzione, config.interventionPreset) }))
+    .filter(({ valori }) => valori.length > 0);
+  if (opzioni.length === 0) return null;
+  return (
+    <div className="grid gap-4 md:grid-cols-2 max-md:grid-cols-2 max-md:gap-2">
+      {opzioni.map(({ opzione, valori }) => {
+        const scelto = valori.find((v) => v.value === config.opzioni?.[opzione.chiave]);
+        return (
+          <div key={opzione.chiave} className="grid gap-2">
+            <Label className="max-md:text-[11px]">{opzione.etichetta}</Label>
+            <Select
+              value={scelto?.value ?? NON_SPECIFICATO}
+              onValueChange={(value) => onScelta(opzione.chiave, value === NON_SPECIFICATO ? null : value)}
+            >
+              <SelectTrigger aria-label={opzione.etichetta}>
+                <SelectValue>{scelto?.label ?? opzione.nonSpecificato}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NON_SPECIFICATO}>{opzione.nonSpecificato}</SelectItem>
+                {valori.map((v) => (
+                  <SelectItem key={v.value} value={v.value}>
+                    <RigaConFoto foto={fotoDellOpzione(spec.id, config.interventionPreset, opzione.chiave, v.value)} label={v.label} />
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: TechnicalRenderModuleId }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -105,6 +179,11 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
   const companyId = effectiveCompany?.id;
   const db = supabase as unknown as DynamicRenderDb;
   const spec = getTechnicalRenderModuleSpec(moduleId);
+  // La foto che il motore allega per ogni preset (la stessa che va al modello), per le miniature.
+  const fotoPreset = useMemo(
+    () => Object.fromEntries(spec.presets.map((p) => [p.value, fotoDelPreset(spec.id, p.value)])),
+    [spec],
+  );
   const catalogoModulo = CATALOGO_PER_MODULO[moduleId];
   const hubConfig = renderModuleHubConfigs[moduleId];
 
@@ -115,6 +194,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
   const [contactId, setContactId] = useState<string | null>(null);
   const [opportunityId, setOpportunityId] = useState<string | null>(null);
   const [config, setConfig] = useState<TechnicalRenderConfig>(spec.defaultConfig);
+  const presetCorrente = spec.presets.find((preset) => preset.value === config.interventionPreset);
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -463,23 +543,37 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
                 <Label className="max-md:text-[13px] max-md:font-semibold">Tipo intervento</Label>
                 <Select
                   value={config.interventionPreset}
-                  onValueChange={(value) => setConfig((prev) => ({ ...prev, interventionPreset: value }))}
+                  onValueChange={(value) => setConfig((prev) => applicaSceltaTecnica(spec, prev, { interventionPreset: value }))}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>{presetCorrente?.label ?? config.interventionPreset}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {spec.presets.map((preset) => (
                       <SelectItem key={preset.value} value={preset.value}>
-                        {preset.label}
+                        <RigaConFoto foto={fotoPreset[preset.value] ?? null} label={preset.label} />
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground max-md:text-[11px]">
-                  {spec.presets.find((preset) => preset.value === config.interventionPreset)?.description}
-                </p>
+                <div className="flex items-center gap-3">
+                  {fotoPreset[config.interventionPreset] && (
+                    <span className="h-12 w-12 shrink-0 overflow-hidden rounded-md border bg-muted">
+                      <ReferenceThumb
+                        photo={fotoPreset[config.interventionPreset]!}
+                        alt={`Esempio: ${presetCorrente?.label ?? config.interventionPreset}`}
+                      />
+                    </span>
+                  )}
+                  <p className="text-xs text-muted-foreground max-md:text-[11px]">{presetCorrente?.description}</p>
+                </div>
               </div>
+
+              <OpzioniModuloTecnico
+                spec={spec}
+                config={config}
+                onScelta={(chiave, valore) => setConfig((prev) => cambiaOpzioneTecnica(spec, prev, chiave, valore))}
+              />
 
               <div className="grid gap-4 md:grid-cols-2 max-md:grid-cols-2 max-md:gap-2">
                 <div className="grid gap-2">
@@ -540,6 +634,10 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
             <CardContent className="flex flex-wrap gap-2 py-4">
               <Badge variant="secondary">{spec.label}</Badge>
               <Badge variant="outline">{config.interventionPreset.replace(/_/g, " ")}</Badge>
+              {opzioniDelModulo(spec.id).map((opzione) => {
+                const scelto = opzione.valori.find((v) => v.value === config.opzioni?.[opzione.chiave]);
+                return scelto ? <Badge key={opzione.chiave} variant="outline">{opzione.etichetta}: {scelto.label}</Badge> : null;
+              })}
               <Badge variant="outline">{config.intensity}</Badge>
               <Badge variant="outline">{config.targetArea}</Badge>
             </CardContent>

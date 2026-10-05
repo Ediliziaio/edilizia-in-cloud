@@ -1,4 +1,5 @@
-import { DEFAULT_NEGATIVE_CONSTRAINTS } from "./promptFragments.ts";
+import { DEFAULT_NEGATIVE_CONSTRAINTS, KEEP_EXISTING, REMOVED_POOL } from "./promptFragments.ts";
+import { cambiaElemento } from "./piscineOperationScope.ts";
 import { ensurePiscineRenderConfig } from "./piscineRenderConfig.ts";
 import { validatePiscinePromptConfig } from "./piscineValidation.ts";
 import type { PiscinaPromptBuildResult, PiscinaRenderConfig } from "./types.ts";
@@ -36,21 +37,18 @@ export function buildPiscinePrompt(
   const technical = normalizedConfig.technical_specification;
   const blocks: Record<string, string> = {};
   const operation = normalizedConfig.replacement_manifest.operation;
-  const strictSurfaceOnly = operation === "change_coping_only" || operation === "recolor_waterlook_or_liner_only";
+  // Ambito dell'operazione (piscineOperationScope.ts): la specifica tecnica descrive già
+  // gli elementi fuori ambito come «da conservare» (o «tolti» in una rimozione).
+  const vasca = cambiaElemento(operation, "vasca");
   const removePool = operation === "remove_existing_pool";
-  const accessLine = strictSurfaceOnly
-    ? "Preserve existing access features exactly; do not add or modify ladders, steps, beach shelf or lounge shelf."
-    : removePool
-      ? "Remove pool access features with the pool and restore the ground/hardscape coherently."
-      : technical.accessDescription;
-  const accessoriesLine = strictSurfaceOnly || removePool
-    ? ["no extra water features, spa, shower, cover, lighting or resort furniture in this operation scope"]
+  const keepOr = (keep: string, removed: string) => removePool ? removed : keep;
+  const accessLine = technical.accessDescription;
+  const accessoriesLine = !cambiaElemento(operation, "accessori")
+    ? [KEEP_EXISTING.accessories]
     : technical.accessoryDescriptions.length
       ? technical.accessoryDescriptions
       : ["no extra water features, spa, shower or cover unless explicitly selected"];
-  const lightingLine = strictSurfaceOnly
-    ? "Preserve existing lighting exactly; do not add pool lights in this operation scope."
-    : technical.lightingDescription;
+  const lightingLine = technical.lightingDescription;
 
   blocks.A = `[BLOCK A - MISSION]
 You are a SURGICAL PHOTOREALISTIC POOL INSERTION / REPLACEMENT IMAGE EDITOR.
@@ -88,14 +86,14 @@ ${bullets(target.circulationMargins)}
 Preserved adjacent areas:
 ${bullets(target.preservedAdjacentAreas)}
 No-excavation / no-occupy zones:
-${bullets(target.noExcavationZones)}`;
+${bullets(target.noExcavationZones)}${target.installerNotes ? `\nInstaller notes (must be respected): ${target.installerNotes}` : ""}`;
 
   blocks.D = `[BLOCK D - BUILDABILITY ENVELOPE]
 Plausible size: ${envelope.plausibleSize}
 Plausible depth: ${envelope.plausibleDepth}
 Coping thickness: ${envelope.copingThickness}
 Deck / perimeter margins: ${envelope.deckMargins}
-Ground-plane relation: ${envelope.groundPlaneRelation}
+Ground-plane relation: ${envelope.groundPlaneRelation}${envelope.edgeHeight ? `\nEdge height: ${envelope.edgeHeight}` : ""}
 House/path relation: ${envelope.houseAndPathRelation}
 Infinity feasibility: ${envelope.infinityFeasibility}
 Rooftop feasibility: ${envelope.rooftopFeasibility}
@@ -106,21 +104,20 @@ ${bullets(envelope.forbiddenPlacements)}`;
 ${describeManifest(normalizedConfig)}`;
 
   blocks.F = `[BLOCK F - POOL GEOMETRY SPECIFICATION]
-Pool typology: ${technical.poolTypology}
+Pool typology: ${vasca ? technical.poolTypology : keepOr(KEEP_EXISTING.typology, REMOVED_POOL.typology)}
 Geometry: ${technical.poolGeometry}
 Installation type: ${technical.installationType}
-Scale rule: the pool must look proportionate to the photographed outdoor space, with readable basin walls/floor and no pasted-on footprint.`;
+Scale rule: ${removePool ? REMOVED_POOL.scale : "the pool must look proportionate to the photographed outdoor space, with readable basin walls/floor and no pasted-on footprint."}`;
 
   blocks.G = `[BLOCK G - WATER SYSTEM SPECIFICATION]
-Water system: ${technical.waterSystem}
-Rules: ${technical.waterSystemDescription}
-No hybrid ambiguity: skimmer, overflow and infinity-edge behavior must not be mixed unless explicitly selected.`;
+Water system: ${vasca ? technical.waterSystem : keepOr(KEEP_EXISTING.waterSystem, REMOVED_POOL.waterSystem)}
+Rules: ${technical.waterSystemDescription}${removePool ? "" : "\nNo hybrid ambiguity: skimmer, overflow and infinity-edge behavior must not be mixed unless explicitly selected."}`;
 
   blocks.H = `[BLOCK H - INTERIOR FINISH AND WATER LOOK]
-Interior finish: ${technical.interiorFinish}
+Interior finish: ${cambiaElemento(operation, "rivestimento") ? technical.interiorFinish : keepOr(KEEP_EXISTING.interiorFinish, REMOVED_POOL.interiorFinish)}
 Finish behavior: ${technical.interiorFinishDescription}
 Water look: ${technical.waterLookDescription}
-Water must not be a flat blue fill; it must respond to finish, depth, sky, facade, vegetation, shadows and camera angle.`;
+${removePool ? REMOVED_POOL.waterNote : "Water must not be a flat blue fill; it must respond to finish, depth, sky, facade, vegetation, shadows and camera angle."}`;
 
   blocks.I = `[BLOCK I - ACCESS AND COMFORT FEATURES]
 Access system: ${accessLine}
@@ -133,7 +130,7 @@ If not selected, do not invent ladders, stairs, beach entry, jets, waterfalls, c
 Coping: ${technical.copingDescription}
 Surrounding area: ${technical.deckDescription}
 Rules:
-${bullets([
+${bullets(removePool ? [...REMOVED_POOL.copingRules] : [
     "coping must be visible with plausible thickness and clean continuous perimeter",
     "deck/lawn/patio transitions must have crisp material junctions, not AI-smudged edges",
     "cut lines, joints, slab/plank direction and grass cuts must follow perspective",
@@ -152,6 +149,7 @@ ${bullets([
     "no floating shell, no impossible excavation lines, no pool crossing non-target structures",
     "preserve trees and non-target landscape; adapt only pool footprint and immediate junctions",
     "poolside shadows, contact occlusion and water reflections must match original sun direction",
+    target.installerNotes ? `installer notes (must be respected): ${target.installerNotes}` : null,
   ])}`;
 
   blocks.M = `[BLOCK M - REMOVAL / CONVERSION RULES]
@@ -211,7 +209,7 @@ ${bullets([
     userPrompt,
     negativePrompt:
       "different property, redesigned house, moved windows, changed facade, altered garden outside target, floating pool, pasted blue rectangle, fake neon water, impossible infinity edge, old pool remnants, hybrid old new pool, random resort furniture, CGI, illustration, stylized image",
-    promptVersion: "pool-v1.0.0",
+    promptVersion: "pool-v1.1.0",
     blocks,
     validation,
     normalizedConfig,

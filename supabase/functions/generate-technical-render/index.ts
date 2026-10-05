@@ -21,6 +21,8 @@ import { buildSecurityDoorPrompt } from "../../../shared/render-security-door/se
 import { buildGardenPrompt } from "../../../shared/render-garden/gardenPromptBuilder.ts";
 import { buildExteriorFloorPrompt } from "../../../shared/render-exterior-floor/exteriorFloorPromptBuilder.ts";
 import { bridgeTechnicalConfig } from "../../../shared/render-technical/bridge.ts";
+import { collectTechnicalReferenceImages } from "../../../shared/render-technical/referenceImages.ts";
+import { buildSharedReferenceLegend, fetchSharedReferenceImages } from "../_shared/renderReferenceFetch.ts";
 
 type TechnicalModuleId =
   | "ristrutturazioni"
@@ -331,6 +333,9 @@ function adattaRisultatoRicco(
     userPrompt: built.userPrompt,
     finalPrompt: `${built.systemPrompt}\n\n${built.userPrompt}`,
     promptVersion: built.promptVersion,
+    // La configurazione ricca da cui e' nato il prompt: le foto di riferimento
+    // si scelgono da QUESTA, cosi' il loro gating e' quello del prompt.
+    configRicca: (built.normalizedConfig.legacy_config ?? null) as Record<string, unknown> | null,
     promptPayload: {
       scene_analysis: built.normalizedConfig.scene_analysis,
       target_map: built.normalizedConfig[chiaveTargetMap],
@@ -545,6 +550,7 @@ function buildTechnicalPrompt(args: {
     userPrompt,
     finalPrompt,
     promptVersion: `technical-${moduleType}-v1.0.0`,
+    configRicca: null as Record<string, unknown> | null,
     promptPayload: {
       scene_analysis: sceneAnalysis,
       target_map: targetMap,
@@ -786,6 +792,9 @@ Deno.serve(async (req) => {
       // Foto prodotto del catalogo dell'azienda (scelte nel wizard, max 4):
       // riempite PRIMA del primo tentativo e allegate al modello come reference.
       let catalogReferences: ImageReferenceInput[] = [];
+      // Foto condivise davvero allegate («cartella/file»): finiscono nello snapshot
+      // della sessione, per poter dire dopo il render quale foto ha guidato il modello.
+      let riferimentiCondivisi: string[] = [];
       const generateCandidate = (prompt: string, soloProviderDiretto = false) => {
         const remaining = TECH_BUDGET_MS - jobElapsed() - 20_000;
         const perAttemptTimeout = Math.max(
@@ -843,6 +852,38 @@ Deno.serve(async (req) => {
           lvl: "warn", fn: "generate-technical-render", session_id,
           msg: "catalog_references_threw", error: String((catErr as Error)?.message ?? catErr),
         }));
+      }
+
+      // RIFERIMENTI CONDIVISI (libreria uguale per tutti: forma della porta,
+      // materia della pavimentazione; dal 05/10/2026 anche i nove tipi di porta
+      // interna, gradini e bordi dei pavimenti esterni, siepe, camminamento e
+      // segnapasso del giardino). Ogni modulo legge SOLO le proprie tabelle
+      // (shared/render-technical/referenceImages.ts) e le sceglie dalla config
+      // ricca da cui e' nato il prompt. Entrano negli slot lasciati liberi dal
+      // catalogo dell'azienda: al massimo 4 immagini in tutto. Il secondo
+      // tentativo (QA) le riceve anche lui: generateCandidate legge
+      // catalogReferences al momento della chiamata.
+      try {
+        const refsCondivise = collectTechnicalReferenceImages(moduleType, costruito.configRicca);
+        const slotLiberi = 4 - catalogReferences.length;
+        if (refsCondivise.length > 0 && slotLiberi > 0) {
+          const fetched = await fetchSharedReferenceImages(
+            refsCondivise.slice(0, slotLiberi),
+            (entry) => console.log(JSON.stringify({ fn: "generate-technical-render", session_id, module: moduleType, ...entry })),
+          );
+          if (fetched.references.length > 0) {
+            // Image 1 = foto da modificare; le condivise seguono quelle del catalogo.
+            const primaCondivisa = 2 + catalogReferences.length;
+            catalogReferences = [...catalogReferences, ...fetched.references];
+            finalPrompt = `${finalPrompt}\n\n${buildSharedReferenceLegend(fetched.references, primaCondivisa)}`;
+            const mancanti = new Set(fetched.missing.map((m) => m.url));
+            riferimentiCondivisi = refsCondivise.slice(0, slotLiberi)
+              .filter((r) => !mancanti.has(r.url))
+              .map((r) => `${r.folder}/${r.filename}`);
+          }
+        }
+      } catch (refErr) {
+        console.warn(JSON.stringify({ lvl: "warn", fn: "generate-technical-render", session_id, msg: "shared_references_threw", error: String((refErr as Error)?.message ?? refErr) }));
       }
 
       let providerResult: Awaited<ReturnType<typeof generateCandidate>>;
@@ -1014,6 +1055,7 @@ Regenerate applying the FULL brief. ABSOLUTE rules: never duplicate elements, sa
             input_image_meta: prepared.meta,
             provider_model_used: modelUsed,
             provider_attempts: providerResult.attempts,
+            riferimenti_condivisi: riferimentiCondivisi,
           },
           processing_completed_at: new Date().toISOString(),
         })

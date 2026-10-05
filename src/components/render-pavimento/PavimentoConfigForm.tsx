@@ -10,7 +10,6 @@ import type {
   ConfigurazionePavimento,
   DirezionePosa,
   EffettoVisivoPavimento,
-  EssenzaLegno,
   FasceBordo,
   FinituraPavimento,
   GiuntoPerimetrale,
@@ -21,6 +20,21 @@ import type {
   VariazioneTono,
 } from "@/modules/render-pavimento/lib/types";
 import { CatalogReferencePicker } from "@/components/render-bagno/CatalogReferencePicker";
+import type { PhotoEntry } from "../../../shared/render-references/referencePicker.ts";
+import { BATTISCOPA_TIPI, WOOD_ESSENCES } from "./opzioniPavimento";
+import { AnteprimaFoto } from "./AnteprimaFoto";
+import { normalizeFloorLegacyConfig } from "../../../shared/render-floor/floorRenderConfig.ts";
+import {
+  FLOOR_ESSENCE_PHOTOS,
+  FLOOR_LAYOUT_PHOTOS,
+  floorReferenceCandidates,
+  floorSurfacePhoto,
+} from "../../../shared/render-references/floorReferences.ts";
+import {
+  floorUsesTileFormat,
+  inferVisualEffect,
+  woodEssenceApplies,
+} from "../../../shared/render-floor/floorReplacementRules.ts";
 import { DettagliTelefono } from "@/components/render/DettagliTelefono";
 
 type BattiscopaTipo = NonNullable<ConfigurazionePavimento["battiscopa"]>["tipo"];
@@ -63,7 +77,7 @@ const FLOOR_TYPES: Array<{
     detail: "rettificato",
     effect: "cemento",
     preview: "linear-gradient(135deg,#b9b8b2,#858780)",
-    defaults: { effetto_visivo: "cemento", pattern_posa: "rettilineo_dritto", formato_piastrella: "120x120", fuga_larghezza_mm: 2, fuga_colore: "tono_su_tono", scala_pattern: "grande_formato", bisellatura: "nessuna" },
+    defaults: { effetto_visivo: "cemento", essenza_legno: undefined, colore_nome: "Gres cemento grigio chiaro", colore_hex: "#b0b0b0", pattern_posa: "rettilineo_dritto", formato_piastrella: "120x120", fuga_larghezza_mm: 2, fuga_colore: "tono_su_tono", scala_pattern: "grande_formato", bisellatura: "nessuna" },
   },
   {
     value: "ceramica",
@@ -71,7 +85,7 @@ const FLOOR_TYPES: Array<{
     detail: "smaltata",
     effect: "neutro",
     preview: "repeating-linear-gradient(90deg,#d8d0bf 0 42px,#f4f0e6 42px 45px)",
-    defaults: { effetto_visivo: "neutro", pattern_posa: "rettilineo_dritto", formato_piastrella: "30x60", fuga_larghezza_mm: 3, fuga_colore: "grigio_chiaro", scala_pattern: "standard" },
+    defaults: { effetto_visivo: "neutro", essenza_legno: undefined, colore_nome: "Ceramica avorio", colore_hex: "#e8e0cf", pattern_posa: "rettilineo_dritto", formato_piastrella: "30x60", fuga_larghezza_mm: 3, fuga_colore: "grigio_chiaro", scala_pattern: "standard" },
   },
   {
     value: "marmo",
@@ -79,7 +93,7 @@ const FLOOR_TYPES: Array<{
     detail: "venatura naturale",
     effect: "marmo",
     preview: "linear-gradient(135deg,#f4f0e7,#cbc4b8 42%,#ffffff 43%,#aaa295 47%,#ebe5dc)",
-    defaults: { effetto_visivo: "marmo", pattern_posa: "rettilineo_dritto", formato_piastrella: "120x120", fuga_larghezza_mm: 1, fuga_colore: "tono_su_tono", scala_pattern: "maxi_lastre", finitura: "lucido" },
+    defaults: { effetto_visivo: "marmo", essenza_legno: undefined, colore_nome: "Marmo bianco venato", colore_hex: "#ece8e1", pattern_posa: "rettilineo_dritto", formato_piastrella: "120x120", fuga_larghezza_mm: 1, fuga_colore: "tono_su_tono", scala_pattern: "maxi_lastre", finitura: "lucido" },
   },
   {
     value: "pietra_naturale",
@@ -87,7 +101,7 @@ const FLOOR_TYPES: Array<{
     detail: "minerale",
     effect: "pietra",
     preview: "linear-gradient(135deg,#8b8172,#b4aa98,#736d62)",
-    defaults: { effetto_visivo: "pietra", pattern_posa: "opus_romanum", formato_piastrella: "60x60", fuga_larghezza_mm: 4, fuga_colore: "beige", bisellatura: "bordo_irregolare" },
+    defaults: { effetto_visivo: "pietra", essenza_legno: undefined, colore_nome: "Pietra grigio beige", colore_hex: "#a39a8a", pattern_posa: "opus_romanum", formato_piastrella: "60x60", fuga_larghezza_mm: 4, fuga_colore: "beige", bisellatura: "bordo_irregolare" },
   },
   {
     value: "vinile_lvt",
@@ -103,7 +117,7 @@ const FLOOR_TYPES: Array<{
     detail: "artigianale",
     effect: "cotto",
     preview: "repeating-linear-gradient(90deg,#b85a35 0 38px,#cf7347 38px 76px,#9c472d 76px 114px)",
-    defaults: { effetto_visivo: "cotto", pattern_posa: "a_correre", formato_piastrella: "20x20", fuga_larghezza_mm: 6, fuga_colore: "beige", bisellatura: "bordo_irregolare", variazione_tono: "marcata" },
+    defaults: { effetto_visivo: "cotto", essenza_legno: undefined, colore_nome: "Cotto naturale", colore_hex: "#b85a35", pattern_posa: "a_correre", formato_piastrella: "20x20", fuga_larghezza_mm: 6, fuga_colore: "beige", bisellatura: "bordo_irregolare", variazione_tono: "marcata" },
   },
   {
     value: "cemento_resina",
@@ -111,7 +125,7 @@ const FLOOR_TYPES: Array<{
     detail: "continuo",
     effect: "resina",
     preview: "radial-gradient(circle at 30% 20%,#aaa 0,#8e8e8a 30%,#747772 70%)",
-    defaults: { effetto_visivo: "resina", pattern_posa: "rettilineo_dritto", fuga_larghezza_mm: 0, scala_pattern: "standard", bisellatura: "nessuna", variazione_tono: "leggera" },
+    defaults: { effetto_visivo: "resina", essenza_legno: undefined, colore_nome: "Grigio cemento", colore_hex: "#8e8e8a", pattern_posa: "rettilineo_dritto", fuga_larghezza_mm: 0, scala_pattern: "standard", bisellatura: "nessuna", variazione_tono: "leggera" },
   },
   {
     value: "resina_continua",
@@ -119,7 +133,7 @@ const FLOOR_TYPES: Array<{
     detail: "senza fughe",
     effect: "resina",
     preview: "linear-gradient(135deg,#c5c0b4,#a9a397,#d2ccc0)",
-    defaults: { effetto_visivo: "resina", pattern_posa: "rettilineo_dritto", fuga_larghezza_mm: 0, bisellatura: "nessuna", variazione_tono: "uniforme" },
+    defaults: { effetto_visivo: "resina", essenza_legno: undefined, colore_nome: "Resina grigio caldo", colore_hex: "#c5c0b4", pattern_posa: "rettilineo_dritto", fuga_larghezza_mm: 0, bisellatura: "nessuna", variazione_tono: "uniforme" },
   },
   {
     value: "microcemento",
@@ -127,7 +141,7 @@ const FLOOR_TYPES: Array<{
     detail: "spatolato",
     effect: "cemento",
     preview: "radial-gradient(circle at 70% 30%,#bbb7ad,#8d8b83 48%,#ada89e)",
-    defaults: { effetto_visivo: "cemento", pattern_posa: "rettilineo_dritto", fuga_larghezza_mm: 0, bisellatura: "nessuna", variazione_tono: "leggera" },
+    defaults: { effetto_visivo: "cemento", essenza_legno: undefined, colore_nome: "Microcemento grigio caldo", colore_hex: "#ada89e", pattern_posa: "rettilineo_dritto", fuga_larghezza_mm: 0, bisellatura: "nessuna", variazione_tono: "leggera" },
   },
   {
     value: "moquette",
@@ -135,7 +149,7 @@ const FLOOR_TYPES: Array<{
     detail: "tessile",
     effect: "tessile",
     preview: "repeating-linear-gradient(90deg,#6f6256 0 2px,#76695c 2px 4px)",
-    defaults: { effetto_visivo: "tessile", pattern_posa: "rettilineo_dritto", fuga_larghezza_mm: 0, bisellatura: "nessuna", variazione_tono: "uniforme" },
+    defaults: { effetto_visivo: "tessile", essenza_legno: undefined, colore_nome: "Moquette grigio talpa", colore_hex: "#6f6256", pattern_posa: "rettilineo_dritto", fuga_larghezza_mm: 0, bisellatura: "nessuna", variazione_tono: "uniforme" },
   },
   {
     value: "terrazzo_veneziano",
@@ -143,9 +157,18 @@ const FLOOR_TYPES: Array<{
     detail: "graniglia",
     effect: "terrazzo",
     preview: "radial-gradient(circle at 10% 20%,#fff 0 2px,transparent 3px),radial-gradient(circle at 70% 45%,#8c8c8c 0 3px,transparent 4px),linear-gradient(135deg,#d6d0c5,#bfb5a8)",
-    defaults: { effetto_visivo: "terrazzo", pattern_posa: "rettilineo_dritto", fuga_larghezza_mm: 0, bisellatura: "nessuna", variazione_tono: "naturale" },
+    defaults: { effetto_visivo: "terrazzo", essenza_legno: undefined, colore_nome: "Terrazzo veneziano chiaro", colore_hex: "#d6d0c5", pattern_posa: "rettilineo_dritto", fuga_larghezza_mm: 0, bisellatura: "nessuna", variazione_tono: "naturale" },
   },
 ];
+
+/**
+ * La foto di superficie che il render riceve scegliendo quella scheda (il tipo con i suoi
+ * default: per il gres l'effetto cemento, per il legno l'essenza di partenza). La ceramica
+ * a effetto neutro non ha foto e resta col campione disegnato.
+ */
+const FOTO_SCHEDA_TIPO: Partial<Record<TipoPavimento, PhotoEntry>> = Object.fromEntries(
+  FLOOR_TYPES.map((ft) => [ft.value, floorSurfacePhoto(normalizeFloorLegacyConfig({ tipo: ft.value, ...ft.defaults }))?.entry]),
+);
 
 const PATTERNS: Array<{ value: PatternPosa; label: string; detail: string; preview: string }> = [
   { value: "rettilineo_dritto", label: "Rettilineo", detail: "griglia pulita", preview: "linear-gradient(90deg,transparent 0 46%,#d5d5d5 47% 49%,transparent 50%),linear-gradient(0deg,transparent 0 46%,#d5d5d5 47% 49%,transparent 50%)" },
@@ -183,16 +206,6 @@ const EFFECTS: Array<{ value: EffettoVisivoPavimento; label: string }> = [
   { value: "tessile", label: "Tessile" },
   { value: "terrazzo", label: "Terrazzo" },
   { value: "neutro", label: "Neutro" },
-];
-
-const WOOD_ESSENCES: Array<{ value: EssenzaLegno; label: string; color: string }> = [
-  { value: "rovere_naturale", label: "Rovere naturale", color: "#c49a63" },
-  { value: "rovere_sbiancato", label: "Rovere sbiancato", color: "#d8cdbb" },
-  { value: "rovere_miele", label: "Rovere miele", color: "#c88f45" },
-  { value: "noce", label: "Noce", color: "#6d442b" },
-  { value: "teak", label: "Teak", color: "#a66b34" },
-  { value: "wenghe", label: "Wenge", color: "#2d2119" },
-  { value: "frassino_bianco", label: "Frassino bianco", color: "#eadfc9" },
 ];
 
 const TONE_VARIATIONS: Array<{ value: VariazioneTono; label: string }> = [
@@ -244,7 +257,13 @@ const BORDER_BANDS: Array<{ value: FasceBordo; label: string }> = [
 
 const FORMATI = [
   "20x20", "30x30", "45x45", "60x60", "60x120", "80x80", "120x120", "120x240", "30x60",
+  // Listoni in gres o ceramica effetto legno: prima si potevano scrivere solo le misure
+  // del listello, che su un materiale a piastrelle il prompt ignora (vince il formato).
+  "15x90", "20x120", "20x180", "26x160",
 ];
+
+/** Le misure del listello (mm) le legge il prompt solo per legno, laminato e LVT. */
+const TIPI_A_LISTELLI: TipoPavimento[] = ["parquet_massello", "parquet_prefinito", "laminato", "vinile_lvt"];
 
 const FUGA_COLORI: Array<{ value: NonNullable<ConfigurazionePavimento["fuga_colore"]>; label: string }> = [
   { value: "bianco", label: "Bianco" },
@@ -253,13 +272,6 @@ const FUGA_COLORI: Array<{ value: NonNullable<ConfigurazionePavimento["fuga_colo
   { value: "nero", label: "Nero" },
   { value: "beige", label: "Beige" },
   { value: "tono_su_tono", label: "Tono su tono" },
-];
-
-const BATTISCOPA_TIPI: Array<{ value: NonNullable<BattiscopaTipo>; label: string }> = [
-  { value: "coordinato_pavimento", label: "Coordinato al pavimento" },
-  { value: "bianco", label: "Bianco" },
-  { value: "legno", label: "Legno" },
-  { value: "alluminio", label: "Alluminio" },
 ];
 
 interface Props {
@@ -274,10 +286,6 @@ function isSeamless(type: TipoPavimento): boolean {
   return ["cemento_resina", "resina_continua", "microcemento", "moquette", "terrazzo_veneziano"].includes(type);
 }
 
-function isWoodLike(config: ConfigurazionePavimento): boolean {
-  return config.effetto_visivo === "legno" || ["parquet_massello", "parquet_prefinito", "laminato", "vinile_lvt"].includes(config.tipo);
-}
-
 export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Props) {
   const set = <K extends keyof ConfigurazionePavimento>(
     key: K,
@@ -287,15 +295,30 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
   const update = (patch: Partial<ConfigurazionePavimento>) => onChange({ ...value, ...patch });
   const selectedType = FLOOR_TYPES.find((item) => item.value === value.tipo) ?? FLOOR_TYPES[0];
   const seamless = isSeamless(value.tipo);
-  const woodLike = isWoodLike(value);
+  // Formato e listello si accendono solo dove il prompt li legge: formato per le piastrelle,
+  // listello per legno/laminato/LVT. Prima su un gres effetto legno il listello era scrivibile
+  // e ignorato, sul parquet il formato piastrella restava acceso e finiva nel rewriter.
+  const usaFormato = floorUsesTileFormat(value.tipo);
+  const usaListelli = TIPI_A_LISTELLI.includes(value.tipo);
+  // L'essenza si sceglie dove il prompt la usa (parquet, o un materiale effetto legno).
+  const usaEssenza = woodEssenceApplies(value.tipo, inferVisualEffect(value.tipo, value.effetto_visivo));
   const isSostituisciBattiscopa = value.battiscopa?.azione === "sostituisci";
+  // Le foto che il render riceverebbe con le scelte di adesso (stessa funzione del motore).
+  const fotoDelRender = floorReferenceCandidates(normalizeFloorLegacyConfig(value));
+  const fotoPer = (ruolo: string) => fotoDelRender.find((c) => c.role === ruolo)?.entry;
+  const fotoSuperficie = floorSurfacePhoto(normalizeFloorLegacyConfig(value))?.entry;
 
+  // Cambiando materiale cambia anche il colore: prima restava quello del materiale
+  // precedente («Gres cemento grigio chiaro» su un parquet già in rovere naturale) e il
+  // prompt riceveva due toni in conflitto. Il legno prende il colore della sua essenza.
   const applyType = (type: TipoPavimento) => {
     const option = FLOOR_TYPES.find((item) => item.value === type);
+    const essenza = WOOD_ESSENCES.find((wood) => wood.value === option?.defaults.essenza_legno);
     update({
       tipo: type,
       colore_mode: option?.effect === "legno" ? "legno" : value.colore_mode,
       ...(option?.defaults ?? {}),
+      ...(essenza ? { colore_nome: essenza.label, colore_hex: essenza.color } : {}),
     });
   };
 
@@ -304,10 +327,14 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
       {/* Riepilogo della scelta — telefono: una riga compatta. */}
       <div className="rounded-lg border bg-muted/25 p-3 max-md:p-2">
         <div className="flex items-start gap-3 max-md:items-center max-md:gap-2.5">
-          <div
-            className="h-16 w-20 shrink-0 rounded-md border max-md:h-11 max-md:w-14"
-            style={{ background: selectedType.preview, backgroundColor: value.colore_hex ?? "#b0b0b0" }}
-          />
+          {fotoSuperficie ? (
+            <AnteprimaFoto foto={fotoSuperficie} alt={`Superficie: ${selectedType.label}`} className="h-16 w-16 rounded-md max-md:h-11 max-md:w-11" />
+          ) : (
+            <div
+              className="h-16 w-20 shrink-0 rounded-md border max-md:h-11 max-md:w-14"
+              style={{ background: selectedType.preview, backgroundColor: value.colore_hex ?? "#b0b0b0" }}
+            />
+          )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 max-md:gap-1.5">
               <p className="text-sm font-semibold max-md:text-[13px]">{selectedType.label}</p>
@@ -337,7 +364,11 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
                   : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                 } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
             >
-              <div className="mb-2 h-8 rounded border max-md:mb-1.5 max-md:h-6" style={{ background: ft.preview }} />
+              {FOTO_SCHEDA_TIPO[ft.value] ? (
+                <AnteprimaFoto foto={FOTO_SCHEDA_TIPO[ft.value]} alt={ft.label} className="mb-2 h-12 w-12 max-md:mb-1.5 max-md:h-10 max-md:w-10" />
+              ) : (
+                <div className="mb-2 h-8 rounded border max-md:mb-1.5 max-md:h-6" style={{ background: ft.preview }} />
+              )}
               <span className="block font-semibold leading-tight max-md:text-[11px]">{ft.label}</span>
               <span className="block text-[11px] text-muted-foreground max-md:hidden">{ft.detail}</span>
             </button>
@@ -364,22 +395,27 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
         </div>
         <div className="space-y-1.5">
           <Label className="max-md:text-[11px]">Finitura</Label>
-          <Select
-            value={value.finitura}
-            onValueChange={(v) => set("finitura", v as FinituraPavimento)}
-            disabled={disabled}
-          >
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {FINITURE.map((f) => (
-                <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <AnteprimaFoto foto={fotoPer("SURFACE FINISH TARGET")} alt={`Finitura ${value.finitura}`} />
+            <div className="min-w-0 flex-1">
+              <Select
+                value={value.finitura}
+                onValueChange={(v) => set("finitura", v as FinituraPavimento)}
+                disabled={disabled}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {FINITURE.map((f) => (
+                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
       </div>
 
-      {woodLike && (
+      {usaEssenza && (
         <div className="space-y-2">
           <Label className="max-md:text-[13px] max-md:font-semibold">Essenza legno</Label>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 max-sm:grid-cols-3 max-sm:gap-1.5">
@@ -395,7 +431,11 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
                     : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                   } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
               >
-                <span className="mb-1 block h-6 rounded border" style={{ backgroundColor: wood.color }} />
+                {FLOOR_ESSENCE_PHOTOS[wood.value] ? (
+                  <AnteprimaFoto foto={FLOOR_ESSENCE_PHOTOS[wood.value]} alt={wood.label} className="mb-1 h-12 w-12 max-md:h-10 max-md:w-10" />
+                ) : (
+                  <span className="mb-1 block h-6 rounded border" style={{ backgroundColor: wood.color }} />
+                )}
                 <span className="font-medium max-md:text-[11px] max-md:leading-tight">{wood.label}</span>
               </button>
             ))}
@@ -441,7 +481,11 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
                   : "border-slate-300 bg-white shadow-sm hover:border-primary/60 hover:shadow"
                 } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
             >
-              <span className="mb-2 block h-7 rounded bg-muted max-md:mb-1.5 max-md:h-6" style={{ backgroundImage: p.preview }} />
+              {FLOOR_LAYOUT_PHOTOS[p.value] ? (
+                <AnteprimaFoto foto={FLOOR_LAYOUT_PHOTOS[p.value]} alt={`Posa ${p.label}`} className="mb-2 h-12 w-12 max-md:mb-1.5 max-md:h-10 max-md:w-10" />
+              ) : (
+                <span className="mb-2 block h-7 rounded bg-muted max-md:mb-1.5 max-md:h-6" style={{ backgroundImage: p.preview }} />
+              )}
               <span className="block font-semibold max-md:text-[11px] max-md:leading-tight">{p.label}</span>
               <span className="block text-[11px] text-muted-foreground max-md:hidden">{p.detail}</span>
             </button>
@@ -506,7 +550,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
           <Select
             value={value.formato_piastrella ?? "60x60"}
             onValueChange={(v) => set("formato_piastrella", v)}
-            disabled={disabled || seamless}
+            disabled={disabled || !usaFormato}
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -524,7 +568,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
             max={400}
             value={value.larghezza_listello_mm ?? ""}
             onChange={(e) => set("larghezza_listello_mm", Number(e.target.value) || undefined)}
-            disabled={disabled || !woodLike}
+            disabled={disabled || !usaListelli}
             placeholder="mm"
           />
         </div>
@@ -536,7 +580,7 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
             max={3000}
             value={value.lunghezza_listello_mm ?? ""}
             onChange={(e) => set("lunghezza_listello_mm", Number(e.target.value) || undefined)}
-            disabled={disabled || !woodLike}
+            disabled={disabled || !usaListelli}
             placeholder="mm"
           />
         </div>
@@ -571,18 +615,23 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
         </div>
         <div className="space-y-1.5">
           <Label className="max-md:text-[11px]">Bisellatura</Label>
-          <Select
-            value={value.bisellatura ?? "nessuna"}
-            onValueChange={(v) => set("bisellatura", v as Bisellatura)}
-            disabled={disabled}
-          >
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {BEVELS.map((item) => (
-                <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <AnteprimaFoto foto={fotoPer("EDGE BEVEL TARGET")} alt={`Bisellatura ${value.bisellatura ?? "nessuna"}`} />
+            <div className="min-w-0 flex-1">
+              <Select
+                value={value.bisellatura ?? "nessuna"}
+                onValueChange={(v) => set("bisellatura", v as Bisellatura)}
+                disabled={disabled}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {BEVELS.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -667,23 +716,28 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
           <div className="grid grid-cols-2 gap-3 max-md:gap-2">
             <div className="space-y-1.5">
               <Label className="text-xs max-md:text-[11px]">Tipo</Label>
-              <Select
-                value={value.battiscopa?.tipo ?? "coordinato_pavimento"}
-                onValueChange={(v) =>
-                  set("battiscopa", {
-                    ...value.battiscopa!,
-                    tipo: v as BattiscopaTipo,
-                  })
-                }
-                disabled={disabled}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {BATTISCOPA_TIPI.map((b) => (
-                    <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <AnteprimaFoto foto={fotoPer("SKIRTING BOARD TARGET")} alt={`Battiscopa ${value.battiscopa?.tipo ?? ""}`.trim()} />
+                <div className="min-w-0 flex-1">
+                  <Select
+                    value={value.battiscopa?.tipo ?? "coordinato_pavimento"}
+                    onValueChange={(v) =>
+                      set("battiscopa", {
+                        ...value.battiscopa!,
+                        tipo: v as BattiscopaTipo,
+                      })
+                    }
+                    disabled={disabled}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {BATTISCOPA_TIPI.map((b) => (
+                        <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs max-md:text-[11px]">Altezza</Label>
@@ -707,6 +761,25 @@ export function PavimentoConfigForm({ value, onChange, disabled, companyId }: Pr
             </div>
           </div>
         )}
+      </div>
+
+      {/* Tappeti: un tappeto copre proprio il pavimento che si vuole mostrare al cliente. */}
+      <div className="flex items-center justify-between gap-3 rounded-lg border p-3 max-md:p-2.5">
+        <div className="min-w-0">
+          <Label className="text-sm font-semibold max-md:text-[13px]">Tappeti sul pavimento</Label>
+          <p className="text-[11px] text-muted-foreground max-md:hidden">Togliendoli si vede il pavimento nuovo anche sotto; i mobili restano dove sono.</p>
+        </div>
+        <Select
+          value={value.tappeti ?? "mantieni"}
+          onValueChange={(v) => set("tappeti", v as NonNullable<ConfigurazionePavimento["tappeti"]>)}
+          disabled={disabled}
+        >
+          <SelectTrigger className="w-44 max-md:w-36" aria-label="Tappeti sul pavimento"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="mantieni">Lasciali dove sono</SelectItem>
+            <SelectItem value="rimuovi">Toglili</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-1.5">

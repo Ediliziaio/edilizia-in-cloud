@@ -67,6 +67,53 @@ export const LIGHTING_DESCRIPTIONS: Record<TipoIlluminazionePergola, string> = {
   applique_coordinate: "coordinated wall or post-mounted outdoor applique lights, sparse and realistic",
 };
 
+// ── Elementi del 04/10: colore dei tessuti, vetro della copertura ───────────
+// Campi che lo schema aveva già (copertura.colore_telo_*, copertura.trasparenza,
+// chiusure_laterali.colore_*) ma che il form non chiedeva o il prompt non leggeva.
+// Un valore assente, o il default salvato dal form vecchio («opaco», «Coerente con
+// struttura»), non aggiunge niente: le sessioni salvate hanno lo stesso prompt.
+
+/** «Ecrù (#E8DFC8)», «Ecrù» o «#E8DFC8»; null se non c'è niente. */
+export function describeTextileColour(nome?: string | null, hex?: string | null): string | null {
+  const n = nome?.trim();
+  const h = hex?.trim();
+  if (n && h) return `${n} (${h})`;
+  return n || h || null;
+}
+
+/** Il colore delle chiusure laterali, se scelto (il default del form vecchio vale «non specificato»). */
+export function describeSideClosureColour(nome?: string | null, hex?: string | null): string | null {
+  const n = nome?.trim();
+  const nomeVero = n && n.toLowerCase() !== "coerente con struttura" ? n : null;
+  return describeTextileColour(nomeVero, hex);
+}
+
+export const GLASS_FINISH_DESCRIPTIONS: Record<"trasparente" | "satinato" | "fumé", string> = {
+  trasparente: "clear transparent panels with sharp sky reflections",
+  satinato: "satin frosted panels that diffuse the light, sky not visible through them",
+  fumé: "smoked tinted panels that darken the light below, sky faintly visible through them",
+};
+
+/** Il vetro (o policarbonato) scelto per la copertura; null se assente, «opaco» (default vecchio) o copertura non trasparente. */
+export function describeCoverGlass(copertura: string | null | undefined, trasparenza: string | null | undefined): string | null {
+  if (copertura !== "vetro" && copertura !== "policarbonato") return null;
+  if (trasparenza !== "trasparente" && trasparenza !== "satinato" && trasparenza !== "fumé") return null;
+  return GLASS_FINISH_DESCRIPTIONS[trasparenza];
+}
+
+/** Le aggiunte alla descrizione della copertura: colore del telo, vetro. Stringa vuota se non c'è niente da aggiungere. */
+export function describeCoverExtras(
+  copertura: string | null | undefined,
+  dati: { colore_telo_nome?: string | null; colore_telo_hex?: string | null; trasparenza?: string | null } | null | undefined,
+): string {
+  const parti: string[] = [];
+  const telo = copertura === "telo_retraibile" ? describeTextileColour(dati?.colore_telo_nome, dati?.colore_telo_hex) : null;
+  if (telo) parti.push(`fabric colour ${telo}`);
+  const vetro = describeCoverGlass(copertura, dati?.trasparenza);
+  if (vetro) parti.push(vetro);
+  return parti.map((p) => `; ${p}`).join("");
+}
+
 export const DEFAULT_INTEGRITY_CONSTRAINTS = [
   "preserve the same house, facade, doors, windows and shutters unless explicitly targeted",
   "preserve paving outside the pergola footprint",

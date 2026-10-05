@@ -1,4 +1,18 @@
-import type { ConfigurazioneBagno } from "@/modules/render-bagno/lib/types";
+import type { ConfigTermoarredo, ConfigurazioneBagno } from "@/modules/render-bagno/lib/types";
+
+/**
+ * Valori proposti quando si accende la sezione «Termoarredo». Il default del bagno NON ha
+ * il termoarredo: assente = non indicato, e il prompt resta quello di sempre.
+ */
+export const DEFAULT_TERMOARREDO: ConfigTermoarredo = {
+  attivo: true,
+  azione: "sostituisci",
+  tipo: "scaletta",
+  finitura: "bianco",
+};
+
+/** Tipo proposto quando si accende «Illuminazione» (illuminazione_tipo vuoto = nessuna modifica). */
+export const DEFAULT_ILLUMINAZIONE_TIPO = "faretti_incasso";
 
 export const DEFAULT_BATHROOM_CONFIG: ConfigurazioneBagno = {
   tipo_intervento: "restyling_completo",

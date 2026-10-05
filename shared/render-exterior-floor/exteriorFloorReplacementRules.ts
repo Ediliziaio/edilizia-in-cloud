@@ -141,6 +141,17 @@ export function buildExteriorFloorReplacementManifest(
       break;
   }
 
+  // Bordo e gradini scelti insieme a una pavimentazione nuova: prima finivano solo nei
+  // blocchi H e I come «tipo», senza una riga nel manifest che dicesse di realizzarli.
+  // Con «nessuno» (e col bordo vasca, che ha la sua operazione) qui non entra niente.
+  const rifaSuperficie = ["replace_existing_surface", "convert_to_deck", "convert_to_gravel_or_stepping_stones"].includes(config.operazione);
+  if (rifaSuperficie && config.bordo !== "nessuno" && !config.bordo.startsWith("coping_piscina")) {
+    additions.push(`finish the new surface with a border/perimeter band: ${spec.borderDescription}`);
+  }
+  if (rifaSuperficie && config.gradino !== "nessuno") {
+    replacements.push(`also clad the visible exterior steps: ${spec.stepDescription}; treads and risers aligned with the new surface`);
+  }
+
   if (spec.isLargeFormat) {
     conversions.push("large-format exterior slabs: sparse joint density, few broad modules, plausible perimeter cuts, no small-tile grid drift");
   }

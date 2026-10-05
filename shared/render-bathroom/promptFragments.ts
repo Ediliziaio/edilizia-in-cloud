@@ -1,16 +1,22 @@
 import type {
+  BathroomBathScreen,
   BathroomBathtubType,
   BathroomFaucetFinish,
   BathroomFaucetStyle,
   BathroomFlushPlateColor,
   BathroomFlushPlateStyle,
+  BathroomLightingType,
   BathroomMirrorType,
   BathroomSanitaryColor,
+  BathroomShowerDrain,
   BathroomShowerGlassType,
   BathroomShowerHeadType,
+  BathroomShowerNiche,
   BathroomShowerProfileFinish,
   BathroomShowerTrayType,
   BathroomShowerType,
+  BathroomTowelWarmerFinish,
+  BathroomTowelWarmerType,
   BathroomVanityStyle,
 } from "./types.ts";
 
@@ -139,6 +145,73 @@ export const SHOWER_HEAD_DESCRIPTIONS: Record<BathroomShowerHeadType, string> = 
   pioggia_soffitto: "ceiling-mounted rain shower head with premium spa feel",
   colonna_completa: "full exposed shower column with rain head and hand shower",
   combinato: "combined rain shower and hand shower system",
+};
+
+/**
+ * Nicchia nella parete della doccia, quando il form la indica. Senza indicazione resta la
+ * regola vecchia (nicchia «plausibile» per walk-in e box in nicchia).
+ */
+export const SHOWER_NICHE_DESCRIPTIONS: Record<BathroomShowerNiche, string> = {
+  nessuna:
+    "no recessed niche: keep the shower walls flat, do not add any niche or recessed shelf",
+  verticale:
+    "one recessed vertical niche about 30 cm wide and 60 cm high in a shower wall at chest height, with one shelf, lined with the same wall finish, crisp mitred edges",
+  orizzontale:
+    "one long horizontal recessed niche about 60-90 cm wide and 30 cm high in the main shower wall at chest height, lined with the same wall finish, crisp mitred edges",
+};
+
+export const SHOWER_DRAIN_DESCRIPTIONS: Record<BathroomShowerDrain, string> = {
+  canalina:
+    "slim linear channel drain running along the back wall of the shower, its narrow grate flush with the floor or tray surface",
+  piletta:
+    "small square point drain with a flat grate in the tray or floor slope, no linear channel",
+};
+
+/** Parete in vetro sopravasca: ha senso solo su una vasca contro parete. */
+export const BATH_SCREEN_DESCRIPTIONS: Record<BathroomBathScreen, string> = {
+  nessuna:
+    "no bath screen: an open bathtub with no glass panel on its rim",
+  fissa:
+    "one fixed clear-glass bath screen standing on the tub rim at the tap end, about 70-80 cm wide and 140 cm high, slim profile, with a hand shower on a wall slide rail above the tub",
+  girevole:
+    "one hinged clear-glass bath screen on the tub rim at the tap end that swings inwards, slim hinge profile, with a hand shower on a wall slide rail above the tub",
+};
+
+export const TOWEL_WARMER_TYPE_DESCRIPTIONS: Record<BathroomTowelWarmerType, string> = {
+  scaletta:
+    "ladder towel warmer: two vertical side collectors joined by many round horizontal bars, wall-mounted",
+  piastra_design:
+    "flat-panel design towel warmer: a smooth vertical radiant plate with a slim towel bar in front, wall-mounted",
+  tubi_verticali:
+    "vertical-tube towel warmer: a row of slim vertical tubes joined at top and bottom, with a towel bar, wall-mounted",
+};
+
+export const TOWEL_WARMER_FINISH_DESCRIPTIONS: Record<BathroomTowelWarmerFinish, string> = {
+  bianco: "white powder-coated finish",
+  nero_opaco: "matte black finish",
+  antracite: "anthracite grey matte finish",
+  cromo: "polished chrome finish",
+  acciaio_spazzolato: "brushed stainless-steel finish",
+};
+
+/** Tipi di illuminazione del form (illuminazione_tipo). Un testo libero resta com'è. */
+export const LIGHTING_TYPE_DESCRIPTIONS: Record<BathroomLightingType, string> = {
+  faretti_incasso:
+    "recessed ceiling downlights: a few small round spotlights set flush into the existing ceiling in a regular layout, warm-neutral white light",
+  led_lineare:
+    "concealed linear LED: a continuous LED strip set into a slim recessed profile in the ceiling along the walls, soft indirect warm light",
+  applique_specchio:
+    "wall lights at the mirror: a pair of slim wall lights beside the mirror or one bar light above it (above the washbasin if there is no mirror), coherent with the vanity",
+  plafoniera:
+    "one flush ceiling light: a single slim round fitting centred on the ceiling",
+};
+
+/** Quali tipi di illuminazione mettono qualcosa sul soffitto. */
+export const LIGHTING_ON_CEILING: Record<BathroomLightingType, boolean> = {
+  faretti_incasso: true,
+  led_lineare: true,
+  applique_specchio: false,
+  plafoniera: true,
 };
 
 export const BATHTUB_TYPE_DESCRIPTIONS: Record<BathroomBathtubType, string> = {

@@ -87,7 +87,9 @@ function compactFloorConfig(input: unknown): Record<string, unknown> {
     replacements: asArr(manifest.replacements),
     additions: asArr(manifest.additions),
     removals: asArr(manifest.removals),
-    preserve_exactly: asArr(manifest.preserveExactly ?? manifest.keepExactly),
+    // Il manifest del pavimento chiama la lista `preservation` (floorReplacementRules.ts): senza
+    // questa chiave il rewriter non riceveva mai le regole di conservazione.
+    preserve_exactly: asArr(manifest.preservation ?? manifest.preserveExactly ?? manifest.keepExactly),
     scena: scene,
     integrity_constraints: asArr(cfg.integrity_constraints).slice(0, 12),
   };

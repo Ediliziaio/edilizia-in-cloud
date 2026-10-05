@@ -1,3 +1,4 @@
+import { ancoraggioDallaZona, pergolaAddossata } from "./pergolaCoerenza.ts";
 import type {
   ConfigurazionePergole,
   PergolaInstallabilityEnvelope,
@@ -16,7 +17,7 @@ const ZONE_DESCRIPTIONS: Record<string, string> = {
 };
 
 function isPergolaWallMounted(config: ConfigurazionePergole): boolean {
-  return config.installazione.addossata_si_no || config.struttura.tipo.includes("addossata");
+  return pergolaAddossata(config.struttura.tipo, config.installazione.addossata_si_no);
 }
 
 export function buildPergolaTargetAreaMap(
@@ -60,10 +61,19 @@ export function buildPergolaInstallabilityEnvelope(
 ): PergolaInstallabilityEnvelope {
   const wallMounted = isPergolaWallMounted(config);
   const postCount = config.installazione.numero_montanti ?? (wallMounted ? 2 : 4);
-  const anchoring = config.installazione.ancoraggio_a_terra ?? (config.installazione.zona === "giardino_relax" ? "prato_con_plinti" : "pavimento");
+  const anchoring = config.installazione.ancoraggio_a_terra ?? ancoraggioDallaZona(config.installazione.zona);
 
+  // Posizioni coerenti col numero: un'addossata ha i montanti solo sul fronte (dietro
+  // c'è il muro); prima «4 montanti» su un'addossata elencava solo i due anteriori.
+  const fronte = ["front-left post on the target paving", "front-right post on the target paving"];
   const postPositions = wallMounted
-    ? ["front-left post on the target paving", "front-right post on the target paving"]
+    ? postCount > 2
+      ? [
+        ...fronte,
+        `${postCount - 2} intermediate posts evenly spaced along the front beam on the target paving`,
+        "no posts against the facade: the rear beam is carried by the wall ledger",
+      ]
+      : fronte
     : postCount === 6
       ? ["four corner posts plus two intermediate posts aligned to the long span"]
       : ["four corner posts, all visibly grounded and aligned to the perspective"];

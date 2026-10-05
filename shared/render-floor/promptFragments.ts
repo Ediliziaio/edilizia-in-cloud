@@ -166,6 +166,14 @@ export const BASEBOARD_DESCRIPTIONS: Record<string, string> = {
   alluminio: "thin brushed aluminum modern baseboard",
 };
 
+/** Tappeti da togliere (`tappeti: "rimuovi"`): l'unica cosa che sparisce oltre al pavimento vecchio. */
+export const RUG_REMOVAL_RULE =
+  "Remove every loose rug, runner and mat lying on the floor and show the new floor continuously where they were; nothing else is removed";
+export const RUG_FURNITURE_RULE =
+  "Furniture that stood on a removed rug stays exactly in place, now resting directly on the new floor with correct contact shadows";
+export const RUG_COVERAGE_ZONE =
+  "areas currently under loose rugs become visible new floor: the rugs are removed";
+
 export const DEFAULT_INTEGRITY_CONSTRAINTS = [
   "walls, wall colors, wallpaper and wall tiles",
   "ceiling, lighting fixtures and ceiling geometry",
@@ -174,6 +182,13 @@ export const DEFAULT_INTEGRITY_CONSTRAINTS = [
   "room dimensions, camera perspective, lens distortion and image dimensions",
   "all non-floor architectural elements",
 ];
+
+/** Con i tappeti da togliere: le stesse voci, ma i tappeti non sono più da conservare. */
+export const INTEGRITY_CONSTRAINTS_RUGS_REMOVED = DEFAULT_INTEGRITY_CONSTRAINTS.map((line) =>
+  line === "all furniture, appliances, rugs and objects"
+    ? "all furniture, appliances and objects (loose rugs excepted: they are removed)"
+    : line
+);
 
 export const DEFAULT_QUALITY_DIRECTIVES = [
   "professional interior renovation visualization",
@@ -184,7 +199,7 @@ export const DEFAULT_QUALITY_DIRECTIVES = [
   "no generic AI restyling",
 ];
 
-export const DEFAULT_NEGATIVE_CONSTRAINTS = [
+export const DEFAULT_NEGATIVE_CONSTRAINTS: string[] = [
   "do not redesign the room",
   "do not move, remove or add furniture or objects",
   "do not change wall color, wall texture, ceiling, doors or windows",
@@ -195,3 +210,10 @@ export const DEFAULT_NEGATIVE_CONSTRAINTS = [
   "do not generate CGI, cartoon, painterly, showroom or staged output",
   "do not change image dimensions, crop or orientation",
 ];
+
+/** Con i tappeti da togliere: togliere i tappeti non è «rimuovere oggetti». */
+export const NEGATIVE_CONSTRAINTS_RUGS_REMOVED = DEFAULT_NEGATIVE_CONSTRAINTS.map((line) =>
+  line === "do not move, remove or add furniture or objects"
+    ? "do not move, remove or add furniture or objects, except removing the loose rugs as instructed"
+    : line
+);

@@ -17,7 +17,9 @@ export type TipoPiscina =
   | "semi_incassata"
   | "fuori_terra_premium"
   | "minipiscina"
-  | "terrazzo_compatta";
+  | "terrazzo_compatta"
+  /** Biopiscina: zona di nuoto + zona di rigenerazione con piante, niente cloro né mosaico. */
+  | "biopiscina";
 
 export type FormaPiscina =
   | "rettangolare"
@@ -72,7 +74,9 @@ export type AccessorioPiscina =
   | "copertura_isotermica"
   | "copertura_rigida"
   | "doccia_esterna"
-  | "zona_prendisole";
+  | "zona_prendisole"
+  /** Recinzione di sicurezza in vetro intorno alla piscina, con cancelletto. */
+  | "recinzione_vetro";
 
 export type ZonaInserimentoPiscina =
   | "giardino_centrale"
@@ -89,6 +93,17 @@ export type DimensioneApparentePiscina = "compatta" | "media" | "ampia" | "stret
 export type ProfonditaApparentePiscina = "bassa_relax" | "standard" | "profonda" | "variabile";
 export type AreaPerimetralePiscina = "mantieni_esistente" | "deck_wpc" | "solarium_gres" | "pietra_naturale" | "prato_raccordato" | "ghiaia_drenante";
 export type ColoreAcquaPiscina = "cristallina_chiara" | "azzurra_classica" | "turchese" | "grigio_verde_naturale" | "blu_profondo" | "sabbia_chiara";
+export type QuotaBordoPiscina = "a_filo_terreno" | "leggermente_rialzata" | "semi_incassata" | "fuori_terra";
+/** Rivestimento delle pareti di una vasca rialzata (fuori terra, semi-incassata, compatta da terrazzo). */
+export type RivestimentoEsternoPiscina = "doghe_legno_wpc" | "pietra_naturale" | "gres_effetto_pietra" | "intonaco_liscio";
+/** Cosa va al posto di una piscina tolta. */
+export type SuperficieRipristinoPiscina = Exclude<AreaPerimetralePiscina, "mantieni_esistente">;
+
+/** Opzioni dei campi nuovi (04/10/2026): il form e i test le leggono da qui. Assenti = non specificato. */
+export const RIVESTIMENTI_ESTERNI_PISCINA: readonly RivestimentoEsternoPiscina[] = ["doghe_legno_wpc", "pietra_naturale", "gres_effetto_pietra", "intonaco_liscio"];
+export const SUPERFICI_RIPRISTINO_PISCINA: readonly SuperficieRipristinoPiscina[] = ["prato_raccordato", "deck_wpc", "solarium_gres", "pietra_naturale", "ghiaia_drenante"];
+/** Misure reali ammesse (metri, dentro il bordo): fuori da qui il valore si ignora. */
+export const MISURE_PISCINA_METRI = { lunghezza: { min: 2, max: 30 }, larghezza: { min: 1.5, max: 15 } } as const;
 export type PiscinaImageOrientation = "portrait" | "landscape" | "square" | "unknown";
 
 export interface PiscinaPhotoMeta {
@@ -104,7 +119,7 @@ export interface ConfigInserimentoPiscina {
   larghezza_apparente?: "ridotta" | "media" | "ampia" | "su_misura";
   lunghezza_apparente?: "corta" | "media" | "lunga" | "su_misura";
   profondita_apparente?: ProfonditaApparentePiscina;
-  quota_bordo?: "a_filo_terreno" | "leggermente_rialzata" | "semi_incassata" | "fuori_terra";
+  quota_bordo?: QuotaBordoPiscina;
   rapporto_con_casa?: string;
   rapporto_con_prato?: string;
   rapporto_con_deck?: string;
@@ -117,6 +132,9 @@ export interface PiscinaSpecConfig {
   dimensione_apparente: DimensioneApparentePiscina;
   sistema_bordo: SistemaBordoPiscina;
   colore_acqua: ColoreAcquaPiscina;
+  /** Misure reali della vasca in metri (dentro il bordo). Assenti = vale la dimensione apparente. */
+  lunghezza_m?: number;
+  larghezza_m?: number;
 }
 
 export interface PiscinaFinitureConfig {
@@ -124,6 +142,10 @@ export interface PiscinaFinitureConfig {
   coping: TipoCopingPiscina;
   area_perimetrale: AreaPerimetralePiscina;
   fuga_bordo?: "sottile" | "normale" | "invisibile";
+  /** Pareti di una vasca rialzata. Assente = come oggi (il modello sceglie). */
+  rivestimento_esterno?: RivestimentoEsternoPiscina;
+  /** Solo rimozione: cosa va al posto della piscina. Assente = come il contesto della foto. */
+  superficie_ripristino?: SuperficieRipristinoPiscina;
 }
 
 export interface PiscinaComfortConfig {
@@ -175,6 +197,8 @@ export interface PiscinaTargetAreaMap {
   preservedAdjacentAreas: string[];
   noExcavationZones: string[];
   mainViewAxis: string;
+  /** «Note tecniche» del form (es. «non toccare l'ulivo a sinistra»): vincoli da rispettare. */
+  installerNotes?: string;
 }
 
 export interface PiscinaBuildabilityEnvelope {
@@ -187,6 +211,8 @@ export interface PiscinaBuildabilityEnvelope {
   infinityFeasibility: "plausible" | "limited" | "not_plausible";
   rooftopFeasibility: "plausible" | "not_plausible";
   forbiddenPlacements: string[];
+  /** Quota del bordo rispetto al terreno, se diversa da «a filo terreno» e coerente con la tipologia. */
+  edgeHeight?: string;
 }
 
 export interface PiscinaTechnicalSpecification {

@@ -38,6 +38,28 @@ export const ROOM_TYPE_LABELS: Record<string, string> = {
   altro: "interior room",
 };
 
+/**
+ * Rivestimenti di parete, in inglese: prima il prompt diceva «Wall cladding mattone vista
+ * on parete principale with color selected», con le chiavi italiane e senza un colore.
+ */
+export const WALL_CLADDING_DESCRIPTIONS: Record<string, string> = {
+  boiserie_legno: "wood wall panelling (boiserie): timber panels or slats fixed to the wall, with real panel joints, mouldings and depth",
+  mattone_vista: "exposed brick: clay bricks in running bond with recessed mortar joints and natural brick-to-brick variation",
+  pietra_naturale: "natural stone cladding: irregular split stones of mixed sizes with recessed joints and real relief",
+  pannelli_3d: "3D decorative wall panels: repeated sculpted relief modules casting crisp, regular shadows",
+  intonaco_spatolato: "hand-trowelled textured plaster: visible spatula strokes and raised ridges, no joints",
+  stucco_veneziano: "polished Venetian stucco: thin layered lime plaster with soft cloudy marbling and a gentle sheen, no joints",
+};
+
+/** Intonaci: uno strato sottile e continuo, senza fughe né pannelli. */
+export const PLASTER_CLADDINGS = ["intonaco_spatolato", "stucco_veneziano"];
+
+/** Pareti bersaglio di carta da parati e rivestimenti, in inglese. */
+export const WALL_TARGET_DESCRIPTIONS: Record<string, string> = {
+  parete_principale: "the main focal wall facing the camera only",
+  tutte: "all visible wall planes",
+};
+
 export const ROOM_INTEGRITY_CONSTRAINTS = [
   "same room geometry, same walls, same ceiling plane and same openings",
   "same camera angle, same perspective, same lens feel and same image orientation",

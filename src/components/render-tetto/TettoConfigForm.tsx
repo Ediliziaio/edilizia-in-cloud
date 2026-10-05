@@ -7,11 +7,22 @@ import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { ReferenceThumb } from "@/components/render/ReferenceThumb";
+// Le stesse foto che il motore allega al render (la miniatura è a colori anche per quelle di forma).
+import {
+  GUTTER_MATERIAL_PHOTOS,
+  ROOF_COVERING_PHOTOS,
+  SKYLIGHT_TYPE_PHOTOS,
+  SOLAR_TYPE_PHOTOS,
+} from "../../../shared/render-references/roofReferences.ts";
 import type {
   ConfigurazioneTetto,
+  ConfigComignoli,
+  ConfigFermaneve,
   TipoManto,
   FinituraMantoTetto,
   MaterialeGrondaia,
+  MaterialeLattoneria,
   TipoLucernario,
   TipoInterventoTetto,
   TargetFaldeTetto,
@@ -52,6 +63,27 @@ const MATERIALI_GRONDAIA: { value: MaterialeGrondaia; label: string }[] = [
   { value: "acciaio_zincato", label: "Acciaio zincato" },
   { value: "pvc", label: "PVC" },
   { value: "zinco_titanio", label: "Zinco-titanio" },
+];
+
+/** Rame, zinco-titanio e acciaio zincato restano al naturale: il prompt non usa il colore. */
+const METALLI_NATURALI: readonly string[] = ["rame", "zinco_titanio", "acciaio_zincato"];
+
+const MATERIALI_LATTONERIA: { value: MaterialeLattoneria; label: string }[] = [
+  { value: "alluminio", label: "Alluminio preverniciato" },
+  { value: "rame", label: "Rame" },
+  { value: "zinco_titanio", label: "Zinco-titanio" },
+  { value: "acciaio_zincato", label: "Acciaio zincato" },
+];
+
+const FINITURE_COMIGNOLO: { value: NonNullable<ConfigComignoli["finitura"]>; label: string }[] = [
+  { value: "intonaco", label: "Intonaco tinteggiato" },
+  { value: "mattoni", label: "Mattoni a vista" },
+  { value: "rame", label: "Rivestito in rame" },
+];
+
+const TIPI_FERMANEVE: { value: NonNullable<ConfigFermaneve["tipo"]>; label: string }[] = [
+  { value: "ganci", label: "Ganci sparsi" },
+  { value: "griglia", label: "Barra continua" },
 ];
 
 const TIPI_LUCERNARIO: { value: TipoLucernario; label: string }[] = [
@@ -120,6 +152,11 @@ export const DEFAULT_TETTO_CONFIG: ConfigurazioneTetto = {
     quantita: "medi",
     posizione: "falda_principale",
   },
+  // Spenti: il prompt non scrive niente finché non si attivano.
+  scossaline: { azione: "mantieni" },
+  comignoli: { azione: "mantieni" },
+  fermaneve: { attivo: false, tipo: "ganci" },
+  linea_vita: { attivo: false },
   note_libere: "",
 };
 
@@ -172,6 +209,17 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
       ...value,
       pannelli_solari: { ...(value.pannelli_solari ?? DEFAULT_TETTO_CONFIG.pannelli_solari!), [key]: val },
     });
+
+  const setScossaline = <K extends keyof NonNullable<typeof value.scossaline>>(key: K, val: NonNullable<typeof value.scossaline>[K]) =>
+    onChange({ ...value, scossaline: { ...(value.scossaline ?? DEFAULT_TETTO_CONFIG.scossaline!), [key]: val } });
+
+  const setComignoli = <K extends keyof NonNullable<typeof value.comignoli>>(key: K, val: NonNullable<typeof value.comignoli>[K]) =>
+    onChange({ ...value, comignoli: { ...(value.comignoli ?? DEFAULT_TETTO_CONFIG.comignoli!), [key]: val } });
+
+  const setFermaneve = <K extends keyof NonNullable<typeof value.fermaneve>>(key: K, val: NonNullable<typeof value.fermaneve>[K]) =>
+    onChange({ ...value, fermaneve: { ...(value.fermaneve ?? DEFAULT_TETTO_CONFIG.fermaneve!), [key]: val } });
+
+  const grondaieAlNaturale = METALLI_NATURALI.includes(value.grondaie.materiale);
 
   const handleMantoSelect = (tipo: TipoManto) => {
     const opt = MANTI.find(m => m.value === tipo);
@@ -302,8 +350,15 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
               >
                 <CardContent className="p-3 flex flex-col gap-1 max-md:p-2.5">
                   <div className="flex items-center gap-2">
+                    {ROOF_COVERING_PHOTOS[m.value] && (
+                      <ReferenceThumb
+                        photo={ROOF_COVERING_PHOTOS[m.value]}
+                        alt={`Manto ${m.label}`}
+                        className="h-10 w-10 shrink-0 rounded-md"
+                      />
+                    )}
                     <div
-                      className="w-5 h-5 rounded-full border"
+                      className="w-5 h-5 shrink-0 rounded-full border"
                       style={{ backgroundColor: m.defaultColor }}
                     />
                     <span className="text-xs font-semibold truncate max-md:text-[13px]">{m.label}</span>
@@ -423,31 +478,60 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
           <div className="grid grid-cols-2 gap-4 max-md:gap-2">
             <div className="space-y-1.5">
               <Label className="text-xs max-md:text-[11px]">Materiale</Label>
-              <Select value={value.grondaie.materiale} onValueChange={v => setGrondaie("materiale", v as MaterialeGrondaia)} disabled={disabled}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {MATERIALI_GRONDAIA.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs max-md:text-[11px]">Colore grondaia</Label>
+              {/* La miniatura mostra il materiale scelto (una foto dentro le voci finirebbe anche nel campo chiuso). */}
               <div className="flex items-center gap-2">
-                <Input
-                  type="color"
-                  value={value.grondaie.colore_hex}
-                  onChange={e => setGrondaie("colore_hex", e.target.value)}
-                  disabled={disabled}
-                  className="w-8 h-8 p-0.5 cursor-pointer"
-                />
-                <Input
-                  value={value.grondaie.colore_hex}
-                  onChange={e => setGrondaie("colore_hex", e.target.value)}
-                  disabled={disabled}
-                  className="flex-1 text-xs"
-                />
+                {GUTTER_MATERIAL_PHOTOS[value.grondaie.materiale] && (
+                  <ReferenceThumb
+                    photo={GUTTER_MATERIAL_PHOTOS[value.grondaie.materiale]}
+                    alt={`Grondaia in ${MATERIALI_GRONDAIA.find(m => m.value === value.grondaie.materiale)?.label.toLowerCase() ?? ""}`}
+                    className="h-10 w-10 shrink-0 rounded-md"
+                  />
+                )}
+                <Select value={value.grondaie.materiale} onValueChange={v => setGrondaie("materiale", v as MaterialeGrondaia)} disabled={disabled}>
+                  <SelectTrigger className="min-w-0"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MATERIALI_GRONDAIA.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
+            {grondaieAlNaturale ? (
+              <p className="self-end pb-2 text-xs text-muted-foreground max-md:text-[11px]">
+                Colore naturale del metallo
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-xs max-md:text-[11px]">Colore grondaia</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="color"
+                    value={value.grondaie.colore_hex}
+                    onChange={e => setGrondaie("colore_hex", e.target.value)}
+                    disabled={disabled}
+                    className="w-8 h-8 p-0.5 cursor-pointer"
+                  />
+                  <Input
+                    value={value.grondaie.colore_hex}
+                    onChange={e => setGrondaie("colore_hex", e.target.value)}
+                    disabled={disabled}
+                    className="flex-1 text-xs"
+                  />
+                </div>
+              </div>
+            )}
+            {/* Il prompt aveva già il colore dei pluviali: mancava il campo. Vuoto = come la grondaia. */}
+            {!grondaieAlNaturale && (
+              <div className="space-y-1.5">
+                <Label className="text-xs max-md:text-[11px]">Colore pluviali</Label>
+                <Input
+                  value={value.grondaie.colore_pluviale_hex ?? ""}
+                  onChange={e => setGrondaie("colore_pluviale_hex", e.target.value || undefined)}
+                  disabled={disabled}
+                  placeholder="Come la grondaia"
+                  className="text-xs"
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -479,12 +563,21 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
               {value.lucernari.azione === "aggiungi" && (
                 <div className="space-y-1.5">
                   <Label className="text-xs max-md:text-[11px]">Tipo</Label>
-                  <Select value={value.lucernari.tipo ?? "piatto"} onValueChange={v => setLucernari("tipo", v as TipoLucernario)} disabled={disabled}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {TIPI_LUCERNARIO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    {SKYLIGHT_TYPE_PHOTOS[value.lucernari.tipo ?? "piatto"] && (
+                      <ReferenceThumb
+                        photo={SKYLIGHT_TYPE_PHOTOS[value.lucernari.tipo ?? "piatto"]}
+                        alt={TIPI_LUCERNARIO.find(t => t.value === (value.lucernari.tipo ?? "piatto"))?.label ?? "Lucernario"}
+                        className="h-10 w-10 shrink-0 rounded-md"
+                      />
+                    )}
+                    <Select value={value.lucernari.tipo ?? "piatto"} onValueChange={v => setLucernari("tipo", v as TipoLucernario)} disabled={disabled}>
+                      <SelectTrigger className="min-w-0"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {TIPI_LUCERNARIO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               )}
             </div>
@@ -519,6 +612,26 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
                     </SelectContent>
                   </Select>
                 </div>
+                {/* Il prompt scriveva già «frame color»: senza campo restava il grigio scuro di ripiego. */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs max-md:text-[11px]">Colore telaio</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="color"
+                      value={value.lucernari.colore_telaio_hex ?? "#3c3c3c"}
+                      onChange={e => setLucernari("colore_telaio_hex", e.target.value)}
+                      disabled={disabled}
+                      className="w-8 h-8 p-0.5 cursor-pointer"
+                    />
+                    <Input
+                      value={value.lucernari.colore_telaio_hex ?? ""}
+                      onChange={e => setLucernari("colore_telaio_hex", e.target.value || undefined)}
+                      disabled={disabled}
+                      placeholder="#3c3c3c"
+                      className="flex-1 text-xs"
+                    />
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -540,18 +653,28 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
             <div className="grid grid-cols-2 gap-4 max-md:gap-2">
               <div className="space-y-1.5">
                 <Label className="text-xs max-md:text-[11px]">Tipo pannello</Label>
-                <Select
-                  value={value.pannelli_solari.tipo ?? "fotovoltaico_nero"}
-                  onValueChange={v => setPannelli("tipo", v as "fotovoltaico_nero" | "fotovoltaico_blu" | "tegola_solare_integrata")}
-                  disabled={disabled}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fotovoltaico_nero">Fotovoltaico nero</SelectItem>
-                    <SelectItem value="fotovoltaico_blu">Fotovoltaico blu</SelectItem>
-                    <SelectItem value="tegola_solare_integrata">Tegola solare integrata</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  {/* La foto che il motore allega: la tegola solare integrata, oppure i moduli con cornice (una sola foto per nero e blu). */}
+                  {SOLAR_TYPE_PHOTOS[value.pannelli_solari.tipo ?? "fotovoltaico_nero"] && (
+                    <ReferenceThumb
+                      photo={SOLAR_TYPE_PHOTOS[value.pannelli_solari.tipo ?? "fotovoltaico_nero"]}
+                      alt={value.pannelli_solari.tipo === "tegola_solare_integrata" ? "Tegole solari integrate" : "Pannelli fotovoltaici con cornice"}
+                      className="h-10 w-10 shrink-0 rounded-md"
+                    />
+                  )}
+                  <Select
+                    value={value.pannelli_solari.tipo ?? "fotovoltaico_nero"}
+                    onValueChange={v => setPannelli("tipo", v as "fotovoltaico_nero" | "fotovoltaico_blu" | "tegola_solare_integrata")}
+                    disabled={disabled}
+                  >
+                    <SelectTrigger className="min-w-0"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fotovoltaico_nero">Fotovoltaico nero</SelectItem>
+                      <SelectItem value="fotovoltaico_blu">Fotovoltaico blu</SelectItem>
+                      <SelectItem value="tegola_solare_integrata">Tegola solare integrata</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs max-md:text-[11px]">Quantita</Label>
@@ -586,6 +709,128 @@ export function TettoConfigForm({ value, onChange, disabled }: Props) {
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── Lattonerie e dettagli del tetto ──────────────────────────────── */}
+      {/* Voci da preventivo che prima si potevano solo scrivere nelle note: ognuna parte spenta. */}
+      <div className="space-y-3 border rounded-lg p-4 max-md:p-3">
+        <Label className="text-sm font-semibold max-md:text-[13px]">Lattonerie e dettagli</Label>
+
+        <div className="grid grid-cols-2 gap-4 max-md:gap-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs max-md:text-[11px]">Scossaline e colmi in lamiera</Label>
+            <Select
+              value={value.scossaline?.azione ?? "mantieni"}
+              onValueChange={v => {
+                const azione = v as "mantieni" | "sostituisci";
+                onChange({
+                  ...value,
+                  scossaline: {
+                    ...(value.scossaline ?? DEFAULT_TETTO_CONFIG.scossaline!),
+                    azione,
+                    ...(azione === "sostituisci" && !value.scossaline?.materiale ? { materiale: "alluminio" as const } : {}),
+                  },
+                });
+              }}
+              disabled={disabled}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mantieni">Mantieni</SelectItem>
+                <SelectItem value="sostituisci">Sostituisci</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {value.scossaline?.azione === "sostituisci" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs max-md:text-[11px]">Materiale</Label>
+              <Select value={value.scossaline.materiale ?? "alluminio"} onValueChange={v => setScossaline("materiale", v as MaterialeLattoneria)} disabled={disabled}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MATERIALI_LATTONERIA.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {value.scossaline?.azione === "sostituisci" && !METALLI_NATURALI.includes(value.scossaline.materiale ?? "alluminio") && (
+            <div className="space-y-1.5">
+              <Label className="text-xs max-md:text-[11px]">Colore lattonerie</Label>
+              <Input
+                value={value.scossaline.colore_hex ?? ""}
+                onChange={e => setScossaline("colore_hex", e.target.value || undefined)}
+                disabled={disabled}
+                placeholder="Es. testa di moro"
+                className="text-xs"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 max-md:gap-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs max-md:text-[11px]">Comignoli</Label>
+            <Select
+              value={value.comignoli?.azione ?? "mantieni"}
+              onValueChange={v => setComignoli("azione", v as "mantieni" | "rinnova")}
+              disabled={disabled}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mantieni">Mantieni</SelectItem>
+                <SelectItem value="rinnova">Rinnova la finitura</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {value.comignoli?.azione === "rinnova" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs max-md:text-[11px]">Finitura</Label>
+              <Select value={value.comignoli.finitura ?? "intonaco"} onValueChange={v => setComignoli("finitura", v as NonNullable<ConfigComignoli["finitura"]>)} disabled={disabled}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {FINITURE_COMIGNOLO.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {value.comignoli?.azione === "rinnova" && (value.comignoli.finitura ?? "intonaco") !== "rame" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs max-md:text-[11px]">Colore comignoli</Label>
+              <Input
+                value={value.comignoli.colore_hex ?? ""}
+                onChange={e => setComignoli("colore_hex", e.target.value || undefined)}
+                disabled={disabled}
+                placeholder="Es. come la facciata"
+                className="text-xs"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 max-md:gap-2">
+          <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
+            <Label className="text-xs max-md:text-[11px]">Fermaneve</Label>
+            <Switch checked={value.fermaneve?.attivo ?? false} onCheckedChange={v => setFermaneve("attivo", v)} disabled={disabled} />
+          </div>
+          <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2">
+            <Label className="text-xs max-md:text-[11px]">Linea vita sul colmo</Label>
+            <Switch
+              checked={value.linea_vita?.attivo ?? false}
+              onCheckedChange={v => onChange({ ...value, linea_vita: { attivo: v } })}
+              disabled={disabled}
+            />
+          </div>
+          {value.fermaneve?.attivo && (
+            <div className="space-y-1.5">
+              <Label className="text-xs max-md:text-[11px]">Tipo fermaneve</Label>
+              <Select value={value.fermaneve.tipo ?? "ganci"} onValueChange={v => setFermaneve("tipo", v as NonNullable<ConfigFermaneve["tipo"]>)} disabled={disabled}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TIPI_FERMANEVE.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Note libere ─────────────────────────────────────────────────── */}

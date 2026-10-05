@@ -43,7 +43,11 @@ export type PatternPosaEsterna =
   | "doga_sfalsata"
   | "stepping_stones"
   | "massello_spina"
-  | "massello_classico";
+  | "massello_classico"
+  /** Ghiaia stabilizzata, cementi: nessuna griglia di posa. */
+  | "superficie_continua"
+  /** Pietra a lastre irregolari (palladiana). «opus» resta l'opus romano a moduli rettangolari. */
+  | "opus_incertum";
 
 export type TipoGiuntoEsterno =
   | "fuga_sottile"
@@ -69,6 +73,8 @@ export type TipoGradinoEsterno =
   | "pedata_alzata_coordinate"
   | "toro_arrotondato"
   | "gradone_monolitico";
+
+export type MaterialeCopingPiscina = "travertino" | "pietra_chiara" | "gres_2cm" | "pietra_grigia" | "cemento_spazzolato" | "legno_wpc";
 
 export type UsoSuperficieEsterna =
   | "pedonale"
@@ -127,7 +133,7 @@ export interface ConfigurazionePavimentoEsterno {
   bordo: TipoBordoEsterna;
   gradino: TipoGradinoEsterno;
   uso: UsoSuperficieEsterna;
-  coping_materiale?: "travertino" | "pietra_chiara" | "gres_2cm" | "pietra_grigia" | "cemento_spazzolato" | "legno_wpc";
+  coping_materiale?: MaterialeCopingPiscina;
   elementi_da_rimuovere?: string[];
   elementi_da_preservare?: string[];
   note_libere?: string;

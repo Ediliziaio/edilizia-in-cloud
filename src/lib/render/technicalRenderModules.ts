@@ -1,3 +1,10 @@
+import {
+  opzioniDelModulo,
+  opzioniValide,
+  valoriApplicabili,
+  type CampoTestoTecnico,
+} from "../../../shared/render-technical/opzioni.ts";
+
 export const TECHNICAL_RENDER_MODULE_IDS = [
   "ristrutturazioni",
   "pavimenti-esterni",
@@ -18,6 +25,24 @@ export interface TechnicalRenderConfig {
   intensity: "leggera" | "media" | "completa";
   /** Foto prodotto del catalogo render dell'azienda scelte nel wizard (max 4). */
   catalogo_reference_ids?: string[];
+  /**
+   * Scelte strutturate oltre al preset (shared/render-technical/opzioni.ts):
+   * chiave → valore. Assente = «non specificato», il prompt resta quello di prima.
+   */
+  opzioni?: Record<string, string>;
+}
+
+export interface TechnicalRenderPreset {
+  value: string;
+  label: string;
+  description: string;
+  /**
+   * Testi di partenza coerenti con il preset. Prima il form teneva i testi del
+   * preset predefinito anche cambiando preset: una «Battente liscia» partiva con
+   * «Porta richiesta: porta interna rasomuro laccata» nelle note del prompt.
+   * Assenti = quelli di defaultConfig.
+   */
+  testi?: Partial<Record<CampoTestoTecnico, string>>;
 }
 
 export interface TechnicalRenderModuleSpec {
@@ -32,7 +57,7 @@ export interface TechnicalRenderModuleSpec {
   galleryDescription: string;
   accentClassName: string;
   buttonClassName: string;
-  presets: Array<{ value: string; label: string; description: string }>;
+  presets: TechnicalRenderPreset[];
   defaultConfig: TechnicalRenderConfig;
 }
 
@@ -79,10 +104,46 @@ export const technicalRenderModuleSpecs: Record<TechnicalRenderModuleId, Technic
     buttonClassName: "bg-lime-700 hover:bg-lime-800",
     presets: [
       { value: "gres_outdoor_grande_formato", label: "Gres outdoor grande formato", description: "Lastre esterne antiscivolo con fughe rade e tagli perimetrali." },
-      { value: "deck_wpc", label: "Deck WPC", description: "Doghe outdoor, giunti aperti e bordo deck credibile." },
-      { value: "pietra_naturale", label: "Pietra naturale", description: "Variazioni minerali, moduli plausibili e raccordi puliti." },
-      { value: "coping_piscina", label: "Solo coping piscina", description: "Cambia solo bordo piscina, preservando vasca e superfici non target." },
-      { value: "autobloccanti_carrabili", label: "Autobloccanti carrabili", description: "Pattern modulare stabile e look tecnico da vialetto." },
+      {
+        value: "gres_outdoor_standard", label: "Gres outdoor 60x60", description: "Piastrelle esterne 2 cm antiscivolo in formato standard, fuga sottile.",
+        testi: { materialOrSystem: "gres porcellanato outdoor 2 cm 60x60" },
+      },
+      {
+        value: "pietra_naturale", label: "Pietra naturale", description: "Variazioni minerali, moduli plausibili e raccordi puliti.",
+        testi: { materialOrSystem: "pietra naturale a opus, spessore 3 cm", colorAndFinish: "tonalità naturale della pietra", technicalDetails: "Rispetta soglie e pendenze; fughe regolari e tagli perimetrali puliti." },
+      },
+      {
+        value: "autobloccanti_carrabili", label: "Autobloccanti carrabili", description: "Pattern modulare stabile e look tecnico da vialetto.",
+        testi: { materialOrSystem: "masselli autobloccanti carrabili 20x10", colorAndFinish: "grigio chiaro", technicalDetails: "Rispetta soglie, pendenze e cordoli; fughe in sabbia e tagli perimetrali puliti." },
+      },
+      {
+        value: "cotto_esterno", label: "Cotto da esterno", description: "Cotto antigelivo con variazioni di tono e fughe medie.",
+        testi: { materialOrSystem: "cotto da esterno antigelivo 15x30", colorAndFinish: "cotto naturale", technicalDetails: "Rispetta soglie e pendenze; fughe medie regolari e tagli perimetrali puliti." },
+      },
+      {
+        value: "cemento_architettonico", label: "Cemento spazzolato", description: "Getto continuo a campiture, superficie spazzolata, giunti di controllo sottili.",
+        testi: { materialOrSystem: "cemento spazzolato a getto continuo", colorAndFinish: "grigio cemento naturale", technicalDetails: "Rispetta soglie e pendenze; giunti di controllo sottili e bordi netti." },
+      },
+      {
+        value: "cemento_drenante", label: "Cemento drenante", description: "Getto continuo permeabile, grana a vista, nessuna fuga.",
+        testi: { materialOrSystem: "cemento drenante a getto continuo", colorAndFinish: "grigio naturale", technicalDetails: "Rispetta soglie e pendenze; bordi di contenimento netti, nessuna fuga." },
+      },
+      {
+        value: "ghiaia_stabilizzata", label: "Ghiaia stabilizzata", description: "Ghiaia compattata su grigliato, calpestabile, con bordi di contenimento.",
+        testi: { materialOrSystem: "ghiaia stabilizzata su grigliato drenante", colorAndFinish: "ghiaia chiara", technicalDetails: "Rispetta soglie e pendenze; bordi di contenimento netti, superficie compatta e piana." },
+      },
+      {
+        value: "deck_wpc", label: "Deck WPC", description: "Doghe outdoor, giunti aperti e bordo deck credibile.",
+        testi: { materialOrSystem: "deck in WPC a doghe con giunti aperti", colorAndFinish: "marrone legno naturale", technicalDetails: "Rispetta soglie e pendenze; doghe con giunti aperti e testate pulite." },
+      },
+      {
+        value: "deck_legno", label: "Deck legno naturale", description: "Doghe in legno massello con venatura, giunti aperti e testate pulite.",
+        testi: { materialOrSystem: "deck in legno naturale a doghe", colorAndFinish: "legno naturale oliato", technicalDetails: "Rispetta soglie e pendenze; doghe con giunti aperti e testate pulite." },
+      },
+      {
+        value: "coping_piscina", label: "Solo coping piscina", description: "Cambia solo bordo piscina, preservando vasca e superfici non target.",
+        testi: { targetArea: "bordo della piscina", materialOrSystem: "bordo piscina (copertina) nuovo", colorAndFinish: "tono naturale del materiale del bordo", technicalDetails: "Cambia solo il bordo vasca: acqua, vasca e superfici intorno restano identiche." },
+      },
     ],
     defaultConfig: {
       interventionPreset: "gres_outdoor_grande_formato",
@@ -107,11 +168,23 @@ export const technicalRenderModuleSpecs: Record<TechnicalRenderModuleId, Technic
     accentClassName: "text-green-700",
     buttonClassName: "bg-green-700 hover:bg-green-800",
     presets: [
-      { value: "solo_prato", label: "Solo prato nuovo", description: "Rifacimento prato senza aggiungere elementi non richiesti." },
-      { value: "aiuole_perimetrali", label: "Aiuole perimetrali", description: "Bordi puliti, arbusti in scala e passaggi liberi." },
-      { value: "siepe_schermante", label: "Siepe schermante", description: "Schermatura realistica senza coprire aperture non richieste." },
+      {
+        value: "solo_prato", label: "Solo prato nuovo", description: "Rifacimento prato senza aggiungere elementi non richiesti.",
+        testi: { targetArea: "prato principale", materialOrSystem: "prato nuovo in rotoli", colorAndFinish: "verde naturale" },
+      },
+      {
+        value: "aiuole_perimetrali", label: "Aiuole perimetrali", description: "Bordi puliti, arbusti in scala e passaggi liberi.",
+        testi: { targetArea: "bordi perimetrali del giardino", materialOrSystem: "aiuole perimetrali con arbusti e bordure" },
+      },
+      {
+        value: "siepe_schermante", label: "Siepe schermante", description: "Schermatura realistica senza coprire aperture non richieste.",
+        testi: { targetArea: "confine del giardino da schermare", materialOrSystem: "siepe sempreverde schermante", colorAndFinish: "verde scuro naturale" },
+      },
       { value: "moderno_minimale", label: "Moderno minimale", description: "Prato, masse verdi controllate, bordi netti e camminamento." },
-      { value: "premium_relax", label: "Premium relax", description: "Progetto completo con zone verdi, percorsi, luci e arredo sobrio." },
+      {
+        value: "premium_relax", label: "Premium relax", description: "Progetto completo con zone verdi, percorsi, luci e arredo sobrio.",
+        testi: { materialOrSystem: "prato, aiuole curate, camminamento in pietra e luci soffuse" },
+      },
     ],
     defaultConfig: {
       interventionPreset: "moderno_minimale",
@@ -137,10 +210,28 @@ export const technicalRenderModuleSpecs: Record<TechnicalRenderModuleId, Technic
     buttonClassName: "bg-slate-800 hover:bg-slate-900",
     presets: [
       { value: "moderna_liscia", label: "Moderna liscia", description: "Pannello pulito, ferramenta minimale e telaio coerente." },
-      { value: "classica_pantografata", label: "Classica pantografata", description: "Dettagli classici proporzionati senza eccessi." },
-      { value: "rasomuro", label: "Rasomuro", description: "Coprifili assenti o minimi e integrazione filo parete." },
-      { value: "con_fiancoluce", label: "Con fiancoluce", description: "Fiancoluce proporzionato solo se il vano lo consente." },
-      { value: "solo_finitura", label: "Cambio sola finitura", description: "Preserva vano e geometria, cambia solo look pannello." },
+      {
+        value: "classica_pantografata", label: "Classica pantografata", description: "Dettagli classici proporzionati senza eccessi.",
+        testi: { materialOrSystem: "porta blindata classica con pannello pantografato", colorAndFinish: "noce caldo pantografato" },
+      },
+      // Questi tre preset tengono la finitura del modello base, effetto legno: il colore di
+      // partenza è un legno, non l'«antracite opaco» del preset liscio («wood-effect in antracite»).
+      {
+        value: "rasomuro", label: "Rasomuro", description: "Coprifili assenti o minimi e integrazione filo parete.",
+        testi: { materialOrSystem: "porta blindata rasomuro filo parete", colorAndFinish: "rovere naturale" },
+      },
+      {
+        value: "con_fiancoluce", label: "Con fiancoluce", description: "Fiancoluce proporzionato solo se il vano lo consente.",
+        testi: { materialOrSystem: "porta blindata con fiancoluce vetrato", colorAndFinish: "rovere naturale" },
+      },
+      {
+        value: "solo_finitura", label: "Cambio sola finitura", description: "Preserva vano e geometria, cambia solo look pannello.",
+        testi: {
+          materialOrSystem: "stessa porta blindata, nuovo pannello di rivestimento",
+          colorAndFinish: "rovere naturale",
+          technicalDetails: "Cambia solo il pannello di rivestimento: stessa porta, stesso telaio, stessa ferramenta e stessa soglia.",
+        },
+      },
     ],
     defaultConfig: {
       interventionPreset: "moderna_liscia",
@@ -165,11 +256,39 @@ export const technicalRenderModuleSpecs: Record<TechnicalRenderModuleId, Technic
     accentClassName: "text-violet-600",
     buttonClassName: "bg-violet-600 hover:bg-violet-700",
     presets: [
-      { value: "battente_liscia", label: "Battente liscia", description: "Porta semplice con telaio e coprifili coerenti." },
-      { value: "scorrevole_interno_muro", label: "Scorrevole interno muro", description: "Porta a scomparsa senza binario esterno visibile." },
-      { value: "scorrevole_esterno_muro", label: "Scorrevole esterno muro", description: "Binario visibile solo con parete libera e senza collisioni." },
+      {
+        value: "battente_liscia", label: "Battente liscia", description: "Porta semplice con telaio e coprifili coerenti.",
+        testi: { materialOrSystem: "porta interna battente liscia con coprifili" },
+      },
+      {
+        value: "battente_classica", label: "Battente classica", description: "Pannelli pantografati, coprifili classici e maniglia in tono.",
+        testi: { materialOrSystem: "porta interna classica pantografata con coprifili", colorAndFinish: "bianco opaco con maniglia ottone" },
+      },
+      {
+        value: "scorrevole_interno_muro", label: "Scorrevole interno muro", description: "Porta a scomparsa senza binario esterno visibile.",
+        testi: { materialOrSystem: "porta scorrevole a scomparsa nel muro (controtelaio)" },
+      },
+      {
+        value: "scorrevole_esterno_muro", label: "Scorrevole esterno muro", description: "Binario visibile solo con parete libera e senza collisioni.",
+        testi: { materialOrSystem: "porta scorrevole esterno muro con binario a vista" },
+      },
       { value: "rasomuro", label: "Rasomuro", description: "Integrazione pulita con parete e coprifili assenti/minimi." },
-      { value: "vetrata_satinata", label: "Vetrata satinata", description: "Vetro realistico, privacy coerente e telai proporzionati." },
+      {
+        value: "tutta_altezza", label: "Tutta altezza", description: "Anta dal pavimento al soffitto, telaio minimale.",
+        testi: { materialOrSystem: "porta interna a tutta altezza fino al soffitto" },
+      },
+      {
+        value: "a_libro", label: "A libro", description: "Due ante che si ripiegano: per vani dove l'anta non ha spazio.",
+        testi: { materialOrSystem: "porta a libro a due ante" },
+      },
+      {
+        value: "doppia_anta", label: "Doppia anta", description: "Due ante simmetriche: solo per vani larghi.",
+        testi: { materialOrSystem: "porta interna a doppia anta per vano largo" },
+      },
+      {
+        value: "vetrata_satinata", label: "Vetrata", description: "Anta in vetro con telaio sottile: satinato se non scegli altro.",
+        testi: { materialOrSystem: "porta interna in vetro con telaio sottile", colorAndFinish: "telaio sottile nero opaco" },
+      },
     ],
     defaultConfig: {
       interventionPreset: "rasomuro",
@@ -189,6 +308,62 @@ export function isTechnicalRenderModuleId(value: string | undefined): value is T
 
 export function getTechnicalRenderModuleSpec(moduleId: TechnicalRenderModuleId): TechnicalRenderModuleSpec {
   return technicalRenderModuleSpecs[moduleId];
+}
+
+const CAMPI_TESTO: CampoTestoTecnico[] = ["targetArea", "materialOrSystem", "colorAndFinish", "technicalDetails"];
+
+/**
+ * Il testo di partenza di un campo per le scelte correnti: prima quello del valore
+ * di un'opzione scelta (es. finitura «noce scuro»), poi quello del preset, infine
+ * quello del modulo.
+ */
+export function testoPredefinito(
+  spec: TechnicalRenderModuleSpec,
+  config: Pick<TechnicalRenderConfig, "interventionPreset" | "opzioni">,
+  campo: CampoTestoTecnico,
+): string {
+  for (const opzione of opzioniDelModulo(spec.id)) {
+    const scelto = config.opzioni?.[opzione.chiave];
+    if (!scelto) continue;
+    const valore = valoriApplicabili(opzione, config.interventionPreset).find((v) => v.value === scelto);
+    if (valore?.testi?.[campo]) return valore.testi[campo] as string;
+  }
+  const preset = spec.presets.find((p) => p.value === config.interventionPreset);
+  return preset?.testi?.[campo] ?? spec.defaultConfig[campo];
+}
+
+/**
+ * Applica una nuova scelta (preset o opzioni) e porta con sé i testi che l'utente
+ * non ha toccato: un campo ancora uguale al testo di partenza delle scelte vecchie
+ * prende quello delle scelte nuove; uno scritto a mano resta com'è. Le opzioni che
+ * il nuovo preset non prevede si scartano.
+ */
+export function applicaSceltaTecnica(
+  spec: TechnicalRenderModuleSpec,
+  prima: TechnicalRenderConfig,
+  scelta: Partial<Pick<TechnicalRenderConfig, "interventionPreset" | "opzioni">>,
+): TechnicalRenderConfig {
+  const interventionPreset = scelta.interventionPreset ?? prima.interventionPreset;
+  const opzioni = opzioniValide(spec.id, interventionPreset, "opzioni" in scelta ? scelta.opzioni : prima.opzioni);
+  const dopo: TechnicalRenderConfig = { ...prima, interventionPreset, opzioni };
+  if (!opzioni) delete dopo.opzioni;
+  for (const campo of CAMPI_TESTO) {
+    if ((prima[campo] ?? "") === testoPredefinito(spec, prima, campo)) dopo[campo] = testoPredefinito(spec, dopo, campo);
+  }
+  return dopo;
+}
+
+/** Cambia (o toglie, con valore vuoto) una sola opzione. */
+export function cambiaOpzioneTecnica(
+  spec: TechnicalRenderModuleSpec,
+  prima: TechnicalRenderConfig,
+  chiave: string,
+  valore: string | null,
+): TechnicalRenderConfig {
+  const opzioni = { ...(prima.opzioni ?? {}) };
+  if (valore) opzioni[chiave] = valore;
+  else delete opzioni[chiave];
+  return applicaSceltaTecnica(spec, prima, { opzioni });
 }
 
 export function summarizeTechnicalConfig(config: TechnicalRenderConfig): string[] {

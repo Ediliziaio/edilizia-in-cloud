@@ -7,7 +7,9 @@ import {
   MATERIAL_DESCRIPTIONS,
   PERGOLA_TYPE_DESCRIPTIONS,
   SIDE_CLOSURE_DESCRIPTIONS,
+  describeCoverExtras,
 } from "./promptFragments.ts";
+import { pergolaAddossata, tipologiaDescritta } from "./pergolaCoerenza.ts";
 import type {
   ConfigurazionePergole,
   PergolaInstallabilityEnvelope,
@@ -21,8 +23,9 @@ function uniq(values: string[]): string[] {
   return Array.from(new Set(values.filter((value) => value.trim().length > 0)));
 }
 
+/** La tipologia dice addossata/autoportante e vince sull'interruttore (prima bastava uno dei due: «autoportante» con l'interruttore acceso usciva addossata). */
 export function isPergolaWallMounted(config: ConfigurazionePergole): boolean {
-  return config.installazione.addossata_si_no || config.struttura.tipo.includes("addossata");
+  return pergolaAddossata(config.struttura.tipo, config.installazione.addossata_si_no);
 }
 
 function allowsFullPergolaComposition(config: ConfigurazionePergole): boolean {
@@ -34,18 +37,21 @@ function allowsFullPergolaComposition(config: ConfigurazionePergole): boolean {
 export function buildPergolaTechnicalSpecification(config: ConfigurazionePergole): PergolaTechnicalSpecification {
   const wallMounted = isPergolaWallMounted(config);
   const coverState = COVER_STATE_RULES[config.copertura.stato];
-  const coverDescription = COVER_DESCRIPTIONS[config.copertura.tipo];
+  // colore del telo e vetro della copertura, solo se scelti (B, 04/10)
+  const coverDescription = `${COVER_DESCRIPTIONS[config.copertura.tipo]}${describeCoverExtras(config.copertura.tipo, config.copertura)}`;
   const materialDescription = MATERIAL_DESCRIPTIONS[config.struttura.materiale];
   const sideClosureDescription = SIDE_CLOSURE_DESCRIPTIONS[config.chiusure_laterali.tipo];
   const finish = config.struttura.finitura ? `, ${config.struttura.finitura.replace(/_/g, " ")} finish` : "";
+  // «Solo copertura» da bioclimatica a telo: la struttura si descrive senza lamelle.
+  const typology = tipologiaDescritta(config.struttura.tipo, config.copertura.tipo, wallMounted);
 
   return {
-    typology: config.struttura.tipo,
+    typology,
     wallMounted,
     material: config.struttura.materiale,
     materialDescription,
     colorDescription: `${config.struttura.colore_nome} (${config.struttura.colore_hex})${finish}`,
-    structureLanguage: `${PERGOLA_TYPE_DESCRIPTIONS[config.struttura.tipo]}; style language ${config.struttura.stile ?? "premium_contemporaneo"}`,
+    structureLanguage: `${PERGOLA_TYPE_DESCRIPTIONS[typology]}; style language ${config.struttura.stile ?? "premium_contemporaneo"}`,
     coverType: config.copertura.tipo,
     coverDescription,
     coverStateRule: coverState,

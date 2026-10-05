@@ -160,6 +160,10 @@ ${bullets([
     `Base course: ${elements.baseCourse.description}. ${elements.baseCourse.profileRule ?? ""}`.trim(),
     `Gutters/eaves: ${elements.gutters.description}. ${elements.gutters.profileRule ?? ""}`.trim(),
     `Balcony railings: ${elements.railings.description}. ${elements.railings.profileRule ?? ""}`.trim(),
+    // Riga nuova solo se le persiane cambiano: i piani salvati prima (senza `shutters`) danno lo stesso blocco.
+    elements.shutters && elements.shutters.action !== "keep"
+      ? `Window shutters: ${elements.shutters.description}. ${elements.shutters.profileRule ?? ""}`.trim()
+      : null,
   ])}`;
 
   blocks.H = `[BLOCK H - SURFACE PREPARATION / REMOVAL RULES]

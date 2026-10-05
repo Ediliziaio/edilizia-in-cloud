@@ -82,6 +82,14 @@ più piccola.
 - Le edge function vengono deployate dal job CI **Deploy edge functions** a ogni
   push su `main`: modificare un file sotto `supabase/functions/` e pushare è
   sufficiente, non serve `supabase functions deploy`.
+  **Trappola:** il job guarda solo i file cambiati sotto `supabase/functions/`.
+  Una modifica fatta SOLO sotto `shared/` (le tabelle dei riferimenti dei render in
+  `shared/render-references/`, i builder dei prompt `shared/render-*/`) NON
+  ripubblica le funzioni che la importano: sul frontend le foto compaiono, nella
+  edge restano quelle vecchie. Va toccato anche l'`index.ts` di ogni funzione
+  interessata (anche solo un commento) oppure lanciato a mano il workflow con
+  l'elenco delle funzioni. Il 05/10/2026 è successo con 44 foto nuove:
+  `generate-*-render` ripubblicate toccando il commento che precede il collector.
 - Le pagine admin sono lazy-loaded: dopo un deploy, l'hash del bundle principale
   può non cambiare anche se le pagine sono cambiate. Per verificare che una
   modifica sia online, guardare il chunk giusto (es. `adminRoutes-*.js`), non

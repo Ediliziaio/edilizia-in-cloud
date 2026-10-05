@@ -11,7 +11,8 @@ export const DEFAULT_PERGOLE_CONFIG: ConfigurazionePergole = {
     altezza_apparente: "standard",
     numero_montanti: 2,
     posizione_montanti: "frontali_visibili",
-    ancoraggio_a_terra: "pavimento",
+    // ancoraggio_a_terra assente = dalla zona (giardino → plinti nel prato): un
+    // «pavimento» fisso qui vinceva anche sulla zona giardino.
     rapporto_con_porte_finestre: "Mantieni porte-finestre e oscuranti utilizzabili, senza tagliare infissi o soglie.",
   },
   struttura: {
@@ -25,7 +26,6 @@ export const DEFAULT_PERGOLE_CONFIG: ConfigurazionePergole = {
   copertura: {
     tipo: "lamelle_orientabili",
     stato: "lamelle_45",
-    trasparenza: "opaco",
   },
   chiusure_laterali: {
     tipo: "nessuna",

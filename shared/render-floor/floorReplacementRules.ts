@@ -1,4 +1,6 @@
 import {
+  RUG_FURNITURE_RULE,
+  RUG_REMOVAL_RULE,
   BASEBOARD_DESCRIPTIONS,
   BEVEL_DESCRIPTIONS,
   BORDER_BAND_DESCRIPTIONS,
@@ -24,11 +26,15 @@ import type {
   TipoPavimento,
 } from "./types.ts";
 
+// Il terrazzo veneziano e' gettato in opera: il form lo tratta da sempre come continuo
+// (formato e fughe spenti, «senza fughe»), mentre qui finiva tra le piastrelle e il
+// prompt diceva «60x60 cm modules» con fughe da 0 mm. Ora e' continuo anche qui.
 const SEAMLESS_TYPES = new Set<TipoPavimento>([
   "cemento_resina",
   "resina_continua",
   "microcemento",
   "moquette",
+  "terrazzo_veneziano",
 ]);
 
 const WOOD_TYPES = new Set<TipoPavimento>([
@@ -47,7 +53,38 @@ const TILE_TYPES = new Set<TipoPavimento>([
   "terrazzo_veneziano",
 ]);
 
-function inferVisualEffect(type: TipoPavimento, explicit?: EffettoVisivoPavimento): EffettoVisivoPavimento {
+/** Materiali veri che non sono legno: un'essenza rimasta da un tipo precedente non li descrive. */
+const NATURAL_NON_WOOD_TYPES = new Set<TipoPavimento>([
+  "marmo",
+  "pietra_naturale",
+  "cotto",
+  "terrazzo_veneziano",
+  "cemento_resina",
+  "resina_continua",
+  "microcemento",
+  "moquette",
+]);
+
+/**
+ * Il formato in centimetri (60x60, 20x120…) descrive solo i pavimenti a piastrelle o lastre:
+ * il legno ha le misure del listello, i continui nessuna.
+ */
+export function floorUsesTileFormat(type: TipoPavimento): boolean {
+  return TILE_TYPES.has(type) && !SEAMLESS_TYPES.has(type);
+}
+
+/**
+ * L'essenza vale solo se il pavimento si presenta come legno: parquet sempre; laminato,
+ * LVT, gres e ceramica solo con l'effetto legno; mai marmo, pietra, cotto o i continui.
+ * Il form lascia l'essenza scelta quando si cambia materiale: senza questo controllo un
+ * gres effetto cemento usciva con «Wood essence: walnut…».
+ */
+export function woodEssenceApplies(type: TipoPavimento, visualEffect: EffettoVisivoPavimento): boolean {
+  if (NATURAL_NON_WOOD_TYPES.has(type)) return false;
+  return type === "parquet_massello" || type === "parquet_prefinito" || visualEffect === "legno";
+}
+
+export function inferVisualEffect(type: TipoPavimento, explicit?: EffettoVisivoPavimento): EffettoVisivoPavimento {
   if (explicit) return explicit;
   if (WOOD_TYPES.has(type)) return "legno";
   if (type === "marmo") return "marmo";
@@ -99,7 +136,7 @@ export function buildFloorMaterialSpecification(config: ConfigurazionePavimento)
   const tileLike = TILE_TYPES.has(type) && !seamless;
   const textile = type === "moquette";
 
-  const woodEssence = config.essenza_legno
+  const woodEssence = config.essenza_legno && woodEssenceApplies(type, visualEffect)
     ? WOOD_ESSENCE_DESCRIPTIONS[config.essenza_legno]
     : undefined;
 
@@ -155,6 +192,9 @@ export function buildFloorReplacementManifest(
     removals.push("Because the selected material is continuous, remove every joint, grout line, plank seam and tile outline from the old floor.");
   }
 
+  const rimuoviTappeti = config.tappeti === "rimuovi";
+  if (rimuoviTappeti) removals.push(`${RUG_REMOVAL_RULE}.`);
+
   const jointRules = spec.isSeamless
     ? [
         "Absolutely no grout lines, no tile joints, no plank seams, no module borders and no ghost grid.",
@@ -198,22 +238,36 @@ export function buildFloorReplacementManifest(
       ...coverage.raisedAreas.map((item) => `Resolve step/raised area floor continuation: ${item}.`),
     ],
     preservation: [
-      "Keep all walls, doors, windows, furniture, objects and lighting unchanged.",
+      rimuoviTappeti
+        ? "Keep all walls, doors, windows, furniture, objects and lighting unchanged; only the loose rugs are removed."
+        : "Keep all walls, doors, windows, furniture, objects and lighting unchanged.",
       "Keep room geometry and camera perspective unchanged.",
       ...scene.untouchedElements.map((item) => `Preserve ${item}.`),
     ],
-    patternRules: [
-      `Pattern: ${patternRule}.`,
-      `Direction: ${directionRule}.`,
-      `Scale: ${scaleRule}.`,
-      "Pattern must follow the photographed vanishing points with no warped lines or random repetition.",
-      "Perimeter cuts must be plausible near walls, corners, thresholds and fixed furniture.",
-    ],
+    // Un pavimento continuo non ha posa: prima riceveva comunque «joints form
+    // uninterrupted parallel grid lines» e «standard residential module scale»,
+    // in contraddizione con «Absolutely no grout lines» due blocchi dopo.
+    patternRules: spec.isSeamless
+      ? [
+          "Pattern: none — the selected floor is one continuous seamless surface: no laying pattern, no modules and no joint lines of any kind.",
+          "Surface movement: any trowel, roller or pile direction stays soft and follows the photographed perspective, never forming lines, tiles or a grid.",
+          "The continuous surface must meet walls, thresholds and furniture bases with clean edges.",
+        ]
+      : [
+          `Pattern: ${patternRule}.`,
+          `Direction: ${directionRule}.`,
+          `Scale: ${scaleRule}.`,
+          "Pattern must follow the photographed vanishing points with no warped lines or random repetition.",
+          "Perimeter cuts must be plausible near walls, corners, thresholds and fixed furniture.",
+        ],
     jointRules,
     skirtingRules,
     objectInteractionRules: [
       ...coverage.furnitureContactZones.map((zone) => `Keep ${zone} exactly in place with correct contact shadow on the new floor.`),
-      "No floating furniture, no duplicated legs, no object deformation, no moved rugs.",
+      rimuoviTappeti
+        ? "No floating furniture, no duplicated legs, no object deformation."
+        : "No floating furniture, no duplicated legs, no object deformation, no moved rugs.",
+      ...(rimuoviTappeti ? [`${RUG_FURNITURE_RULE}.`] : []),
       "Recompute only the local floor reflection/contact shadow where objects touch the new surface.",
     ],
   };

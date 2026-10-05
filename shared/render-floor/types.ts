@@ -70,6 +70,12 @@ export type ScalaPattern = "compatta" | "standard" | "grande_formato" | "maxi_la
 export type SogliePorte = "mantieni" | "sostituisci_coerenti" | "integra_senza_soglia";
 export type GiuntoPerimetrale = "standard_nascosto" | "ombra_sottile" | "sigillatura_elastica";
 export type FasceBordo = "nessuna" | "cornice_perimetrale" | "fascia_stesso_materiale";
+/**
+ * Tappeti appoggiati sul pavimento. Assente o «mantieni»: restano dove sono (come sempre).
+ * «rimuovi»: si tolgono, così il pavimento nuovo si vede anche dove stavano.
+ */
+export type TappetiPavimento = "mantieni" | "rimuovi";
+export const TAPPETI_PAVIMENTO: TappetiPavimento[] = ["mantieni", "rimuovi"];
 
 export interface ConfigurazionePavimento {
   tipo: TipoPavimento;
@@ -93,6 +99,7 @@ export interface ConfigurazionePavimento {
   lunghezza_listello_mm?: number;
   fuga_larghezza_mm?: number;
   fuga_colore?: "bianco" | "grigio_chiaro" | "grigio_scuro" | "nero" | "beige" | "tono_su_tono";
+  tappeti?: TappetiPavimento;
   battiscopa?: {
     azione: "mantieni" | "sostituisci" | "rimuovi";
     tipo?: "coordinato_pavimento" | "bianco" | "legno" | "alluminio";

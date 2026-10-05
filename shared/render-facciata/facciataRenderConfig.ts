@@ -1,9 +1,13 @@
 import {
+  BASE_COURSE_MATERIAL_DESCRIPTIONS,
   CLADDING_DESCRIPTIONS,
   CLADDING_PATTERN_DESCRIPTIONS,
   FINISH_DESCRIPTIONS,
+  GUTTER_MATERIAL_DESCRIPTIONS,
+  GUTTER_NATURAL_METALS,
   INSULATION_SYSTEM_DESCRIPTIONS,
   INTERVENTION_DESCRIPTIONS,
+  SILL_MATERIAL_DESCRIPTIONS,
   ZONE_LABELS,
 } from "./promptFragments.ts";
 import { buildFacciataReplacementManifest } from "./facciataReplacementRules.ts";
@@ -16,6 +20,9 @@ import type {
   FacciataPhotoMeta,
   FacciataPlasterSpec,
   FacciataRenderConfig,
+  MaterialeDavanzale,
+  MaterialeGronde,
+  MaterialeZoccolatura,
 } from "./types.ts";
 
 export interface FacciataRenderBuildOptions {
@@ -112,11 +119,17 @@ function buildInsulationSpec(config: ConfigurazioneFacciata): FacciataInsulation
   }
 
   const thickness = config.cappotto.spessore_cm;
+  // Il colore della finitura del cappotto arrivava al form ma mai al prompt: con
+  // l'intonaco attivo comanda la specifica dell'intonaco; senza, il cappotto finito
+  // non aveva nessun colore e il modello teneva quello vecchio o ne inventava uno.
+  const coloreFinitura = !config.intonaco.attivo ? colorText(config.cappotto.colore_finitura_hex) : null;
   return {
     active: true,
     zone: config.cappotto.zona ?? "tutta",
     systemId: config.cappotto.sistema,
-    systemDescription: INSULATION_SYSTEM_DESCRIPTIONS[config.cappotto.sistema],
+    systemDescription: coloreFinitura
+      ? `${INSULATION_SYSTEM_DESCRIPTIONS[config.cappotto.sistema]}, final render coloured ${coloreFinitura}`
+      : INSULATION_SYSTEM_DESCRIPTIONS[config.cappotto.sistema],
     thicknessCm: thickness,
     finishColorHex: config.cappotto.colore_finitura_hex,
     newFacadePlaneRule: `the insulated facade plane advances outward by about ${thickness}cm with clean, controlled construction logic`,
@@ -145,6 +158,39 @@ function buildElementSpec(
   };
 }
 
+/** «; <cosa> colour X» se il colore c'è; niente se manca (il testo resta quello di prima). */
+function colourSuffix(what: string, value?: string | null): string {
+  const c = colorText(value);
+  return c ? `; ${what} colour ${c}` : "";
+}
+
+/** Chiave nota di un elenco, oppure null (testo libero delle sessioni vecchie, o assente). */
+function knownKey<K extends string>(table: Record<K, string>, value: unknown): K | null {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(table, value) ? (value as K) : null;
+}
+
+function buildSillDescription(davanzali: ConfigurazioneFacciata["elementi"]["davanzali"]): string {
+  const materiale = knownKey<MaterialeDavanzale>(SILL_MATERIAL_DESCRIPTIONS, davanzali.materiale);
+  if (!materiale) return `replace sills with ${davanzali.materiale ?? "stone"} sills showing a credible nose, drip edge and masonry junction`;
+  const colore = colorText(davanzali.colore_hex);
+  return `replace sills with ${SILL_MATERIAL_DESCRIPTIONS[materiale]}${colore ? ` in colour ${colore}` : ""} showing a credible nose, drip edge and masonry junction`;
+}
+
+function buildBaseCourseDescription(zoccolatura: ConfigurazioneFacciata["elementi"]["zoccolatura"]): string {
+  const materiale = knownKey<MaterialeZoccolatura>(BASE_COURSE_MATERIAL_DESCRIPTIONS, zoccolatura.tipo);
+  if (!materiale) return `add a ${zoccolatura.tipo ?? "base course"} plinth with height about ${zoccolatura.altezza_cm ?? 40}cm`;
+  return `add ${BASE_COURSE_MATERIAL_DESCRIPTIONS[materiale]}, about ${zoccolatura.altezza_cm ?? 40}cm high${colourSuffix("plinth", zoccolatura.colore_hex)}`;
+}
+
+function buildGutterDescription(gronde: ConfigurazioneFacciata["elementi"]["gronde"]): string {
+  const materiale = knownKey<MaterialeGronde>(GUTTER_MATERIAL_DESCRIPTIONS, gronde.materiale);
+  if (!materiale) return `replace gutters/eaves accessories with ${gronde.materiale ?? "alluminio"} in a coherent architectural finish`;
+  const finitura = GUTTER_NATURAL_METALS.includes(materiale)
+    ? ", left in the natural unpainted metal colour"
+    : colorText(gronde.colore_hex) ? `, painted in colour ${colorText(gronde.colore_hex)}` : "";
+  return `replace gutters and downpipes with ${GUTTER_MATERIAL_DESCRIPTIONS[materiale]}${finitura}`;
+}
+
 function buildElementsSpec(config: ConfigurazioneFacciata): FacciataRenderConfig["technical_specification"]["elements"] {
   const cornici = config.elementi.cornici_finestre;
   const marcapiani = config.elementi.marcapiani;
@@ -152,12 +198,13 @@ function buildElementsSpec(config: ConfigurazioneFacciata): FacciataRenderConfig
   const zoccolatura = config.elementi.zoccolatura;
   const gronde = config.elementi.gronde;
   const railings = config.elementi.balconi_ringhiere;
+  const persiane = config.elementi.persiane;
 
   return {
     windowCornices: buildElementSpec(
       cornici.azione === "mantieni" ? "keep" : cornici.azione === "aggiungi" ? "add" : "remove",
       cornici.azione === "aggiungi"
-        ? "add proportionate window cornices around existing openings without altering the opening size"
+        ? `add proportionate window cornices around existing openings without altering the opening size${colourSuffix("cornice", cornici.colore_hex)}`
         : cornici.azione === "rimuovi"
           ? "remove all visible window cornices and restore the wall flush and clean"
           : "keep existing window cornices exactly",
@@ -171,7 +218,7 @@ function buildElementsSpec(config: ConfigurazioneFacciata): FacciataRenderConfig
     stringCourses: buildElementSpec(
       marcapiani.azione === "mantieni" ? "keep" : marcapiani.azione === "aggiungi" ? "add" : "remove",
       marcapiani.azione === "aggiungi"
-        ? "add horizontal string courses aligned across the facade"
+        ? `add horizontal string courses aligned across the facade${colourSuffix("string course", marcapiani.colore_hex)}`
         : marcapiani.azione === "rimuovi"
           ? "remove existing string courses completely and restore a continuous facade plane"
           : "keep existing string courses exactly",
@@ -185,7 +232,7 @@ function buildElementsSpec(config: ConfigurazioneFacciata): FacciataRenderConfig
     sills: buildElementSpec(
       davanzali.azione === "sostituisci" ? "replace" : "keep",
       davanzali.azione === "sostituisci"
-        ? `replace sills with ${davanzali.materiale ?? "stone"} sills showing a credible nose, drip edge and masonry junction`
+        ? buildSillDescription(davanzali)
         : "keep existing sills exactly",
       davanzali.colore_hex,
       davanzali.azione === "sostituisci"
@@ -195,7 +242,7 @@ function buildElementsSpec(config: ConfigurazioneFacciata): FacciataRenderConfig
     baseCourse: buildElementSpec(
       zoccolatura.azione === "mantieni" ? "keep" : zoccolatura.azione === "aggiungi" ? "add" : "remove",
       zoccolatura.azione === "aggiungi"
-        ? `add a ${zoccolatura.tipo ?? "base course"} plinth with height about ${zoccolatura.altezza_cm ?? 40}cm`
+        ? buildBaseCourseDescription(zoccolatura)
         : zoccolatura.azione === "rimuovi"
           ? "remove the existing base course and restore the wall with a clean lower transition"
           : "keep existing base course exactly",
@@ -209,7 +256,7 @@ function buildElementsSpec(config: ConfigurazioneFacciata): FacciataRenderConfig
     gutters: buildElementSpec(
       gronde.azione === "sostituisci" ? "replace" : "keep",
       gronde.azione === "sostituisci"
-        ? `replace gutters/eaves accessories with ${gronde.materiale ?? "alluminio"} in a coherent architectural finish`
+        ? buildGutterDescription(gronde)
         : "keep existing gutters and eaves exactly",
       gronde.colore_hex,
       gronde.azione === "sostituisci"
@@ -219,13 +266,28 @@ function buildElementsSpec(config: ConfigurazioneFacciata): FacciataRenderConfig
     railings: buildElementSpec(
       railings.azione === "vernicia" ? "repaint" : "keep",
       railings.azione === "vernicia"
-        ? "repaint balcony railings only, keeping the exact geometry, rhythm and metal design"
+        ? `repaint balcony railings only, keeping the exact geometry, rhythm and metal design${colourSuffix("new railing", railings.colore_hex)}`
         : "keep balcony railings exactly",
       railings.colore_hex,
       railings.azione === "vernicia"
         ? "change only the finish/coating of the railing metalwork, never the railing design or balcony structure"
         : null,
     ),
+    // Solo se il form ha la voce: i piani vecchi non hanno `shutters` e il loro prompt non cambia.
+    ...(persiane
+      ? {
+        shutters: buildElementSpec(
+          persiane.azione === "vernicia" ? "repaint" : "keep",
+          persiane.azione === "vernicia"
+            ? `repaint the existing window shutters only, keeping their type, slats, frames, hinges, size and open or closed position exactly${colourSuffix("new shutter", persiane.colore_hex)}`
+            : "keep existing shutters exactly",
+          persiane.colore_hex,
+          persiane.azione === "vernicia"
+            ? "change only the paint of the shutter leaves; never add shutters where the photo shows none and never change their model"
+            : null,
+        ),
+      }
+      : {}),
   };
 }
 

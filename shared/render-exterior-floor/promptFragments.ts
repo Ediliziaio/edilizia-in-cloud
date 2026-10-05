@@ -46,6 +46,8 @@ export const EXTERIOR_PATTERN_DESCRIPTIONS: Record<PatternPosaEsterna, string> =
   stepping_stones: "stepping-stone path with individual slabs set into lawn/gravel and believable gaps",
   massello_spina: "interlocking pavers in herringbone driveway-capable arrangement",
   massello_classico: "classic interlocking paver layout with stable modular repetition",
+  superficie_continua: "continuous cast or compacted surface with no modular laying grid; only perimeter edges and the few control joints the material needs",
+  opus_incertum: "irregular polygonal natural stone flagging (opus incertum / crazy paving) with natural-cut edges and even joints, laid deliberately, not as random patches",
 };
 
 export const EXTERIOR_JOINT_DESCRIPTIONS: Record<TipoGiuntoEsterno, string> = {

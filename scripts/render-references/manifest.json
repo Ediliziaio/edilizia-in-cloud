@@ -1,0 +1,6032 @@
+{
+ "foto": {
+  "1": {
+   "src": "Abbaino a capanna sul tetto",
+   "slug": "Abbaino-A-Capanna-Sul-Tetto",
+   "cartella": "roofs",
+   "colore": null,
+   "bn": "roofs/Abbaino-A-Capanna-Sul-Tetto-BN.webp",
+   "thumb": "thumbs/roofs/Abbaino-A-Capanna-Sul-Tetto.webp"
+  },
+  "2": {
+   "src": "Acqua azzurra con riflessi naturali",
+   "slug": "Acqua-Azzurra-Con-Riflessi-Naturali",
+   "cartella": "pools",
+   "colore": "pools/Acqua-Azzurra-Con-Riflessi-Naturali.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Acqua-Azzurra-Con-Riflessi-Naturali.webp"
+  },
+  "3": {
+   "src": "Acqua cristallina su piastrelle bianche",
+   "slug": "Acqua-Cristallina-Su-Piastrelle-Bianche",
+   "cartella": "pools",
+   "colore": "pools/Acqua-Cristallina-Su-Piastrelle-Bianche.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Acqua-Cristallina-Su-Piastrelle-Bianche.webp"
+  },
+  "4": {
+   "src": "Acqua naturale in biopiscina elegante",
+   "slug": "Acqua-Naturale-In-Biopiscina-Elegante",
+   "cartella": "pools",
+   "colore": "pools/Acqua-Naturale-In-Biopiscina-Elegante.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Acqua-Naturale-In-Biopiscina-Elegante.webp"
+  },
+  "5": {
+   "src": "Acqua turchese nella villa italiana",
+   "slug": "Acqua-Turchese-Nella-Villa-Italiana",
+   "cartella": "pools",
+   "colore": "pools/Acqua-Turchese-Nella-Villa-Italiana.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Acqua-Turchese-Nella-Villa-Italiana.webp"
+  },
+  "6": {
+   "src": "Angolo della porta doccia con profilo nero",
+   "slug": "Angolo-Della-Porta-Doccia-Con-Profilo-Nero",
+   "cartella": "bathroom",
+   "colore": "bathroom/Angolo-Della-Porta-Doccia-Con-Profilo-Nero.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Angolo-Della-Porta-Doccia-Con-Profilo-Nero.webp"
+  },
+  "7": {
+   "src": "Angolo di porta doccia in vetro",
+   "slug": "Angolo-Di-Porta-Doccia-In-Vetro",
+   "cartella": "bathroom",
+   "colore": "bathroom/Angolo-Di-Porta-Doccia-In-Vetro.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Angolo-Di-Porta-Doccia-In-Vetro.webp"
+  },
+  "8": {
+   "src": "Angolo di porta doccia in vetro cromato",
+   "slug": "Angolo-Di-Porta-Doccia-In-Vetro-Cromato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Angolo-Di-Porta-Doccia-In-Vetro-Cromato.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Angolo-Di-Porta-Doccia-In-Vetro-Cromato.webp"
+  },
+  "9": {
+   "src": "Angolo di profilo in alluminio antracite",
+   "slug": "Angolo-Di-Profilo-In-Alluminio-Antracite",
+   "cartella": "pergolas",
+   "colore": "pergolas/Angolo-Di-Profilo-In-Alluminio-Antracite.webp",
+   "bn": null,
+   "thumb": "thumbs/pergolas/Angolo-Di-Profilo-In-Alluminio-Antracite.webp"
+  },
+  "10": {
+   "src": "Angolo doccia in vetro con oro spazzolato",
+   "slug": "Angolo-Doccia-In-Vetro-Con-Oro-Spazzolato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Angolo-Doccia-In-Vetro-Con-Oro-Spazzolato.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Angolo-Doccia-In-Vetro-Con-Oro-Spazzolato.webp"
+  },
+  "11": {
+   "src": "Angolo doccia in vetro con profilo nero",
+   "slug": "Angolo-Doccia-In-Vetro-Con-Profilo-Nero",
+   "cartella": "bathroom",
+   "colore": "bathroom/Angolo-Doccia-In-Vetro-Con-Profilo-Nero.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Angolo-Doccia-In-Vetro-Con-Profilo-Nero.webp"
+  },
+  "12": {
+   "src": "Ardesia naturale color carbone",
+   "slug": "Ardesia-Naturale-Color-Carbone",
+   "cartella": "bathroom",
+   "colore": "bathroom/Ardesia-Naturale-Color-Carbone.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Ardesia-Naturale-Color-Carbone.webp"
+  },
+  "13": {
+   "src": "Bagliore satinato del legno cerato",
+   "slug": "Bagliore-Satinato-Del-Legno-Cerato",
+   "cartella": "floors",
+   "colore": "floors/Bagliore-Satinato-Del-Legno-Cerato.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Bagliore-Satinato-Del-Legno-Cerato.webp"
+  },
+  "14": {
+   "src": "Battiscopa bianco in angolo pulito",
+   "slug": "Battiscopa-Bianco-In-Angolo-Pulito",
+   "cartella": "floors",
+   "colore": "floors/Battiscopa-Bianco-In-Angolo-Pulito.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Battiscopa-Bianco-In-Angolo-Pulito.webp"
+  },
+  "15": {
+   "src": "Battiscopa in alluminio spazzolato",
+   "slug": "Battiscopa-In-Alluminio-Spazzolato",
+   "cartella": "floors",
+   "colore": "floors/Battiscopa-In-Alluminio-Spazzolato.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Battiscopa-In-Alluminio-Spazzolato.webp"
+  },
+  "16": {
+   "src": "Battiscopa in rovere, angolo pulito",
+   "slug": "Battiscopa-In-Rovere-Angolo-Pulito",
+   "cartella": "floors",
+   "colore": "floors/Battiscopa-In-Rovere-Angolo-Pulito.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Battiscopa-In-Rovere-Angolo-Pulito.webp"
+  },
+  "17": {
+   "src": "Bidet bianco con miscelatore",
+   "slug": "Bidet-Bianco-Con-Miscelatore",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Bidet-Bianco-Con-Miscelatore-BN.webp",
+   "thumb": "thumbs/bathroom/Bidet-Bianco-Con-Miscelatore.webp"
+  },
+  "18": {
+   "src": "Bidet sospeso in ceramica bianca lucida",
+   "slug": "Bidet-Sospeso-In-Ceramica-Bianca-Lucida",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Bidet-Sospeso-In-Ceramica-Bianca-Lucida-BN.webp",
+   "thumb": "thumbs/bathroom/Bidet-Sospeso-In-Ceramica-Bianca-Lucida.webp"
+  },
+  "19": {
+   "src": "Bordo piscina arrotondato in pietra chiara",
+   "slug": "Bordo-Piscina-Arrotondato-In-Pietra-Chiara",
+   "cartella": "pools",
+   "colore": "pools/Bordo-Piscina-Arrotondato-In-Pietra-Chiara.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Bordo-Piscina-Arrotondato-In-Pietra-Chiara.webp"
+  },
+  "20": {
+   "src": "Bordo piscina in cemento spazzolato",
+   "slug": "Bordo-Piscina-In-Cemento-Spazzolato",
+   "cartella": "pools",
+   "colore": "pools/Bordo-Piscina-In-Cemento-Spazzolato.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Bordo-Piscina-In-Cemento-Spazzolato.webp"
+  },
+  "21": {
+   "src": "Bordo piscina in pietra beige",
+   "slug": "Bordo-Piscina-In-Pietra-Beige",
+   "cartella": "pools",
+   "colore": "pools/Bordo-Piscina-In-Pietra-Beige.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Bordo-Piscina-In-Pietra-Beige.webp"
+  },
+  "22": {
+   "src": "Bordo piscina in travertino beige",
+   "slug": "Bordo-Piscina-In-Travertino-Beige",
+   "cartella": "pools",
+   "colore": "pools/Bordo-Piscina-In-Travertino-Beige.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Bordo-Piscina-In-Travertino-Beige.webp"
+  },
+  "23": {
+   "src": "Bordo piscina moderno in pietra",
+   "slug": "Bordo-Piscina-Moderno-In-Pietra",
+   "cartella": "pools",
+   "colore": "pools/Bordo-Piscina-Moderno-In-Pietra.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Bordo-Piscina-Moderno-In-Pietra.webp"
+  },
+  "24": {
+   "src": "Bordo piscina moderno in pietra grigia",
+   "slug": "Bordo-Piscina-Moderno-In-Pietra-Grigia",
+   "cartella": "pools",
+   "colore": "pools/Bordo-Piscina-Moderno-In-Pietra-Grigia.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Bordo-Piscina-Moderno-In-Pietra-Grigia.webp"
+  },
+  "25": {
+   "src": "Box doccia angolare con profilo cromato",
+   "slug": "Box-Doccia-Angolare-Con-Profilo-Cromato",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Box-Doccia-Angolare-Con-Profilo-Cromato-BN.webp",
+   "thumb": "thumbs/bathroom/Box-Doccia-Angolare-Con-Profilo-Cromato.webp"
+  },
+  "26": {
+   "src": "Box doccia angolare in vetro",
+   "slug": "Box-Doccia-Angolare-In-Vetro",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Box-Doccia-Angolare-In-Vetro-BN.webp",
+   "thumb": "thumbs/bathroom/Box-Doccia-Angolare-In-Vetro.webp"
+  },
+  "27": {
+   "src": "Box doccia cromato con porta in vetro",
+   "slug": "Box-Doccia-Cromato-Con-Porta-In-Vetro",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Box-Doccia-Cromato-Con-Porta-In-Vetro-BN.webp",
+   "thumb": "thumbs/bathroom/Box-Doccia-Cromato-Con-Porta-In-Vetro.webp"
+  },
+  "28": {
+   "src": "Box doccia frontale con porta battente",
+   "slug": "Box-Doccia-Frontale-Con-Porta-Battente",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Box-Doccia-Frontale-Con-Porta-Battente-BN.webp",
+   "thumb": "thumbs/bathroom/Box-Doccia-Frontale-Con-Porta-Battente.webp"
+  },
+  "29": {
+   "src": "Box doccia in nicchia con vetro trasparente",
+   "slug": "Box-Doccia-In-Nicchia-Con-Vetro-Trasparente",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Box-Doccia-In-Nicchia-Con-Vetro-Trasparente-BN.webp",
+   "thumb": "thumbs/bathroom/Box-Doccia-In-Nicchia-Con-Vetro-Trasparente.webp"
+  },
+  "30": {
+   "src": "Box doccia semicircolare in vetro curvo",
+   "slug": "Box-Doccia-Semicircolare-In-Vetro-Curvo",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Box-Doccia-Semicircolare-In-Vetro-Curvo-BN.webp",
+   "thumb": "thumbs/bathroom/Box-Doccia-Semicircolare-In-Vetro-Curvo.webp"
+  },
+  "31": {
+   "src": "Box doccia walk-in con profilo nero",
+   "slug": "Box-Doccia-Walk-In-Con-Profilo-Nero",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Box-Doccia-Walk-In-Con-Profilo-Nero-BN.webp",
+   "thumb": "thumbs/bathroom/Box-Doccia-Walk-In-Con-Profilo-Nero.webp"
+  },
+  "32": {
+   "src": "Cabina doccia ad alcova con porta scorrevole",
+   "slug": "Cabina-Doccia-Ad-Alcova-Con-Porta-Scorrevole",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Cabina-Doccia-Ad-Alcova-Con-Porta-Scorrevole-BN.webp",
+   "thumb": "thumbs/bathroom/Cabina-Doccia-Ad-Alcova-Con-Porta-Scorrevole.webp"
+  },
+  "33": {
+   "src": "Cabina doccia semicircolare con porta scorrevole",
+   "slug": "Cabina-Doccia-Semicircolare-Con-Porta-Scorrevole",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Cabina-Doccia-Semicircolare-Con-Porta-Scorrevole-BN.webp",
+   "thumb": "thumbs/bathroom/Cabina-Doccia-Semicircolare-Con-Porta-Scorrevole.webp"
+  },
+  "34": {
+   "src": "Cabina doccia walk-in con profilo nero",
+   "slug": "Cabina-Doccia-Walk-In-Con-Profilo-Nero",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Cabina-Doccia-Walk-In-Con-Profilo-Nero-BN.webp",
+   "thumb": "thumbs/bathroom/Cabina-Doccia-Walk-In-Con-Profilo-Nero.webp"
+  },
+  "35": {
+   "src": "Calacatta lucido, venature grigie e dorate",
+   "slug": "Calacatta-Lucido-Venature-Grigie-E-Dorate",
+   "cartella": "bathroom",
+   "colore": "bathroom/Calacatta-Lucido-Venature-Grigie-E-Dorate.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Calacatta-Lucido-Venature-Grigie-E-Dorate.webp"
+  },
+  "36": {
+   "src": "Cerniera e fermapersiana in bronzo",
+   "slug": "Cerniera-E-Fermapersiana-In-Bronzo",
+   "cartella": "shutters",
+   "colore": "shutters/Cerniera-E-Fermapersiana-In-Bronzo.webp",
+   "bn": null,
+   "thumb": "thumbs/shutters/Cerniera-E-Fermapersiana-In-Bronzo.webp"
+  },
+  "37": {
+   "src": "Colonna doccia completa con soffione",
+   "slug": "Colonna-Doccia-Completa-Con-Soffione",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Colonna-Doccia-Completa-Con-Soffione-BN.webp",
+   "thumb": "thumbs/bathroom/Colonna-Doccia-Completa-Con-Soffione.webp"
+  },
+  "38": {
+   "src": "Colonna doccia moderna a bordo piscina",
+   "slug": "Colonna-Doccia-Moderna-A-Bordo-Piscina",
+   "cartella": "pools",
+   "colore": "pools/Colonna-Doccia-Moderna-A-Bordo-Piscina.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Colonna-Doccia-Moderna-A-Bordo-Piscina.webp"
+  },
+  "39": {
+   "src": "Colonna rubinetto cromata con doccetta",
+   "slug": "Colonna-Rubinetto-Cromata-Con-Doccetta",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Colonna-Rubinetto-Cromata-Con-Doccetta-BN.webp",
+   "thumb": "thumbs/bathroom/Colonna-Rubinetto-Cromata-Con-Doccetta.webp"
+  },
+  "40": {
+   "src": "Copertura ecru retrattile della pergola",
+   "slug": "Copertura-Ecru-Retrattile-Della-Pergola",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Copertura-Ecru-Retrattile-Della-Pergola-BN.webp",
+   "thumb": "thumbs/pergolas/Copertura-Ecru-Retrattile-Della-Pergola.webp"
+  },
+  "41": {
+   "src": "Decking WPC effetto legno intorno alla piscina",
+   "slug": "Decking-WPC-Effetto-Legno-Intorno-Alla-Piscina",
+   "cartella": "pools",
+   "colore": "pools/Decking-WPC-Effetto-Legno-Intorno-Alla-Piscina.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Decking-WPC-Effetto-Legno-Intorno-Alla-Piscina.webp"
+  },
+  "42": {
+   "src": "Decking WPC marrone a bordo piscina",
+   "slug": "Decking-WPC-Marrone-A-Bordo-Piscina",
+   "cartella": "pools",
+   "colore": "pools/Decking-WPC-Marrone-A-Bordo-Piscina.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Decking-WPC-Marrone-A-Bordo-Piscina.webp"
+  },
+  "43": {
+   "src": "Dettaglio dal basso di tettoia opalina",
+   "slug": "Dettaglio-Dal-Basso-Di-Tettoia-Opalina",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Dettaglio-Dal-Basso-Di-Tettoia-Opalina-BN.webp",
+   "thumb": "thumbs/pergolas/Dettaglio-Dal-Basso-Di-Tettoia-Opalina.webp"
+  },
+  "44": {
+   "src": "Dettaglio del giunto alluminio-legno",
+   "slug": "Dettaglio-Del-Giunto-Alluminio-Legno",
+   "cartella": "pergolas",
+   "colore": "pergolas/Dettaglio-Del-Giunto-Alluminio-Legno.webp",
+   "bn": null,
+   "thumb": "thumbs/pergolas/Dettaglio-Del-Giunto-Alluminio-Legno.webp"
+  },
+  "45": {
+   "src": "Dettaglio di abete lamellare",
+   "slug": "Dettaglio-Di-Abete-Lamellare",
+   "cartella": "pergolas",
+   "colore": "pergolas/Dettaglio-Di-Abete-Lamellare.webp",
+   "bn": null,
+   "thumb": "thumbs/pergolas/Dettaglio-Di-Abete-Lamellare.webp"
+  },
+  "46": {
+   "src": "Dettaglio di lamella in alluminio opaco",
+   "slug": "Dettaglio-Di-Lamella-In-Alluminio-Opaco",
+   "cartella": "shutters",
+   "colore": "shutters/Dettaglio-Di-Lamella-In-Alluminio-Opaco.webp",
+   "bn": null,
+   "thumb": "thumbs/shutters/Dettaglio-Di-Lamella-In-Alluminio-Opaco.webp"
+  },
+  "47": {
+   "src": "Dettaglio di persiana e cerniera",
+   "slug": "Dettaglio-Di-Persiana-E-Cerniera",
+   "cartella": "shutters",
+   "colore": null,
+   "bn": "shutters/Dettaglio-Di-Persiana-E-Cerniera-BN.webp",
+   "thumb": "thumbs/shutters/Dettaglio-Di-Persiana-E-Cerniera.webp"
+  },
+  "48": {
+   "src": "Dettaglio di persiana in fibra di vetro",
+   "slug": "Dettaglio-Di-Persiana-In-Fibra-Di-Vetro",
+   "cartella": "shutters",
+   "colore": "shutters/Dettaglio-Di-Persiana-In-Fibra-Di-Vetro.webp",
+   "bn": null,
+   "thumb": "thumbs/shutters/Dettaglio-Di-Persiana-In-Fibra-Di-Vetro.webp"
+  },
+  "49": {
+   "src": "Dettaglio fotorealistico di bugnato in pietra",
+   "slug": "Dettaglio-Fotorealistico-Di-Bugnato-In-Pietra",
+   "cartella": "facades",
+   "colore": "facades/Dettaglio-Fotorealistico-Di-Bugnato-In-Pietra.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Dettaglio-Fotorealistico-Di-Bugnato-In-Pietra.webp"
+  },
+  "50": {
+   "src": "Dettaglio macro dell’intonaco graffiato",
+   "slug": "Dettaglio-Macro-Dellintonaco-Graffiato",
+   "cartella": "facades",
+   "colore": "facades/Dettaglio-Macro-Dellintonaco-Graffiato.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Dettaglio-Macro-Dellintonaco-Graffiato.webp"
+  },
+  "51": {
+   "src": "Dettaglio vetro doccia con profilo oro",
+   "slug": "Dettaglio-Vetro-Doccia-Con-Profilo-Oro",
+   "cartella": "bathroom",
+   "colore": "bathroom/Dettaglio-Vetro-Doccia-Con-Profilo-Oro.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Dettaglio-Vetro-Doccia-Con-Profilo-Oro.webp"
+  },
+  "52": {
+   "src": "Doccia walk-in moderna con canalina lineare",
+   "slug": "Doccia-Walk-In-Moderna-Con-Canalina-Lineare",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Doccia-Walk-In-Moderna-Con-Canalina-Lineare-BN.webp",
+   "thumb": "thumbs/bathroom/Doccia-Walk-In-Moderna-Con-Canalina-Lineare.webp"
+  },
+  "53": {
+   "src": "Doghe di teak dorato",
+   "slug": "Doghe-Di-Teak-Dorato",
+   "cartella": "floors",
+   "colore": "floors/Doghe-Di-Teak-Dorato.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Doghe-Di-Teak-Dorato.webp"
+  },
+  "54": {
+   "src": "Facciata in arenaria beige",
+   "slug": "Facciata-In-Arenaria-Beige",
+   "cartella": "facades",
+   "colore": "facades/Facciata-In-Arenaria-Beige.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Facciata-In-Arenaria-Beige.webp"
+  },
+  "55": {
+   "src": "Facciata in clinker rosso scuro",
+   "slug": "Facciata-In-Clinker-Rosso-Scuro",
+   "cartella": "facades",
+   "colore": "facades/Facciata-In-Clinker-Rosso-Scuro.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Facciata-In-Clinker-Rosso-Scuro.webp"
+  },
+  "56": {
+   "src": "Facciata in marmo bianco venato",
+   "slug": "Facciata-In-Marmo-Bianco-Venato",
+   "cartella": "facades",
+   "colore": "facades/Facciata-In-Marmo-Bianco-Venato.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Facciata-In-Marmo-Bianco-Venato.webp"
+  },
+  "57": {
+   "src": "Facciata in mattoni di terracotta rossa",
+   "slug": "Facciata-In-Mattoni-Di-Terracotta-Rossa",
+   "cartella": "facades",
+   "colore": "facades/Facciata-In-Mattoni-Di-Terracotta-Rossa.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Facciata-In-Mattoni-Di-Terracotta-Rossa.webp"
+  },
+  "58": {
+   "src": "Facciata in porfido a opus incertum",
+   "slug": "Facciata-In-Porfido-A-Opus-Incertum",
+   "cartella": "facades",
+   "colore": "facades/Facciata-In-Porfido-A-Opus-Incertum.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Facciata-In-Porfido-A-Opus-Incertum.webp"
+  },
+  "59": {
+   "src": "Finestra con tapparella abbassata",
+   "slug": "Finestra-Con-Tapparella-Abbassata",
+   "cartella": "shutters",
+   "colore": null,
+   "bn": "shutters/Finestra-Con-Tapparella-Abbassata-BN.webp",
+   "thumb": "thumbs/shutters/Finestra-Con-Tapparella-Abbassata.webp"
+  },
+  "60": {
+   "src": "Frangisole in alluminio a 45°",
+   "slug": "Frangisole-In-Alluminio-A-45",
+   "cartella": "shutters",
+   "colore": null,
+   "bn": "shutters/Frangisole-In-Alluminio-A-45-BN.webp",
+   "thumb": "thumbs/shutters/Frangisole-In-Alluminio-A-45.webp"
+  },
+  "61": {
+   "src": "Ghiaia drenante grigio chiaro",
+   "slug": "Ghiaia-Drenante-Grigio-Chiaro",
+   "cartella": "pools",
+   "colore": "pools/Ghiaia-Drenante-Grigio-Chiaro.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Ghiaia-Drenante-Grigio-Chiaro.webp"
+  },
+  "62": {
+   "src": "Giunzione a V tra tavole di legno",
+   "slug": "Giunzione-A-V-Tra-Tavole-Di-Legno",
+   "cartella": "floors",
+   "colore": "floors/Giunzione-A-V-Tra-Tavole-Di-Legno.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Giunzione-A-V-Tra-Tavole-Di-Legno.webp"
+  },
+  "63": {
+   "src": "Giunzione cromata della porta doccia",
+   "slug": "Giunzione-Cromata-Della-Porta-Doccia",
+   "cartella": "bathroom",
+   "colore": "bathroom/Giunzione-Cromata-Della-Porta-Doccia.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Giunzione-Cromata-Della-Porta-Doccia.webp"
+  },
+  "64": {
+   "src": "Giunzione di assi in legno rustico",
+   "slug": "Giunzione-Di-Assi-In-Legno-Rustico",
+   "cartella": "floors",
+   "colore": "floors/Giunzione-Di-Assi-In-Legno-Rustico.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Giunzione-Di-Assi-In-Legno-Rustico.webp"
+  },
+  "65": {
+   "src": "Giunzione tra tavole di rovere",
+   "slug": "Giunzione-Tra-Tavole-Di-Rovere",
+   "cartella": "floors",
+   "colore": "floors/Giunzione-Tra-Tavole-Di-Rovere.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Giunzione-Tra-Tavole-Di-Rovere.webp"
+  },
+  "66": {
+   "src": "Gradini chiari nell’angolo della piscina",
+   "slug": "Gradini-Chiari-Nellangolo-Della-Piscina",
+   "cartella": "pools",
+   "colore": null,
+   "bn": "pools/Gradini-Chiari-Nellangolo-Della-Piscina-BN.webp",
+   "thumb": "thumbs/pools/Gradini-Chiari-Nellangolo-Della-Piscina.webp"
+  },
+  "67": {
+   "src": "Gradini moderni per ingresso in piscina",
+   "slug": "Gradini-Moderni-Per-Ingresso-In-Piscina",
+   "cartella": "pools",
+   "colore": null,
+   "bn": "pools/Gradini-Moderni-Per-Ingresso-In-Piscina-BN.webp",
+   "thumb": "thumbs/pools/Gradini-Moderni-Per-Ingresso-In-Piscina.webp"
+  },
+  "68": {
+   "src": "Gres effetto rovere naturale",
+   "slug": "Gres-Effetto-Rovere-Naturale",
+   "cartella": "floors",
+   "colore": "floors/Gres-Effetto-Rovere-Naturale.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Gres-Effetto-Rovere-Naturale.webp"
+  },
+  "69": {
+   "src": "Gres porcellanato effetto calcare grigio",
+   "slug": "Gres-Porcellanato-Effetto-Calcare-Grigio",
+   "cartella": "floors",
+   "colore": "floors/Gres-Porcellanato-Effetto-Calcare-Grigio.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Gres-Porcellanato-Effetto-Calcare-Grigio.webp"
+  },
+  "70": {
+   "src": "Gres porcellanato effetto marmo chiaro",
+   "slug": "Gres-Porcellanato-Effetto-Marmo-Chiaro",
+   "cartella": "floors",
+   "colore": "floors/Gres-Porcellanato-Effetto-Marmo-Chiaro.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Gres-Porcellanato-Effetto-Marmo-Chiaro.webp"
+  },
+  "71": {
+   "src": "Grondaia in rame dalla patina calda",
+   "slug": "Grondaia-In-Rame-Dalla-Patina-Calda",
+   "cartella": "roofs",
+   "colore": "roofs/Grondaia-In-Rame-Dalla-Patina-Calda.webp",
+   "bn": null,
+   "thumb": "thumbs/roofs/Grondaia-In-Rame-Dalla-Patina-Calda.webp"
+  },
+  "72": {
+   "src": "Grondaia in zinco-titanio blu-grigia",
+   "slug": "Grondaia-In-Zinco-Titanio-Blu-Grigia",
+   "cartella": "roofs",
+   "colore": "roofs/Grondaia-In-Zinco-Titanio-Blu-Grigia.webp",
+   "bn": null,
+   "thumb": "thumbs/roofs/Grondaia-In-Zinco-Titanio-Blu-Grigia.webp"
+  },
+  "73": {
+   "src": "Grondaia semicircolare con staffa",
+   "slug": "Grondaia-Semicircolare-Con-Staffa",
+   "cartella": "roofs",
+   "colore": "roofs/Grondaia-Semicircolare-Con-Staffa.webp",
+   "bn": null,
+   "thumb": "thumbs/roofs/Grondaia-Semicircolare-Con-Staffa.webp"
+  },
+  "74": {
+   "src": "Grondaia semicircolare in acciaio zincato",
+   "slug": "Grondaia-Semicircolare-In-Acciaio-Zincato",
+   "cartella": "roofs",
+   "colore": "roofs/Grondaia-Semicircolare-In-Acciaio-Zincato.webp",
+   "bn": null,
+   "thumb": "thumbs/roofs/Grondaia-Semicircolare-In-Acciaio-Zincato.webp"
+  },
+  "75": {
+   "src": "Grondaia semicircolare marrone con staffa",
+   "slug": "Grondaia-Semicircolare-Marrone-Con-Staffa",
+   "cartella": "roofs",
+   "colore": "roofs/Grondaia-Semicircolare-Marrone-Con-Staffa.webp",
+   "bn": null,
+   "thumb": "thumbs/roofs/Grondaia-Semicircolare-Marrone-Con-Staffa.webp"
+  },
+  "76": {
+   "src": "Inferriata in ferro battuto",
+   "slug": "Inferriata-In-Ferro-Battuto",
+   "cartella": "shutters",
+   "colore": null,
+   "bn": "shutters/Inferriata-In-Ferro-Battuto-BN.webp",
+   "thumb": "thumbs/shutters/Inferriata-In-Ferro-Battuto.webp"
+  },
+  "77": {
+   "src": "Intonaco esterno finemente graffiato",
+   "slug": "Intonaco-Esterno-Finemente-Graffiato",
+   "cartella": "facades",
+   "colore": "facades/Intonaco-Esterno-Finemente-Graffiato.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Intonaco-Esterno-Finemente-Graffiato.webp"
+  },
+  "78": {
+   "src": "Intonaco esterno grigio chiaro liscio",
+   "slug": "Intonaco-Esterno-Grigio-Chiaro-Liscio",
+   "cartella": "facades",
+   "colore": "facades/Intonaco-Esterno-Grigio-Chiaro-Liscio.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Intonaco-Esterno-Grigio-Chiaro-Liscio.webp"
+  },
+  "79": {
+   "src": "Intonaco rustico spatolato in primo piano",
+   "slug": "Intonaco-Rustico-Spatolato-In-Primo-Piano",
+   "cartella": "facades",
+   "colore": "facades/Intonaco-Rustico-Spatolato-In-Primo-Piano.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Intonaco-Rustico-Spatolato-In-Primo-Piano.webp"
+  },
+  "80": {
+   "src": "Intonaco veneziano levigato e luminoso",
+   "slug": "Intonaco-Veneziano-Levigato-E-Luminoso",
+   "cartella": "facades",
+   "colore": "facades/Intonaco-Veneziano-Levigato-E-Luminoso.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Intonaco-Veneziano-Levigato-E-Luminoso.webp"
+  },
+  "81": {
+   "src": "Lamella di persiana in rovere scuro",
+   "slug": "Lamella-Di-Persiana-In-Rovere-Scuro",
+   "cartella": "shutters",
+   "colore": "shutters/Lamella-Di-Persiana-In-Rovere-Scuro.webp",
+   "bn": null,
+   "thumb": "thumbs/shutters/Lamella-Di-Persiana-In-Rovere-Scuro.webp"
+  },
+  "82": {
+   "src": "Lamella effetto abete Douglas fiammato",
+   "slug": "Lamella-Effetto-Abete-Douglas-Fiammato",
+   "cartella": "shutters",
+   "colore": "shutters/Lamella-Effetto-Abete-Douglas-Fiammato.webp",
+   "bn": null,
+   "thumb": "thumbs/shutters/Lamella-Effetto-Abete-Douglas-Fiammato.webp"
+  },
+  "83": {
+   "src": "Lamella verticale effetto noce",
+   "slug": "Lamella-Verticale-Effetto-Noce",
+   "cartella": "shutters",
+   "colore": "shutters/Lamella-Verticale-Effetto-Noce.webp",
+   "bn": null,
+   "thumb": "thumbs/shutters/Lamella-Verticale-Effetto-Noce.webp"
+  },
+  "84": {
+   "src": "Lamelle orientabili della pergola",
+   "slug": "Lamelle-Orientabili-Della-Pergola",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Lamelle-Orientabili-Della-Pergola-BN.webp",
+   "thumb": "thumbs/pergolas/Lamelle-Orientabili-Della-Pergola.webp"
+  },
+  "85": {
+   "src": "Lastre outdoor in gres effetto pietra",
+   "slug": "Lastre-Outdoor-In-Gres-Effetto-Pietra",
+   "cartella": "exterior",
+   "colore": "exterior/Lastre-Outdoor-In-Gres-Effetto-Pietra.webp",
+   "bn": null,
+   "thumb": "thumbs/exterior/Lastre-Outdoor-In-Gres-Effetto-Pietra.webp"
+  },
+  "86": {
+   "src": "Lavabo ovale in ceramica bianca(1)",
+   "slug": "Lavabo-Ovale-In-Ceramica-Bianca",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Lavabo-Ovale-In-Ceramica-Bianca-BN.webp",
+   "thumb": "thumbs/bathroom/Lavabo-Ovale-In-Ceramica-Bianca.webp"
+  },
+  "87": {
+   "src": "Lavabo rettangolare bianco da appoggio",
+   "slug": "Lavabo-Rettangolare-Bianco-Da-Appoggio",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Lavabo-Rettangolare-Bianco-Da-Appoggio-BN.webp",
+   "thumb": "thumbs/bathroom/Lavabo-Rettangolare-Bianco-Da-Appoggio.webp"
+  },
+  "88": {
+   "src": "Lavabo semincasso in ceramica bianca",
+   "slug": "Lavabo-Semincasso-In-Ceramica-Bianca",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Lavabo-Semincasso-In-Ceramica-Bianca-BN.webp",
+   "thumb": "thumbs/bathroom/Lavabo-Semincasso-In-Ceramica-Bianca.webp"
+  },
+  "89": {
+   "src": "Lettini bianchi a bordo piscina",
+   "slug": "Lettini-Bianchi-A-Bordo-Piscina",
+   "cartella": "pools",
+   "colore": "pools/Lettini-Bianchi-A-Bordo-Piscina.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Lettini-Bianchi-A-Bordo-Piscina.webp"
+  },
+  "90": {
+   "src": "Listello verticale effetto castagno",
+   "slug": "Listello-Verticale-Effetto-Castagno",
+   "cartella": "shutters",
+   "colore": "shutters/Listello-Verticale-Effetto-Castagno.webp",
+   "bn": null,
+   "thumb": "thumbs/shutters/Listello-Verticale-Effetto-Castagno.webp"
+  },
+  "91": {
+   "src": "Luce a strisce sotto la pergola",
+   "slug": "Luce-A-Strisce-Sotto-La-Pergola",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Luce-A-Strisce-Sotto-La-Pergola-BN.webp",
+   "thumb": "thumbs/pergolas/Luce-A-Strisce-Sotto-La-Pergola.webp"
+  },
+  "92": {
+   "src": "Lucernario a cupola sul tetto",
+   "slug": "Lucernario-A-Cupola-Sul-Tetto",
+   "cartella": "roofs",
+   "colore": null,
+   "bn": "roofs/Lucernario-A-Cupola-Sul-Tetto-BN.webp",
+   "thumb": "thumbs/roofs/Lucernario-A-Cupola-Sul-Tetto.webp"
+  },
+  "93": {
+   "src": "Lucernario a filo del tetto in tegole",
+   "slug": "Lucernario-A-Filo-Del-Tetto-In-Tegole",
+   "cartella": "roofs",
+   "colore": null,
+   "bn": "roofs/Lucernario-A-Filo-Del-Tetto-In-Tegole-BN.webp",
+   "thumb": "thumbs/roofs/Lucernario-A-Filo-Del-Tetto-In-Tegole.webp"
+  },
+  "94": {
+   "src": "Macro dell’intonaco effetto buccia d’arancia",
+   "slug": "Macro-Dellintonaco-Effetto-Buccia-Darancia",
+   "cartella": "facades",
+   "colore": "facades/Macro-Dellintonaco-Effetto-Buccia-Darancia.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Macro-Dellintonaco-Effetto-Buccia-Darancia.webp"
+  },
+  "95": {
+   "src": "Marmo Marquinia nero con venature bianche",
+   "slug": "Marmo-Marquinia-Nero-Con-Venature-Bianche",
+   "cartella": "bathroom",
+   "colore": "bathroom/Marmo-Marquinia-Nero-Con-Venature-Bianche.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Marmo-Marquinia-Nero-Con-Venature-Bianche.webp"
+  },
+  "96": {
+   "src": "Marmo Sahara Noir, nero e oro",
+   "slug": "Marmo-Sahara-Noir-Nero-E-Oro",
+   "cartella": "bathroom",
+   "colore": "bathroom/Marmo-Sahara-Noir-Nero-E-Oro.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Marmo-Sahara-Noir-Nero-E-Oro.webp"
+  },
+  "97": {
+   "src": "Marmo Verde Guatemala in griglia 2x2",
+   "slug": "Marmo-Verde-Guatemala-In-Griglia-2x2",
+   "cartella": "bathroom",
+   "colore": "bathroom/Marmo-Verde-Guatemala-In-Griglia-2x2.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Marmo-Verde-Guatemala-In-Griglia-2x2.webp"
+  },
+  "98": {
+   "src": "Mattoni clinker beige in posa a correre",
+   "slug": "Mattoni-Clinker-Beige-In-Posa-A-Correre",
+   "cartella": "facades",
+   "colore": "facades/Mattoni-Clinker-Beige-In-Posa-A-Correre.webp",
+   "bn": "facades/Mattoni-Clinker-Beige-In-Posa-A-Correre-BN.webp",
+   "thumb": "thumbs/facades/Mattoni-Clinker-Beige-In-Posa-A-Correre.webp"
+  },
+  "99": {
+   "src": "Mattoni grigi con fughe antracite",
+   "slug": "Mattoni-Grigi-Con-Fughe-Antracite",
+   "cartella": "facades",
+   "colore": "facades/Mattoni-Grigi-Con-Fughe-Antracite.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Mattoni-Grigi-Con-Fughe-Antracite.webp"
+  },
+  "100": {
+   "src": "Microcemento nuvolato grigio caldo",
+   "slug": "Microcemento-Nuvolato-Grigio-Caldo",
+   "cartella": "floors",
+   "colore": "floors/Microcemento-Nuvolato-Grigio-Caldo.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Microcemento-Nuvolato-Grigio-Caldo.webp"
+  },
+  "101": {
+   "src": "Microcemento spatolato dalle delicate sfumature",
+   "slug": "Microcemento-Spatolato-Dalle-Delicate-Sfumature",
+   "cartella": "bathroom",
+   "colore": "bathroom/Microcemento-Spatolato-Dalle-Delicate-Sfumature.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Microcemento-Spatolato-Dalle-Delicate-Sfumature.webp"
+  },
+  "102": {
+   "src": "Miscelatore cromato a tre fori",
+   "slug": "Miscelatore-Cromato-A-Tre-Fori",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Miscelatore-Cromato-A-Tre-Fori-BN.webp",
+   "thumb": "thumbs/bathroom/Miscelatore-Cromato-A-Tre-Fori.webp"
+  },
+  "103": {
+   "src": "Miscelatore da lavabo cromato moderno",
+   "slug": "Miscelatore-Da-Lavabo-Cromato-Moderno",
+   "cartella": "bathroom",
+   "colore": "bathroom/Miscelatore-Da-Lavabo-Cromato-Moderno.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Miscelatore-Da-Lavabo-Cromato-Moderno.webp"
+  },
+  "104": {
+   "src": "Miscelatore da lavabo nero opaco",
+   "slug": "Miscelatore-Da-Lavabo-Nero-Opaco",
+   "cartella": "bathroom",
+   "colore": "bathroom/Miscelatore-Da-Lavabo-Nero-Opaco.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Miscelatore-Da-Lavabo-Nero-Opaco.webp"
+  },
+  "105": {
+   "src": "Miscelatore lavabo classico cromato",
+   "slug": "Miscelatore-Lavabo-Classico-Cromato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Miscelatore-Lavabo-Classico-Cromato.webp",
+   "bn": "bathroom/Miscelatore-Lavabo-Classico-Cromato-BN.webp",
+   "thumb": "thumbs/bathroom/Miscelatore-Lavabo-Classico-Cromato.webp"
+  },
+  "106": {
+   "src": "Miscelatore lavabo cromato dal profilo squadrato",
+   "slug": "Miscelatore-Lavabo-Cromato-Dal-Profilo-Squadrato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Miscelatore-Lavabo-Cromato-Dal-Profilo-Squadrato.webp",
+   "bn": "bathroom/Miscelatore-Lavabo-Cromato-Dal-Profilo-Squadrato-BN.webp",
+   "thumb": "thumbs/bathroom/Miscelatore-Lavabo-Cromato-Dal-Profilo-Squadrato.webp"
+  },
+  "107": {
+   "src": "Miscelatore lavabo moderno in oro rosa",
+   "slug": "Miscelatore-Lavabo-Moderno-In-Oro-Rosa",
+   "cartella": "bathroom",
+   "colore": "bathroom/Miscelatore-Lavabo-Moderno-In-Oro-Rosa.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Miscelatore-Lavabo-Moderno-In-Oro-Rosa.webp"
+  },
+  "108": {
+   "src": "Miscelatore lavabo monocomando in oro rosa",
+   "slug": "Miscelatore-Lavabo-Monocomando-In-Oro-Rosa",
+   "cartella": "bathroom",
+   "colore": "bathroom/Miscelatore-Lavabo-Monocomando-In-Oro-Rosa.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Miscelatore-Lavabo-Monocomando-In-Oro-Rosa.webp"
+  },
+  "109": {
+   "src": "Miscelatore lavabo oro champagne spazzolato",
+   "slug": "Miscelatore-Lavabo-Oro-Champagne-Spazzolato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Miscelatore-Lavabo-Oro-Champagne-Spazzolato.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Miscelatore-Lavabo-Oro-Champagne-Spazzolato.webp"
+  },
+  "110": {
+   "src": "Miscelatore monocomando cromato per lavabo",
+   "slug": "Miscelatore-Monocomando-Cromato-Per-Lavabo",
+   "cartella": "bathroom",
+   "colore": "bathroom/Miscelatore-Monocomando-Cromato-Per-Lavabo.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Miscelatore-Monocomando-Cromato-Per-Lavabo.webp"
+  },
+  "111": {
+   "src": "Miscelatore monocomando da lavabo, oro champagne",
+   "slug": "Miscelatore-Monocomando-Da-Lavabo-Oro-Champagne",
+   "cartella": "bathroom",
+   "colore": "bathroom/Miscelatore-Monocomando-Da-Lavabo-Oro-Champagne.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Miscelatore-Monocomando-Da-Lavabo-Oro-Champagne.webp"
+  },
+  "112": {
+   "src": "Miscelatore monocomando in acciaio spazzolato",
+   "slug": "Miscelatore-Monocomando-In-Acciaio-Spazzolato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Miscelatore-Monocomando-In-Acciaio-Spazzolato.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Miscelatore-Monocomando-In-Acciaio-Spazzolato.webp"
+  },
+  "113": {
+   "src": "Miscelatore per lavabo nero opaco",
+   "slug": "Miscelatore-Per-Lavabo-Nero-Opaco",
+   "cartella": "bathroom",
+   "colore": "bathroom/Miscelatore-Per-Lavabo-Nero-Opaco.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Miscelatore-Per-Lavabo-Nero-Opaco.webp"
+  },
+  "114": {
+   "src": "Mobile bagno industriale nero con doppio lavabo",
+   "slug": "Mobile-Bagno-Industriale-Nero-Con-Doppio-Lavabo",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Mobile-Bagno-Industriale-Nero-Con-Doppio-Lavabo-BN.webp",
+   "thumb": "thumbs/bathroom/Mobile-Bagno-Industriale-Nero-Con-Doppio-Lavabo.webp"
+  },
+  "115": {
+   "src": "Mobile bagno sospeso con lavabo integrato",
+   "slug": "Mobile-Bagno-Sospeso-Con-Lavabo-Integrato",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Mobile-Bagno-Sospeso-Con-Lavabo-Integrato-BN.webp",
+   "thumb": "thumbs/bathroom/Mobile-Bagno-Sospeso-Con-Lavabo-Integrato.webp"
+  },
+  "116": {
+   "src": "Mobile bagno sospeso con lavabo ultrapiatto",
+   "slug": "Mobile-Bagno-Sospeso-Con-Lavabo-Ultrapiatto",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Mobile-Bagno-Sospeso-Con-Lavabo-Ultrapiatto-BN.webp",
+   "thumb": "thumbs/bathroom/Mobile-Bagno-Sospeso-Con-Lavabo-Ultrapiatto.webp"
+  },
+  "117": {
+   "src": "Moquette grigio medio a pelo corto",
+   "slug": "Moquette-Grigio-Medio-A-Pelo-Corto",
+   "cartella": "floors",
+   "colore": "floors/Moquette-Grigio-Medio-A-Pelo-Corto.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Moquette-Grigio-Medio-A-Pelo-Corto.webp"
+  },
+  "118": {
+   "src": "Mosaico azzurro sommerso d’acqua",
+   "slug": "Mosaico-Azzurro-Sommerso-Dacqua",
+   "cartella": "pools",
+   "colore": "pools/Mosaico-Azzurro-Sommerso-Dacqua.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Mosaico-Azzurro-Sommerso-Dacqua.webp"
+  },
+  "119": {
+   "src": "Mosaico bianco lucido sotto l’acqua",
+   "slug": "Mosaico-Bianco-Lucido-Sotto-Lacqua",
+   "cartella": "pools",
+   "colore": "pools/Mosaico-Bianco-Lucido-Sotto-Lacqua.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Mosaico-Bianco-Lucido-Sotto-Lacqua.webp"
+  },
+  "120": {
+   "src": "Mosaico esagonale bianco lucido",
+   "slug": "Mosaico-Esagonale-Bianco-Lucido",
+   "cartella": "bathroom",
+   "colore": "bathroom/Mosaico-Esagonale-Bianco-Lucido.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Mosaico-Esagonale-Bianco-Lucido.webp"
+  },
+  "121": {
+   "src": "Mosaico in vetro antracite sotto l’acqua",
+   "slug": "Mosaico-In-Vetro-Antracite-Sotto-Lacqua",
+   "cartella": "pools",
+   "colore": "pools/Mosaico-In-Vetro-Antracite-Sotto-Lacqua.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Mosaico-In-Vetro-Antracite-Sotto-Lacqua.webp"
+  },
+  "122": {
+   "src": "Mosaico in vetro grigio sotto l’acqua",
+   "slug": "Mosaico-In-Vetro-Grigio-Sotto-Lacqua",
+   "cartella": "pools",
+   "colore": "pools/Mosaico-In-Vetro-Grigio-Sotto-Lacqua.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Mosaico-In-Vetro-Grigio-Sotto-Lacqua.webp"
+  },
+  "123": {
+   "src": "Mosaico penny-round bianco con fughe taupe",
+   "slug": "Mosaico-Penny-Round-Bianco-Con-Fughe-Taupe",
+   "cartella": "bathroom",
+   "colore": "bathroom/Mosaico-Penny-Round-Bianco-Con-Fughe-Taupe.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Mosaico-Penny-Round-Bianco-Con-Fughe-Taupe.webp"
+  },
+  "124": {
+   "src": "Muro rustico in pietra naturale",
+   "slug": "Muro-Rustico-In-Pietra-Naturale",
+   "cartella": "facades",
+   "colore": "facades/Muro-Rustico-In-Pietra-Naturale.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Muro-Rustico-In-Pietra-Naturale.webp"
+  },
+  "125": {
+   "src": "Pannello doccia in vetro extrachiaro",
+   "slug": "Pannello-Doccia-In-Vetro-Extrachiaro",
+   "cartella": "bathroom",
+   "colore": "bathroom/Pannello-Doccia-In-Vetro-Extrachiaro.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Pannello-Doccia-In-Vetro-Extrachiaro.webp"
+  },
+  "126": {
+   "src": "Pannello doccia in vetro extrachiaro temperato",
+   "slug": "Pannello-Doccia-In-Vetro-Extrachiaro-Temperato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Pannello-Doccia-In-Vetro-Extrachiaro-Temperato.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Pannello-Doccia-In-Vetro-Extrachiaro-Temperato.webp"
+  },
+  "127": {
+   "src": "Pannello doccia in vetro fumé traslucido",
+   "slug": "Pannello-Doccia-In-Vetro-Fume-Traslucido",
+   "cartella": "bathroom",
+   "colore": "bathroom/Pannello-Doccia-In-Vetro-Fume-Traslucido.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Pannello-Doccia-In-Vetro-Fume-Traslucido.webp"
+  },
+  "128": {
+   "src": "Pannello isolante per pergola antracite",
+   "slug": "Pannello-Isolante-Per-Pergola-Antracite",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pannello-Isolante-Per-Pergola-Antracite-BN.webp",
+   "thumb": "thumbs/pergolas/Pannello-Isolante-Per-Pergola-Antracite.webp"
+  },
+  "129": {
+   "src": "Parete di mattoni bianchi",
+   "slug": "Parete-Di-Mattoni-Bianchi",
+   "cartella": "facades",
+   "colore": "facades/Parete-Di-Mattoni-Bianchi.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Parete-Di-Mattoni-Bianchi.webp"
+  },
+  "130": {
+   "src": "Parete in mattoni antichi",
+   "slug": "Parete-In-Mattoni-Antichi",
+   "cartella": "facades",
+   "colore": "facades/Parete-In-Mattoni-Antichi.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Parete-In-Mattoni-Antichi.webp"
+  },
+  "131": {
+   "src": "Parquet in frassino bianco",
+   "slug": "Parquet-In-Frassino-Bianco",
+   "cartella": "floors",
+   "colore": "floors/Parquet-In-Frassino-Bianco.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Parquet-In-Frassino-Bianco.webp"
+  },
+  "132": {
+   "src": "Parquet in noce color cioccolato",
+   "slug": "Parquet-In-Noce-Color-Cioccolato",
+   "cartella": "floors",
+   "colore": "floors/Parquet-In-Noce-Color-Cioccolato.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Parquet-In-Noce-Color-Cioccolato.webp"
+  },
+  "133": {
+   "src": "Parquet in rovere color miele",
+   "slug": "Parquet-In-Rovere-Color-Miele",
+   "cartella": "floors",
+   "colore": "floors/Parquet-In-Rovere-Color-Miele.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Parquet-In-Rovere-Color-Miele.webp"
+  },
+  "134": {
+   "src": "Parquet in rovere color miele(1)",
+   "slug": "Parquet-In-Rovere-Color-Miele-2",
+   "cartella": "floors",
+   "colore": "floors/Parquet-In-Rovere-Color-Miele-2.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Parquet-In-Rovere-Color-Miele-2.webp"
+  },
+  "135": {
+   "src": "Parquet in rovere naturale dall’alto",
+   "slug": "Parquet-In-Rovere-Naturale-Dallalto",
+   "cartella": "floors",
+   "colore": "floors/Parquet-In-Rovere-Naturale-Dallalto.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Parquet-In-Rovere-Naturale-Dallalto.webp"
+  },
+  "136": {
+   "src": "Parquet in rovere oliato, listoni sfalsati",
+   "slug": "Parquet-In-Rovere-Oliato-Listoni-Sfalsati",
+   "cartella": "floors",
+   "colore": "floors/Parquet-In-Rovere-Oliato-Listoni-Sfalsati.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Parquet-In-Rovere-Oliato-Listoni-Sfalsati.webp"
+  },
+  "137": {
+   "src": "Parquet in rovere sbiancato",
+   "slug": "Parquet-In-Rovere-Sbiancato",
+   "cartella": "floors",
+   "colore": "floors/Parquet-In-Rovere-Sbiancato.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Parquet-In-Rovere-Sbiancato.webp"
+  },
+  "138": {
+   "src": "Parquet wengé scuro con venature fini",
+   "slug": "Parquet-Wenge-Scuro-Con-Venature-Fini",
+   "cartella": "floors",
+   "colore": "floors/Parquet-Wenge-Scuro-Con-Venature-Fini.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Parquet-Wenge-Scuro-Con-Venature-Fini.webp"
+  },
+  "139": {
+   "src": "Patina naturale sulla pietra antica",
+   "slug": "Patina-Naturale-Sulla-Pietra-Antica",
+   "cartella": "floors",
+   "colore": "floors/Patina-Naturale-Sulla-Pietra-Antica.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Patina-Naturale-Sulla-Pietra-Antica.webp"
+  },
+  "140": {
+   "src": "Pavimentazione piscina moderna in gres effetto pietra",
+   "slug": "Pavimentazione-Piscina-Moderna-In-Gres-Effetto-Pietra",
+   "cartella": "pools",
+   "colore": "pools/Pavimentazione-Piscina-Moderna-In-Gres-Effetto-Pietra.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Pavimentazione-Piscina-Moderna-In-Gres-Effetto-Pietra.webp"
+  },
+  "141": {
+   "src": "Pavimento continuo in resina grigio caldo",
+   "slug": "Pavimento-Continuo-In-Resina-Grigio-Caldo",
+   "cartella": "floors",
+   "colore": "floors/Pavimento-Continuo-In-Resina-Grigio-Caldo.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Pavimento-Continuo-In-Resina-Grigio-Caldo.webp"
+  },
+  "142": {
+   "src": "Pavimento in pietra naturale grigio-beige",
+   "slug": "Pavimento-In-Pietra-Naturale-Grigio-Beige",
+   "cartella": "floors",
+   "colore": "floors/Pavimento-In-Pietra-Naturale-Grigio-Beige.webp",
+   "bn": "floors/Pavimento-In-Pietra-Naturale-Grigio-Beige-BN.webp",
+   "thumb": "thumbs/floors/Pavimento-In-Pietra-Naturale-Grigio-Beige.webp"
+  },
+  "143": {
+   "src": "Pavimento in resina cementizia grigio nuvolato",
+   "slug": "Pavimento-In-Resina-Cementizia-Grigio-Nuvolato",
+   "cartella": "floors",
+   "colore": "floors/Pavimento-In-Resina-Cementizia-Grigio-Nuvolato.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Pavimento-In-Resina-Cementizia-Grigio-Nuvolato.webp"
+  },
+  "144": {
+   "src": "Pergola a parete con copertura retrattile",
+   "slug": "Pergola-A-Parete-Con-Copertura-Retrattile",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergola-A-Parete-Con-Copertura-Retrattile-BN.webp",
+   "thumb": "thumbs/pergolas/Pergola-A-Parete-Con-Copertura-Retrattile.webp"
+  },
+  "145": {
+   "src": "Pergola a parete con tetto in vetro",
+   "slug": "Pergola-A-Parete-Con-Tetto-In-Vetro",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergola-A-Parete-Con-Tetto-In-Vetro-BN.webp",
+   "thumb": "thumbs/pergolas/Pergola-A-Parete-Con-Tetto-In-Vetro.webp"
+  },
+  "146": {
+   "src": "Pergola autoportante con tetto in vetro",
+   "slug": "Pergola-Autoportante-Con-Tetto-In-Vetro",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergola-Autoportante-Con-Tetto-In-Vetro-BN.webp",
+   "thumb": "thumbs/pergolas/Pergola-Autoportante-Con-Tetto-In-Vetro.webp"
+  },
+  "147": {
+   "src": "Pergola autoportante con tetto retraibile",
+   "slug": "Pergola-Autoportante-Con-Tetto-Retraibile",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergola-Autoportante-Con-Tetto-Retraibile-BN.webp",
+   "thumb": "thumbs/pergolas/Pergola-Autoportante-Con-Tetto-Retraibile.webp"
+  },
+  "148": {
+   "src": "Pergola bioclimatica con lamelle orientabili",
+   "slug": "Pergola-Bioclimatica-Con-Lamelle-Orientabili",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergola-Bioclimatica-Con-Lamelle-Orientabili-BN.webp",
+   "thumb": "thumbs/pergolas/Pergola-Bioclimatica-Con-Lamelle-Orientabili.webp"
+  },
+  "149": {
+   "src": "Pergola bioclimatica sulla terrazza",
+   "slug": "Pergola-Bioclimatica-Sulla-Terrazza",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergola-Bioclimatica-Sulla-Terrazza-BN.webp",
+   "thumb": "thumbs/pergolas/Pergola-Bioclimatica-Sulla-Terrazza.webp"
+  },
+  "150": {
+   "src": "Pergola con pannelli frangivento trasparenti",
+   "slug": "Pergola-Con-Pannelli-Frangivento-Trasparenti",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergola-Con-Pannelli-Frangivento-Trasparenti-BN.webp",
+   "thumb": "thumbs/pergolas/Pergola-Con-Pannelli-Frangivento-Trasparenti.webp"
+  },
+  "151": {
+   "src": "Pergola con pannelli frangivista in alluminio",
+   "slug": "Pergola-Con-Pannelli-Frangivista-In-Alluminio",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergola-Con-Pannelli-Frangivista-In-Alluminio-BN.webp",
+   "thumb": "thumbs/pergolas/Pergola-Con-Pannelli-Frangivista-In-Alluminio.webp"
+  },
+  "152": {
+   "src": "Pergola con vetrate scorrevoli aperte",
+   "slug": "Pergola-Con-Vetrate-Scorrevoli-Aperte",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergola-Con-Vetrate-Scorrevoli-Aperte-BN.webp",
+   "thumb": "thumbs/pergolas/Pergola-Con-Vetrate-Scorrevoli-Aperte.webp"
+  },
+  "153": {
+   "src": "Pergola in alluminio con luce calda",
+   "slug": "Pergola-In-Alluminio-Con-Luce-Calda",
+   "cartella": "pergolas",
+   "colore": "pergolas/Pergola-In-Alluminio-Con-Luce-Calda.webp",
+   "bn": null,
+   "thumb": "thumbs/pergolas/Pergola-In-Alluminio-Con-Luce-Calda.webp"
+  },
+  "154": {
+   "src": "Pergola in alluminio con luce radente",
+   "slug": "Pergola-In-Alluminio-Con-Luce-Radente",
+   "cartella": "pergolas",
+   "colore": "pergolas/Pergola-In-Alluminio-Con-Luce-Radente.webp",
+   "bn": null,
+   "thumb": "thumbs/pergolas/Pergola-In-Alluminio-Con-Luce-Radente.webp"
+  },
+  "155": {
+   "src": "Pergola in alluminio dal tetto piano",
+   "slug": "Pergola-In-Alluminio-Dal-Tetto-Piano",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergola-In-Alluminio-Dal-Tetto-Piano-BN.webp",
+   "thumb": "thumbs/pergolas/Pergola-In-Alluminio-Dal-Tetto-Piano.webp"
+  },
+  "156": {
+   "src": "Pergola in alluminio illuminata al tramonto",
+   "slug": "Pergola-In-Alluminio-Illuminata-Al-Tramonto",
+   "cartella": "pergolas",
+   "colore": "pergolas/Pergola-In-Alluminio-Illuminata-Al-Tramonto.webp",
+   "bn": null,
+   "thumb": "thumbs/pergolas/Pergola-In-Alluminio-Illuminata-Al-Tramonto.webp"
+  },
+  "157": {
+   "src": "Pergola in alluminio illuminata al tramonto(1)",
+   "slug": "Pergola-In-Alluminio-Illuminata-Al-Tramonto-2",
+   "cartella": "pergolas",
+   "colore": "pergolas/Pergola-In-Alluminio-Illuminata-Al-Tramonto-2.webp",
+   "bn": null,
+   "thumb": "thumbs/pergolas/Pergola-In-Alluminio-Illuminata-Al-Tramonto-2.webp"
+  },
+  "158": {
+   "src": "Pergola in alluminio su terrazza",
+   "slug": "Pergola-In-Alluminio-Su-Terrazza",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergola-In-Alluminio-Su-Terrazza-BN.webp",
+   "thumb": "thumbs/pergolas/Pergola-In-Alluminio-Su-Terrazza.webp"
+  },
+  "159": {
+   "src": "Pergola in legno su terrazza",
+   "slug": "Pergola-In-Legno-Su-Terrazza",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergola-In-Legno-Su-Terrazza-BN.webp",
+   "thumb": "thumbs/pergolas/Pergola-In-Legno-Su-Terrazza.webp"
+  },
+  "160": {
+   "src": "Pergola in legno sulla terrazza",
+   "slug": "Pergola-In-Legno-Sulla-Terrazza",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergola-In-Legno-Sulla-Terrazza-BN.webp",
+   "thumb": "thumbs/pergolas/Pergola-In-Legno-Sulla-Terrazza.webp"
+  },
+  "161": {
+   "src": "Pergola moderna con frangisole in alluminio",
+   "slug": "Pergola-Moderna-Con-Frangisole-In-Alluminio",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergola-Moderna-Con-Frangisole-In-Alluminio-BN.webp",
+   "thumb": "thumbs/pergolas/Pergola-Moderna-Con-Frangisole-In-Alluminio.webp"
+  },
+  "162": {
+   "src": "Pergolato in vetro sotto il cielo azzurro",
+   "slug": "Pergolato-In-Vetro-Sotto-Il-Cielo-Azzurro",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Pergolato-In-Vetro-Sotto-Il-Cielo-Azzurro-BN.webp",
+   "thumb": "thumbs/pergolas/Pergolato-In-Vetro-Sotto-Il-Cielo-Azzurro.webp"
+  },
+  "163": {
+   "src": "Persiana a gelosia chiusa",
+   "slug": "Persiana-A-Gelosia-Chiusa",
+   "cartella": "shutters",
+   "colore": null,
+   "bn": "shutters/Persiana-A-Gelosia-Chiusa-BN.webp",
+   "thumb": "thumbs/shutters/Persiana-A-Gelosia-Chiusa.webp"
+  },
+  "164": {
+   "src": "Persiana a lamelle aperta sul muro",
+   "slug": "Persiana-A-Lamelle-Aperta-Sul-Muro",
+   "cartella": "shutters",
+   "colore": null,
+   "bn": "shutters/Persiana-A-Lamelle-Aperta-Sul-Muro-BN.webp",
+   "thumb": "thumbs/shutters/Persiana-A-Lamelle-Aperta-Sul-Muro.webp"
+  },
+  "165": {
+   "src": "Persiana a libro semiaperta",
+   "slug": "Persiana-A-Libro-Semiaperta",
+   "cartella": "shutters",
+   "colore": null,
+   "bn": "shutters/Persiana-A-Libro-Semiaperta-BN.webp",
+   "thumb": "thumbs/shutters/Persiana-A-Libro-Semiaperta.webp"
+  },
+  "166": {
+   "src": "Persiana doppia a pannelli rialzati",
+   "slug": "Persiana-Doppia-A-Pannelli-Rialzati",
+   "cartella": "shutters",
+   "colore": null,
+   "bn": "shutters/Persiana-Doppia-A-Pannelli-Rialzati-BN.webp",
+   "thumb": "thumbs/shutters/Persiana-Doppia-A-Pannelli-Rialzati.webp"
+  },
+  "167": {
+   "src": "Persiana in legno a due ante",
+   "slug": "Persiana-In-Legno-A-Due-Ante",
+   "cartella": "shutters",
+   "colore": null,
+   "bn": "shutters/Persiana-In-Legno-A-Due-Ante-BN.webp",
+   "thumb": "thumbs/shutters/Persiana-In-Legno-A-Due-Ante.webp"
+  },
+  "168": {
+   "src": "Persiana in legno massello oliato",
+   "slug": "Persiana-In-Legno-Massello-Oliato",
+   "cartella": "shutters",
+   "colore": "shutters/Persiana-In-Legno-Massello-Oliato.webp",
+   "bn": null,
+   "thumb": "thumbs/shutters/Persiana-In-Legno-Massello-Oliato.webp"
+  },
+  "169": {
+   "src": "Persiana italiana a lamelle chiuse",
+   "slug": "Persiana-Italiana-A-Lamelle-Chiuse",
+   "cartella": "shutters",
+   "colore": null,
+   "bn": "shutters/Persiana-Italiana-A-Lamelle-Chiuse-BN.webp",
+   "thumb": "thumbs/shutters/Persiana-Italiana-A-Lamelle-Chiuse.webp"
+  },
+  "170": {
+   "src": "Persiana sostenuta da staffe decorative",
+   "slug": "Persiana-Sostenuta-Da-Staffe-Decorative",
+   "cartella": "shutters",
+   "colore": null,
+   "bn": "shutters/Persiana-Sostenuta-Da-Staffe-Decorative-BN.webp",
+   "thumb": "thumbs/shutters/Persiana-Sostenuta-Da-Staffe-Decorative.webp"
+  },
+  "171": {
+   "src": "Persiana su cardini murali tradizionali",
+   "slug": "Persiana-Su-Cardini-Murali-Tradizionali",
+   "cartella": "shutters",
+   "colore": null,
+   "bn": "shutters/Persiana-Su-Cardini-Murali-Tradizionali-BN.webp",
+   "thumb": "thumbs/shutters/Persiana-Su-Cardini-Murali-Tradizionali.webp"
+  },
+  "172": {
+   "src": "Piano in quarzo grigio chiaro lucidato",
+   "slug": "Piano-In-Quarzo-Grigio-Chiaro-Lucidato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piano-In-Quarzo-Grigio-Chiaro-Lucidato.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piano-In-Quarzo-Grigio-Chiaro-Lucidato.webp"
+  },
+  "173": {
+   "src": "Piastrella effetto pietra con riflessi",
+   "slug": "Piastrella-Effetto-Pietra-Con-Riflessi",
+   "cartella": "floors",
+   "colore": "floors/Piastrella-Effetto-Pietra-Con-Riflessi.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Piastrella-Effetto-Pietra-Con-Riflessi.webp"
+  },
+  "174": {
+   "src": "Piastrelle Emperador in griglia 2x2",
+   "slug": "Piastrelle-Emperador-In-Griglia-2x2",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-Emperador-In-Griglia-2x2.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-Emperador-In-Griglia-2x2.webp"
+  },
+  "175": {
+   "src": "Piastrelle Sahara Noir lucide con venature oro-ocra",
+   "slug": "Piastrelle-Sahara-Noir-Lucide-Con-Venature-Oro-Ocra",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-Sahara-Noir-Lucide-Con-Venature-Oro-Ocra.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-Sahara-Noir-Lucide-Con-Venature-Oro-Ocra.webp"
+  },
+  "176": {
+   "src": "Piastrelle Statuario lucido, vista dall’alto",
+   "slug": "Piastrelle-Statuario-Lucido-Vista-Dallalto",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-Statuario-Lucido-Vista-Dallalto.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-Statuario-Lucido-Vista-Dallalto.webp"
+  },
+  "177": {
+   "src": "Piastrelle antracite effetto cemento",
+   "slug": "Piastrelle-Antracite-Effetto-Cemento",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-Antracite-Effetto-Cemento.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-Antracite-Effetto-Cemento.webp"
+  },
+  "178": {
+   "src": "Piastrelle beige in griglia perfetta",
+   "slug": "Piastrelle-Beige-In-Griglia-Perfetta",
+   "cartella": "floors",
+   "colore": null,
+   "bn": "floors/Piastrelle-Beige-In-Griglia-Perfetta-BN.webp",
+   "thumb": "thumbs/floors/Piastrelle-Beige-In-Griglia-Perfetta.webp"
+  },
+  "179": {
+   "src": "Piastrelle chevron grigio chiaro",
+   "slug": "Piastrelle-Chevron-Grigio-Chiaro",
+   "cartella": "floors",
+   "colore": null,
+   "bn": "floors/Piastrelle-Chevron-Grigio-Chiaro-BN.webp",
+   "thumb": "thumbs/floors/Piastrelle-Chevron-Grigio-Chiaro.webp"
+  },
+  "180": {
+   "src": "Piastrelle color sabbia sott’acqua",
+   "slug": "Piastrelle-Color-Sabbia-Sottacqua",
+   "cartella": "pools",
+   "colore": "pools/Piastrelle-Color-Sabbia-Sottacqua.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Piastrelle-Color-Sabbia-Sottacqua.webp"
+  },
+  "181": {
+   "src": "Piastrelle di marmo chiaro venato",
+   "slug": "Piastrelle-Di-Marmo-Chiaro-Venato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-Di-Marmo-Chiaro-Venato.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-Di-Marmo-Chiaro-Venato.webp"
+  },
+  "182": {
+   "src": "Piastrelle di travertino beige naturale",
+   "slug": "Piastrelle-Di-Travertino-Beige-Naturale",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-Di-Travertino-Beige-Naturale.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-Di-Travertino-Beige-Naturale.webp"
+  },
+  "183": {
+   "src": "Piastrelle effetto cemento grigio opaco",
+   "slug": "Piastrelle-Effetto-Cemento-Grigio-Opaco",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-Effetto-Cemento-Grigio-Opaco.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-Effetto-Cemento-Grigio-Opaco.webp"
+  },
+  "184": {
+   "src": "Piastrelle effetto cemento nuvolato",
+   "slug": "Piastrelle-Effetto-Cemento-Nuvolato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-Effetto-Cemento-Nuvolato.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-Effetto-Cemento-Nuvolato.webp"
+  },
+  "185": {
+   "src": "Piastrelle effetto legno rovere chiaro",
+   "slug": "Piastrelle-Effetto-Legno-Rovere-Chiaro",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-Effetto-Legno-Rovere-Chiaro.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-Effetto-Legno-Rovere-Chiaro.webp"
+  },
+  "186": {
+   "src": "Piastrelle effetto legno wengé sfalsate",
+   "slug": "Piastrelle-Effetto-Legno-Wenge-Sfalsate",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-Effetto-Legno-Wenge-Sfalsate.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-Effetto-Legno-Wenge-Sfalsate.webp"
+  },
+  "187": {
+   "src": "Piastrelle grigie effetto cemento",
+   "slug": "Piastrelle-Grigie-Effetto-Cemento",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-Grigie-Effetto-Cemento.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-Grigie-Effetto-Cemento.webp"
+  },
+  "188": {
+   "src": "Piastrelle grigio chiaro a griglia regolare",
+   "slug": "Piastrelle-Grigio-Chiaro-A-Griglia-Regolare",
+   "cartella": "floors",
+   "colore": null,
+   "bn": "floors/Piastrelle-Grigio-Chiaro-A-Griglia-Regolare-BN.webp",
+   "thumb": "thumbs/floors/Piastrelle-Grigio-Chiaro-A-Griglia-Regolare.webp"
+  },
+  "189": {
+   "src": "Piastrelle grigio chiaro a posa sfalsata",
+   "slug": "Piastrelle-Grigio-Chiaro-A-Posa-Sfalsata",
+   "cartella": "floors",
+   "colore": null,
+   "bn": "floors/Piastrelle-Grigio-Chiaro-A-Posa-Sfalsata-BN.webp",
+   "thumb": "thumbs/floors/Piastrelle-Grigio-Chiaro-A-Posa-Sfalsata.webp"
+  },
+  "190": {
+   "src": "Piastrelle grigio chiaro a spina ungherese",
+   "slug": "Piastrelle-Grigio-Chiaro-A-Spina-Ungherese",
+   "cartella": "floors",
+   "colore": null,
+   "bn": "floors/Piastrelle-Grigio-Chiaro-A-Spina-Ungherese-BN.webp",
+   "thumb": "thumbs/floors/Piastrelle-Grigio-Chiaro-A-Spina-Ungherese.webp"
+  },
+  "191": {
+   "src": "Piastrelle grigio chiaro in diagonale",
+   "slug": "Piastrelle-Grigio-Chiaro-In-Diagonale",
+   "cartella": "floors",
+   "colore": null,
+   "bn": "floors/Piastrelle-Grigio-Chiaro-In-Diagonale-BN.webp",
+   "thumb": "thumbs/floors/Piastrelle-Grigio-Chiaro-In-Diagonale.webp"
+  },
+  "192": {
+   "src": "Piastrelle grigio chiaro in posa modulare",
+   "slug": "Piastrelle-Grigio-Chiaro-In-Posa-Modulare",
+   "cartella": "floors",
+   "colore": null,
+   "bn": "floors/Piastrelle-Grigio-Chiaro-In-Posa-Modulare-BN.webp",
+   "thumb": "thumbs/floors/Piastrelle-Grigio-Chiaro-In-Posa-Modulare.webp"
+  },
+  "193": {
+   "src": "Piastrelle in ardesia antracite opaca",
+   "slug": "Piastrelle-In-Ardesia-Antracite-Opaca",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Ardesia-Antracite-Opaca.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Ardesia-Antracite-Opaca.webp"
+  },
+  "194": {
+   "src": "Piastrelle in ardesia grigio scuro",
+   "slug": "Piastrelle-In-Ardesia-Grigio-Scuro",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Ardesia-Grigio-Scuro.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Ardesia-Grigio-Scuro.webp"
+  },
+  "195": {
+   "src": "Piastrelle in basalto scuro",
+   "slug": "Piastrelle-In-Basalto-Scuro",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Basalto-Scuro.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Basalto-Scuro.webp"
+  },
+  "196": {
+   "src": "Piastrelle in basalto scuro opaco",
+   "slug": "Piastrelle-In-Basalto-Scuro-Opaco",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Basalto-Scuro-Opaco.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Basalto-Scuro-Opaco.webp"
+  },
+  "197": {
+   "src": "Piastrelle in cotto toscano artigianali",
+   "slug": "Piastrelle-In-Cotto-Toscano-Artigianali",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Cotto-Toscano-Artigianali.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Cotto-Toscano-Artigianali.webp"
+  },
+  "198": {
+   "src": "Piastrelle in gres effetto cemento antracite",
+   "slug": "Piastrelle-In-Gres-Effetto-Cemento-Antracite",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Gres-Effetto-Cemento-Antracite.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Gres-Effetto-Cemento-Antracite.webp"
+  },
+  "199": {
+   "src": "Piastrelle in gres effetto cemento(1)",
+   "slug": "Piastrelle-In-Gres-Effetto-Cemento",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Gres-Effetto-Cemento.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Gres-Effetto-Cemento.webp"
+  },
+  "200": {
+   "src": "Piastrelle in gres effetto rovere affumicato",
+   "slug": "Piastrelle-In-Gres-Effetto-Rovere-Affumicato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Gres-Effetto-Rovere-Affumicato.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Gres-Effetto-Rovere-Affumicato.webp"
+  },
+  "201": {
+   "src": "Piastrelle in gres effetto rovere scuro",
+   "slug": "Piastrelle-In-Gres-Effetto-Rovere-Scuro",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Gres-Effetto-Rovere-Scuro.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Gres-Effetto-Rovere-Scuro.webp"
+  },
+  "202": {
+   "src": "Piastrelle in gres effetto rovere sfalsate",
+   "slug": "Piastrelle-In-Gres-Effetto-Rovere-Sfalsate",
+   "cartella": "floors",
+   "colore": "floors/Piastrelle-In-Gres-Effetto-Rovere-Sfalsate.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Piastrelle-In-Gres-Effetto-Rovere-Sfalsate.webp"
+  },
+  "203": {
+   "src": "Piastrelle in gres effetto terracotta",
+   "slug": "Piastrelle-In-Gres-Effetto-Terracotta",
+   "cartella": "floors",
+   "colore": "floors/Piastrelle-In-Gres-Effetto-Terracotta.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Piastrelle-In-Gres-Effetto-Terracotta.webp"
+  },
+  "204": {
+   "src": "Piastrelle in gres effetto terrazzo",
+   "slug": "Piastrelle-In-Gres-Effetto-Terrazzo",
+   "cartella": "floors",
+   "colore": "floors/Piastrelle-In-Gres-Effetto-Terrazzo.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Piastrelle-In-Gres-Effetto-Terrazzo.webp"
+  },
+  "205": {
+   "src": "Piastrelle in gres effetto wengé",
+   "slug": "Piastrelle-In-Gres-Effetto-Wenge",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Gres-Effetto-Wenge.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Gres-Effetto-Wenge.webp"
+  },
+  "206": {
+   "src": "Piastrelle in marmo Calacatta venato",
+   "slug": "Piastrelle-In-Marmo-Calacatta-Venato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Marmo-Calacatta-Venato.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Marmo-Calacatta-Venato.webp"
+  },
+  "207": {
+   "src": "Piastrelle in marmo Carrara lucido",
+   "slug": "Piastrelle-In-Marmo-Carrara-Lucido",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Marmo-Carrara-Lucido.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Marmo-Carrara-Lucido.webp"
+  },
+  "208": {
+   "src": "Piastrelle in marmo Carrara lucido(1)",
+   "slug": "Piastrelle-In-Marmo-Carrara-Lucido-2",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Marmo-Carrara-Lucido-2.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Marmo-Carrara-Lucido-2.webp"
+  },
+  "209": {
+   "src": "Piastrelle in marmo Emperador lucidato",
+   "slug": "Piastrelle-In-Marmo-Emperador-Lucidato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Marmo-Emperador-Lucidato.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Marmo-Emperador-Lucidato.webp"
+  },
+  "210": {
+   "src": "Piastrelle in marmo Marquinia, griglia 2x2",
+   "slug": "Piastrelle-In-Marmo-Marquinia-Griglia-2x2",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Marmo-Marquinia-Griglia-2x2.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Marmo-Marquinia-Griglia-2x2.webp"
+  },
+  "211": {
+   "src": "Piastrelle in marmo Statuario",
+   "slug": "Piastrelle-In-Marmo-Statuario",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Marmo-Statuario.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Marmo-Statuario.webp"
+  },
+  "212": {
+   "src": "Piastrelle in marmo Verde Guatemala",
+   "slug": "Piastrelle-In-Marmo-Verde-Guatemala",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Marmo-Verde-Guatemala.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Marmo-Verde-Guatemala.webp"
+  },
+  "213": {
+   "src": "Piastrelle in marmo chiaro levigato",
+   "slug": "Piastrelle-In-Marmo-Chiaro-Levigato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-In-Marmo-Chiaro-Levigato.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-In-Marmo-Chiaro-Levigato.webp"
+  },
+  "214": {
+   "src": "Piastrelle in terracotta arancione caldo",
+   "slug": "Piastrelle-In-Terracotta-Arancione-Caldo",
+   "cartella": "floors",
+   "colore": "floors/Piastrelle-In-Terracotta-Arancione-Caldo.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Piastrelle-In-Terracotta-Arancione-Caldo.webp"
+  },
+  "215": {
+   "src": "Piastrelle zellige azzurro-verde artigianali",
+   "slug": "Piastrelle-Zellige-Azzurro-Verde-Artigianali",
+   "cartella": "bathroom",
+   "colore": "bathroom/Piastrelle-Zellige-Azzurro-Verde-Artigianali.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Piastrelle-Zellige-Azzurro-Verde-Artigianali.webp"
+  },
+  "216": {
+   "src": "Piatto doccia bianco rialzato",
+   "slug": "Piatto-Doccia-Bianco-Rialzato",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Piatto-Doccia-Bianco-Rialzato-BN.webp",
+   "thumb": "thumbs/bathroom/Piatto-Doccia-Bianco-Rialzato.webp"
+  },
+  "217": {
+   "src": "Piatto doccia bianco rialzato, bordo sottile",
+   "slug": "Piatto-Doccia-Bianco-Rialzato-Bordo-Sottile",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Piatto-Doccia-Bianco-Rialzato-Bordo-Sottile-BN.webp",
+   "thumb": "thumbs/bathroom/Piatto-Doccia-Bianco-Rialzato-Bordo-Sottile.webp"
+  },
+  "218": {
+   "src": "Piatto doccia in resina effetto pietra",
+   "slug": "Piatto-Doccia-In-Resina-Effetto-Pietra",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Piatto-Doccia-In-Resina-Effetto-Pietra-BN.webp",
+   "thumb": "thumbs/bathroom/Piatto-Doccia-In-Resina-Effetto-Pietra.webp"
+  },
+  "219": {
+   "src": "Pietra levigata dalla luce setosa",
+   "slug": "Pietra-Levigata-Dalla-Luce-Setosa",
+   "cartella": "floors",
+   "colore": "floors/Pietra-Levigata-Dalla-Luce-Setosa.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Pietra-Levigata-Dalla-Luce-Setosa.webp"
+  },
+  "220": {
+   "src": "Pietra naturale intorno alla piscina",
+   "slug": "Pietra-Naturale-Intorno-Alla-Piscina",
+   "cartella": "pools",
+   "colore": "pools/Pietra-Naturale-Intorno-Alla-Piscina.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Pietra-Naturale-Intorno-Alla-Piscina.webp"
+  },
+  "221": {
+   "src": "Pietra naturale sommersa in piscina",
+   "slug": "Pietra-Naturale-Sommersa-In-Piscina",
+   "cartella": "pools",
+   "colore": "pools/Pietra-Naturale-Sommersa-In-Piscina.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Pietra-Naturale-Sommersa-In-Piscina.webp"
+  },
+  "222": {
+   "src": "Pietra serena toscana in blocchi modulari",
+   "slug": "Pietra-Serena-Toscana-In-Blocchi-Modulari",
+   "cartella": "facades",
+   "colore": "facades/Pietra-Serena-Toscana-In-Blocchi-Modulari.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Pietra-Serena-Toscana-In-Blocchi-Modulari.webp"
+  },
+  "223": {
+   "src": "Piscina a sfioro dall’architettura moderna",
+   "slug": "Piscina-A-Sfioro-Dallarchitettura-Moderna",
+   "cartella": "pools",
+   "colore": "pools/Piscina-A-Sfioro-Dallarchitettura-Moderna.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Piscina-A-Sfioro-Dallarchitettura-Moderna.webp"
+  },
+  "224": {
+   "src": "Piscina contemporanea con gradoni lounge",
+   "slug": "Piscina-Contemporanea-Con-Gradoni-Lounge",
+   "cartella": "pools",
+   "colore": null,
+   "bn": "pools/Piscina-Contemporanea-Con-Gradoni-Lounge-BN.webp",
+   "thumb": "thumbs/pools/Piscina-Contemporanea-Con-Gradoni-Lounge.webp"
+  },
+  "225": {
+   "src": "Piscina contemporanea con idromassaggio e bollicine",
+   "slug": "Piscina-Contemporanea-Con-Idromassaggio-E-Bollicine",
+   "cartella": "pools",
+   "colore": "pools/Piscina-Contemporanea-Con-Idromassaggio-E-Bollicine.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Piscina-Contemporanea-Con-Idromassaggio-E-Bollicine.webp"
+  },
+  "226": {
+   "src": "Piscina coperta da telo isotermico blu",
+   "slug": "Piscina-Coperta-Da-Telo-Isotermico-Blu",
+   "cartella": "pools",
+   "colore": "pools/Piscina-Coperta-Da-Telo-Isotermico-Blu.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Piscina-Coperta-Da-Telo-Isotermico-Blu.webp"
+  },
+  "227": {
+   "src": "Piscina crepuscolare con luci LED subacquee",
+   "slug": "Piscina-Crepuscolare-Con-Luci-LED-Subacquee",
+   "cartella": "pools",
+   "colore": "pools/Piscina-Crepuscolare-Con-Luci-LED-Subacquee.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Piscina-Crepuscolare-Con-Luci-LED-Subacquee.webp"
+  },
+  "228": {
+   "src": "Piscina elegante con cascata in pietra",
+   "slug": "Piscina-Elegante-Con-Cascata-In-Pietra",
+   "cartella": "pools",
+   "colore": "pools/Piscina-Elegante-Con-Cascata-In-Pietra.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Piscina-Elegante-Con-Cascata-In-Pietra.webp"
+  },
+  "229": {
+   "src": "Piscina elegante con lama d’acqua in acciaio",
+   "slug": "Piscina-Elegante-Con-Lama-Dacqua-In-Acciaio",
+   "cartella": "pools",
+   "colore": "pools/Piscina-Elegante-Con-Lama-Dacqua-In-Acciaio.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Piscina-Elegante-Con-Lama-Dacqua-In-Acciaio.webp"
+  },
+  "230": {
+   "src": "Piscina elegante dai riflessi profondi",
+   "slug": "Piscina-Elegante-Dai-Riflessi-Profondi",
+   "cartella": "pools",
+   "colore": "pools/Piscina-Elegante-Dai-Riflessi-Profondi.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Piscina-Elegante-Dai-Riflessi-Profondi.webp"
+  },
+  "231": {
+   "src": "Piscina moderna con copertura retrattile",
+   "slug": "Piscina-Moderna-Con-Copertura-Retrattile",
+   "cartella": "pools",
+   "colore": "pools/Piscina-Moderna-Con-Copertura-Retrattile.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Piscina-Moderna-Con-Copertura-Retrattile.webp"
+  },
+  "232": {
+   "src": "Piscina rettangolare immersa nel prato",
+   "slug": "Piscina-Rettangolare-Immersa-Nel-Prato",
+   "cartella": "pools",
+   "colore": "pools/Piscina-Rettangolare-Immersa-Nel-Prato.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Piscina-Rettangolare-Immersa-Nel-Prato.webp"
+  },
+  "233": {
+   "src": "Placca WC a doppio scarico",
+   "slug": "Placca-WC-A-Doppio-Scarico",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Placca-WC-A-Doppio-Scarico-BN.webp",
+   "thumb": "thumbs/bathroom/Placca-WC-A-Doppio-Scarico.webp"
+  },
+  "234": {
+   "src": "Placca WC arrotondata con doppio pulsante",
+   "slug": "Placca-WC-Arrotondata-Con-Doppio-Pulsante",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Placca-WC-Arrotondata-Con-Doppio-Pulsante-BN.webp",
+   "thumb": "thumbs/bathroom/Placca-WC-Arrotondata-Con-Doppio-Pulsante.webp"
+  },
+  "235": {
+   "src": "Placca WC in vetro a sfioramento",
+   "slug": "Placca-WC-In-Vetro-A-Sfioramento",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Placca-WC-In-Vetro-A-Sfioramento-BN.webp",
+   "thumb": "thumbs/bathroom/Placca-WC-In-Vetro-A-Sfioramento.webp"
+  },
+  "236": {
+   "src": "Plance viniliche effetto rovere caldo",
+   "slug": "Plance-Viniliche-Effetto-Rovere-Caldo",
+   "cartella": "floors",
+   "colore": "floors/Plance-Viniliche-Effetto-Rovere-Caldo.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Plance-Viniliche-Effetto-Rovere-Caldo.webp"
+  },
+  "237": {
+   "src": "Porta blindata classica con pannello inciso",
+   "slug": "Porta-Blindata-Classica-Con-Pannello-Inciso",
+   "cartella": "doors",
+   "colore": null,
+   "bn": "doors/Porta-Blindata-Classica-Con-Pannello-Inciso-BN.webp",
+   "thumb": "thumbs/doors/Porta-Blindata-Classica-Con-Pannello-Inciso.webp"
+  },
+  "238": {
+   "src": "Porta blindata con fiancoluce elegante",
+   "slug": "Porta-Blindata-Con-Fiancoluce-Elegante",
+   "cartella": "doors",
+   "colore": null,
+   "bn": "doors/Porta-Blindata-Con-Fiancoluce-Elegante-BN.webp",
+   "thumb": "thumbs/doors/Porta-Blindata-Con-Fiancoluce-Elegante.webp"
+  },
+  "239": {
+   "src": "Porta blindata effetto legno",
+   "slug": "Porta-Blindata-Effetto-Legno",
+   "cartella": "doors",
+   "colore": null,
+   "bn": "doors/Porta-Blindata-Effetto-Legno-BN.webp",
+   "thumb": "thumbs/doors/Porta-Blindata-Effetto-Legno.webp"
+  },
+  "240": {
+   "src": "Porta blindata moderna, eleganza italiana",
+   "slug": "Porta-Blindata-Moderna-Eleganza-Italiana",
+   "cartella": "doors",
+   "colore": null,
+   "bn": "doors/Porta-Blindata-Moderna-Eleganza-Italiana-BN.webp",
+   "thumb": "thumbs/doors/Porta-Blindata-Moderna-Eleganza-Italiana.webp"
+  },
+  "241": {
+   "src": "Porta blindata rasomuro minimalista",
+   "slug": "Porta-Blindata-Rasomuro-Minimalista",
+   "cartella": "doors",
+   "colore": null,
+   "bn": "doors/Porta-Blindata-Rasomuro-Minimalista-BN.webp",
+   "thumb": "thumbs/doors/Porta-Blindata-Rasomuro-Minimalista.webp"
+  },
+  "242": {
+   "src": "Porta doccia in vetro senza cornice",
+   "slug": "Porta-Doccia-In-Vetro-Senza-Cornice",
+   "cartella": "bathroom",
+   "colore": "bathroom/Porta-Doccia-In-Vetro-Senza-Cornice.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Porta-Doccia-In-Vetro-Senza-Cornice.webp"
+  },
+  "243": {
+   "src": "Porta interna bianca minimalista",
+   "slug": "Porta-Interna-Bianca-Minimalista",
+   "cartella": "doors",
+   "colore": null,
+   "bn": "doors/Porta-Interna-Bianca-Minimalista-BN.webp",
+   "thumb": "thumbs/doors/Porta-Interna-Bianca-Minimalista.webp"
+  },
+  "244": {
+   "src": "Porta interna in vetro satinato",
+   "slug": "Porta-Interna-In-Vetro-Satinato",
+   "cartella": "doors",
+   "colore": null,
+   "bn": "doors/Porta-Interna-In-Vetro-Satinato-BN.webp",
+   "thumb": "thumbs/doors/Porta-Interna-In-Vetro-Satinato.webp"
+  },
+  "245": {
+   "src": "Porta rasomuro minimalista tono su tono",
+   "slug": "Porta-Rasomuro-Minimalista-Tono-Su-Tono",
+   "cartella": "doors",
+   "colore": null,
+   "bn": "doors/Porta-Rasomuro-Minimalista-Tono-Su-Tono-BN.webp",
+   "thumb": "thumbs/doors/Porta-Rasomuro-Minimalista-Tono-Su-Tono.webp"
+  },
+  "246": {
+   "src": "Porta scorrevole a scomparsa elegante",
+   "slug": "Porta-Scorrevole-A-Scomparsa-Elegante",
+   "cartella": "doors",
+   "colore": null,
+   "bn": "doors/Porta-Scorrevole-A-Scomparsa-Elegante-BN.webp",
+   "thumb": "thumbs/doors/Porta-Scorrevole-A-Scomparsa-Elegante.webp"
+  },
+  "247": {
+   "src": "Porta scorrevole moderna con binario visibile",
+   "slug": "Porta-Scorrevole-Moderna-Con-Binario-Visibile",
+   "cartella": "doors",
+   "colore": null,
+   "bn": "doors/Porta-Scorrevole-Moderna-Con-Binario-Visibile-BN.webp",
+   "thumb": "thumbs/doors/Porta-Scorrevole-Moderna-Con-Binario-Visibile.webp"
+  },
+  "248": {
+   "src": "Prato verde e bordo piscina",
+   "slug": "Prato-Verde-E-Bordo-Piscina",
+   "cartella": "pools",
+   "colore": "pools/Prato-Verde-E-Bordo-Piscina.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Prato-Verde-E-Bordo-Piscina.webp"
+  },
+  "249": {
+   "src": "Profilo di pergola in acciaio saldato",
+   "slug": "Profilo-Di-Pergola-In-Acciaio-Saldato",
+   "cartella": "pergolas",
+   "colore": "pergolas/Profilo-Di-Pergola-In-Acciaio-Saldato.webp",
+   "bn": null,
+   "thumb": "thumbs/pergolas/Profilo-Di-Pergola-In-Acciaio-Saldato.webp"
+  },
+  "250": {
+   "src": "Profilo in alluminio effetto rovere",
+   "slug": "Profilo-In-Alluminio-Effetto-Rovere",
+   "cartella": "pergolas",
+   "colore": "pergolas/Profilo-In-Alluminio-Effetto-Rovere.webp",
+   "bn": null,
+   "thumb": "thumbs/pergolas/Profilo-In-Alluminio-Effetto-Rovere.webp"
+  },
+  "251": {
+   "src": "Quarzo grigio chiaro senza giunti",
+   "slug": "Quarzo-Grigio-Chiaro-Senza-Giunti",
+   "cartella": "bathroom",
+   "colore": "bathroom/Quarzo-Grigio-Chiaro-Senza-Giunti.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Quarzo-Grigio-Chiaro-Senza-Giunti.webp"
+  },
+  "252": {
+   "src": "Riflessi beige-verdi nell'acqua della piscina",
+   "slug": "Riflessi-Beige-Verdi-Nell-Acqua-Della-Piscina",
+   "cartella": "pools",
+   "colore": "pools/Riflessi-Beige-Verdi-Nell-Acqua-Della-Piscina.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Riflessi-Beige-Verdi-Nell-Acqua-Della-Piscina.webp"
+  },
+  "253": {
+   "src": "Rivestimento esterno in pietra grigia",
+   "slug": "Rivestimento-Esterno-In-Pietra-Grigia",
+   "cartella": "facades",
+   "colore": "facades/Rivestimento-Esterno-In-Pietra-Grigia.webp",
+   "bn": "facades/Rivestimento-Esterno-In-Pietra-Grigia-BN.webp",
+   "thumb": "thumbs/facades/Rivestimento-Esterno-In-Pietra-Grigia.webp"
+  },
+  "254": {
+   "src": "Rivestimento esterno in travertino beige",
+   "slug": "Rivestimento-Esterno-In-Travertino-Beige",
+   "cartella": "facades",
+   "colore": "facades/Rivestimento-Esterno-In-Travertino-Beige.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Rivestimento-Esterno-In-Travertino-Beige.webp"
+  },
+  "255": {
+   "src": "Rivestimento in gneiss grigio di Luserna",
+   "slug": "Rivestimento-In-Gneiss-Grigio-Di-Luserna",
+   "cartella": "facades",
+   "colore": "facades/Rivestimento-In-Gneiss-Grigio-Di-Luserna.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Rivestimento-In-Gneiss-Grigio-Di-Luserna.webp"
+  },
+  "256": {
+   "src": "Rivestimento in pietra a opus incertum",
+   "slug": "Rivestimento-In-Pietra-A-Opus-Incertum",
+   "cartella": "facades",
+   "colore": "facades/Rivestimento-In-Pietra-A-Opus-Incertum.webp",
+   "bn": "facades/Rivestimento-In-Pietra-A-Opus-Incertum-BN.webp",
+   "thumb": "thumbs/facades/Rivestimento-In-Pietra-A-Opus-Incertum.webp"
+  },
+  "257": {
+   "src": "Rivestimento in pietra grigia a secco",
+   "slug": "Rivestimento-In-Pietra-Grigia-A-Secco",
+   "cartella": "facades",
+   "colore": "facades/Rivestimento-In-Pietra-Grigia-A-Secco.webp",
+   "bn": "facades/Rivestimento-In-Pietra-Grigia-A-Secco-BN.webp",
+   "thumb": "thumbs/facades/Rivestimento-In-Pietra-Grigia-A-Secco.webp"
+  },
+  "258": {
+   "src": "Rivestimento in pietra grigio chiaro",
+   "slug": "Rivestimento-In-Pietra-Grigio-Chiaro",
+   "cartella": "facades",
+   "colore": "facades/Rivestimento-In-Pietra-Grigio-Chiaro.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Rivestimento-In-Pietra-Grigio-Chiaro.webp"
+  },
+  "259": {
+   "src": "Rivestimento in pietra grigio chiaro(1)",
+   "slug": "Rivestimento-In-Pietra-Grigio-Chiaro-2",
+   "cartella": "facades",
+   "colore": "facades/Rivestimento-In-Pietra-Grigio-Chiaro-2.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Rivestimento-In-Pietra-Grigio-Chiaro-2.webp"
+  },
+  "260": {
+   "src": "Rivestimento in resina turchese sott'acqua",
+   "slug": "Rivestimento-In-Resina-Turchese-Sott-Acqua",
+   "cartella": "pools",
+   "colore": "pools/Rivestimento-In-Resina-Turchese-Sott-Acqua.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Rivestimento-In-Resina-Turchese-Sott-Acqua.webp"
+  },
+  "261": {
+   "src": "Rivestimento piscina in PVC grigio scuro",
+   "slug": "Rivestimento-Piscina-In-PVC-Grigio-Scuro",
+   "cartella": "pools",
+   "colore": "pools/Rivestimento-Piscina-In-PVC-Grigio-Scuro.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Rivestimento-Piscina-In-PVC-Grigio-Scuro.webp"
+  },
+  "262": {
+   "src": "Rivestimento piscina in PVC sott’acqua",
+   "slug": "Rivestimento-Piscina-In-PVC-Sottacqua",
+   "cartella": "pools",
+   "colore": "pools/Rivestimento-Piscina-In-PVC-Sottacqua.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Rivestimento-Piscina-In-PVC-Sottacqua.webp"
+  },
+  "263": {
+   "src": "Rovere laminato con giunti click",
+   "slug": "Rovere-Laminato-Con-Giunti-Click",
+   "cartella": "floors",
+   "colore": "floors/Rovere-Laminato-Con-Giunti-Click.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Rovere-Laminato-Con-Giunti-Click.webp"
+  },
+  "264": {
+   "src": "Rubinetto cromato da parete per vasca",
+   "slug": "Rubinetto-Cromato-Da-Parete-Per-Vasca",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Rubinetto-Cromato-Da-Parete-Per-Vasca-BN.webp",
+   "thumb": "thumbs/bathroom/Rubinetto-Cromato-Da-Parete-Per-Vasca.webp"
+  },
+  "265": {
+   "src": "Rubinetto lavabo industriale in metallo scuro",
+   "slug": "Rubinetto-Lavabo-Industriale-In-Metallo-Scuro",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Rubinetto-Lavabo-Industriale-In-Metallo-Scuro-BN.webp",
+   "thumb": "thumbs/bathroom/Rubinetto-Lavabo-Industriale-In-Metallo-Scuro.webp"
+  },
+  "266": {
+   "src": "Rubinetto lavabo monocomando satinato",
+   "slug": "Rubinetto-Lavabo-Monocomando-Satinato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Rubinetto-Lavabo-Monocomando-Satinato.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Rubinetto-Lavabo-Monocomando-Satinato.webp"
+  },
+  "267": {
+   "src": "Rubinetto lavabo vintage cromato a croce",
+   "slug": "Rubinetto-Lavabo-Vintage-Cromato-A-Croce",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Rubinetto-Lavabo-Vintage-Cromato-A-Croce-BN.webp",
+   "thumb": "thumbs/bathroom/Rubinetto-Lavabo-Vintage-Cromato-A-Croce.webp"
+  },
+  "268": {
+   "src": "Scala inox a doppio corrimano",
+   "slug": "Scala-Inox-A-Doppio-Corrimano",
+   "cartella": "pools",
+   "colore": null,
+   "bn": "pools/Scala-Inox-A-Doppio-Corrimano-BN.webp",
+   "thumb": "thumbs/pools/Scala-Inox-A-Doppio-Corrimano.webp"
+  },
+  "269": {
+   "src": "Serranda avvolgibile con guide laterali",
+   "slug": "Serranda-Avvolgibile-Con-Guide-Laterali",
+   "cartella": "shutters",
+   "colore": null,
+   "bn": "shutters/Serranda-Avvolgibile-Con-Guide-Laterali-BN.webp",
+   "thumb": "thumbs/shutters/Serranda-Avvolgibile-Con-Guide-Laterali.webp"
+  },
+  "270": {
+   "src": "Sistema doccia completo con soffione a pioggia",
+   "slug": "Sistema-Doccia-Completo-Con-Soffione-A-Pioggia",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Sistema-Doccia-Completo-Con-Soffione-A-Pioggia-BN.webp",
+   "thumb": "thumbs/bathroom/Sistema-Doccia-Completo-Con-Soffione-A-Pioggia.webp"
+  },
+  "271": {
+   "src": "Smalto bianco lucido su ghisa",
+   "slug": "Smalto-Bianco-Lucido-Su-Ghisa",
+   "cartella": "bathroom",
+   "colore": "bathroom/Smalto-Bianco-Lucido-Su-Ghisa.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Smalto-Bianco-Lucido-Su-Ghisa.webp"
+  },
+  "272": {
+   "src": "Soffione doccia quadrato a soffitto",
+   "slug": "Soffione-Doccia-Quadrato-A-Soffitto",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Soffione-Doccia-Quadrato-A-Soffitto-BN.webp",
+   "thumb": "thumbs/bathroom/Soffione-Doccia-Quadrato-A-Soffitto.webp"
+  },
+  "273": {
+   "src": "Soffione doccia rotondo con miscelatore",
+   "slug": "Soffione-Doccia-Rotondo-Con-Miscelatore",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Soffione-Doccia-Rotondo-Con-Miscelatore-BN.webp",
+   "thumb": "thumbs/bathroom/Soffione-Doccia-Rotondo-Con-Miscelatore.webp"
+  },
+  "274": {
+   "src": "Solarium piscina in gres effetto pietra",
+   "slug": "Solarium-Piscina-In-Gres-Effetto-Pietra",
+   "cartella": "pools",
+   "colore": "pools/Solarium-Piscina-In-Gres-Effetto-Pietra.webp",
+   "bn": null,
+   "thumb": "thumbs/pools/Solarium-Piscina-In-Gres-Effetto-Pietra.webp"
+  },
+  "275": {
+   "src": "Specchiera bagno con anta aperta",
+   "slug": "Specchiera-Bagno-Con-Anta-Aperta",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Specchiera-Bagno-Con-Anta-Aperta-BN.webp",
+   "thumb": "thumbs/bathroom/Specchiera-Bagno-Con-Anta-Aperta.webp"
+  },
+  "276": {
+   "src": "Specchio rettangolare con luce LED",
+   "slug": "Specchio-Rettangolare-Con-Luce-LED",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Specchio-Rettangolare-Con-Luce-LED-BN.webp",
+   "thumb": "thumbs/bathroom/Specchio-Rettangolare-Con-Luce-LED.webp"
+  },
+  "277": {
+   "src": "Specchio rotondo senza cornice",
+   "slug": "Specchio-Rotondo-Senza-Cornice",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Specchio-Rotondo-Senza-Cornice-BN.webp",
+   "thumb": "thumbs/bathroom/Specchio-Rotondo-Senza-Cornice.webp"
+  },
+  "278": {
+   "src": "Specchio verticale con cornice sottile",
+   "slug": "Specchio-Verticale-Con-Cornice-Sottile",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Specchio-Verticale-Con-Cornice-Sottile-BN.webp",
+   "thumb": "thumbs/bathroom/Specchio-Verticale-Con-Cornice-Sottile.webp"
+  },
+  "279": {
+   "src": "Spiaggetta sommersa in piscina cristallina",
+   "slug": "Spiaggetta-Sommersa-In-Piscina-Cristallina",
+   "cartella": "pools",
+   "colore": null,
+   "bn": "pools/Spiaggetta-Sommersa-In-Piscina-Cristallina-BN.webp",
+   "thumb": "thumbs/pools/Spiaggetta-Sommersa-In-Piscina-Cristallina.webp"
+  },
+  "280": {
+   "src": "Spina di pesce in grigio chiaro",
+   "slug": "Spina-Di-Pesce-In-Grigio-Chiaro",
+   "cartella": "floors",
+   "colore": null,
+   "bn": "floors/Spina-Di-Pesce-In-Grigio-Chiaro-BN.webp",
+   "thumb": "thumbs/floors/Spina-Di-Pesce-In-Grigio-Chiaro.webp"
+  },
+  "281": {
+   "src": "Superficie bianca vellutata per vasca",
+   "slug": "Superficie-Bianca-Vellutata-Per-Vasca",
+   "cartella": "bathroom",
+   "colore": "bathroom/Superficie-Bianca-Vellutata-Per-Vasca.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Superficie-Bianca-Vellutata-Per-Vasca.webp"
+  },
+  "282": {
+   "src": "Superficie d’intonaco grigio caldo",
+   "slug": "Superficie-Dintonaco-Grigio-Caldo",
+   "cartella": "facades",
+   "colore": "facades/Superficie-Dintonaco-Grigio-Caldo.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Superficie-Dintonaco-Grigio-Caldo.webp"
+  },
+  "283": {
+   "src": "Superficie effetto pietra opaca",
+   "slug": "Superficie-Effetto-Pietra-Opaca",
+   "cartella": "floors",
+   "colore": "floors/Superficie-Effetto-Pietra-Opaca.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Superficie-Effetto-Pietra-Opaca.webp"
+  },
+  "284": {
+   "src": "Superficie in pietra bocciardata",
+   "slug": "Superficie-In-Pietra-Bocciardata",
+   "cartella": "floors",
+   "colore": "floors/Superficie-In-Pietra-Bocciardata.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Superficie-In-Pietra-Bocciardata.webp"
+  },
+  "285": {
+   "src": "Superficie opaca effetto legno",
+   "slug": "Superficie-Opaca-Effetto-Legno",
+   "cartella": "floors",
+   "colore": "floors/Superficie-Opaca-Effetto-Legno.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Superficie-Opaca-Effetto-Legno.webp"
+  },
+  "286": {
+   "src": "Tegole italiane in terracotta",
+   "slug": "Tegole-Italiane-In-Terracotta",
+   "cartella": "roofs",
+   "colore": "roofs/Tegole-Italiane-In-Terracotta.webp",
+   "bn": null,
+   "thumb": "thumbs/roofs/Tegole-Italiane-In-Terracotta.webp"
+  },
+  "287": {
+   "src": "Tenda a rullo zip per pergola",
+   "slug": "Tenda-A-Rullo-Zip-Per-Pergola",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Tenda-A-Rullo-Zip-Per-Pergola-BN.webp",
+   "thumb": "thumbs/pergolas/Tenda-A-Rullo-Zip-Per-Pergola.webp"
+  },
+  "288": {
+   "src": "Tenda tecnica ecru, parzialmente chiusa sulla pergola",
+   "slug": "Tenda-Tecnica-Ecru-Parzialmente-Chiusa-Sulla-Pergola",
+   "cartella": "pergolas",
+   "colore": null,
+   "bn": "pergolas/Tenda-Tecnica-Ecru-Parzialmente-Chiusa-Sulla-Pergola-BN.webp",
+   "thumb": "thumbs/pergolas/Tenda-Tecnica-Ecru-Parzialmente-Chiusa-Sulla-Pergola.webp"
+  },
+  "289": {
+   "src": "Terrazzo veneziano lucidato a vista",
+   "slug": "Terrazzo-Veneziano-Lucidato-A-Vista",
+   "cartella": "floors",
+   "colore": "floors/Terrazzo-Veneziano-Lucidato-A-Vista.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Terrazzo-Veneziano-Lucidato-A-Vista.webp"
+  },
+  "290": {
+   "src": "Tetto moderno con tegole solari integrate",
+   "slug": "Tetto-Moderno-Con-Tegole-Solari-Integrate",
+   "cartella": "roofs",
+   "colore": null,
+   "bn": "roofs/Tetto-Moderno-Con-Tegole-Solari-Integrate-BN.webp",
+   "thumb": "thumbs/roofs/Tetto-Moderno-Con-Tegole-Solari-Integrate.webp"
+  },
+  "291": {
+   "src": "Texture ruvida di intonaco esterno",
+   "slug": "Texture-Ruvida-Di-Intonaco-Esterno",
+   "cartella": "facades",
+   "colore": "facades/Texture-Ruvida-Di-Intonaco-Esterno.webp",
+   "bn": null,
+   "thumb": "thumbs/facades/Texture-Ruvida-Di-Intonaco-Esterno.webp"
+  },
+  "292": {
+   "src": "Texture satinata effetto pietra",
+   "slug": "Texture-Satinata-Effetto-Pietra",
+   "cartella": "floors",
+   "colore": "floors/Texture-Satinata-Effetto-Pietra.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Texture-Satinata-Effetto-Pietra.webp"
+  },
+  "293": {
+   "src": "Travertino beige levigato a bande naturali",
+   "slug": "Travertino-Beige-Levigato-A-Bande-Naturali",
+   "cartella": "bathroom",
+   "colore": "bathroom/Travertino-Beige-Levigato-A-Bande-Naturali.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Travertino-Beige-Levigato-A-Bande-Naturali.webp"
+  },
+  "294": {
+   "src": "Vasca angolare incassata con pannello piastrellato",
+   "slug": "Vasca-Angolare-Incassata-Con-Pannello-Piastrellato",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Vasca-Angolare-Incassata-Con-Pannello-Piastrellato-BN.webp",
+   "thumb": "thumbs/bathroom/Vasca-Angolare-Incassata-Con-Pannello-Piastrellato.webp"
+  },
+  "295": {
+   "src": "Vasca back-to-wall con rubinetto a parete",
+   "slug": "Vasca-Back-To-Wall-Con-Rubinetto-A-Parete",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Vasca-Back-To-Wall-Con-Rubinetto-A-Parete-BN.webp",
+   "thumb": "thumbs/bathroom/Vasca-Back-To-Wall-Con-Rubinetto-A-Parete.webp"
+  },
+  "296": {
+   "src": "Vasca freestanding rettangolare dai bordi morbidi",
+   "slug": "Vasca-Freestanding-Rettangolare-Dai-Bordi-Morbidi",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Vasca-Freestanding-Rettangolare-Dai-Bordi-Morbidi-BN.webp",
+   "thumb": "thumbs/bathroom/Vasca-Freestanding-Rettangolare-Dai-Bordi-Morbidi.webp"
+  },
+  "297": {
+   "src": "Vasca incassata con rivestimento piastrellato",
+   "slug": "Vasca-Incassata-Con-Rivestimento-Piastrellato",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Vasca-Incassata-Con-Rivestimento-Piastrellato-BN.webp",
+   "thumb": "thumbs/bathroom/Vasca-Incassata-Con-Rivestimento-Piastrellato.webp"
+  },
+  "298": {
+   "src": "Vasca ovale freestanding con rubinetto",
+   "slug": "Vasca-Ovale-Freestanding-Con-Rubinetto",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/Vasca-Ovale-Freestanding-Con-Rubinetto-BN.webp",
+   "thumb": "thumbs/bathroom/Vasca-Ovale-Freestanding-Con-Rubinetto.webp"
+  },
+  "299": {
+   "src": "Venature naturali del legno spazzolato",
+   "slug": "Venature-Naturali-Del-Legno-Spazzolato",
+   "cartella": "floors",
+   "colore": "floors/Venature-Naturali-Del-Legno-Spazzolato.webp",
+   "bn": null,
+   "thumb": "thumbs/floors/Venature-Naturali-Del-Legno-Spazzolato.webp"
+  },
+  "300": {
+   "src": "Vetro doccia puntinato sfumato",
+   "slug": "Vetro-Doccia-Puntinato-Sfumato",
+   "cartella": "bathroom",
+   "colore": "bathroom/Vetro-Doccia-Puntinato-Sfumato.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Vetro-Doccia-Puntinato-Sfumato.webp"
+  },
+  "301": {
+   "src": "Vetro doccia serigrafato a sfumatura",
+   "slug": "Vetro-Doccia-Serigrafato-A-Sfumatura",
+   "cartella": "bathroom",
+   "colore": "bathroom/Vetro-Doccia-Serigrafato-A-Sfumatura.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Vetro-Doccia-Serigrafato-A-Sfumatura.webp"
+  },
+  "302": {
+   "src": "Vetro fumé grigio scuro per doccia",
+   "slug": "Vetro-Fume-Grigio-Scuro-Per-Doccia",
+   "cartella": "bathroom",
+   "colore": "bathroom/Vetro-Fume-Grigio-Scuro-Per-Doccia.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Vetro-Fume-Grigio-Scuro-Per-Doccia.webp"
+  },
+  "303": {
+   "src": "Vetro satinato con luce lattiginosa",
+   "slug": "Vetro-Satinato-Con-Luce-Lattiginosa",
+   "cartella": "bathroom",
+   "colore": "bathroom/Vetro-Satinato-Con-Luce-Lattiginosa.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Vetro-Satinato-Con-Luce-Lattiginosa.webp"
+  },
+  "304": {
+   "src": "Vetro satinato per box doccia",
+   "slug": "Vetro-Satinato-Per-Box-Doccia",
+   "cartella": "bathroom",
+   "colore": "bathroom/Vetro-Satinato-Per-Box-Doccia.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/Vetro-Satinato-Per-Box-Doccia.webp"
+  },
+  "305": {
+   "src": "Vialetto residenziale in autobloccanti grigi",
+   "slug": "Vialetto-Residenziale-In-Autobloccanti-Grigi",
+   "cartella": "exterior",
+   "colore": "exterior/Vialetto-Residenziale-In-Autobloccanti-Grigi.webp",
+   "bn": null,
+   "thumb": "thumbs/exterior/Vialetto-Residenziale-In-Autobloccanti-Grigi.webp"
+  },
+  "306": {
+   "src": "WC monoblocco bianco, ceramica lucida",
+   "slug": "WC-Monoblocco-Bianco-Ceramica-Lucida",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/WC-Monoblocco-Bianco-Ceramica-Lucida-BN.webp",
+   "thumb": "thumbs/bathroom/WC-Monoblocco-Bianco-Ceramica-Lucida.webp"
+  },
+  "307": {
+   "src": "WC sospeso bianco senza bordo",
+   "slug": "WC-Sospeso-Bianco-Senza-Bordo",
+   "cartella": "bathroom",
+   "colore": null,
+   "bn": "bathroom/WC-Sospeso-Bianco-Senza-Bordo-BN.webp",
+   "thumb": "thumbs/bathroom/WC-Sospeso-Bianco-Senza-Bordo.webp"
+  },
+  "308": {
+   "src": "WC sospeso in ceramica bianca",
+   "slug": "WC-Sospeso-In-Ceramica-Bianca",
+   "cartella": "bathroom",
+   "colore": "bathroom/WC-Sospeso-In-Ceramica-Bianca.webp",
+   "bn": "bathroom/WC-Sospeso-In-Ceramica-Bianca-BN.webp",
+   "thumb": "thumbs/bathroom/WC-Sospeso-In-Ceramica-Bianca.webp"
+  },
+  "309": {
+   "src": "WC sospeso in ceramica grigio chiaro",
+   "slug": "WC-Sospeso-In-Ceramica-Grigio-Chiaro",
+   "cartella": "bathroom",
+   "colore": "bathroom/WC-Sospeso-In-Ceramica-Grigio-Chiaro.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/WC-Sospeso-In-Ceramica-Grigio-Chiaro.webp"
+  },
+  "310": {
+   "src": "WC sospeso nero opaco",
+   "slug": "WC-Sospeso-Nero-Opaco",
+   "cartella": "bathroom",
+   "colore": "bathroom/WC-Sospeso-Nero-Opaco.webp",
+   "bn": null,
+   "thumb": "thumbs/bathroom/WC-Sospeso-Nero-Opaco.webp"
+  }
+ },
+ "voci": [
+  {
+   "modulo": "bagno",
+   "dim": "doccia_tipo",
+   "valore": "walk_in",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Box-Doccia-Walk-In-Con-Profilo-Nero-BN.webp",
+    "bathroom/Cabina-Doccia-Walk-In-Con-Profilo-Nero-BN.webp",
+    "bathroom/Doccia-Walk-In-Moderna-Con-Canalina-Lineare-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Box-Doccia-Walk-In-Con-Profilo-Nero.webp",
+    "thumbs/bathroom/Cabina-Doccia-Walk-In-Con-Profilo-Nero.webp",
+    "thumbs/bathroom/Doccia-Walk-In-Moderna-Con-Canalina-Lineare.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_tipo",
+   "valore": "nicchia_box",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Box-Doccia-In-Nicchia-Con-Vetro-Trasparente-BN.webp",
+    "bathroom/Cabina-Doccia-Ad-Alcova-Con-Porta-Scorrevole-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Box-Doccia-In-Nicchia-Con-Vetro-Trasparente.webp",
+    "thumbs/bathroom/Cabina-Doccia-Ad-Alcova-Con-Porta-Scorrevole.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_tipo",
+   "valore": "frontale_box",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Box-Doccia-Frontale-Con-Porta-Battente-BN.webp",
+    "bathroom/Box-Doccia-Cromato-Con-Porta-In-Vetro-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Box-Doccia-Frontale-Con-Porta-Battente.webp",
+    "thumbs/bathroom/Box-Doccia-Cromato-Con-Porta-In-Vetro.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_tipo",
+   "valore": "angolare",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Box-Doccia-Angolare-In-Vetro-BN.webp",
+    "bathroom/Box-Doccia-Angolare-Con-Profilo-Cromato-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Box-Doccia-Angolare-In-Vetro.webp",
+    "thumbs/bathroom/Box-Doccia-Angolare-Con-Profilo-Cromato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_tipo",
+   "valore": "semicircolare",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Box-Doccia-Semicircolare-In-Vetro-Curvo-BN.webp",
+    "bathroom/Cabina-Doccia-Semicircolare-Con-Porta-Scorrevole-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Box-Doccia-Semicircolare-In-Vetro-Curvo.webp",
+    "thumbs/bathroom/Cabina-Doccia-Semicircolare-Con-Porta-Scorrevole.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_vetro",
+   "valore": "trasparente",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Pannello-Doccia-In-Vetro-Extrachiaro.webp",
+    "bathroom/Pannello-Doccia-In-Vetro-Extrachiaro-Temperato.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Pannello-Doccia-In-Vetro-Extrachiaro.webp",
+    "thumbs/bathroom/Pannello-Doccia-In-Vetro-Extrachiaro-Temperato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_vetro",
+   "valore": "satinato",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Vetro-Satinato-Per-Box-Doccia.webp",
+    "bathroom/Vetro-Satinato-Con-Luce-Lattiginosa.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Vetro-Satinato-Per-Box-Doccia.webp",
+    "thumbs/bathroom/Vetro-Satinato-Con-Luce-Lattiginosa.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_vetro",
+   "valore": "fume",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Pannello-Doccia-In-Vetro-Fume-Traslucido.webp",
+    "bathroom/Vetro-Fume-Grigio-Scuro-Per-Doccia.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Pannello-Doccia-In-Vetro-Fume-Traslucido.webp",
+    "thumbs/bathroom/Vetro-Fume-Grigio-Scuro-Per-Doccia.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_vetro",
+   "valore": "serigrafato",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Vetro-Doccia-Serigrafato-A-Sfumatura.webp",
+    "bathroom/Vetro-Doccia-Puntinato-Sfumato.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Vetro-Doccia-Serigrafato-A-Sfumatura.webp",
+    "thumbs/bathroom/Vetro-Doccia-Puntinato-Sfumato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_profilo",
+   "valore": "cromato",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Angolo-Di-Porta-Doccia-In-Vetro-Cromato.webp",
+    "bathroom/Angolo-Di-Porta-Doccia-In-Vetro.webp",
+    "bathroom/Giunzione-Cromata-Della-Porta-Doccia.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Angolo-Di-Porta-Doccia-In-Vetro-Cromato.webp",
+    "thumbs/bathroom/Angolo-Di-Porta-Doccia-In-Vetro.webp",
+    "thumbs/bathroom/Giunzione-Cromata-Della-Porta-Doccia.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_profilo",
+   "valore": "nero_opaco",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Angolo-Doccia-In-Vetro-Con-Profilo-Nero.webp",
+    "bathroom/Angolo-Della-Porta-Doccia-Con-Profilo-Nero.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Angolo-Doccia-In-Vetro-Con-Profilo-Nero.webp",
+    "thumbs/bathroom/Angolo-Della-Porta-Doccia-Con-Profilo-Nero.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_profilo",
+   "valore": "oro_spazzolato",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Angolo-Doccia-In-Vetro-Con-Oro-Spazzolato.webp",
+    "bathroom/Dettaglio-Vetro-Doccia-Con-Profilo-Oro.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Angolo-Doccia-In-Vetro-Con-Oro-Spazzolato.webp",
+    "thumbs/bathroom/Dettaglio-Vetro-Doccia-Con-Profilo-Oro.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_profilo",
+   "valore": "senza_profilo",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Porta-Doccia-In-Vetro-Senza-Cornice.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Porta-Doccia-In-Vetro-Senza-Cornice.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_piatto",
+   "valore": "filo_pavimento",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Doccia-Walk-In-Moderna-Con-Canalina-Lineare-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Doccia-Walk-In-Moderna-Con-Canalina-Lineare.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_piatto",
+   "valore": "rialzato_3cm",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Piatto-Doccia-Bianco-Rialzato-Bordo-Sottile-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piatto-Doccia-Bianco-Rialzato-Bordo-Sottile.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_piatto",
+   "valore": "rialzato_5cm",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Piatto-Doccia-Bianco-Rialzato-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piatto-Doccia-Bianco-Rialzato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_piatto",
+   "valore": "pietra",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Piatto-Doccia-In-Resina-Effetto-Pietra-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piatto-Doccia-In-Resina-Effetto-Pietra.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_soffione",
+   "valore": "a_parete",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Soffione-Doccia-Rotondo-Con-Miscelatore-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Soffione-Doccia-Rotondo-Con-Miscelatore.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_soffione",
+   "valore": "pioggia_soffitto",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Soffione-Doccia-Quadrato-A-Soffitto-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Soffione-Doccia-Quadrato-A-Soffitto.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_soffione",
+   "valore": "colonna_completa",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Colonna-Doccia-Completa-Con-Soffione-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Colonna-Doccia-Completa-Con-Soffione.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "doccia_soffione",
+   "valore": "combinato",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Sistema-Doccia-Completo-Con-Soffione-A-Pioggia-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Sistema-Doccia-Completo-Con-Soffione-A-Pioggia.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "vasca_tipo",
+   "valore": "freestanding_ovale",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Vasca-Ovale-Freestanding-Con-Rubinetto-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Vasca-Ovale-Freestanding-Con-Rubinetto.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "vasca_tipo",
+   "valore": "freestanding_rettangolare",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Vasca-Freestanding-Rettangolare-Dai-Bordi-Morbidi-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Vasca-Freestanding-Rettangolare-Dai-Bordi-Morbidi.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "vasca_tipo",
+   "valore": "back_to_wall",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Vasca-Back-To-Wall-Con-Rubinetto-A-Parete-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Vasca-Back-To-Wall-Con-Rubinetto-A-Parete.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "vasca_tipo",
+   "valore": "incassata",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Vasca-Incassata-Con-Rivestimento-Piastrellato-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Vasca-Incassata-Con-Rivestimento-Piastrellato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "vasca_tipo",
+   "valore": "angolare",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Vasca-Angolare-Incassata-Con-Pannello-Piastrellato-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Vasca-Angolare-Incassata-Con-Pannello-Piastrellato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "vasca_materiale",
+   "valore": "solid_surface",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Superficie-Bianca-Vellutata-Per-Vasca.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Superficie-Bianca-Vellutata-Per-Vasca.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "vasca_materiale",
+   "valore": "ghisa_smaltata",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Smalto-Bianco-Lucido-Su-Ghisa.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Smalto-Bianco-Lucido-Su-Ghisa.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "vasca_rubinetto",
+   "valore": "a_parete",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Rubinetto-Cromato-Da-Parete-Per-Vasca-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Rubinetto-Cromato-Da-Parete-Per-Vasca.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "vasca_rubinetto",
+   "valore": "a_pavimento",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Colonna-Rubinetto-Cromata-Con-Doccetta-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Colonna-Rubinetto-Cromata-Con-Doccetta.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "vasca_rubinetto",
+   "valore": "bordo_vasca",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Miscelatore-Cromato-A-Tre-Fori-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Miscelatore-Cromato-A-Tre-Fori.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "mobile_stile",
+   "valore": "sospeso_moderno",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Mobile-Bagno-Sospeso-Con-Lavabo-Integrato-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Mobile-Bagno-Sospeso-Con-Lavabo-Integrato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "mobile_stile",
+   "valore": "sospeso_minimal",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Mobile-Bagno-Sospeso-Con-Lavabo-Ultrapiatto-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Mobile-Bagno-Sospeso-Con-Lavabo-Ultrapiatto.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "mobile_stile",
+   "valore": "a_terra_industrial",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Mobile-Bagno-Industriale-Nero-Con-Doppio-Lavabo-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Mobile-Bagno-Industriale-Nero-Con-Doppio-Lavabo.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "mobile_piano",
+   "valore": "quarzo",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piano-In-Quarzo-Grigio-Chiaro-Lucidato.webp",
+    "bathroom/Quarzo-Grigio-Chiaro-Senza-Giunti.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piano-In-Quarzo-Grigio-Chiaro-Lucidato.webp",
+    "thumbs/bathroom/Quarzo-Grigio-Chiaro-Senza-Giunti.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "lavabo_tipo",
+   "valore": "integrato",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Mobile-Bagno-Sospeso-Con-Lavabo-Integrato-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Mobile-Bagno-Sospeso-Con-Lavabo-Integrato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "lavabo_tipo",
+   "valore": "appoggio_ovale",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Lavabo-Ovale-In-Ceramica-Bianca-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Lavabo-Ovale-In-Ceramica-Bianca.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "lavabo_tipo",
+   "valore": "appoggio_rettangolare",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Lavabo-Rettangolare-Bianco-Da-Appoggio-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Lavabo-Rettangolare-Bianco-Da-Appoggio.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "lavabo_tipo",
+   "valore": "semincasso",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Lavabo-Semincasso-In-Ceramica-Bianca-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Lavabo-Semincasso-In-Ceramica-Bianca.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "specchio_tipo",
+   "valore": "retroilluminato",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Specchio-Rettangolare-Con-Luce-LED-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Specchio-Rettangolare-Con-Luce-LED.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "specchio_tipo",
+   "valore": "specchiera_contenitore",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Specchiera-Bagno-Con-Anta-Aperta-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Specchiera-Bagno-Con-Anta-Aperta.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "specchio_tipo",
+   "valore": "tondo",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Specchio-Rotondo-Senza-Cornice-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Specchio-Rotondo-Senza-Cornice.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "specchio_tipo",
+   "valore": "verticale",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Specchio-Verticale-Con-Cornice-Sottile-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Specchio-Verticale-Con-Cornice-Sottile.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "wc_tipo",
+   "valore": "sospeso",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/WC-Sospeso-In-Ceramica-Bianca-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/WC-Sospeso-In-Ceramica-Bianca.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "wc_tipo",
+   "valore": "rimless_sospeso",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/WC-Sospeso-Bianco-Senza-Bordo-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/WC-Sospeso-Bianco-Senza-Bordo.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "wc_tipo",
+   "valore": "a_terra",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/WC-Monoblocco-Bianco-Ceramica-Lucida-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/WC-Monoblocco-Bianco-Ceramica-Lucida.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "sanitari_colore",
+   "valore": "bianco",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/WC-Sospeso-In-Ceramica-Bianca.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/WC-Sospeso-In-Ceramica-Bianca.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "sanitari_colore",
+   "valore": "grigio_chiaro",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/WC-Sospeso-In-Ceramica-Grigio-Chiaro.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/WC-Sospeso-In-Ceramica-Grigio-Chiaro.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "sanitari_colore",
+   "valore": "nero_opaco",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/WC-Sospeso-Nero-Opaco.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/WC-Sospeso-Nero-Opaco.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "bidet_tipo",
+   "valore": "sospeso",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Bidet-Sospeso-In-Ceramica-Bianca-Lucida-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Bidet-Sospeso-In-Ceramica-Bianca-Lucida.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "bidet_tipo",
+   "valore": "a_terra",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Bidet-Bianco-Con-Miscelatore-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Bidet-Bianco-Con-Miscelatore.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "placca_stile",
+   "valore": "rettangolare_sottile",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Placca-WC-A-Doppio-Scarico-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Placca-WC-A-Doppio-Scarico.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "placca_stile",
+   "valore": "tonda_soft",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Placca-WC-Arrotondata-Con-Doppio-Pulsante-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Placca-WC-Arrotondata-Con-Doppio-Pulsante.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "placca_stile",
+   "valore": "vetro_minimal",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Placca-WC-In-Vetro-A-Sfioramento-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Placca-WC-In-Vetro-A-Sfioramento.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "rubinetto_finitura",
+   "valore": "cromo",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Miscelatore-Da-Lavabo-Cromato-Moderno.webp",
+    "bathroom/Miscelatore-Monocomando-Cromato-Per-Lavabo.webp",
+    "bathroom/Miscelatore-Lavabo-Cromato-Dal-Profilo-Squadrato.webp",
+    "bathroom/Miscelatore-Lavabo-Classico-Cromato.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Miscelatore-Da-Lavabo-Cromato-Moderno.webp",
+    "thumbs/bathroom/Miscelatore-Monocomando-Cromato-Per-Lavabo.webp",
+    "thumbs/bathroom/Miscelatore-Lavabo-Cromato-Dal-Profilo-Squadrato.webp",
+    "thumbs/bathroom/Miscelatore-Lavabo-Classico-Cromato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "rubinetto_finitura",
+   "valore": "nero_opaco",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Miscelatore-Da-Lavabo-Nero-Opaco.webp",
+    "bathroom/Miscelatore-Per-Lavabo-Nero-Opaco.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Miscelatore-Da-Lavabo-Nero-Opaco.webp",
+    "thumbs/bathroom/Miscelatore-Per-Lavabo-Nero-Opaco.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "rubinetto_finitura",
+   "valore": "oro_spazzolato",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Miscelatore-Lavabo-Oro-Champagne-Spazzolato.webp",
+    "bathroom/Miscelatore-Monocomando-Da-Lavabo-Oro-Champagne.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Miscelatore-Lavabo-Oro-Champagne-Spazzolato.webp",
+    "thumbs/bathroom/Miscelatore-Monocomando-Da-Lavabo-Oro-Champagne.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "rubinetto_finitura",
+   "valore": "oro_rosa",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Miscelatore-Lavabo-Moderno-In-Oro-Rosa.webp",
+    "bathroom/Miscelatore-Lavabo-Monocomando-In-Oro-Rosa.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Miscelatore-Lavabo-Moderno-In-Oro-Rosa.webp",
+    "thumbs/bathroom/Miscelatore-Lavabo-Monocomando-In-Oro-Rosa.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "rubinetto_finitura",
+   "valore": "acciaio_spazzolato",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Miscelatore-Monocomando-In-Acciaio-Spazzolato.webp",
+    "bathroom/Rubinetto-Lavabo-Monocomando-Satinato.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Miscelatore-Monocomando-In-Acciaio-Spazzolato.webp",
+    "thumbs/bathroom/Rubinetto-Lavabo-Monocomando-Satinato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "rubinetto_stile",
+   "valore": "quadro_moderno",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Miscelatore-Lavabo-Cromato-Dal-Profilo-Squadrato-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Miscelatore-Lavabo-Cromato-Dal-Profilo-Squadrato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "rubinetto_stile",
+   "valore": "tondo_classico",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Miscelatore-Lavabo-Classico-Cromato-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Miscelatore-Lavabo-Classico-Cromato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "rubinetto_stile",
+   "valore": "industrial",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Rubinetto-Lavabo-Industriale-In-Metallo-Scuro-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Rubinetto-Lavabo-Industriale-In-Metallo-Scuro.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "rubinetto_stile",
+   "valore": "vintage_crosshead",
+   "classe": "FORMA",
+   "file": [
+    "bathroom/Rubinetto-Lavabo-Vintage-Cromato-A-Croce-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Rubinetto-Lavabo-Vintage-Cromato-A-Croce.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "marmo_carrara",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-In-Marmo-Carrara-Lucido.webp",
+    "bathroom/Piastrelle-In-Marmo-Carrara-Lucido-2.webp",
+    "bathroom/Piastrelle-Di-Marmo-Chiaro-Venato.webp",
+    "bathroom/Piastrelle-In-Marmo-Chiaro-Levigato.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-In-Marmo-Carrara-Lucido.webp",
+    "thumbs/bathroom/Piastrelle-In-Marmo-Carrara-Lucido-2.webp",
+    "thumbs/bathroom/Piastrelle-Di-Marmo-Chiaro-Venato.webp",
+    "thumbs/bathroom/Piastrelle-In-Marmo-Chiaro-Levigato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "marmo_calacatta",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-In-Marmo-Calacatta-Venato.webp",
+    "bathroom/Calacatta-Lucido-Venature-Grigie-E-Dorate.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-In-Marmo-Calacatta-Venato.webp",
+    "thumbs/bathroom/Calacatta-Lucido-Venature-Grigie-E-Dorate.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "marmo_sahara_noir",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-Sahara-Noir-Lucide-Con-Venature-Oro-Ocra.webp",
+    "bathroom/Marmo-Sahara-Noir-Nero-E-Oro.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-Sahara-Noir-Lucide-Con-Venature-Oro-Ocra.webp",
+    "thumbs/bathroom/Marmo-Sahara-Noir-Nero-E-Oro.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "marmo_marquinia",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-In-Marmo-Marquinia-Griglia-2x2.webp",
+    "bathroom/Marmo-Marquinia-Nero-Con-Venature-Bianche.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-In-Marmo-Marquinia-Griglia-2x2.webp",
+    "thumbs/bathroom/Marmo-Marquinia-Nero-Con-Venature-Bianche.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "marmo_verde_guatemala",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-In-Marmo-Verde-Guatemala.webp",
+    "bathroom/Marmo-Verde-Guatemala-In-Griglia-2x2.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-In-Marmo-Verde-Guatemala.webp",
+    "thumbs/bathroom/Marmo-Verde-Guatemala-In-Griglia-2x2.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "marmo_statuario",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-In-Marmo-Statuario.webp",
+    "bathroom/Piastrelle-Statuario-Lucido-Vista-Dallalto.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-In-Marmo-Statuario.webp",
+    "thumbs/bathroom/Piastrelle-Statuario-Lucido-Vista-Dallalto.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "marmo_emperador",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-In-Marmo-Emperador-Lucidato.webp",
+    "bathroom/Piastrelle-Emperador-In-Griglia-2x2.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-In-Marmo-Emperador-Lucidato.webp",
+    "thumbs/bathroom/Piastrelle-Emperador-In-Griglia-2x2.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "cemento_grigio",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-Effetto-Cemento-Grigio-Opaco.webp",
+    "bathroom/Piastrelle-Grigie-Effetto-Cemento.webp",
+    "bathroom/Piastrelle-In-Gres-Effetto-Cemento.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-Effetto-Cemento-Grigio-Opaco.webp",
+    "thumbs/bathroom/Piastrelle-Grigie-Effetto-Cemento.webp",
+    "thumbs/bathroom/Piastrelle-In-Gres-Effetto-Cemento.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "cemento_bianco",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-Effetto-Cemento-Nuvolato.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-Effetto-Cemento-Nuvolato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "cemento_antracite",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-Antracite-Effetto-Cemento.webp",
+    "bathroom/Piastrelle-In-Gres-Effetto-Cemento-Antracite.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-Antracite-Effetto-Cemento.webp",
+    "thumbs/bathroom/Piastrelle-In-Gres-Effetto-Cemento-Antracite.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "legno_rovere_chiaro",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-Effetto-Legno-Rovere-Chiaro.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-Effetto-Legno-Rovere-Chiaro.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "legno_rovere_scuro",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-In-Gres-Effetto-Rovere-Scuro.webp",
+    "bathroom/Piastrelle-In-Gres-Effetto-Rovere-Affumicato.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-In-Gres-Effetto-Rovere-Scuro.webp",
+    "thumbs/bathroom/Piastrelle-In-Gres-Effetto-Rovere-Affumicato.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "legno_wenge",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-Effetto-Legno-Wenge-Sfalsate.webp",
+    "bathroom/Piastrelle-In-Gres-Effetto-Wenge.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-Effetto-Legno-Wenge-Sfalsate.webp",
+    "thumbs/bathroom/Piastrelle-In-Gres-Effetto-Wenge.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "ardesia",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-In-Ardesia-Grigio-Scuro.webp",
+    "bathroom/Ardesia-Naturale-Color-Carbone.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-In-Ardesia-Grigio-Scuro.webp",
+    "thumbs/bathroom/Ardesia-Naturale-Color-Carbone.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "pietra_ardesia",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-In-Ardesia-Antracite-Opaca.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-In-Ardesia-Antracite-Opaca.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "travertino",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-Di-Travertino-Beige-Naturale.webp",
+    "bathroom/Travertino-Beige-Levigato-A-Bande-Naturali.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-Di-Travertino-Beige-Naturale.webp",
+    "thumbs/bathroom/Travertino-Beige-Levigato-A-Bande-Naturali.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "basalto",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-In-Basalto-Scuro.webp",
+    "bathroom/Piastrelle-In-Basalto-Scuro-Opaco.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-In-Basalto-Scuro.webp",
+    "thumbs/bathroom/Piastrelle-In-Basalto-Scuro-Opaco.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "mosaico_esagoni",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Mosaico-Esagonale-Bianco-Lucido.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Mosaico-Esagonale-Bianco-Lucido.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "mosaico_penny",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Mosaico-Penny-Round-Bianco-Con-Fughe-Taupe.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Mosaico-Penny-Round-Bianco-Con-Fughe-Taupe.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "zellige",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-Zellige-Azzurro-Verde-Artigianali.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-Zellige-Azzurro-Verde-Artigianali.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "cotto_toscano",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-In-Cotto-Toscano-Artigianali.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-In-Cotto-Toscano-Artigianali.webp"
+   ]
+  },
+  {
+   "modulo": "bagno",
+   "dim": "piastrella_effetto",
+   "valore": "resina_spatolata",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Microcemento-Spatolato-Dalle-Delicate-Sfumature.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Microcemento-Spatolato-Dalle-Delicate-Sfumature.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "posa",
+   "valore": "spina_di_pesce",
+   "classe": "FORMA",
+   "file": [
+    "floors/Spina-Di-Pesce-In-Grigio-Chiaro-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Spina-Di-Pesce-In-Grigio-Chiaro.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "posa",
+   "valore": "spina_ungherese",
+   "classe": "FORMA",
+   "file": [
+    "floors/Piastrelle-Grigio-Chiaro-A-Spina-Ungherese-BN.webp",
+    "floors/Piastrelle-Chevron-Grigio-Chiaro-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Piastrelle-Grigio-Chiaro-A-Spina-Ungherese.webp",
+    "thumbs/floors/Piastrelle-Chevron-Grigio-Chiaro.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "posa",
+   "valore": "diagonale_45",
+   "classe": "FORMA",
+   "file": [
+    "floors/Piastrelle-Grigio-Chiaro-In-Diagonale-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Piastrelle-Grigio-Chiaro-In-Diagonale.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "posa",
+   "valore": "sfalsato_33",
+   "classe": "FORMA",
+   "file": [
+    "floors/Piastrelle-Grigio-Chiaro-A-Posa-Sfalsata-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Piastrelle-Grigio-Chiaro-A-Posa-Sfalsata.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "posa",
+   "valore": "rettilineo_dritto",
+   "classe": "FORMA",
+   "file": [
+    "floors/Piastrelle-Grigio-Chiaro-A-Griglia-Regolare-BN.webp",
+    "floors/Piastrelle-Beige-In-Griglia-Perfetta-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Piastrelle-Grigio-Chiaro-A-Griglia-Regolare.webp",
+    "thumbs/floors/Piastrelle-Beige-In-Griglia-Perfetta.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "posa",
+   "valore": "modulare",
+   "classe": "FORMA",
+   "file": [
+    "floors/Piastrelle-Grigio-Chiaro-In-Posa-Modulare-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Piastrelle-Grigio-Chiaro-In-Posa-Modulare.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "posa",
+   "valore": "opus_romanum",
+   "classe": "FORMA",
+   "file": [
+    "floors/Pavimento-In-Pietra-Naturale-Grigio-Beige-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Pavimento-In-Pietra-Naturale-Grigio-Beige.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "tipo",
+   "valore": "parquet_massello",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Parquet-In-Rovere-Oliato-Listoni-Sfalsati.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Parquet-In-Rovere-Oliato-Listoni-Sfalsati.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "tipo",
+   "valore": "parquet_prefinito",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Parquet-In-Rovere-Color-Miele-2.webp",
+    "floors/Parquet-In-Rovere-Color-Miele.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Parquet-In-Rovere-Color-Miele-2.webp",
+    "thumbs/floors/Parquet-In-Rovere-Color-Miele.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "tipo",
+   "valore": "laminato",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Rovere-Laminato-Con-Giunti-Click.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Rovere-Laminato-Con-Giunti-Click.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "tipo",
+   "valore": "vinile_lvt",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Plance-Viniliche-Effetto-Rovere-Caldo.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Plance-Viniliche-Effetto-Rovere-Caldo.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "tipo",
+   "valore": "moquette",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Moquette-Grigio-Medio-A-Pelo-Corto.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Moquette-Grigio-Medio-A-Pelo-Corto.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "tipo",
+   "valore": "resina_continua",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Pavimento-Continuo-In-Resina-Grigio-Caldo.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Pavimento-Continuo-In-Resina-Grigio-Caldo.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "tipo",
+   "valore": "cemento_resina",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Pavimento-In-Resina-Cementizia-Grigio-Nuvolato.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Pavimento-In-Resina-Cementizia-Grigio-Nuvolato.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "tipo",
+   "valore": "microcemento",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Microcemento-Nuvolato-Grigio-Caldo.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Microcemento-Nuvolato-Grigio-Caldo.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "tipo",
+   "valore": "terrazzo_veneziano",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Terrazzo-Veneziano-Lucidato-A-Vista.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Terrazzo-Veneziano-Lucidato-A-Vista.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "tipo",
+   "valore": "pietra_naturale",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Pavimento-In-Pietra-Naturale-Grigio-Beige.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Pavimento-In-Pietra-Naturale-Grigio-Beige.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "tipo",
+   "valore": "cotto",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Piastrelle-In-Terracotta-Arancione-Caldo.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Piastrelle-In-Terracotta-Arancione-Caldo.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "tipo",
+   "valore": "marmo",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-In-Marmo-Chiaro-Levigato.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-In-Marmo-Chiaro-Levigato.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "tipo",
+   "valore": "gres_porcellanato",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Gres-Porcellanato-Effetto-Marmo-Chiaro.webp",
+    "floors/Gres-Porcellanato-Effetto-Calcare-Grigio.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Gres-Porcellanato-Effetto-Marmo-Chiaro.webp",
+    "thumbs/floors/Gres-Porcellanato-Effetto-Calcare-Grigio.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "effetto",
+   "valore": "legno",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Gres-Effetto-Rovere-Naturale.webp",
+    "floors/Piastrelle-In-Gres-Effetto-Rovere-Sfalsate.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Gres-Effetto-Rovere-Naturale.webp",
+    "thumbs/floors/Piastrelle-In-Gres-Effetto-Rovere-Sfalsate.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "effetto",
+   "valore": "marmo",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Gres-Porcellanato-Effetto-Marmo-Chiaro.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Gres-Porcellanato-Effetto-Marmo-Chiaro.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "effetto",
+   "valore": "pietra",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Gres-Porcellanato-Effetto-Calcare-Grigio.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Gres-Porcellanato-Effetto-Calcare-Grigio.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "effetto",
+   "valore": "cemento",
+   "classe": "MATERIA",
+   "file": [
+    "bathroom/Piastrelle-Grigie-Effetto-Cemento.webp"
+   ],
+   "thumb": [
+    "thumbs/bathroom/Piastrelle-Grigie-Effetto-Cemento.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "effetto",
+   "valore": "resina",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Pavimento-In-Resina-Cementizia-Grigio-Nuvolato.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Pavimento-In-Resina-Cementizia-Grigio-Nuvolato.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "effetto",
+   "valore": "cotto",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Piastrelle-In-Gres-Effetto-Terracotta.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Piastrelle-In-Gres-Effetto-Terracotta.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "effetto",
+   "valore": "tessile",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Moquette-Grigio-Medio-A-Pelo-Corto.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Moquette-Grigio-Medio-A-Pelo-Corto.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "effetto",
+   "valore": "terrazzo",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Piastrelle-In-Gres-Effetto-Terrazzo.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Piastrelle-In-Gres-Effetto-Terrazzo.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "essenza",
+   "valore": "rovere_naturale",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Parquet-In-Rovere-Naturale-Dallalto.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Parquet-In-Rovere-Naturale-Dallalto.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "essenza",
+   "valore": "rovere_sbiancato",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Parquet-In-Rovere-Sbiancato.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Parquet-In-Rovere-Sbiancato.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "essenza",
+   "valore": "rovere_miele",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Parquet-In-Rovere-Color-Miele.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Parquet-In-Rovere-Color-Miele.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "essenza",
+   "valore": "noce",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Parquet-In-Noce-Color-Cioccolato.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Parquet-In-Noce-Color-Cioccolato.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "essenza",
+   "valore": "teak",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Doghe-Di-Teak-Dorato.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Doghe-Di-Teak-Dorato.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "essenza",
+   "valore": "wenghe",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Parquet-Wenge-Scuro-Con-Venature-Fini.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Parquet-Wenge-Scuro-Con-Venature-Fini.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "essenza",
+   "valore": "frassino_bianco",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Parquet-In-Frassino-Bianco.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Parquet-In-Frassino-Bianco.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "bisello",
+   "valore": "microbisello",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Giunzione-Tra-Tavole-Di-Rovere.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Giunzione-Tra-Tavole-Di-Rovere.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "bisello",
+   "valore": "bisello_v",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Giunzione-A-V-Tra-Tavole-Di-Legno.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Giunzione-A-V-Tra-Tavole-Di-Legno.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "bisello",
+   "valore": "bordo_irregolare",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Giunzione-Di-Assi-In-Legno-Rustico.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Giunzione-Di-Assi-In-Legno-Rustico.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "finitura",
+   "valore": "lucido",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Piastrella-Effetto-Pietra-Con-Riflessi.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Piastrella-Effetto-Pietra-Con-Riflessi.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "finitura",
+   "valore": "opaco",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Superficie-Effetto-Pietra-Opaca.webp",
+    "floors/Superficie-Opaca-Effetto-Legno.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Superficie-Effetto-Pietra-Opaca.webp",
+    "thumbs/floors/Superficie-Opaca-Effetto-Legno.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "finitura",
+   "valore": "satinato",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Texture-Satinata-Effetto-Pietra.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Texture-Satinata-Effetto-Pietra.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "finitura",
+   "valore": "spazzolato",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Venature-Naturali-Del-Legno-Spazzolato.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Venature-Naturali-Del-Legno-Spazzolato.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "finitura",
+   "valore": "boccardato",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Superficie-In-Pietra-Bocciardata.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Superficie-In-Pietra-Bocciardata.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "finitura",
+   "valore": "anticato",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Patina-Naturale-Sulla-Pietra-Antica.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Patina-Naturale-Sulla-Pietra-Antica.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "finitura",
+   "valore": "levigato",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Pietra-Levigata-Dalla-Luce-Setosa.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Pietra-Levigata-Dalla-Luce-Setosa.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "finitura",
+   "valore": "cerato",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Bagliore-Satinato-Del-Legno-Cerato.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Bagliore-Satinato-Del-Legno-Cerato.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "battiscopa",
+   "valore": "bianco",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Battiscopa-Bianco-In-Angolo-Pulito.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Battiscopa-Bianco-In-Angolo-Pulito.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "battiscopa",
+   "valore": "legno",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Battiscopa-In-Rovere-Angolo-Pulito.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Battiscopa-In-Rovere-Angolo-Pulito.webp"
+   ]
+  },
+  {
+   "modulo": "pavimento",
+   "dim": "battiscopa",
+   "valore": "alluminio",
+   "classe": "MATERIA",
+   "file": [
+    "floors/Battiscopa-In-Alluminio-Spazzolato.webp"
+   ],
+   "thumb": [
+    "thumbs/floors/Battiscopa-In-Alluminio-Spazzolato.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "intonaco",
+   "valore": "liscio",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Intonaco-Esterno-Grigio-Chiaro-Liscio.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Intonaco-Esterno-Grigio-Chiaro-Liscio.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "intonaco",
+   "valore": "rasato",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Superficie-Dintonaco-Grigio-Caldo.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Superficie-Dintonaco-Grigio-Caldo.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "intonaco",
+   "valore": "graffiato_fine",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Intonaco-Esterno-Finemente-Graffiato.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Intonaco-Esterno-Finemente-Graffiato.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "intonaco",
+   "valore": "graffiato_medio",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Dettaglio-Macro-Dellintonaco-Graffiato.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Dettaglio-Macro-Dellintonaco-Graffiato.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "intonaco",
+   "valore": "bucciato",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Macro-Dellintonaco-Effetto-Buccia-Darancia.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Macro-Dellintonaco-Effetto-Buccia-Darancia.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "intonaco",
+   "valore": "strutturato_grosso",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Texture-Ruvida-Di-Intonaco-Esterno.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Texture-Ruvida-Di-Intonaco-Esterno.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "intonaco",
+   "valore": "rustico",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Intonaco-Rustico-Spatolato-In-Primo-Piano.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Intonaco-Rustico-Spatolato-In-Primo-Piano.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "intonaco",
+   "valore": "veneziana",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Intonaco-Veneziano-Levigato-E-Luminoso.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Intonaco-Veneziano-Levigato-E-Luminoso.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "intonaco",
+   "valore": "bugnato",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Dettaglio-Fotorealistico-Di-Bugnato-In-Pietra.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Dettaglio-Fotorealistico-Di-Bugnato-In-Pietra.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "rivestimento",
+   "valore": "pietra_serena",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Pietra-Serena-Toscana-In-Blocchi-Modulari.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Pietra-Serena-Toscana-In-Blocchi-Modulari.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "rivestimento",
+   "valore": "travertino",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Rivestimento-Esterno-In-Travertino-Beige.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Rivestimento-Esterno-In-Travertino-Beige.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "rivestimento",
+   "valore": "arenaria_beige",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Facciata-In-Arenaria-Beige.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Facciata-In-Arenaria-Beige.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "rivestimento",
+   "valore": "luserna",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Rivestimento-In-Gneiss-Grigio-Di-Luserna.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Rivestimento-In-Gneiss-Grigio-Di-Luserna.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "rivestimento",
+   "valore": "marmo_bianco",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Facciata-In-Marmo-Bianco-Venato.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Facciata-In-Marmo-Bianco-Venato.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "rivestimento",
+   "valore": "porfido",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Facciata-In-Porfido-A-Opus-Incertum.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Facciata-In-Porfido-A-Opus-Incertum.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "rivestimento",
+   "valore": "splitface_grigio",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Rivestimento-In-Pietra-Grigia-A-Secco.webp",
+    "facades/Rivestimento-Esterno-In-Pietra-Grigia.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Rivestimento-In-Pietra-Grigia-A-Secco.webp",
+    "thumbs/facades/Rivestimento-Esterno-In-Pietra-Grigia.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "rivestimento",
+   "valore": "pietra_rustica",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Muro-Rustico-In-Pietra-Naturale.webp",
+    "facades/Rivestimento-In-Pietra-A-Opus-Incertum.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Muro-Rustico-In-Pietra-Naturale.webp",
+    "thumbs/facades/Rivestimento-In-Pietra-A-Opus-Incertum.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "rivestimento",
+   "valore": "cotto_rosso",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Facciata-In-Mattoni-Di-Terracotta-Rossa.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Facciata-In-Mattoni-Di-Terracotta-Rossa.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "rivestimento",
+   "valore": "clinker_rosso",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Facciata-In-Clinker-Rosso-Scuro.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Facciata-In-Clinker-Rosso-Scuro.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "rivestimento",
+   "valore": "clinker_grigio",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Mattoni-Grigi-Con-Fughe-Antracite.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Mattoni-Grigi-Con-Fughe-Antracite.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "rivestimento",
+   "valore": "clinker_beige",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Mattoni-Clinker-Beige-In-Posa-A-Correre.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Mattoni-Clinker-Beige-In-Posa-A-Correre.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "rivestimento",
+   "valore": "cotto_mattone",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Parete-In-Mattoni-Antichi.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Parete-In-Mattoni-Antichi.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "rivestimento",
+   "valore": "laterizio_bianco",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Parete-Di-Mattoni-Bianchi.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Parete-Di-Mattoni-Bianchi.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "posa",
+   "valore": "corsi_regolari",
+   "classe": "FORMA",
+   "file": [
+    "facades/Mattoni-Clinker-Beige-In-Posa-A-Correre-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Mattoni-Clinker-Beige-In-Posa-A-Correre.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "posa",
+   "valore": "opus_incertum",
+   "classe": "FORMA",
+   "file": [
+    "facades/Rivestimento-In-Pietra-A-Opus-Incertum-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Rivestimento-In-Pietra-A-Opus-Incertum.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "posa",
+   "valore": "listelli_orizzontali",
+   "classe": "FORMA",
+   "file": [
+    "facades/Rivestimento-In-Pietra-Grigia-A-Secco-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Rivestimento-In-Pietra-Grigia-A-Secco.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "posa",
+   "valore": "corsi_sfalsati",
+   "classe": "FORMA",
+   "file": [
+    "facades/Rivestimento-Esterno-In-Pietra-Grigia-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Rivestimento-Esterno-In-Pietra-Grigia.webp"
+   ]
+  },
+  {
+   "modulo": "facciata",
+   "dim": "pietra_alt",
+   "valore": "alt",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Rivestimento-In-Pietra-Grigio-Chiaro.webp",
+    "facades/Rivestimento-In-Pietra-Grigio-Chiaro-2.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Rivestimento-In-Pietra-Grigio-Chiaro.webp",
+    "thumbs/facades/Rivestimento-In-Pietra-Grigio-Chiaro-2.webp"
+   ]
+  },
+  {
+   "modulo": "tetto",
+   "dim": "grondaia",
+   "valore": "rame",
+   "classe": "MATERIA",
+   "file": [
+    "roofs/Grondaia-In-Rame-Dalla-Patina-Calda.webp"
+   ],
+   "thumb": [
+    "thumbs/roofs/Grondaia-In-Rame-Dalla-Patina-Calda.webp"
+   ]
+  },
+  {
+   "modulo": "tetto",
+   "dim": "grondaia",
+   "valore": "zinco_titanio",
+   "classe": "MATERIA",
+   "file": [
+    "roofs/Grondaia-In-Zinco-Titanio-Blu-Grigia.webp"
+   ],
+   "thumb": [
+    "thumbs/roofs/Grondaia-In-Zinco-Titanio-Blu-Grigia.webp"
+   ]
+  },
+  {
+   "modulo": "tetto",
+   "dim": "grondaia",
+   "valore": "acciaio_zincato",
+   "classe": "MATERIA",
+   "file": [
+    "roofs/Grondaia-Semicircolare-In-Acciaio-Zincato.webp"
+   ],
+   "thumb": [
+    "thumbs/roofs/Grondaia-Semicircolare-In-Acciaio-Zincato.webp"
+   ]
+  },
+  {
+   "modulo": "tetto",
+   "dim": "grondaia",
+   "valore": "pvc",
+   "classe": "MATERIA",
+   "file": [
+    "roofs/Grondaia-Semicircolare-Marrone-Con-Staffa.webp"
+   ],
+   "thumb": [
+    "thumbs/roofs/Grondaia-Semicircolare-Marrone-Con-Staffa.webp"
+   ]
+  },
+  {
+   "modulo": "tetto",
+   "dim": "grondaia",
+   "valore": "alluminio",
+   "classe": "MATERIA",
+   "file": [
+    "roofs/Grondaia-Semicircolare-Con-Staffa.webp"
+   ],
+   "thumb": [
+    "thumbs/roofs/Grondaia-Semicircolare-Con-Staffa.webp"
+   ]
+  },
+  {
+   "modulo": "tetto",
+   "dim": "lucernario",
+   "valore": "piatto",
+   "classe": "FORMA",
+   "file": [
+    "roofs/Lucernario-A-Filo-Del-Tetto-In-Tegole-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/roofs/Lucernario-A-Filo-Del-Tetto-In-Tegole.webp"
+   ]
+  },
+  {
+   "modulo": "tetto",
+   "dim": "lucernario",
+   "valore": "sporgente",
+   "classe": "FORMA",
+   "file": [
+    "roofs/Lucernario-A-Cupola-Sul-Tetto-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/roofs/Lucernario-A-Cupola-Sul-Tetto.webp"
+   ]
+  },
+  {
+   "modulo": "tetto",
+   "dim": "lucernario",
+   "valore": "abbaino",
+   "classe": "FORMA",
+   "file": [
+    "roofs/Abbaino-A-Capanna-Sul-Tetto-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/roofs/Abbaino-A-Capanna-Sul-Tetto.webp"
+   ]
+  },
+  {
+   "modulo": "tetto",
+   "dim": "pannelli_solari",
+   "valore": "tegola_solare_integrata",
+   "classe": "FORMA",
+   "file": [
+    "roofs/Tetto-Moderno-Con-Tegole-Solari-Integrate-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/roofs/Tetto-Moderno-Con-Tegole-Solari-Integrate.webp"
+   ]
+  },
+  {
+   "modulo": "tetto",
+   "dim": "manto_dettaglio",
+   "valore": "tegole_coppi",
+   "classe": "MATERIA",
+   "file": [
+    "roofs/Tegole-Italiane-In-Terracotta.webp"
+   ],
+   "thumb": [
+    "thumbs/roofs/Tegole-Italiane-In-Terracotta.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "tipo",
+   "valore": "veneziana_classica",
+   "classe": "FORMA",
+   "file": [
+    "shutters/Persiana-Italiana-A-Lamelle-Chiuse-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Persiana-Italiana-A-Lamelle-Chiuse.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "tipo",
+   "valore": "veneziana_esterna",
+   "classe": "FORMA",
+   "file": [
+    "shutters/Persiana-A-Lamelle-Aperta-Sul-Muro-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Persiana-A-Lamelle-Aperta-Sul-Muro.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "tipo",
+   "valore": "scuro_pieno",
+   "classe": "FORMA",
+   "file": [
+    "shutters/Persiana-In-Legno-A-Due-Ante-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Persiana-In-Legno-A-Due-Ante.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "tipo",
+   "valore": "scuro_cornice",
+   "classe": "FORMA",
+   "file": [
+    "shutters/Persiana-Doppia-A-Pannelli-Rialzati-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Persiana-Doppia-A-Pannelli-Rialzati.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "tipo",
+   "valore": "gelosia",
+   "classe": "FORMA",
+   "file": [
+    "shutters/Persiana-A-Gelosia-Chiusa-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Persiana-A-Gelosia-Chiusa.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "tipo",
+   "valore": "avvolgibile_esterno",
+   "classe": "FORMA",
+   "file": [
+    "shutters/Serranda-Avvolgibile-Con-Guide-Laterali-BN.webp",
+    "shutters/Finestra-Con-Tapparella-Abbassata-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Serranda-Avvolgibile-Con-Guide-Laterali.webp",
+    "thumbs/shutters/Finestra-Con-Tapparella-Abbassata.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "tipo",
+   "valore": "a_libro",
+   "classe": "FORMA",
+   "file": [
+    "shutters/Persiana-A-Libro-Semiaperta-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Persiana-A-Libro-Semiaperta.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "tipo",
+   "valore": "griglia_sicurezza",
+   "classe": "FORMA",
+   "file": [
+    "shutters/Inferriata-In-Ferro-Battuto-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Inferriata-In-Ferro-Battuto.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "tipo",
+   "valore": "brise_soleil",
+   "classe": "FORMA",
+   "file": [
+    "shutters/Frangisole-In-Alluminio-A-45-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Frangisole-In-Alluminio-A-45.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "materiale",
+   "valore": "legno_naturale",
+   "classe": "MATERIA",
+   "file": [
+    "shutters/Persiana-In-Legno-Massello-Oliato.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Persiana-In-Legno-Massello-Oliato.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "materiale",
+   "valore": "fibra_vetro",
+   "classe": "MATERIA",
+   "file": [
+    "shutters/Dettaglio-Di-Persiana-In-Fibra-Di-Vetro.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Dettaglio-Di-Persiana-In-Fibra-Di-Vetro.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "materiale",
+   "valore": "alluminio",
+   "classe": "MATERIA",
+   "file": [
+    "shutters/Dettaglio-Di-Lamella-In-Alluminio-Opaco.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Dettaglio-Di-Lamella-In-Alluminio-Opaco.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "essenza_legno",
+   "valore": "rovere_scuro",
+   "classe": "MATERIA",
+   "file": [
+    "shutters/Lamella-Di-Persiana-In-Rovere-Scuro.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Lamella-Di-Persiana-In-Rovere-Scuro.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "essenza_legno",
+   "valore": "douglas_fiammato",
+   "classe": "MATERIA",
+   "file": [
+    "shutters/Lamella-Effetto-Abete-Douglas-Fiammato.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Lamella-Effetto-Abete-Douglas-Fiammato.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "essenza_legno",
+   "valore": "noce",
+   "classe": "MATERIA",
+   "file": [
+    "shutters/Lamella-Verticale-Effetto-Noce.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Lamella-Verticale-Effetto-Noce.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "essenza_legno",
+   "valore": "castagno",
+   "classe": "MATERIA",
+   "file": [
+    "shutters/Listello-Verticale-Effetto-Castagno.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Listello-Verticale-Effetto-Castagno.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "ferramenta",
+   "valore": "bronzo_scuro",
+   "classe": "MATERIA",
+   "file": [
+    "shutters/Cerniera-E-Fermapersiana-In-Bronzo.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Cerniera-E-Fermapersiana-In-Bronzo.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "installazione",
+   "valore": "cardini_tradizionali",
+   "classe": "FORMA",
+   "file": [
+    "shutters/Persiana-Su-Cardini-Murali-Tradizionali-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Persiana-Su-Cardini-Murali-Tradizionali.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "installazione",
+   "valore": "brackets_architettonici",
+   "classe": "FORMA",
+   "file": [
+    "shutters/Persiana-Sostenuta-Da-Staffe-Decorative-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Persiana-Sostenuta-Da-Staffe-Decorative.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "installazione",
+   "valore": "guide_laterali",
+   "classe": "FORMA",
+   "file": [
+    "shutters/Serranda-Avvolgibile-Con-Guide-Laterali-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Serranda-Avvolgibile-Con-Guide-Laterali.webp"
+   ]
+  },
+  {
+   "modulo": "persiane",
+   "dim": "installazione",
+   "valore": "su_telaio",
+   "classe": "FORMA",
+   "file": [
+    "shutters/Dettaglio-Di-Persiana-E-Cerniera-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/shutters/Dettaglio-Di-Persiana-E-Cerniera.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_tipo",
+   "valore": "bioclimatica_addossata",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergola-Bioclimatica-Sulla-Terrazza-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-Bioclimatica-Sulla-Terrazza.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_tipo",
+   "valore": "bioclimatica_autoportante",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergola-Bioclimatica-Con-Lamelle-Orientabili-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-Bioclimatica-Con-Lamelle-Orientabili.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_tipo",
+   "valore": "telo_addossata",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergola-A-Parete-Con-Copertura-Retrattile-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-A-Parete-Con-Copertura-Retrattile.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_tipo",
+   "valore": "telo_autoportante",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergola-Autoportante-Con-Tetto-Retraibile-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-Autoportante-Con-Tetto-Retraibile.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_tipo",
+   "valore": "vetro_addossata",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergola-A-Parete-Con-Tetto-In-Vetro-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-A-Parete-Con-Tetto-In-Vetro.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_tipo",
+   "valore": "vetro_autoportante",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergola-Autoportante-Con-Tetto-In-Vetro-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-Autoportante-Con-Tetto-In-Vetro.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_tipo",
+   "valore": "legno_addossata",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergola-In-Legno-Su-Terrazza-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-In-Legno-Su-Terrazza.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_tipo",
+   "valore": "legno_autoportante",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergola-In-Legno-Sulla-Terrazza-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-In-Legno-Sulla-Terrazza.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_tipo",
+   "valore": "addossata",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergola-In-Alluminio-Dal-Tetto-Piano-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-In-Alluminio-Dal-Tetto-Piano.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_tipo",
+   "valore": "autoportante",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergola-In-Alluminio-Su-Terrazza-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-In-Alluminio-Su-Terrazza.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_materiale",
+   "valore": "alluminio",
+   "classe": "MATERIA",
+   "file": [
+    "pergolas/Angolo-Di-Profilo-In-Alluminio-Antracite.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Angolo-Di-Profilo-In-Alluminio-Antracite.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_materiale",
+   "valore": "alluminio_effetto_legno",
+   "classe": "MATERIA",
+   "file": [
+    "pergolas/Profilo-In-Alluminio-Effetto-Rovere.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Profilo-In-Alluminio-Effetto-Rovere.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_materiale",
+   "valore": "legno_lamellare",
+   "classe": "MATERIA",
+   "file": [
+    "pergolas/Dettaglio-Di-Abete-Lamellare.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Dettaglio-Di-Abete-Lamellare.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_materiale",
+   "valore": "acciaio",
+   "classe": "MATERIA",
+   "file": [
+    "pergolas/Profilo-Di-Pergola-In-Acciaio-Saldato.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Profilo-Di-Pergola-In-Acciaio-Saldato.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "struttura_materiale",
+   "valore": "misto",
+   "classe": "MATERIA",
+   "file": [
+    "pergolas/Dettaglio-Del-Giunto-Alluminio-Legno.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Dettaglio-Del-Giunto-Alluminio-Legno.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "copertura",
+   "valore": "lamelle_orientabili",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Lamelle-Orientabili-Della-Pergola-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Lamelle-Orientabili-Della-Pergola.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "copertura",
+   "valore": "telo_retraibile",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Copertura-Ecru-Retrattile-Della-Pergola-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Copertura-Ecru-Retrattile-Della-Pergola.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "copertura",
+   "valore": "vetro",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergolato-In-Vetro-Sotto-Il-Cielo-Azzurro-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergolato-In-Vetro-Sotto-Il-Cielo-Azzurro.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "copertura",
+   "valore": "policarbonato",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Dettaglio-Dal-Basso-Di-Tettoia-Opalina-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Dettaglio-Dal-Basso-Di-Tettoia-Opalina.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "copertura",
+   "valore": "listelli_legno",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Luce-A-Strisce-Sotto-La-Pergola-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Luce-A-Strisce-Sotto-La-Pergola.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "copertura",
+   "valore": "copertura_opaca_tecnica",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pannello-Isolante-Per-Pergola-Antracite-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pannello-Isolante-Per-Pergola-Antracite.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "chiusure",
+   "valore": "vetrata_slide",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergola-Con-Vetrate-Scorrevoli-Aperte-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-Con-Vetrate-Scorrevoli-Aperte.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "chiusure",
+   "valore": "screen_zip",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Tenda-A-Rullo-Zip-Per-Pergola-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Tenda-A-Rullo-Zip-Per-Pergola.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "chiusure",
+   "valore": "tenda_tecnica",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Tenda-Tecnica-Ecru-Parzialmente-Chiusa-Sulla-Pergola-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Tenda-Tecnica-Ecru-Parzialmente-Chiusa-Sulla-Pergola.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "chiusure",
+   "valore": "frangivento",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergola-Con-Pannelli-Frangivento-Trasparenti-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-Con-Pannelli-Frangivento-Trasparenti.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "chiusure",
+   "valore": "pannelli_fissi",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergola-Con-Pannelli-Frangivista-In-Alluminio-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-Con-Pannelli-Frangivista-In-Alluminio.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "chiusure",
+   "valore": "brise_soleil",
+   "classe": "FORMA",
+   "file": [
+    "pergolas/Pergola-Moderna-Con-Frangisole-In-Alluminio-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-Moderna-Con-Frangisole-In-Alluminio.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "illuminazione",
+   "valore": "strip_led_perimetrale",
+   "classe": "MATERIA",
+   "file": [
+    "pergolas/Pergola-In-Alluminio-Con-Luce-Calda.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-In-Alluminio-Con-Luce-Calda.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "illuminazione",
+   "valore": "downlight_lineari",
+   "classe": "MATERIA",
+   "file": [
+    "pergolas/Pergola-In-Alluminio-Con-Luce-Radente.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-In-Alluminio-Con-Luce-Radente.webp"
+   ]
+  },
+  {
+   "modulo": "pergola",
+   "dim": "illuminazione",
+   "valore": "spot_integrati",
+   "classe": "MATERIA",
+   "file": [
+    "pergolas/Pergola-In-Alluminio-Illuminata-Al-Tramonto-2.webp",
+    "pergolas/Pergola-In-Alluminio-Illuminata-Al-Tramonto.webp"
+   ],
+   "thumb": [
+    "thumbs/pergolas/Pergola-In-Alluminio-Illuminata-Al-Tramonto-2.webp",
+    "thumbs/pergolas/Pergola-In-Alluminio-Illuminata-Al-Tramonto.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "tipo",
+   "valore": "sfioro_rettangolare",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Piscina-A-Sfioro-Dallarchitettura-Moderna.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Piscina-A-Sfioro-Dallarchitettura-Moderna.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "tipo",
+   "valore": "interrata_rettangolare",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Piscina-Rettangolare-Immersa-Nel-Prato.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Piscina-Rettangolare-Immersa-Nel-Prato.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "rivestimento",
+   "valore": "mosaico_bianco",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Mosaico-Bianco-Lucido-Sotto-Lacqua.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Mosaico-Bianco-Lucido-Sotto-Lacqua.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "rivestimento",
+   "valore": "mosaico_azzurro",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Mosaico-Azzurro-Sommerso-Dacqua.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Mosaico-Azzurro-Sommerso-Dacqua.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "rivestimento",
+   "valore": "mosaico_grigio",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Mosaico-In-Vetro-Grigio-Sotto-Lacqua.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Mosaico-In-Vetro-Grigio-Sotto-Lacqua.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "rivestimento",
+   "valore": "mosaico_antracite",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Mosaico-In-Vetro-Antracite-Sotto-Lacqua.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Mosaico-In-Vetro-Antracite-Sotto-Lacqua.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "rivestimento",
+   "valore": "gres_effetto_pietra",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Pietra-Naturale-Sommersa-In-Piscina.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Pietra-Naturale-Sommersa-In-Piscina.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "rivestimento",
+   "valore": "gres_effetto_sabbia",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Piastrelle-Color-Sabbia-Sottacqua.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Piastrelle-Color-Sabbia-Sottacqua.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "rivestimento",
+   "valore": "liner_chiaro",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Rivestimento-Piscina-In-PVC-Sottacqua.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Rivestimento-Piscina-In-PVC-Sottacqua.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "rivestimento",
+   "valore": "liner_scuro",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Rivestimento-Piscina-In-PVC-Grigio-Scuro.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Rivestimento-Piscina-In-PVC-Grigio-Scuro.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "rivestimento",
+   "valore": "resina_premium",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Rivestimento-In-Resina-Turchese-Sott-Acqua.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Rivestimento-In-Resina-Turchese-Sott-Acqua.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "rivestimento",
+   "valore": "pietra_naturale_pool_finish",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Pietra-Naturale-Sommersa-In-Piscina.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Pietra-Naturale-Sommersa-In-Piscina.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "coping",
+   "valore": "pietra_chiara",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Bordo-Piscina-In-Pietra-Beige.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Bordo-Piscina-In-Pietra-Beige.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "coping",
+   "valore": "pietra_grigia",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Bordo-Piscina-Moderno-In-Pietra-Grigia.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Bordo-Piscina-Moderno-In-Pietra-Grigia.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "coping",
+   "valore": "gres_2cm",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Pavimentazione-Piscina-Moderna-In-Gres-Effetto-Pietra.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Pavimentazione-Piscina-Moderna-In-Gres-Effetto-Pietra.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "coping",
+   "valore": "travertino",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Bordo-Piscina-In-Travertino-Beige.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Bordo-Piscina-In-Travertino-Beige.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "coping",
+   "valore": "legno_wpc",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Decking-WPC-Marrone-A-Bordo-Piscina.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Decking-WPC-Marrone-A-Bordo-Piscina.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "coping",
+   "valore": "cemento_spazzolato",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Bordo-Piscina-In-Cemento-Spazzolato.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Bordo-Piscina-In-Cemento-Spazzolato.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "coping",
+   "valore": "bordo_sottile_moderno",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Bordo-Piscina-Moderno-In-Pietra.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Bordo-Piscina-Moderno-In-Pietra.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "coping",
+   "valore": "bordo_massivo_classico",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Bordo-Piscina-Arrotondato-In-Pietra-Chiara.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Bordo-Piscina-Arrotondato-In-Pietra-Chiara.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "accesso",
+   "valore": "scala_inox",
+   "classe": "FORMA",
+   "file": [
+    "pools/Scala-Inox-A-Doppio-Corrimano-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Scala-Inox-A-Doppio-Corrimano.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "accesso",
+   "valore": "gradini_angolo",
+   "classe": "FORMA",
+   "file": [
+    "pools/Gradini-Chiari-Nellangolo-Della-Piscina-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Gradini-Chiari-Nellangolo-Della-Piscina.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "accesso",
+   "valore": "gradini_frontali",
+   "classe": "FORMA",
+   "file": [
+    "pools/Gradini-Moderni-Per-Ingresso-In-Piscina-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Gradini-Moderni-Per-Ingresso-In-Piscina.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "accesso",
+   "valore": "gradoni_lounge",
+   "classe": "FORMA",
+   "file": [
+    "pools/Piscina-Contemporanea-Con-Gradoni-Lounge-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Piscina-Contemporanea-Con-Gradoni-Lounge.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "accesso",
+   "valore": "spiaggetta",
+   "classe": "FORMA",
+   "file": [
+    "pools/Spiaggetta-Sommersa-In-Piscina-Cristallina-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Spiaggetta-Sommersa-In-Piscina-Cristallina.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "accesso",
+   "valore": "beach_entry",
+   "classe": "FORMA",
+   "file": [
+    "pools/Spiaggetta-Sommersa-In-Piscina-Cristallina-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Spiaggetta-Sommersa-In-Piscina-Cristallina.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "accessori",
+   "valore": "illuminazione_subacquea",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Piscina-Crepuscolare-Con-Luci-LED-Subacquee.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Piscina-Crepuscolare-Con-Luci-LED-Subacquee.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "accessori",
+   "valore": "lama_dacqua",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Piscina-Elegante-Con-Lama-Dacqua-In-Acciaio.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Piscina-Elegante-Con-Lama-Dacqua-In-Acciaio.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "accessori",
+   "valore": "cascata",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Piscina-Elegante-Con-Cascata-In-Pietra.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Piscina-Elegante-Con-Cascata-In-Pietra.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "accessori",
+   "valore": "idromassaggio_integrato",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Piscina-Contemporanea-Con-Idromassaggio-E-Bollicine.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Piscina-Contemporanea-Con-Idromassaggio-E-Bollicine.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "accessori",
+   "valore": "copertura_isotermica",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Piscina-Coperta-Da-Telo-Isotermico-Blu.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Piscina-Coperta-Da-Telo-Isotermico-Blu.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "accessori",
+   "valore": "copertura_rigida",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Piscina-Moderna-Con-Copertura-Retrattile.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Piscina-Moderna-Con-Copertura-Retrattile.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "accessori",
+   "valore": "doccia_esterna",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Colonna-Doccia-Moderna-A-Bordo-Piscina.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Colonna-Doccia-Moderna-A-Bordo-Piscina.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "accessori",
+   "valore": "zona_prendisole",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Lettini-Bianchi-A-Bordo-Piscina.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Lettini-Bianchi-A-Bordo-Piscina.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "area_perimetrale",
+   "valore": "deck_wpc",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Decking-WPC-Effetto-Legno-Intorno-Alla-Piscina.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Decking-WPC-Effetto-Legno-Intorno-Alla-Piscina.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "area_perimetrale",
+   "valore": "solarium_gres",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Solarium-Piscina-In-Gres-Effetto-Pietra.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Solarium-Piscina-In-Gres-Effetto-Pietra.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "area_perimetrale",
+   "valore": "pietra_naturale",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Pietra-Naturale-Intorno-Alla-Piscina.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Pietra-Naturale-Intorno-Alla-Piscina.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "area_perimetrale",
+   "valore": "prato_raccordato",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Prato-Verde-E-Bordo-Piscina.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Prato-Verde-E-Bordo-Piscina.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "area_perimetrale",
+   "valore": "ghiaia_drenante",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Ghiaia-Drenante-Grigio-Chiaro.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Ghiaia-Drenante-Grigio-Chiaro.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "colore_acqua",
+   "valore": "cristallina_chiara",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Acqua-Cristallina-Su-Piastrelle-Bianche.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Acqua-Cristallina-Su-Piastrelle-Bianche.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "colore_acqua",
+   "valore": "azzurra_classica",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Acqua-Azzurra-Con-Riflessi-Naturali.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Acqua-Azzurra-Con-Riflessi-Naturali.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "colore_acqua",
+   "valore": "turchese",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Acqua-Turchese-Nella-Villa-Italiana.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Acqua-Turchese-Nella-Villa-Italiana.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "colore_acqua",
+   "valore": "grigio_verde_naturale",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Acqua-Naturale-In-Biopiscina-Elegante.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Acqua-Naturale-In-Biopiscina-Elegante.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "colore_acqua",
+   "valore": "blu_profondo",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Piscina-Elegante-Dai-Riflessi-Profondi.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Piscina-Elegante-Dai-Riflessi-Profondi.webp"
+   ]
+  },
+  {
+   "modulo": "piscina",
+   "dim": "colore_acqua",
+   "valore": "sabbia_chiara",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Riflessi-Beige-Verdi-Nell-Acqua-Della-Piscina.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Riflessi-Beige-Verdi-Nell-Acqua-Della-Piscina.webp"
+   ]
+  },
+  {
+   "modulo": "porta_interna",
+   "dim": "tipo",
+   "valore": "battente_liscia",
+   "classe": "FORMA",
+   "file": [
+    "doors/Porta-Interna-Bianca-Minimalista-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/doors/Porta-Interna-Bianca-Minimalista.webp"
+   ]
+  },
+  {
+   "modulo": "porta_interna",
+   "dim": "tipo",
+   "valore": "vetrata",
+   "classe": "FORMA",
+   "file": [
+    "doors/Porta-Interna-In-Vetro-Satinato-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/doors/Porta-Interna-In-Vetro-Satinato.webp"
+   ]
+  },
+  {
+   "modulo": "porta_interna",
+   "dim": "tipo",
+   "valore": "scorrevole_interno_muro",
+   "classe": "FORMA",
+   "file": [
+    "doors/Porta-Scorrevole-A-Scomparsa-Elegante-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/doors/Porta-Scorrevole-A-Scomparsa-Elegante.webp"
+   ]
+  },
+  {
+   "modulo": "porta_interna",
+   "dim": "tipo",
+   "valore": "scorrevole_esterno_muro",
+   "classe": "FORMA",
+   "file": [
+    "doors/Porta-Scorrevole-Moderna-Con-Binario-Visibile-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/doors/Porta-Scorrevole-Moderna-Con-Binario-Visibile.webp"
+   ]
+  },
+  {
+   "modulo": "porta_interna",
+   "dim": "tipo",
+   "valore": "rasomuro",
+   "classe": "FORMA",
+   "file": [
+    "doors/Porta-Rasomuro-Minimalista-Tono-Su-Tono-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/doors/Porta-Rasomuro-Minimalista-Tono-Su-Tono.webp"
+   ]
+  },
+  {
+   "modulo": "porta_blindata",
+   "dim": "tipo",
+   "valore": "moderna_liscia",
+   "classe": "FORMA",
+   "file": [
+    "doors/Porta-Blindata-Moderna-Eleganza-Italiana-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/doors/Porta-Blindata-Moderna-Eleganza-Italiana.webp"
+   ]
+  },
+  {
+   "modulo": "porta_blindata",
+   "dim": "tipo",
+   "valore": "classica_pantografata",
+   "classe": "FORMA",
+   "file": [
+    "doors/Porta-Blindata-Classica-Con-Pannello-Inciso-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/doors/Porta-Blindata-Classica-Con-Pannello-Inciso.webp"
+   ]
+  },
+  {
+   "modulo": "porta_blindata",
+   "dim": "tipo",
+   "valore": "rasomuro",
+   "classe": "FORMA",
+   "file": [
+    "doors/Porta-Blindata-Rasomuro-Minimalista-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/doors/Porta-Blindata-Rasomuro-Minimalista.webp"
+   ]
+  },
+  {
+   "modulo": "porta_blindata",
+   "dim": "tipo",
+   "valore": "con_fiancoluce",
+   "classe": "FORMA",
+   "file": [
+    "doors/Porta-Blindata-Con-Fiancoluce-Elegante-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/doors/Porta-Blindata-Con-Fiancoluce-Elegante.webp"
+   ]
+  },
+  {
+   "modulo": "porta_blindata",
+   "dim": "tipo",
+   "valore": "solo_finitura",
+   "classe": "FORMA",
+   "file": [
+    "doors/Porta-Blindata-Effetto-Legno-BN.webp"
+   ],
+   "thumb": [
+    "thumbs/doors/Porta-Blindata-Effetto-Legno.webp"
+   ]
+  },
+  {
+   "modulo": "esterno",
+   "dim": "pavimentazione",
+   "valore": "masselli_autobloccanti",
+   "classe": "MATERIA",
+   "file": [
+    "exterior/Vialetto-Residenziale-In-Autobloccanti-Grigi.webp"
+   ],
+   "thumb": [
+    "thumbs/exterior/Vialetto-Residenziale-In-Autobloccanti-Grigi.webp"
+   ]
+  },
+  {
+   "modulo": "esterno",
+   "dim": "pavimentazione",
+   "valore": "gres_outdoor",
+   "classe": "MATERIA",
+   "file": [
+    "exterior/Lastre-Outdoor-In-Gres-Effetto-Pietra.webp"
+   ],
+   "thumb": [
+    "thumbs/exterior/Lastre-Outdoor-In-Gres-Effetto-Pietra.webp"
+   ]
+  },
+  {
+   "modulo": "esterno",
+   "dim": "pavimentazione",
+   "valore": "lastre_grande_formato",
+   "classe": "MATERIA",
+   "file": [
+    "exterior/Lastre-Outdoor-In-Gres-Effetto-Pietra.webp"
+   ],
+   "thumb": [
+    "thumbs/exterior/Lastre-Outdoor-In-Gres-Effetto-Pietra.webp"
+   ]
+  },
+  {
+   "modulo": "esterno",
+   "dim": "pavimentazione",
+   "valore": "ghiaia_stabilizzata",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Ghiaia-Drenante-Grigio-Chiaro.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Ghiaia-Drenante-Grigio-Chiaro.webp"
+   ]
+  },
+  {
+   "modulo": "esterno",
+   "dim": "pavimentazione",
+   "valore": "deck_wpc",
+   "classe": "MATERIA",
+   "file": [
+    "pools/Decking-WPC-Effetto-Legno-Intorno-Alla-Piscina.webp",
+    "pools/Decking-WPC-Marrone-A-Bordo-Piscina.webp"
+   ],
+   "thumb": [
+    "thumbs/pools/Decking-WPC-Effetto-Legno-Intorno-Alla-Piscina.webp",
+    "thumbs/pools/Decking-WPC-Marrone-A-Bordo-Piscina.webp"
+   ]
+  },
+  {
+   "modulo": "stanza",
+   "dim": "rivestimento_pareti",
+   "valore": "mattone_vista",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Parete-In-Mattoni-Antichi.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Parete-In-Mattoni-Antichi.webp"
+   ]
+  },
+  {
+   "modulo": "stanza",
+   "dim": "rivestimento_pareti",
+   "valore": "pietra_naturale",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Muro-Rustico-In-Pietra-Naturale.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Muro-Rustico-In-Pietra-Naturale.webp"
+   ]
+  },
+  {
+   "modulo": "stanza",
+   "dim": "rivestimento_pareti",
+   "valore": "intonaco_spatolato",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Intonaco-Rustico-Spatolato-In-Primo-Piano.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Intonaco-Rustico-Spatolato-In-Primo-Piano.webp"
+   ]
+  },
+  {
+   "modulo": "stanza",
+   "dim": "rivestimento_pareti",
+   "valore": "stucco_veneziano",
+   "classe": "MATERIA",
+   "file": [
+    "facades/Intonaco-Veneziano-Levigato-E-Luminoso.webp"
+   ],
+   "thumb": [
+    "thumbs/facades/Intonaco-Veneziano-Levigato-E-Luminoso.webp"
+   ]
+  }
+ ]
+}

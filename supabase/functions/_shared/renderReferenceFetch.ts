@@ -73,11 +73,17 @@ export async function fetchSharedReferenceImages(
 /**
  * Legenda da appendere DOPO la prosa: dice al modello cosa sono le immagini
  * allegate (foto reali di prodotto/materiale) e come usarle.
+ *
+ * Numerazione ASSOLUTA come nel flusso infissi (windowReferenceImages.ts): Image 1
+ * e' sempre la foto da modificare, le reference partono da Image 2. Con il
+ * catalogo dell'azienda davanti, `firstImage` e' 2 + quante ne ha gia' allegate.
+ * Prima l'elenco ripartiva da «1.», come se la prima reference fosse la foto
+ * sorgente: l'etichetta poteva finire sull'immagine sbagliata.
  */
-export function buildSharedReferenceLegend(refs: ImageReferenceInput[]): string {
+export function buildSharedReferenceLegend(refs: ImageReferenceInput[], firstImage = 2): string {
   if (refs.length === 0) return "";
   return [
-    "REFERENCE IMAGES ATTACHED — real photos of the requested product or material. Use each one ONLY for the property named in its label (shape, construction, texture, relief); never copy its background, building or framing into the scene, and never paste it as a flat rectangle.",
-    ...refs.map((r, i) => `${i + 1}. ${r.label}`),
+    "REFERENCE IMAGES ATTACHED — Image 1 is the source photo you must edit; the images below are invisible inputs: real photos of the requested product or material. Use each one ONLY for the property named in its label (shape, construction, texture, relief); never copy its background, building, furniture or framing into the scene, never paste it as a flat rectangle, and never show it in the result.",
+    ...refs.map((r, i) => `Image ${firstImage + i} — ${r.label}`),
   ].join("\n");
 }

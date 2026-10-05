@@ -68,16 +68,22 @@ describe("legenda per il modello", () => {
       .toBe("VANITY UNIT TARGET — Mobile sospeso rovere 120 (customer's own catalogue)");
     expect(catalogReferenceLabel({ categoria: "boh", etichetta: "X" })).toMatch(/^PRODUCT TARGET — X/);
   });
-  it("vuota senza asset; numerata e con istruzione d'uso altrimenti", () => {
+  it("vuota senza asset; numerata come le immagini vere (Image 1 = foto da modificare) e con istruzione d'uso", () => {
     expect(buildCatalogLegend([])).toBe("");
     const legend = buildCatalogLegend([
       { categoria: "wc", etichetta: "WC sospeso rimless" },
       { categoria: "rubinetteria", etichetta: "Miscelatore nero opaco" },
     ]);
     expect(legend.startsWith("REFERENCE IMAGES ATTACHED")).toBe(true);
-    expect(legend).toContain("1. TOILET (WC) TARGET — WC sospeso rimless");
-    expect(legend).toContain("2. FAUCET / TAPWARE TARGET — Miscelatore nero opaco");
+    expect(legend).toContain("Image 2 — TOILET (WC) TARGET — WC sospeso rimless");
+    expect(legend).toContain("Image 3 — FAUCET / TAPWARE TARGET — Miscelatore nero opaco");
+    expect(legend).toContain("Image 1 is the source photo you must edit");
     expect(legend).toContain("Do NOT copy the reference photo's background");
+  });
+  it("la numerazione può partire da un'altra immagine (catalogo già allegato prima)", () => {
+    const legend = buildCatalogLegend([{ categoria: "wc", etichetta: "WC" }], 4);
+    expect(legend).toContain("Image 4 — TOILET (WC) TARGET — WC");
+    expect(legend).not.toContain("Image 2 —");
   });
   it("taglia etichette lunghissime a 80 caratteri", () => {
     const lunga = "a".repeat(200);

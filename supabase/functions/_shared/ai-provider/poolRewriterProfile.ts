@@ -50,7 +50,11 @@ function compact(input: unknown): Record<string, unknown> {
     replacements: asArr(manifest.replacements),
     additions: asArr(manifest.additions),
     removals: asArr(manifest.removals),
-    preserve_exactly: asArr(manifest.preserveExactly ?? manifest.keepExactly),
+    // Il payload dell'edge (generate-pool-render/poolPrompt.ts) scrive la conservazione in `preserve` e le
+    // istruzioni di «solo colore» / conversione in `recolors` / `conversions`: prima non arrivavano al rewriter.
+    recolors: asArr(manifest.recolors),
+    conversions: asArr(manifest.conversions),
+    preserve_exactly: asArr(manifest.preserveExactly ?? manifest.keepExactly ?? manifest.preserve),
     elementi_da_preservare: legacy.elementi_da_preservare,
     elementi_da_rimuovere: legacy.elementi_da_rimuovere,
     scena: cfg.scene_analysis,

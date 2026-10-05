@@ -22,16 +22,35 @@ import type {
   IntensitaTrasformazione,
 } from "@/modules/render-stanza/lib/types";
 import { CatalogReferencePicker } from "@/components/render-bagno/CatalogReferencePicker";
+import {
+  ROOM_FLOOR_TYPES_WITH_FREE_EFFECT,
+  normalizeRoomFloorConfig,
+} from "../../../shared/render-room/roomRenderConfig.ts";
+import { inferVisualEffect, woodEssenceApplies } from "../../../shared/render-floor/floorReplacementRules.ts";
+import { BATTISCOPA_TIPI, WOOD_ESSENCES } from "@/components/render-pavimento/opzioniPavimento";
+import { AnteprimaFoto } from "@/components/render-pavimento/AnteprimaFoto";
+import {
+  FLOOR_ESSENCE_PHOTOS,
+  floorReferenceCandidates,
+  floorSurfacePhoto,
+} from "../../../shared/render-references/floorReferences.ts";
+import { ROOM_CLADDING_PHOTOS } from "../../../shared/render-references/roomReferences.ts";
 
 // ── Default config ───────────────────────────────────────────────────────────
+// I colori qui sono quelli che i campi colore mostrano finché l'utente non li tocca.
+// Prima stavano solo nei campi: il form mostrava un pavimento #C4A882 e il prompt
+// riceveva il grigio #b0b0b0 di ripiego; la pittura mostrava bianco e il prompt
+// diceva «selected wall color». Il rivestimento pareti non ha un colore di partenza:
+// se non lo si sceglie resta quello naturale del materiale (mattone, pietra…).
 export const DEFAULT_STANZA_CONFIG: ConfigurazioneStanza = {
   tipo_stanza: "soggiorno",
   stile_target: "moderno",
   intensita: "medio",
-  verniciatura: { attivo: false, finitura: "satinato", applica_a: "tutte" },
+  verniciatura: { attivo: false, colore_hex: "#FFFFFF", finitura: "satinato", applica_a: "tutte", colore_accento_hex: "#4A90D9" },
   pavimento: {
     attivo: false,
     tipo: "gres_porcellanato",
+    colore_hex: "#C4A882",
     finitura: "opaco",
     effetto_visivo: "cemento",
     pattern: "dritto",
@@ -40,13 +59,13 @@ export const DEFAULT_STANZA_CONFIG: ConfigurazioneStanza = {
     fuga_colore: "tono_su_tono",
     battiscopa_azione: "mantieni",
   },
-  arredo: { attivo: false, intensita_cambio: "stile_mantenendo_layout", materiale: "legno_chiaro", mantieni_elettrodomestici: true },
-  soffitto: { attivo: false, tipo: "piano" },
+  arredo: { attivo: false, intensita_cambio: "stile_mantenendo_layout", materiale: "legno_chiaro", colore_principale_hex: "#8B7355", mantieni_elettrodomestici: true },
+  soffitto: { attivo: false, tipo: "piano", colore_hex: "#FFFFFF" },
   illuminazione: { attivo: false, tipo: "misto", temperatura: "calda_2700k", intensita_luce: "normale" },
   carta_da_parati: { attivo: false, stile_pattern: "geometrico", applica_a: "parete_principale" },
   rivestimento_pareti: { attivo: false, tipo: "boiserie_legno", applica_a: "parete_principale" },
-  tende: { attivo: false, tipo: "tende_classiche" },
-  restyling_cucina: { attivo: false, materiale_frontali: "laccato", piano_lavoro_materiale: "quarzo", maniglie: "senza_maniglia", cambia_piano_cottura: false },
+  tende: { attivo: false, tipo: "tende_classiche", colore_hex: "#E8DDD0" },
+  restyling_cucina: { attivo: false, materiale_frontali: "laccato", colore_frontali_hex: "#FFFFFF", piano_lavoro_materiale: "quarzo", colore_piano_lavoro_hex: "#D4D0CA", maniglie: "senza_maniglia", cambia_piano_cottura: false },
   spazi_dettagli: { attivo: false, layout_strategy: "mantieni_layout" },
   note_libere: "",
 };
@@ -99,6 +118,24 @@ interface Props {
 export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props) {
   const set = <K extends keyof ConfigurazioneStanza>(key: K, val: ConfigurazioneStanza[K]) =>
     onChange({ ...value, [key]: val });
+
+  // Il pavimento come lo legge il prompt (stessa traduzione delle chiavi della stanza).
+  const pavimentoNormalizzato = normalizeRoomFloorConfig(value.pavimento as unknown as Record<string, unknown>);
+  // L'effetto si sceglie solo per i materiali che imitano; per gli altri si mostra il loro.
+  const effettoPavimentoLibero = ROOM_FLOOR_TYPES_WITH_FREE_EFFECT.includes(pavimentoNormalizzato.tipo);
+  const effettoPavimento = effettoPavimentoLibero
+    ? value.pavimento.effetto_visivo ?? "cemento"
+    : inferVisualEffect(pavimentoNormalizzato.tipo, undefined);
+  // Le foto che il render riceverebbe per il pavimento (stessa funzione del motore, senza i
+  // primi piani di dettaglio che la stanza non usa).
+  const fotoPavimento = floorReferenceCandidates(pavimentoNormalizzato, { dettagli: false });
+  const fotoPavimentoPer = (ruolo: string) => fotoPavimento.find((c) => c.role === ruolo)?.entry;
+  const fotoSuperficiePavimento = floorSurfacePhoto(pavimentoNormalizzato)?.entry;
+  // L'essenza si sceglie dove il prompt la usa: parquet, o un materiale effetto legno.
+  const usaEssenzaPavimento = woodEssenceApplies(
+    pavimentoNormalizzato.tipo,
+    inferVisualEffect(pavimentoNormalizzato.tipo, pavimentoNormalizzato.effetto_visivo),
+  );
 
   const activeCount = [
     value.verniciatura.attivo,
@@ -218,7 +255,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                       <Input
                         type="color"
                         className="w-10 h-8 p-0.5 cursor-pointer"
-                        value={value.verniciatura.colore_hex ?? "#FFFFFF"}
+                        value={value.verniciatura.colore_hex ?? DEFAULT_STANZA_CONFIG.verniciatura.colore_hex}
                         onChange={(e) => set("verniciatura", { ...value.verniciatura, colore_hex: e.target.value })}
                         disabled={disabled}
                       />
@@ -264,12 +301,24 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     </SelectContent>
                   </Select>
                 </div>
+                {value.verniciatura.applica_a === "specifiche" && (
+                  <div className="space-y-1">
+                    <Label className="text-xs max-md:text-[11px]">Quali pareti</Label>
+                    <Input
+                      placeholder="es. parete dietro il divano e parete della finestra"
+                      value={value.verniciatura.pareti_specifiche ?? ""}
+                      onChange={(e) => set("verniciatura", { ...value.verniciatura, pareti_specifiche: e.target.value })}
+                      disabled={disabled}
+                      className="text-xs"
+                    />
+                  </div>
+                )}
                 {value.verniciatura.applica_a === "parete_accento" && (
                   <div className="flex gap-2">
                     <Input
                       type="color"
                       className="w-10 h-8 p-0.5 cursor-pointer"
-                      value={value.verniciatura.colore_accento_hex ?? "#4A90D9"}
+                      value={value.verniciatura.colore_accento_hex ?? DEFAULT_STANZA_CONFIG.verniciatura.colore_accento_hex}
                       onChange={(e) => set("verniciatura", { ...value.verniciatura, colore_accento_hex: e.target.value })}
                       disabled={disabled}
                     />
@@ -307,47 +356,80 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Tipo</Label>
-                    <Select
-                      value={value.pavimento.tipo ?? "gres_porcellanato"}
-                      onValueChange={(v) => set("pavimento", { ...value.pavimento, tipo: v })}
-                      disabled={disabled}
-                    >
-                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="gres_porcellanato">Gres porcellanato</SelectItem>
-                        <SelectItem value="parquet_legno">Parquet legno</SelectItem>
-                        <SelectItem value="parquet_laminato">Laminato effetto legno</SelectItem>
-                        <SelectItem value="vinile_lvt">Vinile LVT/SPC</SelectItem>
-                        <SelectItem value="cotto">Cotto</SelectItem>
-                        <SelectItem value="marmo">Marmo</SelectItem>
-                        <SelectItem value="resina">Resina</SelectItem>
-                        <SelectItem value="cemento_spatolato">Cemento spatolato</SelectItem>
-                        <SelectItem value="microcemento">Microcemento</SelectItem>
-                        <SelectItem value="moquette">Moquette</SelectItem>
-                        <SelectItem value="terrazzo_veneziano">Terrazzo veneziano</SelectItem>
-                        <SelectItem value="mosaico">Mosaico</SelectItem>
-                        <SelectItem value="pietra_naturale">Pietra naturale</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-2">
+                      <AnteprimaFoto foto={fotoSuperficiePavimento} alt={`Pavimento: ${value.pavimento.tipo ?? "gres_porcellanato"}`} />
+                      <div className="min-w-0 flex-1">
+                        <Select
+                          value={value.pavimento.tipo ?? "gres_porcellanato"}
+                          onValueChange={(v) => set("pavimento", { ...value.pavimento, tipo: v })}
+                          disabled={disabled}
+                        >
+                          <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="gres_porcellanato">Gres porcellanato</SelectItem>
+                            <SelectItem value="parquet_legno">Parquet legno</SelectItem>
+                            <SelectItem value="parquet_laminato">Laminato effetto legno</SelectItem>
+                            <SelectItem value="vinile_lvt">Vinile LVT/SPC</SelectItem>
+                            <SelectItem value="cotto">Cotto</SelectItem>
+                            <SelectItem value="marmo">Marmo</SelectItem>
+                            <SelectItem value="resina">Resina</SelectItem>
+                            <SelectItem value="cemento_spatolato">Cemento spatolato</SelectItem>
+                            <SelectItem value="microcemento">Microcemento</SelectItem>
+                            <SelectItem value="moquette">Moquette</SelectItem>
+                            <SelectItem value="terrazzo_veneziano">Terrazzo veneziano</SelectItem>
+                            <SelectItem value="mosaico">Mosaico</SelectItem>
+                            <SelectItem value="pietra_naturale">Pietra naturale</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Colore</Label>
                     <Input
                       type="color"
                       className="w-full h-8 p-0.5 cursor-pointer"
-                      value={value.pavimento.colore_hex ?? "#C4A882"}
+                      value={value.pavimento.colore_hex ?? DEFAULT_STANZA_CONFIG.pavimento.colore_hex}
                       onChange={(e) => set("pavimento", { ...value.pavimento, colore_hex: e.target.value })}
                       disabled={disabled}
                     />
                   </div>
                 </div>
+                {usaEssenzaPavimento && (
+                  <div className="space-y-1">
+                    <Label className="text-xs max-md:text-[11px]">Essenza legno</Label>
+                    <div className="grid grid-cols-4 gap-1.5 max-sm:grid-cols-3">
+                      {WOOD_ESSENCES.map((wood) => (
+                        <button
+                          key={wood.value}
+                          type="button"
+                          disabled={disabled}
+                          aria-pressed={value.pavimento.essenza_legno === wood.value}
+                          onClick={() => set("pavimento", { ...value.pavimento, essenza_legno: wood.value, colore_nome: wood.label, colore_hex: wood.color })}
+                          className={`rounded-md border p-1.5 text-left text-[11px] transition-all ${
+                            value.pavimento.essenza_legno === wood.value
+                              ? "border-primary bg-primary/5 ring-1 ring-primary font-semibold"
+                              : "border-slate-300 bg-white shadow-sm hover:border-primary/60"
+                          }`}
+                        >
+                          {FLOOR_ESSENCE_PHOTOS[wood.value] ? (
+                            <AnteprimaFoto foto={FLOOR_ESSENCE_PHOTOS[wood.value]} alt={wood.label} className="mb-1" />
+                          ) : (
+                            <span className="mb-1 block h-4 rounded border" style={{ backgroundColor: wood.color }} />
+                          )}
+                          <span className="block leading-tight">{wood.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Effetto visivo</Label>
                     <Select
-                      value={value.pavimento.effetto_visivo ?? "cemento"}
+                      value={effettoPavimento}
                       onValueChange={(v) => set("pavimento", { ...value.pavimento, effetto_visivo: v })}
-                      disabled={disabled}
+                      disabled={disabled || !effettoPavimentoLibero}
                     >
                       <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -386,24 +468,30 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Pattern</Label>
-                    <Select
-                      value={value.pavimento.pattern ?? "dritto"}
-                      onValueChange={(v) => set("pavimento", { ...value.pavimento, pattern: v })}
-                      disabled={disabled}
-                    >
-                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="dritto">Dritto</SelectItem>
-                        <SelectItem value="diagonale">Diagonale</SelectItem>
-                        <SelectItem value="spina_pesce">Spina di pesce</SelectItem>
-                        <SelectItem value="spina_ungherese">Spina ungherese</SelectItem>
-                        <SelectItem value="cassero_regolare">Cassero regolare</SelectItem>
-                        <SelectItem value="cassero_irregolare">Cassero irregolare</SelectItem>
-                        <SelectItem value="opus_romano">Opus romano</SelectItem>
-                        <SelectItem value="sfalsato_33">Sfalsato 33%</SelectItem>
-                        <SelectItem value="esagonale">Esagonale</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-2">
+                      <AnteprimaFoto foto={fotoPavimentoPer("LAYING PATTERN TARGET")} alt={`Posa: ${value.pavimento.pattern ?? "dritto"}`} />
+                      <div className="min-w-0 flex-1">
+                        <Select
+                          value={value.pavimento.pattern ?? "dritto"}
+                          onValueChange={(v) => set("pavimento", { ...value.pavimento, pattern: v })}
+                          disabled={disabled}
+                        >
+                          <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="dritto">Dritto</SelectItem>
+                            <SelectItem value="diagonale">Diagonale</SelectItem>
+                            <SelectItem value="spina_pesce">Spina di pesce</SelectItem>
+                            <SelectItem value="spina_ungherese">Spina ungherese</SelectItem>
+                            <SelectItem value="cassero_regolare">Cassero regolare</SelectItem>
+                            <SelectItem value="cassero_irregolare">Cassero irregolare</SelectItem>
+                            <SelectItem value="opus_romano">Opus romano</SelectItem>
+                            <SelectItem value="sfalsato_33">Sfalsato 33%</SelectItem>
+                            <SelectItem value="modulare">Modulare</SelectItem>
+                            <SelectItem value="esagonale">Esagonale</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Finitura</Label>
@@ -471,11 +559,50 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="mantieni">Mantieni esistente</SelectItem>
-                      <SelectItem value="sostituisci">Sostituisci coordinato</SelectItem>
+                      <SelectItem value="sostituisci">Sostituisci</SelectItem>
                       <SelectItem value="rimuovi">Rimuovi</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                {value.pavimento.battiscopa_azione === "sostituisci" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs max-md:text-[11px]">Tipo battiscopa</Label>
+                      <div className="flex items-center gap-2">
+                        <AnteprimaFoto foto={fotoPavimentoPer("SKIRTING BOARD TARGET")} alt={`Battiscopa: ${value.pavimento.battiscopa_tipo ?? ""}`} />
+                        <div className="min-w-0 flex-1">
+                          <Select
+                            value={value.pavimento.battiscopa_tipo ?? "coordinato_pavimento"}
+                            onValueChange={(v) => set("pavimento", { ...value.pavimento, battiscopa_tipo: v as never })}
+                            disabled={disabled}
+                          >
+                            <SelectTrigger className="text-xs" aria-label="Tipo battiscopa"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {BATTISCOPA_TIPI.map((b) => (
+                                <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs max-md:text-[11px]">Altezza</Label>
+                      <Select
+                        value={String(value.pavimento.battiscopa_altezza_cm ?? 8)}
+                        onValueChange={(v) => set("pavimento", { ...value.pavimento, battiscopa_altezza_cm: Number(v) as 6 | 8 | 10 })}
+                        disabled={disabled}
+                      >
+                        <SelectTrigger className="text-xs" aria-label="Altezza battiscopa"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="6">6 cm</SelectItem>
+                          <SelectItem value="8">8 cm</SelectItem>
+                          <SelectItem value="10">10 cm</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
               </AccordionContent>
             )}
           </AccordionItem>
@@ -537,7 +664,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     <Input
                       type="color"
                       className="w-full h-8 p-0.5 cursor-pointer"
-                      value={value.arredo.colore_principale_hex ?? "#8B7355"}
+                      value={value.arredo.colore_principale_hex ?? DEFAULT_STANZA_CONFIG.arredo.colore_principale_hex}
                       onChange={(e) => set("arredo", { ...value.arredo, colore_principale_hex: e.target.value })}
                       disabled={disabled}
                     />
@@ -594,7 +721,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     <Input
                       type="color"
                       className="w-full h-8 p-0.5 cursor-pointer"
-                      value={value.soffitto.colore_hex ?? "#FFFFFF"}
+                      value={value.soffitto.colore_hex ?? DEFAULT_STANZA_CONFIG.soffitto.colore_hex}
                       onChange={(e) => set("soffitto", { ...value.soffitto, colore_hex: e.target.value })}
                       disabled={disabled}
                     />
@@ -643,6 +770,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="faretti_incassati">Faretti incassati</SelectItem>
+                      <SelectItem value="binario">Binario con faretti orientabili</SelectItem>
                       <SelectItem value="lampadario_centrale">Lampadario centrale</SelectItem>
                       <SelectItem value="led_strip_perimetrale">LED strip perimetrale</SelectItem>
                       <SelectItem value="lampade_sospensione">Lampade a sospensione</SelectItem>
@@ -787,21 +915,26 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Tipo</Label>
-                    <Select
-                      value={value.rivestimento_pareti.tipo ?? "boiserie_legno"}
-                      onValueChange={(v) => set("rivestimento_pareti", { ...value.rivestimento_pareti, tipo: v as never })}
-                      disabled={disabled}
-                    >
-                      <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="boiserie_legno">Boiserie legno</SelectItem>
-                        <SelectItem value="mattone_vista">Mattone a vista</SelectItem>
-                        <SelectItem value="pietra_naturale">Pietra naturale</SelectItem>
-                        <SelectItem value="pannelli_3d">Pannelli 3D</SelectItem>
-                        <SelectItem value="intonaco_spatolato">Intonaco spatolato</SelectItem>
-                        <SelectItem value="stucco_veneziano">Stucco veneziano</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-2">
+                      <AnteprimaFoto foto={ROOM_CLADDING_PHOTOS[value.rivestimento_pareti.tipo ?? "boiserie_legno"]} alt={`Rivestimento: ${value.rivestimento_pareti.tipo ?? "boiserie_legno"}`} />
+                      <div className="min-w-0 flex-1">
+                        <Select
+                          value={value.rivestimento_pareti.tipo ?? "boiserie_legno"}
+                          onValueChange={(v) => set("rivestimento_pareti", { ...value.rivestimento_pareti, tipo: v as never })}
+                          disabled={disabled}
+                        >
+                          <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="boiserie_legno">Boiserie legno</SelectItem>
+                            <SelectItem value="mattone_vista">Mattone a vista</SelectItem>
+                            <SelectItem value="pietra_naturale">Pietra naturale</SelectItem>
+                            <SelectItem value="pannelli_3d">Pannelli 3D</SelectItem>
+                            <SelectItem value="intonaco_spatolato">Intonaco spatolato</SelectItem>
+                            <SelectItem value="stucco_veneziano">Stucco veneziano</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs max-md:text-[11px]">Applica a</Label>
@@ -827,6 +960,9 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                     onChange={(e) => set("rivestimento_pareti", { ...value.rivestimento_pareti, colore_hex: e.target.value })}
                     disabled={disabled}
                   />
+                  {!value.rivestimento_pareti.colore_hex && (
+                    <p className="text-[11px] text-muted-foreground">Se non lo scegli resta il colore naturale del materiale.</p>
+                  )}
                 </div>
               </AccordionContent>
             )}
@@ -872,7 +1008,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                   <Input
                     type="color"
                     className="w-10 h-8 p-0.5 cursor-pointer"
-                    value={value.tende.colore_hex ?? "#E8DDD0"}
+                    value={value.tende.colore_hex ?? DEFAULT_STANZA_CONFIG.tende.colore_hex}
                     onChange={(e) => set("tende", { ...value.tende, colore_hex: e.target.value })}
                     disabled={disabled}
                   />
@@ -929,7 +1065,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                       <Input
                         type="color"
                         className="w-full h-8 p-0.5 cursor-pointer"
-                        value={value.restyling_cucina.colore_frontali_hex ?? "#FFFFFF"}
+                        value={value.restyling_cucina.colore_frontali_hex ?? DEFAULT_STANZA_CONFIG.restyling_cucina?.colore_frontali_hex}
                         onChange={(e) => set("restyling_cucina", { ...value.restyling_cucina!, colore_frontali_hex: e.target.value })}
                         disabled={disabled}
                       />
@@ -958,7 +1094,7 @@ export function StanzaConfigForm({ value, onChange, disabled, companyId }: Props
                       <Input
                         type="color"
                         className="w-full h-8 p-0.5 cursor-pointer"
-                        value={value.restyling_cucina.colore_piano_lavoro_hex ?? "#D4D0CA"}
+                        value={value.restyling_cucina.colore_piano_lavoro_hex ?? DEFAULT_STANZA_CONFIG.restyling_cucina?.colore_piano_lavoro_hex}
                         onChange={(e) => set("restyling_cucina", { ...value.restyling_cucina!, colore_piano_lavoro_hex: e.target.value })}
                         disabled={disabled}
                       />
