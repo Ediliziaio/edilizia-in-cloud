@@ -1807,7 +1807,13 @@ export function CompanyLayout() {
   // chat al centro: con l'altezza libera la pagina intera
   // scorreva coi messaggi, la barra per scrivere finiva in fondo e l'ultimo
   // messaggio andava cercato (25/09/2026). Bloccata, ogni colonna scorre da sé.
+  // I preventivatori col guscio comune (barra delle fasi, anteprima a destra e
+  // piede fissi): con l'altezza libera scorre il documento intero e nessuna barra
+  // resta ferma da computer. Per ora Serramenti; gli altri moduli si aggiungono
+  // qui man mano che adottano `components/preventivatore`.
+  const isGuscioPreventivatore = /^\/azienda\/serramenti\/(nuovo|[^/]+\/modifica)\/?$/.test(location.pathname);
   const isViewportEditor = isClassicQuoteEditor
+    || isGuscioPreventivatore
     || /^\/azienda\/impostazioni\/template-preventivi\/?$/.test(location.pathname)
     || /^\/azienda\/chat\/?$/.test(location.pathname)
     || /^\/azienda\/marketing\/contatti\/[^/]+\/?$/.test(location.pathname);

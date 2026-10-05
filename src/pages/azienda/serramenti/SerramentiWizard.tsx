@@ -36,7 +36,6 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -46,8 +45,8 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft, ArrowRight, Save, Loader2, RectangleVertical,
-  User, Home, MessageCircle, Image as ImageIcon, Euro, Calendar, FileText,
-  Users, CheckCircle2, Phone, Mail, MapPin, Sparkles, Camera, Mic,
+  User, Home,
+  Users, Sparkles, Camera, Mic,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -56,7 +55,7 @@ import {
 } from "@/lib/serramenti/queries";
 import { SR_WIZARD_STEPS } from "@/types/serramenti";
 import type { SrProgettoDetail, SrProgettoRow, SrWizardStep, SrTipoIntervento, SrStatoProgetto, SrTemplatePdfRow } from "@/types/serramenti";
-import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
+import { SrCard } from "@/lib/serramenti/wizardUI";
 import { StepBom } from "@/components/serramenti/StepBom";
 import { StepAccessori } from "@/components/serramenti/StepAccessori";
 import { StepEconomia } from "@/components/serramenti/StepEconomia";
@@ -72,17 +71,14 @@ import { totaliCambiati, totaliDelPreventivo } from "@/lib/serramenti/righePreve
 import { useSerramentiModelSupport } from "@/hooks/useSerramentiModelSupport";
 import { isSrQuoteModelId, makeSrQuoteModelSnapshot, readSrQuoteModelSnapshot, srModelProjectDefaults } from "@/lib/serramenti/quoteModel";
 import { findSerramentiTemplateModule } from "@/lib/moduli-vendita/serramentiTemplateModules";
-
-const STEP_ICONS: Record<SrWizardStep, React.FC<React.SVGProps<SVGSVGElement>>> = {
-  cliente: User,
-  immobile: Home,
-  esigenze: MessageCircle,
-  bom: RectangleVertical,
-  accessori_foto: ImageIcon,
-  economia: Euro,
-  consulenza: Calendar,
-  pdf: FileText,
-};
+import {
+  AnteprimaMobile, AnteprimaVeloce, BarraFasi, BottoneTotale, CorpoPreventivatore, PannelloAnteprima,
+  PiedePreventivatore, StatoDelSalvataggio, STICKY_ALTO, type StatoSalvataggio,
+} from "@/components/preventivatore";
+import { anteprimaSerramenti } from "@/lib/serramenti/anteprima";
+import { useCostoPosizioneListino } from "@/lib/serramenti/useCostoPosizioneListino";
+import { formattaEuro, righeDaPrezzare, type VistaAnteprima } from "@/lib/preventivatore/anteprima";
+import { usePermissions } from "@/hooks/usePermissions";
 
 /** Telefono: i nomi dei passi nello stepper, corti perché stiano tutti in una riga. */
 const ETICHETTA_BREVE_PASSO: Partial<Record<SrWizardStep, string>> = {
@@ -95,7 +91,7 @@ const ETICHETTA_BREVE_PASSO: Partial<Record<SrWizardStep, string>> = {
 // MP-MKT-001: compactText/compactAddress/isWizardStepComplete estratti
 // in ./SerramentiWizard/helpers.ts
 import {
-  compactText, compactAddress, isWizardStepComplete,
+  compactText, isWizardStepComplete,
 } from "./SerramentiWizard/helpers";
 
 export default function SerramentiWizard() {
@@ -144,7 +140,6 @@ export default function SerramentiWizard() {
 
   const [currentStep, setCurrentStep] = useState<SrWizardStep>("cliente");
   const [creating, setCreating] = useState(false);
-  const mobileStepRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const { data: detail, isLoading, isError, refetch } = useProgetto(id);
   const updateMut = useUpdateProgetto(id);
@@ -531,6 +526,40 @@ export default function SerramentiWizard() {
     }
   };
 
+  // ─── Anteprima live a destra ─────────────────────────────────────────────
+  // Il preventivo come lo vede il cliente (o l'impresa, con costi e margine), che
+  // si ricalcola a ogni tasto. «PDF vero» è il documento definitivo (esiste già:
+  // AnteprimaPdfLive). L'impresa la vede solo chi può vedere i margini: la stessa
+  // regola dello step Economia.
+  const permissions = usePermissions();
+  const puoVedereImpresa = permissions.canViewMargins || permissions.canViewCosts;
+  const [vistaAnteprima, setVistaAnteprima] = useState<VistaAnteprima>("cliente");
+  const [anteprimaNascosta, setAnteprimaNascosta] = useState<boolean>(() => {
+    try { return localStorage.getItem("sr_anteprima_nascosta") === "1"; } catch { return false; }
+  });
+  const impostaAnteprimaNascosta = (v: boolean) => {
+    setAnteprimaNascosta(v);
+    try { localStorage.setItem("sr_anteprima_nascosta", v ? "1" : "0"); } catch { /* senza memoria vale per questa visita */ }
+  };
+  const [anteprimaMobileAperta, setAnteprimaMobileAperta] = useState(false);
+  const vistaImpresa = puoVedereImpresa && vistaAnteprima === "impresa";
+  const { costoPosizione } = useCostoPosizioneListino(id, detail, vistaImpresa);
+  const datiAnteprima = useMemo(
+    () => anteprimaSerramenti(form, detail, {
+      emittente: pdfCompany?.ragione_sociale ?? effectiveCompany?.name ?? null,
+      costoPosizione: vistaImpresa ? costoPosizione : undefined,
+    }),
+    [form, detail, pdfCompany?.ragione_sociale, effectiveCompany?.name, vistaImpresa, costoPosizione],
+  );
+  const totaleTesto = datiAnteprima.totaleDocumento != null ? formattaEuro(datiAnteprima.totaleDocumento) : null;
+
+  // Cambiando passo si riparte dall'alto: il contenitore che scorre è <main>, non la finestra.
+  const primoPassoRef = useRef(true);
+  useEffect(() => {
+    if (primoPassoRef.current) { primoPassoRef.current = false; return; }
+    document.getElementById("main-content")?.scrollTo?.({ top: 0 });
+  }, [currentStep]);
+
   /** Formatta "Salvato Xs fa" per l'header. Funzione (non useMemo) perché
    *  Date.now() non è una dependency stabile; il re-render è triggered dal
    *  savedTick interval ogni 10s, e la funzione viene rieseguita inline in JSX. */
@@ -543,6 +572,12 @@ export default function SerramentiWizard() {
     if (minutes < 60) return `Salvato ${minutes}min fa`;
     return `Salvato alle ${lastSavedAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`;
   };
+
+  const statoSalvataggio: StatoSalvataggio = isNew
+    ? "nuovo"
+    : (updateMut.isPending || pendingWrites > 0) ? "salvando"
+    : dirty ? "modifiche"
+    : "salvato";
 
   const handleSaveAndContinue = async () => {
     // Caso 1: nuovo progetto — crea passando TUTTO il form, non solo 4 campi.
@@ -616,19 +651,6 @@ export default function SerramentiWizard() {
     [currentStep],
   );
 
-  const progress = useMemo(
-    () => Math.round(((currentStepIndex + 1) / SR_WIZARD_STEPS.length) * 100),
-    [currentStepIndex],
-  );
-
-  useEffect(() => {
-    const activeButton = mobileStepRefs.current[currentStep];
-    if (!activeButton || window.innerWidth >= 768) return;
-    window.requestAnimationFrame(() => {
-      activeButton.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-    });
-  }, [currentStep]);
-
   if (!isNew && isLoading) {
     return (
       <div className="container mx-auto p-4 max-w-4xl space-y-3">
@@ -678,7 +700,8 @@ export default function SerramentiWizard() {
   }
 
   return (
-    <div className="pb-28 md:pb-20">
+    // -m: il guscio va a bordo pagina (annulla il padding del contenitore che scorre).
+    <div className="-m-3 min-h-full bg-slate-50 md:-m-6">
       {modelDefinition && <div className="mx-auto max-w-6xl px-4 pt-4"><div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm">
         <p className="font-semibold">{modelDefinition.title}</p>
         <p className="mt-1 text-muted-foreground">{isNew ? "Il PDF userà il modello personalizzato dall'azienda, se c'è, altrimenti quello standard. Prodotti e prezzi arrivano dal tuo listino." : "Il modello PDF è conservato in questo preventivo. Le modifiche successive ai modelli non ne sostituiscono testi e impostazioni."}</p>
@@ -752,12 +775,9 @@ export default function SerramentiWizard() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Il contenitore che scorre ha 12px (telefono) o 24px (computer) di spazio
-          in alto: con top-0 la testata si fermava lì e nella fessura sopra si
-          vedevano passare i campi. Da telefono è anche a tutta larghezza,
-          attaccata alla barra dell'app. */}
-      <div className="sticky top-0 z-30 border-b bg-background/95 shadow-sm backdrop-blur max-md:-mx-3 max-md:-mt-3 max-md:-top-3 md:-top-6">
-        <div className="container mx-auto flex max-w-6xl items-center gap-2 p-2.5 sm:gap-3 sm:p-3">
+      {/* Testata: codice, stato, cliente, salvataggio e azioni. Non è fissa: la barra delle fasi sotto sì. */}
+      <div className="border-b bg-white">
+        <div className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
           <Button variant="ghost" size="icon" onClick={() => { if (isNew && dirty) { setExitDialogOpen(true); return; } navigate("/azienda/marketing/preventivi"); }} className="h-10 w-10 shrink-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -841,24 +861,17 @@ export default function SerramentiWizard() {
               )}
               {/* Telefono: codice e stato sulla prima riga, cliente e salvataggio sotto. */}
               <span aria-hidden className="hidden h-0 basis-full max-md:order-3 max-md:block" />
+              {/* Da computer il salvataggio lo dice il piede: qui resta solo da telefono, dove il piede non ha lo stato. */}
               {(updateMut.isPending || pendingWrites > 0) ? (
-                <span className="text-[10px] text-muted-foreground flex items-center gap-1 max-md:order-5 max-md:text-xs">
+                <span className="text-[10px] text-muted-foreground flex items-center gap-1 max-md:order-5 max-md:text-xs md:hidden">
                   <Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…
                 </span>
               ) : dirty ? (
-                <span className="text-[10px] text-amber-600 max-md:order-5 max-md:text-xs" title="Le modifiche verranno salvate automaticamente entro 2 secondi">
+                <span className="text-[10px] text-amber-600 max-md:order-5 max-md:text-xs md:hidden" title="Le modifiche verranno salvate automaticamente entro 2 secondi">
                   ● Modifiche non salvate
-                </span>
-              ) : lastSavedAt ? (
-                <span className="text-[10px] text-emerald-600 flex items-center gap-0.5 max-md:hidden" title={`Ultimo salvataggio: ${lastSavedAt.toLocaleString("it-IT")}`}>
-                  ✓ {formatLastSaved()}
                 </span>
               ) : null}
             </div>
-            {/* Telefono: il passo attivo lo dice già lo stepper qui sotto. */}
-            <p className="text-[11px] text-muted-foreground truncate max-md:hidden">
-              Step {currentStepIndex + 1} di {SR_WIZARD_STEPS.length} · {SR_WIZARD_STEPS[currentStepIndex]?.label}
-            </p>
           </div>
           {/* Duplica come revisione: crea copia del preventivo come nuova
               revisione (parent_id linked). Utile per "Cliente vuole 3 offerte
@@ -910,108 +923,67 @@ export default function SerramentiWizard() {
             </Button>
           )}
         </div>
-        <div className="h-1 bg-muted">
-          <div
-            className="h-full bg-orange-600 transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        <div className="md:hidden overflow-x-auto border-t bg-background/95 px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {/* min-h-0: la regola globale dà 64px a ogni <nav> su telefono (pensata per la barra in basso). */}
-          <nav className="flex min-h-0 w-full min-w-max gap-1" aria-label="Step preventivo serramenti">
-            {SR_WIZARD_STEPS.map((s, idx) => {
-              const isActive = s.key === currentStep;
-              const isPast = idx < currentStepIndex;
-              const isComplete = isWizardStepComplete(s.key, form, detail);
-              const disabled = isNew && idx > 0;
-              return (
-                <button
-                  key={s.key}
-                  ref={(node) => {
-                    mobileStepRefs.current[s.key] = node;
-                  }}
-                  type="button"
-                  onClick={() => !disabled && handleStepClick(s.key)}
-                  disabled={disabled}
-                  aria-current={isActive ? "step" : undefined}
-                  // Telefono: tutti i passi in una riga, col nome corto: quelli
-                  // fatti in verde, l'attivo pieno, gli altri spenti.
-                  className={cn(
-                    "tap-compact inline-flex h-8 flex-1 items-center justify-center rounded-full border px-1.5 text-[11px] font-medium transition-colors",
-                    isActive
-                      ? "border-orange-500 bg-orange-500 font-semibold text-white"
-                      : isComplete
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                      : isPast
-                      ? "border-slate-200 bg-background text-foreground"
-                      : "border-border bg-background text-muted-foreground",
-                    disabled && "cursor-not-allowed opacity-50",
-                  )}
-                >
-                  {ETICHETTA_BREVE_PASSO[s.key] ?? s.label}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
       </div>
 
-      <div className="container mx-auto max-w-[1400px] p-3 pb-6 md:p-6">
-        <div className="grid grid-cols-12 gap-4">
-          {/* Sidebar step */}
-          <aside className="hidden md:block md:col-span-3 xl:col-span-2">
-            <Card>
-              <CardContent className="p-2">
-                <nav className="space-y-0.5">
-                  {SR_WIZARD_STEPS.map((s, idx) => {
-                    const Icon = STEP_ICONS[s.key];
-                    const isActive = s.key === currentStep;
-                    const isPast = idx < currentStepIndex;
-                    const isComplete = isWizardStepComplete(s.key, form, detail);
-                    const disabled = isNew && idx > 0;
-                    return (
-                      <button
-                        key={s.key}
-                        onClick={() => !disabled && handleStepClick(s.key)}
-                        disabled={disabled}
-                        className={cn(
-                          "w-full text-left px-2.5 py-2 rounded-md text-xs flex items-center gap-2 transition-colors",
-                          isActive
-                            ? "bg-orange-100 text-orange-900 font-semibold"
-                            : isComplete
-                            ? "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-                            : isPast
-                            ? "text-foreground hover:bg-muted"
-                            : "text-muted-foreground",
-                          disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-                        )}
-                      >
-                        <span className={cn(
-                          "h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold",
-                          isActive ? "bg-orange-600 text-white" :
-                          isComplete ? "bg-emerald-100 text-emerald-700" :
-                          isPast ? "bg-slate-100 text-slate-700" :
-                          "bg-muted text-muted-foreground",
-                        )}>
-                          {isComplete && !isActive ? <CheckCircle2 className="h-3.5 w-3.5" /> : idx + 1}
-                        </span>
-                        <Icon className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">{s.label}</span>
-                      </button>
-                    );
-                  })}
-                </nav>
-                {isNew && (
-                  <SrCallout variant="info" className="mt-2 text-[10px]">
-                    Compila i dati cliente e crea il progetto per sbloccare gli altri step.
-                  </SrCallout>
-                )}
-              </CardContent>
-            </Card>
-          </aside>
+      {/* Fissa in alto, col totale sempre in vista. Da telefono: pillole col nome corto. */}
+      <BarraFasi
+        className={cn("sticky z-30", STICKY_ALTO)}
+        passi={SR_WIZARD_STEPS.map((p) => ({ key: p.key, label: p.label, breve: ETICHETTA_BREVE_PASSO[p.key] }))}
+        corrente={currentStep}
+        completati={new Set(SR_WIZARD_STEPS.filter((p) => p.key !== currentStep && isWizardStepComplete(p.key, form, detail)).map((p) => p.key))}
+        conAvviso={new Set(SR_WIZARD_STEPS.filter((p, idx) => idx < currentStepIndex && (
+          (p.key === "cliente" && !isWizardStepComplete("cliente", form, detail))
+          || (p.key === "bom" && (!isWizardStepComplete("bom", form, detail) || (!datiAnteprima.prezzoACorpo && righeDaPrezzare(datiAnteprima) > 0)))
+        )).map((p) => p.key))}
+        bloccati={new Set(isNew ? SR_WIZARD_STEPS.slice(1).map((p) => p.key) : [])}
+        onSelect={(key) => void handleStepClick(key as SrWizardStep)}
+        totale={totaleTesto ? { valore: totaleTesto } : null}
+        destra={
+          <>
+            {/* Sotto i 1280 px non c'è la colonna: l'anteprima si apre da qui. */}
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 xl:hidden" onClick={() => setAnteprimaMobileAperta(true)}>
+              <Eye className="h-4 w-4" /> Anteprima
+            </Button>
+            {/* Computer: se l'hai nascosta, da qui torna. */}
+            {anteprimaNascosta && (
+              <Button variant="outline" size="sm" className="hidden h-8 gap-1.5 xl:inline-flex" onClick={() => impostaAnteprimaNascosta(false)}>
+                <Eye className="h-4 w-4" /> Mostra anteprima
+              </Button>
+            )}
+          </>
+        }
+      />
 
-          {/* Step content */}
-          <main className={cn("col-span-12 space-y-4 md:col-span-9", pdfLive && !isNew ? "lg:col-span-5 xl:col-span-6" : "lg:col-span-6 xl:col-span-7")}>
+      <CorpoPreventivatore
+        anteprimaNascosta={anteprimaNascosta}
+        anteprima={
+          <PannelloAnteprima
+            modalita={pdfLive && !isNew && detail ? "pdf" : "veloce"}
+            onModalita={(m) => impostaPdfLive(m === "pdf")}
+            pdfDisponibile={!isNew && !!detail}
+            vista={vistaAnteprima}
+            onVista={setVistaAnteprima}
+            puoVedereImpresa={puoVedereImpresa}
+            onNascondi={() => impostaAnteprimaNascosta(true)}
+            nota={pdfLive && !isNew && detail
+              ? "Il documento vero, come lo riceve il cliente: si rifà da solo mentre lavori."
+              : "Bozza visiva: cliente, cantiere e righe sono quelli che usano il PDF, il microsito del cliente e l'AI. Per il documento definitivo apri «PDF vero»."}
+          >
+            {pdfLive && !isNew && detail ? (
+              <AnteprimaPdfLive
+                attivo
+                payload={{
+                  detail: { ...detail, progetto: { ...detail.progetto, ...form } as SrProgettoRow },
+                  template: pdfTemplate ?? null,
+                  company: pdfCompany ?? null,
+                }}
+              />
+            ) : (
+              <AnteprimaVeloce dati={datiAnteprima} vista={vistaImpresa ? "impresa" : "cliente"} />
+            )}
+          </PannelloAnteprima>
+        }
+      >
             {/* ErrorBoundary granulare per step: se uno step crasha (es. dato
                 corrotto), gli altri step restano navigabili e l'utente vede
                 un fallback con "Riprova" invece dell'app blank. */}
@@ -1060,72 +1032,51 @@ export default function SerramentiWizard() {
               </div>
             )}
             </ErrorBoundary>
+      </CorpoPreventivatore>
 
-            {/* Navigation footer: su telefono sopra la barra in basso, che altrimenti lo copre.
-                Sticky e non fixed: con un passo corto sta subito sotto il modulo
-                (fisso in fondo lasciava un vuoto a metà schermo), con uno lungo
-                resta attaccato in basso mentre si scorre. Lo sticky si misura dal
-                bordo interno del contenitore che scorre, che su telefono ha già
-                7rem di spazio in fondo (pb-28 in CompanyLayout): -1.5rem lo mette
-                a 5.5rem dal fondo dello schermo, appena sopra la barra in basso.
-                Al passo PDF, sul telefono, la barra la disegna lo step: indietro · PDF · invia. */}
-            <div className={cn("sticky bottom-[calc(env(safe-area-inset-bottom)-1.5rem)] z-40 flex items-center justify-between gap-2 rounded-2xl border bg-background/95 px-3 py-2.5 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] backdrop-blur md:static md:mx-0 md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-2 md:shadow-none md:backdrop-blur-0", currentStep === "pdf" && id && detail && "max-md:hidden")}>
-              <Button
-                variant="outline"
-                onClick={handleBack}
-                disabled={currentStepIndex === 0}
-                className="min-h-11 md:min-h-0 max-md:w-11 max-md:shrink-0 max-md:px-0"
-              >
-                {/* Telefono: solo la freccia, il pulsante principale prende la riga. */}
-                <ArrowLeft className="h-4 w-4 mr-1 max-md:mr-0" /> <span className="max-md:sr-only">Indietro</span>
-              </Button>
-              <Button
-                onClick={handleSaveAndContinue}
-                disabled={updateMut.isPending || creating || Boolean(isNew && requestedModel && !modelSupport.supported)}
-                className="min-h-11 flex-1 bg-orange-500 hover:bg-orange-600 gap-1 sm:flex-none md:min-h-0"
-              >
-                {(updateMut.isPending || creating) ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : currentStepIndex === SR_WIZARD_STEPS.length - 1 ? (
-                  <Save className="h-4 w-4" />
-                ) : (
-                  <ArrowRight className="h-4 w-4" />
-                )}
-                {isNew ? "Crea e continua" :
-                  currentStepIndex === SR_WIZARD_STEPS.length - 1 ? "Salva" : "Salva e continua"}
-              </Button>
-            </div>
-          </main>
-
-          {!isNew && detail && (
-            <aside className={cn("hidden lg:block", pdfLive ? "lg:col-span-4 xl:col-span-4" : "lg:col-span-3")}>
-              <div className="sticky top-24">
-                {/* La linguetta: scheda dei dati o PDF vero che si aggiorna mentre lavori. */}
-                <div className="mb-2 inline-flex rounded-md border border-slate-200 bg-white p-0.5 text-[11px] font-medium" role="tablist" aria-label="Pannello a destra">
-                  <button type="button" role="tab" aria-selected={!pdfLive} onClick={() => impostaPdfLive(false)} className={cn("rounded px-2.5 py-1", !pdfLive ? "bg-orange-500 text-white" : "text-slate-600 hover:bg-slate-100")}>Scheda</button>
-                  <button type="button" role="tab" aria-selected={pdfLive} onClick={() => impostaPdfLive(true)} className={cn("rounded px-2.5 py-1", pdfLive ? "bg-orange-500 text-white" : "text-slate-600 hover:bg-slate-100")}>PDF in tempo reale</button>
-                </div>
-                {pdfLive ? (
-                  <AnteprimaPdfLive
-                    attivo
-                    payload={{
-                      detail: { ...detail, progetto: { ...detail.progetto, ...form } as SrProgettoRow },
-                      template: pdfTemplate ?? null,
-                      company: pdfCompany ?? null,
-                    }}
-                  />
-                ) : (
-                  <StepClienteSummary
-                    form={form}
-                    detail={{ ...detail, progetto: { ...detail.progetto, ...form } as SrProgettoRow }}
-                  />
-                )}
-              </div>
-            </aside>
+      {/* Piede fisso. Su telefono sopra la barra in basso dell'app; al passo PDF la barra la disegna lo step: indietro · PDF · invia. */}
+      <PiedePreventivatore
+        className={cn(currentStep === "pdf" && id && detail && "max-md:hidden")}
+        stato={<StatoDelSalvataggio stato={statoSalvataggio} testo={statoSalvataggio === "salvato" ? formatLastSaved() : null} />}
+        telefono={<BottoneTotale valore={totaleTesto ?? "—"} onClick={() => setAnteprimaMobileAperta(true)} />}
+      >
+        <Button
+          variant="outline"
+          onClick={handleBack}
+          disabled={currentStepIndex === 0}
+          className="min-h-11 md:min-h-0 max-md:w-11 max-md:shrink-0 max-md:px-0"
+        >
+          {/* Telefono: solo la freccia, il pulsante principale prende la riga. */}
+          <ArrowLeft className="h-4 w-4 mr-1 max-md:mr-0" /> <span className="max-md:sr-only">Indietro</span>
+        </Button>
+        <Button
+          onClick={handleSaveAndContinue}
+          disabled={updateMut.isPending || creating || Boolean(isNew && requestedModel && !modelSupport.supported)}
+          className="min-h-11 flex-1 bg-orange-500 hover:bg-orange-600 gap-1 sm:flex-none md:min-h-0"
+        >
+          {(updateMut.isPending || creating) ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : currentStepIndex === SR_WIZARD_STEPS.length - 1 ? (
+            <Save className="h-4 w-4" />
+          ) : (
+            <ArrowRight className="h-4 w-4" />
           )}
-        </div>
-      </div>
+          {isNew ? "Crea e continua" :
+            currentStepIndex === SR_WIZARD_STEPS.length - 1 ? "Salva" : "Salva e continua"}
+        </Button>
+      </PiedePreventivatore>
 
+      {/* Sotto i 1280 px non c'è la colonna: l'anteprima sale dal basso. */}
+      <AnteprimaMobile aperta={anteprimaMobileAperta} onApertaChange={setAnteprimaMobileAperta}>
+        <PannelloAnteprima vista={vistaAnteprima} onVista={setVistaAnteprima} puoVedereImpresa={puoVedereImpresa}>
+          <AnteprimaVeloce dati={datiAnteprima} vista={vistaImpresa ? "impresa" : "cliente"} />
+        </PannelloAnteprima>
+        {!isNew && (
+          <Button variant="outline" size="sm" onClick={handlePreviewClick} disabled={!canPreview} className="mt-2 w-full gap-1.5">
+            <Eye className="h-4 w-4" /> Apri il PDF
+          </Button>
+        )}
+      </AnteprimaMobile>
     </div>
   );
 }
@@ -1335,109 +1286,6 @@ function StepCliente({
         </div>
       </div>
     </SrCard>
-  );
-}
-
-function StepClienteSummary({
-  form, detail,
-}: {
-  form: Partial<SrProgettoRow>;
-  detail?: SrProgettoDetail;
-}) {
-  const clienteNome = compactText(form.cliente_nome, form.cliente_cognome);
-  const clienteIndirizzo = compactAddress(
-    form.cliente_indirizzo,
-    compactText(form.cliente_cap, form.cliente_citta),
-    form.cliente_provincia,
-  );
-  const cantiere = compactAddress(
-    form.cantiere_indirizzo,
-    compactText(form.cantiere_cap, form.cantiere_citta),
-    form.cantiere_provincia,
-  );
-  const righeOfferta = detail?.serramenti.length ?? 0;
-
-  return (
-    <div className="sticky top-24 rounded-md border border-slate-200 bg-slate-50/80 p-3 shadow-sm">
-      <div className="mb-3">
-        <p className="text-xs font-semibold text-slate-900">Scheda preventivo</p>
-        <p className="text-[11px] leading-4 text-slate-500">
-          Dati usati da PDF, microsito cliente e AI.
-        </p>
-      </div>
-
-      <div className="space-y-2.5">
-        <SummaryLine
-          icon={<User className="h-3.5 w-3.5" />}
-          label="Cliente"
-          value={clienteNome || "Da completare"}
-          muted={!clienteNome}
-        />
-        <SummaryLine
-          icon={<Phone className="h-3.5 w-3.5" />}
-          label="Telefono"
-          value={form.cliente_telefono || "Non indicato"}
-          muted={!form.cliente_telefono}
-        />
-        <SummaryLine
-          icon={<Mail className="h-3.5 w-3.5" />}
-          label="Email"
-          value={form.cliente_email || "Non indicata"}
-          muted={!form.cliente_email}
-        />
-        <SummaryLine
-          icon={<MapPin className="h-3.5 w-3.5" />}
-          label="Indirizzo cliente"
-          value={clienteIndirizzo || "Non indicato"}
-          muted={!clienteIndirizzo}
-        />
-        <SummaryLine
-          icon={<Home className="h-3.5 w-3.5" />}
-          label="Cantiere"
-          value={cantiere || "Si completa nello step Immobile"}
-          muted={!cantiere}
-        />
-        <SummaryLine
-          icon={<RectangleVertical className="h-3.5 w-3.5" />}
-          label="Composizione"
-          value={`${righeOfferta} ${righeOfferta === 1 ? "riga" : "righe"} in offerta`}
-          muted={righeOfferta === 0}
-        />
-      </div>
-
-      <div className="mt-3 rounded-md border border-orange-100 bg-orange-50/60 p-2">
-        <p className="text-[11px] font-semibold text-orange-900">AI legge anche questa scheda</p>
-        <p className="mt-0.5 text-[11px] leading-4 text-orange-800/80">
-          Cliente, indirizzo, cantiere e contenuti già inseriti vengono usati per proporre righe offerta più coerenti.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function SummaryLine({
-  icon, label, value, muted,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  muted?: boolean;
-}) {
-  return (
-    <div className="flex gap-2">
-      <span className={cn(
-        "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
-        muted ? "bg-slate-100 text-slate-400" : "bg-white text-slate-700 ring-1 ring-slate-200",
-      )}>
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-        <p className={cn("truncate text-xs", muted ? "text-slate-400" : "text-slate-900")}>
-          {value}
-        </p>
-      </div>
-    </div>
   );
 }
 
