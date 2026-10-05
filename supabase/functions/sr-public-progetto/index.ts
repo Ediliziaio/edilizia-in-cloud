@@ -142,8 +142,33 @@ Deno.serve(async (req: Request) => {
       company?.legal_province,
     ].filter(Boolean).join(", ");
 
+    // La firma si fa col codice (flusso FEA, come gli altri preventivi): se
+    // l'azienda ha già mandato la richiesta di firma, la pagina porta lì.
+    let firmaToken: string | null = null;
+    if (!prog.firmato_il) {
+      const { data: ombra } = await sb
+        .from("quotes")
+        .select("id")
+        .eq("company_id", prog.company_id)
+        .eq("source", `modulo:sr:${prog.id}`)
+        .maybeSingle();
+      if (ombra?.id) {
+        const { data: richiesta } = await sb
+          .from("signature_requests")
+          .select("token")
+          .eq("quote_id", ombra.id)
+          .in("status", ["pending", "otp_verified"])
+          .gt("expires_at", new Date().toISOString())
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        firmaToken = (richiesta?.token as string | undefined) ?? null;
+      }
+    }
+
     return jsonResponse({
       ok: true,
+      firma_token: firmaToken,
       progetto: {
         code: prog.code,
         stato: prog.stato,

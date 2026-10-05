@@ -3,6 +3,7 @@ import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../_shared/campoD
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { normalizzaTelefonoE164 } from "../_shared/telefonoE164.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 
 Deno.serve(async (req: Request) => {
@@ -22,6 +23,7 @@ Deno.serve(async (req: Request) => {
       tipo_firmatario,
       signer_email,
       signer_name,
+      signer_phone,
     } = body;
     // Categoria "umana" del documento (verbale_consegna, collaudo_finale, ...)
     // e note libere: arrivano dall'app campo, si salvano sulla richiesta così
@@ -169,6 +171,15 @@ Deno.serve(async (req: Request) => {
       categoria,
       note: noteRichiesta,
     };
+
+    // Cellulare per ricevere il codice anche via SMS. Quello scritto nell'invio;
+    // per il fotovoltaico, in mancanza, quello del cliente del progetto.
+    let telefono = normalizzaTelefonoE164(signer_phone);
+    if (!telefono && tipo_documento === "fv") {
+      const { data: fv } = await supabaseAdmin.from("fv_progetti").select("cliente_telefono").eq("id", documento_id).maybeSingle();
+      telefono = normalizzaTelefonoE164(fv?.cliente_telefono);
+    }
+    if (telefono) insertPayload.signer_phone = telefono;
 
     // Assegna ID documento in base al tipo
     if (tipo_documento === "order") {

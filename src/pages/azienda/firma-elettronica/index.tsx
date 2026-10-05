@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Plus, FileText, Loader2, Send, AlertTriangle,
   Search, Mail, CheckCircle2, Clock, XCircle, Copy,
-  FileStack, Target, ExternalLink, RefreshCw,
+  FileStack, Target, ExternalLink, RefreshCw, Download,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -409,6 +409,22 @@ export default function FirmaElettronicaHub() {
     navigate(`/azienda/firma-elettronica/nuovo-template?templateId=${template.id}`);
   };
 
+  // Il PDF firmato (timbro su ogni pagina + certificato). Se manca lo costruisce il server.
+  const [pdfFirmatoInCorso, setPdfFirmatoInCorso] = useState<string | null>(null);
+  const scaricaPdfFirmato = async (richiestaId: string) => {
+    setPdfFirmatoInCorso(richiestaId);
+    try {
+      const { data, error } = await supabase.functions.invoke("fea-pdf-firmato", { body: { request_id: richiestaId } });
+      if (error) throw error;
+      if (!data?.url) throw new Error("Link non disponibile");
+      window.open(data.url as string, "_blank", "noopener,noreferrer");
+    } catch {
+      toast.error("Non riesco a preparare il PDF firmato. Riprova tra qualche istante.");
+    } finally {
+      setPdfFirmatoInCorso(null);
+    }
+  };
+
   const copyLink = async (firmaUrl: string) => {
     const link = firmaUrl.startsWith("http") ? firmaUrl : `${window.location.origin}${firmaUrl}`;
     try {
@@ -645,6 +661,11 @@ export default function FirmaElettronicaHub() {
                       </p>
                     </div>
                     <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${cfg.className}`}>{cfg.label}</span>
+                    {r.source_kind === "fea" && r.status === "signed" && (
+                      <Button variant="ghost" size="icon" className="tap-compact h-8 w-8 shrink-0" aria-label="PDF firmato" disabled={pdfFirmatoInCorso === r.id} onClick={() => void scaricaPdfFirmato(r.id)}>
+                        {pdfFirmatoInCorso === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      </Button>
+                    )}
                     {/* Il link serve solo finché la firma è aperta: annullata o
                         scaduta, porta a una pagina d'errore. */}
                     {r.firma_url && (r.status === "pending" || r.status === "otp_verified") && !isExpired && (
@@ -755,6 +776,17 @@ export default function FirmaElettronicaHub() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center gap-1 justify-end">
+                            {r.source_kind === "fea" && r.status === "signed" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Scarica il PDF firmato"
+                                disabled={pdfFirmatoInCorso === r.id}
+                                onClick={() => void scaricaPdfFirmato(r.id)}
+                              >
+                                {pdfFirmatoInCorso === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                              </Button>
+                            )}
                             {r.firma_url && r.status !== "signed" && r.status !== "refused" && (
                               <Button
                                 variant="ghost"

@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
+import { inviaSmsCodiceFirma } from "../_shared/inviaSmsFirma.ts";
 
 function buildOTPEmail(otp: string, nome: string, azienda: string, link: string): string {
   return `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto">
@@ -43,7 +44,7 @@ Deno.serve(async (req: Request) => {
     // Carica signature_request
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, token, signer_email, signer_name, status, expires_at, otp_tentativi, company_id")
+      .select("id, token, signer_email, signer_name, signer_phone, status, expires_at, otp_scadenza, otp_tentativi, company_id")
       .eq("id", request_id)
       .single();
 
@@ -79,6 +80,15 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ error: "Link di firma scaduto" }),
         { status: 410, headers: { ...corsH, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Un codice è appena partito (meno di un minuto fa): non se ne manda un altro.
+    // Evita le raffiche di email e, soprattutto, di SMS a carico dell'azienda.
+    if (sigReq.otp_scadenza && new Date(sigReq.otp_scadenza).getTime() > Date.now() + 9 * 60 * 1000) {
+      return new Response(
+        JSON.stringify({ success: true, gia_inviato: true }),
+        { status: 200, headers: { ...corsH, "Content-Type": "application/json" } }
       );
     }
 
@@ -130,16 +140,28 @@ Deno.serve(async (req: Request) => {
       // Non blocchiamo: OTP aggiornato, email fallita
     }
 
+    // SMS in più, se c'è il cellulare e l'azienda ha credito: senza, resta l'email.
+    let smsInviato = false;
+    let smsMotivo: string | undefined;
+    if (sigReq.signer_phone) {
+      const esito = await inviaSmsCodiceFirma(supabaseAdmin, {
+        companyId: sigReq.company_id, richiestaId: sigReq.id, to: sigReq.signer_phone, otp, aziendaNome: brandName,
+      });
+      smsInviato = esito.inviato;
+      smsMotivo = esito.motivo;
+    }
+    await supabaseAdmin.from("signature_requests").update({ otp_canale: smsInviato ? "sms" : "email" }).eq("id", request_id);
+
     // Audit log
     await supabaseAdmin.from("fea_audit_log").insert({
       request_id,
       company_id: sigReq.company_id,
       evento: "otp_inviato",
-      metadati: { signer_email: sigReq.signer_email },
+      metadati: { signer_email: sigReq.signer_email, canali: smsInviato ? ["email", "sms"] : ["email"], sms_non_inviato: sigReq.signer_phone && !smsInviato ? smsMotivo ?? null : undefined },
     });
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, sms_inviato: smsInviato }),
       { status: 200, headers: { ...corsH, "Content-Type": "application/json" } }
     );
   } catch (err) {

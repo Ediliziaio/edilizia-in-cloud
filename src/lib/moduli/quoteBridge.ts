@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface ModuleQuoteInput {
   companyId: string;
   userId: string;
-  /** Chiave modulo (rst, tetti, bagni, clm, ele, idr, pav, pis). */
+  /** Chiave modulo (rst, tetti, bagni, clm, ele, idr, pav, pis, sr). */
   moduleKey: string;
   progettoId: string;
   titolo: string;
@@ -67,6 +67,7 @@ const PAGINE_MODULO: Record<string, { nome: string; base: string }> = {
   idr: { nome: "Termoidraulico", base: "/azienda/termoidraulico" },
   pav: { nome: "Pavimenti", base: "/azienda/pavimenti" },
   pis: { nome: "Piscine", base: "/azienda/piscine" },
+  sr: { nome: "Serramenti", base: "/azienda/serramenti" },
 };
 
 /** Il preventivo del modulo a cui appartiene la riga (null se non è una riga di modulo). */
@@ -166,6 +167,7 @@ export async function sendModuleQuoteSignature(
   recipientEmail: string,
   recipientName: string,
   customMessage?: string,
+  recipientPhone?: string,
 ): Promise<void> {
   const { data, error } = await supabase.functions.invoke("send-quote-signature", {
     body: {
@@ -173,6 +175,7 @@ export async function sendModuleQuoteSignature(
       recipient_email: recipientEmail,
       recipient_name: recipientName,
       custom_message: customMessage || undefined,
+      recipient_phone: recipientPhone || undefined,
     },
   });
   if (error) throw new Error(error.message);

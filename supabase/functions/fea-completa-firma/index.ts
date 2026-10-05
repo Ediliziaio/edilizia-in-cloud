@@ -2,6 +2,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../_shared/campoDocumentGuard.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { clausoleDellaFirma } from "../_shared/clausoleFirma.ts";
+import { assicuraPdfFirmato } from "../_shared/pdfFirmato.ts";
 
 // Risolve l'utente "proprietario" del documento a cui inviare la notifica:
 //  - quote → quotes.assigned_to || quotes.created_by
@@ -41,11 +43,14 @@ async function risolviOwner(admin: any, sigReq: {
   return sigReq.created_by ?? null;
 }
 
-function buildEmailCopiaB2C(nome: string, data: string): string {
+const esc = (t: unknown) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+
+function buildEmailCopiaB2C(nome: string, data: string, codice: string | null, conPdf: boolean): string {
   return `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto">
   <h2 style="color:#1E3A5F">Documento firmato</h2>
-  <p>Gentile ${nome},</p>
-  <p>Hai firmato elettronicamente un documento il ${data}.</p>
+  <p>Gentile ${esc(nome)},</p>
+  <p>Hai firmato elettronicamente un documento il ${esc(data)}.</p>
+  ${conPdf ? `<p>In allegato trovi la copia firmata: ogni pagina porta il timbro di firma e in fondo c'è il certificato${codice ? ` (codice di verifica <strong>${esc(codice)}</strong>)` : ""}.</p>` : ""}
   <p>Conserva questa email come prova della firma.</p>
 </div>`;
 }
@@ -72,6 +77,7 @@ Deno.serve(async (req: Request) => {
       lng,
       b2c_recesso_accettato,
       b2c_clausole_approvate,
+      clausole_approvate,
     } = body;
 
     if (!token) {
@@ -118,6 +124,15 @@ Deno.serve(async (req: Request) => {
       return errore(400, "Il diritto di recesso deve essere accettato per procedere");
     }
 
+    // Seconda firma (art. 1341 c.c.): ogni clausola da approvare a parte deve
+    // esserlo, per privati e aziende. Prima nessuno lo controllava.
+    const attese = await clausoleDellaFirma(supabaseAdmin, sigReq);
+    const arrivate: unknown = Array.isArray(clausole_approvate) ? clausole_approvate : b2c_clausole_approvate;
+    const approvate = Array.isArray(arrivate) ? arrivate.filter((x): x is string => typeof x === "string") : [];
+    if (attese.some((c) => !approvate.includes(c.id))) {
+      return errore(400, "Per firmare approva ogni clausola specifica del contratto.");
+    }
+
     const ora = new Date().toISOString();
 
     // Costruisci updatePayload
@@ -129,6 +144,11 @@ Deno.serve(async (req: Request) => {
       firma_lat: lat ?? null,
       firma_lng: lng ?? null,
     };
+
+    if (attese.length) {
+      updatePayload.clausole_approvate = attese.map((c) => c.id);
+      updatePayload.clausole_approvate_ts = ora;
+    }
 
     // Per B2C
     if (sigReq.tipo_firmatario === "b2c") {
@@ -190,12 +210,14 @@ Deno.serve(async (req: Request) => {
       const tabellaModulo: Record<string, string> = {
         rst: "rst_progetti", bagni: "bgn_progetti", tetti: "tet_progetti", clm: "clm_progetti",
         ele: "ele_progetti", idr: "idr_progetti", pav: "pav_progetti", pis: "pis_progetti",
+        sr: "sr_progetti",
       };
       const tabella = modulo ? tabellaModulo[modulo[1]] : undefined;
       if (modulo && tabella) {
+        // Serramenti ha anche la data di firma (la pagina /stima mostra «Firmata il»).
         const { error: modErr } = await supabaseAdmin
           .from(tabella)
-          .update({ stato: "accettato" })
+          .update(modulo[1] === "sr" ? { stato: "accettato", firmato_il: ora } : { stato: "accettato" })
           .eq("id", modulo[2])
           .eq("company_id", sigReq.company_id);
         if (modErr) console.error(`Stato accettato su ${tabella} non aggiornato:`, modErr);
@@ -218,8 +240,29 @@ Deno.serve(async (req: Request) => {
       },
     });
 
-    // Per B2C: invia email copia
-    if (sigReq.tipo_firmatario === "b2c") {
+    // Il PDF firmato (timbro su ogni pagina + certificato) e la copia via email.
+    // Dopo la risposta: la firma è già registrata e non deve aspettare né
+    // fallire per colpa del PDF. Se la generazione non riesce, il PDF si rifà
+    // dall'app (fea-pdf-firmato) e la copia resta senza allegato.
+    const copiaFirmata = (async () => {
+      let allegato: { filename: string; content: string; type: string } | undefined;
+      let codice: string | null = null;
+      try {
+        const esito = await assicuraPdfFirmato(supabaseAdmin, sigReq.id);
+        codice = esito.codiceVerifica;
+        const { data: file } = await supabaseAdmin.storage.from("quote-pdfs").download(esito.path);
+        if (file && file.size <= 8 * 1024 * 1024) {
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          let bin = "";
+          for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+          allegato = { filename: `documento-firmato-${esito.codiceVerifica}.pdf`, content: btoa(bin), type: "application/pdf" };
+        }
+      } catch (pdfErr) {
+        console.error("PDF firmato non generato:", pdfErr instanceof Error ? pdfErr.message : pdfErr);
+      }
+
+      // Copia al firmatario: ai privati come prima; alle aziende solo se c'è il PDF.
+      if (sigReq.tipo_firmatario !== "b2c" && !allegato) return;
       try {
         const dataFormattata = new Date(ora).toLocaleDateString("it-IT", {
           day: "2-digit",
@@ -234,31 +277,34 @@ Deno.serve(async (req: Request) => {
           stream:       "transactional",
           to:           [sigReq.signer_email],
           subject:      "Copia del documento firmato",
-          html:         buildEmailCopiaB2C(sigReq.signer_name, dataFormattata),
+          html:         buildEmailCopiaB2C(sigReq.signer_name, dataFormattata, codice, !!allegato),
           templateName: "fea_firma_completata",
           skipCredits:  true,
           adminClient:  supabaseAdmin,
+          attachments:  allegato ? [allegato] : undefined,
           metadata:     { request_id: sigReq.id, signer_email: sigReq.signer_email },
         });
 
-        // Aggiorna b2c_email_copia=true
         await supabaseAdmin
           .from("signature_requests")
           .update({ b2c_email_copia: true })
           .eq("id", sigReq.id);
 
-        // Audit log email_copia_inviata
         await supabaseAdmin.from("fea_audit_log").insert({
           request_id: sigReq.id,
           company_id: sigReq.company_id,
           evento: "email_copia_inviata",
-          metadati: { signer_email: sigReq.signer_email },
+          metadati: { signer_email: sigReq.signer_email, con_pdf: !!allegato },
         });
       } catch (emailErr) {
-        console.error("Email copia B2C error:", emailErr);
+        console.error("Email copia firmata error:", emailErr);
         // Non blocchiamo la firma per un errore email
       }
-    }
+    })();
+    // deno-lint-ignore no-explicit-any
+    const runtime = (globalThis as any).EdgeRuntime;
+    if (runtime?.waitUntil) runtime.waitUntil(copiaFirmata);
+    else await copiaFirmata;
 
     // Notifica interna al titolare del documento: la firma è avvenuta.
     // La pagina pubblica dice al cliente che "l'azienda è stata informata":

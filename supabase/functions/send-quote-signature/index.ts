@@ -1,3 +1,4 @@
+import { normalizzaTelefonoE164 } from "../_shared/telefonoE164.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
@@ -19,6 +20,7 @@ Deno.serve(async (req) => {
       quote_id,
       recipient_email,
       recipient_name,
+      recipient_phone,
       custom_message,
       expires_days,
       // "solo_pdf": manda il preventivo in PDF via email, senza firma OTP.
@@ -246,6 +248,8 @@ Deno.serve(async (req) => {
         token: signatureToken,
         signer_email: finalEmail,
         signer_name: finalName,
+        // Cellulare per ricevere il codice anche via SMS: quello scritto nell'invio, altrimenti quello del cliente.
+        signer_phone: normalizzaTelefonoE164(recipient_phone || quote.client_phone),
         status: "pending",
         expires_at: expiresAt.toISOString(),
         created_by: userId,

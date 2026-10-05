@@ -68,6 +68,7 @@ export function InviaFirmaCard(props: Props) {
   const [working, setWorking] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [email, setEmail] = useState(props.clientEmail ?? "");
+  const [telefono, setTelefono] = useState(props.clientPhone ?? "");
   const [messaggio, setMessaggio] = useState("");
 
   // Quote-ombra collegata al progetto (null = mai preparata). React Query:
@@ -94,14 +95,14 @@ export function InviaFirmaCard(props: Props) {
         titolo: props.titolo,
         clientName: props.clientName,
         clientEmail: email.trim(),
-        clientPhone: props.clientPhone ?? null,
+        clientPhone: telefono.trim() || null,
         subtotal: props.subtotal,
         vatAmount: props.vatAmount,
         total: props.total,
         validityDays: props.validityDays ?? 30,
         pdfBlob,
       });
-      await sendModuleQuoteSignature(row.id, email.trim(), props.clientName, messaggio.trim() || undefined);
+      await sendModuleQuoteSignature(row.id, email.trim(), props.clientName, messaggio.trim() || undefined, telefono.trim() || undefined);
       toast.success("Preventivo inviato per firma", {
         description: `Email a ${email.trim()} · il reminder di scadenza è automatico.`,
       });
@@ -188,6 +189,18 @@ export function InviaFirmaCard(props: Props) {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="cliente@esempio.it"
             />
+          </div>
+          <div>
+            <Label className="text-xs">Cellulare (opzionale)</Label>
+            <Input
+              type="tel"
+              inputMode="tel"
+              className="h-9 mt-1"
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+              placeholder="333 123 4567"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">Il codice arriva anche via SMS, se l'azienda ha credito SMS.</p>
           </div>
           <div>
             <Label className="text-xs">Messaggio (opzionale)</Label>

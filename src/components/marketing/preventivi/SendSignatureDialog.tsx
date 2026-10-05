@@ -53,6 +53,7 @@ export function SendSignatureDialog({
   const defaultDays = validityDays && validityDays > 0 ? validityDays : 30;
   const [email, setEmail] = useState(clientEmail || "");
   const [name, setName] = useState(clientName || "");
+  const [phone, setPhone] = useState(clientPhone || "");
   const [message, setMessage] = useState("");
   const [days, setDays] = useState(defaultDays);
   const [sent, setSent] = useState(false);
@@ -63,12 +64,13 @@ export function SendSignatureDialog({
     if (open) {
       setEmail(clientEmail || "");
       setName(clientName || "");
+      setPhone(clientPhone || "");
       setMessage("");
       setDays(defaultDays);
       setSent(false);
       setResultLink(null);
     }
-  }, [open, clientEmail, clientName, defaultDays]);
+  }, [open, clientEmail, clientName, clientPhone, defaultDays]);
 
   const handleSend = async () => {
     if (!email.trim()) {
@@ -79,6 +81,7 @@ export function SendSignatureDialog({
       const result = await onSend({
         recipientEmail: email.trim(),
         recipientName: name.trim() || "Cliente",
+        recipientPhone: phone.trim() || undefined,
         customMessage: message.trim() || undefined,
         expiresDays: days,
       });
@@ -131,6 +134,19 @@ export function SendSignatureDialog({
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="cliente@email.com"
                 />
+              </div>
+
+              <div className="space-y-2 max-sm:order-1 max-sm:col-span-3">
+                <Label htmlFor="sig-phone">Cellulare (opzionale)</Label>
+                <Input
+                  id="sig-phone"
+                  type="tel"
+                  inputMode="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="333 123 4567"
+                />
+                <p className="text-[11px] text-muted-foreground">Il codice arriva anche via SMS, se l'azienda ha credito SMS. Altrimenti solo via email.</p>
               </div>
 
               <div className="space-y-2 max-sm:order-2 max-sm:col-span-2">

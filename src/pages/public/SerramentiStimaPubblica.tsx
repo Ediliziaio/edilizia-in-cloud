@@ -7,28 +7,23 @@
  *  - Vista del PDF in iframe
  *  - Box riepilogo (totale, risparmio, payback)
  *  - CTA "Contatta consulente" (telefono / email / WhatsApp)
- *  - CTA "Firma digitalmente" se allow_self_signing e non già firmato
+ *  - CTA "Firma con il codice" se l'azienda ha mandato la richiesta di firma
+ *    (flusso FEA /firma-fea/<token>, codice via email); niente più firma a disegno
  *  - Badge "Firmato il [data]" se firmato
  *
  * NB: il cliente NON modifica nulla (colori, materiali, ecc.). Solo visione + firma.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
-} from "@/components/ui/dialog";
 import {
   FileText, Phone, Mail, MessageCircle, PenLine, CheckCircle, ExternalLink,
-  Calendar, Loader2, AlertCircle,
+  Calendar, AlertCircle,
 } from "lucide-react";
-import { toast } from "sonner";
 import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
 
 interface PublicStima {
@@ -107,12 +102,7 @@ export default function SerramentiStimaPubblica() {
   const [data, setData] = useState<PublicStima | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showSignDialog, setShowSignDialog] = useState(false);
-  const [signerName, setSignerName] = useState("");
-  const [signing, setSigning] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const drawingRef = useRef(false);
-  const [hasInk, setHasInk] = useState(false);
+  const [firmaToken, setFirmaToken] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -139,115 +129,12 @@ export default function SerramentiStimaPubblica() {
         return;
       }
       setData(r as PublicStima);
+      setFirmaToken(typeof r.firma_token === "string" ? r.firma_token : null);
     } catch (e) {
       console.error("[stima-pubblica] load", e);
       setError("Impossibile caricare la stima. Il link potrebbe essere scaduto.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  // ─── Signature pad ────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!showSignDialog) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#1e293b";
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    setHasInk(false);
-
-    const getPos = (e: MouseEvent | TouchEvent): { x: number; y: number } => {
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      if ("touches" in e && e.touches.length > 0) {
-        return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY };
-      }
-      const me = e as MouseEvent;
-      return { x: (me.clientX - rect.left) * scaleX, y: (me.clientY - rect.top) * scaleY };
-    };
-
-    const start = (e: MouseEvent | TouchEvent) => {
-      e.preventDefault();
-      drawingRef.current = true;
-      const pos = getPos(e);
-      ctx.beginPath();
-      ctx.moveTo(pos.x, pos.y);
-      setHasInk(true);
-    };
-    const move = (e: MouseEvent | TouchEvent) => {
-      if (!drawingRef.current) return;
-      e.preventDefault();
-      const pos = getPos(e);
-      ctx.lineTo(pos.x, pos.y);
-      ctx.stroke();
-    };
-    const stop = () => { drawingRef.current = false; };
-
-    canvas.addEventListener("mousedown", start);
-    canvas.addEventListener("mousemove", move);
-    canvas.addEventListener("mouseup", stop);
-    canvas.addEventListener("mouseleave", stop);
-    canvas.addEventListener("touchstart", start, { passive: false });
-    canvas.addEventListener("touchmove", move, { passive: false });
-    canvas.addEventListener("touchend", stop);
-
-    return () => {
-      canvas.removeEventListener("mousedown", start);
-      canvas.removeEventListener("mousemove", move);
-      canvas.removeEventListener("mouseup", stop);
-      canvas.removeEventListener("mouseleave", stop);
-      canvas.removeEventListener("touchstart", start);
-      canvas.removeEventListener("touchmove", move);
-      canvas.removeEventListener("touchend", stop);
-    };
-  }, [showSignDialog]);
-
-  const clearSignature = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    setHasInk(false);
-  };
-
-  const submitSignature = async () => {
-    if (!canvasRef.current || !token) return;
-    if (!hasInk) {
-      toast.error("Per favore firma nello spazio dedicato");
-      return;
-    }
-    if (!signerName.trim()) {
-      toast.error("Per favore inserisci il tuo nome");
-      return;
-    }
-    setSigning(true);
-    try {
-      const dataUrl = canvasRef.current.toDataURL("image/png");
-      const { data: result, error: invErr } = await supabase.functions.invoke("sr-firma-cliente", {
-        body: { token, signature_data_url: dataUrl, signer_name: signerName.trim() },
-      });
-      if (invErr) throw invErr;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const r = result as any;
-      if (!r?.ok) throw new Error(r?.error ?? "Firma fallita");
-      toast.success("Firma registrata. Ti contatteremo a breve!");
-      setShowSignDialog(false);
-      await load(); // refresh con firmato_il
-    } catch (e) {
-      console.error("[stima-pubblica] sign", e);
-      toast.error("Errore durante la firma", { description: String(e) });
-    } finally {
-      setSigning(false);
     }
   };
 
@@ -490,7 +377,7 @@ export default function SerramentiStimaPubblica() {
         )}
 
         {/* Firma CTA */}
-        {progetto.allow_self_signing && !progetto.firmato_il && (
+        {!progetto.firmato_il && (
           <Card className="border-2" style={{ borderColor: inchiostro }}>
             <CardContent className="p-6 text-center">
               <PenLine className="h-10 w-10 mx-auto mb-3" style={{ color: inchiostro }} />
@@ -498,17 +385,23 @@ export default function SerramentiStimaPubblica() {
                 Sei pronto a procedere?
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Firma digitalmente la stima per confermare il tuo interesse. Ti contatteremo per definire i dettagli.
+                {firmaToken
+                  ? "Hai letto la stima? Per firmarla ti mandiamo un codice di verifica via email: bastano due passaggi."
+                  : "Per firmare ti serve il link di firma che ti manda l'azienda via email, con il codice di verifica. Se non l'hai ricevuto, contatta il tuo consulente."}
               </p>
-              <Button
-                size="lg"
-                onClick={() => setShowSignDialog(true)}
-                style={{ backgroundColor: colore, color: testoBottone }}
-                className="gap-2 hover:opacity-90"
-              >
-                <PenLine className="h-4 w-4" />
-                Firma digitalmente
-              </Button>
+              {firmaToken && (
+                <Button
+                  size="lg"
+                  asChild
+                  style={{ backgroundColor: colore, color: testoBottone }}
+                  className="gap-2 hover:opacity-90"
+                >
+                  <a href={`/firma-fea/${firmaToken}?avvia=1`}>
+                    <PenLine className="h-4 w-4" />
+                    Firma con il codice
+                  </a>
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}
@@ -549,64 +442,6 @@ export default function SerramentiStimaPubblica() {
         </Card>
       </main>
 
-      {/* Signature dialog */}
-      <Dialog open={showSignDialog} onOpenChange={setShowSignDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Firma digitale</DialogTitle>
-            <DialogDescription>
-              Firma con il mouse o il dito nello spazio sotto. La firma sarà allegata al preventivo.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label className="text-xs">Il tuo nome completo</Label>
-              <Input
-                value={signerName}
-                onChange={(e) => setSignerName(e.target.value)}
-                placeholder={cliente || "Mario Rossi"}
-                className="h-9"
-              />
-            </div>
-            <div>
-              <Label className="text-xs mb-1 block">La tua firma</Label>
-              <div
-                className="border-2 border-dashed rounded-md bg-white"
-                style={{ borderColor: hasInk ? inchiostro : "#cbd5e1" }}
-              >
-                <canvas
-                  ref={canvasRef}
-                  width={500}
-                  height={180}
-                  className="w-full touch-none cursor-crosshair"
-                  style={{ height: 180 }}
-                />
-              </div>
-              <Button
-                size="sm" variant="ghost" onClick={clearSignature}
-                disabled={!hasInk}
-                className="mt-1 text-xs h-7"
-              >
-                Cancella
-              </Button>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSignDialog(false)} disabled={signing}>
-              Annulla
-            </Button>
-            <Button
-              onClick={submitSignature}
-              disabled={signing || !hasInk || !signerName.trim()}
-              style={{ backgroundColor: colore, color: testoBottone }}
-              className="hover:opacity-90"
-            >
-              {signing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <PenLine className="h-4 w-4 mr-1" />}
-              Conferma firma
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

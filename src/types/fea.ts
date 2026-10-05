@@ -185,6 +185,8 @@ export interface FEASessionePubblica {
   signed_at?: string | null;
   b2c_testo_recesso: string | null;
   b2c_clausole: FEAClausolaVessatoria[] | null;
+  /** Clausole da approvare a parte (art. 1341 c.c.): per ogni firmatario di un contratto, privato o azienda. */
+  clausole_1341?: FEAClausolaVessatoria[] | null;
   /** Titolo dell'offerta (es. «Sostituzione serramenti villa»), se preventivo. */
   titolo?: string | null;
   /** Totale del documento, IVA inclusa, se preventivo. */
@@ -193,6 +195,8 @@ export interface FEASessionePubblica {
   azienda_email?: string | null;
   /** Email del firmatario mascherata: dove arriva il codice. */
   signer_email_mascherata?: string | null;
+  /** Numero a cui è arrivato anche l'SMS col codice, mascherato; null se l'SMS non è partito. */
+  signer_telefono_mascherato?: string | null;
   /** Se c'è già un OTP valido (inviato con l'offerta), la pagina non ne manda un altro. */
   otp_valido_fino?: string | null;
 }

@@ -35,6 +35,11 @@ async function messaggioErroreEdge(error: unknown, fallback: string): Promise<st
   return fallback;
 }
 
+/** Le clausole da approvare a parte: per tutti i contratti (il vecchio campo è dei soli privati). */
+function clausoleDaApprovare(s: FEASessionePubblica | null): FEAClausolaVessatoria[] {
+  return ((s?.clausole_1341 ?? s?.b2c_clausole ?? []) as FEAClausolaVessatoria[]);
+}
+
 /** Secondi che mancano alla scadenza di un OTP (0 se assente o passata). */
 function secondiRestanti(iso?: string | null): number {
   if (!iso) return 0;
@@ -72,6 +77,48 @@ async function apriDocumento(evento: { preventDefault: () => void }, url: string
 }
 
 /**
+ * Anteprima del documento dentro la pagina: il cliente lo legge qui, prima del
+ * codice. Il PDF va in un iframe; il preventivo fotovoltaico (pagina HTML, che lo
+ * storage manderebbe come testo) si scarica e si mostra in un iframe isolato,
+ * senza script. Se non si carica, resta il link per aprirlo a parte.
+ */
+function AnteprimaDocumento({ url }: { url: string }) {
+  const [html, setHtml] = useState<string | null>(null);
+  const [errore, setErrore] = useState(false);
+  const eHtml = (() => {
+    try { return new URL(url).pathname.toLowerCase().endsWith('.html'); } catch { return false; }
+  })();
+
+  useEffect(() => {
+    if (!eHtml) return;
+    let annullato = false;
+    setHtml(null);
+    setErrore(false);
+    fetch(url)
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.text(); })
+      .then((t) => { if (!annullato) setHtml(t); })
+      .catch(() => { if (!annullato) setErrore(true); });
+    return () => { annullato = true; };
+  }, [url, eHtml]);
+
+  if (errore) return null;
+  if (eHtml && html === null) {
+    return (
+      <div className="h-40 flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-500">
+        <Loader2 className="h-4 w-4 animate-spin mr-2" />Carico il preventivo…
+      </div>
+    );
+  }
+  return (
+    <iframe
+      title="Anteprima del documento"
+      {...(eHtml ? { srcDoc: html ?? '', sandbox: '' } : { src: url })}
+      className="w-full h-[70vh] min-h-[420px] rounded-xl border border-slate-200 bg-white"
+    />
+  );
+}
+
+/**
  * Cornice della pagina di firma. Sta FUORI dal componente: definita dentro,
  * a ogni render era un componente nuovo e React rimontava tutta la pagina.
  * Col timer dell'OTP che aggiorna ogni secondo, i sei campi perdevano il
@@ -79,10 +126,10 @@ async function apriDocumento(evento: { preventDefault: () => void }, url: string
  * tastiera si chiudeva a ogni cifra; il motivo del rifiuto perdeva il fuoco a
  * ogni lettera.
  */
-function Wrapper({ children }: { children: React.ReactNode }) {
+function Wrapper({ children, largo = false }: { children: React.ReactNode; largo?: boolean }) {
   return (
     <div className="min-h-screen bg-gray-50 flex items-start justify-center p-4 pt-10">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div className={`w-full ${largo ? 'max-w-3xl' : 'max-w-md'} bg-white rounded-2xl shadow-lg overflow-hidden`}>
         <div className="bg-gradient-to-r from-slate-800 to-slate-700 p-6">
           <div className="flex items-center gap-3">
             <Shield className="h-7 w-7 text-orange-400" />
@@ -126,6 +173,17 @@ export default function FirmaDocumento() {
     caricaSessione();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Dalla pagina di anteprima (/stima) il cliente ha già letto il documento:
+  // con ?avvia=1 si va dritti al codice, una volta sola.
+  const avviatoDaAnteprima = useRef(false);
+  useEffect(() => {
+    if (step !== 'riepilogo' || !sessione || avviatoDaAnteprima.current) return;
+    if (new URLSearchParams(window.location.search).get('avvia') !== '1') return;
+    avviatoDaAnteprima.current = true;
+    void continuaVersoOtp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, sessione]);
 
   // Titolo della scheda: il cliente apre il link dal telefono e deve capire
   // subito cos'è, non leggere lo slogan del sito.
@@ -266,7 +324,7 @@ export default function FirmaDocumento() {
       if (isB2c) {
         setStep('b2c_recesso');
       } else {
-        setStep('firma');
+        setStep(clausoleDaApprovare(sessione).length > 0 ? 'b2c_clausole' : 'firma');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Codice non corretto';
@@ -291,6 +349,7 @@ export default function FirmaDocumento() {
           lng: geo?.lng ?? null,
           b2c_recesso_accettato: sessione?.tipo_firmatario === 'b2c' ? recessoAccettato : null,
           b2c_clausole_approvate: sessione?.tipo_firmatario === 'b2c' ? clausoleApprovate : null,
+          clausole_approvate: clausoleApprovate,
         },
       });
       if (error) throw new Error(await messaggioErroreEdge(error, 'Errore nella firma'));
@@ -352,12 +411,13 @@ export default function FirmaDocumento() {
   );
 
   if (step === 'riepilogo' && sessione) return (
-    <Wrapper>
+    <Wrapper largo>
       <div className="space-y-6">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Documento da firmare</h2>
-          <p className="text-slate-500 text-sm mt-1">Verifica i dettagli prima di procedere</p>
+          <p className="text-slate-500 text-sm mt-1">Leggi il documento qui sotto, poi procedi con il codice</p>
         </div>
+        {sessione.pdf_url && <AnteprimaDocumento url={sessione.pdf_url} />}
         <div className="bg-slate-50 rounded-xl p-4 space-y-3">
           <div className="flex items-start gap-3">
             <FileText className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
@@ -410,7 +470,7 @@ export default function FirmaDocumento() {
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 p-2 rounded border border-slate-200 text-sm font-medium text-blue-700 hover:bg-blue-50"
             >
-              Apri il documento da firmare (PDF)
+              Apri il documento a schermo intero
             </a>
           )}
         </div>
@@ -422,7 +482,7 @@ export default function FirmaDocumento() {
           {invioOtpInCorso ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Invio in corso...</> : 'Continua con il codice'}
         </Button>
         <p className="text-slate-500 text-xs text-center">
-          Il codice a 6 cifre arriva via email{sessione.signer_email_mascherata ? ` a ${sessione.signer_email_mascherata}` : ''}. Due passaggi, un minuto.
+          Il codice a 6 cifre arriva via email{sessione.signer_email_mascherata ? ` a ${sessione.signer_email_mascherata}` : ''}{sessione.signer_telefono_mascherato ? ` e via SMS al ${sessione.signer_telefono_mascherato}` : ''}. Due passaggi, un minuto.
         </p>
       </div>
     </Wrapper>
@@ -433,10 +493,10 @@ export default function FirmaDocumento() {
       <div className="space-y-6">
         <div>
           <h2 className="text-xl font-bold text-slate-800">Inserisci il codice OTP</h2>
-          <p className="text-slate-500 text-sm mt-1">Controlla la tua email e inserisci il codice a 6 cifre</p>
+          <p className="text-slate-500 text-sm mt-1">Controlla la tua email{sessione.signer_telefono_mascherato ? ' e gli SMS' : ''} e inserisci il codice a 6 cifre</p>
         </div>
         {sessione.signer_email_mascherata && (
-          <p className="text-slate-500 text-sm -mt-3">Inviato a <span className="font-medium text-slate-700">{sessione.signer_email_mascherata}</span></p>
+          <p className="text-slate-500 text-sm -mt-3">Inviato a <span className="font-medium text-slate-700">{sessione.signer_email_mascherata}</span>{sessione.signer_telefono_mascherato && <> e al <span className="font-medium text-slate-700">{sessione.signer_telefono_mascherato}</span></>}</p>
         )}
         {/* 6 campi da 40 px + 5 spazi = 270 px: entrano in un iPhone SE (prima 48 px sforavano la card).
             autoComplete one-time-code: iOS e Android propongono il codice arrivato. */}
@@ -532,8 +592,7 @@ export default function FirmaDocumento() {
           className="w-full h-12 text-base bg-orange-500 hover:bg-orange-600 text-white font-bold"
           disabled={!recessoAccettato}
           onClick={() => {
-            const hasClausole = (sessione.b2c_clausole?.length ?? 0) > 0;
-            setStep(hasClausole ? 'b2c_clausole' : 'firma');
+            setStep(clausoleDaApprovare(sessione).length > 0 ? 'b2c_clausole' : 'firma');
           }}
         >
           Continua
@@ -543,14 +602,14 @@ export default function FirmaDocumento() {
   );
 
   if (step === 'b2c_clausole' && sessione) {
-    const clausole = (sessione.b2c_clausole ?? []) as FEAClausolaVessatoria[];
+    const clausole = clausoleDaApprovare(sessione);
     const tutteApprovate = clausole.every(c => clausoleApprovate.includes(c.id));
     return (
       <Wrapper>
         <div className="space-y-6">
           <div>
-            <h2 className="text-xl font-bold text-slate-800">Clausole specifiche</h2>
-            <p className="text-slate-500 text-sm mt-1">Ogni clausola deve essere approvata singolarmente</p>
+            <h2 className="text-xl font-bold text-slate-800">Seconda firma: clausole specifiche</h2>
+            <p className="text-slate-500 text-sm mt-1">Ai sensi degli artt. 1341 e 1342 c.c. ogni clausola va approvata singolarmente, oltre alla firma del documento</p>
           </div>
           <div className="space-y-3 max-h-64 overflow-y-auto">
             {clausole.map((c, i) => (

@@ -8,21 +8,17 @@
  * basso la barra con il PDF (da mandare o guardare) e «Invia per firma», che
  * rigenera la pagina e ne manda il link col foglio di condivisione.
  */
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { FileText, Loader2, Check, AlertCircle, AlertTriangle, ArrowRight, ExternalLink, Link2, Copy, Download, Eye, Send } from "lucide-react";
+import { FileText, Loader2, Check, AlertCircle, AlertTriangle, ArrowRight, ExternalLink, Link2, Copy, Download, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import type { SrProgettoDetail, SrWizardStep } from "@/types/serramenti";
 import { SrCard, SrCallout, SrKpi } from "@/lib/serramenti/wizardUI";
 import { formatEuro, formatEuroRangeOrSingle, formatNumero } from "@/lib/serramenti/format";
-import { SR_QK, useGeneraPdf, useConvertiInOrdine, useTemplatePdf, useAziendaPerPdf } from "@/lib/serramenti/queries";
-import { generaPdf } from "@/lib/serramenti/api";
+import { useGeneraPdf, useConvertiInOrdine, useTemplatePdf, useAziendaPerPdf } from "@/lib/serramenti/queries";
 import { ClipboardList } from "lucide-react";
 import { renderSerramentoBlob, useSerramentoPDF } from "@/hooks/useSerramentoPDF";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
-import { BarraInvioMobile } from "@/components/moduli/BarraInvioMobile";
-import { condividiLink } from "@/lib/mobile/condividiFile";
+import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 interface Props {
@@ -47,8 +43,6 @@ interface ChecklistItem {
 
 export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props) {
   const isMobile = useIsMobile();
-  const qc = useQueryClient();
-  const [invioInCorso, setInvioInCorso] = useState(false);
   const p = detail.progetto;
   const generaPdfMut = useGeneraPdf(progettoId);
   const convertiMut = useConvertiInOrdine(progettoId);
@@ -131,47 +125,13 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
     .filter((c, i, tutte) => tutte.findIndex((x) => x.breve === c.breve) === i);
   const titoloInvio = `Preventivo ${p.code ?? ""}`.trim();
 
-  // «Invia per firma» dal telefono: rigenera la pagina (il cliente vede il
-  // preventivo di adesso) e ne manda il link col foglio di condivisione.
-  const inviaPerFirma = async () => {
-    if (!ready) {
-      toast.error(`Completa prima: ${mancano.map((c) => c.breve).join(", ")}`);
-      return;
-    }
-    if (p.modello_snapshot) {
-      toast.error("Per questo modello usa il PDF: la pagina di firma non è ancora collegata.");
-      return;
-    }
-    setInvioInCorso(true);
-    try {
-      const esito = await generaPdf(progettoId);
-      void qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
-      void qc.invalidateQueries({ queryKey: ["sr-progetti"] });
-      const link = esito.public_url;
-      if (!link) {
-        toast.success("Pagina generata", {
-          description: "Il link pubblico non c'è ancora.",
-          action: { label: "Apri", onClick: () => window.open(esito.html_url, "_blank") },
-          duration: 10000,
-        });
-        return;
-      }
-      const condivisione = await condividiLink(link, titoloInvio);
-      if (condivisione === "non-supportato") {
-        await navigator.clipboard.writeText(link);
-        toast.success("Link di firma copiato");
-      } else if (condivisione === "serve-un-tocco") {
-        toast.success("Link di firma pronto", {
-          action: { label: "Manda", onClick: () => { void condividiLink(link, titoloInvio); } },
-          duration: 10000,
-        });
-      }
-    } catch (e) {
-      toast.error("Invio non riuscito", { description: e instanceof Error ? e.message : "Riprova." });
-    } finally {
-      setInvioInCorso(false);
-    }
-  };
+  // Preventivo da mandare al cliente: PDF con impronta, codice via email, firma (InviaFirmaCard).
+  const totaleLordo = (() => {
+    const t = Number(p.totale_max ?? p.totale_min ?? 0);
+    const aliquota = Number(p.iva_percentuale ?? 22);
+    return p.iva_inclusa ? t : t * (1 + aliquota / 100);
+  })();
+  const imponibile = totaleLordo / (1 + Number(p.iva_percentuale ?? 22) / 100);
 
   return (
     <div className="space-y-3">
@@ -180,7 +140,7 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
         <div className="flex items-center gap-2 rounded-xl bg-orange-50 px-3 py-2 text-orange-900">
           <Link2 className="h-4 w-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
-            Link di firma{p.pdf_generated_at && ` del ${new Date(p.pdf_generated_at).toLocaleDateString("it-IT")}`}
+            Pagina del cliente{p.pdf_generated_at && ` del ${new Date(p.pdf_generated_at).toLocaleDateString("it-IT")}`}
           </span>
           <Button asChild variant="ghost" size="sm" className="tap-compact -my-1 h-8 gap-1.5 px-2 text-xs">
             <a href={p.public_url} target="_blank" rel="noopener noreferrer">
@@ -188,6 +148,29 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
             </a>
           </Button>
         </div>
+      )}
+
+      {/* Ciclo di chiusura come negli altri preventivatori: invio tracciato, anteprima
+          e codice di firma via email, reminder di scadenza (quoteBridge, moduleKey «sr»). */}
+      {p.company_id && (
+        <InviaFirmaCard
+          companyId={p.company_id}
+          moduleKey="sr"
+          progettoId={progettoId}
+          titolo={titoloInvio}
+          clientName={[p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente"}
+          clientEmail={p.cliente_email}
+          clientPhone={p.cliente_telefono}
+          subtotal={imponibile}
+          vatAmount={totaleLordo - imponibile}
+          total={totaleLordo}
+          validityDays={p.valido_fino_giorni ?? 15}
+          pdfDisponibile={ready}
+          onIndietro={onIndietro}
+          disabled={!ready}
+          disabledReason={`Completa prima: ${mancano.map((c) => c.breve).join(", ")}`}
+          generaPdfBlob={() => renderSerramentoBlob({ detail, template: template ?? null, company: company ?? null, useFreshTemplate: true })}
+        />
       )}
 
       {/* Anteprima dati PDF */}
@@ -342,8 +325,8 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
           - "Scarica PDF (A4)" sopra → file PDF da inviare via email
           - Questo qui sotto       → URL pubblico per firma digitale */}
       <SrCard
-        title="Link pubblico per firma cliente"
-        description="Genera un link che il cliente può aprire dal telefono per leggere il preventivo e firmarlo digitalmente. È separato dal PDF: serve solo per la firma."
+        title="Pagina di anteprima per il cliente"
+        description="Una pagina che il cliente apre dal telefono per leggere il preventivo. Per la firma usa «Invia per firma» qui sopra: il cliente riceve il codice via email."
         icon={<Link2 className="h-4 w-4" />}
         className="max-md:hidden"
       >
@@ -356,12 +339,12 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
             {generaPdfMut.isPending
               ? <Loader2 className="h-4 w-4 animate-spin" />
               : <Link2 className="h-4 w-4" />}
-            {paginaFirmaUrl ? "Aggiorna link firma" : "Genera link firma"}
+            {paginaFirmaUrl ? "Aggiorna pagina" : "Genera pagina"}
           </Button>
           {paginaFirmaUrl && (
             <Button asChild variant="outline" className="gap-2">
               <a href={paginaFirmaUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4" /> Apri pagina firma
+                <ExternalLink className="h-4 w-4" /> Apri pagina
               </a>
             </Button>
           )}
@@ -377,7 +360,7 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
           <div className="mt-3 p-3 rounded-md bg-orange-50 border border-orange-200">
             <p className="text-[11px] font-semibold text-orange-900 mb-1 flex items-center gap-1.5">
               <Link2 className="h-3.5 w-3.5" />
-              Link da condividere con il cliente
+              Pagina da condividere con il cliente
             </p>
             <div className="flex items-center gap-2 flex-wrap">
               <code className="text-xs bg-white px-2 py-1 rounded border border-orange-200 flex-1 min-w-0 truncate font-mono">
@@ -400,14 +383,13 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
               </Button>
             </div>
             <p className="text-[10px] text-orange-600 mt-1.5">
-              Il cliente può aprire il preventivo senza login e firmarlo digitalmente dal link condiviso.
+              Il cliente apre il preventivo senza login; per firmare usa il link con il codice mandato da «Invia per firma».
             </p>
           </div>
         )}
 
         <SrCallout variant="info" className="mt-3">
-          💡 Per il <strong>PDF da inviare via email</strong> usa “Scarica PDF (A4)”.
-          Questo link pubblico serve invece per la firma digitale del cliente.
+          💡 Per far <strong>firmare</strong> il cliente usa «Invia per firma». Questa pagina serve solo a leggere il preventivo.
         </SrCallout>
       </SrCard>
 
@@ -480,23 +462,6 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
         </div>
       ))}
 
-      {isMobile && onIndietro && (
-        <BarraInvioMobile
-          onIndietro={onIndietro}
-          titolo={titoloInvio}
-          generaPdf={() => renderSerramentoBlob({ detail, template: template ?? null, company: company ?? null, useFreshTemplate: true })}
-          pdfBloccato={ready ? null : `Completa prima: ${mancano.map((c) => c.breve).join(", ")}`}
-        >
-          <Button
-            className={`h-11 flex-1 gap-1.5 bg-orange-500 hover:bg-orange-600 ${ready && !p.modello_snapshot ? "" : "opacity-60"}`}
-            disabled={invioInCorso}
-            onClick={() => { void inviaPerFirma(); }}
-          >
-            {invioInCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Invia per firma
-          </Button>
-        </BarraInvioMobile>
-      )}
     </div>
   );
 }

@@ -6,6 +6,8 @@ import { queryKeys } from "@/lib/queryKeys";
 export interface SendSignatureParams {
   recipientEmail: string;
   recipientName: string;
+  /** Cellulare: il codice di firma arriva anche via SMS (se l'azienda ha credito SMS). */
+  recipientPhone?: string;
   customMessage?: string;
   expiresDays: number;
 }
@@ -46,6 +48,7 @@ export function useSignatureActions(quoteId: string | undefined) {
           quote_id: quoteId,
           recipient_email: params.recipientEmail,
           recipient_name: params.recipientName,
+          recipient_phone: params.recipientPhone || undefined,
           custom_message: params.customMessage || undefined,
           expires_days: params.expiresDays,
         },

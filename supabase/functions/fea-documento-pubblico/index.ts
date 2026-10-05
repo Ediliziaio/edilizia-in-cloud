@@ -2,6 +2,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../_shared/campoDocumentGuard.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
+import { clausoleDellaFirma } from "../_shared/clausoleFirma.ts";
+import { mascheraTelefono } from "../_shared/telefonoE164.ts";
 
 function mascheraEmail(email: string | null | undefined): string | null {
   if (!email || !email.includes("@")) return null;
@@ -48,7 +50,7 @@ Deno.serve(async (req: Request) => {
     const variantiToken = Array.from(new Set([tokenPulito, tokenPulito.replace(/-/g, "")]));
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, company_id, signed_at, categoria")
+      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, company_id, signed_at, categoria, signer_phone, otp_canale")
       .in("token", variantiToken)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -186,9 +188,13 @@ Deno.serve(async (req: Request) => {
 
       if (feaConfig) {
         b2c_testo_recesso = feaConfig.testo_recesso_b2c ?? null;
-        b2c_clausole = feaConfig.clausole_vess ?? null;
       }
     }
+
+    // Le clausole da approvare a parte (art. 1341 c.c.) valgono per ogni firmatario
+    // di un contratto, non solo per i privati.
+    const clausole1341 = await clausoleDellaFirma(supabaseAdmin, sigReq);
+    if (sigReq.tipo_firmatario === "b2c") b2c_clausole = clausole1341;
 
     // Audit log link_aperto
     await supabaseAdmin.from("fea_audit_log").insert({
@@ -213,6 +219,7 @@ Deno.serve(async (req: Request) => {
       signed_at: sigReq.signed_at ?? null,
       b2c_testo_recesso,
       b2c_clausole,
+      clausole_1341: clausole1341,
       // Dettagli che il cliente vuole vedere prima di firmare
       titolo,
       importo_totale,
@@ -220,6 +227,8 @@ Deno.serve(async (req: Request) => {
       azienda_email: company?.email ?? null,
       // Email a cui arriva il codice, mascherata (m***o@esempio.it)
       signer_email_mascherata: mascheraEmail(sigReq.signer_email),
+      // Il codice è arrivato anche via SMS a questo numero (solo se l'SMS è davvero partito)
+      signer_telefono_mascherato: sigReq.otp_canale === "sms" ? mascheraTelefono(sigReq.signer_phone) : null,
       // Se un OTP è ancora valido, la pagina salta l'invio e mostra subito i 6 campi
       otp_valido_fino: sigReq.otp_scadenza && new Date(sigReq.otp_scadenza) > new Date(Date.now() + 30_000)
         ? sigReq.otp_scadenza

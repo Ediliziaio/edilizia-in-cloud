@@ -95,6 +95,7 @@ export default function FotovoltaicoDettaglio() {
       tipo_firmatario: String(progetto.archetipo ?? "").startsWith("privato") ? "b2c" : "b2b",
       signer_email: params.recipientEmail,
       signer_name: params.recipientName,
+      signer_phone: params.recipientPhone,
       scadenza_giorni: params.expiresDays,
     });
     return { signature_link: res.firma_link };

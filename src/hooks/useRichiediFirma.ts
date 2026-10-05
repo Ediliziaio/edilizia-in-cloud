@@ -8,6 +8,8 @@ export interface RichiediFirmaInput {
   tipo_firmatario: "b2b" | "b2c";
   signer_email: string;
   signer_name: string;
+  /** Cellulare del firmatario: il codice arriva anche via SMS (se l'azienda ha credito). */
+  signer_phone?: string;
   scadenza_giorni?: number;
 }
 
