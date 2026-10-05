@@ -4,6 +4,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
 import { compressImage } from "@/lib/campo/foto-compressor";
 import { getSubdomainUrl } from "@/utils/subdomainNav";
+import { isNative } from "@/lib/mobile/platform";
 import type {
   EsitoCodice, Mezzo, MezzoAllocazione, MezzoAssegnazione, MezzoCategoria, MezzoClasse, MezzoConAssegnazione,
   MezzoDisponibilita, MezzoDocumento, MezzoFoto, MezzoInCarico, MezzoInventario, MezzoManutenzione, MezzoScadenza,
@@ -1133,9 +1134,13 @@ export function useEliminaAllocazione() {
 
 /** L'indirizzo che va nel QR: dal telefono apre la pagina dell'attrezzo (/q/…). */
 export function indirizzoQr(codice: string, companyId: string): string {
+  const percorso = `/q/${encodeURIComponent(codice)}?c=${companyId}`;
+  // Nell'app iOS/Android la pagina gira su https://localhost: un'etichetta
+  // stampata da lì deve comunque portare al sito vero.
+  if (isNative) return `https://lavori.ediliziaincloud.com${percorso}`;
   // Sottodominio dei lavori: chi scansiona di più è chi sta in cantiere. In
   // locale getSubdomainUrl restituisce il solo percorso: serve l'indirizzo intero.
-  const url = getSubdomainUrl(`/q/${encodeURIComponent(codice)}?c=${companyId}`, "lavori");
+  const url = getSubdomainUrl(percorso, "lavori");
   return url.startsWith("http") || typeof window === "undefined" ? url : `${window.location.origin}${url}`;
 }
 

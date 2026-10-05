@@ -11,26 +11,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  AlertTriangle, Camera, CheckCircle2, ExternalLink, Gauge, Loader2, Package, RefreshCcw, ScanLine, Truck, Wrench, X,
+  AlertTriangle, CheckCircle2, ExternalLink, Gauge, Loader2, Package, RefreshCcw, ScanLine, Truck, Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { IconaMezzo } from "@/components/mezzi/IconaMezzo";
+import { SegnalaProblemaDialog } from "@/components/mezzi/SegnalaProblemaDialog";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { useCopertineMezzi, useInviaSegnalazione, useMezzoSegnalazioni, useMieiMezzi, linkFileMezzo } from "@/hooks/useMezzi";
 import {
   STATO_SCADENZA_BADGE, categoriaDocumentoLabel, documentiConStato, formatContatore, formatData, giornoItaliano,
   leggiCodiceScansionato, oggiIso, statoMezzo, statoSegnalazione, tipoMezzoLabel, tipoSegnalazioneLabel,
-  type MezzoInCarico, type SegnalazioneTipo,
+  type MezzoInCarico,
 } from "@/types/mezzi";
 import { cn } from "@/lib/utils";
 
-const MAX_FOTO = 6;
 const ORDINE_STATO: Record<string, number> = { scaduto: 0, in_scadenza: 1, valido: 2, senza_scadenza: 3 };
 
 export default function CampoMezzi() {
@@ -328,7 +327,15 @@ function SchedaMezzo({ mezzo, link, attrezzi }: { mezzo: MezzoInCarico; link: Ma
       </div>
 
       {km && <DialogKm mezzo={mezzo} onClose={() => setKm(false)} />}
-      {segnala && <DialogSegnala mezzo={mezzo} onClose={() => setSegnala(false)} />}
+      {segnala && (
+        <SegnalaProblemaDialog
+          mezzoId={mezzo.id}
+          companyId={mezzo.company_id}
+          nome={mezzo.nome}
+          targa={mezzo.targa}
+          onClose={() => setSegnala(false)}
+        />
+      )}
     </section>
   );
 }
@@ -382,133 +389,6 @@ function DialogKm({ mezzo, onClose }: { mezzo: MezzoInCarico; onClose: () => voi
           <Button variant="outline" onClick={onClose}>Annulla</Button>
           <Button onClick={salva} disabled={!valido || indietro || invia.isPending}>
             {invia.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salva
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-const TIPI_PROBLEMA: { value: SegnalazioneTipo; label: string }[] = [
-  { value: "guasto", label: "Guasto" },
-  { value: "danno", label: "Danno o incidente" },
-  { value: "altro", label: "Altro" },
-];
-
-function DialogSegnala({ mezzo, onClose }: { mezzo: MezzoInCarico; onClose: () => void }) {
-  const invia = useInviaSegnalazione(mezzo.id, mezzo.company_id);
-  const [tipo, setTipo] = useState<SegnalazioneTipo>("guasto");
-  const [descrizione, setDescrizione] = useState("");
-  const [foto, setFoto] = useState<File[]>([]);
-
-  // Anteprime: un link locale per foto, liberato quando cambiano o si chiude.
-  const anteprime = useMemo(() => foto.map((f) => URL.createObjectURL(f)), [foto]);
-  useEffect(() => () => anteprime.forEach((u) => URL.revokeObjectURL(u)), [anteprime]);
-
-  const aggiungi = (lista: FileList | null) => {
-    if (!lista) return;
-    const immagini = [...lista].filter((f) => f.type.startsWith("image/") || /\.(heic|heif)$/i.test(f.name));
-    const spazio = MAX_FOTO - foto.length;
-    if (immagini.length > spazio) toast.info(`Al massimo ${MAX_FOTO} foto per segnalazione.`);
-    setFoto((prev) => [...prev, ...immagini.slice(0, Math.max(0, spazio))]);
-  };
-
-  const valido = descrizione.trim().length >= 3;
-
-  const manda = async () => {
-    if (!valido) return;
-    try {
-      await invia.mutateAsync({ tipo, descrizione, files: foto });
-      onClose();
-    } catch {
-      // l'errore lo mostra la mutation (anche «arrivata senza foto»)
-    }
-  };
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && !invia.isPending && onClose()}>
-      <DialogContent className="max-h-[92vh] max-w-md overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Segnala un problema</DialogTitle>
-          <DialogDescription>{mezzo.nome}{mezzo.targa ? ` · ${mezzo.targa}` : ""}. Arriva subito all'ufficio.</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Tipo di problema">
-            {TIPI_PROBLEMA.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                role="radio"
-                aria-checked={tipo === t.value}
-                onClick={() => setTipo(t.value)}
-                className={cn(
-                  "min-h-[44px] rounded-xl border px-2 text-xs font-semibold transition-colors",
-                  tipo === t.value ? "border-slate-900 bg-slate-900 text-white" : "bg-background text-foreground hover:bg-muted",
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="campo-segnala-testo">Cosa succede</Label>
-            <Textarea
-              id="campo-segnala-testo"
-              rows={4}
-              value={descrizione}
-              onChange={(e) => setDescrizione(e.target.value)}
-              placeholder={tipo === "danno" ? "es. graffio sulla fiancata destra in retromarcia" : "es. spia motore accesa da stamattina"}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="campo-segnala-foto">Foto ({foto.length}/{MAX_FOTO})</Label>
-            {anteprime.length > 0 && (
-              <div className="grid grid-cols-3 gap-2">
-                {anteprime.map((u, i) => (
-                  <div key={u} className="relative">
-                    <img src={u} alt={`Foto ${i + 1}`} className="aspect-square w-full rounded-lg border object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setFoto((prev) => prev.filter((_, j) => j !== i))}
-                      className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white"
-                      aria-label={`Togli la foto ${i + 1}`}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {foto.length < MAX_FOTO && (
-              <label
-                htmlFor="campo-segnala-foto"
-                className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed text-sm font-medium text-foreground hover:bg-muted"
-              >
-                <Camera className="h-4 w-4" aria-hidden="true" />Scatta o scegli foto
-              </label>
-            )}
-            <input
-              id="campo-segnala-foto"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              multiple
-              className="sr-only"
-              onChange={(e) => {
-                aggiungi(e.target.files);
-                e.target.value = "";
-              }}
-            />
-          </div>
-        </div>
-
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose} disabled={invia.isPending}>Annulla</Button>
-          <Button onClick={manda} disabled={!valido || invia.isPending}>
-            {invia.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Invia all'ufficio
           </Button>
         </DialogFooter>
       </DialogContent>

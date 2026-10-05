@@ -25,7 +25,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>L'app richiede l'accesso alla fotocamera per scattare foto dei cantieri, allegare immagini a rapportini e ticket di assistenza.</string>
+	<string>L'app richiede l'accesso alla fotocamera per scattare foto dei cantieri, allegare immagini a rapportini e ticket di assistenza, e leggere i codici QR di attrezzi e mezzi e i codici a barre del magazzino.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>L'app richiede l'accesso al microfono per registrare note vocali, rapportini e richieste da trasformare in testo.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

@@ -67,7 +67,8 @@ export function useMobileInit() {
       try {
         const url = new URL(event.url);
         const path = url.pathname;
-        if (path && path !== "/") navigate(path);
+        // Con la query: il QR degli attrezzi porta l'azienda in «?c=».
+        if (path && path !== "/") navigate(`${path}${url.search}`);
       } catch {
         navigate("/login", { replace: true });
       }

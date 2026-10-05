@@ -13,7 +13,7 @@ import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle, ArrowDownToLine, ArrowLeft, HardHat, Loader2, MapPin, PackageCheck, PackageSearch, ScanLine, Truck, User,
-  Warehouse,
+  Warehouse, Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { IconaMezzo } from "@/components/mezzi/IconaMezzo";
+import { SegnalaProblemaDialog } from "@/components/mezzi/SegnalaProblemaDialog";
 import { useAzioneAttrezzo, useCodiceMezzo, useCopertineMezzi } from "@/hooks/useMezzi";
 import { formatData, formatQuantita, numeroLetto, unitaBreve, type SchedaCampoAttrezzo } from "@/types/mezzi";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,7 @@ export default function CampoAttrezzo() {
   const { data: esito, isLoading, isError, error, refetch } = useCodiceMezzo(codice, companyId);
   const azione = useAzioneAttrezzo();
   const [scelta, setScelta] = useState<Scelta | null>(null);
+  const [segnala, setSegnala] = useState(false);
 
   // Dopo un'azione la scheda arriva aggiornata nella cache (useAzioneAttrezzo).
   const scheda = esito?.esito === "trovato" && esito.vista === "campo" ? esito.mezzo : null;
@@ -238,16 +240,30 @@ export default function CampoAttrezzo() {
             disabled={azione.isPending || m.dove === "magazzino"}
             onClick={() => esegui({ mezzoId: m.id, azione: "magazzino" })}
           />
+        </div>
+      )}
+
+      {/* Problemi: chi l'ha appena letto può segnalarlo anche se non è suo. */}
+      <div className={cn("grid gap-2", !m.veicolo && !aQuantita ? "grid-cols-2" : "grid-cols-1")}>
+        <button
+          type="button"
+          onClick={() => setSegnala(true)}
+          disabled={azione.isPending}
+          className="flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-dashed px-2 text-center text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+        >
+          <Wrench className="h-4 w-4 shrink-0" />È rotto o danneggiato
+        </button>
+        {!m.veicolo && !aQuantita && (
           <button
             type="button"
             onClick={() => setScelta({ tipo: "smarrito" })}
             disabled={azione.isPending}
-            className="col-span-2 flex h-12 items-center justify-center gap-2 rounded-xl border border-dashed text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+            className="flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-dashed px-2 text-center text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
           >
-            <PackageSearch className="h-4 w-4" />Non lo trovo dove dovrebbe essere
+            <PackageSearch className="h-4 w-4 shrink-0" />Non lo trovo
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {azione.isPending && (
         <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Segno…</p>
@@ -257,6 +273,15 @@ export default function CampoAttrezzo() {
         <ScanLine className="h-4 w-4" />Scansiona un altro
       </Link>
 
+      {segnala && (
+        <SegnalaProblemaDialog
+          mezzoId={m.id}
+          companyId={m.company_id}
+          nome={m.nome}
+          targa={null}
+          onClose={() => setSegnala(false)}
+        />
+      )}
       {scelta?.tipo === "cantiere" && (
         <DialogScegli
           titolo="In quale cantiere lo lasci?"

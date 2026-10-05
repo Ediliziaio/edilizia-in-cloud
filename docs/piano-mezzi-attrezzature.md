@@ -43,10 +43,25 @@ Cosa c'è nell'app:
 Dati demo lasciati di proposito: «Ponteggio a telai» ATT-0010, 800 m², 200 m² montati su
 ORD-2026-001 (con un rientro parziale di 50 m² nello storico).
 
+Fatto dopo (05/10/2026, seconda parte):
+- **«È rotto o danneggiato» dal QR** anche su un attrezzo che non si ha in carico: chi ne ha letto
+  il QR negli ultimi 30 minuti può segnalarlo con le foto (`mezzo_appena_scansionato_da_me`,
+  migrazioni `20281005180000_mezzi_segnala_da_scansione` e `20281005190000_mezzi_file_propri_dopo_scansione`).
+  I documenti del mezzo restano chiusi. Collaudato: senza scansione segnalazione, foto e file
+  vengono rifiutati; dopo la scansione passano e l'ufficio riceve l'avviso.
+- **Scanner provato con una fotocamera simulata** (lo stream della pagina sostituito da un'immagine
+  col QR): «Scansiona» in «I miei mezzi» legge il QR e apre l'attrezzo giusto.
+- **App iOS**: un QR generato dentro l'app porta a `https://lavori.ediliziaincloud.com/q/…` (non a
+  localhost); un link che apre l'app conserva la query (`?c=`); permesso fotocamera che cita i
+  codici QR. Versione portata a 1.5 build 15 con `mobile:build` + `cap sync`: Archive e invio
+  ad App Store li fa l'utente da Xcode.
+
 Resta aperto:
-- Dal campo «è rotto» su un attrezzo che non si ha in carico (oggi si segnala dopo averlo preso).
-- Prova con la fotocamera vera di un telefono (in locale la fotocamera non c'è) e nell'app iOS:
-  lo scanner è lo stesso del magazzino, ma serve una nuova release per averlo nell'app.
+- Prova con un telefono vero, inquadrando un'etichetta stampata.
+- Universal Links: oggi il QR inquadrato con la fotocamera del telefono apre Safari, non l'app.
+  Servono il file apple-app-site-association su lavori.ediliziaincloud.com (con un'eccezione nel
+  middleware, che ai bot dei sottodomini privati risponde 403) e la capability Associated Domains
+  nell'account Apple (team 9UKNJB4PM7).
 
 ---
 
