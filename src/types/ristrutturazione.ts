@@ -24,6 +24,8 @@ export interface RstComputoVoce {
 export interface RstProgetto {
   /** Il modello della libreria congelato nel preventivo (lib/moduli/modelloPreventivo). */
   modello_snapshot?: import("@/lib/moduli/modelloPreventivo").ModelloPreventivo<RstTemplatePdf> | null;
+  /** Le esigenze del cliente scelte per QUESTO preventivo (facoltative): se ce ne sono, nel PDF escono loro; se no, lo standard del modello. */
+  esigenze?: RstListItem[];
   id: string; company_id: string; code: string | null; stato: RstStato; tipo_intervento: string | null;
   cliente_nome: string | null; cliente_cognome: string | null; cliente_email: string | null; cliente_telefono: string | null;
   cantiere_indirizzo: string | null; cantiere_citta: string | null; cantiere_provincia: string | null; cantiere_cap: string | null;

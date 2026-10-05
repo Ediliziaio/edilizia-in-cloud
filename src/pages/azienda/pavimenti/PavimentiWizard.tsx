@@ -56,6 +56,9 @@ import StepComputo from "./PavimentiWizard/StepComputo";
 import StepMedia from "./PavimentiWizard/StepMedia";
 import StepEconomia from "./PavimentiWizard/StepEconomia";
 import StepPdf from "./PavimentiWizard/StepPdf";
+import { EsigenzeCliente } from "@/components/preventivatore/EsigenzeCliente";
+import { esigenzeDelPreventivo, leggiEsigenze } from "@/lib/preventivatore/esigenze";
+import { ESIGENZE_DI_SERIE } from "@/lib/preventivatore/esigenzeDiSerie";
 
 const STEP_ICONS: Record<PavWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -498,7 +501,15 @@ export default function PavimentiWizard() {
           </fieldset>
         )}
         {currentStep === "immobile" && (
-          <StepImmobile form={form} onChange={onChange} model={model} />
+          <>
+            <EsigenzeCliente
+              valore={esigenzeDelPreventivo(form)}
+              onChange={(v) => onChange("esigenze", v)}
+              libreria={leggiEsigenze(templatePdf?.esigenze)}
+              dellaCasa={ESIGENZE_DI_SERIE.pavimenti}
+            />
+            <StepImmobile form={form} onChange={onChange} model={model} />
+          </>
         )}
         {currentStep === "computo" && id && detail && (
           // key = id stabile del progetto: monta una volta col computo iniziale

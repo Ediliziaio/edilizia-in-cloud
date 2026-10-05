@@ -158,6 +158,37 @@ describe("Serramenti nel guscio comune", () => {
     await waitFor(() => expect(anteprima()).toBeTruthy());
   });
 
+  it("«Cosa ti ha detto il cliente?» in cima a «Immobile e contenuti»: facoltativo, un tocco e compare a destra", async () => {
+    monta();
+    const nav = await screen.findByRole("navigation", { name: "Fasi del preventivo" });
+    fireEvent.click(within(nav).getByRole("button", { name: "Immobile e contenuti" }));
+    await screen.findByText("Cosa ti ha detto il cliente?");
+    expect(screen.getByText("Facoltativo")).toBeTruthy();
+    // Senza scelte il preventivo a destra è quello di sempre.
+    expect(within(anteprima()).queryByText("Le tue esigenze")).toBeNull();
+
+    // La libreria dell'azienda qui è vuota (il modello non c'è): si parte dai testi già pronti di Serramenti.
+    const chip = screen.getByRole("button", { name: "Spifferi e correnti d'aria" });
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(chip);
+    await waitFor(() => expect(within(anteprima()).getByText("Le tue esigenze")).toBeTruthy());
+    expect(within(anteprima()).getByText("Spifferi e correnti d'aria")).toBeTruthy();
+
+    // Il PDF ne stampa tre: alla quarta chi sceglie lo sa, e l'anteprima mostra le stesse tre del PDF.
+    for (const titolo of ["Condensa e muffa al mattino", "Estetica datata della casa", "Rumore dalla strada che ti sveglia"]) {
+      fireEvent.click(screen.getByRole("button", { name: titolo }));
+    }
+    await waitFor(() => expect(screen.getByText(/Nel PDF escono le prime 3/)).toBeTruthy());
+    expect(within(anteprima()).queryByText("Rumore dalla strada che ti sveglia")).toBeNull();
+    expect(within(anteprima()).getByText("Estetica datata della casa")).toBeTruthy();
+
+    // Toccate di nuovo le voci escono; senza scelte si torna allo standard.
+    for (const titolo of ["Spifferi e correnti d'aria", "Condensa e muffa al mattino", "Estetica datata della casa", "Rumore dalla strada che ti sveglia"]) {
+      fireEvent.click(screen.getByRole("button", { name: titolo }));
+    }
+    await waitFor(() => expect(within(anteprima()).queryByText("Le tue esigenze")).toBeNull());
+  });
+
   it("da telefono il totale nel piede apre l'anteprima dal basso", async () => {
     monta();
     await screen.findByRole("navigation", { name: "Fasi del preventivo" });

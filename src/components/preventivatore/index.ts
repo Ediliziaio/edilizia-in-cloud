@@ -9,3 +9,4 @@ export { STICKY_ALTO, STICKY_BASSO, STICKY_ANTEPRIMA } from "./posizione";
 export { GuscioEdile, type TestataGuscioEdile, type PiedeGuscioEdile } from "./GuscioEdile";
 export { useAnteprimaNascosta } from "./useAnteprimaNascosta";
 export { TotaleBarra } from "./TotaleBarra";
+export { EsigenzeCliente } from "./EsigenzeCliente";

@@ -72,10 +72,12 @@ import { useSerramentiModelSupport } from "@/hooks/useSerramentiModelSupport";
 import { isSrQuoteModelId, makeSrQuoteModelSnapshot, readSrQuoteModelSnapshot, srModelProjectDefaults } from "@/lib/serramenti/quoteModel";
 import { findSerramentiTemplateModule } from "@/lib/moduli-vendita/serramentiTemplateModules";
 import {
-  AnteprimaMobile, AnteprimaVeloce, BarraFasi, BottoneTotale, CorpoPreventivatore, PannelloAnteprima,
+  AnteprimaMobile, AnteprimaVeloce, BarraFasi, BottoneTotale, CorpoPreventivatore, EsigenzeCliente, PannelloAnteprima,
   PiedePreventivatore, StatoDelSalvataggio, STICKY_ALTO, useAnteprimaNascosta, type StatoSalvataggio,
 } from "@/components/preventivatore";
-import { anteprimaSerramenti } from "@/lib/serramenti/anteprima";
+import { anteprimaSerramenti, ESIGENZE_NEL_PDF_SERRAMENTI } from "@/lib/serramenti/anteprima";
+import { esigenzeDelPreventivo, leggiEsigenze } from "@/lib/preventivatore/esigenze";
+import { ESIGENZE_DI_SERIE_SERRAMENTI } from "@/lib/preventivatore/esigenzeDiSerie";
 import { useCostoPosizioneListino } from "@/lib/serramenti/useCostoPosizioneListino";
 import { formattaEuro, righeSenzaPrezzo, type VistaAnteprima } from "@/lib/preventivatore/anteprima";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -999,9 +1001,20 @@ export default function SerramentiWizard() {
             )}
             {currentStep === "immobile" && (
               <div className="space-y-4">
+                {/* Facoltativo: i problemi che il cliente ha detto, a un tocco. In cima perché è la prima cosa che si
+                    ascolta; senza scelte il PDF resta quello di sempre. */}
+                <EsigenzeCliente
+                  className="mb-0"
+                  valore={esigenzeDelPreventivo(form)}
+                  onChange={(v) => onChange("esigenze", v.map((e) => ({ titolo: e.titolo, descrizione: e.descrizione ?? "" })))}
+                  libreria={leggiEsigenze(pdfTemplate?.esigenze_default)}
+                  dellaCasa={ESIGENZE_DI_SERIE_SERRAMENTI}
+                  nelPdf="in prima pagina, sotto «Le tue esigenze»"
+                  massimoNelPdf={ESIGENZE_NEL_PDF_SERRAMENTI}
+                />
                 <StepImmobile form={form} onChange={onChange} />
-                {/* "Contenuti PDF" (esigenze) accorpato qui */}
-                <StepContenuti form={form} onChange={onChange} />
+                {/* "Contenuti PDF" (soluzione, perché noi…) accorpato qui; le esigenze sono nella card in cima. */}
+                <StepContenuti form={form} onChange={onChange} senzaEsigenze />
               </div>
             )}
             {currentStep === "bom" && id && detail && (

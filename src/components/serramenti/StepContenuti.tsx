@@ -35,6 +35,8 @@ import type {
 interface Props {
   form: Partial<SrProgettoRow>;
   onChange: <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => void;
+  /** Le esigenze si scelgono altrove (la card «Cosa ti ha detto il cliente?» in cima al passo): qui non si ripetono. */
+  senzaEsigenze?: boolean;
 }
 
 // ─── Object items (esigenze, soluzione) ──────────────────────────────────────
@@ -374,7 +376,7 @@ function StringItemsPicker({
 
 // ─── Step principale ────────────────────────────────────────────────────────
 
-export function StepContenuti({ form, onChange }: Props) {
+export function StepContenuti({ form, onChange, senzaEsigenze = false }: Props) {
   const { data: template } = useTemplatePdf();
   const tpl: Partial<SrTemplatePdfRow> = (template ?? {}) as Partial<SrTemplatePdfRow>;
 
@@ -507,6 +509,9 @@ export function StepContenuti({ form, onChange }: Props) {
     },
   ];
 
+  // «Applica tutto» continua a portare anche le esigenze nel preventivo: qui si nasconde solo
+  // l'editor, che è già in cima al passo.
+  const sezioniVisibili = senzaEsigenze ? sezioni.filter((s) => s.key !== "esigenze") : sezioni;
   const hasAnyTemplate = sezioni.some((s) => s.total > 0);
 
   return (
@@ -552,8 +557,8 @@ export function StepContenuti({ form, onChange }: Props) {
 
       <Card>
         <CardContent className="p-0">
-          <Accordion type="multiple" defaultValue={["esigenze"]} className="w-full">
-            {sezioni.map((s) => (
+          <Accordion type="multiple" defaultValue={senzaEsigenze ? ["soluzione"] : ["esigenze"]} className="w-full">
+            {sezioniVisibili.map((s) => (
               <AccordionItem key={s.key} value={s.key} className="border-b last:border-b-0">
                 <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-orange-50/40 max-md:px-3 max-md:py-2.5">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -581,7 +586,7 @@ export function StepContenuti({ form, onChange }: Props) {
       <SrCallout variant="info" className="max-md:hidden">
         Le voci che selezioni qui andranno nel PDF cliente nelle rispettive sezioni:
         <ul className="list-disc list-inside mt-1 space-y-0.5">
-          <li><strong>Esigenze + Soluzione</strong> → Pagina 1 (Proposta)</li>
+          <li><strong>{senzaEsigenze ? "Soluzione" : "Esigenze + Soluzione"}</strong> → Pagina 1 (Proposta)</li>
           <li><strong>Cosa è incluso</strong> → Pagina economica</li>
           <li><strong>Perché noi + Prossimi passi</strong> → fine PDF (chiusura)</li>
         </ul>

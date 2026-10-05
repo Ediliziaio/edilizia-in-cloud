@@ -76,6 +76,20 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: 
         )}
       </section>
 
+      {dati.esigenze && dati.esigenze.voci.length > 0 && (
+        <section className="mt-3" aria-label={dati.esigenze.titolo}>
+          <h4 className="mb-1 text-[10px] font-semibold uppercase tracking-[0.09em] text-slate-500">{dati.esigenze.titolo}</h4>
+          <ul className="space-y-0.5">
+            {dati.esigenze.voci.map((voce) => (
+              <li key={voce} className="flex items-baseline gap-1.5 text-slate-700">
+                <span aria-hidden="true" className="h-1 w-1 shrink-0 translate-y-[-2px] rounded-full bg-orange-500" />
+                <span className="break-words">{voce}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {dati.sintesi && dati.sintesi.length > 0 && (
         <dl className="mt-3 grid grid-cols-2 gap-1.5">
           {dati.sintesi.map((v) => (

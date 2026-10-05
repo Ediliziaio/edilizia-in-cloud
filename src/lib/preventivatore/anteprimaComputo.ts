@@ -13,6 +13,7 @@
  * margine non si conosce e resta `null` («—»), non il 100%.
  */
 import { calcDetraibile, superaMassimale } from "@/lib/preventivi/incentivi";
+import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import {
   type AnteprimaPreventivo,
   type GruppoAnteprima,
@@ -87,6 +88,8 @@ export interface ProgettoAnteprimaComputo {
   detrazione_pct?: number | null;
   massimale_detrazione?: number | null;
   prezzo_manuale?: number | null;
+  /** Le esigenze del cliente scelte per questo preventivo (jsonb [{titolo, descrizione}]). */
+  esigenze?: unknown;
 }
 
 export interface OpzioniAnteprimaComputo {
@@ -204,6 +207,7 @@ export function anteprimaComputo(
     compatta(progetto.cantiere_cap, progetto.cantiere_citta),
     progetto.cantiere_provincia,
   );
+  const esigenze = leggiEsigenze(progetto.esigenze);
 
   return {
     emittente: opzioni.emittente ?? null,
@@ -215,6 +219,7 @@ export function anteprimaComputo(
       righe: [compatta(progetto.cliente_telefono), compatta(progetto.cliente_email)].filter(Boolean),
     },
     cantiere: cantiere || null,
+    ...(esigenze.length > 0 ? { esigenze: { titolo: "Da dove partiamo", voci: esigenze.map((e) => e.titolo) } } : {}),
     gruppi,
     totali: riepilogo,
     totaleDocumento: riepilogo.length > 0 ? totali.totale : null,

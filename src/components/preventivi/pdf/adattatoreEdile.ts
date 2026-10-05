@@ -22,6 +22,7 @@ import {
   BLOCCHI, eFotoDiSerie, leggiBlocco, leggiFotoPagina, RIEMPIMENTI_EDILI, settoreBlocchi, type ChiaveBlocco, type ChiaveFotoPagina,
 } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 import { conOrigine, fotoPerIlPdf } from "@/lib/pdf/fotoBlocchi";
+import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFoto, DocEdileModello, DocEdileModulo,
   DocEdileOpzioniComputo, DocEdileTotali, DocEdileVoceElenco, DocEdileFaq, DocEdileFase,
@@ -57,6 +58,8 @@ export interface ProgettoComune {
   immobile_piani: number | null;
   mostra_finanziamento?: boolean | null;
   created_at?: string | null;
+  /** Le esigenze del cliente scelte per questo preventivo (facoltative, jsonb {titolo, descrizione}). */
+  esigenze?: unknown;
 }
 
 export interface VoceComune {
@@ -198,7 +201,14 @@ export function leggiModello(
     chiSiamoHtml: stringa(t.chi_siamo),
     chiSiamoFotoUrl: stringa(t.chi_siamo_foto_url),
     mostraChiSiamo: t.show_chi_siamo !== false,
-    esigenze: elenco<DocEdileVoceElenco>(t.esigenze).filter((x) => stringa(x?.titolo)),
+    // Le esigenze scelte per QUESTO preventivo, se ce ne sono; senza scelte resta lo
+    // standard di sempre: l'elenco scritto nel modello (o niente).
+    esigenze: (() => {
+      const delPreventivo = leggiEsigenze(p.esigenze);
+      return delPreventivo.length > 0
+        ? delPreventivo
+        : elenco<DocEdileVoceElenco>(t.esigenze).filter((x) => stringa(x?.titolo));
+    })(),
     soluzione: elenco<DocEdileVoceElenco>(t.soluzione).filter((x) => stringa(x?.titolo)),
     usp: elenco<DocEdileVoceElenco>(t.usp).filter((x) => stringa(x?.titolo)),
     percorso: elenco<DocEdileVoceElenco>(t.percorso).filter((x) => stringa(x?.titolo)),

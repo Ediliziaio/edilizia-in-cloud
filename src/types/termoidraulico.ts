@@ -22,6 +22,8 @@ export interface IdrComputoVoce {
 export interface IdrProgetto {
   /** Il modello della libreria congelato nel preventivo (lib/moduli/modelloPreventivo). */
   modello_snapshot?: import("@/lib/moduli/modelloPreventivo").ModelloPreventivo<IdrTemplatePdf> | null;
+  /** Le esigenze del cliente scelte per QUESTO preventivo (facoltative): se ce ne sono, nel PDF escono loro; se no, lo standard del modello. */
+  esigenze?: IdrListItem[];
   id: string; company_id: string; code: string | null; stato: IdrStato; tipo_intervento: string | null;
   numero_terminali: number | null; tipo_generatore: string | null;
   cliente_nome: string | null; cliente_cognome: string | null; cliente_email: string | null; cliente_telefono: string | null;

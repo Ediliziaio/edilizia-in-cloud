@@ -9,6 +9,7 @@
  */
 import { calcolaTotale, IVA_MISTA_SENTINEL } from "@/lib/serramenti/calcoli";
 import { calcolaMargine, type RigaCostoListino } from "@/lib/serramenti/margine";
+import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import {
   type AnteprimaPreventivo,
   type GruppoAnteprima,
@@ -20,6 +21,9 @@ import {
 import type {
   SrAccessorioRow, SrProgettoDetail, SrProgettoRow, SrSerramentoRow, SrServizioRow, SrTipoIntervento,
 } from "@/types/serramenti";
+
+/** Quante esigenze del cliente stampa il PDF dei serramenti (SerramentoPDF: `esigenze.slice(0, 3)`). */
+export const ESIGENZE_NEL_PDF_SERRAMENTI = 3;
 
 const compatta = (...parti: Array<string | null | undefined>) =>
   parti.map((p) => p?.trim()).filter(Boolean).join(" ");
@@ -219,6 +223,9 @@ export function anteprimaSerramenti(
     progetto.cantiere_piano ? `piano ${progetto.cantiere_piano}` : null,
   );
 
+  // Il PDF dei serramenti stampa le prime tre: l'anteprima mostra le stesse.
+  const esigenze = leggiEsigenze(progetto.esigenze).slice(0, ESIGENZE_NEL_PDF_SERRAMENTI);
+
   return {
     emittente: opzioni.emittente ?? null,
     codice: progetto.code ?? null,
@@ -233,6 +240,7 @@ export function anteprimaSerramenti(
       ].filter(Boolean),
     },
     cantiere: cantiere || null,
+    ...(esigenze.length > 0 ? { esigenze: { titolo: "Le tue esigenze", voci: esigenze.map((e) => e.titolo) } } : {}),
     gruppi,
     totali,
     totaleDocumento: totali.length > 0 && totale ? totale.totale_iva_inclusa : null,

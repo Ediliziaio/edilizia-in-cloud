@@ -6,6 +6,9 @@
  * nasce dal computo, «Impresa» solo a chi può vedere i margini; un preventivo nuovo ha
  * le fasi chiuse e nessun totale. Prima solo il termoidraulico aveva una prova a
  * pagina intera: gli altri sette erano copie provate solo sui sorgenti.
+ *
+ * Nella seconda fase c'è «Cosa ti ha detto il cliente?»: le esigenze (freddo, muffa,
+ * bolletta alta…) sono facoltative e, se scelte, si vedono subito nel preventivo a destra.
  */
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -13,6 +16,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import type { ComponentType } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ESIGENZE_DI_SERIE, type ModuloConEsigenze } from "@/lib/preventivatore/esigenzeDiSerie";
 
 // Il primo test importa il wizard (e il suo mondo): con la macchina carica supera i 5 secondi di partenza.
 vi.setConfig({ testTimeout: 30_000 });
@@ -150,6 +154,31 @@ describe.each(MODULI)("$slug nel guscio comune", (m) => {
     stato.margini = true;
     await monta(m);
     expect(within(anteprima()).getByRole("button", { name: "Impresa" })).toBeTruthy();
+  });
+
+  it("«Cosa ti ha detto il cliente?»: facoltativo, un tocco e il problema compare nel preventivo a destra", async () => {
+    const nav = await monta(m);
+    // La seconda fase è dove si descrive il lavoro: la scheda sta in cima.
+    fireEvent.click(within(nav).getAllByRole("button")[1]);
+    const scheda = await screen.findByText("Cosa ti ha detto il cliente?", undefined, { timeout: 8000 });
+    expect(scheda).toBeTruthy();
+    expect(screen.getByText("Facoltativo")).toBeTruthy();
+    // Senza scelte l'anteprima è quella di sempre.
+    expect(within(anteprima()).queryByText("Da dove partiamo")).toBeNull();
+
+    // Il modello dell'azienda qui non ha una libreria: si parte dalle voci pronte del modulo.
+    const pronte = ESIGENZE_DI_SERIE[m.slug as ModuloConEsigenze];
+    const chip = screen.getByRole("button", { name: pronte[0].titolo });
+    expect(chip.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(chip);
+
+    await waitFor(() => expect(within(anteprima()).getByText("Da dove partiamo")).toBeTruthy());
+    expect(within(anteprima()).getByText(pronte[0].titolo)).toBeTruthy();
+    expect(screen.getByRole("button", { name: pronte[0].titolo }).getAttribute("aria-pressed")).toBe("true");
+
+    // Toccata di nuovo, la voce esce: si torna allo standard.
+    fireEvent.click(screen.getByRole("button", { name: pronte[0].titolo }));
+    await waitFor(() => expect(within(anteprima()).queryByText("Da dove partiamo")).toBeNull());
   });
 
   it("un preventivo nuovo ha le fasi dopo la prima chiuse e nessun totale", async () => {

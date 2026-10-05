@@ -22,6 +22,8 @@ export interface EleComputoVoce {
 export interface EleProgetto {
   /** Il modello della libreria congelato nel preventivo (lib/moduli/modelloPreventivo). */
   modello_snapshot?: import("@/lib/moduli/modelloPreventivo").ModelloPreventivo<EleTemplatePdf> | null;
+  /** Le esigenze del cliente scelte per QUESTO preventivo (facoltative): se ce ne sono, nel PDF escono loro; se no, lo standard del modello. */
+  esigenze?: EleListItem[];
   id: string; company_id: string; code: string | null; stato: EleStato; tipo_intervento: string | null;
   numero_punti: number | null; livello_impianto: string | null;
   cliente_nome: string | null; cliente_cognome: string | null; cliente_email: string | null; cliente_telefono: string | null;

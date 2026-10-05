@@ -80,6 +80,13 @@ export interface VoceSintesi {
   valore: string;
 }
 
+/** Le esigenze del cliente scelte per questo preventivo, per l'anteprima (i titoli bastano). */
+export interface EsigenzeAnteprima {
+  /** Come le intitola il PDF del modulo: «Da dove partiamo», «Le tue esigenze». */
+  titolo: string;
+  voci: string[];
+}
+
 export interface AnteprimaPreventivo {
   emittente?: string | null;
   codice?: string | null;
@@ -88,6 +95,8 @@ export interface AnteprimaPreventivo {
   titolo?: string | null;
   cliente: { nome?: string | null; righe: string[] };
   cantiere?: string | null;
+  /** Facoltative: se nessuna è scelta non si mostra niente e il PDF resta quello di serie. */
+  esigenze?: EsigenzeAnteprima | null;
   gruppi: GruppoAnteprima[];
   totali: VoceTotale[];
   /** Il totale IVA inclusa; `null` quando non c'è ancora niente da sommare. */

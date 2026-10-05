@@ -56,6 +56,9 @@ import StepComputo from "./PiscineWizard/StepComputo";
 import StepMedia from "./PiscineWizard/StepMedia";
 import StepEconomia from "./PiscineWizard/StepEconomia";
 import StepPdf from "./PiscineWizard/StepPdf";
+import { EsigenzeCliente } from "@/components/preventivatore/EsigenzeCliente";
+import { esigenzeDelPreventivo, leggiEsigenze } from "@/lib/preventivatore/esigenze";
+import { ESIGENZE_DI_SERIE } from "@/lib/preventivatore/esigenzeDiSerie";
 
 const STEP_ICONS: Record<PisWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -498,7 +501,15 @@ export default function PiscineWizard() {
           </fieldset>
         )}
         {currentStep === "immobile" && (
-          <StepImmobile form={form} onChange={onChange} model={model} />
+          <>
+            <EsigenzeCliente
+              valore={esigenzeDelPreventivo(form)}
+              onChange={(v) => onChange("esigenze", v)}
+              libreria={leggiEsigenze(templatePdf?.esigenze)}
+              dellaCasa={ESIGENZE_DI_SERIE.piscine}
+            />
+            <StepImmobile form={form} onChange={onChange} model={model} />
+          </>
         )}
         {currentStep === "computo" && id && detail && (
           // key = id stabile del progetto: monta una volta col computo iniziale

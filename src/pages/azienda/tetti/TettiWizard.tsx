@@ -54,6 +54,9 @@ import StepComputo from "./TettiWizard/StepComputo";
 import StepMedia from "./TettiWizard/StepMedia";
 import StepEconomia from "./TettiWizard/StepEconomia";
 import StepPdf from "./TettiWizard/StepPdf";
+import { EsigenzeCliente } from "@/components/preventivatore/EsigenzeCliente";
+import { esigenzeDelPreventivo, leggiEsigenze } from "@/lib/preventivatore/esigenze";
+import { ESIGENZE_DI_SERIE } from "@/lib/preventivatore/esigenzeDiSerie";
 import { useTettiModelSupport } from "@/hooks/useTettiModelSupport";
 import { findTettiTemplateModule } from "@/lib/moduli-vendita/tettiTemplateModules";
 import { makeTetQuoteModel, readTetQuoteModel } from "@/lib/tetti/quoteModel";
@@ -493,7 +496,15 @@ export default function TettiWizard() {
           </fieldset>
         )}
         {currentStep === "immobile" && (
-          <StepImmobile form={form} onChange={onChange} model={model} />
+          <>
+            <EsigenzeCliente
+              valore={esigenzeDelPreventivo(form)}
+              onChange={(v) => onChange("esigenze", v)}
+              libreria={leggiEsigenze(templatePdf?.esigenze)}
+              dellaCasa={ESIGENZE_DI_SERIE.tetti}
+            />
+            <StepImmobile form={form} onChange={onChange} model={model} />
+          </>
         )}
         {currentStep === "computo" && id && detail && (
           // key = id stabile del progetto: monta una volta col computo iniziale
