@@ -752,6 +752,26 @@ async function processQueue(supabase: any) {
         error_message: result.error || null,
       });
 
+      // «Continua anche se questo passo non riesce» (config_json.continua_se_fallisce,
+      // 05/10/2026). Di norma un passo che fallisce chiude l'intera iscrizione: nei
+      // flussi dei lead un'email che non parte fermava anche il WhatsApp e l'avvio
+      // dei messaggi successivi. Sul singolo passo si può scegliere che l'errore
+      // resti scritto (log + coda) ma la catena vada avanti sugli altri canali.
+      // È una scelta del flusso, mai un comportamento imposto a tutti.
+      const continuaComunque = node.config_json?.continua_se_fallisce === true;
+      const proseguiDopoFallimento = async (errore: string) => {
+        await markQueueItem(supabase, item.id, "failed", errore);
+        await queueNextNodes(supabase, item, node, { success: true, output: { saltato_per_errore: errore } });
+      };
+
+      if (!result.success && result.fermaIscrizione && continuaComunque) {
+        // Disiscritto o indirizzo che rimbalza: l'email non si manda (e non si
+        // ritenta), ma il lead resta nella catena per gli altri canali.
+        await proseguiDopoFallimento(String(result.error || result.fermaIscrizione));
+        processed++;
+        continue;
+      }
+
       if (!result.success && result.fermaIscrizione) {
         // Chi si è tolto dalla lista, o ha un indirizzo che rimbalza, esce
         // dalla sequenza (19/09/2026). Non è un guasto: prima si ritentava tre
@@ -773,7 +793,9 @@ async function processQueue(supabase: any) {
         // finestra oraria / throttle). Rinvia SENZA consumare i tentativi, così
         // il messaggio attende la capacità invece di fallire in pochi minuti.
         // Cap a 48 rinvii (~2 giorni a 1h) per evitare loop infiniti.
-        if (deferCount > 48) {
+        if (deferCount > 48 && continuaComunque) {
+          await proseguiDopoFallimento(result.error || "Rinviato troppe volte (pool saturo)");
+        } else if (deferCount > 48) {
           await markQueueItem(supabase, item.id, "failed", result.error || "Rinviato troppe volte (pool saturo)");
           await supabase.from("automation_enrollments").update({ status: "failed", updated_at: now }).eq("id", item.enrollment_id);
           await completeExecutionRun(supabase, item.enrollment_id, "error", result.error || "Pool saturo");
@@ -798,6 +820,10 @@ async function processQueue(supabase: any) {
             .from("automation_queue")
             .update({ status: "pending", attempts, execute_at: retryAt, last_error: result.error, updated_at: now })
             .eq("id", item.id);
+        } else if (continuaComunque) {
+          // Tentativi finiti: l'errore resta scritto, ma l'iscrizione non muore.
+          await proseguiDopoFallimento(result.error || "Errore dopo i tentativi");
+          processed++;
         } else {
           // Permanent failure — write to dead letter queue before marking failed
           await markQueueItem(supabase, item.id, "failed", result.error);
