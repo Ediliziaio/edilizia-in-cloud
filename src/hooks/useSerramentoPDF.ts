@@ -20,7 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getTemplatePdf } from "@/lib/serramenti/api";
 import { resolveSrDocumentTemplate } from "@/lib/serramenti/quoteModel";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
-import { disegniDelPreventivo, type DisegnoPdf } from "@/lib/serramenti/disegniPerPdf";
+import { disegniDelPreventivo, type DisegnoPdf, type RigaPerDisegno } from "@/lib/serramenti/disegniPerPdf";
 import { blocchiAccesi, fotoDeiBlocchi, fotoDellePagine } from "@/lib/pdf/fotoBlocchi";
 import { normalizePdfPagesOrder } from "@/types/serramenti";
 import { CAMPI_IMMAGINE_SERRAMENTI, firmaImmagine, firmaImmaginiModello } from "@/lib/storage/immaginiModelloPdf";
@@ -147,6 +147,8 @@ export interface SerramentoPdfEnriched {
   mostraSconti: boolean;
   /** I disegni delle righe (dentro e fuori, con le quote), per chiave `chiaveDisegno`. Vuoto se nessun articolo ha il disegno. */
   disegni?: Record<string, DisegnoPdf>;
+  /** Per i complementi (tapparelle, persiane, zanzariere, cassonetti): la foto del listino e il tipo di disegno del prodotto. */
+  accessoriFamilies?: Record<string, { immagine_url: string | null; disegno_tipologia: string | null }>;
 }
 
 export interface SerramentoPdfPayload {
@@ -718,9 +720,34 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
       immagine_url: (await toDataUrl(mp.immagine_url)) ?? mp.immagine_url,
     }),
   );
+  // I complementi: foto del listino (scritta nel PDF come immagine incorporata) e, per le persiane, il disegno.
+  const accessoriFamilies: Record<string, { immagine_url: string | null; disegno_tipologia: string | null }> = {};
+  const idAccessori = Array.from(new Set(detail.accessori.map((a) => a.family_id).filter((v): v is string => !!v)));
+  if (idAccessori.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: righeAcc } = await (supabase as any).from("article_families").select("id, immagine_url, disegno_tipologia").in("id", idAccessori);
+    const acc = (righeAcc ?? []) as Array<{ id: string; immagine_url: string | null; disegno_tipologia: string | null }>;
+    const immagini = await mapWithConcurrency(acc, 4, async (f) => toDataUrl(f.immagine_url));
+    acc.forEach((f, i) => {
+      accessoriFamilies[f.id] = { immagine_url: immagini[i] ?? f.immagine_url, disegno_tipologia: f.disegno_tipologia };
+      if (f.disegno_tipologia && !(f.id in tipologiaDisegno)) tipologiaDisegno[f.id] = f.disegno_tipologia;
+    });
+  }
+  const righeAccessoriPerDisegno: RigaPerDisegno[] = detail.accessori
+    .filter((a) => a.family_id && accessoriFamilies[a.family_id]?.disegno_tipologia && a.larghezza_mm && a.altezza_mm)
+    .map((a): RigaPerDisegno => ({
+      family_id: a.family_id ?? null,
+      larghezza_mm: a.larghezza_mm ?? null,
+      altezza_mm: a.altezza_mm ?? null,
+      valori_assi: (a.valori_assi ?? null) as Record<string, string> | null,
+      disegno_config: null,
+      scelte_assi: (a.scelte_assi ?? null) as Record<string, string> | null,
+      colore_interno: null,
+      colore_esterno: null,
+    }));
   const disegni = Object.values(tipologiaDisegno).some(Boolean) || detail.serramenti.some((r) => r.disegno_config)
     ? await disegniDelPreventivo(
-        detail.serramenti.map((r) => ({
+        [...detail.serramenti.map((r) => ({
           family_id: r.family_id ?? null,
           larghezza_mm: r.larghezza_mm ?? null,
           altezza_mm: r.altezza_mm ?? null,
@@ -729,7 +756,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
           scelte_assi: (r.scelte_assi ?? null) as Record<string, string> | null,
           colore_interno: r.colore_interno ?? null,
           colore_esterno: r.colore_esterno ?? null,
-        })),
+        })), ...righeAccessoriPerDisegno],
         tipologiaDisegno,
         axisLabelByKey,
       )
@@ -737,6 +764,7 @@ async function enrichForPdf(opts: SerramentoPdfPayload): Promise<SerramentoPdfEn
   return {
     detail,
     disegni,
+    accessoriFamilies,
     template: inlinedTemplate,
     company: inlinedCompany,
     consulente: inlinedConsulente,

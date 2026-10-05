@@ -217,7 +217,11 @@ export function altezzaRigaAllegato(r: RigaAllegato): number {
   return 18.5 + Math.max(60, r.altezzaFoto ?? 0, 6 + 13 * INTERLINEA_NATURALE_GRASSETTO, testo);
 }
 
-export function pezziAllegato(righe: RigaAllegato[], accessori: Array<{ descrizione: string; scelte: string | null }>): Pezzo[] {
+/** I complementi nell'Allegato: miniatura a sinistra (foto del listino o disegno della persiana), poi voce, scelte e a quale finestra sono legati. */
+export const COLONNA_IMMAGINE_ACCESSORIO = 54;
+export const ALTEZZA_IMMAGINE_ACCESSORIO = 44;
+
+export function pezziAllegato(righe: RigaAllegato[], accessori: Array<{ descrizione: string; scelte: string | null; immagine?: boolean; per?: string | null }>): Pezzo[] {
   const pezzi: Pezzo[] = [
     { alto: altezzaTesta("Cosa installeremo\nin cantiere.", "Composizione dettagliata di serramenti, accessori e scelte tecniche previste.") },
     { alto: TITOLO_GRUPPO, conSeguente: 60 },
@@ -226,12 +230,12 @@ export function pezziAllegato(righe: RigaAllegato[], accessori: Array<{ descrizi
   ];
   if (accessori.length > 0) {
     pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: 40 }, { alto: 8 + TESTATA_TABELLA, conSeguente: 30 });
-    const w = UTILE_PAGINA - 110 - 50 - 6;
     for (const a of accessori) {
-      pezzi.push({
-        alto: 18.5 + altezzaTesto(a.descrizione, w, "Helvetica-Bold", 10, INTERLINEA_NATURALE_GRASSETTO)
-          + (a.scelte ? altezzaTesto(a.scelte, w, "Helvetica", 9, 1.4) + 2 : 0),
-      });
+      const w = UTILE_PAGINA - 110 - 50 - 6 - (a.immagine ? COLONNA_IMMAGINE_ACCESSORIO : 0);
+      const testo = 18.5 + altezzaTesto(a.descrizione, w, "Helvetica-Bold", 10, INTERLINEA_NATURALE_GRASSETTO)
+        + (a.scelte ? altezzaTesto(a.scelte, w, "Helvetica", 9, 1.4) + 2 : 0)
+        + (a.per ? altezzaTesto(a.per, w, "Helvetica", 8, 1.4) + 2 : 0);
+      pezzi.push({ alto: a.immagine ? Math.max(testo, 18.5 + ALTEZZA_IMMAGINE_ACCESSORIO) : testo });
     }
   }
   return pezzi;

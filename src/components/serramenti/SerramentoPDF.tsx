@@ -52,13 +52,13 @@ import { serramentiCoverLayout } from "@/lib/moduli-vendita/serramentiCoverLayou
 import { leggiVotiOnline } from "../../../supabase/functions/_shared/recensioniOnline";
 import { leggiTestata } from "../../../supabase/functions/_shared/testatePagine";
 import { spezzaAccento } from "@/components/preventivi/pdf/testoDocumento";
-import { chiaveDisegno } from "@/lib/serramenti/disegniPerPdf";
+import { chiaveDisegno, type DisegnoPdf } from "@/lib/serramenti/disegniPerPdf";
 import type { DisegnoConfig } from "@/lib/serramenti/disegnoDaFamiglia";
 import { fotoPaginaPerIlPdf, fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/pdf/fotoBlocchi";
 import { eTavola, proporzioniImmagine } from "@/lib/pdf/proporzioniImmagine";
 import { altezzaTesto, larghezzaTesto, testoDaHtml } from "@/components/preventivi/pdf/misuraTesto";
 import {
-  ALTEZZA_UTILE, FOTO_IN_FONDO_MINIMA, UTILE_PAGINA, altezzaGrafico, pezziAllegato, pezziCta, pezziDettagli, pezziProposta,
+  ALTEZZA_IMMAGINE_ACCESSORIO, ALTEZZA_UTILE, COLONNA_IMMAGINE_ACCESSORIO, FOTO_IN_FONDO_MINIMA, UTILE_PAGINA, altezzaGrafico, pezziAllegato, pezziCta, pezziDettagli, pezziProposta,
   spazioInFondo, type DatiDettagli, type RigaAllegato,
 } from "@/components/serramenti/impaginaSerramento";
 import type {
@@ -2042,6 +2042,10 @@ function htmlToPdfNodes(html: string, baseStyle: any, keyPrefix: string): any[] 
 
 export interface SerramentoPDFProps {
   detail: SrProgettoDetail;
+  /** I disegni delle righe (dentro e fuori), per chiave `chiaveDisegno`. */
+  disegni?: Record<string, DisegnoPdf>;
+  /** Foto e tipo di disegno dei prodotti dei complementi (tapparelle, persiane…). */
+  accessoriFamilies?: Record<string, { immagine_url: string | null; disegno_tipologia: string | null }>;
   template?: SrTemplatePdfRow | null;
   company?: {
     name?: string | null;
@@ -2133,6 +2137,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     detail, template, company,
     consulente, familiesById, fieldsByMacro, macroPagineDedicate,
     disegni = {},
+    accessoriFamilies = {},
     macroNomeById = {},
     axisLabelByKey = {},
     supplierLineById = {},
@@ -2872,7 +2877,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   // Le righe dell'allegato si misurano mentre si disegnano (i dati di ogni riga
   // si calcolano lì): la foto in fondo le legge a pagine fatte, quando sono tutte.
   const righeAllegato: RigaAllegato[] = [];
-  const accessoriAllegato: Array<{ descrizione: string; scelte: string | null }> = [];
+  const accessoriAllegato: Array<{ descrizione: string; scelte: string | null; immagine?: boolean; per?: string | null }> = [];
 
   return (
     <Document
@@ -3624,6 +3629,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   <Text style={styles.sectionTitle}>Accessori e complementi</Text>
                   <View style={styles.table}>
                     <View style={styles.tableHeader}>
+                      <View style={{ width: COLONNA_IMMAGINE_ACCESSORIO }} />
                       <View style={{ flex: 1, paddingRight: 6 }}><Text style={styles.tableHeaderText}>Voce</Text></View>
                       <View style={{ width: 110 }}><Text style={styles.tableHeaderText}>Misure</Text></View>
                       <View style={{ width: 50, alignItems: "flex-end" }}><Text style={styles.tableHeaderText}>Q.tà</Text></View>
@@ -3643,14 +3649,35 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                             return l ? [`${l.axisLabel}: ${testoScelta(l.valueLabel, (a.scelte_assi ?? {})[codice])}`] : [];
                           })
                         : [];
-                      accessoriAllegato.push({ descrizione: String(a.descrizione || a.tipo || ""), scelte: scelte.length > 0 ? scelte.join(" · ") : null });
+                      // A quale finestra è legato («Per: Finestra 1 Anta · 1200 × 1400 mm»).
+                      const finestra = a.serramento_id ? detail.serramenti.find((x) => x.id === a.serramento_id) : null;
+                      const per = finestra
+                        ? `Per: ${finestra.tipologia_label || finestra.tipologia}${finestra.larghezza_mm && finestra.altezza_mm ? ` · ${finestra.larghezza_mm} × ${finestra.altezza_mm} mm` : ""}`
+                        : null;
+                      // L'immagine: il disegno della persiana (da fuori, chiusa) o la foto del listino.
+                      const disegnoAcc = a.family_id && a.larghezza_mm && a.altezza_mm
+                        ? disegni[chiaveDisegno(a.family_id, a.larghezza_mm, a.altezza_mm, (a.valori_assi ?? null) as Record<string, string> | null, null, (a.scelte_assi ?? null) as Record<string, string> | null, { interno: null, esterno: null })]
+                        : undefined;
+                      const vistaAcc = disegnoAcc ? (disegnoAcc.viste.find((v) => v.vista === "esterna") ?? disegnoAcc.viste[0]) : null;
+                      const fotoAcc = a.family_id ? accessoriFamilies[a.family_id]?.immagine_url ?? null : null;
+                      accessoriAllegato.push({ descrizione: String(a.descrizione || a.tipo || ""), scelte: scelte.length > 0 ? scelte.join(" · ") : null, immagine: true, per });
                       return (
                         <View key={i} style={styles.tableRow} wrap={false}>
+                          <View style={{ width: COLONNA_IMMAGINE_ACCESSORIO }}>
+                            {vistaAcc ? (
+                              <Image src={vistaAcc.immagine.src} style={{ width: ALTEZZA_IMMAGINE_ACCESSORIO, height: ALTEZZA_IMMAGINE_ACCESSORIO, objectFit: "contain" as const }} />
+                            ) : fotoAcc ? (
+                              <Image src={fotoAcc} style={{ width: ALTEZZA_IMMAGINE_ACCESSORIO, height: ALTEZZA_IMMAGINE_ACCESSORIO, objectFit: "contain" as const, borderWidth: 0.5, borderColor: C.gray200, borderStyle: "solid", borderRadius: 3 }} />
+                            ) : (
+                              <View style={{ width: ALTEZZA_IMMAGINE_ACCESSORIO, height: ALTEZZA_IMMAGINE_ACCESSORIO, borderRadius: 3, backgroundColor: C.gray100 }} />
+                            )}
+                          </View>
                           <View style={{ flex: 1, paddingRight: 6 }}>
                             <Text style={styles.tableCellStrong}>{a.descrizione || a.tipo}</Text>
                             {scelte.length > 0 && (
                               <Text style={styles.tableCellMuted}>{scelte.join(" · ")}</Text>
                             )}
+                            {per ? <Text style={{ fontSize: 8, color: C.gray500, marginTop: 1 }}>{per}</Text> : null}
                           </View>
                           <View style={{ width: 90 }}>
                             <Text style={styles.tableCellMuted}>{misure}</Text>
