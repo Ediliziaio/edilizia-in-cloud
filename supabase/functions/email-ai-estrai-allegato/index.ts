@@ -24,7 +24,6 @@ import {
   ibanEquivalenti,
 } from "../_shared/doc-validation.ts";
 import { callOpenRouter } from "../_shared/ai-provider/openrouter.ts";
-import { alertOutreach } from "../_shared/outreachAlert.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -153,18 +152,14 @@ Deno.serve(async (req) => {
       // Credito OpenRouter esaurito (402 «requires at least $0.50 in balance for files»):
       // non è un errore del documento. Prima il dispatcher (ogni 7 minuti) rifaceva la
       // stessa mail all'infinito e ogni giro finiva nel registro errori: 107 righe in 12 ore
-      // (01/10/2026). Ora si ricorda il tentativo, si riprova fra un'ora e si avvisa UNA volta.
+      // (01/10/2026). Ora si ricorda il tentativo e si riprova fra un'ora.
+      // L'AVVISO al titolare non parte più da qui: lo manda il sistema degli
+      // allarmi AI (callOpenRouter → _shared/allarmeAI.ts), per tutte le
+      // funzioni e con l'email. Questo era l'unico punto che avvisava, e solo
+      // nella campanella: il 02/10/2026 il conto è finito e nessuno l'ha saputo.
       const credito = /\b402\b|requires at least|insufficient|credit|balance/i.test(detail);
       await segnaTentativo(supabase, att.inbox_id, credito ? "credito" : "vision_error", detail);
       if (credito) {
-        await alertOutreach(supabase, {
-          chiave: "openrouter-credito-esaurito",
-          tipo: "credito_ai_esaurito",
-          ogniOre: 24,
-          titolo: "Credito OpenRouter esaurito",
-          testo: "OpenRouter rifiuta le richieste con allegati (servono almeno 0,50 $ di credito). Le fatture ricevute per email non vengono lette finché non si ricarica l'account OpenRouter.",
-          url: "/admin/impostazioni",
-        });
         return json({ skipped: "credito_ai_insufficiente", reason: "Credito OpenRouter insufficiente: riprovo fra un'ora." }, 200, cors);
       }
       return json({ error: "vision_error", detail }, 502, cors);

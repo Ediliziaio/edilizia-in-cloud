@@ -21,6 +21,8 @@
  *   // response.ok / response.json() come prima
  */
 
+import { segnalaErroreAI } from "./allarmeAI.ts";
+
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // ── Tipi (sottoinsieme del formato Anthropic Messages) ───────────────────────
@@ -183,6 +185,11 @@ export async function claudeMessages(body: ClaudeMessagesBody): Promise<Response
   if (!orResp.ok) {
     // Propaga status + corpo errore: i chiamanti fanno response.text() su !ok
     const errText = await orResp.text();
+    // Credito finito, chiave rifiutata, tetto della chiave: si segnala qui (allarmeAI.ts).
+    segnalaErroreAI(
+      { provider: "openrouter", stato: orResp.status, messaggio: errText.slice(0, 600) },
+      { funzione: "claudeProxy", modello: mapModelToOpenRouter(body.model) },
+    );
     return new Response(errText, {
       status: orResp.status,
       headers: { "content-type": "application/json" },

@@ -2,6 +2,7 @@
 // Il wrapper chiamante (index.ts) gestisce la fallback chain.
 
 import { makeAIError, type AIProviderError } from "./types.ts";
+import { segnalaErroreAI } from "../allarmeAI.ts";
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_TIMEOUT_MS = 25_000;
@@ -35,6 +36,27 @@ export interface OpenRouterResult {
 }
 
 export async function callOpenRouter(
+  params: OpenRouterParams,
+  metadata: { task_kind: string; company_id?: string | null },
+): Promise<OpenRouterResult> {
+  try {
+    return await chiamaOpenRouter(params, metadata);
+  } catch (e) {
+    // Credito finito (402), chiave rifiutata (401), tetto della chiave: si
+    // segnala QUI, dove nasce l'errore, per tutte le funzioni che passano da
+    // questo client — anche quelle che lo chiamano senza la catena di ripiego
+    // di index.ts (allarmeAI.ts). Non aspetta e non lancia: l'errore vero
+    // prosegue com'era.
+    segnalaErroreAI(e, {
+      funzione: metadata.task_kind,
+      modello: params.model,
+      companyId: metadata.company_id,
+    });
+    throw e;
+  }
+}
+
+async function chiamaOpenRouter(
   params: OpenRouterParams,
   metadata: { task_kind: string; company_id?: string | null },
 ): Promise<OpenRouterResult> {

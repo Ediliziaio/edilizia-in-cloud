@@ -9,6 +9,7 @@
 
 import { type AIProviderError, makeAIError } from "./types.ts";
 import { expectedOutputSize } from "../imageDimensions.ts";
+import { segnalaErroreAI } from "../allarmeAI.ts";
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const OPENAI_IMAGES_EDIT_ENDPOINT = "https://api.openai.com/v1/images/edits";
@@ -1048,6 +1049,10 @@ function sleep(ms: number): Promise<void> {
 function logImageError(
   args: { session_id?: string | null; model: string; msg: string },
 ) {
+  // «OpenRouter 402: …» / «OpenAI 429: insufficient_quota»: il credito dei render
+  // finisce da qui senza che nessuno lo sappia (allarmeAI.ts). Il messaggio
+  // porta già il provider e lo status; il resto (timeout, 5xx) non fa nulla.
+  segnalaErroreAI(args.msg, { funzione: "render_immagini", modello: args.model });
   console.warn(
     JSON.stringify({
       lvl: "warn",

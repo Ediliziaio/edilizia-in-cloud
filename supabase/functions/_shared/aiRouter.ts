@@ -37,6 +37,7 @@
  */
 
 import { checkPaymentMethod } from "./requirePaymentMethod.ts";
+import { segnalaErroreAI } from "./allarmeAI.ts";
 
 import { applicaEvento, creaAccumulatore, estraiEventiSse, rispostaDaAccumulatore } from "./openrouterStream.ts";
 
@@ -1505,6 +1506,10 @@ export async function aiRouterComplete(
       }
       const errMsg = (e as Error).message ?? String(e);
       attempts.push({ model, error: errMsg });
+      // Credito finito, chiave rifiutata, tetto della chiave: si segnala QUI,
+      // dove il provider risponde. Se il ripiego poi va a buon fine il registro
+      // scrive «success» e il 402 sparisce (allarmeAI.ts). Non aspetta, non lancia.
+      segnalaErroreAI(errMsg, { funzione: opts.taskKey, modello: model, companyId: opts.companyId });
       // Log esteso per AI Test Lab demo — utile per diagnosticare modelli che falliscono
       // (es. Gemini 3.1 preview, Kimi reasoning, modelli nuovi non supportati)
       const isDemo = opts.companyId === AI_TEST_LAB_DEMO_COMPANY_ID;

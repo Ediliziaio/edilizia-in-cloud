@@ -221,3 +221,58 @@ qualcosa che la purga cancella non finisce nel backup.
 
 Un backup che non ha passato la prova non è un backup. Collaudato il 7 settembre
 2026 su Ke Bei Serramenti: 17.066 righe in 42 tabelle, tutte rientrate.
+
+## Il credito AI finisce: il titolare lo deve sapere subito
+
+Il 02/10/2026 il conto OpenRouter è andato a zero e per giorni quasi ogni
+chiamata AI ha risposto 402: Silvio ripiegava su gpt-4o-mini, il resto taceva,
+e il titolare l'ha saputo da un'analisi dei costi, non da un avviso. L'unico
+avviso esistente stava in una sola funzione (la lettura dei PDF), solo nella
+campanella, una volta al giorno. Era già successo il 23/08 e il 01/09.
+
+Il router registra l'errore solo se falliscono **tutti** i modelli della catena:
+se il principale dà 402 e il ripiego risponde, nel registro c'è un «success» e
+il 402 sparisce. L'errore va quindi guardato dove il provider risponde.
+
+- `_shared/allarmeAI.ts` — `segnalaErroreAI(errore, { funzione, modello, companyId })`,
+  agganciata nel punto in cui il provider risponde male: il catch di ogni
+  tentativo del router, `callOpenRouter` dei provider, `claudeProxy`,
+  `logImageError` dei render. Riconosce credito finito, chiave rifiutata e
+  tetto della chiave (`allarmeAIClassifica.ts`); timeout, 429 e 5xx non fanno
+  niente. Non lancia e non aspetta (`EdgeRuntime.waitUntil`).
+- Registra in `ai_allarmi` (un solo allarme **aperto** per provider+motivo) con
+  `ai_allarme_registra` e sveglia `ops-canarino` in modo `credito-ai`.
+- Il controllo (`ops-canarino/creditoAI.ts`, cron `ai-credito-controllo` ogni 5
+  minuti): una **sonda** a OpenRouter (Sonnet 4.5, tetto 4.000 token, circa 0,01 $
+  al giorno: dice se l'AI risponde anche quando nessuno la usa), il saldo se
+  c'è `OPENROUTER_MANAGEMENT_KEY`, le chiusure, gli avvisi.
+- L'avviso è un'email al titolare (`internal_alert_email`) con il **motivo** già
+  nell'oggetto («URGENTE — OpenRouter: credito esaurito, l'AI è ferma»), più
+  campanella e push. Promemoria a 30 minuti, 2 ore, poi ogni 6; il «credito in
+  calo» (saldo sotto `OPENROUTER_SALDO_MINIMO_USD`, 20 $) una volta al giorno.
+  Gli allarmi aperti sono la prima sezione del rapporto del mattino.
+- Un allarme si chiude solo con una **prova**: la sonda riesce e nessuna funzione
+  ha segnalato errori negli ultimi 10 minuti, e allora arriva «Risolto». Il
+  silenzio da solo non prova niente (di notte nessuno chiama). Dove la prova
+  manca (OpenAI, una sonda che non riesce per altro) si chiude dopo 6 ore di
+  silenzio, senza dire «risolto».
+
+Regole:
+- Un punto nuovo che chiama un provider AI chiama `segnalaErroreAI` dove riceve
+  l'errore. I punti già agganciati li controlla `allarmeAIAgganci.test.ts`.
+- **Prima** del saldo basso serve la chiave management (`OPENROUTER_MANAGEMENT_KEY`,
+  creata su openrouter.ai/settings/keys): senza, il sistema sa solo quando è
+  finito, non quanto manca. Attiva anche la ricarica automatica su OpenRouter.
+- `ops-canarino` rifiuta con 400 i modi che non conosce. Prima ricadevano nel
+  rapporto di piattaforma: un cron col nome sbagliato, o una versione vecchia
+  della funzione che riceve un modo nuovo, lo avrebbe spedito ogni 5 minuti.
+  Per questo il cron `ai-credito-controllo` e la sveglia immediata
+  (`platform_settings.ai_allarmi_sveglia_immediata`) si accendono con una
+  migrazione **successiva** al deploy di `ops-canarino`, non con quella che crea
+  le tabelle.
+- Prova senza effetti: `{"modo":"credito-ai","prova":true}` spedisce UNA email
+  «[Prova]» con dati di esempio; `{"modo":"credito-ai","anteprima":true}` fa
+  sonda e saldo e restituisce cosa partirebbe, senza registrare né spedire.
+- Le funzioni SQL `ai_allarme_*` sono chiuse (solo service role). L'idempotenza
+  e la cadenza dei promemoria stanno nel database, non nel codice: due controlli
+  in parallelo non mandano due email.
