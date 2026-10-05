@@ -20,6 +20,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { oraDiRoma, rapportoClientiMarketing, ricordaPriorita } from "./clienti-marketing.ts";
 import { statoPiattaforma } from "./stato.ts";
+import { controllaCreditoAI, provaAvvisoCreditoAI } from "./creditoAI.ts";
 import { appuntamentiDiOggi, giornoLungo } from "./appuntamenti.ts";
 import { componiMattino, rigaSegnale } from "../_shared/mattino.ts";
 import { componiRiepilogo } from "../_shared/outreachRiepilogo.ts";
@@ -92,6 +93,25 @@ serveConMetricheRapida("ops-canarino", async (req) => {
   } catch {
     // corpo vuoto: rapporto di piattaforma
   }
+  // Il credito AI (05/10/2026): ogni 5 minuti, e a ogni primo errore di credito
+  // che una funzione vede. Sonda a OpenRouter, saldo, apertura e chiusura degli
+  // allarmi, email con il MOTIVO. Il perché e le regole stanno in creditoAI.ts.
+  // `anteprima` restituisce gli avvisi senza spedire né prendere in carico;
+  // `prova` spedisce una sola email «[Prova]» con dati di esempio.
+  if (modo === "credito-ai") {
+    try {
+      if (prova) {
+        const p = await provaAvvisoCreditoAI(supabase);
+        return new Response(JSON.stringify({ ok: p.inviata, prova: true, oggetto: p.oggetto }), { headers: corsH });
+      }
+      const esito = await controllaCreditoAI(supabase, { anteprima });
+      return new Response(JSON.stringify({ ok: true, ...esito }), { headers: corsH });
+    } catch (err) {
+      console.error("[ops-canarino credito-ai]", err);
+      return new Response(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }), { status: 500, headers: corsH });
+    }
+  }
+
   // L'email unica del mattino (25/09/2026): rapporto marketing, outreach di
   // ieri e stato piattaforma in una sola email alle 06:00, con in cima cosa
   // fare oggi. Le tre aree si leggono insieme; una che non risponde lascia il
@@ -242,6 +262,14 @@ serveConMetricheRapida("ops-canarino", async (req) => {
       console.error("[ops-canarino clienti-marketing]", err);
       return new Response(JSON.stringify({ ok: false, error: (err as Error).message }), { status: 500, headers: corsH });
     }
+  }
+
+  // Un modo che non esiste NON deve ricadere nel rapporto di piattaforma: un
+  // cron con il nome sbagliato (o una versione della funzione che non conosce
+  // ancora il modo nuovo) spedirebbe il rapporto completo a ogni chiamata, una
+  // ogni cinque minuti. Il rapporto «vecchio» si chiede con il corpo vuoto.
+  if (modo !== "") {
+    return new Response(JSON.stringify({ ok: false, error: `modo sconosciuto: ${modo}` }), { status: 400, headers: corsH });
   }
 
   try {

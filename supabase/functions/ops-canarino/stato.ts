@@ -7,9 +7,11 @@
  * OpenRouter. L'invio lo fa chi chiama.
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { righeAllarmeAperto, type RigaAllarme } from "../_shared/allarmeAITesti.ts";
 
 // Etichette in italiano per le sezioni del rapporto, nell'ordine di gravita'.
 const SEZIONI: Array<{ key: string; titolo: string }> = [
+  { key: "ai_allarmi_aperti", titolo: "AI ferma o a rischio: allarmi ancora aperti" },
   { key: "snapshot_vecchio", titolo: "Il controllo stesso: raccolta dati ferma" },
   { key: "backup_mancanti", titolo: "Aziende senza un backup da più di 8 giorni" },
   { key: "dunning_fermo", titolo: "Aziende in mancato pagamento SENZA solleciti" },
@@ -43,7 +45,7 @@ const SEZIONI: Array<{ key: string; titolo: string }> = [
  * segnale. Il numero compare comunque in fondo al rapporto, anche quando va
  * bene: e' il modo in cui ci si accorge che sta calando.
  */
-async function saldoOpenRouter(): Promise<{
+export interface SaldoOpenRouter {
   disponibile_usd: number | null;
   usato_usd: number | null;
   /** Da dove viene il numero: il conto intero, o solo questa chiave. */
@@ -52,8 +54,10 @@ async function saldoOpenRouter(): Promise<{
   errore: string | null;
   /** Cosa manca per avere il saldo vero (non e' un guasto: e' configurazione). */
   nota: string | null;
-}> {
-  const vuoto = { disponibile_usd: null, usato_usd: null, fonte: null, errore: null, nota: null };
+}
+
+export async function saldoOpenRouter(): Promise<SaldoOpenRouter> {
+  const vuoto: SaldoOpenRouter = { disponibile_usd: null, usato_usd: null, fonte: null, errore: null, nota: null };
   const management = Deno.env.get("OPENROUTER_MANAGEMENT_KEY");
   const normale = Deno.env.get("OPENROUTER_API_KEY");
 
@@ -165,6 +169,24 @@ export async function statoPiattaforma(supabase: SupabaseClient): Promise<StatoP
   } catch (errBackup) {
     (vitali as Record<string, unknown>)["backup_mancanti"] = [
       { problema: "impossibile controllare i backup", dettaglio: (errBackup as Error).message },
+    ];
+  }
+
+  // Allarmi AI ancora aperti (credito esaurito o in calo, chiave rifiutata):
+  // li apre il controllo ogni 5 minuti e le funzioni che vedono l'errore. Qui si
+  // ripetono nel rapporto del mattino, con da quando e quante chiamate: chi ha
+  // perso l'email di stanotte li trova comunque alle 06:00.
+  try {
+    const { data: allarmi, error: errAllarmi } = await supabase
+      .from("ai_allarmi").select("*").is("chiuso_il", null).order("aperto_il", { ascending: true });
+    if (errAllarmi) throw new Error(errAllarmi.message);
+    if (allarmi && allarmi.length > 0) {
+      const adesso = new Date();
+      (vitali as Record<string, unknown>)["ai_allarmi_aperti"] = (allarmi as RigaAllarme[]).map((a) => righeAllarmeAperto(a, adesso));
+    }
+  } catch (errAllarmi) {
+    (vitali as Record<string, unknown>)["ai_allarmi_aperti"] = [
+      { problema: "impossibile leggere gli allarmi AI", dettaglio: (errAllarmi as Error).message },
     ];
   }
 
