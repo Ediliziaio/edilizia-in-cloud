@@ -13,14 +13,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useAssegnaMezzoACommessa, useCostiParco, useMezzi, useMezziDellaCommessa, useMontaggiDellaCommessa } from "@/hooks/useMezzi";
+import {
+  useAssegnaMezzoACommessa, useCostiParco, useMezzi, useMezziDellaCommessa, useMezziDisponibilita, useMontaQuantita,
+  useMontaggiDellaCommessa,
+} from "@/hooks/useMezzi";
 import { formatCurrency } from "@/lib/formatters";
 import { IconaMezzo } from "@/components/mezzi/IconaMezzo";
 import {
-  POSSESSI, aggiungiGiorni, costoAnnuoMezzo, formatData, formatQuantita, giornoItaliano, giorniSovrapposti, giorniTra, oggiIso,
+  POSSESSI, aggiungiGiorni, costoAnnuoMezzo, formatData, formatQuantita, giornoItaliano, giorniSovrapposti, giorniTra,
+  numeroLetto, oggiIso, unitaBreve,
 } from "@/types/mezzi";
 import { useDistanzeCantieri } from "@/hooks/useDistanzaCantieri";
 import { TIPI_CHE_VIAGGIANO, formatKm, giorniLavorativiSovrapposti, kmStimati } from "@/lib/manodopera/km";
@@ -45,7 +50,10 @@ export function MezziCommessaCard({ orderId }: Props) {
   const { data: sulCantiere = [], isLoading, error, refetch } = useMezziDellaCommessa(puoVedere ? orderId : undefined);
   const { data: costiParco } = useCostiParco();
   const { data: montaggi = [] } = useMontaggiDellaCommessa(puoVedere ? orderId : undefined);
+  const { data: disponibilita } = useMezziDisponibilita();
   const assegna = useAssegnaMezzoACommessa();
+  const monta = useMontaQuantita();
+  const [quantita, setQuantita] = useState("");
 
   const [aperto, setAperto] = useState(false);
   const [scelto, setScelto] = useState<string>("");
@@ -102,19 +110,28 @@ export function MezziCommessaCard({ orderId }: Props) {
   const giaQui = new Set(righe.filter((r) => r.adesso).map((r) => r.mezzo_id));
   // Si mettono sul cantiere i mezzi che lavorano; un attrezzo a bordo di un
   // furgone segue il furgone e non si sposta da solo.
-  // Le attrezzature a quantità (ponteggi) non vanno «sul cantiere» intere: si
-  // montano a m² o a pezzi dalla loro scheda.
-  const disponibili = mezzi.filter((m) => !giaQui.has(m.id) && m.stato !== "fuori_servizio" && !m.su_mezzo_id && m.gestione !== "quantita");
+  // Le attrezzature a quantità (ponteggi, transenne) non vanno «sul cantiere»
+  // intere: se ne monta una parte (m², pezzi), se ce n'è ancora in magazzino.
+  const liberoDi = (m: (typeof mezzi)[number]) => disponibilita?.get(m.id)?.disponibile ?? Number(m.quantita_totale ?? 0);
+  const disponibili = mezzi.filter((m) =>
+    m.stato !== "fuori_servizio" &&
+    (m.gestione === "quantita" ? liberoDi(m) > 0 : !giaQui.has(m.id) && !m.su_mezzo_id));
   const sceltoInfo = mezzi.find((m) => m.id === scelto);
+  const aQuantita = sceltoInfo?.gestione === "quantita";
+  const libero = sceltoInfo ? liberoDi(sceltoInfo) : 0;
+  const nQuantita = numeroLetto(quantita);
+  const quantitaValida = !aQuantita || (nQuantita != null && nQuantita > 0 && nQuantita <= libero);
 
   if (!puoVedere) return null;
 
   const conferma = async () => {
-    if (!scelto) return;
+    if (!scelto || !quantitaValida) return;
     try {
-      await assegna.mutateAsync({ mezzoId: scelto, orderId });
+      if (aQuantita) await monta.mutateAsync({ mezzoId: scelto, order_id: orderId, quantita: nQuantita! });
+      else await assegna.mutateAsync({ mezzoId: scelto, orderId });
       setAperto(false);
       setScelto("");
+      setQuantita("");
     } catch {
       // l'errore lo mostra la mutation
     }
@@ -247,7 +264,7 @@ export function MezziCommessaCard({ orderId }: Props) {
         )}
       </CardContent>
 
-      <Dialog open={aperto} onOpenChange={(o) => { setAperto(o); if (!o) setScelto(""); }}>
+      <Dialog open={aperto} onOpenChange={(o) => { setAperto(o); if (!o) { setScelto(""); setQuantita(""); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Metti un mezzo sul cantiere</DialogTitle>
@@ -255,16 +272,33 @@ export function MezziCommessaCard({ orderId }: Props) {
           </DialogHeader>
           <div className="space-y-1.5">
             <Label htmlFor="mezzo-commessa">Mezzo</Label>
-            <Select value={scelto} onValueChange={setScelto}>
+            <Select value={scelto} onValueChange={(v) => { setScelto(v); setQuantita(""); }}>
               <SelectTrigger id="mezzo-commessa"><SelectValue placeholder="Scegli un mezzo" /></SelectTrigger>
               <SelectContent>
                 {disponibili.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
                     {m.nome}{m.targa ? ` · ${m.targa}` : ""}
+                    {m.gestione === "quantita" ? ` · ${formatQuantita(liberoDi(m), m.unita_misura)} in magazzino` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {aQuantita && sceltoInfo && (
+              <div className="space-y-1.5 pt-1">
+                <Label htmlFor="mezzo-commessa-quantita">Quanto ne monti su questo cantiere ({unitaBreve(sceltoInfo.unita_misura)})</Label>
+                <Input
+                  id="mezzo-commessa-quantita"
+                  inputMode="decimal"
+                  value={quantita}
+                  onChange={(e) => setQuantita(e.target.value)}
+                  placeholder={`al massimo ${formatQuantita(libero, sceltoInfo.unita_misura)}`}
+                  aria-invalid={nQuantita != null && nQuantita > libero}
+                />
+                {nQuantita != null && nQuantita > libero && (
+                  <p className="text-xs text-red-700">In magazzino ce ne sono {formatQuantita(libero, sceltoInfo.unita_misura)}.</p>
+                )}
+              </div>
+            )}
             {sceltoInfo?.assegnato_commessa && (
               <p className="text-xs text-amber-800">Adesso è su {sceltoInfo.assegnato_commessa}: lo sposto qui.</p>
             )}
@@ -274,8 +308,9 @@ export function MezziCommessaCard({ orderId }: Props) {
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setAperto(false)}>Annulla</Button>
-            <Button onClick={conferma} disabled={!scelto || assegna.isPending}>
-              {assegna.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Metti sul cantiere
+            <Button onClick={conferma} disabled={!scelto || !quantitaValida || (aQuantita && !quantita.trim()) || assegna.isPending || monta.isPending}>
+              {(assegna.isPending || monta.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {aQuantita ? "Segna il montaggio" : "Metti sul cantiere"}
             </Button>
           </DialogFooter>
         </DialogContent>

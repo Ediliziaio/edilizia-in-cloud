@@ -465,8 +465,10 @@ const labelDi = <T extends string>(elenco: { value: T; label: string }[], v: str
 
 export const tipoMezzoLabel = (v: string) => labelDi(TIPI_MEZZO, v, "Mezzo");
 export const possessoLabel = (v: string) => labelDi(POSSESSI, v, v);
+// «tagliando» e «manutenzione» arrivano dalla vista mezzi_scadenze (la prossima
+// manutenzione di un mezzo e di un attrezzo), non sono categorie di documento.
 export const categoriaDocumentoLabel = (v: string) =>
-  v === "tagliando" ? "Tagliando" : labelDi(CATEGORIE_DOCUMENTO, v, "Documento");
+  v === "tagliando" ? "Tagliando" : v === "manutenzione" ? "Manutenzione" : labelDi(CATEGORIE_DOCUMENTO, v, "Documento");
 export const tipoManutenzioneLabel = (v: string) => labelDi(TIPI_MANUTENZIONE, v, "Intervento");
 export const tipoSegnalazioneLabel = (v: string) => labelDi(TIPI_SEGNALAZIONE, v, "Segnalazione");
 export const statoSegnalazione = (v: string) => STATI_SEGNALAZIONE.find((s) => s.value === v) ?? STATI_SEGNALAZIONE[0];

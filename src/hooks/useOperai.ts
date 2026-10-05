@@ -75,7 +75,8 @@ export interface SchedaOperaio {
     con_la_squadra: boolean;
     in_corso: boolean;
   }[];
-  mezzi: { id: string; nome: string; tipo: string | null; targa: string | null }[];
+  /** In carico a lui e a bordo del furgone che guida (dal 05/10/2026 con codice e «su»). */
+  mezzi: { id: string; nome: string; tipo: string | null; targa: string | null; codice?: string | null; su_mezzo?: string | null }[];
 }
 
 export interface DatiOperaio {

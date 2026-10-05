@@ -56,6 +56,28 @@ Fatto dopo (05/10/2026, seconda parte):
   codici QR. Versione portata a 1.5 build 15 con `mobile:build` + `cap sync`: Archive e invio
   ad App Store li fa l'utente da Xcode.
 
+Collegamenti verificati (05/10/2026, terza parte — migrazione `20281005230000_mezzi_collegamenti`):
+- **Commessa**: la card «Mezzi e attrezzature» (vista «Squadra e mezzi») mostra mezzi, periodi, costi
+  e ponteggi montati; da «Assegna mezzo o attrezzo» si monta anche un ponteggio, chiedendo i m² o i
+  pezzi. «Il cantiere» (`commessa_mezzi_lavoro`) ha la chiave `montati`, e il suo «Porta sul
+  cantiere» fa lo stesso. I costi stimati per commessa (vista `v_ordine_costi_mezzi_stimati`)
+  contano i montaggi in proporzione.
+- **POS**: tra le macchine e attrezzature della commessa ci sono anche i ponteggi montati, con la
+  quantità (`_shared/posDatiApp.ts`).
+- **Diario della manodopera** (`manodopera_diario`): «Montato» e «Rientrato» per i ponteggi,
+  «Non si trova» e «Furto» per le segnalazioni, manutenzioni degli attrezzi con il loro nome.
+- **Persone**: la scheda dell'operaio (`manodopera_operaio`) elenca «Mezzi e attrezzi in carico» con
+  codice e gli attrezzi a bordo del suo furgone; se non lavora più con voi e ha ancora qualcosa
+  in carico, compare l'avviso. La scheda del Personale mostra i mezzi in carico (sola lettura).
+- **Scadenze e avvisi**: la vista `mezzi_scadenze` chiama «manutenzione» quella degli attrezzi;
+  l'email e la campanella hanno le etichette di garanzia, taratura, manuale CE, PiMUS e
+  autorizzazione ministeriale.
+- **Registro attività**: montaggi, inventari e categorie entrano nel registro degli utenti.
+- **App del cantiere**: fine giornata, «I miei mezzi», pagina dell'attrezzo letto dal QR (già fatti).
+
+Non collegato, di proposito: la pianificazione di Silvio (`cantiere_allocations`, `mezzo_id` senza
+legame) è vuota e non usata; Silvio non ha ancora strumenti per chiedere dov'è un attrezzo.
+
 Resta aperto:
 - Prova con un telefono vero, inquadrando un'etichetta stampata.
 - Universal Links: oggi il QR inquadrato con la fotocamera del telefono apre Safari, non l'app.

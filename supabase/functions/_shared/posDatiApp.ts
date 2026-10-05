@@ -80,7 +80,7 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
   if (orderErr) throw new Error(`Commessa non leggibile: ${orderErr.message}`);
   if (!order || order.deleted_at) throw new Error("Commessa non trovata in questa azienda");
 
-  const [anag, company, figureRes, oeRes, campoRes, mezziRes, subRes] = await Promise.all([
+  const [anag, company, figureRes, oeRes, campoRes, mezziRes, subRes, montatiRes] = await Promise.all([
     db.from("anagrafica_azienda")
       .select("ragione_sociale, partita_iva, indirizzo_via, indirizzo_numero_civico, indirizzo_cap, indirizzo_comune, indirizzo_provincia, telefono, email, pec")
       .eq("company_id", companyId).maybeSingle(),
@@ -90,6 +90,10 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
     db.from("order_campo_assignments").select("user_id, role_type, is_capocantiere").eq("order_id", orderId).eq("company_id", companyId),
     db.from("mezzi").select("id, nome, tipo, targa, su_mezzo_id").eq("company_id", companyId).eq("assegnato_order_id", orderId).is("deleted_at", null),
     db.from("subappaltatori_sicurezza").select("ragione_sociale, tipo_lavori, durc_scadenza").eq("company_id", companyId).eq("order_id", orderId),
+    // Ponteggi, transenne e altre attrezzature a quantità montati sul cantiere (dal 05/10/2026).
+    db.from("mezzi_allocazioni")
+      .select("quantita, al, mezzo:mezzi!mezzi_allocazioni_mezzo_id_fkey(nome, tipo, unita_misura, deleted_at)")
+      .eq("company_id", companyId).eq("order_id", orderId),
   ]);
 
   const avvisi: string[] = [];
@@ -283,6 +287,22 @@ export async function preparaPosDaApp(db: Db, companyId: string, orderId: string
 
   // ── Contesto per le schede delle lavorazioni ─────────────────────────────
   const mezzi = ((mezziRes.data ?? []) as Row[]).map((m) => ({ nome: s(m.nome), tipo: s(m.tipo), targa: s(m.targa) || null }));
+  // Le opere provvisionali contano nel POS (ponteggi: PiMUS): ci vanno con quanto è montato adesso.
+  const oggi = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
+  const unita: Record<string, string> = { mq: "m²", mc: "m³", ml: "m", pz: "pz", kg: "kg" };
+  const montatiPerNome = new Map<string, { nome: string; tipo: string; quantita: number; unita: string }>();
+  for (const a of (montatiRes.data ?? []) as Row[]) {
+    const m = a.mezzo as Row | null;
+    if (!m || m.deleted_at || (a.al && String(a.al) <= oggi)) continue;
+    const nome = s(m.nome);
+    const cur = montatiPerNome.get(nome) ?? { nome, tipo: s(m.tipo), quantita: 0, unita: unita[s(m.unita_misura)] ?? s(m.unita_misura) };
+    cur.quantita += Number(a.quantita) || 0;
+    montatiPerNome.set(nome, cur);
+  }
+  for (const g of montatiPerNome.values()) {
+    const q = String(Math.round(g.quantita * 100) / 100).replace(".", ",");
+    mezzi.push({ nome: `${g.nome} (${q} ${g.unita} montati)`, tipo: g.tipo, targa: null });
+  }
   const subappaltatori = ((subRes.data ?? []) as Row[]).map((r) => ({
     ragione_sociale: s(r.ragione_sociale),
     tipo_lavori: s(r.tipo_lavori),

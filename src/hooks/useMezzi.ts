@@ -934,6 +934,31 @@ export async function allegaLibretto(args: {
   }
 }
 
+/**
+ * Mezzi e attrezzi in carico a una persona, per la sua scheda nel Personale.
+ * Legge con i permessi di chi guarda: chi non vede i mezzi riceve un elenco
+ * vuoto e il riquadro non compare.
+ */
+export function useMezziInCaricoA(hrProfiloId: string | undefined) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["mezzi", "in-carico-a", hrProfiloId],
+    enabled: !!hrProfiloId && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mezzi")
+        .select("id, nome, targa, codice, tipo")
+        .eq("company_id", companyId!)
+        .eq("assegnato_hr_profilo_id", hrProfiloId!)
+        .is("deleted_at", null)
+        .order("nome", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; nome: string; targa: string | null; codice: string | null; tipo: string }>;
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
 // ── Categorie degli attrezzi ─────────────────────────────────────────────────
 
 /**
@@ -1069,16 +1094,23 @@ export function useMezzoAllocazioni(mezzoId: string | undefined) {
   });
 }
 
-/** Monta una parte su un cantiere (o in un altro posto). Il database controlla che basti. */
-export function useMontaQuantita(mezzoId: string) {
+/**
+ * Monta una parte su un cantiere (o in un altro posto). Il database controlla
+ * che basti. L'attrezzatura si fissa qui o si sceglie al momento (`mezzoId`
+ * nell'input, dalla commessa).
+ */
+export function useMontaQuantita(mezzoId?: string) {
   const companyId = useEffectiveCompanyId();
   const invalida = useInvalidaMezzi();
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { order_id: string | null; luogo?: string | null; quantita: number; dal?: string; note?: string | null }) => {
+    mutationFn: async (input: { mezzoId?: string; order_id: string | null; luogo?: string | null; quantita: number; dal?: string; note?: string | null }) => {
       if (!companyId) throw new Error("Azienda non trovata");
+      const quale = input.mezzoId ?? mezzoId;
+      if (!quale) throw new Error("Scegli l'attrezzatura");
       const { error } = await db.from("mezzi_allocazioni").insert({
         company_id: companyId,
-        mezzo_id: mezzoId,
+        mezzo_id: quale,
         order_id: input.order_id,
         luogo: input.luogo?.trim() || null,
         quantita: input.quantita,
@@ -1087,8 +1119,10 @@ export function useMontaQuantita(mezzoId: string) {
       });
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_d, v) => {
       invalida();
+      // «Il cantiere» nella commessa legge i montaggi da commessa_mezzi_lavoro.
+      if (v.order_id) qc.invalidateQueries({ queryKey: ["commessa-mezzi-lavoro", v.order_id] });
       toast.success("Montaggio segnato");
     },
     onError: (e) => toast.error(messaggio(e, "Non ho segnato il montaggio")),

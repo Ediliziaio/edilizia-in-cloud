@@ -6,8 +6,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
-vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => null }));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: null }) }));
+vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: (): string | null => null }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: null as { id: string } | null }) }));
 vi.mock("@/lib/campo/foto-compressor", () => ({ compressImage: vi.fn() }));
 
 afterEach(() => {

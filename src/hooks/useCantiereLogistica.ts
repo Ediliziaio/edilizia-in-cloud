@@ -51,8 +51,22 @@ export interface MezzoDellaPersona extends MezzoDelCantiere {
   altrove: string | null;
 }
 
+/** Una parte di un ponteggio (o altra attrezzatura a quantità) montata sul cantiere. */
+export interface MontaggioDelCantiere {
+  /** L'id del montaggio (mezzi_allocazioni). */
+  id: string;
+  mezzo_id: string;
+  nome: string;
+  codice: string | null;
+  quantita: number;
+  unita: string | null;
+  dal: string;
+}
+
 export interface MezziLavoro {
   sul_cantiere: MezzoDelCantiere[];
+  /** Ponteggi e attrezzature a quantità montati qui (dal 05/10/2026). */
+  montati?: MontaggioDelCantiere[];
   con_le_persone: MezzoDellaPersona[];
 }
 

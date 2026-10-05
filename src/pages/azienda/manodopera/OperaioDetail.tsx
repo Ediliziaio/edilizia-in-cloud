@@ -116,7 +116,14 @@ function Scheda({ s }: { s: SchedaOperaio }) {
     salva.mutate(
       { id: p.id, dati },
       {
-        onSuccess: () => { toast.success(fatto); poi?.(); },
+        onSuccess: () => {
+          toast.success(fatto);
+          // Chi esce con un furgone o un attrezzo in carico: lo si dice subito.
+          if (dati.attivo === false && s.mezzi.length > 0) {
+            toast.warning(`Ha ancora in carico: ${s.mezzi.map((m) => m.nome).join(", ")}. Riassegnali o riportali in magazzino.`);
+          }
+          poi?.();
+        },
         onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito a salvare. Riprova tra qualche secondo.")),
       },
     );
@@ -220,6 +227,16 @@ function Scheda({ s }: { s: SchedaOperaio }) {
         <p className="text-sm text-muted-foreground">
           Non è in nessuna squadra. <Link to="/azienda/manodopera?tab=operai&vista=squadre" className="font-medium text-orange-700 hover:underline">Vai alle squadre</Link>
         </p>
+      )}
+
+      {!p.attivo && s.mezzi.length > 0 && (
+        <div role="alert" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>
+            Non lavora più con voi ma ha ancora in carico {s.mezzi.length === 1 ? "un mezzo o attrezzo" : `${s.mezzi.length} mezzi o attrezzi`}:
+            {" "}{s.mezzi.map((m) => m.nome).join(", ")}. Riassegnali o riportali in magazzino dalla loro scheda.
+          </span>
+        </div>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -375,19 +392,22 @@ function Documenti({ documenti, linkPersonale }: { documenti: SchedaOperaio["doc
 
 function Mezzi({ mezzi, linkMezzi }: { mezzi: SchedaOperaio["mezzi"]; linkMezzi: boolean }) {
   return (
-    <Riquadro titolo="Mezzi in carico" icona={Truck}>
+    <Riquadro titolo="Mezzi e attrezzi in carico" icona={Truck}>
       {mezzi.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nessun mezzo in carico.</p>
+        <p className="text-sm text-muted-foreground">Niente in carico.</p>
       ) : (
         <ul className="divide-y">
           {mezzi.map((m) => (
             <li key={m.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-              {linkMezzi ? (
-                <Link to={`/azienda/mezzi/${m.id}`} className="truncate font-medium text-slate-900 hover:text-orange-700 hover:underline">{m.nome}</Link>
-              ) : (
-                <span className="truncate font-medium text-slate-900">{m.nome}</span>
-              )}
-              {m.targa && <span className="shrink-0 font-mono text-xs text-slate-500">{m.targa}</span>}
+              <span className="min-w-0">
+                {linkMezzi ? (
+                  <Link to={`/azienda/mezzi/${m.id}`} className="block truncate font-medium text-slate-900 hover:text-orange-700 hover:underline">{m.nome}</Link>
+                ) : (
+                  <span className="block truncate font-medium text-slate-900">{m.nome}</span>
+                )}
+                {m.su_mezzo && <span className="block truncate text-xs text-muted-foreground">a bordo di {m.su_mezzo}</span>}
+              </span>
+              {(m.targa || m.codice) && <span className="shrink-0 font-mono text-xs text-slate-500">{m.targa ?? m.codice}</span>}
             </li>
           ))}
         </ul>

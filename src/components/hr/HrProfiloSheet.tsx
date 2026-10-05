@@ -17,6 +17,7 @@ import type { HrProfilo } from "@/types/hr";
 import { HrDocumentiSection } from "@/components/hr/HrDocumentiSection";
 import { HrAssenzeSection } from "@/components/hr/HrAssenzeSection";
 import { HrRuoloObiettiviTab } from "@/components/hr/HrRuoloObiettiviTab";
+import { MezziInCaricoProfilo } from "@/components/mezzi/MezziInCaricoProfilo";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Save, Loader2, Info, User, Target, FileText, CalendarDays, Briefcase } from "lucide-react";
@@ -439,6 +440,9 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
                   </div>
 
                   <Separator className="max-sm:hidden" />
+
+                  {/* Mezzi e attrezzi in carico (solo lettura, si cambiano dalla scheda del mezzo) */}
+                  {isEditing && profilo?.id && <MezziInCaricoProfilo hrProfiloId={profilo.id} />}
 
                   {/* Note */}
                   <div className="max-sm:hidden">

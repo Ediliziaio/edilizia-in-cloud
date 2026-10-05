@@ -33,6 +33,8 @@ vi.mock("@/hooks/useMezzi", () => {
     useCostiParco: () => ({ data: stato.costi }),
     useAssegnaMezzoACommessa: mutazione,
     useMontaggiDellaCommessa: () => ({ data: [] as unknown[] }),
+    useMezziDisponibilita: () => ({ data: new Map() }),
+    useMontaQuantita: mutazione,
   };
 });
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => stato.permessi }));

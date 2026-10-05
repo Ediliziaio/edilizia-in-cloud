@@ -44,6 +44,11 @@ const CAT_MEZZO: Record<string, string> = {
   assicurazione: "Assicurazione", bollo: "Bollo", revisione: "Revisione",
   contratto: "Contratto leasing/noleggio", verifica_periodica: "Verifica periodica",
   libretto: "Libretto", altro: "Documento", tagliando: "Tagliando",
+  // Attrezzature (05/10/2026): documenti degli attrezzi e la loro prossima
+  // manutenzione (la vista mezzi_scadenze la chiama «manutenzione», non «tagliando»).
+  garanzia: "Garanzia", taratura: "Taratura", manuale_ce: "Manuale e marcatura CE",
+  pimus: "PiMUS", autorizzazione_ministeriale: "Autorizzazione ministeriale",
+  manutenzione: "Manutenzione",
 };
 
 function fmtDate(d: string | null): string {
