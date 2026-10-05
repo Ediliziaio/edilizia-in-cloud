@@ -7,6 +7,8 @@
  */
 export const MODULI_COL_GUSCIO = [
   "serramenti", "termoidraulico", "bagni", "tetti", "climatizzazione", "elettrico", "pavimenti", "piscine", "ristrutturazione",
+  // il Fotovoltaico sta sotto «marketing»: la rotta è /azienda/marketing/fotovoltaico/nuovo
+  "marketing/fotovoltaico",
 ] as const;
 
 const RICHIAMO = new RegExp(`^/azienda/(${MODULI_COL_GUSCIO.join("|")})/(nuovo|[^/]+/modifica)/?$`);

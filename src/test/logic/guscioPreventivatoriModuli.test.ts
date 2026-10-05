@@ -36,7 +36,8 @@ describe("rotte con l'altezza bloccata", () => {
           (f) => f.endsWith("Wizard.tsx") && leggi(`pages/azienda/${cartella}/${f}`).includes("@/components/preventivatore"),
         ),
       );
-    expect([...conGuscio].sort()).toEqual([...MODULI_COL_GUSCIO].sort());
+    // la cartella del modulo è l'ultimo pezzo del percorso («marketing/fotovoltaico» → fotovoltaico)
+    expect([...conGuscio].sort()).toEqual(MODULI_COL_GUSCIO.map((m) => m.split("/").pop()).sort());
   });
 
   it("nuovo e modifica sì; elenco, listino e altri preventivatori no", () => {
@@ -48,7 +49,11 @@ describe("rotte con l'altezza bloccata", () => {
       expect(rottaDelGuscio(`/azienda/${modulo}/listino`)).toBe(false);
     }
     expect(rottaDelGuscio("/azienda/marketing/preventivi/nuovo")).toBe(false);
-    expect(rottaDelGuscio("/azienda/fotovoltaico/nuovo")).toBe(false);
+    expect(rottaDelGuscio("/azienda/fotovoltaico/nuovo")).toBe(false); // il Fotovoltaico sta sotto «marketing»
+    // …e lì l'elenco, i componenti e la scheda del progetto non sono il wizard
+    expect(rottaDelGuscio("/azienda/marketing/fotovoltaico")).toBe(false);
+    expect(rottaDelGuscio("/azienda/marketing/fotovoltaico/componenti")).toBe(false);
+    expect(rottaDelGuscio("/azienda/marketing/fotovoltaico/9f1c2d3e-0000-4000-8000-000000000000")).toBe(false);
     expect(rottaDelGuscio("/azienda/bagni/nuovo/altro")).toBe(false);
   });
 

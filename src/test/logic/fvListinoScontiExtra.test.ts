@@ -19,6 +19,7 @@ const r = (p: string) => resolve(process.cwd(), p);
 
 const COMPONENTI_FV = r("src/pages/azienda/fotovoltaico/ComponentiFv.tsx");
 const COLLEGA_LISTINO = r("src/lib/fotovoltaico/collegaListino.ts");
+const COMPONENTI_CONFIGURAZIONE = r("src/lib/fotovoltaico/componentiConfigurazione.ts");
 const WIZARD = r("src/pages/azienda/fotovoltaico/FotovoltaicoWizard.tsx");
 const WIZARD_TYPES = r("src/pages/azienda/fotovoltaico/FotovoltaicoWizard/types.ts");
 const QUERIES = r("src/lib/fotovoltaico/queries.ts");
@@ -90,10 +91,14 @@ describe("B. Wizard — banner catalogo vuoto + prodotti extra", () => {
   });
 
   it("salva le extra in fv_componenti_progetto con categoria='altro' nello stesso payload", () => {
-    const src = readFileSync(WIZARD, "utf8");
-    expect(src).toContain("data.prodotti_extra.forEach");
+    // Le righe dei componenti le decide una funzione sola (lib), la stessa dell'anteprima a destra.
+    const lib = readFileSync(COMPONENTI_CONFIGURAZIONE, "utf8");
+    expect(lib).toContain("data.prodotti_extra.forEach");
     // Le righe extra vanno nello stesso array `comp` del replace-insert Step 5
-    expect(src).toMatch(/prodotti_extra\.forEach[\s\S]*?comp\.push\(\{[\s\S]*?categoria: "altro"/);
+    expect(lib).toMatch(/prodotti_extra\.forEach[\s\S]*?comp\.push\(\{[\s\S]*?categoria: "altro"/);
+    const src = readFileSync(WIZARD, "utf8");
+    expect(src).toContain("righeComponentiFv(data, { pannelli, inverter, accumuli })");
+    expect(src).toMatch(/upsertComponenti\.mutateAsync\(\{\s*progetto_id: progettoId,\s*righe: comp,\s*replace: true,/);
   });
 
   it("WizardData tipizza prodotti_extra + sconto e la query listino ritorna il prezzo d'acquisto", () => {

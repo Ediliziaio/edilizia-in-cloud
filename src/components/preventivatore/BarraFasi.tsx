@@ -14,6 +14,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { minutiRimasti } from "@/lib/preventivatore/fasi";
+import { TotaleBarra } from "./TotaleBarra";
 
 export interface PassoPreventivatore {
   key: string;
@@ -122,13 +123,7 @@ export function BarraFasi({
         </nav>
         {(totale || destra) && (
           <div className="ml-2 flex shrink-0 items-center gap-3 border-l border-slate-200 pl-4 max-md:hidden">
-            {totale && (
-              <div className="flex flex-col items-end justify-center leading-tight" aria-live="polite">
-                {/* Tra 1024 e 1279 px la barra laterale dell'app toglie 240 px: l'etichetta cede il posto alle fasi. */}
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 lg:max-xl:hidden">{totale.etichetta ?? "Totale IVA incl."}</span>
-                <span className="text-xl font-bold tabular-nums tracking-tight text-slate-900">{totale.valore}</span>
-              </div>
-            )}
+            {totale && <TotaleBarra totale={totale} />}
             {destra}
           </div>
         )}

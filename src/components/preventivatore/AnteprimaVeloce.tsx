@@ -76,6 +76,17 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: 
         )}
       </section>
 
+      {dati.sintesi && dati.sintesi.length > 0 && (
+        <dl className="mt-3 grid grid-cols-2 gap-1.5">
+          {dati.sintesi.map((v) => (
+            <div key={v.id} className="rounded-md bg-slate-50 px-2 py-1.5">
+              <dt className="text-[9.5px] font-semibold uppercase tracking-[0.06em] text-slate-500">{v.etichetta}</dt>
+              <dd className="text-[12.5px] font-bold tabular-nums text-slate-900">{v.valore}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
       {dati.titolo && (
         <h4 className="mb-1 mt-3 text-[10px] font-semibold uppercase tracking-[0.09em] text-slate-500">{dati.titolo}</h4>
       )}
@@ -199,9 +210,11 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: 
             <b className="tabular-nums">{formattaEuro(dati.detrazione.importo)}</b>
           </p>
           <p className="mt-0.5 text-[10.5px] leading-snug text-emerald-800/90">
-            {dati.detrazione.massimale != null
-              ? `Calcolata sul tetto di spesa di ${formattaEuro(dati.detrazione.massimale)}${dati.detrazione.oltreMassimale ? ": la spesa lo supera" : ""}. `
-              : "Stima sull'imponibile netto. "}
+            {dati.detrazione.nota
+              ? `${dati.detrazione.nota} `
+              : dati.detrazione.massimale != null
+                ? `Calcolata sul tetto di spesa di ${formattaEuro(dati.detrazione.massimale)}${dati.detrazione.oltreMassimale ? ": la spesa lo supera" : ""}. `
+                : "Stima sull'imponibile netto. "}
             Non sostituisce la valutazione di un fiscalista.
           </p>
         </div>

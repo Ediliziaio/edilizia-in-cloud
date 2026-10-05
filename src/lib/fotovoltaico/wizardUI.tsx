@@ -14,6 +14,7 @@
 import { ReactNode, useEffect, useRef } from "react";
 import { Check, Loader2, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TotaleBarra } from "@/components/preventivatore/TotaleBarra";
 
 // ─── TAB BAR ORIZZONTALE STICKY ───────────────────────────────────────────────
 
@@ -37,9 +38,15 @@ interface FvTabBarProps {
   allowJumpForward?: boolean;
   /** Callback navigazione */
   onSelect: (n: number) => void;
+  /** Sticky e offset: li decide la pagina (dipendono dal padding del contenitore che scorre). */
+  className?: string;
+  /** Il totale sempre in vista, a destra della barra; `null` finché non c'è niente da sommare. */
+  totale?: { valore: string; etichetta?: string } | null;
+  /** In fondo alla striscia «Fase X di N» (non c'è su telefono): per esempio il pulsante «Anteprima». */
+  destra?: ReactNode;
 }
 
-export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect }: FvTabBarProps) {
+export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect, className, totale, destra }: FvTabBarProps) {
   const pct = Math.round((current / tabs.length) * 100);
   const remaining = tabs.length - current;
   const minutesRemaining = remaining > 0 ? Math.max(1, Math.round(remaining * 1.5)) : 0;
@@ -54,8 +61,9 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect 
   }, [current]);
 
   return (
-    <div className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-[0_1px_0_rgba(15,23,42,0.05)]">
-      <div ref={rigaRef} className="px-4 sm:px-8 flex gap-0 overflow-x-auto fv-tab-scroll max-md:gap-1 max-md:px-2 max-md:py-1.5">
+    <div className={cn("sticky top-0 z-30 bg-white border-b border-slate-200 shadow-[0_1px_0_rgba(15,23,42,0.05)]", className)}>
+      <div className="flex items-stretch">
+      <div ref={rigaRef} className="min-w-0 flex-1 px-4 sm:px-8 flex gap-0 overflow-x-auto fv-tab-scroll max-md:gap-1 max-md:px-2 max-md:py-1.5 lg:max-[1439px]:px-3">
         {tabs.map((t) => {
           const isActive = t.num === current;
           const isCompleted = completed.has(t.num);
@@ -80,11 +88,15 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect 
                 !isClickable && "opacity-45 cursor-not-allowed hover:bg-transparent",
                 // Telefono: pillola col nome corto — fatte in verde, l'attiva piena, le altre spente.
                 "tap-compact max-md:gap-0 max-md:rounded-full max-md:border max-md:px-2.5 max-md:py-1 max-md:text-[11px]",
+                // Da 1024 a 1439 px (colonna dell'anteprima inclusa) le otto fasi devono stare in riga: meno aria.
+                "lg:max-[1439px]:gap-2 lg:max-[1439px]:px-2.5",
                 isActive && "max-md:border-orange-500 max-md:bg-orange-500 max-md:text-white",
                 isCompleted && !isActive && "max-md:border-emerald-200 max-md:bg-emerald-50 max-md:text-emerald-800",
                 !isActive && !isCompleted && "max-md:border-slate-200",
               )}
               aria-current={isActive ? "step" : undefined}
+              aria-label={t.label}
+              title={t.label}
             >
               <span
                 className={cn(
@@ -102,12 +114,19 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect 
                     {t.small}
                   </span>
                 )}
-                <span className="max-md:hidden">{t.label}</span>
-                <span className="md:hidden">{t.breve ?? t.label}</span>
+                {/* Nella tab il nome corto (stanno tutte in riga, anche con la colonna dell'anteprima):
+                    quello per esteso è nella striscia «Fase X di N» sotto. */}
+                <span>{t.breve ?? t.label}</span>
               </span>
             </button>
           );
         })}
+      </div>
+      {totale && (
+        <div className="ml-2 flex shrink-0 items-center border-l border-slate-200 pl-4 pr-4 sm:pr-8 max-md:hidden lg:max-[1439px]:pr-3">
+          <TotaleBarra totale={totale} />
+        </div>
+      )}
       </div>
       {/* Progress bar */}
       {/* Telefono: la fase la dicono già le pillole. */}
@@ -126,6 +145,8 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect 
           {pct}% completato
           {remaining > 0 && ` · ~${minutesRemaining} min`}
         </span>
+        {/* I pulsanti stanno nella striscia (non nella riga delle fasi, dove ogni pixel serve alle otto fasi): il -my li tiene nell'altezza di prima. */}
+        {destra && <div className="ml-auto flex items-center gap-2 -my-1">{destra}</div>}
       </div>
     </div>
   );
@@ -278,7 +299,7 @@ export function FvKpi({ label, value, unit, variant = "default", hint, trend, cl
       <div className="text-[11px] text-slate-500 font-semibold tracking-wider mb-1.5 sm:uppercase max-md:mb-0.5">
         {label}
       </div>
-      <div className={cn("text-xl sm:text-2xl font-bold leading-tight tabular-nums max-md:text-lg", valueColor)}>
+      <div className={cn("text-xl sm:text-2xl font-bold leading-tight tabular-nums max-md:text-lg xl:max-[1535px]:text-xl", valueColor)}>
         {value}
         {unit && <span className="text-sm text-slate-500 font-medium ml-1">{unit}</span>}
       </div>
@@ -390,6 +411,10 @@ interface FvFooterProps {
   /** Hide next button on last step */
   showNext?: boolean;
   saving?: boolean;
+  /** Sticky e offset: li decide la pagina. */
+  className?: string;
+  /** Telefono: a sinistra dei bottoni, per esempio il totale che apre l'anteprima. */
+  telefono?: ReactNode;
 }
 
 export function FvFooter({
@@ -405,9 +430,11 @@ export function FvFooter({
   showPrev = true,
   showNext = true,
   saving,
+  className,
+  telefono,
 }: FvFooterProps) {
   return (
-    <div className="sticky bottom-0 z-20 bg-white border-t border-slate-200 px-4 sm:px-8 py-3 flex items-center justify-between gap-3 flex-wrap shadow-[0_-4px_12px_rgba(15,23,42,0.04)] max-md:flex-nowrap max-md:px-3 max-md:py-2">
+    <div className={cn("sticky bottom-0 z-20 bg-white border-t border-slate-200 px-4 sm:px-8 py-3 flex items-center justify-between gap-3 flex-wrap shadow-[0_-4px_12px_rgba(15,23,42,0.04)] max-md:flex-nowrap max-md:px-3 max-md:py-2", className)}>
       {/* Telefono: lo stato del salvataggio c'è già in testata; restano i tre bottoni. */}
       <div className="flex items-center gap-3 text-xs text-slate-500 min-w-0 flex-wrap max-md:hidden">
         {autoSaveState === "saving" && (
@@ -434,7 +461,8 @@ export function FvFooter({
         {lastSaveText && <span>· {lastSaveText}</span>}
         {numero && <span>· <code className="font-mono text-[11px]">{numero}</code></span>}
       </div>
-      <div className="flex gap-2 items-center max-md:w-full">
+      {telefono && <div className="min-w-0 md:hidden">{telefono}</div>}
+      <div className="flex gap-2 items-center max-md:min-w-0 max-md:flex-1">
         {showPrev && onPrev && (
           <button
             type="button"

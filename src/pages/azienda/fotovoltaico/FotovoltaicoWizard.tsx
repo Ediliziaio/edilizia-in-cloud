@@ -51,7 +51,7 @@ import {
   Building2,
   Plus,
   Wallet,
-  Zap, Wrench, CheckCircle2,
+  Zap, Wrench, CheckCircle2, Eye,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { FvContactPicker } from "@/components/fotovoltaico/FvContactPicker";
@@ -92,7 +92,6 @@ import type {
   FvArchetipo,
   FvProfiloAutoconsumoCodice,
   FvTariffaTipo,
-  FvCategoriaComponente,
 } from "@/lib/fotovoltaico/tipi";
 import {
   FvTabBar,
@@ -121,6 +120,8 @@ import { FvSimulatoreInterattivo } from "@/components/fotovoltaico/FvSimulatoreI
 import { FvDimensionamentoStringhe } from "@/components/fotovoltaico/FvDimensionamentoStringhe";
 import { inputBaseDaContesto, type ContestoVariantiVicine } from "@/lib/fotovoltaico/varianti";
 import { derivaSpecModuloDaPotenza } from "@/lib/fotovoltaico/catalogoProdotti";
+import { righeComponentiFv } from "@/lib/fotovoltaico/componentiConfigurazione";
+import { anteprimaFotovoltaico, stimaProduzioneFv } from "@/lib/fotovoltaico/anteprima";
 // F16: ricostruisce l'etichetta orientamento (es. "S 180°") dall'azimut numerico
 // salvato in DB (fv_progetti.azimut_tetto) all'idratazione del progetto.
 import { etichettaAzimut } from "@/lib/fotovoltaico/tetto";
@@ -149,6 +150,12 @@ import {
 // MP-MKT-001: INITIAL estratto in ./FotovoltaicoWizard/constants.ts
 import { INITIAL, PAGAMENTO_PRESETS } from "./FotovoltaicoWizard/constants";
 import { Button } from "@/components/ui/button";
+import {
+  AnteprimaMobile, AnteprimaVeloce, BottoneTotale, CorpoPreventivatore, PannelloAnteprima,
+  STICKY_ALTO, STICKY_BASSO, useAnteprimaNascosta,
+} from "@/components/preventivatore";
+import { formattaEuro, type VistaAnteprima } from "@/lib/preventivatore/anteprima";
+import { usePermissions } from "@/hooks/usePermissions";
 import type { FvTemplate } from "@/components/fotovoltaico/FotovoltaicoTemplateEditor";
 import { useSupportoModelloPreventivo } from "@/hooks/useSupportoModelliPreventivo";
 import { creaModelloPreventivo, interventoDelModulo, leggiModelloPreventivo } from "@/lib/moduli/modelloPreventivo";
@@ -209,7 +216,7 @@ function FotovoltaicoWizard() {
   // sotto l'azienda selezionata nello switcher, non sotto la primaria del profilo.
   const effectiveCompanyId = useEffectiveCompanyId();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, effectiveCompany } = useAuth();
 
   // ── Riprendi bozza (solo su /nuovo): ultima bozza DB dell'utente, con i
   // dati principali. Risolve il flusso "esco → torno → devo reinserire tutto":
@@ -1166,166 +1173,13 @@ function FotovoltaicoWizard() {
         } as never,
       });
 
-      // Componenti dal listino
-      const comp: Array<{
-        progetto_id: string;
-        articolo_id: string | null;
-        categoria: FvCategoriaComponente;
-        descrizione: string;
-        quantita: number;
-        unita_misura: string;
-        prezzo_unitario_netto: number;
-        prezzo_unitario_vendita: number;
-        margine_pct: number | null;
-        potenza_unitaria_w: number | null;
-        potenza_unitaria_kw: number | null;
-        capacita_kwh: number | null;
-        garanzia_anni: number | null;
-        ordinamento: number;
-      }> = [];
-
-      if (data.kit_bundle_id && data.kit_prezzo != null) {
-        // Kit FV: un'unica voce col prezzo d'offerta del kit (chiavi in mano).
-        // Il costo del kit non si conosce: 0 = «non disponibile». Prima si stimava
-        // al 75% del prezzo e la Vista impresa mostrava un margine del 25% inventato.
-        const venditaKit = data.kit_prezzo;
-        const nettoKit = 0;
-        comp.push({
-          progetto_id: progettoId,
-          articolo_id: null,
-          categoria: "altro",
-          descrizione: data.kit_nome ?? `Kit FV ${data.potenza_kwp} kWp`,
-          quantita: 1,
-          unita_misura: "kit",
-          prezzo_unitario_netto: nettoKit,
-          prezzo_unitario_vendita: venditaKit,
-          margine_pct: null,
-          potenza_unitaria_w: null,
-          potenza_unitaria_kw: data.potenza_kwp,
-          capacita_kwh: data.con_accumulo ? data.capacita_accumulo_kwh : null,
-          garanzia_anni: 25,
-          ordinamento: 1,
-        });
-      } else {
-      const pannello = pannelli.find((p) => (p as { id: string }).id === data.pannello_id);
-      if (pannello) {
-        const p = pannello as Record<string, unknown>;
-        const netto = Number(p.prezzo_acquisto) || 0; // senza costo d'acquisto: non disponibile
-        const vendita = Number(p.prezzo_vendita) || 0;
-        comp.push({
-          progetto_id: progettoId,
-          articolo_id: data.pannello_id,
-          categoria: "pannello",
-          descrizione: (p.descrizione as string) ?? "Pannello FV",
-          quantita: data.numero_pannelli_scelti,
-          unita_misura: "pz",
-          prezzo_unitario_netto: netto,
-          prezzo_unitario_vendita: vendita,
-          margine_pct: vendita > 0 && netto > 0 ? (vendita - netto) / vendita : null,
-          potenza_unitaria_w: (p.potenza_w as number) ?? 540,
-          potenza_unitaria_kw: null,
-          capacita_kwh: null,
-          garanzia_anni: (p.garanzia_anni as number) ?? 25,
-          ordinamento: 1,
-        });
-      }
-      const inv = inverter.find((p) => (p as { id: string }).id === data.inverter_id);
-      if (inv) {
-        const p = inv as Record<string, unknown>;
-        const netto = Number(p.prezzo_acquisto) || 0; // senza costo d'acquisto: non disponibile
-        const vendita = Number(p.prezzo_vendita) || 0;
-        comp.push({
-          progetto_id: progettoId,
-          articolo_id: data.inverter_id,
-          categoria: "inverter",
-          descrizione: (p.descrizione as string) ?? "Inverter",
-          quantita: 1,
-          unita_misura: "pz",
-          prezzo_unitario_netto: netto,
-          prezzo_unitario_vendita: vendita,
-          margine_pct: vendita > 0 && netto > 0 ? (vendita - netto) / vendita : null,
-          potenza_unitaria_w: null,
-          potenza_unitaria_kw: (p.potenza_kw as number) ?? data.potenza_kwp,
-          capacita_kwh: null,
-          garanzia_anni: (p.garanzia_anni as number) ?? 10,
-          ordinamento: 2,
-        });
-      }
-      if (data.con_accumulo) {
-        const acc = accumuli.find((p) => (p as { id: string }).id === data.accumulo_id);
-        if (acc) {
-          const p = acc as Record<string, unknown>;
-          const netto = Number(p.prezzo_acquisto) || 0; // senza costo d'acquisto: non disponibile
-          const vendita = Number(p.prezzo_vendita) || 0;
-          comp.push({
-            progetto_id: progettoId,
-            articolo_id: data.accumulo_id,
-            categoria: "accumulo",
-            descrizione: (p.descrizione as string) ?? "Accumulo",
-            quantita: 1,
-            unita_misura: "pz",
-            prezzo_unitario_netto: netto,
-            prezzo_unitario_vendita: vendita,
-            margine_pct: vendita > 0 && netto > 0 ? (vendita - netto) / vendita : null,
-            potenza_unitaria_w: null,
-            potenza_unitaria_kw: null,
-            capacita_kwh: (p.capacita_kwh as number) ?? data.capacita_accumulo_kwh,
-            garanzia_anni: (p.garanzia_anni as number) ?? 10,
-            ordinamento: 3,
-          });
-        } else {
-          comp.push({
-            progetto_id: progettoId,
-            articolo_id: null,
-            categoria: "accumulo",
-            descrizione: `Accumulo ${data.capacita_accumulo_kwh} kWh`,
-            quantita: 1,
-            unita_misura: "pz",
-            prezzo_unitario_netto: 0,
-            prezzo_unitario_vendita: data.capacita_accumulo_kwh * 800,
-            margine_pct: null,
-            potenza_unitaria_w: null,
-            potenza_unitaria_kw: null,
-            capacita_kwh: data.capacita_accumulo_kwh,
-            garanzia_anni: 10,
-            ordinamento: 3,
-          });
-        }
-      }
-      } // chiude il ramo "configurazione manuale" (vs kit)
-
-      // Prodotti extra dal listino (caldaia, clima, colonnina, …): righe con
-      // categoria='altro' nello STESSO payload replace-insert dei componenti
-      // principali, così sopravvivono al flusso delete+insert e l'edge
-      // finanziaria le somma automaticamente (reduce su tutti i componenti).
-      data.prodotti_extra.forEach((ex, i) => {
-        if (!ex.descrizione.trim() || !(ex.quantita > 0)) return;
-        const vendita = Number(ex.prezzo_vendita) || 0;
-        const netto =
-          ex.prezzo_acquisto != null && ex.prezzo_acquisto > 0
-            ? Number(ex.prezzo_acquisto)
-            : 0;
-        comp.push({
-          progetto_id: progettoId,
-          articolo_id: null,
-          categoria: "altro",
-          descrizione: ex.descrizione.trim(),
-          quantita: ex.quantita,
-          unita_misura: "pz",
-          prezzo_unitario_netto: netto,
-          prezzo_unitario_vendita: vendita,
-          margine_pct: vendita > 0 && netto > 0 ? (vendita - netto) / vendita : null,
-          potenza_unitaria_w: null,
-          potenza_unitaria_kw: null,
-          capacita_kwh: null,
-          garanzia_anni: null,
-          ordinamento: 10 + i,
-        });
-      });
+      // Componenti dal listino: le righe le decide `righeComponentiFv`, le stesse che
+      // l'anteprima a destra mostra a chi prepara il preventivo.
+      const comp = righeComponentiFv(data, { pannelli, inverter, accumuli });
 
       await upsertComponenti.mutateAsync({
         progetto_id: progettoId,
-        righe: comp.map(({ progetto_id: _ignored, ...r }) => r),
+        righe: comp,
         replace: true,
       });
 
@@ -1680,7 +1534,8 @@ function FotovoltaicoWizard() {
         savePersistedDraft(progettoId, { step: safe, data, completedSteps: Array.from(nextCompleted) });
       }
       setStep(safe);
-      // scroll to top of content
+      // scroll to top of content: scorre <main> (altezza bloccata), non la finestra
+      document.getElementById("main-content")?.scrollTo?.({ top: 0, behavior: "smooth" });
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
     [step, completedSteps, readOnlyMode, progettoId, data],
@@ -1855,6 +1710,33 @@ function FotovoltaicoWizard() {
     ? `Ultima modifica ${lastSaveAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
     : undefined;
 
+  // ─── Anteprima live a destra ─────────────────────────────────────────────
+  // Il preventivo come lo vede il cliente (o l'impresa, con costi e margine), che si
+  // ricalcola a ogni modifica: righe come le salva la Fase 5, prezzo come lo calcola il
+  // server (`lib/fotovoltaico/anteprima`). «Impresa» solo a chi può vedere i margini.
+  const permessi = usePermissions();
+  const puoVedereImpresa = permessi.canViewMargins || permessi.canViewCosts;
+  const [vistaAnteprima, setVistaAnteprima] = useState<VistaAnteprima>("cliente");
+  const [anteprimaNascosta, impostaAnteprimaNascosta] = useAnteprimaNascosta();
+  const [anteprimaMobileAperta, setAnteprimaMobileAperta] = useState(false);
+  const { data: regoleSconto = [] } = useDiscountRules();
+  const vistaImpresa = puoVedereImpresa && vistaAnteprima === "impresa";
+  const datiAnteprima = useMemo(
+    () => anteprimaFotovoltaico(data, {
+      emittente: effectiveCompany?.name ?? null,
+      numero: numero ?? null,
+      listino: { pannelli, inverter, accumuli },
+      regoleSconto,
+      // Prima della Fase 5 potenza e moduli sono quelli di partenza, non una scelta: contano
+      // la fase, o un componente già scelto (si torna indietro, o si riapre un progetto).
+      impiantoConfigurato: step >= 5 || completedSteps.has(5) || Boolean(data.pannello_id || data.inverter_id || data.kit_bundle_id),
+      scenario: scenarioFin,
+      conImpresa: puoVedereImpresa,
+    }),
+    [data, effectiveCompany?.name, numero, pannelli, inverter, accumuli, regoleSconto, step, completedSteps, scenarioFin, puoVedereImpresa],
+  );
+  const totaleTesto = datiAnteprima.totaleDocumento != null ? formattaEuro(datiAnteprima.totaleDocumento) : null;
+
   // Stato display nell'header
   const statoHeader = readOnlyMode
     ? (progettoEsistente as { stato?: string } | undefined)?.stato === "firmato"
@@ -1869,7 +1751,9 @@ function FotovoltaicoWizard() {
   if (modelloSalvato.error || (!id && requestedModel && !modelloRichiesto)) return <div role="alert" className="space-y-3 p-6"><h1 className="text-xl font-semibold">Intervento non disponibile</h1><p>{modelloSalvato.error ?? "Il tipo di intervento richiesto non è riconosciuto."}</p><Button onClick={() => navigate("/azienda/marketing/preventivi?tab=moduli&area=fotovoltaico")}>Scegli un intervento</Button></div>;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    // A filo coi bordi del contenitore che scorre (<main> ha 12/24 px di spazio): barra e
+    // piede fissi restano a filo, senza la fessura in cui passavano i campi.
+    <div className="-m-3 min-h-full bg-slate-50 flex flex-col md:-m-6">
       <FvPageHeader
         numero={numero ?? null}
         stato={statoHeader}
@@ -2076,6 +1960,22 @@ function FotovoltaicoWizard() {
         tabs={TABS}
         current={step}
         completed={completedSteps}
+        className={STICKY_ALTO}
+        totale={totaleTesto ? { valore: totaleTesto } : null}
+        destra={
+          <>
+            {/* Sotto i 1280 px non c'è la colonna: l'anteprima si apre da qui. */}
+            <Button variant="outline" size="sm" className="h-6 gap-1 px-2 text-xs xl:hidden" onClick={() => setAnteprimaMobileAperta(true)} aria-label="Apri l'anteprima" title="Apri l'anteprima">
+              <Eye className="h-3.5 w-3.5" /> Anteprima
+            </Button>
+            {/* Computer: se l'hai nascosta, da qui torna. */}
+            {anteprimaNascosta && (
+              <Button variant="outline" size="sm" className="hidden h-6 gap-1 px-2 text-xs xl:inline-flex" onClick={() => impostaAnteprimaNascosta(false)}>
+                <Eye className="h-3.5 w-3.5" /> Mostra anteprima
+              </Button>
+            )}
+          </>
+        }
         onSelect={(n) => {
           // Tornare INDIETRO è sempre consentito (n <= step): una fase già vista
           // si può sempre rivedere/correggere. In avanti solo verso fasi completate
@@ -2101,7 +2001,21 @@ function FotovoltaicoWizard() {
         }}
       />
 
-      <div className="flex-1 px-4 sm:px-8 pt-7 pb-28 max-w-[1400px] w-full mx-auto max-md:pt-4">
+      <CorpoPreventivatore
+        anteprimaNascosta={anteprimaNascosta}
+        className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-8 pt-7 pb-28 max-md:pt-4"
+        anteprima={
+          <PannelloAnteprima
+            vista={vistaAnteprima}
+            onVista={setVistaAnteprima}
+            puoVedereImpresa={puoVedereImpresa}
+            onNascondi={() => impostaAnteprimaNascosta(true)}
+            nota="Bozza visiva: cliente, impianto, righe e prezzo sono quelli del preventivo. Il documento definitivo si genera alla Fase 8."
+          >
+            <AnteprimaVeloce dati={datiAnteprima} vista={vistaImpresa ? "impresa" : "cliente"} />
+          </PannelloAnteprima>
+        }
+      >
         <FvTabPane keyValue={step}>
           {step === 1 && <Step1Cliente data={data} update={update} />}
           {step === 2 && <Step2Immobile data={data} update={update} />}
@@ -2165,7 +2079,7 @@ function FotovoltaicoWizard() {
             />
           )}
         </FvTabPane>
-      </div>
+      </CorpoPreventivatore>
 
       {/* Mostra il motivo del blocco se Avanti è disabilitato */}
       {!stepValido && stepValidation.motivo && step < TOTAL_STEPS && !readOnlyMode && (
@@ -2189,7 +2103,16 @@ function FotovoltaicoWizard() {
         nextLabel={step === 7 ? "Vai a generazione" : "Avanti"}
         showNext={step < TOTAL_STEPS && !readOnlyMode}
         saving={salvando}
+        className={STICKY_BASSO}
+        telefono={<BottoneTotale valore={totaleTesto ?? "—"} onClick={() => setAnteprimaMobileAperta(true)} />}
       />
+
+      {/* Sotto i 1280 px non c'è la colonna: l'anteprima sale dal basso. */}
+      <AnteprimaMobile aperta={anteprimaMobileAperta} onApertaChange={setAnteprimaMobileAperta}>
+        <PannelloAnteprima vista={vistaAnteprima} onVista={setVistaAnteprima} puoVedereImpresa={puoVedereImpresa}>
+          <AnteprimaVeloce dati={datiAnteprima} vista={vistaImpresa ? "impresa" : "cliente"} />
+        </PannelloAnteprima>
+      </AnteprimaMobile>
     </div>
   );
 }
@@ -3183,7 +3106,7 @@ function SourceTile({
       }`}
     >
       {badge && active && (
-        <span className="absolute top-2 right-2 bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider max-sm:hidden">
+        <span className="absolute -top-2.5 right-3 bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm max-sm:hidden">
           {badge}
         </span>
       )}
@@ -3688,12 +3611,10 @@ function Step5Configurazione({
   // Auto-suggerimento accumulo (5 kWh per profili serali/misti).
   const suggerisciAccumulo = shouldSuggestFvAccumulo(data.profilo_consumo);
 
-  const stimaProducibilita =
-    data.potenza_kwp && data.ore_sole_annue
-      ? // ore_sole_annue è LORDO (ore di picco): applico il derate di sistema PR×perdite
-        // (~0.7565), coerente col motore finanziario, non solo PR (0.85).
-        data.potenza_kwp * data.ore_sole_annue * 0.7565
-      : 0;
+  // ore_sole_annue è LORDO (ore di picco): si applica il derate di sistema PR×perdite
+  // (~0.7565), coerente col motore finanziario, non solo PR (0.85). La stessa cifra
+  // sta nell'anteprima a destra (lib/fotovoltaico/anteprima).
+  const stimaProducibilita = stimaProduzioneFv(data);
   const listinoCompleto = Boolean(
     data.pannello_id && data.inverter_id && (!data.con_accumulo || data.accumulo_id),
   );
@@ -4191,8 +4112,8 @@ function Step5Configurazione({
 
             {/* MANODOPERA */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label>Manodopera</Label>
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-2">
+                <Label className="whitespace-nowrap">Manodopera</Label>
                 {!readOnlyMode && (
                   <div className="flex items-center gap-2">
                     <Select value="" onValueChange={(v) => { const t = tariffeFv.find((x) => x.id === v); if (t) aggiungiManodoperaDaTariffa(t); }}>
@@ -4214,14 +4135,16 @@ function Step5Configurazione({
                 <div className="space-y-2">
                   {/* Il costo segue il prezzo finché sono uguali: con «costo || prezzo» restava la prima cifra digitata (1500 → costo 1). */}
                   {data.manodopera_righe.map((r, idx) => (
-                    // Telefono: la descrizione su una riga, ore × tariffa sotto (in una riga sola usciva dallo schermo).
-                    <div key={idx} className="flex items-center gap-2 max-md:flex-wrap">
-                      <input value={r.descrizione} onChange={(e) => aggiornaManodopera(idx, { descrizione: e.target.value })} placeholder="Descrizione" disabled={readOnlyMode} className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm max-md:basis-full" />
-                      <input type="number" min={0} value={r.ore} onChange={(e) => aggiornaManodopera(idx, { ore: Number(e.target.value) })} title="Ore" disabled={readOnlyMode} className="w-16 rounded border border-slate-200 px-2 py-1 text-sm" />
-                      <span className="text-xs text-slate-400">h ×</span>
-                      <input type="number" min={0} value={r.tariffa_oraria_vendita} onChange={(e) => { const v = Number(e.target.value); aggiornaManodopera(idx, { tariffa_oraria_vendita: v, tariffa_oraria_netta: r.tariffa_oraria_netta === r.tariffa_oraria_vendita ? v : r.tariffa_oraria_netta }); }} title="€/h vendita" disabled={readOnlyMode} className="w-20 rounded border border-slate-200 px-2 py-1 text-sm" />
-                      <span className="text-xs text-slate-400">€/h</span>
-                      {!readOnlyMode && <button type="button" onClick={() => rimuoviManodopera(idx)} className="tap-compact px-1 text-slate-400 hover:text-red-500 max-md:ml-auto" title="Rimuovi">✕</button>}
+                    // La descrizione su una riga e «ore × tariffa» sotto quando la carta è stretta (telefono, o con la colonna dell'anteprima): in una riga sola usciva dalla carta.
+                    <div key={idx} className="flex flex-wrap items-center gap-2">
+                      <input value={r.descrizione} onChange={(e) => aggiornaManodopera(idx, { descrizione: e.target.value })} placeholder="Descrizione" disabled={readOnlyMode} className="min-w-[11rem] flex-1 rounded border border-slate-200 px-2 py-1 text-sm max-md:basis-full" />
+                      <div className="flex items-center gap-2 max-md:w-full">
+                        <input type="number" min={0} value={r.ore} onChange={(e) => aggiornaManodopera(idx, { ore: Number(e.target.value) })} title="Ore" disabled={readOnlyMode} className="w-16 rounded border border-slate-200 px-2 py-1 text-sm" />
+                        <span className="text-xs text-slate-400">h ×</span>
+                        <input type="number" min={0} value={r.tariffa_oraria_vendita} onChange={(e) => { const v = Number(e.target.value); aggiornaManodopera(idx, { tariffa_oraria_vendita: v, tariffa_oraria_netta: r.tariffa_oraria_netta === r.tariffa_oraria_vendita ? v : r.tariffa_oraria_netta }); }} title="€/h vendita" disabled={readOnlyMode} className="w-20 rounded border border-slate-200 px-2 py-1 text-sm" />
+                        <span className="text-xs text-slate-400">€/h</span>
+                        {!readOnlyMode && <button type="button" onClick={() => rimuoviManodopera(idx)} className="tap-compact px-1 text-slate-400 hover:text-red-500 max-md:ml-auto" title="Rimuovi">✕</button>}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -4230,8 +4153,8 @@ function Step5Configurazione({
 
             {/* SERVIZI E PRATICHE */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label className="max-md:whitespace-nowrap"><span className="max-md:hidden">Servizi e pratiche</span><span className="md:hidden">Servizi</span></Label>
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-2">
+                <Label className="whitespace-nowrap"><span className="max-md:hidden">Servizi e pratiche</span><span className="md:hidden">Servizi</span></Label>
                 {!readOnlyMode && (
                   <div className="flex items-center gap-2">
                     <Select value="" onValueChange={(v) => { const s = serviziCatalogo.find((x) => String(x.id) === v); if (s) aggiungiServizioDaCatalogo(s); }}>
@@ -4252,11 +4175,13 @@ function Step5Configurazione({
               ) : (
                 <div className="space-y-2">
                   {data.servizi_righe.map((r, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <input value={r.descrizione} onChange={(e) => aggiornaServizio(idx, { descrizione: e.target.value })} placeholder="Descrizione servizio" disabled={readOnlyMode} className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm" />
-                      <input type="number" min={0} value={r.prezzo_vendita} onChange={(e) => { const v = Number(e.target.value); aggiornaServizio(idx, { prezzo_vendita: v, prezzo_netto: r.prezzo_netto === r.prezzo_vendita ? v : r.prezzo_netto }); }} title="Prezzo vendita" disabled={readOnlyMode} className="w-24 rounded border border-slate-200 px-2 py-1 text-sm" />
-                      <span className="text-xs text-slate-400">€</span>
-                      {!readOnlyMode && <button type="button" onClick={() => rimuoviServizio(idx)} className="tap-compact px-1 text-slate-400 hover:text-red-500" title="Rimuovi">✕</button>}
+                    <div key={idx} className="flex flex-wrap items-center gap-2">
+                      <input value={r.descrizione} onChange={(e) => aggiornaServizio(idx, { descrizione: e.target.value })} placeholder="Descrizione servizio" disabled={readOnlyMode} className="min-w-[11rem] flex-1 rounded border border-slate-200 px-2 py-1 text-sm max-md:min-w-0" />
+                      <div className="flex items-center gap-2 max-md:contents">
+                        <input type="number" min={0} value={r.prezzo_vendita} onChange={(e) => { const v = Number(e.target.value); aggiornaServizio(idx, { prezzo_vendita: v, prezzo_netto: r.prezzo_netto === r.prezzo_vendita ? v : r.prezzo_netto }); }} title="Prezzo vendita" disabled={readOnlyMode} className="w-24 rounded border border-slate-200 px-2 py-1 text-sm" />
+                        <span className="text-xs text-slate-400">€</span>
+                        {!readOnlyMode && <button type="button" onClick={() => rimuoviServizio(idx)} className="tap-compact px-1 text-slate-400 hover:text-red-500" title="Rimuovi">✕</button>}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -4474,7 +4399,7 @@ function Step5Configurazione({
                   key={ex.uid ?? `extra-${idx}`}
                   className="grid grid-cols-12 gap-2 items-end rounded-lg border border-slate-200 bg-slate-50/60 p-2.5"
                 >
-                  <div className="col-span-12 sm:col-span-5">
+                  <div className="col-span-12 min-[1700px]:col-span-5">
                     <Label className="text-[11px] text-slate-500">Descrizione</Label>
                     <Input
                       value={ex.descrizione}
@@ -4483,7 +4408,7 @@ function Step5Configurazione({
                       className="h-9 text-sm bg-white"
                     />
                   </div>
-                  <div className="col-span-3 sm:col-span-2">
+                  <div className="col-span-3 min-[1700px]:col-span-2">
                     <Label className="text-[11px] text-slate-500">Quantità</Label>
                     <Input
                       type="number"
@@ -4497,7 +4422,7 @@ function Step5Configurazione({
                       className="h-9 text-sm bg-white"
                     />
                   </div>
-                  <div className="col-span-4 sm:col-span-2">
+                  <div className="col-span-4 min-[1700px]:col-span-2">
                     <Label className="text-[11px] text-slate-500">Vendita € (unit.)</Label>
                     <div className="flex gap-1 items-center">
                       <Input
@@ -4532,7 +4457,7 @@ function Step5Configurazione({
                       )}
                     </div>
                   </div>
-                  <div className="col-span-4 sm:col-span-2">
+                  <div className="col-span-4 min-[1700px]:col-span-2">
                     <Label className="text-[11px] text-slate-500">Acquisto € (margine)</Label>
                     <Input
                       inputMode="decimal"
@@ -5445,8 +5370,9 @@ function Step6Finanziario({
           </div>
           <div className="text-xs text-emerald-700 mt-1">ogni mese, primo anno</div>
         </div>
-        <div className="rounded-2xl border-2 border-orange-300 bg-gradient-to-br from-orange-50 to-orange-200 p-5 text-center relative overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-lg">
-          <div className="absolute top-2 right-2 bg-white text-orange-700 text-[9px] font-bold px-2 py-0.5 rounded-full tracking-wider">
+        <div className="rounded-2xl border-2 border-orange-300 bg-gradient-to-br from-orange-50 to-orange-200 p-5 text-center relative transition-all hover:-translate-y-0.5 hover:shadow-lg">
+          {/* Sul bordo in alto, al centro: nelle carte strette (con la colonna dell'anteprima) in un angolo copriva il titolo. */}
+          <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[9px] font-bold tracking-wider text-orange-700 shadow-sm">
             ★ COSTO REALE
           </div>
           <div className="text-xs uppercase tracking-wider font-semibold text-orange-900 mb-1.5">

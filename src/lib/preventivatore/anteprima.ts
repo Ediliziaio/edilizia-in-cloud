@@ -69,6 +69,15 @@ export interface DetrazioneAnteprima {
   massimale: number | null;
   /** La spesa supera il tetto: la detrazione si ferma lì. */
   oltreMassimale: boolean;
+  /** Come si legge questo importo, se non basta la frase di serie («Stima sull'imponibile netto»). */
+  nota?: string | null;
+}
+
+/** Un numero che racconta il lavoro in una riga: «Potenza 8,64 kWp», «Produzione 10.700 kWh/anno». */
+export interface VoceSintesi {
+  id: string;
+  etichetta: string;
+  valore: string;
 }
 
 export interface AnteprimaPreventivo {
@@ -96,6 +105,8 @@ export interface AnteprimaPreventivo {
   impresa?: MargineAnteprima | null;
   /** La detrazione indicativa, dove il modulo la prevede (il PDF la stampa). */
   detrazione?: DetrazioneAnteprima | null;
+  /** I numeri del lavoro (potenza, produzione…) sotto il cliente: dove le righe da sole non li dicono. */
+  sintesi?: VoceSintesi[];
 }
 
 /** Una riga senza prezzo: scritta a 0 € o non ancora prezzata. */
