@@ -86,3 +86,11 @@ I'd appreciate if you could mail me (Kolforn@gmail.com) if you | CC BY-SA 4.0 |
 | `floors/Pavimento-Cotto-Quadrotte.webp` | [Sol terre cuite Chambord 2.jpg](https://commons.wikimedia.org/wiki/File%3ASol%20terre%20cuite%20Chambord%202.jpg) | Coyau
  | CC BY-SA 3.0 |
 | `accessories/Cassonetto-Esterno-Alluminio-Bianco.webp` | [2, Route du Vin (Bech-Kleinmacher)-102.jpg](https://commons.wikimedia.org/wiki/File%3A2%2C%20Route%20du%20Vin%20%28Bech-Kleinmacher%29-102.jpg) | Self-photographed by Jwh | CC BY-SA 3.0 lu |
+
+## Set da 310 immagini fornite dal titolare (04/10/2026)
+
+Cartelle `pergolas/`, `pools/`, `doors/`, `exterior/` e i file aggiunti a `bathroom/`, `floors/`, `facades/`, `roofs/`, `shutters/`, più le miniature per l'interfaccia in `thumbs/<cartella>/`. Immagini fornite da Florin Andriciuc per questo progetto: non richiedono attribuzione e non compaiono nella tabella sopra.
+
+- Convenzione dei file: quelli che danno la **forma** (tipo di doccia, di pergola, di scala…) finiscono per `-BN.webp` e sono in bianco e nero, perché il modello copi la struttura e non il colore (che arriva dal testo); quelli che danno la **materia** (texture, finiture, colori) sono a colori.
+- Quale foto va a quale opzione dei render: `scripts/render-references/manifest.json`. La conversione (WebP, 900 px B/N, 800 px a colori, miniature 320 px): `scripts/render-references/genera.py`.
+- Il test `src/test/logic/renderReferenceAssets.test.ts` verifica che ogni file dichiarato esista, che i `-BN` siano davvero in scala di grigi e che i pesi restino contenuti.
