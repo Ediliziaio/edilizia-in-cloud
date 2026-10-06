@@ -202,6 +202,15 @@ describe("Mezzi in gruppi", () => {
     expect(screen.getByRole("button", { name: "Per tipo" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("sotto i 768px niente filtro per categoria, ma il bottone delle categorie resta (da tablet si vede)", () => {
+    stato.mobile = true;
+    stato.mezzi = Array.from({ length: 6 }, (_, i) =>
+      mezzo({ id: `t${i}`, nome: `Attrezzo ${i}`, tipo: "attrezzatura", classe: "attrezzatura" }));
+    apri("?vista=attrezzature");
+    expect(screen.queryByRole("combobox", { name: "Filtra per categoria" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gestisci le categorie" })).toBeInTheDocument();
+  });
+
   it("cambiando elenco il filtro dei riquadri si toglie", () => {
     apri();
     fireEvent.click(riquadro("Fermi"));

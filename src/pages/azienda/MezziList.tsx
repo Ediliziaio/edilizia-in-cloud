@@ -554,33 +554,36 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
               aria-label={vista === "attrezzatura" ? "Cerca attrezzature" : "Cerca mezzi"}
             />
           </div>
-          {/* Da telefono il filtro per tipo lo fanno già i gruppi: una riga in meno. */}
-          {!isMobile && <div className="flex gap-2">
-            <Select value={filtro} onValueChange={setFiltro}>
-              <SelectTrigger className="sm:w-56" aria-label={vista === "attrezzatura" ? "Filtra per categoria" : "Filtra per tipo"}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {vista === "attrezzatura" ? (
-                  <>
-                    <SelectItem value={TUTTI}>Tutte le categorie</SelectItem>
-                    {categorieAttrezzi.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                    <SelectItem value={SENZA}>Senza categoria</SelectItem>
-                  </>
-                ) : (
-                  <>
-                    <SelectItem value={TUTTI}>Tutti i tipi</SelectItem>
-                    {TIPI_VEICOLO.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                  </>
-                )}
-              </SelectContent>
-            </Select>
+          {/* Da telefono il filtro per tipo lo fanno già i gruppi: una riga in meno. Il bottone delle
+              categorie resta da tablet in su (sotto i 768px il filtro non c'è, il bottone sì). */}
+          <div className="flex gap-2 empty:hidden max-sm:hidden">
+            {!isMobile && (
+              <Select value={filtro} onValueChange={setFiltro}>
+                <SelectTrigger className="sm:w-56" aria-label={vista === "attrezzatura" ? "Filtra per categoria" : "Filtra per tipo"}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {vista === "attrezzatura" ? (
+                    <>
+                      <SelectItem value={TUTTI}>Tutte le categorie</SelectItem>
+                      {categorieAttrezzi.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                      <SelectItem value={SENZA}>Senza categoria</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value={TUTTI}>Tutti i tipi</SelectItem>
+                      {TIPI_VEICOLO.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            )}
             {vista === "attrezzatura" && puoModificare && (
               <Button variant="outline" size="icon" className="shrink-0 max-sm:hidden" onClick={() => setGestisciCategorie(true)} aria-label="Gestisci le categorie" title="Gestisci le categorie">
                 <Settings2 className="h-4 w-4" />
               </Button>
             )}
-          </div>}
+          </div>
         </div>
       )}
 
