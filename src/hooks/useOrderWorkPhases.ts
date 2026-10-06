@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { issuedPurchaseOrderNumber } from "@/lib/orders/materialProcurement";
+import { giornoLocale } from "@/lib/orders/cronoprogramma";
 
 export type PhaseStatus = "da_iniziare" | "in_corso" | "completata";
 export type ExecutorType = "interno" | "esterno";
@@ -36,6 +37,8 @@ export interface WorkPhase {
   notes: string | null;
   /** Avanzamento reale 0-100 dichiarato dai rapportini di campo */
   percentuale: number;
+  /** Giorno in cui la fase è stata chiusa («yyyy-MM-dd»), se registrato. */
+  completata_il: string | null;
   assignments: PhaseAssignment[];
 }
 
@@ -58,6 +61,10 @@ export interface PhaseMaterial {
   supplier_id: string | null;
   purchase_price: number | null;
   vat_rate: number | null;
+  /** Prezzo di vendita, sconto di riga e costo standard: fanno il venduto e il costo previsto della fase. */
+  unit_price: number | null;
+  discount_percent: number | null;
+  standard_cost: number | null;
   readiness: MaterialReadiness;
   odaNumber: string | null;
 }
@@ -203,7 +210,7 @@ export interface AddAssignmentPayload {
 }
 
 export function useOrderWorkPhases(orderId: string | null | undefined) {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
   const invalidate = () => refreshWorkQueries(qc, orderId);
@@ -267,6 +274,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         end_date: (p.end_date as string) ?? null,
         notes: (p.notes as string) ?? null,
         percentuale: Number(p.percentuale) || 0,
+        completata_il: p.completata_il ? giornoLocale(p.completata_il as string) : null,
         assignments: all.filter((a) => a.phase_id === p.id),
       }));
 
@@ -323,7 +331,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     queryFn: async () => {
       const { data: items, error } = await db
         .from("order_items")
-        .select("id, name, quantity, phase_id, stock_item_id, supplier_id, purchase_price, vat_rate")
+        .select("id, name, quantity, phase_id, stock_item_id, supplier_id, purchase_price, vat_rate, unit_price, discount_percent, standard_cost")
         .eq("order_id", orderId!);
       if (error) throw error;
       const rows = (items ?? []) as Record<string, unknown>[];
@@ -362,6 +370,9 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
           supplier_id: (r.supplier_id as string) ?? null,
           purchase_price: r.purchase_price != null ? Number(r.purchase_price) : null,
           vat_rate: r.vat_rate != null ? Number(r.vat_rate) : null,
+          unit_price: r.unit_price != null ? Number(r.unit_price) : null,
+          discount_percent: r.discount_percent != null ? Number(r.discount_percent) : null,
+          standard_cost: r.standard_cost != null ? Number(r.standard_cost) : null,
           readiness,
           odaNumber: covered ? (odaByItem.get(id) ?? null) : null,
         };
@@ -418,9 +429,17 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     // solo salire dai rapportini (Math.max) e un 100 digitato per errore
     // restava per sempre — l'unico rimedio era SQL diretto.
     mutationFn: async ({ id, ...patch }: { id: string } & Partial<Pick<WorkPhase, "name" | "status" | "start_date" | "end_date" | "notes" | "position" | "percentuale">>) => {
+      // Chi chiude una fase dall'ufficio ne registra il giorno, come l'app di
+      // campo (CampoAvanzamento): è la fine reale del cronoprogramma. Prima
+      // dall'ufficio non si scriveva mai (06/10/2026: 98 fasi, 0 con la data).
+      const chiusura = patch.status === undefined
+        ? {}
+        : patch.status === "completata"
+          ? { completata_il: new Date().toISOString(), completata_da: user?.id ?? null }
+          : { completata_il: null, completata_da: null };
       const { error } = await db
         .from("order_work_phases")
-        .update({ ...patch, updated_at: new Date().toISOString() })
+        .update({ ...patch, ...chiusura, updated_at: new Date().toISOString() })
         .eq("id", id);
       if (error) throw error;
     },

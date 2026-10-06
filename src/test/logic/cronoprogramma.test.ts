@@ -3,6 +3,7 @@ import {
   avanzamentoComplessivo,
   barra,
   fasiCronoprogramma,
+  giornoLocale,
   intervalloCronoprogramma,
   lavoroRealeFasi,
   tacche,
@@ -19,6 +20,13 @@ const fase = (extra: Partial<FaseInput>): FaseInput => ({
   id: "f1", name: "Demolizioni", status: "da_iniziare", percentuale: 0,
   start_date: "2026-08-03", end_date: "2026-08-10", completata_il: null,
   ...extra,
+});
+
+describe("il giorno di un istante", () => {
+  it("prende il giorno di calendario di un timestamp, e lascia stare una data già pulita", () => {
+    expect(giornoLocale("2026-08-14T12:00:00Z")).toBe("2026-08-14");
+    expect(giornoLocale("non è una data")).toBe("non è una ");
+  });
 });
 
 describe("lavoro reale dai rapportini", () => {
