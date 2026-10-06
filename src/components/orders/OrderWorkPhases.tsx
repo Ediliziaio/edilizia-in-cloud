@@ -36,7 +36,9 @@ import { EconomiaFaseRiga, costoSforato } from "./EconomiaFaseRiga";
 import { RiepilogoEconomicoFasi } from "./RiepilogoEconomicoFasi";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { fasiCronoprogramma, giornoLocale, lavoroRealeFasi, type FaseCrono } from "@/lib/orders/cronoprogramma";
-import { TempiFase, testoTempi } from "./TempiFase";
+import { TempiFase, testoTempi, ritardoBreve } from "./TempiFase";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 
 import {
   useOrderWorkPhases,
@@ -238,6 +240,12 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
   const [search, setSearch] = useState("");
   const [showCompleted, setShowCompleted] = useState(false);
   const phaseList = useRef<HTMLDivElement>(null);
+  // Telefono (06/10/2026): in Lavorazioni conteggio e «Aggiungi fasi» su una
+  // riga, ricerca col bottone dei filtri (pannello dal basso), le fasi come
+  // righe e le completate in fondo. Sotto i 768px, come il resto della commessa.
+  const isMobile = useIsMobile();
+  const telefono = isMobile && view === "lavorazioni";
+  const [filtriAperti, setFiltriAperti] = useState(false);
   const today = format(new Date(), "yyyy-MM-dd");
   const fasiConSquadra = useMemo(() => new Set(squadre.filter((x) => x.phase_id).map((x) => x.phase_id as string)), [squadre]);
   const summary = summarizeWork(phases, unassigned, today, fasiConSquadra);
@@ -300,7 +308,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
             {/* Tre cose sole, sempre nello stesso ordine: le fasi, chi lavora,
                 e (a parte) persone e ditte con i costi. */}
             {canEditOrders && showWork && (
-              <Button size="sm" className="border border-orange-700 bg-orange-700 px-4 font-semibold text-white shadow-sm hover:bg-orange-800 max-sm:min-h-11 max-sm:flex-1" onClick={() => setNewPhaseOpen(true)}>
+              <Button size="sm" className={cn("border border-orange-700 bg-orange-700 px-4 font-semibold text-white shadow-sm hover:bg-orange-800 max-sm:flex-1", telefono ? "tap-compact h-9" : "max-sm:min-h-11")} onClick={() => setNewPhaseOpen(true)}>
                 <ListPlus className="mr-1 h-4 w-4" />Aggiungi fasi
               </Button>
             )}
@@ -435,8 +443,10 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
   ) : null;
 
   return (
-    <Card className="shadow-none">
-      <CardHeader className={cn("gap-3 p-3", view ? "sm:px-4 sm:pb-2 sm:pt-3" : "sm:p-6")}>
+    // Da telefono niente riquadro attorno: le fasi sono già righe-riquadro
+    // (niente card dentro card), e la larghezza va alle fasi.
+    <Card className={cn("shadow-none", telefono && "border-0 bg-transparent")}>
+      <CardHeader className={cn("gap-3", telefono ? "p-0 pb-2" : "p-3", view ? "sm:px-4 sm:pb-2 sm:pt-3" : "sm:p-6")}>
         <div className={cn("flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between", view && "contents")}>
           {/* Dentro le schede della commessa il titolo ripeterebbe la scheda stessa
               e la sua descrizione: resta solo per chi usa uno screen reader. */}
@@ -457,7 +467,10 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
             lavorazioni, e i collegamenti ad app e rapportini. */}
         {(view || (!isLoading && !isError)) && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
-            {!isLoading && !isError && <span className="tabular-nums">
+            {telefono ? (!isLoading && !isError && <span className="min-w-0 shrink-0 tabular-nums">
+              <b className="font-semibold text-slate-900">{phases.length}</b> {phases.length === 1 ? "fase" : "fasi"}
+              {summary.active > 0 && <> · {summary.active} in corso</>}
+            </span>) : !isLoading && !isError && <span className="tabular-nums">
               <b className="font-semibold text-slate-900">{phases.length}</b> {phases.length === 1 ? "fase" : "fasi"}
               {summary.active > 0 && <> ({summary.active} in corso)</>}
               {(!view || squadreAttive.length > 0) && <>{" · "}<b className="font-semibold text-slate-900">{squadreAttive.length}</b> {squadreAttive.length === 1 ? "squadra" : "squadre"}</>}
@@ -466,9 +479,11 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
               {summary.teams > 0 && <> · <b className="font-semibold text-slate-900">{summary.teams}</b> {summary.teams === 1 ? "ditta" : "ditte"}</>}
               {(!view || note.length > 0) && <>{" · "}<b className="font-semibold text-slate-900">{note.length}</b> {note.length === 1 ? "nota" : "note"}</>}
             </span>}
-            <span className="flex flex-wrap items-center gap-1.5 sm:ml-auto max-sm:w-full">
-              {onOpenReports && <Button variant="ghost" size="sm" className="h-8" aria-label="Vai ai rapportini" onClick={onOpenReports}>Rapportini</Button>}
-              {showWork && summary.attention > 0 && <Button variant="ghost" size="sm" className="h-8 text-amber-700" onClick={() => {
+            <span className={cn("flex flex-wrap items-center gap-1.5 sm:ml-auto", telefono ? "min-w-0 flex-1 justify-end" : "max-sm:w-full")}>
+              {/* Da telefono i rapportini sono nella vista Diario e le fasi da
+                  organizzare nei filtri: qui resta solo «Aggiungi fasi». */}
+              {!telefono && onOpenReports && <Button variant="ghost" size="sm" className="h-8" aria-label="Vai ai rapportini" onClick={onOpenReports}>Rapportini</Button>}
+              {!telefono && showWork && summary.attention > 0 && <Button variant="ghost" size="sm" className="h-8 text-amber-700" onClick={() => {
                 setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}><AlertTriangle className="mr-1.5 h-4 w-4" />Verifica {summary.attention} lavorazioni</Button>}
               {view && azioniCommessa}
@@ -494,7 +509,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
         )}
       </CardHeader>
 
-      <CardContent className={cn("px-3 pb-3", view ? "space-y-3 sm:px-4 sm:pb-4" : "space-y-5 sm:px-6 sm:pb-6")}>
+      <CardContent className={cn(telefono ? "space-y-2 px-0 pb-0" : "px-3 pb-3", !telefono && (view ? "space-y-3 sm:px-4 sm:pb-4" : "space-y-5 sm:px-6 sm:pb-6"))}>
         {/* Dove si trova, quanta strada dalla sede, mezzi e attrezzi */}
         {showTeam && <CantiereLogistica orderId={orderId} showSiteEquipment={view !== "squadra"} />}
 
@@ -556,7 +571,15 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
           <>
             {/* Una riga sola (06/10/2026): titolo, filtri, ricerca e completate
                 stavano su quattro righe, con tanto spazio vuoto. */}
-            <div className="flex flex-wrap items-center gap-2">
+            {telefono ? (mostraFiltri || summary.attention > 0) && (
+              <CercaConFiltri
+                valore={search}
+                onCambia={setSearch}
+                segnaposto="Cerca una lavorazione"
+                filtriAttivi={filter !== "all" ? 1 : 0}
+                onApriFiltri={() => setFiltriAperti(true)}
+              />
+            ) : <div className="flex flex-wrap items-center gap-2">
               <h3 className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Fasi di lavoro</h3>
               {mostraFiltri && <div className="flex flex-wrap gap-1" aria-label="Filtra lavorazioni">
                 {([["all", "Tutte"], ["in_corso", "In corso"], ["da_iniziare", "Da iniziare"], ["attention", "Da organizzare"], ["completata", "Completate"]] as const).map(([value, label]) =>
@@ -564,7 +587,25 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
               </div>}
               {mostraFiltri && <div className="relative min-w-[12rem] flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="h-9 pl-9" aria-label="Cerca lavorazione" placeholder="Cerca una lavorazione…" value={search} onChange={e => setSearch(e.target.value)} /></div>}
               {view && groupCompleted && completedCount > 0 && <Button variant="outline" size="sm" className={cn("h-8", !mostraFiltri && "ml-auto")} aria-expanded={showCompleted} onClick={() => setShowCompleted(value => !value)}>{showCompleted ? "Nascondi" : "Mostra"} {completedCount} {completedCount === 1 ? "fase completata" : "fasi completate"}</Button>}
-            </div>
+            </div>}
+            {telefono && (
+              <PannelloFiltri
+                aperto={filtriAperti}
+                onAperto={setFiltriAperti}
+                attivi={filter !== "all" ? 1 : 0}
+                onAzzera={() => setFilter("all")}
+                risultati={visiblePhases.length}
+                titolo="Lavorazioni"
+              >
+                <PilloleFiltro<WorkFilter>
+                  titolo="Mostra"
+                  valore={filter}
+                  onScegli={setFilter}
+                  scelte={([["all", "Tutte"], ["in_corso", "In corso"], ["da_iniziare", "Da iniziare"], ["attention", "Da organizzare"], ["completata", "Completate"]] as const)
+                    .map(([value, label]) => ({ value, label, n: phases.filter((p) => matchesWorkFilter(p, value, today, fasiConSquadra)).length }))}
+                />
+              </PannelloFiltri>
+            )}
             {phases.length > 0 && visiblePhases.length === 0 && <p role="status" className="py-3 text-sm text-muted-foreground">{view && groupCompleted && completedCount > 0 && !showCompleted ? "Le lavorazioni sono completate. Verifica eventuali attività aperte e il collaudo prima della consegna." : "Nessuna lavorazione corrisponde ai filtri."}</p>}
             {visiblePhases.map((phase) => (
               <PhaseCard
@@ -600,6 +641,12 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
                 fasiOpzioni={phaseOptions}
               />
             ))}
+            {/* Da telefono le completate si aprono in fondo, dopo quelle da fare */}
+            {telefono && view && groupCompleted && completedCount > 0 && (
+              <Button variant="ghost" size="sm" className="tap-compact h-9 w-full text-slate-600" aria-expanded={showCompleted} onClick={() => setShowCompleted(value => !value)}>
+                {showCompleted ? "Nascondi le completate" : `Mostra ${completedCount} ${completedCount === 1 ? "fase completata" : "fasi completate"}`}
+              </Button>
+            )}
 
           </>
         )}
@@ -759,6 +806,7 @@ function PhaseCard({
   const [progressDraft, setProgressDraft] = useState("");
   // Aperta di default solo se i lavori sono in corso: è la fase su cui si opera
   const [open, setOpen] = useState(() => phase.status === "in_corso");
+  const isMobile = useIsMobile();
 
   const meta = statusMeta(phase.status);
 
@@ -815,6 +863,61 @@ function PhaseCard({
     }
   };
 
+  const campoNome = (classe: string) => (
+    <Input
+      autoFocus
+      value={nameDraft}
+      aria-label={`Nome della fase ${phase.name}`}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => setNameDraft(e.target.value)}
+      onBlur={commitName}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commitName();
+        } else if (e.key === "Escape") {
+          setNameDraft(phase.name);
+          setEditingName(false);
+        }
+      }}
+      className={classe}
+    />
+  );
+  const tendinaStato = (classe: string) => (
+    <Select value={phase.status} onValueChange={(v) => onUpdatePhase({ status: v as PhaseStatus })}>
+      <SelectTrigger className={classe} aria-label={`Stato di ${phase.name}`}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {STATUS_OPTIONS.map((s) => (
+          <SelectItem key={s.value} value={s.value}>
+            {s.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+  const menuFase = (classe: string) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className={classe} aria-label={`Altre azioni per ${phase.name}`}>
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => { setNameDraft(phase.name); setEditingName(true); }}>
+          <Pencil className="mr-2 h-4 w-4" />Rinomina
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="text-rose-600 focus:text-rose-700" onSelect={() => setEliminaAperto(true)}>
+          <Trash2 className="mr-2 h-4 w-4" />Elimina fase
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+  const actualPct = phase.status === "completata" ? 100 : phase.percentuale;
+  const pctInRitardo = !!health && Number(health.delta_pct) < 0 && phase.status !== "completata";
+
   return (
     <Card
       className={cn(
@@ -827,7 +930,48 @@ function PhaseCard({
             : "border-l-slate-200",
       )}
     >
-      <CardHeader className="gap-3 p-3 sm:p-4">
+      {isMobile && (
+        // Telefono (06/10/2026): la fase è una riga — pallino, nome, date e chi
+        // la fa; a destra avanzamento e ritardo. Stato e menu solo da aperta.
+        <div>
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={`phase-body-${phase.id}`}
+            onClick={() => setOpen((o) => !o)}
+            className="tap-compact flex min-h-[52px] w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
+          >
+            <span aria-hidden="true" className={cn("h-2.5 w-2.5 shrink-0 rounded-full", meta.dot, phase.status === "in_corso" && "animate-pulse")} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-semibold leading-tight">{phase.name}</span>
+              <span className="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground tabular-nums">
+                {plannedDates.start && plannedDates.end
+                  ? `${plannedDates.start}–${plannedDates.end}`
+                  : plannedDates.start ? `dal ${plannedDates.start}` : plannedDates.end ? `entro ${plannedDates.end}` : "senza date"}
+                {" · "}
+                {chiLaFa.length === 0
+                  ? <span className={phase.status !== "completata" ? "text-amber-700" : undefined}>nessuno</span>
+                  : chiLaFa.length === 1 ? chiLaFa[0].nome : `${chiLaFa[0].nome} +${chiLaFa.length - 1}`}
+              </span>
+            </span>
+            <span className="shrink-0 text-right">
+              <span className={cn("block text-[13px] font-semibold leading-tight tabular-nums", pctInRitardo ? "text-rose-600" : "text-slate-900")}>{actualPct}%</span>
+              {(() => {
+                const r = tempi ? ritardoBreve(tempi, oggi) : null;
+                return r ? <span className={cn("mt-0.5 block text-[11px] font-medium leading-tight", r.tono === "rosso" ? "text-rose-600" : "text-amber-700")}>{r.testo}</span> : null;
+              })()}
+            </span>
+            <ChevronDown aria-hidden="true" className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+          </button>
+          {open && canEditOrders && (
+            <div className="flex items-center gap-2 px-3 pb-1">
+              {editingName ? campoNome("h-9 min-w-0 flex-1") : tendinaStato("tap-compact h-9 min-w-0 flex-1")}
+              {menuFase("tap-compact h-9 w-9 shrink-0 text-muted-foreground")}
+            </div>
+          )}
+        </div>
+      )}
+      {!isMobile && <CardHeader className="gap-3 p-3 sm:p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           {/* Zona cliccabile: apre/chiude la fase (accordion fatto a mano:
               i controlli interattivi restano fuori, a destra) */}
@@ -851,23 +995,7 @@ function PhaseCard({
             />
 
             {editingName ? (
-              <Input
-                autoFocus
-                value={nameDraft}
-                onClick={(e) => e.stopPropagation()}
-                onChange={(e) => setNameDraft(e.target.value)}
-                onBlur={commitName}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    commitName();
-                  } else if (e.key === "Escape") {
-                    setNameDraft(phase.name);
-                    setEditingName(false);
-                  }
-                }}
-                className="h-8 max-w-xs"
-              />
+              campoNome("h-8 max-w-xs")
             ) : (
               <button type="button" className="min-w-0 break-words text-left font-semibold hover:underline" aria-expanded={open} aria-controls={`phase-body-${phase.id}`} onClick={() => setOpen(o => !o)}>{phase.name}</button>
             )}
@@ -882,9 +1010,7 @@ function PhaseCard({
             {/* Avanzamento reale dichiarato dai rapportini + atteso a oggi:
                 barra piccola sempre visibile, "atteso X%" rosso se in ritardo */}
             {(open || phase.status !== "completata") && (() => {
-              const actualPct = phase.status === "completata" ? 100 : phase.percentuale;
-              const inRitardo =
-                !!health && Number(health.delta_pct) < 0 && phase.status !== "completata";
+              const inRitardo = pctInRitardo;
               return (
                 <span className="flex shrink-0 items-center gap-1.5">
                   <span className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
@@ -965,38 +1091,9 @@ function PhaseCard({
             className="flex flex-wrap items-center gap-2"
             onClick={(e) => e.stopPropagation()}
           >
-            {open && <Select
-              value={phase.status}
-              onValueChange={(v) => onUpdatePhase({ status: v as PhaseStatus })}
-            >
-              <SelectTrigger className="h-8 w-[140px]" aria-label={`Stato di ${phase.name}`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_OPTIONS.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>}
+            {open && tendinaStato("h-8 w-[140px]")}
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" aria-label={`Altre azioni per ${phase.name}`}>
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => { setNameDraft(phase.name); setEditingName(true); }}>
-                  <Pencil className="mr-2 h-4 w-4" />Rinomina
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-rose-600 focus:text-rose-700" onSelect={() => setEliminaAperto(true)}>
-                  <Trash2 className="mr-2 h-4 w-4" />Elimina fase
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {menuFase("h-8 w-8 text-muted-foreground")}
 
             <AlertDialog open={eliminaAperto} onOpenChange={setEliminaAperto}>
               <AlertDialogContent>
@@ -1016,7 +1113,27 @@ function PhaseCard({
             </AlertDialog>
           </div>}
         </div>
-      </CardHeader>
+      </CardHeader>}
+
+      {/* Da telefono la conferma serve fuori dalla testata del computer */}
+      {isMobile && (
+        <AlertDialog open={eliminaAperto} onOpenChange={setEliminaAperto}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Eliminare «{phase.name}»?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Persone, ditte e materiali restano nella commessa, senza fase; le squadre e le note di questa fase se ne vanno con lei.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogAction className="bg-rose-600 hover:bg-rose-700" onClick={onDeletePhase}>
+                Elimina
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
       {/* Corpo collassabile: esecutori + materiali */}
       <AnimatePresence initial={false}>
@@ -1029,14 +1146,14 @@ function PhaseCard({
             transition={{ duration: 0.22, ease: "easeOut" }}
             className="overflow-hidden"
           >
-            <CardContent id={`phase-body-${phase.id}`} className="space-y-4 px-3 pb-4 pt-0 sm:px-4">
+            <CardContent id={`phase-body-${phase.id}`} className={cn("px-3 sm:px-4", isMobile ? "space-y-3 pb-3 pt-2" : "space-y-4 pb-4 pt-0")}>
               {/* ── Quando ── */}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:w-full">
+                <span className="w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
                   Quando
                 </span>
-                <label className="flex items-center gap-1 text-xs text-muted-foreground">
-                  dal
+                <label className="flex items-center gap-1 text-xs text-muted-foreground max-sm:min-w-0 max-sm:flex-1">
+                  <span className="max-sm:hidden">dal</span>
                   <Input
                     type="date"
                     disabled={!canEditOrders}
@@ -1047,12 +1164,13 @@ function PhaseCard({
                       if (!validWorkDates(value, phase.end_date)) { toast.error("L'inizio non può essere successivo alla fine."); e.target.value = phase.start_date ?? ""; return; }
                       onUpdatePhase({ start_date: value });
                     }}
-                    className="h-8 w-auto text-xs"
+                    className="h-8 w-auto text-xs max-sm:h-9 max-sm:w-full max-sm:min-w-0 max-sm:px-2"
                     aria-label="Data inizio prevista"
                   />
                 </label>
-                <label className="flex items-center gap-1 text-xs text-muted-foreground">
-                  al
+                <span aria-hidden="true" className="text-xs text-muted-foreground sm:hidden">→</span>
+                <label className="flex items-center gap-1 text-xs text-muted-foreground max-sm:min-w-0 max-sm:flex-1">
+                  <span className="max-sm:hidden">al</span>
                   <Input
                     type="date"
                     disabled={!canEditOrders}
@@ -1063,14 +1181,14 @@ function PhaseCard({
                       if (!validWorkDates(phase.start_date, value)) { toast.error("La fine non può precedere l'inizio."); e.target.value = phase.end_date ?? ""; return; }
                       onUpdatePhase({ end_date: value });
                     }}
-                    className="h-8 w-auto text-xs"
+                    className="h-8 w-auto text-xs max-sm:h-9 max-sm:w-full max-sm:min-w-0 max-sm:px-2"
                     aria-label="Data fine prevista"
                   />
                 </label>
                 {/* Di lato alle date: previsti contro reali, fine vera e ritardo */}
-                {tempi && <TempiFase fase={tempi} oggi={oggi} className="sm:ml-1 sm:border-l sm:pl-3" />}
+                {tempi && <TempiFase fase={tempi} oggi={oggi} className="max-sm:basis-full sm:ml-1 sm:border-l sm:pl-3" />}
                 {squadreFase.length > 0 && (
-                  <span className="text-[11px] text-muted-foreground">Le squadre della fase seguono queste date.</span>
+                  <span className="text-[11px] text-muted-foreground max-sm:hidden">Le squadre della fase seguono queste date.</span>
                 )}
               </div>
 
@@ -1089,7 +1207,7 @@ function PhaseCard({
 
               {/* ── Chi la fa: squadre, poi persone e ditte ── */}
               <div className="flex flex-wrap items-start gap-2">
-                <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:w-full max-sm:pt-0">
+                <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
                   Chi la fa
                 </span>
                 <div className="min-w-0 flex-1 space-y-2">
@@ -1102,7 +1220,7 @@ function PhaseCard({
                       phases={allPhases}
                       existingAssignments={allAssignments}
                       triggerLabel="Persona o ditta"
-                      triggerClassName={cn("h-8 rounded-full px-3", AZIONE_TENUE.persona)}
+                      triggerClassName={cn("tap-compact h-8 rounded-full px-3", AZIONE_TENUE.persona)}
                       onAdd={onAddAssignment}
                     />}
                   </div>
@@ -1127,7 +1245,7 @@ function PhaseCard({
               {/* ── Mezzi e attrezzi di chi fa la fase ── */}
               {mezziFase.length > 0 && (
                 <div className="flex flex-wrap items-start gap-2">
-                  <span className="w-24 shrink-0 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:w-full max-sm:pt-0">
+                  <span className="w-24 shrink-0 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
                     Mezzi
                   </span>
                   <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
@@ -1143,7 +1261,7 @@ function PhaseCard({
 
               {/* ── Note per gli operai di questa fase ── */}
               <div className="flex flex-wrap items-start gap-2">
-                <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:w-full max-sm:pt-0">
+                <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
                   Note
                 </span>
                 <div className="min-w-0 flex-1">
@@ -1154,14 +1272,14 @@ function PhaseCard({
               {/* ── Materiali della fase (order_items.phase_id) ── */}
               {(materials.length > 0 || unassignedMaterials.length > 0) && (
                 <div className="flex flex-wrap items-start gap-2">
-                  <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:w-full max-sm:pt-0">
+                  <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
                     Materiali
                   </span>
                   <div className="min-w-0 flex-1 space-y-2">
                   {materials.length > 0 && <div className="divide-y rounded-lg border">
                   {materials.map((m) => (
-                    <div key={m.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5">
-                      <span className="min-w-0 flex-1 break-words text-sm">
+                    <div key={m.id} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1.5">
+                      <span className="min-w-[9rem] flex-1 break-words text-sm max-sm:text-[13px]">
                         {m.name}{" "}
                         <span className="text-xs text-muted-foreground">(x{m.quantity})</span>
                       </span>
@@ -1219,9 +1337,10 @@ function PhaseCard({
                   <div className="flex flex-wrap items-center gap-2">
                     {canEditOrders && <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="h-8">
+                        <Button variant="outline" size="sm" className="tap-compact h-8">
                           <Plus className="mr-1 h-4 w-4" />
-                          Aggiungi materiale
+                          <span className="max-sm:hidden">Aggiungi materiale</span>
+                          <span className="sm:hidden">Materiale</span>
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent align="start" className="w-72 p-1">
@@ -1261,7 +1380,7 @@ function PhaseCard({
                     {materials.length > 0 && (
                       <span
                         className={cn(
-                          "text-xs font-medium tabular-nums",
+                          "text-xs font-medium tabular-nums max-sm:hidden",
                           prontiCount === materials.length ? "text-emerald-600" : "text-amber-600"
                         )}
                       >

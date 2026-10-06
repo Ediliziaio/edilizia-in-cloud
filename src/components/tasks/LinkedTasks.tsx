@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TaskDialog } from "./TaskDialog";
 import { aggiornaAgendaSchede } from "@/lib/opportunitaAgenda";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface LinkedTasksProps {
   orderId?: string;
@@ -56,6 +57,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
   const { effectiveCompany } = useAuth();
   const companyId = propCompanyId || effectiveCompany?.id;
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
@@ -338,6 +340,10 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
           </div>
           {taskList}
         </div>
+      ) : compatta && isMobile && !isLoading && !isError && tasks.length === 0 ? (
+        // Da telefono una sezione vuota non c'è: l'attività si aggiunge
+        // dall'icona in testata alla commessa.
+        null
       ) : compatta ? (
         // Una riga sola: il riquadro grande con «Nessuna attività collegata» al
         // centro era quasi tutto spazio vuoto in cima alle lavorazioni.

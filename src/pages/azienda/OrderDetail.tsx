@@ -1235,6 +1235,75 @@ function OrderDetailInner() {
       .sort()
       .pop() ?? order.work_end_date ?? null;
 
+  const azioniRapide = effectiveCompany?.id ? (
+    <OrderQuickActions
+      inline={isMobile}
+      orderId={id!}
+      orderCode={order.order_code}
+      companyId={effectiveCompany.id}
+      customer={
+        order.customer
+          ? {
+              id: order.customer.id,
+              name:
+                `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() ||
+                "Cliente",
+              phone: order.customer.phone,
+              email: order.customer.email,
+            }
+          : { name: order.client_name || "Cliente", phone: order.client_phone, email: order.client_email }
+      }
+      workAddress={order.work_address}
+      getPdfBlob={getPdfBlobForOrder}
+      paymentDue={(() => {
+        const unpaid = displayInstallments.filter(
+          (i) => !i.is_paid && i.amount > 0,
+        );
+        if (unpaid.length === 0) return null;
+        const next = [...unpaid].sort((a, b) => {
+          const da = a.expected_date
+            ? new Date(a.expected_date).getTime()
+            : Infinity;
+          const db = b.expected_date
+            ? new Date(b.expected_date).getTime()
+            : Infinity;
+          return da - db;
+        })[0];
+        const residuo = unpaid.reduce((s, i) => s + i.amount, 0);
+        return {
+          amount: next?.amount ?? residuo,
+          dueDate: next?.expected_date ?? null,
+          label: next?.label ?? null,
+        };
+      })()}
+      sollecitoRef={sollecitoRef}
+      onCreateTask={permissions.canViewOrders ? () => setTaskDialogOpen(true) : undefined}
+      onApplyPlaybook={permissions.canViewOrders ? handleApplyPlaybook : undefined}
+      onManagePlaybook={permissions.canViewOrders ? () => setPlaybookEditorOpen(true) : undefined}
+      applyingPlaybook={applyingPlaybook}
+      playbookLabel={PLAYBOOK_LABELS[getOrderPlaybook(vertical).key]}
+      onOpenOps={() => setOpsOpen(true)}
+      onOpenFiles={() => setFilesOpen(true)}
+      onOpenNotes={() => setNotesOpen(true)}
+      onOpenFirma={() => setFirmaOpen(true)}
+      onCreateInvoice={permissions.canViewBilling ? () => {
+        if (isNativeBilling && !permissions.solaLettura) setCreaFatturaOpen(true);
+      } : undefined}
+      invoiceDisabled={!isNativeBilling || permissions.solaLettura}
+      invoiceHint={permissions.solaLettura ? "Accesso in sola lettura" : !isNativeBilling ? "Attiva la fatturazione nativa nelle Impostazioni per creare fatture" : "Prepara una fattura collegata alla commessa"}
+      askSilvio={
+        <ChiediASilvio
+          className="h-8 ml-auto"
+          ask={`Analizza la commessa ${order.order_code ? `"${order.order_code}" ` : ""}${
+            order.customer
+              ? `del cliente ${order.customer.first_name} ${order.customer.last_name} `
+              : ""
+          }(${order.description || "senza descrizione"}): stato avanzamento, costi vs preventivo, scadenze, margine e criticità. Cosa devo sapere e quali sono le prossime mosse?`}
+        />
+      }
+    />
+  ) : null;
+
   return (
     // commessa-elevated: ombra più marcata su tutte le Card della pagina (vedi index.css)
     <div id="order-detail-overview" className="commessa-elevated min-h-screen bg-slate-50 scroll-mt-4">
@@ -1258,83 +1327,21 @@ function OrderDetailInner() {
         isGeneratingPDF={pdfPreparing || isGeneratingPDF}
         canEdit={permissions.canEditOrders}
         canDelete={permissions.canEditOrders}
+        azioniTelefono={isMobile ? azioniRapide : undefined}
       />
 
-      {/* ── Azioni rapide: contatta cliente · invia PDF · appuntamento ── */}
-      {effectiveCompany?.id && (
-        <OrderQuickActions
-          orderId={id!}
-          orderCode={order.order_code}
-          companyId={effectiveCompany.id}
-          customer={
-            order.customer
-              ? {
-                  id: order.customer.id,
-                  name:
-                    `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() ||
-                    "Cliente",
-                  phone: order.customer.phone,
-                  email: order.customer.email,
-                }
-              : { name: order.client_name || "Cliente", phone: order.client_phone, email: order.client_email }
-          }
-          workAddress={order.work_address}
-          getPdfBlob={getPdfBlobForOrder}
-          paymentDue={(() => {
-            const unpaid = displayInstallments.filter(
-              (i) => !i.is_paid && i.amount > 0,
-            );
-            if (unpaid.length === 0) return null;
-            const next = [...unpaid].sort((a, b) => {
-              const da = a.expected_date
-                ? new Date(a.expected_date).getTime()
-                : Infinity;
-              const db = b.expected_date
-                ? new Date(b.expected_date).getTime()
-                : Infinity;
-              return da - db;
-            })[0];
-            const residuo = unpaid.reduce((s, i) => s + i.amount, 0);
-            return {
-              amount: next?.amount ?? residuo,
-              dueDate: next?.expected_date ?? null,
-              label: next?.label ?? null,
-            };
-          })()}
-          sollecitoRef={sollecitoRef}
-          onCreateTask={permissions.canViewOrders ? () => setTaskDialogOpen(true) : undefined}
-          onApplyPlaybook={permissions.canViewOrders ? handleApplyPlaybook : undefined}
-          onManagePlaybook={permissions.canViewOrders ? () => setPlaybookEditorOpen(true) : undefined}
-          applyingPlaybook={applyingPlaybook}
-          playbookLabel={PLAYBOOK_LABELS[getOrderPlaybook(vertical).key]}
-          onOpenOps={() => setOpsOpen(true)}
-          onOpenFiles={() => setFilesOpen(true)}
-          onOpenNotes={() => setNotesOpen(true)}
-          onOpenFirma={() => setFirmaOpen(true)}
-          onCreateInvoice={permissions.canViewBilling ? () => {
-            if (isNativeBilling && !permissions.solaLettura) setCreaFatturaOpen(true);
-          } : undefined}
-          invoiceDisabled={!isNativeBilling || permissions.solaLettura}
-          invoiceHint={permissions.solaLettura ? "Accesso in sola lettura" : !isNativeBilling ? "Attiva la fatturazione nativa nelle Impostazioni per creare fatture" : "Prepara una fattura collegata alla commessa"}
-          askSilvio={
-            <ChiediASilvio
-              className="h-8 ml-auto"
-              ask={`Analizza la commessa ${order.order_code ? `"${order.order_code}" ` : ""}${
-                order.customer
-                  ? `del cliente ${order.customer.first_name} ${order.customer.last_name} `
-                  : ""
-              }(${order.description || "senza descrizione"}): stato avanzamento, costi vs preventivo, scadenze, margine e criticità. Cosa devo sapere e quali sono le prossime mosse?`}
-            />
-          }
-        />
-      )}
+      {/* ── Azioni rapide: contatta cliente · invia PDF · appuntamento ──
+          Da telefono stanno, solo icone, nella fila di «Registra incasso». */}
+      {!isMobile && azioniRapide}
 
-      <div className="px-3 sm:px-6 py-3 sm:py-6 space-y-3 sm:space-y-6">
+      {/* Da telefono niente px-3: <main> ha già il suo margine (prima i riquadri
+          stavano a 24px dal bordo dello schermo). */}
+      <div className="px-0 py-2 sm:px-6 sm:py-6 space-y-3 sm:space-y-6">
         <OrderHeaderSummary
           compact={activeTab !== "panoramica"}
           riepilogo={
-            <span className="flex flex-wrap items-baseline gap-x-5 gap-y-0.5 text-sm font-semibold">
-              <VoceRiepilogo etichetta="Stato">
+            <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm font-semibold max-sm:text-[13px] sm:gap-x-5">
+              <VoceRiepilogo etichetta="Stato" senzaEtichettaMobile>
                 <span className="inline-flex items-center gap-1.5">
                   <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: statuses.find(status => status.id === order.current_status_id)?.color || "#64748b" }} />
                   {statuses.find(status => status.id === order.current_status_id)?.name || "Stato non impostato"}
@@ -2096,7 +2103,7 @@ function OrderDetailInner() {
           </TabsContent>
 
           {/* Un solo percorso operativo su desktop e mobile. Nessuna duplicazione dei dati. */}
-          <TabsContent value="cantiere" className="space-y-4 mt-4">
+          <TabsContent value="cantiere" className="mt-2 space-y-3 sm:mt-4 sm:space-y-4">
             <div id="cantiere-workspace" className="scroll-mt-24">
               <CantiereViewNav
                 value={vistaCantiere}
@@ -2105,7 +2112,8 @@ function OrderDetailInner() {
               />
             </div>
             {(vistaCantiere === "lavorazioni" || vistaCantiere === "squadra") && <>
-            {vistaCantiere === "lavorazioni" && <div id="section-attivita" className="scroll-mt-24">
+            {/* empty:hidden: da telefono, senza attività, il riquadro non c'è e non lascia il margine */}
+            {vistaCantiere === "lavorazioni" && <div id="section-attivita" className="scroll-mt-24 empty:hidden">
               <LinkedTasks orderId={id} category="ordini" compatta />
             </div>}
             <div id={vistaCantiere === "squadra" ? "section-squadra" : "section-lavorazioni"} className="scroll-mt-24">

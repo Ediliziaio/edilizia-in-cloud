@@ -375,7 +375,7 @@ export function SquadreFase({
       {modificabile && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="outline" className={cn("h-8 gap-1 rounded-full px-3", AZIONE_TENUE.squadra)} disabled={metti.isPending}>
+            <Button size="sm" variant="outline" className={cn("tap-compact h-8 gap-1 rounded-full px-3", AZIONE_TENUE.squadra)} disabled={metti.isPending}>
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />Squadra
             </Button>
           </DropdownMenuTrigger>

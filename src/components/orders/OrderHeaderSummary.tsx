@@ -22,7 +22,7 @@ export function OrderHeaderSummary({
 }) {
   if (!compact) return <>{children}</>;
   return <details className="group/header-summary rounded-lg border border-slate-200 bg-white">
-    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-1.5 text-xs font-semibold text-blue-950 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600 [&::-webkit-details-marker]:hidden">
+    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-1.5 max-sm:min-h-10 max-sm:py-1 text-xs font-semibold text-blue-950 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600 [&::-webkit-details-marker]:hidden">
       {riepilogo ? <>
         <span className="min-w-0 flex-1">{riepilogo}</span>
         <span className="flex shrink-0 items-center gap-1 text-slate-500">
