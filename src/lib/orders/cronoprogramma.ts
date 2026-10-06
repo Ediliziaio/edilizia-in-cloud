@@ -56,7 +56,7 @@ export interface FaseCrono {
   ore: number;
 }
 
-export type TipoTraguardo = "contratto" | "inizio_lavori" | "fine_lavori" | "consegna";
+export type TipoTraguardo = "contratto" | "apertura" | "inizio_lavori" | "fine_lavori" | "consegna";
 
 export interface Traguardo {
   tipo: TipoTraguardo;
@@ -160,9 +160,21 @@ export function fasiCronoprogramma(
 }
 
 /**
- * I traguardi della commessa: il contratto (la firma del preventivo collegato,
- * altrimenti l'apertura della commessa, detta così), e se ci sono inizio e
- * fine lavori previsti e consegna.
+ * Il ritardo da mostrare per una fase. Conta la fine: chiusa dopo la fine
+ * prevista, o ancora aperta con la fine prevista passata. Una fase chiusa in
+ * tempo non è in ritardo anche se è partita tardi. Per una fase aperta con la
+ * fine ancora davanti si segnala l'inizio mancato o tardivo, a parte.
+ */
+export function ritardoFase(f: Pick<FaseCrono, "stato" | "ritardoInizio" | "ritardoFine">): { giorni: number; su: "fine" | "inizio" } | null {
+  if (f.ritardoFine > 0) return { giorni: f.ritardoFine, su: "fine" };
+  if (f.stato !== "completata" && f.ritardoInizio > 0) return { giorni: f.ritardoInizio, su: "inizio" };
+  return null;
+}
+
+/**
+ * I traguardi della commessa: il contratto (la firma del preventivo collegato;
+ * senza firma l'apertura della commessa, che si chiama così e non «contratto»),
+ * e se ci sono inizio e fine lavori previsti e consegna.
  */
 export function traguardiCommessa(input: {
   firmaPreventivo: string | null;
@@ -174,7 +186,7 @@ export function traguardiCommessa(input: {
   const traguardi: Traguardo[] = [
     input.firmaPreventivo
       ? { tipo: "contratto", data: input.firmaPreventivo, etichetta: "Contratto firmato" }
-      : { tipo: "contratto", data: input.aperturaCommessa, etichetta: "Commessa aperta" },
+      : { tipo: "apertura", data: input.aperturaCommessa, etichetta: "Commessa aperta" },
   ];
   if (input.inizioLavori) traguardi.push({ tipo: "inizio_lavori", data: input.inizioLavori, etichetta: "Inizio lavori previsto" });
   if (input.fineLavori) traguardi.push({ tipo: "fine_lavori", data: input.fineLavori, etichetta: "Fine lavori prevista" });
@@ -222,27 +234,13 @@ export function tacche(asse: Asse): Array<{ data: string; left: number; mese: bo
 }
 
 /**
- * Avanzamento della commessa: la media delle fasi pesata sul venduto se tutte
- * le fasi ne hanno, sulla durata prevista se tutte hanno le date, altrimenti
- * in parti uguali. Un peso che manca a qualche fase la farebbe sparire dal
- * conto: meglio un peso più grezzo per tutte.
+ * Avanzamento della commessa: la media delle percentuali delle fasi, una fase
+ * completata vale 100. È lo stesso conto della testata della commessa
+ * («Avanzamento» sotto lo stato), che alimenta anche eseguito-contro-incassato
+ * e la proiezione del margine: due numeri diversi sulla stessa pagina
+ * sembrerebbero un errore.
  */
-export function avanzamentoComplessivo(
-  fasi: ReadonlyArray<FaseCrono>,
-  venduto?: ReadonlyMap<string, number>,
-): { pct: number; peso: "venduto" | "durata" | "uguale" } {
-  if (fasi.length === 0) return { pct: 0, peso: "uguale" };
-  const perVenduto = fasi.map((f) => Math.max(0, venduto?.get(f.id) ?? 0));
-  const perDurata = fasi.map((f) =>
-    f.previstoInizio && f.previstoFine ? Math.max(1, giorniTra(f.previstoInizio, f.previstoFine) + 1) : 0,
-  );
-  const tutti = (pesi: number[]) => pesi.every((p) => p > 0);
-  const [pesi, peso] = tutti(perVenduto)
-    ? [perVenduto, "venduto" as const]
-    : tutti(perDurata)
-      ? [perDurata, "durata" as const]
-      : [fasi.map(() => 1), "uguale" as const];
-  const totale = pesi.reduce((s, p) => s + p, 0);
-  const somma = fasi.reduce((s, f, i) => s + f.avanzamento * pesi[i], 0);
-  return { pct: Math.round(somma / totale), peso };
+export function avanzamentoComplessivo(fasi: ReadonlyArray<Pick<FaseCrono, "avanzamento">>): number {
+  if (fasi.length === 0) return 0;
+  return Math.round(fasi.reduce((s, f) => s + f.avanzamento, 0) / fasi.length);
 }
