@@ -35,6 +35,23 @@ export function indirizziUguali(cliente: Indirizzo, lavori: Indirizzo): boolean 
   return CAMPI_INDIRIZZO.every((c) => norma(lavori[c]) === "" || norma(lavori[c]) === norma(cliente[c]));
 }
 
+/**
+ * Uguali campo per campo e con qualcosa di scritto: qui «vuoto» NON vale come uguale. Serve dove un cantiere vuoto
+ * è un cantiere ancora da scrivere (i preventivi edili), non un «stesso indirizzo» come nei serramenti.
+ */
+export function indirizziUgualiStretti(a: Indirizzo, b: Indirizzo): boolean {
+  return !indirizzoVuoto(a) && CAMPI_INDIRIZZO.every((c) => norma(a[c]) === norma(b[c]));
+}
+
+/**
+ * Il valore da scrivere in un campo del preventivo copiandolo da un altro indirizzo: vuoto = null, la provincia
+ * sempre in maiuscolo (l'elenco filtra per sigle esatte; un contatto del CRM può averla scritta «mi»).
+ */
+export function valoreDaCopiare(campo: CampoIndirizzo, valore: string | null | undefined): string | null {
+  if (valore == null || valore === "") return null;
+  return campo === "provincia" ? valore.toUpperCase() : valore;
+}
+
 /** Vero se nel preventivo i lavori sono altrove (almeno un campo scritto e diverso da quello del cliente). */
 export const lavoriDiversiDalCliente = (p: object): boolean =>
   !indirizziUguali(leggiIndirizzo(p, "cliente"), leggiIndirizzo(p, "cantiere"));

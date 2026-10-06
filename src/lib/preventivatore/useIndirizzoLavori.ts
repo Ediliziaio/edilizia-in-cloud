@@ -4,7 +4,7 @@
  * copia intera (via, città, CAP, provincia), così l'elenco, la commessa e l'assistente trovano sempre un luogo
  * senza che nessuno debba ricopiarlo. «Altrove» si sceglie solo quando i lavori sono in un altro posto: i campi si
  * aprono vuoti (niente CAP del cliente rimasto per sbaglio) e non seguono più il cliente. Se ci si ripensa
- * l'indirizzo scritto non si perde: tornando ad «altrove» ricompare.
+ * l'indirizzo scritto non si perde, finché si resta nel passo: tornando ad «altrove» ricompare.
  *
  * La copia la fanno i gestori dei campi, non un effetto: nello stesso gesto che cambia il cliente cambiano anche i
  * lavori, quindi a ogni disegno lo schermo è coerente (niente istante in cui i lavori sembrano «diversi» solo
@@ -19,6 +19,7 @@ import {
   indirizziUguali,
   leggiIndirizzo,
   testoIndirizzo,
+  valoreDaCopiare,
   type CampoIndirizzo,
   type Indirizzo,
 } from "@/lib/preventivatore/indirizzoLavori";
@@ -43,7 +44,8 @@ export function useIndirizzoLavori(
 
   const copiaNeiLavori = (da: Indirizzo) => {
     for (const c of CAMPI_INDIRIZZO) {
-      if ((lavori[c] ?? null) !== (da[c] ?? null)) scrivi(`cantiere_${c}`, da[c] ?? null);
+      const valore = valoreDaCopiare(c, da[c]);
+      if ((lavori[c] ?? null) !== valore) scrivi(`cantiere_${c}`, valore);
     }
   };
 

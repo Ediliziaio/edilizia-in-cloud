@@ -217,7 +217,7 @@ export function anteprimaSerramenti(
   ].filter(Boolean).join(" · ");
 
   const tipo = (progetto.tipo_intervento as SrTipoIntervento | undefined) ?? "sostituzione";
-  // I lavori allo stesso indirizzo del cliente non ripetono la riga (come il PDF): resta solo il piano.
+  // I lavori allo stesso indirizzo del cliente non ripetono la riga (come il PDF): se c'è il piano resta «stesso indirizzo · piano 3».
   const piano = progetto.cantiere_piano ? `piano ${progetto.cantiere_piano}` : null;
   const cantiere = lavoriDiversiDalCliente(progetto)
     ? compattaIndirizzo(

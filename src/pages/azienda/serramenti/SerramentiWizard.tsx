@@ -2,8 +2,8 @@
  * SerramentiWizard — wizard a 8 step per la creazione/modifica di un preventivo.
  *
  * STEP:
- *  1. Cliente            — anagrafica
- *  2. Immobile           — cantiere, vincoli, tipo intervento
+ *  1. Cliente            — anagrafica, indirizzo del cliente e dei lavori (di serie lo stesso)
+ *  2. Immobile           — tipo intervento, piano (+ esigenze e contenuti del PDF)
  *  3. Esigenze           — 3 pain bullets (default da template)
  *  4. Serramenti (BOM)   — composizione, materiale, vetro, misure
  *  5. Accessori          — avvolgibili, cassonetti, zanzariere

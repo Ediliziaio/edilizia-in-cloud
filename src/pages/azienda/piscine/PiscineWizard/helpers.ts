@@ -63,7 +63,8 @@ export function stepCompletion(
   return {
     cliente: Boolean(p.cliente_id || p.cliente_nome || p.cliente_cognome),
     immobile: Boolean(
-      p.cantiere_indirizzo || p.cantiere_citta || p.immobile_tipo || p.tipo_intervento,
+      // L'indirizzo dei lavori sta nel passo Cliente: qui restano il tipo di intervento e i dati dell'immobile.
+      p.immobile_tipo || p.tipo_intervento,
     ),
     computo: righe.length > 0,
     media: false, // i media sono opzionali: completezza gestita nello StepMedia

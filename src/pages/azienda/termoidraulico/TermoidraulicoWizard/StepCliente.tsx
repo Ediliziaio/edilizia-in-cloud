@@ -27,6 +27,8 @@ import {
 import { User, Users, Mail, Phone, X, Check, Briefcase } from "lucide-react";
 import type { IdrProgetto } from "@/types/termoidraulico";
 import type { IdrFormPatch } from "./types";
+import { IndirizzoDeiLavori } from "@/components/preventivatore/IndirizzoDeiLavori";
+import { useIndirizzoLavoriEdile } from "@/lib/preventivatore/useIndirizzoLavoriEdile";
 
 interface ContactLite {
   id: string;
@@ -34,6 +36,10 @@ interface ContactLite {
   last_name: string | null;
   email: string | null;
   phone: string | null;
+  address: string | null;
+  city: string | null;
+  province: string | null;
+  postal_code: string | null;
 }
 
 interface OpportunityLite {
@@ -56,6 +62,8 @@ export default function StepCliente({ form, onChange }: Props) {
   const [oppPickerOpen, setOppPickerOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [oppSearch, setOppSearch] = useState("");
+  // Dove si fanno i lavori: se il contatto del CRM ha un indirizzo, di serie lo stesso. Sta qui e non più in «Immobile».
+  const indirizzo = useIndirizzoLavoriEdile(form, (chiave, valore) => onChange(chiave, valore), { contattoId: form.cliente_id, nuovo: !form.id });
 
   const { data: contacts = [] } = useQuery({
     queryKey: ["idr-contact-picker", companyId, contactSearch],
@@ -63,7 +71,7 @@ export default function StepCliente({ form, onChange }: Props) {
     queryFn: async (): Promise<ContactLite[]> => {
       let query = supabase
         .from("marketing_contacts")
-        .select("id, first_name, last_name, email, phone")
+        .select("id, first_name, last_name, email, phone, address, city, province, postal_code")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .limit(20);
@@ -97,6 +105,7 @@ export default function StepCliente({ form, onChange }: Props) {
     onChange("cliente_cognome", c.last_name);
     onChange("cliente_email", c.email);
     onChange("cliente_telefono", c.phone);
+    indirizzo.dalContatto(c.id, { indirizzo: c.address, citta: c.city, cap: c.postal_code, provincia: c.province });
     setContactPickerOpen(false);
   };
 
@@ -230,6 +239,18 @@ export default function StepCliente({ form, onChange }: Props) {
             />
           </div>
         </div>
+
+        {/* Indirizzo dei lavori: la spunta «stesso indirizzo del contatto» c'è solo se il contatto ne ha uno. */}
+        <IndirizzoDeiLavori
+          className="max-sm:order-4 max-sm:col-span-2"
+          conSpunta={indirizzo.conSpunta}
+          etichettaUguale="Lavori allo stesso indirizzo del contatto"
+          altrove={indirizzo.altrove}
+          onAltrove={indirizzo.scegliAltrove}
+          lavori={indirizzo.lavori}
+          riassunto={indirizzo.riassunto}
+          onScrivi={indirizzo.scriviLavori}
+        />
 
         {/* Collegamento opportunità CRM */}
         <div className="rounded-md border border-dashed border-slate-200 bg-slate-50/40 px-3 py-2.5 max-sm:order-2 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">

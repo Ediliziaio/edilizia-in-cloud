@@ -146,8 +146,8 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
     },
     {
       ok: !!(progetto.cantiere_indirizzo || progetto.cantiere_citta),
-      label: "Indirizzo cantiere",
-      hint: !(progetto.cantiere_indirizzo || progetto.cantiere_citta) ? "Aggiungilo nello step Immobile" : undefined,
+      label: "Indirizzo dei lavori",
+      hint: !(progetto.cantiere_indirizzo || progetto.cantiere_citta) ? "Aggiungilo nello step Cliente" : undefined,
     },
     {
       ok: !computoVuoto,
@@ -174,7 +174,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
   // Telefono: al posto della checklist, una riga con quello che manca davvero.
   const mancano: { etichetta: string; passo: PassoDaCompletare }[] = [];
   if (!(progetto.cliente_nome || progetto.cliente_cognome)) mancano.push({ etichetta: "cliente", passo: "cliente" });
-  if (!(progetto.cantiere_indirizzo || progetto.cantiere_citta)) mancano.push({ etichetta: "indirizzo del cantiere", passo: "immobile" });
+  if (!(progetto.cantiere_indirizzo || progetto.cantiere_citta)) mancano.push({ etichetta: "indirizzo dei lavori", passo: "cliente" });
   if (computoVuoto) mancano.push({ etichetta: "voci del computo", passo: "computo" });
   else if (totali.totale <= 0) mancano.push({ etichetta: "prezzi del computo", passo: "computo" });
 

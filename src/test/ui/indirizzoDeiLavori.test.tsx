@@ -86,6 +86,14 @@ describe("Indirizzo dei lavori: stesso indirizzo del cliente", () => {
     expect(spunta().getAttribute("aria-checked")).toBe("true");
   });
 
+  it("la provincia del cliente passa ai lavori in maiuscolo: l'elenco filtra per sigle esatte e un contatto del CRM può averla «mi»", () => {
+    monta();
+    scriviCliente("provincia", "mi");
+    expect(cantiere()[3]).toBe("MI");
+    // Il cliente resta com'è stato scritto: non è compito dei lavori correggerlo.
+    expect((screen.getByLabelText("cliente provincia") as HTMLInputElement).value).toBe("mi");
+  });
+
   it("un preventivo di prima (cantiere vuoto, cliente scritto) si apre su «stesso indirizzo» senza scrivere niente; alla prima modifica del cliente i lavori si riempiono per intero", () => {
     const scritture = monta(CLIENTE);
     expect(spunta().getAttribute("aria-checked")).toBe("true");

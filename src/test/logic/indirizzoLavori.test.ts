@@ -4,8 +4,8 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  indirizziUguali, indirizzoVuoto, lavoriDiversiDalCliente, leggiIndirizzo, norma, testoIndirizzo,
-  type Indirizzo,
+  indirizziUguali, indirizziUgualiStretti, indirizzoVuoto, lavoriDiversiDalCliente, leggiIndirizzo, norma, testoIndirizzo,
+  valoreDaCopiare, type Indirizzo,
 } from "@/lib/preventivatore/indirizzoLavori";
 import { anteprimaSerramenti } from "@/lib/serramenti/anteprima";
 import { isWizardStepComplete } from "@/pages/azienda/serramenti/SerramentiWizard/helpers";
@@ -56,6 +56,32 @@ describe("indirizziUguali: i lavori sono allo stesso indirizzo del cliente?", ()
 
   it("il cliente senza indirizzo e i lavori scritti: sono altrove", () => {
     expect(indirizziUguali(VUOTO, { ...VUOTO, indirizzo: "Via Roma 4" })).toBe(false);
+  });
+});
+
+describe("indirizziUgualiStretti: negli edili «vuoto» non è «uguale»", () => {
+  it("serve qualcosa di scritto, e tutti i campi uguali (senza badare a maiuscole e spazi)", () => {
+    expect(indirizziUgualiStretti(CLIENTE, CLIENTE)).toBe(true);
+    expect(indirizziUgualiStretti(CLIENTE, { ...CLIENTE, indirizzo: "via  tortona 33 ", provincia: "mi" })).toBe(true);
+    // Il contatto ha un indirizzo e il cantiere è vuoto: sono due cose diverse (da qui la spunta spenta).
+    expect(indirizziUgualiStretti(CLIENTE, VUOTO)).toBe(false);
+    expect(indirizziUgualiStretti(VUOTO, VUOTO)).toBe(false);
+    expect(indirizziUgualiStretti(CLIENTE, { ...CLIENTE, cap: "20122" })).toBe(false);
+    // A differenza di indirizziUguali, che per i serramenti conta il vuoto come «stesso indirizzo».
+    expect(indirizziUguali(CLIENTE, VUOTO)).toBe(true);
+  });
+});
+
+describe("valoreDaCopiare: cosa si scrive copiando un campo", () => {
+  it("vuoto = null; la provincia sempre in maiuscolo (un contatto del CRM può averla «mi»); il resto tale e quale", () => {
+    expect(valoreDaCopiare("provincia", "mi")).toBe("MI");
+    expect(valoreDaCopiare("provincia", "MI")).toBe("MI");
+    expect(valoreDaCopiare("citta", "Monza")).toBe("Monza");
+    expect(valoreDaCopiare("cap", "20900")).toBe("20900");
+    expect(valoreDaCopiare("indirizzo", "via Roma 1")).toBe("via Roma 1");
+    expect(valoreDaCopiare("citta", "")).toBeNull();
+    expect(valoreDaCopiare("citta", null)).toBeNull();
+    expect(valoreDaCopiare("provincia", undefined)).toBeNull();
   });
 });
 
