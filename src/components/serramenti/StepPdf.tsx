@@ -74,9 +74,9 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
     },
     {
       ok: !!(p.cantiere_indirizzo || p.cliente_indirizzo),
-      label: "Indirizzo cantiere",
-      hint: !p.cantiere_indirizzo && !p.cliente_indirizzo ? "Aggiungi almeno un indirizzo" : undefined,
-      breve: "indirizzo", passo: "immobile",
+      label: "Indirizzo dei lavori",
+      hint: !p.cantiere_indirizzo && !p.cliente_indirizzo ? "Scrivilo nel passo Contatto" : undefined,
+      breve: "indirizzo", passo: "cliente",
     },
     {
       // La sintesi viene SEMPRE auto-generata da BOM + tipo intervento.

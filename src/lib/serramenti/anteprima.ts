@@ -10,6 +10,7 @@
 import { calcolaTotale, IVA_MISTA_SENTINEL } from "@/lib/serramenti/calcoli";
 import { calcolaMargine, type RigaCostoListino } from "@/lib/serramenti/margine";
 import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
+import { lavoriDiversiDalCliente } from "@/lib/preventivatore/indirizzoLavori";
 import {
   type AnteprimaPreventivo,
   type GruppoAnteprima,
@@ -216,12 +217,16 @@ export function anteprimaSerramenti(
   ].filter(Boolean).join(" · ");
 
   const tipo = (progetto.tipo_intervento as SrTipoIntervento | undefined) ?? "sostituzione";
-  const cantiere = compattaIndirizzo(
-    progetto.cantiere_indirizzo,
-    compatta(progetto.cantiere_cap, progetto.cantiere_citta),
-    progetto.cantiere_provincia,
-    progetto.cantiere_piano ? `piano ${progetto.cantiere_piano}` : null,
-  );
+  // I lavori allo stesso indirizzo del cliente non ripetono la riga (come il PDF): resta solo il piano.
+  const piano = progetto.cantiere_piano ? `piano ${progetto.cantiere_piano}` : null;
+  const cantiere = lavoriDiversiDalCliente(progetto)
+    ? compattaIndirizzo(
+      progetto.cantiere_indirizzo,
+      compatta(progetto.cantiere_cap, progetto.cantiere_citta),
+      progetto.cantiere_provincia,
+      piano,
+    )
+    : piano ? `stesso indirizzo · ${piano}` : "";
 
   // Il PDF dei serramenti stampa le prime tre: l'anteprima mostra le stesse.
   const esigenze = leggiEsigenze(progetto.esigenze).slice(0, ESIGENZE_NEL_PDF_SERRAMENTI);

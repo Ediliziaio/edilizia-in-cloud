@@ -72,9 +72,10 @@ import { useSerramentiModelSupport } from "@/hooks/useSerramentiModelSupport";
 import { isSrQuoteModelId, makeSrQuoteModelSnapshot, readSrQuoteModelSnapshot, srModelProjectDefaults } from "@/lib/serramenti/quoteModel";
 import { findSerramentiTemplateModule } from "@/lib/moduli-vendita/serramentiTemplateModules";
 import {
-  AnteprimaMobile, AnteprimaVeloce, BarraFasi, BottoneTotale, CorpoPreventivatore, EsigenzeCliente, PannelloAnteprima,
+  AnteprimaMobile, AnteprimaVeloce, BarraFasi, BottoneTotale, CorpoPreventivatore, EsigenzeCliente, IndirizzoDeiLavori, PannelloAnteprima,
   PiedePreventivatore, StatoDelSalvataggio, STICKY_ALTO, useAnteprimaNascosta, type StatoSalvataggio,
 } from "@/components/preventivatore";
+import { useIndirizzoLavori } from "@/lib/preventivatore/useIndirizzoLavori";
 import { anteprimaSerramenti, ESIGENZE_NEL_PDF_SERRAMENTI } from "@/lib/serramenti/anteprima";
 import { esigenzeDelPreventivo, leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import { ESIGENZE_DI_SERIE_SERRAMENTI } from "@/lib/preventivatore/esigenzeDiSerie";
@@ -387,6 +388,11 @@ export default function SerramentiWizard() {
             patch.cliente_citta = c.city ?? null;
             patch.cliente_provincia = c.province ?? null;
             patch.cliente_cap = c.postal_code ?? null;
+            // Un preventivo nuovo parte con i lavori allo stesso indirizzo del cliente.
+            patch.cantiere_indirizzo = c.address ?? null;
+            patch.cantiere_citta = c.city ?? null;
+            patch.cantiere_provincia = c.province ?? null;
+            patch.cantiere_cap = c.postal_code ?? null;
             patch.cliente_codice_fiscale = c.fiscal_code ?? null;
           }
         }
@@ -1105,6 +1111,8 @@ function StepCliente({
   autoOpenAi?: boolean;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  // L'indirizzo del cliente e quello dei lavori: di serie lo stesso, e il secondo segue il primo.
+  const indirizzo = useIndirizzoLavori(form, (chiave, valore) => onChange(chiave, valore));
   const detailForAi = detail
     ? ({ ...detail, progetto: { ...detail.progetto, ...form } as SrProgettoRow })
     : undefined;
@@ -1116,10 +1124,7 @@ function StepCliente({
     onChange("cliente_cognome", c.last_name);
     onChange("cliente_email", c.email);
     onChange("cliente_telefono", c.phone);
-    onChange("cliente_indirizzo", c.address);
-    onChange("cliente_citta", c.city);
-    onChange("cliente_cap", c.postal_code);
-    onChange("cliente_provincia", c.province);
+    indirizzo.impostaCliente({ indirizzo: c.address, citta: c.city, cap: c.postal_code, provincia: c.province });
   };
 
   return (
@@ -1258,7 +1263,7 @@ function StepCliente({
           <Label className="text-xs">Indirizzo</Label>
           <Input
             value={form.cliente_indirizzo ?? ""}
-            onChange={(e) => onChange("cliente_indirizzo", e.target.value)}
+            onChange={(e) => indirizzo.cambiaCliente("indirizzo", e.target.value)}
             placeholder="Via Tortona 33"
             className="h-9"
           />
@@ -1267,7 +1272,7 @@ function StepCliente({
           <Label className="text-xs">Città</Label>
           <Input
             value={form.cliente_citta ?? ""}
-            onChange={(e) => onChange("cliente_citta", e.target.value)}
+            onChange={(e) => indirizzo.cambiaCliente("citta", e.target.value)}
             placeholder="Milano"
             className="h-9"
           />
@@ -1276,7 +1281,7 @@ function StepCliente({
           <Label className="text-xs">CAP</Label>
           <Input
             value={form.cliente_cap ?? ""}
-            onChange={(e) => onChange("cliente_cap", e.target.value)}
+            onChange={(e) => indirizzo.cambiaCliente("cap", e.target.value)}
             placeholder="20121"
             className="h-9 max-sm:px-2"
           />
@@ -1285,13 +1290,24 @@ function StepCliente({
           <Label className="text-xs">Provincia</Label>
           <Input
             value={form.cliente_provincia ?? ""}
-            onChange={(e) => onChange("cliente_provincia", e.target.value)}
+            onChange={(e) => indirizzo.cambiaCliente("provincia", e.target.value)}
             placeholder="MI"
             maxLength={2}
             className="h-9 uppercase"
           />
         </div>
       </div>
+
+      {/* Dove si fanno i lavori: di serie lo stesso indirizzo del cliente, che segue da solo. Sta qui e non più
+          in «Immobile»: chi telefona lo dice insieme al nome. */}
+      <IndirizzoDeiLavori
+        className="mt-3"
+        altrove={indirizzo.altrove}
+        onAltrove={indirizzo.scegliAltrove}
+        lavori={indirizzo.lavori}
+        riassunto={indirizzo.riassunto}
+        onScrivi={indirizzo.scriviLavori}
+      />
     </SrCard>
   );
 }
@@ -1304,13 +1320,12 @@ function StepImmobile({
 }) {
   return (
     <SrCard
-      title="Cantiere e intervento"
-      description="Indirizzo del cantiere (se diverso dal cliente) e tipo di intervento. La sintesi narrativa si genera automaticamente dal BOM."
+      title="Intervento"
+      description="Che lavoro è e a che piano. L'indirizzo dei lavori si scrive nel passo Contatto."
       icon={<Home className="h-4 w-4" />}
     >
-      {/* Telefono: spazi più stretti, così CAP e piano non si tagliano. */}
       <div className="grid grid-cols-12 gap-3 max-sm:gap-2">
-        <div className="col-span-12">
+        <div className="col-span-12 sm:col-span-8">
           <Label className="text-xs">Tipo di intervento</Label>
           <Select
             value={form.tipo_intervento ?? "sostituzione"}
@@ -1327,43 +1342,13 @@ function StepImmobile({
             </SelectContent>
           </Select>
         </div>
-        <div className="col-span-12">
-          <Label className="text-xs">Indirizzo cantiere</Label>
-          <Input
-            value={form.cantiere_indirizzo ?? ""}
-            onChange={(e) => onChange("cantiere_indirizzo", e.target.value)}
-            placeholder="Via Tortona 33"
-            className="h-9"
-          />
-          <p className="text-[10px] text-muted-foreground mt-0.5 max-sm:hidden">
-            Lascia vuoto se coincide con l'indirizzo del cliente
-          </p>
-        </div>
-        <div className="col-span-6 max-sm:col-span-5">
-          <Label className="text-xs">Città</Label>
-          <Input
-            value={form.cantiere_citta ?? ""}
-            onChange={(e) => onChange("cantiere_citta", e.target.value)}
-            placeholder="Milano"
-            className="h-9"
-          />
-        </div>
-        <div className="col-span-3">
-          <Label className="text-xs">CAP</Label>
-          <Input
-            value={form.cantiere_cap ?? ""}
-            onChange={(e) => onChange("cantiere_cap", e.target.value)}
-            placeholder="20121"
-            className="h-9 max-sm:px-2"
-          />
-        </div>
-        <div className="col-span-3 max-sm:col-span-4">
+        <div className="col-span-12 sm:col-span-4">
           <Label className="text-xs">Piano</Label>
           <Input
             value={form.cantiere_piano ?? ""}
             onChange={(e) => onChange("cantiere_piano", e.target.value)}
             placeholder="3° con ascensore"
-            className="h-9 max-sm:px-2"
+            className="h-9"
           />
         </div>
         {/* Campo "Sintesi dell'intervento" rimosso intenzionalmente.

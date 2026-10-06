@@ -37,6 +37,7 @@ import { serramentiModuleExclusions } from "@/lib/moduli-vendita/serramentiOffer
 import { serramentiRoomSummary } from "@/lib/moduli-vendita/serramentiRoomSummary";
 import { applicaMergeTagModulo } from "@/lib/mergeTagsModuli";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
+import { lavoriDiversiDalCliente } from "@/lib/preventivatore/indirizzoLavori";
 import { testoScelta } from "@/lib/listino/scelteVariante";
 import { schedaPosizione, titoloConLinea } from "@/lib/serramenti/schedaPosizione";
 import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
@@ -2816,7 +2817,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
       [p.cliente_cap, p.cliente_citta, p.cliente_provincia ? `(${p.cliente_provincia})` : null].filter(Boolean).join(" ") || null,
       p.cliente_telefono,
       p.cliente_email,
-      p.cantiere_indirizzo && p.cantiere_indirizzo !== p.cliente_indirizzo ? rigaCantiere(p) : null,
+      // Confronta tutto l'indirizzo: stessa via ma altra città è un altro cantiere.
+      lavoriDiversiDalCliente(p) ? rigaCantiere(p) || null : null,
     ].filter((r): r is string => Boolean(r)),
     sintesi,
     esigenze: esigenze.slice(0, 3),
@@ -3198,8 +3200,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               )}
               {p.cliente_telefono && <View style={styles.kvRow}><Text style={styles.kvKey}>Telefono</Text><Text style={styles.kvValue}>{p.cliente_telefono}</Text></View>}
               {p.cliente_email && <View style={styles.kvRow}><Text style={styles.kvKey}>Email</Text><Text style={styles.kvValue}>{p.cliente_email}</Text></View>}
-              {/* Cantiere se diverso dal cliente */}
-              {p.cantiere_indirizzo && p.cantiere_indirizzo !== p.cliente_indirizzo && (
+              {/* Cantiere se diverso dal cliente: via, città, CAP e provincia, non solo la via */}
+              {lavoriDiversiDalCliente(p) && rigaCantiere(p) !== "" && (
                 <View style={styles.kvRow}>
                   <Text style={styles.kvKey}>Cantiere</Text>
                   <Text style={styles.kvValue}>
