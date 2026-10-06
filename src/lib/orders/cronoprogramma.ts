@@ -48,6 +48,8 @@ export interface FaseCrono {
   previstoFine: string | null;
   realeInizio: string | null;
   realeFine: string | null;
+  /** La fine reale è il giorno di chiusura registrato (non l'ultimo rapportino). */
+  chiusuraRegistrata: boolean;
   /** Giorni oltre la fine prevista: chiusa tardi, o ancora aperta a fine prevista passata. */
   ritardoFine: number;
   /** Giorni di ritardo sull'inizio: iniziata tardi, o non ancora iniziata a inizio previsto passato. */
@@ -152,6 +154,7 @@ export function fasiCronoprogramma(
       previstoFine: f.end_date,
       realeInizio,
       realeFine,
+      chiusuraRegistrata: completata && !!f.completata_il,
       ritardoFine,
       ritardoInizio,
       ore: lavoro?.ore ?? 0,
@@ -169,6 +172,70 @@ export function ritardoFase(f: Pick<FaseCrono, "stato" | "ritardoInizio" | "rita
   if (f.ritardoFine > 0) return { giorni: f.ritardoFine, su: "fine" };
   if (f.stato !== "completata" && f.ritardoInizio > 0) return { giorni: f.ritardoInizio, su: "inizio" };
   return null;
+}
+
+/** Come sono andati i tempi di una fase, per la riga «Quando». */
+export type EsitoTempi =
+  /** chiusa entro la fine prevista */
+  | "finita_in_tempo"
+  /** chiusa dopo la fine prevista */
+  | "finita_in_ritardo"
+  /** chiusa, ma senza data di fine reale (né chiusura registrata né rapportini) */
+  | "finita"
+  /** ancora aperta (in corso o da iniziare) con la fine prevista passata */
+  | "aperta_oltre"
+  /** da iniziare con l'inizio previsto passato, la fine ancora davanti */
+  | "in_ritardo_inizio"
+  /** in corso entro la fine prevista */
+  | "in_corso"
+  /** da iniziare, nei tempi */
+  | "da_iniziare";
+
+export interface ConfrontoTempi {
+  esito: EsitoTempi;
+  /** Giorni previsti, inizio e fine compresi; null senza le due date. */
+  giorniPrevisti: number | null;
+  /** Giorni reali dal primo rapportino alla fine reale, o a oggi se aperta; null senza inizio reale. */
+  giorniReali: number | null;
+  /** Giorni di ritardo: sulla fine, o sull'inizio per «in_ritardo_inizio» e per una in corso partita tardi. */
+  ritardo: number;
+  /** Giorni che mancano alla fine prevista, per una fase in corso. */
+  mancano: number | null;
+}
+
+/**
+ * Il paragone tra tempi previsti e reali di una fase (06/10/2026): quanti
+ * giorni erano previsti, quanti ce ne sono voluti (o da quanti è aperta) e di
+ * quanto si è sforato. Le regole del ritardo sono quelle del cronoprogramma.
+ */
+export function confrontoTempi(f: FaseCrono, oggi: string): ConfrontoTempi {
+  const giorniPrevisti = f.previstoInizio && f.previstoFine ? Math.max(1, giorniTra(f.previstoInizio, f.previstoFine) + 1) : null;
+  const durata = (fine: string | null) => (f.realeInizio && fine ? Math.max(1, giorniTra(f.realeInizio, fine) + 1) : null);
+  // Chiusa senza giorno di chiusura e con un giorno solo di rapportini: quel
+  // giorno non dice quanto è durata (il resto del lavoro non ha rapportini).
+  const durataChiusa = () => (!f.chiusuraRegistrata && f.realeInizio === f.realeFine ? null : durata(f.realeFine));
+  const base = { giorniPrevisti, giorniReali: null as number | null, ritardo: 0, mancano: null as number | null };
+
+  if (f.stato === "completata") {
+    if (!f.realeFine || !f.previstoFine) return { ...base, esito: "finita", giorniReali: durataChiusa() };
+    return {
+      ...base,
+      esito: f.ritardoFine > 0 ? "finita_in_ritardo" : "finita_in_tempo",
+      giorniReali: durataChiusa(),
+      ritardo: f.ritardoFine,
+    };
+  }
+  if (f.ritardoFine > 0) return { ...base, esito: "aperta_oltre", giorniReali: durata(oggi), ritardo: f.ritardoFine };
+  if (f.stato === "da_iniziare") {
+    return f.ritardoInizio > 0 ? { ...base, esito: "in_ritardo_inizio", ritardo: f.ritardoInizio } : { ...base, esito: "da_iniziare" };
+  }
+  return {
+    ...base,
+    esito: "in_corso",
+    giorniReali: durata(oggi),
+    ritardo: f.ritardoInizio,
+    mancano: f.previstoFine ? Math.max(0, giorniTra(oggi, f.previstoFine)) : null,
+  };
 }
 
 /**

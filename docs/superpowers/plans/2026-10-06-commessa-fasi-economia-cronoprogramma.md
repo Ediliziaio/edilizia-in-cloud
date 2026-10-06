@@ -152,3 +152,13 @@ Guardando la commessa demo nel browser sono venute fuori tre cose che il piano n
 - [x] Senza preventivo firmato il traguardo si chiama «Commessa aperta», non «Contratto»; etichette dei traguardi dentro il grafico e su due righe quando sono vicini.
 
 **Rischio in più:** `importo_venduto` lo legge chi legge le fasi, compresi gli operai assegnati alla commessa (via API, non dall'app). È la stessa esposizione che hanno già i prezzi delle righe del contratto (`order_items`, che legge anche il cliente). Se serve chiuderla: colonna in una tabella a parte con la policy di `can_view_order_amounts`.
+
+## Tempi della fase e Attività (06/10/2026, sera)
+
+Richiesta dell'utente: nella riga «Quando», se la tempistica sfora, di lato il paragone — previsti X giorni, ce ne sono voluti Y, quando è finita davvero — e sistemare il riquadro «Attività».
+
+- [x] `confrontoTempi(fase, oggi)` in `cronoprogramma.ts`: esito (`finita_in_tempo`, `finita_in_ritardo`, `finita` senza data reale, `aperta_oltre`, `in_ritardo_inizio`, `in_corso`, `da_iniziare`), giorni previsti (inizio e fine compresi), giorni reali (dal primo rapportino alla fine reale, o a oggi se aperta), ritardo, giorni che mancano.
+- [x] Giorni reali non detti quando non sono credibili: fase chiusa senza giorno di chiusura e con un solo giorno di rapportini (`chiusuraRegistrata` nel cronoprogramma). Il titolo della frase dice da dove vengono le date reali.
+- [x] `TempiFase` accanto alle date: «Previsti 7 giorni → reali 12 · finita il 14/06 · 6 giorni di ritardo» (rosso), «… finita l'08/06, in tempo» (verde), «Previsti 7 giorni → aperta da 64 · doveva finire il 05/08 · 62 giorni di ritardo», «Non ancora iniziata · doveva finire …», «Doveva iniziare … · N giorni di ritardo sull'inizio» (ambra), «Previsti 10 giorni → in corso da 4 · mancano 4 giorni». Da telefono solo la frase breve, se qualcosa non va.
+- [x] Nel riepilogo della fase chiusa «scadenza superata» diventa il ritardo in giorni («84 giorni di ritardo», «finita con 6 giorni di ritardo»).
+- [x] Attività della commessa: `LinkedTasks compatta` — una riga sola («Attività · nessuna · Aggiungi», 46 px invece del riquadro col messaggio al centro); l'elenco compare sotto solo se ci sono attività; mentre carica non dice «nessuna», se non carica mostra l'errore. Le altre pagine che usano le attività restano come prima.

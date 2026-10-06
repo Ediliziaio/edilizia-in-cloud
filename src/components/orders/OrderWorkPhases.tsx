@@ -34,6 +34,9 @@ import { economiaFasi, type EconomiaFase } from "@/lib/orders/economiaFasi";
 import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
 import { EconomiaFaseRiga, costoSforato } from "./EconomiaFaseRiga";
 import { RiepilogoEconomicoFasi } from "./RiepilogoEconomicoFasi";
+import { useCronoprogramma } from "@/hooks/useCronoprogramma";
+import { fasiCronoprogramma, giornoLocale, lavoroRealeFasi, type FaseCrono } from "@/lib/orders/cronoprogramma";
+import { TempiFase, testoTempi } from "./TempiFase";
 
 import {
   useOrderWorkPhases,
@@ -206,6 +209,20 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
       movimenti: costiMateriali?.movimenti,
     }),
     [phases, materials, allAssignments, costiMateriali],
+  );
+
+  // Tempi previsti e reali di ogni fase (06/10/2026), per il paragone nella
+  // riga «Quando»: date reali dai rapportini e dalla chiusura, come nel
+  // Cronoprogramma. Se i rapportini non si leggono, restano le chiusure.
+  const { rapportini } = useCronoprogramma(orderId, null);
+  const oggi = giornoLocale(new Date().toISOString());
+  const tempiFasi = useMemo(
+    () => new Map(fasiCronoprogramma(
+      phases.map((p) => ({ id: p.id, name: p.name, status: p.status, percentuale: p.percentuale, start_date: p.start_date, end_date: p.end_date, completata_il: p.completata_il ?? null })),
+      lavoroRealeFasi(rapportini ?? []),
+      oggi,
+    ).map((f) => [f.id, f])),
+    [phases, rapportini, oggi],
   );
 
   // Semaforo tempi: atteso vs reale per le fasi con date (match per id fase)
@@ -558,6 +575,8 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
                 externalTeams={externalTeams}
                 materials={materialsByPhase.get(phase.id) ?? []}
                 economia={economia.perFase.get(phase.id)}
+                tempi={tempiFasi.get(phase.id)}
+                oggi={oggi}
                 unassignedMaterials={unassignedMaterials}
                 allPhases={phases.map((p) => ({ id: p.id, name: p.name }))}
                 allAssignments={[...unassigned, ...phases.flatMap(p => p.assignments)]}
@@ -660,6 +679,10 @@ interface PhaseCardProps {
   phase: WorkPhase;
   /** Venduto, costo previsto e costo consuntivo della fase (economiaFasi). */
   economia?: EconomiaFase;
+  /** Date previste e reali e ritardi della fase (cronoprogramma). */
+  tempi?: FaseCrono;
+  /** Oggi, «yyyy-MM-dd». */
+  oggi: string;
   /** Atteso vs reale a oggi (RPC order_schedule_health), solo per fasi datate */
   health?: SchedulePhaseHealth;
   employees: ExecutorOption[];
@@ -704,6 +727,8 @@ interface PhaseCardProps {
 function PhaseCard({
   phase,
   economia,
+  tempi,
+  oggi,
   health,
   employees,
   externalTeams,
@@ -922,9 +947,13 @@ function PhaseCard({
                 <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" aria-hidden="true" />{noteFase === 1 ? "1 nota" : `${noteFase} note`}</span>
               )}
               {materials.length > 0 && <span>{materials.length === 1 ? "1 materiale" : `${materials.length} materiali`}</span>}
-              {phase.status !== "completata" && phase.end_date && phase.end_date < format(new Date(), "yyyy-MM-dd") && (
-                <span className="text-rose-600">scadenza superata</span>
-              )}
+              {/* Il ritardo detto con i giorni: «62 giorni di ritardo», «finita con 6 giorni di ritardo» */}
+              {(() => {
+                const t = tempi ? testoTempi(tempi, oggi) : null;
+                return t?.breve
+                  ? <span className={t.tono === "rosso" ? "text-rose-600" : "text-amber-700"}>{t.breve}</span>
+                  : null;
+              })()}
               {canViewCosts && economia && costoSforato(economia) && (
                 <span className="text-rose-600 max-sm:hidden">costo oltre il previsto</span>
               )}
@@ -1038,9 +1067,8 @@ function PhaseCard({
                     aria-label="Data fine prevista"
                   />
                 </label>
-                {phase.status !== "completata" && phase.end_date && phase.end_date < format(new Date(), "yyyy-MM-dd") && (
-                  <span className="text-xs font-medium text-rose-600">scadenza superata</span>
-                )}
+                {/* Di lato alle date: previsti contro reali, fine vera e ritardo */}
+                {tempi && <TempiFase fase={tempi} oggi={oggi} className="sm:ml-1 sm:border-l sm:pl-3" />}
                 {squadreFase.length > 0 && (
                   <span className="text-[11px] text-muted-foreground">Le squadre della fase seguono queste date.</span>
                 )}
