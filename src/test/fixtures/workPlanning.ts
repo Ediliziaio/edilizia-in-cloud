@@ -5,5 +5,6 @@ export const assignment = (patch: Partial<PhaseAssignment> = {}): PhaseAssignmen
 });
 export const phase = (patch: Partial<WorkPhase> = {}): WorkPhase => ({
   id: "p1", order_id: "order", name: "Opere murarie", position: 0, status: "in_corso", start_date: "2026-09-20",
-  end_date: "2026-09-30", notes: null, percentuale: 40, assignments: [assignment({ phase_id: "p1" })], ...patch,
+  end_date: "2026-09-30", notes: null, percentuale: 40, completata_il: null, importo_venduto: null,
+  assignments: [assignment({ phase_id: "p1" })], ...patch,
 });
