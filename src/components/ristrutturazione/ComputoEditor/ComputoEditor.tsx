@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import type { RstComputoVoce } from "@/types/ristrutturazione";
 import { toast } from "sonner";
 import { chiaviCapitoli, esitoRinomina, passaChiave } from "@/lib/moduli/capitoliComputo";
+import { usePuoVedereImpresa } from "@/components/preventivatore/usePuoVedereImpresa";
 import CapitoloSection from "./CapitoloSection";
 import { usePrezzoDiZona } from "@/hooks/usePrezzoDiZona";
 import { useCodiciPrezzarioListino } from "@/hooks/useCodiciPrezzarioListino";
@@ -46,6 +47,8 @@ export default function ComputoEditor({
   value, onChange, progettoId, companyId,
 }: Props) {
   const [showMargine, setShowMargine] = useState(false);
+  // Costi e margine (per riga) li vede solo chi ha il permesso, come la vista «Impresa» dell'anteprima.
+  const puoVedereImpresa = usePuoVedereImpresa();
   // ── Prezzo di zona ────────────────────────────────────────────────────────
   // I 363.000 prezzi regionali servivano solo a copiare voci nel listino.
   // Qui diventano il metro accanto al prezzo che si sta proponendo.
@@ -224,19 +227,21 @@ export default function ComputoEditor({
         </div>
         <div className="flex items-center gap-2">
           {/* Telefono no: i margini si guardano dal computer. */}
-          <button
-            type="button"
-            onClick={() => setShowMargine((s) => !s)}
-            className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors max-sm:hidden",
-              showMargine
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-border bg-background text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {showMargine ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-            Margini
-          </button>
+          {puoVedereImpresa && (
+            <button
+              type="button"
+              onClick={() => setShowMargine((s) => !s)}
+              className={cn(
+                "inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors max-sm:hidden",
+                showMargine
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-border bg-background text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {showMargine ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+              Margini
+            </button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -263,6 +268,7 @@ export default function ComputoEditor({
               progettoId={progettoId}
               companyId={companyId}
               showMargine={showMargine}
+              conCosti={puoVedereImpresa}
               confronti={confrontiPerVoce}
               onChange={(next) => replaceCapitoloVoci(cap.nome, next)}
               onRename={(newName) => renameCapitolo(cap.nome, newName)}

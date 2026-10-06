@@ -58,13 +58,15 @@ interface Props {
   progettoId: string;
   companyId: string;
   showMargine: boolean;
+  /** Chi guarda può vedere costi e margine (permesso): senza, le righe non ne mostrano. */
+  conCosti: boolean;
   onChange: (voci: EleComputoVoce[]) => void;
   onRename: (nome: string) => void;
   onDeleteCapitolo: () => void;
 }
 
 export default function CapitoloSection({
-  nome, voci, accentIndex, progettoId, companyId, showMargine,
+  nome, voci, accentIndex, progettoId, companyId, showMargine, conCosti,
   onChange, onRename, onDeleteCapitolo,
 }: Props) {
   const [open, setOpen] = useState(true);
@@ -244,6 +246,7 @@ export default function CapitoloSection({
                         onDelete={() => deleteVoce(v.id)}
                         onDuplicate={() => duplicateVoce(v.id)}
                         showMargine={showMargine}
+                        conCosti={conCosti}
                       />
                     ))}
                   </div>

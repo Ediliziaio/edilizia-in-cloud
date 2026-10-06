@@ -46,6 +46,8 @@ interface Props {
   onDelete: () => void;
   onDuplicate: () => void;
   showMargine: boolean;
+  /** Chi guarda può vedere costi e margine (permesso): senza, la riga non ne mostra e non ne fa scrivere. */
+  conCosti: boolean;
 }
 
 /** Coerce numerico da input controllato: vuoto → 0, mai NaN. */
@@ -61,7 +63,7 @@ function margineTone(pct: number): string {
   return "border-emerald-200 bg-emerald-50 text-emerald-700";
 }
 
-export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMargine }: Props) {
+export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMargine, conCosti }: Props) {
   const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   const sortable = useSortable({ id: voce.id });
@@ -234,7 +236,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
 
             {/* Spacer + importo */}
             <div className="ml-auto flex items-center gap-2 max-sm:order-8">
-              {showMargine && hasCosto && (
+              {conCosti && showMargine && hasCosto && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Badge
@@ -259,7 +261,10 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
           {/* Telefono: i costi si guardano dal computer, come i margini. */}
           {/* Anche senza costo (05/10/2026): il margine del preventivo dice «costi
               incompleti», e il costo della riga si deve poter scrivere qui. */}
-          <Collapsible open={breakdownOpen} onOpenChange={setBreakdownOpen} className="max-sm:hidden">
+          {/* Costi e margine della riga: solo con il permesso (06/10/2026). Senza, la riga non li mostra
+              e non li fa scrivere: il costo arriva dal listino quando la voce si sceglie da lì. */}
+          {conCosti && (
+            <Collapsible open={breakdownOpen} onOpenChange={setBreakdownOpen} className="max-sm:hidden">
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
@@ -313,6 +318,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 </div>
               </CollapsibleContent>
             </Collapsible>
+          )}
         </div>
 
         {/* Azioni (hover / sempre su mobile) */}

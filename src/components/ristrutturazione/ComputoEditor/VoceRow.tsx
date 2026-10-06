@@ -48,6 +48,8 @@ interface Props {
   onDelete: () => void;
   onDuplicate: () => void;
   showMargine: boolean;
+  /** Chi guarda può vedere costi e margine (permesso): senza, la riga non ne mostra e non ne fa scrivere. */
+  conCosti: boolean;
   /** Confronto col prezzario regionale per questa voce, se disponibile. */
   confronto?: ConfrontoVoce;
 }
@@ -65,7 +67,7 @@ function margineTone(pct: number): string {
   return "border-emerald-200 bg-emerald-50 text-emerald-700";
 }
 
-export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMargine, confronto }: Props) {
+export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMargine, conCosti, confronto }: Props) {
   const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   const sortable = useSortable({ id: voce.id });
@@ -243,7 +245,7 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
 
             {/* Spacer + importo */}
             <div className="ml-auto flex items-center gap-2 max-sm:order-8">
-              {showMargine && hasCosto && (
+              {conCosti && showMargine && hasCosto && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Badge
@@ -273,9 +275,9 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 className="mt-1 ml-1.5 inline-flex items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
               >
                 <ChevronDown className={cn("h-3 w-3 transition-transform", breakdownOpen && "rotate-180")} />
-                {hasCosto
+                {conCosti && hasCosto
                   ? `Costo unitario ${formatCurrency(costoUnit)} · margine ${marginePct.toFixed(0)}%`
-                  : importo > 0
+                  : conCosti && importo > 0
                     ? "Dettagli voce · aggiungi il costo: serve al margine"
                     : "Dettagli voce"}
                 {voce.ambiente ? ` · 📍 ${voce.ambiente}` : ""}
@@ -296,7 +298,9 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                 </label>
                 {/* I campi del costo anche quando manca (05/10/2026): il margine
                     dice «costi incompleti» e qui lo si scrive. La barra solo con un costo. */}
-                <>
+                {/* Costi: solo con il permesso (06/10/2026); l'ambiente sta sopra e resta per tutti. */}
+                {conCosti && (
+                  <>
                     {hasCosto && (
                       <div className="flex h-2 overflow-hidden rounded-full bg-muted">
                         <div className="bg-sky-400" style={{ width: `${matQuota}%` }} title="Materiali" />
@@ -331,7 +335,8 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
                         />
                       </label>
                     </div>
-                </>
+                  </>
+                )}
               </div>
             </CollapsibleContent>
           </Collapsible>
