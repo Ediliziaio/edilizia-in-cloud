@@ -27,6 +27,7 @@ import { MisureForma, chiedeMisureForma, type MisureFormaValori } from "@/compon
 import { AnteprimaDisegnoFamiglia, MiniaturaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
 import { type DisegnoConfig, configDaFamiglia, disegnoDaConfig, haDisegno, misureTipiche } from "@/lib/serramenti/disegnoDaFamiglia";
 import { useState, useEffect, useMemo } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { conAssiVisibili, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
 import type { SrQuoteModelId } from "@/lib/serramenti/quoteModel";
 import { modelCatalogTypes, suggestedModelTypes } from "@/lib/serramenti/modelCatalog";
@@ -44,7 +45,7 @@ import {
 import { useListinoGriglia, useTariffeManodopera } from "@/lib/serramenti/queries";
 import { useFamilies } from "@/hooks/useFamilies";
 import { useListinoMacrocategorie } from "@/hooks/useListinoMacrocategorie";
-import type { AxisSelection } from "@/types/articleFamily";
+import type { AxisSelection, FamilyWithAxes } from "@/types/articleFamily";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -59,6 +60,7 @@ import {
   areaDelPreventivatore,
   assiDaScegliere,
   cercaNellArea,
+  coloriIniziali,
   comeListinoFamily,
   indirizzoNelListino,
   motivoDaCompletare,
@@ -71,8 +73,11 @@ import {
 } from "@/lib/serramenti/pickerListino";
 import { SchedaLineaCompatta } from "./SchedaLineaCompatta";
 import { SceltaVariante } from "./SceltaVariante";
-import { gruppiColori, scelteDopo } from "@/lib/listino/scelteVariante";
-import { SceltaColore } from "./SceltaColore";
+import { scelteDopo } from "@/lib/listino/scelteVariante";
+import { SceltaColoriDentroFuori } from "./SceltaColoriDentroFuori";
+import {
+  CODICE_ASSE_COLORE, MISURA_DI_CONFRONTO_MM, PREZZO_DI_CONFRONTO, cambiaLato, scriviLato, sceltaPerIlPrezzo, testiColori, type ColoriDentroFuori,
+} from "@/lib/serramenti/coloriDentroFuori";
 import { misuraDaTesto, quantitaDaTesto } from "@/lib/serramenti/righePreventivo";
 import {
   applyMaggiorazioniAssi,
@@ -101,7 +106,8 @@ export interface ListinoPickResult {
   /** La voce scelta dentro ogni valore: il colore vero di «Colore Standard».
    *  Mappa { axis_codice -> voce }; il prezzo resta quello del valore. */
   scelte_assi?: Record<string, string>;
-  /** Colore interno ed esterno scelti a parte (finestra bicolore); null = quello della variabile «Colore». */
+  /** Colore interno ed esterno scelti nelle due tendine al posto di «Colore» (sempre scritti, anche se uguali);
+   *  null nei complementi e nei prodotti senza la variabile «Colore». `valori_assi.colore` è il più caro dei due. */
   colore_interno?: string | null;
   colore_esterno?: string | null;
   /** Il disegno automatico congelato (null se l'articolo non ne ha). */
@@ -156,12 +162,51 @@ function fotoDellaTipologia(t: TipologiaListino): string | null {
   return t.immagineUrl ?? t.linee.flatMap((l) => l.righe).find((r) => r.famiglia.immagine_url)?.famiglia.immagine_url ?? null;
 }
 
+/** Il primo prodotto con il disegno automatico: la sua miniatura sta al posto della foto che manca. */
+function primoConDisegno(righe: RigaListino[]): FamilyWithAxes | null {
+  return righe.find((r) => haDisegno(r.famiglia))?.famiglia ?? null;
+}
+
+/** Tipologie e linee: 2 colonne da telefono, 3 da tablet in su; schede basse, la scelta sta tutta nello schermo. */
+const GRIGLIA_SCHEDE = "grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3";
+/** Una scheda di tipologia o di linea: tessera in alto da telefono, a sinistra da tablet; ≥ 44 px di bersaglio, focus da tastiera chiaro. */
+const SCHEDA_BASSA =
+  "group flex min-h-[64px] flex-col overflow-hidden rounded-lg border-2 border-slate-200 bg-white text-left transition " +
+  "hover:border-orange-400 hover:bg-orange-50/40 hover:shadow-md " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-1 sm:flex-row sm:items-center";
+
+/**
+ * La tessera di una scheda (tipologia, linea): la foto se c'è; altrimenti il disegno automatico del primo prodotto che
+ * ce l'ha; altrimenti un'icona piccola. Una tessera di 56 px, non un riquadro alto come la scheda: prima, senza foto,
+ * restava un quadrato grigio vuoto di 200 px e le scelte non stavano nello schermo.
+ */
+function Tessera({ foto, disegnoDi }: { foto: string | null; disegnoDi: FamilyWithAxes | null }) {
+  return (
+    <div
+      aria-hidden="true"
+      data-miniatura={foto ? "foto" : disegnoDi ? "disegno" : "icona"}
+      className="flex h-14 w-full shrink-0 items-center justify-center overflow-hidden border-b border-slate-100 bg-slate-50 sm:w-14 sm:border-b-0 sm:border-r"
+    >
+      {foto ? (
+        <img loading="lazy" src={foto} alt="" className="h-full w-full object-contain p-1" />
+      ) : disegnoDi ? (
+        <div className="h-full w-full bg-white p-1">
+          <MiniaturaDisegnoFamiglia family={disegnoDi} className="h-full w-full" />
+        </div>
+      ) : (
+        <Layers className="h-5 w-5 text-slate-300" />
+      )}
+    </div>
+  );
+}
+
 // ─── Component principale ──────────────────────────────────────────────────
 
 export function ListinoPickerDialog({
   open, onOpenChange, onSelect, tipo = "principale", preferenzeAssi, partenza,
   testoConferma = "Aggiungi al preventivo", modelId,
 }: Props) {
+  const isMobile = useIsMobile();
   const [showAllTypes, setShowAllTypes] = useState(false);
   const [step, setStep] = useState<Step>("tipologia");
   const [search, setSearch] = useState("");
@@ -181,10 +226,8 @@ export function ListinoPickerDialog({
   const [vociScelte, setVociScelte] = useState<Record<string, string>>({});
   // Le misure in più della sagoma (arco, trapezio).
   const [formaExtra, setFormaExtra] = useState<MisureFormaValori>({});
-  // Colore diverso dentro e fuori (finestra bicolore): si sceglie qui, senza aspettare di aver aggiunto la riga.
-  const [coloriDiversi, setColoriDiversi] = useState(false);
-  const [coloreInterno, setColoreInterno] = useState<string | null>(null);
-  const [coloreEsterno, setColoreEsterno] = useState<string | null>(null);
+  // Colore interno ed esterno: le due tendine al posto della sola «Colore». Null dove la tendina è una sola.
+  const [colori, setColori] = useState<ColoriDentroFuori | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search), 300);
@@ -202,7 +245,7 @@ export function ListinoPickerDialog({
       setLarghezza(""); setAltezza(""); setQuantita("1"); setFormaExtra({});
       setAxisSelection({});
       setVociScelte({});
-      setColoriDiversi(false); setColoreInterno(null); setColoreEsterno(null);
+      setColori(null);
       setSelectedSupplierProductLineId(null);
     }
   }, [open]);
@@ -271,21 +314,62 @@ export function ListinoPickerDialog({
     () => assiDaScegliere((familyWithAxes?.axes ?? []).slice().sort((a, b) => Number(b.codice === "apertura") - Number(a.codice === "apertura") || a.sort_order - b.sort_order)),
     [familyWithAxes],
   );
-  // Senza la variabile «Colore» restano solo i due campi; con la variabile, dentro e fuori diversi solo se serve.
-  const haAsseColore = axes.some((a) => a.codice === "colore");
-  const mostraColoriDentroFuori = !haAsseColore || coloriDiversi;
-  const gruppiDiColori = useMemo(() => gruppiColori(axes), [axes]);
-  const coloriRiga = useMemo(
-    () => (mostraColoriDentroFuori ? { coloreInterno, coloreEsterno } : {}),
-    [mostraColoriDentroFuori, coloreInterno, coloreEsterno],
+  // Nella composizione «Colore» sono due tendine, interno ed esterno; per i complementi di una finestra (tapparelle,
+  // zanzariere) e per i prodotti senza la variabile la tendina resta una sola.
+  const asseColore = tipo === "principale" ? axes.find((a) => a.codice === CODICE_ASSE_COLORE) : undefined;
+
+  // Misure e pezzi come le colonne del preventivo: millimetri e pezzi interi.
+  // Un decimale faceva fallire l'aggiunta con un errore generico.
+  const larghezzaMm = misuraDaTesto(larghezza);
+  const altezzaMm = misuraDaTesto(altezza);
+  const pezzi = quantitaDaTesto(quantita);
+  const numeriNonValidi = larghezzaMm === undefined || altezzaMm === undefined || pezzi === undefined;
+
+  // Prezzo BASE prodotto via la strategia consolidata `calcolaPrezzoProdotto` (filter "quadrante che contiene le
+  // misure", cella contenente piu' piccola). Resta source of truth per griglia/mq/pz. Serve al calcolo e, con
+  // due colori, a scegliere la fascia più cara.
+  const calcBase = useMemo(
+    () => (selectedFamily
+      ? calcolaPrezzoProdotto(selectedFamily, larghezzaMm ?? null, altezzaMm ?? null, pezzi ?? 1, griglia, {
+          supplierProductLineId: selectedSupplierProductLineId,
+          supplierLines: supplierLineMap,
+        })
+      : null),
+    [selectedFamily, larghezzaMm, altezzaMm, pezzi, griglia, selectedSupplierProductLineId, supplierLineMap],
   );
+
+  // Il prezzo segue il colore più caro dei due (a parità l'esterno): è lui la scelta «Colore» del prezzo, del disegno
+  // congelato e della riga. Qui la posizione non è ancora aggiunta e si rifà a ogni misura scritta, perché una
+  // maggiorazione fissa può superarne una in %; una volta aggiunta, la riga non la rilegge più dai colori.
+  const guidaColore = useMemo(() => {
+    if (!asseColore || !colori || !familyWithAxes || !calcBase) return null;
+    // Senza misure il prezzo base è 0 e le fasce sembrerebbero pari: per trovare la più cara si confronta su un prezzo
+    // e su misure di riferimento (con le misure vere si rifà da sé).
+    const base = calcBase.prezzo > 0 ? calcBase.prezzo : PREZZO_DI_CONFRONTO;
+    return sceltaPerIlPrezzo(colori, (id) => applyMaggiorazioniAssi(
+      base, { ...axisSelection, [CODICE_ASSE_COLORE]: id }, familyWithAxes.axes,
+      larghezzaMm ?? MISURA_DI_CONFRONTO_MM, altezzaMm ?? MISURA_DI_CONFRONTO_MM, pezzi ?? 1, selectedFamily?.modalita_prezzo_base,
+    ));
+  }, [asseColore, colori, familyWithAxes, calcBase, axisSelection, larghezzaMm, altezzaMm, pezzi, selectedFamily?.modalita_prezzo_base]);
+  // Le scelte come le leggono prezzo, disegno e riga: con le due tendine «Colore» è quella della guida.
+  const selezione = useMemo(() => {
+    if (!asseColore) return axisSelection;
+    const scelte = { ...axisSelection };
+    delete scelte[CODICE_ASSE_COLORE];
+    return guidaColore ? { ...scelte, [CODICE_ASSE_COLORE]: guidaColore.valueId } : scelte;
+  }, [asseColore, axisSelection, guidaColore]);
+  const vociEffettive = useMemo(
+    () => (asseColore ? scelteDopo(vociScelte, CODICE_ASSE_COLORE, guidaColore?.voce ?? null) : vociScelte),
+    [asseColore, vociScelte, guidaColore],
+  );
+  const coloriTesti = useMemo(() => (asseColore && colori ? testiColori(asseColore, colori) : null), [asseColore, colori]);
   // Il disegno dell'articolo, con le misure scritte (o quelle tipiche) e le scelte fatte.
   const anteprimaDisegno = useMemo(() => {
     if (!familyWithAxes || !haDisegno(familyWithAxes)) return null;
     const tipiche = misureTipiche(familyWithAxes);
-    const config = configDaFamiglia(familyWithAxes, axisSelection, { ...coloriRiga, voci: vociScelte, forma: formaExtra });
+    const config = configDaFamiglia(familyWithAxes, selezione, { coloreInterno: coloriTesti?.interno, coloreEsterno: coloriTesti?.esterno, voci: vociEffettive, forma: formaExtra });
     return config ? disegnoDaConfig(config, misuraDaTesto(larghezza) ?? tipiche.larghezzaMm, misuraDaTesto(altezza) ?? tipiche.altezzaMm) : null;
-  }, [familyWithAxes, axisSelection, larghezza, altezza, vociScelte, formaExtra, coloriRiga]);
+  }, [familyWithAxes, selezione, larghezza, altezza, vociEffettive, formaExtra, coloriTesti]);
 
   // La scheda della linea scelta (PVC Salamander 76): foto, dati e testo da
   // leggere al cliente. La linea è il valore dell'asse Linea, o la categoria.
@@ -330,30 +414,18 @@ export function ListinoPickerDialog({
   }, [tariffe]);
 
   // ─── Calcolo prezzo live ────────────────────────────────────────────────
-  // Misure e pezzi come le colonne del preventivo: millimetri e pezzi interi.
-  // Un decimale faceva fallire l'aggiunta con un errore generico.
-  const larghezzaMm = misuraDaTesto(larghezza);
-  const altezzaMm = misuraDaTesto(altezza);
-  const pezzi = quantitaDaTesto(quantita);
-  const numeriNonValidi = larghezzaMm === undefined || altezzaMm === undefined || pezzi === undefined;
-
   const calcolo = useMemo(() => {
-    if (!selectedFamily) return null;
+    if (!selectedFamily || !calcBase) return null;
     const l = larghezzaMm ?? null;
     const h = altezzaMm ?? null;
     const q = pezzi ?? 1;
 
-    // 1. Prezzo BASE prodotto via la strategia consolidata
-    //    `calcolaPrezzoProdotto` (filter "quadrante che contiene le misure",
-    //    cella contenente piu' piccola). Resta source of truth per griglia/mq/pz.
-    const calc = calcolaPrezzoProdotto(selectedFamily, l, h, q, griglia, {
-      supplierProductLineId: selectedSupplierProductLineId,
-      supplierLines: supplierLineMap,
-    });
+    // 1. Prezzo BASE prodotto (calcBase, più sopra).
+    const calc = calcBase;
 
     // 2. Maggiorazioni assi (Variabili Prodotto) applicate SOPRA il prezzo base.
     const prezzoProdotto = familyWithAxes
-      ? applyMaggiorazioniAssi(calc.prezzo, axisSelection, familyWithAxes.axes, l, h, q, selectedFamily.modalita_prezzo_base)
+      ? applyMaggiorazioniAssi(calc.prezzo, selezione, familyWithAxes.axes, l, h, q, selectedFamily.modalita_prezzo_base)
       : calc.prezzo;
     const extraAssi = prezzoProdotto - calc.prezzo;
 
@@ -377,7 +449,7 @@ export function ListinoPickerDialog({
       fuoriRange: calc.fuoriRange ?? false,
       range: calc.range,
     };
-  }, [selectedFamily, familyWithAxes, axisSelection, larghezzaMm, altezzaMm, pezzi, griglia, selectedSupplierProductLineId, supplierLineMap, tariffePrezzi]);
+  }, [selectedFamily, calcBase, familyWithAxes, selezione, larghezzaMm, altezzaMm, pezzi, selectedSupplierProductLineId, tariffePrezzi]);
 
   const richiedeMisure = selectedFamily && (
     selectedFamily.modalita_prezzo_base === "mq" ||
@@ -407,7 +479,8 @@ export function ListinoPickerDialog({
     const ordinate = normalizzaSelezione(r.famiglia.axes ?? [], iniziale.valori, iniziale.voci);
     setAxisSelection(ordinate.valori);
     setVociScelte(ordinate.voci);
-    setColoriDiversi(false); setColoreInterno(null); setColoreEsterno(null);
+    // I due colori partono come nell'ultima posizione (o dal valore di serie), uguali dentro e fuori se è così.
+    setColori(tipo === "principale" ? coloriIniziali(r.famiglia.axes ?? [], ordinate.valori, ordinate.voci, preferenzeAssi?.[CODICE_ASSE_COLORE]?.lati) : null);
     setSelectedSupplierProductLineId(null);
     setStep("misure");
   };
@@ -487,12 +560,13 @@ export function ListinoPickerDialog({
       note: calcolo.note,
       // Snapshot scelte assi: salvato sulla riga BOM in modo che modifiche
       // future al listino NON cambino i preventivi gia' inviati.
-      valori_assi: { ...axisSelection },
-      scelte_assi: { ...vociScelte },
+      valori_assi: { ...selezione },
+      scelte_assi: { ...vociEffettive },
       // Il disegno si congela con la riga: un listino cambiato dopo non cambia il PDF di questo preventivo.
-      disegno_config: configDaFamiglia(familyWithAxes, axisSelection, { ...coloriRiga, voci: vociScelte, forma: formaExtra }),
-      colore_interno: mostraColoriDentroFuori ? coloreInterno : null,
-      colore_esterno: mostraColoriDentroFuori ? coloreEsterno : null,
+      disegno_config: configDaFamiglia(familyWithAxes, selezione, { coloreInterno: coloriTesti?.interno, coloreEsterno: coloriTesti?.esterno, voci: vociEffettive, forma: formaExtra }),
+      // I due colori si scrivono sempre dalle due tendine, anche se uguali: il PDF e il disegno leggono quelli.
+      colore_interno: coloriTesti?.interno ?? null,
+      colore_esterno: coloriTesti?.esterno ?? null,
       modalita_prezzo: modalita,
     });
     onOpenChange(false);
@@ -590,36 +664,22 @@ export function ListinoPickerDialog({
             ) : proposte.length === 0 ? (
               <EmptyState icon={<Layers className="h-10 w-10" />} text={testoVuoto} />
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {proposte.map((t) => {
-                  const foto = fotoDellaTipologia(t);
-                  return (
-                    <button
-                      key={t.chiave}
-                      type="button"
-                      onClick={() => scegliTipologia(t)}
-                      className="text-left rounded-lg border-2 border-slate-200 hover:border-orange-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-400 transition group overflow-hidden bg-white flex flex-col"
-                    >
-                      <div className="relative aspect-[16/9] sm:aspect-[4/3] bg-slate-50 border-b border-slate-100 flex items-center justify-center">
-                        {foto ? (
-                          <img loading="lazy" src={foto} alt={t.nome} className="absolute inset-0 w-full h-full object-contain p-2" />
-                        ) : (
-                          <Layers className="h-10 w-10 text-slate-300" />
-                        )}
+              <div className={GRIGLIA_SCHEDE}>
+                {proposte.map((t) => (
+                  <button key={t.chiave} type="button" onClick={() => scegliTipologia(t)} className={SCHEDA_BASSA}>
+                    <Tessera foto={fotoDellaTipologia(t)} disegnoDi={primoConDisegno(t.linee.flatMap((l) => l.righe))} />
+                    <div className="flex min-w-0 flex-1 items-center gap-1.5 p-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-sm font-semibold leading-tight text-slate-900 transition-colors group-hover:text-orange-700">{t.nome}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {t.articoli} {t.articoli === 1 ? "prodotto" : "prodotti"}
+                          {t.linee.length > 1 ? ` · ${t.linee.length} linee` : ""}
+                        </p>
                       </div>
-                      <div className="flex-1 p-3 flex items-start gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-900 truncate group-hover:text-orange-700 transition-colors">{t.nome}</p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            {t.articoli} {t.articoli === 1 ? "prodotto" : "prodotti"}
-                            {t.linee.length > 1 ? ` · ${t.linee.length} linee` : ""}
-                          </p>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-orange-600 mt-0.5 shrink-0 transition-colors" />
-                      </div>
-                    </button>
-                  );
-                })}
+                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-orange-600" />
+                    </div>
+                  </button>
+                ))}
               </div>
             )}
             {!caricamento && daCompletare.length > 0 && <DaCompletare elenco={daCompletare} />}
@@ -629,7 +689,7 @@ export function ListinoPickerDialog({
         {/* ─── LINEE ──────────────────────────────────────────────────────── */}
         {vista === "linea" && tipologia && (
           <div className="max-h-[62dvh] overflow-y-auto sm:max-h-[55vh]">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className={GRIGLIA_SCHEDE}>
               {tipologia.linee.map((l) => {
                 const trovata = trovaSchedaLinea(schedeLinea, tipologia.macrocategoriaId, l.nome);
                 const scheda = schedaVuota(trovata) ? null : trovata;
@@ -637,24 +697,13 @@ export function ListinoPickerDialog({
                 const dati = scheda ? datiTecniciScheda(scheda).map((d) => d.breve).join(" · ") : "";
                 const prodotti = new Set(l.righe.map((r) => r.famiglia.id)).size;
                 return (
-                  <button
-                    key={l.chiave}
-                    type="button"
-                    onClick={() => scegliLinea(l)}
-                    className="text-left rounded-lg border-2 border-slate-200 hover:border-orange-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-400 transition group overflow-hidden bg-white flex flex-col"
-                  >
-                    <div className="relative aspect-[16/9] sm:aspect-[4/3] bg-slate-50 border-b border-slate-100 flex items-center justify-center">
-                      {foto ? (
-                        <img loading="lazy" src={foto} alt={l.nome} className="absolute inset-0 w-full h-full object-contain p-2" />
-                      ) : (
-                        <Layers className="h-10 w-10 text-slate-300" />
-                      )}
-                    </div>
-                    <div className="flex-1 p-3 flex items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-slate-900 group-hover:text-orange-700 transition-colors">{l.nome}</p>
-                        {dati && <p className="text-[11px] text-muted-foreground mt-0.5">{dati}</p>}
-                        <div className="mt-1.5 flex flex-wrap gap-1 text-[10px]">
+                  <button key={l.chiave} type="button" onClick={() => scegliLinea(l)} className={SCHEDA_BASSA}>
+                    <Tessera foto={foto} disegnoDi={primoConDisegno(l.righe)} />
+                    <div className="flex min-w-0 flex-1 items-center gap-1.5 p-2.5">
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-sm font-semibold leading-tight text-slate-900 transition-colors group-hover:text-orange-700">{l.nome}</p>
+                        {dati && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{dati}</p>}
+                        <div className="mt-1 flex flex-wrap gap-1 text-[11px]">
                           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-700">
                             {prodotti} {prodotti === 1 ? "prodotto" : "prodotti"}
                           </span>
@@ -665,7 +714,7 @@ export function ListinoPickerDialog({
                           )}
                         </div>
                       </div>
-                      <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-orange-600 mt-0.5 shrink-0 transition-colors" />
+                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-colors group-hover:text-orange-600" />
                     </div>
                   </button>
                 );
@@ -719,7 +768,7 @@ export function ListinoPickerDialog({
 
         {/* ─── STEP MISURE + CALCOLO ─────────────────────────────────── */}
         {vista === "misure" && selectedFamily && (
-          <div className={anteprimaDisegno ? "grid gap-4 md:grid-cols-[minmax(0,1fr)_240px]" : ""}>
+          <div className={anteprimaDisegno ? "grid gap-4 md:grid-cols-[minmax(0,1fr)_200px]" : ""}>
           <div className="min-w-0 space-y-3">
             <Card className="bg-orange-50/30 border-orange-200 p-3">
               <p className="text-[11px] uppercase tracking-wide text-orange-600 font-semibold mb-1">
@@ -849,6 +898,23 @@ export function ListinoPickerDialog({
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                   {axes.map((axis) => {
+                    // «Colore» sono due tendine, interno ed esterno: una scelta per lato, il prezzo segue la più cara.
+                    if (asseColore && colori && axis.codice === CODICE_ASSE_COLORE) {
+                      return (
+                        <SceltaColoriDentroFuori
+                          key={axis.id}
+                          asse={axis}
+                          colori={colori}
+                          guidaId={guidaColore?.valueId}
+                          piuCaraId={guidaColore?.valueId}
+                          formato="listino"
+                          onChange={(lato, valueId, voce) => setColori((prima) => (prima ? cambiaLato(prima, lato, valueId, voce) : prima))}
+                          // «Altro colore (scrivi)…»: il testo resta su quel lato e tiene la fascia del prezzo.
+                          onScrivi={(lato, testo) => setColori((prima) => (prima ? scriviLato(prima, lato, testo, guidaColore) : prima))}
+                          onElenco={(lato) => setColori((prima) => (prima && guidaColore ? cambiaLato(prima, lato, guidaColore.valueId, guidaColore.voce) : prima))}
+                        />
+                      );
+                    }
                     const currentId = axisSelection[axis.codice];
                     const isMissing = axis.obbligatorio && !currentId;
                     return (
@@ -877,35 +943,6 @@ export function ListinoPickerDialog({
                       </div>
                     );
                   })}
-                </div>
-                {/* Un colore solo: quello di «Colore». Dentro e fuori diversi (finestra bicolore) solo se serve. */}
-                <div className="mt-2.5">
-                  {haAsseColore && (
-                    <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-slate-700">
-                      <input
-                        type="checkbox"
-                        className="h-3.5 w-3.5 accent-orange-500"
-                        checked={coloriDiversi}
-                        onChange={(e) => {
-                          setColoriDiversi(e.target.checked);
-                          if (!e.target.checked) { setColoreInterno(null); setColoreEsterno(null); }
-                        }}
-                      />
-                      Colore diverso dentro e fuori
-                    </label>
-                  )}
-                  {mostraColoriDentroFuori && (
-                    <div className="mt-2 grid grid-cols-1 gap-2.5 md:grid-cols-2">
-                      <div className="space-y-1">
-                        <Label className="flex h-5 items-center text-[11px] text-slate-700">Colore interno</Label>
-                        <SceltaColore value={coloreInterno} onChange={setColoreInterno} gruppi={gruppiDiColori} placeholder="Bianco RAL 9010" aria-label="Colore interno" />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="flex h-5 items-center text-[11px] text-slate-700">Colore esterno</Label>
-                        <SceltaColore value={coloreEsterno} onChange={setColoreEsterno} gruppi={gruppiDiColori} placeholder="Antracite RAL 7016" aria-label="Colore esterno" />
-                      </div>
-                    </div>
-                  )}
                 </div>
               </Card>
             )}
@@ -967,11 +1004,12 @@ export function ListinoPickerDialog({
               </Card>
             )}
           </div>
-          {/* A destra il disegno, piccolo e fermo: si aggiorna mentre scegli misure e variabili. */}
+          {/* A destra il disegno, piccolo e fermo: si aggiorna mentre scegli misure e variabili. Da telefono i due
+              disegni stanno affiancati sotto le scelte, non uno sopra l'altro. */}
           {anteprimaDisegno && (
             <aside>
               <div className="sticky top-0">
-                <AnteprimaDisegnoFamiglia disegno={anteprimaDisegno} altezza="h-36" colonna />
+                <AnteprimaDisegnoFamiglia disegno={anteprimaDisegno} altezza="h-40" colonna={!isMobile} compatto />
               </div>
             </aside>
           )}
@@ -1012,7 +1050,7 @@ export function ListinoPickerDialog({
                     && availableSupplierProductLineIds.length > 0
                     && availableSupplierLines.length === 0)
                   // Blocca se ci sono assi obbligatori senza scelta.
-                  || axes.some((a) => a.obbligatorio && !axisSelection[a.codice])
+                  || axes.some((a) => a.obbligatorio && !selezione[a.codice])
                 }
               >
                 {testoConferma}
@@ -1044,8 +1082,8 @@ function SchedaProdotto({ riga, contesto, onClick }: { riga: RigaListino; contes
       ) : f.immagine_url ? (
         <img loading="lazy" src={f.immagine_url} alt={f.nome} className="w-full h-32 object-contain bg-slate-50" />
       ) : (
-        <div className="w-full h-14 sm:h-32 flex items-center justify-center bg-slate-50 text-slate-300">
-          <Package className="h-6 w-6 sm:h-10 sm:w-10" />
+        <div className="flex h-14 w-full items-center justify-center bg-slate-50 text-slate-300">
+          <Package className="h-6 w-6" />
         </div>
       )}
       <div className="p-2.5 flex flex-col gap-1 flex-1">

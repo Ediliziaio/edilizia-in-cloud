@@ -118,6 +118,19 @@ describe("ScontoRapido: «Arriva a €»", () => {
     expect(onApplica).not.toHaveBeenCalled();
   });
 
+  it("a un centesimo dal tetto il messaggio non dice «il 10% oltre il 10%»: mostra la cifra che fa la differenza", () => {
+    // 18.432,50 € + IVA 10%: per 18.248,18 serve il 9,999975% (entro il 10%), per 18.248,17 il 10,000025% (oltre).
+    const entro = monta({ imponibileLordo: 18_432.5, massimoPct: 10 });
+    scrivi("18248,18");
+    expect(applica().disabled).toBe(false);
+    cleanup();
+    monta({ imponibileLordo: 18_432.5, massimoPct: 10 });
+    scrivi("18248,17");
+    expect(screen.getByText("Servirebbe il 10,000025%: oltre il massimo consentito (10%).")).toBeTruthy();
+    expect(applica().disabled).toBe(true);
+    expect(entro).not.toHaveBeenCalled();
+  });
+
   it("senza massimo (chi può approvare) lo sconto grande si applica", () => {
     const onApplica = monta({ massimoPct: null });
     scrivi("18000");

@@ -5,6 +5,7 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { InboundContext } from "../types.ts";
+import { classificaERegistra, impostazioniClassifica } from "../../_shared/classificaRispostaEvento.ts";
 import { messaggioGiaRicevuto, persistInboundMessage } from "./_shared.ts";
 import {
   avvisaAutomazioni,
@@ -99,5 +100,21 @@ export async function handleMarketing(
     // Conversazioni (non letti, assegnazione); chi vuole un'azione in più la
     // costruisce con l'automazione «Quando arriva un WhatsApp».
     await avvisaAutomazioni(supabase, ctx, contact.id, messageId);
+
+    // Inviti a un evento: chi risponde «non mi interessa» o «confermo» riceve il tag giusto, così la
+    // sequenza dei promemoria esce per chi ha detto no. Acceso per numero (operational_settings).
+    const classifica = impostazioniClassifica(waNumber.operational_settings);
+    if (classifica) {
+      const lavoro = classificaERegistra(supabase, {
+        companyId,
+        contactId: contact.id,
+        testo: extracted.content,
+        impostazioni: classifica,
+      }).catch((err) =>
+        console.error(JSON.stringify({ level: "error", fn: "handleMarketing", msg: "classifica risposta", error: String(err) }))
+      );
+      // deno-lint-ignore no-explicit-any
+      (globalThis as any).EdgeRuntime?.waitUntil?.(lavoro);
+    }
   }
 }

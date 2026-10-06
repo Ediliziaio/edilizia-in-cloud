@@ -36,6 +36,11 @@ interface Props {
   /** Il metallo della maniglia (e dei perni): argento di serie. */
   finituraManiglia?: FinituraManigliaId;
   mostraQuote?: boolean;
+  /**
+   * Anteprima piccola (la riga del preventivo, il listino): il disegno non ha margini vuoti dove non ci sono quote
+   * e le quote hanno il corpo più grande, per restare leggibili in poco spazio.
+   */
+  compatto?: boolean;
   className?: string;
 }
 
@@ -95,7 +100,7 @@ function schiarisci(hex: string, quanto: number): string {
 }
 
 export function DisegnoSerramentoSvg({
-  disegno, scena: scenaData, vista, finituraInterna, finituraEsterna, finituraCassonetto, finituraTapparella, finituraManiglia = "argento", mostraQuote = true, className,
+  disegno, scena: scenaData, vista, finituraInterna, finituraEsterna, finituraCassonetto, finituraTapparella, finituraManiglia = "argento", mostraQuote = true, compatto = false, className,
 }: Props) {
   const id = useId().replace(/:/g, "");
   const scena = useMemo(
@@ -113,11 +118,16 @@ export function DisegnoSerramentoSvg({
   const haQuote = (lato: "sx" | "dx" | "sotto") => mostraQuote && scena.quote.some((q) => q.lato === lato);
   // Dove c'è una quota serve più spazio: le quote stanno fuori dal serramento (e fuori dall'aletta).
   const sfondo = scena.sfondo ?? 0; // la parete attorno al vano: allarga l'immagine
-  const mSx = Math.max((haQuote("sx") ? unita * 1.5 : unita) + sp, sfondo);
-  const mDx = Math.max((haQuote("dx") ? unita * 1.5 : unita) + sp, sfondo);
+  // Dove non c'è una quota il margine è vuoto: nell'anteprima piccola resta poco più di un respiro.
+  const vuoto = compatto ? unita * 0.3 : unita;
+  const mSx = Math.max((haQuote("sx") ? unita * 1.5 : vuoto) + sp, sfondo);
+  const mDx = Math.max((haQuote("dx") ? unita * 1.5 : vuoto) + sp, sfondo);
   const livelli = Math.max(0, ...scena.quote.filter((q) => q.lato === "sotto").map((q) => q.livello ?? 0));
-  const mSotto = Math.max((haQuote("sotto") ? unita * 1.3 : unita) + sp + (mostraQuote ? livelli * unita * 0.9 : 0), sfondo);
-  const mSopra = Math.max(unita + sp, sfondo);
+  const mSotto = Math.max((haQuote("sotto") ? unita * 1.3 : vuoto) + sp + (mostraQuote ? livelli * unita * 0.9 : 0), sfondo);
+  const mSopra = Math.max(vuoto + sp, sfondo);
+  // Nell'anteprima piccola le quote hanno il corpo più grande (restano dentro i margini delle quote): con il
+  // disegno a 140 px il numero sarebbe di 6 px, illeggibile.
+  const kq = compatto ? 1.8 : 1;
   const filo = grande * 0.0022;
   const tratto = grande * 0.007;
 
@@ -477,7 +487,7 @@ export function DisegnoSerramentoSvg({
       </g>
 
       {mostraQuote && (
-        <g stroke="#475569" strokeWidth={filo} fill="#334155" fontFamily="system-ui, sans-serif" fontSize={unita * 0.42}>
+        <g stroke="#475569" strokeWidth={filo} fill="#334155" fontFamily="system-ui, sans-serif" fontSize={unita * 0.42 * kq}>
           {scena.quote.map((q, i) => {
             const d = unita * 0.45; // distanza della linea di quota dal serramento
             const tic = unita * 0.15;
@@ -488,12 +498,12 @@ export function DisegnoSerramentoSvg({
                   <line x1={q.da} y1={y} x2={q.a} y2={y} />
                   <line x1={q.da} y1={y - tic} x2={q.da} y2={y + tic} />
                   <line x1={q.a} y1={y - tic} x2={q.a} y2={y + tic} />
-                  <text x={(q.da + q.a) / 2} y={y + unita * 0.5} textAnchor="middle" stroke="none">{q.testo}</text>
+                  <text x={(q.da + q.a) / 2} y={y + unita * (0.5 + (kq - 1) * 0.18)} textAnchor="middle" stroke="none">{q.testo}</text>
                 </g>
               );
             }
             const x = q.lato === "dx" ? W + sp + d : -(sp + d);
-            const xt = q.lato === "dx" ? x + unita * 0.45 : x - unita * 0.2;
+            const xt = q.lato === "dx" ? x + unita * 0.45 : x - unita * (0.2 + (kq - 1) * 0.125);
             const yc = (q.da + q.a) / 2;
             return (
               <g key={i}>

@@ -30,6 +30,9 @@ import {
 } from "@/lib/listino/lineeListino";
 import { FILTRI_LISTINO_VUOTI, rigaPassa } from "@/lib/listino/filtriListino";
 import { vociDi } from "@/lib/listino/scelteVariante";
+import {
+  CODICE_ASSE_COLORE, LATI_COLORE, leggiColori, stessoColore, type ColoriDentroFuori, type LatoColore, type SceltaLato,
+} from "@/lib/serramenti/coloriDentroFuori";
 import type { FamilyWithAxes } from "@/types/articleFamily";
 
 export type TipoProposta = "principale" | "accessorio";
@@ -220,6 +223,10 @@ export interface PreferenzaAsse {
   valore: string;
   label: string;
   scelta: string | null;
+  /** Solo per «Colore»: cosa aveva scelto ognuno dei due lati (la `scelta` sopra è quella del prezzo, la più cara). */
+  lati?: Partial<Record<LatoColore, PreferenzaAsse | null>>;
+  /** Solo dentro `lati`: il colore scritto a mano su quel lato («Altro colore»), che nel listino non c'è. */
+  scritto?: string;
 }
 
 /**
@@ -228,7 +235,7 @@ export interface PreferenzaAsse {
  * varianti. È la configurazione rapida: la finestra dopo parte uguale.
  */
 export function preferenzeDaRiga(
-  riga: { family_id?: string | null; valori_assi?: unknown; scelte_assi?: unknown } | null | undefined,
+  riga: { family_id?: string | null; valori_assi?: unknown; scelte_assi?: unknown; colore_interno?: string | null; colore_esterno?: string | null } | null | undefined,
   famiglie: readonly FamilyWithAxes[],
 ): Record<string, PreferenzaAsse> {
   const famiglia = riga?.family_id ? famiglie.find((f) => f.id === riga.family_id) : undefined;
@@ -239,6 +246,21 @@ export function preferenzeDaRiga(
   for (const asse of famiglia.axes ?? []) {
     const valore = asse.values.find((v) => v.id === valori[asse.codice]);
     if (valore) preferenze[asse.codice] = { valore: valore.valore, label: valore.label, scelta: scelte[asse.codice] ?? null };
+    if (asse.codice === CODICE_ASSE_COLORE) {
+      // Le due tendine «Colore»: la finestra dopo riparte con gli stessi colori dentro e fuori.
+      const lati: NonNullable<PreferenzaAsse["lati"]> = {};
+      const colori = leggiColori(asse, { valori_assi: valori, scelte_assi: scelte, colore_interno: riga?.colore_interno, colore_esterno: riga?.colore_esterno });
+      for (const lato of LATI_COLORE) {
+        // Un colore scritto a mano (fuori listino) riparte com'è: la fascia è quella del prezzo, che si riprende a parte.
+        if (colori[lato].scritto) {
+          lati[lato] = { valore: "", label: "", scelta: null, scritto: colori[lato].scritto as string };
+          continue;
+        }
+        const v = asse.values.find((x) => x.id === colori[lato].valueId);
+        if (v) lati[lato] = { valore: v.valore, label: v.label, scelta: colori[lato].voce };
+      }
+      if (preferenze[asse.codice] && (lati.interno || lati.esterno)) preferenze[asse.codice] = { ...preferenze[asse.codice], lati };
+    }
   }
   return preferenze;
 }
@@ -276,4 +298,29 @@ export function selezioneIniziale(
     if (voce && vociDi(scelto).includes(voce)) voci[asse.codice] = voce;
   }
   return { valori, voci };
+}
+
+/**
+ * Le due tendine «Colore» di un prodotto appena scelto: ogni lato riprende la scelta che aveva nell'ultima
+ * posizione (se il valore e la voce ci sono anche in questo prodotto, o il colore scritto a mano), altrimenti parte
+ * dalla scelta di serie o ripresa del prodotto, uguale dentro e fuori. Null se il prodotto non ha la variabile «Colore».
+ */
+export function coloriIniziali(
+  assi: ReadonlyArray<{ codice: string; values: ReadonlyArray<{ id: string; valore: string; label: string; attivo?: boolean | null; opzioni?: unknown }> }>,
+  valori: Record<string, string>,
+  voci: Record<string, string>,
+  preferiti?: PreferenzaAsse["lati"],
+): ColoriDentroFuori | null {
+  const asse = assi.find((a) => a.codice === CODICE_ASSE_COLORE);
+  if (!asse) return null;
+  const base = stessoColore(valori[CODICE_ASSE_COLORE] ?? null, voci[CODICE_ASSE_COLORE] ?? null);
+  const dalLato = (lato: LatoColore): SceltaLato => {
+    const preferenza = preferiti?.[lato] ?? undefined;
+    if (preferenza?.scritto) return { ...base[lato], scritto: preferenza.scritto };
+    const valore = valoreRipreso(asse.values, preferenza);
+    if (!valore) return base[lato];
+    const voce = preferenza?.scelta && vociDi(valore).includes(preferenza.scelta) ? preferenza.scelta : null;
+    return { valueId: valore.id, voce, scritto: null };
+  };
+  return { interno: dalLato("interno"), esterno: dalLato("esterno") };
 }

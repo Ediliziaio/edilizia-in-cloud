@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ComponentType } from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscountRule } from "@/hooks/useDiscountRules";
 
@@ -124,6 +124,29 @@ describe.each(MODULI)("Economia $modulo", ({ prefisso, Step }) => {
     expect(onChange).toHaveBeenCalledWith("iva_pct", 4);
     fireEvent.change(campo(`${prefisso}-detrazione`), { target: { value: "50" } });
     expect(onChange).toHaveBeenCalledWith("detrazione_pct", 50);
+  });
+
+  it("sotto «Mostra la rata nel PDF» si sceglie il numero di rate: di serie quelle del modello (12), un tasto scrive la scelta nel preventivo", () => {
+    const onChange = monta();
+    const gruppo = screen.getByRole("group", { name: "Numero di rate" });
+    const tasto = (n: number) => within(gruppo).getByRole("button", { name: new RegExp(`^${n} rate`) });
+    expect(tasto(12).getAttribute("aria-pressed")).toBe("true");
+    expect(tasto(48).getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(tasto(48));
+    expect(onChange).toHaveBeenCalledWith("finanziamento_rate", 48);
+  });
+
+  it("con le rate già scelte sul preventivo (36) è quel tasto a essere premuto", () => {
+    monta({ form: { ...FORM, finanziamento_rate: 36 } });
+    const gruppo = screen.getByRole("group", { name: "Numero di rate" });
+    expect(within(gruppo).getByRole("button", { name: /^36 rate/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(within(gruppo).getByRole("button", { name: /^12 rate/ }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("senza la promo nel modello non c'è né la rata né la scelta delle rate", () => {
+    ctl.promo = false;
+    monta();
+    expect(screen.queryByRole("group", { name: "Numero di rate" })).toBeNull();
   });
 
   it("computo vuoto: il pulsante «Vai al Computo» porta al passo del computo", () => {

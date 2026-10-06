@@ -19,6 +19,34 @@ export interface FinanziamentoPromo {
 
 export const FINANZIAMENTO_RATE_OPZIONI = [12, 24, 36, 48, 60, 84, 120] as const;
 
+/**
+ * Il numero di rate scelto sul preventivo (colonna `finanziamento_rate` dei progetti edili): un intero da 1 a
+ * 360, altrimenti null = quello del modello. Difensivo: dal database può arrivare anche una stringa.
+ */
+export function rateDelPreventivo(valore: unknown): number | null {
+  if (valore == null || valore === "") return null;
+  const n = Number(valore);
+  return Number.isInteger(n) && n >= 1 && n <= 360 ? n : null;
+}
+
+/**
+ * La promo del modello col numero di rate scelto sul preventivo al posto di quello del modello (il TAN resta).
+ * Senza promo attiva o senza una scelta valida ridà il valore com'era.
+ */
+export function promoConRateDelPreventivo(raw: unknown, rateScelte: unknown): unknown {
+  const rate = rateDelPreventivo(rateScelte);
+  if (rate == null || !parseFinanziamentoPromo(raw)) return raw;
+  return { ...(raw as Record<string, unknown>), rate };
+}
+
+/** Le rate da offrire come scelta: quelle di sempre, più quella del modello e quella già scelta se non ci sono. */
+export function opzioniRate(rateModello: number, rateScelte?: number | null): number[] {
+  const tutte = new Set<number>(FINANZIAMENTO_RATE_OPZIONI);
+  tutte.add(rateModello);
+  if (rateScelte != null) tutte.add(rateScelte);
+  return [...tutte].sort((a, b) => a - b);
+}
+
 /** Rata mensile (ammortamento francese); TAN 0 → divisione semplice. */
 export function calcolaRataMensile(totale: number, rate: number, tanPct: number): number {
   const P = Math.max(0, Number(totale) || 0);

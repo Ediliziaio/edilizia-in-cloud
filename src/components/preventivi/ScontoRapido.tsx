@@ -28,6 +28,10 @@ interface Props {
 
 const percentuale = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
 
+/** Due decimali bastano, tranne quando la percentuale e il massimo si assomigliano al punto da sembrare uguali. */
+const percentualeAConfronto = (n: number, altro: number) =>
+  percentuale(n) === percentuale(altro) ? n.toLocaleString("it-IT", { maximumFractionDigits: 6 }) : percentuale(n);
+
 export function ScontoRapido({ valorePct, massimoPct, imponibileLordo, ivaPct, onApplica, disabled = false, className }: Props) {
   const id = useId();
   const [testo, setTesto] = useState("");
@@ -47,7 +51,7 @@ export function ScontoRapido({ valorePct, massimoPct, imponibileLordo, ivaPct, o
       return `Il totale senza sconto è già ${formatCurrency(proposta.totaleSenzaSconto)} (IVA inclusa): non serve nessuno sconto.`;
     }
     if (oltreIlMassimo) {
-      return `Servirebbe il ${percentuale(proposta.pct)}%: oltre il massimo consentito (${percentuale(massimoPct ?? 0)}%).`;
+      return `Servirebbe il ${percentualeAConfronto(proposta.pct, massimoPct ?? 0)}%: oltre il massimo consentito (${percentuale(massimoPct ?? 0)}%).`;
     }
     return `Serve uno sconto del ${percentuale(proposta.pct)}% (−${formatCurrency(proposta.importo)}, IVA esclusa).`;
   })();

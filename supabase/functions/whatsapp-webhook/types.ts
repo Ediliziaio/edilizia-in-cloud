@@ -14,6 +14,7 @@ export interface WANumber {
   agent_id: string | null;
   stato: string | null;
   display_name: string | null;
+  operational_settings?: Record<string, unknown> | null;
 }
 
 export interface IncomingWhatsAppMessage {
