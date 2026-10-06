@@ -24,6 +24,9 @@ interface LinkedTasksProps {
   /** Dentro un pannello che ha già la sua intestazione (es. sidebar contatto):
    *  niente Card/header propri, layout compatto senza doppio titolo. */
   embedded?: boolean;
+  /** Una riga sola finché non ci sono attività: «Attività · nessuna · Aggiungi».
+   *  L'elenco compare sotto solo quando c'è qualcosa (commessa, Lavorazioni). */
+  compatta?: boolean;
 }
 
 // Il passo che deve chiudersi prima (flusso di lavoro commessa): serve il
@@ -49,7 +52,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   urgente: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
-export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportunityId, ticketId, category, companyId: propCompanyId, embedded }: LinkedTasksProps) {
+export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportunityId, ticketId, category, companyId: propCompanyId, embedded, compatta }: LinkedTasksProps) {
   const { effectiveCompany } = useAuth();
   const companyId = propCompanyId || effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -335,6 +338,27 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
           </div>
           {taskList}
         </div>
+      ) : compatta ? (
+        // Una riga sola: il riquadro grande con «Nessuna attività collegata» al
+        // centro era quasi tutto spazio vuoto in cima alle lavorazioni.
+        <Card>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 sm:px-4">
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <CheckSquare className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Attività
+            </span>
+            {activeTasks.length > 0 && (
+              <Badge variant="secondary" className="text-xs">{activeTasks.length === 1 ? "1 da fare" : `${activeTasks.length} da fare`}</Badge>
+            )}
+            {!isLoading && !isError && tasks.length === 0 && <span className="text-sm text-muted-foreground">nessuna</span>}
+            {!isLoading && !isError && tasks.length > 0 && activeTasks.length === 0 && <span className="text-sm text-emerald-700">tutte fatte</span>}
+            <Button variant="ghost" size="sm" onClick={handleAddTask} className="ml-auto h-8 font-semibold text-blue-950 max-sm:min-h-11">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              <span className="ml-1">Aggiungi</span>
+            </Button>
+          </div>
+          {(isError || tasks.length > 0) && <div className="border-t px-2 py-1.5 sm:px-3">{taskList}</div>}
+        </Card>
       ) : (
         <Card>
           <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
