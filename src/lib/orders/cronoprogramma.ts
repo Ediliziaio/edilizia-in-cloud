@@ -4,8 +4,8 @@
  * del cantiere.
  *
  * Date reali delle fasi:
- * - inizio: il primo rapportino inviato o approvato che dichiara ore sulla
- *   fase (campo_rapportini.fasi_lavorate);
+ * - inizio: il primo rapportino inviato o approvato che indica la fase tra
+ *   quelle lavorate (campo_rapportini.fasi_lavorate), anche con 0 ore;
  * - fine: per una fase completata, il giorno in cui è stata chiusa
  *   (completata_il), altrimenti l'ultimo rapportino sulla fase.
  * Le date sono giorni di calendario «yyyy-MM-dd»: i conti si fanno in UTC,

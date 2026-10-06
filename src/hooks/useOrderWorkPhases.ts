@@ -435,10 +435,14 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       // Chi chiude una fase dall'ufficio ne registra il giorno, come l'app di
       // campo (CampoAvanzamento): è la fine reale del cronoprogramma. Prima
       // dall'ufficio non si scriveva mai (06/10/2026: 98 fasi, 0 con la data).
+      // Una fase già chiusa che si «richiude» (per esempio «Rettifica
+      // avanzamento» salvata a 100) tiene il suo giorno di chiusura: oggi al
+      // suo posto farebbe comparire nel cronoprogramma un ritardo che non c'è.
+      const giaChiusa = data?.phases.find((p) => p.id === id)?.status === "completata";
       const chiusura = patch.status === undefined
         ? {}
         : patch.status === "completata"
-          ? { completata_il: new Date().toISOString(), completata_da: user?.id ?? null }
+          ? (giaChiusa ? {} : { completata_il: new Date().toISOString(), completata_da: user?.id ?? null })
           : { completata_il: null, completata_da: null };
       const { error } = await db
         .from("order_work_phases")

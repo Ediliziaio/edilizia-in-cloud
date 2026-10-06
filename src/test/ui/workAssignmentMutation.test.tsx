@@ -2,12 +2,15 @@ import { cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useOrderWorkPhases, type AddAssignmentPayload } from "@/hooks/useOrderWorkPhases";
 
-const mocks = vi.hoisted(() => ({ from: vi.fn(), invalidate: vi.fn(), warning: vi.fn(), error: vi.fn(), employees: undefined as unknown }));
+const mocks = vi.hoisted(() => ({ from: vi.fn(), invalidate: vi.fn(), warning: vi.fn(), error: vi.fn(), employees: undefined as unknown, fasi: undefined as unknown }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: mocks.from } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("sonner", () => ({ toast: { warning: mocks.warning, error: mocks.error } }));
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: ({ queryKey }: { queryKey: unknown[] }) => ({ data: queryKey[0] === "employees_active" ? mocks.employees : undefined, isLoading: false, isError: false, refetch: vi.fn() }),
+  useQuery: ({ queryKey }: { queryKey: unknown[] }) => ({
+    data: queryKey[0] === "employees_active" ? mocks.employees : queryKey[0] === "order_work_phases" ? mocks.fasi : undefined,
+    isLoading: false, isError: false, refetch: vi.fn(),
+  }),
   useQueryClient: () => ({ invalidateQueries: mocks.invalidate }),
   useMutation: (config: { mutationFn: (arg: unknown) => Promise<unknown>; onSuccess?: (result: unknown) => void; onError?: (error: unknown) => void }) => ({
     mutateAsync: async (arg: unknown) => {
@@ -23,7 +26,36 @@ const builder = (result: unknown, insertResult: unknown = { error: null as null 
   q.select.mockReturnValue(q); q.eq.mockReturnValue(q); q.limit.mockReturnValue(q); return q;
 };
 afterEach(cleanup);
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); mocks.fasi = undefined; });
+
+describe("Chiusura di una fase dall'ufficio (06/10/2026)", () => {
+  const aggiorna = () => {
+    const q = { update: vi.fn(), eq: vi.fn() };
+    q.update.mockReturnValue(q);
+    q.eq.mockResolvedValue({ error: null as null });
+    mocks.from.mockReturnValue(q);
+    return q;
+  };
+
+  it("chiudere una fase aperta ne registra il giorno; «richiudere» una già chiusa (rettifica a 100) non lo sposta", async () => {
+    mocks.fasi = { phases: [{ id: "chiusa", status: "completata" }, { id: "aperta", status: "in_corso" }], unassigned: [] as unknown[], all: [] as unknown[] };
+    const q = aggiorna();
+    const { result } = renderHook(() => useOrderWorkPhases("order"));
+    await result.current.updatePhase.mutateAsync({ id: "aperta", status: "completata" });
+    expect(q.update.mock.calls[0][0]).toHaveProperty("completata_il");
+    await result.current.updatePhase.mutateAsync({ id: "chiusa", status: "completata", percentuale: 100 });
+    expect(q.update.mock.calls[1][0]).not.toHaveProperty("completata_il");
+    expect(q.update.mock.calls[1][0]).toMatchObject({ status: "completata", percentuale: 100 });
+  });
+
+  it("riaprire una fase chiusa toglie il giorno di chiusura", async () => {
+    mocks.fasi = { phases: [{ id: "chiusa", status: "completata" }], unassigned: [] as unknown[], all: [] as unknown[] };
+    const q = aggiorna();
+    const { result } = renderHook(() => useOrderWorkPhases("order"));
+    await result.current.updatePhase.mutateAsync({ id: "chiusa", status: "in_corso", percentuale: 80 });
+    expect(q.update.mock.calls[0][0]).toMatchObject({ completata_il: null, completata_da: null });
+  });
+});
 
 describe("Collegamento assegnazione e app Campo (API simulate)", () => {
   it("non imputa la squadra interna come subappaltatore neppure chiamando la mutation", async () => {
