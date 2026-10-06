@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -27,21 +27,34 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  HardHat, Plus, Search, FileText, FileX2, AlertTriangle, Phone, ExternalLink, Loader2, Mail, ShieldCheck, Trash2, CheckCircle2, XCircle, X,
+  HardHat, Plus, Search, FileText, FileX2, AlertTriangle, Phone, ExternalLink, Loader2, Mail, ShieldCheck, Trash2, CheckCircle2, XCircle, X, Building2,
 } from 'lucide-react';
-import { differenceInDays, parseISO } from 'date-fns';
 import type { SubappaltatoreConDashboard, StatoContratto } from '@/types/subappaltatori';
 import { OperationalKpiCard } from '@/components/orders/OperationalKpiCard';
-import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro, RigaMobile } from '@/components/mobile/FiltriMobile';
+import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from '@/components/mobile/FiltriMobile';
 import { DATA_MASSIMA, dataPlausibile } from '@/lib/dataPlausibile';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { usePermissions } from '@/hooks/usePermissions';
+import { useContrattiDitte } from '@/hooks/useContrattiDitte';
+import {
+  CATEGORIE_SUGGERITE, durcDaGuardare, mancanzeDitta, numeroWhatsApp, richiestaDocumenti, vistaPredefinita, type VistaDitte,
+} from '@/lib/subappaltatori/gruppi';
+import { DurcPastiglia, VistaCantieri, VistaPerLavoro, VistaPerZona, type InfoDitta } from '@/components/subappaltatori/VisteDitte';
+import { cn } from '@/lib/utils';
 
-function DurcBadge({ scadenza }: { scadenza: string | null }) {
-  // whitespace-nowrap: nella tabella «DURC scaduto» andava su due righe.
-  if (!scadenza) return <Badge variant="outline" className="whitespace-nowrap text-xs">DURC mancante</Badge>;
-  const daysLeft = differenceInDays(parseISO(scadenza), new Date());
-  if (daysLeft < 0) return <Badge className="whitespace-nowrap text-xs bg-red-600 text-white">DURC scaduto</Badge>;
-  if (daysLeft <= 30) return <Badge className="whitespace-nowrap text-xs bg-yellow-500 text-white">DURC {daysLeft}gg</Badge>;
-  return <Badge className="whitespace-nowrap text-xs bg-green-600 text-white">DURC OK</Badge>;
+/** Le viste della pagina (06/10/2026): da telefono solo le due raggruppate. */
+const VISTE: Array<{ v: VistaDitte; etichetta: string }> = [
+  { v: 'lavoro', etichetta: 'Per lavoro' },
+  { v: 'zona', etichetta: 'Per zona' },
+  { v: 'cantieri', etichetta: 'Cantieri' },
+  { v: 'elenco', etichetta: 'Elenco' },
+];
+const VISTE_TELEFONO: ReadonlySet<VistaDitte> = new Set(['lavoro', 'zona']);
+
+/** Oggi, «yyyy-MM-dd», nel fuso di chi guarda. */
+function oggiLocale() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function StatoBadge({ stato }: { stato: StatoContratto | null }) {
@@ -72,21 +85,6 @@ function isMissingCampoLinkColumn(error: unknown) {
   );
 }
 
-/** DURC scaduto o in scadenza entro 30 giorni. */
-function durcDaControllare(scadenza: string | null) {
-  if (!scadenza) return false;
-  return differenceInDays(parseISO(scadenza), new Date()) <= 30;
-}
-
-/** DURC in una parola colorata, per la riga su telefono. */
-function DurcTesto({ scadenza }: { scadenza: string | null }) {
-  if (!scadenza) return <span className="text-muted-foreground">DURC mancante</span>;
-  const daysLeft = differenceInDays(parseISO(scadenza), new Date());
-  if (daysLeft < 0) return <span className="font-medium text-red-600">DURC scaduto</span>;
-  if (daysLeft <= 30) return <span className="font-medium text-amber-600">DURC {daysLeft}gg</span>;
-  return <span className="text-green-700">DURC ok</span>;
-}
-
 /**
  * `incorporata`: dentro Manodopera e Mezzi il titolo lo dà la pagina che la
  * contiene; qui restano la frase e il bottone.
@@ -97,10 +95,16 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
   const queryClient = useQueryClient();
   const { isScopriPlan } = useSubscriptionLimits();
 
+  const isMobile = useIsMobile();
+  const { canViewCosts } = usePermissions();
+  const oggi = oggiLocale();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
+  // Ditte con un contratto attivo: il riquadro «Al lavoro».
+  const [soloAlLavoro, setSoloAlLavoro] = useState(false);
   const [filtroDoc, setFiltroDoc] = useState('__all__');
   const [filtroStato, setFiltroStato] = useState('__all__');
-  // DURC scaduto o entro 30 giorni: è il riquadro «DURC in scadenza» su telefono.
+  // DURC scaduto, entro 30 giorni o mancante: il riquadro «DURC da controllare».
   const [soloDurcInScadenza, setSoloDurcInScadenza] = useState(false);
   const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -183,28 +187,34 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
     staleTime: 3 * 60 * 1000,
   });
 
-  // ── Conteggio documenti (fascicolo) per subappaltatore ─────────────────────
-  // Mappa anagrafica_id → n. documenti attivi (subappaltatori_documenti). Serve
-  // a mostrare/filtrare chi ha i documenti collegati e chi no.
-  const { data: docCountMap = {} } = useQuery({
-    queryKey: ['sub-doc-counts', companyId],
+  // ── Fascicolo (documenti) per subappaltatore ─────────────────────────────
+  // Anagrafica_id → quanti documenti attivi (subappaltatori_documenti) e di
+  // che tipo: serve a dire cosa manca (visura, DVR, POS, polizza RC).
+  const { data: fascicoli = {} } = useQuery({
+    queryKey: ['sub-fascicoli', companyId],
     enabled: !!companyId,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('subappaltatori_documenti')
-        .select('subappaltatore_id')
+        .select('subappaltatore_id, tipo')
         .eq('company_id', companyId)
         .neq('status', 'superseded');
       if (error) throw error;
-      const m: Record<string, number> = {};
-      for (const r of (data ?? []) as Array<{ subappaltatore_id: string | null }>) {
-        if (r.subappaltatore_id) m[r.subappaltatore_id] = (m[r.subappaltatore_id] ?? 0) + 1;
+      const m: Record<string, { n: number; tipi: string[] }> = {};
+      for (const r of (data ?? []) as Array<{ subappaltatore_id: string | null; tipo: string | null }>) {
+        if (!r.subappaltatore_id) continue;
+        const f = (m[r.subappaltatore_id] ??= { n: 0, tipi: [] });
+        f.n += 1;
+        if (r.tipo && !f.tipi.includes(r.tipo)) f.tipi.push(r.tipo);
       }
       return m;
     },
   });
-  const docCountFor = (s: SubappaltatoreConDashboard) =>
-    s.campo_subappaltatore_id ? (docCountMap[s.campo_subappaltatore_id] ?? 0) : 0;
+  const fascicoloPer = useMemo(() => new Map(subappaltatori.map((s) => {
+    const f = s.campo_subappaltatore_id ? fascicoli[s.campo_subappaltatore_id] : undefined;
+    return [s.id, { n: f?.n ?? 0, tipi: new Set(f?.tipi ?? []) }] as const;
+  })), [subappaltatori, fascicoli]);
+  const docCountFor = (s: SubappaltatoreConDashboard) => fascicoloPer.get(s.id)?.n ?? 0;
 
   // Ordini per il selettore "Cantiere / Ordine" nel dialog di creazione.
   const { data: ordini = [] } = useQuery({
@@ -222,16 +232,68 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
     enabled: !!companyId,
   });
 
+  // ── Contratti: su quali cantieri lavora ogni ditta ──────────────────────
+  const { data: contratti = [] } = useContrattiDitte();
+  const { alLavoroIds, cantieriPer } = useMemo(() => {
+    const alLavoro = new Set<string>();
+    const cantieri = new Map<string, Set<string>>();
+    for (const c of contratti) {
+      if (c.stato === 'attivo') alLavoro.add(c.schedaId);
+      if ((c.stato === 'attivo' || c.stato === 'sospeso') && c.orderId) {
+        const set = cantieri.get(c.schedaId) ?? new Set<string>();
+        set.add(c.orderId);
+        cantieri.set(c.schedaId, set);
+      }
+    }
+    return { alLavoroIds: alLavoro, cantieriPer: cantieri };
+  }, [contratti]);
+  const nomeAzienda = effectiveCompany?.name ?? 'la nostra impresa';
+  const mancanzePer = useMemo(() => new Map(subappaltatori.map((s) => [
+    s.id,
+    mancanzeDitta(s, fascicoloPer.get(s.id) ?? { n: 0, tipi: new Set<string>() }, cantieriPer.get(s.id)?.size ?? 0, oggi),
+  ] as const)), [subappaltatori, fascicoloPer, cantieriPer, oggi]);
+  const mancanzeDi = (s: SubappaltatoreConDashboard) => mancanzePer.get(s.id) ?? [];
+
+  const info = (s: SubappaltatoreConDashboard): InfoDitta => {
+    const mancanze = mancanzeDi(s);
+    const daChiedere = mancanze.filter((m) => m.chiave !== 'piva');
+    let richiesta: InfoDitta['richiesta'] = null;
+    if (daChiedere.length > 0) {
+      const { oggetto, testo } = richiestaDocumenti(s, daChiedere, nomeAzienda);
+      const email = s.email?.trim() || s.pec?.trim();
+      const wa = numeroWhatsApp(s.telefono);
+      if (email) richiesta = { canale: 'email', href: `mailto:${email}?subject=${encodeURIComponent(oggetto)}&body=${encodeURIComponent(testo)}` };
+      else if (wa) richiesta = { canale: 'whatsapp', href: `https://wa.me/${wa}?text=${encodeURIComponent(testo)}` };
+    }
+    return {
+      cantieriInCorso: cantieriPer.get(s.id)?.size ?? 0,
+      alLavoro: alLavoroIds.has(s.id),
+      documenti: docCountFor(s),
+      mancanze,
+      richiesta,
+    };
+  };
+
   // ── Stats ─────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const attivi = subappaltatori.filter(s => s.campo_is_active).length;
-    const conDocumenti = subappaltatori.filter(s =>
-      s.campo_subappaltatore_id ? (docCountMap[s.campo_subappaltatore_id] ?? 0) > 0 : false,
-    ).length;
-    const senzaDocumenti = subappaltatori.length - conDocumenti;
-    const durcScaduti = subappaltatori.filter(s => durcDaControllare(s.durc_scadenza)).length;
-    return { attivi, conDocumenti, senzaDocumenti, durcScaduti };
-  }, [subappaltatori, docCountMap]);
+    const senzaDocumenti = subappaltatori.filter(s => (mancanzePer.get(s.id) ?? []).some(m => m.chiave !== 'piva')).length;
+    const durcScaduti = subappaltatori.filter(s => durcDaGuardare(s.durc_scadenza, oggi)).length;
+    const alLavoro = subappaltatori.filter(s => alLavoroIds.has(s.id)).length;
+    return { ditte: subappaltatori.length, alLavoro, senzaDocumenti, durcScaduti };
+  }, [subappaltatori, mancanzePer, oggi, alLavoroIds]);
+
+  // ── Vista: dall'indirizzo, altrimenti quella che i dati dell'azienda reggono ─
+  const visteDisponibili = isMobile ? VISTE.filter(x => VISTE_TELEFONO.has(x.v)) : VISTE;
+  const predefinita = useMemo(() => vistaPredefinita(subappaltatori), [subappaltatori]);
+  const richiesta = searchParams.get('vista') as VistaDitte | null;
+  const vista: VistaDitte = richiesta && visteDisponibili.some(x => x.v === richiesta)
+    ? richiesta
+    : visteDisponibili.some(x => x.v === predefinita) ? predefinita : 'lavoro';
+  const cambiaVista = (v: VistaDitte) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('vista', v);
+    setSearchParams(next, { replace: true });
+  };
 
   // ── Filtro locale ─────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -241,17 +303,19 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           !(s.tipo_lavori ?? '').toLowerCase().includes(term) &&
           !(s.piva ?? '').toLowerCase().includes(term) &&
           !(s.email ?? '').toLowerCase().includes(term)) return false;
-      if (filtroDoc === '__con__' && docCountFor(s) === 0) return false;
-      if (filtroDoc === '__senza__' && docCountFor(s) > 0) return false;
+      if (filtroDoc === '__con__' && (fascicoloPer.get(s.id)?.n ?? 0) === 0) return false;
+      if (filtroDoc === '__senza__' && !(mancanzePer.get(s.id) ?? []).some(m => m.chiave !== 'piva')) return false;
       if (filtroStato === '__active__' && !s.campo_is_active) return false;
       if (filtroStato === '__inactive__' && s.campo_is_active) return false;
       if (filtroStato !== '__all__' && filtroStato !== '__active__' && filtroStato !== '__inactive__'
           && s.stato_contratto !== filtroStato) return false;
-      if (soloDurcInScadenza && !durcDaControllare(s.durc_scadenza)) return false;
+      if (soloDurcInScadenza && !durcDaGuardare(s.durc_scadenza, oggi)) return false;
+      if (soloAlLavoro && !alLavoroIds.has(s.id)) return false;
       return true;
     });
-  }, [subappaltatori, search, filtroDoc, filtroStato, soloDurcInScadenza, docCountMap]);
+  }, [subappaltatori, search, filtroDoc, filtroStato, soloDurcInScadenza, soloAlLavoro, alLavoroIds, oggi, fascicoloPer, mancanzePer]);
   const nFiltriMobile = [filtroDoc !== '__all__', filtroStato !== '__all__', soloDurcInScadenza].filter(Boolean).length;
+  const togliFiltri = () => { setSearch(''); setFiltroDoc('__all__'); setFiltroStato('__all__'); setSoloDurcInScadenza(false); setSoloAlLavoro(false); };
 
   // ── Mutation nuovo subappaltatore ────────────────────────────────────────
   const createMutation = useMutation({
@@ -431,7 +495,23 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       {/* Header */}
       {incorporata ? (
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-slate-500 max-sm:hidden">Contratti, SAL, DURC e ritenute delle ditte in subappalto.</p>
+          {/* Le ditte divise per lavoro, zona o cantiere, come gli operai nelle squadre (06/10/2026) */}
+          <div role="group" aria-label="Vista" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+            {visteDisponibili.map(({ v, etichetta }) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={vista === v}
+                onClick={() => cambiaVista(v)}
+                className={cn(
+                  'tap-compact rounded-md px-3 py-1.5 text-sm font-medium transition-colors max-sm:px-2.5',
+                  vista === v ? 'bg-orange-50 text-orange-700' : 'text-slate-600 hover:text-slate-900',
+                )}
+              >
+                {etichetta}
+              </button>
+            ))}
+          </div>
           <Button
             size="sm"
             onClick={() => setDialogOpen(true)}
@@ -468,18 +548,28 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       )}
 
       {/* Mobile: solo i due numeri che chiedono di fare qualcosa, e fanno da filtro. */}
+      {!incorporata && (
+        <div role="group" aria-label="Vista" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+          {visteDisponibili.map(({ v, etichetta }) => (
+            <button key={v} type="button" aria-pressed={vista === v} onClick={() => cambiaVista(v)}
+              className={cn('tap-compact rounded-md px-3 py-1.5 text-sm font-medium transition-colors', vista === v ? 'bg-orange-50 text-orange-700' : 'text-slate-600 hover:text-slate-900')}>
+              {etichetta}
+            </button>
+          ))}
+        </div>
+      )}
       <KpiMobili
         className="sm:hidden"
         voci={[
           {
-            label: 'Senza documenti',
+            label: 'Fascicolo da completare',
             valore: String(stats.senzaDocumenti),
             tono: stats.senzaDocumenti > 0 ? 'text-amber-600' : undefined,
             onClick: () => setFiltroDoc(filtroDoc === '__senza__' ? '__all__' : '__senza__'),
             attivo: filtroDoc === '__senza__',
           },
           {
-            label: 'DURC in scadenza',
+            label: 'DURC da controllare',
             valore: String(stats.durcScaduti),
             tono: stats.durcScaduti > 0 ? 'text-red-600' : undefined,
             onClick: () => setSoloDurcInScadenza(v => !v),
@@ -489,11 +579,17 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       />
 
       {/* Stats */}
+      {/* I riquadri fanno da filtro, come negli operai: «Attivi» (l'app di cantiere
+          accesa) non diceva niente a chi guarda le ditte, e stava quasi sempre a 0. */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 max-sm:hidden">
-        <OperationalKpiCard icon={HardHat} label="Attivi" value={stats.attivi} hint="collaboratori attivi" tone="green" />
-        <OperationalKpiCard icon={FileText} label="Con documenti" value={stats.conDocumenti} hint="fascicolo presente" tone="blue" />
-        <OperationalKpiCard icon={FileX2} label="Senza documenti" value={stats.senzaDocumenti} hint={stats.senzaDocumenti > 0 ? "da completare" : "tutti ok"} tone={stats.senzaDocumenti > 0 ? "amber" : "green"} />
-        <OperationalKpiCard icon={AlertTriangle} label="DURC in scadenza" value={stats.durcScaduti} hint={stats.durcScaduti > 0 ? "richiede controllo" : "documenti ok"} tone={stats.durcScaduti > 0 ? "red" : "green"} />
+        <OperationalKpiCard icon={Building2} label="Ditte" value={stats.ditte} hint="in subappalto" tone="blue" isLoading={isLoading}
+          active={!soloAlLavoro && !soloDurcInScadenza && filtroDoc === '__all__'} onClick={togliFiltri} />
+        <OperationalKpiCard icon={HardHat} label="Al lavoro" value={stats.alLavoro} hint="con un contratto in corso" tone="green" isLoading={isLoading}
+          active={soloAlLavoro} onClick={() => setSoloAlLavoro(v => !v)} />
+        <OperationalKpiCard icon={AlertTriangle} label="DURC da controllare" value={stats.durcScaduti} hint={stats.durcScaduti > 0 ? "scaduti, in scadenza o mancanti" : "tutti in regola"} tone={stats.durcScaduti > 0 ? "red" : "green"} isLoading={isLoading}
+          active={soloDurcInScadenza} onClick={() => setSoloDurcInScadenza(v => !v)} />
+        <OperationalKpiCard icon={FileX2} label="Fascicolo da completare" value={stats.senzaDocumenti} hint={stats.senzaDocumenti > 0 ? "manca almeno un documento" : "tutti in regola"} tone={stats.senzaDocumenti > 0 ? "amber" : "green"} isLoading={isLoading}
+          active={filtroDoc === '__senza__'} onClick={() => setFiltroDoc(filtroDoc === '__senza__' ? '__all__' : '__senza__')} />
       </div>
 
       <CercaConFiltri
@@ -523,7 +619,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           <SelectContent>
             <SelectItem value="__all__">Tutti i documenti</SelectItem>
             <SelectItem value="__con__">Con documenti</SelectItem>
-            <SelectItem value="__senza__">Senza documenti</SelectItem>
+            <SelectItem value="__senza__">Fascicolo da completare</SelectItem>
           </SelectContent>
         </Select>
         <Select value={filtroStato} onValueChange={setFiltroStato}>
@@ -544,7 +640,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       </div>
 
       {/* Barra azioni in blocco */}
-      {selected.size > 0 && (
+      {vista === 'elenco' && selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-orange-300 bg-orange-50 px-3 py-2">
           <span className="text-sm font-semibold text-orange-800">{selected.size} selezionati</span>
           <div className="flex-1" />
@@ -575,13 +671,22 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
             <div>
               <p className="font-semibold text-lg max-sm:text-sm">Nessun subappaltatore</p>
               <p className="text-sm text-muted-foreground mt-1">
-                {search || filtroDoc !== '__all__' || filtroStato !== '__all__'
+                {search || filtroDoc !== '__all__' || filtroStato !== '__all__' || soloAlLavoro || soloDurcInScadenza
                   ? 'Nessun risultato per i filtri selezionati.'
                   : 'Aggiungi il primo subappaltatore con il pulsante in alto.'}
               </p>
+              {(search || filtroDoc !== '__all__' || filtroStato !== '__all__' || soloAlLavoro || soloDurcInScadenza) && (
+                <button type="button" className="mt-2 text-sm font-medium text-orange-700 hover:underline" onClick={togliFiltri}>Togli i filtri</button>
+              )}
             </div>
           </CardContent>
         </Card>
+      ) : vista === 'lavoro' ? (
+        <VistaPerLavoro ditte={filtered} info={info} oggi={oggi} />
+      ) : vista === 'zona' ? (
+        <VistaPerZona ditte={filtered} info={info} oggi={oggi} />
+      ) : vista === 'cantieri' ? (
+        <VistaCantieri ditte={filtered} contratti={contratti} oggi={oggi} vedeImporti={canViewCosts} />
       ) : (
         <>
         {/* ── Tabella desktop (md+) ─────────────────────────────────────── */}
@@ -608,7 +713,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
                     <TableHead className="hidden xl:table-cell">Contatti</TableHead>
                     <TableHead>DURC</TableHead>
                     <TableHead className="hidden lg:table-cell">Documenti</TableHead>
-                    <TableHead>Stato</TableHead>
+                    <TableHead title="Accesso della ditta all'app di cantiere">App cantiere</TableHead>
                     <TableHead className="text-right">Azioni</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -673,7 +778,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
                         </div>
                       </TableCell>
                       {/* DURC */}
-                      <TableCell><DurcBadge scadenza={sub.durc_scadenza} /></TableCell>
+                      <TableCell><DurcPastiglia scadenza={sub.durc_scadenza} oggi={oggi} /></TableCell>
                       {/* Documenti */}
                       <TableCell className="hidden lg:table-cell">
                         {docCountFor(sub) > 0 ? (
@@ -711,31 +816,6 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           </CardContent>
         </Card>
 
-        {/* ── Righe mobile (< md): ditta e lavori a sinistra, DURC e documenti a
-            destra; attivazione, account app cantiere e contatti nel dettaglio. ── */}
-        <div className="divide-y overflow-hidden rounded-xl border bg-card md:hidden">
-          {filtered.map((sub) => {
-            const nDoc = docCountFor(sub);
-            return (
-              <RigaMobile
-                key={sub.id}
-                to={`/azienda/subappaltatori/${sub.id}`}
-                sinistra={
-                  <span
-                    className={`h-2 w-2 shrink-0 rounded-full ${sub.campo_is_active ? 'bg-green-500' : 'bg-slate-300'}`}
-                    aria-label={sub.campo_is_active ? 'Attivo' : 'Non attivo'}
-                  />
-                }
-                titolo={sub.ragione_sociale}
-                sottotitolo={[sub.tipo_lavori, sub.responsabile].filter(Boolean).join(' · ') || undefined}
-                valore={<span className="text-[11px]"><DurcTesto scadenza={sub.durc_scadenza} /></span>}
-                stato={nDoc > 0
-                  ? <span className="text-muted-foreground">{nDoc} doc</span>
-                  : <span className="text-muted-foreground">Nessun doc</span>}
-              />
-            );
-          })}
-        </div>
         </>
       )}
 
@@ -771,11 +851,16 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
               </div>
               <div className="space-y-1.5">
               <Label>Tipo lavori</Label>
+              {/* I suggerimenti tengono insieme le ditte dello stesso lavoro nella vista «Per lavoro» */}
               <Input
+                list="tipi-lavoro-suggeriti"
                 value={form.tipo_lavori}
                 onChange={(e) => setForm(f => ({ ...f, tipo_lavori: e.target.value }))}
-                placeholder="Es. Elettrico"
+                placeholder="Es. Impianti elettrici"
               />
+              <datalist id="tipi-lavoro-suggeriti">
+                {CATEGORIE_SUGGERITE.map((c) => <option key={c} value={c} />)}
+              </datalist>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -838,7 +923,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
               <Input
                 value={form.indirizzo}
                 onChange={(e) => setForm(f => ({ ...f, indirizzo: e.target.value }))}
-                placeholder="Via, CAP, città, provincia"
+                placeholder="Via Roma 1, 35100 Padova (PD)"
               />
             </div>
             <div className="space-y-1.5 max-sm:hidden">
@@ -907,7 +992,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           scelte={[
             { value: '__all__', label: 'Tutti' },
             { value: '__con__', label: 'Con documenti' },
-            { value: '__senza__', label: 'Senza documenti' },
+            { value: '__senza__', label: 'Da completare' },
           ]}
         />
         <PilloleFiltro
