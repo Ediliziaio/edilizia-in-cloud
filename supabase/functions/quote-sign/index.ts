@@ -40,6 +40,23 @@ function escapeHtml(v: string): string {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+/**
+ * La scrittura di firma o di rifiuto non ha trovato l'offerta «inviata»: qualcun
+ * altro (un'altra scheda, il titolare che l'ha annullata o rimandata) ha deciso
+ * un attimo prima. Si rilegge lo stato vero e lo si dice, con lo stesso formato
+ * dei controlli all'inizio dell'azione.
+ */
+// deno-lint-ignore no-explicit-any
+async function esitoStatoCambiato(supabaseAdmin: any, quoteId: string): Promise<Response> {
+  const { data: attuale } = await supabaseAdmin.from("quotes").select("status").eq("id", quoteId).maybeSingle();
+  const stato = (attuale?.status as string | undefined) ?? null;
+  return jsonResponse({
+    valid: false,
+    reason: stato === "accettata" ? "already_signed" : "invalid_status",
+    status: stato,
+  });
+}
+
 serveConMetriche("quote-sign", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -74,12 +91,20 @@ serveConMetriche("quote-sign", async (req) => {
       .eq("signature_token", token)
       .single();
 
-    if (qErr || !quote) {
+    // Un preventivo nel cestino è ritirato: il link non mostra più l'offerta e non
+    // la fa firmare (prima si cercava solo il token). Recuperato, il link rivive.
+    if (qErr || !quote || quote.deleted_at) {
       return jsonResponse({ valid: false, reason: "token_invalid" }, 404);
     }
 
-    // Check expiration
-    if (quote.expires_at && new Date(quote.expires_at) < new Date()) {
+    // Check expiration. La validità conta per un'offerta ancora da decidere: uno
+    // stato concluso (accettata, rifiutata, già diventata commessa) resta quello che
+    // è anche dopo la data, così chi riapre il link per scaricare il PDF firmato non
+    // legge «Offerta scaduta». Una già «scaduta» resta tale anche se la data si è
+    // spostata in avanti (salvando il preventivo nel builder si ricalcola).
+    const statoConcluso = ["accettata", "rifiutata", "convertita"].includes(String(quote.status));
+    const scadutaPerData = !!quote.expires_at && new Date(quote.expires_at) < new Date();
+    if (!statoConcluso && (scadutaPerData || quote.status === "scaduta")) {
       // Auto-expire if still in "inviata"
       if (quote.status === "inviata") {
         await supabaseAdmin
@@ -149,7 +174,9 @@ serveConMetriche("quote-sign", async (req) => {
         // Load items for display
         const { data: items = [] } = await supabaseAdmin
           .from("quote_items")
-          .select("name, description, quantity, unit_of_measure, unit_price, discount_percent, vat_rate, line_total, item_type, sort_order, mostra_nel_pdf")
+          // item_category e is_optional servono alla pagina per dire al cliente che una
+          // voce è una nota, una posa o un'opzione fuori dal totale (come fa il PDF).
+          .select("name, description, quantity, unit_of_measure, unit_price, discount_percent, vat_rate, line_total, item_type, item_category, is_optional, sort_order, mostra_nel_pdf")
           .eq("quote_id", quote.id)
           .order("sort_order");
 
@@ -277,7 +304,12 @@ serveConMetriche("quote-sign", async (req) => {
         // migration necessaria e nessun dato perso se la colonna è vuota.
         const campiEsistenti = (quote.custom_field_values ?? {}) as Record<string, unknown>;
 
-        await supabaseAdmin
+        // La firma vale UNA volta: la scrittura passa solo se l'offerta è ancora
+        // «inviata». Due firme insieme (due schede, un doppio tocco) leggevano
+        // entrambe «inviata» e scrivevano entrambe: la seconda cancellava la prova
+        // della prima, e partivano due conferme e due avvisi. Se poi la scrittura
+        // fallisce (database in affanno) il cliente non deve leggere «accettata».
+        const { data: firmata, error: firmaErr } = await supabaseAdmin
           .from("quotes")
           .update({
             status: "accettata",
@@ -287,7 +319,16 @@ serveConMetriche("quote-sign", async (req) => {
             custom_field_values: { ...campiEsistenti, prova_firma: prova },
             updated_at: firmatoIl.toISOString(),
           })
-          .eq("id", quote.id);
+          .eq("id", quote.id)
+          .eq("status", "inviata")
+          .select("id");
+        if (firmaErr) {
+          console.error("quote-sign: firma non registrata:", firmaErr);
+          return errorResponse("La firma non è stata registrata: riprova tra qualche istante.", 500);
+        }
+        if (!firmata || firmata.length === 0) {
+          return await esitoStatoCambiato(supabaseAdmin, quote.id);
+        }
 
         // Conferma scritta al cliente: senza, del ripensamento resta traccia
         // solo dentro la nostra app — e il termine decorre da oggi. Best-effort:
@@ -360,7 +401,9 @@ serveConMetriche("quote-sign", async (req) => {
           });
         }
 
-        await supabaseAdmin
+        // Come la firma: passa solo se è ancora «inviata» (un «accetto» arrivato un
+        // attimo prima non si cancella), e un errore del database non è un rifiuto.
+        const { data: rifiutata, error: rifiutoErr } = await supabaseAdmin
           .from("quotes")
           .update({
             status: "rifiutata",
@@ -368,7 +411,16 @@ serveConMetriche("quote-sign", async (req) => {
             refused_reason: refuse_reason || null,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", quote.id);
+          .eq("id", quote.id)
+          .eq("status", "inviata")
+          .select("id");
+        if (rifiutoErr) {
+          console.error("quote-sign: rifiuto non registrato:", rifiutoErr);
+          return errorResponse("Il rifiuto non è stato registrato: riprova tra qualche istante.", 500);
+        }
+        if (!rifiutata || rifiutata.length === 0) {
+          return await esitoStatoCambiato(supabaseAdmin, quote.id);
+        }
 
         // Notify the quote creator
         if (quote.created_by) {

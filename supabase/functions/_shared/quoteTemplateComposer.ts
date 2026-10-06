@@ -9,6 +9,8 @@
  *   inline del template (es. linked_terms.body_html → contractual_terms_text).
  */
 
+import { annoItaliano, dataItalianaBreve } from "./dataItaliana.ts";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any;
 
@@ -292,10 +294,8 @@ export function buildMergeContext(args: {
     const [intero, dec] = num.toFixed(2).split(".");
     return `${intero.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${dec} €`;
   };
-  const fmtDate = (s: unknown) => {
-    if (!s) return "";
-    try { return new Date(String(s)).toLocaleDateString("it-IT"); } catch { return ""; }
-  };
+  // Il giorno italiano, non quello UTC del server (vedi dataItaliana.ts).
+  const fmtDate = (s: unknown) => (s ? dataItalianaBreve(String(s)) : "");
   const today = new Date();
 
   // Nome completo: priorità contact > quote.client_name
@@ -365,8 +365,8 @@ export function buildMergeContext(args: {
       telefono: company?.phone ?? "",
     },
     data: {
-      oggi: today.toLocaleDateString("it-IT"),
-      anno: String(today.getFullYear()),
+      oggi: dataItalianaBreve(today),
+      anno: annoItaliano(today),
     },
   };
 }

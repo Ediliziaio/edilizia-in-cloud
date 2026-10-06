@@ -8,5 +8,8 @@ export function prezzoDaTesto(testo: string): number | null {
   const pulito = testo.trim().replace(",", ".");
   const valore = Number(pulito);
   if (pulito === "" || !Number.isFinite(valore) || valore <= 0) return null;
-  return Math.round(valore * 100) / 100;
+  const alCentesimo = Math.round(valore * 100) / 100;
+  // «0,004» arrotonda a zero: non è un prezzo, e il vincolo quotes.prezzo_manuale > 0
+  // rifiuterebbe il salvataggio di tutto il preventivo.
+  return alCentesimo > 0 ? alCentesimo : null;
 }

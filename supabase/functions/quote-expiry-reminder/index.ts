@@ -65,6 +65,8 @@ Deno.serve(async (req) => {
           companies:company_id (name, email)
         `)
         .eq("status", "inviata")
+        // Nel cestino = ritirato: niente promemoria al cliente per un'offerta che non c'è più.
+        .is("deleted_at", null)
         .gte("expires_at", targetStart.toISOString())
         .lt("expires_at", targetEnd.toISOString());
 
@@ -99,11 +101,28 @@ Deno.serve(async (req) => {
           }
         }
 
-        // ── Email reminder al cliente (solo se ha email + signature_token) ──
-        if (quote.client_email && quote.signature_token) {
+        // ── Email reminder al cliente (solo se ha email + un link per firmare) ──
+        // L'offerta parte con la firma elettronica a codice OTP (/firma-fea/<token>):
+        // per quel preventivo la firma «col solo nome» è chiusa (quote-sign risponde
+        // 409), e il vecchio /preventivo/<id>?token=… faceva vedere l'offerta ma non
+        // lasciava firmare. Vale il token della richiesta di firma ancora aperta; solo
+        // senza (invio vecchio) si ripiega sulla pagina /offerta/<token del preventivo>.
+        const richiestaFirma = quote.client_email
+          ? (await supabase
+              .from("signature_requests")
+              .select("token")
+              .eq("quote_id", quote.id)
+              .in("status", ["pending", "otp_verified"])
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle()).data as { token?: string } | null
+          : null;
+        if (quote.client_email && (richiestaFirma?.token || quote.signature_token)) {
           const quoteBranding = await getBrandingForCompany(supabase, quote.company_id);
           const siteUrl = quoteBranding.siteUrl || defaultSiteUrl;
-          const signUrl = `${siteUrl}/preventivo/${quote.id}?token=${quote.signature_token}`;
+          const signUrl = richiestaFirma?.token
+            ? `${siteUrl}/firma-fea/${richiestaFirma.token}`
+            : `${siteUrl}/offerta/${quote.signature_token}`;
           const html = `
             <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
               <h2 style="color:#1E40AF;">Reminder: Offerta commerciale in scadenza</h2>

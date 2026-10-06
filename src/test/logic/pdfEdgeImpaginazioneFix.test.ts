@@ -79,12 +79,16 @@ describe("fix impaginazione/encoding PDF edge (audit)", () => {
     });
 
     it("footing IVA: totale derivato + residuo sull'aliquota maggiore (mai negativa)", () => {
+      // Il conto sta in _shared/riepilogoIvaPreventivo.ts (provato in riepilogoIvaPreventivo.test.ts):
+      // il PDF lo chiama e ne stampa le righe.
+      const riepilogo = read("supabase/functions/_shared/riepilogoIvaPreventivo.ts");
       expect(source).toContain("ivaToShow");
       expect(source).toContain("subTotShown - scontoShown");
+      expect(source).toContain("righeRiepilogoIva({");
       // il residuo di arrotondamento va sulla riga di valore massimo
-      expect(source).toContain("rows[maxI].value = round2q(rows[maxI].value + residual)");
+      expect(riepilogo).toContain("righe[max].valore = arrotondaComePostgres(righe[max].valore + residuo)");
       // clamp IVA ≥ 0: lo scarto ≤1 cent (esente+sconto) è assorbito nello sconto
-      expect(source).toContain("scontoShown = round2q(scontoShown - ivaToShow)");
+      expect(riepilogo).toContain("scontoShown = arrotondaComePostgres(scontoShown - ivaToShow)");
     });
 
     it("colonna prezzo con bordo sinistro garantito (no collisione con U.M.)", () => {

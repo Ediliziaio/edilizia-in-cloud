@@ -14,6 +14,8 @@ import { formatoImmagine, leggiLogo, logoDiRiserva } from "../_shared/logoAziend
 import { COLORE_ACCENTO_DI_FABBRICA, coloreCopertina, coloreDelBlocco, colorePreventivo, contattiImpresa, titoliMarkdown } from "../_shared/blocchiModelloPreventivo.ts";
 import { componiRighe, logoDelModello, nomeLeggibile, paroleDelTitolo, percorsoDellAzienda, pezziConGrassetto, senzaSezioneClausole, sezioneClausole, titoloGenerico, type ParolaTitolo, type Pezzo } from "../_shared/impaginaPreventivo.ts";
 import { agevolazioniPreventivo, riepilogoPrezzi } from "../_shared/prezziPreventivo.ts";
+import { dataItalianaBreve, dataItalianaLunga } from "../_shared/dataItaliana.ts";
+import { righeRiepilogoIva } from "../_shared/riepilogoIvaPreventivo.ts";
 
 // ─── Helpers ───
 function hexToRgb(hex: string) {
@@ -171,6 +173,8 @@ Deno.serve(async (req) => {
 
     let quote: any;
     let items: any[] = [];
+    // TUTTE le righe del preventivo, anche quelle nascoste nel PDF: totale e IVA le comprendono.
+    let righePerIva: any[] = [];
     const immaginiRighe = new Map<string, string>(); // «a:<articolo>» / «f:<famiglia>» → foto
     let company: any = null;
     let t: any;
@@ -255,6 +259,7 @@ Deno.serve(async (req) => {
         { name: "Porta finestra PVC 80x220", description: "Apertura anta-ribalta, soglia bassa", quantity: 2, unit_of_measure: "pz", unit_price: 1200.00, discount_percent: 5, vat_rate: 22, line_total: 2280.00 },
         { name: "Installazione e posa in opera", description: "Inclusi controtelaio, schiuma, silicone e smaltimento", quantity: 1, unit_of_measure: "servizio", unit_price: 846.00, discount_percent: 0, vat_rate: 22, line_total: 846.00 },
       ];
+      righePerIva = items;
       if (t && (t.composed_cover || t.composed_terms || t.composed_legal)) {
         if (t.composed_cover) {
           if (t.composed_cover.cover_image_url) t.cover_image_url = t.composed_cover.cover_image_url;
@@ -360,6 +365,7 @@ Deno.serve(async (req) => {
       ]);
 
       t = { ...DEFAULT_T, ...(template || {}) };
+      righePerIva = itemsRes.data ?? [];
       items = (itemsRes.data ?? []).filter((i: any) => i.mostra_nel_pdf !== false);
       pdfImp = impRes.data ?? {};
       // Le righe non salvano image_url: il builder mostra la foto dell'articolo o
@@ -880,7 +886,7 @@ Deno.serve(async (req) => {
       };
 
       // In basso: la scheda del documento su quattro colonne.
-      const dataDoc = quote.created_at ? new Date(quote.created_at).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" }) : new Date().toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+      const dataDoc = dataItalianaLunga(quote.created_at ?? new Date());
       const colonne: Array<[string, string]> = [
         ["PREPARATO PER", String(quote.client_name ?? quote.client_company ?? "—")],
         ["INDIRIZZO", String(quote.client_address ?? "—")],
@@ -1323,7 +1329,7 @@ Deno.serve(async (req) => {
       const etichettaDoc = `PREVENTIVO${t.show_quote_number ? ` · N. ${quote.quote_number}${revLabel}` : ""}`;
       const wEt = larghezzaSpaziata(etichettaDoc, 6.8, fontBold, 1.3);
       spaziato(etichettaDoc, pageWidth - margin - wEt, yTesta + 6, 6.8, fontBold, inkMarcaC, 1.3);
-      const dataDocTesto = new Date(quote.created_at).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+      const dataDocTesto = dataItalianaLunga(quote.created_at);
       drawRight(page, dataDocTesto, pageWidth - margin, yTesta - 6, 8, font, grigioEdC);
       const ySegmenti = Math.min(yTesta - 22, baseLogo - 12);
       segmenti(margin, ySegmenti, contentWidth);
@@ -1357,8 +1363,8 @@ Deno.serve(async (req) => {
       y -= 8;
       const datiDoc: Array<[string, string]> = [
         ...(t.show_quote_number ? [["NUMERO", `${quote.quote_number}${revLabel}`] as [string, string]] : []),
-        ["DATA", new Date(quote.created_at).toLocaleDateString("it-IT")],
-        ...(t.show_validity_date && quote.expires_at ? [["VALIDO FINO AL", new Date(quote.expires_at).toLocaleDateString("it-IT")] as [string, string]] : []),
+        ["DATA", dataItalianaBreve(quote.created_at)],
+        ...(t.show_validity_date && quote.expires_at ? [["VALIDO FINO AL", dataItalianaBreve(quote.expires_at)] as [string, string]] : []),
         ...(quote.client_name ? [["PREPARATO PER", String(quote.client_name)] as [string, string]] : []),
       ];
       const hFascia = 40;
@@ -1993,7 +1999,7 @@ Deno.serve(async (req) => {
         const xScheda = itemLeftX;
         const wScheda = totX - itemLeftX - 24;
         const scadenza = t.show_validity_date && quote.expires_at
-          ? new Date(quote.expires_at).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })
+          ? dataItalianaLunga(quote.expires_at)
           : "";
         if (conRisparmio || scadenza) {
           const pad = 14;
@@ -2080,19 +2086,17 @@ Deno.serve(async (req) => {
       // ── FOOTING garantito al centesimo: SUBTOTALE − Sconto + ΣIVA = TOTALE ──
       // Valori AUTORITATIVI stored (subtotal / total). L'IVA è DERIVATA dal
       // totale (non fidata a quote.vat_amount, che a monte può divergere per
-      // gli arrotondamenti a catena). Calcolati PRIMA di disegnarli.
+      // gli arrotondamenti a catena). Il conto sta in
+      // _shared/riepilogoIvaPreventivo.ts (provato con i test); si calcola PRIMA di disegnare.
       const round2q = (n: number) => Math.round(n * 100) / 100;
-      const subTotShown = round2q(Number(quote.subtotal || 0));
-      const totShown = round2q(Number(quote.total || 0));
-      let scontoShown = round2q(Number(quote.discount_amount || 0));
-      let ivaToShow = round2q(totShown - (subTotShown - scontoShown));
-      if (ivaToShow < 0) {
-        // Preventivo (quasi) esente con sconto: uno scarto di arrotondamento
-        // ≤1 cent renderebbe l'IVA negativa. Lo assorbiamo nello SCONTO (già
-        // esposto), così l'IVA resta ≥ 0 e il documento torna comunque.
-        scontoShown = round2q(scontoShown - ivaToShow);
-        ivaToShow = 0;
-      }
+      const riepilogoIva = righeRiepilogoIva({
+        righe: righePerIva,
+        subtotal: quote.subtotal,
+        discount_amount: quote.discount_amount,
+        total: quote.total,
+        discount_percent: quote.discount_percent,
+      });
+      const { subTotShown, totShown, scontoShown, ivaToShow } = riepilogoIva;
 
       if (conListino) {
         // Il subtotale spiegato: a listino, meno gli sconti scritti sulle voci.
@@ -2116,39 +2120,9 @@ Deno.serve(async (req) => {
         const ivaPctManuale = Number((quote as any).prezzo_manuale_iva_pct ?? 0);
         drawTotal(`IVA ${ivaPctManuale}%`, `${fmtEur(ivaToShow)}`);
       } else {
-        const ivaBreakdown: Record<number, number> = {};
-        const discFactor = 1 - Number(quote.discount_percent || 0) / 100;
-        for (const item of items.filter((i: any) => !i.is_optional)) {
-          const rate = Number(item.vat_rate ?? 22);
-          const lt = (item as any).line_total;
-          const lineAmt = lt != null && lt !== ""
-            ? Number(lt)
-            : Number(item.quantity) * Number(item.unit_price) * (1 - Number(item.discount_percent || 0) / 100);
-          ivaBreakdown[rate] = (ivaBreakdown[rate] || 0) + lineAmt * (rate / 100);
-        }
-        const ivaRates = Object.keys(ivaBreakdown).map(Number).sort((a, b) => a - b);
-        // Aliquote che contribuiscono davvero (≥ 0,01 € dopo sconto globale).
-        const positiveRates = ivaRates.filter((r) => ivaBreakdown[r] * discFactor >= 0.005);
-
-        if (positiveRates.length > 1) {
-          // Più aliquote: ciascuna arrotondata, poi il residuo di arrotondamento
-          // viene assorbito dalla riga di VALORE MASSIMO (mai negativa: dominare
-          // il residuo di ±0.01 è garantito). Così Σrighe = ESATTAMENTE ivaToShow.
-          const rows = positiveRates.map((rate) => ({ rate, value: round2q(ivaBreakdown[rate] * discFactor) }));
-          const sumRows = round2q(rows.reduce((s, r) => s + r.value, 0));
-          const residual = round2q(ivaToShow - sumRows);
-          if (residual !== 0) {
-            let maxI = 0;
-            for (let i = 1; i < rows.length; i++) if (rows[i].value > rows[maxI].value) maxI = i;
-            rows[maxI].value = round2q(rows[maxI].value + residual);
-          }
-          for (const r of rows) drawTotal(`IVA ${r.rate}%`, `${fmtEur(r.value)}`);
-        } else {
-          // Aliquota unica (o tutte a 0): una sola riga IVA = ivaToShow.
-          const soleRate = positiveRates.length === 1
-            ? positiveRates[0]
-            : (ivaRates.length === 1 ? ivaRates[0] : null);
-          drawTotal(`IVA${soleRate != null ? ` ${soleRate}%` : ""}`, `${fmtEur(ivaToShow)}`);
+        // Una riga per aliquota (o una sola «IVA» se l'aliquota è unica): le righe sommano all'IVA mostrata.
+        for (const r of riepilogoIva.righeIva) {
+          drawTotal(`IVA${r.aliquota != null ? ` ${r.aliquota}%` : ""}`, `${fmtEur(r.valore)}`);
         }
       }
 

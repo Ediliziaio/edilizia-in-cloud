@@ -4,6 +4,7 @@ import type { OrderItem } from "@/components/orders/OrderItemsList";
 import type { Installment } from "@/lib/orderUtils";
 import { parseQuotePaymentPhases } from "@/lib/preventivi/paymentTerms";
 import { type BonusLine, parseBonusLines } from "@/lib/orders/bonusFiscali";
+import { righeCommessaDaPreventivo } from "../../supabase/functions/_shared/righeCommessaDaPreventivo";
 
 /**
  * useQuotePrefill — legge un preventivo (quotes + quote_items) e lo mappa in
@@ -17,8 +18,32 @@ import { type BonusLine, parseBonusLines } from "@/lib/orders/bonusFiscali";
  *  - dati CLIENTE del preventivo (per creare/collegare l'anagrafica in commessa).
  */
 
-const SKIP_CATEGORIES = new Set(["subtotale", "sconto", "nota"]);
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Le righe del preventivo come righe di commessa: lo stesso conto della
+ * conversione automatica (converti-preventivo-cantiere), che usa la stessa
+ * funzione. Senza opzionali, con lo sconto di riga, e con le quantità decimali
+ * portate a 1 × totale (order_items.quantity è un intero).
+ */
+export function righePreventivoPerCommessa(rows: Array<Record<string, unknown>>): OrderItem[] {
+  return righeCommessaDaPreventivo(rows).map((r, idx): OrderItem => ({
+    name: r.name,
+    description: r.description ?? undefined,
+    quantity: r.quantity,
+    status: "da_ordinare",
+    position: idx,
+    unit_price: r.unit_price ?? undefined,
+    purchase_price: r.purchase_price,
+    vat_rate: r.vat_rate ?? undefined,
+    discount_percent: r.discount_percent ?? undefined,
+    // ── spina misure (solo prodotti su misura) ──
+    family_id: r.family_id,
+    axis_selections: r.axis_selections,
+    misure_preventivo: r.misure_preventivo,
+    measure_status: r.measure_status,
+  }));
+}
 
 /**
  * Prezzo scritto a mano (21/09/2026): le righe del preventivo restano a 0€
@@ -100,36 +125,7 @@ export function useQuotePrefill(quoteId: string | null | undefined) {
         .order("sort_order", { ascending: true });
       if (iErr) throw iErr;
 
-      const orderItems: OrderItem[] = ((rows ?? []) as Array<Record<string, unknown>>)
-        .filter((r) => !SKIP_CATEGORIES.has(String(r.item_category ?? "")))
-        .map((r, idx): OrderItem => {
-          const isCustom = !!r.family_id;
-          const mx = r.misura_x as number | null | undefined;
-          const my = r.misura_y as number | null | undefined;
-          const misurePreventivo =
-            mx != null || my != null
-              ? {
-                  ...(mx != null ? { larghezza: Number(mx) } : {}),
-                  ...(my != null ? { altezza: Number(my) } : {}),
-                }
-              : null;
-
-          return {
-            name: String(r.name ?? ""),
-            description: (r.description as string | null) ?? undefined,
-            quantity: Number(r.quantity) || 1,
-            status: "da_ordinare",
-            position: idx,
-            unit_price: r.unit_price != null ? Number(r.unit_price) : undefined,
-            purchase_price: r.prezzo_acquisto != null ? Number(r.prezzo_acquisto) : undefined,
-            vat_rate: r.vat_rate != null ? Number(r.vat_rate) : undefined,
-            // ── spina misure (solo prodotti su misura) ──
-            family_id: isCustom ? (r.family_id as string) : null,
-            axis_selections: isCustom ? ((r.axis_selections as Record<string, string> | null) ?? null) : null,
-            misure_preventivo: isCustom ? misurePreventivo : null,
-            measure_status: isCustom ? "da_rilevare" : null,
-          };
-        });
+      const orderItems: OrderItem[] = righePreventivoPerCommessa((rows ?? []) as Array<Record<string, unknown>>);
 
       const q = quote as Record<string, unknown>;
 

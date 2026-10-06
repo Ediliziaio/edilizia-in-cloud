@@ -1,7 +1,12 @@
 import { useParams, useSearchParams } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
+import {
+  messaggioDaErroreFirma,
+  messaggioOffertaNonDisponibile,
+  righeOffertaPubblica,
+} from "@/lib/preventivi/offertaPubblica";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -47,6 +52,8 @@ interface QuoteItem {
   vat_rate?: number | null;
   line_total?: number | null;
   item_type?: string | null;
+  item_category?: string | null;
+  is_optional?: boolean | null;
   sort_order?: number | null;
   mostra_nel_pdf?: boolean | null;
 }
@@ -57,36 +64,54 @@ export default function AccettaPreventivo() {
   const token = searchParams.get("token");
   const [status, setStatus] = useState<
     "loading" | "idle" | "signing" | "refusing" | "accepted" | "rejected" | "error" | "invalid"
-  >("loading");
+  >(() => (!id || !token ? "invalid" : "loading"));
   const [errorMsg, setErrorMsg] = useState("");
   const [quote, setQuote] = useState<PublicQuote | null>(null);
   const [items, setItems] = useState<QuoteItem[]>([]);
   const [company, setCompany] = useState<PublicCompany | null>(null);
+  // L'offerta era già stata accettata o rifiutata prima di questa visita: la
+  // schermata finale non può ringraziare per una firma che il cliente non ha appena dato.
+  const [giaDecisa, setGiaDecisa] = useState(false);
 
   // Firma
   const [signedByName, setSignedByName] = useState("");
   const [refuseReason, setRefuseReason] = useState("");
   const [nameError, setNameError] = useState("");
 
-  useEffect(() => {
-    if (!id || !token) { setStatus("invalid"); return; }
-    supabase.functions
-      .invoke("quote-sign", { body: { token, action: "view" } })
-      .then(({ data, error }) => {
-        if (error || !data?.valid) {
+  const carica = useCallback(async () => {
+    if (!id || !token) return;
+    try {
+      const { data, error } = await supabase.functions.invoke("quote-sign", { body: { token, action: "view" } });
+      if (error || !data?.valid) {
+        setStatus("invalid");
+        setErrorMsg(data?.reason ? messaggioOffertaNonDisponibile(data.reason) : "Link non valido o scaduto");
+      } else if (!data.quote) {
+        setStatus("invalid");
+        setErrorMsg("Dati del preventivo non disponibili. Contatta il fornitore.");
+      } else {
+        setQuote(data.quote as PublicQuote);
+        setItems((data.items as QuoteItem[]) ?? []);
+        setCompany((data.company as PublicCompany | null) ?? null);
+        // Lo stato vero dell'offerta: prima la pagina mostrava il modulo di firma
+        // anche per un'offerta già firmata o rifiutata, e il tasto rispondeva con un
+        // codice («already_signed») scritto così com'era sotto «Link non valido».
+        const stato = (data as { status?: string }).status;
+        if (stato === "accettata" || stato === "convertita") { setGiaDecisa(true); setStatus("accepted"); }
+        else if (stato === "rifiutata") { setGiaDecisa(true); setStatus("rejected"); }
+        else if (stato !== "inviata") {
           setStatus("invalid");
-          setErrorMsg(data?.reason || "Link non valido o scaduto");
-        } else if (!data.quote) {
-          setStatus("invalid");
-          setErrorMsg("Dati del preventivo non disponibili. Contatta il fornitore.");
-        } else {
-          setQuote(data.quote as PublicQuote);
-          setItems((data.items as QuoteItem[]) ?? []);
-          setCompany((data.company as PublicCompany | null) ?? null);
-          setStatus("idle");
-        }
-      });
+          setErrorMsg(messaggioOffertaNonDisponibile("invalid_status"));
+        } else { setStatus("idle"); }
+      }
+    } catch {
+      // Rete assente o funzione irraggiungibile: prima la pagina restava sul
+      // caricamento per sempre.
+      setErrorMsg("Non riesco a caricare il preventivo. Controlla la connessione e riprova.");
+      setStatus("error");
+    }
   }, [id, token]);
+
+  useEffect(() => { void carica(); }, [carica]);
 
   const handleSign = async () => {
     if (signedByName.trim().length < 2) {
@@ -99,8 +124,14 @@ export default function AccettaPreventivo() {
       const { data, error } = await supabase.functions.invoke("quote-sign", {
         body: { token, action: "sign", signed_by_name: signedByName.trim() },
       });
-      if (error) throw new Error(error.message);
-      if (data?.valid === false) throw new Error(data.reason || "Firma non valida");
+      if (error) throw new Error(await messaggioDaErroreFirma(error, "Errore durante la firma. Riprova."));
+      if (data?.valid === false) {
+        // Già firmata altrove, scaduta o ritirata: si rilegge lo stato e la pagina lo dice.
+        setStatus("loading");
+        await carica();
+        return;
+      }
+      setGiaDecisa(false);
       setStatus("accepted");
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Errore sconosciuto");
@@ -114,8 +145,13 @@ export default function AccettaPreventivo() {
       const { data, error } = await supabase.functions.invoke("quote-sign", {
         body: { token, action: "refuse", refuse_reason: refuseReason.trim() || null },
       });
-      if (error) throw new Error(error.message);
-      if (data?.valid === false) throw new Error(data.reason || "Azione non valida");
+      if (error) throw new Error(await messaggioDaErroreFirma(error, "Errore durante il rifiuto. Riprova."));
+      if (data?.valid === false) {
+        setStatus("loading");
+        await carica();
+        return;
+      }
+      setGiaDecisa(false);
       setStatus("rejected");
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Errore sconosciuto");
@@ -137,10 +173,24 @@ export default function AccettaPreventivo() {
         <Card className="max-w-md w-full text-center">
           <CardContent className="pt-8 pb-8 space-y-4">
             <AlertTriangle className="h-16 w-16 text-amber-500 mx-auto" />
-            <h2 className="text-xl font-semibold">Link non valido</h2>
+            {/* «Link non valido» solo se il link lo è: un errore di rete o del server
+                durante la firma non lo rende tale, e il cliente può riprovare. */}
+            <h2 className="text-xl font-semibold">{status === "error" ? "Operazione non riuscita" : "Link non valido"}</h2>
             <p className="text-muted-foreground">
               {errorMsg || "Questo link è scaduto o non valido. Contatta il fornitore."}
             </p>
+            {status === "error" && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (quote) { setStatus("idle"); return; }
+                  setStatus("loading");
+                  void carica();
+                }}
+              >
+                Riprova
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -155,7 +205,9 @@ export default function AccettaPreventivo() {
             <CheckCircle className="h-16 w-16 text-emerald-500 mx-auto" />
             <h2 className="text-xl font-semibold">Preventivo Accettato</h2>
             <p className="text-muted-foreground">
-              Grazie! Il fornitore è stato notificato della tua accettazione.
+              {giaDecisa
+                ? "Questo preventivo è già stato accettato."
+                : "Grazie! Il fornitore è stato notificato della tua accettazione."}
             </p>
           </CardContent>
         </Card>
@@ -171,7 +223,9 @@ export default function AccettaPreventivo() {
             <XCircle className="h-16 w-16 text-destructive mx-auto" />
             <h2 className="text-xl font-semibold">Preventivo Rifiutato</h2>
             <p className="text-muted-foreground">
-              Il fornitore è stato notificato. Per ulteriori informazioni contattalo direttamente.
+              {giaDecisa
+                ? "Questo preventivo è già stato rifiutato. Per ulteriori informazioni contatta direttamente il fornitore."
+                : "Il fornitore è stato notificato. Per ulteriori informazioni contattalo direttamente."}
             </p>
           </CardContent>
         </Card>
@@ -179,8 +233,10 @@ export default function AccettaPreventivo() {
     );
   }
 
-  // visible items only (exclude section headers without price, and rows the company hid from the client)
-  const visibleItems = items.filter((i) => i.item_type !== "section" && i.mostra_nel_pdf !== false);
+  // Le righe che il cliente vede, con le stesse regole del PDF: niente righe nascoste
+  // né «subtotale», le note solo testo, le opzioni dette tali (non sono nel totale).
+  const visibleItems = righeOffertaPubblica(items);
+  const haOpzionali = visibleItems.some((r) => r.opzionale);
 
   return (
     <div className="min-h-screen bg-muted/30 p-4">
@@ -238,7 +294,13 @@ export default function AccettaPreventivo() {
             </CardHeader>
             <CardContent className="pt-0">
               <div className="divide-y text-sm">
-                {visibleItems.map((item, idx) => {
+                {visibleItems.map(({ riga: item, genere, figlia, opzionale }, idx) => {
+                  // Una nota è solo testo: niente quantità, prezzo e IVA.
+                  if (genere === "nota") {
+                    return (
+                      <p key={idx} className="py-2 text-xs italic text-muted-foreground">{item.name}</p>
+                    );
+                  }
                   const lineTotal =
                     item.line_total ??
                     item.quantity *
@@ -249,10 +311,17 @@ export default function AccettaPreventivo() {
                   // Cosa si firma resta chiaro lo stesso: nome, descrizione, quantità.
                   const nascondiPrezzoRiga = quote?.prezzo_manuale_attivo === true;
                   return (
-                    <div key={idx} className="py-3 space-y-1">
+                    <div key={idx} className={`py-3 space-y-1 ${figlia ? "pl-4" : ""} ${opzionale ? "opacity-70" : ""}`}>
                       <div className="flex justify-between gap-4">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{item.name}</p>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <p className="font-medium truncate">{figlia ? "└ " : ""}{item.name}</p>
+                            {opzionale && (
+                              <span className="shrink-0 rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-800">
+                                Opzionale
+                              </span>
+                            )}
+                          </div>
                           {item.description && (
                             <p className="text-xs text-muted-foreground line-clamp-2">
                               {item.description}
@@ -260,8 +329,9 @@ export default function AccettaPreventivo() {
                           )}
                         </div>
                         {!nascondiPrezzoRiga && (
-                          <p className="font-semibold shrink-0 tabular-nums">
+                          <p className="font-semibold shrink-0 tabular-nums text-right">
                             {formatCurrency(lineTotal)}
+                            {opzionale && <span className="block text-[10px] font-normal italic text-muted-foreground">non incluso</span>}
                           </p>
                         )}
                       </div>
@@ -281,6 +351,11 @@ export default function AccettaPreventivo() {
                   );
                 })}
               </div>
+              {haOpzionali && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Le voci «Opzionale» sono proposte a parte: non sono incluse nell'imponibile e nel totale qui sotto.
+                </p>
+              )}
             </CardContent>
           </Card>
         )}

@@ -35,10 +35,12 @@ import {
   useScontiQuantita,
   useBundleProdotti,
   calcolaScontoQuantita,
+  importoRiga,
   ivaVoceNuova,
   normalizzaRigaSconto,
   prezzoRigaSconto,
   semaforo,
+  subtotaleFinoA,
 } from "@/hooks/usePreventivoCosti";
 import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventivoCosti";
 import { calcolaPrezzoFamiglia, type GridPoint } from "@/hooks/useFamilyPricing";
@@ -1465,6 +1467,23 @@ export default function QuoteBuilder() {
       return;
     }
     setItems(items.map((it, i) => (i === index ? { ...it, [field]: value } : it)));
+  };
+
+  // Duplica: la copia è una riga NUOVA, con il suo identificativo temporaneo. Teneva
+  // quello dell'originale (client_temp_id): cambiando la quantità della copia si
+  // scalava la posa legata all'ORIGINALE, e al salvataggio i legami si confondevano
+  // (due righe con lo stesso identificativo). Il legame al prodotto di una posa
+  // duplicata resta (parent_temp_id / parent_item_id): è un'altra posa dello stesso prodotto.
+  const duplicaRiga = (index: number) => {
+    const originale = items[index];
+    if (!originale) return;
+    const copia: QuoteItemPro = {
+      ...originale,
+      id: undefined,
+      client_temp_id: crypto.randomUUID(),
+      sort_order: items.length,
+    };
+    setItems([...items, copia]);
   };
 
   const removeItem = (index: number) => {
@@ -2931,18 +2950,8 @@ export default function QuoteBuilder() {
                                 Subtotale
                               </span>
                               <span className="font-bold">
-                                {formatCurrency(
-                                  items
-                                    .slice(0, idx)
-                                    .reduce(
-                                      (s, i) =>
-                                        s +
-                                        i.quantity *
-                                          i.unit_price *
-                                          (1 - i.discount_percent / 100),
-                                      0
-                                    )
-                                )}
+                                {/* Come il PDF: senza le righe opzionali, che non sono nel totale. */}
+                                {formatCurrency(subtotaleFinoA(items, idx))}
                               </span>
                               <Button
                                 variant="ghost"
@@ -3011,7 +3020,7 @@ export default function QuoteBuilder() {
                                     </span>
                                     {/* Telefono: il totale della riga sta qui, sotto c'è posto per i campi. */}
                                     <span className={`sm:hidden text-[13px] font-semibold tabular-nums ${isSconto ? "text-red-600" : "text-foreground"}`}>
-                                      {formatCurrency(item.quantity * item.unit_price * (1 - item.discount_percent / 100))}
+                                      {formatCurrency(importoRiga(item))}
                                     </span>
                                   </Label>
                                   <Input
@@ -3097,11 +3106,7 @@ export default function QuoteBuilder() {
                                       isSconto ? "text-red-600" : ""
                                     }`}
                                   >
-                                    {formatCurrency(
-                                      item.quantity *
-                                        item.unit_price *
-                                        (1 - item.discount_percent / 100)
-                                    )}
+                                    {formatCurrency(importoRiga(item))}
                                   </p>
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -3115,14 +3120,7 @@ export default function QuoteBuilder() {
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
                                       <DropdownMenuItem
-                                        onClick={() => {
-                                          const copy: QuoteItemPro = {
-                                            ...items[idx],
-                                            id: undefined,
-                                            sort_order: items.length,
-                                          };
-                                          setItems([...items, copy]);
-                                        }}
+                                        onClick={() => duplicaRiga(idx)}
                                       >
                                         Duplica
                                       </DropdownMenuItem>
@@ -3265,13 +3263,7 @@ export default function QuoteBuilder() {
                     descrizione: i.name,
                     quantita: i.quantity,
                     prezzo_unitario: i.unit_price,
-                    importo:
-                      Math.round(
-                        i.quantity *
-                          i.unit_price *
-                          (1 - (i.discount_percent || 0) / 100) *
-                          100
-                      ) / 100,
+                    importo: importoRiga(i),
                   }))}
                 proposedTotal={total}
                 proposedMarginPct={
@@ -3369,11 +3361,7 @@ export default function QuoteBuilder() {
                               {formatCurrency(it.unit_price)}
                             </TableCell>
                             <TableCell className="text-right font-medium">
-                              {formatCurrency(
-                                it.quantity *
-                                  it.unit_price *
-                                  (1 - it.discount_percent / 100)
-                              )}
+                              {formatCurrency(importoRiga(it))}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -3395,7 +3383,7 @@ export default function QuoteBuilder() {
                             )}
                           </p>
                           <p className="shrink-0 font-semibold text-sm tabular-nums text-slate-900">
-                            {formatCurrency(it.quantity * it.unit_price * (1 - it.discount_percent / 100))}
+                            {formatCurrency(importoRiga(it))}
                           </p>
                         </div>
                         <div className="mt-1.5 text-xs text-muted-foreground tabular-nums">

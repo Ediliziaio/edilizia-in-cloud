@@ -1,5 +1,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { righeCommessaDaPreventivo } from "../_shared/righeCommessaDaPreventivo.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -176,12 +177,11 @@ Deno.serve(async (req) => {
     // 5b. Copia le RIGHE del preventivo (quote_items) → order_items.
     // Senza questo la commessa nasceva col solo totale aggregato, priva di
     // articoli/prezzi/IVA per riga → impossibili distinta materiali, margini per
-    // riga e ordini fornitore. Saltiamo le categorie non-articolo (subtotale/sconto/nota).
-    // Spina misure (family_id/axis_selections/misure_preventivo/measure_status) e
-    // sconto riga: stessa mappatura di useQuotePrefill, così le due strade
-    // preventivo→commessa producono la stessa commessa.
+    // riga e ordini fornitore. Il conto delle righe (categorie non-articolo,
+    // opzionali, quantità decimali, spina misure, sconto riga) sta in
+    // _shared/righeCommessaDaPreventivo.ts, lo stesso di «Crea commessa (rivedi)»
+    // (useQuotePrefill): le due strade producono la stessa commessa.
     let righeAvviso: string | null = null;
-    const SKIP_CATEGORIES = new Set(["subtotale", "sconto", "nota"]);
     const { data: quoteItems, error: qiErr } = await supabaseAdmin
       .from("quote_items")
       .select("*")
@@ -190,54 +190,14 @@ Deno.serve(async (req) => {
     if (qiErr) {
       console.error("Errore lettura righe preventivo:", qiErr);
     } else if (quoteItems && quoteItems.length > 0) {
-      // Le righe OPZIONALI sono proposte che il cliente non ha scelto: il PDF le
-      // mostra a parte e le tiene fuori dal totale. Portarle nella commessa
-      // faceva sì che la somma delle righe superasse il totale accettato.
-      const rows = (quoteItems as Array<Record<string, unknown>>)
-        .filter((r) => !SKIP_CATEGORIES.has(String(r.item_category ?? "")))
-        .filter((r) => r.is_optional !== true)
-        .map((r, idx) => {
-          const suMisura = !!r.family_id;
-          const mx = r.misura_x as number | null | undefined;
-          const my = r.misura_y as number | null | undefined;
-          const misurePreventivo = mx != null || my != null
-            ? { ...(mx != null ? { larghezza: Number(mx) } : {}), ...(my != null ? { altezza: Number(my) } : {}) }
-            : null;
-          // order_items.quantity è un intero (9 viste dipendono dalla colonna):
-          // una quantità decimale (85,5 m², 7,5 ore) faceva fallire l'inserimento
-          // di TUTTE le righe e la commessa nasceva vuota (05/10/2026). La riga
-          // diventa 1 × il suo totale, con la quantità vera nella descrizione:
-          // i conti restano esatti.
-          const q = Number(r.quantity) || 1;
-          const intera = Number.isInteger(q);
-          const unitario = r.unit_price != null ? Number(r.unit_price) : null;
-          const costo = r.prezzo_acquisto != null ? Number(r.prezzo_acquisto) : 0;
-          const um = typeof r.unit_of_measure === "string" ? r.unit_of_measure : "";
-          const euro = (n: number) => n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          const quantitaVera = intera
-            ? null
-            : `${q.toLocaleString("it-IT")}${um ? ` ${um}` : ""}${unitario != null ? ` × ${euro(unitario)} €` : ""}`;
-          return {
-            // NB: order_items NON ha company_id (l'azienda si legge dalla commessa):
-            // passarlo faceva fallire in silenzio l'intera copia delle righe.
-            order_id:         order.id,
-            name:             String(r.name ?? ""),
-            description:      quantitaVera
-              ? [quantitaVera, (r.description as string | null) ?? null].filter(Boolean).join(" — ")
-              : ((r.description as string | null) ?? null),
-            quantity:         intera ? q : 1,
-            status:           "da_ordinare",
-            position:         idx,
-            unit_price:       unitario == null ? null : intera ? unitario : round2(unitario * q),
-            purchase_price:   intera ? costo : round2(costo * q),
-            vat_rate:         r.vat_rate != null ? Number(r.vat_rate) : null,
-            discount_percent: r.discount_percent != null ? Number(r.discount_percent) : null,
-            family_id:        suMisura ? (r.family_id as string) : null,
-            axis_selections:  suMisura ? ((r.axis_selections as Record<string, string> | null) ?? null) : null,
-            misure_preventivo: suMisura ? misurePreventivo : null,
-            measure_status:   suMisura ? "da_rilevare" : null,
-          };
-        });
+      // NB: order_items NON ha company_id (l'azienda si legge dalla commessa):
+      // passarlo faceva fallire in silenzio l'intera copia delle righe.
+      const rows = righeCommessaDaPreventivo(quoteItems as Array<Record<string, unknown>>).map((r, idx) => ({
+        order_id: order.id,
+        ...r,
+        status: "da_ordinare",
+        position: idx,
+      }));
 
       // Col prezzo scritto a mano le righe copiate sono a 0€ (chi non carica il
       // listino): non sommano più all'imponibile della commessa. Una riga di

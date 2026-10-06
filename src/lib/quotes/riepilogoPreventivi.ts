@@ -6,6 +6,8 @@
  * l'ordine (prima quelli ancora aperti) e le scadenze in chiaro.
  */
 
+import { mapClassicoStato } from "@/lib/preventivi/statoUnificato";
+
 export interface PreventivoRiga {
   id: string;
   status: string | null;
@@ -18,13 +20,16 @@ export interface PreventivoRiga {
 
 type Gruppo = "aperti" | "accettati" | "chiusi";
 
-const GRUPPO_DI_STATO: Record<string, Gruppo> = {
-  bozza: "aperti", draft: "aperti", inviata: "aperti", sent: "aperti",
-  accettata: "accettati", accepted: "accettati", convertita: "accettati",
-  rifiutata: "chiusi", rejected: "chiusi", scaduta: "chiusi", expired: "chiusi",
+/**
+ * Vinto → accettati, perso → chiusi, il resto aperti: dallo STESSO vocabolario dell'elenco
+ * (mapClassicoStato, che rispecchia la vista del database). Prima qui c'era una lista
+ * propria che non conosceva «firmata» e «signed»: un'offerta firmata contava fra gli
+ * aperti, mentre nell'elenco era vinta.
+ */
+export const gruppoPreventivo = (stato: string | null | undefined): Gruppo => {
+  const unificato = mapClassicoStato((stato ?? "").toLowerCase());
+  return unificato === "vinto" ? "accettati" : unificato === "perso" ? "chiusi" : "aperti";
 };
-
-export const gruppoPreventivo = (stato: string | null | undefined): Gruppo => GRUPPO_DI_STATO[(stato ?? "").toLowerCase()] ?? "aperti";
 
 const numero = (v: number | string | null | undefined): number => {
   const n = Number(v ?? 0);
