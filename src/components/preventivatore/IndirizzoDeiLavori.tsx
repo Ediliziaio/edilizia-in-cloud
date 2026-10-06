@@ -1,5 +1,5 @@
 /**
- * «Indirizzo dei lavori», nel passo Contatto: la spunta «Lavori allo stesso indirizzo del cliente» e, solo se i
+ * «Indirizzo dei lavori», nel passo Contatto dei serramenti e nel passo Cliente degli edili: la spunta «Lavori allo stesso indirizzo del cliente» e, solo se i
  * lavori sono altrove, i quattro campi. Le regole (cosa si copia, quando) stanno in `useIndirizzoLavori` (serramenti)
  * e `useIndirizzoLavoriEdile` (edili, dove l'indirizzo da copiare è quello del contatto del CRM): qui c'è solo
  * quello che si vede. Senza spunta (`conSpunta={false}`: non c'è un indirizzo da copiare) restano i quattro campi.

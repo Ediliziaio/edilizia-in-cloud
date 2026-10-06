@@ -9,6 +9,7 @@
  * `Date.now()`/`Math.random()` in render).
  */
 import { useMemo } from "react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,8 @@ interface Props {
   computo: IdrComputoVoce[];
   /** L'intervento della libreria: col Conto Termico e la Casa Full Electric la detrazione generica lascia il posto ai loro incentivi. */
   model?: { id: string } | null;
+  /** Dal pulsante del computo vuoto: porta al passo Computo. */
+  onVaiAlPasso?: (passo: "computo") => void;
 }
 
 /** Coerce numerico controllato: stringa vuota → 0, clamp [0,100] per le percentuali. */
@@ -44,7 +47,7 @@ const toPct = (raw: string): number => {
   return Math.min(100, Math.max(0, v));
 };
 
-export default function StepEconomia({ form, onChange, computo, model }: Props) {
+export default function StepEconomia({ form, onChange, computo, model, onVaiAlPasso }: Props) {
   const contoTermico = model?.id === "conto-termico";
   const fullElectric = model?.id === "full-electric";
   // Prezzo scritto a mano e incentivi propri: la detrazione generica non serve.
@@ -93,11 +96,22 @@ export default function StepEconomia({ form, onChange, computo, model }: Props) 
       {!hasComputo && (
         <div className="flex items-start gap-2.5 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2.5">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-          <p className="text-[11px] text-amber-900">
+          <p className="flex-1 text-[11px] text-amber-900">
             <span className="max-sm:hidden">Il computo è ancora vuoto: torna allo step <span className="font-medium">Computo</span> per
             aggiungere le lavorazioni.</span>
             <span className="sm:hidden">Computo vuoto: le lavorazioni si aggiungono nel passo Computo.</span>
           </p>
+          {onVaiAlPasso && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 shrink-0 self-center border-amber-200 bg-white px-2.5 text-[11px] text-amber-900 hover:bg-amber-50"
+              onClick={() => onVaiAlPasso("computo")}
+            >
+              Vai al Computo
+            </Button>
+          )}
         </div>
       )}
 
@@ -119,15 +133,17 @@ export default function StepEconomia({ form, onChange, computo, model }: Props) 
               onCommit={(v) => onChange("prezzo_manuale", v)}
               sempre={incentiviPropri}
             />
-            <ScontoGlobaleField
-              id="idr-sconto"
-              value={form.sconto_pct ?? 0}
-              onCommit={(v) => onChange("sconto_pct", v)}
-              imponibileLordo={imponibileLordo}
-              tipoLavoro="termoidraulico"
-            />
-            {/* IVA e detrazione affiancate. */}
-            <div className={incentiviPropri ? "space-y-3" : "grid grid-cols-2 gap-3"}>
+            {/* Prezzo: sconto (con i tasti veloci) e IVA, le due leve che cambiano il totale. */}
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(16rem,100%),1fr))] items-start gap-3">
+              <ScontoGlobaleField
+                id="idr-sconto"
+                value={form.sconto_pct ?? 0}
+                onCommit={(v) => onChange("sconto_pct", v)}
+                imponibileLordo={imponibileLordo}
+                tipoLavoro="termoidraulico"
+                conScontoRapido
+                ivaPct={ivaPct}
+              />
               <PctField
                 id="idr-iva"
                 label="IVA"
@@ -135,14 +151,6 @@ export default function StepEconomia({ form, onChange, computo, model }: Props) 
                 onCommit={(v) => onChange("iva_pct", v)}
                 hint="In edilizia spesso 10% (termoidraulico) o 4% (prima casa)."
               />
-              {!incentiviPropri && <PctField
-                id="idr-detrazione"
-                label="Detrazione / bonus"
-                value={form.detrazione_pct ?? 0}
-                onCommit={(v) => onChange("detrazione_pct", v)}
-                hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
-                icon={BadgePercent}
-              />}
             </div>
             {/* Rata nel PDF: compare solo se la promo è configurata nel template,
                 con la rata concreta sul totale corrente (scelta per-preventivo). */}
@@ -152,36 +160,49 @@ export default function StepEconomia({ form, onChange, computo, model }: Props) 
               value={form.mostra_finanziamento}
               onChange={(v) => onChange("mostra_finanziamento", v)}
             />
-            {/* Preset incentivi termoidraulico: 1-click → imposta detrazione + massimale di spesa */}
-            {!incentiviPropri && <div>
-              <p className="mb-1 text-[10px] text-muted-foreground max-sm:hidden">Incentivi rapidi (termoidraulico):</p>
-              <div className="flex flex-wrap gap-1.5">
-                {INCENTIVI_TERMOIDRAULICO.map((inc) => {
-                  const active =
-                    Number(form.detrazione_pct ?? 0) === inc.pct &&
-                    (form.massimale_detrazione ?? null) === inc.massimale;
-                  return (
-                    <button
-                      key={inc.key}
-                      type="button"
-                      title={inc.hint}
-                      onClick={() => {
-                        onChange("detrazione_pct", inc.pct);
-                        onChange("massimale_detrazione", inc.massimale);
-                      }}
-                      className={cn(
-                        "tap-compact rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors",
-                        active
-                          ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/50",
-                      )}
-                    >
-                      {inc.label}
-                    </button>
-                  );
-                })}
+            {/* Detrazione fiscale e incentivi rapidi: dopo il prezzo e il pagamento. */}
+            {!incentiviPropri && (
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(min(16rem,100%),1fr))] items-start gap-3">
+                <PctField
+                  id="idr-detrazione"
+                  label="Detrazione / bonus"
+                  value={form.detrazione_pct ?? 0}
+                  onCommit={(v) => onChange("detrazione_pct", v)}
+                  hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
+                  icon={BadgePercent}
+                />
+                {/* Preset incentivi termoidraulico: 1-click → imposta detrazione + massimale di spesa */}
+                <div>
+                  <p className="mb-1 text-[10px] text-muted-foreground max-sm:hidden">Incentivi rapidi (termoidraulico):</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {INCENTIVI_TERMOIDRAULICO.map((inc) => {
+                      const active =
+                        Number(form.detrazione_pct ?? 0) === inc.pct &&
+                        (form.massimale_detrazione ?? null) === inc.massimale;
+                      return (
+                        <button
+                          key={inc.key}
+                          type="button"
+                          title={inc.hint}
+                          onClick={() => {
+                            onChange("detrazione_pct", inc.pct);
+                            onChange("massimale_detrazione", inc.massimale);
+                          }}
+                          className={cn(
+                            "tap-compact rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors",
+                            active
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/50",
+                          )}
+                        >
+                          {inc.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-            </div>}
+            )}
           </CardContent>
         </Card>
         {contoTermico && (

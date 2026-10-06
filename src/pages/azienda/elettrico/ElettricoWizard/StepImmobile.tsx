@@ -1,7 +1,8 @@
 /**
- * StepImmobile — dati del cantiere, dell'immobile e dell'impianto elettrico.
+ * StepImmobile — dati dell'immobile e dell'impianto elettrico.
+ * L'indirizzo dei lavori (via, città, CAP, provincia) sta nel passo Cliente.
  *
- * Campi: indirizzo/città/provincia/CAP cantiere, tipo immobile, superficie mq,
+ * Campi: tipo immobile, superficie mq,
  * anno e piani, tipo intervento, numero punti (luce/presa) e livello impianto
  * (CEI 64-8: liv. 1 base / 2 standard / 3 domotico). Tutti controllati,
  * salvano sul progetto via `onChange`.

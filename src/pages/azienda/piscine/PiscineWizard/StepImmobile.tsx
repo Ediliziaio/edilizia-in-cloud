@@ -1,7 +1,8 @@
 /**
- * StepImmobile — dati del cantiere, dell'immobile e della piscina.
+ * StepImmobile — dati dell'immobile e della piscina.
+ * L'indirizzo dei lavori (via, città, CAP, provincia) sta nel passo Cliente.
  *
- * Campi: indirizzo/città/provincia/CAP cantiere, tipo immobile, superficie
+ * Campi: tipo immobile, superficie
  * (specchio d'acqua) mq, anno e piani, tipo intervento, tipo piscina (interrata /
  * fuori terra / skimmer / sfioro) e tipo costruzione (cemento / vetroresina /
  * pannelli / liner). Tutti controllati, salvano sul progetto via `onChange`.

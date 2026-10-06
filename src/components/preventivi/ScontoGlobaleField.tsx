@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Info, Tag } from "lucide-react";
 import { useDiscountRules } from "@/hooks/useDiscountRules";
+import { ScontoRapido } from "@/components/preventivi/ScontoRapido";
 import { evaluateDiscountRules, classifyDiscount } from "@/lib/serramenti/discountRules";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -40,6 +41,10 @@ interface Props {
   imponibileLordo: number;
   /** Verticale, per le regole legate a un `tipo_lavoro` specifico. */
   tipoLavoro: string;
+  /** Sotto il campo i tasti «Nessuno / 5% / 10%» e «Arriva a €»: oltre il massimo consentito si spengono. */
+  conScontoRapido?: boolean;
+  /** L'aliquota IVA in vigore: senza, «Arriva a €» non c'è e restano i soli tasti. */
+  ivaPct?: number;
 }
 
 /** Stessa coercizione dei PctField dei verticali: vuoto → 0, clamp [0,100]. */
@@ -51,7 +56,7 @@ function toPct(raw: string): number {
   return Math.min(100, Math.max(0, v));
 }
 
-export function ScontoGlobaleField({ id, value, onCommit, imponibileLordo, tipoLavoro }: Props) {
+export function ScontoGlobaleField({ id, value, onCommit, imponibileLordo, tipoLavoro, conScontoRapido = false, ivaPct }: Props) {
   const { data: regole = [] } = useDiscountRules();
   const { canApproveDiscounts } = usePermissions();
 
@@ -113,6 +118,21 @@ export function ScontoGlobaleField({ id, value, onCommit, imponibileLordo, tipoL
           %
         </span>
       </div>
+
+      {conScontoRapido && (
+        <ScontoRapido
+          className="pt-1"
+          valorePct={mostrato}
+          // Chi può approvare sconti non ha un tetto: vede solo il limite (come nel campo).
+          massimoPct={canApproveDiscounts ? null : esito.scontoMaxPct}
+          imponibileLordo={imponibileLordo}
+          ivaPct={ivaPct}
+          onApplica={({ pct }) => {
+            setBozza(null);
+            onCommit(pct);
+          }}
+        />
+      )}
 
       {bloccato && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] leading-4 text-destructive">

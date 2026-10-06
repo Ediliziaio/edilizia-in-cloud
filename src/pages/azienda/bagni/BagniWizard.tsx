@@ -7,8 +7,8 @@
  *  - navigazione avanti/indietro + beforeunload guard
  *
  * STEP:
- *  1. Cliente   — anagrafica + picker contatto/opportunità CRM   (Task 12)
- *  2. Immobile  — cantiere, immobile, tipo intervento, vincoli   (Task 12)
+ *  1. Cliente   — anagrafica, indirizzo dei lavori + picker contatto/opportunità CRM
+ *  2. Immobile  — immobile, tipo intervento, vincoli             (Task 12)
  *  3. Computo   — computo metrico premium                        (Task 17, in arrivo)
  *  4. Foto      — media situazione/render                        (Task 18, in arrivo)
  *  5. Economia  — sconto/IVA/detrazione + riepilogo              (Task 19, in arrivo)
@@ -300,7 +300,7 @@ export default function BagniWizard() {
   );
   const vociAnteprima = computoLive ?? detail?.computo ?? NESSUNA_VOCE;
   // Col modello il tipo d'intervento è già scelto: lo step Immobile si completa
-  // coi dati del cantiere, non col tipo preimpostato. Senza useMemo, come Tetti:
+  // coi dati dell'immobile, non col tipo preimpostato. Senza useMemo, come Tetti:
   // il compilatore di React non riesce a conservarlo con il modello tra le dipendenze.
   const completion = stepCompletion(model ? { ...form, tipo_intervento: null } : form, vociAnteprima);
 
@@ -547,7 +547,12 @@ export default function BagniWizard() {
           <StepMedia progettoId={id} media={detail.media} />
         )}
         {currentStep === "economia" && detail && (
-          <StepEconomia form={form} onChange={onChange} computo={detail.computo} />
+          <StepEconomia
+            form={form}
+            onChange={onChange}
+            computo={detail.computo}
+            onVaiAlPasso={(passo) => void handleStepClick(passo)}
+          />
         )}
         {currentStep === "pdf" && id && detail && (
           // Merge progetto salvato + edit correnti del form (sconto/IVA/

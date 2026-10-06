@@ -1,7 +1,8 @@
 /**
- * StepImmobile — dati del cantiere, dell'immobile e dell'intervento pavimenti.
+ * StepImmobile — dati dell'immobile e dell'intervento pavimenti.
+ * L'indirizzo dei lavori (via, città, CAP, provincia) sta nel passo Cliente.
  *
- * Campi: indirizzo/città/provincia/CAP cantiere, tipo immobile, superficie mq,
+ * Campi: tipo immobile, superficie mq,
  * anno e piani, tipo intervento, numero ambienti e tipo materiale (gres /
  * parquet / resina / microcemento / pietra). Tutti controllati, salvano sul
  * progetto via `onChange`.
