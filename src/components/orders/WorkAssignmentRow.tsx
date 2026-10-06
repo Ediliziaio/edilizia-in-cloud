@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import type { ExecutorOption, PhaseAssignment } from "@/hooks/useOrderWorkPhases";
 import { usePermissions } from "@/hooks/usePermissions";
 import { parseWorkAmount } from "@/lib/orders/workPlanning";
+import { formatCurrency } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 export type AssignmentPatch = Partial<Pick<PhaseAssignment,
   "cost_preventivo" | "cost_consuntivo" | "hours" | "is_paid" | "paid_date" | "phase_id" | "notes">>;
 
-const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+// «1.140,00 €» come nel resto della commessa (formatCurrency), non «1140,00 €».
+const eur = { format: formatCurrency };
 
 function resolveExecutorLabel(a: PhaseAssignment, employees: ExecutorOption[], teams: ExecutorOption[]) {
   return a.executor_type === "interno"

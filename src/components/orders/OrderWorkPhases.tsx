@@ -30,6 +30,10 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { matchesWorkFilter, summarizeWork, parseWorkAmount, validWorkDates, wouldDuplicateAssignment, type WorkFilter } from "@/lib/orders/workPlanning";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
 import { WorkAssignmentRow as AssignmentRow, type AssignmentPatch } from "./WorkAssignmentRow";
+import { economiaFasi, type EconomiaFase } from "@/lib/orders/economiaFasi";
+import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
+import { EconomiaFaseRiga, costoSforato } from "./EconomiaFaseRiga";
+import { RiepilogoEconomicoFasi } from "./RiepilogoEconomicoFasi";
 
 import {
   useOrderWorkPhases,
@@ -134,7 +138,7 @@ interface OrderWorkPhasesProps {
 export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: OrderWorkPhasesProps) {
   const showWork = view !== "squadra";
   const showTeam = view !== "lavorazioni";
-  const { canEditOrders, canViewCosts, canEditOperai } = usePermissions();
+  const { canEditOrders, canViewCosts, canEditOperai, canViewOrderAmounts, canViewMargins } = usePermissions();
   // Squadre: le mette sulla commessa chi modifica le commesse o gli operai.
   const puoSquadre = canEditOrders || canEditOperai;
   const [aggiungiSquadra, setAggiungiSquadra] = useState(false);
@@ -172,7 +176,6 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
     refetch,
     employees,
     externalTeams,
-    totals,
     addPhase,
     applyTemplate,
     updatePhase,
@@ -182,9 +185,26 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
     deleteAssignment,
     materialsByPhase,
     unassignedMaterials,
+    materials = [],
+    allAssignments = [],
     setMaterialPhase,
     splitMaterial,
   } = useOrderWorkPhases(orderId);
+
+  // Economia delle lavorazioni (06/10/2026): venduto, costo previsto e costo
+  // consuntivo per fase. I costi sostenuti dei materiali si leggono solo con
+  // il permesso sui costi.
+  const { data: costiMateriali } = useCostiMaterialiFasi(orderId, canViewCosts);
+  const economia = useMemo(
+    () => economiaFasi({
+      fasi: phases,
+      righe: materials,
+      assegnazioni: allAssignments,
+      acquisti: costiMateriali?.acquisti,
+      movimenti: costiMateriali?.movimenti,
+    }),
+    [phases, materials, allAssignments, costiMateriali],
+  );
 
   // Semaforo tempi: atteso vs reale per le fasi con date (match per id fase)
   const { data: scheduleHealth } = useOrderScheduleHealth(orderId);
@@ -240,7 +260,6 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
     });
   };
 
-  const scostamentoClass = totals.scostamento > 0 ? "text-rose-600" : "text-emerald-600";
   const saveAssignment = async (id: string, source: AssignmentSource, patch: AssignmentPatch) => {
     const all = [...unassigned, ...phases.flatMap(p => p.assignments)];
     const current = all.find(a => a.id === id && a.source === source);
@@ -428,54 +447,11 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
 
         {showTeam && !isLoading && !isError && <InternalTeamShifts key={orderId} orderId={orderId} teams={externalTeams} phases={phaseOptions} canPlan={canEditOrders} />}
 
-        {/* Totals strip — solo quando c'e' qualcosa da sommare: tre "0,00 €"
-            sopra lo stato vuoto erano rumore che spingeva in basso il resto. */}
-        {canViewCosts && !isLoading && !isError && (phases.length > 0 || unassigned.length > 0) && (
-        <details className="rounded-lg border p-3 max-sm:hidden">
-        <summary className="cursor-pointer text-sm font-medium">Riepilogo costi della manodopera</summary>
-        <p className="my-2 text-xs text-muted-foreground">Somma delle assegnazioni. Il costo registrato non indica da solo lavoro approvato o pagamento eseguito.</p>
-        <div className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/40 p-3 text-center sm:grid-cols-3">
-          <div className="flex items-center justify-between gap-2 sm:block">
-            <p className="text-xs text-muted-foreground">Budget manodopera</p>
-            <p className="text-sm font-semibold tabular-nums sm:text-base">
-              {eur.format(totals.preventivo)}
-            </p>
-          </div>
-          <div className="flex items-center justify-between gap-2 sm:block">
-            <p className="text-xs text-muted-foreground">Costo registrato</p>
-            <p className="text-sm font-semibold tabular-nums sm:text-base">
-              {eur.format(totals.consuntivo)}
-            </p>
-          </div>
-          <div className="flex items-center justify-between gap-2 sm:block">
-            <p className="text-xs text-muted-foreground">Scostamento</p>
-            <p className={`text-sm font-semibold tabular-nums sm:text-base ${scostamentoClass}`}>
-              {eur.format(totals.scostamento)}
-            </p>
-          </div>
-
-          {/* Barra consuntivo vs preventivo: colpo d'occhio su quanto budget
-              manodopera è stato consumato (verde entro budget, rosso oltre). */}
-          {totals.preventivo > 0 && (
-            <div className="pt-1 sm:col-span-3">
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className={`h-full rounded-full transition-all ${
-                    totals.consuntivo > totals.preventivo ? "bg-rose-500" : "bg-emerald-500"
-                  }`}
-                  style={{
-                    width: `${Math.min(100, (totals.consuntivo / totals.preventivo) * 100)}%`,
-                  }}
-                />
-              </div>
-              <p className="mt-1 text-[10px] text-muted-foreground">
-                Consuntivo al {((totals.consuntivo / totals.preventivo) * 100).toFixed(0)}% del
-                preventivo
-              </p>
-            </div>
-          )}
-        </div>
-        </details>
+        {/* Riepilogo economico (06/10/2026): venduto, costo previsto e consuntivo
+            di tutte le fasi, al posto del riepilogo della sola manodopera. Solo
+            quando c'è qualcosa da sommare. */}
+        {(canViewCosts || canViewOrderAmounts) && !isLoading && !isError && (phases.length > 0 || unassigned.length > 0) && (
+          <RiepilogoEconomicoFasi economia={economia} vedeVenduto={canViewOrderAmounts} vedeCosti={canViewCosts} vedeMargini={canViewMargins} />
         )}
       </CardHeader>
 
@@ -559,6 +535,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
                 employees={employees}
                 externalTeams={externalTeams}
                 materials={materialsByPhase.get(phase.id) ?? []}
+                economia={economia.perFase.get(phase.id)}
                 unassignedMaterials={unassignedMaterials}
                 allPhases={phases.map((p) => ({ id: p.id, name: p.name }))}
                 allAssignments={[...unassigned, ...phases.flatMap(p => p.assignments)]}
@@ -659,6 +636,8 @@ function GuidaCantiere({ puoFasi, puoSquadre, onFasi, onSquadra }: {
 
 interface PhaseCardProps {
   phase: WorkPhase;
+  /** Venduto, costo previsto e costo consuntivo della fase (economiaFasi). */
+  economia?: EconomiaFase;
   /** Atteso vs reale a oggi (RPC order_schedule_health), solo per fasi datate */
   health?: SchedulePhaseHealth;
   employees: ExecutorOption[];
@@ -701,6 +680,7 @@ interface PhaseCardProps {
 
 function PhaseCard({
   phase,
+  economia,
   health,
   employees,
   externalTeams,
@@ -723,7 +703,7 @@ function PhaseCard({
   puoSquadre,
   fasiOpzioni,
 }: PhaseCardProps) {
-  const { canEditOrders, canViewCosts } = usePermissions();
+  const { canEditOrders, canViewCosts, canViewOrderAmounts, canViewMargins } = usePermissions();
   const [eliminaAperto, setEliminaAperto] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(phase.name);
@@ -733,17 +713,6 @@ function PhaseCard({
   const [open, setOpen] = useState(() => phase.status === "in_corso");
 
   const meta = statusMeta(phase.status);
-
-  const phaseTotals = useMemo(() => {
-    return phase.assignments.reduce(
-      (acc, a) => {
-        acc.prev += Number(a.cost_preventivo) || 0;
-        acc.cons += Number(a.cost_consuntivo) || 0;
-        return acc;
-      },
-      { prev: 0, cons: 0 }
-    );
-  }, [phase.assignments]);
 
   // Materiali scoperti (né in magazzino né già ordinati) → candidati all'OdA
   const missingMaterials = useMemo(
@@ -930,6 +899,9 @@ function PhaseCard({
               {phase.status !== "completata" && phase.end_date && phase.end_date < format(new Date(), "yyyy-MM-dd") && (
                 <span className="text-rose-600">scadenza superata</span>
               )}
+              {canViewCosts && economia && costoSforato(economia) && (
+                <span className="text-rose-600 max-sm:hidden">costo oltre il previsto</span>
+              )}
             </div>
           </div>
 
@@ -1077,15 +1049,15 @@ function PhaseCard({
                           onDelete={() => onDeleteAssignment(a.id, a.source)}
                         />
                       ))}
-                      {canViewCosts && (phaseTotals.prev > 0 || phaseTotals.cons > 0) && (
-                        <p className="text-xs text-muted-foreground tabular-nums">
-                          Manodopera della fase: budget {eur.format(phaseTotals.prev)} · costo {eur.format(phaseTotals.cons)}
-                        </p>
-                      )}
                     </div>
                   )}
                 </div>
               </div>
+
+              {/* ── Economia della fase: venduto, costo previsto, consuntivo ── */}
+              {economia && (
+                <EconomiaFaseRiga economia={economia} vedeVenduto={canViewOrderAmounts} vedeCosti={canViewCosts} vedeMargini={canViewMargins} />
+              )}
 
               {/* ── Mezzi e attrezzi di chi fa la fase ── */}
               {mezziFase.length > 0 && (

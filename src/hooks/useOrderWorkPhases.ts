@@ -635,6 +635,9 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     deleteAssignment,
     materialsByPhase,
     unassignedMaterials,
+    /** Tutte le righe della commessa e tutte le assegnazioni: servono all'economia delle fasi. */
+    materials,
+    allAssignments,
     setMaterialPhase,
     splitMaterial,
   };
