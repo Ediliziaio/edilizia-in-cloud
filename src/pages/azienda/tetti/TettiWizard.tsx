@@ -7,8 +7,8 @@
  *  - navigazione avanti/indietro + beforeunload guard
  *
  * STEP:
- *  1. Cliente   — anagrafica + picker contatto/opportunità CRM   (Task 12)
- *  2. Immobile  — cantiere, immobile, tipo intervento, vincoli   (Task 12)
+ *  1. Cliente   — anagrafica, indirizzo dei lavori + picker contatto/opportunità CRM
+ *  2. Immobile  — immobile, tipo intervento, vincoli             (Task 12)
  *  3. Computo   — computo metrico premium                        (Task 17, in arrivo)
  *  4. Foto      — media situazione/render                        (Task 18, in arrivo)
  *  5. Economia  — sconto/IVA/detrazione + riepilogo              (Task 19, in arrivo)
@@ -524,7 +524,12 @@ export default function TettiWizard() {
           <StepMedia progettoId={id} media={detail.media} />
         )}
         {currentStep === "economia" && detail && (
-          <StepEconomia form={form} onChange={onChange} computo={detail.computo} />
+          <StepEconomia
+            form={form}
+            onChange={onChange}
+            computo={detail.computo}
+            onVaiAlPasso={(passo) => void handleStepClick(passo)}
+          />
         )}
         {currentStep === "pdf" && id && detail && (
           // Merge progetto salvato + edit correnti del form (sconto/IVA/

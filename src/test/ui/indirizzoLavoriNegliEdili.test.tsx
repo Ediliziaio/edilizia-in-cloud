@@ -11,7 +11,11 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 // Il primo test importa il passo (e il suo mondo): sotto carico supera i 5 secondi di partenza.
 vi.setConfig({ testTimeout: 30_000 });
 
-const { db } = vi.hoisted(() => ({ db: { contatti: [] as Array<Record<string, unknown>> } }));
+const { db, ctl } = vi.hoisted(() => ({
+  db: { contatti: [] as Array<Record<string, unknown>> },
+  // Il ritardo, in millisecondi, con cui arriva la scheda di un contatto (lettura per id).
+  ctl: { ritardoMs: 0 },
+}));
 
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "c1" }));
 vi.mock("@/integrations/supabase/client", () => {
@@ -26,7 +30,8 @@ vi.mock("@/integrations/supabase/client", () => {
             const dati = tabella === "marketing_contacts"
               ? (singolo ? (db.contatti.find((c) => c.id === id) ?? null) : db.contatti)
               : (singolo ? null : []);
-            return Promise.resolve({ data: dati, error: null as null }).then(ok);
+            const attesa = singolo ? ctl.ritardoMs : 0;
+            return new Promise((r) => setTimeout(() => r({ data: dati, error: null as null }), attesa)).then(ok);
           };
         }
         if (nome === "eq") return (colonna: string, valore: string) => { if (colonna === "id") id = valore; return p; };
@@ -84,7 +89,7 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => {});
   globalThis.ResizeObserver = globalThis.ResizeObserver ?? class { observe() {} unobserve() {} disconnect() {} };
 });
-beforeEach(() => { db.contatti = [GIULIA, LUCA, SENZA_INDIRIZZO]; });
+beforeEach(() => { db.contatti = [GIULIA, LUCA, SENZA_INDIRIZZO]; ctl.ritardoMs = 0; });
 afterEach(() => cleanup());
 
 describe.each(MODULI)("$slug: indirizzo dei lavori nel passo Cliente", ({ passo }) => {
@@ -122,7 +127,7 @@ describe.each(MODULI)("$slug: indirizzo dei lavori nel passo Cliente", ({ passo 
     expect(casella.getAttribute("aria-checked")).toBe("true");
     // Provincia in maiuscolo anche se il CRM la ha minuscola.
     expect(cantiere()).toEqual(["Via Marco Polo 18", "Monza", "20900", "MB"]);
-    expect(screen.getByText("Via Marco Polo 18, 20900 Monza (mb)")).toBeTruthy();
+    expect(screen.getByText("Via Marco Polo 18, 20900 Monza (MB)")).toBeTruthy();
     expect(screen.queryByRole("group", { name: "Indirizzo dei lavori" })).toBeNull();
   });
 
@@ -152,6 +157,19 @@ describe.each(MODULI)("$slug: indirizzo dei lavori nel passo Cliente", ({ passo 
     expect(cantiere()).toEqual([null, null, null, null]);
     await new Promise((r) => setTimeout(r, 50));
     expect(cantiere()).toEqual([null, null, null, null]);
+  });
+
+  it("un preventivo nuovo da un contatto la cui scheda arriva in ritardo: se nel frattempo si scrive, niente viene sovrascritto", async () => {
+    ctl.ritardoMs = 250;
+    const scritture = await monta({ cliente_id: "k1" });
+    // La scheda non c'è ancora: i quattro campi sono già lì e si può scrivere.
+    expect(senzaSpunta()).toBeNull();
+    fireEvent.change(campi().getByLabelText("Città"), { target: { value: "Roma" } });
+    const casella = await spunta();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(cantiere()).toEqual([null, "Roma", null, null]);
+    expect(casella.getAttribute("aria-checked")).toBe("false");
+    expect(scritture.filter(([chiave]) => chiave.startsWith("cantiere_"))).toEqual([["cantiere_citta", "Roma"]]);
   });
 
   it("scegliendo un contatto dal CRM, i lavori vuoti seguono l'indirizzo del contatto; poi un altro contatto li cambia", async () => {

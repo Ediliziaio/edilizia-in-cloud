@@ -66,7 +66,8 @@ export function useIndirizzoLavoriEdile(
     /** I campi si vedono: i lavori sono altrove, o non c'è un indirizzo da copiare. */
     altrove: !uguale,
     /** L'indirizzo del contatto, detto a chi sceglie. */
-    riassunto: contatto ? testoIndirizzo(contatto) : "",
+    // La provincia come si scriverà nel preventivo (il CRM può averla minuscola).
+    riassunto: contatto ? testoIndirizzo({ ...contatto, provincia: valoreDaCopiare("provincia", contatto.provincia) }) : "",
 
     /** Si è scelto un contatto dal CRM: se i lavori erano vuoti o copiati dal contatto di prima, seguono il nuovo. */
     dalContatto(id: string, indirizzo: Indirizzo) {

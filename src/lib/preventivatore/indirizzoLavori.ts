@@ -1,5 +1,6 @@
 /**
- * L'indirizzo dei lavori nel passo «Contatto» (06/10/2026). Di serie coincide con quello del cliente: si sceglie
+ * L'indirizzo dei lavori nel passo «Contatto» dei serramenti e «Cliente» degli edili (06/10/2026). Di serie coincide
+ * con quello del cliente (negli edili, del contatto del CRM): si sceglie
  * «diverso» solo quando i lavori sono altrove. Qui le regole che non dipendono dall'interfaccia: che cosa vuol dire
  * «uguale», come si legge un indirizzo da un preventivo, come si scrive in una riga.
  */
