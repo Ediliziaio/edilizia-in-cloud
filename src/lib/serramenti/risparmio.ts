@@ -64,7 +64,13 @@ export function zonaDaCap(cap: string | null | undefined): ZonaClimatica {
   if (c >= 40000 && c < 60000) return "D"; // Centro (Firenze, Bologna, Roma area)
   if (c >= 20000 && c < 40000) return "E"; // Nord (Milano, Torino, Venezia)
   if (c >= 10000 && c < 20000) return "E";
-  if (c < 10000) return "F"; // Nord-montagna (Aosta, Trento)
+  // I CAP sotto 10000 non sono il Nord di montagna (Aosta è 11xxx, Trento 38xxx): sono Lazio (00xxx-04xxx),
+  // Umbria (05xxx-06xxx) e Sardegna (07xxx-09xxx), dove nessun capoluogo sta in zona F. Prima valevano tutti
+  // F: Roma (zona D) risparmiava l'83% in più, Cagliari (zona C) quasi il triplo. Una zona per regione, quella
+  // dei capoluoghi più grandi: per il dettaglio comune per comune serve la tabella.
+  if (c < 5000) return "D"; // Lazio: Roma
+  if (c < 7000) return "E"; // Umbria: Perugia
+  if (c < 10000) return "C"; // Sardegna: Cagliari, Sassari
   return "E";
 }
 

@@ -33,6 +33,7 @@ import type {
   SrGaranzia, SrConfrontoRiga, SrCertificazione, SrBonus, SrFaq,
 } from "@/types/serramenti";
 import { calcolaTotale } from "@/lib/serramenti/calcoli";
+import { calcolaEcobonus } from "@/lib/serramenti/ecobonus";
 import { serramentiModuleExclusions } from "@/lib/moduli-vendita/serramentiOfferScope";
 import { serramentiRoomSummary } from "@/lib/moduli-vendita/serramentiRoomSummary";
 import { applicaMergeTagModulo } from "@/lib/mergeTagsModuli";
@@ -1005,6 +1006,12 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
 /** Percentuale dello sconto all'italiana: 10 → «10», 7.5 → «7,5». */
 function fmtScontoPct(v: number): string {
   return (Math.round(v * 10) / 10).toLocaleString("it-IT", { maximumFractionDigits: 1 });
+}
+
+/** Una percentuale all'italiana, fino a due decimali: TAN 4.75 → «4,75», rata 33.33 → «33,33», 50 → «50». */
+function fmtPercentuale(v: number | string | null | undefined): string {
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toLocaleString("it-IT", { maximumFractionDigits: 2 }) : "";
 }
 
 function fmtEuro(v: number | null | undefined, decimals = 0): string {
@@ -2433,6 +2440,16 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const totaleImponibile = roundMoney(haBaseEconomica ? totaleCalcolato.imponibile_netto : imponibileFallback);
   const totaleIva = roundMoney(haBaseEconomica ? totaleCalcolato.iva_importo : Math.max(0, totaleDocumento - totaleImponibile));
   const totaleMedia = totaleDocumento;
+  // La detrazione si ricalcola dal totale di adesso e dall'aliquota scelta: quella scritta sul preventivo si
+  // aggiorna solo mentre è aperto il passo Economia, e dopo una modifica delle posizioni (o del prezzo, o dello
+  // sconto da un altro passo) restava sul totale di prima: il documento diceva «6.000 € di detrazione» accanto a
+  // un totale che ne valeva 7.000. Stesso conto dello step Economia: totale IVA inclusa col massimale.
+  const aliquotaDetrazione = Number(p.detrazione_aliquota) > 0 ? Number(p.detrazione_aliquota) : 0;
+  const detrazioneCalcolata = aliquotaDetrazione > 0 && totaleDocumento > 0
+    ? calcolaEcobonus({ imponibile_eur: totaleDocumento, aliquota: aliquotaDetrazione })
+    : null;
+  const detrazioneTotale = detrazioneCalcolata ? roundMoney(detrazioneCalcolata.detrazione_totale) : 0;
+  const detrazioneAnno = detrazioneCalcolata ? roundMoney(detrazioneCalcolata.rata_annuale) : 0;
   // Merge tag dei blocchi importati dalla libreria ({{cliente.nome_completo}}, {{azienda.ragione_sociale}}…)
   // Senza condizioni scritte dall'azienda valgono quelle di base del settore.
   const condizioniLegaliTesto = applicaMergeTagModulo(
@@ -2556,17 +2573,21 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
   // Cronoprogramma fasi
   const numSerr = detail.serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);
+  // «1 serramento», non «1 serramenti» (i modelli del PDF dicono «1 prodotto»).
+  const quantiPezzi = isLocalModule
+    ? `${numSerr} ${numSerr === 1 ? "prodotto" : "prodotti"}`
+    : `${numSerr} ${numSerr === 1 ? "serramento" : "serramenti"}`;
   // Cronoprogramma rimosso: i campi crono_giorni_* del progetto restano nel DB
   // per compatibilità (alcune anagrafiche storiche li usano) ma non sono più
   // renderizzati nel PDF. La narrazione passa per la pagina "Il tuo percorso".
 
   // Cashflow 10 anni
   const cashflowYears: Array<{ year: number; cumulato: number }> = [];
-  if ((Number(p.risparmio_eur_anno) > 0) || (Number(p.detrazione_eur_anno) > 0)) {
+  if ((Number(p.risparmio_eur_anno) > 0) || detrazioneAnno > 0) {
     let cum = -totaleMedia;
     for (let y = 1; y <= 10; y++) {
       cum += Number(p.risparmio_eur_anno ?? 0);
-      cum += Number(p.detrazione_eur_anno ?? 0);
+      cum += detrazioneAnno;
       cashflowYears.push({ year: y, cumulato: cum });
     }
   }
@@ -2579,7 +2600,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const hasMonthlyRateBalance = Boolean(
     schemaCfg?.hasFinanziamento && piani.length > 0 && Number(p.risparmio_eur_anno ?? 0) > 0
   );
-  const hasTaxDeduction = Boolean(p.detrazione_aliquota && (p.detrazione_eur_totale ?? 0) > 0);
+  const hasTaxDeduction = aliquotaDetrazione > 0 && detrazioneTotale > 0;
   const inlineModuleInclusions = isLocalModule && !hasTaxDeduction && cashflowYears.length === 0 && !hasMonthlyRateBalance && bonus.length === 0;
   const hasInvestmentDetails = !inlineModuleInclusions && Boolean(
     hasTaxDeduction || cashflowYears.length > 0 || hasMonthlyRateBalance || incluso.length > 0 || bonus.length > 0
@@ -2810,7 +2831,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   // Quanto occupano le sezioni che possono finire a metà foglio (vedi impaginaSerramento).
   const pezziDellaProposta = pezziProposta({
     titolo: `Per ${p.cliente_nome ?? clienteNome}`,
-    sottotitolo: [p.cantiere_citta || p.cliente_citta, `${numSerr} serramenti`, p.tipo_intervento].filter(Boolean).join(" · "),
+    sottotitolo: [p.cantiere_citta || p.cliente_citta, quantiPezzi, p.tipo_intervento].filter(Boolean).join(" · "),
     righeAnagrafica: [
       clienteNome,
       p.cliente_indirizzo,
@@ -2847,14 +2868,14 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const datiDettagli: DatiDettagli = {
     titolo: haRecuperi && haInclusioni ? "Valore, recuperi e inclusioni." : haRecuperi ? "Valore e recuperi." : "Valore e inclusioni.",
     sottotitolo: `Un riepilogo ordinato per leggere con chiarezza ${elencoDettagli}.`,
-    detrazione: hasTaxDeduction ? { tabella: mostraTabellaEcobonus && Number(p.detrazione_eur_anno ?? 0) > 0 } : null,
+    detrazione: hasTaxDeduction ? { tabella: mostraTabellaEcobonus && detrazioneAnno > 0 } : null,
     // Risparmio e detrazione sono uguali ogni anno: si dicono una volta qui, e la
     // tabella sotto il grafico tiene solo quello che cambia.
     recupero: cashflowYears.length > 0
       ? {
         didascalia: (haRisparmioBolletta
-          ? `Ogni anno € ${fmtEuro(Number(p.risparmio_eur_anno ?? 0))} di risparmio in bolletta e € ${fmtEuro(Number(p.detrazione_eur_anno ?? 0))} di detrazione: il saldo parte dalla spesa iniziale e risale anno dopo anno.`
-          : `Ogni anno € ${fmtEuro(Number(p.detrazione_eur_anno ?? 0))} di detrazione: il saldo parte dalla spesa iniziale e risale anno dopo anno.`)
+          ? `Ogni anno € ${fmtEuro(Number(p.risparmio_eur_anno ?? 0))} di risparmio in bolletta e € ${fmtEuro(detrazioneAnno)} di detrazione: il saldo parte dalla spesa iniziale e risale anno dopo anno.`
+          : `Ogni anno € ${fmtEuro(detrazioneAnno)} di detrazione: il saldo parte dalla spesa iniziale e risale anno dopo anno.`)
           + (annoPareggio !== null ? " La linea tratteggiata segna l'anno in cui la spesa è ripagata." : ""),
         pareggio: annoPareggio !== null,
       }
@@ -3178,7 +3199,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               <Text style={styles.pageEyebrow}>Proposta di intervento</Text>
               <Text style={styles.pageTitle}>Per {p.cliente_nome ?? clienteNome}</Text>
               <Text style={styles.pageSubtitle}>
-                {[p.cantiere_citta || p.cliente_citta, isLocalModule ? `${numSerr} ${numSerr === 1 ? "prodotto" : "prodotti"}` : `${numSerr} serramenti`, p.tipo_intervento].filter(Boolean).join(" · ")}
+                {[p.cantiere_citta || p.cliente_citta, quantiPezzi, p.tipo_intervento].filter(Boolean).join(" · ")}
               </Text>
 
               <Text style={styles.sectionTitle}>Anagrafica cliente</Text>
@@ -3963,7 +3984,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     Mostrati solo se il toggle è ON E i dati sono presenti sul
                     preventivo (piani finanziamento / detrazione aliquota). */}
                 {((mostraRataMensile && piani.length > 0) ||
-                  (mostraRecuperoFiscale && Number(p.detrazione_aliquota) > 0 && Number(p.detrazione_eur_totale ?? 0) > 0)) && (
+                  (mostraRecuperoFiscale && hasTaxDeduction)) && (
                   <View style={[styles.priceExtraRow, { marginTop: 8, paddingTop: 8, gap: 12 }]}>
                     {mostraRataMensile && piani.length > 0 && (() => {
                       // Prendiamo il piano con rata più bassa per l'anchor "da € X/mese".
@@ -3974,17 +3995,17 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                         <View style={styles.priceExtraItem}>
                           <Text style={styles.priceExtraLabel}>oppure a rate</Text>
                           <Text style={styles.priceExtraValue}>~ da € {fmtEuro(piano.rata_mese)}/mese</Text>
-                          <Text style={styles.priceExtraSub}>in {piano.mesi} mesi · TAN {piano.tasso}%</Text>
+                          <Text style={styles.priceExtraSub}>in {piano.mesi} mesi · TAN {fmtPercentuale(piano.tasso)}%</Text>
                         </View>
                       );
                     })()}
-                    {mostraRecuperoFiscale && Number(p.detrazione_aliquota) > 0 && Number(p.detrazione_eur_totale ?? 0) > 0 && (() => {
-                      const netto = Math.max(0, totaleMedia - Number(p.detrazione_eur_totale ?? 0));
+                    {mostraRecuperoFiscale && hasTaxDeduction && (() => {
+                      const netto = Math.max(0, totaleMedia - detrazioneTotale);
                       return (
                         <View style={styles.priceExtraItem}>
                           <Text style={styles.priceExtraLabel}>Netto dopo recupero fiscale</Text>
                           <Text style={styles.priceExtraValue}>€ {fmtEuro(netto)}</Text>
-                          <Text style={styles.priceExtraSub}>Ecobonus {p.detrazione_aliquota}% in 10 quote</Text>
+                          <Text style={styles.priceExtraSub}>Ecobonus {fmtPercentuale(aliquotaDetrazione)}% in 10 quote</Text>
                         </View>
                       );
                     })()}
@@ -4027,7 +4048,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                             </View>
                             <Text style={styles.payTimelineLabel}>{m.label}</Text>
                             {m.when ? <Text style={styles.payTimelineWhen}>{m.when}</Text> : null}
-                            <Text style={styles.payTimelinePct}>{m.percentuale}%</Text>
+                            <Text style={styles.payTimelinePct}>{fmtPercentuale(m.percentuale)}%</Text>
                             <Text style={styles.payTimelineAmount}>€ {fmtEuro(amount)}</Text>
                           </View>
                         );
@@ -4047,7 +4068,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                             {m.when ? <Text style={styles.payStepWhen}>{m.when}</Text> : null}
                           </View>
                           <View style={styles.payStepRight}>
-                            <Text style={styles.payStepPct}>{m.percentuale}%</Text>
+                            <Text style={styles.payStepPct}>{fmtPercentuale(m.percentuale)}%</Text>
                             <Text style={styles.payStepAmount}>circa € {fmtEuro(amount)}</Text>
                           </View>
                         </View>
@@ -4063,7 +4084,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   <View style={styles.finBox}>
                     {piani.slice(0, 2).map((piano, i) => (
                       <View key={i} style={[styles.finCard, { padding: 11 }]}>
-                        <Text style={styles.finCardTitle}>{piano.nome} · {piano.mesi} mesi · TAN {piano.tasso}%</Text>
+                        <Text style={styles.finCardTitle}>{piano.nome} · {piano.mesi} mesi · TAN {fmtPercentuale(piano.tasso)}%</Text>
                         <Text style={[styles.finCardValue, { fontSize: 17 }]}>€ {fmtEuro(piano.rata_mese)}</Text>
                         <Text style={styles.finCardSub}>/mese · finanziato € {fmtEuro(piano.finanziato)}</Text>
                       </View>
@@ -4108,16 +4129,16 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                       borderRadius: 8, padding: 10, marginTop: 4,
                     }}>
                       <Text style={[styles.finCardTitle, { color: C.successText }]}>
-                        Detrazione {p.detrazione_aliquota}% recuperabile in 10 quote annuali
+                        Detrazione {fmtPercentuale(aliquotaDetrazione)}% recuperabile in 10 quote annuali
                       </Text>
                       <Text style={[styles.finCardValue, { color: C.successText, fontSize: 18 }]}>
-                        € {fmtEuro(p.detrazione_eur_totale)}
+                        € {fmtEuro(detrazioneTotale)}
                       </Text>
                       <Text style={[styles.finCardSub, { color: C.successText }]}>
-                        circa € {fmtEuro(p.detrazione_eur_anno)} / anno per 10 anni
+                        circa € {fmtEuro(detrazioneAnno)} / anno per 10 anni
                       </Text>
 
-                      {mostraTabellaEcobonus && Number(p.detrazione_eur_anno ?? 0) > 0 && (
+                      {mostraTabellaEcobonus && detrazioneAnno > 0 && (
                         <>
                           {/* Gli anni in colonna, come sotto il grafico: la quota è sempre
                               la stessa (è scritta sopra), la riga dice quanto è tornato. */}
@@ -4127,8 +4148,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                               {
                                 nome: "Recuperata",
                                 celle: Array.from({ length: 10 }, (_, i) => {
-                                  const quota = Number(p.detrazione_eur_anno ?? 0);
-                                  const cumulato = i === 9 ? Number(p.detrazione_eur_totale ?? quota * 10) : quota * (i + 1);
+                                  const quota = detrazioneAnno;
+                                  const cumulato = i === 9 ? detrazioneTotale : quota * (i + 1);
                                   return { testo: `€ ${fmtEuro(cumulato)}`, forte: true, colore: C.successText };
                                 }),
                               },
@@ -4200,7 +4221,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                       const piano = piani[0];
                       const rataMese = Number(piano.rata_mese ?? 0);
                       const risparmioMese = Number(p.risparmio_eur_anno ?? 0) / 12;
-                      const detrazioneMese = Number(p.detrazione_eur_anno ?? 0) / 12;
+                      const detrazioneMese = detrazioneAnno / 12;
                       const beneficioMese = risparmioMese + detrazioneMese;
                       const costoNetto = rataMese - beneficioMese;
                       const positivo = costoNetto <= 0;
@@ -4209,7 +4230,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                           <View style={[styles.finCard, { padding: 10 }]}>
                             <Text style={styles.finCardTitle}>Rata mensile</Text>
                             <Text style={[styles.finCardValue, { color: C.gray900, fontSize: 17 }]}>€ {fmtEuro(rataMese)}</Text>
-                            <Text style={styles.finCardSub}>{piano.mesi} mesi · TAN {piano.tasso}%</Text>
+                            <Text style={styles.finCardSub}>{piano.mesi} mesi · TAN {fmtPercentuale(piano.tasso)}%</Text>
                           </View>
                           <View style={[styles.finCard, { padding: 10 }]}>
                             <Text style={styles.finCardTitle}>Risparmio + detrazione</Text>

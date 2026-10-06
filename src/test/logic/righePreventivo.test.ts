@@ -42,10 +42,21 @@ describe("totali sulla riga del preventivo serramenti", () => {
     const calcolati = totaliDelPreventivo(detail, { iva_percentuale: 10 });
     expect(
       totaliCambiati(
-        { totale_min: 2851.4, totale_max: 2851.4, totale_serramenti: 0, totale_accessori: 3, metri_quadri_totali: null },
+        { totale_min: 2851.2, totale_max: 2851.2, totale_serramenti: 0, totale_accessori: 3, metri_quadri_totali: null },
         calcolati,
       ),
     ).toEqual({ totale_serramenti: 3, metri_quadri_totali: 3.7 });
+  });
+
+  it("un totale salvato indietro anche di soli 20 centesimi si riscrive: elenco e commessa leggono quello del PDF", () => {
+    // Prima la soglia era mezzo euro e un 2.851,40 salvato contro un 2.851,20 vero restava così.
+    const calcolati = totaliDelPreventivo(detail, { iva_percentuale: 10 });
+    expect(
+      totaliCambiati(
+        { totale_min: 2851.4, totale_max: 2851.4, totale_serramenti: 3, totale_accessori: 3, metri_quadri_totali: 3.7 },
+        calcolati,
+      ),
+    ).toEqual({ totale_min: 2851.2, totale_max: 2851.2 });
   });
 });
 

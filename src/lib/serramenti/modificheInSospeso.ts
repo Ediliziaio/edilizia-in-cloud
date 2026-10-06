@@ -40,3 +40,23 @@ export function confermaSalvate<T>(modifiche: ModificheInSospeso<T>, versioni: M
     if (modifiche.get(campo)?.versione === versione) modifiche.delete(campo);
   }
 }
+
+/**
+ * Il preventivo come si vede sullo schermo: i campi che l'utente ha toccato in questa sessione prendono il valore
+ * del modulo (anche se l'autosave non li ha ancora scritti), gli altri restano quelli salvati. Stato, commessa,
+ * link e firma li cambia il server: il modulo, caricato all'apertura, li avrebbe vecchi.
+ *
+ * Serve a ciò che si apre da un pulsante (il PDF, l'invio): l'autosave parte due secondi dopo l'ultima modifica,
+ * e il PDF generato dalla sola copia salvata usciva senza la modifica appena fatta.
+ */
+export function conLeModificheDelModulo<T extends object>(
+  salvato: T,
+  modulo: Partial<T>,
+  toccati: Iterable<keyof T>,
+): T {
+  const risultato = { ...salvato };
+  for (const campo of toccati) {
+    if (campo in modulo) risultato[campo] = modulo[campo] as T[keyof T];
+  }
+  return risultato;
+}
