@@ -99,6 +99,29 @@ describe("economia di ogni fase", () => {
     expect(totaleFasi.venduto).toBe(100);
   });
 
+  it("il venduto scritto sulla fase vale più delle righe; quello delle righe resta da confrontare", () => {
+    const { perFase } = economiaFasi({
+      fasi: [{ id: "f1", importo_venduto: 8000 }, { id: "f2", importo_venduto: null }],
+      righe: [riga({ id: "r1", quantity: 2, unit_price: 1500 }), riga({ id: "r2", phase_id: "f2", quantity: 4, unit_price: 250 })],
+      assegnazioni: [persona({ cost_preventivo: 6000, cost_consuntivo: 6600 })],
+    });
+    expect(perFase.get("f1")).toMatchObject({ venduto: 8000, fonteVenduto: "fase", vendutoRighe: 3000, marginePrevistoPct: 25, margineConsuntivoPct: 17.5 });
+    expect(perFase.get("f2")).toMatchObject({ venduto: 1000, fonteVenduto: "righe", vendutoRighe: 1000 });
+  });
+
+  it("righe collegate senza prezzo di vendita (i materiali) non fanno un venduto di zero: non c'è", () => {
+    const { perFase, fasiSenzaVenduto, totaleFasi } = economiaFasi({
+      fasi: [{ id: "f1" }, { id: "f2", importo_venduto: 0 }, { id: "f3", importo_venduto: 4500 }],
+      righe: [riga({ id: "r1", quantity: 60, unit_price: 0, purchase_price: 8 })],
+      assegnazioni: [],
+    });
+    expect(perFase.get("f1")).toMatchObject({ venduto: 0, fonteVenduto: null, righe: 1, costoPrevisto: 480 });
+    // zero scritto apposta è un venduto (lavorazione in omaggio), non un dato che manca
+    expect(perFase.get("f2")).toMatchObject({ venduto: 0, fonteVenduto: "fase" });
+    expect(fasiSenzaVenduto).toBe(1);
+    expect(totaleFasi).toMatchObject({ venduto: 4500, fonteVenduto: "fase" });
+  });
+
   it("il totale delle fasi somma le fasi", () => {
     const { totaleFasi } = economiaFasi({
       fasi,

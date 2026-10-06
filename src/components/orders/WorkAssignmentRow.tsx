@@ -1,12 +1,12 @@
-import { useRef, useState } from "react";
-import { Building2, Clock3, Loader2, Pencil, Trash2, UserRound } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
+import { Building2, Loader2, Pencil, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import type { ExecutorOption, PhaseAssignment } from "@/hooks/useOrderWorkPhases";
 import { usePermissions } from "@/hooks/usePermissions";
 import { parseWorkAmount } from "@/lib/orders/workPlanning";
 import { formatCurrency } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -24,6 +24,28 @@ function resolveExecutorLabel(a: PhaseAssignment, employees: ExecutorOption[], t
   return a.executor_type === "interno"
     ? employees.find(e => e.id === a.employee_id)?.label ?? "Dipendente non disponibile"
     : teams.find(t => t.id === a.external_team_id)?.label ?? "Ditta non disponibile";
+}
+
+/**
+ * Elenco di persone e ditte di una fase (06/10/2026): un riquadro solo, una
+ * riga per assegnazione e i due costi in colonna sotto la loro intestazione,
+ * invece di un riquadro per persona con i costi ripetuti in ognuno.
+ */
+export function ElencoAssegnazioni({ children }: { children: ReactNode }) {
+  const { canEditOrders, canViewCosts } = usePermissions();
+  return (
+    <div className="divide-y overflow-hidden rounded-lg border bg-background">
+      {canViewCosts && (
+        <div aria-hidden="true" className="flex items-center gap-3 bg-muted/40 px-3 py-1.5 text-[11px] font-medium text-muted-foreground max-sm:hidden">
+          <span className="flex-1 pl-10">Persona o ditta</span>
+          <span className="w-28 text-right">Costo previsto</span>
+          <span className="w-28 text-right">Costo consuntivo</span>
+          {canEditOrders && <span className="w-8" />}
+        </div>
+      )}
+      {children}
+    </div>
+  );
 }
 
 interface Props {
@@ -85,40 +107,35 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
     finally { setBusy(false); }
   };
 
-  return <div className="rounded-xl border bg-background p-3 sm:p-4 max-sm:px-3 max-sm:py-2.5">
-    <div className="flex flex-wrap items-start justify-between gap-3 max-sm:flex-nowrap max-sm:items-center">
-      <div className="flex min-w-0 flex-1 items-start gap-3 max-sm:items-center">
-        <div className={`rounded-lg p-2 ${internal ? "bg-blue-50 text-blue-700" : "bg-violet-50 text-violet-700"}`}>
-          {internal ? <UserRound className="h-4 w-4" /> : <Building2 className="h-4 w-4" />}
-        </div>
-        <div className="min-w-0 space-y-1 max-sm:space-y-0">
-          <p className="break-words text-sm font-semibold">{name}</p>
-          {/* Mobile: tipo e ore in una riga di testo (badge e ore andavano a capo). */}
-          <p className="text-xs text-muted-foreground sm:hidden">
-            {internal ? `Dipendente · ${a.hours ?? 0} h registrate` : "Ditta esterna · affidamento"}
-            {senzaApp && <span className="font-medium text-amber-700"> · senza app</span>}
-          </p>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground max-sm:hidden">
-            <Badge variant="secondary">{internal ? "Dipendente" : "Ditta esterna"}</Badge>
-            {internal && <span className="inline-flex items-center gap-1"><Clock3 className="h-3 w-3" />{a.hours ?? 0} h registrate</span>}
-            {senzaApp
-              ? <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">Senza app: non vede la commessa</Badge>
-              : persona && <span className="text-emerald-700">{a.phase_id ? "La vede nell'app nei giorni della fase" : "La vede nell'app"}</span>}
-            {!internal && <span>Affidamento esterno</span>}
-          </div>
-          {a.notes && <p className="whitespace-pre-wrap break-words text-xs text-muted-foreground">{a.notes}</p>}
-        </div>
-      </div>
-      {/* Mobile: la sola matita (il nome resta nell'etichetta per lo screen reader). */}
-      {canEditOrders && <Button size="sm" variant="outline" onClick={startEditing} aria-label={`Gestisci ${name}`} className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:p-0">
-        <Pencil className="mr-1.5 h-3.5 w-3.5 max-sm:mr-0" /><span className="max-sm:hidden">Gestisci</span>
-      </Button>}
+  const sforato = a.cost_preventivo > 0 && a.cost_consuntivo > a.cost_preventivo;
+  // Una riga dell'elenco (ElencoAssegnazioni): chi è, che cosa fa, i due costi
+  // nelle colonne dell'intestazione, la matita per gestirla.
+  return <div className="flex items-start gap-3 px-3 py-2.5">
+    <span aria-hidden="true" className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md", internal ? "bg-blue-50 text-blue-700" : "bg-violet-50 text-violet-700")}>
+      {internal ? <UserRound className="h-3.5 w-3.5" /> : <Building2 className="h-3.5 w-3.5" />}
+    </span>
+    <div className="min-w-0 flex-1">
+      <p className="break-words text-sm font-medium">{name}</p>
+      {/* Testo che va a capo da sé: niente puntini rimasti soli in fondo alla riga */}
+      <p className="text-xs text-muted-foreground">
+        <span>{internal ? "Dipendente" : "Ditta esterna"}</span>
+        {internal && <> · <span>{a.hours ?? 0} h registrate</span></>}
+        {senzaApp && <> · <span className="font-medium text-amber-700"><span className="sm:hidden">senza app</span><span className="max-sm:hidden">senza app: non vede la commessa</span></span></>}
+        {!internal && canViewCosts && <span className="max-sm:hidden"> · {a.is_paid ? "pagamento registrato" : "pagamento da registrare"}</span>}
+      </p>
+      {a.notes && <p className="mt-0.5 whitespace-pre-wrap break-words text-xs text-muted-foreground">{a.notes}</p>}
     </div>
-    {canViewCosts && <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t pt-2 text-xs text-muted-foreground max-sm:hidden">
-      <span>Costo previsto <strong className="font-medium text-foreground">{eur.format(a.cost_preventivo)}</strong></span>
-      <span>Costo consuntivo <strong className={a.cost_preventivo > 0 && a.cost_consuntivo > a.cost_preventivo ? "font-medium text-rose-700" : "font-medium text-foreground"}>{eur.format(a.cost_consuntivo)}</strong></span>
-      {!internal && <span>{a.is_paid ? "Pagamento registrato" : "Pagamento da registrare"}</span>}
-    </div>}
+    {canViewCosts && <>
+      <span className="w-28 shrink-0 pt-0.5 text-right text-sm tabular-nums max-sm:hidden">
+        <span className="sr-only">Costo previsto </span>{eur.format(a.cost_preventivo)}
+      </span>
+      <span className={cn("w-28 shrink-0 pt-0.5 text-right text-sm tabular-nums max-sm:hidden", sforato && "font-medium text-rose-700")}>
+        <span className="sr-only">Costo consuntivo </span>{eur.format(a.cost_consuntivo)}
+      </span>
+    </>}
+    {canEditOrders && <Button size="icon" variant="ghost" onClick={startEditing} aria-label={`Gestisci ${name}`} title="Gestisci" className="tap-compact h-8 w-8 shrink-0 text-muted-foreground">
+      <Pencil className="h-4 w-4" />
+    </Button>}
     <Dialog open={open} onOpenChange={v => { if (!busy) setOpen(v); }}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader><DialogTitle>Gestisci assegnazione</DialogTitle><DialogDescription>{name} · {internal ? "Dipendente interno" : "Ditta esterna"}</DialogDescription></DialogHeader>

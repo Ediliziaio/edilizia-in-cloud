@@ -1,6 +1,9 @@
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
+import { formatDecimalIT, parseDecimalIT } from "@/lib/parseDecimalIT";
 import type { EconomiaFase, VociCosto } from "@/lib/orders/economiaFasi";
+import { Input } from "@/components/ui/input";
 
 const eur = { format: formatCurrency };
 const pct = (v: number | null) => (v == null ? "—" : `${v.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`);
@@ -20,79 +23,187 @@ export function costoSforato(e: EconomiaFase): boolean {
   return e.costoPrevisto > 0 && e.scostamento > 0;
 }
 
-function Voce({ titolo, valore, nota, tono }: { titolo: string; valore: string; nota: string; tono?: "rosso" }) {
+/**
+ * Il margine da leggere per una fase: sul consuntivo quando la fase è chiusa
+ * (i costi sono quelli) o quando ha già superato il previsto (può solo
+ * peggiorare); altrimenti quello previsto, perché un consuntivo a metà lavori
+ * farebbe un margine finto, più alto del vero.
+ */
+export function margineDaMostrare(e: EconomiaFase, completata: boolean): { pct: number | null; su: "consuntivo" | "previsto" } {
+  return completata || costoSforato(e)
+    ? { pct: e.margineConsuntivoPct, su: "consuntivo" }
+    : { pct: e.marginePrevistoPct, su: "previsto" };
+}
+
+/** Il testo di un importo scritto a mano: vuoto = nessun importo; «errore» se non è un numero da zero in su. */
+export function leggiImporto(testo: string): number | null | "errore" {
+  const t = testo.trim();
+  if (!t) return null;
+  if (!/^[\d.,\s€]+$/.test(t) || !/\d/.test(t)) return "errore";
+  const v = parseDecimalIT(t);
+  return Number.isFinite(v) && v >= 0 ? Math.round(v * 100) / 100 : "errore";
+}
+
+/**
+ * Il venduto della fase, scritto dall'ufficio: si salva uscendo dal campo o con
+ * Invio, Esc annulla. Vuoto torna al venduto delle righe del contratto, che il
+ * campo mostra in grigio.
+ */
+export function CampoVenduto({
+  economia,
+  nomeFase,
+  onSalva,
+  inTabella = false,
+}: {
+  economia: EconomiaFase;
+  nomeFase: string;
+  onSalva: (importo: number | null) => void;
+  /** In una tabella il campo sembra testo finché non ci si passa sopra o lo si usa. */
+  inTabella?: boolean;
+}) {
+  const scritto = economia.fonteVenduto === "fase" ? economia.venduto : null;
+  const testoDi = (v: number | null) => (v == null ? "" : formatDecimalIT(v));
+  const [testo, setTesto] = useState(() => testoDi(scritto));
+  const [errore, setErrore] = useState(false);
+  const inScrittura = useRef(false);
+  const annulla = useRef(false);
+
+  // Un salvataggio (o un collega) cambia l'importo: il campo si riallinea, ma
+  // non mentre lo si sta scrivendo.
+  useEffect(() => {
+    if (!inScrittura.current) setTesto(testoDi(scritto));
+  }, [scritto]);
+
+  const esci = () => {
+    inScrittura.current = false;
+    if (annulla.current) {
+      annulla.current = false;
+      setTesto(testoDi(scritto));
+      setErrore(false);
+      return;
+    }
+    const valore = leggiImporto(testo);
+    if (valore === "errore") {
+      setErrore(true);
+      return;
+    }
+    setErrore(false);
+    setTesto(testoDi(valore));
+    if (valore !== scritto) onSalva(valore);
+  };
+
+  return (
+    <span className="relative inline-flex items-center">
+      <Input
+        value={testo}
+        inputMode="decimal"
+        autoComplete="off"
+        aria-label={`Venduto di ${nomeFase}`}
+        aria-invalid={errore || undefined}
+        title={errore ? "Scrivi un importo, per esempio 8.500 o 8.500,50" : undefined}
+        placeholder={economia.fonteVenduto === "righe" ? formatDecimalIT(economia.vendutoRighe) : "da inserire"}
+        onFocus={() => { inScrittura.current = true; }}
+        onChange={(e) => { setTesto(e.target.value); setErrore(false); }}
+        onBlur={esci}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            e.currentTarget.blur();
+          } else if (e.key === "Escape") {
+            annulla.current = true;
+            e.currentTarget.blur();
+          }
+        }}
+        className={cn(
+          "h-8 w-36 pr-7 text-right font-semibold tabular-nums placeholder:font-normal",
+          inTabella && "border-transparent bg-transparent shadow-none hover:border-input focus-visible:border-input",
+          errore && "border-rose-400 focus-visible:ring-rose-400",
+        )}
+      />
+      <span aria-hidden="true" className="pointer-events-none absolute right-2.5 text-xs text-muted-foreground">€</span>
+    </span>
+  );
+}
+
+function Cifra({ titolo, children, nota, className }: { titolo: string; children: ReactNode; nota?: ReactNode; className?: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{titolo}</dt>
-      <dd className={cn("text-base font-semibold tabular-nums", tono === "rosso" ? "text-rose-700" : "text-foreground")}>{valore}</dd>
-      <dd className="text-xs text-muted-foreground">{nota}</dd>
+      <dt className="text-[11px] text-muted-foreground">{titolo}</dt>
+      <dd className={cn("flex h-8 items-center gap-2 text-sm font-semibold tabular-nums text-foreground", className)}>{children}</dd>
+      {nota && <dd className="text-[11px] leading-tight text-muted-foreground">{nota}</dd>}
     </div>
   );
 }
 
 /**
- * Riga «Economia» di una fase (06/10/2026): venduto, costo previsto e costo
- * consuntivo, con le voci e i margini, ognuno col suo permesso. Da telefono
- * non c'è, come il riepilogo dei costi.
+ * Riga «Economia» di una fase (06/10/2026): venduto, costo previsto, costo
+ * consuntivo e margine in colonna, ognuno col suo permesso. Il venduto si
+ * scrive qui (con `onSalvaVenduto`). Le voci dei costi stanno nell'elenco di
+ * persone e ditte subito sotto e nel titolo delle cifre. Da telefono non c'è.
  */
 export function EconomiaFaseRiga({
   economia,
+  nomeFase,
+  completata = false,
   vedeVenduto,
   vedeCosti,
   vedeMargini,
+  onSalvaVenduto,
 }: {
   economia: EconomiaFase;
+  nomeFase: string;
+  /** Fase chiusa: il margine si legge sul consuntivo. */
+  completata?: boolean;
   vedeVenduto: boolean;
   vedeCosti: boolean;
   vedeMargini: boolean;
+  /** Chi può scrivere il venduto della fase. */
+  onSalvaVenduto?: (importo: number | null) => void;
 }) {
   if (!vedeVenduto && !vedeCosti) return null;
   const sforato = vedeCosti && costoSforato(economia);
-  const mostraMargini = vedeMargini && economia.marginePrevistoPct != null;
+  const conVenduto = economia.fonteVenduto !== null;
+  const margine = margineDaMostrare(economia, completata);
+  const mostraMargine = vedeVenduto && vedeMargini && conVenduto && margine.pct != null;
+  const notaVenduto =
+    economia.fonteVenduto === "righe"
+      ? "dalle righe del contratto"
+      : economia.fonteVenduto === "fase" && economia.vendutoRighe > 0 && economia.vendutoRighe !== economia.venduto
+        ? `righe del contratto ${eur.format(economia.vendutoRighe)}`
+        : null;
+
   return (
     <div className="flex flex-wrap items-start gap-2 max-sm:hidden">
       <span className="w-24 shrink-0 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Economia</span>
-      <div className="min-w-0 flex-1 rounded-lg border bg-muted/30 p-3">
-        <dl className="grid gap-3 sm:grid-cols-3">
-          {vedeVenduto && (
-            <Voce
-              titolo="Venduto"
-              valore={economia.righe > 0 ? eur.format(economia.venduto) : "—"}
-              nota={economia.righe > 0
-                ? economia.righe === 1 ? "1 riga del contratto" : `${economia.righe} righe del contratto`
-                : "nessuna riga del contratto collegata"}
-            />
-          )}
-          {vedeCosti && <Voce titolo="Costo previsto" valore={eur.format(economia.costoPrevisto)} nota={dettaglioVoci(economia.previsto)} />}
-          {vedeCosti && (
-            <Voce
-              titolo="Costo consuntivo"
-              valore={eur.format(economia.costoConsuntivo)}
-              nota={dettaglioVoci(economia.consuntivo)}
-              tono={sforato ? "rosso" : undefined}
-            />
-          )}
-        </dl>
-        {((vedeCosti && economia.costoPrevisto > 0) || mostraMargini) && (
-          <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t pt-2 text-xs tabular-nums">
-            {vedeCosti && economia.costoPrevisto > 0 && (
-              <span className={sforato ? "font-medium text-rose-700" : "text-emerald-700"}>
-                {sforato
-                  ? `+${eur.format(economia.scostamento)} sul previsto`
-                  : economia.scostamento < 0
-                    ? `${eur.format(-economia.scostamento)} sotto il previsto`
-                    : "in linea col previsto"}
-              </span>
-            )}
-            {mostraMargini && (
-              <span className="text-muted-foreground">
-                Margine previsto <b className="font-semibold text-foreground">{pct(economia.marginePrevistoPct)}</b>
-                {" · "}consuntivo <b className={cn("font-semibold", sforato ? "text-rose-700" : "text-foreground")}>{pct(economia.margineConsuntivoPct)}</b>
-              </span>
-            )}
-          </p>
+      <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-8 gap-y-3 lg:grid-cols-4">
+        {vedeVenduto && (
+          <Cifra titolo="Venduto" nota={notaVenduto}>
+            {onSalvaVenduto
+              ? <CampoVenduto economia={economia} nomeFase={nomeFase} onSalva={onSalvaVenduto} />
+              : conVenduto ? eur.format(economia.venduto) : <span className="font-normal text-muted-foreground">—</span>}
+          </Cifra>
         )}
-      </div>
+        {vedeCosti && (
+          <Cifra titolo="Costo previsto">
+            <span title={dettaglioVoci(economia.previsto)}>{eur.format(economia.costoPrevisto)}</span>
+          </Cifra>
+        )}
+        {vedeCosti && (
+          <Cifra titolo="Costo consuntivo">
+            <span className={sforato ? "text-rose-700" : undefined} title={dettaglioVoci(economia.consuntivo)}>{eur.format(economia.costoConsuntivo)}</span>
+            {sforato && <span className="text-xs font-medium text-rose-700">+{eur.format(economia.scostamento)}</span>}
+          </Cifra>
+        )}
+        {mostraMargine && (
+          <Cifra
+            titolo="Margine"
+            className={margine.pct != null && margine.pct < 0 ? "text-rose-700" : undefined}
+            nota={margine.su === "consuntivo" ? `previsto ${pct(economia.marginePrevistoPct)}` : "previsto, a lavori non finiti"}
+          >
+            {pct(margine.pct)}
+          </Cifra>
+        )}
+      </dl>
     </div>
   );
 }

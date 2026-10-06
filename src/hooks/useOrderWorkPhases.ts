@@ -39,6 +39,8 @@ export interface WorkPhase {
   percentuale: number;
   /** Giorno in cui la fase è stata chiusa («yyyy-MM-dd»), se registrato. */
   completata_il: string | null;
+  /** Venduto della lavorazione scritto dall'ufficio (imponibile); vuoto = dalle righe del contratto. */
+  importo_venduto: number | null;
   assignments: PhaseAssignment[];
 }
 
@@ -275,6 +277,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         notes: (p.notes as string) ?? null,
         percentuale: Number(p.percentuale) || 0,
         completata_il: p.completata_il ? giornoLocale(p.completata_il as string) : null,
+        importo_venduto: p.importo_venduto == null ? null : Number(p.importo_venduto),
         assignments: all.filter((a) => a.phase_id === p.id),
       }));
 
@@ -428,7 +431,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     // "percentuale" è correggibile dall'ufficio: prima l'avanzamento poteva
     // solo salire dai rapportini (Math.max) e un 100 digitato per errore
     // restava per sempre — l'unico rimedio era SQL diretto.
-    mutationFn: async ({ id, ...patch }: { id: string } & Partial<Pick<WorkPhase, "name" | "status" | "start_date" | "end_date" | "notes" | "position" | "percentuale">>) => {
+    mutationFn: async ({ id, ...patch }: { id: string } & Partial<Pick<WorkPhase, "name" | "status" | "start_date" | "end_date" | "notes" | "position" | "percentuale" | "importo_venduto">>) => {
       // Chi chiude una fase dall'ufficio ne registra il giorno, come l'app di
       // campo (CampoAvanzamento): è la fine reale del cronoprogramma. Prima
       // dall'ufficio non si scriveva mai (06/10/2026: 98 fasi, 0 con la data).

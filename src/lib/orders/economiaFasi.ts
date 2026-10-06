@@ -2,9 +2,12 @@
  * Economia delle lavorazioni di una commessa (06/10/2026).
  *
  * Per ogni fase tre numeri, come li ragiona un'impresa edile:
- * - VENDUTO: quanto paga il cliente per quella lavorazione. Sono le righe del
- *   contratto collegate alla fase (order_items.phase_id): prezzo × quantità,
- *   meno lo sconto di riga.
+ * - VENDUTO: quanto paga il cliente per quella lavorazione. È l'importo
+ *   scritto sulla fase dall'ufficio (importo_venduto); se manca, le righe del
+ *   contratto collegate alla fase (order_items.phase_id) con un prezzo:
+ *   prezzo × quantità, meno lo sconto di riga. Nelle commesse vere le righe
+ *   collegate sono spesso materiali senza prezzo di vendita: senza l'importo
+ *   sulla fase il venduto di una lavorazione non si potrebbe dire.
  * - COSTO PREVISTO: manodopera e ditte previste (cost_preventivo delle
  *   assegnazioni) più il costo d'acquisto delle righe collegate
  *   (purchase_price, altrimenti standard_cost).
@@ -56,8 +59,14 @@ export interface VociCosto {
   materiali: number;
 }
 
+/** Da dove viene il venduto: scritto sulla fase, dalle righe del contratto, o non c'è. */
+export type FonteVenduto = "fase" | "righe" | null;
+
 export interface EconomiaFase {
   venduto: number;
+  fonteVenduto: FonteVenduto;
+  /** Venduto delle righe del contratto collegate, anche quando sulla fase è scritto un altro importo. */
+  vendutoRighe: number;
   costoPrevisto: number;
   costoConsuntivo: number;
   previsto: VociCosto;
@@ -67,7 +76,7 @@ export interface EconomiaFase {
   /** Margine % sul venduto; null senza venduto. */
   marginePrevistoPct: number | null;
   margineConsuntivoPct: number | null;
-  /** Righe del contratto collegate: sono quelle che fanno il venduto. */
+  /** Righe del contratto collegate alla fase, con o senza prezzo di vendita. */
   righe: number;
 }
 
@@ -77,6 +86,8 @@ export interface EconomiaFasi {
   senzaFase: EconomiaFase;
   /** Somma delle fasi, senza `senzaFase`. */
   totaleFasi: EconomiaFase;
+  /** Fasi senza venduto: né scritto sulla fase né dalle righe del contratto. */
+  fasiSenzaVenduto: number;
 }
 
 const numero = (v: unknown) => {
@@ -86,18 +97,35 @@ const numero = (v: unknown) => {
 const centesimi = (v: number) => Math.round(v * 100) / 100;
 
 interface Somme {
-  venduto: number;
+  /** Venduto scritto sulla fase; null = dalle righe. */
+  importo: number | null;
+  vendutoRighe: number;
+  righePrezzate: number;
   previsto: VociCosto;
   consuntivo: VociCosto;
   righe: number;
 }
 
-const vuote = (): Somme => ({
-  venduto: 0,
+const vuote = (importo: number | null = null): Somme => ({
+  importo,
+  vendutoRighe: 0,
+  righePrezzate: 0,
   previsto: { manodopera: 0, ditte: 0, materiali: 0 },
   consuntivo: { manodopera: 0, ditte: 0, materiali: 0 },
   righe: 0,
 });
+
+/** L'importo scritto sulla fase, se è un numero valido (mai sotto zero). */
+const importoFase = (v: unknown): number | null => {
+  if (v == null || v === "") return null;
+  const x = Number(v);
+  return Number.isFinite(x) && x >= 0 ? x : null;
+};
+
+function vendutoDi(s: Somme): { venduto: number; fonte: FonteVenduto } {
+  if (s.importo != null) return { venduto: s.importo, fonte: "fase" };
+  return { venduto: s.vendutoRighe, fonte: s.righePrezzate > 0 ? "righe" : null };
+}
 
 const VOCI = ["manodopera", "ditte", "materiali"] as const;
 
@@ -140,15 +168,17 @@ export function costoConsuntivoRighe(
   return costo;
 }
 
-function chiudi(s: Somme): EconomiaFase {
+function chiudi(s: Somme, { venduto: lordo, fonte }: { venduto: number; fonte: FonteVenduto }): EconomiaFase {
   const previsto = { manodopera: centesimi(s.previsto.manodopera), ditte: centesimi(s.previsto.ditte), materiali: centesimi(s.previsto.materiali) };
   const consuntivo = { manodopera: centesimi(s.consuntivo.manodopera), ditte: centesimi(s.consuntivo.ditte), materiali: centesimi(s.consuntivo.materiali) };
   const costoPrevisto = centesimi(s.previsto.manodopera + s.previsto.ditte + s.previsto.materiali);
   const costoConsuntivo = centesimi(s.consuntivo.manodopera + s.consuntivo.ditte + s.consuntivo.materiali);
-  const venduto = centesimi(s.venduto);
+  const venduto = centesimi(lordo);
   const margine = (costo: number) => (venduto > 0 ? Math.round(((venduto - costo) / venduto) * 1000) / 10 : null);
   return {
     venduto,
+    fonteVenduto: fonte,
+    vendutoRighe: centesimi(s.vendutoRighe),
     costoPrevisto,
     costoConsuntivo,
     previsto,
@@ -161,21 +191,23 @@ function chiudi(s: Somme): EconomiaFase {
 }
 
 export function economiaFasi(input: {
-  fasi: ReadonlyArray<{ id: string }>;
+  fasi: ReadonlyArray<{ id: string; importo_venduto?: number | null }>;
   righe: ReadonlyArray<RigaContrattoFase>;
   assegnazioni: ReadonlyArray<AssegnazioneFase>;
   acquisti?: ReadonlyArray<RigaAcquisto>;
   movimenti?: ReadonlyArray<MovimentoMagazzino>;
 }): EconomiaFasi {
   const somme = new Map<string, Somme>();
-  for (const f of input.fasi) somme.set(f.id, vuote());
+  for (const f of input.fasi) somme.set(f.id, vuote(importoFase(f.importo_venduto)));
   const fuori = vuote();
   const di = (faseId: string | null) => (faseId && somme.get(faseId)) || fuori;
 
   const consuntivoRighe = costoConsuntivoRighe(input.acquisti ?? [], input.movimenti ?? []);
   for (const r of input.righe) {
     const s = di(r.phase_id);
-    s.venduto += vendutoRiga(r);
+    const prezzo = vendutoRiga(r);
+    s.vendutoRighe += prezzo;
+    if (prezzo > 0) s.righePrezzate += 1;
     s.previsto.materiali += costoPrevistoRiga(r);
     s.consuntivo.materiali += consuntivoRighe.get(r.id) ?? 0;
     s.righe += 1;
@@ -189,14 +221,28 @@ export function economiaFasi(input: {
 
   const perFase = new Map<string, EconomiaFase>();
   const totale = vuote();
+  let vendutoTotale = 0;
+  const fonti = new Set<FonteVenduto>();
+  let fasiSenzaVenduto = 0;
   for (const [id, s] of somme) {
-    perFase.set(id, chiudi(s));
-    totale.venduto += s.venduto;
+    const v = vendutoDi(s);
+    perFase.set(id, chiudi(s, v));
+    vendutoTotale += v.venduto;
+    fonti.add(v.fonte);
+    if (v.fonte === null) fasiSenzaVenduto += 1;
+    totale.vendutoRighe += s.vendutoRighe;
+    totale.righePrezzate += s.righePrezzate;
     totale.righe += s.righe;
     for (const voce of VOCI) {
       totale.previsto[voce] += s.previsto[voce];
       totale.consuntivo[voce] += s.consuntivo[voce];
     }
   }
-  return { perFase, senzaFase: chiudi(fuori), totaleFasi: chiudi(totale) };
+  const fonteTotale: FonteVenduto = fonti.has("fase") ? "fase" : fonti.has("righe") ? "righe" : null;
+  return {
+    perFase,
+    senzaFase: chiudi(fuori, vendutoDi(fuori)),
+    totaleFasi: chiudi(totale, { venduto: vendutoTotale, fonte: fonteTotale }),
+    fasiSenzaVenduto,
+  };
 }

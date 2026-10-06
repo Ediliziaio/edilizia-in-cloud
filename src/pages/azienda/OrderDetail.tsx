@@ -2111,6 +2111,7 @@ function OrderDetailInner() {
             <div id={vistaCantiere === "squadra" ? "section-squadra" : "section-lavorazioni"} className="scroll-mt-24">
               <OrderWorkPhases orderId={id!} orderCode={order.order_code}
                 view={vistaCantiere}
+                importoContratto={agreedAmount}
                 onOpenReports={() => navigateTo({ tab: "cantiere", section: "section-rapportini" })} />
             </div>
             </>}
