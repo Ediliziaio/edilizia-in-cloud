@@ -209,7 +209,7 @@ describe("Lavorazioni e squadra", () => {
   });
   it("rifiuta un budget negativo senza inviare dati", () => {
     draw(); fireEvent.click(screen.getAllByRole("button", { name: "Persona o ditta" })[0]);
-    chooseEmployee(); fireEvent.change(screen.getByLabelText("Budget manodopera €"), { target: { value: "-10" } });
+    chooseEmployee(); fireEvent.change(screen.getByLabelText("Costo previsto manodopera €"), { target: { value: "-10" } });
     fireEvent.click(screen.getByRole("button", { name: "Conferma assegnazione" }));
     expect(state.add).not.toHaveBeenCalled();
   });

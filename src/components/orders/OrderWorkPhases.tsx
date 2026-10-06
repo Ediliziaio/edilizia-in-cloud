@@ -1315,7 +1315,7 @@ function UnassignedCard({
             )}
           </div>
           {canViewCosts && <span className="text-xs text-muted-foreground tabular-nums max-sm:hidden">
-            Budget {eur.format(subtotals.prev)} · Costo {eur.format(subtotals.cons)}
+            Costo previsto {eur.format(subtotals.prev)} · consuntivo {eur.format(subtotals.cons)}
           </span>}
         </div>
         <p className="text-xs text-muted-foreground max-sm:hidden">{hasPhases ? "Queste assegnazioni non appartengono a una lavorazione specifica. Usa Gestisci per collegarle a una fase." : "Dipendenti e squadre esterne assegnati al lavoro, anche senza suddivisione in fasi."}</p>
@@ -1689,7 +1689,7 @@ function AddAssignmentDialog({
           })()}
 
           {canViewCosts && <details className="rounded-lg border p-3">
-            <summary className="cursor-pointer text-sm font-medium">Budget, costi e listino (facoltativo)</summary>
+            <summary className="cursor-pointer text-sm font-medium">Costo previsto, consuntivo e listino (facoltativo)</summary>
             <div className="mt-3 space-y-3">
           {/* Da listino manodopera: prefill costo sostenuto + ricarico visibile.
               L'azienda può importare il prezziario regionale o caricare il
@@ -1800,7 +1800,7 @@ function AddAssignmentDialog({
           {/* Costs */}
           {canViewCosts && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="assign-prev">Budget manodopera €</Label>
+              <Label htmlFor="assign-prev">Costo previsto manodopera €</Label>
               <Input
                 id="assign-prev"
                 type="number"
@@ -1811,7 +1811,7 @@ function AddAssignmentDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="assign-cons">Costo già registrato €</Label>
+              <Label htmlFor="assign-cons">Costo consuntivo già sostenuto €</Label>
               <Input
                 id="assign-cons"
                 type="number"
