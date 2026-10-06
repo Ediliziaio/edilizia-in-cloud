@@ -330,3 +330,91 @@ describe("pagina /preventivo/<id>?token=…: lo stato vero e le frasi", () => {
     expect(await screen.findByText("Firma il preventivo")).toBeTruthy();
   });
 });
+
+// ── Link non valido: quote-sign risponde 404 per un link sconosciuto o di un preventivo nel cestino.
+// Per supabase-js un 404 è un errore HTTP: la pagina lo trattava come un guasto («Si è verificato un
+// errore. Riprova più tardi.»), mentre per il cliente è un link che non vale più.
+const errore404 = () => ({
+  data: null as unknown,
+  error: {
+    message: "Edge Function returned a non-2xx status code",
+    context: { status: 404, json: async () => ({ valid: false, reason: "token_invalid" }) },
+  },
+});
+const errore500 = () => ({
+  data: null as unknown,
+  error: {
+    message: "Edge Function returned a non-2xx status code",
+    context: { status: 500, json: async () => ({ error: "Errore interno" }) },
+  },
+});
+const FRASE_LINK = "Il link che hai utilizzato non è valido o è stato rimosso.";
+
+describe("link non valido (404): la pagina lo dice, non scrive «errore»", () => {
+  it("/offerta/<token> sconosciuto o nel cestino: «Link Non Valido» con la frase del link", async () => {
+    invoke.mockImplementation(async () => errore404());
+    apriOfferta(`/offerta/${TOKEN}`);
+    expect(await screen.findByText("Link Non Valido", {}, { timeout: 15_000 })).toBeTruthy();
+    expect(screen.getByText(FRASE_LINK)).toBeTruthy();
+    expect(screen.queryByText("Si è verificato un errore. Riprova più tardi.")).toBeNull();
+  });
+
+  it("un guasto vero (500) resta «Errore … Riprova più tardi»: solo il 404 vale «link non valido»", async () => {
+    invoke.mockImplementation(async () => errore500());
+    apriOfferta(`/offerta/${TOKEN}`);
+    expect(await screen.findByText("Si è verificato un errore. Riprova più tardi.", {}, { timeout: 15_000 })).toBeTruthy();
+    expect(screen.queryByText("Link Non Valido")).toBeNull();
+  });
+
+  it("firma con la pagina già aperta e il preventivo ritirato nel frattempo: avviso col motivo e pagina «Link Non Valido»", async () => {
+    const link = { morto: false };
+    invoke.mockImplementation(async (_nome: string, { body }: { body: { action: string } }) => {
+      if (link.morto) return errore404();
+      if (body.action === "view") return { data: vista(), error: null };
+      if (body.action === "sign") { link.morto = true; return errore404(); }
+      return { data: {}, error: null };
+    });
+    apriOfferta(`/offerta/${TOKEN}`);
+    await screen.findByText("Finestra PVC");
+    fireEvent.change(screen.getByPlaceholderText("Mario Rossi"), { target: { value: "Mario Rossi" } });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: /Accetta Offerta/ }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toast.error.mock.calls[0][0]).toBe(FRASE_LINK);
+    expect(await screen.findByText("Link Non Valido")).toBeTruthy();
+  });
+
+  it("rifiuto con il preventivo ritirato nel frattempo: stesso avviso, pagina «Link Non Valido»", async () => {
+    const link = { morto: false };
+    invoke.mockImplementation(async (_nome: string, { body }: { body: { action: string } }) => {
+      if (link.morto) return errore404();
+      if (body.action === "view") return { data: vista(), error: null };
+      if (body.action === "refuse") { link.morto = true; return errore404(); }
+      return { data: {}, error: null };
+    });
+    apriOfferta(`/offerta/${TOKEN}`);
+    await screen.findByText("Finestra PVC");
+    fireEvent.click(screen.getByRole("button", { name: /^Rifiuta$/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Conferma Rifiuto/ }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toast.error.mock.calls[0][0]).toBe(FRASE_LINK);
+    expect(await screen.findByText("Link Non Valido")).toBeTruthy();
+  });
+
+  it("/preventivo/<id>?token=…: firma con link non più valido = «Link non valido», non «Operazione non riuscita»", async () => {
+    const link = { morto: false };
+    invoke.mockImplementation(async (_nome: string, { body }: { body: { action: string } }) => {
+      if (link.morto) return errore404();
+      if (body.action === "view") return { data: vista(), error: null };
+      if (body.action === "sign") { link.morto = true; return errore404(); }
+      return { data: {}, error: null };
+    });
+    apriPreventivo();
+    await screen.findByText("Finestra PVC");
+    fireEvent.change(screen.getByPlaceholderText("Es. Mario Rossi"), { target: { value: "Mario Rossi" } });
+    fireEvent.click(screen.getByRole("button", { name: /Accetto e firmo il preventivo/ }));
+    expect(await screen.findByText("Link non valido")).toBeTruthy();
+    expect(screen.queryByText("Operazione non riuscita")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Riprova" })).toBeNull();
+  });
+});

@@ -84,6 +84,16 @@ export async function messaggioDaErroreFirma(errore: unknown, fallback: string):
 }
 
 /**
+ * quote-sign risponde 404 {valid:false, reason:"token_invalid"} per un link sconosciuto
+ * o di un preventivo nel cestino. Per supabase-js un 404 è un errore HTTP
+ * (`error.context` è la risposta): per il cliente non è un guasto, è un link che non
+ * vale più, e la pagina deve dirlo («Link non valido»), non scrivere «errore».
+ */
+export function eLinkNonValido(errore: unknown): boolean {
+  return (errore as { context?: { status?: unknown } } | null)?.context?.status === 404;
+}
+
+/**
  * Il link di firma di un preventivo è /offerta/<token> e il token è un UUID
  * (quote-sign rifiuta ogni altra forma). La stessa rotta /offerta/<qualcosa>
  * serve però anche il checkout pubblico dei piani Edilizia in Cloud

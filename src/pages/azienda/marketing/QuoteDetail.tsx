@@ -13,6 +13,7 @@ import { duplicaPreventivo } from "@/lib/quotes/duplicaPreventivo";
 import { avvisoSchedeNonAllegate } from "@/lib/quotes/allegatiPreventivo";
 import { eRigaDiModulo, preventivoDelModulo } from "@/lib/moduli/quoteBridge";
 import { fetchQuotePdf, downloadQuotePdf } from "@/lib/preventivi/quotePdfDownload";
+import { messaggioDaErroreFirma } from "@/lib/preventivi/offertaPubblica";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -117,7 +118,7 @@ export default function QuoteDetail() {
       const { data, error } = await supabase.functions.invoke("send-quote-signature", {
         body: { quote_id: id, mode: "solo_pdf", expires_days: validityDays ?? undefined },
       });
-      if (error) throw error;
+      if (error) throw new Error(await messaggioDaErroreFirma(error, "Riprova tra qualche istante."));
       if (!data?.success) throw new Error(data?.error ?? "Invio non riuscito");
       toast.success("Preventivo inviato in PDF", { description: `Email con allegato mandata a ${email}.` });
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });

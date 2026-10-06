@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import {
+  eLinkNonValido,
   messaggioDaErroreFirma,
   messaggioOffertaNonDisponibile,
   righeOffertaPubblica,
@@ -124,7 +125,15 @@ export default function AccettaPreventivo() {
       const { data, error } = await supabase.functions.invoke("quote-sign", {
         body: { token, action: "sign", signed_by_name: signedByName.trim() },
       });
-      if (error) throw new Error(await messaggioDaErroreFirma(error, "Errore durante la firma. Riprova."));
+      if (error) {
+        // Link non più valido (preventivo ritirato): si rilegge e la pagina dice «Link non valido».
+        if (eLinkNonValido(error)) {
+          setStatus("loading");
+          await carica();
+          return;
+        }
+        throw new Error(await messaggioDaErroreFirma(error, "Errore durante la firma. Riprova."));
+      }
       if (data?.valid === false) {
         // Già firmata altrove, scaduta o ritirata: si rilegge lo stato e la pagina lo dice.
         setStatus("loading");
@@ -145,7 +154,14 @@ export default function AccettaPreventivo() {
       const { data, error } = await supabase.functions.invoke("quote-sign", {
         body: { token, action: "refuse", refuse_reason: refuseReason.trim() || null },
       });
-      if (error) throw new Error(await messaggioDaErroreFirma(error, "Errore durante il rifiuto. Riprova."));
+      if (error) {
+        if (eLinkNonValido(error)) {
+          setStatus("loading");
+          await carica();
+          return;
+        }
+        throw new Error(await messaggioDaErroreFirma(error, "Errore durante il rifiuto. Riprova."));
+      }
       if (data?.valid === false) {
         setStatus("loading");
         await carica();

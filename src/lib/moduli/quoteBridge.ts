@@ -14,6 +14,8 @@
  *     quote-expiry-reminder (cron sui preventivi 'inviata' in scadenza).
  */
 import { supabase } from "@/integrations/supabase/client";
+import { messaggioDaErroreFirma } from "@/lib/preventivi/offertaPubblica";
+import { FRASI_OFFERTA_MODULO, esitoOffertaModulo } from "@/lib/moduli/esitoOffertaModulo";
 
 export interface ModuleQuoteInput {
   companyId: string;
@@ -101,6 +103,14 @@ export async function getModuleQuote(
 export async function upsertModuleQuote(input: ModuleQuoteInput): Promise<ModuleQuoteRow> {
   const tag = moduleSourceTag(input.moduleKey, input.progettoId);
 
+  // 0. PRIMA di toccare PDF e totali: un'offerta già decisa non si riscrive. Il controllo
+  //    stava dopo il caricamento: il PDF firmato (stesso percorso per progetto, con
+  //    `upsert`) veniva sovrascritto e poi si rifiutava; un'offerta RIFIUTATA riceveva PDF,
+  //    totali e scadenza nuovi e solo dopo send-quote-signature rispondeva 409.
+  const existing = await getModuleQuote(input.companyId, input.moduleKey, input.progettoId);
+  const esito = esitoOffertaModulo(existing);
+  if (esito) throw new Error(FRASI_OFFERTA_MODULO[esito]);
+
   // 1. PDF su storage (path stabile per-progetto, upsert).
   const pdfPath = `${input.companyId}/moduli/${input.moduleKey}-${input.progettoId}.pdf`;
   const { error: upErr } = await supabase.storage
@@ -123,13 +133,8 @@ export async function upsertModuleQuote(input: ModuleQuoteInput): Promise<Module
     pdf_generated_at: new Date().toISOString(),
   };
 
-  // 2. Upsert per source-tag. Se già FIRMATA non si tocca (il documento
-  //    accettato è immutabile: serve una nuova versione/progetto).
-  const existing = await getModuleQuote(input.companyId, input.moduleKey, input.progettoId);
+  // 2. Upsert per source-tag (la riga decisa è già stata respinta al punto 0).
   if (existing) {
-    if (existing.signed_at) {
-      throw new Error("Questo preventivo è già stato firmato dal cliente: non è più modificabile.");
-    }
     const { data, error } = await supabase
       .from("quotes")
       .update(patch)
@@ -178,7 +183,8 @@ export async function sendModuleQuoteSignature(
       recipient_phone: recipientPhone || undefined,
     },
   });
-  if (error) throw new Error(error.message);
+  // La frase vera del rifiuto sta nel corpo della risposta: `error.message` è il generico «non-2xx».
+  if (error) throw new Error(await messaggioDaErroreFirma(error, "Riprova tra qualche istante."));
   const payload = data as { success?: boolean; error?: string } | null;
   if (payload && payload.success === false) {
     throw new Error(payload.error || "Invio non riuscito");

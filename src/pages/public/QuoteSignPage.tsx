@@ -5,6 +5,7 @@ import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import {
+  eLinkNonValido,
   messaggioDaErroreFirma,
   messaggioOffertaNonDisponibile,
   righeOffertaPubblica,
@@ -136,8 +137,9 @@ export default function QuoteSignPage() {
           }
         }
       }
-    } catch {
-      setData({ valid: false, reason: "error" });
+    } catch (err) {
+      // 404 = link sconosciuto o preventivo nel cestino: «Link non valido», non un guasto.
+      setData({ valid: false, reason: eLinkNonValido(err) ? "token_invalid" : "error" });
     } finally {
       setLoading(false);
     }
@@ -156,7 +158,15 @@ export default function QuoteSignPage() {
           consensi,
         },
       });
-      if (error) throw new Error(await messaggioDaErroreFirma(error, "Errore durante l'accettazione. Riprova."));
+      if (error) {
+        // Il link non c'è più (preventivo ritirato mentre la pagina era aperta): si dice e si rilegge.
+        if (eLinkNonValido(error)) {
+          toast.error(messaggioOffertaNonDisponibile("token_invalid"));
+          await loadQuote();
+          return;
+        }
+        throw new Error(await messaggioDaErroreFirma(error, "Errore durante l'accettazione. Riprova."));
+      }
       if (result?.success) {
         setActionDone("signed");
       } else if (result?.valid === false) {
@@ -180,7 +190,15 @@ export default function QuoteSignPage() {
       const { data: result, error } = await supabase.functions.invoke("quote-sign", {
         body: { token, action: "refuse", refuse_reason: refuseReason.trim() || undefined },
       });
-      if (error) throw new Error(await messaggioDaErroreFirma(error, "Errore durante il rifiuto. Riprova."));
+      if (error) {
+        if (eLinkNonValido(error)) {
+          setShowRefuseDialog(false);
+          toast.error(messaggioOffertaNonDisponibile("token_invalid"));
+          await loadQuote();
+          return;
+        }
+        throw new Error(await messaggioDaErroreFirma(error, "Errore durante il rifiuto. Riprova."));
+      }
       if (result?.success) {
         setShowRefuseDialog(false);
         setActionDone("refused");

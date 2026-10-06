@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { matchRoutes } from "react-router-dom";
 import {
+  eLinkNonValido,
   eTokenOffertaPreventivo,
   messaggioDaErroreFirma,
   messaggioOffertaNonDisponibile,
@@ -126,5 +127,21 @@ describe("messaggi per il cliente", () => {
   it("senza corpo leggibile si usa il testo di riserva (mai il generico «non-2xx»)", async () => {
     expect(await messaggioDaErroreFirma(new Error("Edge Function returned a non-2xx status code"), "Errore durante la firma.")).toBe("Errore durante la firma.");
     expect(await messaggioDaErroreFirma({ context: { json: async () => { throw new Error("non json"); } } }, "riserva")).toBe("riserva");
+  });
+});
+
+describe("eLinkNonValido: solo il 404 di quote-sign è «link non valido»", () => {
+  it("404 (link sconosciuto o preventivo nel cestino) sì", () => {
+    expect(eLinkNonValido({ message: "non-2xx", context: { status: 404 } })).toBe(true);
+  });
+  it.each([400, 401, 403, 409, 500, 502])("%s no: è un guasto o un'altra regola", (stato) => {
+    expect(eLinkNonValido({ context: { status: stato } })).toBe(false);
+  });
+  it("errori senza risposta (rete assente, eccezione qualunque, nulla) no", () => {
+    expect(eLinkNonValido(new Error("Failed to fetch"))).toBe(false);
+    expect(eLinkNonValido({ context: {} })).toBe(false);
+    expect(eLinkNonValido({ context: { status: "404" } })).toBe(false);
+    expect(eLinkNonValido(null)).toBe(false);
+    expect(eLinkNonValido(undefined)).toBe(false);
   });
 });

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
+import { messaggioDaErroreFirma } from "@/lib/preventivi/offertaPubblica";
 
 export interface SendSignatureParams {
   recipientEmail: string;
@@ -53,7 +54,9 @@ export function useSignatureActions(quoteId: string | undefined) {
           expires_days: params.expiresDays,
         },
       });
-      if (error) throw error;
+      // La frase vera (già accettato, serve il permesso, sconto oltre il limite…) sta nel
+      // corpo della risposta: `error.message` è solo «non-2xx status code».
+      if (error) throw new Error(await messaggioDaErroreFirma(error, "riprova tra qualche istante"));
       if (data?.error) throw new Error(data.error);
       return data;
     },

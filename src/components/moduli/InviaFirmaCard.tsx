@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Send, Loader2, Copy, CheckCircle2, Eye, PenLine, Clock, Link2, Lock } from "lucide-react";
+import { Send, Loader2, Copy, CheckCircle2, Eye, PenLine, Clock, Link2, Lock, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -28,6 +28,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { condividiLink } from "@/lib/mobile/condividiFile";
 import { cn } from "@/lib/utils";
 import { BarraInvioMobile } from "@/components/moduli/BarraInvioMobile";
+import { FRASI_OFFERTA_MODULO, esitoOffertaModulo } from "@/lib/moduli/esitoOffertaModulo";
 import {
   getModuleQuote, upsertModuleQuote, sendModuleQuoteSignature, signatureLink, resolveModuleSignatureLink,
   type ModuleQuoteRow,
@@ -79,9 +80,12 @@ export function InviaFirmaCard(props: Props) {
     queryFn: () => getModuleQuote(props.companyId, props.moduleKey, props.progettoId),
   });
   const refresh = async () => { await refetch(); };
+  // Offerta già decisa dal cliente (firmata, rifiutata) o chiusa: non si rimanda per la firma.
+  const esito = esitoOffertaModulo(quote);
 
   const handleInvia = async () => {
     if (!user?.id) { toast.error("Utente non autenticato"); return; }
+    if (esito) { toast.error(FRASI_OFFERTA_MODULO[esito]); return; }
     if (!email.trim() || !email.includes("@")) { toast.error("Inserisci l'email del cliente"); return; }
     if (props.total <= 0) { toast.error("Il preventivo non ha un totale: completa il computo"); return; }
     setWorking(true);
@@ -110,6 +114,10 @@ export function InviaFirmaCard(props: Props) {
       await refresh();
     } catch (e) {
       toast.error("Invio non riuscito", { description: e instanceof Error ? e.message : "Riprova." });
+      // Il server può aver detto di no perché il cliente ha deciso mentre la pagina era aperta:
+      // si rilegge lo stato e, se l'offerta è chiusa, la finestra d'invio non ha più senso.
+      const { data: aggiornata } = await refetch();
+      if (esitoOffertaModulo(aggiornata)) setDialogOpen(false);
     } finally {
       setWorking(false);
     }
@@ -162,8 +170,14 @@ export function InviaFirmaCard(props: Props) {
     }
   };
 
-  const stato = quote?.signed_at
+  const stato = esito === "accettata"
     ? { label: "Firmato dal cliente", icon: PenLine, cls: "bg-emerald-100 text-emerald-800" }
+    : esito === "rifiutata"
+    ? { label: "Rifiutato dal cliente", icon: XCircle, cls: "bg-red-100 text-red-800" }
+    : esito === "convertita"
+    ? { label: "Diventato commessa", icon: CheckCircle2, cls: "bg-emerald-100 text-emerald-800" }
+    : esito === "annullata"
+    ? { label: "Annullato", icon: XCircle, cls: "bg-slate-100 text-slate-700" }
     : quote?.viewed_at
       ? { label: "Visto dal cliente", icon: Eye, cls: "bg-sky-100 text-sky-800" }
       : quote?.sent_at
@@ -234,7 +248,7 @@ export function InviaFirmaCard(props: Props) {
               {stato.label}
               {quote?.signed_at && ` il ${new Date(quote.signed_at).toLocaleDateString("it-IT")}`}
             </span>
-            {!quote?.signed_at && (quote?.sent_at || quote?.signature_token) && !senzaPermesso && (
+            {!esito && (quote?.sent_at || quote?.signature_token) && !senzaPermesso && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -253,9 +267,14 @@ export function InviaFirmaCard(props: Props) {
           generaPdf={props.generaPdfBlob}
           pdfBloccato={pdfDisponibile ? null : props.disabledReason || "Completa il preventivo per generare il PDF."}
         >
-          {quote?.signed_at ? (
+          {esito === "accettata" ? (
             <Button disabled className="h-11 flex-1 gap-1.5 bg-emerald-600">
               <CheckCircle2 className="h-4 w-4" /> Firmato
+            </Button>
+          ) : esito ? (
+            <Button disabled variant="secondary" className="h-11 flex-1 gap-1.5">
+              <XCircle className="h-4 w-4" />
+              {esito === "rifiutata" ? "Rifiutato" : esito === "convertita" ? "Diventato commessa" : "Annullato"}
             </Button>
           ) : (
             <Button
@@ -306,11 +325,17 @@ export function InviaFirmaCard(props: Props) {
             {SERVE_IL_PERMESSO}
           </p>
         )}
+        {esito && (
+          <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+            <Lock className="h-3 w-3 shrink-0" />
+            {FRASI_OFFERTA_MODULO[esito]}
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
             className="h-8 bg-emerald-600 hover:bg-emerald-700"
-            disabled={loading || working || props.disabled || senzaPermesso || permessi.isLoading || !!quote?.signed_at}
+            disabled={loading || working || props.disabled || senzaPermesso || permessi.isLoading || !!esito}
             onClick={apriInvio}
           >
             {working ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
