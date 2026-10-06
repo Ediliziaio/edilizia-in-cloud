@@ -2,15 +2,15 @@ import { dataPlausibile } from "@/lib/dataPlausibile";
 
 /**
  * Subappaltatori raggruppati (06/10/2026): per lavoro, per zona, per stato del
- * DURC. Una lista sola di ditte diventava un «mappazzone» (Green Energy ne ha
- * 140): si raggruppano come gli operai, che stanno nelle loro squadre.
+ * DURC. Una lista sola di ditte diventava un «mappazzone» (un'azienda cliente
+ * ne ha 140): si raggruppano come gli operai, che stanno nelle loro squadre.
  *
  * - Lavoro: il «tipo lavori» della scheda è testo libero («Impianto
  *   elettrico», «Impianti elettrici», «Rilievi misure e installazione
  *   serramenti»…): una categoria la riconosce dalle parole chiave; quello che
  *   non riconosce resta come scritto, con le maiuscole sistemate.
- * - Zona: la sigla della provincia tra parentesi nell'indirizzo («(PD)», 135
- *   indirizzi su 137 in Green Energy), e da quella la regione.
+ * - Zona: la sigla della provincia tra parentesi nell'indirizzo («(PD)», presente in quasi
+ *   tutti gli indirizzi delle aziende clienti), e da quella la regione.
  */
 
 export interface Categoria {

@@ -201,7 +201,9 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
   // Economia delle lavorazioni (06/10/2026): venduto, costo previsto e costo
   // consuntivo per fase. I costi sostenuti dei materiali si leggono solo con
   // il permesso sui costi.
-  const { data: costiMateriali } = useCostiMaterialiFasi(orderId, canViewCosts);
+  // Anche per chi vede i margini ma non i costi: senza acquisti e magazzino il
+  // margine sul consuntivo uscirebbe più alto del vero.
+  const { data: costiMateriali } = useCostiMaterialiFasi(orderId, canViewCosts || canViewMargins);
   const economia = useMemo(
     () => economiaFasi({
       fasi: phases,
