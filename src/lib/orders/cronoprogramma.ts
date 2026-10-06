@@ -78,6 +78,14 @@ export function numeroGiorno(iso: string): number {
   return Date.UTC(anno, (mese || 1) - 1, giorno || 1) / GIORNO_MS;
 }
 
+/** Il giorno di calendario, nel fuso di chi guarda, di un istante (timestamptz). */
+export function giornoLocale(istante: string): string {
+  const d = new Date(istante);
+  if (Number.isNaN(d.getTime())) return istante.slice(0, 10);
+  const due = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${due(d.getMonth() + 1)}-${due(d.getDate())}`;
+}
+
 export function giorniTra(da: string, a: string): number {
   return numeroGiorno(a) - numeroGiorno(da);
 }
