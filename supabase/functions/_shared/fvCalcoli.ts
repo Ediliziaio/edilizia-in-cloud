@@ -353,6 +353,31 @@ export function calcolaBollettaPrimaDopo(input: FvBollettaInput): FvBollettaRow[
   ];
 }
 
+// ─── FINANZIAMENTO CON ANTICIPO ────────────────────────────────────────────
+
+export interface FvFinanziatoConAnticipo {
+  anticipo_pct: number;
+  anticipo_eur: number;
+  finanziato_eur: number;
+  /** Rata mensile del capitale che resta, al centesimo. */
+  rata_mensile: number;
+}
+
+/**
+ * Anticipo in contanti alla firma, capitale finanziato e rata sul capitale che resta.
+ * La rata della tabella (o di tasso zero) è sull'importo intero: si scala in proporzione,
+ * ed è esatto a parità di TAN e durata e per il tasso zero. Il capitale e la rata si
+ * tengono al centesimo (la rata veniva arrotondata all'euro: vedi `fmtRata`).
+ */
+export function finanziatoConAnticipo(input: { totale: number; anticipoPct: number; rataIntera: number }): FvFinanziatoConAnticipo {
+  const totale = Math.max(0, Number(input.totale) || 0);
+  const pct = Math.max(0, Math.min(100, Number(input.anticipoPct) || 0));
+  const anticipo_eur = Math.round((totale * pct) / 100);
+  const finanziato_eur = Math.max(0, Math.round((totale - anticipo_eur) * 100) / 100);
+  const rata_mensile = totale > 0 ? Math.round(Number(input.rataIntera) * (finanziato_eur / totale) * 100) / 100 : 0;
+  return { anticipo_pct: pct, anticipo_eur, finanziato_eur, rata_mensile };
+}
+
 // ─── HELPERS FORMATTAZIONE ─────────────────────────────────────────────────
 
 export function fmtEur(n: number, decimals = 0): string {
@@ -366,6 +391,18 @@ export function fmtEur(n: number, decimals = 0): string {
     maximumFractionDigits: decimals,
     useGrouping: "always",
   } as unknown as Intl.NumberFormatOptions).format(n);
+}
+
+/**
+ * Una rata in euro: intera se è tonda («206 €»), col centesimo se non lo è («205,76 €»).
+ * A tasso zero «rata × numero di rate = importo finanziato» deve tornare: con la rata
+ * arrotondata all'euro sbagliava fino a mezzo euro per rata (14 € su 60 rate di un
+ * impianto da 12.346 €), e il cliente la moltiplica.
+ */
+export function fmtRata(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  const centesimi = Math.round(n * 100);
+  return fmtEur(centesimi / 100, centesimi % 100 === 0 ? 0 : 2);
 }
 
 export function fmtNum(n: number, decimals = 0): string {

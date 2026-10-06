@@ -871,10 +871,13 @@ export function useUpsertComponenti() {
     }) => {
       if (!companyId) throw new Error("Azienda non disponibile");
       if (input.replace) {
-        await supabase
+        // Se la cancellazione fallisce non si inserisce: le righe nuove si sommerebbero alle vecchie
+        // e il prezzo del preventivo (la somma delle righe) salirebbe, con la schermata che dice «salvato».
+        const { error: errCancella } = await supabase
           .from("fv_componenti_progetto" as never)
           .delete()
           .eq("progetto_id", input.progetto_id);
+        if (errCancella) throw errCancella;
       }
       if (input.righe.length === 0) return;
       const payload = input.righe.map((r) => ({
@@ -903,10 +906,13 @@ export function useUpsertManodopera() {
     }) => {
       if (!companyId) throw new Error("Azienda non disponibile");
       if (input.replace) {
-        await supabase
+        // Se la cancellazione fallisce non si inserisce: le righe nuove si sommerebbero alle vecchie
+        // e il prezzo del preventivo (la somma delle righe) salirebbe, con la schermata che dice «salvato».
+        const { error: errCancella } = await supabase
           .from("fv_manodopera_progetto" as never)
           .delete()
           .eq("progetto_id", input.progetto_id);
+        if (errCancella) throw errCancella;
       }
       if (input.righe.length === 0) return;
       const payload = input.righe.map((r) => ({
@@ -935,10 +941,13 @@ export function useUpsertServizi() {
     }) => {
       if (!companyId) throw new Error("Azienda non disponibile");
       if (input.replace) {
-        await supabase
+        // Se la cancellazione fallisce non si inserisce: le righe nuove si sommerebbero alle vecchie
+        // e il prezzo del preventivo (la somma delle righe) salirebbe, con la schermata che dice «salvato».
+        const { error: errCancella } = await supabase
           .from("fv_servizi_progetto" as never)
           .delete()
           .eq("progetto_id", input.progetto_id);
+        if (errCancella) throw errCancella;
       }
       if (input.righe.length === 0) return;
       const payload = input.righe.map((r) => ({

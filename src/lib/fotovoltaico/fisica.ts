@@ -119,7 +119,10 @@ export function produzioneMensile(
 ): number[] {
   const macro = macroregionePerProvincia(provincia);
   const dist = FV_DISTRIBUZIONE_MENSILE[macro];
-  return dist.map((pct) => arrotondaTo(2, produzione_anno_1 * pct));
+  // I pesi di Centro, Sud e Isole sommano a 1,02, 1,04 e 1,05: si riportano a somma 1,
+  // così i dodici mesi danno la produzione dell'anno e non il 2-5% in più.
+  const somma = dist.reduce((a, b) => a + b, 0);
+  return dist.map((pct) => arrotondaTo(2, (produzione_anno_1 * pct) / somma));
 }
 
 // ─── Calcolo autoconsumo (§15) ──────────────────────────────────────────────

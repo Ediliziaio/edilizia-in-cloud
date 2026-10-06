@@ -45,7 +45,7 @@ import {
   type FvPdfTemplateData,
 } from "../_shared/fvHtmlTemplate.ts";
 import { eFotoDiSerie } from "../_shared/blocchiPreventivo.ts";
-import { calcolaEnergyFlows, quotaAutoconsumo, type FvProfiloAutoconsumo } from "../_shared/fvCalcoli.ts";
+import { calcolaEnergyFlows, finanziatoConAnticipo, quotaAutoconsumo, type FvProfiloAutoconsumo } from "../_shared/fvCalcoli.ts";
 import { coloreDelDocumento } from "../_shared/temaColori.ts";
 import { condizioniStandard } from "../_shared/condizioniStandard.ts";
 import { CAMPI_IMMAGINE_FOTOVOLTAICO, firmaImmaginiModello, firmatarioStorage } from "../_shared/immaginiModelloPdf.ts";
@@ -625,25 +625,26 @@ Deno.serve(async (req: Request) => {
         finanziamento &&
         totalePag > 0
       ) {
-        const anticipoPct = Math.max(0, Math.min(100, Number(mpRaw?.anticipo_pct) || 0));
-        const anticipoEur = Math.round((totalePag * anticipoPct) / 100);
-        const finanziatoEur = Math.max(0, totalePag - anticipoEur);
-        const rataScalata = Math.round(
-          finanziamento.rata_mensile * (finanziatoEur / totalePag),
-        );
+        // La rata resta al centesimo (prima Math.round all'euro: a tasso zero «rata × rate»
+        // non tornava con l'importo finanziato, 14 € di scarto su 60 rate da 12.346 €).
+        const f = finanziatoConAnticipo({
+          totale: totalePag,
+          anticipoPct: Number(mpRaw?.anticipo_pct) || 0,
+          rataIntera: finanziamento.rata_mensile,
+        });
         modalitaPagamento = {
           tipo: "finanziato",
-          anticipo_pct: anticipoPct,
-          anticipo_eur: anticipoEur,
-          finanziato_eur: finanziatoEur,
-          rata_mensile: rataScalata,
+          anticipo_pct: f.anticipo_pct,
+          anticipo_eur: f.anticipo_eur,
+          finanziato_eur: f.finanziato_eur,
+          rata_mensile: f.rata_mensile,
           durata_mesi: finanziamento.durata_mesi,
           tasso_zero: scenarioFinMode === "zero",
           note: noteMp,
         };
         // Stessa rata e stesso capitale in tutte le pagine: prima l'investimento
         // mostrava la rata ridotta dall'anticipo, piano economico e firma quella intera.
-        finanziamento = { ...finanziamento, rata_mensile: rataScalata, importo_finanziato: finanziatoEur };
+        finanziamento = { ...finanziamento, rata_mensile: f.rata_mensile, importo_finanziato: f.finanziato_eur };
       } else {
         // Pagamento diretto (cash) o fallback senza dati finanziamento.
         const tr = Array.isArray(mpRaw?.tranche) ? mpRaw!.tranche! : [];

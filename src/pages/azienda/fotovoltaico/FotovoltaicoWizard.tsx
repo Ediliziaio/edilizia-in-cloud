@@ -1337,6 +1337,8 @@ function FotovoltaicoWizard() {
       let taegPct: number | null = null;
       let tanPct: number | null = null;
       let totaleDovuto: number | null = null;
+      // La durata che si salva è quella su cui è fatta la rata (il noleggio la porta fra 36 e 144 mesi).
+      let durataMesi: number | null = data.durata_mesi_scelta;
       if (data.finanziamento_modalita === "rate" && tabRata) {
         rataEur = tabRata.importo_rata;
         taegPct = tabRata.taeg;
@@ -1344,7 +1346,9 @@ function FotovoltaicoWizard() {
         totaleDovuto = tabRata.importo_totale_dovuto;
       } else if (data.finanziamento_modalita === "zero" && data.durata_mesi_scelta) {
         const inv = Number(investimentoCorrente) || 0;
-        rataEur = Math.round(inv / data.durata_mesi_scelta);
+        // Al centesimo: a tasso zero «rata × rate = prezzo». Arrotondata all'euro, 60 rate da
+        // 12.345,67 € uscivano da 206 € (12.360 in tutto, 14 € in più del prezzo).
+        rataEur = Math.round((inv / data.durata_mesi_scelta) * 100) / 100;
         taegPct = 0;
         tanPct = 0;
         totaleDovuto = inv;
@@ -1377,7 +1381,10 @@ function FotovoltaicoWizard() {
         rataEur = rental.canone_mensile;
         taegPct = 0;
         tanPct = 0;
-        totaleDovuto = Math.round(rental.canone_mensile * rental.durata_mesi);
+        totaleDovuto = Math.round(rental.canone_mensile * rental.durata_mesi * 100) / 100;
+        // Con 24 mesi richiesti il canone è calcolato su 36: il PDF scriveva «canone × 24 mesi»,
+        // un canone che in 24 mesi non copre l'impianto.
+        durataMesi = rental.durata_mesi;
       }
       // Validazione antiusura ARERA: TAEG > 25% blocca (soglia conservativa)
       if (taegPct != null && taegPct > 25) {
@@ -1391,7 +1398,7 @@ function FotovoltaicoWizard() {
           scenario_finanziamento: data.finanziamento_modalita,
           finanziamento_tabella_id: data.finanziamento_modalita === "rate" ? tabId : null,
           finanziamento_durata_mesi:
-            data.finanziamento_modalita === "cash" ? null : data.durata_mesi_scelta,
+            data.finanziamento_modalita === "cash" ? null : durataMesi,
           finanziamento_rata_eur: rataEur,
           finanziamento_taeg: taegPct,
           finanziamento_tan: tanPct,
@@ -3443,6 +3450,17 @@ function Step5Configurazione({
   const [modalitaOfferta, setModalitaOfferta] = useState<"kit" | "manuale">(
     data.kit_bundle_id ? "kit" : "manuale",
   );
+  // La potenza dell'impianto (kWp) = moduli × watt del modello (540 W se non ne è scelto uno), e si
+  // ricalcola quando chi compila cambia il numero di moduli o il modello. Prima era un effetto che
+  // partiva anche alla riapertura del progetto: se il catalogo dei pannelli arrivava dopo i componenti
+  // (normale dopo una ricarica), o non aveva più quel modello, la potenza salvata (5,4 kWp con 12 moduli
+  // da 450 W) veniva sostituita da moduli × 540 W (6,48), il 20% in più, e finiva nel calcolo e nel PDF.
+  const potenzaDaModuli = (moduli: number, pannelloId: string | null): number => {
+    const p = pannelloId ? pannelli.find((x) => (x as { id: string }).id === pannelloId) : undefined;
+    const w = Number(p?.potenza_w) > 0 ? Number(p?.potenza_w) : 540;
+    return Math.round((moduli * w) / 10) / 100;
+  };
+
   // Configurazione prima del kit: «Rimuovi» la ripristina (prima restavano
   // potenza e accumulo del kit).
   const primaDelKit = useRef<{
@@ -3490,6 +3508,9 @@ function Step5Configurazione({
       update("con_accumulo", prima.con_accumulo);
       update("capacita_accumulo_kwh", prima.capacita_accumulo_kwh);
       primaDelKit.current = null;
+    } else {
+      // Dopo una ricarica la configurazione di prima non c'è più: la potenza torna moduli × watt, non resta quella del kit.
+      update("potenza_kwp", potenzaDaModuli(data.numero_pannelli_scelti, data.pannello_id));
     }
   };
   const { data: listinoExtra = [] } = useListinoPerFv(extraSearch);
@@ -3592,21 +3613,6 @@ function Step5Configurazione({
   const rimuoviServizio = (idx: number) => {
     update("servizi_righe", data.servizi_righe.filter((_, i) => i !== idx));
   };
-  // Auto-calcolo potenza_kwp da numero pannelli. In sola lettura NON scrive:
-  // update() in read-only mostra un toast d'errore, che da un useEffect
-  // partirebbe spurio al mount dello step.
-  useEffect(() => {
-    if (readOnlyMode) return;
-    if (data.kit_bundle_id) return; // kit: la potenza arriva dal kit, niente auto-calcolo
-    if (data.pannello_id) {
-      const p = pannelli.find((x) => (x as { id: string }).id === data.pannello_id);
-      const w = (p?.potenza_w as number) ?? 540;
-      update("potenza_kwp", Math.round((data.numero_pannelli_scelti * w) / 10) / 100);
-    } else {
-      update("potenza_kwp", Math.round((data.numero_pannelli_scelti * 540) / 10) / 100);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.numero_pannelli_scelti, data.pannello_id, data.kit_bundle_id]);
 
   // Auto-suggerimento accumulo (5 kWh per profili serali/misti).
   const suggerisciAccumulo = shouldSuggestFvAccumulo(data.profilo_consumo);
@@ -3955,7 +3961,11 @@ function Step5Configurazione({
                 min={4}
                 max={data.numero_pannelli_max ?? 60}
                 value={data.numero_pannelli_scelti}
-                onChange={(e) => update("numero_pannelli_scelti", Number(e.target.value))}
+                onChange={(e) => {
+                  const moduli = Number(e.target.value);
+                  update("numero_pannelli_scelti", moduli);
+                  update("potenza_kwp", potenzaDaModuli(moduli, data.pannello_id));
+                }}
                 disabled={!!data.kit_bundle_id || readOnlyMode}
                 className="w-full accent-orange-500"
               />
@@ -4014,7 +4024,10 @@ function Step5Configurazione({
               <Label>Modello pannello</Label>
               <Select
                 value={data.pannello_id ?? ""}
-                onValueChange={(v) => update("pannello_id", v || null)}
+                onValueChange={(v) => {
+                  update("pannello_id", v || null);
+                  update("potenza_kwp", potenzaDaModuli(data.numero_pannelli_scelti, v || null));
+                }}
                 disabled={!!data.kit_bundle_id || readOnlyMode}
               >
                 <SelectTrigger>
@@ -5018,6 +5031,12 @@ function Step6Finanziario({
   const risparmio25Anni = scenario.risparmio_totale_25_anni as number;
   const cassaAnni =
     (scenario.cassa_anno_per_anno as Array<{ anno: number; cumulato: number }>) ?? [];
+  // Quello che resta in tasca dopo 25 anni, tolta la spesa: è la cassa a fine vita (la cifra
+  // «+25.400 nelle tue tasche» del PDF). Il totale dei risparmi (`risparmio25Anni`) NON toglie
+  // l'investimento: chiamarlo «guadagno netto» lo gonfiava di tutto il prezzo dell'impianto.
+  const guadagnoNetto25Anni = cassaAnni.length > 0
+    ? cassaAnni[cassaAnni.length - 1].cumulato
+    : risparmio25Anni - ((scenario.costi as { prezzo_vendita_iva_inclusa?: number } | undefined)?.prezzo_vendita_iva_inclusa ?? 0);
   const detrazione10anni = ((scenario.detrazione_anno_eur as number) ?? 0) * 10;
   const costoNettoReale = investimento - detrazione10anni;
   const risparmioMensile = Math.round(risparmioAnno1 / 12);
@@ -5054,7 +5073,7 @@ function Step6Finanziario({
     rataInfoLabel = "Pagamento immediato";
   } else if (data.finanziamento_modalita === "zero") {
     const dur = data.durata_mesi_scelta ?? 60;
-    rataMensilePrestito = Math.round(investimento / dur);
+    rataMensilePrestito = Math.round((investimento / dur) * 100) / 100; // al centesimo, come si salva
     durataInfoMesi = dur;
     _taegInfoPct = 0;
     rataInfoLabel = `Tasso 0% · ${dur} mesi`;
@@ -5089,10 +5108,22 @@ function Step6Finanziario({
       rataInfoLabel = `${dur} mesi · stima generica`;
     }
   }
+  // Con un anticipo in contanti alla firma (riquadro «Modalità di pagamento») si finanzia solo il
+  // resto, e la rata è quella della tabella scalata sul capitale residuo: la stessa del riquadro
+  // e del PDF. Prima la rata grande e il «costo netto reale» restavano quelli senza anticipo.
+  const finanzia = data.finanziamento_modalita === "rate" || data.finanziamento_modalita === "zero";
+  const anticipoPct = finanzia
+    ? Math.max(0, Math.min(100, Number(data.modalita_pagamento?.anticipo_pct) || 0))
+    : 0;
+  const finanziatoEur = Math.max(0, investimento - Math.round((investimento * anticipoPct) / 100));
+  const rataMensile =
+    finanzia && investimento > 0
+      ? Math.round(rataMensilePrestito * (finanziatoEur / investimento))
+      : rataMensilePrestito;
   const costoNettoMensile =
     data.finanziamento_modalita === "noleggio"
       ? noleggioScenario.costo_effettivo_mensile
-      : Math.max(0, rataMensilePrestito - risparmioMensile);
+      : Math.max(0, rataMensile - risparmioMensile);
   const templateMarginTarget = Number(fvTemplate?.margine_target_pct ?? 0.35);
   const templateCplMax = Number(fvTemplate?.cpl_max_sostenibile ?? 120);
   const economicsGuard = calcolaFvEconomicsGuard({
@@ -5104,7 +5135,7 @@ function Step6Finanziario({
     margine_target_pct: Number.isFinite(templateMarginTarget) ? templateMarginTarget : 0.35,
     cpl_max_sostenibile: Number.isFinite(templateCplMax) ? templateCplMax : 120,
     payback_anni: (scenario.payback_anni as number | null) ?? null,
-    rata_mensile_eur: rataMensilePrestito,
+    rata_mensile_eur: rataMensile,
     risparmio_mensile_eur:
       data.finanziamento_modalita === "noleggio"
         ? risparmioMensile + noleggioScenario.beneficio_fiscale_mensile
@@ -5135,8 +5166,11 @@ function Step6Finanziario({
           produzione_anno_1_kwh: produzioneAnnua,
           autoconsumo_pct: (scenario.autoconsumo_pct as number) ?? 0,
           consumo_annuo_kwh: data.consumo_annuo_kwh ?? 0,
-          costo_kwh_attuale: (scenario.costo_kwh_attuale as number) ?? 0.32,
-          prezzo_rid_kwh: (scenario.prezzo_rid_eur_kwh as number) ?? 0.1,
+          // Il prezzo del kWh del cliente (quello del calcolo, se il server lo dice; altrimenti
+          // quello della Fase 3): prima, senza questo campo, valeva 0,32 per tutti e il rientro
+          // della «configurazione scelta» qui sotto non tornava con quello della scheda.
+          costo_kwh_attuale: (scenario.costo_kwh_attuale as number | undefined) ?? data.costo_kwh_attuale ?? 0.32,
+          prezzo_rid_kwh: (scenario.prezzo_rid_eur_kwh as number | undefined) ?? 0.1,
           detrazione_annua_eur: (scenario.detrazione_anno_eur as number) ?? 0,
           con_accumulo: data.con_accumulo,
           capacita_accumulo_kwh: data.capacita_accumulo_kwh,
@@ -5305,7 +5339,7 @@ function Step6Finanziario({
                 textShadow: "0 4px 24px rgba(249,115,22,0.4)",
               }}
             >
-              {formatEur(risparmio25Anni)}
+              {formatEur(guadagnoNetto25Anni)}
             </span>
             <div className="text-sm space-y-1.5 max-w-xs">
               <div>guadagno netto in 25 anni vs senza FV</div>
@@ -5355,7 +5389,7 @@ function Step6Finanziario({
                   : "Rata mensile finanziata"}
           </div>
           <div className="text-3xl font-extrabold text-blue-900 tabular-nums">
-            {formatEur(rataMensilePrestito)}
+            {formatEur(rataMensile)}
           </div>
           <div className="text-xs text-blue-700 mt-1 truncate" title={rataInfoLabel}>
             {rataInfoLabel || `×${durataInfoMesi || 84} mesi`}
@@ -5395,7 +5429,7 @@ function Step6Finanziario({
           action={
             <div className="flex gap-2">
               <FvChip variant="green">★ Breakeven anno {(scenario.payback_anni as number | null) ?? "—"}</FvChip>
-              <FvChip variant="orange">{formatEur(risparmio25Anni)} a fine vita</FvChip>
+              <FvChip variant="orange">{formatEur(guadagnoNetto25Anni)} a fine vita</FvChip>
             </div>
           }
         >
@@ -5816,7 +5850,7 @@ function Step6Finanziario({
               ) : null;
             })()}
             {"Investi "}<strong className="text-orange-400">{formatEur(investimento)}</strong> oggi e{" "}
-            <strong className="text-emerald-400">guadagnerai {formatEur(risparmio25Anni)}</strong>.
+            <strong className="text-emerald-400">guadagnerai {formatEur(guadagnoNetto25Anni)}</strong>.
           </div>
           <div className="relative text-sm opacity-85 mt-3">
             Non è un investimento: è una scelta tra{" "}

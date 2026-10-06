@@ -49,7 +49,8 @@ describe("Accumulo: modello FV originale completo", () => {
   });
   it("stampa tutti i componenti, anche quelli fuori dalle categorie principali, su più pagine", () => {
     const d = buildFvPreviewBase(seed());
-    d.componenti = Array.from({ length: 12 }, (_, i) => ({ ...d.componenti[0], categoria: "altro", descrizione: `PRODOTTO-UNICO-${i + 1}-FINE` }));
+    // senza marca e modello (vuoti) il titolo della riga è la descrizione (con marca e modello sarebbe «marca modello»)
+    d.componenti = Array.from({ length: 12 }, (_, i) => ({ ...d.componenti[0], categoria: "altro", marca: "", modello: "", descrizione: `PRODOTTO-UNICO-${i + 1}-FINE` }));
     const html = renderFvPdfHtml(d);
     for (let i = 1; i <= 12; i++) expect(html).toContain(`PRODOTTO-UNICO-${i}-FINE`);
     expect(getFvPdfRenderedPagesCount(d)).toBeGreaterThan(getFvPdfRenderedPagesCount(buildFvPreviewBase(seed())));

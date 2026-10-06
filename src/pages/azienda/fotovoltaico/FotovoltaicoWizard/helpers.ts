@@ -69,6 +69,10 @@ const NULLABLE_NUMBER_FIELDS: Array<keyof WizardData> = [
   "numero_pannelli_max",
   "potenza_max_kwp",
   "durata_mesi_scelta",
+  "inclinazione_tetto",
+  "kit_prezzo",
+  "prezzo_vendita_manuale",
+  "sconto_valore",
 ];
 
 const NULLABLE_STRING_FIELDS: Array<keyof WizardData> = [
@@ -80,6 +84,9 @@ const NULLABLE_STRING_FIELDS: Array<keyof WizardData> = [
   "accumulo_id",
   "tariffa_installazione_id",
   "tabella_finanziamento_id",
+  "azimut_tetto",
+  "kit_bundle_id",
+  "kit_nome",
 ];
 
 const ALLOWED_VALUES: Partial<Record<keyof WizardData, readonly string[]>> = {
@@ -146,6 +153,96 @@ function normalizeCompletedSteps(value: unknown): number[] {
   return steps;
 }
 
+// Campi che non sono un numero o un testo: le righe di manodopera, servizi e prodotti extra, lo schema
+// di pagamento, la geometria del tetto. Prima la rilettura li scartava tutti, e il resto del wizard
+// (che per le righe preferisce la bozza, se non è vuota, al database) ritrovava quelle ultime
+// righe della Fase 5 vuote, senza nessun avviso. Ogni funzione tiene quello che è valido e scarta il
+// resto: `undefined` vuol dire «non usare niente», cioè restano i valori iniziali.
+const testo = (v: unknown): string => (typeof v === "string" ? v : "");
+const testoOnull = (v: unknown): string | null => (typeof v === "string" ? v : null);
+const numeroOzero = (v: unknown): number => (isFiniteNumber(v) ? v : 0);
+// Come quando le stesse righe si rileggono dal database: una quantità che non c'è è un pezzo.
+const quantitaOuno = (v: unknown): number => (isFiniteNumber(v) && v > 0 ? v : 1);
+
+function righeValide<T>(value: unknown, riga: (r: Record<string, unknown>) => T): T[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter(isRecord).map(riga);
+}
+
+function sanitizzaProdottiExtra(value: unknown): WizardData["prodotti_extra"] | undefined {
+  return righeValide(value, (r) => ({
+    ...(typeof r.uid === "string" ? { uid: r.uid } : {}),
+    listino_id: testoOnull(r.listino_id),
+    descrizione: testo(r.descrizione),
+    quantita: quantitaOuno(r.quantita),
+    prezzo_vendita: numeroOzero(r.prezzo_vendita),
+    prezzo_acquisto: isFiniteNumber(r.prezzo_acquisto) ? r.prezzo_acquisto : null,
+  }));
+}
+
+function sanitizzaManodopera(value: unknown): WizardData["manodopera_righe"] | undefined {
+  return righeValide(value, (r) => ({
+    tariffa_id: testoOnull(r.tariffa_id),
+    descrizione: testo(r.descrizione),
+    ore: numeroOzero(r.ore),
+    tariffa_oraria_netta: numeroOzero(r.tariffa_oraria_netta),
+    tariffa_oraria_vendita: numeroOzero(r.tariffa_oraria_vendita),
+  }));
+}
+
+function sanitizzaServizi(value: unknown): WizardData["servizi_righe"] | undefined {
+  return righeValide(value, (r) => ({
+    tipo: typeof r.tipo === "string" && r.tipo ? r.tipo : "altro",
+    descrizione: testo(r.descrizione),
+    quantita: quantitaOuno(r.quantita),
+    prezzo_netto: numeroOzero(r.prezzo_netto),
+    prezzo_vendita: numeroOzero(r.prezzo_vendita),
+    note_operative: testoOnull(r.note_operative),
+  }));
+}
+
+function sanitizzaModalitaPagamento(value: unknown): WizardData["modalita_pagamento"] | undefined {
+  if (!isRecord(value)) return undefined;
+  const tranche = righeValide(value.tranche, (t) => ({ label: testo(t.label), pct: numeroOzero(t.pct) }));
+  if (!tranche || tranche.length === 0) return undefined;
+  return {
+    tranche,
+    note: testoOnull(value.note),
+    ...(isFiniteNumber(value.anticipo_pct) ? { anticipo_pct: value.anticipo_pct } : {}),
+  };
+}
+
+function sanitizzaLayoutTetto(value: unknown): WizardData["layout_tetto"] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const pannelli: NonNullable<WizardData["layout_tetto"]> = [];
+  for (const p of value) {
+    if (!isRecord(p) || !isFiniteNumber(p.centro_lat) || !isFiniteNumber(p.centro_lng)) continue;
+    pannelli.push({
+      centro_lat: p.centro_lat,
+      centro_lng: p.centro_lng,
+      ...(p.orientamento === "LANDSCAPE" || p.orientamento === "PORTRAIT" ? { orientamento: p.orientamento } : {}),
+      ...(isFiniteNumber(p.segment_index) ? { segment_index: p.segment_index } : {}),
+    });
+  }
+  return pannelli.length > 0 ? pannelli : null;
+}
+
+function sanitizzaLayoutOverlay(value: unknown): WizardData["layout_overlay"] | undefined {
+  if (!isRecord(value)) return undefined;
+  const { x, y, rot, cols } = value;
+  if (!isFiniteNumber(x) || !isFiniteNumber(y) || !isFiniteNumber(rot) || !isFiniteNumber(cols)) return undefined;
+  return { x, y, rot, cols };
+}
+
+const CAMPI_STRUTTURATI: Partial<Record<keyof WizardData, (candidate: unknown) => unknown>> = {
+  prodotti_extra: sanitizzaProdottiExtra,
+  manodopera_righe: sanitizzaManodopera,
+  servizi_righe: sanitizzaServizi,
+  modalita_pagamento: sanitizzaModalitaPagamento,
+  layout_tetto: (v) => (v === null ? null : sanitizzaLayoutTetto(v)),
+  layout_overlay: (v) => (v === null ? null : sanitizzaLayoutOverlay(v)),
+};
+
 function normalizeWizardData(value: unknown): WizardData | null {
   if (!isRecord(value)) return null;
 
@@ -155,6 +252,13 @@ function normalizeWizardData(value: unknown): WizardData | null {
   (Object.keys(INITIAL) as Array<keyof WizardData>).forEach((key) => {
     const candidate = raw[key];
     if (candidate === undefined) return;
+
+    const strutturato = CAMPI_STRUTTURATI[key];
+    if (strutturato) {
+      const valore = strutturato(candidate);
+      if (valore !== undefined) (normalized as Record<keyof WizardData, unknown>)[key] = valore;
+      return;
+    }
 
     const allowed = ALLOWED_VALUES[key];
     if (allowed) {

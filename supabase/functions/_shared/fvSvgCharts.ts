@@ -12,6 +12,7 @@
  */
 
 import type { FvFlows, FvCosti20Output } from "./fvCalcoli.ts";
+import { fmtRata } from "./fvCalcoli.ts";
 
 const C = {
   navy: "#1E3A5F",
@@ -474,9 +475,11 @@ export function svgRataRisparmio(rata: number, risparmio: number, netto: number)
   const xStart = padL + 30;
 
   const bars = [
-    { x: xStart, h: rata, color: "url(#barNavy)", label: "Rata mensile", valColor: C.navy, valTxt: `${rata} €` },
-    { x: xStart + colW + gap, h: risparmio, color: "url(#barGreen)", label: "Risparmio", valColor: C.green, valTxt: `−${risparmio} €` },
-    { x: xStart + 2 * (colW + gap), h: netto, color: "url(#barOrange)", label: "Esborso reale", valColor: C.orangeDark, valTxt: `= ${netto} €` },
+    // Gli importi col formato italiano e il centesimo quando c'è: prima `${rata} €` scriveva
+    // «1504.76 €» (col punto) accanto agli «1.505 €» del testo.
+    { x: xStart, h: rata, color: "url(#barNavy)", label: "Rata mensile", valColor: C.navy, valTxt: fmtRata(rata) },
+    { x: xStart + colW + gap, h: risparmio, color: "url(#barGreen)", label: "Risparmio", valColor: C.green, valTxt: `−${fmtRata(risparmio)}` },
+    { x: xStart + 2 * (colW + gap), h: netto, color: "url(#barOrange)", label: "Esborso reale", valColor: C.orangeDark, valTxt: `= ${fmtRata(netto)}` },
   ];
 
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="chart-svg">

@@ -31,12 +31,27 @@ import {
 import { aliquotaIvaFv, percentualeIvaFv } from "./importoPreventivo";
 import { type PrezzoFv, calcolaPrezzoFv } from "./prezzoPreventivo";
 
-/** Il derate di sistema (PR × perdite ≈ 0,7565) che la Fase 5 applica alle ore di sole lorde. */
+/** Il derate di sistema (PR 0,85 × 0,89 di efficienza ≈ 0,7565) che la Fase 5 applica alle ore di sole lorde. */
 export const DERATE_PRODUZIONE_FV = 0.7565;
+/** Con gli ottimizzatori di potenza il PR sale a 0,88: 0,88 × 0,89 = 0,7832, come nel calcolo finanziario sul server. */
+export const DERATE_PRODUZIONE_FV_OTTIMIZZATORI = 0.7832;
 
-/** La produzione annua stimata in kWh: la stessa cifra della Fase 5. */
-export function stimaProduzioneFv(d: { potenza_kwp: number | null; ore_sole_annue: number | null }): number {
-  return d.potenza_kwp && d.ore_sole_annue ? d.potenza_kwp * d.ore_sole_annue * DERATE_PRODUZIONE_FV : 0;
+/**
+ * La produzione annua stimata in kWh: la stessa cifra della Fase 5, e quella che calcola il server per
+ * il PDF. Conta anche gli ottimizzatori (PR 0,88) e l'ombra da ostacoli vicini (frazione 0..1, al
+ * massimo 0,6): senza, con gli ottimizzatori spuntati o con l'ombra indicata, la schermata diceva
+ * una produzione diversa da quella del PDF.
+ */
+export function stimaProduzioneFv(d: {
+  potenza_kwp: number | null;
+  ore_sole_annue: number | null;
+  con_ottimizzatori?: boolean | null;
+  perdita_ombreggiamento_pct?: number | null;
+}): number {
+  if (!d.potenza_kwp || !d.ore_sole_annue) return 0;
+  const derate = d.con_ottimizzatori ? DERATE_PRODUZIONE_FV_OTTIMIZZATORI : DERATE_PRODUZIONE_FV;
+  const ombra = Math.min(0.6, Math.max(0, Number(d.perdita_ombreggiamento_pct) || 0));
+  return d.potenza_kwp * d.ore_sole_annue * derate * (1 - ombra);
 }
 
 /** I campi del wizard che servono all'anteprima (`WizardData` li ha tutti). */
@@ -51,6 +66,9 @@ export interface DatiAnteprimaFv extends ConfigurazioneComponentiFv {
   provincia: string;
   consumo_annuo_kwh: number | null;
   ore_sole_annue: number | null;
+  /** Ottimizzatori di potenza e ombra da ostacoli vicini: cambiano la produzione stimata. */
+  con_ottimizzatori?: boolean | null;
+  perdita_ombreggiamento_pct?: number | null;
   numero_pannelli_max: number | null;
   potenza_max_kwp: number | null;
   prezzo_vendita_manuale: number | null;
