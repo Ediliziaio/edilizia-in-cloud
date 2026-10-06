@@ -2,6 +2,7 @@
 export type OrderDetailTab = "panoramica" | "cantiere" | "articoli" | "finanza";
 export const CANTIERE_VIEWS = [
   { value: "lavorazioni", label: "Lavorazioni", description: "Fasi, attività da completare e pianificazione." },
+  { value: "cronoprogramma", label: "Cronoprogramma", description: "Le fasi nel tempo: date previste e reali, ritardi e avanzamento." },
   { value: "squadra", label: "Squadra e mezzi", description: "Persone, ditte, mezzi e istruzioni per il cantiere." },
   { value: "diario", label: "Diario", description: "Rapportini, foto e aggiornamenti dal campo." },
   { value: "collaudo", label: "Collaudo", description: "Verifiche, verbali e riserve da risolvere." },
@@ -33,7 +34,7 @@ export function resolveMaterialiView(search: string, section?: string): Material
 }
 const CANTIERE_SECTIONS: Partial<Record<string, CantiereView>> = {
   "section-lavorazioni": "lavorazioni", "section-attivita": "lavorazioni",
-  "section-pianificazione": "lavorazioni", "section-squadra": "squadra",
+  "section-pianificazione": "lavorazioni", "section-cronoprogramma": "cronoprogramma", "section-squadra": "squadra",
   "section-mezzi": "squadra", "section-rapportini": "diario",
   "section-foto": "diario", "section-diario": "diario", "section-collaudo": "collaudo",
 };
@@ -61,6 +62,7 @@ const SECTION_TABS = {
   "section-documenti": "panoramica",
   "section-lavorazioni": "cantiere",
   "section-pianificazione": "cantiere",
+  "section-cronoprogramma": "cantiere",
   "section-attivita": "cantiere",
   "section-rapportini": "cantiere",
   "section-collaudo": "cantiere",
