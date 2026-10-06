@@ -23,7 +23,7 @@ import {
 } from "@react-pdf/renderer";
 import { formatCurrency } from "@/lib/formatters";
 import { htmlToRichBlocks } from "@/lib/ristrutturazione/richTextPdf";
-import { parseFinanziamentoPromo, calcolaRataMensile } from "@/lib/preventivi/finanziamentoLite";
+import { parseFinanziamentoPromo, calcolaRataMensile, promoConRateDelPreventivo } from "@/lib/preventivi/finanziamentoLite";
 import { fraseValiditaChiusura } from "@/lib/preventivi/validitaOfferta";
 import { creaTema, coloriCopertina, copertinaInTinta, type TemaDocumento } from "./temaDocumento";
 import { chiaveLibera, ordineEffettivo } from "./ordineCapitoli";
@@ -1201,7 +1201,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     ...(modello.giorniValidita && modello.giorniValidita > 0 ? [{ numero: String(modello.giorniValidita), etichetta: "giorni di validità dell'offerta" }] : []),
   ];
 
-  const promo = dati.mostraFinanziamento ? parseFinanziamentoPromo(modello.finanziamentoPromo) : null;
+  // Il numero di rate lo sceglie il preventivo; il TAN è quello del modello.
+  const promo = dati.mostraFinanziamento ? parseFinanziamentoPromo(promoConRateDelPreventivo(modello.finanziamentoPromo, dati.finanziamentoRate)) : null;
   const rata = promo ? calcolaRataMensile(totali.totale, promo.rate, promo.tan_pct) : 0;
   // Col prezzo scritto a mano le righe possono essere a 0 €: il totale delle
   // lavorazioni è il prezzo scritto, e gli importi di righe e capitoli non si mostrano.

@@ -230,4 +230,6 @@ export interface DocEdileDati {
   opzioniComputo: DocEdileOpzioniComputo;
   /** false = il preventivo ha chiesto di nascondere la rata. */
   mostraFinanziamento: boolean;
+  /** Le rate scelte per questo preventivo; senza, vale il numero del modello. */
+  finanziamentoRate?: number | null;
 }

@@ -13988,6 +13988,7 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           detrazione_pct: number
+          finanziamento_rate: number | null
           id: string
           immobile_anno: number | null
           immobile_piani: number | null
@@ -14028,6 +14029,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -14068,6 +14070,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -18635,6 +18638,7 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           detrazione_pct: number
+          finanziamento_rate: number | null
           id: string
           immobile_anno: number | null
           immobile_piani: number | null
@@ -18673,6 +18677,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -18711,6 +18716,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -30015,6 +30021,7 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           detrazione_pct: number
+          finanziamento_rate: number | null
           id: string
           immobile_anno: number | null
           immobile_piani: number | null
@@ -30053,6 +30060,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -30091,6 +30099,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -43959,6 +43968,7 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           detrazione_pct: number
+          finanziamento_rate: number | null
           id: string
           immobile_anno: number | null
           immobile_piani: number | null
@@ -43997,6 +44007,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -44035,6 +44046,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -61141,6 +61153,7 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           detrazione_pct: number
+          finanziamento_rate: number | null
           id: string
           immobile_anno: number | null
           immobile_piani: number | null
@@ -61179,6 +61192,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -61217,6 +61231,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -62320,6 +62335,7 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           detrazione_pct: number
+          finanziamento_rate: number | null
           id: string
           immobile_anno: number | null
           immobile_piani: number | null
@@ -62358,6 +62374,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -62396,6 +62413,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -73276,6 +73294,7 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           detrazione_pct: number
+          finanziamento_rate: number | null
           id: string
           immobile_anno: number | null
           immobile_piani: number | null
@@ -73315,6 +73334,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -73354,6 +73374,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -89448,6 +89469,7 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           detrazione_pct: number
+          finanziamento_rate: number | null
           id: string
           immobile_anno: number | null
           immobile_piani: number | null
@@ -89488,6 +89510,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null
@@ -89528,6 +89551,7 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           detrazione_pct?: number
+          finanziamento_rate?: number | null
           id?: string
           immobile_anno?: number | null
           immobile_piani?: number | null

@@ -24,6 +24,7 @@ import {
 import { conOrigine, fotoPerIlPdf } from "@/lib/pdf/fotoBlocchi";
 import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import { descrizioneBreve } from "@/lib/moduli/testoProdotto";
+import { rateDelPreventivo } from "@/lib/preventivi/finanziamentoLite";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFoto, DocEdileModello, DocEdileModulo,
   DocEdileOpzioniComputo, DocEdileTotali, DocEdileVoceElenco, DocEdileFaq, DocEdileFase,
@@ -58,6 +59,8 @@ export interface ProgettoComune {
   immobile_anno: number | null;
   immobile_piani: number | null;
   mostra_finanziamento?: boolean | null;
+  /** Le rate scelte per questo preventivo (null = quelle del modello). */
+  finanziamento_rate?: number | null;
   created_at?: string | null;
   /** Le esigenze del cliente scelte per questo preventivo (facoltative, jsonb {titolo, descrizione}). */
   esigenze?: unknown;
@@ -433,5 +436,6 @@ export function costruisciDatiEdile(input: {
       mostraSubtotali: oc.mostraSubtotali !== false,
     },
     mostraFinanziamento: p.mostra_finanziamento !== false,
+    finanziamentoRate: rateDelPreventivo(p.finanziamento_rate),
   });
 }

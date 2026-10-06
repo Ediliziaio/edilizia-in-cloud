@@ -148,6 +148,8 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
               total={totali.totale}
               value={form.mostra_finanziamento}
               onChange={(v) => onChange("mostra_finanziamento", v)}
+              rateScelte={form.finanziamento_rate}
+              onChangeRate={(n) => onChange("finanziamento_rate", n)}
             />
             {/* Detrazione fiscale e incentivi rapidi: dopo il prezzo e il pagamento. */}
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(16rem,100%),1fr))] items-start gap-3">
