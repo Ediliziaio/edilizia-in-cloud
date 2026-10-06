@@ -1,0 +1,13 @@
+apply plugin: 'com.android.asset-pack'
+
+// Le immagini grandi dell'app (moduli dei preventivi, copertine e foto dei PDF,
+// riferimenti dei render…): Google Play le installa insieme all'app, ma fuori
+// dal modulo base, che non può superare i 200 MB (06/10/2026: con tutto dentro
+// l'app era 374 MB). Capacitor le legge da AssetManager come gli altri file
+// (public/…). Le sposta qui scripts/mobile/android-immagini.sh, dopo cap sync.
+assetPack {
+    packName = "immagini_app"
+    dynamicDelivery {
+        deliveryType = "install-time"
+    }
+}
