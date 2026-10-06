@@ -64,12 +64,16 @@ describe("Cronoprogramma", () => {
     expect(screen.getByText("Contratto firmato").nextSibling).toHaveTextContent("12/07/2026");
     expect(screen.getByText("Lavori previsti").nextSibling).toHaveTextContent("03/08 → 05/09");
     expect(screen.getByText("2 fasi in ritardo, fino a 4 giorni")).toBeInTheDocument();
+    // la media delle fasi, come la testata della commessa: (100 + 40 + 0 + 0) / 4
+    expect(screen.getByLabelText("Avanzamento 35%")).toBeInTheDocument();
   });
 
   it("senza firma del preventivo dice quando è stata aperta la commessa", () => {
     stato.firma = null;
     render(<CronoprogrammaCommessa orderId="o" order={ordine} />);
     expect(screen.getByText("Commessa aperta").nextSibling).toHaveTextContent("14/07/2026");
+    expect(screen.getByTitle("Commessa aperta: 14/07/2026")).toHaveTextContent("Commessa aperta 14/07");
+    expect(screen.queryByText(/^Contratto/)).not.toBeInTheDocument();
   });
 
   it("ogni fase datata ha la barra prevista; quella chiusa tardi la reale e la parte oltre la fine", () => {
@@ -84,6 +88,35 @@ describe("Cronoprogramma", () => {
     expect(screen.queryByTestId("reale-f3")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Demolizioni: Completata, 100%, in ritardo di 4 giorni$/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Pavimenti: Da iniziare, 0%$/ })).toBeInTheDocument();
+  });
+
+  it("una fase mai iniziata con la fine prevista passata è rossa fino a oggi; una partita tardi ma chiusa in tempo no", () => {
+    stato.phases = [
+      fase({ id: "g1", name: "Intonaci", start_date: "2026-08-03", end_date: "2026-08-10" }),
+      fase({ id: "g2", name: "Massetti", status: "completata", percentuale: 100, start_date: "2026-08-03", end_date: "2026-08-10", completata_il: "2026-08-10" }),
+    ];
+    stato.rapportini = [{ data_lavoro: "2026-08-07", stato: "approvato", fasi_lavorate: [{ phase_id: "g2", ore: 8 }] }];
+    render(<CronoprogrammaCommessa orderId="o" order={ordine} />);
+    expect(screen.getByTestId("oltre-g1")).toHaveAttribute("title", "Oltre la fine prevista: +10 giorni, ancora aperta");
+    expect(screen.getByRole("button", { name: /^Intonaci: Da iniziare, 0%, in ritardo di 10 giorni$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Massetti: Completata, 100%$/ })).toBeInTheDocument();
+    expect(screen.queryByTestId("oltre-g2")).not.toBeInTheDocument();
+    expect(screen.getByText("1 fase in ritardo, fino a 10 giorni")).toBeInTheDocument();
+  });
+
+  it("una fase che doveva già partire ma ha la fine davanti: inizio in ritardo, a parte", () => {
+    stato.phases = [fase({ id: "h1", name: "Serramenti", start_date: "2026-08-15", end_date: "2026-08-30" })];
+    stato.rapportini = [];
+    render(<CronoprogrammaCommessa orderId="o" order={ordine} />);
+    expect(screen.getByRole("button", { name: /^Serramenti: Da iniziare, 0%, inizio in ritardo di 5 giorni$/ })).toHaveTextContent("inizio +5 gg");
+    expect(screen.getByText("1 fase con l'inizio in ritardo")).toBeInTheDocument();
+    expect(screen.queryByText(/fasi? in ritardo, fino a/)).not.toBeInTheDocument();
+  });
+
+  it("tutto in tempo: nessuna fase in ritardo", () => {
+    stato.phases = [fase({ id: "k1", name: "Pavimenti", start_date: "2026-08-25", end_date: "2026-09-05" })];
+    render(<CronoprogrammaCommessa orderId="o" order={ordine} />);
+    expect(screen.getByText("Nessuna fase in ritardo")).toBeInTheDocument();
   });
 
   it("le fasi senza date sono elencate a parte, con la strada per aggiungerle", () => {

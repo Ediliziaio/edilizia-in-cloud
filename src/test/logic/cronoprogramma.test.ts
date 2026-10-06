@@ -6,6 +6,7 @@ import {
   giornoLocale,
   intervalloCronoprogramma,
   lavoroRealeFasi,
+  ritardoFase,
   tacche,
   traguardiCommessa,
   type FaseInput,
@@ -56,6 +57,13 @@ describe("le fasi nel tempo", () => {
     });
   });
 
+  it("partita tardi ma chiusa in tempo: non è in ritardo", () => {
+    const reale = new Map([["f1", { primo: "2026-08-06", ultimo: "2026-08-10", ore: 30, rapportini: 4 }]]);
+    const [f] = fasiCronoprogramma([fase({ status: "completata", completata_il: "2026-08-10" })], reale, oggi);
+    expect(f).toMatchObject({ ritardoInizio: 3, ritardoFine: 0 });
+    expect(ritardoFase(f)).toBeNull();
+  });
+
   it("senza data di chiusura la fine reale è l'ultimo rapportino; finita in anticipo: nessun ritardo", () => {
     const reale = new Map([["f1", { primo: "2026-08-02", ultimo: "2026-08-08", ore: 16, rapportini: 2 }]]);
     const [f] = fasiCronoprogramma([fase({ status: "completata" })], reale, oggi);
@@ -66,11 +74,19 @@ describe("le fasi nel tempo", () => {
     const reale = new Map([["f1", { primo: "2026-08-03", ultimo: "2026-08-19", ore: 70, rapportini: 9 }]]);
     const [f] = fasiCronoprogramma([fase({ status: "in_corso", percentuale: 60 })], reale, oggi);
     expect(f).toMatchObject({ realeFine: null, ritardoFine: 10, ritardoInizio: 0, avanzamento: 60 });
+    expect(ritardoFase(f)).toEqual({ giorni: 10, su: "fine" });
+  });
+
+  it("mai iniziata e con la fine prevista passata: conta la fine, non l'inizio", () => {
+    const [f] = fasiCronoprogramma([fase({})], new Map(), oggi);
+    expect(f).toMatchObject({ ritardoInizio: 17, ritardoFine: 10 });
+    expect(ritardoFase(f)).toEqual({ giorni: 10, su: "fine" });
   });
 
   it("una fase non ancora iniziata dopo l'inizio previsto è in ritardo sull'inizio", () => {
     const [f] = fasiCronoprogramma([fase({ start_date: "2026-08-15", end_date: "2026-08-30" })], new Map(), oggi);
     expect(f).toMatchObject({ realeInizio: null, ritardoInizio: 5, ritardoFine: 0 });
+    expect(ritardoFase(f)).toEqual({ giorni: 5, su: "inizio" });
   });
 
   it("senza date previste nessun ritardo", () => {
@@ -91,10 +107,10 @@ describe("traguardi della commessa", () => {
     ]);
   });
 
-  it("senza firma del preventivo vale l'apertura della commessa, detta così", () => {
+  it("senza firma del preventivo vale l'apertura della commessa, detta così e non «contratto»", () => {
     expect(traguardiCommessa({ firmaPreventivo: null, aperturaCommessa: "2026-07-14", inizioLavori: null, fineLavori: null, consegna: "2026-07-30" }))
       .toEqual([
-        { tipo: "contratto", data: "2026-07-14", etichetta: "Commessa aperta" },
+        { tipo: "apertura", data: "2026-07-14", etichetta: "Commessa aperta" },
         { tipo: "consegna", data: "2026-07-30", etichetta: "Consegna prevista" },
       ]);
   });
@@ -126,23 +142,14 @@ describe("l'asse del tempo", () => {
 });
 
 describe("avanzamento della commessa", () => {
-  const oggi = "2026-08-20";
-  const due = fasiCronoprogramma([
-    fase({ id: "a", status: "completata", start_date: "2026-08-01", end_date: "2026-08-10" }), // 100%, 10 giorni
-    fase({ id: "b", status: "in_corso", percentuale: 50, start_date: "2026-08-11", end_date: "2026-08-30" }), // 50%, 20 giorni
-  ], new Map(), oggi);
-
-  it("pesato sul venduto quando tutte le fasi ne hanno", () => {
-    expect(avanzamentoComplessivo(due, new Map([["a", 1000], ["b", 3000]]))).toEqual({ pct: 63, peso: "venduto" });
-  });
-
-  it("sulla durata prevista quando manca il venduto ma ci sono le date", () => {
-    expect(avanzamentoComplessivo(due, new Map([["a", 1000]]))).toEqual({ pct: 67, peso: "durata" });
-  });
-
-  it("in parti uguali quando mancano anche le date", () => {
-    const senzaDate = fasiCronoprogramma([fase({ id: "a", status: "completata", start_date: null, end_date: null }), fase({ id: "b", percentuale: 0, start_date: null })], new Map(), oggi);
-    expect(avanzamentoComplessivo(senzaDate)).toEqual({ pct: 50, peso: "uguale" });
-    expect(avanzamentoComplessivo([])).toEqual({ pct: 0, peso: "uguale" });
+  it("la media delle fasi, una completata vale 100: lo stesso conto della testata della commessa", () => {
+    const fasi = fasiCronoprogramma([
+      fase({ id: "a", status: "completata", percentuale: 0 }),
+      fase({ id: "b", status: "in_corso", percentuale: 50 }),
+      fase({ id: "c", percentuale: 0 }),
+      fase({ id: "d", status: "in_corso", percentuale: 15 }),
+    ], new Map(), "2026-08-20");
+    expect(avanzamentoComplessivo(fasi)).toBe(41); // (100 + 50 + 0 + 15) / 4 = 41,25
+    expect(avanzamentoComplessivo([])).toBe(0);
   });
 });

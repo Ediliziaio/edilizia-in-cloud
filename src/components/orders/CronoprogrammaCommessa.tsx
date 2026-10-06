@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { AlertTriangle, CalendarRange, FileSignature, Loader2 } from "lucide-react";
@@ -18,6 +18,7 @@ import {
   giorniTra,
   intervalloCronoprogramma,
   lavoroRealeFasi,
+  ritardoFase,
   tacche,
   traguardiCommessa,
   aggiungiGiorni,
@@ -49,6 +50,7 @@ const ETICHETTA_STATO: Record<FaseCrono["stato"], string> = {
 
 const TRAGUARDO_BREVE: Record<Traguardo["tipo"], string> = {
   contratto: "Contratto",
+  apertura: "Commessa aperta",
   inizio_lavori: "Inizio lavori",
   fine_lavori: "Fine lavori",
   consegna: "Consegna",
@@ -111,7 +113,7 @@ function Dettaglio({
         </>}
         {economia && vedeVenduto && <>
           <dt className="text-muted-foreground">Venduto</dt>
-          <dd className="tabular-nums">{economia.righe > 0 ? formatCurrency(economia.venduto) : "—"}</dd>
+          <dd className="tabular-nums">{economia.fonteVenduto !== null ? formatCurrency(economia.venduto) : "—"}</dd>
         </>}
         {economia && vedeCosti && <>
           <dt className="text-muted-foreground">Costo previsto</dt>
@@ -138,6 +140,26 @@ function Griglia({ asse, segni, oggi }: { asse: Asse; segni: ReturnType<typeof t
       <span aria-hidden="true" className="absolute inset-y-0 w-0.5 bg-orange-500/80" style={{ left: `${posOggi.left + posOggi.width / 2}%` }} />
     </>
   );
+}
+
+/** La colonna dei nomi delle fasi (w-56), che resta ferma quando il grafico scorre. */
+const COLONNA_PX = 224;
+
+/**
+ * Dove mettere l'etichetta di ogni traguardo: centrata sul rombo, ma tutta
+ * dentro il grafico vicino ai bordi, e su una seconda riga se il traguardo
+ * prima è troppo vicino (contratto e inizio lavori a pochi giorni).
+ */
+function posizioniTraguardi(traguardi: ReadonlyArray<Traguardo>, asse: Asse) {
+  let precedente: { centro: number; riga: 0 | 1 } | null = null;
+  return traguardi.map((t) => {
+    const pos = barra(t.data, t.data, asse);
+    const centro = pos.left + pos.width / 2;
+    const riga: 0 | 1 = precedente && precedente.riga === 0 && centro - precedente.centro < 12 ? 1 : 0;
+    precedente = { centro, riga };
+    const lato = centro < 10 ? "sinistra" : centro > 90 ? "destra" : "centro";
+    return { t, centro, riga, lato } as const;
+  });
 }
 
 /**
@@ -187,14 +209,27 @@ export function CronoprogrammaCommessa({
   const senzaDate = fasi.filter((f) => !previsto(f) && !f.realeInizio);
   const asse = intervalloCronoprogramma(nelGrafico, traguardi, oggi);
   const segni = tacche(asse);
-  const avanzamento = avanzamentoComplessivo(fasi, new Map(fasi.map((f) => [f.id, economia.perFase.get(f.id)?.venduto ?? 0])));
-  const inRitardo = fasi.filter((f) => f.ritardoInizio > 0 || f.ritardoFine > 0);
-  const ritardoMassimo = Math.max(0, ...fasi.map((f) => Math.max(f.ritardoInizio, f.ritardoFine)));
-  const contratto = traguardi.find((t) => t.tipo === "contratto")!;
+  const etichetteTraguardi = posizioniTraguardi(traguardi, asse);
+  const avanzamento = avanzamentoComplessivo(fasi);
+  const sullaFine = fasi.map(ritardoFase).filter((r) => r?.su === "fine");
+  const sullInizio = fasi.map(ritardoFase).filter((r) => r?.su === "inizio");
+  const ritardoMassimo = Math.max(0, ...sullaFine.map((r) => r!.giorni));
+  const contratto = traguardi.find((t) => t.tipo === "contratto" || t.tipo === "apertura")!;
   const datePreviste = fasi.flatMap((f) => [f.previstoInizio, f.previstoFine]).filter((d): d is string => !!d).sort();
   const lavoriDa = order.work_start_date ?? datePreviste[0] ?? null;
   const lavoriA = order.work_end_date ?? datePreviste[datePreviste.length - 1] ?? null;
-  const largo = Math.max(720, 240 + asse.giorni * 14);
+  // Fino a quattro mesi una settimana resta leggibile (8 px al giorno), oltre
+  // bastano i mesi: così un cantiere normale entra nello schermo senza scorrere.
+  const largo = Math.max(720, COLONNA_PX + asse.giorni * (asse.giorni > 120 ? 4 : 8));
+
+  // Se il grafico non entra, si apre su oggi, con un po' di passato a sinistra.
+  const grafico = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = grafico.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    const x = COLONNA_PX + (giorniTra(asse.da, oggi) / asse.giorni) * (el.scrollWidth - COLONNA_PX);
+    el.scrollLeft = Math.max(0, x - COLONNA_PX - (el.clientWidth - COLONNA_PX) * 0.7);
+  }, [asse.da, asse.giorni, oggi, nelGrafico.length]);
 
   if (isLoading || crono.isLoading) {
     return (
@@ -237,24 +272,32 @@ export function CronoprogrammaCommessa({
         <span className="inline-flex min-w-[14rem] flex-1 items-center gap-2">
           <span className="text-muted-foreground">Avanzamento</span>
           <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
-            <span className={cn("block h-full rounded-full", salute?.stato === "in_ritardo" ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${avanzamento.pct}%` }} />
+            <span className={cn("block h-full rounded-full", salute?.stato === "in_ritardo" ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${avanzamento}%` }} />
           </span>
-          <b className="font-semibold tabular-nums" aria-label={`Avanzamento ${avanzamento.pct}%`}>{avanzamento.pct}%</b>
+          <b className="font-semibold tabular-nums" aria-label={`Avanzamento ${avanzamento}%`}>{avanzamento}%</b>
         </span>
-        <span className={cn("inline-flex items-center gap-1.5 font-medium", inRitardo.length > 0 ? "text-rose-700" : "text-emerald-700")}>
-          {inRitardo.length > 0 && <AlertTriangle className="h-4 w-4" aria-hidden="true" />}
-          {inRitardo.length === 0
-            ? "Nessuna fase in ritardo"
-            : `${inRitardo.length === 1 ? "1 fase in ritardo" : `${inRitardo.length} fasi in ritardo`}, fino a ${giorni(ritardoMassimo)}`}
-        </span>
+        {sullaFine.length > 0 && (
+          <span className="inline-flex items-center gap-1.5 font-medium text-rose-700">
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+            {`${sullaFine.length === 1 ? "1 fase in ritardo" : `${sullaFine.length} fasi in ritardo`}, fino a ${giorni(ritardoMassimo)}`}
+          </span>
+        )}
+        {sullInizio.length > 0 && (
+          <span className="font-medium text-amber-700">
+            {sullInizio.length === 1 ? "1 fase con l'inizio in ritardo" : `${sullInizio.length} fasi con l'inizio in ritardo`}
+          </span>
+        )}
+        {sullaFine.length === 0 && sullInizio.length === 0 && (
+          <span className="font-medium text-emerald-700">Nessuna fase in ritardo</span>
+        )}
       </div>
 
-      {/* Il grafico scorre in orizzontale nel suo riquadro, non la pagina */}
-      <div className="overflow-x-auto rounded-md border">
+      {/* Il grafico scorre in orizzontale nel suo riquadro, non la pagina; i nomi delle fasi restano fermi */}
+      <div ref={grafico} className="overflow-x-auto rounded-md border">
         <div style={{ minWidth: largo }}>
           {/* Asse: le tacche */}
           <div className="flex border-b bg-slate-50 text-[11px] text-slate-500">
-            <div className="w-56 shrink-0 border-r px-3 py-1.5 font-semibold uppercase tracking-wide">Fase</div>
+            <div className="sticky left-0 z-10 w-56 shrink-0 border-r bg-slate-50 px-3 py-1.5 font-semibold uppercase tracking-wide">Fase</div>
             <div className="relative h-7 flex-1">
               {segni.map((t) => (
                 <span key={t.data} className="absolute top-1.5 -translate-x-1/2 whitespace-nowrap tabular-nums" style={{ left: `${t.left}%` }}>
@@ -266,23 +309,24 @@ export function CronoprogrammaCommessa({
 
           {/* Traguardi: contratto, inizio e fine lavori, consegna */}
           <div className="flex border-b">
-            <div className="w-56 shrink-0 border-r px-3 py-2 text-xs font-medium text-slate-600">Traguardi</div>
-            <div className="relative h-10 flex-1">
+            <div className="sticky left-0 z-10 w-56 shrink-0 border-r bg-white px-3 py-2 text-xs font-medium text-slate-600">Traguardi</div>
+            <div className={cn("relative flex-1", etichetteTraguardi.some((x) => x.riga === 1) ? "h-12" : "h-10")}>
               <Griglia asse={asse} segni={segni} oggi={oggi} />
-              {traguardi.map((t) => {
-                const pos = barra(t.data, t.data, asse);
-                return (
-                  <span
-                    key={`${t.tipo}-${t.data}`}
-                    title={`${t.etichetta}: ${lunga(t.data)}`}
-                    className="absolute top-1.5 flex -translate-x-1/2 flex-col items-center"
-                    style={{ left: `${pos.left + pos.width / 2}%` }}
-                  >
-                    <span aria-hidden="true" className={cn("h-2.5 w-2.5 rotate-45", t.tipo === "contratto" ? "bg-blue-800" : "bg-slate-500")} />
-                    <span className="mt-0.5 whitespace-nowrap text-[10px] text-slate-600">{TRAGUARDO_BREVE[t.tipo]} {breve(t.data)}</span>
-                  </span>
-                );
-              })}
+              {etichetteTraguardi.map(({ t, centro, riga, lato }) => (
+                <span
+                  key={`${t.tipo}-${t.data}`}
+                  title={`${t.etichetta}: ${lunga(t.data)}`}
+                  className={cn("absolute top-1.5 flex flex-col", lato === "centro" ? "items-center" : lato === "sinistra" ? "items-start" : "items-end")}
+                  style={{
+                    left: `${centro}%`,
+                    // il rombo (10 px) resta sul suo giorno; l'etichetta non esce dal grafico
+                    transform: lato === "centro" ? "translateX(-50%)" : lato === "sinistra" ? "translateX(-5px)" : "translateX(calc(-100% + 5px))",
+                  }}
+                >
+                  <span aria-hidden="true" className={cn("h-2.5 w-2.5 rotate-45", t.tipo === "contratto" || t.tipo === "apertura" ? "bg-blue-800" : "bg-slate-500")} />
+                  <span className={cn("whitespace-nowrap text-[10px] text-slate-600", riga === 1 ? "mt-3" : "mt-0.5")}>{TRAGUARDO_BREVE[t.tipo]} {breve(t.data)}</span>
+                </span>
+              ))}
             </div>
           </div>
 
@@ -291,31 +335,37 @@ export function CronoprogrammaCommessa({
             const p = previsto(f);
             const r = reale(f, oggi);
             const pb = p ? barra(p[0], p[1], asse) : null;
-            // La parte reale oltre la fine prevista è il ritardo: rossa (da dove
-            // parte il lavoro, se è cominciato dopo la fine prevista).
-            const oltre = r && p && r[1] > p[1]
-              ? barra(r[0] > p[1] ? r[0] : aggiungiGiorni(p[1], 1), r[1], asse)
+            const aperta = f.stato !== "completata";
+            // Oltre la fine prevista, in rosso: fino alla chiusura reale, o fino a
+            // oggi se la fase è ancora aperta (anche senza rapportini: è passata la
+            // fine e non è chiusa). Parte da dove è cominciato il lavoro, se dopo.
+            const fineOltre = aperta ? oggi : r?.[1] ?? null;
+            const oltre = p && fineOltre && fineOltre > p[1]
+              ? barra(r && r[0] > p[1] ? r[0] : aggiungiGiorni(p[1], 1), fineOltre, asse)
               : null;
             const entro = r ? barra(r[0], oltre && p ? p[1] : r[1], asse) : null;
             const eco = economia.perFase.get(f.id);
-            const ritardo = Math.max(f.ritardoInizio, f.ritardoFine);
-            const tardi = f.ritardoFine > 0 || f.ritardoInizio > 0;
+            const rit = ritardoFase(f);
             return (
               <div key={f.id} className="flex border-b last:border-b-0">
-                <div className="w-56 shrink-0 border-r px-2 py-1.5">
+                <div className="sticky left-0 z-10 w-56 shrink-0 border-r bg-white px-2 py-1.5">
                   <Popover>
                     <PopoverTrigger asChild>
                       <button
                         type="button"
                         className="flex w-full items-center gap-2 rounded px-1 py-0.5 text-left text-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600"
-                        aria-label={`${f.nome}: ${ETICHETTA_STATO[f.stato]}, ${f.avanzamento}%${ritardo > 0 ? `, in ritardo di ${giorni(ritardo)}` : ""}`}
+                        aria-label={`${f.nome}: ${ETICHETTA_STATO[f.stato]}, ${f.avanzamento}%${rit ? `, ${rit.su === "fine" ? "in ritardo" : "inizio in ritardo"} di ${giorni(rit.giorni)}` : ""}`}
                       >
                         <span
                           aria-hidden="true"
                           className={cn("h-2 w-2 shrink-0 rounded-full", f.stato === "completata" ? "bg-emerald-500" : f.stato === "in_corso" ? "bg-amber-500" : "bg-slate-400")}
                         />
                         <span className="min-w-0 flex-1 truncate">{f.nome}</span>
-                        {ritardo > 0 && <span className="shrink-0 text-[11px] font-semibold tabular-nums text-rose-700">+{ritardo} gg</span>}
+                        {rit && (
+                          <span className={cn("shrink-0 text-[11px] font-semibold tabular-nums", rit.su === "fine" ? "text-rose-700" : "text-amber-700")}>
+                            {rit.su === "inizio" && "inizio "}+{rit.giorni} gg
+                          </span>
+                        )}
                       </button>
                     </PopoverTrigger>
                     <PopoverContent align="start" className="w-80">
@@ -336,7 +386,7 @@ export function CronoprogrammaCommessa({
                       style={{ left: `${pb.left}%`, width: `${pb.width}%` }}
                       title={`Previsto: ${lunga(p![0])} → ${lunga(p![1])}`}
                     >
-                      <span className={cn("block h-full", tardi && f.stato !== "completata" ? "bg-rose-300" : "bg-slate-300")} style={{ width: `${f.avanzamento}%` }} />
+                      <span className={cn("block h-full", !aperta || !rit ? "bg-slate-300" : rit.su === "fine" ? "bg-rose-300" : "bg-amber-300")} style={{ width: `${f.avanzamento}%` }} />
                     </span>
                   )}
                   {entro && entro.width > 0 && (
@@ -352,7 +402,7 @@ export function CronoprogrammaCommessa({
                       data-testid={`oltre-${f.id}`}
                       className="absolute top-8 h-2.5 rounded-full bg-rose-500"
                       style={{ left: `${oltre.left}%`, width: `${oltre.width}%` }}
-                      title={`Oltre la fine prevista: +${giorni(f.ritardoFine)}`}
+                      title={`Oltre la fine prevista: +${giorni(f.ritardoFine)}${aperta ? ", ancora aperta" : ""}`}
                     />
                   )}
                 </div>
