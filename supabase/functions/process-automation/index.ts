@@ -4450,7 +4450,12 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
     if (!modello) {
       return { success: false, error: `Il modello WhatsApp «${nomeModello}» non c'è più tra quelli del numero: scegline un altro nel passo.` };
     }
-    if (String(modello.status).toUpperCase() !== "APPROVED") {
+    const statoModello = String(modello.status).toUpperCase();
+    if (statoModello === "PENDING" || statoModello === "IN_APPEAL") {
+      // Meta sta ancora esaminando il modello: il lead aspetta e si riprova tra un'ora, non fallisce.
+      return { success: false, defer: true, deferMinutes: 60, error: `Il modello WhatsApp «${nomeModello}» è ancora in revisione da Meta: riprovo tra un'ora.` };
+    }
+    if (statoModello !== "APPROVED") {
       return { success: false, error: `Il modello WhatsApp «${nomeModello}» non è approvato da Meta (stato: ${modello.status}).` };
     }
 

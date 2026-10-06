@@ -37,6 +37,9 @@ import {
   mapUnitaMisura,
 } from "@/hooks/usePavimentiListino";
 import { usePrezzarioVociGlobalSearch } from "@/lib/prezzario/queries";
+import { useProdottiListino } from "@/hooks/useProdottiListino";
+import { dettaglioNelPicker, type VerticaleModulo } from "@/lib/moduli/prodottiListino";
+import { MiniaturaProdotto } from "@/components/preventivatore/MiniaturaProdotto";
 import type { PickedVoce, VoceSource } from "./types";
 
 interface Props {
@@ -56,12 +59,15 @@ const SOURCE_META: Record<VoceSource, { label: string; badge: string; Icon: type
   prezzario: { label: "Prezzario", badge: "border-emerald-200 bg-emerald-50 text-emerald-700", Icon: Library },
 };
 
+/** L'area del listino prodotti di questo preventivatore: i suoi prodotti si propongono per primi. */
+const VERTICALE_LISTINO: VerticaleModulo = "pavimenti";
+
 /** Sorgente di ricerca attiva nel picker (toggle in testata). */
 type SearchMode = "azienda" | "prezzario";
 
 /** Riga di risultato del picker, uniforme tra le sorgenti. */
 function ResultRow({
-  source, descrizione, meta, prezzo, prezzoLabel, onSelect,
+  source, descrizione, meta, prezzo, prezzoLabel, onSelect, immagine,
 }: {
   source: VoceSource;
   descrizione: string;
@@ -69,6 +75,8 @@ function ResultRow({
   prezzo: number;
   prezzoLabel: string;
   onSelect: () => void;
+  /** Foto del prodotto del listino: se c'è prende il posto dell'icona. */
+  immagine?: string | null;
 }) {
   const S = SOURCE_META[source];
   return (
@@ -78,9 +86,18 @@ function ResultRow({
       value={`${source}-${descrizione}-${meta ?? ""}`}
       className="gap-3 rounded-lg data-[selected=true]:bg-orange-50/70"
     >
-      <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md", S.badge)}>
-        <S.Icon className="h-3.5 w-3.5" />
-      </span>
+      <MiniaturaProdotto
+        src={immagine}
+        className="h-9 w-9"
+        alternativa={
+          // Largo come la miniatura: i nomi restano incolonnati con o senza foto.
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center">
+            <span className={cn("flex h-7 w-7 items-center justify-center rounded-md", S.badge)}>
+              <S.Icon className="h-3.5 w-3.5" />
+            </span>
+          </span>
+        }
+      />
       <div className="min-w-0 flex-1">
         {/* Telefono: due righe, le voci del prezzario si distinguono solo andando avanti a leggere. */}
         <p className="truncate text-sm font-medium text-slate-800 max-sm:line-clamp-2 max-sm:whitespace-normal">{descrizione}</p>
@@ -105,6 +122,8 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
   const azOn = open && mode === "azienda";
   const lavorazioni = useListinoVociSearch(azOn ? debounced : "");
   const prodotti = usePrefillFromArticolo(azOn ? debounced : "");
+  // Il listino prodotti vero: foto, descrizione e prezzo vengono con la riga. Si interroga solo a selettore aperto.
+  const prodottiListino = useProdottiListino(debounced, VERTICALE_LISTINO, azOn);
   const manodopera = usePrefillFromTariffa(azOn ? debounced : "");
   // Prezzario regionale centrale (cross-fonte, solo pubblicate): hook gated a 2+ char.
   const prezzario = usePrezzarioVociGlobalSearch(
@@ -113,7 +132,7 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
 
   const isFetching =
     mode === "azienda"
-      ? lavorazioni.isFetching || prodotti.isFetching || manodopera.isFetching
+      ? lavorazioni.isFetching || prodotti.isFetching || prodottiListino.isFetching || manodopera.isFetching
       : prezzario.isFetching;
 
   const resetAndClose = () => {
@@ -135,9 +154,10 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
 
   const nLav = lavorazioni.data?.length ?? 0;
   const nProd = prodotti.data?.length ?? 0;
+  const nProdListino = prodottiListino.data?.length ?? 0;
   const nMano = manodopera.data?.length ?? 0;
   const nPrez = prezzario.data?.length ?? 0;
-  const nTot = mode === "azienda" ? nLav + nProd + nMano : nPrez;
+  const nTot = mode === "azienda" ? nLav + nProd + nProdListino + nMano : nPrez;
   const nessunRisultato = !isFetching && nTot === 0 && debounced.trim().length > 0;
 
   return (
@@ -261,10 +281,35 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
           </CommandGroup>
         )}
 
-        {/* Prodotti */}
-        {mode === "azienda" && nProd > 0 && (
-          <CommandGroup heading={`Prodotti (${nProd})`}>
-            {prodotti.data!.map((p) => (
+        {/* Prodotti: prima quelli del listino prodotti (con foto e descrizione), poi gli articoli del vecchio elenco */}
+        {mode === "azienda" && nProd + nProdListino > 0 && (
+          <CommandGroup heading={`Prodotti (${nProd + nProdListino})`}>
+            {(prodottiListino.data ?? []).map((p) => (
+              <ResultRow
+                key={`listino-${p.id}`}
+                source="prodotto"
+                immagine={p.immagine_url}
+                descrizione={p.nome}
+                meta={dettaglioNelPicker(p, VERTICALE_LISTINO) || undefined}
+                prezzo={p.prezzo_vendita}
+                prezzoLabel={p.modo === "mq" ? "/ mq" : p.unita ? `/ ${p.unita}` : "/ pz"}
+                onSelect={() =>
+                  handlePick({
+                    descrizione: p.nome,
+                    unita_misura: mapUnitaMisura(p.unita),
+                    prezzo_unitario: p.prezzo_vendita,
+                    costo_materiali: p.prezzo_acquisto,
+                    costo_manodopera: 0,
+                    capitolo_nome: targetCapitolo,
+                    // La riga porta una copia di foto e descrizione del listino: il preventivo non cambia se poi si ritocca il listino.
+                    famiglia_id: p.id,
+                    immagine_url: p.immagine_url,
+                    descrizione_estesa: p.descrizione,
+                  })
+                }
+              />
+            ))}
+            {(prodotti.data ?? []).map((p) => (
               <ResultRow
                 key={`prod-${p.id}`}
                 source="prodotto"

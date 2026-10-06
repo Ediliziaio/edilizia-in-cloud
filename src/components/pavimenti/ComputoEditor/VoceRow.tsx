@@ -34,6 +34,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
+import { MiniaturaProdotto } from "@/components/preventivatore/MiniaturaProdotto";
 import { calcRigaImporto } from "@/lib/pavimenti/calcoli";
 import type { PavComputoVoce, PavUnitaMisura } from "@/types/pavimenti";
 
@@ -129,6 +130,8 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
         <div className="min-w-0 flex-1 max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm:gap-x-1 max-sm:gap-y-1.5">
           {/* Riga 1: descrizione + UdM */}
           <div className="flex items-center gap-2 max-sm:contents">
+            {/* Il prodotto scelto dal listino porta la sua foto: si vede qui, a destra nell'anteprima e nel PDF. */}
+            <MiniaturaProdotto src={voce.immagine_url} className="h-8 w-8 max-sm:order-1" />
             <Input
               value={voce.descrizione}
               onChange={(e) => onChange({ descrizione: e.target.value })}

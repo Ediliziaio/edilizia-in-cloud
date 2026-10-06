@@ -10,3 +10,4 @@ export { GuscioEdile, type TestataGuscioEdile, type PiedeGuscioEdile } from "./G
 export { useAnteprimaNascosta } from "./useAnteprimaNascosta";
 export { TotaleBarra } from "./TotaleBarra";
 export { EsigenzeCliente } from "./EsigenzeCliente";
+export { IndirizzoDeiLavori } from "./IndirizzoDeiLavori";

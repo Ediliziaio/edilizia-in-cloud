@@ -14,6 +14,7 @@
  */
 import { calcDetraibile, superaMassimale } from "@/lib/preventivi/incentivi";
 import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
+import { descrizioneBreve, testoDelListino } from "@/lib/moduli/testoProdotto";
 import {
   type AnteprimaPreventivo,
   type GruppoAnteprima,
@@ -37,6 +38,9 @@ export interface VoceComputoAnteprima {
   costo_manodopera: number;
   /** Solo la Ristrutturazione: il vano in cui si lavora. */
   ambiente?: string | null;
+  /** Se la voce è un prodotto del listino prodotti: la sua foto e la sua descrizione (copiate alla scelta). */
+  immagine_url?: string | null;
+  descrizione_estesa?: string | null;
 }
 
 interface RigaCalcolo {
@@ -160,6 +164,9 @@ export function anteprimaComputo(
         .filter(Boolean).join(" · ") || null,
       quantita: numero(v.quantita),
       unita: v.unita_misura,
+      // Il prodotto del listino ha foto e descrizione; la voce libera o di lavorazione no, e non si inventa niente.
+      immagineUrl: testoDelListino(v.immagine_url),
+      descrizione: descrizioneBreve(v.descrizione_estesa, 200),
       prezzoUnitario: v.prezzo_unitario ?? null,
       totale: calcoli.calcRigaImporto(v),
       costo: costoRiga > 0 ? costoRiga : null,

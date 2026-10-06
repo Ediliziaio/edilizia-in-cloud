@@ -45,6 +45,11 @@ export interface OpzioniImmaginePdf {
    * colore lo mette il velo dell'azienda sopra la foto.
    */
   scalaDiGrigi?: boolean;
+  /**
+   * Lato lungo massimo in pixel (di serie 1600). Le miniature dei prodotti nelle righe del
+   * preventivo stanno in pochi punti: 360 px bastano e il PDF resta leggero.
+   */
+  latoMax?: number;
 }
 
 /** Scala di grigi sul posto (luminanza percepita), con un filo di contrasto in più. */
@@ -82,7 +87,7 @@ export async function toDataUrl(url: string | null | undefined, opzioni: Opzioni
     img.onload = () => {
       try {
         const canvas = document.createElement("canvas");
-        const MAX = 1600;
+        const MAX = opzioni.latoMax ?? 1600;
         let w = img.naturalWidth;
         let h = img.naturalHeight;
         if (w > MAX || h > MAX) {

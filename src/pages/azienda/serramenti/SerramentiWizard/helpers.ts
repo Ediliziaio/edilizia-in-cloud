@@ -30,7 +30,8 @@ export function isWizardStepComplete(
     case "cliente":
       return Boolean(form.cliente_id || form.cliente_nome || form.cliente_cognome);
     case "immobile":
-      return Boolean(form.cantiere_indirizzo || form.cantiere_citta || form.tipo_intervento);
+      // L'indirizzo dei lavori sta nel passo Contatto: qui restano il tipo di intervento e il piano.
+      return Boolean(form.tipo_intervento || form.cantiere_piano);
     case "esigenze":
       return Boolean((form.esigenze?.length ?? 0) > 0 || (form.soluzione?.length ?? 0) > 0);
     case "bom":

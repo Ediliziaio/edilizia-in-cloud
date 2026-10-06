@@ -17,7 +17,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Flame, MapPin } from "lucide-react";
+import { Flame } from "lucide-react";
 import type { IdrProgetto } from "@/types/termoidraulico";
 import type { IdrFormPatch } from "./types";
 import type { SalesIntervention } from "@/lib/moduli-vendita/areas";
@@ -86,9 +86,9 @@ export default function StepImmobile({ form, onChange, model }: Props) {
             <Flame className="h-4 w-4" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">Dati impianto e cantiere</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Dati impianto</h2>
             <p className="text-[11px] text-muted-foreground max-sm:hidden">
-              Tipo di intervento, generatore, n. terminali e indirizzo del cantiere.
+              Tipo di intervento, generatore e n. terminali.
             </p>
           </div>
         </div>
@@ -126,49 +126,6 @@ export default function StepImmobile({ form, onChange, model }: Props) {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        </div>
-
-        {/* Indirizzo cantiere */}
-        <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-12">
-            <Label className="text-xs flex items-center gap-1">
-              <MapPin className="h-3 w-3" /> Indirizzo cantiere
-            </Label>
-            <Input
-              value={form.cantiere_indirizzo ?? ""}
-              onChange={(e) => onChange("cantiere_indirizzo", e.target.value || null)}
-              placeholder="Via Tortona 33"
-              className="h-9"
-            />
-          </div>
-          <div className="col-span-5 sm:col-span-6">
-            <Label className="text-xs">Città</Label>
-            <Input
-              value={form.cantiere_citta ?? ""}
-              onChange={(e) => onChange("cantiere_citta", e.target.value || null)}
-              placeholder="Milano"
-              className="h-9"
-            />
-          </div>
-          <div className="col-span-3">
-            <Label className="text-xs">Provincia</Label>
-            <Input
-              value={form.cantiere_provincia ?? ""}
-              onChange={(e) => onChange("cantiere_provincia", (e.target.value || null)?.toUpperCase() ?? null)}
-              placeholder="MI"
-              maxLength={2}
-              className="h-9 uppercase"
-            />
-          </div>
-          <div className="col-span-4 sm:col-span-3">
-            <Label className="text-xs">CAP</Label>
-            <Input
-              value={form.cantiere_cap ?? ""}
-              onChange={(e) => onChange("cantiere_cap", e.target.value || null)}
-              placeholder="20121"
-              className="h-9"
-            />
           </div>
         </div>
 

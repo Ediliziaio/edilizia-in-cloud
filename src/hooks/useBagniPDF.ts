@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getBgnTemplatePdf } from "@/hooks/useBagniProgetto";
 import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
+import { inlineImmaginiVoci } from "@/lib/moduli/immaginiVociComputo";
 import { immaginiDelModello } from "@/components/preventivi/pdf/immaginiDocumento";
 import { eRiferimentoNudo, linkFileRiservati } from "@/lib/storage/fileRiservati";
 import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/bagni/calcoli";
@@ -137,7 +138,9 @@ async function mapWithConcurrency<T, R>(
 
 // ─── Enrich ──────────────────────────────────────────────────────────────────
 export async function enrichBagniPdf(opts: BgnPdfPayload): Promise<BgnPdfEnriched> {
-  const { progetto, computo, media } = opts;
+  const { progetto, media } = opts;
+  // I prodotti del listino portano la loro foto: nel PDF entra come immagine incorporata (mai un link da scaricare).
+  const computo = await inlineImmaginiVoci(opts.computo);
   const companyId = progetto.company_id;
 
   // 1) Template: fresco da DB se non passato (riflette l'ultimo salvataggio).

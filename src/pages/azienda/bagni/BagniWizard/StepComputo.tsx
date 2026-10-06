@@ -125,6 +125,9 @@ export default function StepComputo({ progettoId, initialComputo, initialDirty =
       margine_pct: v.margine_pct,
       listino_voce_id: v.listino_voce_id,
       fonte: v.fonte,
+      famiglia_id: v.famiglia_id ?? null,
+      immagine_url: v.immagine_url ?? null,
+      descrizione_estesa: v.descrizione_estesa ?? null,
       ordine: v.ordine ?? i,
     }));
 

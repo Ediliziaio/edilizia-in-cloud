@@ -36,6 +36,7 @@ interface ContactRow {
   meta_ad_id?: string | null;
   fbc?: string | null;
   fbp?: string | null;
+  meta_lead_id?: string | null;
   created_at?: string | null;
 }
 
@@ -266,7 +267,7 @@ async function getContact(adminClient: any, companyId: string, contactId: string
   const { data, error } = await adminClient
     .from("marketing_contacts")
     .select(
-      "id, company_id, first_name, last_name, email, phone, source, source_campaign_id, attr_source, attr_medium, attr_campaign, attr_content, meta_campaign_id, meta_adset_id, meta_ad_id, fbc, fbp, created_at",
+      "id, company_id, first_name, last_name, email, phone, source, source_campaign_id, attr_source, attr_medium, attr_campaign, attr_content, meta_campaign_id, meta_adset_id, meta_ad_id, meta_lead_id, fbc, fbp, created_at",
     )
     .eq("company_id", companyId)
     .eq("id", contactId)
@@ -327,9 +328,14 @@ function buildCapiPayload(
     external_id: contact.id,
     fbc,
     fbp,
+    // Campagne con modulo lead: Meta abbina l'esito al lead originale solo con questo identificativo.
+    lead_id: contact.meta_lead_id,
   });
   const customData: Record<string, string | number | string[]> = {
     source: "crm",
+    // Formato «Conversions API for CRM» di Meta: dice a Meta che l'esito viene dal gestionale.
+    event_source: "crm",
+    lead_event_source: "Edilizia in Cloud",
     crm_event_kind: event.event_kind,
     currency: "EUR",
   };
