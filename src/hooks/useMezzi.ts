@@ -10,6 +10,7 @@ import type {
   MezzoDisponibilita, MezzoDocumento, MezzoFoto, MezzoInCarico, MezzoInventario, MezzoManutenzione, MezzoScadenza,
   MezzoScansione, MezzoSegnalazione, SchedaCampoAttrezzo, SegnalazioneStato, SegnalazioneTipo,
 } from "@/types/mezzi";
+import type { MontaggioInCorso } from "@/lib/mezzi/gruppiMezzi";
 import { toast } from "sonner";
 
 const BUCKET = "mezzi-documenti";
@@ -26,6 +27,8 @@ const chiavi = {
   segnalazioni: (mezzoId: string | undefined) => ["mezzi", "segnalazioni", mezzoId] as const,
   segnalazioniAperte: (companyId: string | null) => ["mezzi", "segnalazioni-aperte", companyId] as const,
   costiParco: (companyId: string | null) => ["mezzi", "costi-parco", companyId] as const,
+  documentiRegistrati: (companyId: string | null) => ["mezzi", "documenti-registrati", companyId] as const,
+  montaggiInCorso: (companyId: string | null) => ["mezzi", "montaggi-in-corso", companyId] as const,
   commessa: (orderId: string | undefined) => ["mezzi", "commessa", orderId] as const,
   inCarico: (userId: string | undefined) => ["mezzi", "in-carico", userId] as const,
   categorie: (companyId: string | null) => ["mezzi", "categorie", companyId] as const,
@@ -656,6 +659,46 @@ export function useAggiornaSegnalazione() {
   });
 }
 
+// ── Documenti registrati ─────────────────────────────────────────────────────
+
+/** Il server restituisce al massimo mille righe per volta. */
+const PAGINA_DOCUMENTI = 1000;
+
+/**
+ * Le categorie di documento registrate per ogni mezzo (06/10/2026): per dire
+ * nella pagina dei mezzi cosa manca (assicurazione, bollo, revisione…). Si
+ * aggiorna con ogni modifica ai mezzi (chiave sotto «mezzi»). A pagine: con
+ * anni di rinnovi le righe passano le mille, e una lasciata fuori sarebbe un
+ * falso «Manca».
+ */
+export function useDocumentiRegistrati() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiavi.documentiRegistrati(companyId),
+    enabled: !!companyId,
+    queryFn: async (): Promise<Map<string, Set<string>>> => {
+      const per = new Map<string, Set<string>>();
+      for (let da = 0; ; da += PAGINA_DOCUMENTI) {
+        const { data, error } = await supabase
+          .from("mezzi_documenti")
+          .select("id, mezzo_id, categoria")
+          .eq("company_id", companyId!)
+          .order("id", { ascending: true })
+          .range(da, da + PAGINA_DOCUMENTI - 1);
+        if (error) throw error;
+        const righe = (data ?? []) as Array<{ mezzo_id: string; categoria: string }>;
+        for (const r of righe) {
+          const set = per.get(r.mezzo_id) ?? new Set<string>();
+          set.add(r.categoria);
+          per.set(r.mezzo_id, set);
+        }
+        if (righe.length < PAGINA_DOCUMENTI) return per;
+      }
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
 // ── Costi del parco ──────────────────────────────────────────────────────────
 
 /**
@@ -778,6 +821,42 @@ export function useMontaggiDellaCommessa(orderId: string | undefined) {
           quantita: Number(r.quantita), dal: r.dal, al: r.al, adesso: !r.al || r.al > oggi,
         }))
         .sort((a, b) => Number(b.adesso) - Number(a.adesso) || a.nome.localeCompare(b.nome));
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
+/**
+ * I montaggi in corso di tutte le attrezzature a quantità dell'azienda
+ * (06/10/2026): nella vista «Dove sono» i ponteggi stanno sotto ogni cantiere
+ * dove sono montati. In corso = non ancora smontati (al vuoto o nel futuro),
+ * come in mezzi_disponibilita.
+ */
+export function useMontaggiInCorso() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: chiavi.montaggiInCorso(companyId),
+    enabled: !!companyId,
+    queryFn: async (): Promise<MontaggioInCorso[]> => {
+      const oggi = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
+      const { data, error } = await db
+        .from("mezzi_allocazioni")
+        .select("mezzo_id, order_id, luogo, quantita, commessa:orders!mezzi_allocazioni_order_id_fkey(order_code, client_name, client_company)")
+        .eq("company_id", companyId)
+        .or(`al.is.null,al.gt.${oggi}`);
+      if (error) throw error;
+      type Riga = {
+        mezzo_id: string; order_id: string | null; luogo: string | null; quantita: number;
+        commessa: { order_code: string | null; client_name: string | null; client_company: string | null } | null;
+      };
+      return ((data ?? []) as Riga[]).map((r) => ({
+        mezzoId: r.mezzo_id,
+        orderId: r.order_id,
+        dove: r.commessa
+          ? [r.commessa.order_code, r.commessa.client_company || r.commessa.client_name].filter(Boolean).join(" · ")
+          : (r.luogo ?? "").trim(),
+        quantita: Number(r.quantita),
+      }));
     },
     staleTime: 60 * 1000,
   });
