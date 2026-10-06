@@ -131,6 +131,14 @@ describe("economia delle lavorazioni (la tabella in cima)", () => {
     expect(screen.getByText(/1 lavorazione senza venduto/)).toBeInTheDocument();
   });
 
+  it("nessuna lavorazione col venduto: un trattino, non zero euro, e tutto il contratto da ripartire", () => {
+    const senza = economiaFasi({ fasi: [{ id: "f1" }], righe: [], assegnazioni: [{ phase_id: "f1", source: "employee", cost_preventivo: 100, cost_consuntivo: 0 }] });
+    render(<RiepilogoEconomicoFasi economia={senza} fasi={[{ id: "f1", name: "Demolizioni", status: "in_corso" }]} importoContratto={85000} vedeVenduto vedeCosti vedeMargini />);
+    expect(screen.getByText("Venduto", { selector: "summary span" }).querySelector("b")).toHaveTextContent("—");
+    expect(riga("Totale lavorazioni")).toHaveTextContent("—100,00 €0,00 €—");
+    expect(screen.getByText("85.000,00 € del contratto da ripartire")).toBeInTheDocument();
+  });
+
   it("chi può scrive il venduto di ogni fase dalla tabella", () => {
     const salva = vi.fn();
     render(<RiepilogoEconomicoFasi economia={conti} fasi={fasiTabella} vedeVenduto vedeCosti vedeMargini onSalvaVenduto={salva} />);

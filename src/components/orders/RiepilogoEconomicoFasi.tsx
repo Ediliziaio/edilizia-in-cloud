@@ -42,6 +42,8 @@ export function RiepilogoEconomicoFasi({
   const contratto = vedeVenduto && importoContratto && importoContratto > 0 ? importoContratto : null;
   const daRipartire = contratto != null ? Math.round((contratto - t.venduto) * 100) / 100 : 0;
   const fuoriConta = fuori.fonteVenduto !== null || fuori.costoPrevisto > 0 || fuori.costoConsuntivo > 0;
+  // Nessuna fase col venduto: un trattino, non «0,00 €».
+  const vendutoTotale = t.fonteVenduto !== null ? eur.format(t.venduto) : "—";
   // Il margine del totale: solo se ogni fase ha il venduto (altrimenti i costi
   // di quelle senza lo abbasserebbero per finta), sul consuntivo solo a lavori finiti.
   const tutteChiuse = fasi.length > 0 && fasi.every((f) => f.status === "completata");
@@ -54,7 +56,7 @@ export function RiepilogoEconomicoFasi({
           <span aria-hidden="true" className="mr-1.5 inline-block text-muted-foreground transition-transform group-open:rotate-90">▸</span>
           Economia delle lavorazioni
         </span>
-        {vedeVenduto && <span className="text-muted-foreground">Venduto <b className="font-semibold text-foreground">{eur.format(t.venduto)}</b></span>}
+        {vedeVenduto && <span className="text-muted-foreground">Venduto <b className="font-semibold text-foreground">{vendutoTotale}</b></span>}
         {vedeCosti && <span className="text-muted-foreground">Costo previsto <b className="font-semibold text-foreground">{eur.format(t.costoPrevisto)}</b></span>}
         {vedeCosti && (
           <span className="text-muted-foreground">
@@ -112,7 +114,7 @@ export function RiepilogoEconomicoFasi({
           <tfoot className="border-t bg-muted/20">
             <tr className="font-semibold">
               <th scope="row" className="px-3 py-1.5 text-left">Totale lavorazioni</th>
-              {vedeVenduto && <td className={TD}>{eur.format(t.venduto)}</td>}
+              {vedeVenduto && <td className={TD}>{vendutoTotale}</td>}
               {vedeCosti && <td className={TD}>{eur.format(t.costoPrevisto)}</td>}
               {vedeCosti && <td className={cn(TD, sforato && "text-rose-700")}>{eur.format(t.costoConsuntivo)}</td>}
               {colMargine && (
