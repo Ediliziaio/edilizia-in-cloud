@@ -225,6 +225,8 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
   const phaseOptions = phases.map(p => ({ id: p.id, name: p.name }));
   const completedCount = phases.filter(p => p.status === "completata").length;
   const groupCompleted = filter === "all" && !search.trim();
+  // Filtri e ricerca servono con tante fasi, o se sono già in uso.
+  const mostraFiltri = phases.length > 6 || filter !== "all" || !!search.trim();
   const visiblePhases = phases.filter(p => matchesWorkFilter(p, filter, today, fasiConSquadra) && p.name.toLocaleLowerCase("it").includes(search.trim().toLocaleLowerCase("it")) && (!view || !groupCompleted || showCompleted || p.status !== "completata"));
   const [newPhaseName, setNewPhaseName] = useState("");
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null);
@@ -271,25 +273,15 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
     return updateAssignment.mutateAsync({ id, source, patch });
   };
 
-  return (
-    <Card className="shadow-none">
-      <CardHeader className="gap-4 p-3 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          {/* Dentro le schede della commessa il titolo ripeterebbe la scheda stessa
-              e la sua descrizione: resta solo per chi usa uno screen reader. */}
-          <div className={cn("space-y-1", view && "sr-only")}>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <HardHat className="h-5 w-5 text-primary" />
-            {view === "squadra" ? "Squadra e mezzi" : view === "lavorazioni" ? "Lavorazioni" : "Lavori e squadre"}
-          </CardTitle>
-          <p className="text-sm text-muted-foreground max-sm:hidden">{view === "squadra" ? "Organizza persone, ditte, mezzi e istruzioni." : "Segui le fasi del lavoro. Apri una fase per gestirne i dettagli."}</p>
-          </div>
-
-          {(canEditOrders || puoSquadre) && <div className={cn("flex flex-wrap items-center gap-2", view && "sm:ml-auto")}>
+  // Le azioni della scheda: in cima da sole fuori dalla commessa, sulla riga
+  // del riepilogo dentro la commessa (06/10/2026: prima una riga intera vuota
+  // col solo «Aggiungi fasi»).
+  const azioniCommessa = (canEditOrders || puoSquadre) ? (
+          <>
             {/* Tre cose sole, sempre nello stesso ordine: le fasi, chi lavora,
                 e (a parte) persone e ditte con i costi. */}
             {canEditOrders && showWork && (
-              <Button size="sm" className="min-h-11 border border-orange-700 bg-orange-700 px-4 font-semibold text-white shadow-sm hover:bg-orange-800" onClick={() => setNewPhaseOpen(true)}>
+              <Button size="sm" className="border border-orange-700 bg-orange-700 px-4 font-semibold text-white shadow-sm hover:bg-orange-800 max-sm:min-h-11 max-sm:flex-1" onClick={() => setNewPhaseOpen(true)}>
                 <ListPlus className="mr-1 h-4 w-4" />Aggiungi fasi
               </Button>
             )}
@@ -420,14 +412,33 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
               </DialogContent>
             </Dialog>
             </>}
+          </>
+  ) : null;
+
+  return (
+    <Card className="shadow-none">
+      <CardHeader className={cn("gap-3 p-3", view ? "sm:px-4 sm:pb-2 sm:pt-3" : "sm:p-6")}>
+        <div className={cn("flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between", view && "contents")}>
+          {/* Dentro le schede della commessa il titolo ripeterebbe la scheda stessa
+              e la sua descrizione: resta solo per chi usa uno screen reader. */}
+          <div className={cn("space-y-1", view && "sr-only")}>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <HardHat className="h-5 w-5 text-primary" />
+            {view === "squadra" ? "Squadra e mezzi" : view === "lavorazioni" ? "Lavorazioni" : "Lavori e squadre"}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground max-sm:hidden">{view === "squadra" ? "Organizza persone, ditte, mezzi e istruzioni." : "Segui le fasi del lavoro. Apri una fase per gestirne i dettagli."}</p>
+          </div>
+
+          {!view && (canEditOrders || puoSquadre) && <div className="flex flex-wrap items-center gap-2">
+            {azioniCommessa}
           </div>}
         </div>
 
         {/* Una riga al posto dei riquadri: quante squadre, operai, ditte e
             lavorazioni, e i collegamenti ad app e rapportini. */}
-        {!isLoading && !isError && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-600">
-            <span className="tabular-nums">
+        {(view || (!isLoading && !isError)) && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
+            {!isLoading && !isError && <span className="tabular-nums">
               <b className="font-semibold text-slate-900">{phases.length}</b> {phases.length === 1 ? "fase" : "fasi"}
               {summary.active > 0 && <> ({summary.active} in corso)</>}
               {(!view || squadreAttive.length > 0) && <>{" · "}<b className="font-semibold text-slate-900">{squadreAttive.length}</b> {squadreAttive.length === 1 ? "squadra" : "squadre"}</>}
@@ -435,12 +446,13 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
               {summary.employees > 0 && <>{" · "}<b className="font-semibold text-slate-900">{summary.employees}</b> {summary.employees === 1 ? "operaio assegnato individualmente" : "operai assegnati individualmente"}</>}
               {summary.teams > 0 && <> · <b className="font-semibold text-slate-900">{summary.teams}</b> {summary.teams === 1 ? "ditta" : "ditte"}</>}
               {(!view || note.length > 0) && <>{" · "}<b className="font-semibold text-slate-900">{note.length}</b> {note.length === 1 ? "nota" : "note"}</>}
-            </span>
-            <span className="flex items-center gap-1 sm:ml-auto">
+            </span>}
+            <span className="flex flex-wrap items-center gap-1.5 sm:ml-auto max-sm:w-full">
               {onOpenReports && <Button variant="ghost" size="sm" className="h-8" aria-label="Vai ai rapportini" onClick={onOpenReports}>Rapportini</Button>}
               {showWork && summary.attention > 0 && <Button variant="ghost" size="sm" className="h-8 text-amber-700" onClick={() => {
                 setFilter("attention"); setSearch(""); phaseList.current?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}><AlertTriangle className="mr-1.5 h-4 w-4" />Verifica {summary.attention} lavorazioni</Button>}
+              {view && azioniCommessa}
             </span>
           </div>
         )}
@@ -455,7 +467,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
         )}
       </CardHeader>
 
-      <CardContent className="space-y-5 px-3 pb-3 sm:px-6 sm:pb-6">
+      <CardContent className={cn("px-3 pb-3", view ? "space-y-3 sm:px-4 sm:pb-4" : "space-y-5 sm:px-6 sm:pb-6")}>
         {/* Dove si trova, quanta strada dalla sede, mezzi e attrezzi */}
         {showTeam && <CantiereLogistica orderId={orderId} showSiteEquipment={view !== "squadra"} />}
 
@@ -495,9 +507,6 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
         )}
 
         {showWork && <>
-        {(phases.length > 0 || unassigned.length > 0 || isLoading || isError) && (
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fasi di lavoro</h3>
-        )}
         <div ref={phaseList} className="scroll-mt-24" />
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
@@ -518,15 +527,18 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
           null
         ) : (
           <>
-            {(phases.length > 6 || filter !== "all" || search.trim()) && <div className="space-y-3 pb-1">
-              <div className="flex flex-wrap gap-1.5" aria-label="Filtra lavorazioni">
+            {/* Una riga sola (06/10/2026): titolo, filtri, ricerca e completate
+                stavano su quattro righe, con tanto spazio vuoto. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="mr-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Fasi di lavoro</h3>
+              {mostraFiltri && <div className="flex flex-wrap gap-1" aria-label="Filtra lavorazioni">
                 {([["all", "Tutte"], ["in_corso", "In corso"], ["da_iniziare", "Da iniziare"], ["attention", "Da organizzare"], ["completata", "Completate"]] as const).map(([value, label]) =>
-                  <Button key={value} size="sm" variant={filter === value ? "secondary" : "ghost"} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</Button>)}
-              </div>
-              <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input className="pl-9" aria-label="Cerca lavorazione" placeholder="Cerca una lavorazione…" value={search} onChange={e => setSearch(e.target.value)} /></div>
-            </div>}
+                  <Button key={value} size="sm" className="h-8" variant={filter === value ? "secondary" : "ghost"} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</Button>)}
+              </div>}
+              {mostraFiltri && <div className="relative min-w-[12rem] flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="h-9 pl-9" aria-label="Cerca lavorazione" placeholder="Cerca una lavorazione…" value={search} onChange={e => setSearch(e.target.value)} /></div>}
+              {view && groupCompleted && completedCount > 0 && <Button variant="outline" size="sm" className={cn("h-8", !mostraFiltri && "ml-auto")} aria-expanded={showCompleted} onClick={() => setShowCompleted(value => !value)}>{showCompleted ? "Nascondi" : "Mostra"} {completedCount} {completedCount === 1 ? "fase completata" : "fasi completate"}</Button>}
+            </div>
             {phases.length > 0 && visiblePhases.length === 0 && <p role="status" className="py-3 text-sm text-muted-foreground">{view && groupCompleted && completedCount > 0 && !showCompleted ? "Le lavorazioni sono completate. Verifica eventuali attività aperte e il collaudo prima della consegna." : "Nessuna lavorazione corrisponde ai filtri."}</p>}
-            {view && groupCompleted && completedCount > 0 && <Button variant="outline" size="sm" aria-expanded={showCompleted} onClick={() => setShowCompleted(value => !value)}>{showCompleted ? "Nascondi" : "Mostra"} {completedCount} {completedCount === 1 ? "fase completata" : "fasi completate"}</Button>}
             {visiblePhases.map((phase) => (
               <PhaseCard
                 key={phase.id}

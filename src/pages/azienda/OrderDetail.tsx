@@ -56,7 +56,8 @@ import { OrderHeaderSummary, VoceRiepilogo } from "@/components/orders/OrderHead
 import { useConteggiCommessa } from "@/hooks/useConteggiCommessa";
 import { OrderDetailNavigation } from "@/components/orders/OrderDetailNavigation";
 import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
-import { CantiereViewNav } from "@/components/orders/CantiereViewNav";
+import { CantiereViewNav, VISTE_SOLO_SCHERMO_GRANDE } from "@/components/orders/CantiereViewNav";
+import { CronoprogrammaCommessa } from "@/components/orders/CronoprogrammaCommessa";
 import { OrderWorkspaceNav } from "@/components/orders/OrderWorkspaceNav";
 import { OrderDisclosure } from "@/components/orders/OrderDisclosure";
 import { ECONOMIA_VIEWS, MATERIALI_VIEWS, isOrderDetailTab, type OrderDetailSection } from "@/lib/orders/detailNavigation";
@@ -241,6 +242,8 @@ interface OrderDetail {
   warehouse_arrival_date: string | null;
   work_start_date: string | null;
   work_end_date: string | null;
+  /** Preventivo da cui nasce la commessa: la sua firma è la data del contratto. */
+  quote_id?: string | null;
   // ── Modulo Appaltatori (default: order_type='cliente') ─────────────
   order_type: "cliente" | "appaltatore_lavoro" | null;
   work_address: string | null;
@@ -373,6 +376,8 @@ function OrderDetailInner() {
   const { activeTab, activeCantiereView, activeEconomiaView, activeMaterialiView, navigateTo } = useOrderDetailNavigation(
     !!order?.id && !orderLoading && !(variationsEnabled && (variations.isPending || variations.isError)),
   );
+  // Il cronoprogramma è solo da tablet e computer: un link aperto da telefono mostra Lavorazioni.
+  const vistaCantiere = isMobile && VISTE_SOLO_SCHERMO_GRANDE.has(activeCantiereView) ? "lavorazioni" : activeCantiereView;
   const agreedAmount = agreedContractValue(order?.total_amount ?? 0, variations.data ?? []);
 
   // Fetch order installments from DB
@@ -2094,25 +2099,34 @@ function OrderDetailInner() {
           <TabsContent value="cantiere" className="space-y-4 mt-4">
             <div id="cantiere-workspace" className="scroll-mt-24">
               <CantiereViewNav
-                value={activeCantiereView}
+                value={vistaCantiere}
                 onChange={cantiereView => navigateTo({ tab: "cantiere", cantiereView })}
                 counts={{ lavorazioni: conteggiViste?.lavorazioni, diario: conteggiViste?.rapportini, collaudo: conteggiViste?.verbali }}
               />
             </div>
-            {(activeCantiereView === "lavorazioni" || activeCantiereView === "squadra") && <>
-            {activeCantiereView === "lavorazioni" && <div id="section-attivita" className="scroll-mt-24">
+            {(vistaCantiere === "lavorazioni" || vistaCantiere === "squadra") && <>
+            {vistaCantiere === "lavorazioni" && <div id="section-attivita" className="scroll-mt-24">
               <LinkedTasks orderId={id} category="ordini" />
             </div>}
-            <div id={activeCantiereView === "squadra" ? "section-squadra" : "section-lavorazioni"} className="scroll-mt-24">
+            <div id={vistaCantiere === "squadra" ? "section-squadra" : "section-lavorazioni"} className="scroll-mt-24">
               <OrderWorkPhases orderId={id!} orderCode={order.order_code}
-                view={activeCantiereView}
+                view={vistaCantiere}
                 onOpenReports={() => navigateTo({ tab: "cantiere", section: "section-rapportini" })} />
             </div>
             </>}
-            {activeCantiereView === "squadra" && <div id="section-mezzi" className="scroll-mt-24">
+            {vistaCantiere === "cronoprogramma" && <div id="section-cronoprogramma" className="scroll-mt-24">
+              <ErrorBoundary>
+                <CronoprogrammaCommessa
+                  orderId={id!}
+                  order={order}
+                  onOpenLavorazioni={() => navigateTo({ tab: "cantiere", cantiereView: "lavorazioni" })}
+                />
+              </ErrorBoundary>
+            </div>}
+            {vistaCantiere === "squadra" && <div id="section-mezzi" className="scroll-mt-24">
               <ErrorBoundary><MezziCommessaCard orderId={id!} /></ErrorBoundary>
             </div>}
-            {activeCantiereView === "lavorazioni" && <>
+            {vistaCantiere === "lavorazioni" && <>
             <details className="rounded-lg border bg-white">
               <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
                 Date e appuntamenti
@@ -2137,7 +2151,7 @@ function OrderDetailInner() {
               </div>
             </details>
             </>}
-            {activeCantiereView === "diario" && <>
+            {vistaCantiere === "diario" && <>
             <div id="section-rapportini" className="scroll-mt-24">
               <OrdineRapportiniCampo orderId={id!} />
             </div>
@@ -2154,7 +2168,7 @@ function OrderDetailInner() {
               </OrderDisclosure>
             )}
             </>}
-            {activeCantiereView === "collaudo" && companyId && (
+            {vistaCantiere === "collaudo" && companyId && (
               <OrderAcceptanceReports
                 key={id}
                 orderId={id!}
