@@ -24,6 +24,12 @@ export interface PickedVoce {
   listino_voce_id?: string | null;
   /** Prezzario regionale d'origine (citazione base d'asta). NULL/assente = voce libera. */
   fonte?: string | null;
+  /** Prodotto del listino prodotti da cui viene la riga (article_families.id). Assente = voce di lavorazione, manodopera o libera. */
+  famiglia_id?: string | null;
+  /** Foto del prodotto, copiata dal listino alla scelta. Assente = niente foto. */
+  immagine_url?: string | null;
+  /** Descrizione del prodotto, copiata dal listino alla scelta. Assente = niente descrizione. */
+  descrizione_estesa?: string | null;
 }
 
 /** Sorgente di una voce nel picker (per badge + raggruppamento). */
@@ -57,6 +63,9 @@ export function pickedToComputoVoce(
     margine_pct: 0,
     listino_voce_id: picked.listino_voce_id ?? null,
     fonte: picked.fonte ?? null,
+    famiglia_id: picked.famiglia_id ?? null,
+    immagine_url: picked.immagine_url ?? null,
+    descrizione_estesa: picked.descrizione_estesa ?? null,
     ordine: opts.ordine,
   };
 }

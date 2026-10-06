@@ -20,6 +20,12 @@ export interface RstComputoVoce {
   fonte?: string | null;
   /** Ambiente/stanza di pertinenza (computo per ambiente). NULL = non assegnato. */
   ambiente?: string | null;
+  /** Il prodotto del listino prodotti da cui viene la riga (article_families.id): tracciabilità, nessuna chiave esterna. */
+  famiglia_id?: string | null;
+  /** La foto del prodotto, copiata dal listino quando la voce è stata scelta (percorso dell'app o link pubblico). */
+  immagine_url?: string | null;
+  /** La descrizione del prodotto, copiata dal listino quando la voce è stata scelta. */
+  descrizione_estesa?: string | null;
 }
 export interface RstProgetto {
   /** Il modello della libreria congelato nel preventivo (lib/moduli/modelloPreventivo). */

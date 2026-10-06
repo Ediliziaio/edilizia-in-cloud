@@ -9,6 +9,7 @@
 import { memo } from "react";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MiniaturaProdotto } from "./MiniaturaProdotto";
 import {
   type AnteprimaPreventivo,
   type VistaAnteprima,
@@ -144,11 +145,18 @@ function AnteprimaVeloceBase({ dati, vista = "cliente", evidenzia, className }: 
                       className={cn("border-b border-slate-100 align-top transition-colors", evidenzia === r.id && "bg-orange-50")}
                     >
                       <td className="py-1.5 pr-1">
-                        <p className="break-words font-semibold">{r.titolo}</p>
-                        {r.dettaglio && <p className="break-words text-[10.5px] text-slate-500">{r.dettaglio}</p>}
-                        {!impresa && r.prezzoUnitario != null && r.prezzoUnitario > 0 && r.quantita > 1 && (
-                          <p className="text-[10.5px] text-slate-400">{formattaEuro(r.prezzoUnitario)} {perUnita(r.unita)}</p>
-                        )}
+                        {/* Un prodotto del listino ha la sua foto, a sinistra del nome: senza foto la riga è quella di sempre. */}
+                        <div className="flex items-start gap-2">
+                          <MiniaturaProdotto src={r.immagineUrl} className="h-9 w-9" />
+                          <div className="min-w-0 flex-1">
+                            <p className="break-words font-semibold">{r.titolo}</p>
+                            {r.descrizione && <p className="line-clamp-2 break-words text-[10.5px] leading-snug text-slate-500">{r.descrizione}</p>}
+                            {r.dettaglio && <p className="break-words text-[10.5px] text-slate-500">{r.dettaglio}</p>}
+                            {!impresa && r.prezzoUnitario != null && r.prezzoUnitario > 0 && r.quantita > 1 && (
+                              <p className="text-[10.5px] text-slate-400">{formattaEuro(r.prezzoUnitario)} {perUnita(r.unita)}</p>
+                            )}
+                          </div>
+                        </div>
                       </td>
                       <td className="whitespace-nowrap py-1.5 text-right tabular-nums">{formattaQuantita(r.quantita, r.unita)}</td>
                       {impresa && (

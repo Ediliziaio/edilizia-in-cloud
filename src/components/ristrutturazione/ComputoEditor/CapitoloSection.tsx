@@ -124,6 +124,10 @@ export default function CapitoloSection({
         capitolo_nome: nome,
         listino_voce_id: voci[idx].listino_voce_id,
         fonte: voci[idx].fonte,
+        // Il prodotto del listino si porta dietro foto e descrizione anche quando la riga si duplica.
+        famiglia_id: voci[idx].famiglia_id,
+        immagine_url: voci[idx].immagine_url,
+        descrizione_estesa: voci[idx].descrizione_estesa,
       },
       { progetto_id: progettoId, company_id: companyId, capitolo_nome: nome, ordine: idx + 1 },
     );

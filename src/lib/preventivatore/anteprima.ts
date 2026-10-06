@@ -19,6 +19,10 @@ export interface RigaAnteprima {
   titolo: string;
   /** Una sola riga di dettagli: serie, apertura, colori, misure. */
   dettaglio?: string | null;
+  /** La foto del prodotto del listino, se la riga viene da lì (percorso dell'app o link pubblico). Senza: niente. */
+  immagineUrl?: string | null;
+  /** La descrizione del prodotto del listino. Senza: niente. */
+  descrizione?: string | null;
   quantita: number;
   /** «pz», «mq», «a corpo»: vuoto = pezzi. */
   unita?: string | null;

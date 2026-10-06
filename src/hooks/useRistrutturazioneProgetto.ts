@@ -353,6 +353,9 @@ export function useClonaProgetto() {
           margine_pct: v.margine_pct,
           listino_voce_id: v.listino_voce_id ?? null,
           fonte: v.fonte ?? null,
+          famiglia_id: v.famiglia_id ?? null,
+          immagine_url: v.immagine_url ?? null,
+          descrizione_estesa: v.descrizione_estesa ?? null,
           ambiente: v.ambiente ?? null,
           ordine: v.ordine ?? idx,
         }));
@@ -446,6 +449,9 @@ export function useSaveComputo(progettoId: string | undefined) {
             margine_pct,
             listino_voce_id: r.listino_voce_id ?? null,
             fonte: r.fonte ?? null,
+            famiglia_id: r.famiglia_id ?? null,
+            immagine_url: r.immagine_url ?? null,
+            descrizione_estesa: r.descrizione_estesa ?? null,
             ambiente: r.ambiente ?? null,
             ordine: r.ordine ?? idx,
           };

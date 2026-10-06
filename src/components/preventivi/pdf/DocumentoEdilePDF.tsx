@@ -101,6 +101,9 @@ function stimaTesta(tema: TemaDocumento, titolo: string, sommario?: string | nul
 }
 
 const STIMA_TITOLINO = 7 * 1.2 + 5 + 1 + 8;
+/** La miniatura di un prodotto del listino nella riga del piano dei lavori (quadrata) e lo stacco dal testo. */
+const FOTO_VOCE = 38;
+const STACCO_FOTO_VOCE = 8;
 
 function stimaSchede(tema: TemaDocumento, voci: DocEdileVoceElenco[], colonne: 2 | 3): number {
   let totale = 0;
@@ -571,9 +574,19 @@ function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostr
   const cella = { fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.inchiostro } as const;
   const riga = (v: DocEdileCapitolo["voci"][number]) => (
     <View key={v.id} wrap={false} style={{ flexDirection: "row", paddingVertical: 6, borderTopWidth: 0.6, borderTopColor: tema.filetto }}>
-      <View style={{ flex: 1, paddingLeft: 28, paddingRight: 8 }}>
-        <Text style={[cella, { lineHeight: 1.35 }]}>{v.descrizione}</Text>
-        {v.fonte ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 1.5 }}>{`Fonte: ${v.fonte}`}</Text> : null}
+      <View style={{ flex: 1, paddingLeft: 28, paddingRight: 8, ...(v.foto ? { flexDirection: "row" as const } : {}) }}>
+        {/* Un prodotto scelto dal listino porta la sua foto e la sua descrizione; le altre righe restano com'erano. */}
+        {v.foto ? (
+          <Image
+            src={v.foto}
+            style={{ width: FOTO_VOCE, height: FOTO_VOCE, marginRight: STACCO_FOTO_VOCE, objectFit: "contain", borderWidth: 0.6, borderColor: tema.filetto, borderRadius: 3 }}
+          />
+        ) : null}
+        <View style={v.foto ? { flex: 1 } : undefined}>
+          <Text style={[cella, { lineHeight: 1.35 }]}>{v.descrizione}</Text>
+          {v.dettaglio ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigio, marginTop: 2, lineHeight: 1.4 }}>{v.dettaglio}</Text> : null}
+          {v.fonte ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 1.5 }}>{`Fonte: ${v.fonte}`}</Text> : null}
+        </View>
       </View>
       {mostraQta ? <Text style={[cella, { width: 40, textAlign: "center", color: tema.grigio }]}>{v.unitaMisura ?? ""}</Text> : null}
       {mostraQta ? <Text style={[cella, { width: 44, textAlign: "right" }]}>{quantita(v.quantita)}</Text> : null}
@@ -1293,7 +1306,11 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       for (const cap of capitoli) {
         metti(6 + 17 + 1.2 + 6 + 6.5 * 1.2 + 4, 50);
         for (const v of cap.voci) {
-          metti(12.6 + Math.max(9 * 1.2, altezzaTesto(v.descrizione, larga - 3, fam(tema.caratteri.testo), 9, 1.35) + (v.fonte ? 1.5 + 7 * 1.2 : 0)));
+          // La miniatura toglie larghezza al testo e dà un'altezza minima alla riga; la descrizione del prodotto ne aggiunge.
+          const toltaDallaFoto = v.foto ? FOTO_VOCE + STACCO_FOTO_VOCE : 0;
+          const dettaglio = v.dettaglio ? 2 + altezzaTesto(v.dettaglio, larga - toltaDallaFoto, fam(tema.caratteri.testo), 8, 1.4) : 0;
+          const testo = altezzaTesto(v.descrizione, larga - 3 - toltaDallaFoto, fam(tema.caratteri.testo), 9, 1.35) + dettaglio + (v.fonte ? 1.5 + 7 * 1.2 : 0);
+          metti(12.6 + Math.max(9 * 1.2, v.foto ? FOTO_VOCE : 0, testo));
         }
         usato = Math.min(ALTEZZA_UTILE, usato + 16);
       }

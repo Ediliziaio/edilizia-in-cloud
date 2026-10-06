@@ -23,6 +23,7 @@ import {
 } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 import { conOrigine, fotoPerIlPdf } from "@/lib/pdf/fotoBlocchi";
 import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
+import { descrizioneBreve } from "@/lib/moduli/testoProdotto";
 import type {
   DocEdileCapitolo, DocEdileDati, DocEdileFoto, DocEdileModello, DocEdileModulo,
   DocEdileOpzioniComputo, DocEdileTotali, DocEdileVoceElenco, DocEdileFaq, DocEdileFase,
@@ -72,6 +73,9 @@ export interface VoceComune {
   costo_materiali?: number | null;
   costo_manodopera?: number | null;
   fonte?: string | null;
+  /** Prodotto scelto dal listino prodotti: la sua foto (già incorporata nel PDF) e la sua descrizione. */
+  immagine_url?: string | null;
+  descrizione_estesa?: string | null;
 }
 
 export interface AziendaComune {
@@ -374,6 +378,9 @@ export function costruisciDatiEdile(input: {
         prezzoUnitario: Number(v.prezzo_unitario) || 0,
         importo,
         fonte: v.fonte ?? null,
+        // Il prodotto del listino porta foto e descrizione; le altre righe no, e non si inventa niente.
+        foto: stringa(v.immagine_url),
+        dettaglio: descrizioneBreve(v.descrizione_estesa),
         // Riga venduta senza costo: margine non noto, il PDF stampa «—» (05/10/2026).
         margineEur: importo > 0 && costo <= 0 ? null : importo - costo,
       };

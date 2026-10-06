@@ -23,6 +23,10 @@ export interface DocEdileVoce {
   importo: number;
   /** Citazione della fonte del prezzo (base d'asta): discreta, solo se c'è. */
   fonte?: string | null;
+  /** La foto del prodotto del listino, già incorporata (data URL): miniatura a sinistra della riga. Senza: niente. */
+  foto?: string | null;
+  /** La descrizione del prodotto del listino, accorciata: sotto il nome. Senza: niente. */
+  dettaglio?: string | null;
   /** Solo documento interno (show_margine): margine in euro della voce. */
   /** null: la riga non ha un costo, il suo margine non si può dire. */
   margineEur?: number | null;

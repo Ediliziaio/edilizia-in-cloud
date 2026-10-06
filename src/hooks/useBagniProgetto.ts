@@ -352,6 +352,9 @@ export function useClonaProgetto() {
           margine_pct: v.margine_pct,
           listino_voce_id: v.listino_voce_id ?? null,
           fonte: v.fonte ?? null,
+          famiglia_id: v.famiglia_id ?? null,
+          immagine_url: v.immagine_url ?? null,
+          descrizione_estesa: v.descrizione_estesa ?? null,
           ordine: v.ordine ?? idx,
         }));
         const { error: iErr } = await sb().from("bgn_computo_voci").insert(rows);
@@ -444,6 +447,9 @@ export function useSaveComputo(progettoId: string | undefined) {
             margine_pct,
             listino_voce_id: r.listino_voce_id ?? null,
             fonte: r.fonte ?? null,
+            famiglia_id: r.famiglia_id ?? null,
+            immagine_url: r.immagine_url ?? null,
+            descrizione_estesa: r.descrizione_estesa ?? null,
             ordine: r.ordine ?? idx,
           };
         });
