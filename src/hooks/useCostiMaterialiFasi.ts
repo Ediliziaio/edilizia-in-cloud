@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import type { MovimentoMagazzino, RigaAcquisto } from "@/lib/orders/economiaFasi";
 
 /**
@@ -15,15 +16,19 @@ const STATI_EMESSI = ["inviato", "confermato", "parziale", "ricevuto"];
 const db = supabase as any;
 
 export function useCostiMaterialiFasi(orderId: string | null | undefined, abilitato: boolean) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
   return useQuery({
-    queryKey: ["costi-materiali-fasi", orderId],
-    enabled: abilitato && !!orderId,
+    queryKey: ["costi-materiali-fasi", companyId, orderId],
+    enabled: abilitato && !!orderId && !!companyId,
     staleTime: 60_000,
     queryFn: async (): Promise<{ acquisti: RigaAcquisto[]; movimenti: MovimentoMagazzino[] }> => {
       const [acquisti, movimenti] = await Promise.all([
         db
           .from("purchase_order_items")
           .select("order_item_id, line_total, purchase_orders!inner(status, order_id)")
+          // l'azienda oltre alla commessa: chi lavora su più aziende le vede tutte
+          .eq("company_id", companyId)
           .eq("purchase_orders.order_id", orderId)
           .in("purchase_orders.status", STATI_EMESSI)
           .not("order_item_id", "is", null),
