@@ -62,9 +62,11 @@ import { useSchedeLinea } from "@/hooks/useSchedeLinea";
 import { lineaDellaRiga, schedaVuota, trovaSchedaLinea } from "@/lib/listino/schedeLinea";
 import { SchedaLineaCompatta } from "./SchedaLineaCompatta";
 import { SceltaVariante } from "./SceltaVariante";
-import { SceltaColore } from "./SceltaColore";
+import { SceltaColoriDentroFuori } from "./SceltaColoriDentroFuori";
 import { gruppiColori, pulisciVoci, scelteDopo, testoScelta, vociDi } from "@/lib/listino/scelteVariante";
-import { schedaPosizione, scelteDaAssi } from "@/lib/serramenti/schedaPosizione";
+import {
+  CODICE_ASSE_COLORE, MISURA_DI_CONFRONTO_MM, PREZZO_DI_CONFRONTO, cambiaLato, fasceDeiLati, leggiColori, sceltaPerIlPrezzo, testiColori, type LatoColore,
+} from "@/lib/serramenti/coloriDentroFuori";
 import { Checkbox } from "@/components/ui/checkbox";
 import { misuraDaTesto, quantitaDaTesto } from "@/lib/serramenti/righePreventivo";
 import { preferenzeDaRiga } from "@/lib/serramenti/pickerListino";
@@ -100,6 +102,7 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
   // La scelta fatta una volta per tutte le righe: la applica ogni riga con il
   // proprio ricalcolo (vedi BulkAssiActions).
   const [richiestaBulk, setRichiestaBulk] = useState<RichiestaBulkAsse | null>(null);
+  const [richiestaBulkColore, setRichiestaBulkColore] = useState<RichiestaBulkColore | null>(null);
   const [richiestaBulkPosa, setRichiestaBulkPosa] = useState<RichiestaBulkPosa | null>(null);
 
   const serramenti = detail.serramenti;
@@ -228,8 +231,9 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
         scelte_assi: item.scelte_assi ?? {},
         // Il disegno si congela ora: un listino cambiato dopo non cambia il PDF di questo preventivo.
         disegno_config: item.disegno_config ?? null,
-        // Il colore lo decide la variabile «Colore»: dentro/fuori si ereditano solo se la riga non ce l'ha.
-        // Se nel selettore sono stati scelti a parte (finestra bicolore) valgono quelli.
+        // Una finestra con la variabile «Colore»: il popup scrive sempre i due colori (anche se uguali) e valgono quelli.
+        // Un complemento con la variabile ha una scelta sola e i due testi vuoti; senza la variabile si ereditano
+        // dall'ultima riga da listino.
         colore_interno: item.colore_interno ?? (item.valori_assi?.colore ? null : (ultimaDaListino?.colore_interno ?? null)),
         colore_esterno: item.colore_esterno ?? (item.valori_assi?.colore ? null : (ultimaDaListino?.colore_esterno ?? null)),
         // La nota della riga è quella del commerciale e il PDF la stampa come
@@ -417,15 +421,9 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
               onApplica={(codice, valore, scelta) =>
                 setRichiestaBulk({ codice, valore, scelta, nonce: Date.now() })
               }
-              onColori={({ interno, esterno }) => {
-                for (const riga of serramenti) {
-                  if (riga.tipologia === "a_corpo") continue;
-                  const patch: Partial<SrSerramentoRow> = {};
-                  if (interno) patch.colore_interno = interno;
-                  if (esterno) patch.colore_esterno = esterno;
-                  onPatch(riga.id, patch);
-                }
-              }}
+              onColore={(lato, valore, scelta) =>
+                setRichiestaBulkColore({ lato, valore, scelta, nonce: Date.now() })
+              }
             />
             <BulkPosaActions
               serramenti={serramenti}
@@ -468,6 +466,7 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
                   tariffePrezzi={tariffePrezzi}
                   supplierLineMap={supplierLineMap}
                   richiestaBulk={richiestaBulk}
+                  richiestaBulkColore={richiestaBulkColore}
                   richiestaBulkPosa={richiestaBulkPosa}
                   testoComplementi={complementi.riepilogo(s.id)}
                   complementi={bloccoComplementi ? <ComplementiFinestra {...bloccoComplementi} /> : null}
@@ -726,6 +725,14 @@ export interface RichiestaBulkAsse {
   nonce: number;
 }
 
+/** Il colore interno o esterno deciso una volta per tutte le righe; `nonce` distingue due clic uguali. */
+export interface RichiestaBulkColore {
+  lato: LatoColore;
+  valore: string;
+  scelta: string | null;
+  nonce: number;
+}
+
 /**
  * Le variabili prodotto decise una volta per tutte le righe.
  *
@@ -735,17 +742,15 @@ export interface RichiestaBulkAsse {
  * la scelta con il proprio ricalcolo — chi ha una tipologia che quella variante
  * non ce l'ha resta com'è.
  */
-function BulkAssiActions({
-  serramenti, famiglie, onApplica, onColori,
+export function BulkAssiActions({
+  serramenti, famiglie, onApplica, onColore,
 }: {
   serramenti: SrSerramentoRow[];
   famiglie: FamilyWithAxes[];
   onApplica: (codice: string, valore: string, scelta: string | null) => void;
-  /** Il colore vero (RAL, effetto legno) per tutte le righe: la variante Colore dice solo la fascia di prezzo. */
-  onColori: (colori: { interno: string; esterno: string }) => void;
+  /** Il colore interno o esterno per tutte le righe: «Colore» sono due scelte, una per lato. */
+  onColore: (lato: LatoColore, valore: string, scelta: string | null) => void;
 }) {
-  const [coloreInterno, setColoreInterno] = useState("");
-  const [coloreEsterno, setColoreEsterno] = useState("");
   // Telefono: il blocco parte chiuso (una riga), se no copre mezza pagina prima delle righe.
   const isMobile = useIsMobile();
   const [apertoSulTelefono, setApertoSulTelefono] = useState(false);
@@ -784,25 +789,19 @@ function BulkAssiActions({
         valori: [...v.valori.entries()].map(([valore, x]) => ({ valore, label: x.label, voci: x.voci })),
       }));
   }, [serramenti, famiglie]);
-  // I colori scritti nel listino, divisi per fascia come nella tendina «Colore».
-  const gruppiDiColori = useMemo(() => {
-    const usate = new Set(serramenti.map((s) => s.family_id).filter(Boolean) as string[]);
-    return gruppiColori(famiglie.filter((f) => usate.has(f.id)).flatMap((f) => f.axes));
-  }, [serramenti, famiglie]);
+  // Le tendine: una per variabile, e per «Colore» due, interno ed esterno (le righe hanno due colori, non uno).
+  const tendine = useMemo(
+    () => assi.flatMap((asse) =>
+      asse.codice === CODICE_ASSE_COLORE
+        ? (["interno", "esterno"] as const).map((lato) => ({ chiave: `${asse.codice}:${lato}`, nome: `Colore ${lato}`, asse, lato }))
+        : [{ chiave: asse.codice, nome: asse.nome, asse, lato: null }],
+    ),
+    [assi],
+  );
   // Cosa si è scelto in ogni tendina, per scriverlo chiuso («Grigio antracite · Colore Standard»).
   const [sceltiGruppo, setSceltiGruppo] = useState<Record<string, string>>({});
 
-  const righeColorabili = serramenti.filter((s) => s.tipologia !== "a_corpo").length;
-  if (serramenti.length < 2 || (assi.length === 0 && righeColorabili < 2)) return null;
-
-  const applicaColori = () => {
-    const interno = coloreInterno.trim();
-    const esterno = coloreEsterno.trim();
-    if (!interno && !esterno) return;
-    onColori({ interno, esterno });
-    setColoreInterno("");
-    setColoreEsterno("");
-  };
+  if (serramenti.length < 2 || assi.length === 0) return null;
 
   return (
     <div className="rounded-md border border-blue-200 bg-blue-50/50 p-2.5 mb-3">
@@ -823,27 +822,29 @@ function BulkAssiActions({
       )}
       {aperto && (
       <div className="flex flex-wrap items-end gap-2 max-md:mt-2 max-md:grid max-md:grid-cols-2">
-        {assi.map((asse) => {
-          const codiceScelto = sceltiGruppo[asse.codice] ?? "";
+        {tendine.map(({ chiave, nome, asse, lato }) => {
+          const codiceScelto = sceltiGruppo[chiave] ?? "";
           const [tipoScelto, indiceValore, indiceVoce] = codiceScelto.split(":");
           const valoreScelto = codiceScelto ? asse.valori[Number(indiceValore)] : undefined;
           const testoChiuso = valoreScelto
             ? testoScelta(valoreScelto.label, tipoScelto === "o" ? valoreScelto.voci[Number(indiceVoce)] : null)
             : undefined;
           return (
-            <div key={asse.codice} className="space-y-1 min-w-[160px] max-md:min-w-0">
-              <Label className="text-[10px] text-slate-700">{asse.nome}</Label>
+            <div key={chiave} className="space-y-1 min-w-[160px] max-md:min-w-0">
+              <Label className="text-[10px] text-slate-700">{nome}</Label>
               <Select
                 value={codiceScelto}
                 onValueChange={(codice) => {
                   const [tipo, a, b] = codice.split(":");
                   const voce = asse.valori[Number(a)];
                   if (!voce) return;
-                  setSceltiGruppo((prima) => ({ ...prima, [asse.codice]: codice }));
-                  onApplica(asse.codice, voce.valore, tipo === "o" ? voce.voci[Number(b)] ?? null : null);
+                  setSceltiGruppo((prima) => ({ ...prima, [chiave]: codice }));
+                  const scelta = tipo === "o" ? voce.voci[Number(b)] ?? null : null;
+                  if (lato) onColore(lato, voce.valore, scelta);
+                  else onApplica(asse.codice, voce.valore, scelta);
                 }}
               >
-                <SelectTrigger className="h-8 text-xs bg-white">
+                <SelectTrigger aria-label={nome} className="h-8 text-xs bg-white">
                   <SelectValue placeholder="applica a tutte…">{testoChiuso}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -871,44 +872,6 @@ function BulkAssiActions({
             </div>
           );
         })}
-        {righeColorabili >= 2 && (
-          <>
-            {/* Stessa tendina di «Colore»: i colori del listino divisi per fascia, o
-                scritti a mano. Prima era il suggeritore del browser, grigio e diverso. */}
-            <div className="space-y-1 min-w-[170px] max-md:min-w-0">
-              <Label htmlFor="bulk-colore-interno" className="text-[10px] text-slate-700">Colore interno</Label>
-              <SceltaColore
-                id="bulk-colore-interno"
-                value={coloreInterno}
-                onChange={(valore) => setColoreInterno(valore ?? "")}
-                gruppi={gruppiDiColori}
-                placeholder="Bianco RAL 9010"
-                className="h-8 bg-white"
-              />
-            </div>
-            <div className="space-y-1 min-w-[170px] max-md:min-w-0">
-              <Label htmlFor="bulk-colore-esterno" className="text-[10px] text-slate-700">Colore esterno</Label>
-              <SceltaColore
-                id="bulk-colore-esterno"
-                value={coloreEsterno}
-                onChange={(valore) => setColoreEsterno(valore ?? "")}
-                gruppi={gruppiDiColori}
-                placeholder="Antracite RAL 7016"
-                className="h-8 bg-white"
-              />
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="tap-compact h-8 text-xs bg-white max-md:col-span-2"
-              disabled={!coloreInterno.trim() && !coloreEsterno.trim()}
-              onClick={applicaColori}
-            >
-              Colori a tutte
-            </Button>
-          </>
-        )}
       </div>
       )}
     </div>
@@ -919,7 +882,7 @@ function BulkAssiActions({
 
 export function SerramentoRow({
   serramento: s, index, expanded, onToggle, onPatch, onDuplicate, onDelete,
-  family, macroId, macroNome, tariffePrezzi, supplierLineMap, richiestaBulk, richiestaBulkPosa,
+  family, macroId, macroNome, tariffePrezzi, supplierLineMap, richiestaBulk, richiestaBulkColore, richiestaBulkPosa,
   testoComplementi, complementi,
 }: {
   serramento: SrSerramentoRow;
@@ -941,6 +904,8 @@ export function SerramentoRow({
   supplierLineMap: Map<string, SupplierProductLine>;
   /** Scelta applicata a tutte le righe dall'azione di gruppo. */
   richiestaBulk: RichiestaBulkAsse | null;
+  /** Colore interno o esterno applicato a tutte le righe dall'azione di gruppo. */
+  richiestaBulkColore?: RichiestaBulkColore | null;
   /** Posa inclusa o esclusa su tutte le righe dall'azione di gruppo. */
   richiestaBulkPosa: RichiestaBulkPosa | null;
   /** «Tapparella · Zanzariera»: cosa ha la finestra, visibile anche a box chiuso. */
@@ -1001,12 +966,14 @@ export function SerramentoRow({
   // Griglia o varianti non ancora arrivate: un ricalcolo chiesto adesso aspetta
   // (vedi l'effetto dopo i gestori) invece di lasciare il prezzo vecchio.
   const datiInArrivo = !!family && (grigliaInCaricamento || assiInCaricamento);
-  // I colori scritti nelle fasce del listino, divisi per fascia, per colore interno ed esterno.
-  const gruppiDiColori = useMemo(() => gruppiColori(familyWithAxes?.axes ?? []), [familyWithAxes]);
-  // I colori che il PDF scrive se i campi restano vuoti: quelli della variante Colore.
-  const coloriDaVariante = useMemo(
-    () => schedaPosizione(scelteDaAssi(familyWithAxes?.axes ?? [], s.valori_assi, s.scelte_assi)),
-    [familyWithAxes, s.valori_assi, s.scelte_assi],
+  // «Colore» sono due tendine, interno ed esterno. La riga ricorda i due testi e, per il prezzo, UNA scelta (valori_assi e
+  // scelte_assi: la fascia più cara dei due al momento della scelta). Le righe vecchie, monocolore o con i colori scritti a
+  // mano, si leggono come le scrive il PDF; la loro fascia e il loro prezzo non cambiano finché non si tocca una tendina.
+  const asseColore = useMemo(() => familyWithAxes?.axes.find((a) => a.codice === CODICE_ASSE_COLORE), [familyWithAxes]);
+  const colori = useMemo(
+    () => (asseColore ? leggiColori(asseColore, s) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- conta solo quello che la riga ricorda dei colori
+    [asseColore, s.valori_assi, s.scelte_assi, s.colore_interno, s.colore_esterno],
   );
   const ricalcoloInSospeso = useRef<{
     L: number | null;
@@ -1124,9 +1091,26 @@ export function SerramentoRow({
   ]);
 
   /**
+   * Quanto costa la posizione con quella fascia di «Colore», per scegliere la più cara fra i due lati. Se un prezzo
+   * non si calcola (misure ancora da scrivere, fuori listino, griglia in arrivo) si confronta su un prezzo e su misure
+   * di riferimento: senza, le fasce sembrerebbero pari e vincerebbe l'esterno anche se costa meno.
+   */
+  const prezzoPerFascia = (L: number | null, H: number | null, Q: number) => (id: string): number | null => {
+    const scelte = { ...((s.valori_assi ?? {}) as Record<string, string>), [CODICE_ASSE_COLORE]: id };
+    const prezzo = ricalcolaPrezzoUnitario(L, H, Q, scelte);
+    if (prezzo != null && Number.isFinite(prezzo)) return prezzo;
+    if (!familyWithAxes || !family) return null;
+    return applyMaggiorazioniAssi(
+      PREZZO_DI_CONFRONTO, scelte, familyWithAxes.axes, L ?? MISURA_DI_CONFRONTO_MM, H ?? MISURA_DI_CONFRONTO_MM, Q || 1, family.modalita_prezzo_base,
+    );
+  };
+
+  /**
    * Wrapper che, se la riga è del listino e cambiano L/A/Q, ricalcola anche
    * il prezzo unitario coerente. Fix del bug "modifico larghezza ma prezzo
-   * resta vecchio".
+   * resta vecchio". Il prezzo si rifà con le scelte già salvate sulla riga:
+   * la fascia di «Colore» non si rilegge dai testi dei colori, cambia solo
+   * quando si tocca una delle due tendine.
    */
   const handleMisurePatch = (patch: Partial<SrSerramentoRow>) => {
     if (!isFromListino) {
@@ -1221,6 +1205,88 @@ export function SerramentoRow({
   }, [richiestaBulk, familyWithAxes]);
 
   /**
+   * Cambio del colore interno o esterno della riga: è l'unico gesto che può cambiare la fascia del prezzo. La riga
+   * ricorda i due testi; la variabile «Colore» (valori_assi e scelte_assi) resta UNA scelta, la fascia più cara dei
+   * due (a parità l'esterno), che decide il prezzo: si ricalcola con le misure, la griglia e le tariffe di questa
+   * riga, come per le altre variabili. Conta anche l'altro lato, con la fascia che dice il suo testo.
+   */
+  const handleColorePatch = (lato: LatoColore, valueId: string, voce: string | null) => {
+    if (!asseColore || !colori || !familyCompleta) return;
+    const nuovi = cambiaLato(colori, lato, valueId, voce);
+    const L = s.larghezza_mm ?? null;
+    const H = s.altezza_mm ?? null;
+    const Q = s.quantita ?? 1;
+    const attuali = (s.valori_assi ?? {}) as Record<string, string>;
+    const guida = sceltaPerIlPrezzo(nuovi, prezzoPerFascia(L, H, Q)) ?? { valueId, voce };
+    const ordinate = normalizzaSelezione(familyCompleta.axes, { ...attuali, [CODICE_ASSE_COLORE]: guida.valueId }, scelteDopo(s.scelte_assi, CODICE_ASSE_COLORE, guida.voce));
+    const testi = testiColori(asseColore, nuovi);
+    const scelte = { valori_assi: ordinate.valori, scelte_assi: ordinate.voci, colore_interno: testi.interno, colore_esterno: testi.esterno };
+    // Prezzo manuale («misura libera»): la scelta si salva e il prezzo resta quello del commerciale.
+    if (isListinoManualPrice) {
+      onPatch(scelte);
+      return;
+    }
+    const nuovoPrezzo = ricalcolaPrezzoUnitario(L, H, Q, ordinate.valori);
+    if (nuovoPrezzo != null && Number.isFinite(nuovoPrezzo)) {
+      onPatch({ ...scelte, prezzo_unitario: Number(nuovoPrezzo.toFixed(2)) });
+    } else {
+      if (datiInArrivo) {
+        ricalcoloInSospeso.current = { L, H, Q, selections: ordinate.valori, posaEsclusa: s.posa_esclusa ?? false };
+      }
+      onPatch(scelte);
+    }
+  };
+
+  /**
+   * «Altro colore (scrivi)…»: il colore scritto resta su quel lato (`colore_interno` / `colore_esterno`) e tiene la
+   * fascia della riga. Scrivere non cambia mai il prezzo né la variante: la riga riceve il testo e basta.
+   */
+  const handleColoreScritto = (lato: LatoColore, testo: string) => {
+    onPatch(lato === "interno" ? { colore_interno: testo } : { colore_esterno: testo });
+  };
+
+  /**
+   * Un lato scritto torna a un colore del listino: quello che decide il prezzo (fascia e colore della riga), così il
+   * prezzo non cambia. Una riga senza una scelta salvata riparte dal colore di serie.
+   */
+  const handleColoreElenco = (lato: LatoColore) => {
+    if (!asseColore) return;
+    const salvato = (s.valori_assi ?? {})[CODICE_ASSE_COLORE];
+    if (salvato) {
+      handleColorePatch(lato, salvato, (s.scelte_assi ?? {})[CODICE_ASSE_COLORE] || null);
+      return;
+    }
+    const diSerie = asseColore.values.find((v) => v.is_default && v.attivo);
+    if (diSerie) handleColorePatch(lato, diSerie.id, null);
+  };
+
+  // La nota «il prezzo segue il colore più caro» solo se è vera: la fascia della riga deve essere quella del lato più
+  // caro adesso (una riga vecchia può avere una fascia più bassa di un colore scritto: lì la nota non si scrive).
+  const fasciaPiuCara = (() => {
+    if (!asseColore || !colori || !fasceDeiLati(asseColore, colori)) return null;
+    return sceltaPerIlPrezzo(colori, prezzoPerFascia(s.larghezza_mm ?? null, s.altezza_mm ?? null, s.quantita ?? 1))?.valueId ?? null;
+  })();
+
+  /** Il colore interno o esterno scelto in cima per tutte le righe: passa dallo stesso `handleColorePatch` del menu singolo. */
+  const ultimaBulkColore = useRef<number>(0);
+  useEffect(() => {
+    if (!richiestaBulkColore || richiestaBulkColore.nonce === ultimaBulkColore.current) return;
+    // Varianti ancora in arrivo: la scelta si applica appena arrivano.
+    if (!familyWithAxes) return;
+    ultimaBulkColore.current = richiestaBulkColore.nonce;
+    if (!asseColore || !colori) return;
+    const valore = asseColore.values.find((v) => v.valore === richiestaBulkColore.valore && v.attivo);
+    if (!valore) return;
+    // Il colore scelto in cima solo se questa tipologia ce l'ha nell'elenco di quella fascia.
+    const scelta = richiestaBulkColore.scelta && vociDi(valore).includes(richiestaBulkColore.scelta) ? richiestaBulkColore.scelta : null;
+    const attuale = colori[richiestaBulkColore.lato];
+    if (!attuale.scritto && attuale.valueId === valore.id && (attuale.voce ?? null) === scelta) return;
+    handleColorePatch(richiestaBulkColore.lato, valore.id, scelta);
+    // Come per le variabili: l'effetto scatta solo sulla richiesta, non a ogni ricalcolo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [richiestaBulkColore, familyWithAxes]);
+
+  /**
    * Toggle "Escludi manodopera" — Use case "solo fornitura": cliente fa
    * installare da altro installatore, articolo a ricambio, sconto commerciale.
    * Quando ON, il prezzo unitario viene ricalcolato SENZA sommare la posa
@@ -1295,9 +1361,9 @@ export function SerramentoRow({
 
   // Con spazio il disegno sta a destra delle scelte; con la colonna stretta (PDF aperto a lato) va sopra, compatto.
   const [riquadroLargo, setRiquadroLargo] = useState(false);
-  const haAsseColore = !!familyWithAxes?.axes.some((a) => a.codice === "colore");
-  // Dentro e fuori diversi: aperto solo se la riga li ha davvero diversi.
-  const [coloriDiversi, setColoriDiversi] = useState<boolean>(() => !!(s.colore_interno && s.colore_esterno && s.colore_interno !== s.colore_esterno));
+  // Un prodotto senza la variabile «Colore» (né un'altra che lo sia: colore del profilo, essenza…) ha i due colori da scrivere
+  // a mano, come prima; ci sono anche se la riga li aveva già scritti.
+  const coloriScrittiAMano = !asseColore && (gruppiColori(familyWithAxes?.axes ?? []).length === 0 || !!(s.colore_interno || s.colore_esterno));
   const riquadroRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = riquadroRef.current;
@@ -1466,9 +1532,9 @@ export function SerramentoRow({
         </CardTitle>
       </CardHeader>
       {expanded && (
-        <CardContent ref={riquadroRef} className="grid grid-cols-12 gap-3 border-t p-3 pt-3 sm:gap-2">
+        <CardContent ref={riquadroRef} className={"grid gap-3 border-t p-3 pt-3 sm:gap-2 " + (anteprimaDisegno && riquadroLargo ? "grid-cols-[168px_minmax(0,1fr)]" : "grid-cols-12")}>
           {/* A sinistra la composizione della riga (misure → variabili → colori); a destra, piccolo e fermo, il disegno. */}
-          <div className={"col-span-12 grid grid-cols-12 gap-3 sm:gap-2" + (anteprimaDisegno && riquadroLargo ? " !col-span-8" : "")}>
+          <div className={"col-span-12 grid grid-cols-12 gap-3 sm:gap-2" + (anteprimaDisegno && riquadroLargo ? " !col-span-1" : "")}>
           {/* Tipologia editabile SOLO off-listino. Per le righe da listino
               la "tipologia" coincide con il nome dell'articolo (gia' nella
               riga 1 dell'header) -> il dropdown sarebbe ridondante e
@@ -1547,6 +1613,24 @@ export function SerramentoRow({
                     // Prima l'apertura, poi gli altri nell'ordine del listino.
                     .sort((a, b) => Number(b.codice === "apertura") - Number(a.codice === "apertura") || a.sort_order - b.sort_order)
                     .map((axis) => {
+                      // Al posto di «Colore» due tendine, interno ed esterno (con «Altro colore» per un colore fuori
+                      // listino). Il prezzo segue la fascia salvata sulla riga, che cambia solo toccando una tendina.
+                      if (asseColore && colori && axis.codice === CODICE_ASSE_COLORE) {
+                        return (
+                          <SceltaColoriDentroFuori
+                            key={axis.id}
+                            asse={axis}
+                            colori={colori}
+                            guidaId={(s.valori_assi ?? {})[CODICE_ASSE_COLORE]}
+                            piuCaraId={fasciaPiuCara}
+                            formato="riga"
+                            mostraStandard
+                            onChange={handleColorePatch}
+                            onScrivi={handleColoreScritto}
+                            onElenco={handleColoreElenco}
+                          />
+                        );
+                      }
                       const currentId = (s.valori_assi ?? {})[axis.codice] ?? "";
                       const isMissing = axis.obbligatorio && !currentId;
                       return (
@@ -1846,62 +1930,38 @@ export function SerramentoRow({
             </div>
           )}
 
-          {/* Colore interno/esterno: vuoti, il PDF scrive quelli della variante
-              «Colore» (lo stesso sui due lati, o bianco dentro con la pellicola su
-              un lato) e il segnaposto li mostra. Si scrivono solo quando sono
-              diversi, per esempio una finestra bicolore o una riga fuori listino. */}
-          {/* Un colore solo: quello di «Colore» nelle variabili. Dentro e fuori diversi (finestra bicolore)
-              si sceglie a parte, sotto, e solo se serve. Senza la variabile «Colore» restano i due campi. */}
-          <div className="order-5 col-span-12">
-            {haAsseColore && (
-              <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-slate-700">
-                <input
-                  type="checkbox"
-                  className="h-3.5 w-3.5 accent-orange-500"
-                  checked={coloriDiversi}
-                  onChange={(e) => {
-                    setColoriDiversi(e.target.checked);
-                    if (!e.target.checked && (s.colore_interno || s.colore_esterno)) onPatch({ colore_interno: null, colore_esterno: null });
-                  }}
-                />
-                Colore diverso dentro e fuori
-              </label>
-            )}
-            {(!haAsseColore || coloriDiversi) && (
-              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <div>
-                  <Label className="flex h-5 items-center text-xs">Colore interno</Label>
-                  <SceltaColore
-                    value={s.colore_interno}
-                    onChange={(valore) => {
-                      if (valore !== (s.colore_interno ?? null)) onPatch({ colore_interno: valore });
-                    }}
-                    gruppi={gruppiDiColori}
-                    placeholder={coloriDaVariante.coloreInterno ?? "Bianco RAL 9010"}
-                    aria-label="Colore interno"
-                  />
-                </div>
-                <div>
-                  <Label className="flex h-5 items-center text-xs">Colore esterno</Label>
-                  <SceltaColore
-                    value={s.colore_esterno}
-                    onChange={(valore) => {
-                      if (valore !== (s.colore_esterno ?? null)) onPatch({ colore_esterno: valore });
-                    }}
-                    gruppi={gruppiDiColori}
-                    placeholder={coloriDaVariante.coloreEsterno ?? "Antracite RAL 7016"}
-                    aria-label="Colore esterno"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Prodotto senza la variabile «Colore»: i due colori si scrivono qui, come prima. Con la variabile sono
+              le due tendine fra le variabili, e basta: un posto solo dove scegliere il colore. */}
+          {coloriScrittiAMano && (
+            <div className="order-5 col-span-12 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {(["interno", "esterno"] as const).map((lato) => {
+                const attuale = (lato === "interno" ? s.colore_interno : s.colore_esterno) ?? "";
+                return (
+                  <div key={lato}>
+                    <Label className="flex h-5 items-center text-xs">Colore {lato}</Label>
+                    <Input
+                      key={`${s.id}-${lato}-${attuale}`}
+                      defaultValue={attuale}
+                      aria-label={`Colore ${lato}`}
+                      placeholder={lato === "interno" ? "es. Bianco RAL 9010" : "es. Antracite RAL 7016"}
+                      onBlur={(e) => {
+                        const scritto = e.target.value.trim();
+                        if (scritto === attuale) return;
+                        onPatch(lato === "interno" ? { colore_interno: scritto || null } : { colore_esterno: scritto || null });
+                      }}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {complementi && <div className="order-5 col-span-12">{complementi}</div>}
           {/* Duplica/Elimina sono ora sempre visibili nell'header (icone) —
               evitiamo bottoni duplicati nel dettaglio espanso. */}
           </div>
           {anteprimaDisegno && (
-            <aside className={"order-first " + (riquadroLargo ? "col-span-4" : "col-span-12")}>
+            <aside className={"order-first " + (riquadroLargo ? "col-span-1" : "col-span-12")}>
               <div className={riquadroLargo ? "sticky top-24" : ""}>
                 <DisegnoDellaRiga disegno={anteprimaDisegno} colonna={riquadroLargo} />
               </div>

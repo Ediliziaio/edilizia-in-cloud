@@ -20,7 +20,7 @@
  */
 
 import type { VetroDisegno } from "./vetroSerramento";
-import type { TelaioDisegno } from "./telaioSerramento";
+import { ALETTA_DI_SERIE_MM, type TelaioDisegno } from "./telaioSerramento";
 
 export type TipoAnta = "battente" | "anta_ribalta" | "vasistas" | "scorrevole" | "alzante_scorrevole" | "fisso" | "libro";
 export type Lato = "dx" | "sx";
@@ -528,8 +528,9 @@ export function disegnaSerramento(d: SerramentoDisegno): ScenaSerramento {
   if (d.ante.some((a) => a.tipo === "scorrevole" || a.tipo === "alzante_scorrevole")) return disegnaScorrevole(d, W, H, s, esterna);
   const forme: Forma[] = [];
 
-  // Telaio a Z: l'aletta si vede dall'interno come una cornice attorno al serramento.
-  const aletta = d.telaio?.tipo === "Z" && !esterna ? Math.max(0, d.telaio.alettaMm ?? 0) : 0;
+  // Telaio a Z: l'aletta si vede dall'interno come una cornice attorno al serramento. Senza la misura
+  // (ancora «da decidere») se ne disegna una di serie: se no, scelto «a Z» il disegno non cambia.
+  const aletta = d.telaio?.tipo === "Z" && !esterna ? Math.max(0, d.telaio.alettaMm ?? ALETTA_DI_SERIE_MM) : 0;
   if (aletta > 0) {
     forme.push({ kind: "sagoma", ruolo: "aletta", punti: rettangoloPunti(-aletta, -aletta, W + 2 * aletta, H + 2 * aletta), buco: rettangoloPunti(0, 0, W, H) });
   }

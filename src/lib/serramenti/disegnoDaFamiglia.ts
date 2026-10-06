@@ -89,6 +89,15 @@ function etichettaScelta(family: FamilyWithAxes, selection: AxisSelection, codic
   return asse.values.find((v) => v.id === selection[codice])?.label;
 }
 
+/**
+ * Il telaio come si legge sul disegno: il valore («Telaio a Z») e, se c'è, la voce scelta dentro («Aletta 35 mm
+ * Salamander»). Il tipo sta nel valore e la misura nella voce: la sola voce non dice se è a L o a Z.
+ */
+function etichettaTelaio(family: FamilyWithAxes, selection: AxisSelection, voci?: Record<string, string> | null): string | undefined {
+  const parti = [etichettaScelta(family, selection, "telaio", null), voci?.telaio].filter((p): p is string => !!p);
+  return parti.length > 0 ? parti.join(" · ") : undefined;
+}
+
 /** Il codice (non l'etichetta) del valore scelto in un asse. */
 function codiceScelto(family: FamilyWithAxes, selection: AxisSelection, codice: string): string | undefined {
   return family.axes.find((a) => a.codice === codice)?.values.find((v) => v.id === selection[codice])?.valore;
@@ -148,7 +157,7 @@ export interface DisegnoConfig {
   aperturaCodice?: string;
   aperturaNome?: string;
   colore?: string;
-  /** Solo se dentro e fuori hanno un colore diverso (finestra bicolore): hanno la precedenza su `colore`. */
+  /** Il colore di ogni lato, come lo scrive la riga (`colore_interno` / `colore_esterno`, anche se uguali): ha la precedenza su `colore`. */
   coloreInterno?: string;
   coloreEsterno?: string;
   telaio?: string;
@@ -222,7 +231,8 @@ export function configDaFamiglia(
   if (coloriRiga?.forma?.sottoluceMm) c.sottoluceMm = coloriRiga.forma.sottoluceMm;
   if (coloriRiga?.coloreInterno) c.coloreInterno = coloriRiga.coloreInterno;
   if (coloriRiga?.coloreEsterno) c.coloreEsterno = coloriRiga.coloreEsterno;
-  if (e("telaio")) c.telaio = e("telaio");
+  const telaio = etichettaTelaio(family, selection, coloriRiga?.voci);
+  if (telaio) c.telaio = telaio;
   const cassonetto = /(\d{2,3})/.exec(e("altezza_cassonetto") ?? "");
   if (cassonetto) c.altezzaCassonettoMm = Number(cassonetto[1]);
   if (e("avvolgimento")) c.avvolgimento = e("avvolgimento");

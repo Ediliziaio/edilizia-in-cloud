@@ -6,12 +6,17 @@
  * vero (Grigio antracite RAL 7016). Si può scegliere anche solo la fascia,
  * «da decidere», e il colore più avanti. Un valore o una voce tolti dal
  * listino restano leggibili sulla riga che li aveva scelti.
+ *
+ * In fondo può esserci una voce che non sceglie niente dal listino ma apre
+ * altro («Altro colore (scrivi)…»): è una voce della stessa tendina, non un
+ * secondo controllo, e funziona dentro un Dialog perché resta un Select.
  */
 import { Fragment } from "react";
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import type { AxisValue } from "@/types/articleFamily";
+import { cn } from "@/lib/utils";
 import { suffissoMaggiorazione } from "@/lib/listino/maggiorazione";
 import { codificaScelta, decodificaScelta, testoScelta, vociDi } from "@/lib/listino/scelteVariante";
 
@@ -25,13 +30,17 @@ interface Props {
   className?: string;
   /** Scrive «· standard» accanto al valore di serie. */
   mostraStandard?: boolean;
+  /** Una voce in fondo alla tendina che non sceglie un valore del listino: al clic chiama `onScegli`. */
+  altro?: { etichetta: string; onScegli: () => void };
   "aria-label"?: string;
 }
+
+const CODICE_ALTRO = "t:altro";
 
 const conMaggiorazione = (v: AxisValue) => `${v.label}${suffissoMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore)}`;
 
 export function SceltaVariante({
-  values, valueId, scelta, onChange, placeholder = "Seleziona…", className, mostraStandard = false,
+  values, valueId, scelta, onChange, placeholder = "Seleziona…", className, mostraStandard = false, altro,
   "aria-label": ariaLabel,
 }: Props) {
   const corrente = valueId ? values.find((v) => v.id === valueId) ?? null : null;
@@ -47,11 +56,16 @@ export function SceltaVariante({
     <Select
       value={valore}
       onValueChange={(codice) => {
+        if (codice === CODICE_ALTRO) {
+          altro?.onScegli();
+          return;
+        }
         const scelto = decodificaScelta(codice, values);
         if (scelto) onChange(scelto.valoreId, scelto.scelta);
       }}
     >
-      <SelectTrigger className={className} aria-label={ariaLabel}>
+      {/* text-left: un testo lungo, accorciato coi puntini, nel bottone si centrava e sembrava rientrato. */}
+      <SelectTrigger className={cn("text-left", className)} aria-label={ariaLabel}>
         <SelectValue placeholder={placeholder}>{testoChiuso}</SelectValue>
       </SelectTrigger>
       <SelectContent>
@@ -96,6 +110,14 @@ export function SceltaVariante({
           <SelectItem value={valore} disabled className="text-xs italic">
             Scelta tolta dal listino
           </SelectItem>
+        )}
+        {altro && (
+          <>
+            <SelectSeparator />
+            <SelectItem value={CODICE_ALTRO} className="text-xs italic">
+              {altro.etichetta}
+            </SelectItem>
+          </>
         )}
       </SelectContent>
     </Select>
