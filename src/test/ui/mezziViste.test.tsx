@@ -190,7 +190,7 @@ describe("Mezzi in gruppi", () => {
     expect(ducato).toHaveTextContent("84.000 km");
     const transit = righe.find((r) => r.textContent?.includes("Transit grigio"))!;
     expect(transit).toHaveTextContent("Revisione · scade il 20/10/2026");
-    expect(transit).toHaveTextContent("In regola");
+    expect(transit).toHaveTextContent("Completi");
     expect(righe.find((r) => r.textContent?.includes("Gru Merlo"))).toHaveTextContent("In officina");
   });
 

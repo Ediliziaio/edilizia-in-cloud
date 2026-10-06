@@ -659,16 +659,17 @@ export function useAggiornaSegnalazione() {
   });
 }
 
-// ── Costi del parco ──────────────────────────────────────────────────────────
+// ── Documenti registrati ─────────────────────────────────────────────────────
 
-/**
- * Importi di assicurazione e bollo e manutenzioni degli ultimi 12 mesi di tutti
- * i mezzi, per costo annuo e valore del parco nell'elenco.
- */
+/** Il server restituisce al massimo mille righe per volta. */
+const PAGINA_DOCUMENTI = 1000;
+
 /**
  * Le categorie di documento registrate per ogni mezzo (06/10/2026): per dire
  * nella pagina dei mezzi cosa manca (assicurazione, bollo, revisione…). Si
- * aggiorna con ogni modifica ai mezzi (chiave sotto «mezzi»).
+ * aggiorna con ogni modifica ai mezzi (chiave sotto «mezzi»). A pagine: con
+ * anni di rinnovi le righe passano le mille, e una lasciata fuori sarebbe un
+ * falso «Manca».
  */
 export function useDocumentiRegistrati() {
   const companyId = useEffectiveCompanyId();
@@ -676,23 +677,34 @@ export function useDocumentiRegistrati() {
     queryKey: chiavi.documentiRegistrati(companyId),
     enabled: !!companyId,
     queryFn: async (): Promise<Map<string, Set<string>>> => {
-      const { data, error } = await supabase
-        .from("mezzi_documenti")
-        .select("mezzo_id, categoria")
-        .eq("company_id", companyId!);
-      if (error) throw error;
       const per = new Map<string, Set<string>>();
-      for (const r of (data ?? []) as Array<{ mezzo_id: string; categoria: string }>) {
-        const set = per.get(r.mezzo_id) ?? new Set<string>();
-        set.add(r.categoria);
-        per.set(r.mezzo_id, set);
+      for (let da = 0; ; da += PAGINA_DOCUMENTI) {
+        const { data, error } = await supabase
+          .from("mezzi_documenti")
+          .select("id, mezzo_id, categoria")
+          .eq("company_id", companyId!)
+          .order("id", { ascending: true })
+          .range(da, da + PAGINA_DOCUMENTI - 1);
+        if (error) throw error;
+        const righe = (data ?? []) as Array<{ mezzo_id: string; categoria: string }>;
+        for (const r of righe) {
+          const set = per.get(r.mezzo_id) ?? new Set<string>();
+          set.add(r.categoria);
+          per.set(r.mezzo_id, set);
+        }
+        if (righe.length < PAGINA_DOCUMENTI) return per;
       }
-      return per;
     },
     staleTime: 60 * 1000,
   });
 }
 
+// ── Costi del parco ──────────────────────────────────────────────────────────
+
+/**
+ * Importi di assicurazione e bollo e manutenzioni degli ultimi 12 mesi di tutti
+ * i mezzi, per costo annuo e valore del parco nell'elenco.
+ */
 export function useCostiParco() {
   const companyId = useEffectiveCompanyId();
   return useQuery({

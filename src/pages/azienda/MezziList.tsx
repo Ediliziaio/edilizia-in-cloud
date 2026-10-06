@@ -188,8 +188,13 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
   const scadenzaDaGuardare = (id: string) => (perMezzo.get(id) ?? []).some((x) => x.stato === "scaduto" || x.stato === "in_scadenza");
   const daSistemare = (m: MezzoConAssegnazione) => scadenzaDaGuardare(m.id) || (mancanzePer.get(m.id)?.length ?? 0) > 0;
   const fermo = (m: MezzoConAssegnazione) => m.stato !== "in_servizio" || (guastiPerMezzo.get(m.id) ?? 0) > 0;
+  // Sul cantiere = su una commessa (i ponteggi in un posto scritto a mano no, come nel conteggio delle commesse).
   const sulCantiere = (m: MezzoConAssegnazione) =>
-    !!m.assegnato_order_id || (m.gestione === "quantita" && (disponibilita?.get(m.id)?.in_uso ?? 0) > 0);
+    !!m.assegnato_order_id || (m.gestione === "quantita" && (disponibilita?.get(m.id)?.cantieri ?? 0) > 0);
+  // Da telefono il filtro per tipo non c'è e il riquadro «Sui cantieri» nemmeno: un filtro scelto a
+  // schermo largo (telefono girato) non resta attivo e invisibile.
+  const filtroTipo = isMobile ? TUTTI : filtro;
+  const riquadro = isMobile && filtroRiquadro === "cantieri" ? null : filtroRiquadro;
   const oggi = oggiIso();
   const nonVisto = (m: MezzoConAssegnazione) => {
     const vista = ultimeViste?.get(m.id);
@@ -214,13 +219,13 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
 
   const q = cerca.trim().toLowerCase();
   const filtrati = diQuesti.filter((m) => {
-    if (filtroRiquadro === "cantieri" && !sulCantiere(m)) return false;
-    if (filtroRiquadro === "documenti" && !daSistemare(m)) return false;
-    if (filtroRiquadro === "fermi" && !fermo(m)) return false;
-    if (filtroRiquadro === "non_visti" && !nonVisto(m)) return false;
-    if (filtro !== TUTTI) {
-      if (vista === "mezzo" && m.tipo !== filtro) return false;
-      if (vista === "attrezzatura" && (filtro === SENZA ? !!m.categoria_id && nomeCategoria.has(m.categoria_id) : m.categoria_id !== filtro)) return false;
+    if (riquadro === "cantieri" && !sulCantiere(m)) return false;
+    if (riquadro === "documenti" && !daSistemare(m)) return false;
+    if (riquadro === "fermi" && !fermo(m)) return false;
+    if (riquadro === "non_visti" && !nonVisto(m)) return false;
+    if (filtroTipo !== TUTTI) {
+      if (vista === "mezzo" && m.tipo !== filtroTipo) return false;
+      if (vista === "attrezzatura" && (filtroTipo === SENZA ? !!m.categoria_id && nomeCategoria.has(m.categoria_id) : m.categoria_id !== filtroTipo)) return false;
     }
     if (!q) return true;
     return [m.nome, m.targa, m.marca, m.modello, m.matricola, m.codice, m.assegnato_persona, m.assegnato_commessa,
@@ -399,10 +404,8 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
       </div>
 
       {/* I riquadri contano e filtrano, come nei subappaltatori; da telefono i due che chiedono di fare qualcosa. */}
-      {diQuesti.length > 0 && (
-        <>
+      {diQuesti.length > 0 && (isMobile ? (
           <KpiMobili
-            className="sm:hidden"
             voci={vista === "mezzo"
               ? [
                   { label: "Documenti da sistemare", valore: String(numeri.documenti), tono: numeri.documenti > 0 ? "text-red-600" : undefined,
@@ -417,7 +420,8 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
                     onClick: () => alterna("non_visti"), attivo: filtroRiquadro === "non_visti" },
                 ]}
           />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 max-sm:hidden">
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <OperationalKpiCard
               icon={vista === "mezzo" ? Truck : Wrench}
               label={vista === "mezzo" ? "Mezzi" : "Attrezzature"}
@@ -475,8 +479,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
               onClick={() => alterna("fermi")}
             />
           </div>
-        </>
-      )}
+        ))}
 
       {(daControllare.length > 0 || guasti.length > 0) && (
         <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3 sm:p-4" aria-labelledby="da-controllare">
@@ -552,7 +555,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
             />
           </div>
           {/* Da telefono il filtro per tipo lo fanno già i gruppi: una riga in meno. */}
-          <div className="flex gap-2 max-sm:hidden">
+          {!isMobile && <div className="flex gap-2">
             <Select value={filtro} onValueChange={setFiltro}>
               <SelectTrigger className="sm:w-56" aria-label={vista === "attrezzatura" ? "Filtra per categoria" : "Filtra per tipo"}>
                 <SelectValue />
@@ -577,7 +580,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
                 <Settings2 className="h-4 w-4" />
               </Button>
             )}
-          </div>
+          </div>}
         </div>
       )}
 
@@ -606,8 +609,8 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
         </div>
       ) : filtrati.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
-          {filtroRiquadro ? "Nessuno in questo riquadro." : "Niente corrisponde alla ricerca."}
-          {filtroRiquadro && (
+          {riquadro ? "Nessuno in questo riquadro." : "Niente corrisponde alla ricerca."}
+          {riquadro && (
             <button type="button" className="ml-1 font-medium text-orange-700 underline underline-offset-2" onClick={() => setFiltroRiquadro(null)}>
               Mostra tutti
             </button>
@@ -952,7 +955,7 @@ function ElencoMezzi({
                       : <span className="text-muted-foreground">—</span>
                   ) : mancano && mancano.length > 0
                     ? <span className="block truncate font-medium text-amber-700" title={testoMancanze(mancano)}>{testoMancanze(mancano)}</span>
-                    : richiesti && mancano ? <span className="text-emerald-700">In regola</span>
+                    : richiesti && mancano ? <span className="text-emerald-700" title="Ci sono tutti i documenti richiesti">Completi</span>
                     : <span className="text-muted-foreground">—</span>}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-right text-sm tabular-nums text-slate-600">

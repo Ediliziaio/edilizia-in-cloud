@@ -17,7 +17,8 @@ const ASSICURAZIONE = { categoria: "assicurazione", etichetta: "assicurazione" }
 const BOLLO = { categoria: "bollo", etichetta: "bollo" };
 const REVISIONE = { categoria: "revisione", etichetta: "revisione" };
 const VERIFICA = { categoria: "verifica_periodica", etichetta: "verifica periodica" };
-const CONTRATTO = { categoria: "contratto", etichetta: "contratto di noleggio" };
+const CONTRATTO_NOLEGGIO = { categoria: "contratto", etichetta: "contratto di noleggio" };
+const CONTRATTO_LEASING = { categoria: "contratto", etichetta: "contratto di leasing" };
 
 /**
  * I documenti che un mezzo deve avere per girare e lavorare: con la targa
@@ -27,8 +28,8 @@ const CONTRATTO = { categoria: "contratto", etichetta: "contratto di noleggio" }
  */
 export function documentiRichiesti(m: { tipo: MezzoTipo; possesso?: MezzoPossesso | null }): DocumentoRichiesto[] {
   if (m.possesso === "noleggio_breve") return [];
-  if (m.possesso === "noleggio_lungo") return [CONTRATTO];
-  const contratto = m.possesso === "leasing" ? [CONTRATTO] : [];
+  if (m.possesso === "noleggio_lungo") return [CONTRATTO_NOLEGGIO];
+  const contratto = m.possesso === "leasing" ? [CONTRATTO_LEASING] : [];
   switch (m.tipo) {
     case "furgone":
     case "autocarro":

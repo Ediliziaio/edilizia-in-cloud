@@ -20,6 +20,9 @@ describe("documenti richiesti", () => {
     expect(documentiRichiesti({ tipo: "furgone", possesso: "leasing" }).map((d) => d.categoria)).toEqual(["assicurazione", "bollo", "revisione", "contratto"]);
     expect(documentiRichiesti({ tipo: "furgone", possesso: "noleggio_lungo" }).map((d) => d.categoria)).toEqual(["contratto"]);
     expect(documentiRichiesti({ tipo: "autocarro", possesso: "noleggio_breve" })).toEqual([]);
+    // il contratto si chiama per quello che è
+    expect(documentiRichiesti({ tipo: "furgone", possesso: "leasing" }).at(-1)?.etichetta).toBe("contratto di leasing");
+    expect(documentiRichiesti({ tipo: "furgone", possesso: "noleggio_lungo" })[0].etichetta).toBe("contratto di noleggio");
   });
 });
 
