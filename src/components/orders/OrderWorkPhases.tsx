@@ -29,7 +29,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { matchesWorkFilter, summarizeWork, parseWorkAmount, validWorkDates, wouldDuplicateAssignment, type WorkFilter } from "@/lib/orders/workPlanning";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
-import { WorkAssignmentRow as AssignmentRow, type AssignmentPatch } from "./WorkAssignmentRow";
+import { ElencoAssegnazioni, WorkAssignmentRow as AssignmentRow, type AssignmentPatch } from "./WorkAssignmentRow";
 import { economiaFasi, type EconomiaFase } from "@/lib/orders/economiaFasi";
 import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
 import { EconomiaFaseRiga, costoSforato } from "./EconomiaFaseRiga";
@@ -133,9 +133,11 @@ interface OrderWorkPhasesProps {
   orderCode?: string | null;
   onOpenReports?: () => void;
   view?: "lavorazioni" | "squadra";
+  /** Valore del contratto (imponibile, varianti approvate comprese): quanto resta da ripartire sulle lavorazioni. */
+  importoContratto?: number | null;
 }
 
-export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: OrderWorkPhasesProps) {
+export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, importoContratto }: OrderWorkPhasesProps) {
   const showWork = view !== "squadra";
   const showTeam = view !== "lavorazioni";
   const { canEditOrders, canViewCosts, canEditOperai, canViewOrderAmounts, canViewMargins } = usePermissions();
@@ -459,11 +461,19 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view }: Ord
 
         {showTeam && !isLoading && !isError && <InternalTeamShifts key={orderId} orderId={orderId} teams={externalTeams} phases={phaseOptions} canPlan={canEditOrders} />}
 
-        {/* Riepilogo economico (06/10/2026): venduto, costo previsto e consuntivo
-            di tutte le fasi, al posto del riepilogo della sola manodopera. Solo
-            quando c'è qualcosa da sommare. */}
-        {(canViewCosts || canViewOrderAmounts) && !isLoading && !isError && (phases.length > 0 || unassigned.length > 0) && (
-          <RiepilogoEconomicoFasi economia={economia} vedeVenduto={canViewOrderAmounts} vedeCosti={canViewCosts} vedeMargini={canViewMargins} />
+        {/* Economia delle lavorazioni (06/10/2026): venduto, costo previsto e
+            consuntivo fase per fase, al posto del riepilogo della sola
+            manodopera. Solo in Lavorazioni e quando c'è qualcosa da sommare. */}
+        {showWork && (canViewCosts || canViewOrderAmounts) && !isLoading && !isError && (phases.length > 0 || unassigned.length > 0) && (
+          <RiepilogoEconomicoFasi
+            economia={economia}
+            fasi={phases}
+            importoContratto={importoContratto}
+            vedeVenduto={canViewOrderAmounts}
+            vedeCosti={canViewCosts}
+            vedeMargini={canViewMargins}
+            onSalvaVenduto={canEditOrders && canViewOrderAmounts ? (id, importo) => updatePhase.mutate({ id, importo_venduto: importo }) : undefined}
+          />
         )}
       </CardHeader>
 
@@ -672,6 +682,7 @@ interface PhaseCardProps {
     start_date?: string | null;
     end_date?: string | null;
     percentuale?: number;
+    importo_venduto?: number | null;
   }) => void;
   onDeletePhase: () => void;
   onAddAssignment: (
@@ -836,9 +847,12 @@ function PhaseCard({
               <button type="button" className="min-w-0 break-words text-left font-semibold hover:underline" aria-expanded={open} aria-controls={`phase-body-${phase.id}`} onClick={() => setOpen(o => !o)}>{phase.name}</button>
             )}
 
-            <Badge variant="outline" className={`gap-1 ${meta.badge}`}>
-              {meta.label}
-            </Badge>
+            {/* Aperta, lo stato si legge (e si cambia) nella tendina a destra */}
+            {!(open && canEditOrders) && (
+              <Badge variant="outline" className={`gap-1 ${meta.badge}`}>
+                {meta.label}
+              </Badge>
+            )}
 
             {/* Avanzamento reale dichiarato dai rapportini + atteso a oggi:
                 barra piccola sempre visibile, "atteso X%" rosso se in ritardo */}
@@ -883,9 +897,9 @@ function PhaseCard({
               );
             })()}
 
-            {/* Riepilogo leggibile a fase chiusa: quando e chi la fa. I costi
-                stanno dentro, in «Costi della manodopera». */}
-            <div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {/* Riepilogo leggibile a fase chiusa: quando e chi la fa. Aperta non
+                serve: date, persone, note e materiali sono subito sotto. */}
+            {!open && <div className="flex basis-full flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1 tabular-nums">
                 <CalendarDays className="h-3 w-3" aria-hidden="true" />
                 {plannedDates.start || plannedDates.end
@@ -914,7 +928,7 @@ function PhaseCard({
               {canViewCosts && economia && costoSforato(economia) && (
                 <span className="text-rose-600 max-sm:hidden">costo oltre il previsto</span>
               )}
-            </div>
+            </div>}
           </div>
 
           {/* Controlli a destra: fuori dalla zona cliccabile */}
@@ -1024,10 +1038,26 @@ function PhaseCard({
                     aria-label="Data fine prevista"
                   />
                 </label>
+                {phase.status !== "completata" && phase.end_date && phase.end_date < format(new Date(), "yyyy-MM-dd") && (
+                  <span className="text-xs font-medium text-rose-600">scadenza superata</span>
+                )}
                 {squadreFase.length > 0 && (
                   <span className="text-[11px] text-muted-foreground">Le squadre della fase seguono queste date.</span>
                 )}
               </div>
+
+              {/* ── Economia: venduto, costo previsto, consuntivo, margine ── */}
+              {economia && (
+                <EconomiaFaseRiga
+                  economia={economia}
+                  nomeFase={phase.name}
+                  completata={phase.status === "completata"}
+                  vedeVenduto={canViewOrderAmounts}
+                  vedeCosti={canViewCosts}
+                  vedeMargini={canViewMargins}
+                  onSalvaVenduto={canEditOrders && canViewOrderAmounts ? (importo) => onUpdatePhase({ importo_venduto: importo }) : undefined}
+                />
+              )}
 
               {/* ── Chi la fa: squadre, poi persone e ditte ── */}
               <div className="flex flex-wrap items-start gap-2">
@@ -1049,7 +1079,7 @@ function PhaseCard({
                     />}
                   </div>
                   {phase.assignments.length > 0 && (
-                    <div className="space-y-2">
+                    <ElencoAssegnazioni>
                       {phase.assignments.map((a) => (
                         <AssignmentRow
                           key={`${a.source}-${a.id}`}
@@ -1061,15 +1091,10 @@ function PhaseCard({
                           onDelete={() => onDeleteAssignment(a.id, a.source)}
                         />
                       ))}
-                    </div>
+                    </ElencoAssegnazioni>
                   )}
                 </div>
               </div>
-
-              {/* ── Economia della fase: venduto, costo previsto, consuntivo ── */}
-              {economia && (
-                <EconomiaFaseRiga economia={economia} vedeVenduto={canViewOrderAmounts} vedeCosti={canViewCosts} vedeMargini={canViewMargins} />
-              )}
 
               {/* ── Mezzi e attrezzi di chi fa la fase ── */}
               {mezziFase.length > 0 && (
@@ -1091,7 +1116,7 @@ function PhaseCard({
               {/* ── Note per gli operai di questa fase ── */}
               <div className="flex flex-wrap items-start gap-2">
                 <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:w-full max-sm:pt-0">
-                  Note per gli operai
+                  Note
                 </span>
                 <div className="min-w-0 flex-1">
                   <NoteCantiere orderId={orderId} phaseId={phase.id} fasi={fasiOpzioni} modificabile={puoSquadre} compatta />
@@ -1100,25 +1125,14 @@ function PhaseCard({
 
               {/* ── Materiali della fase (order_items.phase_id) ── */}
               {(materials.length > 0 || unassignedMaterials.length > 0) && (
-                <div className="mt-3 space-y-2 border-t pt-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Materiali della fase
-                    </span>
-                    {materials.length > 0 && (
-                      <span
-                        className={cn(
-                          "text-xs font-medium tabular-nums",
-                          prontiCount === materials.length ? "text-emerald-600" : "text-amber-600"
-                        )}
-                      >
-                        {prontiCount}/{materials.length} coperti da giacenza o OdA
-                      </span>
-                    )}
-                  </div>
-
+                <div className="flex flex-wrap items-start gap-2">
+                  <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:w-full max-sm:pt-0">
+                    Materiali
+                  </span>
+                  <div className="min-w-0 flex-1 space-y-2">
+                  {materials.length > 0 && <div className="divide-y rounded-lg border">
                   {materials.map((m) => (
-                    <div key={m.id} className="flex flex-wrap items-center justify-between gap-2">
+                    <div key={m.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5">
                       <span className="min-w-0 flex-1 break-words text-sm">
                         {m.name}{" "}
                         <span className="text-xs text-muted-foreground">(x{m.quantity})</span>
@@ -1172,11 +1186,12 @@ function PhaseCard({
                       </div>
                     </div>
                   ))}
+                  </div>}
 
-                  {canEditOrders && <div className="flex flex-wrap items-center gap-2">
-                    <Popover>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canEditOrders && <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" className="h-8">
                           <Plus className="mr-1 h-4 w-4" />
                           Aggiungi materiale
                         </Button>
@@ -1199,9 +1214,9 @@ function PhaseCard({
                           ))
                         )}
                       </PopoverContent>
-                    </Popover>
+                    </Popover>}
 
-                    {missingMaterials.length > 0 && (
+                    {canEditOrders && missingMaterials.length > 0 && (
                       <CreatePurchaseOrderButton
                         orderId={orderId}
                         orderCode={orderCode}
@@ -1215,7 +1230,17 @@ function PhaseCard({
                         }))}
                       />
                     )}
-                  </div>}
+                    {materials.length > 0 && (
+                      <span
+                        className={cn(
+                          "text-xs font-medium tabular-nums",
+                          prontiCount === materials.length ? "text-emerald-600" : "text-amber-600"
+                        )}
+                      >
+                        {prontiCount}/{materials.length} coperti da giacenza o OdA
+                      </span>
+                    )}
+                  </div>
 
                   {startWarning && (
                     <p className="flex items-center gap-1 text-xs text-amber-600">
@@ -1223,6 +1248,7 @@ function PhaseCard({
                       Fase in partenza il {startWarning}: {missingMaterials.length} materiali da ordinare
                     </p>
                   )}
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -1306,7 +1332,7 @@ function UnassignedCard({
       </CardHeader>
 
       <CardContent className="space-y-2 px-3 pb-3 pt-0 sm:px-6 sm:pb-6">
-        <div className="space-y-2">
+        <ElencoAssegnazioni>
           {assignments.map((a) => (
             <AssignmentRow
               key={`${a.source}-${a.id}`}
@@ -1318,7 +1344,7 @@ function UnassignedCard({
               onDelete={() => onDeleteAssignment(a.id, a.source)}
             />
           ))}
-        </div>
+        </ElencoAssegnazioni>
       </CardContent>
     </Card>
   );
