@@ -113,8 +113,8 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
       </Button>}
     </div>
     {canViewCosts && <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t pt-2 text-xs text-muted-foreground max-sm:hidden">
-      <span>Budget <strong className="font-medium text-foreground">{eur.format(a.cost_preventivo)}</strong></span>
-      <span>Costo registrato <strong className="font-medium text-foreground">{eur.format(a.cost_consuntivo)}</strong></span>
+      <span>Costo previsto <strong className="font-medium text-foreground">{eur.format(a.cost_preventivo)}</strong></span>
+      <span>Costo consuntivo <strong className={a.cost_preventivo > 0 && a.cost_consuntivo > a.cost_preventivo ? "font-medium text-rose-700" : "font-medium text-foreground"}>{eur.format(a.cost_consuntivo)}</strong></span>
       {!internal && <span>{a.is_paid ? "Pagamento registrato" : "Pagamento da registrare"}</span>}
     </div>}
     <Dialog open={open} onOpenChange={v => { if (!busy) setOpen(v); }}>
@@ -140,8 +140,8 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
             <div className="mt-3 space-y-3">
               <p className="text-xs text-muted-foreground">{internal ? "Il costo imputato alla commessa è distinto dal pagamento dello stipendio." : "Il costo dell'affidamento è distinto dalle ore lavorate e dall'approvazione dei rapportini."}</p>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div><Label htmlFor={`budget-${a.id}`}>Budget manodopera €</Label><Input id={`budget-${a.id}`} type="number" min="0" step="0.01" value={draft.budget} disabled={busy} onChange={e => setDraft({ ...draft, budget: e.target.value })} /></div>
-                <div><Label htmlFor={`cost-${a.id}`}>Costo registrato €</Label><Input id={`cost-${a.id}`} type="number" min="0" step="0.01" value={draft.cost} disabled={busy} onChange={e => setDraft({ ...draft, cost: e.target.value })} /></div>
+                <div><Label htmlFor={`budget-${a.id}`}>Costo previsto €</Label><Input id={`budget-${a.id}`} type="number" min="0" step="0.01" value={draft.budget} disabled={busy} onChange={e => setDraft({ ...draft, budget: e.target.value })} /></div>
+                <div><Label htmlFor={`cost-${a.id}`}>Costo consuntivo €</Label><Input id={`cost-${a.id}`} type="number" min="0" step="0.01" value={draft.cost} disabled={busy} onChange={e => setDraft({ ...draft, cost: e.target.value })} /></div>
               </div>
               {canManagePayments && <label className="flex items-center gap-2 text-sm"><Switch checked={draft.paid} disabled={busy} onCheckedChange={paid => setDraft({ ...draft, paid })} />Pagamento registrato</label>}
               <p className="text-xs text-muted-foreground">Conserva la registrazione economica esistente; non esegue un pagamento bancario.</p>

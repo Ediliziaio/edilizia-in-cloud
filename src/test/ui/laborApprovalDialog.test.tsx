@@ -13,13 +13,13 @@ beforeEach(()=>{vi.clearAllMocks();state.isError=false;state.isFetching=false;se
 describe("Controllo prima di approvare",()=>{
   it("confronta budget e registrato senza trasformare la stima in costo definitivo",()=>{
     state.data={...state.data as object,budget:{planned:500,registered:450}};draw();
-    expect(screen.getByText("Budget manodopera interna")).toBeInTheDocument();
-    expect(screen.getByText("Già registrato sulla commessa")).toBeInTheDocument();
-    expect(screen.getByText(/la stima supera il budget/)).toHaveTextContent("50,00");
+    expect(screen.getByText("Costo previsto manodopera interna")).toBeInTheDocument();
+    expect(screen.getByText("Costo consuntivo già registrato")).toBeInTheDocument();
+    expect(screen.getByText(/la stima supera il costo previsto/)).toHaveTextContent("50,00");
   });
   it("mostra tariffa, ore e stima senza confonderli col budget",()=>{
     draw();expect(screen.getByText(/25,00/)).toBeInTheDocument();expect(screen.getByText(/Manodopera interna stimata/)).toHaveTextContent("100,00");
-    expect(screen.getByText(/non il budget né un pagamento/)).toBeInTheDocument();
+    expect(screen.getByText(/non il costo previsto né un pagamento/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button",{name:"Conferma approvazione"}));expect(state.approve).toHaveBeenCalledWith("v1",false);
   });
   it("richiede un riscontro esplicito per sovrapposizioni capo/operaio",()=>{

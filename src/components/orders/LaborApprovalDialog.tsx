@@ -51,15 +51,15 @@ export function LaborApprovalDialog({busy, onClose, onApprove, onInspect, ...req
         </div>
         {request.showCosts && <div className="rounded-xl bg-muted/50 p-3">
           {review.budget && <dl className="mb-3 grid grid-cols-1 gap-2 border-b pb-3 text-sm sm:grid-cols-2">
-            <div><dt className="text-muted-foreground">Budget manodopera interna</dt><dd className="font-semibold">{review.budget.planned == null ? "Non disponibile" : eur(review.budget.planned)}</dd></div>
-            <div><dt className="text-muted-foreground">Già registrato sulla commessa</dt><dd className="font-semibold">{review.budget.registered == null ? "Non disponibile" : eur(review.budget.registered)}</dd></div>
+            <div><dt className="text-muted-foreground">Costo previsto manodopera interna</dt><dd className="font-semibold">{review.budget.planned == null ? "Non disponibile" : eur(review.budget.planned)}</dd></div>
+            <div><dt className="text-muted-foreground">Costo consuntivo già registrato</dt><dd className="font-semibold">{review.budget.registered == null ? "Non disponibile" : eur(review.budget.registered)}</dd></div>
           </dl>}
           <p className="text-sm font-semibold">{review.complete ? "Manodopera interna stimata" : "Manodopera interna: importo parziale"} · {review.complete || review.knownCost > 0 ? eur(review.knownCost) : "Non determinabile"}</p>
-          {review.budget?.planned === 0 && <p className="mt-1 text-xs text-amber-800">Budget registrato a zero: verifica che sia stato compilato.</p>}
+          {review.budget?.planned === 0 && <p className="mt-1 text-xs text-amber-800">Costo previsto a zero: verifica che sia stato compilato.</p>}
           {review.budget && review.budget.planned != null && review.budget.planned > 0 && review.budget.registered != null &&
             review.complete && !review.overlaps.length && review.budget.registered + review.knownCost > review.budget.planned &&
-            <p className="mt-1 text-xs text-amber-800">Con questo rapporto, la stima supera il budget di {eur(review.budget.registered + review.knownCost - review.budget.planned)}.</p>}
-          <p className="mt-1 text-xs text-muted-foreground">È una stima alle tariffe attuali, non il budget né un pagamento. Esclude trasferte, mezzi e subappalti. Le ore extra usano la tariffa base nel percorso attuale.</p>
+            <p className="mt-1 text-xs text-amber-800">Con questo rapporto, la stima supera il costo previsto di {eur(review.budget.registered + review.knownCost - review.budget.planned)}.</p>}
+          <p className="mt-1 text-xs text-muted-foreground">È una stima alle tariffe attuali, non il costo previsto né un pagamento. Esclude trasferte, mezzi e subappalti. Le ore extra usano la tariffa base nel percorso attuale.</p>
           {review.rows.some(r => r.rate?.source === "calcolato") && <p className="mt-1 text-xs text-muted-foreground">La formula attuale usa lordo, aliquota INPS e ore mensili: non stima TFR, INAIL o altri oneri.</p>}
         </div>}
         {!!review.overlaps.length && <div className="rounded-xl border border-amber-300 p-3 text-sm">
