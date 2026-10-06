@@ -1400,57 +1400,58 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </>
                       )}
 
-                      {/* Prossima azione + data: una riga sola, si apre al tocco */}
-                      <div className="space-y-1">
-                        <button
-                          type="button"
-                          onClick={() => setProssimaAperta((v) => !v)}
-                          className="flex w-full items-center gap-1.5 text-left text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          <AlertTriangle className="h-3 w-3 shrink-0 text-yellow-500" />
-                          <span className="shrink-0">Prossima azione</span>
-                          <span className="min-w-0 flex-1 truncate text-foreground">
-                            {opportunity.next_action || <span className="text-muted-foreground">da aggiungere</span>}
-                            {opportunity.next_action_date ? ` · ${opportunity.next_action_date}` : ""}
-                          </span>
-                          <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${prossimaAperta ? "rotate-180" : ""}`} />
-                        </button>
-                        {prossimaAperta && (
-                          <>
-                            <Textarea
-                              placeholder="Es: Inviare preventivo, Chiamare per follow-up..."
-                              defaultValue={opportunity.next_action ?? ""}
-                              className="text-sm min-h-[60px] resize-none"
-                              onBlur={(e) =>
-                                updateOpportunity.mutate({
-                                  id: opportunity.id,
-                                  data: { next_action: e.target.value || null },
-                                })
-                              }
-                            />
-                            <Input
-                              type="date"
-                              defaultValue={opportunity.next_action_date ?? ""}
-                              placeholder="Data scadenza azione"
-                              className="mt-1 h-10 sm:h-8 text-sm"
-                              // onBlur come gli altri campi (commit 5c9c21b9d): con
-                              // onChange ogni keystroke della data lanciava una
-                              // mutation (anche valori parziali/vuoti → null).
-                              onBlur={(e) => {
-                                const v = e.target.value || null;
-                                if (v === (opportunity.next_action_date ?? null)) return;
-                                updateOpportunity.mutate({
-                                  id: opportunity.id,
-                                  data: { next_action_date: v },
-                                });
-                              }}
-                            />
-                          </>
-                        )}
-                      </div>
-
                     </CardContent>
                   </Card>
+                  <div className="max-lg:order-4 border-t pt-3">
+                    {/* Prossima azione + data: una riga sola, si apre al tocco */}
+                    <div className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => setProssimaAperta((v) => !v)}
+                        className="flex w-full items-center gap-1.5 text-left text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        <AlertTriangle className="h-3 w-3 shrink-0 text-yellow-500" />
+                        <span className="shrink-0">Prossima azione</span>
+                        <span className="min-w-0 flex-1 truncate text-foreground">
+                          {opportunity.next_action || <span className="text-muted-foreground">da aggiungere</span>}
+                          {opportunity.next_action_date ? ` · ${opportunity.next_action_date}` : ""}
+                        </span>
+                        <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${prossimaAperta ? "rotate-180" : ""}`} />
+                      </button>
+                      {prossimaAperta && (
+                        <>
+                          <Textarea
+                            placeholder="Es: Inviare preventivo, Chiamare per follow-up..."
+                            defaultValue={opportunity.next_action ?? ""}
+                            className="text-sm min-h-[60px] resize-none"
+                            onBlur={(e) =>
+                              updateOpportunity.mutate({
+                                id: opportunity.id,
+                                data: { next_action: e.target.value || null },
+                              })
+                            }
+                          />
+                          <Input
+                            type="date"
+                            defaultValue={opportunity.next_action_date ?? ""}
+                            placeholder="Data scadenza azione"
+                            className="mt-1 h-10 sm:h-8 text-sm"
+                            // onBlur come gli altri campi (commit 5c9c21b9d): con
+                            // onChange ogni keystroke della data lanciava una
+                            // mutation (anche valori parziali/vuoti → null).
+                            onBlur={(e) => {
+                              const v = e.target.value || null;
+                              if (v === (opportunity.next_action_date ?? null)) return;
+                              updateOpportunity.mutate({
+                                id: opportunity.id,
+                                data: { next_action_date: v },
+                              });
+                            }}
+                          />
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
