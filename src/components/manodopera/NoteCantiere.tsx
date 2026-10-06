@@ -126,7 +126,7 @@ export function NoteCantiere({
         <Button
           size="sm"
           variant="outline"
-          className={cn("gap-1.5", AZIONE_TENUE.nota, compatta && "h-8 rounded-full px-3")}
+          className={cn("gap-1.5", AZIONE_TENUE.nota, compatta && "tap-compact h-8 rounded-full px-3")}
           onClick={() => setAperta("nuova")}
         >
           <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />

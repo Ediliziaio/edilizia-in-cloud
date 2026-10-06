@@ -60,7 +60,7 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
 
   if (!canEditOrders || !canViewCosts) return null;
   return <>
-    <Button variant="outline" size="sm" className="min-h-11 border-slate-300 font-semibold text-blue-950" disabled={!verified || available.length === 0}
+    <Button variant="outline" size="sm" className="min-h-11 border-slate-300 font-semibold text-blue-950 max-sm:h-8 max-sm:min-h-8" disabled={!verified || available.length === 0}
       onClick={() => { setSupplierId(available.length === 1 ? available[0].id : ""); setOpen(true); }}>
       <Package className="h-4 w-4 mr-2" />Crea bozza OdA
     </Button>

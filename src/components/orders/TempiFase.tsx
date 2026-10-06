@@ -69,6 +69,14 @@ export function testoTempi(f: FaseCrono, oggi: string): { lungo: string; breve: 
   }
 }
 
+/** Il ritardo in poche lettere, per la riga della fase da telefono: «+84 gg», «inizio +3 gg». */
+export function ritardoBreve(f: FaseCrono, oggi: string): { testo: string; tono: "rosso" | "ambra" } | null {
+  const c = confrontoTempi(f, oggi);
+  if (c.esito === "finita_in_ritardo" || c.esito === "aperta_oltre") return { testo: `+${c.ritardo} gg`, tono: "rosso" };
+  if (c.esito === "in_ritardo_inizio") return { testo: `inizio +${c.ritardo} gg`, tono: "ambra" };
+  return null;
+}
+
 const COLORE: Record<Tono, string> = {
   rosso: "font-medium text-rose-700",
   ambra: "font-medium text-amber-700",

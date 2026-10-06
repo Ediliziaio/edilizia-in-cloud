@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Phone, MessageSquare, Smartphone, Receipt, Mail, FileText, CalendarPlus, Loader2, BellRing, UserCog, FolderOpen, StickyNote, PenLine, ChevronDown, Zap, ListPlus, Sparkles, Settings2, type LucideIcon } from "lucide-react";
+import { Phone, MessageSquare, Smartphone, Receipt, Mail, FileText, CalendarPlus, Loader2, BellRing, UserCog, FolderOpen, StickyNote, PenLine, ChevronDown, Zap, ListPlus, Sparkles, Settings2, MoreHorizontal, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -53,6 +53,11 @@ interface Props {
   onOpenOps?: () => void;
   /** Slot per il bottone "Chiedi a Silvio" contestuale (renderizzato in coda alla barra). */
   askSilvio?: React.ReactNode;
+  /**
+   * Telefono (06/10/2026): solo le icone di attività, documenti e «Altro»,
+   * da mettere nella fila di «Registra incasso» invece di una fila a parte.
+   */
+  inline?: boolean;
   /** Apre il popup "Documenti e file" della commessa. */
   onOpenFiles?: () => void;
   /** Apre il popup "Note interne" collaborative (thread + chat team di commessa). */
@@ -95,7 +100,7 @@ type QuickAction = {
 export function OrderQuickActions({
   orderId, orderCode, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps, onOpenFiles, onOpenNotes, onOpenFirma, askSilvio, sollecitoRef,
   onCreateTask, onApplyPlaybook, onManagePlaybook, applyingPlaybook = false, playbookLabel,
-  onCreateInvoice, invoiceDisabled = false, invoiceHint,
+  onCreateInvoice, invoiceDisabled = false, invoiceHint, inline = false,
 }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -221,10 +226,16 @@ export function OrderQuickActions({
   };
 
   return (
-    <div role="region" aria-label="Azioni rapide commessa" className="bg-white border-b border-gray-100 px-3 sm:px-6 py-2">
-      <div className="flex items-center gap-1.5 md:flex-wrap md:gap-2">
+    <div role="region" aria-label="Azioni rapide commessa" className={inline ? "flex shrink-0 items-center" : "bg-white border-b border-gray-100 px-3 sm:px-6 py-2"}>
+      <div className={inline ? "flex items-center gap-1.5" : "flex items-center gap-1.5 md:flex-wrap md:gap-2"}>
         {primaryActions.map(a => {
           const Icon = a.icon;
+          // In fila con «Registra incasso» sono icone: una sola azione principale per riga.
+          if (inline) return <Button key={a.id} variant="outline" size="icon" onClick={a.onClick} disabled={a.disabled}
+            title={a.label} aria-label={a.label}
+            className={cn("tap-compact h-9 w-9 shrink-0 border-slate-300 bg-white hover:bg-blue-50", a.id === "task" ? "text-orange-700" : "text-blue-950")}>
+            <Icon className="h-4 w-4" aria-hidden="true" />
+          </Button>;
           return <Button key={a.id} variant="outline" onClick={a.onClick} disabled={a.disabled}
             title={a.hint ?? a.label} aria-label={a.label}
             className={cn("h-11 min-h-11 min-w-0 flex-1 gap-1.5 whitespace-nowrap rounded-lg border-slate-300 px-2 text-xs font-semibold md:h-auto md:flex-none md:gap-2 md:px-3 md:py-2 md:text-sm",
@@ -236,11 +247,17 @@ export function OrderQuickActions({
         {/* Azioni secondarie raggruppate, uguali su desktop e mobile. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
+            {inline ? (
+              <Button variant="outline" size="icon" aria-label="Altre azioni" title="Altre azioni" className="tap-compact h-9 w-9 shrink-0 border-slate-300 bg-white text-blue-950">
+                <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            ) : (
             <Button variant="outline" size="sm" aria-label="Altre azioni" className="group h-11 min-h-11 gap-1.5 rounded-lg border-slate-300 px-2 text-xs font-semibold text-blue-950 md:gap-2 md:px-3 md:text-sm">
               {!isMobile && <Zap className="h-3.5 w-3.5 text-primary" />}
               <span>{isMobile ? "Altro" : "Altre azioni"}</span>
               <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
             </Button>
+            )}
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"

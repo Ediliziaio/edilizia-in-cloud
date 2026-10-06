@@ -6,8 +6,10 @@ const m = vi.hoisted(() => ({
   queryFn: null as null | (() => Promise<unknown>),
   error: false,
   loading: false,
+  mobile: false,
   refetch: vi.fn(),
 }));
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => m.mobile }));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ effectiveCompany: { id: "company" } }),
 }));
@@ -33,6 +35,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.error = false;
   m.loading = false;
+  m.mobile = false;
 });
 afterEach(cleanup);
 const show = () => render(<LinkedTasks orderId="order" category="ordini" />);
@@ -113,5 +116,12 @@ describe("Attività nella commessa: una riga sola finché non ce ne sono (06/10/
     compatta();
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.queryByText("nessuna")).not.toBeInTheDocument();
+  });
+
+  it("dal telefono, vuota, non c'è proprio: l'attività si aggiunge dall'icona in testata", () => {
+    m.mobile = true;
+    compatta();
+    expect(screen.queryByText("Attività")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aggiungi" })).not.toBeInTheDocument();
   });
 });
