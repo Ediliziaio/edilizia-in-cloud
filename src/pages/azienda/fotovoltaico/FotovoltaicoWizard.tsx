@@ -158,18 +158,27 @@ import { formattaEuro, type VistaAnteprima } from "@/lib/preventivatore/anteprim
 import { usePermissions } from "@/hooks/usePermissions";
 import type { FvTemplate } from "@/components/fotovoltaico/FotovoltaicoTemplateEditor";
 import { useSupportoModelloPreventivo } from "@/hooks/useSupportoModelliPreventivo";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { creaModelloPreventivo, interventoDelModulo, leggiModelloPreventivo } from "@/lib/moduli/modelloPreventivo";
 
 const formatEur = (n: number) =>
   `€ ${n.toLocaleString("it-IT", { maximumFractionDigits: 0 })}`;
 
+/** Le frasi inglesi che supabase-js usa quando il server risponde con un errore o non risponde: a chi compila non dicono niente. */
+const ERRORI_GENERICI_DEL_SERVER: Array<[RegExp, string]> = [
+  [/non-2xx status code/i, "Il server ha risposto con un errore. Riprova fra qualche istante."],
+  [/failed to send a request to the edge function/i, "Il server non risponde: controlla la connessione e riprova."],
+  [/relay error invoking the edge function/i, "Il server non risponde: riprova fra qualche istante."],
+];
+
 function describeError(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  if (typeof e === "object" && e !== null) {
+  let msg: string;
+  if (e instanceof Error) msg = e.message;
+  else if (typeof e === "object" && e !== null) {
     const obj = e as { message?: string; error?: string };
-    return obj.message ?? obj.error ?? "Errore sconosciuto. Riprova fra qualche istante.";
-  }
-  return String(e ?? "Errore sconosciuto");
+    msg = obj.message ?? obj.error ?? "Errore sconosciuto. Riprova fra qualche istante.";
+  } else msg = String(e ?? "Errore sconosciuto");
+  return ERRORI_GENERICI_DEL_SERVER.find(([frase]) => frase.test(msg))?.[1] ?? msg;
 }
 
 const MODALITA_FINANZIAMENTO = ["cash", "rate", "zero", "noleggio"] as const;
@@ -864,7 +873,8 @@ function FotovoltaicoWizard() {
             },
           }
         );
-        if (error) throw error;
+        // Il messaggio vero sta nel corpo della risposta: `error.message` e' sempre la frase inglese generica.
+        if (error) throw new Error(await edgeErrorMessage(error, "Creazione del preventivo non riuscita"));
         const newId = (result as { progetto_id?: string } | null)?.progetto_id;
         // Difesa: se la edge function risponde senza progetto_id non avanziamo
         // con id undefined (gli step successivi farebbero no-op silenziosi).
@@ -971,7 +981,7 @@ function FotovoltaicoWizard() {
         const { data: r, error } = await supabase.functions.invoke("fv-pvgis-fetch", {
           body: { lat: data.latitudine, lng: data.longitudine, kwp: data.potenza_kwp },
         });
-        if (error) throw error;
+        if (error) throw new Error(await edgeErrorMessage(error, "Dati PVGIS non disponibili"));
         fonteEffettiva = "pvgis";
         return r as Record<string, unknown>;
       };
@@ -981,7 +991,7 @@ function FotovoltaicoWizard() {
           const { data: r, error } = await supabase.functions.invoke("fv-solar-api-fetch", {
             body: { lat: data.latitudine, lng: data.longitudine, progetto_id: progettoId },
           });
-          if (error) throw error;
+          if (error) throw new Error(await edgeErrorMessage(error, "Dati Solar API non disponibili"));
           const sr = r as Record<string, unknown>;
           // La Solar API risponde 200 con `error` quando l'edificio non è coperto
           // o l'API rifiuta la richiesta → fallback automatico a PVGIS.
@@ -1266,7 +1276,8 @@ function FotovoltaicoWizard() {
         "fv-calcolo-finanziario",
         { body: { progetto_id: progettoId } },
       );
-      if (error) throw error;
+      // Il messaggio vero (es. «Progetto non trovato») sta nel corpo della risposta, non in `error.message`.
+      if (error) throw new Error(await edgeErrorMessage(error, "Calcolo non riuscito"));
       if (!mountedRef.current) return null;
       setScenarioFin(result as Record<string, unknown>);
       setCompletedSteps((s) => new Set(s).add(6));
@@ -1495,7 +1506,7 @@ function FotovoltaicoWizard() {
           },
         },
       );
-      if (error) throw error;
+      if (error) throw new Error(await edgeErrorMessage(error, "Generazione del preventivo non riuscita"));
       if (!result || (result as { url?: string }).url === undefined) {
         throw new Error("Il server non ha restituito un URL valido per il preventivo.");
       }
@@ -2323,7 +2334,7 @@ function Step2Immobile({
       const { data: r, error } = await supabase.functions.invoke("fv-geocode", {
         body: { indirizzo },
       });
-      if (error) throw error;
+      if (error) throw new Error(await edgeErrorMessage(error, "Servizio di ricerca indirizzi non raggiungibile"));
       const res = r as {
         lat?: number; lng?: number; comune?: string | null;
         provincia?: string | null; cap?: string | null;

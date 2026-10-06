@@ -20,7 +20,7 @@ const conSpaziNormali = (t: string) => t.split(String.fromCharCode(160)).join(" 
 function dati(extra: (d: FvPdfTemplateData) => void = () => {}): FvPdfTemplateData {
   const flows = calcolaEnergyFlows({ potenza_kwp: 6, has_accumulo: false, capacita_accumulo_kwh: 0, consumo_annuo_kwh: 4500, ore_sole_annue: 1500, produzione_kwh: 6808.5, autoconsumo_pct: 0.35 });
   const d = {
-    azienda: { name: "Demo Solar", phone: "02 123456", email: "i@d.it", website: "https://d.it", vat_number: "IT123" },
+    azienda: { name: "Demo Solar", phone: "02 123456", email: "info@example.com", website: "https://example.com", vat_number: "IT123" },
     cliente: { nome: "Mario", cognome: "Rossi", indirizzo: "Via Roma 1", comune: "Milano", cap: "20100", provincia: "MI", tipologia_immobile: "Abitazione" },
     progetto: { numero: "FV-1", titolo: "Mario Rossi", creato_il: "2026-10-05T10:00:00Z", valido_giorni: 30, venditore: null, potenza_kwp: 6, numero_pannelli: 12, has_accumulo: false, capacita_accumulo_kwh: 0, consumo_annuo_kwh: 4500, costo_kwh_attuale: 0.32, profilo_consumo: "misto", ore_sole_annue: 1500, superficie_tetto_disponibile_mq: null },
     costi: { prezzo_vendita_iva_inclusa: 12345.67, iva_perc: 10, detrazione_eur: 6173, detrazione_perc: 50, costo_netto_dopo_detrazione: 6173 },

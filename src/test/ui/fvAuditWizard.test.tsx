@@ -6,6 +6,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { INITIAL } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard/constants";
 
 const { stato, NESSUNO, aggiorna, invoca, vista } = vi.hoisted(() => ({
@@ -25,7 +26,7 @@ const { stato, NESSUNO, aggiorna, invoca, vista } = vi.hoisted(() => ({
   },
   NESSUNO: [] as unknown[],
   aggiorna: vi.fn(async (_: unknown): Promise<void> => undefined),
-  invoca: vi.fn(async (_nome: string, _opzioni?: unknown): Promise<{ data: unknown; error: null }> => ({ data: null, error: null })),
+  invoca: vi.fn(async (_nome: string, _opzioni?: unknown): Promise<{ data: unknown; error: unknown }> => ({ data: null, error: null })),
   vista: { confronto: null as unknown, simulatore: null as unknown },
 }));
 
@@ -159,6 +160,7 @@ beforeEach(() => {
   vista.confronto = null;
   vista.simulatore = null;
   aggiorna.mockClear();
+  vi.mocked(toast.error).mockClear();
   invoca.mockReset();
   invoca.mockImplementation(async (nome: string) => ({ data: nome === "fv-calcolo-finanziario" ? stato.scenario : nome === "fv-genera-pdf" ? { url: "x.html" } : null, error: null }));
   localStorage.clear();
@@ -402,5 +404,37 @@ describe("Fase 6: riaprire un progetto ripristina la scelta di finanziamento, la
     monta();
     await arrivaAllaFase6();
     await waitFor(() => expect(riquadroRata("Canone operativo")).toContain("Noleggio operativo · 36 mesi"));
+  });
+});
+
+describe("Fase 6: se il calcolo del server risponde con un errore si legge il messaggio vero, in italiano", () => {
+  /** Come lo dà supabase-js per una risposta non 2xx: `message` è la frase inglese generica, il messaggio vero sta nel corpo (`context.json()`). */
+  const rispostaNon2xx = (corpo: () => Promise<unknown>) =>
+    Object.assign(new Error("Edge Function returned a non-2xx status code"), { context: { json: corpo } });
+  const calcoloInErrore = (errore: unknown) =>
+    invoca.mockImplementation(async (nome: string) => (nome === "fv-calcolo-finanziario" ? { data: null, error: errore } : { data: null, error: null }));
+
+  it("il messaggio del server (nel corpo della risposta) arriva a chi compila, sia nel riquadro sia nell'avviso", async () => {
+    calcoloInErrore(rispostaNon2xx(async () => ({ error: "Progetto non trovato" })));
+    apriAllaFase(6);
+    monta();
+    expect(await screen.findByText("Progetto non trovato")).toBeTruthy();
+    expect(screen.queryByText(/non-2xx/)).toBeNull();
+    await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Calcolo finanziario fallito: Progetto non trovato"));
+  });
+
+  it("se il corpo non si legge, la frase generica inglese diventa una frase italiana", async () => {
+    calcoloInErrore(rispostaNon2xx(async () => { throw new SyntaxError("Unexpected token < in JSON"); }));
+    apriAllaFase(6);
+    monta();
+    expect(await screen.findByText("Il server ha risposto con un errore. Riprova fra qualche istante.")).toBeTruthy();
+    expect(vi.mocked(toast.error).mock.calls.flat().join(" ")).not.toMatch(/non-2xx/);
+  });
+
+  it("senza rete (supabase-js non arriva al server) il messaggio dice di controllare la connessione", async () => {
+    calcoloInErrore(new Error("Failed to send a request to the Edge Function"));
+    apriAllaFase(6);
+    monta();
+    expect(await screen.findByText("Il server non risponde: controlla la connessione e riprova.")).toBeTruthy();
   });
 });

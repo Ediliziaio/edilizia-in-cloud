@@ -509,23 +509,111 @@ describe("fv-calcolo-finanziario — cosa scrive sul progetto", () => {
     expect(banca.scritture.some((w) => w.tabella === "fv_calcolo_finanziario" && w.tipo === "insert")).toBe(false);
   });
 
-  it("senza potenza o senza consumi il calcolo si rifiuta (400) e non scrive niente", async () => {
+  it("senza potenza o senza consumi il calcolo si rifiuta (400) con un messaggio che chi compila capisce, e non scrive niente", async () => {
     prepara(progetto({ potenza_kwp: null }));
-    expect((await chiama()).status).toBe(400);
+    const senzaPotenza = await chiama();
+    expect(senzaPotenza.status).toBe(400);
+    // il wizard mostra questo testo: niente nomi di colonne
+    const { error } = (await senzaPotenza.json()) as { error: string };
+    expect(error).toMatch(/incompleto.*potenza.*ore di sole.*consumo/);
+    expect(error).not.toMatch(/_/);
     prepara(progetto({ consumo_annuo_kwh: null }));
     expect((await chiama()).status).toBe(400);
     expect(banca.scritture).toHaveLength(0);
   });
 
-  it("un preventivo emesso o firmato non si riscrive: il calcolo si può rifare per vederlo, ma il progetto resta com'era", async () => {
+  it("un preventivo emesso, firmato o annullato non si riscrive e la risposta dice quello che dice il documento: il prezzo salvato (4.000), non il calcolo di oggi (4.818)", async () => {
+    // Prima la risposta era il calcolo di oggi (4.818): la Fase 6 mostrava un prezzo diverso da quello emesso.
     for (const stato of ["emesso", "firmato", "annullato"]) {
       prepara(progetto({ stato, prezzo_vendita_iva_inclusa: 4000, finanziamento_rata_eur: 99 }));
       const r = await calcola();
-      expect(r.costi.prezzo_vendita_iva_inclusa).toBe(4818); // il calcolo risponde
+      expect(r.sola_lettura, stato).toBe(true);
+      expect(r.costi.prezzo_vendita_iva_inclusa, stato).toBe(4000);
       expect(banca.scritture, stato).toHaveLength(0);
       expect(banca.tabelle.fv_progetti[0].prezzo_vendita_iva_inclusa).toBe(4000);
       expect(banca.tabelle.fv_progetti[0].finanziamento_rata_eur).toBe(99);
     }
+  });
+
+  describe("la risposta di un preventivo bloccato è quella SALVATA (progetto + calcolo attivo)", () => {
+    // Quello che il calcolo di quel giorno ha scritto: valori inventati e diversi da quelli di oggi.
+    const calcoloSalvato = (extra: Riga = {}): Riga => ({
+      progetto_id: "p1", attivo: true, produzione_annua_kwh: 5000, autoconsumo_pct: 0.4, costo_kwh_attuale: 0.28, prezzo_rid_eur_kwh: 0.09,
+      energia_autoconsumata_kwh: 2000, energia_immessa_rete_kwh: 3000, risparmio_bolletta_eur: 560, ricavi_rid_eur: 270, detrazione_anno_eur: 200,
+      cassa_anno_per_anno: [{ anno: 0, flusso: -4000, cumulato: -4000 }, { anno: 25, flusso: 700, cumulato: 9000 }],
+      cassa_mese_anno1: [{ mese: 1, produzione_kwh: 300, flusso: 60 }],
+      payback_anni: 7.5, npv_25_anni: 1234.5, irr_pct: 0.08, risparmio_totale_25_anni: 20000,
+      capienza_irpef_ok: true, capienza_irpef_recuperabile_pct: 100,
+      sensitivity_minus15: { payback_anni: 8.5 }, sensitivity_plus15: { payback_anni: 6.8 },
+      scenario_auto_elettrica: { payback_anni: 7 }, scenario_pompa_calore: { payback_anni: 6 },
+      confronto_btp_25anni: { tasso: 0.03 }, confronto_deposito_25anni: { tasso: 0.01 }, incentivi: [{ codice: "SALVATO", nome: "Salvato" }],
+      ...extra,
+    });
+    // 4.000 IVA 10% inclusa = 3.636,36 di imponibile; costi 3.100 → margine 536,36 (14,75%)
+    const emesso = (extra: Riga = {}): Riga => progetto({
+      stato: "emesso", prezzo_vendita_iva_inclusa: 4000, sconto_eur_applicato: 0, costo_totale_netto: 3100,
+      margine_eur: 536.36, margine_pct: 0.1475, payback_anni: 7.5, npv_25_anni: 1234.5, finanziamento_rata_eur: 99, ...extra,
+    });
+
+    it("prezzo, sconto e margine sono quelli del progetto; produzione, risparmio, payback, cassa e incentivi quelli del calcolo attivo", async () => {
+      for (const stato of ["emesso", "firmato", "annullato"]) {
+        prepara(emesso({ stato }), { fv_calcolo_finanziario: [calcoloSalvato()] });
+        const r = await calcola();
+        expect(r.costi, stato).toMatchObject({
+          prezzo_vendita_iva_inclusa: 4000, prezzo_vendita_netto: 3636.36, prezzo_pieno_netto: 3636.36, sconto_eur_applicato: 0,
+          sconto_limitato: false, costo_totale_netto: 3100, margine_eur: 536.36, margine_pct: 0.1475, costi_incompleti: false,
+        });
+        expect(r, stato).toMatchObject({
+          sola_lettura: true, produzione_annua_kwh: 5000, autoconsumo_pct: 0.4, costo_kwh_attuale: 0.28, prezzo_rid_eur_kwh: 0.09,
+          risparmio_bolletta_eur: 560, ricavi_rid_eur: 270, detrazione_anno_eur: 200, payback_anni: 7.5, npv_25_anni: 1234.5, irr_pct: 0.08,
+          risparmio_totale_25_anni: 20000, capienza_irpef_ok: true,
+        });
+        expect(r.cassa_anno_per_anno).toEqual(calcoloSalvato().cassa_anno_per_anno);
+        expect(r.incentivi).toEqual([{ codice: "SALVATO", nome: "Salvato" }]);
+        expect(r.sensitivity_minus15).toEqual({ payback_anni: 8.5 });
+        expect(banca.scritture, stato).toHaveLength(0);
+      }
+    });
+
+    it("con uno sconto concesso, il prezzo pieno è imponibile + sconto salvato (non quello di oggi)", async () => {
+      // imponibile 3.636,36 dopo uno sconto di 400 → pieno 4.036,36
+      prepara(emesso({ sconto_eur_applicato: 400 }), { fv_calcolo_finanziario: [calcoloSalvato()] });
+      const r = await calcola();
+      expect(r.costi).toMatchObject({ prezzo_vendita_netto: 3636.36, sconto_eur_applicato: 400, prezzo_pieno_netto: 4036.36 });
+    });
+
+    it("un payback salvato vuoto (non rientra mai in 25 anni) resta vuoto: non diventa quello di oggi", async () => {
+      prepara(emesso({ payback_anni: null }), { fv_calcolo_finanziario: [calcoloSalvato({ payback_anni: null, irr_pct: null })] });
+      const r = await calcola();
+      expect(r.payback_anni).toBeNull();
+      expect(r.irr_pct).toBeNull();
+    });
+
+    it("senza un calcolo attivo (capita agli emessi più vecchi) prezzo e risultati principali sono quelli del progetto; il resto è il calcolo di oggi", async () => {
+      prepara(emesso({ payback_anni: 9.9, npv_25_anni: 555, produzione_annua_kwh: 4800, autoconsumo_pct: 0.3 }));
+      const r = await calcola();
+      expect(r.costi).toMatchObject({ prezzo_vendita_iva_inclusa: 4000, margine_eur: 536.36, costo_totale_netto: 3100 });
+      expect(r).toMatchObject({ sola_lettura: true, payback_anni: 9.9, npv_25_anni: 555, produzione_annua_kwh: 4800, autoconsumo_pct: 0.3 });
+      // il resto c'è comunque: la risposta non ha buchi
+      expect(r.cassa_anno_per_anno).toHaveLength(26);
+      expect(Array.isArray(r.incentivi)).toBe(true);
+      expect(banca.scritture).toHaveLength(0);
+    });
+
+    it("se il progetto non ha nessun prezzo salvato (mai calcolato) la risposta è il calcolo di oggi, senza scrivere", async () => {
+      prepara(progetto({ stato: "emesso", prezzo_vendita_iva_inclusa: null }));
+      const r = await calcola();
+      expect(r.costi.prezzo_vendita_iva_inclusa).toBe(4818);
+      expect(banca.scritture).toHaveLength(0);
+    });
+
+    it("un preventivo in bozza continua a rispondere con il calcolo di oggi e a scriverlo, qualunque cosa ci sia di salvato", async () => {
+      prepara(emesso({ stato: "bozza" }), { fv_calcolo_finanziario: [calcoloSalvato()] });
+      const r = await calcola();
+      expect(r.costi.prezzo_vendita_iva_inclusa).toBe(4818);
+      expect(r.sola_lettura).toBeUndefined();
+      expect(banca.tabelle.fv_progetti[0].prezzo_vendita_iva_inclusa).toBe(4818);
+    });
   });
 });
 

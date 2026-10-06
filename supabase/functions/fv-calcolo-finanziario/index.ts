@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
     // ── 2. Calcoli base ────────────────────────────────────────────────────
 
     if (!prog.potenza_kwp || !prog.ore_sole_annue || !prog.consumo_annuo_kwh) {
-      return errorResponse("Progetto incompleto: serve potenza_kwp + ore_sole_annue + consumo", 400, corsHeaders);
+      return errorResponse("Il preventivo è incompleto: servono la potenza dell'impianto, le ore di sole e il consumo annuo (Fasi 3, 4 e 5).", 400, corsHeaders);
     }
 
     // Costi totali dal sommatorio componenti + manodopera + servizi
@@ -420,9 +420,21 @@ Deno.serve(async (req: Request) => {
     // rata e i risultati sono quelli del documento che il cliente ha in mano (e da
     // cui nasce la commessa). Aprirlo in sola lettura e andare alla Fase 6 rilanciava
     // questo calcolo, che con le regole o i parametri di oggi poteva cambiare il
-    // prezzo salvato e cancellare la rata. Si risponde col calcolo, senza scrivere.
+    // prezzo salvato e cancellare la rata. Non si scrive niente, e si risponde con
+    // quello che è salvato (progetto + calcolo attivo): la schermata dice ciò che dice il documento.
     if (["emesso", "firmato", "annullato"].includes(String(prog.stato ?? ""))) {
-      return jsonResponse({ ...risultato, sola_lettura: true }, 200, corsHeaders);
+      const { data: calcoloAttivo, error: errCalcoloAttivo } = await supabaseAdmin
+        .from("fv_calcolo_finanziario")
+        .select("*")
+        .eq("progetto_id", p.progetto_id)
+        .eq("attivo", true)
+        .maybeSingle();
+      if (errCalcoloAttivo) throw errCalcoloAttivo;
+      return jsonResponse(
+        { ...risultatoSalvato(risultato, prog, calcoloAttivo ?? null, iva_aliquota), sola_lettura: true },
+        200,
+        corsHeaders,
+      );
     }
 
     // ── 14. Salva calcolo + denormalizza progetto ─────────────────────────
@@ -807,6 +819,89 @@ function mensileDistribution(provincia: string | null): number[] {
   // i dodici mesi davano il 2-5% di energia in più di quella dell'anno. Si riportano a somma 1.
   const somma = pesi.reduce((a, b) => a + b, 0);
   return pesi.map((x) => x / somma);
+}
+
+/** I numeri che il progetto si porta dietro dall'ultimo calcolo (le colonne denormalizzate). */
+const NUMERI_DEL_PROGETTO = ["produzione_annua_kwh", "autoconsumo_pct", "payback_anni", "npv_25_anni", "irr_pct"] as const;
+/** I risultati scalari del calcolo attivo. Per `payback_anni` e `irr_pct` il vuoto vale qualcosa: non rientra mai. */
+const NUMERI_DEL_CALCOLO = [
+  "produzione_annua_kwh", "autoconsumo_pct", "costo_kwh_attuale", "prezzo_rid_eur_kwh",
+  "energia_autoconsumata_kwh", "energia_immessa_rete_kwh", "risparmio_bolletta_eur", "ricavi_rid_eur",
+  "detrazione_anno_eur", "payback_anni", "npv_25_anni", "irr_pct", "risparmio_totale_25_anni",
+  "capienza_irpef_recuperabile_pct",
+] as const;
+/** I risultati strutturati del calcolo attivo (cassa, scenari, confronti, incentivi). */
+const VOCI_DEL_CALCOLO = [
+  "cassa_anno_per_anno", "cassa_mese_anno1", "capienza_irpef_ok", "sensitivity_minus15", "sensitivity_plus15",
+  "scenario_auto_elettrica", "scenario_pompa_calore", "confronto_btp_25anni", "confronto_deposito_25anni", "incentivi",
+] as const;
+
+/**
+ * La risposta per un preventivo emesso, firmato o annullato: quello che dice il documento.
+ *
+ * Ricalcolare con le righe, i parametri e le regole di oggi poteva dare un prezzo, una rata e un
+ * payback diversi da quelli salvati e stampati, e la Fase 6 li mostrava accanto a un documento che
+ * dice altro. Qui prezzo, sconto e margine vengono dal progetto, i risultati dal calcolo attivo;
+ * quello che non è stato salvato resta il calcolo di oggi, per non lasciare buchi nella risposta.
+ */
+function risultatoSalvato(
+  oggi: Record<string, unknown>,
+  prog: Record<string, unknown>,
+  calcolo: Record<string, unknown> | null,
+  ivaAliquota: number,
+): Record<string, unknown> {
+  const numero = (v: unknown): number | null => {
+    if (v == null || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const out: Record<string, unknown> = { ...oggi };
+
+  // I numeri principali scritti sul progetto all'ultimo calcolo (dove mancano resta quello di oggi).
+  for (const k of NUMERI_DEL_PROGETTO) {
+    const v = numero(prog[k]);
+    if (v != null) out[k] = v;
+  }
+  if (typeof prog.capienza_irpef_ok === "boolean") {
+    out.capienza_irpef_ok = prog.capienza_irpef_ok;
+    out.capienza_irpef_warning = prog.capienza_irpef_warning ?? null;
+  }
+  const co2 = numero(prog.co2_evitata_25_anni_kg);
+  if (co2 != null) out.co2_evitata_25_anni_kg = co2;
+
+  // Il calcolo attivo: tutti i risultati.
+  if (calcolo) {
+    for (const k of NUMERI_DEL_CALCOLO) {
+      if (!(k in calcolo)) continue;
+      const v = numero(calcolo[k]);
+      if (v != null || k === "payback_anni" || k === "irr_pct") out[k] = v;
+    }
+    for (const k of VOCI_DEL_CALCOLO) {
+      if (calcolo[k] != null) out[k] = calcolo[k];
+    }
+  }
+
+  // Prezzo, sconto e margine: quelli del progetto, cioè del documento.
+  const prezzo = numero(prog.prezzo_vendita_iva_inclusa);
+  if (prezzo != null && prezzo > 0) {
+    const costi: Record<string, unknown> = { ...(oggi.costi as Record<string, unknown>) };
+    const netto = round2(prezzo / (1 + ivaAliquota));
+    const sconto = numero(prog.sconto_eur_applicato) ?? 0;
+    const margineEur = numero(prog.margine_eur);
+    costi.prezzo_vendita_iva_inclusa = round2(prezzo);
+    costi.prezzo_vendita_netto = netto;
+    costi.sconto_eur_applicato = sconto;
+    costi.prezzo_pieno_netto = round2(netto + sconto);
+    // Se lo sconto fu limitato dalle regole non è salvato: in sola lettura non c'è niente da avvisare.
+    costi.sconto_limitato = false;
+    const costo = numero(prog.costo_totale_netto);
+    if (costo != null) costi.costo_totale_netto = costo;
+    costi.margine_eur = margineEur;
+    costi.margine_pct = margineEur == null ? null : numero(prog.margine_pct);
+    costi.costi_incompleti = margineEur == null;
+    out.costi = costi;
+  }
+  return out;
 }
 
 function round2(n: number): number { return Math.round(n * 100) / 100; }

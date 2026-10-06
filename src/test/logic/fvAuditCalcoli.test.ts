@@ -285,7 +285,6 @@ describe("dimensionamento delle stringhe (modulo 540 W, inverter generico 1.000 
     const r = dimensionaStringhe(38);
     expect([r.moduli_per_stringa, r.numero_stringhe, r.moduli_non_assegnati]).toEqual([18, 2, 2]);
     expect(r.warnings.some((w) => w.includes("2 moduli non assegnati"))).toBe(true);
-    // NB: `valido` resta true anche con moduli non assegnati (l'avviso sta a parte): vedi «Dubbi» del rapporto.
   });
 
   it("con più inseguitori (3 MPPT × 2) entrano 6 stringhe; con un inverter piccolo (1 MPPT × 1) una sola", () => {
