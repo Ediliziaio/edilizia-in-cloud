@@ -1,7 +1,7 @@
-import { createElement, type ReactNode } from "react";
+import { createElement } from "react";
 import { Link } from "react-router-dom";
 import {
-  AirVent, AppWindow, BrickWall, ChevronDown, Construction, Droplets, Grid3x3, HardHat, Home, Layers, Mail, MapPin,
+  AirVent, AppWindow, BrickWall, Construction, Droplets, Grid3x3, HardHat, Home, Layers, Mail, MapPin,
   MessageCircle, PaintRoller, PanelsTopLeft, Phone, Shovel, Sparkles, Sun, Trees, Truck, Umbrella, Wrench, Zap, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,9 @@ import {
   ZONA_NON_INDICATA, categoriaLavori, durcDaGuardare, raggruppa, statoDurc, zonaDa, type Mancanza,
 } from "@/lib/subappaltatori/gruppi";
 import { STATI_IN_CORSO, type ContrattoDitta } from "@/hooks/useContrattiDitte";
+import {
+  SezioneApribile, TABELLONE_GRUPPI, apriGruppo, gruppoPiccolo, larghezzaGruppo,
+} from "@/components/common/SezioneApribile";
 import type { StatoContratto, SubappaltatoreConDashboard } from "@/types/subappaltatori";
 
 /**
@@ -161,70 +164,16 @@ export function SchedaDitta({
   );
 }
 
-/** Una sezione che si apre e si chiude: titolo, quante ditte, cosa va guardato, e un dettaglio a destra. */
-export function SezioneDitte({
-  titolo,
-  icona: Icona,
-  colore,
-  conteggio,
-  alLavoro,
-  avviso,
-  dettaglio,
-  aperta,
-  className,
-  children,
-}: {
-  titolo: string;
-  className?: string;
-  icona?: LucideIcon;
-  colore?: string;
-  conteggio: number;
-  /** Quante ditte del gruppo hanno un contratto attivo. */
-  alLavoro?: number;
-  avviso?: string | null;
-  dettaglio?: ReactNode;
-  aperta: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <details open={aperta} className={cn("group overflow-hidden rounded-2xl border bg-white shadow-sm", className)} style={colore ? { borderTop: `3px solid ${colore}` } : undefined}>
-      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-1 bg-slate-50/70 px-4 py-2.5 group-open:border-b max-sm:px-3 [&::-webkit-details-marker]:hidden">
-        {/* Il titolo ha la riga tutta per sé (nei gruppi stretti e da telefono si
-            tagliava): quante ditte e l'avviso sotto */}
-        <div className="min-w-0 flex-1">
-          <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-900">
-            {Icona && <Icona className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />}
-            <span className="truncate">{titolo}</span>
-          </h3>
-          <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
-            {conteggio === 1 ? "1 ditta" : `${conteggio} ditte`}
-            {!!alLavoro && <span className="text-emerald-700"> · {alLavoro} al lavoro</span>}
-            {avviso && <span className="font-medium text-red-700"> · {avviso}</span>}
-          </p>
-        </div>
-        {dettaglio && <span className="min-w-0 truncate text-xs text-slate-500 max-sm:hidden">{dettaglio}</span>}
-        <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-open:rotate-180" aria-hidden="true" />
-      </summary>
-      {children}
-    </details>
-  );
-}
-
 const GRIGLIA = "grid sm:grid-cols-2 xl:grid-cols-3 [&>li]:border-b [&>li]:border-slate-100 sm:[&>li]:border-r";
 /** Un gruppo piccolo sta in una colonna, con le ditte una sotto l'altra. */
 const COLONNA = "divide-y divide-slate-100";
+const piccolo = gruppoPiccolo;
+const largoSe = larghezzaGruppo;
+const apriSezione = apriGruppo;
+const TABELLONE = TABELLONE_GRUPPI;
 
-/**
- * I gruppi piccoli (una o due ditte) uno accanto all'altro, tre per riga; i
- * grandi a tutta larghezza. Prima ogni gruppo prendeva la riga intera, e con
- * una ditta sola lasciava vuote due colonne su tre.
- */
-const TABELLONE = "grid items-start gap-3 lg:grid-cols-2 xl:grid-cols-3";
-const piccolo = (n: number) => n <= 2;
-const largoSe = (n: number) => (piccolo(n) ? undefined : "lg:col-span-2 xl:col-span-3");
-
-/** Tutte aperte se le ditte sono poche; con tante, aperta solo la prima sezione. */
-const apriSezione = (indice: number, totaleDitte: number) => totaleDitte <= 24 || indice === 0;
+const contaDitte = (n: number) => (n === 1 ? "1 ditta" : `${n} ditte`);
+const alLavoroTesto = (n: number) => (n > 0 ? `${n} al lavoro` : null);
 
 const avvisoDurc = (righe: ReadonlyArray<Ditta>, oggi: string) => {
   const n = righe.filter((d) => durcDaGuardare(d.durc_scadenza, oggi)).length;
@@ -239,13 +188,13 @@ export function VistaPerLavoro({ ditte, info, oggi }: { ditte: ReadonlyArray<Dit
   return (
     <div className={TABELLONE}>
       {gruppi.map((g, i) => (
-        <SezioneDitte
+        <SezioneApribile
           key={g.chiave}
           className={largoSe(g.righe.length)}
           titolo={g.etichetta}
           icona={iconaCategoria(g.chiave)}
-          conteggio={g.righe.length}
-          alLavoro={g.righe.filter((d) => info(d).alLavoro).length}
+          conteggio={contaDitte(g.righe.length)}
+          buono={alLavoroTesto(g.righe.filter((d) => info(d).alLavoro).length)}
           avviso={avvisoDurc(g.righe, oggi)}
           dettaglio={g.chiave === "_senza" ? "Scrivi il tipo di lavoro nella scheda della ditta per metterla nel suo gruppo" : undefined}
           aperta={apriSezione(i, ditte.length)}
@@ -253,7 +202,7 @@ export function VistaPerLavoro({ ditte, info, oggi }: { ditte: ReadonlyArray<Dit
           <ul className={piccolo(g.righe.length) ? COLONNA : GRIGLIA}>
             {g.righe.map((d) => <SchedaDitta key={d.id} d={d} info={info(d)} oggi={oggi} mostra="zona" />)}
           </ul>
-        </SezioneDitte>
+        </SezioneApribile>
       ))}
     </div>
   );
@@ -276,13 +225,13 @@ export function VistaPerZona({ ditte, info, oggi }: { ditte: ReadonlyArray<Ditta
           ? province.slice(0, 4).map((p) => `${p.etichetta} ${p.righe.length}`).join(" · ") + (province.length > 4 ? ` · altre ${province.length - 4}` : "")
           : undefined;
         return (
-          <SezioneDitte
+          <SezioneApribile
             key={r.chiave}
             className={largoSe(r.righe.length)}
             titolo={r.etichetta}
             icona={MapPin}
-            conteggio={r.righe.length}
-            alLavoro={r.righe.filter((d) => info(d).alLavoro).length}
+            conteggio={contaDitte(r.righe.length)}
+            buono={alLavoroTesto(r.righe.filter((d) => info(d).alLavoro).length)}
             avviso={avvisoDurc(r.righe, oggi)}
             dettaglio={r.chiave === "_senza" ? "Metti la sigla della provincia tra parentesi nell'indirizzo, es. «(PD)»" : riassunto}
             aperta={apriSezione(i, ditte.length)}
@@ -303,7 +252,7 @@ export function VistaPerZona({ ditte, info, oggi }: { ditte: ReadonlyArray<Ditta
                 {r.righe.map((d) => <SchedaDitta key={d.id} d={d} info={info(d)} oggi={oggi} mostra="lavoro" />)}
               </ul>
             )}
-          </SezioneDitte>
+          </SezioneApribile>
         );
       })}
     </div>
@@ -362,12 +311,12 @@ export function VistaCantieri({
         const importo = g.righe.reduce((s, c) => s + c.importo, 0);
         const sal = g.righe.reduce((s, c) => s + c.salLordo, 0);
         return (
-          <SezioneDitte
+          <SezioneApribile
             key={g.chiave}
             className={g.righe.length > 2 ? "xl:col-span-2" : undefined}
             titolo={g.etichetta}
             icona={HardHat}
-            conteggio={ditteQui.size}
+            conteggio={contaDitte(ditteQui.size)}
             avviso={avvisoDurc([...ditteQui].map((id) => perId.get(id)!).filter(Boolean), oggi)}
             dettaglio={[
               primo?.cliente,
@@ -404,7 +353,7 @@ export function VistaCantieri({
                 );
               })}
             </ul>
-          </SezioneDitte>
+          </SezioneApribile>
         );
       })}
 
