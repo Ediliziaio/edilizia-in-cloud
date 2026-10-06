@@ -2106,7 +2106,7 @@ function OrderDetailInner() {
             </div>
             {(vistaCantiere === "lavorazioni" || vistaCantiere === "squadra") && <>
             {vistaCantiere === "lavorazioni" && <div id="section-attivita" className="scroll-mt-24">
-              <LinkedTasks orderId={id} category="ordini" />
+              <LinkedTasks orderId={id} category="ordini" compatta />
             </div>}
             <div id={vistaCantiere === "squadra" ? "section-squadra" : "section-lavorazioni"} className="scroll-mt-24">
               <OrderWorkPhases orderId={id!} orderCode={order.order_code}

@@ -92,3 +92,26 @@ describe("Attività collegate: caricamento e dipendenze", () => {
     expect(deps.in).toHaveBeenCalledWith("id", ["predecessor"]);
   });
 });
+
+describe("Attività nella commessa: una riga sola finché non ce ne sono (06/10/2026)", () => {
+  const compatta = () => render(<LinkedTasks orderId="order" category="ordini" compatta />);
+
+  it("vuota: «Attività · nessuna · Aggiungi» su una riga, senza il riquadro col messaggio al centro", () => {
+    compatta();
+    expect(screen.getByText("nessuna")).toBeInTheDocument();
+    expect(screen.queryByText("Nessuna attività collegata")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aggiungi" })).toBeInTheDocument();
+  });
+
+  it("mentre carica non dice «nessuna»; se non carica lo dice con l'errore, non come elenco vuoto", () => {
+    m.loading = true;
+    const { unmount } = compatta();
+    expect(screen.queryByText("nessuna")).not.toBeInTheDocument();
+    unmount();
+    m.loading = false;
+    m.error = true;
+    compatta();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText("nessuna")).not.toBeInTheDocument();
+  });
+});
