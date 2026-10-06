@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   avanzamentoComplessivo,
   barra,
+  confrontoTempi,
   fasiCronoprogramma,
   giornoLocale,
   intervalloCronoprogramma,
@@ -151,5 +152,55 @@ describe("avanzamento della commessa", () => {
     ], new Map(), "2026-08-20");
     expect(avanzamentoComplessivo(fasi)).toBe(41); // (100 + 50 + 0 + 15) / 4 = 41,25
     expect(avanzamentoComplessivo([])).toBe(0);
+  });
+});
+
+describe("tempi previsti e reali di una fase (riga «Quando»)", () => {
+  const oggi = "2026-10-06";
+  const una = (f: Partial<FaseInput>, reale?: { primo: string; ultimo: string }) =>
+    fasiCronoprogramma([fase(f)], new Map(reale ? [["f1", { ...reale, ore: 8, rapportini: 1 }]] : []), oggi)[0];
+
+  it("chiusa tardi: previsti 7 giorni, reali 12, 6 di ritardo sulla fine", () => {
+    const f = una({ status: "completata", start_date: "2026-06-02", end_date: "2026-06-08", completata_il: "2026-06-14" }, { primo: "2026-06-03", ultimo: "2026-06-13" });
+    expect(confrontoTempi(f, oggi)).toEqual({ esito: "finita_in_ritardo", giorniPrevisti: 7, giorniReali: 12, ritardo: 6, mancano: null });
+  });
+
+  it("chiusa in tempo; chiusa senza inizio reale: i giorni reali non si dicono", () => {
+    expect(confrontoTempi(una({ status: "completata", start_date: "2026-06-02", end_date: "2026-06-08", completata_il: "2026-06-07" }, { primo: "2026-06-03", ultimo: "2026-06-06" }), oggi))
+      .toMatchObject({ esito: "finita_in_tempo", giorniReali: 5, ritardo: 0 });
+    expect(confrontoTempi(una({ status: "completata", start_date: "2026-06-02", end_date: "2026-06-08", completata_il: "2026-06-10" }), oggi))
+      .toMatchObject({ esito: "finita_in_ritardo", giorniReali: null, ritardo: 2 });
+  });
+
+  it("chiusa con un solo giorno di rapportini e senza giorno di chiusura: la durata reale non si dice", () => {
+    const f = una({ status: "completata", start_date: "2026-06-28", end_date: "2026-07-05" }, { primo: "2026-07-10", ultimo: "2026-07-10" });
+    expect(f.chiusuraRegistrata).toBe(false);
+    expect(confrontoTempi(f, oggi)).toEqual({ esito: "finita_in_ritardo", giorniPrevisti: 8, giorniReali: null, ritardo: 5, mancano: null });
+    // con il giorno di chiusura registrato un lavoro di un giorno è di un giorno
+    expect(confrontoTempi(una({ status: "completata", start_date: "2026-06-28", end_date: "2026-07-05", completata_il: "2026-07-10" }, { primo: "2026-07-10", ultimo: "2026-07-10" }), oggi))
+      .toMatchObject({ giorniReali: 1 });
+  });
+
+  it("chiusa senza nessuna data reale: non si sa quando è finita", () => {
+    expect(confrontoTempi(una({ status: "completata", start_date: "2026-06-02", end_date: "2026-06-08" }), oggi))
+      .toEqual({ esito: "finita", giorniPrevisti: 7, giorniReali: null, ritardo: 0, mancano: null });
+  });
+
+  it("aperta con la fine passata: aperta da quanti giorni e di quanto sfora", () => {
+    expect(confrontoTempi(una({ status: "in_corso", start_date: "2026-07-30", end_date: "2026-08-05" }, { primo: "2026-08-04", ultimo: "2026-08-20" }), oggi))
+      .toEqual({ esito: "aperta_oltre", giorniPrevisti: 7, giorniReali: 64, ritardo: 62, mancano: null });
+    expect(confrontoTempi(una({ start_date: "2026-07-30", end_date: "2026-08-05" }), oggi))
+      .toMatchObject({ esito: "aperta_oltre", giorniReali: null, ritardo: 62 });
+  });
+
+  it("in corso nei tempi: quanti giorni mancano, e se è partita tardi", () => {
+    expect(confrontoTempi(una({ status: "in_corso", start_date: "2026-10-01", end_date: "2026-10-10" }, { primo: "2026-10-03", ultimo: "2026-10-05" }), oggi))
+      .toEqual({ esito: "in_corso", giorniPrevisti: 10, giorniReali: 4, ritardo: 2, mancano: 4 });
+  });
+
+  it("da iniziare: in ritardo sull'inizio se doveva già partire, altrimenti solo i giorni previsti", () => {
+    expect(confrontoTempi(una({ start_date: "2026-10-03", end_date: "2026-10-20" }), oggi)).toMatchObject({ esito: "in_ritardo_inizio", ritardo: 3, giorniPrevisti: 18 });
+    expect(confrontoTempi(una({ start_date: "2026-10-12", end_date: "2026-10-20" }), oggi)).toMatchObject({ esito: "da_iniziare", ritardo: 0, giorniPrevisti: 9 });
+    expect(confrontoTempi(una({ start_date: null, end_date: null }), oggi)).toMatchObject({ esito: "da_iniziare", giorniPrevisti: null });
   });
 });
