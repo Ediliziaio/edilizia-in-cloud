@@ -235,9 +235,8 @@ export default function StepImmobile({ form, onChange, model }: Props) {
               <p className="text-[11px] text-blue-900">
                 <span className="max-sm:hidden">
                   Bagno accessibile: valuta <strong>maniglioni</strong>, <strong>piatto doccia a filo pavimento</strong> e sanitari ergonomici.
-                  Questi interventi rientrano nel <strong>Bonus Barriere 75%</strong> — impostalo dai chip incentivi nello step Economia.
                 </span>
-                <span className="sm:hidden">Maniglioni, piatto doccia a filo e sanitari ergonomici: vale il <strong>Bonus Barriere 75%</strong>.</span>
+                <span className="sm:hidden">Valuta maniglioni, piatto doccia a filo e sanitari ergonomici.</span>
               </p>
             </div>
           )}

@@ -41,21 +41,36 @@ const NESSUNO: Incentivo = {
   hint: "Nessuna detrazione (es. committente impresa, immobile non agevolabile).",
 };
 
+/** Tetto di spesa della detrazione ordinaria (50% e 36%): 96.000 € per unità immobiliare. */
+const MASSIMALE_ORDINARIO = 96000;
+
 /** Coppia base 2026, uguale per tutti i lavori edilizi sull'abitazione. */
 const PRIMA_CASA_50 = (hint: string): Incentivo => ({
   key: "prima_casa_50",
   label: "Prima casa 50%",
   pct: 50,
-  massimale: 96000,
+  massimale: MASSIMALE_ORDINARIO,
   hint,
 });
 const ALTRE_36 = (hint: string): Incentivo => ({
   key: "altre_abitazioni_36",
   label: "Altre abitazioni 36%",
   pct: 36,
-  massimale: 96000,
+  massimale: MASSIMALE_ORDINARIO,
   hint,
 });
+
+const ORDINARIE: readonly Incentivo[] = [PRIMA_CASA_50(""), ALTRE_36("")];
+
+/**
+ * Il tetto di spesa con cui nasce una detrazione predefinita: quello dei preset ordinari
+ * (50% e 36% → 96.000 €), `null` per ogni altra aliquota — nessun tetto inventato.
+ * Un preventivo nuovo che parte da un 50% predefinito dall'azienda deve partire anche
+ * dal suo tetto: senza, promette al cliente più di quanto la legge consente.
+ */
+export function massimaleDiSerie(pct: number): number | null {
+  return ORDINARIE.find((i) => i.pct === pct)?.massimale ?? null;
+}
 
 /** Preset per ristrutturazioni generiche. */
 export const INCENTIVI_RISTRUTTURAZIONE: readonly Incentivo[] = [

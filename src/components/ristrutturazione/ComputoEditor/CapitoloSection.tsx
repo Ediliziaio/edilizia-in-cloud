@@ -134,6 +134,8 @@ export default function CapitoloSection({
     // Mantieni la quantità della voce originale (pickedTo… parte da 1).
     copy.quantita = voci[idx].quantita;
     copy.sconto_pct = voci[idx].sconto_pct;
+    // La stanza non è un dato del listino: la copia resta nello stesso ambiente, senza finire in «Non assegnato».
+    copy.ambiente = voci[idx].ambiente ?? null;
     const next = [...voci];
     next.splice(idx + 1, 0, copy);
     onChange(next.map((v, i) => ({ ...v, ordine: i })));
@@ -212,7 +214,7 @@ export default function CapitoloSection({
                 <AlertDialogTitle>Eliminare il capitolo "{nome || "Senza nome"}"?</AlertDialogTitle>
                 <AlertDialogDescription>
                   {voci.length > 0
-                    ? `Verranno rimosse anche le ${voci.length} voci contenute. L'operazione è reversibile finché non salvi il computo.`
+                    ? `Verranno rimosse anche le ${voci.length} voci contenute. Il computo si salva da solo: l'operazione non si può annullare.`
                     : "Il capitolo è vuoto e verrà rimosso."}
                 </AlertDialogDescription>
               </AlertDialogHeader>

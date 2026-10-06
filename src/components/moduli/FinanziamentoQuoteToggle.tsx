@@ -24,6 +24,7 @@ import {
 } from "@/lib/preventivi/finanziamentoLite";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { percentualeIt } from "@/lib/preventivi/percentuale";
 
 interface Props {
   /** Valore grezzo finanziamento_promo dal template del modulo. */
@@ -60,7 +61,7 @@ export function FinanziamentoQuoteToggle({ rawPromo, total, value, onChange, rat
             {rata > 0 ? (
               <>
                 <span className="max-sm:hidden">
-                  {`“da ${formatCurrency(rata)}/mese” in ${rate} rate${promo.tan_pct > 0 ? ` (TAN ${promo.tan_pct}%)` : " a tasso zero"} — spegni per chi paga subito.`}
+                  {`“da ${formatCurrency(rata)}/mese” in ${rate} rate${promo.tan_pct > 0 ? ` (TAN ${percentualeIt(promo.tan_pct)})` : " a tasso zero"} — spegni per chi paga subito.`}
                 </span>
                 {/* Telefono: la rata e basta. */}
                 <span className="sm:hidden">{`da ${formatCurrency(rata)}/mese · ${rate} rate`}</span>
@@ -103,7 +104,7 @@ export function FinanziamentoQuoteToggle({ rawPromo, total, value, onChange, rat
           </div>
           {/* Telefono no: la nota sul TAN è per chi sta alla scrivania. */}
           <p className="mt-1.5 text-[10px] text-muted-foreground max-sm:hidden">
-            {promo.tan_pct > 0 ? `TAN ${promo.tan_pct}%` : "Tasso zero"}, come nel modello.
+            {promo.tan_pct > 0 ? `TAN ${percentualeIt(promo.tan_pct)}` : "Tasso zero"}, come nel modello.
             {scelte != null && scelte !== promo.rate ? ` Il modello propone ${promo.rate} rate.` : ""}
           </p>
         </div>

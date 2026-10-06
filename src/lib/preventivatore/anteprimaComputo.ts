@@ -14,6 +14,7 @@
  */
 import { calcDetraibile, superaMassimale } from "@/lib/preventivi/incentivi";
 import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
+import { numeroPercentuale } from "@/lib/preventivi/percentuale";
 import { descrizioneBreve, testoDelListino } from "@/lib/moduli/testoProdotto";
 import {
   type AnteprimaPreventivo,
@@ -22,7 +23,6 @@ import {
   type VoceTotale,
   dataEstesa,
   formattaEuro,
-  formattaNumero,
 } from "@/lib/preventivatore/anteprima";
 
 /** Una voce del computo, ridotta ai campi che hanno in comune gli otto moduli. */
@@ -124,7 +124,8 @@ const numero = (x: unknown): number => {
   return Number.isFinite(v) ? v : 0;
 };
 
-const percentuale = (p: number) => formattaNumero(p, Number.isInteger(p) ? 0 : 1);
+// «7,5», «7,25»: la virgola e i decimali che servono, mai uno di meno dell'importo calcolato sopra.
+const percentuale = (p: number) => numeroPercentuale(p);
 
 export function anteprimaComputo(
   voci: VoceComputoAnteprima[],

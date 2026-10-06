@@ -209,7 +209,7 @@ export default function CapitoloSection({
                 <AlertDialogTitle>Eliminare il capitolo "{nome || "Senza nome"}"?</AlertDialogTitle>
                 <AlertDialogDescription>
                   {voci.length > 0
-                    ? `Verranno rimosse anche le ${voci.length} voci contenute. L'operazione è reversibile finché non salvi il computo.`
+                    ? `Verranno rimosse anche le ${voci.length} voci contenute. Il computo si salva da solo: l'operazione non si può annullare.`
                     : "Il capitolo è vuoto e verrà rimosso."}
                 </AlertDialogDescription>
               </AlertDialogHeader>

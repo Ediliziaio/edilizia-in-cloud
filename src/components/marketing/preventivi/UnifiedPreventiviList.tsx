@@ -490,8 +490,9 @@ export function UnifiedPreventiviList() {
         .from("pav_progetti")
         .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
-        // pav_progetti non ha soft-delete: il filtro deleted_at dava 400 e la
-        // lista preventivi restava senza i progetti pavimenti.
+        // La colonna deleted_at c'è dal 30/08/2026 (20280248000000_pav_progetti_cestino): senza
+        // il filtro un progetto pavimenti spostato nel Cestino restava in elenco e nei KPI.
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false, nullsFirst: false })
         .limit(1000);
       if (error) throw error;

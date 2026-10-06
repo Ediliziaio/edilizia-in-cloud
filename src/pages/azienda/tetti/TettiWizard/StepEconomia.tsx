@@ -163,18 +163,23 @@ export default function StepEconomia({ form, onChange, computo, onVaiAlPasso }: 
                 hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
                 icon={BadgePercent}
               />
-              {/* Preset incentivi copertura: 1-click → imposta la detrazione */}
+              {/* Preset incentivi copertura: 1-click → imposta detrazione + massimale di spesa */}
               <div>
                 <p className="mb-1 text-[10px] text-muted-foreground max-sm:hidden">Incentivi rapidi (coperture):</p>
                 <div className="flex flex-wrap gap-1.5">
                   {INCENTIVI_PRESET.map((p) => {
-                    const active = Number(form.detrazione_pct ?? 0) === p.pct;
+                    const active =
+                      Number(form.detrazione_pct ?? 0) === p.pct &&
+                      (form.massimale_detrazione ?? null) === p.massimale;
                     return (
                       <button
                         key={p.key}
                         type="button"
                         title={p.hint}
-                        onClick={() => onChange("detrazione_pct", p.pct)}
+                        onClick={() => {
+                          onChange("detrazione_pct", p.pct);
+                          onChange("massimale_detrazione", p.massimale);
+                        }}
                         className={cn(
                           "tap-compact rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors",
                           active

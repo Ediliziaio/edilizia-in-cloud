@@ -22,6 +22,7 @@ import {
   Document, Page, Text, View, Image, Svg, Rect, Path, Circle, Line, G, Defs, LinearGradient, RadialGradient, Stop, Font,
 } from "@react-pdf/renderer";
 import { formatCurrency } from "@/lib/formatters";
+import { percentualeIt } from "@/lib/preventivi/percentuale";
 import { htmlToRichBlocks } from "@/lib/ristrutturazione/richTextPdf";
 import { parseFinanziamentoPromo, calcolaRataMensile, promoConRateDelPreventivo } from "@/lib/preventivi/finanziamentoLite";
 import { fraseValiditaChiusura } from "@/lib/preventivi/validitaOfferta";
@@ -64,10 +65,8 @@ const quantita = (q: number): string => {
   const n = Number(q) || 0;
   return Number.isInteger(n) ? String(n) : n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
 };
-const percento = (v: number): string => {
-  const n = Number(v) || 0;
-  return `${Number.isInteger(n) ? n : n.toFixed(1)}%`;
-};
+// Percentuali all'italiana («7,5%», «7,25%»): il punto decimale e il decimale tagliato non vanno su un documento italiano.
+const percento = (v: number): string => percentualeIt(v);
 
 // ─── Quanto occupa un capitolo, prima di disegnarlo ──────────────────────────
 // react-pdf non dice dove finisce una pagina. Per riempire con una foto le pagine
@@ -1679,7 +1678,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             <View style={{ flex: 1, paddingRight: 12 }}>
               <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro }}>Possibilità di finanziamento</Text>
               <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigio, marginTop: 2, lineHeight: 1.4 }}>
-                {`Simulazione indicativa in ${promo.rate} rate mensili${promo.tan_pct > 0 ? ` (TAN ${promo.tan_pct}%)` : " a tasso zero"}, soggetta ad approvazione della finanziaria.`}
+                {`Simulazione indicativa in ${promo.rate} rate mensili${promo.tan_pct > 0 ? ` (TAN ${percento(promo.tan_pct)})` : " a tasso zero"}, soggetta ad approvazione della finanziaria.`}
               </Text>
             </View>
             <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 15, color: tema.inchiostroMarca }}>{`da ${formatCurrency(rata)}/mese`}</Text>

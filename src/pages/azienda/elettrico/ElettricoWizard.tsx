@@ -18,6 +18,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSalvaUscendo } from "@/hooks/useSalvaUscendo";
 import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -260,6 +261,10 @@ export default function ElettricoWizard() {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty, upsertMut.isPending]);
+
+  // Uscendo (freccia «Esci», menu, «indietro» del telefono) prima dei 2 secondi dell'autosave, la modifica
+  // appena scritta si salva lo stesso: prima il timer moriva con la pagina e il dato andava perso.
+  useSalvaUscendo({ id, dirty, form, salva: upsertMut.mutateAsync });
 
   const saveProgetto = async (): Promise<boolean> => {
     if (!id) return false;
@@ -532,7 +537,7 @@ export default function ElettricoWizard() {
           <StepEconomia
             form={form}
             onChange={onChange}
-            computo={detail.computo}
+            computo={computoLive ?? detail.computo}
             onVaiAlPasso={(passo) => void handleStepClick(passo)}
           />
         )}

@@ -325,6 +325,11 @@ export function useClonaProgetto() {
           iva_pct: src.iva_pct,
           prezzo_manuale: src.prezzo_manuale ?? null,
           detrazione_pct: src.detrazione_pct,
+          // Il tetto di spesa fa parte della detrazione: senza, la copia prometteva più di quanto spetta.
+          massimale_detrazione: src.massimale_detrazione ?? null,
+          // La rata nel PDF (rate scelte, rata nascosta) fa parte delle condizioni: senza, la copia riparte dal modello.
+          mostra_finanziamento: src.mostra_finanziamento ?? null,
+          finanziamento_rate: src.finanziamento_rate ?? null,
           note: src.note,
           template_id: src.template_id,
           ...(src.modello_snapshot ? { modello_snapshot: leggiModelloPreventivo("pavimenti", src.modello_snapshot, companyId) } : {}),

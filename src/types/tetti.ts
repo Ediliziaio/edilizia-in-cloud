@@ -40,6 +40,8 @@ export interface TetProgetto {
   /** Numero di rate scelto per questo preventivo (rata nel PDF): null = quello del modello (finanziamento_promo.rate); il TAN è quello del modello. */
   finanziamento_rate?: number | null;
   sconto_pct: number; iva_pct: number; detrazione_pct: number;
+  /** Tetto di spesa della detrazione (96.000 € per il bonus casa); null = nessun tetto. Colonna dal 14/09/2026. */
+  massimale_detrazione?: number | null;
   /**
    * Prezzo pieno scritto a mano, IVA esclusa: sostituisce la somma delle righe
    * del computo; sconto e IVA si calcolano sopra. Null = somma delle righe. Si

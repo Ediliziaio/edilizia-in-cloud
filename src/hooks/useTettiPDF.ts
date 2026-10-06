@@ -232,9 +232,10 @@ export async function enrichTettiPdf(opts: TetPdfPayload): Promise<TetPdfEnriche
     totale: agg.totale,
     scontoPct,
     detrazionePct,
-    // Come nello step Economia. Tetti non ha la colonna `massimale_detrazione`:
-    // nessun tetto di spesa da applicare.
-    detrazioneEur: calcDetraibile(agg.imponibile, detrazionePct, null),
+    // Come gli altri sette moduli e come l'anteprima: la detrazione si calcola entro il
+    // massimale di spesa, se c'è. La colonna c'è dal 14/09/2026 (20280916960000); prima il
+    // PDF dei tetti la ignorava e prometteva la detrazione su tutto l'imponibile.
+    detrazioneEur: calcDetraibile(agg.imponibile, detrazionePct, progetto.massimale_detrazione ?? null),
     costoTot: agg.costoTot,
     margineEur: agg.margineEur,
     marginePct: agg.marginePct,
