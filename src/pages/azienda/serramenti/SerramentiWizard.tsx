@@ -1075,7 +1075,7 @@ export default function SerramentiWizard() {
               <StepAccessori progettoId={id} detail={detail} />
             )}
             {currentStep === "economia" && id && detail && (
-              <StepEconomia progettoId={id} detail={detail} form={form} onChange={onChange} />
+              <StepEconomia progettoId={id} detail={detail} form={form} onChange={onChange} onVaiAlPasso={(passo) => void handleStepClick(passo)} />
             )}
             {currentStep === "pdf" && id && detail && (
               <div className="space-y-4">

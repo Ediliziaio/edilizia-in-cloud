@@ -24,6 +24,12 @@ interface Props {
   onApplica: (sconto: { pct: number; importo: number }) => void;
   disabled?: boolean;
   className?: string;
+  /**
+   * Telefono: di serie i tasti restano compatti (34 px sotto i 640, come negli edili). Con `daDito` sono alti almeno
+   * 36 px (senza `tap-compact` la regola dell'app li terrebbe a 44, e `min-h-9` li porta a 36) e il campo «Arriva a €»
+   * è alto 44 px fino ai 768 px, non solo sotto i 640. Cambia solo l'altezza dei controlli sotto i 768 px.
+   */
+  daDito?: boolean;
 }
 
 const percentuale = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
@@ -32,7 +38,7 @@ const percentuale = (n: number) => n.toLocaleString("it-IT", { maximumFractionDi
 const percentualeAConfronto = (n: number, altro: number) =>
   percentuale(n) === percentuale(altro) ? n.toLocaleString("it-IT", { maximumFractionDigits: 6 }) : percentuale(n);
 
-export function ScontoRapido({ valorePct, massimoPct, imponibileLordo, ivaPct, onApplica, disabled = false, className }: Props) {
+export function ScontoRapido({ valorePct, massimoPct, imponibileLordo, ivaPct, onApplica, disabled = false, className, daDito = false }: Props) {
   const id = useId();
   const [testo, setTesto] = useState("");
 
@@ -78,7 +84,8 @@ export function ScontoRapido({ valorePct, massimoPct, imponibileLordo, ivaPct, o
               title={sopra ? `Oltre il massimo consentito (${percentuale(massimoPct ?? 0)}%)` : undefined}
               onClick={() => onApplica(scontoDaPercentuale(imponibileLordo, pct))}
               className={cn(
-                "tap-compact rounded-full border px-3 py-1 text-xs font-medium transition-colors max-sm:py-2",
+                "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                daDito ? "max-md:min-h-9" : "tap-compact max-sm:py-2",
                 attivo
                   ? "border-orange-400 bg-orange-50 text-orange-800"
                   : "border-slate-200 bg-white text-slate-700 hover:border-orange-200 hover:bg-orange-50",
@@ -106,7 +113,7 @@ export function ScontoRapido({ valorePct, massimoPct, imponibileLordo, ivaPct, o
               disabled={disabled}
               onChange={(e) => setTesto(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applica(); } }}
-              className="h-8 max-w-[10rem] text-sm tabular-nums max-sm:h-11"
+              className={cn("h-8 max-w-[10rem] text-sm tabular-nums", daDito ? "max-md:h-11" : "max-sm:h-11")}
             />
             <Button type="button" size="sm" variant="outline" className="h-8 text-xs max-sm:h-11" disabled={!applicabile} onClick={applica}>
               Applica

@@ -72,10 +72,10 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
   // l'IVA mista (aliquota -1) dava un imponibile più alto del totale e un'IVA negativa.
   const importiDiFirma = importiDelPreventivo(detail, p);
 
-  // Il finanziamento del PDF (rata e importo finanziato) è quello salvato col piano, e lo step Economia lo salva solo
-  // quando si preme «Applica calcoli»: dopo una modifica del totale restava sul totale di prima. Il PDF non lo
-  // ricalcola (la rata viene dal TAN o dalla tabella della finanziaria): lo si controlla prima che vada al cliente.
-  // Lo stampa solo con uno schema che prevede la finanziaria.
+  // Il finanziamento del PDF (rata e importo finanziato) è quello salvato col piano. Lo step Economia lo riscrive da
+  // solo sul totale di adesso, ma solo mentre è aperto: dopo una modifica del totale da un altro passo restava sul
+  // totale di prima. Il PDF non lo ricalcola (la rata viene dal TAN o dalla tabella della finanziaria): lo si controlla
+  // prima che vada al cliente. Lo stampa solo con uno schema che prevede la finanziaria.
   const schemaCfg = SR_SCHEMI_PAGAMENTO[(p.schema_pagamento ?? "tre_step") as keyof typeof SR_SCHEMI_PAGAMENTO];
   const piani = Array.isArray(p.fin_piani) ? (p.fin_piani as SrPianoFinanziamento[]) : [];
   const finanziamentoNelPdf = piani.length > 0 && Boolean(schemaCfg?.hasFinanziamento);
@@ -130,14 +130,14 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
     {
       ok: Number(p.totale_max ?? p.totale_min ?? 0) > 0,
       label: "Totale preventivo calcolato",
-      hint: !Number(p.totale_max ?? p.totale_min ?? 0) ? "Vai allo Step Economia e clicca 'Applica calcoli'" : undefined,
+      hint: !Number(p.totale_max ?? p.totale_min ?? 0) ? "Il totale si scrive da solo: aggiungi i serramenti con il loro prezzo, o scrivi il prezzo nel passo Economia" : undefined,
       breve: "totale", passo: "economia",
     },
     ...(finanziamentoNelPdf ? [{
       ok: !pianoSulTotaleVecchio,
       facoltativo: true,
       label: "Finanziamento calcolato sul totale di adesso",
-      hint: pianoSulTotaleVecchio ? "il piano di finanziamento è stato calcolato su un totale diverso: riapri Economia e ricalcolalo" : undefined,
+      hint: pianoSulTotaleVecchio ? "il piano di finanziamento è stato calcolato su un totale diverso: riapri Economia, si ricalcola da solo" : undefined,
       breve: "finanziamento", passo: "economia" as SrWizardStep,
     }] : []),
     ...(rate.length > 0 ? [{

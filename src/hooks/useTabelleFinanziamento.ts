@@ -108,8 +108,15 @@ export function useTabellaFinanziamentoRighe(tabellaId: string | null | undefine
 /**
  * Dato un set di righe e un (importo_target, durata_target), trova la riga
  * con importo_erogato >= importo_target e durata_mesi == durata_target,
- * scegliendo il minore tra i candidati. Fallback alla riga più alta se il
- * target supera tutti i breakpoint della tabella.
+ * scegliendo il minore tra i candidati.
+ *
+ * Se il target supera l'ULTIMA fascia della tabella (a quella durata) la risposta è `null`: la rata dell'ultima
+ * fascia è una rata per un importo più basso di quello da finanziare, quindi sbagliata (con fasce da 10, 20 e 30 mila
+ * e 45.000 da finanziare dava la rata dei 30.000: un terzo in meno, e finiva nel PDF). Chi chiama dice «fuori fascia»
+ * e propone un'altra tabella o il piano manuale. (Prima, oltre le fasce, tornava la riga più alta.)
+ *
+ * Una durata che nella tabella non c'è: si prende la più vicina in eccesso (o la più lunga se non ce n'è una in
+ * eccesso) e le fasce valgono lì, come per le altre.
  *
  * Use case: il preventivo è €15.000, l'utente sceglie 60 mesi → cerco la
  * riga "15.000 × 60" o la prima > 15.000 a 60 mesi (es. €18.000 × 60).
@@ -122,23 +129,18 @@ export function findMigliorRiga(
   if (righe.length === 0) return null;
   const stesseDurate = righe.filter((r) => r.durata_mesi === durataMesi);
   if (stesseDurate.length === 0) {
-    // Nessuna riga a quella durata: prendi la durata più vicina (in eccesso)
+    // Nessuna riga a quella durata: prendi la durata più vicina (in eccesso), o la più lunga
     const sorted = [...righe].sort((a, b) => a.durata_mesi - b.durata_mesi);
-    const target = sorted.find((r) => r.durata_mesi >= durataMesi);
-    if (target) {
-      return findMigliorRiga(
-        righe.filter((r) => r.durata_mesi === target.durata_mesi),
-        importoTarget,
-        target.durata_mesi,
-      );
-    }
-    return sorted[sorted.length - 1] ?? null;
+    const target = sorted.find((r) => r.durata_mesi >= durataMesi) ?? sorted[sorted.length - 1];
+    return findMigliorRiga(
+      righe.filter((r) => r.durata_mesi === target.durata_mesi),
+      importoTarget,
+      target.durata_mesi,
+    );
   }
   const eligible = stesseDurate.filter((r) => r.importo_erogato >= importoTarget);
-  if (eligible.length === 0) {
-    // Importo target supera tutti i breakpoint → ultima riga (massima)
-    return stesseDurate[stesseDurate.length - 1];
-  }
+  // Importo target oltre l'ultima fascia: nessuna rata da mostrare.
+  if (eligible.length === 0) return null;
   return eligible.reduce((min, r) =>
     r.importo_erogato < min.importo_erogato ? r : min, eligible[0]);
 }
