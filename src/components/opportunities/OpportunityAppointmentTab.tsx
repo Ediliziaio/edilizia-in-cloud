@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CalendarIcon, Loader2, Trash2, Clock, Car, Pencil, AlertTriangle, CheckCircle2, Copy, MessageCircle, Video } from "lucide-react";
-import { format, getDay, addMinutes, parse, isAfter } from "date-fns";
+import { format, getDay, addMinutes, parse } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ import { forwardGeocode } from "@/lib/geocoding";
 import {
   distanzaLineaAria, linkWhatsApp, scorciatoieData, testoKm, sovrapposizioni, testoConferma, titoloSuggerito,
 } from "@/lib/opportunita/appuntamentoPrecompilato";
+import { calcolaSlotLiberi, impegniEsterniInFascia, type Occupato } from "@/lib/opportunita/slotCalendario";
 
 interface Props {
   contactId: string;
@@ -152,7 +153,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_calendars")
-        .select("id, name, duration_minutes, calendar_type, base_lat, base_lng, base_formatted_address, default_meeting_provider, default_meeting_enabled, link_videochiamata")
+        .select("id, name, duration_minutes, calendar_type, base_lat, base_lng, base_formatted_address, default_meeting_provider, default_meeting_enabled, link_videochiamata, owner_id, buffer_before_min, buffer_after_min, min_notice_minutes, max_per_day")
         .eq("company_id", companyId)
         .eq("is_active", true)
         .order("name");
@@ -170,27 +171,27 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
   const dayOfWeek = date ? getDay(date) : null;
   const dateStr = date ? format(date, "yyyy-MM-dd") : null;
 
+  // Tutte le regole del calendario per quel giorno, anche quelle spente: una giornata speciale
+  // spenta (ferie, chiusura) deve chiudere il giorno, non ricadere sulla regola settimanale.
   const { data: availability = [] } = useQuery({
     queryKey: ["calendar_availability", calendarId, dayOfWeek, dateStr],
     queryFn: async () => {
-      const { data: specificData } = await supabase
-        .from("marketing_calendar_availability")
-        .select("*")
-        .eq("calendar_id", calendarId)
-        .eq("specific_date", dateStr!)
-        .eq("is_enabled", true);
-      if (specificData && specificData.length > 0) return specificData;
       const { data, error } = await supabase
         .from("marketing_calendar_availability")
         .select("*")
         .eq("calendar_id", calendarId)
-        .eq("day_of_week", dayOfWeek!)
-        .eq("is_enabled", true);
+        .or(`specific_date.eq.${dateStr},and(specific_date.is.null,day_of_week.eq.${dayOfWeek})`);
       if (error) throw error;
       return data || [];
     },
     enabled: !!calendarId && date !== undefined && dayOfWeek !== null,
   });
+
+  // Gli appuntamenti del giorno di TUTTI i calendari dello stesso titolare: con più calendari
+  // (Demo, Consulenza…) intestati alla stessa persona, prenotarne uno deve bloccare gli altri.
+  const ownerCalendario = selectedCalendar?.owner_id ?? null;
+  const idsDelTitolare = ownerCalendario ? calendars.filter((c) => c.owner_id === ownerCalendario).map((c) => c.id) : [];
+  const calendariDelTitolare = idsDelTitolare.length > 0 ? idsDelTitolare : calendarId ? [calendarId] : [];
 
   const { data: existingAppointments = [] } = useQuery({
     queryKey: ["appointments_for_slot", calendarId, dateStr],
@@ -198,13 +199,35 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       const { data, error } = await supabase
         .from("appointments")
         .select("id, appointment_time, appointment_end_time, lat, lng, formatted_address, title")
-        .eq("calendar_id", calendarId)
+        .in("calendar_id", calendariDelTitolare)
         .eq("appointment_date", dateStr!)
         .neq("status", "annullato");
       if (error) throw error;
       return data || [];
     },
-    enabled: !!calendarId && !!dateStr,
+    enabled: calendariDelTitolare.length > 0 && !!dateStr,
+  });
+
+  // Gli impegni del titolare su Google, Outlook e Apple Calendar: solo inizio e fine.
+  const { data: occupatiEsterni = [] } = useQuery({
+    queryKey: ["calendar_busy_owner", ownerCalendario, dateStr],
+    enabled: !!ownerCalendario && !!dateStr && !!date,
+    staleTime: 60_000,
+    queryFn: async (): Promise<Occupato[]> => {
+      const inizioGiorno = new Date(date!.getFullYear(), date!.getMonth(), date!.getDate()).toISOString();
+      const fineGiorno = new Date(date!.getFullYear(), date!.getMonth(), date!.getDate(), 23, 59, 59, 999).toISOString();
+      const leggi = async (tabella: "google_calendar_busy_slots" | "outlook_calendar_busy_slots" | "apple_calendar_busy_slots") => {
+        const { data, error } = await supabase
+          .from(tabella)
+          .select("start_at, end_at")
+          .eq("user_id", ownerCalendario!)
+          .lt("start_at", fineGiorno)
+          .gt("end_at", inizioGiorno);
+        return error ? [] : ((data ?? []) as Occupato[]);
+      };
+      const [g, o, a] = await Promise.all([leggi("google_calendar_busy_slots"), leggi("outlook_calendar_busy_slots"), leggi("apple_calendar_busy_slots")]);
+      return [...g, ...o, ...a];
+    },
   });
 
   // Tutti gli appuntamenti del contatto (in programma e passati), non solo il prossimo.
@@ -452,31 +475,27 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       .sort((a, b) => (a.appointment_time || "").localeCompare(b.appointment_time || ""));
   }, [existingAppointments, date]);
 
-  // Free slots
-  const freeSlots = useMemo(() => {
-    if (!availability.length || !date) return [];
-    const slots: string[] = [];
-    for (const avail of availability) {
-      const startTime = parse(avail.start_time, "HH:mm:ss", date);
-      const endTime = parse(avail.end_time, "HH:mm:ss", date);
-      let cursor = startTime;
-      while (true) {
-        const slotEnd = addMinutes(cursor, durationMinutes);
-        if (isAfter(slotEnd, endTime)) break;
-        const cursorStr = format(cursor, "HH:mm");
-        const slotEndStr = format(slotEnd, "HH:mm");
-        const isOccupied = existingAppointments.some((appt) => {
-          if (!appt.appointment_time) return false;
-          const apptStart = appt.appointment_time.substring(0, 5);
-          const apptEnd = appt.appointment_end_time ? appt.appointment_end_time.substring(0, 5) : format(addMinutes(parse(apptStart, "HH:mm", date), durationMinutes), "HH:mm");
-          return cursorStr < apptEnd && slotEndStr > apptStart;
-        });
-        if (!isOccupied) slots.push(cursorStr);
-        cursor = addMinutes(cursor, durationMinutes);
-      }
-    }
-    return slots;
-  }, [availability, existingAppointments, date, durationMinutes]);
+  // Orari liberi: stesse regole della pagina pubblica di prenotazione (disponibilità, margini,
+  // preavviso, tetto giornaliero e impegni del titolare su Google/Outlook/Apple).
+  const haCalendario = !!selectedCalendar;
+  const bufferPrimaCal = selectedCalendar?.buffer_before_min ?? 0;
+  const bufferDopoCal = selectedCalendar?.buffer_after_min ?? 0;
+  const preavvisoCal = selectedCalendar?.min_notice_minutes ?? 0;
+  const maxAlGiornoCal = selectedCalendar?.max_per_day ?? null;
+  const esitoSlot = date && haCalendario
+      ? calcolaSlotLiberi({
+          giorno: date,
+          regole: availability,
+          appuntamenti: existingAppointments.map((a) => ({ inizio: a.appointment_time, fine: a.appointment_end_time })),
+          occupatiEsterni,
+          durataMin: durationMinutes,
+          bufferPrimaMin: bufferPrimaCal,
+          bufferDopoMin: bufferDopoCal,
+          preavvisoMin: preavvisoCal,
+          maxAlGiorno: maxAlGiornoCal,
+        })
+      : { slot: [], fasce: [], motivoVuoto: null as null };
+  const freeSlots = esitoSlot.slot;
 
   const syncCreatedAppointment = useCallback(async (appointmentId: string) => {
     const tasks: Promise<unknown>[] = [];
@@ -837,10 +856,19 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       {calendarId && date && (
         <div className="space-y-2">
           <Label className="text-sm font-medium">Slot disponibili</Label>
-          {availability.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">Nessuna disponibilità configurata per questo giorno.</p>
-          ) : freeSlots.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">Nessuno slot disponibile per questa data.</p>
+          {esitoSlot.fasce.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Orari del calendario «{selectedCalendar?.name}»: {esitoSlot.fasce.map((f) => `${f.da}–${f.a}`).join(", ")}
+              {occupatiEsterni.length > 0 ? ` · tolti ${occupatiEsterni.length} impegni del titolare sul suo calendario` : ""}
+              {(selectedCalendar?.min_notice_minutes ?? 0) > 0 ? ` · preavviso minimo ${selectedCalendar!.min_notice_minutes} min` : ""}
+            </p>
+          )}
+          {esitoSlot.motivoVuoto === "chiuso" ? (
+            <p className="text-sm text-muted-foreground py-2">Il calendario non lavora in questo giorno (nessuna disponibilità, o giornata chiusa).</p>
+          ) : esitoSlot.motivoVuoto === "tetto" ? (
+            <p className="text-sm text-muted-foreground py-2">Raggiunto il numero massimo di appuntamenti per questo giorno ({selectedCalendar?.max_per_day}). Puoi comunque scegliere un orario a mano qui sotto.</p>
+          ) : esitoSlot.motivoVuoto === "pieno" ? (
+            <p className="text-sm text-muted-foreground py-2">Nessun orario libero per questa data: sono tutti occupati o troppo vicini. Puoi scegliere un orario a mano qui sotto.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {freeSlots.map((slot) => (
@@ -987,6 +1015,14 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
           </div>
         </div>
       </div>
+
+      {/* Impegni del titolare su Google/Outlook/Apple in quella fascia */}
+      {date && orarioInizio && orarioFine && impegniEsterniInFascia(date, orarioInizio, orarioFine, occupatiEsterni).length > 0 && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <p>Su questo orario il titolare del calendario ha già un impegno sul suo calendario (Google, Outlook o Apple). Puoi prenotare lo stesso, ma controlla.</p>
+        </div>
+      )}
 
       {/* Conflitti di orario */}
       {conflitti.length > 0 && (
