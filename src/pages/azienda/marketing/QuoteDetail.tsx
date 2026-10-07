@@ -95,6 +95,7 @@ export default function QuoteDetail() {
     try {
       const esito = await convertiPreventivoInCantiere(id);
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.linkedOrder(id) });
       // La commessa c'è ma le righe no: dirlo, non «convertito con successo» davanti a una commessa vuota.
       if (esito.avviso) {
         toast.warning("Commessa creata, ma non completa", { description: esito.avviso, duration: 12000 });
@@ -247,9 +248,14 @@ export default function QuoteDetail() {
 
   // Back-link: la commessa generata da questo preventivo (orders.quote_id = id).
   // Rende bidirezionale il legame preventivo↔commessa (prima solo commessa→preventivo).
-  const { data: linkedOrder } = useQuery({
-    queryKey: ["quote-linked-order", id],
+  // Sta dietro la guardia «una commessa sola» (i due pulsanti sotto): la legge sempre fresca, a ogni apertura della
+  // pagina. L'app tiene le query fresche 5 minuti, e «Crea commessa (rivedi)» non cambia lo stato del preventivo:
+  // con la copia in cache si tornava qui entro 5 minuti, si rivedevano i pulsanti e si faceva una seconda commessa.
+  const { data: linkedOrder, isFetching: controlloCommessa } = useQuery({
+    queryKey: queryKeys.quotes.linkedOrder(id),
     enabled: !!id,
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
@@ -421,7 +427,7 @@ export default function QuoteDetail() {
               <button
                 type="button"
                 onClick={handleConvertToCantiere}
-                disabled={converting}
+                disabled={converting || controlloCommessa}
                 className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 h-9"
               >
                 {converting
@@ -436,6 +442,7 @@ export default function QuoteDetail() {
               <Button
                 variant="outline"
                 onClick={() => navigate(`/azienda/ordini/nuovo?quote_id=${id}`)}
+                disabled={controlloCommessa}
                 className="h-9 max-sm:hidden"
                 title="Apre una nuova commessa con righe e misure già compilate dal preventivo: puoi rivederle e aggiustarle prima di salvare"
               >

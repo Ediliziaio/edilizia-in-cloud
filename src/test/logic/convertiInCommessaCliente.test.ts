@@ -18,16 +18,20 @@ const stato = vi.hoisted(() => ({
   aggiornamenti: [] as Array<{ tabella: string; patch: Record<string, unknown> }>,
   /** La tabella il cui aggiornamento deve fallire. */
   aggiornamentoFallisce: null as string | null,
+  /** La tabella il cui aggiornamento passa senza errore ma non cambia nessuna riga (le regole di accesso non gliela fanno vedere). */
+  aggiornamentoSenzaRighe: null as string | null,
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
   const catena = (tabella: string) => {
     let aggiornamento = false;
+    let conSelect = false;
     const q: Record<string, unknown> = {};
     const stesso = (): Record<string, unknown> => q;
     const riga = async (): Promise<Esito> => ({ data: stato.tabelle[tabella]?.riga ?? null, error: null });
     Object.assign(q, {
-      select: stesso, eq: stesso, order: stesso, limit: stesso,
+      select: (): Record<string, unknown> => { conSelect = true; return q; },
+      eq: stesso, order: stesso, limit: stesso,
       update: (patch: Record<string, unknown>): Record<string, unknown> => {
         aggiornamento = true;
         stato.aggiornamenti.push({ tabella, patch });
@@ -38,7 +42,10 @@ vi.mock("@/integrations/supabase/client", () => {
       then: (ok: (v: Esito) => unknown, ko: (e: unknown) => unknown) =>
         Promise.resolve<Esito>(
           aggiornamento
-            ? { data: null, error: stato.aggiornamentoFallisce === tabella ? { message: "permesso negato" } : null }
+            ? stato.aggiornamentoFallisce === tabella
+              ? { data: null, error: { message: "permesso negato" } }
+              // Come PostgREST: con .select() le righe aggiornate (lista vuota se la riga non è visibile a chi scrive).
+              : { data: conSelect ? (stato.aggiornamentoSenzaRighe === tabella ? [] : [{ id: "riga-aggiornata" }]) : null, error: null }
             : { data: stato.tabelle[tabella]?.lista ?? [], error: null },
         ).then(ok, ko),
     });
@@ -105,6 +112,7 @@ beforeEach(() => {
   stato.rpc.length = 0;
   stato.aggiornamenti.length = 0;
   stato.aggiornamentoFallisce = null;
+  stato.aggiornamentoSenzaRighe = null;
   stato.tabelle = { order_statuses: { riga: { id: "stato-1" } }, marketing_contacts: { riga: { customer_profile_id: null } } };
 });
 
@@ -154,6 +162,31 @@ describe.each([
     await converti();
     const patch = aggiornamentoOrdine() ?? {};
     for (const campo of ["client_email", "client_phone", "indirizzo_lavori", "work_address"]) expect(patch).not.toHaveProperty(campo);
+  });
+
+  it("tutto scritto: nessun avviso", async () => {
+    prepara();
+    const esito = (await converti()) as { orderId: string; avviso?: string | null };
+    expect(esito.avviso ?? null).toBeNull();
+  });
+
+  // 07/10/2026. Per il ruolo «solo assegnati» la commessa appena creata non è «sua» (can_see_order): l'UPDATE passa senza errore e
+  // non cambia nessuna riga. Prima si guardava solo l'errore: cliente e indirizzo non si scrivevano e l'avviso non compariva.
+  it("se l'aggiornamento della commessa non cambia nessuna riga (nessun errore) l'esito lo dice: cliente e indirizzo non sono stati scritti", async () => {
+    prepara();
+    stato.aggiornamentoSenzaRighe = "orders";
+    const esito = (await converti()) as { orderId: string; avviso?: string | null };
+    expect(esito.orderId).toBe("ordine-1");
+    expect(esito.avviso).toMatch(/cliente e indirizzo/);
+    // il preventivo si lega comunque alla commessa
+    const tabella = _modulo === "fotovoltaico" ? "fv_progetti" : "rst_progetti";
+    expect(stato.aggiornamenti.find((a) => a.tabella === tabella)?.patch).toEqual({ ordine_id: "ordine-1" });
+  });
+
+  it("se è il legame sul preventivo a non cambiare nessuna riga (nessun errore) la conversione lo dice: commessa creata ma non collegata", async () => {
+    prepara();
+    stato.aggiornamentoSenzaRighe = _modulo === "fotovoltaico" ? "fv_progetti" : "rst_progetti";
+    await expect(converti()).rejects.toThrow(/Commessa creata ma non collegata al preventivo/);
   });
 
   it("se i dati del cliente non si riescono a scrivere la commessa c'è già, resta legata al preventivo e l'esito lo dice", async () => {

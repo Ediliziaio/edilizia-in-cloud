@@ -4191,7 +4191,8 @@ function Step5Configurazione({
                       <SelectContent>
                         {serviziCatalogo.length === 0 && <SelectItem value="__none__" disabled>Catalogo servizi vuoto</SelectItem>}
                         {serviziCatalogo.map((s) => (
-                          <SelectItem key={String(s.id)} value={String(s.id)}>{String(s.descrizione ?? "Servizio")} — {Number(s.prezzo_netto_default ?? 0).toFixed(0)}€</SelectItem>
+                          // L'importo qui è il costo del servizio (prezzo_netto_default): lo vede solo chi può vedere costi e margini.
+                          <SelectItem key={String(s.id)} value={String(s.id)}>{String(s.descrizione ?? "Servizio")}{puoVedereImpresa ? ` — ${Number(s.prezzo_netto_default ?? 0).toFixed(0)}€` : ""}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

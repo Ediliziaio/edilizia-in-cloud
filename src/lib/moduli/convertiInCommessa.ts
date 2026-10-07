@@ -181,9 +181,21 @@ function campiClienteCommessa(c: DatiClientePreventivo): Record<string, string> 
 }
 
 /**
+ * Un aggiornamento che non dà errore ma non cambia nessuna riga: l'`update` di PostgREST con `.select()` risponde con
+ * una lista vuota. Succede quando le regole di accesso non fanno vedere la riga a chi scrive: per il ruolo «solo assegnati»
+ * la commessa appena creata non è «sua» (can_see_order) e l'UPDATE passa senza errore e senza scrivere niente.
+ * (Una risposta senza lista non dice niente: non conta come «nessuna riga».)
+ */
+const nessunaRigaAggiornata = (righe: unknown): boolean => Array.isArray(righe) && righe.length === 0;
+
+/**
  * Dopo la RPC: quello che la RPC non scrive (cliente, indirizzo dei lavori, legame col preventivo) e il legame
  * inverso sul preventivo. Il preventivo si lega SEMPRE alla commessa, anche se cliente e indirizzo non si
  * riescono a scrivere (se ne avvisa): senza il legame un secondo clic ne creerebbe un'altra.
+ *
+ * «Non si riescono a scrivere» vale anche per l'aggiornamento che non dà errore ma non cambia nessuna riga (vedi
+ * nessunaRigaAggiornata): prima si guardava solo l'errore, e per il ruolo «solo assegnati» cliente e indirizzo non
+ * si scrivevano e l'avviso non compariva.
  */
 async function legaCommessaAlPreventivo(params: {
   orderId: string;
@@ -192,14 +204,23 @@ async function legaCommessaAlPreventivo(params: {
   colonnaCommessa: "fv_progetto_id" | "rst_progetto_id";
   cliente: DatiClientePreventivo;
 }): Promise<string | null> {
-  const { error: errCommessa } = await supabase
+  const { data: righeCommessa, error: errCommessa } = await supabase
     .from("orders")
     .update({ [params.colonnaCommessa]: params.progettoId, ...campiClienteCommessa(params.cliente) } as never)
-    .eq("id", params.orderId);
+    .eq("id", params.orderId)
+    .select("id");
+  const commessaNonScritta = Boolean(errCommessa) || nessunaRigaAggiornata(righeCommessa);
   // Il legame sul preventivo: se manca, il bottone resterebbe acceso e il preventivo si convertirebbe due volte.
-  const { error: errLink } = await supabase.from(params.tabella).update({ ordine_id: params.orderId } as never).eq("id", params.progettoId);
+  const { data: righeLink, error: errLink } = await supabase
+    .from(params.tabella)
+    .update({ ordine_id: params.orderId } as never)
+    .eq("id", params.progettoId)
+    .select("id");
   if (errLink) throw new Error(`Commessa creata ma non collegata al preventivo: ${errLink.message}`);
-  return errCommessa
+  if (nessunaRigaAggiornata(righeLink)) {
+    throw new Error("Commessa creata ma non collegata al preventivo: il preventivo non risulta modificabile da te (nessuna riga aggiornata).");
+  }
+  return commessaNonScritta
     ? "La commessa è stata creata, ma cliente e indirizzo dei lavori non sono stati scritti: aggiungili dalla scheda della commessa."
     : null;
 }

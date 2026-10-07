@@ -7,17 +7,23 @@
  *  · Fase 6: «Economia pronta per vendita e campagne» con margine reale, margine lordo e CPL massimo;
  *  · Fase 7 «Vista impresa»: costo diretto, margine in € e in %.
  * Qui i tre pezzi veri (e la Fase 5 intera, per l'«Acquisto»), con e senza permesso.
+ *
+ * 07/10/2026: anche il selettore «+ Dal catalogo» dei servizi (Fase 5) scriveva accanto a ogni servizio il suo
+ * `prezzo_netto_default`, che è il COSTO del servizio, a chiunque aprisse la tendina.
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { INITIAL, LS_KEY_NEW } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard/constants";
 import type { WizardData } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard/types";
 
 // La Fase 5 intera importa il wizard (e il suo mondo): con la macchina carica supera i 5 secondi di partenza.
 vi.setConfig({ testTimeout: 30_000 });
 
-const { stato, NESSUNO } = vi.hoisted(() => ({ stato: { margini: true }, NESSUNO: [] as unknown[] }));
+const { stato, NESSUNO } = vi.hoisted(() => ({
+  stato: { margini: true, catalogo: [] as unknown[] },
+  NESSUNO: [] as unknown[],
+}));
 
 vi.mock("react-router-dom", () => ({
   useParams: () => ({}),
@@ -48,7 +54,7 @@ vi.mock("@/lib/fotovoltaico/queries", () => {
     useUpsertComponenti: () => mutazione, useUpsertManodopera: () => mutazione, useUpsertServizi: () => mutazione,
     useTariffeFv: () => lista, useManodoperaProgetto: () => niente, useServiziProgetto: () => niente,
     useTabelleFinanziamentoFv: () => lista, useTopFinanziamentiFv: () => lista, useTemplatePdf: () => niente,
-    useServiziCatalogo: () => lista, useDuplicaProgetto: () => mutazione,
+    useServiziCatalogo: () => ({ data: stato.catalogo, isLoading: false }), useDuplicaProgetto: () => mutazione,
   };
 });
 vi.mock("@/components/fotovoltaico/FvContactPicker", () => ({ FvContactPicker: () => <p>scelta del contatto</p> }));
@@ -61,7 +67,14 @@ vi.mock("@/components/fotovoltaico/FvDimensionamentoStringhe", () => ({ FvDimens
 import FotovoltaicoWizard, { FvControlloEconomico, FvScontoCard, Step7VistaImpresa } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard";
 import { calcolaFvEconomicsGuard } from "@/lib/fotovoltaico/preventivatore";
 
-beforeEach(() => { stato.margini = true; localStorage.clear(); });
+// La tendina del catalogo è un Select di Radix: in jsdom servono questi tre metodi per aprirla.
+beforeAll(() => {
+  Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => {});
+  Element.prototype.hasPointerCapture = Element.prototype.hasPointerCapture ?? (() => false);
+  Element.prototype.releasePointerCapture = Element.prototype.releasePointerCapture ?? (() => {});
+});
+afterAll(() => { stato.catalogo = []; });
+beforeEach(() => { stato.margini = true; stato.catalogo = []; localStorage.clear(); });
 afterEach(() => cleanup());
 
 const testoPagina = () => document.body.textContent ?? "";
@@ -163,5 +176,49 @@ describe("Fase 5, prodotti extra: il costo d'acquisto", () => {
     await apriConUnProdottoExtra();
     expect(screen.getByText("Vendita € (unit.)")).toBeTruthy();
     expect(screen.queryByText(/Acquisto €/)).toBeNull();
+  });
+});
+
+describe("Fase 5, servizi: «+ Dal catalogo»", () => {
+  // Servizio di catalogo: costo 120 €, margine 40% → prezzo di vendita 200 €.
+  const SERVIZIO = { id: "s1", codice: "enea", descrizione: "Pratica ENEA", prezzo_netto_default: 120, margine_pct_default: 0.4, note_operative: null as null };
+  const POINTER = { button: 0, ctrlKey: false, pointerType: "mouse" } as const;
+  const apriIlCatalogo = async () => {
+    localStorage.setItem(LS_KEY_NEW, JSON.stringify({
+      step: 5, completedSteps: [1, 2, 3, 4], savedAt: Date.now(),
+      data: {
+        ...INITIAL,
+        cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_telefono: "347 123 4567",
+        indirizzo: "Via Roma 4", cap: "36100", comune: "Vicenza", provincia: "VI",
+        consumo_annuo_kwh: 4500, ore_sole_annue: 1350, numero_pannelli_max: 20, potenza_max_kwp: 9, numero_pannelli_scelti: 12, potenza_kwp: 5.4,
+      },
+    }));
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><FotovoltaicoWizard /></QueryClientProvider>);
+    const segnaposto = await screen.findByText("+ Dal catalogo", {}, { timeout: 8000 });
+    fireEvent.pointerDown(segnaposto.closest("[role='combobox']") as HTMLElement, POINTER);
+    return screen.findByRole("option", { name: /Pratica ENEA/ });
+  };
+
+  it("con il permesso accanto al servizio c'è il suo importo (il costo: 120 €), come prima", async () => {
+    stato.catalogo = [SERVIZIO];
+    const voce = await apriIlCatalogo();
+    expect(voce.textContent).toContain("120€");
+  });
+
+  it("senza il permesso il servizio c'è, l'importo (il costo) no", async () => {
+    stato.margini = false;
+    stato.catalogo = [SERVIZIO];
+    const voce = await apriIlCatalogo();
+    expect(voce.textContent).toBe("Pratica ENEA");
+    expect(document.body.textContent).not.toContain("120€");
+  });
+
+  it("scegliendo il servizio senza permesso entra comunque nel preventivo, col suo prezzo di vendita (200 €)", async () => {
+    stato.margini = false;
+    stato.catalogo = [SERVIZIO];
+    fireEvent.click(await apriIlCatalogo());
+    const prezzo = (await screen.findByTitle("Prezzo vendita")) as HTMLInputElement;
+    expect(prezzo.value).toBe("200");
+    expect((screen.getByPlaceholderText("Descrizione servizio") as HTMLInputElement).value).toBe("Pratica ENEA");
   });
 });

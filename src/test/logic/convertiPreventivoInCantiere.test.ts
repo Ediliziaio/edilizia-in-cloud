@@ -20,6 +20,7 @@ const finto = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke: finto.invoke } } }));
 
 import { convertiPreventivoInCantiere } from "@/lib/quotes/convertiPreventivoInCantiere";
+import { queryKeys } from "@/lib/queryKeys";
 
 const FILE = "src/pages/azienda/marketing/QuoteDetail.tsx";
 
@@ -93,7 +94,8 @@ describe("QuoteDetail.handleConvertToCantiere (il testo vero dell'handler)", () 
     const invalidateQueries = vi.fn();
     const handler = handlerVero("handleConvertToCantiere", {
       Error, id: "q1", toast, navigate, setConverting, converting: false,
-      queryClient: { invalidateQueries }, queryKeys: { quotes: { detail: (id: string) => ["quotes", id] } },
+      // Le chiavi vere (non un finto che l'handler può superare): l'handler invalida il preventivo e la sua commessa collegata.
+      queryClient: { invalidateQueries }, queryKeys,
       // Il vecchio handler chiamava direttamente supabase: lo stesso finto, così il test dice cosa vede l'utente.
       supabase: { functions: { invoke: finto.invoke } },
       convertiPreventivoInCantiere,
@@ -117,7 +119,8 @@ describe("QuoteDetail.handleConvertToCantiere (il testo vero dell'handler)", () 
     expect(toast.success).toHaveBeenCalledWith("Preventivo convertito in cantiere con successo!");
     expect(toast.warning).not.toHaveBeenCalled();
     expect(navigate).toHaveBeenCalledWith("/azienda/ordini/o1");
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["quotes", "q1"] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.quotes.detail("q1") });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: queryKeys.quotes.linkedOrder("q1") });
   });
 
   it("rifiuto della funzione: l'utente legge il motivo, non si naviga, il pulsante si riabilita", async () => {

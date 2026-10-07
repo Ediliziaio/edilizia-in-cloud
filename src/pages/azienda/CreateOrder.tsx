@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVertical } from "@/hooks/useVertical";
 import { applyPlaybookToOrder } from "@/lib/orderPlaybook";
+import { collegaPreventivoAllaCommessa } from "@/lib/orders/collegaPreventivoAllaCommessa";
 import { useCompanyCustomers, type CompanyCustomer } from "@/hooks/useCompanyCustomers";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -793,24 +794,22 @@ function CreateOrderInner() {
       }
 
       // Collega il preventivo di origine alla commessa (se creata da un preventivo via
-      // ?quote_id / "Importa da preventivo") → la commessa mostrerà il "Preventivo collegato".
+      // ?quote_id / "Importa da preventivo") → la commessa mostrerà il "Preventivo collegato", il blocca prezzo la
+      // segue, e la pagina del preventivo (che non offre una seconda commessa) rilegge la commessa collegata.
       if (selectedQuoteId) {
-        const { error: linkErr } = await supabase
-          .from("orders")
-          .update({ quote_id: selectedQuoteId, quote_number: quotePrefill?.quoteNumber ?? null })
-          .eq("id", result.id);
-        if (linkErr) console.error("[CreateOrder] collegamento preventivo non riuscito:", linkErr.message);
-
-        // Il blocca prezzo versato sul preventivo segue la commessa: senza
-        // questo aggancio resterebbe orfano sul preventivo e nessuno si
-        // ricorderebbe di restituirlo.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: bpErr } = await (supabase as any)
-          .from("blocca_prezzo")
-          .update({ order_id: result.id, customer_id: values.customer_id || null })
-          .eq("quote_id", selectedQuoteId)
-          .is("order_id", null);
-        if (bpErr) console.warn("[CreateOrder] aggancio blocca prezzo alla commessa fallito:", bpErr.message);
+        const { collegata } = await collegaPreventivoAllaCommessa({
+          queryClient,
+          orderId: result.id,
+          quoteId: selectedQuoteId,
+          quoteNumber: quotePrefill?.quoteNumber ?? null,
+          customerId: values.customer_id || null,
+        });
+        if (!collegata) {
+          toast.warning("La commessa è stata creata, ma non risulta collegata al preventivo", {
+            description: "Dal preventivo potresti rivedere «Crea commessa»: controlla di non farne una seconda.",
+            duration: 12000,
+          });
+        }
       }
 
       // v8.6.42 — sede_id non è nel RPC create_order_atomic, viene
