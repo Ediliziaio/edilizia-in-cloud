@@ -38,3 +38,24 @@ describe("appuntamento precompilato", () => {
     expect(linkWhatsApp("12", "ciao")).toBeNull();
   });
 });
+
+
+describe("testoConferma con videochiamata", () => {
+  it("scrive «in videochiamata» e il link, senza luogo", () => {
+    const testo = testoConferma({
+      nome: "Anna Rossi",
+      data: new Date(2026, 9, 9),
+      ora: "10:00",
+      tipo: "Demo",
+      videochiamata: "meet.google.com/djt-jywd-myg",
+    });
+    expect(testo).toContain("in videochiamata");
+    expect(testo).toContain("meet.google.com/djt-jywd-myg");
+  });
+
+  it("senza link e con luogo resta come prima", () => {
+    const testo = testoConferma({ nome: "Anna", data: new Date(2026, 9, 9), ora: "10:00", luogo: "Via Roma 1, Pistoia" });
+    expect(testo).toContain("in Via Roma 1, Pistoia");
+    expect(testo).not.toContain("videochiamata");
+  });
+});

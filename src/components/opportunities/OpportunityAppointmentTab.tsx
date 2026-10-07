@@ -11,7 +11,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CalendarIcon, Loader2, Trash2, Clock, Car, Pencil, AlertTriangle, CheckCircle2, Copy, MessageCircle } from "lucide-react";
+import { CalendarIcon, Loader2, Trash2, Clock, Car, Pencil, AlertTriangle, CheckCircle2, Copy, MessageCircle, Video } from "lucide-react";
 import { format, getDay, addMinutes, parse, isAfter } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ import CalendarSuggestions, { type CalendarSuggestion } from "@/components/marke
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsPlatformCrm } from "@/hooks/useIsPlatformCrm";
 import { aggiornaAgendaSchede } from "@/lib/opportunitaAgenda";
 import { forwardGeocode } from "@/lib/geocoding";
 import {
@@ -46,6 +47,16 @@ const OPP_APPOINTMENT_TYPES = [
   { value: "riunione",               label: "Riunione" },
   { value: "cliente",                label: "Appuntamento Cliente" },
   { value: "generico",               label: "Generico" },
+];
+
+// CRM di piattaforma: si vende in videochiamata, niente cantiere né sopralluoghi.
+// Tutti e quattro si salvano come «videocall» (tipo che il calendario e la sincronizzazione già
+// conoscono): la differenza sta nel titolo («Demo · Nome»).
+const PLATFORM_APPOINTMENT_TYPES = [
+  { value: "demo",      label: "Demo" },
+  { value: "discovery", label: "Discovery" },
+  { value: "follow_up", label: "Follow-up" },
+  { value: "chiusura",  label: "Chiusura" },
 ];
 
 const STATUS_OPTIONS = [
@@ -101,6 +112,11 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
   const queryClient = useQueryClient();
   const googleSync = useGoogleCalendarSync();
   const appleSync = useAppleCalendarSync();
+  const isPlatformCrm = useIsPlatformCrm();
+  const appointmentTypes = isPlatformCrm ? PLATFORM_APPOINTMENT_TYPES : OPP_APPOINTMENT_TYPES;
+  const tipoPredefinito = isPlatformCrm ? "demo" : "sopralluogo_preventivo";
+  // Promemoria 30 minuti prima di serie per le demo: chi prenota sceglie solo giorno e ora.
+  const promemoriaPredefinito = isPlatformCrm ? "30" : "none";
 
   const [calendarId, setCalendarId] = useState("");
   const [date, setDate] = useState<Date | undefined>();
@@ -120,10 +136,10 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
   const [manualStartTime, setManualStartTime] = useState("");
   const [manualEndTime, setManualEndTime] = useState("");
   const [manualDuration, setManualDuration] = useState<string>("60");
-  const [appointmentType, setAppointmentType] = useState<string>("sopralluogo_preventivo");
+  const [appointmentType, setAppointmentType] = useState<string>(tipoPredefinito);
   const [assignedTo, setAssignedTo] = useState<string>("");
   const [status, setStatus] = useState<string>("confermato");
-  const [reminderMinutes, setReminderMinutes] = useState<string>("none");
+  const [reminderMinutes, setReminderMinutes] = useState<string>(promemoriaPredefinito);
   // Precompilazione: quello che l'utente non ha ancora toccato si riempie da solo.
   const [titoloToccato, setTitoloToccato] = useState(false);
   const [assegnatarioToccato, setAssegnatarioToccato] = useState(false);
@@ -148,6 +164,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
 
   const selectedCalendar = calendars.find((c) => c.id === calendarId);
   const durationMinutes = selectedCalendar?.duration_minutes || 30;
+  const linkVideochiamata = isPlatformCrm ? (selectedCalendar?.link_videochiamata ?? "").trim() : "";
 
   // Availability
   const dayOfWeek = date ? getDay(date) : null;
@@ -355,7 +372,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
     });
   }, [contactInfo]);
 
-  const tipoEtichetta = OPP_APPOINTMENT_TYPES.find((t) => t.value === appointmentType)?.label ?? "";
+  const tipoEtichetta = appointmentTypes.find((t) => t.value === appointmentType)?.label ?? "";
   const nomePerTitolo = contactName || [contactInfo?.first_name, contactInfo?.last_name].filter(Boolean).join(" ");
   const titoloProposto = titoloSuggerito(tipoEtichetta, nomePerTitolo);
   const titoloEffettivo = titoloToccato ? title : titoloProposto;
@@ -501,22 +518,29 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
         appointment_end_time: `${endTime}:00`,
         title: titoloEffettivo || `Appuntamento con ${contactName}`,
         description: description || null,
-        appointment_type: appointmentType || "sopralluogo_preventivo",
+        appointment_type: isPlatformCrm ? "videocall" : (appointmentType || "sopralluogo_preventivo"),
+        ...(isPlatformCrm
+          ? {
+              meeting_provider: linkVideochiamata ? "manual" : "none",
+              meeting_url: linkVideochiamata || null,
+              meeting_status: linkVideochiamata ? "ready" : "none",
+            }
+          : {}),
         status: status || "confermato",
         // Con «Solo i propri» l'appuntamento resta a chi lo fissa.
         assigned_to: assignedTo || (onlyAssigned ? (user?.id ?? null) : null),
         reminder_minutes: reminderMinutes !== "none" ? parseInt(reminderMinutes, 10) : null,
         created_by: user!.id,
-        address_line: addressData.address_line || null,
-        address_city: addressData.address_city || null,
-        address_postal_code: addressData.address_postal_code || null,
-        address_province: addressData.address_province || null,
-        address_country: addressData.address_country || "IT",
-        address_notes: addressData.address_notes || null,
-        formatted_address: addressData.formatted_address || null,
-        lat: addressData.lat ?? null,
-        lng: addressData.lng ?? null,
-        place_id: addressData.place_id || null,
+        address_line: isPlatformCrm ? null : addressData.address_line || null,
+        address_city: isPlatformCrm ? null : addressData.address_city || null,
+        address_postal_code: isPlatformCrm ? null : addressData.address_postal_code || null,
+        address_province: isPlatformCrm ? null : addressData.address_province || null,
+        address_country: isPlatformCrm ? null : addressData.address_country || "IT",
+        address_notes: isPlatformCrm ? null : addressData.address_notes || null,
+        formatted_address: isPlatformCrm ? null : addressData.formatted_address || null,
+        lat: isPlatformCrm ? null : addressData.lat ?? null,
+        lng: isPlatformCrm ? null : addressData.lng ?? null,
+        place_id: isPlatformCrm ? null : addressData.place_id || null,
       }).select("id").single();
       if (error) throw error;
       if (created?.id) void syncCreatedAppointment(created.id);
@@ -526,7 +550,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       // pensava che l'indirizzo fosse aggiornato sul contatto, in realtà no.
       // Ora toast.warning informa che l'appuntamento è OK ma indirizzo cliente
       // resta vecchio — l'utente sa che deve aggiornare manualmente.
-      if (contactId && addressData.address_line) {
+      if (!isPlatformCrm && contactId && addressData.address_line) {
         const { error: syncError } = await supabase.from("marketing_contacts").update({
           address: addressData.address_line,
           city: addressData.address_city || null,
@@ -541,13 +565,13 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
           });
         }
       }
-      return { giorno: date, ora: startTime, luogo: addressData.formatted_address || addressData.address_line || "", tipo: tipoEtichetta };
+      return { giorno: date, ora: startTime, luogo: isPlatformCrm ? "" : addressData.formatted_address || addressData.address_line || "", tipo: tipoEtichetta, videochiamata: linkVideochiamata };
     },
     onSuccess: (esito) => {
       toast.success("Appuntamento prenotato");
       try { window.localStorage.setItem(chiaveCalendario, calendarId); } catch { /* memoria locale non disponibile */ }
       if (esito) {
-        const testo = testoConferma({ nome: contactInfo?.first_name || contactName, data: esito.giorno, ora: esito.ora, luogo: esito.luogo, tipo: esito.tipo });
+        const testo = testoConferma({ nome: contactInfo?.first_name || contactName, data: esito.giorno, ora: esito.ora, luogo: esito.luogo, tipo: esito.tipo, videochiamata: esito.videochiamata });
         setConferma({ testo, link: linkWhatsApp(contactInfo?.phone, testo) });
       }
       queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
@@ -562,11 +586,11 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       setManualStartTime("");
       setManualEndTime("");
       setManualDuration("60");
-      setAppointmentType("sopralluogo_preventivo");
+      setAppointmentType(tipoPredefinito);
       setAssegnatarioToccato(false);
       setAssignedTo("");
       setStatus("confermato");
-      setReminderMinutes("none");
+      setReminderMinutes(promemoriaPredefinito);
     },
     onError: (e: any) => toast.error(e.message || "Errore nella prenotazione"),
   });
@@ -689,7 +713,27 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
         <Input value={titoloEffettivo} onChange={(e) => { setTitoloToccato(true); setTitle(e.target.value); }} placeholder={`Appuntamento con ${contactName}`} className="h-9" />
       </div>
 
-      {/* Address */}
+      {isPlatformCrm ? (
+        /* CRM di piattaforma: la demo è in videochiamata, niente indirizzo, mappa né chilometri. */
+        <div className="rounded-lg border bg-muted/30 p-3 space-y-2 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+          <Label className="text-sm font-medium flex items-center gap-1.5"><Video className="h-3.5 w-3.5" /> Videochiamata</Label>
+          {linkVideochiamata ? (
+            <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-sm">
+              <a href={linkVideochiamata.startsWith("http") ? linkVideochiamata : `https://${linkVideochiamata}`} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate text-primary underline-offset-2 hover:underline">{linkVideochiamata}</a>
+              <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2" onClick={() => { void navigator.clipboard?.writeText(linkVideochiamata); toast.success("Link copiato"); }}>
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : (
+            <p className="flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+              <span>{selectedCalendar ? `Il calendario «${selectedCalendar.name}» non ha un link di videochiamata. Aggiungilo in Impostazioni → Calendari.` : "Scegli un calendario: il link della videochiamata arriva da lì."}</span>
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">Il link viene salvato nell'appuntamento e scritto nel messaggio di conferma al cliente.</p>
+        </div>
+      ) : (
+        <>
       {/* Mobile: senza riquadro intorno, i campi stanno in fila con gli altri. */}
       <div className="rounded-lg border bg-muted/30 p-3 space-y-3 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
         <AddressAutocomplete value={addressData} onChange={setAddressData} />
@@ -754,6 +798,9 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
             </div>
           ))}
         </div>
+      )}
+
+        </>
       )}
 
       {/* Date picker */}
@@ -892,7 +939,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
             <Select value={appointmentType} onValueChange={setAppointmentType}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {OPP_APPOINTMENT_TYPES.map((o) => (
+                {appointmentTypes.map((o) => (
                   <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                 ))}
               </SelectContent>

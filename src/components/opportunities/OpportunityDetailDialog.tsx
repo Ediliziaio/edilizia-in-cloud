@@ -679,7 +679,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: true },
     { key: "notes", label: totaleNote ? `Appunti (${totaleNote})` : "Appunti", mobileLabel: totaleNote ? `Appunti ${totaleNote}` : "Appunti", icon: <StickyNote className="h-4 w-4" />, enabled: true },
     { key: "documents", label: "Documenti", icon: <Folder className="h-4 w-4" />, enabled: true },
-    { key: "quotes", label: "Preventivi", icon: <FileText className="h-4 w-4" />, enabled: true },
+    // Nel CRM di piattaforma non si fanno preventivi con i preventivatori: niente scheda.
+    ...(isPlatformCrm ? [] : [{ key: "quotes" as Tab, label: "Preventivi", icon: <FileText className="h-4 w-4" />, enabled: true }]),
   ];
 
   const searchTrimmed = contactSearch.trim();
@@ -783,14 +784,17 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   <CalendarDays className="h-4 w-4" />
                 </button>
                 <span className="mx-0.5 hidden sm:block h-5 w-px bg-border" aria-hidden />
-                {/* Crea preventivo direttamente dal deal — link contatto/opportunità preservato */}
-                <NewPreventivoMenu
-                  opportunityId={opportunity.id}
-                  contactId={opportunity.contact_id ?? null}
-                  size="sm"
-                  label="Preventivo"
-                  className="max-sm:flex-1 max-sm:shadow-none max-sm:hover:translate-y-0"
-                />
+                {/* Crea preventivo direttamente dal deal — link contatto/opportunità preservato.
+                    Non nel CRM di piattaforma: lì si vendono servizi, non preventivi di cantiere. */}
+                {!isPlatformCrm && (
+                  <NewPreventivoMenu
+                    opportunityId={opportunity.id}
+                    contactId={opportunity.contact_id ?? null}
+                    size="sm"
+                    label="Preventivo"
+                    className="max-sm:flex-1 max-sm:shadow-none max-sm:hover:translate-y-0"
+                  />
+                )}
               </div>
             )}
             <button
