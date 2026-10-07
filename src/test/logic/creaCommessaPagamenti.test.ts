@@ -1,7 +1,7 @@
 // src/test/logic/creaCommessaPagamenti.test.ts
 /**
- * Il modulo di nuova commessa (CreateOrder) e «Come si paga»: guardie sul testo, perché la pagina è troppo grande
- * per un test di comportamento. Il comportamento vero è provato in `modelliPagamento`, `ComeSiPagaSelect` e
+ * Il modulo di nuova commessa (CreateOrder) e il modello di pagamento: guardie sul testo, perché la pagina è troppo grande
+ * per un test di comportamento. Il comportamento vero è provato in `modelliPagamento`, `ModelloPagamentoSelect` e
  * `FinancialSummary` (importi che seguono le rate da modello).
  */
 import { readFileSync } from "node:fs";
@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 
 const SORGENTE = readFileSync(join(__dirname, "../../pages/azienda/CreateOrder.tsx"), "utf8");
 
-describe("come si paga nel modulo di nuova commessa", () => {
+describe("il modello di pagamento nel modulo di nuova commessa", () => {
   it("si apre dopo aver letto il modello di partenza, e lo decide una volta sola (stato iniziale, non un effetto)", () => {
     expect(SORGENTE).toContain("function CreateOrderConPartenza()");
     expect(SORGENTE).toContain("<CreateOrderInner modelloIniziale={modello} />");
@@ -24,8 +24,10 @@ describe("come si paga nel modulo di nuova commessa", () => {
     expect(payload).not.toContain("percent");
   });
 
-  it("il selettore sta sopra il riepilogo finanziario e mostra il modello solo finché le rate lo seguono", () => {
-    expect(SORGENTE.indexOf("<ComeSiPagaSelect")).toBeLessThan(SORGENTE.indexOf("<FinancialSummary"));
+  it("il selettore sta DENTRO il riepilogo finanziario (dove ci sono le rate), non come scheda a parte", () => {
+    expect(SORGENTE).toContain("<FinancialSummary\n            modelloRate={<ModelloPagamentoSelect");
+    // una scheda a parte, nella griglia del modulo, lascerebbe un buco nella colonna accanto
+    expect(SORGENTE.match(/<ModelloPagamentoSelect/g)).toHaveLength(1);
     expect(SORGENTE).toContain('installments.some((i) => i.percent != null) ? comeSiPagaId : ""');
   });
 });

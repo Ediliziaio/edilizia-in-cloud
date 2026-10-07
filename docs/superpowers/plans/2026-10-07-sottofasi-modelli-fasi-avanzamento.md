@@ -12579,6 +12579,8 @@ git commit -m "Impostazioni: «Modelli di pagamento» (i modelli dell'azienda, q
 
 ### Task 38: «Come si paga» nel modulo di nuova commessa
 
+> **Variante decisa dopo l'esecuzione (07/10 sera, su indicazione dell'utente).** Il selettore **non** è una scheda a parte: sta **dentro il Riepilogo Finanziario, sopra «Numero Rate»**, e si chiama **«Modello di pagamento»** (componente `ModelloPagamentoSelect`, spazio `modelloRate` di `FinancialSummary`; test `modelloPagamentoSelect.test.tsx` e tre casi nuovi in `financialSummaryModello.test.tsx`). La scheda a parte duplicava le rate che il riepilogo ha già e, nella griglia a due colonne del modulo, spingeva il riepilogo nella colonna di sinistra lasciando un buco a destra. I blocchi qui sotto descrivono la **prima** versione (`ComeSiPagaSelect`, scheda nella griglia): vale il codice nel repo.
+
 **Files:**
 - Create: `src/hooks/useComeSiPagaDiPartenza.ts`, `src/components/orders/ComeSiPagaSelect.tsx`
 - Modify: `src/pages/azienda/CreateOrder.tsx`, `src/components/orders/FinancialSummary.tsx`

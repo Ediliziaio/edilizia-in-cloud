@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ritenutaSuLordo, IVA_SCORPORO_BANCA } from "@/lib/orders/bonusFiscali";
 import { formatCurrency } from "@/lib/formatters";
@@ -349,6 +349,8 @@ interface FinancialSummaryProps {
   onBonusLinesChange?: (lines: BonusLine[]) => void;
   /** CF cliente / P.IVA impresa, per comporre le causali dei bonifici parlanti. */
   datiCausale?: DatiCausale;
+  /** Il modello di pagamento dell'azienda: sta sopra «Numero Rate», dove le rate si compilano (solo pagamento standard). */
+  modelloRate?: ReactNode;
 }
 
 export function FinancialSummary({
@@ -360,7 +362,7 @@ export function FinancialSummary({
   hasBuildingBonus, onHasBuildingBonusChange,
   financingCost, onFinancingCostChange,
   bonusMultipliEnabled = false, bonusLines = [], onBonusLinesChange,
-  datiCausale, dateCommessa, statiCommessa,}: FinancialSummaryProps) {
+  datiCausale, dateCommessa, statiCommessa, modelloRate,}: FinancialSummaryProps) {
   const [inputMode, setInputMode] = useState<AmountInputMode>('net');
   const [rawTotalInput, setRawTotalInput] = useState(totalAmount);
   const [rawFinancingCostInput, setRawFinancingCostInput] = useState(financingCost || "");
@@ -724,6 +726,9 @@ export function FinancialSummary({
 
         {paymentType === 'standard' ? (
           <>
+            {/* Il modello dell'azienda: un modo più veloce di compilare le rate che seguono. */}
+            {!readOnly && modelloRate}
+
             {/* Number of installments selector */}
             {!readOnly && (
               <div className="space-y-2">

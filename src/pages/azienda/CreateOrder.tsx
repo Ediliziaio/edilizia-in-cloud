@@ -76,7 +76,7 @@ import { SedeSelect } from "@/components/sedi/SedeSelect";
 import { FasiDiPartenzaSelect } from "@/components/orders/FasiDiPartenzaSelect";
 import { useFasiDiPartenza } from "@/hooks/useFasiDiPartenza";
 import { fasiPerCommessa } from "@/lib/orders/modelliFasi";
-import { ComeSiPagaSelect } from "@/components/orders/ComeSiPagaSelect";
+import { ModelloPagamentoSelect } from "@/components/orders/ModelloPagamentoSelect";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useComeSiPagaDiPartenza } from "@/hooks/useComeSiPagaDiPartenza";
 import { useModelliPagamento } from "@/hooks/useModelliPagamento";
@@ -1444,9 +1444,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             </div>
           </QuoteCard>
 
-          <ComeSiPagaSelect offerti={modelliPagamento} valore={modelloApplicato} onChange={applicaModelloPagamento} />
-
           <FinancialSummary
+            modelloRate={<ModelloPagamentoSelect offerti={modelliPagamento} valore={modelloApplicato} onChange={applicaModelloPagamento} />}
             dateCommessa={{
               created_at: new Date().toISOString(),
               warehouse_arrival_date: toDateStr(watch("warehouse_arrival_date")),

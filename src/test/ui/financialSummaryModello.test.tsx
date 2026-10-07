@@ -91,3 +91,38 @@ describe("il riepilogo finanziario con un modello di pagamento", () => {
     expect(primo.value).toBe("12");
   });
 });
+
+describe("il posto del modello di pagamento nel riepilogo finanziario", () => {
+  const rate: Installment[] = [
+    { position: 0, label: "Acconto 1", type: "deposit", amount: 0, is_paid: false },
+    { position: 1, label: "Saldo", type: "balance", amount: 0, is_paid: false },
+  ];
+  const monta = (extra: { paymentType?: "standard" | "financing"; readOnly?: boolean }) =>
+    render(
+      <FinancialSummary
+        totalAmount="1.000,00" vatRate="22" paymentType={extra.paymentType ?? "standard"} readOnly={extra.readOnly}
+        installments={rate} onInstallmentsChange={() => {}}
+        numInstallments={2} onNumInstallmentsChange={() => {}}
+        onTotalAmountChange={() => {}} onVatRateChange={() => {}} onPaymentTypeChange={() => {}}
+        balance={0}
+        modelloRate={<div>SELETTORE DEL MODELLO</div>}
+      />,
+    );
+
+  it("sta dentro il riepilogo, subito sopra «Numero Rate»", () => {
+    monta({});
+    const selettore = screen.getByText("SELETTORE DEL MODELLO");
+    const numeroRate = screen.getByText("Numero Rate");
+    expect(selettore.compareDocumentPosition(numeroRate) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("non c'è con il finanziamento", () => {
+    monta({ paymentType: "financing" });
+    expect(screen.queryByText("SELETTORE DEL MODELLO")).not.toBeInTheDocument();
+  });
+
+  it("non c'è in sola lettura", () => {
+    monta({ readOnly: true });
+    expect(screen.queryByText("SELETTORE DEL MODELLO")).not.toBeInTheDocument();
+  });
+});
