@@ -13,8 +13,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, FileBarChart2, Loader2, Download, Trash2, Sparkles, Wand2, Banknote, Check, Clock } from "lucide-react";
+import { Plus, FileBarChart2, Loader2, Download, Trash2, Sparkles, Wand2, Banknote, Check, Clock, ListChecks } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { vociSalDaFasi, type FasePerSal } from "@/lib/orders/salDaFasi";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import type { Installment } from "@/lib/orderUtils";
 
@@ -112,6 +113,22 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       return (data || []) as SalRecord[];
     },
     enabled: !!orderId && !!companyId,
+  });
+
+  // Fasi di lavorazione della commessa: per compilare il verbale dall'avanzamento
+  // dichiarato in cantiere (nome, % e venduto). importo_venduto può tornare null
+  // senza il permesso sugli importi: in quel caso la % arriva lo stesso.
+  const { data: fasiSal = [] } = useQuery<FasePerSal[]>({
+    queryKey: ["sal-fasi-commessa", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_work_phases")
+        .select("name, percentuale, importo_venduto")
+        .eq("order_id", orderId);
+      if (error) throw error;
+      return (data || []) as FasePerSal[];
+    },
+    enabled: !!orderId,
   });
 
   // AI: suggerisce % avanzamento dalle voci ordine + storico SAL + rapportini
@@ -601,7 +618,19 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
             <div className="space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <Label>Voci di avanzamento</Label>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { const v = vociSalDaFasi(fasiSal); if (v.length) setVoci(v); }}
+                    disabled={fasiSal.length === 0}
+                    className="gap-1"
+                    title="Compila le voci dalle fasi di lavorazione: descrizione e % di avanzamento dichiarate in cantiere"
+                  >
+                    <ListChecks className="h-3.5 w-3.5" />
+                    Dalle fasi
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
