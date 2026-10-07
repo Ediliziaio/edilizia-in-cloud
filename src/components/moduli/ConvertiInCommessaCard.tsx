@@ -51,6 +51,8 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
           ? `${esito.righe} rig${esito.righe === 1 ? "a" : "he"} portate dal preventivo.`
           : "Il dettaglio delle righe si aggiunge dalla commessa.",
       });
+      // La commessa c'è, ma cliente e indirizzo non sono passati: chi ha cliccato lo deve sapere.
+      if (esito.avviso) toast.warning(esito.avviso, { duration: 12000 });
       onConvertito?.(esito.orderId);
       navigate(`/azienda/ordini/${esito.orderId}`);
     } catch (e) {

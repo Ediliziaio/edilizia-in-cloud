@@ -1,13 +1,12 @@
 /**
- * StepEconomia — Step 6 wizard: totale preventivo + Ecobonus + recupero 10 anni.
+ * StepEconomia — passo «Economia» del wizard: prezzo, come paga il cliente, detrazione fiscale.
  *
- * Sezioni:
+ * Sezioni, nell'ordine in cui si lavora (06/10/2026: prima il prezzo, poi le rate):
  *  - Riepilogo BOM (auto-calcolato)
- *  - Sconto / totale documento
- *  - Configurazione finanziamento (anticipo % + piani)
+ *  - Prezzo: sconto / IVA / validità / totale documento
+ *  - Come paga il cliente (bonifico o finanziamento, rate) + simulazione finanziamento
  *  - Detrazione fiscale (50% prima casa / 36% altre abitazioni, da incentivi.ts)
- *  - Calcolo risparmio energetico
- *  - Grafico recupero economico 10 anni
+ *  - Extra richiudibili, chiusi di serie: calcolo risparmio energetico e recupero economico 10 anni
  */
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
@@ -22,10 +21,11 @@ import {
 } from "@/components/ui/table";
 import {
   Euro, TrendingUp, Leaf, Calculator, Calendar, HelpCircle,
-  Wallet, Tag, CreditCard, Plus, Trash2,
+  Wallet, Tag, CreditCard,
   CheckCircle2, AlertTriangle, ShieldAlert, Info,
   Lock, Send, TrendingDown,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,12 +33,25 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useDiscountRules } from "@/hooks/useDiscountRules";
 import { PrezzoPreventivoAMano } from "@/components/preventivi/PrezzoPreventivoAMano";
-import { evaluateDiscountRules, classifyDiscount } from "@/lib/serramenti/discountRules";
+import { ScontoRapido } from "@/components/preventivi/ScontoRapido";
+import { ExtraRichiudibile } from "@/components/serramenti/ExtraRichiudibile";
+import { RatePagamento } from "@/components/serramenti/RatePagamento";
+import { SimulazioneFinanziamento, type ModalitaFinanziamento } from "@/components/serramenti/SimulazioneFinanziamento";
+import {
+  durateConRata, fasceTabella, importoFinanziatoDa, motivoPianoIndietro, pianiManuali, pianiManualiDaSalvati, pianiUguali,
+  pianoDaTabella, type PianiManuali,
+} from "@/lib/serramenti/pianoFinanziamento";
+import { anticipoDaRate, rateConAnticipo, schemaDopoAnticipo } from "@/lib/serramenti/ratePagamento";
+import { campiRisparmio, paybackAtteso } from "@/lib/serramenti/risparmioPreventivo";
+import { valoriDiversi } from "@/lib/serramenti/scritturaCampi";
+import { motivoPreventivoDeciso } from "@/lib/serramenti/preventivoDeciso";
+import { evaluateDiscountRules, classifyDiscount, type DiscountEvalResult } from "@/lib/serramenti/discountRules";
 import {
   useTabelleFinanziamentoAttive,
   useTabellaFinanziamentoRighe,
   findMigliorRiga,
-  getDurateUniche,
+  type RigaFinanziamento,
+  type TabellaFinanziamento,
 } from "@/hooks/useTabelleFinanziamento";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
@@ -49,7 +62,7 @@ import { useTariffeManodopera } from "@/lib/serramenti/queries";
 import { useFamilies } from "@/hooks/useFamilies";
 import { costoTariffa } from "@/lib/listino/costoTariffa";
 import {
-  calcolaEcobonus, calcolaCashflow, calcolaPianoFinanziamento,
+  calcolaEcobonus, calcolaCashflow,
   ALIQUOTE_DETRAZIONE_SERRAMENTI, aliquotaDetrazioneSerramenti,
 } from "@/lib/serramenti/ecobonus";
 import {
@@ -58,7 +71,7 @@ import {
 } from "@/lib/serramenti/risparmio";
 import type {
   SrProgettoRow, SrProgettoDetail, SrPianoFinanziamento, SrCashflowRiga,
-  SrSchemaPagamento, SrPagamentoMilestone,
+  SrSchemaPagamento, SrPagamentoMilestone, SrWizardStep,
 } from "@/types/serramenti";
 import { SR_SCHEMI_PAGAMENTO } from "@/types/serramenti";
 import { SrCard, SrKpi, SrCallout } from "@/lib/serramenti/wizardUI";
@@ -115,14 +128,33 @@ function famigliaDiSchema(s: SrSchemaPagamento): FamigliaPagamento {
   return SR_SCHEMI_PAGAMENTO[s].hasFinanziamento ? "finanziamento" : "bonifico";
 }
 
+const PIANI_VUOTI: SrPianoFinanziamento[] = [];
+
+/** Il calcolo del risparmio, uguale per quello che si vede a schermo e per quello che si scrive nel preventivo. */
+function calcolaRisparmioPreventivo(
+  attivo: boolean, m2Serramenti: number, zona: ZonaClimatica, uwAttuale: number, uwNuovo: number, bolletta: number,
+) {
+  return attivo && m2Serramenti > 0
+    ? calcolaRisparmio({
+        zona_climatica: zona,
+        m2_serramenti: m2Serramenti,
+        uw_attuale: uwAttuale,
+        uw_nuovo: uwNuovo,
+        bolletta_attuale_anno: bolletta || undefined,
+      })
+    : null;
+}
+
 interface Props {
   progettoId: string;
   detail: SrProgettoDetail;
   form: Partial<SrProgettoRow>;
   onChange: <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => void;
+  /** Porta a un altro passo del wizard (lo stato vuoto manda a «Composizione offerta»). Senza, il pulsante non c'è. */
+  onVaiAlPasso?: (passo: SrWizardStep) => void;
 }
 
-export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
+export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso }: Props) {
   // ─── Auth + permission gating ────────────────────────────────────────────
   // Solo admin/titolare possono:
   //  - modificare lo sconto (i commerciali base vedono i campi read-only)
@@ -139,6 +171,14 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
   const isAdmin = permissions.canApproveDiscounts;
   const canViewImpresa = permissions.canViewMargins || permissions.canViewCosts;
   const qc = useQueryClient();
+
+  // Un preventivo già firmato, accettato o in commessa non si riscrive MAI da solo: il piano di pagamento e di
+  // finanziamento, la detrazione e il resto fanno parte di ciò che il cliente ha firmato, e il PDF si rifà dai dati
+  // salvati. Gli effetti qui sotto che scrivono senza che l'utente tocchi niente (aprendo il passo, cambiando un prezzo
+  // da un altro passo) si fermano; le scelte di chi lavora si scrivono sempre. Stato, firma e commessa li cambia il
+  // server: si leggono dalla copia salvata (`detail`), non dal modulo.
+  const motivoDeciso = motivoPreventivoDeciso(detail.progetto);
+  const deciso = motivoDeciso != null;
 
   // ─── Calcoli BOM ──────────────────────────────────────────────────────────
   const totaleCalc = useMemo(() =>
@@ -206,12 +246,14 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
   // Auto-bind la regola principale al progetto: salva discount_rule_id ↔
   // primaryRule.id quando cambia. Permette al PDF e all'audit di sapere
   // QUALE regola era attiva al momento del salvataggio.
+  // Un preventivo già deciso tiene la regola di allora (è proprio quella che l'audit vuole sapere).
   useEffect(() => {
+    if (deciso) return;
     const targetId = discountEval.primaryRule?.id ?? null;
     if ((form.discount_rule_id ?? null) !== targetId) {
       onChange("discount_rule_id", targetId);
     }
-  }, [discountEval.primaryRule?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [discountEval.primaryRule?.id, deciso]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const costGridIds = useMemo(
     () => Array.from(new Set([
@@ -436,101 +478,213 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
   // calcolo per quando aggiungeremo un'azione "Conferma applicazione sconto".
   void (isAdmin || discountVerdict === "ok" || approvalState === "approved");
 
-  // ─── Finanziamento ────────────────────────────────────────────────────────
-  const [anticipoPct, setAnticipoPct] = useState(form.fin_anticipo_pct ?? 40);
-  // Modalità: "tabella" usa eic_tabelle_finanziamento (no TAN/TAEG manuali),
-  // "manuale" usa i 2 piani Estesa/Standard come prima (fallback).
-  const [finModalita, setFinModalita] = useState<"tabella" | "manuale">(
-    form.fin_tabella_id ? "tabella" : "manuale",
-  );
-  const { data: tabelleFinanziamento = [] } = useTabelleFinanziamentoAttive();
-  const [tabellaId, setTabellaId] = useState<string | null>(form.fin_tabella_id ?? null);
-  const { data: righeTabella = [] } = useTabellaFinanziamentoRighe(tabellaId);
-  const durateDisponibili = useMemo(() => getDurateUniche(righeTabella), [righeTabella]);
-  const [durataTabella, setDurataTabella] = useState<number | null>(null);
-  // Auto-seleziona la prima durata disponibile quando cambia tabella
-  useEffect(() => {
-    if (durateDisponibili.length > 0 && durataTabella === null) {
-      setDurataTabella(durateDisponibili[0]);
-    }
-  }, [durateDisponibili]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const [piano1Mesi, setPiano1Mesi] = useState(120);
-  const [piano1Tasso, setPiano1Tasso] = useState(5.5);
-  const [piano2Mesi, setPiano2Mesi] = useState(60);
-  const [piano2Tasso, setPiano2Tasso] = useState(0);
-
-  // ─── Modalità pagamento cliente ──────────────────────────────────────────
+  // ─── Come paga il cliente + finanziamento ───────────────────────────────────
+  // Le rate, lo schema e il piano di finanziamento stanno nel PREVENTIVO (`form`), non in copie locali: ogni scelta
+  // si scrive subito con `onChange`, dal gestore dell'evento (il wizard salva con un po' di ritardo, come per gli
+  // altri campi), e quello che si vede è quello che c'è scritto, cioè quello che esce nel PDF. Niente pulsante
+  // «Applica» e niente effetti che copiano il form nello stato (facevano scivolare gli input).
   type Milestone = SrPagamentoMilestone;
-  // Schema di alto livello: l'utente sceglie il pattern (tutto finanziato /
-  // acconto+fin / 2 acconti+fin / 2 acconti+saldo / 3 step / personalizzato).
-  // Lo schema determina sia le milestone default sia la visibilità della
-  // sezione finanziaria.
-  const [schemaPagamento, setSchemaPagamento] = useState<SrSchemaPagamento>(
-    (form.schema_pagamento as SrSchemaPagamento | null) ?? "tre_step",
-  );
+  /** Scrive un campo del preventivo solo se cambia: ogni scrittura lo segna come modificato e fa partire un salvataggio. */
+  const scrivi = <K extends keyof SrProgettoRow>(campo: K, valore: SrProgettoRow[K]) => {
+    if (valoriDiversi(form[campo], valore)) onChange(campo, valore);
+  };
+  const pianiSalvati: SrPianoFinanziamento[] = Array.isArray(form.fin_piani) ? form.fin_piani : PIANI_VUOTI;
+  /** Il piano si confronta per mesi e importi (non per nome) e si scrive solo se cambia. */
+  const scriviPiani = (piani: SrPianoFinanziamento[]) => {
+    if (!pianiUguali(pianiSalvati, piani)) onChange("fin_piani", piani);
+  };
+
+  // ─── Sconti veloci ────────────────────────────────────────────────────────
+  // Lo sconto qui è doppio (percentuale e fisso, il fisso si toglie per primo). I tasti scrivono la PERCENTUALE, il
+  // campo che le regole di scontistica controllano, e azzerano il fisso: i due insieme darebbero un totale diverso da
+  // quello che il tasto dice. «Arriva a €» parte dal prezzo pieno (prezzo scritto a mano compreso), IVA esclusa.
+  const scontoInVigorePct = totaleCalc.imponibile_lordo > 0
+    ? roundMoney((totaleCalc.sconto / totaleCalc.imponibile_lordo) * 100)
+    : 0;
+  // Con l'IVA mista l'aliquota cambia con lo sconto (la regola dei beni significativi ripartisce l'imponibile): il
+  // conto «a ritroso» di «Arriva a €» non vale, restano i tasti.
+  const ivaPerArrivaA = form.iva_percentuale === IVA_MISTA_SENTINEL ? undefined : Number(form.iva_percentuale ?? 10);
+  const applicaScontoVeloce = ({ pct }: { pct: number; importo: number }) => {
+    if (!isAdmin) return; // i tasti sono spenti, ma la regola vale anche qui: lo sconto lo scrive chi può approvarlo
+    scrivi("sconto_percentuale", pct);
+    scrivi("sconto_importo", 0);
+  };
+
+  const schemaSalvato = form.schema_pagamento && form.schema_pagamento in SR_SCHEMI_PAGAMENTO
+    ? (form.schema_pagamento as SrSchemaPagamento)
+    : null;
+  const rateSalvate = Array.isArray(form.pagamento_milestones) ? (form.pagamento_milestones as Milestone[]) : null;
+  // Lo stesso ripiego del PDF: senza uno schema scritto vale «3 step».
+  const schemaPagamento: SrSchemaPagamento = schemaSalvato ?? "tre_step";
   const schemaCfg = SR_SCHEMI_PAGAMENTO[schemaPagamento];
-  const famigliaPagamento = famigliaDiSchema(schemaPagamento);
-  const milestoneDefault = schemaCfg.milestones;
-  /** Passa a una famiglia (bonifico/finanziamento): se lo schema attuale non vi
-   *  appartiene, applica lo schema di default della famiglia. */
-  const scegliFamiglia = (fam: "bonifico" | "finanziamento") => {
-    if (famigliaDiSchema(schemaPagamento) !== fam) applySchema(FAMIGLIA_DEFAULT_SCHEMA[fam]);
-  };
-  const [milestones, setMilestones] = useState<Milestone[]>(
-    (form.pagamento_milestones as Milestone[] | null) ?? milestoneDefault,
+  // «Scelto» = nel preventivo c'è qualcosa: le rate scritte, o «Personalizzato» (che parte senza rate). Finché non
+  // si sceglie niente non si propone niente: nessun valore preselezionato che a schermo c'è e nel PDF no.
+  const pagamentoScelto = (rateSalvate?.length ?? 0) > 0 || schemaSalvato === "personalizzato";
+  const famigliaPagamento: FamigliaPagamento | null = pagamentoScelto ? famigliaDiSchema(schemaPagamento) : null;
+  const unaFamigliaScelta = famigliaPagamento === "bonifico" || famigliaPagamento === "finanziamento";
+  // Negli schemi con finanziamento l'ANTICIPO è la quota non finanziata delle rate (tutte tranne quella che paga la
+  // finanziaria): non sono due numeri, e il preventivo non può dirne due. Si scrivono insieme: scegliendo lo schema, o
+  // cambiando le rate, `fin_anticipo_pct` segue le rate; cambiando l'anticipo nella scheda, le rate seguono l'anticipo.
+  // «Personalizzato» no: lì non si sa quale rata sia il finanziamento, e i due restano indipendenti.
+  const anticipoNelleRate = pagamentoScelto && SCHEMI_FINANZIAMENTO.includes(schemaPagamento) && (rateSalvate?.length ?? 0) > 0;
+  const anticipoDalleRate = anticipoNelleRate ? anticipoDaRate(rateSalvate ?? []) : null;
+
+  const anticipoPct = Number(form.fin_anticipo_pct ?? 40);
+  const { data: tabelleAttive = [], isLoading: tabelleInCaricamento = false } = useTabelleFinanziamentoAttive();
+  // Una tabella usata dal preventivo e poi archiviata resta nell'elenco: il piano scritto si legge ancora.
+  const tabelleFinanziamento = useMemo<TabellaFinanziamento[]>(() => {
+    const id = form.fin_tabella_id;
+    if (!id || tabelleAttive.some((t) => t.id === id)) return tabelleAttive;
+    return [...tabelleAttive, {
+      id, company_id: form.company_id ?? "", finanziaria_id: null, finanziaria_nome: null,
+      nome_prodotto: pianiSalvati[0]?.nome ?? "Tabella del preventivo", codice_condizione: null, subtariffa_default: null,
+      tan_base: null, pdf_url: null, csv_url: null, data_decorrenza: null, data_scadenza: null, attiva: false,
+    }];
+  }, [tabelleAttive, form.fin_tabella_id, form.company_id, pianiSalvati]);
+  // La tabella: quella scritta nel preventivo, o l'unica che la finanziaria ha (niente tendina da aprire).
+  const tabellaId = form.fin_tabella_id ?? (tabelleFinanziamento.length === 1 ? tabelleFinanziamento[0].id : null);
+  const { data: righeTabella = [], isLoading: righeInCaricamento = false } = useTabellaFinanziamentoRighe(tabellaId);
+  const importoFinanziato = importoFinanziatoDa(forbice.media, anticipoPct);
+  const durateTabella = useMemo(() => durateConRata(righeTabella, importoFinanziato), [righeTabella, importoFinanziato]);
+  // Dove sta l'importo da finanziare rispetto alle fasce: oltre l'ultima non c'è nessuna rata (e la scheda lo dice).
+  const fasce = useMemo(() => fasceTabella(righeTabella, importoFinanziato), [righeTabella, importoFinanziato]);
+
+  // Il modo (da tabella o manuale) si legge dal preventivo; solo se non c'è niente di scritto si parte dalla
+  // tabella, quando ce n'è una. Il clic dell'utente lo decide da lì in poi.
+  const [modalitaScelta, setModalitaScelta] = useState<ModalitaFinanziamento | null>(null);
+  const modalitaFin: ModalitaFinanziamento = modalitaScelta
+    ?? (form.fin_tabella_id ? "tabella" : pianiSalvati.length > 0 ? "manuale" : tabelleFinanziamento.length > 0 ? "tabella" : "manuale");
+  // La durata scelta è quella SCRITTA nel preventivo (dalla riga salvata, o dal piano): riaprendo lo step si vede
+  // quella, non la prima della tabella. Nessuna scelta = nessuna durata evidenziata.
+  const rigaSalvata = form.fin_tabella_riga_id ? righeTabella.find((r) => r.id === form.fin_tabella_riga_id) ?? null : null;
+  const durataScelta = modalitaFin === "tabella" && form.fin_tabella_id ? (rigaSalvata?.durata_mesi ?? pianiSalvati[0]?.mesi ?? null) : null;
+  // La riga del riepilogo: per la durata scelta e per l'importo di adesso (se il totale è cambiato, può cambiare fascia).
+  const rigaTabellaScelta = durataScelta != null ? findMigliorRiga(righeTabella, importoFinanziato, durataScelta) : null;
+  // Il piano manuale: i valori scritti nel preventivo, o quelli di serie finché non si tocca niente.
+  const [manualeBozza, setManualeBozza] = useState<PianiManuali | null>(null);
+  // La durata scelta resta in mente quando il piano esce dal preventivo senza che l'utente l'abbia tolto: passando a un
+  // bonifico, o perché l'importo supera l'ultima fascia della tabella. Quando si torna al finanziamento, o l'importo
+  // rientra, si rimette quella invece di far rifare la scelta. Non serve a disegnare niente: un riferimento, non uno stato.
+  // Si dimentica quando l'utente cambia tabella o modo (da lì in poi non c'è nessun piano finché non sceglie).
+  const durataRicordata = useRef<number | null>(null);
+  const manuale = manualeBozza ?? pianiManualiDaSalvati(modalitaFin === "manuale" ? pianiSalvati : []);
+  const pianiManualiCalcolati = useMemo(
+    () => pianiManuali({ totale: forbice.media, anticipoPct, piani: manuale }),
+    // `manuale` cambia identità a ogni render quando viene dal preventivo: contano i valori.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [forbice.media, anticipoPct, manuale.estesa.mesi, manuale.estesa.tasso, manuale.standard.mesi, manuale.standard.tasso],
   );
-  // UID stabili per le key React delle milestone. Map id->uid evitiamo
-  // `key={idx}` che causa input "scivolanti" quando si rimuove uno step
-  // centrale (gli input mantengono i valori del posto precedente).
-  // Stato locale: cresce con le milestone, non viene persistito.
-  const milestoneUidsRef = useRef<string[]>([]);
-  const getUid = (idx: number) => {
-    if (!milestoneUidsRef.current[idx]) {
-      milestoneUidsRef.current[idx] = `ms-${Math.random().toString(36).slice(2, 10)}`;
-    }
-    return milestoneUidsRef.current[idx];
+
+  const scriviPianoTabella = (id: string, riga: RigaFinanziamento, pct: number) => {
+    durataRicordata.current = riga.durata_mesi;
+    scrivi("fin_tabella_id", id);
+    scrivi("fin_tabella_riga_id", riga.id);
+    scrivi("fin_anticipo_pct", pct);
+    scriviPiani([pianoDaTabella({
+      nomeTabella: tabelleFinanziamento.find((t) => t.id === id)?.nome_prodotto, riga, totale: forbice.media, anticipoPct: pct,
+    })]);
   };
-  // Quando l'utente cambia schema, ripopoliamo le milestone con il template.
+  const scriviPianiManuali = (piani: PianiManuali, pct: number) => {
+    scrivi("fin_tabella_id", null);
+    scrivi("fin_tabella_riga_id", null);
+    scrivi("fin_anticipo_pct", pct);
+    scriviPiani(pianiManuali({ totale: forbice.media, anticipoPct: pct, piani }));
+  };
+  const scegliDurata = (durataMesi: number) => {
+    if (!tabellaId) return;
+    const riga = findMigliorRiga(righeTabella, importoFinanziato, durataMesi);
+    if (riga) scriviPianoTabella(tabellaId, riga, anticipoPct);
+  };
+  const scegliTabella = (id: string) => {
+    // Un'altra tabella ha altre rate: il piano di prima non vale più, e la durata si sceglie di nuovo.
+    durataRicordata.current = null;
+    scrivi("fin_tabella_id", id);
+    scrivi("fin_tabella_riga_id", null);
+    scriviPiani([]);
+  };
+  const scegliAnticipo = (pct: number) => {
+    const nuovo = Math.round(Math.max(0, Math.min(100, pct)) * 100) / 100;
+    // Negli schemi con finanziamento le rate seguono l'anticipo: l'acconto è l'anticipo, il finanziamento il resto (con
+    // anticipo 0 restano solo le rate del finanziamento, e dallo 0 in su se ne aggiunge una di acconto).
+    if (anticipoNelleRate && rateSalvate) {
+      const rate = rateConAnticipo(rateSalvate, nuovo, SR_SCHEMI_PAGAMENTO.acconto_finanziato.milestones[0]);
+      scrivi("pagamento_milestones", rate);
+      scrivi("schema_pagamento", schemaDopoAnticipo(schemaPagamento, rate));
+    }
+    // L'anticipo e il piano che sta nel preventivo (che lo segue) si scrivono insieme, una volta sola ciascuno.
+    const riga = tabellaId && durataScelta != null
+      ? findMigliorRiga(righeTabella, importoFinanziatoDa(forbice.media, nuovo), durataScelta)
+      : null;
+    if (modalitaFin === "manuale") {
+      scriviPianiManuali(manuale, nuovo);
+    } else if (tabellaId && riga) {
+      scriviPianoTabella(tabellaId, riga, nuovo);
+    } else {
+      // Nessuna riga: nessuna durata scelta, o il nuovo importo supera l'ultima fascia. Si scrive l'anticipo; un piano
+      // scritto che non vale più lo toglie l'effetto più sotto (che sa se le righe della tabella sono arrivate).
+      scrivi("fin_anticipo_pct", nuovo);
+    }
+  };
+  const scegliModalita = (modalita: ModalitaFinanziamento) => {
+    setModalitaScelta(modalita);
+    durataRicordata.current = null;
+    if (modalita === "manuale") {
+      scriviPianiManuali(manuale, anticipoPct);
+    } else {
+      // Da tabella: finché non si sceglie una durata nel preventivo non c'è nessun piano.
+      scrivi("fin_tabella_id", tabellaId);
+      scrivi("fin_tabella_riga_id", null);
+      scriviPiani([]);
+    }
+  };
+  const cambiaManuale = (piani: PianiManuali) => {
+    setManualeBozza(piani);
+    scriviPianiManuali(piani, anticipoPct);
+  };
+  /** Le rate cambiano. Negli schemi con finanziamento l'anticipo è la loro quota non finanziata, e segue (il piano nel
+   *  preventivo segue l'anticipo con l'effetto più sotto). */
+  const cambiaRate = (rate: Milestone[]) => {
+    scrivi("pagamento_milestones", rate);
+    if (anticipoNelleRate) scrivi("fin_anticipo_pct", anticipoDaRate(rate));
+  };
+
+  /** Sceglie uno schema: scrive lo schema e le sue rate. Il PDF e la pagina del cliente stampano la simulazione ogni
+   *  volta che nel preventivo c'è un piano: con un bonifico non ci deve essere. Con un finanziamento l'anticipo è la
+   *  quota non finanziata delle rate dello schema (30% per «Acconto + finanziato»): si scrive insieme a loro. Anticipo e
+   *  tabella restano, e la scelta fatta (la durata, o i valori del piano manuale) si ricorda: tornando al finanziamento
+   *  torna nel preventivo. */
   const applySchema = (next: SrSchemaPagamento) => {
-    setSchemaPagamento(next);
-    onChange("schema_pagamento", next);
-    setMilestones(SR_SCHEMI_PAGAMENTO[next].milestones);
-    milestoneUidsRef.current = []; // reset UIDs: tutto nuovo
-  };
-  // Sync con prop: se il progetto viene re-fetchato (es. dopo refresh, edit
-  // su altra tab), aggiorniamo lo state locale per non mostrare valori stale.
-  // Confronto JSON per evitare loop infinito su reference uguali ma identità diversa.
-  const formMilestonesKey = JSON.stringify(form.pagamento_milestones ?? null);
-  useEffect(() => {
-    const incoming = (form.pagamento_milestones as Milestone[] | null) ?? milestoneDefault;
-    setMilestones(incoming);
-    milestoneUidsRef.current = []; // reset: dati nuovi da server
-  }, [formMilestonesKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Sync stati locali con form server post-invalidate ────────────────────
-  // Stessa logica usata per milestones (vedi sopra): se il progetto viene
-  // ri-fetched (autosave da altra tab, refresh, navigate back/forward) gli
-  // stati useState locali restano stale -> l'utente clicca "Applica calcoli"
-  // salvando valori vecchi. Risolto con resync esplicito.
-  // Chiavi JSON per evitare loop su reference diverse stesso contenuto.
-  const formAnticipoPctKey = String(form.fin_anticipo_pct ?? "");
-  useEffect(() => {
-    setAnticipoPct(form.fin_anticipo_pct ?? 40);
-  }, [formAnticipoPctKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const formTabellaIdKey = String(form.fin_tabella_id ?? "");
-  useEffect(() => {
-    setTabellaId(form.fin_tabella_id ?? null);
-    setFinModalita(form.fin_tabella_id ? "tabella" : "manuale");
-  }, [formTabellaIdKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const formSchemaPagamentoKey = String(form.schema_pagamento ?? "");
-  useEffect(() => {
-    if (form.schema_pagamento) {
-      setSchemaPagamento(form.schema_pagamento as SrSchemaPagamento);
+    const cfg = SR_SCHEMI_PAGAMENTO[next];
+    const rate = cfg.milestones.map((m) => ({ ...m }));
+    scrivi("schema_pagamento", next);
+    scrivi("pagamento_milestones", rate);
+    const anticipoDelloSchema = SCHEMI_FINANZIAMENTO.includes(next) ? anticipoDaRate(rate) : null;
+    if (anticipoDelloSchema != null) scrivi("fin_anticipo_pct", anticipoDelloSchema);
+    const anticipo = anticipoDelloSchema ?? anticipoPct;
+    if (!cfg.hasFinanziamento) {
+      if (pianiSalvati.length > 0) {
+        if (modalitaFin === "tabella" && durataScelta != null) durataRicordata.current = durataScelta;
+        if (modalitaFin === "manuale") setManualeBozza(manuale);
+        setModalitaScelta(modalitaFin);
+      }
+      scriviPiani([]);
+      scrivi("fin_tabella_riga_id", null);
+    } else if (famigliaDiSchema(next) === "finanziamento" && pianiSalvati.length === 0 && !tabelleInCaricamento) {
+      // Si torna al finanziamento: quello che c'era torna nel preventivo con lo schema. Senza scelte fatte prima non si
+      // inventa niente; fa eccezione il piano manuale, che a schermo ha già le sue rate (senza tabelle è l'unica via).
+      if (modalitaFin === "manuale") {
+        scriviPianiManuali(manuale, anticipo);
+      } else if (tabellaId && durataRicordata.current != null) {
+        const riga = findMigliorRiga(righeTabella, importoFinanziatoDa(forbice.media, anticipo), durataRicordata.current);
+        if (riga) scriviPianoTabella(tabellaId, riga, anticipo);
+      }
     }
-  }, [formSchemaPagamentoKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  };
+  /** Passa a una famiglia (bonifico/finanziamento): se lo schema attuale non vi appartiene, applica quello di
+   *  partenza della famiglia. */
+  const scegliFamiglia = (fam: "bonifico" | "finanziamento") => {
+    if (famigliaPagamento !== fam) applySchema(FAMIGLIA_DEFAULT_SCHEMA[fam]);
+  };
 
   const formDetrazioneAliquotaKey = String(form.detrazione_aliquota ?? "");
   useEffect(() => {
@@ -543,27 +697,6 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
     setRisparmioAttivo(form.risparmio_calcolato ?? false);
   }, [formRisparmioCalcolatoKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const milestonesTotale = milestones.reduce((acc, m) => acc + (Number(m.percentuale) || 0), 0);
-  const milestonesOk = milestonesTotale === 100;
-
-  const finCalc = useMemo(() => calcolaPianoFinanziamento({
-    importo_totale: forbice.media,
-    anticipo_pct: anticipoPct,
-    piani: [
-      { nome: "Estesa", durata_mesi: piano1Mesi, tasso_annuo_pct: piano1Tasso },
-      { nome: "Standard", durata_mesi: piano2Mesi, tasso_annuo_pct: piano2Tasso },
-    ],
-  }), [forbice.media, anticipoPct, piano1Mesi, piano1Tasso, piano2Mesi, piano2Tasso]);
-
-  // Quando uso una tabella finanziamento configurata: cerco la riga ottimale
-  // (importo×durata→importo_rata) dal listino fornitore. Niente TAN/TAEG
-  // manuali, il PDF mostra esattamente i dati della tabella.
-  const importoFinanziato = Math.max(0, forbice.media - (forbice.media * anticipoPct) / 100);
-  const rigaTabellaScelta = useMemo(() => {
-    if (finModalita !== "tabella" || !durataTabella || righeTabella.length === 0) return null;
-    return findMigliorRiga(righeTabella, importoFinanziato, durataTabella);
-  }, [finModalita, durataTabella, righeTabella, importoFinanziato]);
-
   // ─── Ecobonus ─────────────────────────────────────────────────────────────
   const [bonusAttivo, setBonusAttivo] = useState((form.detrazione_aliquota ?? 50) > 0);
   const [aliquota, setAliquota] = useState<number>(() => aliquotaDetrazioneSerramenti(form.detrazione_aliquota));
@@ -575,32 +708,39 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
     [bonusAttivo, forbice.media, aliquota],
   );
 
-  // Quello che questa scheda mostra è quello che esce nel PDF: la detrazione si
-  // salva appena cambiano interruttore, aliquota o totale. Prima restava solo a
-  // schermo (accesa di default) finché non si premeva «Applica calcoli al
-  // progetto», e il PDF usciva senza. 0 = esclusa di proposito; null = mai scelto,
-  // e l'interruttore la mostra accesa al 50%.
+  // Quello che questa scheda mostra è quello che esce nel PDF: l'ALIQUOTA scelta si scrive appena cambiano interruttore
+  // o aliquota, e la prima volta se il preventivo non l'ha mai avuta (l'interruttore la mostra accesa al 50%, e senza
+  // questa scrittura il PDF usciva senza detrazione). 0 = esclusa di proposito; null = mai scelto.
+  // Gli IMPORTI che seguono il totale (prezzi, sconto, IVA, posizioni) li tiene allineati il wizard in ogni passo,
+  // Economia compresa (`detrazioneDelPreventivo`, stesso conto: totale IVA inclusa, massimale, aliquota scritta): qui si
+  // scrivono solo insieme a un'aliquota nuova, e mai quando l'aliquota è già quella scritta. Un solo scrittore per gli
+  // importi: prima li riscrivevano tutti e due (e lo step riscriveva anche l'aliquota, uguale a quella di prima).
   useEffect(() => {
     const salvata = form.detrazione_aliquota == null ? null : Number(form.detrazione_aliquota);
     if (!ecobonusCalc) {
       if (salvata !== 0) onChange("detrazione_aliquota", 0);
       return;
     }
-    const centesimi = (n: unknown) => Math.round(Number(n ?? 0) * 100);
-    if (
-      salvata === ecobonusCalc.aliquota &&
-      centesimi(form.detrazione_eur_totale) === centesimi(ecobonusCalc.detrazione_totale) &&
-      centesimi(form.detrazione_eur_anno) === centesimi(ecobonusCalc.rata_annuale)
-    ) return;
+    if (salvata === ecobonusCalc.aliquota) return;
+    // Senza che l'utente tocchi niente si scrive solo il valore di partenza (aliquota mai scelta) o un'aliquota di prima
+    // non più proponibile: su un preventivo già deciso non si scrivono da soli, e nemmeno senza un importo (una bozza
+    // vuota, serramenti senza prezzo: sarebbero il 50% e degli zeri mentre lo schermo non ha niente da calcolare).
+    // Appena l'importo c'è il totale cambia, l'effetto riparte e il valore di partenza si scrive.
+    const automatica = salvata == null || (salvata > 0 && !ALIQUOTE_DETRAZIONE_SERRAMENTI.some((i) => i.pct === salvata));
+    const senzaImporto = !(forbice.media > 0);
+    if (automatica && (deciso || senzaImporto)) return;
     onChange("detrazione_aliquota", ecobonusCalc.aliquota);
     onChange("detrazione_eur_totale", ecobonusCalc.detrazione_totale);
     onChange("detrazione_eur_anno", ecobonusCalc.rata_annuale);
     // onChange cambia identità a ogni render del wizard: contano solo i valori.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ecobonusCalc, form.detrazione_aliquota, form.detrazione_eur_totale, form.detrazione_eur_anno]);
+  }, [ecobonusCalc, form.detrazione_aliquota, deciso]);
 
   // ─── Risparmio energetico ─────────────────────────────────────────────────
   const [risparmioAttivo, setRisparmioAttivo] = useState(form.risparmio_calcolato ?? false);
+  // Gli extra (risparmio, recupero in 10 anni) stanno chiusi di serie; aprirli o chiuderli non tocca i dati:
+  // interruttore, Uw, m² e bolletta sono qui, non nella scheda.
+  const [extraAperti, setExtraAperti] = useState({ risparmio: false, recupero: false });
   const [m2Casa, setM2Casa] = useState(100);
   const [uwAttuale, setUwAttuale] = useState(2.8);
   const [uwNuovo, setUwNuovo] = useState(1.1);
@@ -617,16 +757,8 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
     }
   }, [zonaClimatica, m2Casa]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const risparmioCalc = useMemo(() =>
-    risparmioAttivo && totaleCalc.metri_quadri > 0
-      ? calcolaRisparmio({
-          zona_climatica: zonaClimatica,
-          m2_serramenti: totaleCalc.metri_quadri,
-          uw_attuale: uwAttuale,
-          uw_nuovo: uwNuovo,
-          bolletta_attuale_anno: bollettaAttuale || undefined,
-        })
-      : null,
+  const risparmioCalc = useMemo(
+    () => calcolaRisparmioPreventivo(risparmioAttivo, totaleCalc.metri_quadri, zonaClimatica, uwAttuale, uwNuovo, bollettaAttuale),
     [risparmioAttivo, totaleCalc.metri_quadri, zonaClimatica, uwAttuale, uwNuovo, bollettaAttuale],
   );
 
@@ -641,55 +773,130 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
     });
   }, [risparmioCalc, ecobonusCalc, forbice.media]);
 
-  // Salva finanziamento + detrazione nel progetto
-  const handleSalvaCalcoli = () => {
-    // Se uso una tabella finanziamento configurata, costruisco UN SOLO piano
-    // basato sulla riga scelta (TAN/TAEG/rata letti dalla tabella). Altrimenti
-    // fallback ai 2 piani manuali Estesa/Standard.
-    let piani: SrPianoFinanziamento[];
-    if (finModalita === "tabella" && rigaTabellaScelta) {
-      piani = [{
-        nome: tabelleFinanziamento.find((t) => t.id === tabellaId)?.nome_prodotto ?? "Finanziamento",
-        mesi: rigaTabellaScelta.durata_mesi,
-        tasso: rigaTabellaScelta.tan ?? 0,
-        rata_mese: rigaTabellaScelta.importo_rata,
-        anticipo: finCalc.anticipo,
-        finanziato: importoFinanziato,
-      }];
-      onChange("fin_tabella_id", tabellaId);
-      onChange("fin_tabella_riga_id", rigaTabellaScelta.id);
-    } else {
-      piani = finCalc.piani.map((p) => ({
-        nome: p.nome, mesi: p.mesi, tasso: p.tasso,
-        rata_mese: p.rata_mese, anticipo: finCalc.anticipo, finanziato: finCalc.finanziato,
-      }));
-      onChange("fin_tabella_id", null);
-      onChange("fin_tabella_riga_id", null);
-    }
-    onChange("fin_anticipo_pct", anticipoPct);
-    onChange("fin_piani", piani);
-    // Persisti modalità pagamento se l'utente l'ha personalizzata
-    onChange("pagamento_milestones", milestones);
-    if (ecobonusCalc) {
-      onChange("detrazione_aliquota", ecobonusCalc.aliquota);
-      onChange("detrazione_eur_totale", ecobonusCalc.detrazione_totale);
-      onChange("detrazione_eur_anno", ecobonusCalc.rata_annuale);
-    } else {
-      // 0 e non null: null tornerebbe a mostrarla accesa al prossimo caricamento.
-      onChange("detrazione_aliquota", 0);
-    }
-    if (risparmioCalc) {
-      onChange("risparmio_calcolato", true);
-      onChange("risparmio_eur_anno", risparmioCalc.risparmio_eur_anno);
-      onChange("co2_risparmiata_t_anno", risparmioCalc.co2_risparmiata_kg_anno / 1000);
-      onChange("cantiere_zona_climatica", risparmioCalc.zona_climatica);
-    } else {
-      onChange("risparmio_calcolato", false);
-    }
-    if (cashflow) {
-      onChange("payback_anni", cashflow.payback_anni);
-    }
+  // ─── Le scelte si scrivono da sole (il pulsante «Applica calcoli» non c'è più) ──────────────────────────────
+  // Piano di pagamento e finanziamento: sopra, dai gestori delle scelte. Detrazione: l'effetto più su. Qui il
+  // risparmio energetico e il recupero in 10 anni: i campi che il PDF e la pagina del cliente leggono si scrivono
+  // quando l'utente accende il risparmio o cambia gli Uw — sono quei valori, che non stanno scritti da nessuna parte,
+  // a decidere il risultato, e riaprendo lo step tornano ai valori di partenza: confrontarli con quelli salvati
+  // riscriverebbe il risparmio personalizzato con quello di partenza al solo aprire lo step. Quello che dipende
+  // solo da dati scritti (il payback, dal totale, dal risparmio salvato e dalla detrazione) segue invece il totale
+  // con un effetto, come la detrazione.
+  const aggiornaRisparmio = (
+    prossimo: Partial<{ attivo: boolean; uwAttuale: number; uwNuovo: number; m2Casa: number; bolletta: number }>,
+  ) => {
+    const dati = { attivo: risparmioAttivo, uwAttuale, uwNuovo, bolletta: bollettaAttuale, ...prossimo };
+    if (prossimo.attivo !== undefined) setRisparmioAttivo(prossimo.attivo);
+    if (prossimo.uwAttuale !== undefined) setUwAttuale(prossimo.uwAttuale);
+    if (prossimo.uwNuovo !== undefined) setUwNuovo(prossimo.uwNuovo);
+    if (prossimo.m2Casa !== undefined) setM2Casa(prossimo.m2Casa);
+    if (prossimo.bolletta !== undefined) setBollettaAttuale(prossimo.bolletta);
+    const campi = campiRisparmio(
+      calcolaRisparmioPreventivo(dati.attivo, totaleCalc.metri_quadri, zonaClimatica, dati.uwAttuale, dati.uwNuovo, dati.bolletta),
+      { totale: forbice.media, detrazioneEurAnno: ecobonusCalc ? ecobonusCalc.rata_annuale : null },
+    );
+    scrivi("risparmio_calcolato", campi.risparmio_calcolato);
+    scrivi("risparmio_eur_anno", campi.risparmio_eur_anno);
+    scrivi("co2_risparmiata_t_anno", campi.co2_risparmiata_t_anno);
+    if (campi.cantiere_zona_climatica !== undefined) scrivi("cantiere_zona_climatica", campi.cantiere_zona_climatica);
+    if (campi.payback_anni !== undefined) scrivi("payback_anni", campi.payback_anni);
   };
+
+  // Il piano di finanziamento nel preventivo segue il totale: se i prezzi cambiano in un altro passo, la rata
+  // scritta non resta quella di prima. Solo un piano che c'è già (non ne nasce uno da solo), solo con uno schema che
+  // lo prevede, e solo se i dati per rifarlo ci sono (la tabella è arrivata); non si scrive se è già uguale.
+  // Oltre l'ultima fascia della tabella una rata giusta non c'è: il piano si toglie (nel PDF non finisce una rata
+  // sbagliata) e la durata si ricorda; quando l'importo rientra nelle fasce quel piano, e solo quello, torna da solo.
+  // Su un preventivo già deciso (firmato, accettato, in commessa) non si scrive niente: si dice solo che il piano non
+  // corrisponde al totale attuale.
+  type AllineamentoPiano =
+    | { azione: "scrivi"; piani: SrPianoFinanziamento[]; rigaId: string | null }
+    | { azione: "togli"; durataMesi: number };
+  /** Cosa servirebbe fare al piano scritto per il totale di adesso, o null: già giusto, o i dati non sono ancora arrivati.
+   *  Legge solo il preventivo e le righe della tabella (niente riferimenti): serve anche a disegnare l'avviso. */
+  const pianoDaAllineare = (): AllineamentoPiano | null => {
+    if (!pagamentoScelto || !schemaCfg.hasFinanziamento || pianiSalvati.length === 0) return null;
+    if (form.fin_tabella_id) {
+      if (!rigaSalvata) return null;
+      const riga = findMigliorRiga(righeTabella, importoFinanziato, rigaSalvata.durata_mesi);
+      if (!riga) return { azione: "togli", durataMesi: rigaSalvata.durata_mesi };
+      const atteso = [pianoDaTabella({ nomeTabella: pianiSalvati[0]?.nome, riga, totale: forbice.media, anticipoPct })];
+      const giusto = pianiUguali(pianiSalvati, atteso) && riga.id === (form.fin_tabella_riga_id ?? null);
+      return giusto ? null : { azione: "scrivi", piani: atteso, rigaId: riga.id };
+    }
+    if (pianiSalvati.length === 2) {
+      const atteso = pianiManuali({ totale: forbice.media, anticipoPct, piani: pianiManualiDaSalvati(pianiSalvati) });
+      return pianiUguali(pianiSalvati, atteso) ? null : { azione: "scrivi", piani: atteso, rigaId: null };
+    }
+    return null;
+  };
+  useEffect(() => {
+    if (deciso || !pagamentoScelto || !schemaCfg.hasFinanziamento) return;
+    if (pianiSalvati.length === 0) {
+      // Il piano tolto perché l'importo usciva dalle fasce torna quando rientra: la durata ricordata è la sua.
+      const durata = durataRicordata.current;
+      if (durata == null || famigliaPagamento !== "finanziamento" || modalitaFin !== "tabella" || !form.fin_tabella_id || righeTabella.length === 0) return;
+      const riga = findMigliorRiga(righeTabella, importoFinanziato, durata);
+      if (riga) scriviPianoTabella(form.fin_tabella_id, riga, anticipoPct);
+      return;
+    }
+    const azione = pianoDaAllineare();
+    if (!azione) return;
+    if (azione.azione === "togli") {
+      durataRicordata.current = azione.durataMesi;
+      onChange("fin_piani", []);
+      onChange("fin_tabella_riga_id", null);
+    } else {
+      if (!pianiUguali(pianiSalvati, azione.piani)) onChange("fin_piani", azione.piani);
+      if (azione.rigaId != null && azione.rigaId !== (form.fin_tabella_riga_id ?? null)) onChange("fin_tabella_riga_id", azione.rigaId);
+    }
+    // onChange cambia identità a ogni render del wizard: contano solo i valori.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forbice.media, anticipoPct, righeTabella, form.fin_piani, form.fin_tabella_id, form.fin_tabella_riga_id, pagamentoScelto, schemaCfg.hasFinanziamento, deciso]);
+  const avvisoPianoIndietro = deciso && pianoDaAllineare() != null;
+  // Perché non corrisponde: il totale è cambiato, l'anticipo è cambiato (cambiando a mano una rata l'anticipo si aggiorna
+  // e il piano no), tutti e due, o nessuno dei due (la tabella della finanziaria non dà più quella rata).
+  const motiviIndietro = avvisoPianoIndietro ? motivoPianoIndietro(pianiSalvati[0], forbice.media, anticipoPct) : null;
+  const aCosaNonCorrisponde = !motiviIndietro ? "" : motiviIndietro.totale && motiviIndietro.anticipo
+    ? "al totale e all'anticipo attuali"
+    : motiviIndietro.anticipo ? "all'anticipo attuale" : motiviIndietro.totale ? "al totale attuale" : "ai dati attuali";
+
+  // Il recupero in 10 anni segue il totale: l'anno di pareggio si rifà dal totale, dal risparmio scritto e dalla
+  // detrazione. Solo con il risparmio acceso e una detrazione; non si scrive se è già uguale.
+  useEffect(() => {
+    if (deciso || !form.risparmio_calcolato || !ecobonusCalc) return;
+    const risparmio = Number(form.risparmio_eur_anno ?? 0);
+    if (!(risparmio > 0)) return;
+    const atteso = paybackAtteso({ totale: forbice.media, risparmioEurAnno: risparmio, detrazioneEurAnno: ecobonusCalc.rata_annuale });
+    if (valoriDiversi(form.payback_anni, atteso)) onChange("payback_anni", atteso);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forbice.media, ecobonusCalc, form.risparmio_calcolato, form.risparmio_eur_anno, form.payback_anni, deciso]);
+
+  // ─── Stato vuoto onesto ──────────────────────────────────────────────────────
+  // Senza serramenti e senza un importo (un prezzo scritto a mano è un importo) i campi qui sotto non possono
+  // funzionare: si dice com'è e si porta al passo dove si aggiungono. Con i serramenti la schermata c'è anche se non
+  // hanno ancora un prezzo: è lì che si scrive il prezzo a mano. (Dopo tutti gli hook: l'ordine non cambia.)
+  if (detail.serramenti.length === 0 && totaleCalc.imponibile_lordo <= 0) {
+    return (
+      <SrCard>
+        <div className="flex flex-col items-center gap-3 py-6 text-center max-md:py-4">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-50 text-orange-600">
+            <Calculator className="h-5 w-5" />
+          </span>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold">Non c'è ancora niente da calcolare</p>
+            <p className="mx-auto max-w-sm text-xs text-muted-foreground">
+              Prezzo, sconto, rate e detrazione partono dai serramenti dell'offerta: aggiungine almeno uno e torna qui.
+            </p>
+          </div>
+          {onVaiAlPasso && (
+            <Button type="button" onClick={() => onVaiAlPasso("bom")} className="bg-orange-500 hover:bg-orange-600 max-sm:w-full">
+              Vai all'Offerta
+            </Button>
+          )}
+        </div>
+      </SrCard>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -718,353 +925,6 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
         </div>
       </SrCard>
 
-      {/* Come paga il cliente — scelta pagamento in cima, come il fotovoltaico */}
-      <SrCard
-        title="Come paga il cliente"
-        description="Bonifico o finanziamento: la scelta guida gli step qui sotto. Compare nel PDF come piano concordato."
-        icon={<Wallet className="h-4 w-4" />}
-      >
-        {/* Scelta di alto livello: 2 card grandi Bonifico / Finanziamento
-            (come il toggle del fotovoltaico). Sotto, le varianti fini come
-            pill e «Personalizzato» come opzione discreta. */}
-        <div className="grid grid-cols-2 gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1.5 mb-3">
-          {([
-            { fam: "bonifico" as const, icon: <Wallet className="h-5 w-5" />, label: "Bonifico / diretto", sub: "Acconti e saldo, senza finanziaria" },
-            { fam: "finanziamento" as const, icon: <CreditCard className="h-5 w-5" />, label: "Finanziamento", sub: "Rate tramite finanziaria" },
-          ]).map((o) => {
-            const active = famigliaPagamento === o.fam;
-            return (
-              <button
-                key={o.fam}
-                type="button"
-                onClick={() => scegliFamiglia(o.fam)}
-                aria-pressed={active}
-                className={`p-3 rounded-lg flex flex-col items-center gap-1 text-center transition-all ${
-                  active
-                    ? "bg-white shadow-md text-slate-900 border-2 border-orange-500"
-                    : "bg-transparent text-slate-500 hover:bg-white/60 border-2 border-transparent"
-                }`}
-              >
-                <span className={active ? "text-orange-600" : "text-slate-400"}>{o.icon}</span>
-                <span className="text-sm font-semibold">{o.label}</span>
-                <span className={`text-[11px] leading-tight ${active ? "text-orange-700" : "text-slate-400"}`}>{o.sub}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Variante fine della famiglia scelta (pill) + Personalizzato */}
-        <div className="flex flex-wrap items-center gap-1.5 mb-3">
-          {famigliaPagamento !== "personalizzato" &&
-            (famigliaPagamento === "bonifico" ? SCHEMI_BONIFICO : SCHEMI_FINANZIAMENTO).map((k) => {
-              const on = schemaPagamento === k;
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => applySchema(k)}
-                  aria-pressed={on}
-                  className={`tap-compact px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
-                    on
-                      ? "bg-orange-100 border-orange-300 text-orange-800"
-                      : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-                  }`}
-                >
-                  {SR_SCHEMI_PAGAMENTO[k].label}
-                </button>
-              );
-            })}
-          <button
-            type="button"
-            onClick={() => applySchema("personalizzato")}
-            aria-pressed={famigliaPagamento === "personalizzato"}
-            className={`tap-compact px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
-              famigliaPagamento === "personalizzato"
-                ? "bg-slate-800 border-slate-800 text-white"
-                : "bg-transparent border-dashed border-slate-300 text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            Personalizzato
-          </button>
-        </div>
-        <p className="text-[11px] text-slate-600 mb-3 max-md:hidden">{schemaCfg.description}</p>
-
-        <div className="space-y-2">
-          {milestones.map((m, idx) => (
-            <div key={getUid(idx)} className="grid grid-cols-12 gap-2 items-end">
-              {/* Telefono: nome, % e cestino su una riga; «Quando» sotto. */}
-              <div className="col-span-7 md:col-span-5">
-                <Label className="text-xs">Step {idx + 1}</Label>
-                <Input
-                  value={m.label}
-                  onChange={(e) => {
-                    const next = [...milestones];
-                    next[idx] = { ...next[idx], label: e.target.value };
-                    setMilestones(next);
-                  }}
-                  className="h-9 text-xs"
-                  placeholder="es. Acconto alla firma"
-                />
-              </div>
-              <div className="col-span-3 md:col-span-2">
-                <Label className="text-xs">%</Label>
-                <Input
-                  type="number"
-                  min={0} max={100} step={5}
-                  value={m.percentuale}
-                  onChange={(e) => {
-                    const next = [...milestones];
-                    next[idx] = { ...next[idx], percentuale: Math.max(0, Math.min(100, Number(e.target.value) || 0)) };
-                    setMilestones(next);
-                  }}
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="col-span-12 md:col-span-4 max-md:order-1">
-                {/* Telefono: l'etichetta la dice il segnaposto (o il valore scritto). */}
-                <Label className="text-xs max-md:sr-only">Quando</Label>
-                <Input
-                  value={m.when ?? ""}
-                  onChange={(e) => {
-                    const next = [...milestones];
-                    next[idx] = { ...next[idx], when: e.target.value || null };
-                    setMilestones(next);
-                  }}
-                  placeholder="es. Consegna materiale"
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="col-span-2 md:col-span-1 flex justify-end">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setMilestones(milestones.filter((_, i) => i !== idx))}
-                  disabled={milestones.length <= 1}
-                  className="h-9 w-9 text-rose-600 hover:bg-rose-50"
-                  title="Rimuovi step"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-              {/* Importo calcolato sul medio */}
-              <div className="col-span-12 text-[11px] text-muted-foreground -mt-1 pl-1 max-md:order-2">
-                ≈ {formatEuro((forbice.media * (Number(m.percentuale) || 0)) / 100)}<span className="max-md:hidden"> IVA inclusa</span>
-              </div>
-            </div>
-          ))}
-          <div className="flex items-center justify-between pt-2 border-t mt-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setMilestones([...milestones, { label: "", percentuale: 0, when: null }])}
-              className="gap-1"
-            >
-              <Plus className="h-3.5 w-3.5" /> Aggiungi step
-            </Button>
-            <div
-              className={`text-sm font-bold inline-flex items-center gap-1.5 ${milestonesOk ? "text-emerald-700" : "text-amber-600"}`}
-              role="status"
-              aria-live="polite"
-            >
-              {milestonesOk && (
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-              )}
-              Totale: {milestonesTotale}%
-              {!milestonesOk && (
-                <span className="text-xs font-normal ml-1">
-                  ({milestonesTotale > 100 ? `−${milestonesTotale - 100}%` : `+${100 - milestonesTotale}%`} per arrivare a 100%)
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      </SrCard>
-
-      {/* Finanziamento — mostrato solo se lo schema lo prevede */}
-      {schemaCfg.hasFinanziamento && (
-      <SrCard
-        title="Simulazione finanziamento"
-        description="Scegli una tabella finanziaria configurata oppure imposta manualmente. La rata si calcola da importo + durata."
-        icon={<CreditCard className="h-4 w-4" />}
-      >
-        {/* Switch modalità: tabella vs manuale */}
-        <div className="flex gap-2 mb-3 p-1 bg-muted rounded-md w-fit" role="tablist" aria-label="Modalità finanziamento">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={finModalita === "tabella"}
-            onClick={() => setFinModalita("tabella")}
-            className={`tap-compact px-3 py-1 text-xs rounded transition-colors ${finModalita === "tabella" ? "bg-white shadow-sm font-semibold text-orange-600" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            Da tabella<span className="max-md:hidden"> configurata</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={finModalita === "manuale"}
-            onClick={() => setFinModalita("manuale")}
-            className={`tap-compact px-3 py-1 text-xs rounded transition-colors ${finModalita === "manuale" ? "bg-white shadow-sm font-semibold text-orange-600" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            Manuale<span className="max-md:hidden"> (TAN libero)</span>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs">Anticipo %</Label>
-            <Input
-              type="number"
-              min={0} max={100} step={5}
-              value={anticipoPct}
-              onChange={(e) => setAnticipoPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
-              className="h-9 text-xs"
-            />
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              {formatEuro(finCalc.anticipo)} su {formatEuro(forbice.media)}
-            </p>
-          </div>
-          <div className="col-span-6 md:col-span-9">
-            <Label className="text-xs">Importo finanziato</Label>
-            <div className="h-9 px-3 flex items-center text-sm font-semibold text-orange-600 bg-orange-50 rounded-md border border-orange-200">
-              {formatEuro(importoFinanziato)}
-            </div>
-          </div>
-
-          {finModalita === "tabella" ? (
-            <>
-              <div className="col-span-12 md:col-span-6">
-                <Label className="text-xs">Tabella finanziamento</Label>
-                {tabelleFinanziamento.length === 0 ? (
-                  <SrCallout variant="info" className="text-[11px]">
-                    Nessuna tabella configurata. Vai in{" "}
-                    <a href="/azienda/impostazioni/finanziamenti" className="underline font-semibold">
-                      Impostazioni → Finanziamenti
-                    </a>{" "}
-                    per caricarla.
-                  </SrCallout>
-                ) : (
-                  <Select
-                    value={tabellaId ?? "none"}
-                    onValueChange={(v) => {
-                      const next = v === "none" ? null : v;
-                      setTabellaId(next);
-                      setDurataTabella(null);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="Seleziona tabella..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">— Nessuna —</SelectItem>
-                      {tabelleFinanziamento.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.nome_prodotto}{t.finanziaria_nome ? ` · ${t.finanziaria_nome}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              <div className="col-span-12 md:col-span-6">
-                <Label className="text-xs">Durata (mesi)</Label>
-                <Select
-                  value={durataTabella ? String(durataTabella) : ""}
-                  onValueChange={(v) => setDurataTabella(Number(v))}
-                  disabled={durateDisponibili.length === 0}
-                >
-                  <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder={durateDisponibili.length === 0 ? "Seleziona prima tabella" : "Scegli durata..."} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {durateDisponibili.map((d) => (
-                      <SelectItem key={d} value={String(d)}>{d} mesi ({Math.round(d / 12 * 10) / 10} anni)</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {rigaTabellaScelta && (
-                <div className="col-span-12 mt-2 rounded-md border border-orange-300 bg-orange-50/50 p-3">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
-                    <div>
-                      <p className="text-[10px] uppercase text-orange-600 font-semibold">Rata mensile</p>
-                      <p className="text-2xl font-bold text-orange-900 tabular-nums max-md:text-xl">
-                        {formatEuro(rigaTabellaScelta.importo_rata, 0)}
-                      </p>
-                      <p className="text-[10px] text-orange-600">× {rigaTabellaScelta.numero_rate} rate</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase text-orange-600 font-semibold">TAN</p>
-                      <p className="text-lg font-bold text-orange-900 tabular-nums">
-                        {rigaTabellaScelta.tan != null ? `${rigaTabellaScelta.tan}%` : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase text-orange-600 font-semibold">TAEG</p>
-                      <p className="text-lg font-bold text-orange-900 tabular-nums">
-                        {rigaTabellaScelta.taeg != null ? `${rigaTabellaScelta.taeg}%` : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase text-orange-600 font-semibold">Totale dovuto</p>
-                      <p className="text-lg font-bold text-orange-900 tabular-nums">
-                        {formatEuro(rigaTabellaScelta.importo_totale_dovuto ?? rigaTabellaScelta.importo_rata * rigaTabellaScelta.numero_rate, 0)}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-center text-orange-600/80 mt-2 max-md:hidden">
-                    Valori letti dalla tabella ufficiale: TAN e TAEG sono pre-calcolati, niente input manuali.
-                  </p>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              {/* Modalità manuale (legacy) */}
-              <div className="col-span-12 grid grid-cols-12 gap-2 mt-2">
-                <div className="col-span-12">
-                  <p className="text-xs font-semibold uppercase text-orange-900">Piano Estesa</p>
-                </div>
-                <div className="col-span-4 md:col-span-3">
-                  <Label className="text-xs">Durata (mesi)</Label>
-                  <Input type="number" value={piano1Mesi} onChange={(e) => setPiano1Mesi(Number(e.target.value) || 0)} className="h-9 text-xs" />
-                </div>
-                <div className="col-span-4 md:col-span-3">
-                  <Label className="text-xs">Tasso TAN %</Label>
-                  <Input type="number" step={0.1} value={piano1Tasso} onChange={(e) => setPiano1Tasso(Number(e.target.value) || 0)} className="h-9 text-xs" />
-                </div>
-                <div className="col-span-4 md:col-span-6">
-                  <Label className="text-xs">Rata mensile</Label>
-                  <div className="h-9 px-3 flex items-center text-sm font-bold text-orange-600 bg-orange-50 rounded-md border border-orange-200">
-                    {formatEuro(finCalc.piani[0]?.rata_mese, 0)}/mese
-                  </div>
-                </div>
-              </div>
-              <div className="col-span-12 grid grid-cols-12 gap-2 mt-2">
-                <div className="col-span-12">
-                  <p className="text-xs font-semibold uppercase text-orange-900">Piano Standard</p>
-                </div>
-                <div className="col-span-4 md:col-span-3">
-                  <Label className="text-xs">Durata (mesi)</Label>
-                  <Input type="number" value={piano2Mesi} onChange={(e) => setPiano2Mesi(Number(e.target.value) || 0)} className="h-9 text-xs" />
-                </div>
-                <div className="col-span-4 md:col-span-3">
-                  <Label className="text-xs">Tasso TAN %</Label>
-                  <Input type="number" step={0.1} value={piano2Tasso} onChange={(e) => setPiano2Tasso(Number(e.target.value) || 0)} className="h-9 text-xs" />
-                </div>
-                <div className="col-span-4 md:col-span-6">
-                  <Label className="text-xs">Rata mensile</Label>
-                  <div className="h-9 px-3 flex items-center text-sm font-bold text-orange-600 bg-orange-50 rounded-md border border-orange-200">
-                    {formatEuro(finCalc.piani[1]?.rata_mese, 0)}/mese
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </SrCard>
-      )}
-
       {/* Sconto + totale */}
       <SrCard
         title="Totale preventivo (PDF cliente)"
@@ -1073,138 +933,82 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
           : "Il PDF mostra il totale di questa revisione: sconto, imponibile e IVA si calcolano dalle righe dell'offerta."}
         icon={<Euro className="h-4 w-4" />}
       >
-        {/* Prezzo manuale dell'offerta — riquadro condiviso con gli altri
-            moduli: IVA esclusa, prende il posto della somma delle voci; sconto
-            e IVA lavorano sopra. Sempre individuabile (mostra il suggerimento
-            se l'azienda non l'ha ancora acceso in Impostazioni → Margini). */}
-        <div className="mb-3">
-          <PrezzoPreventivoAMano
-            id="sr-prezzo-manuale"
-            companyId={detail.progetto.company_id}
-            value={form.prezzo_manuale}
-            sommaVoci={totaleCalc.somma_voci}
-            onCommit={(v) => onChange("prezzo_manuale", v == null ? null : roundMoney(v))}
-            showDisabledHint
-          />
-        </div>
-        {/* ─── Regole scontistica aziendale ───────────────────────────────
-            Auto-binding live (mirror del compute_max_discount SQL):
-            mostra max sconto, soglia approvazione, margine min in base
-            all'importo del preventivo + tipo lavoro. Configurabile in
-            /azienda/impostazioni/scontistica. */}
-        {/* Telefono no: le regole si leggono dal computer; il limite allo sconto vale comunque. */}
-        <div className="mb-3 rounded-md border border-slate-200 bg-slate-50/60 border-l-4 border-l-eic-navy-deep p-3 space-y-2 max-md:hidden">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-eic-navy-deep">
-              <Tag className="h-3.5 w-3.5" />
-              Regole scontistica aziendale
-              {discountEval.isFallback ? (
-                <span className="ml-1 text-[10px] font-normal text-slate-500 max-md:hidden">
-                  · fallback (nessuna regola matcha → max 10%)
-                </span>
-              ) : (
-                <span className="ml-1 text-[10px] font-normal text-slate-500 max-md:hidden">
-                  · {discountEval.matchingRules.length} regol{discountEval.matchingRules.length > 1 ? "e" : "a"} attiv{discountEval.matchingRules.length > 1 ? "e" : "a"}
-                </span>
-              )}
-            </div>
-            <a
-              href="/azienda/impostazioni/scontistica"
-              target="_blank"
-              rel="noreferrer"
-              className="text-[10px] text-eic-navy-deep underline hover:no-underline max-md:hidden"
-            >
-              Configura regole →
-            </a>
-          </div>
-
-          {/* KPI binding: max / approva oltre / margine min */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded bg-white border border-slate-200 px-2 py-1.5">
-              <p className="text-[9px] uppercase tracking-wide text-slate-500 font-medium">Sconto max</p>
-              <p className="text-sm font-bold text-slate-800 tabular-nums">{discountEval.scontoMaxPct.toFixed(1)}%</p>
-            </div>
-            <div className="rounded bg-white border border-slate-200 px-2 py-1.5">
-              <p className="text-[9px] uppercase tracking-wide text-slate-500 font-medium">Approva oltre</p>
-              <p className="text-sm font-bold text-slate-800 tabular-nums">
-                {discountEval.approvaOltrePct != null ? `${discountEval.approvaOltrePct.toFixed(1)}%` : "—"}
-              </p>
-            </div>
-            <div className="rounded bg-white border border-slate-200 px-2 py-1.5">
-              <p className="text-[9px] uppercase tracking-wide text-slate-500 font-medium">Margine min</p>
-              <p className="text-sm font-bold text-slate-800 tabular-nums">{discountEval.margineMinPct.toFixed(1)}%</p>
-            </div>
-          </div>
-
-          {/* Regole matchanti (nome) */}
-          {discountEval.matchingRules.length > 0 && (
-            <p className="text-[10px] text-slate-600 leading-tight max-md:hidden">
-              <Info className="inline h-3 w-3 mr-0.5 -mt-0.5" />
-              Applicate: {discountEval.matchingRules.map((r) => r.name).join(" · ")}
-              {discountEval.primaryRule && discountEval.matchingRules.length > 1 && (
-                <span className="text-slate-500"> (principale: {discountEval.primaryRule.name})</span>
-              )}
-            </p>
-          )}
-        </div>
-
-        {/* Banner read-only per commerciali base: niente editing diretto sullo
-            sconto, lo applica/conferma il titolare. Eccezione: lo possono
-            richiedere via "Richiedi approvazione" (sotto). */}
-        {!isAdmin && (
-          <div className="mb-3 rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-900 flex items-start gap-2">
-            <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-            <span>
-              Lo sconto è gestito dall'amministrazione.<span className="max-md:hidden"> Puoi proporre uno sconto
-              superiore al consentito tramite <strong>Richiedi approvazione</strong> —
-              il titolare riceverà la richiesta in <em>Preventivi → Approvazioni</em>.</span>
-            </span>
-          </div>
-        )}
-
-        {/* Banner stato approvazione (se richiesta esistente) */}
-        {approvalState !== "none" && (
-          <div
-            className={`mb-3 rounded-md px-3 py-2 text-[11px] flex items-start gap-2 ${
-              approvalState === "approved"
-                ? "border border-emerald-200 bg-emerald-50/60 text-emerald-900"
-                : approvalState === "rejected"
-                ? "border border-rose-200 bg-rose-50/60 text-rose-900"
-                : "border border-amber-200 bg-amber-50/60 text-amber-900"
-            }`}
-          >
-            {approvalState === "approved" ? <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              : approvalState === "rejected" ? <ShieldAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              : <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />}
-            <div className="flex-1">
-              {approvalState === "approved" && (
-                <>
-                  <strong>Sconto approvato.</strong> Sconto richiesto: {approvalRow?.sconto_richiesto_pct?.toFixed(1)}% ·
-                  {" "}autorizzato: {approvalRow?.sconto_autorizzato_pct?.toFixed(1) ?? "—"}%.
-                  {approvalRow?.note_decisione && <span className="block mt-0.5 opacity-80">Nota: {approvalRow.note_decisione}</span>}
-                </>
-              )}
-              {approvalState === "rejected" && (
-                <>
-                  <strong>Sconto respinto dall'amministrazione.</strong> Richiesto: {approvalRow?.sconto_richiesto_pct?.toFixed(1)}%.
-                  {approvalRow?.note_decisione && <span className="block mt-0.5 opacity-80">Motivo: {approvalRow.note_decisione}</span>}
-                </>
-              )}
-              {approvalState === "pending" && (
-                <>
-                  <strong>Richiesta in attesa.</strong> Sconto {approvalRow?.sconto_richiesto_pct?.toFixed(1)}% inviato il{" "}
-                  {approvalRow?.requested_at ? new Date(approvalRow.requested_at).toLocaleDateString("it-IT") : "—"}.
-                  L'amministrazione riceve la richiesta in <em>Preventivi → Approvazioni</em>.
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Grid 4 input + box riepilogo full-width. Tutte le label hanno
-            stessa altezza (h-4 fisso) cosi' la riga input e' perfettamente
-            allineata. Warning verdetto sotto l'input. */}
+        {/* Un solo contenitore a griglia: ogni blocco (prezzo scritto a mano, regole, avvisi, campi, margine, totale)
+            occupa la riga intera e c'è solo quando serve; la griglia non lascia spazio per quello che non c'è. */}
         <div className="grid grid-cols-12 gap-3">
+          {/* Prezzo manuale dell'offerta — riquadro condiviso con gli altri moduli: IVA esclusa, prende il posto
+              della somma delle voci; sconto e IVA lavorano sopra. Compare se l'azienda l'ha acceso (Impostazioni →
+              Margini) o se c'è già un prezzo scritto: altrimenti niente, nemmeno il riquadro tratteggiato che
+              spiegava una funzione spenta. Il contenitore sta vuoto, e si nasconde, quando il riquadro non c'è. */}
+          <div className="col-span-12 empty:hidden">
+            <PrezzoPreventivoAMano
+              id="sr-prezzo-manuale"
+              companyId={detail.progetto.company_id}
+              value={form.prezzo_manuale}
+              sommaVoci={totaleCalc.somma_voci}
+              onCommit={(v) => onChange("prezzo_manuale", v == null ? null : roundMoney(v))}
+            />
+          </div>
+          {/* Regole di scontistica aziendale (mirror del compute_max_discount SQL): massimo, soglia di approvazione e
+              margine minimo che valgono per l'importo e il tipo di lavoro di questo preventivo. Una riga sola.
+              Telefono no: le regole si leggono dal computer; il limite allo sconto vale comunque. */}
+          <RigaRegoleSconti regole={discountEval} className="col-span-12" />
+
+          {/* Banner read-only per commerciali base: niente editing diretto sullo
+              sconto, lo applica/conferma il titolare. Eccezione: lo possono
+              richiedere via "Richiedi approvazione" (sotto). */}
+          {!isAdmin && (
+            <div className="col-span-12 rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-900 flex items-start gap-2">
+              <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                Lo sconto è gestito dall'amministrazione.<span className="max-md:hidden"> Puoi proporre uno sconto
+                superiore al consentito tramite <strong>Richiedi approvazione</strong> —
+                il titolare riceverà la richiesta in <em>Preventivi → Approvazioni</em>.</span>
+              </span>
+            </div>
+          )}
+
+          {/* Banner stato approvazione (se richiesta esistente) */}
+          {approvalState !== "none" && (
+            <div
+              className={`col-span-12 rounded-md px-3 py-2 text-[11px] flex items-start gap-2 ${
+                approvalState === "approved"
+                  ? "border border-emerald-200 bg-emerald-50/60 text-emerald-900"
+                  : approvalState === "rejected"
+                  ? "border border-rose-200 bg-rose-50/60 text-rose-900"
+                  : "border border-amber-200 bg-amber-50/60 text-amber-900"
+              }`}
+            >
+              {approvalState === "approved" ? <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                : approvalState === "rejected" ? <ShieldAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                : <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />}
+              <div className="flex-1">
+                {approvalState === "approved" && (
+                  <>
+                    <strong>Sconto approvato.</strong> Sconto richiesto: {approvalRow?.sconto_richiesto_pct?.toFixed(1)}% ·
+                    {" "}autorizzato: {approvalRow?.sconto_autorizzato_pct?.toFixed(1) ?? "—"}%.
+                    {approvalRow?.note_decisione && <span className="block mt-0.5 opacity-80">Nota: {approvalRow.note_decisione}</span>}
+                  </>
+                )}
+                {approvalState === "rejected" && (
+                  <>
+                    <strong>Sconto respinto dall'amministrazione.</strong> Richiesto: {approvalRow?.sconto_richiesto_pct?.toFixed(1)}%.
+                    {approvalRow?.note_decisione && <span className="block mt-0.5 opacity-80">Motivo: {approvalRow.note_decisione}</span>}
+                  </>
+                )}
+                {approvalState === "pending" && (
+                  <>
+                    <strong>Richiesta in attesa.</strong> Sconto {approvalRow?.sconto_richiesto_pct?.toFixed(1)}% inviato il{" "}
+                    {approvalRow?.requested_at ? new Date(approvalRow.requested_at).toLocaleDateString("it-IT") : "—"}.
+                    L'amministrazione riceve la richiesta in <em>Preventivi → Approvazioni</em>.
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* I 4 campi (sconto %, sconto fisso, IVA, validità). Le label hanno la stessa altezza (h-4 fisso) così
+              la riga dei campi è allineata; il verdetto sullo sconto sta sotto il campo. */}
           <div className="col-span-6 md:col-span-3">
             <Label className="text-xs block h-4 flex items-center gap-1">
               Sconto %
@@ -1269,6 +1073,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
             <Input
               type="number"
               min={0} step={10}
+              key={`sconto-importo-${form.sconto_importo}`}
               defaultValue={form.sconto_importo ?? 0}
               onBlur={(e) => isAdmin && onChange("sconto_importo", Math.max(0, Number(e.target.value) || 0))}
               readOnly={!isAdmin}
@@ -1287,9 +1092,9 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                 onChange("iva_percentuale", next);
               }}
             >
-              {/* Telefono: nel campo chiuso solo l'aliquota («10% —…» tagliato);
-                  nell'elenco aperto restano le spiegazioni. */}
-              <SelectTrigger className="h-9 text-xs mt-1 max-sm:[&_.iva-desc]:hidden">
+              {/* Nel campo chiuso solo l'aliquota: la colonna è stretta a ogni larghezza e «10% —…» usciva
+                  tagliato; nell'elenco aperto restano le spiegazioni. */}
+              <SelectTrigger className="h-9 text-xs mt-1 [&_.iva-desc]:hidden">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1351,72 +1156,36 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
               className="h-9 text-xs mt-1"
             />
           </div>
-          {/* ─── Blocco MARGINE (solo admin) ─────────────────────────────
-              Visibile esclusivamente a super_admin / company_admin.
-              Mostra costo acquisto totale, margine € e % con confronto contro
-              margine_min della regola scontistica (alert sotto target). */}
-          {/* Telefono no: margini e costi si guardano dal computer, come negli altri preventivatori. */}
-          {canViewImpresa && marginCalc && (
-            <div className="col-span-12 max-md:hidden">
-              <div
-                className={`rounded-md border p-4 max-md:p-3 ${
-                  !marginCalc.costiCompleti
-                    ? "border-amber-300 bg-amber-50/60"
-                    : marginCalc.sottoTarget
-                    ? "border-rose-300 bg-rose-50/60"
-                    : "border-emerald-200 bg-emerald-50/40"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                  <p className="text-[10px] uppercase font-semibold flex items-center gap-1.5">
-                    <TrendingUp className="h-3.5 w-3.5" />
-                    Margine preventivo (solo titolare/admin)
-                  </p>
-                  {!marginCalc.costiCompleti ? (
-                    <span className="text-[10px] font-semibold text-amber-700 flex items-center gap-1">
-                      <Info className="h-3 w-3" />
-                      Costi incompleti
-                    </span>
-                  ) : marginCalc.sottoTarget && (
-                    <span className="text-[10px] font-semibold text-rose-700 flex items-center gap-1">
-                      <TrendingDown className="h-3 w-3" />
-                      Sotto target {marginCalc.margineMinPct.toFixed(1)}%
-                    </span>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                  <div className="rounded bg-white border border-slate-200 p-2">
-                    <p className="text-[10px] uppercase text-slate-500">Costo acquisto netto</p>
-                    <p className="font-bold text-slate-800 tabular-nums">{formatEuro(marginCalc.costoTotale)}</p>
-                  </div>
-                  <div className="rounded bg-white border border-slate-200 p-2">
-                    <p className="text-[10px] uppercase text-slate-500">Imponibile vendita</p>
-                    <p className="font-bold text-slate-800 tabular-nums">{formatEuro(marginCalc.vendita)}</p>
-                  </div>
-                  <div className="rounded bg-white border border-slate-200 p-2">
-                    <p className="text-[10px] uppercase text-slate-500">{marginCalc.costiCompleti ? "Margine €" : "Margine parziale €"}</p>
-                    <p className={`font-bold tabular-nums ${marginCalc.margine >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                      {marginCalc.righeConCosto > 0 ? formatEuro(marginCalc.margine) : "—"}
-                    </p>
-                  </div>
-                  <div className="rounded bg-white border border-slate-200 p-2">
-                    <p className="text-[10px] uppercase text-slate-500">Margine %</p>
-                    <p className={`font-bold tabular-nums ${marginCalc.sottoTarget ? "text-rose-700" : "text-emerald-700"}`}>
-                      {marginCalc.marginePct != null ? `${marginCalc.marginePct.toFixed(1)}%` : "—"}
-                    </p>
-                  </div>
-                </div>
-                <p className="text-[10px] text-slate-600 mt-2 leading-tight max-md:hidden">
-                  <Info className="inline h-3 w-3 mr-0.5 -mt-0.5" />
-                  Il margine è calcolato su valori netti IVA esclusa: imponibile vendita meno costo acquisto netto.
-                  {marginCalc.costiCompleti
-                    ? " Tutte le righe vendute hanno un costo collegato."
-                    : ` Mancano costi su ${marginCalc.righeSenzaCosto} righe: completa il listino/costo per vedere il margine reale.`}
-                  {marginCalc.isFetchingGridCosts ? " Aggiornamento costi in corso..." : ""}
-                </p>
-              </div>
-            </div>
-          )}
+          {/* ─── Sconti veloci (tasti 0 / 5 / 10 % e «Arriva a €»). Qui lo sconto è doppio, percentuale e fisso, e lo
+              scrive solo chi può approvare gli sconti (isAdmin): gli altri vedono i campi in sola lettura e passano da
+              «Richiedi approvazione». I tasti non aggirano questo flusso:
+              · per chi non può approvare sono SPENTI, come i campi, e non scrivono niente (resta la sola riga dei tasti);
+              · per chi può approvare scrivono lo sconto in PERCENTUALE (il campo che le regole controllano, quindi
+                scattano gli stessi avvisi, «oltre il massimo» e «richiede approvazione», e la richiesta di approvazione
+                resta lì) e azzerano lo sconto fisso, che sommato darebbe un totale diverso da quello che il tasto dice.
+              Come nel campo, l'amministrazione non ha un tetto: vede il limite, non è fermata. */}
+          <div className="col-span-12" title={!isAdmin ? "Solo l'amministrazione può cambiare lo sconto." : undefined}>
+            <ScontoRapido
+              className="md:flex md:flex-wrap md:items-center md:justify-between md:gap-x-6 md:space-y-0"
+              valorePct={scontoInVigorePct}
+              massimoPct={null}
+              imponibileLordo={totaleCalc.imponibile_lordo}
+              ivaPct={isAdmin ? ivaPerArrivaA : undefined}
+              onApplica={applicaScontoVeloce}
+              disabled={!isAdmin}
+              daDito
+            />
+            {isAdmin && form.iva_percentuale === IVA_MISTA_SENTINEL && (
+              <p className="mt-1 text-[10px] leading-4 text-muted-foreground max-sm:hidden">
+                «Arriva a €» non c'è con l'IVA mista: l'aliquota cambia con lo sconto.
+              </p>
+            )}
+          </div>
+
+          {/* ─── Margine: una riga. Lo vede solo chi lo vedeva prima (permesso su margini o costi). Costo, vendita,
+              margine € e %, con l'avviso se i costi sono incompleti o il margine è sotto il target della regola
+              di scontistica. Telefono no: margini e costi si guardano dal computer, come negli altri preventivatori. */}
+          {canViewImpresa && marginCalc && <RigaMargine m={marginCalc} className="col-span-12" />}
 
           <div className="col-span-12">
             <div className="rounded-md bg-orange-50 border border-orange-200 p-4">
@@ -1481,6 +1250,147 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
         </div>
       </SrCard>
 
+      {/* Come paga il cliente: un interruttore Bonifico / Finanziamento, le varianti come pastiglie e le rate in
+          righe compatte (nome · quando · % · importo). Si scrive tutto subito nel preventivo. */}
+      <SrCard
+        title="Come paga il cliente"
+        description="Bonifico o finanziamento: la scelta guida gli step qui sotto. Compare nel PDF come piano concordato."
+        icon={<Wallet className="h-4 w-4" />}
+      >
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            {/* Interruttore a due posti. Finché non è scelta nessuna famiglia (preventivo nuovo, o «Personalizzato») le due
+                voci sono due pulsanti col bordo: la scelta è da fare, non uno stato già deciso. */}
+            <div
+              role="group"
+              aria-label="Come paga il cliente"
+              className={cn(
+                "grid w-full grid-cols-2 md:inline-grid md:w-auto",
+                unaFamigliaScelta ? "gap-0.5 rounded-lg bg-slate-100 p-0.5" : "gap-2",
+              )}
+            >
+              {([
+                { fam: "bonifico" as const, icon: <Wallet className="h-4 w-4" />, label: "Bonifico", sub: "Acconti e saldo, senza finanziaria" },
+                { fam: "finanziamento" as const, icon: <CreditCard className="h-4 w-4" />, label: "Finanziamento", sub: "Rate tramite finanziaria" },
+              ]).map((o) => {
+                const attivo = famigliaPagamento === o.fam;
+                return (
+                  <button
+                    key={o.fam}
+                    type="button"
+                    onClick={() => scegliFamiglia(o.fam)}
+                    aria-pressed={attivo}
+                    title={o.sub}
+                    className={cn(
+                      "flex items-center justify-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition-colors max-md:min-h-10 md:min-h-9 md:min-w-[8.5rem]",
+                      attivo
+                        ? "bg-white text-slate-900 shadow-sm ring-1 ring-orange-400"
+                        : unaFamigliaScelta
+                        ? "text-slate-500 hover:text-slate-800"
+                        : "border border-slate-300 bg-white text-slate-700 hover:border-orange-300 hover:bg-orange-50/40",
+                    )}
+                  >
+                    <span className={attivo ? "text-orange-600" : "text-slate-400"}>{o.icon}</span>
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Variante della famiglia scelta (pastiglie) + Personalizzato. Toccare lo schema che è GIÀ quello scelto non fa
+                niente: lo schema riporta le rate a quelle di serie (cancella quelle scritte a mano, rifà l'anticipo e il
+                piano), e con il salvataggio automatico il reset partirebbe subito. */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {unaFamigliaScelta &&
+                (famigliaPagamento === "bonifico" ? SCHEMI_BONIFICO : SCHEMI_FINANZIAMENTO).map((k) => {
+                  const on = schemaPagamento === k;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => { if (schemaPagamento !== k) applySchema(k); }}
+                      aria-pressed={on}
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-[11px] font-medium transition-colors max-md:min-h-9",
+                        on ? "border-orange-300 bg-orange-100 text-orange-800" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
+                      )}
+                    >
+                      {SR_SCHEMI_PAGAMENTO[k].label}
+                    </button>
+                  );
+                })}
+              <button
+                type="button"
+                onClick={() => { if (schemaPagamento !== "personalizzato") applySchema("personalizzato"); }}
+                aria-pressed={famigliaPagamento === "personalizzato"}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-[11px] font-medium transition-colors max-md:min-h-9",
+                  famigliaPagamento === "personalizzato"
+                    ? "border-slate-800 bg-slate-800 text-white"
+                    : "border-dashed border-slate-300 bg-transparent text-slate-500 hover:text-slate-700",
+                )}
+              >
+                Personalizzato
+              </button>
+            </div>
+          </div>
+
+          {pagamentoScelto ? (
+            <>
+              <p className="text-[11px] text-slate-600 max-md:hidden">{schemaCfg.description}</p>
+              <RatePagamento
+                rate={rateSalvate ?? []}
+                totale={forbice.media}
+                onChange={cambiaRate}
+              />
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Scegli come paga il cliente: le rate compaiono nel preventivo appena scegli.
+            </p>
+          )}
+        </div>
+      </SrCard>
+
+      {/* Simulazione finanziamento — c'è solo se lo schema scelto lo prevede */}
+      {pagamentoScelto && schemaCfg.hasFinanziamento && (
+        <SrCard
+          title="Simulazione finanziamento"
+          description="Scegli le rate: la rata viene dalla tabella della finanziaria (o dal piano manuale) e compare nel PDF."
+          icon={<CreditCard className="h-4 w-4" />}
+        >
+          {avvisoPianoIndietro && (
+            <SrCallout variant="warning" icon={<AlertTriangle className="h-3.5 w-3.5" />} className="mb-3">
+              Il preventivo è già {motivoDeciso}: il piano di finanziamento non corrisponde {aCosaNonCorrisponde}. Resta com'è, non si riscrive da solo.
+            </SrCallout>
+          )}
+          <SimulazioneFinanziamento
+            totale={forbice.media}
+            anticipoPct={anticipoPct}
+            onAnticipo={scegliAnticipo}
+            modalita={modalitaFin}
+            onModalita={scegliModalita}
+            tabelle={tabelleFinanziamento}
+            tabelleInCaricamento={tabelleInCaricamento}
+            tabellaId={tabellaId}
+            onTabella={scegliTabella}
+            righeInCaricamento={righeInCaricamento}
+            durate={durateTabella}
+            durataScelta={durataScelta}
+            onDurata={scegliDurata}
+            rigaScelta={rigaTabellaScelta}
+            importoFinanziato={importoFinanziato}
+            fasciaMassima={fasce.fasciaMassima}
+            durateFuoriFascia={fasce.durateFuoriFascia}
+            anticipoDalleRate={anticipoDalleRate}
+            manuale={manuale}
+            onManuale={cambiaManuale}
+            pianiManuali={pianiManualiCalcolati}
+            manualeNelPreventivo={pianiSalvati.length > 0}
+          />
+        </SrCard>
+      )}
+
       {/* Ecobonus */}
       <SrCard
         title="Detrazione fiscale (Ecobonus)"
@@ -1493,7 +1403,8 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
               <p className="text-sm font-medium">Includi nel preventivo</p>
               <p className="text-[10px] text-muted-foreground max-md:hidden">Aliquote 2026: 50% sull'abitazione principale, 36% sulle altre</p>
             </div>
-            <Switch checked={bonusAttivo} onCheckedChange={setBonusAttivo} />
+            {/* Telefono: l'interruttore è alto 24 px; l'area che risponde al tocco si allarga a 48×44 (il bordo da 2 px non conta) senza cambiare l'aspetto. */}
+            <Switch checked={bonusAttivo} onCheckedChange={setBonusAttivo} className="max-md:relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-3 max-md:before:content-['']" />
           </div>
           {bonusAttivo && (
             <>
@@ -1523,12 +1434,21 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
         </div>
       </SrCard>
 
-      {/* Risparmio energetico */}
-      <SrCard
-        title="Risparmio energetico (per il PDF)"
-        description="Mostra al cliente quanto risparmierà ogni anno in bolletta + il payback completo dopo la detrazione."
-        icon={<Leaf className="h-4 w-4" />}
+      {/* Risparmio energetico — extra richiudibile, chiuso di serie. Lo stato (interruttore, Uw, m², bolletta)
+          e i calcoli stanno qui sopra, nel componente: chiudere la scheda non cancella niente e non cambia
+          quello che si scrive nel preventivo e nel PDF (lo scrivono i gestori di questi campi, aperta o no). */}
+      <ExtraRichiudibile
+        titolo="Risparmio energetico (per il PDF)"
+        titoloBreve="Risparmio energetico"
+        icona={<Leaf className="h-4 w-4" />}
+        stato={risparmioAttivo ? "Attivo" : undefined}
+        statoDettaglio={risparmioAttivo && risparmioCalc ? `${formatEuro(risparmioCalc.risparmio_eur_anno)}/anno` : undefined}
+        aperto={extraAperti.risparmio}
+        onApertoChange={(aperto) => setExtraAperti((prima) => ({ ...prima, risparmio: aperto }))}
       >
+        <p className="text-[11px] text-muted-foreground max-md:hidden">
+          Mostra al cliente quanto risparmierà ogni anno in bolletta + il payback completo dopo la detrazione.
+        </p>
         <div className="space-y-3">
           <div className="flex items-center justify-between border rounded-md p-2.5 bg-muted/20">
             <div>
@@ -1538,7 +1458,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                 m² serramenti: {formatNumero(totaleCalc.metri_quadri, 2)}
               </p>
             </div>
-            <Switch checked={risparmioAttivo} onCheckedChange={setRisparmioAttivo} />
+            <Switch checked={risparmioAttivo} onCheckedChange={(attivo) => aggiornaRisparmio({ attivo })} className="max-md:relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-3 max-md:before:content-['']" />
           </div>
           {risparmioAttivo && (
             <>
@@ -1566,7 +1486,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                   </Label>
                   <Input
                     type="number" step={0.1} value={uwAttuale}
-                    onChange={(e) => setUwAttuale(Number(e.target.value) || 0)}
+                    onChange={(e) => aggiornaRisparmio({ uwAttuale: Number(e.target.value) || 0 })}
                     className="h-9 text-xs"
                   />
                   <p className="text-[10px] text-muted-foreground mt-0.5 max-md:hidden">Singolo vetro: ~5.0 · Vecchia vetrocamera: ~2.8</p>
@@ -1594,7 +1514,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                   </Label>
                   <Input
                     type="number" step={0.1} value={uwNuovo}
-                    onChange={(e) => setUwNuovo(Number(e.target.value) || 0)}
+                    onChange={(e) => aggiornaRisparmio({ uwNuovo: Number(e.target.value) || 0 })}
                     className="h-9 text-xs"
                   />
                   <p className="text-[10px] text-muted-foreground mt-0.5 max-md:hidden">Standard: 1.4 · Performante: 1.1 · Triplo vetro: 0.8</p>
@@ -1603,7 +1523,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                   <Label className="text-xs">m² casa</Label>
                   <Input
                     type="number" value={m2Casa}
-                    onChange={(e) => setM2Casa(Number(e.target.value) || 0)}
+                    onChange={(e) => aggiornaRisparmio({ m2Casa: Number(e.target.value) || 0 })}
                     className="h-9 text-xs"
                   />
                 </div>
@@ -1611,7 +1531,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
                   <Label className="text-xs"><span className="max-md:hidden">Bolletta riscaldamento attuale (€/anno)</span><span className="md:hidden">Bolletta (€/anno)</span></Label>
                   <Input
                     type="number" value={bollettaAttuale}
-                    onChange={(e) => setBollettaAttuale(Number(e.target.value) || 0)}
+                    onChange={(e) => aggiornaRisparmio({ bolletta: Number(e.target.value) || 0 })}
                     className="h-9 text-xs"
                   />
                 </div>
@@ -1645,16 +1565,22 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
             </>
           )}
         </div>
-      </SrCard>
+      </ExtraRichiudibile>
 
-      {/* Recupero economico 10 anni (vista cliente) */}
+      {/* Recupero economico 10 anni (vista cliente) — extra richiudibile, chiuso di serie */}
       {cashflow && (
-        <SrCard
-          title="Recupero economico · 10 anni"
-          description="Confronta il totale preventivo con risparmio bolletta e detrazione fiscale anno per anno."
-          icon={<TrendingUp className="h-4 w-4" />}
-          variant="highlight"
+        <ExtraRichiudibile
+          titolo="Recupero economico · 10 anni"
+          titoloBreve="Recupero in 10 anni"
+          icona={<TrendingUp className="h-4 w-4" />}
+          statoDettaglio={cashflow.payback_anni != null ? `Payback ${formatNumero(cashflow.payback_anni, 1)} anni` : "Payback oltre 10 anni"}
+          statoTono="neutro"
+          aperto={extraAperti.recupero}
+          onApertoChange={(aperto) => setExtraAperti((prima) => ({ ...prima, recupero: aperto }))}
         >
+          <p className="text-[11px] text-muted-foreground max-md:hidden">
+            Confronta il totale preventivo con risparmio bolletta e detrazione fiscale anno per anno.
+          </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 max-md:mb-0">
             <SrKpi label="Totale preventivo" value={formatEuro(forbice.media)} />
             <SrKpi label="Recuperato in 10 anni" value={formatEuro(cashflow.totale_recuperato_10y)} variant="success" />
@@ -1698,18 +1624,21 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
               </TableBody>
             </Table>
           </div>
-        </SrCard>
+        </ExtraRichiudibile>
       )}
 
-      <div className="flex justify-end">
-        <Button onClick={handleSalvaCalcoli} className="bg-orange-500 hover:bg-orange-600 max-md:w-full">
-          Applica calcoli al progetto
-        </Button>
-      </div>
-
-      {detail.serramenti.length === 0 && (
+      {/* L'importo c'è (complementi, servizi) ma serramenti no: lo dice e porta all'Offerta. Con un prezzo scritto a
+          mano il totale è quello, e niente da segnalare. */}
+      {detail.serramenti.length === 0 && !totaleCalc.prezzo_manuale && (
         <SrCallout variant="warning">
-          ⚠️ Aggiungi almeno un serramento nello Step 4 per calcolare il prezzo.
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>⚠️ Nell'offerta non ci sono serramenti: il totale viene solo da complementi e servizi.</span>
+            {onVaiAlPasso && (
+              <Button type="button" size="sm" variant="outline" onClick={() => onVaiAlPasso("bom")} className="text-xs">
+                Vai all'Offerta
+              </Button>
+            )}
+          </div>
         </SrCallout>
       )}
 
@@ -1740,6 +1669,122 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+// ─── Regole di scontistica: una riga sola ───────────────────────────────────────
+//
+// Prima era un riquadro con titolo, tre cifre in scatole e l'elenco delle regole applicate. Ora: massimo,
+// soglia di approvazione e margine minimo in una riga; i nomi delle regole stanno nel suggerimento al passaggio
+// del mouse. Come prima, solo da tablet in su.
+
+function RigaRegoleSconti({ regole, className }: { regole: DiscountEvalResult; className?: string }) {
+  const applicate = regole.matchingRules.map((r) => r.name).join(" · ");
+  const suggerimento = regole.isFallback
+    ? "Nessuna regola di scontistica combacia con questo preventivo: vale il massimo predefinito."
+    : `Applicate: ${applicate}${regole.primaryRule && regole.matchingRules.length > 1 ? ` (principale: ${regole.primaryRule.name})` : ""}`;
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-x-3 gap-y-0.5 rounded-md border border-l-4 border-slate-200 border-l-eic-navy-deep bg-slate-50/60 px-3 py-1.5 text-[11px] text-slate-600 max-md:hidden",
+        className,
+      )}
+      title={suggerimento}
+    >
+      <Tag className="h-3.5 w-3.5 shrink-0 text-eic-navy-deep" />
+      <span className="font-semibold text-eic-navy-deep">Regole sconti</span>
+      {regole.isFallback ? (
+        <span>nessuna regola configurata: massimo {formatPct(regole.scontoMaxPct, 1)}</span>
+      ) : (
+        <>
+          <span>max <strong className="tabular-nums text-slate-800">{formatPct(regole.scontoMaxPct, 1)}</strong></span>
+          <span>
+            {regole.approvaOltrePct != null
+              ? <>approvazione oltre <strong className="tabular-nums text-slate-800">{formatPct(regole.approvaOltrePct, 1)}</strong></>
+              : "nessuna approvazione richiesta"}
+          </span>
+          <span>margine min <strong className="tabular-nums text-slate-800">{formatPct(regole.margineMinPct, 1)}</strong></span>
+        </>
+      )}
+      <a
+        href="/azienda/impostazioni/scontistica"
+        target="_blank"
+        rel="noreferrer"
+        className="ml-auto text-[11px] text-eic-navy-deep underline hover:no-underline"
+      >
+        Configura regole →
+      </a>
+    </div>
+  );
+}
+
+// ─── Margine: una riga sola ─────────────────────────────────────────────────────
+//
+// Prima era un riquadro alto (titolo, quattro scatole, paragrafo di spiegazione). Ora una riga: costo acquisto,
+// vendita, margine € e %, e l'avviso — se i costi sono incompleti o il margine è sotto il target. Margine reale
+// sul NETTO: imponibile di vendita post-sconto meno costo di acquisto netto; con costi incompleti niente
+// percentuali fuorvianti. Lo spiega il suggerimento al passaggio del mouse.
+
+interface MargineRiga {
+  costoTotale: number;
+  vendita: number;
+  margine: number;
+  marginePct: number | null;
+  margineMinPct: number;
+  sottoTarget: boolean;
+  costiCompleti: boolean;
+  righeConCosto: number;
+  righeSenzaCosto: number;
+  isFetchingGridCosts: boolean;
+}
+
+function RigaMargine({ m, className }: { m: MargineRiga; className?: string }) {
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border px-3 py-2 text-xs max-md:hidden",
+        !m.costiCompleti
+          ? "border-amber-300 bg-amber-50/60"
+          : m.sottoTarget
+          ? "border-rose-300 bg-rose-50/60"
+          : "border-emerald-200 bg-emerald-50/40",
+        className,
+      )}
+      title={
+        "Lo vede solo chi ha il permesso sui margini o sui costi. Il margine è calcolato su valori netti IVA esclusa: imponibile vendita meno costo acquisto netto."
+        + (m.costiCompleti ? " Tutte le righe vendute hanno un costo collegato." : ` Mancano costi su ${m.righeSenzaCosto} righe: completa il listino/costo per vedere il margine reale.`)
+      }
+    >
+      <span className="inline-flex items-center gap-1.5 font-semibold">
+        <TrendingUp className="h-3.5 w-3.5" />
+        Margine (interno)
+      </span>
+      <span className="text-slate-600">
+        {m.costiCompleti ? null : <>parziale{" "}</>}
+        <strong className={cn("tabular-nums", m.margine >= 0 ? "text-emerald-700" : "text-rose-700")}>
+          {m.righeConCosto > 0 ? formatEuro(m.margine) : "—"}
+        </strong>
+        {m.marginePct != null && (
+          <strong className={cn("ml-1 tabular-nums", m.sottoTarget ? "text-rose-700" : "text-emerald-700")}>
+            ({formatPct(m.marginePct, 1)})
+          </strong>
+        )}
+      </span>
+      <span className="text-slate-600">costo <strong className="tabular-nums text-slate-800">{formatEuro(m.costoTotale)}</strong></span>
+      <span className="text-slate-600">vendita <strong className="tabular-nums text-slate-800">{formatEuro(m.vendita)}</strong></span>
+      {!m.costiCompleti ? (
+        <span className="inline-flex items-center gap-1 font-semibold text-amber-700">
+          <Info className="h-3 w-3" />
+          Costi incompleti: mancano su {m.righeSenzaCosto} {m.righeSenzaCosto === 1 ? "riga" : "righe"}
+        </span>
+      ) : m.sottoTarget ? (
+        <span className="inline-flex items-center gap-1 font-semibold text-rose-700">
+          <TrendingDown className="h-3 w-3" />
+          Sotto target {formatPct(m.margineMinPct, 1)}
+        </span>
+      ) : null}
+      {m.isFetchingGridCosts && <span className="text-slate-500">aggiorno i costi…</span>}
     </div>
   );
 }

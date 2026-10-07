@@ -10,6 +10,7 @@
  */
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { messaggioGbpPerCliente } from "@/lib/gbpErrori";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -54,8 +55,9 @@ const POPUP_POLL_INTERVAL_MS = 800;
 const POPUP_MAX_WAIT_MS = 5 * 60_000;
 
 export default function GbpConnectionCard() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, userRoles } = useAuth();
   const companyId = effectiveCompany?.id;
+  const eSuperAdmin = userRoles.includes("super_admin");
   const queryClient = useQueryClient();
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -226,7 +228,7 @@ export default function GbpConnectionCard() {
       setSyncing(false);
     },
     onError: (e: Error) => {
-      toast.error(`Errore sync: ${e.message}`);
+      toast.error(eSuperAdmin ? `Errore sync: ${e.message}` : (messaggioGbpPerCliente(e.message)?.titolo ?? "Sincronizzazione non riuscita, riprova tra poco"));
       setSyncing(false);
     },
   });
@@ -314,9 +316,12 @@ export default function GbpConnectionCard() {
               {connection?.last_error ? (
                 <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
                   <p className="font-medium text-amber-900 mb-1 flex items-center gap-1.5">
-                    <AlertTriangle className="h-4 w-4" /> Problema nel fetch schede
+                    <AlertTriangle className="h-4 w-4" /> {messaggioGbpPerCliente(connection.last_error)?.titolo}
                   </p>
-                  <p className="text-amber-800 text-xs whitespace-pre-wrap">{connection.last_error}</p>
+                  <p className="text-amber-800 text-xs">{messaggioGbpPerCliente(connection.last_error)?.testo}</p>
+                  {eSuperAdmin && (
+                    <p className="mt-2 border-t border-amber-200 pt-2 text-[11px] text-amber-700 whitespace-pre-wrap">Dettaglio tecnico: {connection.last_error}</p>
+                  )}
                 </div>
               ) : locations.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
@@ -401,7 +406,8 @@ export default function GbpConnectionCard() {
               {connection?.last_error && (
                 <div className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900">
                   <AlertTriangle className="inline h-3 w-3 mr-1" />
-                  {connection.last_error}
+                  {messaggioGbpPerCliente(connection.last_error)?.testo}
+                  {eSuperAdmin && <span className="block mt-1 text-[11px] text-amber-700">Dettaglio tecnico: {connection.last_error}</span>}
                 </div>
               )}
 

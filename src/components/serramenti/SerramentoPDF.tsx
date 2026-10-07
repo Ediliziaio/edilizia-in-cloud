@@ -20,7 +20,7 @@
  */
 import * as React from "react";
 import { ensurePdfBufferCompatibility } from "@/lib/pdf/ensurePdfBufferCompatibility";
-import { srSectionAnchor, withSrSectionAnchor } from "./srSemanticPreview";
+import { disegnaPagine, srSectionAnchor, withSrSectionAnchor } from "./srSemanticPreview";
 import { Document, Page, Text, View, StyleSheet, Image, Link, Svg, Path, Rect, Circle, G, Font, Defs, LinearGradient, RadialGradient, Stop } from "@react-pdf/renderer";
 import type {
   SrProgettoDetail, SrSerramentoRow, SrPagamentoMilestone,
@@ -60,7 +60,7 @@ import { fotoPaginaPerIlPdf, fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/p
 import { eTavola, proporzioniImmagine } from "@/lib/pdf/proporzioniImmagine";
 import { altezzaTesto, larghezzaTesto, testoDaHtml } from "@/components/preventivi/pdf/misuraTesto";
 import {
-  ALTEZZA_IMMAGINE_ACCESSORIO, ALTEZZA_UTILE, COLONNA_IMMAGINE_ACCESSORIO, FOTO_IN_FONDO_MINIMA, UTILE_PAGINA, altezzaGrafico, pezziAllegato, pezziCta, pezziDettagli, pezziProposta,
+  ALTEZZA_IMMAGINE_ACCESSORIO, ALTEZZA_UTILE, COLONNA_IMMAGINE_ACCESSORIO, FOTO_IN_FONDO_MINIMA, PERCORSO_AMPIO, UTILE_PAGINA, altezzaGrafico, altezzaPercorsoAmpio, carteDelPercorsoPerRiga, domandeCompatte, paddingCartaPercorso, pezziAllegato, pezziCta, pezziDettagli, pezziInvestimento, pezziProposta,
   spazioInFondo, type DatiDettagli, type RigaAllegato,
 } from "@/components/serramenti/impaginaSerramento";
 import type {
@@ -808,6 +808,27 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     },
     percorsoStepIdxText: { color: C.onPrimary, fontSize: 7.5, fontWeight: 700 },
     percorsoStepText: { fontSize: 8.5, color: "#CBD5E1", flex: 1, lineHeight: 1.35 },
+    // «Il tuo percorso» senza foto: carte larghe, passaggi a 10,5 punti (misure in PERCORSO_AMPIO, impaginaSerramento).
+    percorsoFaseCardAmpia: { backgroundColor: "#0F172A", borderRadius: 12, padding: PERCORSO_AMPIO.paddingCarta },
+    percorsoFaseHeaderAmpio: {
+      flexDirection: "row", alignItems: "center", gap: 10,
+      marginBottom: 12, paddingBottom: 10,
+      borderBottomWidth: 0.5, borderBottomColor: "rgba(255,255,255,0.14)", borderBottomStyle: "solid",
+    },
+    percorsoFaseRomanBoxAmpio: {
+      width: PERCORSO_AMPIO.riquadroRomano, height: PERCORSO_AMPIO.riquadroRomano, borderRadius: 6,
+      backgroundColor: C.primary,
+      alignItems: "center", justifyContent: "center",
+    },
+    percorsoFaseNameAmpio: { fontSize: PERCORSO_AMPIO.corpoNomeFase, fontWeight: 700, color: "#FFFFFF", marginTop: 1, lineHeight: 1.15 },
+    percorsoStepRowAmpio: { flexDirection: "row", alignItems: "flex-start", gap: PERCORSO_AMPIO.spazioDopoPallino, marginBottom: PERCORSO_AMPIO.spazioFraPassi },
+    percorsoStepIdxAmpio: {
+      width: PERCORSO_AMPIO.pallino, height: PERCORSO_AMPIO.pallino, borderRadius: PERCORSO_AMPIO.pallino / 2,
+      backgroundColor: C.primary,
+      alignItems: "center", justifyContent: "center",
+    },
+    percorsoStepIdxTextAmpio: { color: C.onPrimary, fontSize: 8, fontWeight: 700 },
+    percorsoStepTextAmpio: { fontSize: PERCORSO_AMPIO.corpoPasso, color: "#E2E8F0", flex: 1, lineHeight: PERCORSO_AMPIO.interlineaPasso, marginTop: 3 },
 
     // Render disclaimer
     renderDisclaimerBox: {
@@ -1612,8 +1633,10 @@ function TabellaAnni({ righe, C, corpo = 7.8 }: {
 
 // ─── Subcomponenti ─────────────────────────────────────────────────────────
 
-function PageHeader({ code, clienteNome, companyName, logoUrl, primaryColor, styles }: {
-  code: string; clienteNome: string; companyName: string;
+// Nell'intestazione di ogni pagina c'è l'azienda e il numero della stima: il nome del cliente no
+// (richiesta di Renova, 05/10/2026: è già in copertina e nella pagina della firma).
+function PageHeader({ code, companyName, logoUrl, primaryColor, styles }: {
+  code: string; companyName: string;
   logoUrl?: string | null; primaryColor: string;
   styles: ReturnType<typeof makeStyles>;
 }) {
@@ -1631,11 +1654,10 @@ function PageHeader({ code, clienteNome, companyName, logoUrl, primaryColor, sty
         )}
         <View>
           <Text style={styles.headerName}>{companyName}</Text>
-          <Text style={{ fontSize: 7.5, color: "#64748B" }}>{clienteNome}</Text>
         </View>
       </View>
       <View style={styles.headerRight}>
-        <Text>STIMA N.</Text>
+        <Text>PREVENTIVO N.</Text>
         <Text style={styles.headerStimaCode}>{code}</Text>
       </View>
     </View>
@@ -1802,7 +1824,7 @@ function SezioneBlocco({ blocco, foto, C, styles, moduloLocale = false }: {
           <View wrap={false} style={{ flexDirection: "row", alignItems: "flex-start" }}>
             <View style={{ width: lt }}>
               <Image src={foto[0].src} style={{ width: lt, height: at, objectFit: "contain", borderRadius: 6 }} />
-              {blocco.nota && foto[0].diSerie ? <Text style={{ fontSize: 7, color: C.gray500, marginTop: 5 }}>{blocco.nota}</Text> : null}
+              {blocco.nota && foto[0].diSerie ? <Text style={{ fontSize: 8, color: C.gray500, marginTop: 5 }}>{blocco.nota}</Text> : null}
             </View>
             <View style={{ width: colonna, marginLeft: STACCO_TAVOLA_SR, paddingTop: 2 }}>
               {blocco.voci.map((x, i) => (
@@ -1828,7 +1850,7 @@ function SezioneBlocco({ blocco, foto, C, styles, moduloLocale = false }: {
             ))}
           </View>
           {blocco.nota && foto.some((f) => f.diSerie) ? (
-            <Text style={{ fontSize: 7, color: C.gray500, marginTop: 5 }}>{blocco.nota}</Text>
+            <Text style={{ fontSize: 8, color: C.gray500, marginTop: 5 }}>{blocco.nota}</Text>
           ) : null}
         </View>
       ) : null}
@@ -2166,14 +2188,27 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const showProductPhotos = !isLocalModule || Object.keys(disegni).length > 0 || detail.serramenti.some(row => row.family_id && familiesById[row.family_id]?.immagine_url);
   const moduleExclusions = serramentiModuleExclusions(template);
   const baseStyles = makeStyles(C);
+  const sfondoCartePercorso = fondoPerTestoBianco(C.primary);
   const styles = isLocalModule ? { ...baseStyles,
-    sectionTitle: { ...baseStyles.sectionTitle, marginTop: 10, marginBottom: 5 },
-    bulletItem: { ...baseStyles.bulletItem, marginBottom: 4 },
+    // Un po' più stretti di prima (10 e 4): nei portoni garage la proposta sbordava di 4 punti e l'ultimo punto di «Perché …»
+    // finiva da solo su un foglio (93% bianco). Con questo margine ci stanno anche i modelli dal testo più lungo.
+    sectionTitle: { ...baseStyles.sectionTitle, marginTop: 8, marginBottom: 5 },
+    bulletItem: { ...baseStyles.bulletItem, marginBottom: 3 },
     bulletTitle: { ...baseStyles.bulletTitle, fontSize: 10.5 },
     bulletText: { ...baseStyles.bulletText, fontSize: 9.5, lineHeight: 1.4 },
     pageSubtitle: { ...baseStyles.pageSubtitle, marginBottom: 14 },
     faqItem: { ...baseStyles.faqItem, marginBottom: 8, paddingBottom: 5 },
     percorsoFaseLabel: { ...baseStyles.percorsoFaseLabel, color: "#CBD5E1" },
+    // Le carte del percorso nel colore del modello (erano sempre blu notte, anche nei modelli verdi o marroni).
+    percorsoFaseCard: { ...baseStyles.percorsoFaseCard, backgroundColor: sfondoCartePercorso },
+    percorsoFaseCardAmpia: { ...baseStyles.percorsoFaseCardAmpia, backgroundColor: sfondoCartePercorso },
+    percorsoFaseRomanBox: { ...baseStyles.percorsoFaseRomanBox, backgroundColor: "rgba(255,255,255,0.18)" },
+    percorsoFaseRomanBoxAmpio: { ...baseStyles.percorsoFaseRomanBoxAmpio, backgroundColor: "rgba(255,255,255,0.18)" },
+    percorsoStepIdx: { ...baseStyles.percorsoStepIdx, backgroundColor: "rgba(255,255,255,0.18)" },
+    percorsoStepIdxAmpio: { ...baseStyles.percorsoStepIdxAmpio, backgroundColor: "rgba(255,255,255,0.18)" },
+    percorsoFaseRomanText: { ...baseStyles.percorsoFaseRomanText, color: "#FFFFFF" },
+    percorsoStepIdxText: { ...baseStyles.percorsoStepIdxText, color: "#FFFFFF" },
+    percorsoStepIdxTextAmpio: { ...baseStyles.percorsoStepIdxTextAmpio, color: "#FFFFFF" },
   } : baseStyles;
 
   const clienteNome = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente";
@@ -2450,6 +2485,12 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     : null;
   const detrazioneTotale = detrazioneCalcolata ? roundMoney(detrazioneCalcolata.detrazione_totale) : 0;
   const detrazioneAnno = detrazioneCalcolata ? roundMoney(detrazioneCalcolata.rata_annuale) : 0;
+  // Le tappe del pagamento: la pagina economica le mostra, e l'Art. 4 delle condizioni le ripete uguali.
+  const milestones = (Array.isArray(p.pagamento_milestones) ? p.pagamento_milestones : []) as SrPagamentoMilestone[];
+  const schemaPagamento = p.schema_pagamento ?? "tre_step";
+  const schemaCfg = SR_SCHEMI_PAGAMENTO[schemaPagamento as keyof typeof SR_SCHEMI_PAGAMENTO];
+  // Il luogo dei lavori: lo stesso che si legge nel riepilogo della pagina della firma e in anagrafica.
+  const luogoLavori = [p.cantiere_indirizzo ?? p.cliente_indirizzo, p.cantiere_citta ?? p.cliente_citta].filter(Boolean).join(", ");
   // Merge tag dei blocchi importati dalla libreria ({{cliente.nome_completo}}, {{azienda.ragione_sociale}}…)
   // Senza condizioni scritte dall'azienda valgono quelle di base del settore.
   const condizioniLegaliTesto = applicaMergeTagModulo(
@@ -2462,14 +2503,24 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     companyPhone: tpl.telefono ?? company?.telefono ?? null,
     clienteNome: p.cliente_nome, clienteCognome: p.cliente_cognome,
     clienteEmail: p.cliente_email, clienteTelefono: p.cliente_telefono, clienteIndirizzo: p.cliente_indirizzo,
+    // L'Art. 1 dice «…presso {{cantiere.indirizzo}}»: con l'indirizzo dei lavori separato da quello del
+    // cliente (06/10/2026) il tag usciva vuoto e il documento diceva «presso .».
+    cantiereIndirizzo: luogoLavori || null,
     cantiereCitta: p.cantiere_citta ?? p.cliente_citta ?? null,
       numero: p.code, dataDocumento: p.created_at ?? null,
       // Il totale vero del documento: senza, «{{preventivo.totale}}» usciva vuoto.
       totale: totaleDocumento,
+      // Il piano della pagina economica: senza, l'Art. 4 diceva «…secondo il piano concordato: come da
+      // condizioni di pagamento concordate» anche con le tappe stampate due pagine prima.
+      pagamentoModalita: milestones.length > 0 ? schemaCfg?.label ?? null : null,
+      pagamentoFasi: milestones.filter(Boolean).map((m) => ({
+        label: m.label,
+        percent: Number(m.percentuale) || 0,
+        amount: roundMoney((totaleDocumento * (Number(m.percentuale) || 0)) / 100),
+      })),
     },
   ) || null;
   // Il riepilogo della pagina della firma: che cosa si firma, in poche righe.
-  const luogoLavori = [p.cantiere_indirizzo ?? p.cliente_indirizzo, p.cantiere_citta ?? p.cliente_citta].filter(Boolean).join(", ");
   const fmtEuroFirma = (n: number) => `${n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: "always" } as unknown as Intl.NumberFormatOptions)} €`;
   // La partita IVA si legge qui direttamente: `vat` è dichiarata più sotto.
   const partitaIvaFirma = template?.partita_iva || company?.partita_iva || null;
@@ -2515,10 +2566,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     .some((pg) => pg.id === "recensioni" && pg.visible);
   const recensioniInPagina = paginaRecensioniAccesa && (votiOnline.length > 0 || paroleClienti.length > 0);
   const temaProve = creaTema({ primario: primaryColor, tipografia: "lineare" });
-  const milestones = (Array.isArray(p.pagamento_milestones) ? p.pagamento_milestones : []) as SrPagamentoMilestone[];
   const piani = (Array.isArray(p.fin_piani) ? p.fin_piani : []) as SrPianoFinanziamento[];
-  const schemaPagamento = p.schema_pagamento ?? "tre_step";
-  const schemaCfg = SR_SCHEMI_PAGAMENTO[schemaPagamento as keyof typeof SR_SCHEMI_PAGAMENTO];
   // Prima & Dopo: situazione (foto attuale del cliente) vs render (AI)
   const primaUrls = detail.media.filter((m) => m.kind === "situazione" && m.url).map((m) => m.url!);
   const renderUrls = detail.media.filter((m) => m.kind === "render" && m.url).map((m) => m.url!);
@@ -2639,8 +2687,26 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const altezzaFotoPercorso = proporzionePercorso != null && proporzionePercorso > 507 / 220
     ? Math.round(507 / proporzionePercorso)
     : 220;
+  // La foto sotto le fasi, solo se la pagina ha posto: con tante fasi o tanti passaggi resta senza, invece di finire da sola su un foglio.
+  const fotoPercorsoMostrata = Boolean(fotoPercorso) && (() => {
+    const perRiga = percorso.fasi.length <= 4 ? percorso.fasi.length : percorso.fasi.length <= 6 ? 3 : 4;
+    const righe = Math.ceil(percorso.fasi.length / perRiga);
+    const passiMax = Math.max(...percorso.fasi.map((f) => f.step.length));
+    const occupato = 170 + righe * (58 + passiMax * 17);
+    return occupato + altezzaFotoPercorso + 10 <= 700;
+  })();
+  // Senza foto le carte si fanno larghe (due per riga, passaggi a 10,5 punti): quattro carte strette da 8,5 lasciavano
+  // mezzo foglio bianco. Se nemmeno così ci stanno (tante fasi, passaggi lunghi), restano come prima.
+  const percorsoAmpio = !fotoPercorsoMostrata && percorsoAttivo && percorso.fasi.length > 0
+    && altezzaPercorsoAmpio({ titolo: percorso.titolo, sottotitolo: percorso.sottotitolo, fasi: percorso.fasi }) <= ALTEZZA_UTILE - 8;
   const fotoConfronto =fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "confronto", "serramenti", tpl.pdf_blocchi);
   const fotoCta = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "cta", "serramenti", tpl.pdf_blocchi);
+
+  // Le otto domande di serie sbordavano di una sola sul foglio dopo, lasciandolo bianco al 90% (Renova, pagina 18):
+  // se strette ci stanno su un foglio, si stringono. I modelli degli interventi sono già stretti.
+  const vociFaq = isLocalModule ? faqItems : faqItems.slice(0, 8);
+  const faqCompatta = !isLocalModule && domandeCompatte({ titolo: tDomande.titolo, intro: tDomande.intro || null, voci: vociFaq });
+  const stileFaq = faqCompatta ? { ...styles.faqItem, marginBottom: 8, paddingBottom: 5 } : styles.faqItem;
 
   // ─── Le sezioni brevi: quando stanno una dopo l'altra condividono le pagine ──
   // Garanzie, confronto, domande e i nostri lavori aprivano ciascuna un foglio:
@@ -2723,14 +2789,14 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     // Senza un contenitore in mezzo: vedi REACT_PDF_GRUPPO_IN_TESTA in provaSocialePdf.
     faq: faqItems.length > 0 ? (
       <>
-                {(isLocalModule ? faqItems : faqItems.slice(0, 8)).map((f, i) => (
-                  <View key={i} style={i === 0 ? undefined : styles.faqItem} wrap={false}>
+                {vociFaq.map((f, i) => (
+                  <View key={i} style={i === 0 ? undefined : stileFaq} wrap={false}>
                     {i === 0 ? (
                       <>
                         <Text style={styles.pageEyebrow}>{tDomande.occhiello}</Text>
                         <Text style={styles.pageTitle}>{tDomande.titolo}</Text>
                         {tDomande.intro ? <Text style={styles.pageSubtitle}>{tDomande.intro}</Text> : null}
-                        <View style={[styles.faqItem, { marginTop: isLocalModule ? 8 : 14 }]}>
+                        <View style={[stileFaq, { marginTop: isLocalModule ? 8 : 14 }]}>
                           <Text style={styles.faqDomanda}>{i + 1}. {f.domanda}</Text>
                           <Text style={styles.faqRisposta}>{f.risposta}</Text>
                         </View>
@@ -2818,7 +2884,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     if (!chiave) continue;
     for (const f of fotoPerIlPdf(tpl.pdf_blocchi_foto, chiave, leggiBlocco(chiave, "serramenti", tpl.pdf_blocchi).foto)) fotoUsate.add(f.src);
   }
-  const fotoLibera = (chiave: "proposta" | "allegato" | "dettagli"): string | null => {
+  const fotoLibera = (chiave: "proposta" | "allegato" | "dettagli" | "investimento"): string | null => {
     const src = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, chiave, "serramenti", tpl.pdf_blocchi);
     if (!src || fotoUsate.has(src)) return null;
     fotoUsate.add(src);
@@ -2827,6 +2893,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const fotoProposta = fotoLibera("proposta");
   const fotoAllegato = fotoLibera("allegato");
   const fotoDettagli = fotoLibera("dettagli");
+  // Sotto il prezzo: mai dove la pagina porta già un elenco di inclusioni o di esclusioni (i modelli degli interventi).
+  const fotoInvestimento = inlineModuleInclusions || moduleExclusions.trim() ? null : fotoLibera("investimento");
 
   // Quanto occupano le sezioni che possono finire a metà foglio (vedi impaginaSerramento).
   const pezziDellaProposta = pezziProposta({
@@ -2849,7 +2917,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     perche: percheNoi.slice(0, 5).map((it) => (typeof it === "string" ? { titolo: it } : it)),
     consulente: {
       descrizione: consulenteDescrizione || null,
-      contatti: [consulente?.telefono, consulente?.email].filter(Boolean).join(" · "),
+      contatti: consulente?.telefono ?? "",
       appuntamento: Boolean(p.consulenza_at),
     },
   });
@@ -2887,6 +2955,20 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   };
   const graficoRecupero = altezzaGrafico(datiDettagli);
   const pezziDeiDettagli = pezziDettagli(datiDettagli, graficoRecupero);
+  // La pagina del prezzo: quanto occupa, per decidere se la foto sotto il prezzo vale (vedi impaginaSerramento).
+  // Col prezzo scritto a mano il totale non viene dalle righe: le finestre possono essere tutte a 0 €.
+  const sottotitoloInvestimento = totaleCalcolato.prezzo_manuale
+    ? "Il totale comprende la fornitura descritta nelle pagine precedenti, gli sconti applicati e l'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione."
+    : "Il totale è calcolato sulla composizione dell'offerta, sugli sconti applicati e sull'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione.";
+  const pezziDellInvestimento = pezziInvestimento({
+    sottotitolo: sottotitoloInvestimento,
+    sconto: mostraRigaSconto,
+    righeNotaIva: p.iva_percentuale === -1 ? 2 : 1,
+    rataENetto: (mostraRataMensile && piani.length > 0) || (mostraRecuperoFiscale && hasTaxDeduction),
+    urgenza: urgenzaAttiva ? { descrizione: urgenzaDescrizione, scontoFirmaPresto: earlyBirdAttivo && Boolean(scadenzaEarlyBird) } : null,
+    tappe: milestones.length,
+    finanziamento: piani.length > 0 && Boolean(schemaCfg?.hasFinanziamento),
+  });
   const pezziDellaCta = pezziCta({
     titoloRiquadro: ctaTitle,
     passi: ctaSteps.slice(0, 5),
@@ -2904,7 +2986,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
   return (
     <Document
-      title={`Stima ${p.code} - ${clienteNome}`}
+      title={`Preventivo ${p.code} - ${clienteNome}`}
       author={companyName}
       subject={`Preventivo serramenti per ${clienteNome}`}
     >
@@ -2921,7 +3003,6 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
           nota={[
             !coverShowClientCard ? `Preventivo ${p.code} · ${fmtDate(p.created_at)}` : null,
             `Validità dell’offerta: ${p.valido_fino_giorni ?? 15} giorni`,
-            consulente?.nome ? `A cura di ${consulente.nome}` : null,
           ].filter(Boolean).join(" · ")}
           avviso={urgenzaAttiva ? [
             `Offerta valida fino al ${scadenzaPreventivo}`,
@@ -3054,13 +3135,17 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 </Text>
               </View>
             )}
-            <View>
-              <Text style={[styles.coverCompanyName, { color: coverTextColor }]}>{companyName}</Text>
-              {/* Come nel piè di pagina: prima l'indirizzo del modello, poi quello dell'azienda. */}
-              {template?.indirizzo_completo || company?.indirizzo ? (
-                <Text style={styles.coverCompanyTag}>{template?.indirizzo_completo || company?.indirizzo}</Text>
-              ) : null}
-            </View>
+            {/* Col logo il nome dell'azienda non si ripete accanto (il logo lo porta già: richiesta di
+                Renova, 05/10/2026, per tutti i PDF): resta solo quando al posto del logo c'è l'iniziale. */}
+            {!coverLogoUrl || template?.indirizzo_completo || company?.indirizzo ? (
+              <View>
+                {!coverLogoUrl ? <Text style={[styles.coverCompanyName, { color: coverTextColor }]}>{companyName}</Text> : null}
+                {/* Come nel piè di pagina: prima l'indirizzo del modello, poi quello dell'azienda. */}
+                {template?.indirizzo_completo || company?.indirizzo ? (
+                  <Text style={styles.coverCompanyTag}>{template?.indirizzo_completo || company?.indirizzo}</Text>
+                ) : null}
+              </View>
+            ) : null}
             </View>
           </View>
         )}
@@ -3108,12 +3193,6 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             <Text>Preventivo <Text style={styles.coverFooterStrong}>{p.code}</Text></Text>
             <Text>{fmtDate(p.created_at)} · valido {p.valido_fino_giorni ?? 15} giorni</Text>
           </View>
-          {consulente && (
-            <View style={{ textAlign: "right" as const }}>
-              <Text>A cura di</Text>
-              <Text style={styles.coverFooterStrong}>{consulente.nome}</Text>
-            </View>
-          )}
         </View>
       </Page>}
 
@@ -3131,7 +3210,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             {/* ─── PAGINA "CHI SIAMO" (opzionale, opt-in via template) ─────────── */}
             {chiSiamoAttivo && (
               <Page size="A4" style={styles.page}>
-                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>Chi siamo</Text>
                 {/* Titolo compatto rispetto a pageTitle (che è 28pt+): chi-siamo
                     spesso ha titoli lunghi tipo "Da oltre 20 Anni al fianco delle
@@ -3194,7 +3273,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             <>
             {/* ─── PAGINA 2 — PROPOSTA INTERVENTO ──────────────────────────────── */}
             <Page size="A4" style={styles.page}>
-              <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+              <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
               <Text style={styles.pageEyebrow}>Proposta di intervento</Text>
               <Text style={styles.pageTitle}>Per {p.cliente_nome ?? clienteNome}</Text>
@@ -3202,7 +3281,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 {[p.cantiere_citta || p.cliente_citta, quantiPezzi, p.tipo_intervento].filter(Boolean).join(" · ")}
               </Text>
 
-              <Text style={styles.sectionTitle}>Anagrafica cliente</Text>
+              <Text style={styles.sectionTitle} minPresenceAhead={40}>Anagrafica cliente</Text>
               <View style={styles.kvRow}><Text style={styles.kvKey}>Intestatario</Text><Text style={styles.kvValue}>{clienteNome}</Text></View>
               {p.cliente_indirizzo && (
                 <View style={styles.kvRow}>
@@ -3231,18 +3310,23 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 </View>
               )}
 
-              <Text style={styles.sectionTitle}>L'intervento in sintesi</Text>
+              {/* Il testo si spezza fra le righe: col titolo ne restano almeno due. */}
+              <Text style={styles.sectionTitle} minPresenceAhead={56}>L'intervento in sintesi</Text>
               <Text style={styles.sintesiBox}>{sintesi}</Text>
 
               {esigenze.length > 0 && (
                 <>
-                  <Text style={styles.sectionTitle}>Le tue esigenze</Text>
+                  {/* Il titolo di un gruppo sta con la sua prima voce: da solo in fondo al foglio, con le voci su quello
+                      dopo, non si legge (come «Perché …» nel preventivo di Renova, pagina 3). */}
                   {esigenze.slice(0, 3).map((e, i) => (
-                    <View key={i} style={styles.bulletItem} wrap={false}>
-                      <View style={styles.bulletDot} />
-                      <View style={styles.bulletContent}>
-                        <Text style={styles.bulletTitle}>{e.titolo}</Text>
-                        {e.descrizione && <Text style={styles.bulletText}>{e.descrizione}</Text>}
+                    <View key={i} wrap={false}>
+                      {i === 0 ? <Text style={styles.sectionTitle}>Le tue esigenze</Text> : null}
+                      <View style={styles.bulletItem}>
+                        <View style={styles.bulletDot} />
+                        <View style={styles.bulletContent}>
+                          <Text style={styles.bulletTitle}>{e.titolo}</Text>
+                          {e.descrizione && <Text style={styles.bulletText}>{e.descrizione}</Text>}
+                        </View>
                       </View>
                     </View>
                   ))}
@@ -3251,13 +3335,15 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
               {soluzione.length > 0 && (
                 <>
-                  <Text style={styles.sectionTitle}>La soluzione per te</Text>
                   {soluzione.slice(0, 4).map((sol, i) => (
-                    <View key={i} style={styles.bulletItem} wrap={false}>
-                      <View style={styles.bulletDot} />
-                      <View style={styles.bulletContent}>
-                        <Text style={styles.bulletTitle}>{sol.titolo}</Text>
-                        {sol.descrizione && <Text style={styles.bulletText}>{sol.descrizione}</Text>}
+                    <View key={i} wrap={false}>
+                      {i === 0 ? <Text style={styles.sectionTitle}>La soluzione per te</Text> : null}
+                      <View style={styles.bulletItem}>
+                        <View style={styles.bulletDot} />
+                        <View style={styles.bulletContent}>
+                          <Text style={styles.bulletTitle}>{sol.titolo}</Text>
+                          {sol.descrizione && <Text style={styles.bulletText}>{sol.descrizione}</Text>}
+                        </View>
                       </View>
                     </View>
                   ))}
@@ -3266,23 +3352,27 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
               {(percheNoi.length > 0 || percheNoiMetriche.length > 0) && (
                 <>
-                  <Text style={styles.sectionTitle} minPresenceAhead={30}>Perché {companyName}</Text>
-
-                  {/* Milestone 10: row di big-number metriche sopra la lista USP.
-                      Mostrate solo se almeno una è configurata. */}
+                  {/* Il titolo sta con la riga delle metriche; senza metriche, con la prima voce. Prima aveva
+                      «minPresenceAhead=30» e la riga delle metriche (circa 80 punti, non si spezza) passava al
+                      foglio dopo: «Perché …» restava solo in fondo alla pagina. */}
                   {percheNoiMetriche.length > 0 && (
-                    <View style={styles.percheNoiMetricheRow}>
-                      {percheNoiMetriche.map((m, i) => (
-                        <View key={i} style={styles.percheNoiMetricaCard} wrap={false}>
-                          {/* Solo ASCII stampabile: emoji/simboli non-WinAnsi diventano glifi rotti in Helvetica. */}
-                          {m.icon && /^[\x20-\x7E]+$/.test(m.icon) && <Text style={styles.percheNoiMetricaIcon}>{m.icon}</Text>}
-                          <Text style={styles.percheNoiMetricaValue}>
-                            {m.value}
-                            {m.suffix && <Text style={styles.percheNoiMetricaSuffix}>{m.suffix}</Text>}
-                          </Text>
-                          <Text style={styles.percheNoiMetricaLabel}>{m.label}</Text>
-                        </View>
-                      ))}
+                    <View wrap={false}>
+                      <Text style={styles.sectionTitle}>Perché {companyName}</Text>
+                      {/* Milestone 10: row di big-number metriche sopra la lista USP.
+                          Mostrate solo se almeno una è configurata. */}
+                      <View style={styles.percheNoiMetricheRow}>
+                        {percheNoiMetriche.map((m, i) => (
+                          <View key={i} style={styles.percheNoiMetricaCard} wrap={false}>
+                            {/* Solo ASCII stampabile: emoji/simboli non-WinAnsi diventano glifi rotti in Helvetica. */}
+                            {m.icon && /^[\x20-\x7E]+$/.test(m.icon) && <Text style={styles.percheNoiMetricaIcon}>{m.icon}</Text>}
+                            <Text style={styles.percheNoiMetricaValue}>
+                              {m.value}
+                              {m.suffix && <Text style={styles.percheNoiMetricaSuffix}>{m.suffix}</Text>}
+                            </Text>
+                            <Text style={styles.percheNoiMetricaLabel}>{m.label}</Text>
+                          </View>
+                        ))}
+                      </View>
                     </View>
                   )}
 
@@ -3290,11 +3380,14 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     const titolo = typeof it === "string" ? it : it.titolo;
                     const descrizione = typeof it === "string" ? null : it.descrizione;
                     return (
-                      <View key={i} style={styles.bulletItem} wrap={false}>
-                        <View style={styles.bulletDot} />
-                        <View style={styles.bulletContent}>
-                          <Text style={styles.bulletTitle}>{titolo}</Text>
-                          {descrizione && <Text style={styles.bulletText}>{descrizione}</Text>}
+                      <View key={i} wrap={false}>
+                        {i === 0 && percheNoiMetriche.length === 0 ? <Text style={styles.sectionTitle}>Perché {companyName}</Text> : null}
+                        <View style={styles.bulletItem}>
+                          <View style={styles.bulletDot} />
+                          <View style={styles.bulletContent}>
+                            <Text style={styles.bulletTitle}>{titolo}</Text>
+                            {descrizione && <Text style={styles.bulletText}>{descrizione}</Text>}
+                          </View>
                         </View>
                       </View>
                     );
@@ -3333,9 +3426,11 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                       {htmlToPdfNodes(consulenteDescrizione, { fontSize: 9.5, color: C.gray700, lineHeight: 1.5 }, "cons-")}
                     </View>
                   ) : null}
+                  {/* Solo il telefono: l'email del profilo è quella con cui il consulente entra nel gestionale,
+                      non un recapito dell'azienda (richiesta di Renova, 05/10/2026). */}
                   <Text style={styles.consContact}>
                     {p.consulenza_at ? `Appuntamento: ${fmtDateTime(p.consulenza_at)}\n` : ""}
-                    {[consulente?.telefono, consulente?.email].filter(Boolean).join(" · ")}
+                    {consulente?.telefono ?? ""}
                   </Text>
                 </View>
               </View>
@@ -3352,7 +3447,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             <>
             {/* ─── PAGINA 3 — ALLEGATO TECNICO ────────────────────────────────── */}
             <Page size="A4" style={styles.page}>
-              <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+              <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
               <Text style={styles.pageEyebrow}>Allegato tecnico</Text>
               <Text style={styles.pageTitle}>Cosa installeremo{"\n"}in cantiere.</Text>
@@ -3370,7 +3465,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 <Text style={{ fontSize: 8, color: C.gray500, lineHeight: 1.4 }}>Raggruppamento per ambiente indicato in offerta. Misure, aperture e abbinamenti per singolo vano sono da verificare nel dettaglio tecnico.</Text>
               </View>}
 
-              <Text style={styles.sectionTitle}>{isLocalModule ? "Composizione della fornitura" : "Composizione serramenti"} · {numSerr} {numSerr === 1 ? "pezzo" : "pezzi"}</Text>
+              {/* Titolo e prima riga della tabella sullo stesso foglio: la testata `fixed` da sola in fondo non dice niente. */}
+              <Text style={styles.sectionTitle} minPresenceAhead={150}>{isLocalModule ? "Composizione della fornitura" : "Composizione serramenti"} · {numSerr} {numSerr === 1 ? "pezzo" : "pezzi"}</Text>
               <View style={styles.table}>
                 {/* fixed: l'header colonne si ripete sulle pagine successive SOLO
                     finché la tabella composizione continua (react-pdf lo propaga
@@ -3649,7 +3745,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
               {detail.accessori.length > 0 && (
                 <>
-                  <Text style={styles.sectionTitle}>Accessori e complementi</Text>
+                  {/* Titolo, testata e almeno la prima voce (miniatura da 44 punti compresa) sullo stesso foglio. */}
+                  <Text style={styles.sectionTitle} minPresenceAhead={90}>Accessori e complementi</Text>
                   <View style={styles.table}>
                     <View style={styles.tableHeader}>
                       <View style={{ width: COLONNA_IMMAGINE_ACCESSORIO }} />
@@ -3730,7 +3827,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             {/* ─── PAGINE DEDICATE MACROCATEGORIA (opzionali) ─────────────────── */}
             {macroPagineDedicate.map((mp, mi) => (
               <Page key={mp.macro_id} size="A4" style={styles.page}>
-                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>
                   Linea prodotto · {mi + 1} di {macroPagineDedicate.length}
                 </Text>
@@ -3784,7 +3881,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 del produttore. */}
             {lineeDedicate.map((linea, li) => (
               <Page key={linea.id} size="A4" style={styles.page}>
-                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>
                   Il sistema scelto · {li + 1} di {lineeDedicate.length}
                 </Text>
@@ -3796,8 +3893,15 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 ) : null}
                 <View style={styles.macroPageHero}>
                   {linea.immagine_url ? (
-                    <View style={styles.macroPageImgWrap}>
-                      <Image src={linea.immagine_url} style={styles.macroPageImg} />
+                    <View>
+                      <View style={styles.macroPageImgWrap}>
+                        <Image src={linea.immagine_url} style={styles.macroPageImg} />
+                      </View>
+                      {/* La foto è quella del catalogo del produttore, con le finiture di catalogo (un sistema bianco
+                          poteva comparire «effetto legno»): lo si dice, e i colori veri sono quelli del preventivo. */}
+                      <Text style={{ fontSize: 7.5, color: C.gray500, marginTop: 5 }}>
+                        Immagine di catalogo: colori e finiture del tuo preventivo sono quelli indicati nella composizione.
+                      </Text>
                     </View>
                   ) : null}
                   {linea.dati.length > 0 ? (
@@ -3864,7 +3968,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               specs.push(["Quantità", `${g.quantita} pz`]);
               return (
                 <Page key={`art-${ai}-${g.key}`} size="A4" style={styles.page}>
-                  <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                  <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                   <Text style={styles.pageEyebrow}>
                     Foto-tecnica · {ai + 1} di {articoliConFoto.length} · {macroNome}
                   </Text>
@@ -3928,17 +4032,11 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 stiamo proponendo (composizione + foto + descrizione macro), e
                 solo dopo QUANTO costa. Flusso narrativo: prodotto → valore. */}
             <Page size="A4" style={styles.page}>
-              <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+              <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
               <Text style={styles.pageEyebrow}>Proposta economica</Text>
               <Text style={styles.investmentTitle}>Importo chiaro.{"\n"}Senza sorprese.</Text>
-              <Text style={styles.investmentSubtitle}>
-                {/* Col prezzo scritto a mano il totale non viene dalle righe: le
-                    finestre possono essere tutte a 0 €. */}
-                {totaleCalcolato.prezzo_manuale
-                  ? "Il totale comprende la fornitura descritta nelle pagine precedenti, gli sconti applicati e l'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione."
-                  : "Il totale è calcolato sulla composizione dell'offerta, sugli sconti applicati e sull'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione."}
-              </Text>
+              <Text style={styles.investmentSubtitle}>{sottotitoloInvestimento}</Text>
 
               <View style={styles.priceBoxCompact} wrap={false}>
                 <Text style={styles.priceLabel}>Totale preventivo</Text>
@@ -4097,7 +4195,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               )}
 
               {inlineModuleInclusions && incluso.length > 0 && <View style={styles.investmentBlock}>
-                <Text style={styles.investmentSectionTitle}>Cosa è incluso</Text>
+                <Text style={styles.investmentSectionTitle} minPresenceAhead={36}>Cosa è incluso</Text>
                 {incluso.map((item, i) => <View key={i} style={styles.bulletItem} wrap={false}>
                   <View style={styles.bulletDot} />
                   <Text style={styles.bulletText}>{typeof item === "string" ? item : [item.titolo, item.descrizione].filter(Boolean).join(" · ")}</Text>
@@ -4109,12 +4207,16 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 <Text style={styles.bulletText}>{moduleExclusions}</Text>
               </View>}
 
+              {/* La foto sotto il prezzo riempie il fondo quando la pagina economica ne lascia mezzo bianco
+                  (il preventivo di Renova: 58% di foglio vuoto dopo il prezzo). */}
+              {fotoInvestimento ? <FotoInFondo src={fotoInvestimento} mostra={(fogli) => spazioInFondo(pezziDellInvestimento, fogli) >= FOTO_IN_FONDO_MINIMA} /> : null}
+
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
 
             {hasInvestmentDetails && (
               <Page size="A4" style={styles.page}>
-                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
                 <Text style={styles.pageEyebrow}>Dettagli economici</Text>
                 <Text style={[styles.pageTitle, { fontSize: 24, marginBottom: 6 }]}>{datiDettagli.titolo}</Text>
@@ -4337,10 +4439,10 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 template editor. */}
             {percorsoAttivo && percorso.fasi.length > 0 && (
               <Page size="A4" style={styles.page}>
-                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
                 {/* Hero centrato */}
-                <View style={{ alignItems: "center", marginBottom: 16, marginTop: 6 }}>
+                <View style={{ alignItems: "center", marginBottom: percorsoAmpio ? PERCORSO_AMPIO.spazioSottoTesta : 16, marginTop: percorsoAmpio ? 18 : 6 }}>
                   <View style={styles.percorsoBadge}>
                     <Text style={styles.percorsoBadgeText}>Il tuo percorso</Text>
                   </View>
@@ -4363,55 +4465,53 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   </Text>
                 </View>
 
-                {/* Grid responsive: 1 fase → 100%, 2 → 49%, 3 → 32%, 4+ → 23.5%
-                    Layout intelligente che evita overflow del nome fase. */}
+                {/* Le carte: con la foto sotto restano strette (1 fase → 100%, 2 → 49%, 3 → 32%, 4 → 23.5%, 5 e 6 → tre per riga, 7 e più → 23.5%).
+                    Senza foto sono larghe (1, 2 e 3 fasi come prima, 4 fasi due per riga, 5 e 6 tre per riga, 7 e più quattro) e il testo sale a 10,5 punti. */}
                 {(() => {
-                  const cardWidth =
-                    percorso.fasi.length === 1 ? "100%"
+                  const perRigaAmpio = carteDelPercorsoPerRiga(percorso.fasi.length);
+                  const cardWidth = percorsoAmpio
+                    ? (perRigaAmpio === 1 ? "100%" : perRigaAmpio === 2 ? "49%" : perRigaAmpio === 3 ? "32%" : "23.5%")
+                    : percorso.fasi.length === 1 ? "100%"
                     : percorso.fasi.length === 2 ? "49%"
                     : percorso.fasi.length === 3 ? "32%"
                     : percorso.fasi.length === 4 ? "23.5%"
-                    : "48%"; // 5+ fasi → 2 per riga
+                    : percorso.fasi.length <= 6 ? "32%" // cinque e sei fasi: due righe da tre (a due per riga la quinta finiva da sola su un foglio)
+                    : "23.5%";
                   return (
                 <View style={{
-                  flexDirection: "row", flexWrap: "wrap",
+                  flexDirection: "row", flexWrap: "wrap", justifyContent: "center",
                   gap: 8,
                   marginTop: 8,
                 }}>
                   {percorso.fasi.map((fase, fi) => {
                     const roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][fi] ?? `${fi + 1}`;
+                    const stepBefore = percorso.fasi.slice(0, fi).reduce((acc, f) => acc + f.step.length, 0);
                     return (
                       <View
                         key={fi}
-                        style={[styles.percorsoFaseCard, { width: cardWidth }]}
+                        style={[percorsoAmpio ? styles.percorsoFaseCardAmpia : styles.percorsoFaseCard, { width: cardWidth }, percorsoAmpio ? { padding: paddingCartaPercorso(perRigaAmpio) } : {}]}
                         wrap={false}
                       >
-                        <View style={styles.percorsoFaseHeader}>
-                          <View style={styles.percorsoFaseRomanBox}>
+                        <View style={percorsoAmpio ? styles.percorsoFaseHeaderAmpio : styles.percorsoFaseHeader}>
+                          <View style={percorsoAmpio ? styles.percorsoFaseRomanBoxAmpio : styles.percorsoFaseRomanBox}>
                             <Text style={styles.percorsoFaseRomanText}>{roman}</Text>
                           </View>
-                          <View>
+                          <View style={percorsoAmpio ? { flex: 1 } : undefined}>
                             <Text style={styles.percorsoFaseLabel}>Fase {fi + 1}</Text>
-                            <Text style={styles.percorsoFaseName}>{fase.nome.toUpperCase()}</Text>
+                            <Text style={percorsoAmpio ? styles.percorsoFaseNameAmpio : styles.percorsoFaseName}>{fase.nome.toUpperCase()}</Text>
                           </View>
                         </View>
                         {/* Numerazione globale step dentro la fase */}
-                        {(() => {
-                          const stepBefore = percorso.fasi.slice(0, fi).reduce((acc, f) => acc + f.step.length, 0);
-                          return fase.step.map((step, si) => {
-                            const globalIdx = stepBefore + si + 1;
-                            return (
-                              <View key={si} style={styles.percorsoStepRow}>
-                                <View style={styles.percorsoStepIdx}>
-                                  <Text style={styles.percorsoStepIdxText}>
-                                    {String(globalIdx).padStart(2, "0")}
-                                  </Text>
-                                </View>
-                                <Text style={styles.percorsoStepText}>{step}</Text>
-                              </View>
-                            );
-                          });
-                        })()}
+                        {fase.step.map((step, si) => (
+                          <View key={si} style={percorsoAmpio ? [styles.percorsoStepRowAmpio, si === fase.step.length - 1 ? { marginBottom: 0 } : {}] : styles.percorsoStepRow}>
+                            <View style={percorsoAmpio ? styles.percorsoStepIdxAmpio : styles.percorsoStepIdx}>
+                              <Text style={percorsoAmpio ? styles.percorsoStepIdxTextAmpio : styles.percorsoStepIdxText}>
+                                {String(stepBefore + si + 1).padStart(2, "0")}
+                              </Text>
+                            </View>
+                            <Text style={percorsoAmpio ? styles.percorsoStepTextAmpio : styles.percorsoStepText}>{step}</Text>
+                          </View>
+                        ))}
                       </View>
                     );
                   })}
@@ -4423,13 +4523,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     o tanti passaggi resta senza, invece di finire da sola su un foglio.
                     Una foto più larga del riquadro (il trittico prima/durante/dopo di
                     serie) esce intera, più bassa: ritagliata perderebbe i lati. */}
-                {fotoPercorso && (() => {
-                  const perRiga = percorso.fasi.length <= 4 ? percorso.fasi.length : 2;
-                  const righe = Math.ceil(percorso.fasi.length / perRiga);
-                  const passiMax = Math.max(...percorso.fasi.map((f) => f.step.length));
-                  const occupato = 170 + righe * (58 + passiMax * 17);
-                  return occupato + altezzaFotoPercorso + 10 <= 700;
-                })() ? (
+                {fotoPercorsoMostrata && fotoPercorso ? (
                   <Image src={fotoPercorso} style={{ width: "100%", height: altezzaFotoPercorso, objectFit: "cover", borderRadius: 6, marginTop: 18 }} />
                 ) : null}
 
@@ -4466,11 +4560,10 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     )}
                     <View>
                       <Text style={styles.headerName}>{companyName}</Text>
-                      <Text style={{ fontSize: 7.5, color: C.gray500 }}>{clienteNome}</Text>
                     </View>
                   </View>
                   <View style={styles.headerRight}>
-                    <Text>STIMA N.</Text>
+                    <Text>PREVENTIVO N.</Text>
                     <Text style={styles.headerStimaCode}>{p.code}</Text>
                   </View>
                 </View>
@@ -4618,7 +4711,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             <>
             {/* ─── PAGINA FINALE — CTA + RENDER + TESTIMONIANZE ───────────────── */}
             <Page size="A4" style={styles.page}>
-              <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+              <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
               <Text style={styles.pageEyebrow}>Il prossimo passo</Text>
               <Text style={styles.pageTitle}>Pronti{"\n"}per partire.</Text>
@@ -4729,7 +4822,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             <>
             {scorrevoli.garanzie ? (
               <Page size="A4" style={styles.page}>
-                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 {scorrevoli.garanzie}
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
@@ -4744,7 +4837,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             <>
             {scorrevoli.confronto ? (
               <Page size="A4" style={styles.page}>
-                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 {scorrevoli.confronto}
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
@@ -4756,7 +4849,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             <>
             {scorrevoli.faq ? (
               <Page size="A4" style={styles.page}>
-                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 {scorrevoli.faq}
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
@@ -4771,7 +4864,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             <>
             {condizioniLegaliAttivo && condizioniLegaliTesto && (
               <Page size="A4" style={styles.page}>
-                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>Appendice legale</Text>
                 <Text style={[styles.pageTitle, { fontSize: 22 }]}>Condizioni e disclaimer</Text>
                 <Text style={styles.pageSubtitle}>
@@ -4800,16 +4893,18 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               </Page>
             )}
 
-            {/* ─── Firma del contratto ───────────────────────────────────────
+            {/* ─── Accettazione proposta (la pagina che si firma) ────────────
                 Nel PDF dei Serramenti non c'era una firma su carta: solo il link
                 per firmare online, e il riquadro della seconda firma chiedeva una
                 «seconda» firma senza che ci fosse la prima. Come negli edili: che
-                cosa si firma, la dichiarazione, le firme, poi le clausole a parte. */}
+                cosa si firma, la dichiarazione, le firme, poi le clausole a parte.
+                Il titolo è «ACCETTAZIONE PROPOSTA» in tutti i PDF dei preventivi
+                (richiesta di Renova, 05/10/2026). */}
             {condizioniLegaliAttivo && condizioniLegaliTesto && (
               <Page size="A4" style={styles.page}>
-                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>Per accettazione</Text>
-                <Text style={[styles.pageTitle, { fontSize: 22 }]}>Firma del contratto</Text>
+                <Text style={[styles.pageTitle, { fontSize: 22 }]}>ACCETTAZIONE PROPOSTA</Text>
                 <View style={{ marginTop: 12, backgroundColor: C.gray50, padding: 14 }}>
                   {righeFirma.map(([etichetta, valore], i) => (
                     <View key={i} style={{ flexDirection: "row", paddingVertical: 5, borderBottom: i < righeFirma.length - 1 ? `0.5pt solid ${C.gray200}` : undefined }}>
@@ -4862,7 +4957,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 consegnato con il contratto. */}
             {condizioniLegaliAttivo && condizioniLegaliTesto && moduloRecessoAttivo && (
               <Page size="A4" style={styles.page}>
-                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 <Text style={styles.pageEyebrow}>Allegato</Text>
                 <Text style={[styles.pageTitle, { fontSize: 22 }]}>{MODULO_RECESSO.titolo}</Text>
                 <Text style={styles.pageSubtitle}>{MODULO_RECESSO.istruzioni}</Text>
@@ -4897,7 +4992,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             <>
             {scorrevoli[id] ? (
               <Page size="A4" style={styles.page}>
-                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 {scorrevoli[id]}
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
@@ -4909,7 +5004,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             <>
             {scorrevoli.gallery_lavori ? (
               <Page size="A4" style={styles.page}>
-                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 {scorrevoli.gallery_lavori}
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
@@ -4921,7 +5016,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
             <>
             {scorrevoli.recensioni ? (
               <Page size="A4" style={styles.page}>
-                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
                 {scorrevoli.recensioni}
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
@@ -4931,7 +5026,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
         };
         // Le sezioni brevi consecutive (con qualcosa da dire) vanno in una pagina
         // che scorre; tutte le altre restano come sono, una o più pagine ciascuna.
-        const visibili = pdfPagesOrder.filter((pg) => pg.visible);
+        // Una sezione accesa che non disegna niente (senza dati, senza foto, spenta dal suo interruttore) non
+        // interrompe le sezioni brevi: garanzie e domande con in mezzo un confronto vuoto stavano su due fogli.
+        const visibili = pdfPagesOrder.filter((pg) => pg.visible && disegnaPagine(pageEls[pg.id]));
         const blocchi: SrPdfPageId[][] = [];
         // Local illustrated chapters are full editorial pages, not short flow
         // sections. Grouping them in one unbreakable flow caused empty pages
@@ -4948,7 +5045,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
         return blocchi.map((ids) => (
           ids.length > 1 ? (
             <Page key={ids.join("+")} size="A4" style={styles.page}>
-              <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+              <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
               {/* Una sezione sale sulla pagina di quella prima solo se ci sta intera:
                   mai una domanda spezzata a metà o un titolo solo in fondo. La
                   galleria può scorrere su più pagine, le altre stanno in una. */}

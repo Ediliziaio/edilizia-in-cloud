@@ -42,7 +42,10 @@ export interface Pezzo {
   alto: number;
   /** Testo che si può spezzare fra una riga e l'altra: l'altezza di una riga. */
   riga?: number;
-  /** Titolo: se dopo di lui non ci stanno almeno questi punti del pezzo dopo, va a capo con lui (minPresenceAhead). */
+  /**
+   * Titolo: se dopo di lui non ci stanno almeno questi punti del pezzo dopo, va a capo con lui (minPresenceAhead).
+   * `Infinity` quando titolo e pezzo dopo stanno in un contenitore che non si spezza (`wrap={false}`): vanno insieme.
+   */
   conSeguente?: number;
   /** Intestazione che si ripete in cima a ogni foglio mentre il pezzo continua (la testata `fixed` di una tabella). */
   testataRipetuta?: number;
@@ -134,18 +137,20 @@ export interface DatiProposta {
 
 export function pezziProposta(d: DatiProposta): Pezzo[] {
   const pezzi: Pezzo[] = [{ alto: altezzaTesta(d.titolo, d.sottotitolo) }];
-  pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: 30 });
+  pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: 40 });
   for (const valore of d.righeAnagrafica) pezzi.push({ alto: Math.max(9, altezzaTesto(valore, UTILE_PAGINA - 95, "Helvetica-Bold", 10, INTERLINEA_NATURALE_GRASSETTO)) + 4 });
-  pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: 30 });
+  // Il testo della sintesi si spezza fra le righe: col titolo ne restano almeno due.
+  pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: 56 });
   const riga = 10.5 * 1.6;
   pezzi.push({ alto: altezzaTesto(d.sintesi, UTILE_PAGINA - 31, "Helvetica", 10.5, 1.6) + 24, riga });
   for (const [voci, quante] of [[d.esigenze, 3], [d.soluzione, 4]] as const) {
     if (voci.length === 0) continue;
-    pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: 30 });
+    // Il titolo sta con la prima voce (stesso contenitore che non si spezza).
+    pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: Infinity });
     for (const v of voci.slice(0, quante)) pezzi.push({ alto: altezzaVoce(v.titolo, v.descrizione) });
   }
   if (d.percheTitolo) {
-    pezzi.push({ alto: altezzaTesto(d.percheTitolo, UTILE_PAGINA, "Helvetica-Bold", 10, INTERLINEA_NATURALE_GRASSETTO) + 34, conSeguente: 30 });
+    pezzi.push({ alto: altezzaTesto(d.percheTitolo, UTILE_PAGINA, "Helvetica-Bold", 10, INTERLINEA_NATURALE_GRASSETTO) + 34, conSeguente: Infinity });
     if (d.metriche.length > 0) {
       const larga = (UTILE_PAGINA - 8 * (d.metriche.length - 1)) / d.metriche.length - 16;
       const etichetta = Math.max(...d.metriche.map((m) => altezzaTesto(m.label.toUpperCase(), larga, "Helvetica-Bold", 8, INTERLINEA_NATURALE_GRASSETTO)));
@@ -224,12 +229,13 @@ export const ALTEZZA_IMMAGINE_ACCESSORIO = 44;
 export function pezziAllegato(righe: RigaAllegato[], accessori: Array<{ descrizione: string; scelte: string | null; immagine?: boolean; per?: string | null }>): Pezzo[] {
   const pezzi: Pezzo[] = [
     { alto: altezzaTesta("Cosa installeremo\nin cantiere.", "Composizione dettagliata di serramenti, accessori e scelte tecniche previste.") },
-    { alto: TITOLO_GRUPPO, conSeguente: 60 },
-    { alto: 8 + TESTATA_TABELLA, conSeguente: 60 },
+    // Titolo e testata della tabella, con la prima riga (SerramentoPDF: minPresenceAhead 150).
+    { alto: TITOLO_GRUPPO + 8 + TESTATA_TABELLA, conSeguente: 120 },
     ...righe.map((r) => ({ alto: altezzaRigaAllegato(r), testataRipetuta: TESTATA_TABELLA })),
   ];
   if (accessori.length > 0) {
-    pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: 40 }, { alto: 8 + TESTATA_TABELLA, conSeguente: 30 });
+    // Titolo, testata e prima voce (SerramentoPDF: minPresenceAhead 90).
+    pezzi.push({ alto: TITOLO_GRUPPO + 8 + TESTATA_TABELLA, conSeguente: 60 });
     for (const a of accessori) {
       const w = UTILE_PAGINA - 110 - 50 - 6 - (a.immagine ? COLONNA_IMMAGINE_ACCESSORIO : 0);
       const testo = 18.5 + altezzaTesto(a.descrizione, w, "Helvetica-Bold", 10, INTERLINEA_NATURALE_GRASSETTO)
@@ -239,6 +245,145 @@ export function pezziAllegato(righe: RigaAllegato[], accessori: Array<{ descrizi
     }
   }
   return pezzi;
+}
+
+// ─── Proposta economica ───────────────────────────────────────────────────
+
+export interface DatiInvestimento {
+  /** Il testo sotto il titolo «Importo chiaro»: cambia col prezzo scritto a mano. */
+  sottotitolo: string;
+  /** La riga «Prezzo … · Sconto …» nel riquadro del prezzo. */
+  sconto: boolean;
+  /** Righe della nota sull'IVA: una, due con l'IVA mista. */
+  righeNotaIva: number;
+  /** La riga «oppure a rate / netto dopo il recupero fiscale» dentro il riquadro. */
+  rataENetto: boolean;
+  /** L'avviso con la scadenza dell'offerta: la sua descrizione, e se c'è lo sconto per chi firma presto. */
+  urgenza: { descrizione: string | null; scontoFirmaPresto: boolean } | null;
+  /** Le tappe del pagamento: fino a quattro in fila, oltre un elenco. Zero: niente riquadro. */
+  tappe: number;
+  finanziamento: boolean;
+}
+
+/**
+ * La pagina della proposta economica, dal titolo al finanziamento. Tarata sul PDF vero (07/10/2026): testata 119,
+ * riquadro del prezzo 117 (più 12 con lo sconto e 52 con la riga delle rate), avviso della scadenza 73, tappe in fila 166
+ * o in elenco 67 + 46 a tappa, finanziamento 128.
+ */
+export function pezziInvestimento(d: DatiInvestimento): Pezzo[] {
+  // Occhiello, titolo a 28 punti su due righe (6 sotto) e sottotitolo a 10 punti (12 sotto).
+  const pezzi: Pezzo[] = [{
+    alto: 9 * INTERLINEA_NATURALE + 6 + 2 * 28 * 1.03 + 6 + altezzaTesto(d.sottotitolo, UTILE_PAGINA, "Helvetica", 10, 1.38) + 12,
+  }];
+  // Il riquadro: 4 sopra, cornice 16 + 16, etichetta (6 sotto), importo a 24 punti, riga dell'imponibile, nota IVA; 10 sotto.
+  pezzi.push({
+    alto: 4 + 32 + 9 * INTERLINEA_NATURALE + 6 + 24 * 1.08
+      + (d.sconto ? 9 * INTERLINEA_NATURALE + 4 : 0) + 9 * INTERLINEA_NATURALE + (d.sconto ? 2 : 4)
+      + 5 + d.righeNotaIva * 7.5 * 1.35
+      + (d.rataENetto ? 8.5 + 8 + 8 * INTERLINEA_NATURALE + 2 + 14 * INTERLINEA_NATURALE + 7.5 * INTERLINEA_NATURALE + 1 : 0)
+      + 10,
+  });
+  // L'avviso: 10 sopra e sotto, bordo e cornice, etichetta (4 sotto), scadenza a 12 punti.
+  if (d.urgenza) {
+    pezzi.push({
+      alto: 10 + 2 + 24 + 9 * INTERLINEA_NATURALE + 4 + 12 * INTERLINEA_NATURALE + 10
+        + (d.urgenza.descrizione ? 4 + altezzaTesto(d.urgenza.descrizione, UTILE_PAGINA - 26, "Helvetica", 9, 1.4) : 0)
+        + (d.urgenza.scontoFirmaPresto ? 6 + 9 * 1.4 : 0),
+    });
+  }
+  if (d.tappe > 0) pezzi.push({ alto: d.tappe <= 4 ? 166 : 67 + 46 * d.tappe });
+  if (d.finanziamento) pezzi.push({ alto: 128 });
+  return pezzi;
+}
+
+// ─── Il tuo percorso ──────────────────────────────────────────────────────
+
+/**
+ * «Il tuo percorso» senza la foto sotto le fasi: carte larghe, due per riga (tre se le fasi sono tre, una se è una),
+ * con i passaggi a 10,5 punti. Prima erano quattro carte strette da 8,5 punti e mezzo foglio bianco.
+ * Le misure sono prese dal PDF vero (07/10/2026): la testa della pagina (badge, numero, titolo, sottotitolo) è alta 178
+ * con titolo e sottotitolo su una riga, e lascia 26 prima delle carte.
+ */
+export const PERCORSO_AMPIO = {
+  paddingCarta: 20,
+  spazioFraCarte: 8,
+  corpoPasso: 10.5,
+  interlineaPasso: 1.35,
+  spazioFraPassi: 9,
+  pallino: 20,
+  spazioDopoPallino: 8,
+  corpoNomeFase: 13,
+  riquadroRomano: 30,
+  /** Riquadro romano o testo (il più alto), 10 di respiro e il filetto sotto, 12 prima dei passaggi. */
+  testataFase: 52.5,
+  testa: 178,
+  spazioSottoTesta: 26,
+} as const;
+
+/** Quante carte per riga nel percorso largo: quattro fasi fanno due righe da due, cinque e sei due righe da tre. */
+export function carteDelPercorsoPerRiga(fasi: number): number {
+  return fasi <= 1 ? 1 : fasi === 2 ? 2 : fasi === 3 ? 3 : fasi === 4 ? 2 : fasi <= 6 ? 3 : 4;
+}
+
+/** Il respiro dentro la carta: con tre o più carte per riga, 14 invece di 20 per lasciare larghezza al testo. */
+export function paddingCartaPercorso(perRiga: number): number {
+  return perRiga >= 3 ? 14 : PERCORSO_AMPIO.paddingCarta;
+}
+
+export interface DatiPercorso {
+  titolo: string;
+  sottotitolo: string;
+  fasi: Array<{ nome: string; step: string[] }>;
+}
+
+/** L'altezza della pagina del percorso con le carte larghe, dalla testata al fondo dell'ultima carta. */
+export function altezzaPercorsoAmpio(d: DatiPercorso): number {
+  const P = PERCORSO_AMPIO;
+  const perRiga = carteDelPercorsoPerRiga(d.fasi.length);
+  const pad = paddingCartaPercorso(perRiga);
+  const larghezzaCarta = (UTILE_PAGINA - P.spazioFraCarte * (perRiga - 1)) / perRiga;
+  const testoPasso = larghezzaCarta - 2 * pad - P.pallino - P.spazioDopoPallino;
+  const alteCarte = d.fasi.map((f) => {
+    const nome = altezzaTesto(String(f.nome ?? "").toUpperCase(), larghezzaCarta - 2 * pad - P.riquadroRomano - 10, "Helvetica-Bold", P.corpoNomeFase, 1.15);
+    const testata = P.testataFase + Math.max(0, nome + 9.5 - P.riquadroRomano);
+    const passi = f.step.reduce((acc, s) => acc + Math.max(P.pallino, altezzaTesto(String(s ?? ""), testoPasso, "Helvetica", P.corpoPasso, P.interlineaPasso) + 3) + P.spazioFraPassi, 0);
+    // L'ultimo passaggio non lascia spazio sotto: il respiro in fondo alla carta è il suo bordo, uguale a quello in alto.
+    return 2 * pad + testata + passi - P.spazioFraPassi;
+  });
+  let carte = 0;
+  for (let i = 0; i < alteCarte.length; i += perRiga) {
+    carte += Math.max(...alteCarte.slice(i, i + perRiga)) + (i > 0 ? P.spazioFraCarte : 0);
+  }
+  const titolo = altezzaTesto(String(d.titolo ?? ""), UTILE_PAGINA, "Helvetica-Bold", 18, 1.1) - 19.8;
+  const sotto = altezzaTesto(String(d.sottotitolo ?? ""), 380, "Helvetica", 10, 1.38) - 13.8;
+  return P.testa + Math.max(0, titolo) + Math.max(0, sotto) + P.spazioSottoTesta + 8 + carte;
+}
+
+// ─── Domande frequenti ────────────────────────────────────────────────────
+
+/** Una domanda con la sua risposta (faqDomanda, faqRisposta e il filetto sotto): `compatta` è lo spazio stretto dei modelli. */
+export function altezzaDomanda(domanda: string, risposta: string, compatta: boolean): number {
+  // Le domande vengono dal modello dell'azienda: una voce incompleta non deve fermare il PDF.
+  return altezzaTesto(String(domanda ?? ""), UTILE_PAGINA, "Helvetica-Bold", 11, INTERLINEA_NATURALE_GRASSETTO) + 4
+    + altezzaTesto(String(risposta ?? ""), UTILE_PAGINA, "Helvetica", 10, 1.5)
+    + (compatta ? 8 + 5 : 12 + 10) + 0.5;
+}
+
+export interface DatiDomande {
+  titolo: string;
+  intro: string | null;
+  voci: Array<{ domanda: string; risposta: string }>;
+}
+
+/**
+ * Le domande strette (8 punti fra una e l'altra invece di 12) quando così stanno in un foglio e col
+ * respiro normale sbordano: le otto di serie sbordavano di una sola, e il foglio dopo restava bianco al 90%
+ * (preventivo di Renova, pagina 18). Se non ci stanno nemmeno strette, restano come sono.
+ */
+export function domandeCompatte(d: DatiDomande): boolean {
+  const testa = altezzaTesta(String(d.titolo ?? ""), d.intro ? String(d.intro) : null) + 14;
+  const alte = (compatta: boolean) => testa + d.voci.reduce((acc, v, i) => acc + altezzaDomanda(`${i + 1}. ${v?.domanda ?? ""}`, v?.risposta ?? "", compatta), 0);
+  return alte(false) > ALTEZZA_UTILE && alte(true) <= ALTEZZA_UTILE - 12;
 }
 
 // ─── Dettagli economici ───────────────────────────────────────────────────

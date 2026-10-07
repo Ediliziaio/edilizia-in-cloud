@@ -30,4 +30,10 @@ describe("copertina nell'anteprima delle offerte", () => {
     expect(preview.cover_subtitle).toBe("Azienda Demo · Via Garibaldi 10, Roma");
     expect(template.cover_title).toContain("{{cliente.nome_completo}}");
   });
+  it("mostra l'Art. 4 delle condizioni di base con un piano di pagamento d'esempio (la frase non resta vuota)", () => {
+    const template = { contractual_terms_text: "Art. 4. {{preventivo.frase_pagamenti}} Piano: {{preventivo.piano_pagamenti}}." };
+    const preview = quoteTemplateSampleData(template, "Azienda Demo");
+    expect(preview.contractual_terms_text).toBe(
+      "Art. 4. Il pagamento avviene secondo il piano concordato: Acconto alla firma 30%, saldo a fine lavori 70% Piano: Acconto alla firma 30%, saldo a fine lavori 70%.");
+  });
 });

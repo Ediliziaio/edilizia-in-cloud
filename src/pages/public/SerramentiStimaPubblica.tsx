@@ -6,7 +6,7 @@
  * Vista cliente del preventivo:
  *  - Vista del PDF in iframe
  *  - Box riepilogo (totale, risparmio, payback)
- *  - CTA "Contatta consulente" (telefono / email / WhatsApp)
+ *  - CTA "Contatta consulente" (telefono / WhatsApp: l'email del profilo è quella di accesso, non si mostra)
  *  - CTA "Firma con il codice" se l'azienda ha mandato la richiesta di firma
  *    (flusso FEA /firma-fea/<token>, codice via email); niente più firma a disegno
  *  - Badge "Firmato il [data]" se firmato
@@ -21,7 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
-  FileText, Phone, Mail, MessageCircle, PenLine, CheckCircle, ExternalLink,
+  FileText, Phone, MessageCircle, PenLine, CheckCircle, ExternalLink,
   Calendar, AlertCircle,
 } from "lucide-react";
 import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
@@ -63,7 +63,6 @@ interface PublicStima {
   };
   consulente: {
     nome: string;
-    email: string | null;
     telefono: string | null;
   } | null;
 }
@@ -125,14 +124,14 @@ export default function SerramentiStimaPubblica() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r = result as any;
       if (!r?.ok) {
-        setError(r?.error ?? "Stima non disponibile");
+        setError(r?.error ?? "Preventivo non disponibile");
         return;
       }
       setData(r as PublicStima);
       setFirmaToken(typeof r.firma_token === "string" ? r.firma_token : null);
     } catch (e) {
       console.error("[stima-pubblica] load", e);
-      setError("Impossibile caricare la stima. Il link potrebbe essere scaduto.");
+      setError("Impossibile caricare il preventivo. Il link potrebbe essere scaduto.");
     } finally {
       setLoading(false);
     }
@@ -158,7 +157,7 @@ export default function SerramentiStimaPubblica() {
         <Card className="max-w-md w-full">
           <CardContent className="p-8 text-center">
             <AlertCircle className="h-12 w-12 text-rose-400 mx-auto mb-3" />
-            <h1 className="text-lg font-bold mb-2">Stima non disponibile</h1>
+            <h1 className="text-lg font-bold mb-2">Preventivo non disponibile</h1>
             <p className="text-sm text-muted-foreground">
               {error ?? "Il link potrebbe essere scaduto o non più valido."}
             </p>
@@ -177,7 +176,7 @@ export default function SerramentiStimaPubblica() {
   const inchiostro = inchiostroSuBianco(colore);
   const testoBottone = testoSopra(colore);
   const whatsappLink = consulente?.telefono
-    ? `https://wa.me/${consulente.telefono.replace(/\D/g, "")}?text=${encodeURIComponent(`Ciao, ho ricevuto la stima ${progetto.code}`)}`
+    ? `https://wa.me/${consulente.telefono.replace(/\D/g, "")}?text=${encodeURIComponent(`Ciao, ho ricevuto il preventivo ${progetto.code}`)}`
     : null;
 
   return (
@@ -199,7 +198,7 @@ export default function SerramentiStimaPubblica() {
             <div>
               <p className="font-bold text-sm">{azienda.nome}</p>
               <p className="text-[11px] text-muted-foreground">
-                Stima n. <span className="font-mono font-semibold" style={{ color: inchiostro }}>{progetto.code}</span>
+                Preventivo n. <span className="font-mono font-semibold" style={{ color: inchiostro }}>{progetto.code}</span>
               </p>
             </div>
           </div>
@@ -335,7 +334,7 @@ export default function SerramentiStimaPubblica() {
         )}
 
         {/* Consulente contact card */}
-        {consulente && (consulente.telefono || consulente.email) && (
+        {consulente && consulente.telefono && (
           <Card style={{ background: `${colore}08`, borderColor: `${colore}30` }}>
             <CardContent className="p-4">
               <p className="text-[11px] uppercase tracking-wide font-semibold mb-2" style={{ color: inchiostro }}>
@@ -344,9 +343,7 @@ export default function SerramentiStimaPubblica() {
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <p className="font-bold">{consulente.nome}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {[consulente.telefono, consulente.email].filter(Boolean).join(" · ")}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{consulente.telefono}</p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   {consulente.telefono && (
@@ -360,13 +357,6 @@ export default function SerramentiStimaPubblica() {
                     <Button asChild variant="outline" size="sm" className="border-emerald-300 text-emerald-700">
                       <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="gap-1.5">
                         <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-                      </a>
-                    </Button>
-                  )}
-                  {consulente.email && (
-                    <Button asChild variant="outline" size="sm">
-                      <a href={`mailto:${consulente.email}?subject=${encodeURIComponent(`Stima ${progetto.code}`)}`} className="gap-1.5">
-                        <Mail className="h-3.5 w-3.5" /> Email
                       </a>
                     </Button>
                   )}
@@ -386,7 +376,7 @@ export default function SerramentiStimaPubblica() {
               </h3>
               <p className="text-sm text-muted-foreground mb-4">
                 {firmaToken
-                  ? "Hai letto la stima? Per firmarla ti mandiamo un codice di verifica via email: bastano due passaggi."
+                  ? "Hai letto il preventivo? Per firmarlo ti mandiamo un codice di verifica via email: bastano due passaggi."
                   : "Per firmare ti serve il link di firma che ti manda l'azienda via email, con il codice di verifica. Se non l'hai ricevuto, contatta il tuo consulente."}
               </p>
               {firmaToken && (

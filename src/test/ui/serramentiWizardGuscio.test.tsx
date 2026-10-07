@@ -75,7 +75,15 @@ vi.mock("@/lib/serramenti/useCostoPosizioneListino", () => ({
 }));
 vi.mock("@/components/serramenti/StepBom", () => ({ StepBom: () => <p>contenuto del passo Composizione</p> }));
 vi.mock("@/components/serramenti/StepAccessori", () => ({ StepAccessori: () => <p>contenuto Foto</p> }));
-vi.mock("@/components/serramenti/StepEconomia", () => ({ StepEconomia: () => <p>contenuto Economia</p> }));
+vi.mock("@/components/serramenti/StepEconomia", () => ({
+  // Il passo finto ha un pulsante che fa quello che fa lo stato vuoto vero: chiede al wizard di andare a un altro passo.
+  StepEconomia: ({ onVaiAlPasso }: { onVaiAlPasso?: (passo: string) => void }) => (
+    <div>
+      <p>contenuto Economia</p>
+      <button type="button" onClick={() => onVaiAlPasso?.("bom")}>vai all&apos;Offerta (prova)</button>
+    </div>
+  ),
+}));
 vi.mock("@/components/serramenti/StepConsulenza", () => ({ StepConsulenza: (): null => null }));
 vi.mock("@/components/serramenti/StepPdf", () => ({ StepPdf: () => <p>contenuto PDF</p> }));
 vi.mock("@/components/serramenti/StepContenuti", () => ({ StepContenuti: (): null => null }));
@@ -121,6 +129,16 @@ describe("Serramenti nel guscio comune", () => {
     fireEvent.click(within(nav).getByRole("button", { name: "Composizione offerta" }));
     await screen.findByText("contenuto del passo Composizione");
     expect(within(anteprima()).getByText("Mario Rossi")).toBeTruthy();
+    expect(within(nav).getByRole("button", { name: "Composizione offerta" }).getAttribute("aria-current")).toBe("step");
+  });
+
+  it("lo stato vuoto di Economia porta all'Offerta: il wizard passa a Economia il collegamento ai passi", async () => {
+    monta();
+    const nav = await screen.findByRole("navigation", { name: "Fasi del preventivo" });
+    fireEvent.click(within(nav).getByRole("button", { name: "Economia" }));
+    await screen.findByText("contenuto Economia");
+    fireEvent.click(screen.getByRole("button", { name: /vai all'Offerta \(prova\)/ }));
+    await screen.findByText("contenuto del passo Composizione");
     expect(within(nav).getByRole("button", { name: "Composizione offerta" }).getAttribute("aria-current")).toBe("step");
   });
 

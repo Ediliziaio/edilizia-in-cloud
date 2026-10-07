@@ -8,7 +8,7 @@
  *
  * Architettura:
  *   - Recupera dati progetto + componenti + manodopera + servizi + calcolo
- *     finanziario + dati azienda + venditore (fully-typed)
+ *     finanziario + dati azienda (fully-typed)
  *   - Calcola energy flows + costi 20 anni + CO2 + bolletta prima/dopo
  *   - Renderizza il template HTML configurabile con SVG inline
  *   - Salva in storage `fv-progetti/<company>/<id>/preventivo.html`
@@ -33,7 +33,7 @@
 import { modelloFotovoltaico } from "../_shared/modelloFotovoltaico.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { buildMergeContext, substituteMergeTags } from "../_shared/quoteTemplateComposer.ts";
-import { aziendaAccessibile, requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import {
   BADGE_GARANZIE_FV,
@@ -236,20 +236,6 @@ Deno.serve(async (req: Request) => {
       ((articoloRowsRes.data ?? []) as Array<Record<string, unknown>>)
         .map((row) => [String(row.id), row]),
     );
-
-    // «A cura di» in copertina: chi ha creato il progetto, ma solo se lavora in
-    // questa azienda. Prima ci finiva anche il super admin entrato per assistenza.
-    let venditoreNome: string | null = null;
-    if (prog.created_by && await aziendaAccessibile(supabaseAdmin, prog.created_by, prog.company_id)) {
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("first_name, last_name")
-        .eq("id", prog.created_by)
-        .maybeSingle();
-      if (profile) {
-        venditoreNome = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || null;
-      }
-    }
 
     // ── Helper: fetch URL → data URI base64 ─────────────────────────────────
     const urlToB64 = async (url: string, timeout = 8000): Promise<string | undefined> => {
@@ -701,7 +687,6 @@ Deno.serve(async (req: Request) => {
         titolo: prog.titolo ?? "",
         creato_il: prog.created_at,
         valido_giorni: validoGiorni,
-        venditore: venditoreNome,
         potenza_kwp: Number(prog.potenza_kwp) || 0,
         numero_pannelli: Number(prog.numero_pannelli_scelti) || 0,
         layout_pannelli: p.layout_pannelli ?? null,

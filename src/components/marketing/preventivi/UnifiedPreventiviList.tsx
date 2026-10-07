@@ -77,6 +77,7 @@ import {
 import { PreventiviCestinoDialog } from "./PreventiviCestinoDialog";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 import { eRigaDiModulo } from "@/lib/moduli/quoteBridge";
+import { importoPreventivoFv, type ImportoPreventivoFvInput } from "@/lib/fotovoltaico/importoPreventivo";
 
 export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione" | "elettrico" | "termoidraulico" | "pavimenti" | "piscine";
 export type { UnifiedStato };
@@ -313,7 +314,8 @@ export function UnifiedPreventiviList() {
       const { data, error } = await (supabase as any)
         .from("fv_progetti")
         .select(`
-          id, numero, stato, prezzo_vendita_iva_inclusa, created_by, created_at, updated_at,
+          id, numero, stato, prezzo_vendita_iva_inclusa, prezzo_vendita_manuale, kit_bundle_id, kit_prezzo, iva_aliquota,
+          created_by, created_at, updated_at,
           cliente:marketing_contacts(first_name, last_name)
         `)
         .eq("company_id", companyId!)
@@ -323,7 +325,7 @@ export function UnifiedPreventiviList() {
         .limit(1000);
       if (error) throw error;
       type ClienteJoin = { first_name: string | null; last_name: string | null } | null;
-      type Row = {
+      type Row = ImportoPreventivoFvInput & {
         id: string; numero: string; stato: string;
         prezzo_vendita_iva_inclusa: number | null;
         created_by: string | null;
@@ -334,7 +336,9 @@ export function UnifiedPreventiviList() {
         id: r.id,
         numero: r.numero,
         stato: r.stato,
-        prezzo_vendita_iva_inclusa: r.prezzo_vendita_iva_inclusa,
+        // Il totale come lo dice la pagina del preventivo: la bozza col prezzo a corpo o col kit non ha ancora il
+        // totale calcolato (lo scrive solo il calcolo finanziario) e l'elenco mostrava «—».
+        importo: importoPreventivoFv(r),
         created_by: r.created_by,
         created_at: r.created_at,
         updated_at: r.updated_at,
@@ -607,7 +611,7 @@ export function UnifiedPreventiviList() {
         commerciale_nome: f.created_by ? commercialeNameById.get(f.created_by) ?? null : null,
         stato_unif: mapFotovoltaicoStato(f.stato),
         stato_raw: f.stato,
-        totale: f.prezzo_vendita_iva_inclusa != null ? Number(f.prezzo_vendita_iva_inclusa) : null,
+        totale: f.importo != null ? Number(f.importo) : null,
         data: f.updated_at ?? f.created_at,
         href: `/azienda/marketing/fotovoltaico/${f.id}`,
       });

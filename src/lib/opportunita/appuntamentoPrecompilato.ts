@@ -72,6 +72,8 @@ export interface DatiConferma {
   ora: string;
   luogo?: string | null;
   tipo?: string | null;
+  /** Link della videochiamata: al posto del luogo, per chi lavora a distanza. */
+  videochiamata?: string | null;
 }
 
 /** Il messaggio da mandare al cliente per confermare. */
@@ -80,8 +82,11 @@ export function testoConferma(d: DatiConferma): string {
   const giorno = d.data.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
   const luogo = (d.luogo ?? "").trim();
   const tipo = (d.tipo ?? "").trim().toLowerCase();
+  const video = (d.videochiamata ?? "").trim();
+  const dove = video ? ", in videochiamata" : luogo ? `, in ${luogo}` : "";
   return [
-    `Buongiorno${nome ? ` ${nome}` : ""}, le confermo il nostro appuntamento${tipo ? ` (${tipo})` : ""} ${giorno} alle ${d.ora}${luogo ? `, in ${luogo}` : ""}.`,
+    `Buongiorno${nome ? ` ${nome}` : ""}, le confermo il nostro appuntamento${tipo ? ` (${tipo})` : ""} ${giorno} alle ${d.ora}${dove}.`,
+    ...(video ? [`Questo è il link per collegarsi: ${video}`] : []),
     "Se ha bisogno di spostarlo mi scriva pure qui. A presto!",
   ].join("\n");
 }

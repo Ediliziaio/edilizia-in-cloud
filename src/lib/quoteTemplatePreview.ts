@@ -35,11 +35,17 @@ export function resolveQuoteTemplatePreview(template: Partial<QuoteTemplate>, li
 
 /** I dati di esempio appartengono solo all'anteprima: il template salvato resta intatto. */
 export function quoteTemplateSampleData(template: Partial<QuoteTemplate>, companyName: string): Partial<QuoteTemplate> {
+  // Un piano d'esempio: senza, il tag dell'Art. 4 delle condizioni di base (la frase intera sui pagamenti) restava vuoto nell'anteprima.
+  const pianoPagamenti = "Acconto alla firma 30%, saldo a fine lavori 70%";
   const context: MergeContext = {
     cliente: { nome: "Mario", cognome: "Rossi", nome_completo: "Mario Rossi", email: "mario.rossi@email.it", indirizzo: "Via Garibaldi 10, Roma" },
     cantiere: { indirizzo: "Via Garibaldi 10, Roma", citta: "Roma" },
     azienda: { ragione_sociale: companyName, indirizzo: "Via Roma 1, Milano", email: "info@azienda.it" },
-    preventivo: { numero: "OFF-2026-001", data: "09/03/2026", scadenza: "08/04/2026" },
+    preventivo: {
+      numero: "OFF-2026-001", data: "09/03/2026", scadenza: "08/04/2026",
+      piano_pagamenti: pianoPagamenti,
+      frase_pagamenti: `Il pagamento avviene secondo il piano concordato: ${pianoPagamenti}`,
+    },
     data: { oggi: "09/03/2026", anno: "2026" },
   };
   const preview = { ...template };

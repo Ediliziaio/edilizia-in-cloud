@@ -20,9 +20,13 @@ import { ClipboardList } from "lucide-react";
 import { renderSerramentoBlob, useSerramentoPDF } from "@/hooks/useSerramentoPDF";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import { importiDelPreventivo } from "@/lib/serramenti/righePreventivo";
+import { motivoPreventivoDeciso, type MotivoDeciso } from "@/lib/serramenti/preventivoDeciso";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+/** Di chi è il piano di un preventivo già deciso: «resta quello firmato / accettato / della commessa». */
+const PIANO_DEL_DECISO: Record<MotivoDeciso, string> = { firmato: "firmato", accettato: "accettato", "in commessa": "della commessa" };
+
 interface Props {
   progettoId: string;
   detail: SrProgettoDetail;
@@ -72,15 +76,18 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
   // l'IVA mista (aliquota -1) dava un imponibile più alto del totale e un'IVA negativa.
   const importiDiFirma = importiDelPreventivo(detail, p);
 
-  // Il finanziamento del PDF (rata e importo finanziato) è quello salvato col piano, e lo step Economia lo salva solo
-  // quando si preme «Applica calcoli»: dopo una modifica del totale restava sul totale di prima. Il PDF non lo
-  // ricalcola (la rata viene dal TAN o dalla tabella della finanziaria): lo si controlla prima che vada al cliente.
-  // Lo stampa solo con uno schema che prevede la finanziaria.
+  // Il finanziamento del PDF (rata e importo finanziato) è quello salvato col piano. Lo step Economia lo riscrive da
+  // solo sul totale di adesso, ma solo mentre è aperto: dopo una modifica del totale da un altro passo restava sul
+  // totale di prima. Il PDF non lo ricalcola (la rata viene dal TAN o dalla tabella della finanziaria): lo si controlla
+  // prima che vada al cliente. Lo stampa solo con uno schema che prevede la finanziaria.
   const schemaCfg = SR_SCHEMI_PAGAMENTO[(p.schema_pagamento ?? "tre_step") as keyof typeof SR_SCHEMI_PAGAMENTO];
   const piani = Array.isArray(p.fin_piani) ? (p.fin_piani as SrPianoFinanziamento[]) : [];
   const finanziamentoNelPdf = piani.length > 0 && Boolean(schemaCfg?.hasFinanziamento);
   const finanziatoAtteso = importiDiFirma.totale * (1 - (Number(p.fin_anticipo_pct) || 0) / 100);
   const pianoSulTotaleVecchio = finanziamentoNelPdf && piani.some((x) => Math.abs(Number(x.finanziato) - finanziatoAtteso) > 1);
+  // Un preventivo già firmato, accettato o in commessa non si riscrive da solo (lo step Economia si ferma e lo dice): per
+  // lui «riapri Economia, si ricalcola da solo» sarebbe falso, il suggerimento dice com'è e come si cambia.
+  const motivoDeciso = motivoPreventivoDeciso(p);
 
   // Le rate del PDF («Modalità di pagamento») devono coprire tutto il totale: con rate che fanno il 70% il cliente
   // legge un piano a metà. Non ferma il PDF né la commessa (che non ne dipendono), ma il documento non va al cliente
@@ -116,7 +123,9 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
     {
       ok: Array.isArray(p.esigenze) && p.esigenze.filter((e) => e.titolo).length >= 1,
       label: "Almeno 1 esigenza",
-      hint: "Più ne metti meglio è (max 3 entrano nel PDF)",
+      // Le esigenze del cliente sono facoltative (la scheda lo dice, il PDF le stampa solo se ci sono): senza, PDF, link di firma e commessa si fanno lo stesso.
+      facoltativo: true,
+      hint: "consigliata: più ne metti meglio è (max 3 entrano nel PDF)",
       breve: "esigenze", passo: "immobile",
     },
     {
@@ -128,14 +137,18 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
     {
       ok: Number(p.totale_max ?? p.totale_min ?? 0) > 0,
       label: "Totale preventivo calcolato",
-      hint: !Number(p.totale_max ?? p.totale_min ?? 0) ? "Vai allo Step Economia e clicca 'Applica calcoli'" : undefined,
+      hint: !Number(p.totale_max ?? p.totale_min ?? 0) ? "Il totale si scrive da solo: aggiungi i serramenti con il loro prezzo, o scrivi il prezzo nel passo Economia" : undefined,
       breve: "totale", passo: "economia",
     },
     ...(finanziamentoNelPdf ? [{
       ok: !pianoSulTotaleVecchio,
       facoltativo: true,
       label: "Finanziamento calcolato sul totale di adesso",
-      hint: pianoSulTotaleVecchio ? "il piano di finanziamento è stato calcolato su un totale diverso: riapri Economia e ricalcolalo" : undefined,
+      hint: !pianoSulTotaleVecchio
+        ? undefined
+        : motivoDeciso
+          ? `Il preventivo è già ${motivoDeciso}: il piano di finanziamento resta quello ${PIANO_DEL_DECISO[motivoDeciso]}; per cambiarlo serve una nuova revisione.`
+          : "il piano di finanziamento è stato calcolato su un totale diverso: riapri Economia, si ricalcola da solo",
       breve: "finanziamento", passo: "economia" as SrWizardStep,
     }] : []),
     ...(rate.length > 0 ? [{

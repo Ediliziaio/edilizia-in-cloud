@@ -290,7 +290,7 @@ describe("condizioni generali e firma: il preventivo firmato è il contratto", (
 
   it("il documento ha la pagina della firma e il modulo di recesso", () => {
     const src = leggi("src/components/preventivi/pdf/DocumentoEdilePDF.tsx");
-    expect(src).toContain("Firma del *contratto*.");
+    expect(src).toContain('testo="ACCETTAZIONE PROPOSTA"');
     expect(src).toContain("APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)");
     expect(src).toContain("Modulo di *recesso*.");
     // L'elenco delle clausole non si ripete anche dentro le condizioni.

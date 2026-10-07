@@ -10,6 +10,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { QUOTE_STATUS_CONFIG } from "@/lib/quoteStatus";
 import { useSignatureActions } from "@/hooks/useSignatureActions";
 import { duplicaPreventivo } from "@/lib/quotes/duplicaPreventivo";
+import { convertiPreventivoInCantiere } from "@/lib/quotes/convertiPreventivoInCantiere";
 import { avvisoSchedeNonAllegate } from "@/lib/quotes/allegatiPreventivo";
 import { eRigaDiModulo, preventivoDelModulo } from "@/lib/moduli/quoteBridge";
 import { fetchQuotePdf, downloadQuotePdf } from "@/lib/preventivi/quotePdfDownload";
@@ -89,19 +90,21 @@ export default function QuoteDetail() {
   };
 
   const handleConvertToCantiere = async () => {
+    if (!id) return;
     setConverting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("converti-preventivo-cantiere", {
-        body: { quote_id: id },
-      });
-      if (error) throw error;
-      toast.success("Preventivo convertito in cantiere con successo!");
+      const esito = await convertiPreventivoInCantiere(id);
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });
-      navigate(`/azienda/ordini/${data.order_id}`);
+      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.linkedOrder(id) });
+      // La commessa c'è ma le righe no: dirlo, non «convertito con successo» davanti a una commessa vuota.
+      if (esito.avviso) {
+        toast.warning("Commessa creata, ma non completa", { description: esito.avviso, duration: 12000 });
+      } else {
+        toast.success("Preventivo convertito in cantiere con successo!");
+      }
+      navigate(`/azienda/ordini/${esito.orderId}`);
     } catch (e: unknown) {
-      const err = e as { context?: { json?: { error?: string } }; message?: string };
-      const msg = err?.context?.json?.error || err?.message || "Errore durante la conversione";
-      toast.error("Errore conversione: " + msg);
+      toast.error("Errore conversione: " + (e instanceof Error ? e.message : "Errore durante la conversione"));
     } finally {
       setConverting(false);
     }
@@ -245,9 +248,14 @@ export default function QuoteDetail() {
 
   // Back-link: la commessa generata da questo preventivo (orders.quote_id = id).
   // Rende bidirezionale il legame preventivo↔commessa (prima solo commessa→preventivo).
-  const { data: linkedOrder } = useQuery({
-    queryKey: ["quote-linked-order", id],
+  // Sta dietro la guardia «una commessa sola» (i due pulsanti sotto): la legge sempre fresca, a ogni apertura della
+  // pagina. L'app tiene le query fresche 5 minuti, e «Crea commessa (rivedi)» non cambia lo stato del preventivo:
+  // con la copia in cache si tornava qui entro 5 minuti, si rivedevano i pulsanti e si faceva una seconda commessa.
+  const { data: linkedOrder, isFetching: controlloCommessa } = useQuery({
+    queryKey: queryKeys.quotes.linkedOrder(id),
     enabled: !!id,
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
@@ -413,11 +421,13 @@ export default function QuoteDetail() {
               </button>
             )}
 
-            {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && (
+            {/* Una commessa sola per preventivo: «Crea commessa (rivedi)» non cambia lo stato e non controlla, quindi
+                con la commessa già collegata («Vai alla commessa» qui sotto) le due strade non si offrono più. */}
+            {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && !linkedOrder && (
               <button
                 type="button"
                 onClick={handleConvertToCantiere}
-                disabled={converting}
+                disabled={converting || controlloCommessa}
                 className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 h-9"
               >
                 {converting
@@ -427,11 +437,12 @@ export default function QuoteDetail() {
               </button>
             )}
 
-            {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && (
+            {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && !linkedOrder && (
               // Telefono no: la strada «rivedi prima» è da scrivania, resta «Converti in Cantiere».
               <Button
                 variant="outline"
                 onClick={() => navigate(`/azienda/ordini/nuovo?quote_id=${id}`)}
+                disabled={controlloCommessa}
                 className="h-9 max-sm:hidden"
                 title="Apre una nuova commessa con righe e misure già compilate dal preventivo: puoi rivederle e aggiustarle prima di salvare"
               >

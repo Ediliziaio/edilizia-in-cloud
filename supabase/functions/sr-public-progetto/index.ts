@@ -70,13 +70,13 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (progErr || !prog) {
-      return errorResponse("Stima non trovata o link scaduto", 404, PUBLIC_CORS_HEADERS);
+      return errorResponse("Preventivo non trovato o link scaduto", 404, PUBLIC_CORS_HEADERS);
     }
 
     // Verifica stato visibile pubblicamente
     const visibleStati = ["da_consegnare", "consegnato", "in_valutazione", "accettato"];
     if (!visibleStati.includes(prog.stato)) {
-      return errorResponse("Stima non disponibile al momento", 403, PUBLIC_CORS_HEADERS);
+      return errorResponse("Preventivo non disponibile al momento", 403, PUBLIC_CORS_HEADERS);
     }
 
     // Carica azienda branding
@@ -101,18 +101,19 @@ Deno.serve(async (req: Request) => {
       prog.company_id,
     );
 
-    // Carica consulente
+    // Carica consulente. Solo nome e telefono: l'email del profilo è quella con cui il
+    // consulente entra nel gestionale, non un recapito dell'azienda (Renova, 05/10/2026),
+    // e questo endpoint risponde a chiunque abbia il link.
     let consulente = null;
     if (prog.consulente_id) {
       const { data: cons } = await sb
         .from("profiles")
-        .select("first_name, last_name, email, phone")
+        .select("first_name, last_name, phone")
         .eq("id", prog.consulente_id)
         .maybeSingle();
       if (cons) {
         consulente = {
           nome: [cons.first_name, cons.last_name].filter(Boolean).join(" ") || "Consulente",
-          email: cons.email,
           telefono: cons.phone,
         };
       }
@@ -209,6 +210,6 @@ Deno.serve(async (req: Request) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sr-public-progetto] error", msg);
-    return errorResponse("Errore caricamento stima", 500, PUBLIC_CORS_HEADERS);
+    return errorResponse("Errore caricamento preventivo", 500, PUBLIC_CORS_HEADERS);
   }
 });

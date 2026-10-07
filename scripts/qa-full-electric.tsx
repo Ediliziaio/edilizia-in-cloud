@@ -115,5 +115,5 @@ const personalizzato = {
   ],
 } as unknown as IdrTemplatePdf;
 await dalPreventivatore("personalizzato", personalizzato, { media: true },
-  ["GIULIA S.", "Pompa di calore 10 kW", "La caldaia di oggi, al sopralluogo", "Condizioni contrattuali", "approva specificamente", "Firma del contratto", "Modulo di recesso"],
+  ["GIULIA S.", "Pompa di calore 10 kW", "La caldaia di oggi, al sopralluogo", "Condizioni contrattuali", "approva specificamente", "ACCETTAZIONE PROPOSTA", "Modulo di recesso"],
   ["€"]);

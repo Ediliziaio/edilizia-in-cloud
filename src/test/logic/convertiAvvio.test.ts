@@ -14,11 +14,16 @@ const SIMULATORE = leggi("components/marketing/simulatore/TrasformaDialog.tsx");
 describe("conversione dei preventivi di modulo", () => {
   it("fotovoltaico e ristrutturazione avviano la commessa, una volta ciascuna, prima del legame col preventivo", () => {
     expect(CONVERSIONI.match(/await avviaCommessa\(orderId\)/g)).toHaveLength(2);
+    // Il legame col preventivo (legaCommessaAlPreventivo) lo fa per entrambe: dopo l'avvio, mai prima.
+    expect(CONVERSIONI.match(/await legaCommessaAlPreventivo\(\{/g)).toHaveLength(2);
     const fv = CONVERSIONI.indexOf("await avviaCommessa(orderId)");
     expect(fv).toBeGreaterThan(-1);
-    expect(fv).toBeLessThan(CONVERSIONI.indexOf("fv_progetto_id: progettoId"));
+    expect(fv).toBeLessThan(CONVERSIONI.indexOf("await legaCommessaAlPreventivo({"));
     const rst = CONVERSIONI.lastIndexOf("await avviaCommessa(orderId)");
-    expect(rst).toBeLessThan(CONVERSIONI.indexOf("rst_progetto_id: progettoId"));
+    expect(rst).toBeLessThan(CONVERSIONI.lastIndexOf("await legaCommessaAlPreventivo({"));
+    // E ognuno dei due legami è quello giusto: la colonna della commessa è del suo modulo.
+    expect(CONVERSIONI.indexOf('colonnaCommessa: "fv_progetto_id",')).toBeGreaterThan(fv);
+    expect(CONVERSIONI.indexOf('colonnaCommessa: "rst_progetto_id",')).toBeGreaterThan(rst);
   });
 
   it("la fase per capitolo c'è solo se chi converte l'ha scelta, e viene prima delle fasi di partenza", () => {

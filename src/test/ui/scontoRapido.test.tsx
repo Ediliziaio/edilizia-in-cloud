@@ -81,6 +81,26 @@ describe("ScontoRapido: i tasti", () => {
     expect((tasto("5%") as HTMLButtonElement).disabled).toBe(true);
     expect(campoTotale().disabled).toBe(true);
   });
+
+  // Telefono: di serie i tasti restano compatti come negli edili; `daDito` (lo usa il preventivatore Serramenti) li porta
+  // ad almeno 36 px e il campo a 44 px fino ai 768 px. Cambia solo l'altezza, nient'altro.
+  it("di serie i tasti restano compatti (tap-compact) e il campo è alto 44 px sotto i 640; con `daDito` sono da dito", () => {
+    monta({ ivaPct: 10 });
+    for (const nome of ["Nessuno", "5%", "10%"]) {
+      expect(tasto(nome).className).toMatch(/tap-compact/);
+      expect(tasto(nome).className).not.toMatch(/max-md:min-h-9/);
+    }
+    expect(campoTotale().className).toMatch(/max-sm:h-11/);
+    expect(campoTotale().className).not.toMatch(/max-md:h-11/);
+    cleanup();
+    monta({ ivaPct: 10, daDito: true });
+    for (const nome of ["Nessuno", "5%", "10%"]) {
+      expect(tasto(nome).className).toMatch(/max-md:min-h-9/);
+      expect(tasto(nome).className).not.toMatch(/tap-compact/);
+    }
+    expect(campoTotale().className).toMatch(/max-md:h-11/);
+    expect(campoTotale().className).not.toMatch(/max-sm:h-11/);
+  });
 });
 
 describe("ScontoRapido: «Arriva a €»", () => {

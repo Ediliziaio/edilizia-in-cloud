@@ -40,7 +40,7 @@ export function ChiSiamo({ d, c, tema }: { d: DatiRacconto; c: Palette; tema: Te
       {testo ? (
         <View style={{ flexDirection: "row", marginBottom: 14 }}>
           <View style={{ flex: 1, paddingRight: m.chiSiamoFotoUrl ? 16 : 40 }}>
-            <TestoRicco html={testo} stile={{ fontSize: 9, lineHeight: 1.55, color: BASE.testo }} />
+            <TestoRicco html={testo} stile={{ fontSize: 10, lineHeight: 1.55, color: BASE.testo }} />
           </View>
           {m.chiSiamoFotoUrl ? <Image src={m.chiSiamoFotoUrl} style={{ width: 180, height: 200, objectFit: "cover", borderRadius: 8 }} /> : null}
         </View>
@@ -54,8 +54,8 @@ export function ChiSiamo({ d, c, tema }: { d: DatiRacconto; c: Palette; tema: Te
                 <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: BASE.arancioTenue, alignItems: "center", justifyContent: "center", marginBottom: 6 }}>
                   <IconaPdf nome={ICONE_USP[i] ?? "verifica"} colore={BASE.arancioScuro} lato={11} />
                 </View>
-                <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8.5, color: c.navy }}>{u.titolo}</Text>
-                {u.descrizione ? <Text style={{ fontSize: 7.4, color: BASE.testo, marginTop: 3, lineHeight: 1.4 }}>{conEuro(u.descrizione)}</Text> : null}
+                <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9.5, color: c.navy }}>{u.titolo}</Text>
+                {u.descrizione ? <Text style={{ fontSize: 9, color: BASE.testo, marginTop: 3, lineHeight: 1.4 }}>{conEuro(u.descrizione)}</Text> : null}
               </View>
             ))}
           </View>
@@ -64,9 +64,9 @@ export function ChiSiamo({ d, c, tema }: { d: DatiRacconto; c: Palette; tema: Te
       {garanzie.length ? (
         <View style={{ marginTop: 8 }}>
           <View wrap={false}>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7, letterSpacing: 1.4, color: BASE.arancio, marginBottom: 5 }}>{tG.occhiello.toUpperCase()}</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8, letterSpacing: 1.4, color: BASE.arancio, marginBottom: 5 }}>{tG.occhiello.toUpperCase()}</Text>
             {tG.titolo ? <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 15, color: c.navy, marginBottom: tG.intro ? 4 : 10 }}>{tG.titolo.replace(/\*/g, "")}</Text> : null}
-            {tG.intro ? <Text style={{ fontSize: 8.5, color: BASE.grigio, lineHeight: 1.45, marginBottom: 10 }}>{tG.intro}</Text> : null}
+            {tG.intro ? <Text style={{ fontSize: 9.5, color: BASE.grigio, lineHeight: 1.45, marginBottom: 10 }}>{tG.intro}</Text> : null}
           </View>
           <SchedeGaranzie tema={tema} voci={garanzie} colonne={colonneGaranzie} larghezza={LARGHEZZA} />
         </View>
@@ -91,10 +91,10 @@ export function CapitoloFornitura({ cap, indice, c, soloCapitolo, mostraQta, mos
   const riga = (v: DocEdileCapitolo["voci"][number]) => (
     <View key={v.id} wrap={false} style={{ flexDirection: "row", alignItems: "flex-start", paddingVertical: 6.5, paddingHorizontal: 10, borderTopWidth: 1, borderTopColor: BASE.linea }}>
       <View style={{ marginRight: 7, marginTop: 1.5 }}><IconaPdf nome="verifica" colore={BASE.verde} lato={8.5} /></View>
-      <Text style={{ flex: 1, fontSize: 8.2, lineHeight: 1.4, color: BASE.ink }}>{v.descrizione}</Text>
-      {mostraQta ? <Text style={{ width: 58, fontSize: 8, color: BASE.grigio, textAlign: "right" }}>{quantitaTesto(v)}</Text> : null}
-      {mostraPrezzi ? <Text style={{ width: 66, fontSize: 8, color: BASE.grigio, textAlign: "right" }}>{soldiCent(v.prezzoUnitario)}</Text> : null}
-      {mostraImporti ? <Text style={{ width: 70, fontSize: 8.2, fontFamily: "Helvetica-Bold", color: BASE.ink, textAlign: "right" }}>{soldiCent(v.importo)}</Text> : null}
+      <Text style={{ flex: 1, fontSize: 9, lineHeight: 1.4, color: BASE.ink }}>{v.descrizione}</Text>
+      {mostraQta ? <Text style={{ width: 58, fontSize: 9, color: BASE.grigio, textAlign: "right" }}>{quantitaTesto(v)}</Text> : null}
+      {mostraPrezzi ? <Text style={{ width: 66, fontSize: 9, color: BASE.grigio, textAlign: "right" }}>{soldiCent(v.prezzoUnitario)}</Text> : null}
+      {mostraImporti ? <Text style={{ width: 70, fontSize: 9, fontFamily: "Helvetica-Bold", color: BASE.ink, textAlign: "right" }}>{soldiCent(v.importo)}</Text> : null}
     </View>
   );
   return (
@@ -103,12 +103,12 @@ export function CapitoloFornitura({ cap, indice, c, soloCapitolo, mostraQta, mos
       <View wrap={false}>
         <View style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 10, backgroundColor: BASE.fondo, borderTopLeftRadius: 8, borderTopRightRadius: 8 }}>
           <View style={{ width: 19, height: 19, borderRadius: 10, backgroundColor: c.navy, alignItems: "center", justifyContent: "center", marginRight: 8 }}>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, color: "#FFFFFF" }}>{String(indice)}</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9, color: "#FFFFFF" }}>{String(indice)}</Text>
           </View>
           <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 10, color: c.navy }}>{cap.nome}</Text>
           {mostraSubtotale
-            ? <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9.5, color: BASE.ink }}>{soldiCent(cap.subtotale)}</Text>
-            : <Text style={{ fontSize: 7.5, color: BASE.grigio }}>{`${cap.voci.length} ${cap.voci.length === 1 ? "voce" : "voci"}`}</Text>}
+            ? <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 10, color: BASE.ink }}>{soldiCent(cap.subtotale)}</Text>
+            : <Text style={{ fontSize: 9, color: BASE.grigio }}>{`${cap.voci.length} ${cap.voci.length === 1 ? "voce" : "voci"}`}</Text>}
         </View>
         {colonne ? (
           <View style={{ flexDirection: "row", paddingTop: 5, paddingBottom: 3, paddingHorizontal: 10 }}>
@@ -166,16 +166,16 @@ export function Fornitura({ d, c, modello, vociDiRiserva = [], sottotitolo }: {
       <View wrap={false} style={{ flexDirection: "row", marginBottom: 14, borderWidth: 1, borderColor: BASE.linea, borderRadius: 10, overflow: "hidden" }}>
         {modello.foto ? <Image src={modello.foto} style={{ width: 188, height: scheda.length > 2 ? 150 : 128, objectFit: "cover" }} /> : null}
         <View style={{ flex: 1, paddingVertical: 11, paddingHorizontal: 13, backgroundColor: BASE.fondo }}>
-          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.2, color: BASE.arancio }}>{modello.etichetta.toUpperCase()}</Text>
+          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 1.2, color: BASE.arancio }}>{modello.etichetta.toUpperCase()}</Text>
           <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 12.5, lineHeight: 1.25, color: c.navy, marginTop: 4 }}>{modello.titolo}</Text>
-          {modello.sottotitolo ? <Text style={{ fontSize: 7.5, color: BASE.grigio, marginTop: 2 }}>{modello.sottotitolo}</Text> : null}
+          {modello.sottotitolo ? <Text style={{ fontSize: 9, color: BASE.grigio, marginTop: 2 }}>{modello.sottotitolo}</Text> : null}
           {scheda.map((x) => (
             <View key={x.etichetta} style={{ flexDirection: "row", marginTop: 4 }}>
-              <Text style={{ flex: 1.2, fontSize: 7.3, color: BASE.grigio }}>{x.etichetta}</Text>
-              <Text style={{ flex: 1, fontSize: 7.6, fontFamily: "Helvetica-Bold", color: BASE.ink, textAlign: "right" }}>{x.valore}</Text>
+              <Text style={{ flex: 1.2, fontSize: 9, color: BASE.grigio }}>{x.etichetta}</Text>
+              <Text style={{ flex: 1, fontSize: 9, fontFamily: "Helvetica-Bold", color: BASE.ink, textAlign: "right" }}>{x.valore}</Text>
             </View>
           ))}
-          {modello.foto ? <Text style={{ fontSize: 5.8, color: BASE.grigioChiaro, marginTop: 6 }}>Immagine illustrativa: il modello è quello indicato.</Text> : null}
+          {modello.foto ? <Text style={{ fontSize: 7.5, color: BASE.grigioChiaro, marginTop: 6 }}>Immagine illustrativa: il modello è quello indicato.</Text> : null}
         </View>
       </View>
       {capitoli.map((cap, i) => (
@@ -200,7 +200,7 @@ export function FotoConDidascalia({ f, altezza, larghezza, stile }: { f: DocEdil
   return (
     <View wrap={false} style={{ width: larghezza, ...(stile ?? {}) }}>
       <Image src={f.url} style={{ width: "100%", height: altezza, objectFit: "cover", borderRadius: 8 }} />
-      {testo ? <Text style={{ fontSize: 7, color: BASE.grigio, marginTop: 3, lineHeight: 1.35 }}>{testo}</Text> : null}
+      {testo ? <Text style={{ fontSize: 8, color: BASE.grigio, marginTop: 3, lineHeight: 1.35 }}>{testo}</Text> : null}
     </View>
   );
 }
@@ -271,9 +271,9 @@ export function Condizioni({ d, c }: { d: DatiRacconto; c: Palette }) {
         <View key={g} wrap={gruppo.length > 14} minPresenceAhead={36}>
           {gruppo.map((r, i) =>
             r.tipo === "h1" ? <Text key={i} style={{ fontFamily: "Helvetica-Bold", fontSize: 10.5, color: c.navy, marginTop: g === 0 ? 0 : 12, marginBottom: 5 }}>{r.testo}</Text>
-            : r.tipo === "h2" ? <Text key={i} style={{ fontFamily: "Helvetica-Bold", fontSize: 9, color: BASE.ink, marginTop: g === 0 ? 0 : 9, marginBottom: 3 }}>{r.testo}</Text>
-            : r.tipo === "li" ? <Text key={i} style={{ fontSize: 8.2, color: BASE.testo, lineHeight: 1.5, marginLeft: 10, marginBottom: 2 }}>{`- ${conEuro(r.testo)}`}</Text>
-            : <Text key={i} style={{ fontSize: 8.2, color: BASE.testo, lineHeight: 1.5, marginBottom: 5 }}>{conEuro(r.testo)}</Text>,
+            : r.tipo === "h2" ? <Text key={i} style={{ fontFamily: "Helvetica-Bold", fontSize: 10, color: BASE.ink, marginTop: g === 0 ? 0 : 9, marginBottom: 3 }}>{r.testo}</Text>
+            : r.tipo === "li" ? <Text key={i} style={{ fontSize: 9, color: BASE.testo, lineHeight: 1.5, marginLeft: 10, marginBottom: 2 }}>{`- ${conEuro(r.testo)}`}</Text>
+            : <Text key={i} style={{ fontSize: 9, color: BASE.testo, lineHeight: 1.5, marginBottom: 5 }}>{conEuro(r.testo)}</Text>,
           )}
         </View>
       ))}
@@ -288,17 +288,17 @@ export function Recesso({ d, c }: { d: DatiRacconto; c: Palette }) {
   return (
     <Pagina d={d} c={c}>
       <Intestazione c={c} occhiello="Allegato" titolo="Modulo di " evidenza="recesso." />
-      <Text style={{ fontSize: 8.5, color: BASE.testo, lineHeight: 1.55 }}>{MODULO_RECESSO.istruzioni}</Text>
+      <Text style={{ fontSize: 9.5, color: BASE.testo, lineHeight: 1.55 }}>{MODULO_RECESSO.istruzioni}</Text>
       <View style={{ marginTop: 14, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, padding: 16 }}>
-        <Text style={{ fontSize: 8.5, color: BASE.ink, lineHeight: 1.6 }}>
+        <Text style={{ fontSize: 9.5, color: BASE.ink, lineHeight: 1.6 }}>
           {"Destinatario: "}<Text style={{ fontFamily: "Helvetica-Bold" }}>{s.azienda.nome}</Text>
           {s.azienda.indirizzo ? `, ${s.azienda.indirizzo}` : ""}{s.azienda.email ? ` - ${s.azienda.email}` : ""}
         </Text>
-        <Text style={{ fontSize: 8.5, color: BASE.ink, lineHeight: 1.6, marginTop: 10 }}>{MODULO_RECESSO.dichiarazione(s.codice)}</Text>
+        <Text style={{ fontSize: 9.5, color: BASE.ink, lineHeight: 1.6, marginTop: 10 }}>{MODULO_RECESSO.dichiarazione(s.codice)}</Text>
         <View style={{ marginTop: 14 }}>
           {MODULO_RECESSO.campi.map((e) => (
             <View key={e} style={{ marginBottom: 16 }}>
-              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 0.8, color: BASE.grigio, marginBottom: 14 }}>{e.toUpperCase()}</Text>
+              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 0.8, color: BASE.grigio, marginBottom: 14 }}>{e.toUpperCase()}</Text>
               <View style={{ borderTopWidth: 1, borderTopColor: BASE.grigioChiaro }} />
             </View>
           ))}
@@ -306,7 +306,7 @@ export function Recesso({ d, c }: { d: DatiRacconto; c: Palette }) {
         <View style={{ flexDirection: "row", marginTop: 6 }}>
           {MODULO_RECESSO.firme.map((t, i) => (
             <View key={t} style={{ flex: i === 0 ? 0.6 : 1, marginRight: i === 0 ? 14 : 0, borderTopWidth: 1, borderTopColor: BASE.grigioChiaro, paddingTop: 5, marginTop: 28 }}>
-              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 0.8, color: BASE.grigio }}>{t.toUpperCase()}</Text>
+              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 0.8, color: BASE.grigio }}>{t.toUpperCase()}</Text>
             </View>
           ))}
         </View>
@@ -318,7 +318,7 @@ export function Recesso({ d, c }: { d: DatiRacconto; c: Palette }) {
 export function LineaFirma({ testo, flex = 1, ultima = false, alto = 34 }: { testo: string; flex?: number; ultima?: boolean; alto?: number }) {
   return (
     <View style={{ flex, marginRight: ultima ? 0 : 14, borderTopWidth: 1, borderTopColor: BASE.grigioChiaro, paddingTop: 5, marginTop: alto }}>
-      <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 0.8, color: BASE.grigio }}>{testo.toUpperCase()}</Text>
+      <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 0.8, color: BASE.grigio }}>{testo.toUpperCase()}</Text>
     </View>
   );
 }
@@ -359,23 +359,24 @@ export function Firma({ d, c, oggetto, importo, righeExtra = [], cosaSiAccetta, 
   const dichiarazione = `Il committente dichiara di aver ricevuto, letto e accettato il presente documento in ogni sua parte: ${elenco}${conCondizioni ? ", e ne sottoscrive il contenuto" : ""}.${avvertenza ? ` ${avvertenza}` : ""}`;
   return (
     <Pagina d={d} c={c}>
-      <Intestazione c={c} occhiello="Per accettazione" titolo={conCondizioni ? "Firma del\n" : "Firma della\n"} evidenza={conCondizioni ? "contratto." : "proposta."} />
+      {/* «ACCETTAZIONE PROPOSTA»: lo stesso titolo in tutti i PDF dei preventivi (richiesta di Renova, 05/10/2026). */}
+      <Intestazione c={c} occhiello="Per accettazione" titolo={"ACCETTAZIONE\n"} evidenza="PROPOSTA" />
       <View style={{ borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 }}>
         {righe.map(([k, v], i) => (
           <View key={k} style={{ flexDirection: "row", paddingVertical: 6.5, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: BASE.linea }}>
-            <Text style={{ width: 110, fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 0.9, color: BASE.grigio, marginTop: 1 }}>{k.toUpperCase()}</Text>
-            <Text style={{ flex: 1, fontSize: 8.5, color: BASE.ink, fontFamily: k === "Importo" ? "Helvetica-Bold" : "Helvetica" }}>{v}</Text>
+            <Text style={{ width: 110, fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 0.9, color: BASE.grigio, marginTop: 1 }}>{k.toUpperCase()}</Text>
+            <Text style={{ flex: 1, fontSize: 9.5, color: BASE.ink, fontFamily: k === "Importo" ? "Helvetica-Bold" : "Helvetica" }}>{v}</Text>
           </View>
         ))}
       </View>
       {m?.pagamentoHtml ? (
         <View wrap={false} style={{ marginTop: 12 }}>
           <TitoletoSezione>Modalità di pagamento</TitoletoSezione>
-          <TestoRicco html={m.pagamentoHtml} stile={{ fontSize: 8.2, lineHeight: 1.45, color: BASE.testo }} />
+          <TestoRicco html={m.pagamentoHtml} stile={{ fontSize: 9, lineHeight: 1.45, color: BASE.testo }} />
         </View>
       ) : null}
       <View wrap={false} style={{ marginTop: 12, borderWidth: 1.2, borderColor: c.navy, borderStyle: "dashed", borderRadius: 10, padding: 16 }}>
-        <Text style={{ fontSize: 8, color: BASE.testo, lineHeight: 1.45 }}>{dichiarazione}</Text>
+        <Text style={{ fontSize: 9, color: BASE.testo, lineHeight: 1.45 }}>{dichiarazione}</Text>
         <View style={{ flexDirection: "row" }}>
           <LineaFirma testo="Luogo e data" flex={0.7} />
           <LineaFirma testo={`Per l'impresa · ${d.azienda.nome}`} />
@@ -384,10 +385,10 @@ export function Firma({ d, c, oggetto, importo, righeExtra = [], cosaSiAccetta, 
       </View>
       {clausole.length ? (
         <View wrap={false} style={{ marginTop: 14, borderWidth: 1, borderColor: BASE.ink, borderRadius: 8, padding: 14 }}>
-          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.8, letterSpacing: 1.1, color: BASE.ink, marginBottom: 6 }}>APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)</Text>
-          <Text style={{ fontSize: 8, color: BASE.testo, lineHeight: 1.45, marginBottom: 5 }}>Il committente, dopo averle rilette, approva specificamente le clausole seguenti:</Text>
+          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 1.1, color: BASE.ink, marginBottom: 6 }}>APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)</Text>
+          <Text style={{ fontSize: 9, color: BASE.testo, lineHeight: 1.45, marginBottom: 5 }}>Il committente, dopo averle rilette, approva specificamente le clausole seguenti:</Text>
           {clausole.map((x, i) => (
-            <Text key={i} style={{ fontSize: 8, color: BASE.ink, lineHeight: 1.45, marginBottom: 2 }}>{`- ${x}`}</Text>
+            <Text key={i} style={{ fontSize: 9, color: BASE.ink, lineHeight: 1.45, marginBottom: 2 }}>{`- ${x}`}</Text>
           ))}
           <View style={{ flexDirection: "row" }}>
             <LineaFirma testo="Luogo e data" flex={0.7} alto={28} />
@@ -470,22 +471,24 @@ export function CopertinaRacconto({ d, c, foto, sottoNome, occhiello, titolo, so
           </View>
         )}
         <View>
-          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 12, color: "#FFFFFF" }}>{d.azienda.nome}</Text>
-          <Text style={{ fontSize: 7.5, color: "#FFFFFF", opacity: 0.7, marginTop: 1 }}>{sottoNome}</Text>
+          {/* Col logo il nome dell'azienda non si ripete accanto (il logo lo porta già: richiesta di Renova,
+              05/10/2026, per tutti i PDF): resta solo quando al posto del logo c'è l'icona. */}
+          {d.azienda.logoUrl ? null : <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 12, color: "#FFFFFF" }}>{d.azienda.nome}</Text>}
+          <Text style={{ fontSize: 9, color: "#FFFFFF", opacity: 0.7, marginTop: d.azienda.logoUrl ? 0 : 1 }}>{sottoNome}</Text>
         </View>
       </View>
 
       <View style={{ position: "absolute", top: foto ? FASCIA - 28 : 330, left: MARGINE, right: MARGINE }}>
-        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 1.8, color: BASE.ambra, marginBottom: 10 }}>{occhiello.toUpperCase()}</Text>
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8.5, letterSpacing: 1.8, color: BASE.ambra, marginBottom: 10 }}>{occhiello.toUpperCase()}</Text>
         <Text style={{ fontFamily: "Helvetica-Bold", fontSize: foto ? 33 : 38, lineHeight: 1.06, letterSpacing: -1.2, color: "#FFFFFF" }}>{titolo}</Text>
         <Text style={{ fontSize: 10.5, lineHeight: 1.45, color: "#FFFFFF", opacity: 0.82, marginTop: 12, maxWidth: 420 }}>{sottotitolo}</Text>
 
         <View style={{ flexDirection: "row", marginTop: foto ? 18 : 26 }}>
           {schede.map((x, i) => (
             <View key={x.etichetta} style={{ flex: x.flex ?? 1, backgroundColor: c.vetro, borderWidth: 1, borderColor: c.vetroBordo, borderRadius: 10, padding: foto ? 12 : 14, marginRight: i < schede.length - 1 ? 10 : 0 }}>
-              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.2, color: BASE.ambra }}>{x.etichetta.toUpperCase()}</Text>
+              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 1.2, color: BASE.ambra }}>{x.etichetta.toUpperCase()}</Text>
               <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 13, lineHeight: 1.25, color: "#FFFFFF", marginTop: 5 }}>{x.titolo}</Text>
-              {x.nota ? <Text style={{ fontSize: 8, color: "#FFFFFF", opacity: 0.72, marginTop: 3 }}>{x.nota}</Text> : null}
+              {x.nota ? <Text style={{ fontSize: 9, color: "#FFFFFF", opacity: 0.72, marginTop: 3 }}>{x.nota}</Text> : null}
             </View>
           ))}
         </View>
@@ -493,15 +496,9 @@ export function CopertinaRacconto({ d, c, foto, sottoNome, occhiello, titolo, so
 
       <View style={{ position: "absolute", bottom: 40, left: MARGINE, right: MARGINE, borderTopWidth: 1, borderTopColor: c.vetroBordo, paddingTop: 10, flexDirection: "row", justifyContent: "space-between" }}>
         <View>
-          <Text style={{ fontSize: 7.5, color: "#FFFFFF" }}>{"Preventivo "}<Text style={{ fontFamily: "Helvetica-Bold", color: BASE.ambra }}>{d.preventivo.codice}</Text></Text>
-          <Text style={{ fontSize: 7.5, color: "#FFFFFF", opacity: 0.72, marginTop: 2 }}>{`${dataLunga(d.preventivo.dataIso)} · valido ${d.preventivo.validitaGiorni} giorni`}</Text>
+          <Text style={{ fontSize: 9, color: "#FFFFFF" }}>{"Preventivo "}<Text style={{ fontFamily: "Helvetica-Bold", color: BASE.ambra }}>{d.preventivo.codice}</Text></Text>
+          <Text style={{ fontSize: 9, color: "#FFFFFF", opacity: 0.72, marginTop: 2 }}>{`${dataLunga(d.preventivo.dataIso)} · valido ${d.preventivo.validitaGiorni} giorni`}</Text>
         </View>
-        {d.preventivo.consulente ? (
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={{ fontSize: 7.5, color: "#FFFFFF", opacity: 0.72 }}>A cura di</Text>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, color: "#FFFFFF", marginTop: 2 }}>{d.preventivo.consulente}</Text>
-          </View>
-        ) : null}
       </View>
     </Page>
   );
@@ -517,9 +514,9 @@ export function OggiDomani({ oggi, domani }: {
       <View style={{ flexDirection: "row", alignItems: "stretch" }}>
         <View style={{ flex: 1, backgroundColor: BASE.rossoTenue, borderWidth: 1, borderColor: BASE.rossoBordo, borderRadius: 10, padding: 12 }}>
           {oggi.foto ? <Image src={oggi.foto} style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 6, marginBottom: 10 }} /> : null}
-          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.2, color: BASE.rosso }}>OGGI</Text>
+          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 1.2, color: BASE.rosso }}>OGGI</Text>
           <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 13, color: BASE.ink, marginTop: 6, lineHeight: 1.25 }}>{oggi.titolo}</Text>
-          <Text style={{ fontSize: 7.5, color: BASE.testo, marginTop: 5, lineHeight: 1.4 }}>{oggi.testo}</Text>
+          <Text style={{ fontSize: 9, color: BASE.testo, marginTop: 5, lineHeight: 1.4 }}>{oggi.testo}</Text>
         </View>
         <View style={{ width: 34, alignItems: "center", justifyContent: "center" }}>
           <Svg viewBox="0 0 24 24" style={{ width: 20, height: 20 }}>
@@ -528,12 +525,12 @@ export function OggiDomani({ oggi, domani }: {
         </View>
         <View style={{ flex: 1, backgroundColor: BASE.verdeTenue, borderWidth: 1, borderColor: BASE.verdeBordo, borderRadius: 10, padding: 12 }}>
           {domani.foto ? <Image src={domani.foto} style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 6, marginBottom: 10 }} /> : null}
-          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.2, color: BASE.verdeScuro }}>{domani.etichetta.toUpperCase()}</Text>
+          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 1.2, color: BASE.verdeScuro }}>{domani.etichetta.toUpperCase()}</Text>
           <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 13, color: BASE.ink, marginTop: 6, lineHeight: 1.25 }}>{domani.titolo}</Text>
-          <Text style={{ fontSize: 7.5, color: BASE.testo, marginTop: 5, lineHeight: 1.4 }}>{domani.testo}</Text>
+          <Text style={{ fontSize: 9, color: BASE.testo, marginTop: 5, lineHeight: 1.4 }}>{domani.testo}</Text>
         </View>
       </View>
-      {oggi.foto || domani.foto ? <Text style={{ fontSize: 6, color: BASE.grigioChiaro, marginTop: 4 }}>Immagini illustrative.</Text> : null}
+      {oggi.foto || domani.foto ? <Text style={{ fontSize: 7.5, color: BASE.grigioChiaro, marginTop: 4 }}>Immagini illustrative.</Text> : null}
     </View>
   );
 }
@@ -548,8 +545,8 @@ export function CasaInBreve({ d }: { d: DatiRacconto }) {
       <View style={{ flexDirection: "row" }}>
         {casa.map((x, i) => (
           <View key={x.etichetta} style={{ flex: 1, marginRight: i < casa.length - 1 ? 8 : 0, backgroundColor: BASE.fondo, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, paddingVertical: 9, paddingHorizontal: 10 }}>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.3, letterSpacing: 0.9, color: BASE.grigio }}>{x.etichetta.toUpperCase()}</Text>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9.5, color: BASE.ink, marginTop: 4 }}>{x.valore}</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 0.9, color: BASE.grigio }}>{x.etichetta.toUpperCase()}</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 10, color: BASE.ink, marginTop: 4 }}>{x.valore}</Text>
           </View>
         ))}
       </View>
@@ -581,9 +578,9 @@ export function PassaggiRacconto({ d, c, titolo, evidenza, sottotitolo, passaggi
               {i < elenco.length - 1 ? <View style={{ width: 1.5, flexGrow: 1, minHeight: 16, backgroundColor: BASE.linea, marginVertical: 2 }} /> : null}
             </View>
             <View style={{ flex: 1, paddingLeft: 8, paddingBottom: 14 }}>
-              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.1, color: BASE.arancio }}>{`PASSO ${i + 1}`}</Text>
+              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 1.1, color: BASE.arancio }}>{`PASSO ${i + 1}`}</Text>
               <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 10, color: c.navy, marginTop: 2 }}>{p.titolo}</Text>
-              <Text style={{ fontSize: 8, color: BASE.testo, marginTop: 2, lineHeight: 1.4 }}>{conEuro(p.testo)}</Text>
+              <Text style={{ fontSize: 9, color: BASE.testo, marginTop: 2, lineHeight: 1.4 }}>{conEuro(p.testo)}</Text>
             </View>
           </View>
         ))}
@@ -592,7 +589,7 @@ export function PassaggiRacconto({ d, c, titolo, evidenza, sottotitolo, passaggi
         <View style={{ flex: 1, marginLeft: 14 }}>
           <Foto src={fotoAlta} altezza={fotoBassa ? 130 : 230} larghezza="100%" didascalia={false} />
           {fotoBassa ? <Foto src={fotoBassa} altezza={120} larghezza="100%" didascalia={false} stile={{ marginTop: 8 }} /> : null}
-          <Text style={{ fontSize: 6, color: BASE.grigioChiaro, marginTop: 3 }}>Immagini illustrative.</Text>
+          <Text style={{ fontSize: 7.5, color: BASE.grigioChiaro, marginTop: 3 }}>Immagini illustrative.</Text>
         </View>
       ) : null}
       </View>
@@ -602,7 +599,7 @@ export function PassaggiRacconto({ d, c, titolo, evidenza, sottotitolo, passaggi
           {documenti.map((doc, i) => (
             <View key={doc} style={{ width: (LARGHEZZA - 16) / 3, marginRight: i % 3 === 2 ? 0 : 8, marginBottom: 8, flexDirection: "row", alignItems: "center", backgroundColor: BASE.fondo, borderWidth: 1, borderColor: BASE.linea, borderRadius: 7, paddingVertical: 8, paddingHorizontal: 9 }}>
               <View style={{ marginRight: 6 }}><IconaPdf nome="documenti" colore={BASE.arancioScuro} lato={10} /></View>
-              <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 7.5, color: BASE.ink }}>{doc}</Text>
+              <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 9, color: BASE.ink }}>{doc}</Text>
             </View>
           ))}
         </View>
@@ -620,8 +617,8 @@ export function DomandeRacconto({ d, c, faq, foto }: { d: DatiRacconto; c: Palet
       <Intestazione c={c} occhiello="Le tue domande" titolo={"Prima di scegliere,\n"} evidenza="le risposte." />
       {faq.slice(0, 8).map((q, i) => (
         <View key={q.domanda} wrap={false} style={{ paddingVertical: 8, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: BASE.linea }}>
-          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9, color: c.navy }}>{q.domanda}</Text>
-          <Text style={{ fontSize: 8, color: BASE.testo, marginTop: 3, lineHeight: 1.45 }}>{conEuro(q.risposta)}</Text>
+          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 10, color: c.navy }}>{q.domanda}</Text>
+          <Text style={{ fontSize: 9, color: BASE.testo, marginTop: 3, lineHeight: 1.45 }}>{conEuro(q.risposta)}</Text>
         </View>
       ))}
       <Spinta />
@@ -658,11 +655,11 @@ export function DecisioneRacconto({ d, c, offerta, kpi, foto, passi }: {
           <Circle cx={440} cy={60} r={110} fill="url(#ct-offerta-calore)" />
         </Svg>
         <View style={{ height: 190, padding: 18 }}>
-          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.3, color: BASE.ambra }}>{`RIEPILOGO OFFERTA · VALIDA ${d.preventivo.validitaGiorni} GIORNI`}</Text>
+          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 1.3, color: BASE.ambra }}>{`RIEPILOGO OFFERTA · VALIDA ${d.preventivo.validitaGiorni} GIORNI`}</Text>
           <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 13, color: "#FFFFFF", marginTop: 8, maxWidth: 380, lineHeight: 1.25 }}>{offerta.titolo}</Text>
           <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 30, letterSpacing: -1, color: BASE.ambra, marginTop: 10 }}>{soldi(offerta.prezzo)}</Text>
-          <Text style={{ fontSize: 8, color: "#FFFFFF", opacity: 0.8, marginTop: 4 }}>{offerta.riga}</Text>
-          <Text style={{ fontSize: 8, color: "#FFFFFF", marginTop: 3 }}>{offerta.evidenza[0]}<Text style={{ fontFamily: "Helvetica-Bold", color: BASE.ambra }}>{offerta.evidenza[1]}</Text></Text>
+          <Text style={{ fontSize: 9, color: "#FFFFFF", opacity: 0.8, marginTop: 4 }}>{offerta.riga}</Text>
+          <Text style={{ fontSize: 9, color: "#FFFFFF", marginTop: 3 }}>{offerta.evidenza[0]}<Text style={{ fontFamily: "Helvetica-Bold", color: BASE.ambra }}>{offerta.evidenza[1]}</Text></Text>
         </View>
       </View>
 
@@ -678,15 +675,15 @@ export function DecisioneRacconto({ d, c, offerta, kpi, foto, passi }: {
         <View style={{ flex: 1, marginRight: 18 }}>
           <TitoletoSezione>Per accettare la proposta</TitoletoSezione>
           {passi.map((t, i) => (
-            <Text key={t} style={{ fontSize: 8, color: BASE.testo, lineHeight: 1.45, marginBottom: 3 }}>{`${i + 1}. ${t}`}</Text>
+            <Text key={t} style={{ fontSize: 9, color: BASE.testo, lineHeight: 1.45, marginBottom: 3 }}>{`${i + 1}. ${t}`}</Text>
           ))}
         </View>
         <View style={{ flex: 1 }}>
           <TitoletoSezione>Per parlarne ancora</TitoletoSezione>
           {contatti.map(([etichetta, valore]) => (
             <View key={etichetta} style={{ flexDirection: "row", marginBottom: 4 }}>
-              <Text style={{ width: 52, fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 0.8, color: BASE.grigio, marginTop: 1 }}>{etichetta.toUpperCase()}</Text>
-              <Text style={{ flex: 1, fontSize: 8, color: BASE.ink }}>{valore}</Text>
+              <Text style={{ width: 52, fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 0.8, color: BASE.grigio, marginTop: 1 }}>{etichetta.toUpperCase()}</Text>
+              <Text style={{ flex: 1, fontSize: 9, color: BASE.ink }}>{valore}</Text>
             </View>
           ))}
         </View>
