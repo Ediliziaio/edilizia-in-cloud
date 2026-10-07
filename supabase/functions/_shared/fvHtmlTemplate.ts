@@ -1308,7 +1308,6 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
 }
 
 function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const np = d.progetto.numero_pannelli;
   const renderDisclaimer = plainText(d.template?.render_disclaimer);
   return `<div class="page">
@@ -1587,7 +1586,6 @@ function pageMacroCategoriaDedicata(
 }
 
 function pageProduzione(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const mensili = calcolaProducibilitaMensile(d.flows.produzione_kwh);
   const source = roofSourceLabel(d.progetto.fonte_dati_tetto);
   return `<div class="page">
@@ -1771,7 +1769,6 @@ function pagePiano(d: FvPdfTemplateData, fin: FvFinanziamentoPdf, pageN: number,
 }
 
 function pageBollette240(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   // Costo bollette previsto in 25 anni senza FV
   const costo25senzaFV =
     d.progetto.consumo_annuo_kwh *
@@ -2089,7 +2086,6 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
 }
 
 function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const intro = safeRichText(d.template?.percorso_cliente_intro);
   const customCrono = (d.template?.cronoprogramma ?? [])
     .filter((c) => plainText(c.fase).length > 0)
@@ -2511,7 +2507,6 @@ function impaginaCondizioni(blocchi: string[]): string[][] {
  * il blocco della firma — illeggibili, e senza niente da approvare a parte.
  */
 function pagineCondizioni(d: FvPdfTemplateData, primoNumero: number, total: number): string[] {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const testo = String(d.template?.condizioni_legali_testo ?? "");
   const { blocchi, clausole } = condizioniInBlocchi(testo);
   const gruppi = impaginaCondizioni(blocchi);

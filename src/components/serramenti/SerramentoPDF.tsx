@@ -4465,8 +4465,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   </Text>
                 </View>
 
-                {/* Le carte: con la foto sotto restano strette (1 fase → 100%, 2 → 49%, 3 → 32%, 4 → 23.5%, 5+ → due per riga).
-                    Senza foto sono larghe (1, 2 e 3 fasi come prima, 4 e più due per riga) e il testo sale a 10,5 punti. */}
+                {/* Le carte: con la foto sotto restano strette (1 fase → 100%, 2 → 49%, 3 → 32%, 4 → 23.5%, 5 e 6 → tre per riga, 7 e più → 23.5%).
+                    Senza foto sono larghe (1, 2 e 3 fasi come prima, 4 fasi due per riga, 5 e 6 tre per riga, 7 e più quattro) e il testo sale a 10,5 punti. */}
                 {(() => {
                   const perRigaAmpio = carteDelPercorsoPerRiga(percorso.fasi.length);
                   const cardWidth = percorsoAmpio
