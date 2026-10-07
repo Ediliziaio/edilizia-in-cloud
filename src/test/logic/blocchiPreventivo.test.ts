@@ -171,3 +171,27 @@ describe("le pagine piene dei preventivi edili (22/09/2026)", () => {
     expect(leggi("src/components/preventivi/pdf/immaginiDocumento.ts")).toContain("Object.entries(RIEMPIMENTI_EDILI)");
   });
 });
+
+describe("le foto delle pagine dei serramenti (07/10/2026)", () => {
+  const leggi = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8");
+  const CHIAVI: ChiaveFotoPagina[] = ["percorso", "confronto", "cta", "proposta", "allegato", "dettagli", "investimento"];
+
+  it("ogni pagina ha la sua foto di serie, esiste, e nessuna si ripete nel documento (né fra i blocchi)", () => {
+    const pagine = CHIAVI.map((k) => fotoPaginaDiSerie(k, "serramenti"));
+    expect(pagine.every(Boolean), "una pagina senza foto").toBe(true);
+    const blocchi = BLOCCHI.flatMap((b) => leggiBlocco(b.chiave, "serramenti", {}).foto);
+    const tutte = [...pagine, ...blocchi].filter((f): f is string => Boolean(f));
+    expect(tutte.filter((f, i) => tutte.indexOf(f) !== i), "foto doppie").toEqual([]);
+    for (const f of tutte) expect(existsSync(pubblico(f)), f).toBe(true);
+    // Sotto il prezzo: il salotto con le finestre nuove.
+    expect(fotoPaginaDiSerie("investimento", "serramenti")).toBe("/pdf-stock/serramenti/risultato.jpg");
+  });
+
+  it("la foto sotto il prezzo si carica, si può cambiare dall'editor, e i modelli degli interventi non l'hanno", () => {
+    for (const file of ["src/hooks/useSerramentoPDF.ts", "src/lib/serramenti/mockPdfData.ts", "src/lib/moduli-vendita/serramentiTemplateModules.ts"]) {
+      expect(leggi(file), file).toContain('"dettagli", "investimento"]');
+    }
+    // La pagina economica ha due foto nell'editor: sotto il prezzo e in fondo ai dettagli.
+    expect(leggi("src/components/serramenti/SerramentiPagesOrderEditor.tsx")).toContain('investimento: ["investimento", "dettagli"]');
+  });
+});

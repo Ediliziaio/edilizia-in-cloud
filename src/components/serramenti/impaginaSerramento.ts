@@ -247,6 +247,82 @@ export function pezziAllegato(righe: RigaAllegato[], accessori: Array<{ descrizi
   return pezzi;
 }
 
+// ─── Proposta economica ───────────────────────────────────────────────────
+
+export interface DatiInvestimento {
+  /** Il testo sotto il titolo «Importo chiaro»: cambia col prezzo scritto a mano. */
+  sottotitolo: string;
+  /** La riga «Prezzo … · Sconto …» nel riquadro del prezzo. */
+  sconto: boolean;
+  /** Righe della nota sull'IVA: una, due con l'IVA mista. */
+  righeNotaIva: number;
+  /** La riga «oppure a rate / netto dopo il recupero fiscale» dentro il riquadro. */
+  rataENetto: boolean;
+  /** L'avviso con la scadenza dell'offerta: la sua descrizione, e se c'è lo sconto per chi firma presto. */
+  urgenza: { descrizione: string | null; scontoFirmaPresto: boolean } | null;
+  /** Le tappe del pagamento: fino a quattro in fila, oltre un elenco. Zero: niente riquadro. */
+  tappe: number;
+  finanziamento: boolean;
+}
+
+/**
+ * La pagina della proposta economica, dal titolo al finanziamento. Tarata sul PDF vero (07/10/2026): testata 119,
+ * riquadro del prezzo 117 (più 12 con lo sconto e 52 con la riga delle rate), avviso della scadenza 73, tappe in fila 166
+ * o in elenco 67 + 46 a tappa, finanziamento 128.
+ */
+export function pezziInvestimento(d: DatiInvestimento): Pezzo[] {
+  // Occhiello, titolo a 28 punti su due righe (6 sotto) e sottotitolo a 10 punti (12 sotto).
+  const pezzi: Pezzo[] = [{
+    alto: 9 * INTERLINEA_NATURALE + 6 + 2 * 28 * 1.03 + 6 + altezzaTesto(d.sottotitolo, UTILE_PAGINA, "Helvetica", 10, 1.38) + 12,
+  }];
+  // Il riquadro: 4 sopra, cornice 16 + 16, etichetta (6 sotto), importo a 24 punti, riga dell'imponibile, nota IVA; 10 sotto.
+  pezzi.push({
+    alto: 4 + 32 + 9 * INTERLINEA_NATURALE + 6 + 24 * 1.08
+      + (d.sconto ? 9 * INTERLINEA_NATURALE + 4 : 0) + 9 * INTERLINEA_NATURALE + (d.sconto ? 2 : 4)
+      + 5 + d.righeNotaIva * 7.5 * 1.35
+      + (d.rataENetto ? 8.5 + 8 + 8 * INTERLINEA_NATURALE + 2 + 14 * INTERLINEA_NATURALE + 7.5 * INTERLINEA_NATURALE + 1 : 0)
+      + 10,
+  });
+  // L'avviso: 10 sopra e sotto, bordo e cornice, etichetta (4 sotto), scadenza a 12 punti.
+  if (d.urgenza) {
+    pezzi.push({
+      alto: 10 + 2 + 24 + 9 * INTERLINEA_NATURALE + 4 + 12 * INTERLINEA_NATURALE + 10
+        + (d.urgenza.descrizione ? 4 + altezzaTesto(d.urgenza.descrizione, UTILE_PAGINA - 26, "Helvetica", 9, 1.4) : 0)
+        + (d.urgenza.scontoFirmaPresto ? 6 + 9 * 1.4 : 0),
+    });
+  }
+  if (d.tappe > 0) pezzi.push({ alto: d.tappe <= 4 ? 166 : 67 + 46 * d.tappe });
+  if (d.finanziamento) pezzi.push({ alto: 128 });
+  return pezzi;
+}
+
+// ─── Domande frequenti ────────────────────────────────────────────────────
+
+/** Una domanda con la sua risposta (faqDomanda, faqRisposta e il filetto sotto): `compatta` è lo spazio stretto dei modelli. */
+export function altezzaDomanda(domanda: string, risposta: string, compatta: boolean): number {
+  // Le domande vengono dal modello dell'azienda: una voce incompleta non deve fermare il PDF.
+  return altezzaTesto(String(domanda ?? ""), UTILE_PAGINA, "Helvetica-Bold", 11, INTERLINEA_NATURALE_GRASSETTO) + 4
+    + altezzaTesto(String(risposta ?? ""), UTILE_PAGINA, "Helvetica", 10, 1.5)
+    + (compatta ? 8 + 5 : 12 + 10) + 0.5;
+}
+
+export interface DatiDomande {
+  titolo: string;
+  intro: string | null;
+  voci: Array<{ domanda: string; risposta: string }>;
+}
+
+/**
+ * Le domande strette (8 punti fra una e l'altra invece di 12) quando così stanno in un foglio e col
+ * respiro normale sbordano: le otto di serie sbordavano di una sola, e il foglio dopo restava bianco al 90%
+ * (preventivo di Renova, pagina 18). Se non ci stanno nemmeno strette, restano come sono.
+ */
+export function domandeCompatte(d: DatiDomande): boolean {
+  const testa = altezzaTesta(String(d.titolo ?? ""), d.intro ? String(d.intro) : null) + 14;
+  const alte = (compatta: boolean) => testa + d.voci.reduce((acc, v, i) => acc + altezzaDomanda(`${i + 1}. ${v?.domanda ?? ""}`, v?.risposta ?? "", compatta), 0);
+  return alte(false) > ALTEZZA_UTILE && alte(true) <= ALTEZZA_UTILE - 12;
+}
+
 // ─── Dettagli economici ───────────────────────────────────────────────────
 
 /** Il titolo di un riquadro dei dettagli economici (investmentSectionTitle), col margine del riquadro. */

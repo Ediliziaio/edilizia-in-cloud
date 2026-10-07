@@ -7,9 +7,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  ALTEZZA_UTILE, FOTO_IN_FONDO_MINIMA, altezzaGrafico, altezzaRigaAllegato, impagina, pezziDettagli, spazioInFondo,
-  type DatiDettagli,
+  ALTEZZA_UTILE, FOTO_IN_FONDO_MINIMA, altezzaDomanda, altezzaGrafico, altezzaRigaAllegato, domandeCompatte, impagina, pezziDettagli, pezziInvestimento, spazioInFondo,
+  type DatiDettagli, type DatiInvestimento,
 } from "@/components/serramenti/impaginaSerramento";
+import { createFullSerramentiTemplate } from "@/lib/moduli-vendita/fullSerramentiModules";
 import { proporzioniImmagine } from "@/lib/pdf/proporzioniImmagine";
 
 describe("impaginazione delle sezioni Serramenti", () => {
@@ -80,12 +81,64 @@ describe("impaginazione delle sezioni Serramenti", () => {
     expect(ALTEZZA_UTILE).toBeCloseTo(638.89, 1);
   });
 
+  it("la pagina del prezzo è alta quanto quella vera: testata 119, riquadro 117, avviso 73, tappe 166, finanziamento 128", () => {
+    const sottotitolo = "Il totale è calcolato sulla composizione dell'offerta, sugli sconti applicati e sull'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione.";
+    const base: DatiInvestimento = { sottotitolo, sconto: false, righeNotaIva: 1, rataENetto: false, urgenza: null, tappe: 0, finanziamento: false };
+    const alto = (d: DatiInvestimento) => pezziInvestimento(d).map((x) => x.alto);
+    // Misurati sul PDF del preventivo di prova (07/10/2026): dalla testata alla fine del riquadro 236.
+    const [testa, riquadro] = alto(base);
+    expect(Math.abs(testa - 119)).toBeLessThan(3);
+    expect(Math.abs(riquadro - 117)).toBeLessThan(3);
+    // Con lo sconto il riquadro cresce di 12, con la riga delle rate di 52, due righe di nota IVA di 10.
+    expect(Math.abs(alto({ ...base, sconto: true })[1] - riquadro - 12)).toBeLessThan(2);
+    expect(Math.abs(alto({ ...base, rataENetto: true })[1] - riquadro - 52)).toBeLessThan(2);
+    expect(Math.abs(alto({ ...base, righeNotaIva: 2 })[1] - riquadro - 10)).toBeLessThan(2);
+    // L'avviso della scadenza 73, le tappe in fila 166 (fino a quattro) o in elenco (67 + 46 a tappa), il finanziamento 128.
+    expect(Math.abs(alto({ ...base, urgenza: { descrizione: null, scontoFirmaPresto: false } })[2] - 73)).toBeLessThan(2);
+    expect(alto({ ...base, tappe: 2 })[2]).toBe(166);
+    expect(alto({ ...base, tappe: 4 })[2]).toBe(166);
+    expect(alto({ ...base, tappe: 6 })[2]).toBe(67 + 46 * 6);
+    expect(alto({ ...base, tappe: 2, finanziamento: true })).toHaveLength(4);
+    expect(alto({ ...base, tappe: 2, finanziamento: true })[3]).toBe(128);
+  });
+
+  it("la foto sotto il prezzo esce quando la pagina lascia posto (anche col solo riquadro, come Renova) e non quando è piena", () => {
+    const sottotitolo = "Il totale è calcolato sulla composizione dell'offerta, sugli sconti applicati e sull'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione.";
+    const base: DatiInvestimento = { sottotitolo, sconto: false, righeNotaIva: 1, rataENetto: false, urgenza: null, tappe: 0, finanziamento: false };
+    const libero = (d: DatiInvestimento) => spazioInFondo(pezziInvestimento(d), 1);
+    // Il preventivo di Renova: titolo e riquadro con la riga delle rate, il resto del foglio bianco (58%).
+    expect(libero({ ...base, rataENetto: true })).toBeGreaterThan(300);
+    expect(libero(base)).toBeGreaterThan(FOTO_IN_FONDO_MINIMA);
+    expect(libero({ ...base, tappe: 3 })).toBeGreaterThan(FOTO_IN_FONDO_MINIMA);
+    // Tappe e finanziamento (corpo che arriva a 201 punti dal basso: 109 liberi) o sei tappe in elenco: niente foto.
+    expect(libero({ ...base, tappe: 2, finanziamento: true })).toBeLessThan(FOTO_IN_FONDO_MINIMA);
+    expect(libero({ ...base, tappe: 6 })).toBeLessThan(FOTO_IN_FONDO_MINIMA);
+  });
+
+  it("le domande si stringono solo quando così stanno in un foglio e col respiro normale sbordano (le otto del modello di prova: di una)", () => {
+    const base = { titolo: "Le risposte\nprima della conferma.", intro: "I dubbi più comuni spiegati in modo semplice, prima di decidere." };
+    const faq = (createFullSerramentiTemplate({ company_id: "qa", ragione_sociale: "Impresa esempio" }, "finestre").faq_items ?? []) as Array<{ domanda: string; risposta: string }>;
+    const voci = faq.map((f) => ({ domanda: f.domanda, risposta: f.risposta }));
+    expect(voci).toHaveLength(8);
+    // Misurato sul PDF: sette domande più il titolo arrivavano a 28 punti dal fondo, l'ottava (69) sbordava di 41.
+    expect(domandeCompatte({ ...base, voci })).toBe(true);
+    // Poche domande ci stanno comunque: niente da stringere.
+    expect(domandeCompatte({ ...base, voci: voci.slice(0, 4) })).toBe(false);
+    // Risposte lunghe non ci stanno nemmeno strette: restano come sono (due fogli veri).
+    const lunghe = voci.map((v) => ({ ...v, risposta: `${v.risposta} ${v.risposta} ${v.risposta}` }));
+    expect(domandeCompatte({ ...base, voci: lunghe })).toBe(false);
+    // Una voce incompleta (modello con una domanda senza risposta) non ferma il PDF.
+    expect(() => domandeCompatte({ ...base, voci: [...voci, { domanda: "Senza risposta?" } as unknown as (typeof voci)[number], undefined as unknown as (typeof voci)[number]] })).not.toThrow();
+    // Stretta, una domanda è più bassa di 9 punti.
+    expect(altezzaDomanda("1. A?", "B", false) - altezzaDomanda("1. A?", "B", true)).toBe(9);
+  });
+
   it("SerramentoPDF: la foto in fondo esce a pagine fatte, fissa, e mai due volte la stessa", () => {
     const pdf = readFileSync("src/components/serramenti/SerramentoPDF.tsx", "utf8");
     // Nel primo giro di react-pdf (senza sottopagina) la foto non c'è: non sposta niente.
     expect(pdf).toMatch(/subPageNumber != null && subPageTotalPages != null && subPageNumber === subPageTotalPages && mostra\(subPageTotalPages\)/);
     expect(pdf).toMatch(/<View\s+fixed\s+style=\{\{ flexGrow: 1 \}\}/);
-    for (const foto of ["fotoProposta", "fotoAllegato", "fotoDettagli", "fotoCta"]) expect(pdf).toContain(`<FotoInFondo src={${foto}}`);
+    for (const foto of ["fotoProposta", "fotoAllegato", "fotoDettagli", "fotoCta", "fotoInvestimento"]) expect(pdf).toContain(`<FotoInFondo src={${foto}}`);
     expect(pdf).toContain("if (!src || fotoUsate.has(src)) return null;");
   });
 });

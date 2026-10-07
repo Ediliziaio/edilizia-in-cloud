@@ -94,6 +94,14 @@ più piccola.
   può non cambiare anche se le pagine sono cambiate. Per verificare che una
   modifica sia online, guardare il chunk giusto (es. `adminRoutes-*.js`), non
   `index-*.js`.
+- Il PDF del bagno che il bot manda su WhatsApp (`bgn-genera-pdf`) non usa il
+  codice del documento edile direttamente: usa un pacchetto precompilato,
+  `supabase/functions/bgn-genera-pdf/_render.mjs`, che non si aggiorna da solo.
+  Toccare `DocumentoEdilePDF`, `adattatoreEdile`, i testi di `condizioniStandard`,
+  `blocchiPreventivo` o altro che il documento importa vuol dire rigenerarlo
+  (`node scripts/bgn-render/build.mjs`, pochi secondi) e committarlo insieme.
+  Il 07/10/2026 era fermo al 28/09 e mandava ancora «Firma del contratto» e la
+  testata di allora, senza che nessun controllo lo dicesse.
 
 ## Segreti
 

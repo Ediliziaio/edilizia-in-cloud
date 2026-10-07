@@ -13,12 +13,13 @@ import { describe, expect, it, vi } from "vitest";
 import { readFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { renderToBuffer } from "@react-pdf/renderer";
-import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { Page, renderToBuffer, Text } from "@react-pdf/renderer";
+import { getDocument, OPS } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { createFullSerramentiTemplate } from "@/lib/moduli-vendita/fullSerramentiModules";
 import { buildMockPdfData } from "@/lib/serramenti/mockPdfData";
 import { SR_PDF_PAGES_META } from "@/types/serramenti";
 import { SerramentoPDF } from "@/components/serramenti/SerramentoPDF";
+import { disegnaPagine } from "@/components/serramenti/srSemanticPreview";
 
 vi.setConfig({ testTimeout: 300_000 });
 vi.mock("@/lib/storage/immaginiModelloPdf", () => ({ CAMPI_IMMAGINE_SERRAMENTI: [], firmaImmagine: async (v: unknown) => v, firmaImmaginiModello: async (v: unknown) => v }));
@@ -69,6 +70,9 @@ interface Scenario {
   note?: number;
   accessori?: number;
   progetto?: Record<string, unknown>;
+  /** Un modello d'azienda, non un modello di intervento: ha le foto di serie nelle pagine (default: il modello di prova, senza foto). */
+  azienda?: boolean;
+  template?: Record<string, unknown>;
 }
 
 const TESTO_SINTESI = "Sostituzione dei serramenti esistenti con nuovi infissi ad alte prestazioni. ".repeat(40);
@@ -85,6 +89,8 @@ async function datiDi(s: Scenario): Promise<DatiMock> {
     condizioni_legali_attivo: true,
     condizioni_legali_testo: null as string | null,
     pdf_perche_noi_metriche: Array.from({ length: s.metriche ?? 0 }, (_, i) => ({ value: String(10 + i), label: `Metrica ${i + 1}`, suffix: "+" })),
+    ...(s.azienda ? { id: "tpl-azienda", pdf_blocchi: {} } : {}),
+    ...(s.template ?? {}),
   };
   const dati = await buildMockPdfData({ template, companyName: AZIENDA, companyLogoUrl: null });
   Object.assign(dati.detail.progetto, {
@@ -111,6 +117,20 @@ async function datiDi(s: Scenario): Promise<DatiMock> {
     })) as unknown as typeof dati.detail.accessori;
   }
   return dati;
+}
+
+/** Quante immagini disegna la pagina del prezzo (quella con «Importo chiaro»): la foto sotto il prezzo è l'unica. */
+async function immaginiNelPrezzo(dati: DatiMock): Promise<number> {
+  const bytes = await renderToBuffer(SerramentoPDF(dati) as Parameters<typeof renderToBuffer>[0]);
+  const pdf = await getDocument({ data: new Uint8Array(bytes), useSystemFonts: true }).promise;
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const pagina = await pdf.getPage(i);
+    const testo = (await pagina.getTextContent()).items.map((x) => ("str" in x ? x.str : "")).join(" ");
+    if (!/Importo chiaro/.test(testo)) continue;
+    const ops = await pagina.getOperatorList();
+    return ops.fnArray.filter((f) => f === OPS.paintImageXObject || f === OPS.paintInlineImageXObject).length;
+  }
+  throw new Error("la pagina del prezzo non c'è");
 }
 
 /** Il testo senza spazi e in minuscolo: gli occhielli sono spaziati lettera per lettera. */
@@ -238,5 +258,78 @@ describe("la pagina pubblica del preventivo e l'HTML dei serramenti", () => {
     const pacchetto = sorgente("supabase/functions/bgn-genera-pdf/_render.mjs");
     expect(pacchetto).toContain("ACCETTAZIONE PROPOSTA");
     expect(pacchetto).not.toContain("Firma del contratto");
+  });
+});
+
+describe("serramenti: la foto sotto il prezzo", () => {
+  // Il preventivo di Renova aveva il 58% del foglio vuoto sotto il riquadro del prezzo (pagina 9).
+  const SENZA_TAPPE: Record<string, unknown> = { fin_piani: [], pagamento_milestones: [] };
+
+  it("esce quando la pagina del prezzo lascia posto (solo il riquadro, o con tre tappe) e non quando è piena", async () => {
+    expect(await immaginiNelPrezzo(await datiDi({ azienda: true, progetto: SENZA_TAPPE, template: { pdf_mostra_rata_mensile: true } })), "solo il riquadro").toBe(1);
+    const treTappe: Record<string, unknown> = { fin_piani: [], schema_pagamento: "tre_step", pagamento_milestones: [30, 40, 30].map((percentuale, i) => ({ label: `Tappa ${i + 1}`, percentuale, when: "Quando serve" })) };
+    expect(await immaginiNelPrezzo(await datiDi({ azienda: true, progetto: treTappe })), "tre tappe").toBe(1);
+    // Due tappe e il finanziamento (109 punti liberi), o sei tappe in elenco: la pagina è piena.
+    expect(await immaginiNelPrezzo(await datiDi({ azienda: true })), "due tappe e finanziamento").toBe(0);
+    const seiTappe: Record<string, unknown> = { fin_piani: [], schema_pagamento: "tre_step", pagamento_milestones: [1, 2, 3, 4, 5, 6].map((n) => ({ label: `Tappa ${n}`, percentuale: 16, when: `Quando ${n}` })) };
+    expect(await immaginiNelPrezzo(await datiDi({ azienda: true, progetto: seiTappe })), "sei tappe").toBe(0);
+  });
+
+  it("l'azienda la toglie dal modello, e i modelli degli interventi non l'hanno", async () => {
+    const spenta = { pdf_blocchi: { pagina_investimento: { senzaFoto: true } } };
+    expect(await immaginiNelPrezzo(await datiDi({ azienda: true, progetto: SENZA_TAPPE, template: spenta }))).toBe(0);
+    expect(await immaginiNelPrezzo(await datiDi({ progetto: SENZA_TAPPE }))).toBe(0);
+  });
+});
+
+describe("serramenti: le domande frequenti non lasciano un foglio quasi vuoto", () => {
+  it("le otto domande di serie stanno su un solo foglio (prima l'ottava finiva da sola sul foglio dopo, bianco al 90%)", async () => {
+    const pagine = await leggi(await datiDi({ azienda: true, sintesi: 200 }));
+    const dove = (testo: string) => pagine.filter((p) => p.testo.includes(testo)).map((p) => p.numero);
+    const prima = dove("1. Doppio o triplo vetro?");
+    const ultima = dove("8. Cosa ricevo alla consegna?");
+    expect(prima).toHaveLength(1);
+    expect(ultima, "l'ottava domanda sul foglio della prima").toEqual(prima);
+    // E il foglio dopo non è quello di una sola domanda: è la pagina finale.
+    const dopo = pagine.find((p) => p.numero === prima[0] + 1);
+    expect(piatto(dopo?.testo ?? "")).toContain("ilprossimopasso");
+  });
+
+  it("domande lunghe, che non ci starebbero nemmeno strette, restano col respiro di prima (due fogli veri)", async () => {
+    const lunga = "Una risposta abbastanza lunga da occupare sei righe intere di testo nella pagina, e così via per fare volume. ".repeat(5);
+    const faq = Array.from({ length: 8 }, (_, i) => ({ domanda: `Domanda numero ${i + 1}?`, risposta: lunga }));
+    const pagine = await leggi(await datiDi({ azienda: true, sintesi: 200, template: { faq_items: faq } }));
+    const dove = (testo: string) => pagine.filter((p) => p.testo.includes(testo)).map((p) => p.numero);
+    expect(dove("1. Domanda numero 1?")[0]).toBeLessThan(dove("8. Domanda numero 8?")[0]);
+  });
+});
+
+describe("serramenti: le sezioni brevi non si spezzano su pagine vuote", () => {
+  it("garanzie e domande stanno sullo stesso foglio anche con un confronto vuoto in mezzo (era una pagina ciascuna)", async () => {
+    const pagine = await leggi(await datiDi({ sintesi: 200 }));
+    const dove = (occhiello: string) => pagine.filter((p) => piatto(p.testo).includes(occhiello)).map((p) => p.numero);
+    const garanzie = dove("garanzieeassistenza");
+    const domande = dove("primadiconfermare");
+    expect(garanzie).toHaveLength(1);
+    expect(domande).toHaveLength(1);
+    expect(domande[0], "la prima domanda sta sul foglio delle garanzie").toBe(garanzie[0]);
+  });
+});
+
+describe("disegnaPagine: una sezione vuota si riconosce, una pagina non si perde mai", () => {
+  const Disegna = (): null => null;
+
+  it("i frammenti con dentro solo null o false non disegnano nulla", () => {
+    expect(disegnaPagine(<></>)).toBe(false);
+    expect(disegnaPagine(<>{null}{false}{undefined}</>)).toBe(false);
+    expect(disegnaPagine(null)).toBe(false);
+    expect(disegnaPagine(<>{[null, false]}<>{null}</></>)).toBe(false);
+  });
+
+  it("una Page, anche dentro frammenti o elenchi, o un componente che non si sa cosa disegni, conta come pagina", () => {
+    expect(disegnaPagine(<Page size="A4"><Text>x</Text></Page>)).toBe(true);
+    expect(disegnaPagine(<>{null}<Page size="A4" /></>)).toBe(true);
+    expect(disegnaPagine([<Page key="a" size="A4" />, <Page key="b" size="A4" />])).toBe(true);
+    expect(disegnaPagine(<><Disegna /></>)).toBe(true);
   });
 });

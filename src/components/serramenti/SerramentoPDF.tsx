@@ -20,7 +20,7 @@
  */
 import * as React from "react";
 import { ensurePdfBufferCompatibility } from "@/lib/pdf/ensurePdfBufferCompatibility";
-import { srSectionAnchor, withSrSectionAnchor } from "./srSemanticPreview";
+import { disegnaPagine, srSectionAnchor, withSrSectionAnchor } from "./srSemanticPreview";
 import { Document, Page, Text, View, StyleSheet, Image, Link, Svg, Path, Rect, Circle, G, Font, Defs, LinearGradient, RadialGradient, Stop } from "@react-pdf/renderer";
 import type {
   SrProgettoDetail, SrSerramentoRow, SrPagamentoMilestone,
@@ -60,7 +60,7 @@ import { fotoPaginaPerIlPdf, fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/p
 import { eTavola, proporzioniImmagine } from "@/lib/pdf/proporzioniImmagine";
 import { altezzaTesto, larghezzaTesto, testoDaHtml } from "@/components/preventivi/pdf/misuraTesto";
 import {
-  ALTEZZA_IMMAGINE_ACCESSORIO, ALTEZZA_UTILE, COLONNA_IMMAGINE_ACCESSORIO, FOTO_IN_FONDO_MINIMA, UTILE_PAGINA, altezzaGrafico, pezziAllegato, pezziCta, pezziDettagli, pezziProposta,
+  ALTEZZA_IMMAGINE_ACCESSORIO, ALTEZZA_UTILE, COLONNA_IMMAGINE_ACCESSORIO, FOTO_IN_FONDO_MINIMA, UTILE_PAGINA, altezzaGrafico, domandeCompatte, pezziAllegato, pezziCta, pezziDettagli, pezziInvestimento, pezziProposta,
   spazioInFondo, type DatiDettagli, type RigaAllegato,
 } from "@/components/serramenti/impaginaSerramento";
 import type {
@@ -2479,7 +2479,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
       // Il piano della pagina economica: senza, l'Art. 4 diceva «…secondo il piano concordato: come da
       // condizioni di pagamento concordate» anche con le tappe stampate due pagine prima.
       pagamentoModalita: milestones.length > 0 ? schemaCfg?.label ?? null : null,
-      pagamentoFasi: milestones.map((m) => ({
+      pagamentoFasi: milestones.filter(Boolean).map((m) => ({
         label: m.label,
         percent: Number(m.percentuale) || 0,
         amount: roundMoney((totaleDocumento * (Number(m.percentuale) || 0)) / 100),
@@ -2656,6 +2656,12 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const fotoConfronto =fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "confronto", "serramenti", tpl.pdf_blocchi);
   const fotoCta = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "cta", "serramenti", tpl.pdf_blocchi);
 
+  // Le otto domande di serie sbordavano di una sola sul foglio dopo, lasciandolo bianco al 90% (Renova, pagina 18):
+  // se strette ci stanno su un foglio, si stringono. I modelli degli interventi sono già stretti.
+  const vociFaq = isLocalModule ? faqItems : faqItems.slice(0, 8);
+  const faqCompatta = !isLocalModule && domandeCompatte({ titolo: tDomande.titolo, intro: tDomande.intro || null, voci: vociFaq });
+  const stileFaq = faqCompatta ? { ...styles.faqItem, marginBottom: 8, paddingBottom: 5 } : styles.faqItem;
+
   // ─── Le sezioni brevi: quando stanno una dopo l'altra condividono le pagine ──
   // Garanzie, confronto, domande e i nostri lavori aprivano ciascuna un foglio:
   // con poche garanzie o poche domande restava mezza pagina bianca. Consecutive
@@ -2737,14 +2743,14 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     // Senza un contenitore in mezzo: vedi REACT_PDF_GRUPPO_IN_TESTA in provaSocialePdf.
     faq: faqItems.length > 0 ? (
       <>
-                {(isLocalModule ? faqItems : faqItems.slice(0, 8)).map((f, i) => (
-                  <View key={i} style={i === 0 ? undefined : styles.faqItem} wrap={false}>
+                {vociFaq.map((f, i) => (
+                  <View key={i} style={i === 0 ? undefined : stileFaq} wrap={false}>
                     {i === 0 ? (
                       <>
                         <Text style={styles.pageEyebrow}>{tDomande.occhiello}</Text>
                         <Text style={styles.pageTitle}>{tDomande.titolo}</Text>
                         {tDomande.intro ? <Text style={styles.pageSubtitle}>{tDomande.intro}</Text> : null}
-                        <View style={[styles.faqItem, { marginTop: isLocalModule ? 8 : 14 }]}>
+                        <View style={[stileFaq, { marginTop: isLocalModule ? 8 : 14 }]}>
                           <Text style={styles.faqDomanda}>{i + 1}. {f.domanda}</Text>
                           <Text style={styles.faqRisposta}>{f.risposta}</Text>
                         </View>
@@ -2832,7 +2838,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     if (!chiave) continue;
     for (const f of fotoPerIlPdf(tpl.pdf_blocchi_foto, chiave, leggiBlocco(chiave, "serramenti", tpl.pdf_blocchi).foto)) fotoUsate.add(f.src);
   }
-  const fotoLibera = (chiave: "proposta" | "allegato" | "dettagli"): string | null => {
+  const fotoLibera = (chiave: "proposta" | "allegato" | "dettagli" | "investimento"): string | null => {
     const src = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, chiave, "serramenti", tpl.pdf_blocchi);
     if (!src || fotoUsate.has(src)) return null;
     fotoUsate.add(src);
@@ -2841,6 +2847,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const fotoProposta = fotoLibera("proposta");
   const fotoAllegato = fotoLibera("allegato");
   const fotoDettagli = fotoLibera("dettagli");
+  // Sotto il prezzo: mai dove la pagina porta già un elenco di inclusioni o di esclusioni (i modelli degli interventi).
+  const fotoInvestimento = inlineModuleInclusions || moduleExclusions.trim() ? null : fotoLibera("investimento");
 
   // Quanto occupano le sezioni che possono finire a metà foglio (vedi impaginaSerramento).
   const pezziDellaProposta = pezziProposta({
@@ -2901,6 +2909,20 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   };
   const graficoRecupero = altezzaGrafico(datiDettagli);
   const pezziDeiDettagli = pezziDettagli(datiDettagli, graficoRecupero);
+  // La pagina del prezzo: quanto occupa, per decidere se la foto sotto il prezzo vale (vedi impaginaSerramento).
+  // Col prezzo scritto a mano il totale non viene dalle righe: le finestre possono essere tutte a 0 €.
+  const sottotitoloInvestimento = totaleCalcolato.prezzo_manuale
+    ? "Il totale comprende la fornitura descritta nelle pagine precedenti, gli sconti applicati e l'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione."
+    : "Il totale è calcolato sulla composizione dell'offerta, sugli sconti applicati e sull'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione.";
+  const pezziDellInvestimento = pezziInvestimento({
+    sottotitolo: sottotitoloInvestimento,
+    sconto: mostraRigaSconto,
+    righeNotaIva: p.iva_percentuale === -1 ? 2 : 1,
+    rataENetto: (mostraRataMensile && piani.length > 0) || (mostraRecuperoFiscale && hasTaxDeduction),
+    urgenza: urgenzaAttiva ? { descrizione: urgenzaDescrizione, scontoFirmaPresto: earlyBirdAttivo && Boolean(scadenzaEarlyBird) } : null,
+    tappe: milestones.length,
+    finanziamento: piani.length > 0 && Boolean(schemaCfg?.hasFinanziamento),
+  });
   const pezziDellaCta = pezziCta({
     titoloRiquadro: ctaTitle,
     passi: ctaSteps.slice(0, 5),
@@ -3968,13 +3990,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
               <Text style={styles.pageEyebrow}>Proposta economica</Text>
               <Text style={styles.investmentTitle}>Importo chiaro.{"\n"}Senza sorprese.</Text>
-              <Text style={styles.investmentSubtitle}>
-                {/* Col prezzo scritto a mano il totale non viene dalle righe: le
-                    finestre possono essere tutte a 0 €. */}
-                {totaleCalcolato.prezzo_manuale
-                  ? "Il totale comprende la fornitura descritta nelle pagine precedenti, gli sconti applicati e l'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione."
-                  : "Il totale è calcolato sulla composizione dell'offerta, sugli sconti applicati e sull'IVA selezionata. Eventuali varianti future saranno indicate in una nuova revisione."}
-              </Text>
+              <Text style={styles.investmentSubtitle}>{sottotitoloInvestimento}</Text>
 
               <View style={styles.priceBoxCompact} wrap={false}>
                 <Text style={styles.priceLabel}>Totale preventivo</Text>
@@ -4144,6 +4160,10 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 <Text style={styles.investmentSectionTitle} minPresenceAhead={30}>Esclusioni e opere da confermare</Text>
                 <Text style={styles.bulletText}>{moduleExclusions}</Text>
               </View>}
+
+              {/* La foto sotto il prezzo riempie il fondo quando la pagina economica ne lascia mezzo bianco
+                  (il preventivo di Renova: 58% di foglio vuoto dopo il prezzo). */}
+              {fotoInvestimento ? <FotoInFondo src={fotoInvestimento} mostra={(fogli) => spazioInFondo(pezziDellInvestimento, fogli) >= FOTO_IN_FONDO_MINIMA} /> : null}
 
               <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
             </Page>
@@ -4968,7 +4988,9 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
         };
         // Le sezioni brevi consecutive (con qualcosa da dire) vanno in una pagina
         // che scorre; tutte le altre restano come sono, una o più pagine ciascuna.
-        const visibili = pdfPagesOrder.filter((pg) => pg.visible);
+        // Una sezione accesa che non disegna niente (senza dati, senza foto, spenta dal suo interruttore) non
+        // interrompe le sezioni brevi: garanzie e domande con in mezzo un confronto vuoto stavano su due fogli.
+        const visibili = pdfPagesOrder.filter((pg) => pg.visible && disegnaPagine(pageEls[pg.id]));
         const blocchi: SrPdfPageId[][] = [];
         // Local illustrated chapters are full editorial pages, not short flow
         // sections. Grouping them in one unbreakable flow caused empty pages

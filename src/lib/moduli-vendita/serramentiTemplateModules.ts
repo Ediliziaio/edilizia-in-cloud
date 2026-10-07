@@ -103,7 +103,7 @@ export function createSerramentiModuleTemplate(base: Partial<SrTemplatePdfRow>, 
     percorso_cliente: { attivo: false, titolo: "Il tuo percorso", sottotitolo: "Tempi da concordare dopo il rilievo", fasi: [] },
     valido_giorni_default: 30, iva_percentuale_default: 22, anticipo_pct_default: 0,
     pdf_pages_order: SR_PDF_PAGES_META.map(p => ({ id: p.id, visible: p.obbligatoria || ["faq", "cta"].includes(p.id) })),
-    pdf_blocchi: { ...Object.fromEntries(["percorso", "confronto", "cta", "proposta", "allegato", "dettagli"].map(key => [`pagina_${key}`, { senzaFoto: true }])), modulo_esclusioni: m.excluded },
+    pdf_blocchi: { ...Object.fromEntries(["percorso", "confronto", "cta", "proposta", "allegato", "dettagli", "investimento"].map(key => [`pagina_${key}`, { senzaFoto: true }])), modulo_esclusioni: m.excluded },
   };
 }
 

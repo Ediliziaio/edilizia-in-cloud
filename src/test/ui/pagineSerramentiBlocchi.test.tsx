@@ -54,6 +54,15 @@ describe("editor Serramenti: le pagine nell'ordine delle pagine", () => {
     expect(foto).toEqual(["Foto di Proposta di intervento", "Foto di Allegato tecnico", "Foto di Proposta economica"]);
   });
 
+  it("la pagina economica ha due foto: sotto il prezzo e in fondo ai dettagli; le altre una sola", () => {
+    render(<Editor apriSezione={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Foto di Proposta economica" }));
+    expect(screen.getByText("Foto sotto il prezzo")).toBeTruthy();
+    expect(screen.getByText("Foto in fondo ai dettagli economici")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Foto di Proposta di intervento" }));
+    expect(screen.getByText("Foto in fondo alla proposta")).toBeTruthy();
+  });
+
   it("senza chi apre le sezioni, niente matita", () => {
     render(<Editor />);
     expect(screen.queryByRole("button", { name: /^Modifica / })).toBeNull();

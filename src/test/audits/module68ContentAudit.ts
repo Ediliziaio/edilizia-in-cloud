@@ -67,7 +67,7 @@ export const MODULE68_EXPECTED: Record<AuditArea, readonly string[]> = {
 export const MODULE68_MODELS = Object.entries(MODULE68_EXPECTED).flatMap(([area, ids]) => ids.map(id => ({ area: area as AuditArea, id, key: `${area}/${id}` })));
 const operational: ChiaveBlocco[] = ["comeFunziona", "protezione", "controlli", "documenti", "diario"];
 const edilePages: ChiaveFotoPagina[] = ["chiSiamo", "percorso", "computo", "compreso", "investimento", "garanzie", "tempi", "domande", "recensioni", "chiusura"];
-const srPages: ChiaveFotoPagina[] = ["percorso", "confronto", "proposta", "allegato", "dettagli", "cta"];
+const srPages: ChiaveFotoPagina[] = ["percorso", "confronto", "proposta", "allegato", "dettagli", "investimento", "cta"];
 const fvPages: ChiaveFotoPagina[] = ["garanzie", "bollette", "componenti", "costi", "cassa", "piano", "faq", "risparmio", "produzione", "recensioni", "decisione"];
 export type AuditIssue = { severity: "error" | "review"; code: string; field: string; detail: string };
 export type AuditSection = { key: string; required: boolean; visibility: "visible" | "hidden" | "conditional"; source: "factory" | "sector-fallback"; title: string; intro: string; text: unknown; itemCount: number; photos: string[]; photoRequired: boolean };
