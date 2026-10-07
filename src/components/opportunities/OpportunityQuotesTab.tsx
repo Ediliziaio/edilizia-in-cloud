@@ -39,6 +39,7 @@ import {
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
+import { importoPreventivoFv, type ImportoPreventivoFvInput } from "@/lib/fotovoltaico/importoPreventivo";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { ivaVoceNuova } from "@/hooks/usePreventivoCosti";
 import { costoArticolo } from "@/lib/listino/costoTariffa";
@@ -230,7 +231,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let q = (supabase as any)
         .from("fv_progetti")
-        .select("id, numero, stato, prezzo_vendita_iva_inclusa, created_at, opportunita_crm_id, cliente_id")
+        .select("id, numero, stato, prezzo_vendita_iva_inclusa, prezzo_vendita_manuale, kit_bundle_id, kit_prezzo, iva_aliquota, created_at, opportunita_crm_id, cliente_id")
         .eq("company_id", companyId!)
         .is("deleted_at", null)
         .eq("annullato", false)
@@ -242,7 +243,7 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
       }
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as Array<{
+      return (data ?? []) as Array<ImportoPreventivoFvInput & {
         id: string; numero: string | null; stato: string;
         prezzo_vendita_iva_inclusa: number | null;
         created_at: string; opportunita_crm_id: string | null; cliente_id: string | null;
@@ -650,8 +651,9 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-sm font-medium tabular-nums">
-                      {p.prezzo_vendita_iva_inclusa != null
-                        ? formatCurrency(Number(p.prezzo_vendita_iva_inclusa))
+                      {/* Lo stesso importo della pagina del preventivo: una bozza col prezzo a corpo o col kit non ha ancora il totale calcolato. */}
+                      {importoPreventivoFv(p) != null
+                        ? formatCurrency(Number(importoPreventivoFv(p)))
                         : "—"}
                     </p>
                     <p className="text-[10px] text-muted-foreground max-md:text-[11px]">

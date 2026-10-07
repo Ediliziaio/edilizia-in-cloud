@@ -12,10 +12,13 @@
  * così la conversione non può ripetersi per sbaglio.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { testoIndirizzo } from "@/lib/preventivatore/indirizzoLavori";
 
 export interface EsitoConversione {
   orderId: string;
   righe: number;
+  /** La commessa c'è ma qualcosa non è passato (cliente e indirizzo non scritti): lo si dice a chi ha cliccato. */
+  avviso?: string | null;
 }
 
 export interface RigaCommessa {
@@ -130,6 +133,77 @@ async function prossimoCodiceCommessa(companyId: string): Promise<string | null>
   return (data as string | null) ?? null;
 }
 
+/**
+ * Il cliente della commessa. `orders.customer_id` punta a `profiles(id)`, l'account di un cliente del portale;
+ * il preventivo di modulo tiene in `cliente_id` un CONTATTO del CRM. Passarlo com'era violava la chiave esterna
+ * per ogni preventivo con un contatto collegato: in produzione 14 preventivi lo hanno, 0 conversioni sono mai
+ * riuscite. Il contatto sa a quale profilo corrisponde; se non ne ha uno la commessa nasce senza `customer_id`
+ * e nome e recapiti stanno nei campi `client_*` (`campiClienteCommessa`), come nella conversione del preventivo
+ * generico e nell'automazione «crea cantiere».
+ */
+async function profiloClienteDelContatto(contattoId: string | null | undefined): Promise<string | null> {
+  if (!contattoId) return null;
+  const { data } = await supabase
+    .from("marketing_contacts")
+    .select("customer_profile_id")
+    .eq("id", contattoId)
+    .maybeSingle();
+  return (data as { customer_profile_id?: string | null } | null)?.customer_profile_id ?? null;
+}
+
+interface DatiClientePreventivo {
+  nome?: string | null;
+  cognome?: string | null;
+  email?: string | null;
+  telefono?: string | null;
+  /** «Via Roma 1, 10121 Torino (TO)», o vuoto. */
+  indirizzoLavori?: string | null;
+}
+
+/**
+ * Nome, recapiti e indirizzo dei lavori del preventivo, come si scrivono sulla commessa: la RPC
+ * `create_order_atomic` non ha queste colonne, e senza la scheda diceva «Cliente non disponibile» e il calendario
+ * non aveva l'indirizzo. L'indirizzo va in `indirizzo_lavori` e `work_address`, come fa «Nuova commessa».
+ * Niente campi vuoti: non si cancella ciò che non c'è.
+ */
+function campiClienteCommessa(c: DatiClientePreventivo): Record<string, string> {
+  const campi: Record<string, string> = {};
+  const pulito = (v: string | null | undefined) => (v ?? "").trim();
+  const nome = [pulito(c.nome), pulito(c.cognome)].filter(Boolean).join(" ");
+  if (nome) campi.client_name = nome;
+  if (pulito(c.email)) campi.client_email = pulito(c.email);
+  if (pulito(c.telefono)) campi.client_phone = pulito(c.telefono);
+  if (pulito(c.indirizzoLavori)) {
+    campi.indirizzo_lavori = pulito(c.indirizzoLavori);
+    campi.work_address = pulito(c.indirizzoLavori);
+  }
+  return campi;
+}
+
+/**
+ * Dopo la RPC: quello che la RPC non scrive (cliente, indirizzo dei lavori, legame col preventivo) e il legame
+ * inverso sul preventivo. Il preventivo si lega SEMPRE alla commessa, anche se cliente e indirizzo non si
+ * riescono a scrivere (se ne avvisa): senza il legame un secondo clic ne creerebbe un'altra.
+ */
+async function legaCommessaAlPreventivo(params: {
+  orderId: string;
+  progettoId: string;
+  tabella: "fv_progetti" | "rst_progetti";
+  colonnaCommessa: "fv_progetto_id" | "rst_progetto_id";
+  cliente: DatiClientePreventivo;
+}): Promise<string | null> {
+  const { error: errCommessa } = await supabase
+    .from("orders")
+    .update({ [params.colonnaCommessa]: params.progettoId, ...campiClienteCommessa(params.cliente) } as never)
+    .eq("id", params.orderId);
+  // Il legame sul preventivo: se manca, il bottone resterebbe acceso e il preventivo si convertirebbe due volte.
+  const { error: errLink } = await supabase.from(params.tabella).update({ ordine_id: params.orderId } as never).eq("id", params.progettoId);
+  if (errLink) throw new Error(`Commessa creata ma non collegata al preventivo: ${errLink.message}`);
+  return errCommessa
+    ? "La commessa è stata creata, ma cliente e indirizzo dei lavori non sono stati scritti: aggiungili dalla scheda della commessa."
+    : null;
+}
+
 /** Chiama la RPC atomica e restituisce l'id della commessa creata. */
 async function creaCommessa(params: {
   companyId: string;
@@ -198,7 +272,7 @@ function rigaRiepilogo(descrizione: string, totale: number, aliquota: number): R
 export async function convertiFvInCommessa(progettoId: string, userId: string): Promise<EsitoConversione> {
   const { data: progetto, error } = await supabase
     .from("fv_progetti")
-    .select("id, company_id, numero, titolo, stato, cliente_id, cliente_nome, cliente_cognome, indirizzo, comune, prezzo_vendita_iva_inclusa, prezzo_vendita_manuale, iva_aliquota, ordine_id")
+    .select("id, company_id, numero, titolo, stato, cliente_id, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, indirizzo, comune, cap, provincia, prezzo_vendita_iva_inclusa, prezzo_vendita_manuale, iva_aliquota, ordine_id")
     .eq("id", progettoId)
     .single();
   if (error || !progetto) throw new Error("Preventivo fotovoltaico non trovato");
@@ -306,18 +380,30 @@ export async function convertiFvInCommessa(progettoId: string, userId: string): 
     descrizione,
     totale,
     aliquotaIva: aliquota,
-    clienteId: (progetto.cliente_id as string | null) ?? null,
+    // `cliente_id` è un contatto del CRM, `orders.customer_id` un profilo: vedi profiloClienteDelContatto.
+    clienteId: await profiloClienteDelContatto(progetto.cliente_id as string | null),
     note: `Da preventivo fotovoltaico ${progetto.numero}${luogo ? ` — ${luogo}` : ""}`,
     righe: righe.length > 0 ? righe : rigaRiepilogo(descrizione, totale, aliquota),
   });
 
   // Legame nei due sensi: la commessa ricorda il preventivo e il preventivo la
-  // commessa, così il bottone non può creare un doppione.
-  await supabase.from("orders").update({ fv_progetto_id: progettoId } as never).eq("id", orderId);
-  const { error: errLink } = await supabase.from("fv_progetti").update({ ordine_id: orderId } as never).eq("id", progettoId);
-  if (errLink) throw new Error(`Commessa creata ma non collegata al preventivo: ${errLink.message}`);
+  // commessa, così il bottone non può creare un doppione. Con loro, cliente e
+  // indirizzo dei lavori, che la RPC non scrive.
+  const avviso = await legaCommessaAlPreventivo({
+    orderId,
+    progettoId,
+    tabella: "fv_progetti",
+    colonnaCommessa: "fv_progetto_id",
+    cliente: {
+      nome: progetto.cliente_nome,
+      cognome: progetto.cliente_cognome,
+      email: progetto.cliente_email,
+      telefono: progetto.cliente_telefono,
+      indirizzoLavori: testoIndirizzo({ indirizzo: progetto.indirizzo, citta: progetto.comune, cap: progetto.cap, provincia: progetto.provincia }),
+    },
+  });
 
-  return { orderId, righe: righe.length };
+  return { orderId, righe: righe.length, avviso };
 }
 
 // ────────────────────────── Ristrutturazione ──────────────────────────
@@ -325,7 +411,7 @@ export async function convertiFvInCommessa(progettoId: string, userId: string): 
 export async function convertiRstInCommessa(progettoId: string, userId: string): Promise<EsitoConversione> {
   const { data: progetto, error } = await supabase
     .from("rst_progetti")
-    .select("id, company_id, code, stato, note, cliente_id, cliente_nome, cliente_cognome, cantiere_indirizzo, cantiere_citta, totale, totale_imponibile, iva_pct, prezzo_manuale, ordine_id")
+    .select("id, company_id, code, stato, note, cliente_id, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cantiere_indirizzo, cantiere_citta, cantiere_cap, cantiere_provincia, totale, totale_imponibile, iva_pct, prezzo_manuale, ordine_id")
     .eq("id", progettoId)
     .single();
   if (error || !progetto) throw new Error("Preventivo ristrutturazione non trovato");
@@ -407,14 +493,30 @@ export async function convertiRstInCommessa(progettoId: string, userId: string):
     descrizione,
     totale,
     aliquotaIva: aliquota,
-    clienteId: (progetto.cliente_id as string | null) ?? null,
+    // `cliente_id` è un contatto del CRM, `orders.customer_id` un profilo: vedi profiloClienteDelContatto.
+    clienteId: await profiloClienteDelContatto(progetto.cliente_id as string | null),
     note: `Da preventivo ristrutturazione ${progetto.code ?? ""}${luogo ? ` — ${luogo}` : ""}`.trim(),
     righe: righe.length > 0 ? righe : rigaRiepilogo(descrizione, totale, aliquota),
   });
 
-  await supabase.from("orders").update({ rst_progetto_id: progettoId } as never).eq("id", orderId);
-  const { error: errLink } = await supabase.from("rst_progetti").update({ ordine_id: orderId } as never).eq("id", progettoId);
-  if (errLink) throw new Error(`Commessa creata ma non collegata al preventivo: ${errLink.message}`);
+  const avviso = await legaCommessaAlPreventivo({
+    orderId,
+    progettoId,
+    tabella: "rst_progetti",
+    colonnaCommessa: "rst_progetto_id",
+    cliente: {
+      nome: progetto.cliente_nome,
+      cognome: progetto.cliente_cognome,
+      email: progetto.cliente_email,
+      telefono: progetto.cliente_telefono,
+      indirizzoLavori: testoIndirizzo({
+        indirizzo: progetto.cantiere_indirizzo,
+        citta: progetto.cantiere_citta,
+        cap: progetto.cantiere_cap,
+        provincia: progetto.cantiere_provincia,
+      }),
+    },
+  });
 
-  return { orderId, righe: righe.length };
+  return { orderId, righe: righe.length, avviso };
 }

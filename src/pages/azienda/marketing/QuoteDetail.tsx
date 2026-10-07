@@ -10,6 +10,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { QUOTE_STATUS_CONFIG } from "@/lib/quoteStatus";
 import { useSignatureActions } from "@/hooks/useSignatureActions";
 import { duplicaPreventivo } from "@/lib/quotes/duplicaPreventivo";
+import { convertiPreventivoInCantiere } from "@/lib/quotes/convertiPreventivoInCantiere";
 import { avvisoSchedeNonAllegate } from "@/lib/quotes/allegatiPreventivo";
 import { eRigaDiModulo, preventivoDelModulo } from "@/lib/moduli/quoteBridge";
 import { fetchQuotePdf, downloadQuotePdf } from "@/lib/preventivi/quotePdfDownload";
@@ -89,19 +90,20 @@ export default function QuoteDetail() {
   };
 
   const handleConvertToCantiere = async () => {
+    if (!id) return;
     setConverting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("converti-preventivo-cantiere", {
-        body: { quote_id: id },
-      });
-      if (error) throw error;
-      toast.success("Preventivo convertito in cantiere con successo!");
+      const esito = await convertiPreventivoInCantiere(id);
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });
-      navigate(`/azienda/ordini/${data.order_id}`);
+      // La commessa c'è ma le righe no: dirlo, non «convertito con successo» davanti a una commessa vuota.
+      if (esito.avviso) {
+        toast.warning("Commessa creata, ma non completa", { description: esito.avviso, duration: 12000 });
+      } else {
+        toast.success("Preventivo convertito in cantiere con successo!");
+      }
+      navigate(`/azienda/ordini/${esito.orderId}`);
     } catch (e: unknown) {
-      const err = e as { context?: { json?: { error?: string } }; message?: string };
-      const msg = err?.context?.json?.error || err?.message || "Errore durante la conversione";
-      toast.error("Errore conversione: " + msg);
+      toast.error("Errore conversione: " + (e instanceof Error ? e.message : "Errore durante la conversione"));
     } finally {
       setConverting(false);
     }
@@ -413,7 +415,9 @@ export default function QuoteDetail() {
               </button>
             )}
 
-            {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && (
+            {/* Una commessa sola per preventivo: «Crea commessa (rivedi)» non cambia lo stato e non controlla, quindi
+                con la commessa già collegata («Vai alla commessa» qui sotto) le due strade non si offrono più. */}
+            {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && !linkedOrder && (
               <button
                 type="button"
                 onClick={handleConvertToCantiere}
@@ -427,7 +431,7 @@ export default function QuoteDetail() {
               </button>
             )}
 
-            {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && (
+            {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && !linkedOrder && (
               // Telefono no: la strada «rivedi prima» è da scrivania, resta «Converti in Cantiere».
               <Button
                 variant="outline"

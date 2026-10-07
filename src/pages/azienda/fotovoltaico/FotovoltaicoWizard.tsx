@@ -13,7 +13,7 @@
  * Step 8 — Generazione PDF + emissione
  */
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, type ComponentProps } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -156,6 +156,7 @@ import {
 } from "@/components/preventivatore";
 import { formattaEuro, type VistaAnteprima } from "@/lib/preventivatore/anteprima";
 import { usePermissions } from "@/hooks/usePermissions";
+import { usePuoVedereImpresa } from "@/components/preventivatore/usePuoVedereImpresa";
 import type { FvTemplate } from "@/components/fotovoltaico/FotovoltaicoTemplateEditor";
 import { useSupportoModelloPreventivo } from "@/hooks/useSupportoModelliPreventivo";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
@@ -3152,7 +3153,7 @@ function SourceTile({
  * Non si mostra quando è impostato un prezzo di vendita libero a corpo (che
  * bypassa lo sconto).
  */
-function FvScontoCard({
+export function FvScontoCard({
   data,
   update,
   readOnlyMode,
@@ -3168,6 +3169,8 @@ function FvScontoCard({
   onRicalcola: () => void;
 }) {
   const { data: discountRules = [] } = useDiscountRules();
+  // Il margine dopo lo sconto è un numero interno: lo vede solo chi può vedere costi e margini.
+  const puoVedereImpresa = usePuoVedereImpresa();
   const [scontoInput, setScontoInput] = useState<string>(() =>
     data.sconto_valore != null ? String(data.sconto_valore).replace(".", ",") : "",
   );
@@ -3301,7 +3304,7 @@ function FvScontoCard({
       {scontoAttivo && scontoPctRichiesto != null && discountVerdict === "ok" && (
         <p className="text-xs text-emerald-700 mb-3 flex items-center gap-1.5">
           ✓ Sconto {scontoPctRichiesto.toFixed(1)}% entro le regole — <strong>autorizzato</strong>
-          {hasCosto && hasBase && (
+          {puoVedereImpresa && hasCosto && hasBase && (
             <> · margine post-sconto <strong>{margineLivePct.toFixed(1)}%</strong> ({formatEur(margineLiveEur)})</>
           )}
         </p>
@@ -3354,7 +3357,7 @@ function FvScontoCard({
             <div className="text-xs text-orange-700">Prezzo netto scontato</div>
             <div className="font-extrabold text-orange-800 tabular-nums">{formatEur(prezzoNettoScontatoLive)}</div>
           </div>
-          {hasCosto ? (
+          {puoVedereImpresa && (hasCosto ? (
             <div className={`rounded-lg border p-3 ${margineLiveEur >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-rose-50 border-rose-200"}`}>
               <div className={`text-xs ${margineLiveEur >= 0 ? "text-emerald-700" : "text-rose-700"}`}>Margine post-sconto</div>
               <div className={`font-extrabold tabular-nums ${margineLiveEur >= 0 ? "text-emerald-800" : "text-rose-700"}`}>
@@ -3367,12 +3370,12 @@ function FvScontoCard({
               <div className="text-xs text-slate-500">Margine post-sconto</div>
               <div className="text-xs text-slate-400 pt-1">{costi?.costi_incompleti ? "Non disponibile: mancano i costi d'acquisto" : "Calcola per vederlo"}</div>
             </div>
-          )}
+          ))}
         </div>
       ) : (
         scontoAttivo && !readOnlyMode && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <p className="text-xs text-slate-500">Prezzo scontato e margine: calcola lo scenario per vederli.</p>
+            <p className="text-xs text-slate-500">{puoVedereImpresa ? "Prezzo scontato e margine: calcola lo scenario per vederli." : "Prezzo scontato: calcola lo scenario per vederlo."}</p>
             {RicalcolaBtn}
           </div>
         )
@@ -3422,6 +3425,8 @@ function Step5Configurazione({
   calcolando: boolean;
   onRicalcola: () => void;
 }) {
+  // Il costo d'acquisto dei prodotti extra lo vede (e lo scrive) solo chi può vedere costi e margini.
+  const puoVedereImpresa = usePuoVedereImpresa();
   // Prodotti extra: ricerca live sull'INTERO listino generale (article_families).
   const [extraSearch, setExtraSearch] = useState("");
 
@@ -4481,22 +4486,24 @@ function Step5Configurazione({
                       )}
                     </div>
                   </div>
-                  <div className="col-span-4 min-[1700px]:col-span-2">
-                    <Label className="text-[11px] text-slate-500">Acquisto € (margine)</Label>
-                    <Input
-                      inputMode="decimal"
-                      defaultValue={ex.prezzo_acquisto ?? ""}
-                      disabled={readOnlyMode}
-                      onBlur={(e) => {
-                        const vuoto = e.target.value.trim() === "";
-                        const v = vuoto ? null : Math.max(0, parseDecimalIT(e.target.value));
-                        aggiornaExtra(idx, { prezzo_acquisto: v });
-                        e.target.value = v != null && v > 0 ? formatDecimalIT(v) : "";
-                      }}
-                      className="h-9 text-sm bg-white"
-                      placeholder="—"
-                    />
-                  </div>
+                  {puoVedereImpresa && (
+                    <div className="col-span-4 min-[1700px]:col-span-2">
+                      <Label className="text-[11px] text-slate-500">Acquisto € (margine)</Label>
+                      <Input
+                        inputMode="decimal"
+                        defaultValue={ex.prezzo_acquisto ?? ""}
+                        disabled={readOnlyMode}
+                        onBlur={(e) => {
+                          const vuoto = e.target.value.trim() === "";
+                          const v = vuoto ? null : Math.max(0, parseDecimalIT(e.target.value));
+                          aggiornaExtra(idx, { prezzo_acquisto: v });
+                          e.target.value = v != null && v > 0 ? formatDecimalIT(v) : "";
+                        }}
+                        className="h-9 text-sm bg-white"
+                        placeholder="—"
+                      />
+                    </div>
+                  )}
                   <div className="col-span-1 flex items-center justify-end gap-1 pb-1">
                     {!readOnlyMode && (
                       <button
@@ -5232,79 +5239,8 @@ function Step6Finanziario({
         durataMesi={durataInfoMesi || (data.durata_mesi_scelta ?? 84)}
       />
 
-      <div className="mb-4">
-        <FvCallout
-          variant={economicsVariant}
-          title={economicsTitle}
-          action={
-            <FvChip
-              variant={
-                economicsGuard.status === "ready"
-                  ? "green"
-                  : economicsGuard.status === "review"
-                    ? "yellow"
-                    : "red"
-              }
-            >
-              {economicsGuard.score}/100
-            </FvChip>
-          }
-        >
-          <div className="space-y-3">
-            <p>{economicsGuard.nextAction}</p>
-            {/* Telefono: i margini si guardano dal computer. */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs max-md:hidden">
-              <div className="rounded-md bg-white/70 p-2">
-                <div className="text-slate-500">Margine reale</div>
-                <div className="font-bold text-slate-900">
-                  {economicsGuard.metrics.margine_pct != null
-                    ? `${(economicsGuard.metrics.margine_pct * 100).toFixed(1)}%`
-                    : "—"}
-                  {economicsGuard.metrics.margine_target_pct != null && (
-                    <span className="font-medium text-slate-500">
-                      {" "}
-                      / target {(economicsGuard.metrics.margine_target_pct * 100).toFixed(0)}%
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="rounded-md bg-white/70 p-2">
-                <div className="text-slate-500">Margine lordo</div>
-                <div className="font-bold text-slate-900">
-                  {economicsGuard.metrics.margine_eur != null
-                    ? formatEur(economicsGuard.metrics.margine_eur)
-                    : "—"}
-                </div>
-              </div>
-              <div className="rounded-md bg-white/70 p-2">
-                <div className="text-slate-500">CPL massimo</div>
-                <div className="font-bold text-slate-900">
-                  {economicsGuard.metrics.cpl_max_sostenibile != null
-                    ? formatEur(economicsGuard.metrics.cpl_max_sostenibile)
-                    : "—"}
-                </div>
-              </div>
-              <div className="rounded-md bg-white/70 p-2">
-                <div className="text-slate-500">Rata meno risparmio</div>
-                <div className="font-bold text-slate-900">
-                  {economicsGuard.metrics.costo_netto_mensile != null
-                    ? `${formatEur(economicsGuard.metrics.costo_netto_mensile)}/mese`
-                    : "—"}
-                </div>
-              </div>
-            </div>
-            {economicsGuard.issues.length > 0 && (
-              <ul className="grid gap-1 text-xs md:grid-cols-2">
-                {economicsGuard.issues.slice(0, 6).map((issue) => (
-                  <li key={issue.code} className="rounded-md bg-white/60 px-2 py-1">
-                    {issue.message}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </FvCallout>
-      </div>
+      {/* Controllo economico interno: margine, costo del lead, motivi. Solo a chi può vedere costi e margini. */}
+      <FvControlloEconomico guard={economicsGuard} variant={economicsVariant} title={economicsTitle} />
 
       {/* Confronto varianti — affianca configurazioni alternative (gap vs Reonic/Autarc) */}
       <FvConfrontoVarianti ctx={ctxVarianti} className="mb-4" />
@@ -5935,14 +5871,95 @@ function ScenarioBox({
 }
 
 // ============================================================================
+// FASE 6 — CONTROLLO ECONOMICO INTERNO
+// ============================================================================
+/**
+ * Il controllo economico della Fase 6 («Economia pronta per vendita e campagne»): margine reale e lordo, costo
+ * massimo del lead, e i motivi, che citano il margine sotto il target. Sono numeri interni: li vede solo chi può
+ * vedere costi e margini, come l'elenco e la scheda del Fotovoltaico; per gli altri il blocco non c'è.
+ */
+export function FvControlloEconomico({
+  guard,
+  variant,
+  title,
+}: {
+  guard: ReturnType<typeof calcolaFvEconomicsGuard>;
+  variant: ComponentProps<typeof FvCallout>["variant"];
+  title: string;
+}) {
+  const puoVedereImpresa = usePuoVedereImpresa();
+  if (!puoVedereImpresa) return null;
+  return (
+    <div className="mb-4">
+      <FvCallout
+        variant={variant}
+        title={title}
+        action={
+          <FvChip variant={guard.status === "ready" ? "green" : guard.status === "review" ? "yellow" : "red"}>
+            {guard.score}/100
+          </FvChip>
+        }
+      >
+        <div className="space-y-3">
+          <p>{guard.nextAction}</p>
+          {/* Telefono: i margini si guardano dal computer. */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs max-md:hidden">
+            <div className="rounded-md bg-white/70 p-2">
+              <div className="text-slate-500">Margine reale</div>
+              <div className="font-bold text-slate-900">
+                {guard.metrics.margine_pct != null ? `${(guard.metrics.margine_pct * 100).toFixed(1)}%` : "—"}
+                {guard.metrics.margine_target_pct != null && (
+                  <span className="font-medium text-slate-500">
+                    {" "}
+                    / target {(guard.metrics.margine_target_pct * 100).toFixed(0)}%
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="rounded-md bg-white/70 p-2">
+              <div className="text-slate-500">Margine lordo</div>
+              <div className="font-bold text-slate-900">
+                {guard.metrics.margine_eur != null ? formatEur(guard.metrics.margine_eur) : "—"}
+              </div>
+            </div>
+            <div className="rounded-md bg-white/70 p-2">
+              <div className="text-slate-500">CPL massimo</div>
+              <div className="font-bold text-slate-900">
+                {guard.metrics.cpl_max_sostenibile != null ? formatEur(guard.metrics.cpl_max_sostenibile) : "—"}
+              </div>
+            </div>
+            <div className="rounded-md bg-white/70 p-2">
+              <div className="text-slate-500">Rata meno risparmio</div>
+              <div className="font-bold text-slate-900">
+                {guard.metrics.costo_netto_mensile != null ? `${formatEur(guard.metrics.costo_netto_mensile)}/mese` : "—"}
+              </div>
+            </div>
+          </div>
+          {guard.issues.length > 0 && (
+            <ul className="grid gap-1 text-xs md:grid-cols-2">
+              {guard.issues.slice(0, 6).map((issue) => (
+                <li key={issue.code} className="rounded-md bg-white/60 px-2 py-1">
+                  {issue.message}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </FvCallout>
+    </div>
+  );
+}
+
+// ============================================================================
 // STEP 7 — VISTA IMPRESA
 // ============================================================================
-function Step7VistaImpresa({
+export function Step7VistaImpresa({
   scenario,
 }: {
   progettoId: string;
   scenario: Record<string, unknown> | null;
 }) {
+  const puoVedereImpresa = usePuoVedereImpresa();
   const costi = scenario?.costi as
     | {
         costo_totale_netto?: number;
@@ -5958,6 +5975,18 @@ function Step7VistaImpresa({
   const nd = Boolean(costi?.costi_incompleti);
   const euro = (v: number | null | undefined) =>
     (v ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 0 });
+
+  // Costo diretto e margine sono dell'impresa: senza il permesso la fase resta nel percorso ma non mostra i numeri.
+  if (!puoVedereImpresa) {
+    return (
+      <>
+        <FvPanelTitle step={7} totalSteps={TOTAL_STEPS} title="Vista impresa (interna)" subtitle="Costi e margini dell'impresa." />
+        <FvCallout variant="info" title="Vista riservata">
+          Questa vista è riservata a chi può vedere costi e margini. Per questo preventivo vai avanti alla fase successiva: il cliente non la vede mai.
+        </FvCallout>
+      </>
+    );
+  }
 
   return (
     <>

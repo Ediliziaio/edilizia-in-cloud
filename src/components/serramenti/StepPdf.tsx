@@ -116,7 +116,9 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
     {
       ok: Array.isArray(p.esigenze) && p.esigenze.filter((e) => e.titolo).length >= 1,
       label: "Almeno 1 esigenza",
-      hint: "Più ne metti meglio è (max 3 entrano nel PDF)",
+      // Le esigenze del cliente sono facoltative (la scheda lo dice, il PDF le stampa solo se ci sono): senza, PDF, link di firma e commessa si fanno lo stesso.
+      facoltativo: true,
+      hint: "consigliata: più ne metti meglio è (max 3 entrano nel PDF)",
       breve: "esigenze", passo: "immobile",
     },
     {

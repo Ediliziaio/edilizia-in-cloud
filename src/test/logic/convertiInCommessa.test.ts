@@ -63,8 +63,15 @@ describe("guardie della conversione", () => {
   });
 
   it("collega la commessa al preventivo nei due sensi", () => {
-    expect(SORGENTE).toContain("fv_progetto_id: progettoId");
-    expect(SORGENTE).toContain("rst_progetto_id: progettoId");
-    expect(SORGENTE.match(/ordine_id: orderId/g)?.length).toBe(2);
+    // Il legame lo scrive un solo punto (legaCommessaAlPreventivo: orders.<colonna> e <tabella>.ordine_id), usato da
+    // entrambe le conversioni ognuna con la sua colonna e la sua tabella. Che il legame arrivi davvero in tutti e due i
+    // sensi, e anche quando cliente e indirizzo non si scrivono, lo prova convertiInCommessaCliente.test.ts.
+    expect(SORGENTE).toContain("[params.colonnaCommessa]: params.progettoId");
+    expect(SORGENTE).toContain("ordine_id: params.orderId");
+    expect(SORGENTE).toContain('colonnaCommessa: "fv_progetto_id"');
+    expect(SORGENTE).toContain('colonnaCommessa: "rst_progetto_id"');
+    expect(SORGENTE).toContain('tabella: "fv_progetti"');
+    expect(SORGENTE).toContain('tabella: "rst_progetti"');
+    expect(SORGENTE.match(/await legaCommessaAlPreventivo\(\{/g)?.length).toBe(2);
   });
 });
