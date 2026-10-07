@@ -23,8 +23,11 @@ describe("fasi di partenza nel modulo di nuova commessa", () => {
     expect(SORGENTE).not.toContain("commessa_avvia");
   });
 
-  it("il selettore è nella prima scheda, dopo lo stato iniziale", () => {
-    expect(SORGENTE.indexOf("<FasiDiPartenzaSelect")).toBeGreaterThan(SORGENTE.indexOf('<Label>Stato Iniziale</Label>'));
-    expect(SORGENTE.indexOf("<FasiDiPartenzaSelect")).toBeLessThan(SORGENTE.indexOf("{/* Internal Notes */}"));
+  it("il selettore è nella scheda «Tempistiche per il Cliente», sotto le date, e una volta sola", () => {
+    const scheda = SORGENTE.indexOf('title="Tempistiche per il Cliente"');
+    const fine = SORGENTE.indexOf("</QuoteCard>", scheda);
+    expect(SORGENTE.match(/<FasiDiPartenzaSelect/g)).toHaveLength(1);
+    expect(SORGENTE.indexOf("<FasiDiPartenzaSelect")).toBeGreaterThan(SORGENTE.indexOf('label="Fine Lavori"', scheda));
+    expect(SORGENTE.indexOf("<FasiDiPartenzaSelect")).toBeLessThan(fine);
   });
 });

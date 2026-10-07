@@ -1,7 +1,7 @@
 // src/test/logic/creaCommessaPagamenti.test.ts
 /**
- * Il modulo di nuova commessa (CreateOrder) e il modello di pagamento: guardie sul testo, perché la pagina è troppo grande
- * per un test di comportamento. Il comportamento vero è provato in `modelliPagamento`, `ModelloPagamentoSelect` e
+ * Il modulo di nuova commessa (CreateOrder) e il modello di pagamento dell'azienda: guardie sul testo, perché la pagina è troppo grande
+ * per un test di comportamento. Il comportamento vero è provato in `modelliPagamento` e
  * `FinancialSummary` (importi che seguono le rate da modello).
  */
 import { readFileSync } from "node:fs";
@@ -24,10 +24,13 @@ describe("il modello di pagamento nel modulo di nuova commessa", () => {
     expect(payload).not.toContain("percent");
   });
 
-  it("il selettore sta DENTRO il riepilogo finanziario (dove ci sono le rate), non come scheda a parte", () => {
-    expect(SORGENTE).toContain("<FinancialSummary\n            modelloRate={<ModelloPagamentoSelect");
-    // una scheda a parte, nella griglia del modulo, lascerebbe un buco nella colonna accanto
-    expect(SORGENTE.match(/<ModelloPagamentoSelect/g)).toHaveLength(1);
-    expect(SORGENTE).toContain('installments.some((i) => i.percent != null) ? comeSiPagaId : ""');
+  it("il modulo NON ha un selettore di modello: le rate sono nel riepilogo finanziario e il modello dell'azienda le precompila", () => {
+    expect(SORGENTE).not.toContain("ModelloPagamentoSelect");
+    expect(SORGENTE).not.toContain("applicaModelloPagamento");
+    expect(SORGENTE).toContain("rateDiPartenza(modelloIniziale)");
+  });
+
+  it("il riepilogo sa che la commessa è nuova: la rata di oggi non risulta «scaduta»", () => {
+    expect(SORGENTE).toContain("<FinancialSummary\n            nuova\n");
   });
 });

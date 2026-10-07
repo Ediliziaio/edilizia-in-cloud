@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ritenutaSuLordo, IVA_SCORPORO_BANCA } from "@/lib/orders/bonusFiscali";
 import { formatCurrency } from "@/lib/formatters";
@@ -97,7 +97,7 @@ function DatePickerField({ label, date, onDateChange, disabled = false }: {
 type PaymentStatus = 'non_pagato' | 'pagato';
 
 function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidChange, onPaidDateChange, onExpectedDateChange, readOnly = false,
-  evento, triggerStatusId, triggerNumero, giorniPreavviso, dateCommessa, statiCommessa, onEventoChange, onTriggerStatusChange, onTriggerNumeroChange, onGiorniPreavvisoChange }: {
+  evento, triggerStatusId, triggerNumero, giorniPreavviso, dateCommessa, statiCommessa, onEventoChange, onTriggerStatusChange, onTriggerNumeroChange, onGiorniPreavvisoChange, nuova = false }: {
   label: string;
   amount: number;
   paid?: boolean;
@@ -119,6 +119,8 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
   onTriggerStatusChange?: (statusId: string | null) => void;
   onTriggerNumeroChange?: (numero: number | null) => void;
   onGiorniPreavvisoChange?: (giorni: number) => void;
+  /** Commessa in creazione: una rata che cade oggi non è «scaduta» (la prima rata «alla firma» nasce con la data di oggi). */
+  nuova?: boolean;
 }) {
   if (amount <= 0) return null;
 
@@ -136,7 +138,7 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
     : (expectedDate?.toLocaleDateString('en-CA') ?? null);
   const statoIncasso = statoIncassoRata({ isPaid: !!paid, dataAttesa: dataDaEvento, giorniPreavviso, oggi });
   const giorni = giorniAllEvento(dataDaEvento, oggi);
-  const scaduta = statoIncasso === 'scaduta';
+  const scaduta = statoIncasso === 'scaduta' && !(nuova && giorni === 0);
   const inPreavviso = statoIncasso === 'preavviso';
 
   const handleStatusChange = (newStatus: PaymentStatus) => {
@@ -349,8 +351,8 @@ interface FinancialSummaryProps {
   onBonusLinesChange?: (lines: BonusLine[]) => void;
   /** CF cliente / P.IVA impresa, per comporre le causali dei bonifici parlanti. */
   datiCausale?: DatiCausale;
-  /** Il modello di pagamento dell'azienda: sta sopra «Numero Rate», dove le rate si compilano (solo pagamento standard). */
-  modelloRate?: ReactNode;
+  /** Commessa in creazione: una rata che cade oggi (per esempio «alla firma») non è ancora «scaduta». */
+  nuova?: boolean;
 }
 
 export function FinancialSummary({
@@ -362,7 +364,7 @@ export function FinancialSummary({
   hasBuildingBonus, onHasBuildingBonusChange,
   financingCost, onFinancingCostChange,
   bonusMultipliEnabled = false, bonusLines = [], onBonusLinesChange,
-  datiCausale, dateCommessa, statiCommessa, modelloRate,}: FinancialSummaryProps) {
+  datiCausale, dateCommessa, statiCommessa, nuova,}: FinancialSummaryProps) {
   const [inputMode, setInputMode] = useState<AmountInputMode>('net');
   const [rawTotalInput, setRawTotalInput] = useState(totalAmount);
   const [rawFinancingCostInput, setRawFinancingCostInput] = useState(financingCost || "");
@@ -530,6 +532,7 @@ export function FinancialSummary({
           triggerStatusId={inst.trigger_status_id}
           triggerNumero={inst.trigger_numero}
           giorniPreavviso={inst.giorni_preavviso}
+          nuova={nuova}
           dateCommessa={dateCommessa}
           statiCommessa={statiCommessa}
           onEventoChange={(ev) => handleInstallmentEventoChange(inst.position, { trigger_evento: ev, trigger_status_id: ev === 'stato_commessa' ? inst.trigger_status_id ?? null : null })}
@@ -565,6 +568,7 @@ export function FinancialSummary({
             triggerStatusId={balanceInst.trigger_status_id}
             triggerNumero={balanceInst.trigger_numero}
             giorniPreavviso={balanceInst.giorni_preavviso}
+            nuova={nuova}
             dateCommessa={dateCommessa}
             statiCommessa={statiCommessa}
             onEventoChange={(ev) => handleInstallmentEventoChange(balanceInst.position, { trigger_evento: ev, trigger_status_id: ev === 'stato_commessa' ? balanceInst.trigger_status_id ?? null : null })}
@@ -726,9 +730,6 @@ export function FinancialSummary({
 
         {paymentType === 'standard' ? (
           <>
-            {/* Il modello dell'azienda: un modo più veloce di compilare le rate che seguono. */}
-            {!readOnly && modelloRate}
-
             {/* Number of installments selector */}
             {!readOnly && (
               <div className="space-y-2">

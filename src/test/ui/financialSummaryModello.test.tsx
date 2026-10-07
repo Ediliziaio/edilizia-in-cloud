@@ -92,37 +92,33 @@ describe("il riepilogo finanziario con un modello di pagamento", () => {
   });
 });
 
-describe("il posto del modello di pagamento nel riepilogo finanziario", () => {
+describe("una rata «alla firma» in una commessa nuova", () => {
+  const oggi = new Date().toLocaleDateString("en-CA");
   const rate: Installment[] = [
-    { position: 0, label: "Acconto 1", type: "deposit", amount: 0, is_paid: false },
-    { position: 1, label: "Saldo", type: "balance", amount: 0, is_paid: false },
+    { position: 0, label: "Acconto alla firma", type: "deposit", amount: 500, is_paid: false, trigger_evento: "firma_contratto" },
+    { position: 1, label: "Saldo", type: "balance", amount: 700, is_paid: false, trigger_evento: "fine_lavori" },
   ];
-  const monta = (extra: { paymentType?: "standard" | "financing"; readOnly?: boolean }) =>
+  const monta = (nuova: boolean) =>
     render(
       <FinancialSummary
-        totalAmount="1.000,00" vatRate="22" paymentType={extra.paymentType ?? "standard"} readOnly={extra.readOnly}
+        totalAmount="1.000,00" vatRate="22" paymentType="standard"
         installments={rate} onInstallmentsChange={() => {}}
         numInstallments={2} onNumInstallmentsChange={() => {}}
         onTotalAmountChange={() => {}} onVatRateChange={() => {}} onPaymentTypeChange={() => {}}
-        balance={0}
-        modelloRate={<div>SELETTORE DEL MODELLO</div>}
+        balance={700}
+        dateCommessa={{ created_at: `${oggi}T09:00:00`, warehouse_arrival_date: null, work_start_date: null, work_end_date: null, expected_date: null }}
+        nuova={nuova}
       />,
     );
 
-  it("sta dentro il riepilogo, subito sopra «Numero Rate»", () => {
-    monta({});
-    const selettore = screen.getByText("SELETTORE DEL MODELLO");
-    const numeroRate = screen.getByText("Numero Rate");
-    expect(selettore.compareDocumentPosition(numeroRate) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  it("cade oggi, ma in creazione non è «Scaduta»", () => {
+    monta(true);
+    expect(screen.getByText("Stato Acconto alla firma")).toBeInTheDocument();
+    expect(screen.queryByText("Scaduta")).not.toBeInTheDocument();
   });
 
-  it("non c'è con il finanziamento", () => {
-    monta({ paymentType: "financing" });
-    expect(screen.queryByText("SELETTORE DEL MODELLO")).not.toBeInTheDocument();
-  });
-
-  it("non c'è in sola lettura", () => {
-    monta({ readOnly: true });
-    expect(screen.queryByText("SELETTORE DEL MODELLO")).not.toBeInTheDocument();
+  it("su una commessa che esiste già la stessa rata, non pagata, è «Scaduta»", () => {
+    monta(false);
+    expect(screen.getByText("Scaduta")).toBeInTheDocument();
   });
 });

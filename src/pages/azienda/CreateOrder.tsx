@@ -76,10 +76,8 @@ import { SedeSelect } from "@/components/sedi/SedeSelect";
 import { FasiDiPartenzaSelect } from "@/components/orders/FasiDiPartenzaSelect";
 import { useFasiDiPartenza } from "@/hooks/useFasiDiPartenza";
 import { fasiPerCommessa } from "@/lib/orders/modelliFasi";
-import { ModelloPagamentoSelect } from "@/components/orders/ModelloPagamentoSelect";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useComeSiPagaDiPartenza } from "@/hooks/useComeSiPagaDiPartenza";
-import { useModelliPagamento } from "@/hooks/useModelliPagamento";
 import { rateDaModello, ricalcolaRatePercentuali, type ModelloPagamento } from "@/lib/orders/modelliPagamento";
 
 /** Le rate con cui si apre il modulo: quelle del modello scelto dall'azienda per le commesse nuove (importi a zero finché non c'è il totale), o le due di sempre. */
@@ -154,9 +152,6 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // ── Non-form state (arrays / UI) ────────────────────────────
   const [installments, setInstallments] = useState<Installment[]>(() => rateDiPartenza(modelloIniziale));
   const [numInstallments, setNumInstallments] = useState(modelloIniziale?.righe.length ?? 2);
-  // Quale modello di pagamento è stato applicato; si mostra solo finché le rate seguono ancora le sue percentuali.
-  const [comeSiPagaId, setComeSiPagaId] = useState(modelloIniziale?.id ?? "");
-  const { offerti: modelliPagamento } = useModelliPagamento();
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   // Ripartizione della commessa su più bonus edilizi (pratiche distinte).
   const [bonusLines, setBonusLines] = useState<BonusLine[]>([]);
@@ -206,22 +201,6 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     { label: "Stato iniziale", done: !!statusId },
     { label: "Righe ordine coerenti", done: invalidOrderItems.length === 0 },
   ];
-
-  // «Come si paga»: applica un modello alle rate. Gli importi sono la percentuale del totale con IVA (zero
-  // finché non c'è il totale: li ricalcola il modulo quando lo scrivi). «Scrivo io le rate» le lascia come
-  // sono, ma non seguono più il totale.
-  const applicaModelloPagamento = (id: string) => {
-    const modello = modelliPagamento.find((m) => m.id === id);
-    if (!modello) {
-      setInstallments((prev) => prev.map((i) => ({ ...i, percent: null as number | null })));
-      return;
-    }
-    setComeSiPagaId(id);
-    setValue("payment_type", "standard");
-    setNumInstallments(modello.righe.length);
-    setInstallments(rateDaModello(modello, totalWithVat));
-  };
-  const modelloApplicato = installments.some((i) => i.percent != null) ? comeSiPagaId : "";
 
   // Payment type change handler
   const handlePaymentTypeChange = (type: PaymentType) => {
@@ -539,7 +518,6 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     reset(orderDefaultValues);
     setInstallments(rateDiPartenza(modelloIniziale));
     setNumInstallments(modelloIniziale?.righe.length ?? 2);
-    setComeSiPagaId(modelloIniziale?.id ?? "");
     setOrderItems([]);
     setCantiereAddress("");
     cantiereTouchedRef.current = false;
@@ -1380,9 +1358,6 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                 )}
               />
 
-              {/* Fasi di lavoro: facoltative, di partenza quelle scelte dall'azienda nelle Impostazioni. */}
-              <FasiDiPartenzaSelect offerti={fasiDiPartenza.offerti} valore={fasiDiPartenza.scelta} onChange={fasiDiPartenza.scegli} />
-
               {/* Internal Notes */}
               <Controller
                 control={control}
@@ -1445,7 +1420,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           </QuoteCard>
 
           <FinancialSummary
-            modelloRate={<ModelloPagamentoSelect offerti={modelliPagamento} valore={modelloApplicato} onChange={applicaModelloPagamento} />}
+            nuova
             dateCommessa={{
               created_at: new Date().toISOString(),
               warehouse_arrival_date: toDateStr(watch("warehouse_arrival_date")),
@@ -1493,6 +1468,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             <DatePickerField name="warehouse_arrival_date" label="Arrivo Merce in Magazzino" />
             <DatePickerField name="work_start_date" label="Inizio Lavori" />
             <DatePickerField name="work_end_date" label="Fine Lavori" />
+          </div>
+          {/* Fasi di lavoro: facoltative, di partenza quelle scelte dall'azienda nelle Impostazioni. */}
+          <div className="mt-4 max-w-md">
+            <FasiDiPartenzaSelect offerti={fasiDiPartenza.offerti} valore={fasiDiPartenza.scelta} onChange={fasiDiPartenza.scegli} />
           </div>
         </QuoteCard>
 
