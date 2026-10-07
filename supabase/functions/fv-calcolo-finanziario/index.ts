@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
     // ── 2. Calcoli base ────────────────────────────────────────────────────
 
     if (!prog.potenza_kwp || !prog.ore_sole_annue || !prog.consumo_annuo_kwh) {
-      return errorResponse("Progetto incompleto: serve potenza_kwp + ore_sole_annue + consumo", 400, corsHeaders);
+      return errorResponse("Il preventivo è incompleto: servono la potenza dell'impianto, le ore di sole e il consumo annuo (Fasi 3, 4 e 5).", 400, corsHeaders);
     }
 
     // Costi totali dal sommatorio componenti + manodopera + servizi
@@ -145,7 +145,10 @@ Deno.serve(async (req: Request) => {
     //  - fascia importo valutata sul prezzo netto PIENO (pre-sconto)
     //  - tipo_lavoro 'fotovoltaico' oppure regola senza tipo
     //  - solo scope 'globale' (per_commerciale/per_cliente_cat ignorati qui)
-    //  - max sconto tra le regole matching; fallback 10% se nessuna regola
+    //  - sconto max = quello della regola PIÙ RESTRITTIVA fra le matching (come
+    //    compute_max_discount, sconto_max_azienda e discountRules.ts: col MASSIMO,
+    //    fino al 06/10/2026, con due regole da 5% e 12% passava il 12%); fallback
+    //    10% se nessuna regola
     //  - margine_min_pct: lo sconto non può portare il margine sotto il minimo
     const FALLBACK_SCONTO_PCT = 10;
     const scontoTipo = (prog.sconto_tipo as string | null) ?? null;
@@ -165,7 +168,7 @@ Deno.serve(async (req: Request) => {
       return prezzo_pieno_netto >= imMin && prezzo_pieno_netto <= imMax;
     });
     const scontoMaxPct = regoleMatch.length > 0
-      ? Math.max(...regoleMatch.map((r) => Number(r.sconto_max_pct ?? 0)))
+      ? Math.min(...regoleMatch.map((r) => Number(r.sconto_max_pct ?? 0)))
       : FALLBACK_SCONTO_PCT;
     const margineMinPct = regoleMatch.length > 0
       ? Math.max(...regoleMatch.map((r) => Number(r.margine_min_pct ?? 0)))
@@ -298,7 +301,10 @@ Deno.serve(async (req: Request) => {
 
     // ── 7. Capienza IRPEF ─────────────────────────────────────────────────
     const reddito = p.reddito_annuo ?? prog.reddito_annuo_dichiarato ?? 0;
-    const aliquota_detrazione = (prog.archetipo === "privato_prima" || prog.prima_casa) ? 0.5 : 0.36;
+    // Stessa aliquota della detrazione applicata sopra (50% prima casa, 36% le altre): è
+    // `prima_casa` a deciderla. Prima contava anche l'archetipo «privato_prima», quello di
+    // serie: su una seconda casa (Fase 2) la capienza si verificava con il 50% e non con il 36%.
+    const aliquota_detrazione = prog.prima_casa ? 0.5 : 0.36;
     const capienza = verificaCapienzaIrpef({
       costo_lavoro_eur: prezzo_vendita_iva_inclusa,
       aliquota_detrazione,
@@ -364,6 +370,11 @@ Deno.serve(async (req: Request) => {
     const risultato = {
       produzione_annua_kwh: round2(produzione_anno_1),
       autoconsumo_pct: round4(autoconsumo_pct),
+      // I prezzi dell'energia con cui è stato fatto il calcolo: il confronto varianti e il
+      // simulatore del wizard li leggevano da qui, ma la risposta non li dava e ripiegavano
+      // su 0,32 e 0,10 per qualunque cliente.
+      costo_kwh_attuale: prezzo_kwh_attuale,
+      prezzo_rid_eur_kwh: prezzo_rid,
       energia_autoconsumata_kwh: round2(energia_autoconsumata),
       energia_immessa_rete_kwh: round2(energia_immessa),
       risparmio_bolletta_eur: round2(risparmio_bolletta),
@@ -405,13 +416,36 @@ Deno.serve(async (req: Request) => {
       },
     };
 
+    // Un preventivo già emesso, firmato o annullato non si riscrive: il suo prezzo, la
+    // rata e i risultati sono quelli del documento che il cliente ha in mano (e da
+    // cui nasce la commessa). Aprirlo in sola lettura e andare alla Fase 6 rilanciava
+    // questo calcolo, che con le regole o i parametri di oggi poteva cambiare il
+    // prezzo salvato e cancellare la rata. Non si scrive niente, e si risponde con
+    // quello che è salvato (progetto + calcolo attivo): la schermata dice ciò che dice il documento.
+    if (["emesso", "firmato", "annullato"].includes(String(prog.stato ?? ""))) {
+      const { data: calcoloAttivo, error: errCalcoloAttivo } = await supabaseAdmin
+        .from("fv_calcolo_finanziario")
+        .select("*")
+        .eq("progetto_id", p.progetto_id)
+        .eq("attivo", true)
+        .maybeSingle();
+      if (errCalcoloAttivo) throw errCalcoloAttivo;
+      return jsonResponse(
+        { ...risultatoSalvato(risultato, prog, calcoloAttivo ?? null, iva_aliquota), sola_lettura: true },
+        200,
+        corsHeaders,
+      );
+    }
+
     // ── 14. Salva calcolo + denormalizza progetto ─────────────────────────
-    // Disattivo precedenti
-    await supabaseAdmin
+    // Disattivo precedenti. Un errore qui si ferma: con la vecchia riga ancora attiva
+    // ce ne sarebbero due, e il PDF (che ne legge una sola) non si genererebbe più.
+    const { error: errDisattiva } = await supabaseAdmin
       .from("fv_calcolo_finanziario")
       .update({ attivo: false })
       .eq("progetto_id", p.progetto_id)
       .eq("attivo", true);
+    if (errDisattiva) throw errDisattiva;
 
     const { data: nuovo, error: errSalva } = await supabaseAdmin
       .from("fv_calcolo_finanziario")
@@ -457,7 +491,7 @@ Deno.serve(async (req: Request) => {
     if (errSalva) throw errSalva;
 
     // Denormalizza su progetto
-    await supabaseAdmin
+    const { error: errProgetto } = await supabaseAdmin
       .from("fv_progetti")
       .update({
         produzione_annua_kwh: produzione_anno_1,
@@ -484,11 +518,20 @@ Deno.serve(async (req: Request) => {
         ultima_modifica_by: userId,
       })
       .eq("id", p.progetto_id);
+    // Prima l'errore si perdeva: il wizard mostrava il prezzo nuovo e il PDF, che legge
+    // il progetto, usciva con quello vecchio.
+    if (errProgetto) throw errProgetto;
 
     return jsonResponse(risultato, 200, corsHeaders);
   } catch (err) {
     if (err instanceof Response) return err;
-    const msg = err instanceof Error ? err.message : String(err);
+    // L'errore di Supabase è un oggetto semplice {message, code…}, non un Error:
+    // con String() il wizard avrebbe mostrato «[object Object]».
+    const msg = err instanceof Error
+      ? err.message
+      : typeof err === "object" && err !== null && typeof (err as { message?: unknown }).message === "string"
+        ? (err as { message: string }).message
+        : String(err);
     console.error("[fv-calcolo-finanziario] ERROR:", msg);
     return errorResponse(msg, 500, corsHeaders);
   }
@@ -765,10 +808,100 @@ function mensileDistribution(provincia: string | null): number[] {
   const sud = new Set(["AQ","CH","PE","TE","CB","IS","AV","BN","CE","NA","SA","BA","BT","BR","FG","LE","TA","CS","CZ","KR","RC","VV","MT","PZ"]);
   const isole = new Set(["AG","CL","CT","EN","ME","PA","RG","SR","TP","CA","NU","OR","SS","SU"]);
   const p = (provincia ?? "").toUpperCase();
-  if (norte.has(p)) return [0.035,0.05,0.08,0.095,0.12,0.13,0.135,0.12,0.095,0.07,0.04,0.03];
-  if (sud.has(p)) return [0.045,0.06,0.09,0.10,0.115,0.12,0.125,0.115,0.10,0.08,0.05,0.04];
-  if (isole.has(p)) return [0.05,0.06,0.09,0.10,0.115,0.12,0.125,0.115,0.10,0.08,0.05,0.045];
-  return [0.04,0.055,0.085,0.10,0.115,0.125,0.13,0.115,0.10,0.075,0.045,0.035];
+  const pesi = norte.has(p)
+    ? [0.035,0.05,0.08,0.095,0.12,0.13,0.135,0.12,0.095,0.07,0.04,0.03]
+    : sud.has(p)
+      ? [0.045,0.06,0.09,0.10,0.115,0.12,0.125,0.115,0.10,0.08,0.05,0.04]
+      : isole.has(p)
+        ? [0.05,0.06,0.09,0.10,0.115,0.12,0.125,0.115,0.10,0.08,0.05,0.045]
+        : [0.04,0.055,0.085,0.10,0.115,0.125,0.13,0.115,0.10,0.075,0.045,0.035];
+  // I pesi di Centro, Sud e Isole sommano a 1,02, 1,04 e 1,05 (solo il Nord a 1): così com'erano
+  // i dodici mesi davano il 2-5% di energia in più di quella dell'anno. Si riportano a somma 1.
+  const somma = pesi.reduce((a, b) => a + b, 0);
+  return pesi.map((x) => x / somma);
+}
+
+/** I numeri che il progetto si porta dietro dall'ultimo calcolo (le colonne denormalizzate). */
+const NUMERI_DEL_PROGETTO = ["produzione_annua_kwh", "autoconsumo_pct", "payback_anni", "npv_25_anni", "irr_pct"] as const;
+/** I risultati scalari del calcolo attivo. Per `payback_anni` e `irr_pct` il vuoto vale qualcosa: non rientra mai. */
+const NUMERI_DEL_CALCOLO = [
+  "produzione_annua_kwh", "autoconsumo_pct", "costo_kwh_attuale", "prezzo_rid_eur_kwh",
+  "energia_autoconsumata_kwh", "energia_immessa_rete_kwh", "risparmio_bolletta_eur", "ricavi_rid_eur",
+  "detrazione_anno_eur", "payback_anni", "npv_25_anni", "irr_pct", "risparmio_totale_25_anni",
+  "capienza_irpef_recuperabile_pct",
+] as const;
+/** I risultati strutturati del calcolo attivo (cassa, scenari, confronti, incentivi). */
+const VOCI_DEL_CALCOLO = [
+  "cassa_anno_per_anno", "cassa_mese_anno1", "capienza_irpef_ok", "sensitivity_minus15", "sensitivity_plus15",
+  "scenario_auto_elettrica", "scenario_pompa_calore", "confronto_btp_25anni", "confronto_deposito_25anni", "incentivi",
+] as const;
+
+/**
+ * La risposta per un preventivo emesso, firmato o annullato: quello che dice il documento.
+ *
+ * Ricalcolare con le righe, i parametri e le regole di oggi poteva dare un prezzo, una rata e un
+ * payback diversi da quelli salvati e stampati, e la Fase 6 li mostrava accanto a un documento che
+ * dice altro. Qui prezzo, sconto e margine vengono dal progetto, i risultati dal calcolo attivo;
+ * quello che non è stato salvato resta il calcolo di oggi, per non lasciare buchi nella risposta.
+ */
+function risultatoSalvato(
+  oggi: Record<string, unknown>,
+  prog: Record<string, unknown>,
+  calcolo: Record<string, unknown> | null,
+  ivaAliquota: number,
+): Record<string, unknown> {
+  const numero = (v: unknown): number | null => {
+    if (v == null || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const out: Record<string, unknown> = { ...oggi };
+
+  // I numeri principali scritti sul progetto all'ultimo calcolo (dove mancano resta quello di oggi).
+  for (const k of NUMERI_DEL_PROGETTO) {
+    const v = numero(prog[k]);
+    if (v != null) out[k] = v;
+  }
+  if (typeof prog.capienza_irpef_ok === "boolean") {
+    out.capienza_irpef_ok = prog.capienza_irpef_ok;
+    out.capienza_irpef_warning = prog.capienza_irpef_warning ?? null;
+  }
+  const co2 = numero(prog.co2_evitata_25_anni_kg);
+  if (co2 != null) out.co2_evitata_25_anni_kg = co2;
+
+  // Il calcolo attivo: tutti i risultati.
+  if (calcolo) {
+    for (const k of NUMERI_DEL_CALCOLO) {
+      if (!(k in calcolo)) continue;
+      const v = numero(calcolo[k]);
+      if (v != null || k === "payback_anni" || k === "irr_pct") out[k] = v;
+    }
+    for (const k of VOCI_DEL_CALCOLO) {
+      if (calcolo[k] != null) out[k] = calcolo[k];
+    }
+  }
+
+  // Prezzo, sconto e margine: quelli del progetto, cioè del documento.
+  const prezzo = numero(prog.prezzo_vendita_iva_inclusa);
+  if (prezzo != null && prezzo > 0) {
+    const costi: Record<string, unknown> = { ...(oggi.costi as Record<string, unknown>) };
+    const netto = round2(prezzo / (1 + ivaAliquota));
+    const sconto = numero(prog.sconto_eur_applicato) ?? 0;
+    const margineEur = numero(prog.margine_eur);
+    costi.prezzo_vendita_iva_inclusa = round2(prezzo);
+    costi.prezzo_vendita_netto = netto;
+    costi.sconto_eur_applicato = sconto;
+    costi.prezzo_pieno_netto = round2(netto + sconto);
+    // Se lo sconto fu limitato dalle regole non è salvato: in sola lettura non c'è niente da avvisare.
+    costi.sconto_limitato = false;
+    const costo = numero(prog.costo_totale_netto);
+    if (costo != null) costi.costo_totale_netto = costo;
+    costi.margine_eur = margineEur;
+    costi.margine_pct = margineEur == null ? null : numero(prog.margine_pct);
+    costi.costi_incompleti = margineEur == null;
+    out.costi = costi;
+  }
+  return out;
 }
 
 function round2(n: number): number { return Math.round(n * 100) / 100; }

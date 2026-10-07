@@ -23,6 +23,7 @@ export {
 } from "./fvPagine.ts";
 import {
   fmtEur,
+  fmtRata,
   fmtNum,
   fmtPct,
   fmtData,
@@ -1251,7 +1252,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
             <tbody>
               ${mp.anticipo_eur > 0 ? r2(`Anticipo alla firma (${fmtNum(mp.anticipo_pct, 0)}%)`, fmtEur(mp.anticipo_eur)) : r2("Anticipo alla firma", "Nessun anticipo")}
               ${r2(`Importo finanziato${mp.tasso_zero ? " · tasso zero" : ""}`, fmtEur(mp.finanziato_eur))}
-              ${r2(`Rata mensile · ${mp.durata_mesi} rate`, `${fmtEur(mp.rata_mensile)}/mese`, true)}
+              ${r2(`Rata mensile · ${mp.durata_mesi} rate`, `${fmtRata(mp.rata_mensile)}/mese`, true)}
             </tbody>
             <tfoot><tr style="border-top:2px solid #1E3A5F;font-weight:700;">
               <td style="padding:1.8mm 0;color:#1E3A5F;">${isFvLocalIntervention(d.template) ? "Totale proposta" : "Totale chiavi in mano"}</td>
@@ -1269,7 +1270,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
           <table style="width:100%;border-collapse:collapse;font-size:10pt;">
             <tbody>
               ${r2("Anticipo iniziale", "€ 0 · zero anticipo")}
-              ${r2(`Canone mensile · ${mp.durata_mesi} mesi`, `${fmtEur(mp.canone_mensile)}/mese`, true)}
+              ${r2(`Canone mensile · ${mp.durata_mesi} mesi`, `${fmtRata(mp.canone_mensile)}/mese`, true)}
             </tbody>
           </table>${noteP}`;
         }
@@ -1438,13 +1439,12 @@ function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number, comp
  * prodotto (image_url), diversa dalla scheda tecnica PDF da allegare. Se il
  * progetto usa un kit/bundle, le righe sono le voci del kit inserito.
  */
-function pageComposizioneFornitura(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
-  const local = isFvLocalIntervention(d.template);
-  const kit = d.bundle && (d.bundle.voci ?? []).length > 0 ? d.bundle : null;
+type RigaFornitura = { foto: string | null; cat: string; titolo: string; specs: string[]; qta: number };
 
-  type Riga = { foto: string | null; cat: string; titolo: string; specs: string[]; qta: number };
-  const righe: Riga[] = kit
+/** Le righe della tabella: le voci del kit se c'è, altrimenti i componenti del preventivo. */
+function righeFornitura(d: FvPdfTemplateData): RigaFornitura[] {
+  const kit = d.bundle && (d.bundle.voci ?? []).length > 0 ? d.bundle : null;
+  return kit
     ? (kit.voci ?? []).map((v) => ({ foto: imageHref(v.foto) ?? null, cat: kit.nome || "Kit", titolo: v.descrizione, specs: [] as string[], qta: v.quantita }))
     : d.componenti.map((c) => {
         const media = productCategoryMedia(d, c.categoria);
@@ -1462,11 +1462,57 @@ function pageComposizioneFornitura(d: FvPdfTemplateData, pageN: number, total: n
           qta: c.quantita,
         };
       });
+}
 
-  const pezzi = righe.reduce((s, r) => s + (Number(r.qta) || 0), 0);
+// La pagina A4 ha altezza fissa e quello che sborda si taglia (misurato in un browser vero): le righe
+// della fornitura, alte 28,2 mm con una riga di testo (foto 18 mm + 10 mm di margini), partono a 83,9 mm
+// dall'alto e hanno posto fino al piè di pagina, a 283,9 mm; il totale chiavi in mano vuole altri ~26 mm.
+// Con sei righe il totale entra, con sette no (usciva tagliato), da otto spariva anche l'ultima riga.
+const FORNITURA_ALTEZZA_UTILE_MM = 198;
+const FORNITURA_ALTEZZA_TOTALE_MM = 26;
+
+/** Altezza stimata di una riga: quella di base, più una riga di testo (~4,7 mm il titolo, ~3,6 mm le specifiche) per ogni a capo. */
+function altezzaRigaFornitura(r: RigaFornitura): number {
+  const righeTitolo = Math.max(1, Math.ceil(r.titolo.length / 50));
+  const testoSpecifiche = r.specs.join(" · ");
+  const righeSpecifiche = testoSpecifiche ? Math.max(1, Math.ceil(testoSpecifiche.length / 66)) : 0;
+  return 28.2 + (righeTitolo - 1) * 4.7 + Math.max(0, righeSpecifiche - 1) * 3.6;
+}
+
+/** Le righe divise in pagine: ognuna riempie lo spazio utile, e l'ultima lascia posto al totale. Mai una pagina vuota, mai righe perse. */
+function pagineFornitura(d: FvPdfTemplateData): RigaFornitura[][] {
+  const righe = righeFornitura(d);
+  const pagine: Array<{ righe: RigaFornitura[]; altezza: number }> = [{ righe: [], altezza: 0 }];
+  for (const r of righe) {
+    const h = altezzaRigaFornitura(r);
+    const ultima = pagine[pagine.length - 1];
+    if (ultima.righe.length > 0 && ultima.altezza + h > FORNITURA_ALTEZZA_UTILE_MM) pagine.push({ righe: [], altezza: 0 });
+    const corrente = pagine[pagine.length - 1];
+    corrente.righe.push(r);
+    corrente.altezza += h;
+  }
+  // L'ultima pagina porta anche il totale: se non ci sta, l'ultima riga passa in una pagina sua.
+  for (;;) {
+    const ultima = pagine[pagine.length - 1];
+    if (ultima.righe.length <= 1 || ultima.altezza + FORNITURA_ALTEZZA_TOTALE_MM <= FORNITURA_ALTEZZA_UTILE_MM) break;
+    const spostata = ultima.righe.pop() as RigaFornitura;
+    const h = altezzaRigaFornitura(spostata);
+    ultima.altezza -= h;
+    pagine.push({ righe: [spostata], altezza: h });
+  }
+  return pagine.map((p) => p.righe);
+}
+
+/** Una pagina della tabella: `righe` sono le sue, `prima` quante ne sono già uscite nelle pagine di prima (la numerazione continua). */
+function pageComposizioneFornitura(d: FvPdfTemplateData, pageN: number, total: number, righe: RigaFornitura[], ultima: boolean, parte: number, prima: number): string {
+  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const local = isFvLocalIntervention(d.template);
+
+  // I pezzi sono quelli di tutta la fornitura, non solo quelli di questa pagina.
+  const pezzi = righeFornitura(d).reduce((s, r) => s + (Number(r.qta) || 0), 0);
   const rows = righe.map((r, i) => `
       <tr>
-        <td class="forn-idx">${String(i + 1).padStart(2, "0")}</td>
+        <td class="forn-idx">${String(prima + i + 1).padStart(2, "0")}</td>
         <td class="forn-thumb">${r.foto ? `<img src="${escHtml(r.foto)}" alt=""/>` : `<div class="ph">${svgProdottoIcona("pannello")}</div>`}</td>
         <td class="forn-desc">
           <div class="forn-cat">${escHtml(r.cat)}</div>
@@ -1479,7 +1525,7 @@ function pageComposizioneFornitura(d: FvPdfTemplateData, pageN: number, total: n
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
-      <div class="eyebrow">La fornitura</div>
+      <div class="eyebrow">La fornitura${parte ? ` · continua ${parte + 1}` : ""}</div>
       <h1 class="page-title">Cosa installiamo,<br/>in dettaglio.</h1>
       <p class="page-subtitle">${local ? "I prodotti della proposta, con quantità e caratteristiche principali." : "Prodotti, quantità e caratteristiche della fornitura prevista, chiavi in mano."}</p>
       <div class="forn-caption">Composizione della fornitura&nbsp;·&nbsp;${pezzi} ${pezzi === 1 ? "pezzo" : "pezzi"}</div>
@@ -1487,10 +1533,10 @@ function pageComposizioneFornitura(d: FvPdfTemplateData, pageN: number, total: n
         <thead><tr><th style="width:9mm">#</th><th colspan="2">Descrizione &amp; specifiche tecniche</th><th class="forn-h-qta">Q.tà</th></tr></thead>
         <tbody>${rows || `<tr><td colspan="4" style="padding:6mm;color:#94A3B8;">Nessun prodotto configurato.</td></tr>`}</tbody>
       </table>
-      <div class="forn-tot">
-        <div class="forn-tot-l">Fornitura chiavi in mano<span>IVA ${fmtNum(d.costi.iva_perc, 0)}% inclusa · installazione e collaudo compresi</span></div>
+      ${ultima ? `<div class="forn-tot">
+        <div class="forn-tot-l">${local ? "Totale della proposta" : "Fornitura chiavi in mano"}<span>IVA ${fmtNum(d.costi.iva_perc, 0)}% inclusa · installazione e collaudo compresi</span></div>
         <div class="forn-tot-v">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
-      </div>
+      </div>` : ""}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1706,22 +1752,22 @@ function pagePiano(d: FvPdfTemplateData, fin: FvFinanziamentoPdf, pageN: number,
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">★ Il piano economico</div>
-      <h1 class="page-title">${fmtEur(netto)} al mese.<br/><span style="color:#F97316">Tutto qui.</span></h1>
+      <h1 class="page-title">${fmtRata(netto)} al mese.<br/><span style="color:#F97316">Tutto qui.</span></h1>
       <p class="page-subtitle">Quello che esce davvero dal tuo conto, ogni mese.${netto / 30 <= 1.5 ? " Meno di un caffè al giorno." : ""}</p>
       <div class="split-3">
-        <div class="num-card navy"><div class="nc-label">Rata ${escHtml(fin.finanziaria.split(" ")[0])}</div><div class="nc-value">${fmtEur(rata)}</div><div class="nc-period">×${fin.durata_mesi} mesi${fin.taeg_perc != null ? ` · TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""}</div></div>
+        <div class="num-card navy"><div class="nc-label">Rata ${escHtml(fin.finanziaria.split(" ")[0])}</div><div class="nc-value">${fmtRata(rata)}</div><div class="nc-period">×${fin.durata_mesi} mesi${fin.taeg_perc != null ? ` · TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""}</div></div>
         <div class="num-card green"><div class="nc-label">Risparmio bolletta</div><div class="nc-value">${fmtEur(risparmioM)}</div><div class="nc-period">/mese · primo anno</div></div>
-        <div class="num-card orange"><div class="nc-label">Costo netto reale</div><div class="nc-value">${fmtEur(netto)}</div><div class="nc-period">/mese · ${fmtEur(rata)} − ${fmtEur(risparmioM)}</div></div>
+        <div class="num-card orange"><div class="nc-label">Costo netto reale</div><div class="nc-value">${fmtRata(netto)}</div><div class="nc-period">/mese · ${fmtRata(rata)} − ${fmtEur(risparmioM)}</div></div>
       </div>
       <div class="chart-card">
         <div class="chart-title">Rata vs risparmio bolletta — visivamente</div>
-        <div class="chart-sub">La rata pesa ${fmtEur(rata)}. Ne recuperi ${fmtEur(risparmioM)} subito. Esborso netto: ${fmtEur(netto)}.</div>
+        <div class="chart-sub">La rata pesa ${fmtRata(rata)}. Ne recuperi ${fmtEur(risparmioM)} subito. Esborso netto: ${fmtRata(netto)}.</div>
         ${svgRataRisparmio(rata, risparmioM, netto)}
       </div>
       <table>
         <tbody>
           <tr><td>Importo finanziato</td><td class="num-cell">${fmtEur(fin.importo_finanziato)}</td><td>Durata</td><td class="num-cell">${fin.durata_mesi} rate</td></tr>
-          <tr><td>Finanziaria</td><td class="num-cell">${escHtml(fin.finanziaria)}</td><td>Rata mensile</td><td class="num-cell" style="color:#F97316;">${fmtEur(rata)}</td></tr>
+          <tr><td>Finanziaria</td><td class="num-cell">${escHtml(fin.finanziaria)}</td><td>Rata mensile</td><td class="num-cell" style="color:#F97316;">${fmtRata(rata)}</td></tr>
           <tr><td>TAN nominale</td><td class="num-cell">${fmtTasso(fin.tan_perc)}</td><td>TAEG (incluse spese)</td><td class="num-cell">${fmtTasso(fin.taeg_perc)}</td></tr>
         </tbody>
       </table>
@@ -2297,7 +2343,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
         <div class="offer-eyebrow">★ Riepilogo offerta — valida ${d.progetto.valido_giorni} giorni</div>
         <h3>${isFvAccumulo(d.template) ? `Aggiunta accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh<br/>su impianto esistente` : isFvLocalIntervention(d.template) ? escHtml(fvInterventionLabel(d.template)) + "<br/>Limitato alle voci elencate" : `Impianto FV ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` + accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}<br/>chiavi in mano`}</h3>
         <div class="offer-num">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
-        <div style="font-size:9pt;opacity:0.85;margin-top:2mm;position:relative;">IVA ${d.costi.iva_perc}% inclusa${fin ? ` · ${fmtEur(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi (${escHtml(fin.finanziaria)}${fin.taeg_perc != null ? ` TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""})` : ""}${netto != null ? `<br/>Costo netto reale: <strong style="color:#FBBF24;">${fmtEur(netto)}/mese</strong> (rata − risparmio)` : ""}</div>
+        <div style="font-size:9pt;opacity:0.85;margin-top:2mm;position:relative;">IVA ${d.costi.iva_perc}% inclusa${fin ? ` · ${fmtRata(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi (${escHtml(fin.finanziaria)}${fin.taeg_perc != null ? ` TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""})` : ""}${netto != null ? `<br/>Costo netto reale: <strong style="color:#FBBF24;">${fmtRata(netto)}/mese</strong> (rata − risparmio)` : ""}</div>
       </div>
       ${d.template?.urgenza_attiva && urgenzaDescrizione ? `<div class="callout callout-tip">
         <span class="callout-icon">★</span>
@@ -2365,7 +2411,7 @@ function pageFirmaContratto(d: FvPdfTemplateData, pageN: number, total: number):
   if (luogo) righe.push(["Luogo dei lavori", luogo]);
   righe.push(["Documento", `Preventivo ${d.progetto.numero} del ${fmtData(d.progetto.creato_il)}`]);
   righe.push(["Importo", `${fmtEur(d.costi.prezzo_vendita_iva_inclusa)} · IVA ${d.costi.iva_perc}% inclusa`]);
-  if (fin) righe.push(["Pagamento", `${fmtEur(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi · ${fin.finanziaria}${fin.taeg_perc != null ? ` · TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""}`]);
+  if (fin) righe.push(["Pagamento", `${fmtRata(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi · ${fin.finanziaria}${fin.taeg_perc != null ? ` · TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""}`]);
   righe.push(["Validità", `${d.progetto.valido_giorni} giorni dalla data del documento`]);
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
@@ -2589,7 +2635,7 @@ export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
   // Il contratto (condizioni, firma, modulo di recesso) si conta con la decisione,
   // che lo porta con sé.
   return 1 + (haPaginaKit(d) ? 1 : 0) + pagineDaDisegnare(d).reduce((count, page) => (
-    count + (page.id === "macro_categorie" ? macroPages.length : page.id === "componenti" ? gruppiComponenti(d).length : page.id === "faq" ? gruppiFaq(d).length : page.id === "decisione" ? 1 + quantePagineContratto(d) : 1)
+    count + (page.id === "macro_categorie" ? macroPages.length : page.id === "componenti" ? pagineFornitura(d).length : page.id === "faq" ? gruppiFaq(d).length : page.id === "decisione" ? 1 + quantePagineContratto(d) : 1)
   ), 0);
 }
 
@@ -2663,7 +2709,15 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
         // descrizione, specifiche, quantità + totale chiavi in mano) al posto
         // delle vecchie card. Copre tutti i modelli FV (full, elettrico, conto
         // termico, clima…) perché è lo stesso template.
-        append(page.id, pageComposizioneFornitura(d, ++pageN, TOTAL));
+        {
+          const gruppi = pagineFornitura(d);
+          let uscite = 0;
+          append(page.id, ...gruppi.map((righe, i) => {
+            const html = pageComposizioneFornitura(d, ++pageN, TOTAL, righe, i === gruppi.length - 1, i, uscite);
+            uscite += righe.length;
+            return html;
+          }));
+        }
         break;
       case "macro_categorie":
         append(page.id, ...macroPages.map((macro) => pageMacroCategoriaDedicata(d, macro, ++pageN, TOTAL)));

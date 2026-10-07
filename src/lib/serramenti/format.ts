@@ -7,11 +7,20 @@
  * Funzioni PURE — nessuna dipendenza React.
  */
 
+/**
+ * Il valore da scrivere: un numero che con quei decimali arrotonda a zero (anche «-0», anche -0,001) è 0.
+ * Senza, `toLocaleString` scrive «-0»: «€ -0» accanto a un margine che pareggia, «-0,00» in un saldo.
+ */
+const daScrivere = (n: number | string, decimals: number): number => {
+  const v = Number(n);
+  return Math.abs(v) < 0.5 / 10 ** decimals ? 0 : v;
+};
+
 // useGrouping: in italiano il separatore delle migliaia manca sotto le cinque
 // cifre («€ 1234» accanto a «€ 12.345»): qui lo si mette sempre.
 export const formatEuro = (n: number | null | undefined, decimals = 0): string => {
   if (n == null || isNaN(Number(n))) return "—";
-  return `€ ${Number(n).toLocaleString("it-IT", {
+  return `€ ${daScrivere(n, decimals).toLocaleString("it-IT", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
     useGrouping: true,
@@ -20,7 +29,7 @@ export const formatEuro = (n: number | null | undefined, decimals = 0): string =
 
 export const formatPct = (n: number | null | undefined, decimals = 0): string => {
   if (n == null || isNaN(Number(n))) return "—";
-  return `${Number(n).toLocaleString("it-IT", {
+  return `${daScrivere(n, decimals).toLocaleString("it-IT", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   })}%`;
@@ -28,7 +37,7 @@ export const formatPct = (n: number | null | undefined, decimals = 0): string =>
 
 export const formatNumero = (n: number | null | undefined, decimals = 0): string => {
   if (n == null || isNaN(Number(n))) return "—";
-  return Number(n).toLocaleString("it-IT", {
+  return daScrivere(n, decimals).toLocaleString("it-IT", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
     useGrouping: true,

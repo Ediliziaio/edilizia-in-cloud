@@ -10,8 +10,10 @@
  *  - i salvataggi dello stesso progetto passano uno alla volta: due salvataggi
  *    del computo sovrapposti duplicavano le righe;
  *  - un progetto nuovo parte con IVA e detrazione predefinite dall'azienda nel
- *    template del modulo: prima prendeva i default della tabella.
+ *    template del modulo: prima prendeva i default della tabella. Una detrazione
+ *    ordinaria (50%, 36%) nasce anche col suo tetto di spesa di 96.000 €.
  */
+import { massimaleDiSerie } from "@/lib/preventivi/incentivi";
 
 /** Colonne dei progetti che il form del wizard non scrive mai. */
 export const COLONNE_DEL_SERVER = [
@@ -88,15 +90,25 @@ const percentuale = (valore: unknown): number | undefined => {
  * scelto (anche lo zero); il resto arriva dal template dell'azienda. Senza
  * template, o con un valore vuoto o fuori scala, non si aggiunge nulla e
  * decidono i default della tabella.
+ *
+ * Una detrazione ordinaria presa dal template (50% o 36%) nasce col suo tetto
+ * di spesa: un 50% senza tetto prometteva, sopra i 96.000 € di imponibile, più
+ * di quanto spetta. Il tetto di serie non si aggiunge se chi crea ha già deciso
+ * la detrazione (Conto Termico e Casa Full Electric la creano a 0%, con i loro
+ * incentivi) o il tetto stesso (anche «nessun tetto», `null`).
  */
 export function condizioniDiPartenza(
-  scelte: { iva_pct?: number | null; detrazione_pct?: number | null },
+  scelte: { iva_pct?: number | null; detrazione_pct?: number | null; massimale_detrazione?: number | null },
   azienda: PredefinitiAzienda | null | undefined,
-): { iva_pct?: number; detrazione_pct?: number } {
-  const condizioni: { iva_pct?: number; detrazione_pct?: number } = {};
+): { iva_pct?: number; detrazione_pct?: number; massimale_detrazione?: number } {
+  const condizioni: { iva_pct?: number; detrazione_pct?: number; massimale_detrazione?: number } = {};
   const iva = percentuale(azienda?.default_iva_pct);
   const detrazione = percentuale(azienda?.default_detrazione_pct);
   if (scelte.iva_pct == null && iva !== undefined) condizioni.iva_pct = iva;
-  if (scelte.detrazione_pct == null && detrazione !== undefined) condizioni.detrazione_pct = detrazione;
+  if (scelte.detrazione_pct == null && detrazione !== undefined) {
+    condizioni.detrazione_pct = detrazione;
+    const tetto = massimaleDiSerie(detrazione);
+    if (tetto !== null && scelte.massimale_detrazione === undefined) condizioni.massimale_detrazione = tetto;
+  }
   return condizioni;
 }

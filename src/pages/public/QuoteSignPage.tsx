@@ -4,6 +4,12 @@ import type { ConsensoRaccolto, TipoFirmatario } from "../../../supabase/functio
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
+import {
+  eLinkNonValido,
+  messaggioDaErroreFirma,
+  messaggioOffertaNonDisponibile,
+  righeOffertaPubblica,
+} from "@/lib/preventivi/offertaPubblica";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +64,9 @@ type ItemData = {
   vat_rate: number;
   line_total: number;
   item_type?: string;
+  item_category?: string | null;
+  is_optional?: boolean | null;
+  mostra_nel_pdf?: boolean | null;
 };
 
 type ViewResult = {
@@ -71,7 +80,9 @@ type ViewResult = {
 };
 
 export default function QuoteSignPage() {
-  const { token } = useParams<{ token: string }>();
+  // La rotta è /offerta/:slug (la condivide col checkout dei piani, vedi OffertaPubblica).
+  const { token: tokenParam, slug } = useParams<{ token: string; slug: string }>();
+  const token = tokenParam ?? slug;
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ViewResult | null>(null);
   const [signName, setSignName] = useState("");
@@ -126,8 +137,9 @@ export default function QuoteSignPage() {
           }
         }
       }
-    } catch {
-      setData({ valid: false, reason: "error" });
+    } catch (err) {
+      // 404 = link sconosciuto o preventivo nel cestino: «Link non valido», non un guasto.
+      setData({ valid: false, reason: eLinkNonValido(err) ? "token_invalid" : "error" });
     } finally {
       setLoading(false);
     }
@@ -146,8 +158,25 @@ export default function QuoteSignPage() {
           consensi,
         },
       });
-      if (error) throw error;
-      if (result?.success) setActionDone("signed");
+      if (error) {
+        // Il link non c'è più (preventivo ritirato mentre la pagina era aperta): si dice e si rilegge.
+        if (eLinkNonValido(error)) {
+          toast.error(messaggioOffertaNonDisponibile("token_invalid"));
+          await loadQuote();
+          return;
+        }
+        throw new Error(await messaggioDaErroreFirma(error, "Errore durante l'accettazione. Riprova."));
+      }
+      if (result?.success) {
+        setActionDone("signed");
+      } else if (result?.valid === false) {
+        // Un'altra scheda ha già firmato, l'offerta è scaduta o ritirata: prima non
+        // succedeva niente (il tasto sembrava morto). Si dice, e si rilegge lo stato.
+        toast.error(messaggioOffertaNonDisponibile(result.reason));
+        await loadQuote();
+      } else {
+        toast.error("Errore durante l'accettazione. Riprova.");
+      }
     } catch (err: any) {
       toast.error(err?.message || "Errore durante l'accettazione. Riprova.");
     } finally {
@@ -161,10 +190,24 @@ export default function QuoteSignPage() {
       const { data: result, error } = await supabase.functions.invoke("quote-sign", {
         body: { token, action: "refuse", refuse_reason: refuseReason.trim() || undefined },
       });
-      if (error) throw error;
+      if (error) {
+        if (eLinkNonValido(error)) {
+          setShowRefuseDialog(false);
+          toast.error(messaggioOffertaNonDisponibile("token_invalid"));
+          await loadQuote();
+          return;
+        }
+        throw new Error(await messaggioDaErroreFirma(error, "Errore durante il rifiuto. Riprova."));
+      }
       if (result?.success) {
         setShowRefuseDialog(false);
         setActionDone("refused");
+      } else if (result?.valid === false) {
+        setShowRefuseDialog(false);
+        toast.error(messaggioOffertaNonDisponibile(result.reason));
+        await loadQuote();
+      } else {
+        toast.error("Errore durante il rifiuto. Riprova.");
       }
     } catch (err: any) {
       toast.error(err?.message || "Errore durante il rifiuto. Riprova.");
@@ -210,15 +253,17 @@ export default function QuoteSignPage() {
   }
 
   const quote = data.quote!;
-  const allItems = data.items || [];
-  // Filter out items not to be shown in PDF
-  const items = allItems.filter((i: any) => i.mostra_nel_pdf !== false);
+  // Le righe che il cliente vede, con le stesse regole del PDF: niente righe
+  // nascoste né «subtotale», le note solo testo, le opzioni dette tali.
+  const items = righeOffertaPubblica(data.items || []);
   const company = data.company || {};
   const status = data.status;
-  const hasDiscounts = items.some(i => i.discount_percent > 0);
+  const hasDiscounts = items.some((r) => r.genere === "riga" && r.riga.discount_percent > 0);
+  const colonneTabella = quote.prezzo_manuale_attivo ? 2 : hasDiscounts ? 6 : 5;
+  const haOpzionali = items.some((r) => r.opzionale);
 
-  // ── Already signed ──
-  if (status === "accettata" || actionDone === "signed") {
+  // ── Already signed (o già diventata commessa: la firma c'è stata) ──
+  if (status === "accettata" || status === "convertita" || actionDone === "signed") {
     return (
       <div className="min-h-screen" style={{ background: "#f4f4f5" }}>
         <BlueHeader company={company} quoteNumber={quote.quote_number} statusLabel="Accettata" statusColor="#22c55e" />
@@ -272,7 +317,12 @@ export default function QuoteSignPage() {
   // ── Active quote ──
   return (
     <div className="min-h-screen" style={{ background: "#f4f4f5" }}>
-      <BlueHeader company={company} quoteNumber={quote.quote_number} statusLabel="In attesa di firma" statusColor="#f59e0b" />
+      <BlueHeader
+        company={company}
+        quoteNumber={quote.quote_number}
+        statusLabel={status === "inviata" ? "In attesa di firma" : status === "annullata" ? "Annullata" : "Non firmabile"}
+        statusColor={status === "inviata" ? "#f59e0b" : "#71717a"}
+      />
 
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
         {/* Quote info + Company info */}
@@ -331,35 +381,52 @@ export default function QuoteSignPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map((item, idx) => {
-                    const isChild = ["posa", "smaltimento", "trasporto", "nolo"].includes((item as any).item_category || "");
+                  {items.map(({ riga: item, genere, figlia: isChild, opzionale }, idx) => {
+                    // Una nota è solo testo: niente quantità, prezzo e IVA a zero.
+                    if (genere === "nota") {
+                      return (
+                        <TableRow key={idx}>
+                          <TableCell colSpan={colonneTabella} className="text-xs italic" style={{ color: "#71717a" }}>
+                            {item.name}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
                     const namePrefix = isChild ? "└ " : "";
+                    // Un'opzione si vede ma non è nel totale: importi in grigio e la scritta.
+                    const coloreImporto = opzionale ? "#a1a1aa" : undefined;
                     return (
                     <TableRow key={idx}>
                       <TableCell>
                         <div style={{ paddingLeft: isChild ? "12px" : "0" }}>
-                          <p className="font-medium text-sm" style={{ color: isChild ? "#71717a" : "#18181b" }}>
+                          <p className="font-medium text-sm" style={{ color: isChild || opzionale ? "#71717a" : "#18181b" }}>
                             {namePrefix}{item.name}
+                            {opzionale && (
+                              <span className="ml-2 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase" style={{ color: "#92400e", background: "#fef3c7", borderColor: "#fde68a" }}>
+                                Opzionale
+                              </span>
+                            )}
                           </p>
                           {item.description && (
                             <p className="text-xs mt-0.5" style={{ color: "#71717a" }}>{item.description}</p>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right text-sm">
+                      <TableCell className="text-right text-sm" style={{ color: coloreImporto }}>
                         {item.quantity} {item.unit_of_measure || ""}
                       </TableCell>
                       {!quote.prezzo_manuale_attivo && (
                         <>
-                          <TableCell className="text-right text-sm">{formatCurrency(item.unit_price)}</TableCell>
+                          <TableCell className="text-right text-sm" style={{ color: coloreImporto }}>{formatCurrency(item.unit_price)}</TableCell>
                           {hasDiscounts && (
-                            <TableCell className="text-right text-sm" style={{ color: item.discount_percent > 0 ? "#ef4444" : "#71717a" }}>
+                            <TableCell className="text-right text-sm" style={{ color: opzionale ? coloreImporto : item.discount_percent > 0 ? "#ef4444" : "#71717a" }}>
                               {item.discount_percent > 0 ? `-${item.discount_percent}%` : "—"}
                             </TableCell>
                           )}
-                          <TableCell className="text-right text-sm">{item.vat_rate}%</TableCell>
-                          <TableCell className="text-right text-sm font-medium">
+                          <TableCell className="text-right text-sm" style={{ color: coloreImporto }}>{item.vat_rate}%</TableCell>
+                          <TableCell className="text-right text-sm font-medium" style={{ color: coloreImporto }}>
                             {formatCurrency(item.line_total)}
+                            {opzionale && <span className="block text-[10px] font-normal italic">non incluso</span>}
                           </TableCell>
                         </>
                       )}
@@ -372,6 +439,11 @@ export default function QuoteSignPage() {
 
             {/* Totals */}
             <div className="px-6 py-4 border-t" style={{ background: "#f8fafc" }}>
+              {haOpzionali && (
+                <p className="mb-3 text-xs" style={{ color: "#71717a" }}>
+                  Le voci «Opzionale» sono proposte a parte: non sono incluse nel subtotale e nel totale qui sotto.
+                </p>
+              )}
               <div className="flex justify-end">
                 <div className="w-full max-w-xs space-y-1.5 text-sm">
                   <div className="flex justify-between">

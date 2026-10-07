@@ -60,8 +60,11 @@ export function QuoteDiscountControl({
   const effectiveMax = canApproveDiscounts ? 100 : maxSconto;
 
   const handleSlider = (val: number[]) => {
-    const v = Math.min(val[0], effectiveMax);
-    onDiscountChange(v);
+    // Mai sotto zero (sarebbe un sovrapprezzo scritto come «Sconto») e mai NaN;
+    // in alto, il limite di chi lo imposta.
+    const scritto = Number(val[0]);
+    const v = Math.min(Number.isFinite(scritto) ? Math.max(0, scritto) : 0, effectiveMax);
+    onDiscountChange(v === 0 ? 0 : v);
   };
 
   const openRequest = () => {
@@ -202,7 +205,7 @@ export function QuoteDiscountControl({
                 min="0"
                 max="100"
                 value={requestedPct}
-                onChange={(e) => setRequestedPct(Number(e.target.value))}
+                onChange={(e) => setRequestedPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
               />
             </div>
             <div>

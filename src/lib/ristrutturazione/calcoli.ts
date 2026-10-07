@@ -1,7 +1,17 @@
+import { centesimi, euroDaCentesimi } from "@/lib/preventivi/arrotondamento";
 const n = (x: unknown) => { const v = Number(x); return Number.isFinite(v) ? v : 0; };
 
+/** Quantità × prezzo − sconto di riga, in euro e senza arrotondare. */
+const importoGrezzo = (r: { quantita: number; prezzo_unitario: number; sconto_pct: number }) =>
+  Math.max(0, n(r.quantita)) * Math.max(0, n(r.prezzo_unitario)) * (1 - Math.min(100, Math.max(0, n(r.sconto_pct))) / 100);
+
+/**
+ * Importo della riga al centesimo, come si stampa (06/10/2026): quantità × prezzo − sconto
+ * di riga, arrotondato. Subtotali, imponibile, IVA e totale sono somme di questi centesimi, e
+ * il PDF si somma riga per riga (vedi lib/preventivi/arrotondamento).
+ */
 export function calcRigaImporto(r: { quantita: number; prezzo_unitario: number; sconto_pct: number }): number {
-  return Math.max(0, n(r.quantita)) * Math.max(0, n(r.prezzo_unitario)) * (1 - Math.min(100, Math.max(0, n(r.sconto_pct))) / 100);
+  return euroDaCentesimi(centesimi(importoGrezzo(r)));
 }
 export function calcPrezzoVoce(v: { costo_materiali: number; costo_manodopera: number; ricarico_pct: number }): number {
   return (Math.max(0, n(v.costo_materiali)) + Math.max(0, n(v.costo_manodopera))) * (1 + Math.max(0, n(v.ricarico_pct)) / 100);
@@ -69,31 +79,44 @@ export function calcTotaliComputo(
   righe: ComputoRigaInput[],
   opts: { sconto_pct: number; iva_pct: number; prezzo_manuale?: number | null },
 ) {
-  const byCap = new Map<string, { nome: string; imponibile: number; costo: number; voci: number }>();
+  // I conti sono in centesimi interi (06/10/2026): ogni riga arrotondata, poi somme e differenze.
+  // Prima restavano in virgola mobile e i numeri stampati nel PDF non tornavano di un centesimo.
+  const byCap = new Map<string, { nome: string; imponibileC: number; costo: number; voci: number }>();
   const manuale = n(opts.prezzo_manuale);
   const prezzoManuale = manuale > 0;
-  let sommaVoci = 0, costoTot = 0, righeSenzaCosto = 0;
+  let sommaC = 0, costoTot = 0, righeSenzaCosto = 0;
   for (const r of righe) {
-    const imp = calcRigaImporto(r);
+    const impC = centesimi(importoGrezzo(r));
     const costoUnit = costoUnitario(r);
     const costoRiga = costoUnit * Math.max(0, n(r.quantita));
-    if ((imp > 0 || (prezzoManuale && n(r.quantita) > 0)) && costoUnit <= 0) righeSenzaCosto += 1;
-    sommaVoci += imp; costoTot += costoRiga;
+    if ((impC > 0 || (prezzoManuale && n(r.quantita) > 0)) && costoUnit <= 0) righeSenzaCosto += 1;
+    sommaC += impC; costoTot += costoRiga;
     const k = r.capitolo_nome || "Generale";
-    const cur = byCap.get(k) ?? { nome: k, imponibile: 0, costo: 0, voci: 0 };
-    cur.imponibile += imp; cur.costo += costoRiga; cur.voci += 1; byCap.set(k, cur);
+    const cur = byCap.get(k) ?? { nome: k, imponibileC: 0, costo: 0, voci: 0 };
+    cur.imponibileC += impC; cur.costo += costoRiga; cur.voci += 1; byCap.set(k, cur);
   }
   // Prezzo pieno prima dello sconto globale: la somma delle righe o il prezzo scritto.
-  const imponibileLordo = prezzoManuale ? manuale : sommaVoci;
+  const lordoC = prezzoManuale ? centesimi(manuale) : sommaC;
   const scontoGlobale = Math.min(100, Math.max(0, n(opts.sconto_pct))) / 100;
-  const imponibile = imponibileLordo * (1 - scontoGlobale);
-  const iva = imponibile * Math.max(0, n(opts.iva_pct)) / 100;
-  const totale = imponibile + iva;
+  // L'imponibile netto è il lordo scontato, arrotondato; il totale è lo stesso importo con l'IVA, arrotondato:
+  // ogni cifra di totale si può raggiungere (lo «sconto veloce» arriva a una cifra tonda), mentre l'IVA è la
+  // differenza e resta sempre entro 1 centesimo da aliquota × imponibile (la tolleranza dello SDI); senza sconto
+  // coincide con quella stretta. Così imponibile + IVA = totale, e lordo − sconto = imponibile, a centesimi esatti.
+  const nettoEsatto = euroDaCentesimi(lordoC) * (1 - scontoGlobale);
+  const nettoC = centesimi(nettoEsatto);
+  const totaleC = centesimi(nettoEsatto * (1 + Math.max(0, n(opts.iva_pct)) / 100));
+  const ivaC = totaleC - nettoC;
+  const imponibileLordo = euroDaCentesimi(lordoC);
+  const imponibile = euroDaCentesimi(nettoC);
+  const iva = euroDaCentesimi(ivaC);
+  const totale = euroDaCentesimi(totaleC);
+  const sommaVoci = euroDaCentesimi(sommaC);
   const costiCompleti = righeSenzaCosto === 0 && costoTot > 0;
   const margineEur: number | null = costiCompleti ? imponibile - costoTot : null;
   const marginePct: number | null = margineEur != null && imponibile > 0 ? (margineEur / imponibile) * 100 : null;
   return {
-    imponibile, iva, totale, costoTot, margineEur, marginePct, perCapitolo: [...byCap.values()],
+    imponibile, iva, totale, costoTot, margineEur, marginePct,
+    perCapitolo: [...byCap.values()].map((c) => ({ nome: c.nome, imponibile: euroDaCentesimi(c.imponibileC), costo: c.costo, voci: c.voci })),
     imponibileLordo, sommaVoci, prezzoManuale, costiCompleti, righeSenzaCosto,
   };
 }

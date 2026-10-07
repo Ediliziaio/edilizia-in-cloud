@@ -46,19 +46,28 @@ const RIFIUTO = [
   /\bnon (sono|siamo|mi|ci) (piu )?interessat/,
   /\bnon (mi |ci )?interessa\b/,
   /\bno grazie\b/,
+  /^no\b.{0,20}$/,
   /\bnon (vengo|veniamo|verro|verremo|ci saro|ci saremo|potro venire|potremo venire|posso venire|possiamo venire)\b/,
+  /\b(non|nn) (riesco|riusciamo|posso|possiamo|potro|potremo)\b/,
+  /\bnon sara possibile\b/,
+  /\bpurtroppo\b.{0,40}\b(no|non)\b/,
+  /\b(troppo|un po|proprio) lontan/,
+  /\bgia (visto|vista|visti|preso|presa|comprato|comprata|scelto|scelta)\b/,
   /\b(disdico|disdiciamo|annullo|annulliamo)\b/,
   /\b(toglietemi|toglimi|cancellatemi|cancellami|non scrivetemi|non scrivermi|non contattatemi|non contattarmi|smettete)\b/,
 ];
 
+// Conferma solo con parole esplicite: «ok grazie» o «bellissimo» non vogliono dire «vengo».
 const CONFERMA = [
-  /^(si|ok|certo|certamente|perfetto|va bene|volentieri|benissimo|ci sono|ci siamo|ci saro|ci saremo|verro|verremo|vengo|veniamo|confermo|confermiamo|confermato)\b/,
+  /^(si)\b(?!.*\bma\b)/,
   /\b(confermo|confermiamo)\b/,
   /\bci (sono|siamo|saro|saremo)\b/,
-  /\b(verro|verremo|vengo|veniamo) (volentieri|sicuramente|di sicuro)?\b/,
-  /\bci vediamo\b/,
-  /\ba (stasera|venerdi|giovedi|presto)\b/,
+  /\b(verro|verremo|vengo|veniamo)\b/,
 ];
+
+// Se l'AI dice «si» ma nel testo non c'è nessun segno di presenza, non si mette il tag.
+const SEGNO_DI_PRESENZA =
+  /\b(si|vengo|veniamo|verro|verremo|ci sono|ci siamo|ci saro|ci saremo|confermo|confermiamo|in (due|tre|quattro|cinque|sei|\d+)|domani|stasera|venerdi|sabato|domenica)\b/;
 
 /** Esito da parole chiare, o null se serve l'AI. Il rifiuto vince sempre sulla conferma. */
 export function classificaConParole(testo: string | null | undefined): EsitoRisposta | null {
@@ -69,6 +78,12 @@ export function classificaConParole(testo: string | null | undefined): EsitoRisp
   if (/\bnon\b/.test(t)) return null;
   if (t.length <= 80 && CONFERMA.some((r) => r.test(t))) return "si";
   return null;
+}
+
+/** L'AI può dire «no» da sola, ma «si» solo se il testo ha un segno di presenza. */
+export function esitoAIConControllo(esito: EsitoRisposta, testo: string): EsitoRisposta {
+  if (esito === "si" && !SEGNO_DI_PRESENZA.test(normalizza(testo))) return "altro";
+  return esito;
 }
 
 /** L'AI risponde con una parola: qualunque altra cosa vale «altro», mai un tag per sbaglio. */
@@ -97,7 +112,7 @@ export async function classificaRisposta(admin: any, companyId: string, testo: s
       ].join("\n"),
       userPrompt: `Risposta della persona:\n${testo.slice(0, 600)}`,
     });
-    return esitoDaAI(r.content);
+    return esitoAIConControllo(esitoDaAI(r.content), testo);
   } catch (e) {
     console.warn("[classificaRispostaEvento] AI:", (e as Error)?.message);
     return "altro";

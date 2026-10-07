@@ -47,6 +47,10 @@ const CAMPI_DA_AZZERARE = [
   "ai_close_probability_pct",
   "ai_close_factors",
   "approval_status",
+  // L'approvazione dello sconto non passa alla copia (approval_status riparte da zero):
+  // lo sconto autorizzato e quello richiesto restavano scritti nella bozza nuova.
+  "sconto_richiesto_pct",
+  "sconto_autorizzato_pct",
   "parent_quote_id",
   "revision_number",
 ] as const;
@@ -68,6 +72,14 @@ export function costruisciCopiaQuote(
 ): Record<string, unknown> {
   const copia: Record<string, unknown> = { ...originale };
   for (const campo of CAMPI_DA_AZZERARE) delete copia[campo];
+  // La firma dal link legacy lascia la sua prova (nome, IP, impronta del documento,
+  // consensi) in custom_field_values.prova_firma: una copia in bozza non è firmata.
+  // Gli altri campi personalizzati restano; l'originale non si tocca.
+  const campi = copia.custom_field_values;
+  if (campi && typeof campi === "object" && !Array.isArray(campi) && "prova_firma" in campi) {
+    const { prova_firma: _provaFirmaOriginale, ...restanti } = campi as Record<string, unknown>;
+    copia.custom_field_values = restanti;
+  }
   copia.status = "bozza";
   if (opts.comeRevisione) {
     copia.parent_quote_id = originale.id;
@@ -185,10 +197,16 @@ export async function duplicaPreventivo(
   if (!sessione?.user?.id) throw new Error("Sessione scaduta: accedi di nuovo.");
   payloadQuote.created_by = sessione.user.id;
 
-  const { data: numData } = await supabase.rpc("generate_quote_number", {
+  // Il numero lo dà solo il database (contatore sotto lock + indice univoco). Se la
+  // RPC non risponde ci si ferma, come nel builder: «OFF-<anno>-001» esiste quasi
+  // sempre già, e se il primo numero era stato purgato lo si riusava in silenzio.
+  const { data: numData, error: numErr } = await supabase.rpc("generate_quote_number", {
     p_company_id: companyId,
   });
-  payloadQuote.quote_number = numData || `OFF-${new Date().getFullYear()}-001`;
+  if (numErr || !numData) {
+    throw comeErrore(numErr, "Impossibile assegnare il numero al preventivo: riprova.");
+  }
+  payloadQuote.quote_number = numData;
 
   const { data: nuovo, error: eIns } = await (supabase as any)
     .from("quotes")

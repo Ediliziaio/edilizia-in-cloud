@@ -66,8 +66,8 @@ import { StepContenuti } from "@/components/serramenti/StepContenuti";
 import { ContactPickerDialog } from "@/components/serramenti/ContactPickerDialog";
 import { AiSerramentiDraftLauncher } from "@/components/serramenti/AiSerramentiDraftLauncher";
 import type { CrmContactMinimal } from "@/lib/serramenti/api";
-import { confermaSalvate, modificheDaSalvare, segnaModifica, type ModificheInSospeso } from "@/lib/serramenti/modificheInSospeso";
-import { totaliCambiati, totaliDelPreventivo } from "@/lib/serramenti/righePreventivo";
+import { conLeModificheDelModulo, confermaSalvate, modificheDaSalvare, segnaModifica, type ModificheInSospeso } from "@/lib/serramenti/modificheInSospeso";
+import { detrazioneCambiata, detrazioneDelPreventivo, totaliCambiati, totaliDelPreventivo } from "@/lib/serramenti/righePreventivo";
 import { useSerramentiModelSupport } from "@/hooks/useSerramentiModelSupport";
 import { isSrQuoteModelId, makeSrQuoteModelSnapshot, readSrQuoteModelSnapshot, srModelProjectDefaults } from "@/lib/serramenti/quoteModel";
 import { findSerramentiTemplateModule } from "@/lib/moduli-vendita/serramentiTemplateModules";
@@ -178,11 +178,6 @@ export default function SerramentiWizard() {
   );
   const canPreview = !isNew && hasContent && !isGeneratingPdf;
 
-  const handlePreviewClick = () => {
-    if (!detail) return;
-    void previewPDF({ detail, template: pdfTemplate ?? null, company: pdfCompany ?? null, useFreshTemplate: true });
-  };
-
   // ─── Status workflow ──────────────────────────────────────────────────
   const currentStato: SrStatoProgetto = (detail?.progetto.stato as SrStatoProgetto) ?? "bozza";
   const statoMeta = STATI_LABEL[currentStato];
@@ -280,6 +275,10 @@ export default function SerramentiWizard() {
   const modificheRef = useRef<ModificheInSospeso<SrProgettoRow>>(new Map());
   /** I salvataggi partono in fila: uno più vecchio non arriva mai dopo uno più nuovo. */
   const codaSalvataggiRef = useRef<Promise<void>>(Promise.resolve());
+  /** I campi che l'utente ha toccato in questa sessione: i soli per cui il modulo comanda sulla copia salvata. */
+  const [campiToccati, setCampiToccati] = useState<ReadonlySet<keyof SrProgettoRow>>(() => new Set());
+  const segnaToccato = (campo: keyof SrProgettoRow) =>
+    setCampiToccati((prima) => (prima.has(campo) ? prima : new Set(prima).add(campo)));
   /** Timestamp ultimo salvataggio riuscito (usato per indicator "Salvato Xs fa"). */
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   /** Tick di refresh ogni 10s per aggiornare il "Salvato Xs fa" in header. */
@@ -301,6 +300,7 @@ export default function SerramentiWizard() {
   useEffect(() => {
     if (detail?.progetto) {
       setForm(detail.progetto);
+      setCampiToccati(new Set());
       modificheRef.current.clear();
       setDirty(false);
       setLastSavedAt(new Date(detail.progetto.updated_at ?? Date.now()));
@@ -335,6 +335,7 @@ export default function SerramentiWizard() {
             onClick: () => {
               for (const campo of Object.keys(modifiche) as Array<keyof SrProgettoRow>) {
                 segnaModifica(modificheRef.current, campo, modifiche[campo]);
+                segnaToccato(campo);
               }
               setForm((prev) => ({ ...prev, ...modifiche }));
               setDirty(true);
@@ -437,6 +438,7 @@ export default function SerramentiWizard() {
 
   const onChange = <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => {
     segnaModifica(modificheRef.current, key, value);
+    segnaToccato(key);
     setForm((prev) => ({ ...prev, [key]: value }));
     // LS backup sincrono dei campi toccati: se l'utente chiude la tab prima
     // dell'autosave, al prossimo mount si propone il recupero.
@@ -486,6 +488,18 @@ export default function SerramentiWizard() {
     return () => window.clearTimeout(timer);
   }, [form, dirty, id, isNew]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Uscita dalla pagina: l'autosave parte due secondi dopo l'ultima modifica, e lasciando il preventivo prima
+  // (la freccia indietro, un altro menu) il suo timer veniva tolto e la modifica restava solo nella copia di
+  // recupero del browser. Alla chiusura del wizard si salva quello che resta da salvare.
+  const salvaPrimaDiUscireRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    salvaPrimaDiUscireRef.current = () => {
+      if (isNew || !id || modificheRef.current.size === 0) return;
+      salvaModifiche().catch(() => {});
+    };
+  });
+  useEffect(() => () => salvaPrimaDiUscireRef.current(), []);
+
   // Beforeunload guard
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -522,6 +536,37 @@ export default function SerramentiWizard() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [totaliCalcolati, form.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // La detrazione segue il totale in ogni passo: lo step Economia la riscrive solo mentre è aperto, e dopo una
+  // modifica delle posizioni da un altro passo restava sul totale di prima (la leggono il PDF, la pagina del
+  // cliente e l'elenco). Stesso conto di Economia: totale IVA inclusa, massimale, aliquota scelta.
+  useEffect(() => {
+    if (isNew || !totaliCalcolati || !form.id || form.id !== detail?.progetto.id) return;
+    const calcolata = detrazioneDelPreventivo(form.detrazione_aliquota, totaliCalcolati.totale_max);
+    if (!calcolata) return;
+    const cambiata = detrazioneCambiata(form, calcolata);
+    if (Object.keys(cambiata).length === 0) return;
+    const timer = window.setTimeout(() => {
+      for (const campo of Object.keys(cambiata) as Array<keyof typeof cambiata>) {
+        onChange(campo, cambiata[campo] as SrProgettoRow[typeof campo]);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [totaliCalcolati, form.detrazione_aliquota, form.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Il preventivo come si vede sullo schermo, per ciò che si apre da un pulsante (PDF, invio al cliente): la copia
+  // salvata più i campi toccati e non ancora scritti. L'autosave parte due secondi dopo l'ultima modifica e,
+  // se il salvataggio fallisce, non parte affatto: il PDF generato dalla sola copia salvata usciva senza la modifica.
+  const detailSulloSchermo = useMemo(
+    () => (detail ? { ...detail, progetto: conLeModificheDelModulo(detail.progetto, form, campiToccati) } : undefined),
+    [detail, form, campiToccati],
+  );
+
+  const handlePreviewClick = () => {
+    if (!detail) return;
+    // Il PDF di quello che si vede, non della copia salvata due secondi fa (vedi sopra).
+    void previewPDF({ detail: detailSulloSchermo ?? detail, template: pdfTemplate ?? null, company: pdfCompany ?? null, useFreshTemplate: true });
+  };
 
   const saveProgetto = async (): Promise<boolean> => {
     if (!id) return false;
@@ -1038,7 +1083,7 @@ export default function SerramentiWizard() {
                 <StepConsulenza form={form} onChange={onChange} />
                 <StepPdf
                   progettoId={id}
-                  detail={detail}
+                  detail={detailSulloSchermo ?? detail}
                   onIndietro={handleBack}
                   onVaiAlPasso={(passo) => void handleStepClick(passo)}
                 />

@@ -345,7 +345,12 @@ export async function convertiRstInCommessa(progettoId: string, userId: string):
     .order("ordine", { ascending: true });
 
   const righe: RigaCommessa[] = (voci ?? []).map((v, idx) => {
-    const quantita = Number(v.quantita) || 1;
+    // Una voce senza quantità (0, mancante) non porta importo nel preventivo: nella commessa resta una
+    // riga a 0 €, non «1 × il suo prezzo» (06/10/2026: la commessa si riempiva di una riga che nel
+    // preventivo non c'era, compensata da uno «Sconto commerciale» che nessuno aveva concesso).
+    const quantitaVera = Number(v.quantita);
+    const contata = Number.isFinite(quantitaVera) && quantitaVera > 0;
+    const quantita = contata ? quantitaVera : 1;
     return {
       name: String(v.descrizione ?? "Voce di computo").slice(0, 120),
       // I costi del computo sono già per unità (calcTotaliComputo li moltiplica
@@ -354,8 +359,8 @@ export async function convertiRstInCommessa(progettoId: string, userId: string):
       // diventavano 0,60 €/m², e la commessa mostrava un margine del 99%.
       ...quantitaPerCommessa({
         quantita,
-        prezzoUnitario: Number(v.prezzo_unitario),
-        costoUnitario: (Number(v.costo_materiali) || 0) + (Number(v.costo_manodopera) || 0),
+        prezzoUnitario: contata ? Number(v.prezzo_unitario) : 0,
+        costoUnitario: contata ? (Number(v.costo_materiali) || 0) + (Number(v.costo_manodopera) || 0) : 0,
         unita: v.unita_misura,
         // Con i decimali l'unità è già davanti, nella quantità.
         descrizione: (Number.isInteger(quantita)

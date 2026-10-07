@@ -4,6 +4,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { DEFAULT_TEMPLATE } from "@/types/quoteTemplate";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import { recalcPhaseAmounts, paymentPlanError, type QuotePaymentPhase } from "@/lib/preventivi/paymentTerms";
+import { importoRiga, subtotaleFinoA } from "@/hooks/usePreventivoCosti";
 import { substituteMergeTags, type MergeContext } from "../../../supabase/functions/_shared/quoteTemplateComposer";
 import type { AnteprimaModello } from "@/lib/quoteTemplatePreview";
 
@@ -96,11 +97,11 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
             {visibleItems.length === 0 ? <p className="rounded-lg border border-dashed p-6 text-center text-slate-400">Aggiungi un prodotto o una lavorazione: li vedrai qui.</p> : <div>
               {visibleItems.map((item, index) => <div key={item.id ?? `${item.client_temp_id ?? 'line'}-${index}`} className="border-b p-2.5" style={{ backgroundColor: t.table_zebra && index % 2 === 0 ? t.accent_color : undefined }}>
                 {props.showImages && props.imageForItem?.(item) && <img src={props.imageForItem(item)!} alt="" className="mb-2 h-16 w-16 rounded object-contain" />}
-                <div className="flex items-start justify-between gap-3"><p className="min-w-0 font-semibold">{item.name || 'Descrizione da completare'}</p>{prices && !['nota', 'subtotale'].includes(item.item_category) && <span className="shrink-0 tabular-nums">{formatCurrency(item.quantity * item.unit_price * (1 - (item.discount_percent || 0) / 100))}</span>}</div>
+                <div className="flex items-start justify-between gap-3"><p className="min-w-0 font-semibold">{item.name || 'Descrizione da completare'}</p>{prices && !['nota', 'subtotale'].includes(item.item_category) && <span className="shrink-0 tabular-nums">{formatCurrency(importoRiga(item))}</span>}</div>
                 {item.description && <p className="mt-1 whitespace-pre-line text-[11px] text-slate-600">{item.description}</p>}
                 {!['nota', 'subtotale'].includes(item.item_category) && <p className="mt-1 text-[10px] text-slate-500">{item.quantity} {item.unit_of_measure || 'pz'}{prices && ` × ${formatCurrency(item.unit_price)}`}{prices && props.showDiscounts && item.discount_percent > 0 && ` · Sconto ${item.discount_percent}%`}</p>}
                 {props.showMeasurements && item.misura_x && item.misura_y ? <p className="text-[10px] text-slate-500">Misure: {item.misura_x} × {item.misura_y} mm</p> : null}
-                {item.item_category === 'subtotale' && !props.manualPrice && <p className="text-right font-semibold">{formatCurrency(visibleItems.slice(0, index).filter((row) => !row.is_optional).reduce((sum, row) => sum + row.quantity * row.unit_price * (1 - (row.discount_percent || 0) / 100), 0))}</p>}
+                {item.item_category === 'subtotale' && !props.manualPrice && <p className="text-right font-semibold">{formatCurrency(subtotaleFinoA(visibleItems, index))}</p>}
                 {item.is_optional && <p className="mt-1 text-[10px] font-medium text-amber-700">Opzionale · escluso dal totale</p>}
               </div>)}
             </div>}</>}

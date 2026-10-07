@@ -140,30 +140,48 @@ export function calcolaIvaMista(
   };
 }
 
+/** Un numero da un campo che può essere vuoto, nullo o testo: quello che non è un numero finito vale 0. */
+function numero(valore: unknown): number {
+  const n = Number(valore);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * L'importo di una riga: il totale scritto sulla riga, o prezzo unitario × pezzi. Un totale che non si legge
+ * (testo, NaN) non azzera la riga se il prezzo unitario c'è; senza niente di leggibile vale 0, mai NaN.
+ */
+function importoRiga(totale: unknown, unitario: unknown, quantita: unknown): number {
+  if (totale != null && Number.isFinite(Number(totale))) return Number(totale);
+  return numero(unitario) * numero(quantita ?? 1);
+}
+
 export function calcolaTotale(
   serramenti: SrSerramentoRow[],
   accessori: SrAccessorioRow[],
   opts: CalcoloOptions = {},
   servizi: SrServizioRow[] = [],
 ): CalcoloTotale {
-  const ivaRaw = opts.iva_percentuale ?? 10;
+  // IVA mancante o illeggibile: il 10% di serie. Una negativa (solo -1 vale, ed è la mista) non esiste.
+  const ivaLetta = Number(opts.iva_percentuale ?? 10);
+  const ivaRaw = Number.isFinite(ivaLetta) && (ivaLetta >= 0 || ivaLetta === IVA_MISTA_SENTINEL) ? ivaLetta : 10;
   const isMista = ivaRaw === IVA_MISTA_SENTINEL;
-  const scontoPct = opts.sconto_percentuale ?? 0;
-  const scontoEur = opts.sconto_importo ?? 0;
-  const prestazioni_professionali = Math.max(0, opts.prestazioni_professionali ?? 0);
+  // Lo sconto sta fra 0 e il 100%: oltre, o negativo, darebbe un totale sotto zero o un rincaro.
+  const scontoPct = Math.min(100, Math.max(0, numero(opts.sconto_percentuale)));
+  const scontoEur = Math.max(0, numero(opts.sconto_importo));
+  const prestazioni_professionali = Math.max(0, numero(opts.prestazioni_professionali));
 
   // Serramenti: prezzo già comprende eventuale posa configurata sul prodotto
   const imponibile_serramenti = serramenti.reduce(
-    (acc, s) => acc + Number(s.prezzo_totale ?? (s.prezzo_unitario ?? 0) * (s.quantita ?? 1)),
+    (acc, s) => acc + importoRiga(s.prezzo_totale, s.prezzo_unitario, s.quantita),
     0,
   );
   const imponibile_accessori = accessori.reduce(
-    (acc, a) => acc + Number(a.prezzo_totale ?? (a.prezzo_unitario ?? 0) * (a.quantita ?? 1)),
+    (acc, a) => acc + importoRiga(a.prezzo_totale, a.prezzo_unitario, a.quantita),
     0,
   );
   // Servizi aggiuntivi (trasporto, ENEA, smaltimento, posa esterna…)
   const imponibile_servizi = servizi.reduce(
-    (acc, s) => acc + Number(s.prezzo_totale_vendita ?? (s.prezzo_unitario_vendita ?? 0) * (s.quantita ?? 1)),
+    (acc, s) => acc + importoRiga(s.prezzo_totale_vendita, s.prezzo_unitario_vendita, s.quantita),
     0,
   );
   const somma_voci = imponibile_serramenti + imponibile_accessori + imponibile_servizi;
@@ -214,7 +232,7 @@ export function calcolaTotale(
   const metri_quadri = serramenti.reduce((acc, s) => {
     const mq = s.metri_quadri ??
       ((s.larghezza_mm ?? 0) * (s.altezza_mm ?? 0) * (s.quantita ?? 1)) / 1_000_000;
-    return acc + Number(mq);
+    return acc + numero(mq);
   }, 0);
 
   const num_serramenti = serramenti.reduce((acc, s) => acc + (s.quantita ?? 1), 0);

@@ -19,6 +19,7 @@ declare global {
 // Capacitor-plugin imports (@capacitor/app, status-bar, keyboard…) are NEVER
 // loaded, so the web bundle is unaffected.
 import { isNative, isMobileAppRuntime } from "@/lib/mobile/platform";
+import { eLinkFirmaPreventivo } from "@/lib/preventivi/offertaPubblica";
 const MobileBootstrap = isNative
   ? lazy(() => import("@/components/mobile/MobileBootstrap"))
   : (() => null) as React.FC;
@@ -149,7 +150,7 @@ const Funzionalita = lazy(() => import("@/pages/Funzionalita"));
 const ChiSiamo = lazy(() => import("@/pages/ChiSiamo"));
 const AutoreFlorin = lazy(() => import("@/pages/AutoreFlorin"));
 const Prezzi = lazy(() => import("@/pages/Prezzi"));
-const OffertaCheckout = lazy(() => import("@/pages/OffertaCheckout"));
+const OffertaPubblica = lazy(() => import("@/pages/public/OffertaPubblica"));
 const OffertaGrazie = lazy(() => import("@/pages/OffertaGrazie"));
 const DemoGrazie = lazy(() => import("@/pages/DemoGrazie"));
 const Offerta2MesiGratis = lazy(() => import("@/pages/Offerta2MesiGratis"));
@@ -177,7 +178,6 @@ const WhatsAppFab = lazy(() => import("@/components/landing/WhatsAppFab"));
 const DynamicQrRedirect = lazy(() => import("@/pages/public/DynamicQrRedirect"));
 // Etichette QR di attrezzi e mezzi (05/10/2026): /q/<codice>?c=<azienda>.
 const QrMezzo = lazy(() => import("@/pages/QrMezzo"));
-const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
 const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
 const FirmaOdV = lazy(() => import("@/pages/public/FirmaOdV"));
 const FirmaDocumento = lazy(() => import("@/pages/public/FirmaDocumento"));
@@ -523,6 +523,9 @@ function PublicSiteChatWidgetGate() {
   if (isNative) return null;
   if (PRIVATE_APP_PREFIXES.test(pathname || "/")) return null;
   if (CUSTOMER_FACING_PREFIXES.test(pathname || "/")) return null;
+  // /offerta/<token> è la firma del preventivo di un'azienda (pagina del suo cliente);
+  // /offerta/clienti-marketing è il checkout dei piani di EiC: lì la bolla serve.
+  if (eLinkFirmaPreventivo(pathname || "/")) return null;
   return <WhatsAppFab />;
 }
 
@@ -721,7 +724,9 @@ const App = () => (
               <Route path="/cookie-policy" element={<CookiePolicy />} />
               {/* Checkout pubblico offerte (trattativa): grazie PRIMA di :slug */}
               <Route path="/offerta/grazie" element={<OffertaGrazie />} />
-              <Route path="/offerta/:slug" element={<OffertaCheckout />} />
+              {/* Una rotta sola per checkout dei piani E firma del preventivo (/offerta/<token>):
+                  due rotte «/offerta/:x» non si distinguono, vinceva il checkout. */}
+              <Route path="/offerta/:slug" element={<OffertaPubblica />} />
               {/* /data-deletion: obbligatoria Meta App Review + GDPR diritto oblio */}
               <Route path="/data-deletion" element={<DataDeletion />} />
               {/* /meta-oauth-done + /oauth-done: atterraggio popup OAuth (302 dagli
@@ -749,7 +754,6 @@ const App = () => (
               <Route path="/widget" element={<PublicChatWidgetPage />} />
               <Route path="/qr/:token" element={<DynamicQrRedirect />} />
               <Route path="/q/:codice" element={<QrMezzo />} />
-              <Route path="/offerta/:token" element={<QuoteSignPage />} />
               <Route path="/firma/:token" element={<SignaturePage />} />
               <Route path="/firma-odv/:token" element={<FirmaOdV />} />
               <Route path="/firma-fea/:token" element={<FirmaDocumento />} />

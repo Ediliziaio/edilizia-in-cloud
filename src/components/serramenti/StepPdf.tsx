@@ -11,13 +11,15 @@
 import { FileText, Loader2, Check, AlertCircle, AlertTriangle, ArrowRight, ExternalLink, Link2, Copy, Download, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import type { SrProgettoDetail, SrWizardStep } from "@/types/serramenti";
+import type { SrPagamentoMilestone, SrPianoFinanziamento, SrProgettoDetail, SrWizardStep } from "@/types/serramenti";
+import { SR_SCHEMI_PAGAMENTO } from "@/types/serramenti";
 import { SrCard, SrCallout, SrKpi } from "@/lib/serramenti/wizardUI";
 import { formatEuro, formatEuroRangeOrSingle, formatNumero } from "@/lib/serramenti/format";
 import { useGeneraPdf, useConvertiInOrdine, useTemplatePdf, useAziendaPerPdf } from "@/lib/serramenti/queries";
 import { ClipboardList } from "lucide-react";
 import { renderSerramentoBlob, useSerramentoPDF } from "@/hooks/useSerramentoPDF";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
+import { importiDelPreventivo } from "@/lib/serramenti/righePreventivo";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -65,6 +67,28 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
     void previewPDF({ detail, template: template ?? null, company: company ?? null, useFreshTemplate: true });
   };
 
+  // Preventivo da mandare al cliente: PDF con impronta, codice via email, firma (InviaFirmaCard).
+  // Imponibile, IVA e totale dalle posizioni, col conto del PDF: dal solo totale diviso `1 + aliquota`
+  // l'IVA mista (aliquota -1) dava un imponibile più alto del totale e un'IVA negativa.
+  const importiDiFirma = importiDelPreventivo(detail, p);
+
+  // Il finanziamento del PDF (rata e importo finanziato) è quello salvato col piano, e lo step Economia lo salva solo
+  // quando si preme «Applica calcoli»: dopo una modifica del totale restava sul totale di prima. Il PDF non lo
+  // ricalcola (la rata viene dal TAN o dalla tabella della finanziaria): lo si controlla prima che vada al cliente.
+  // Lo stampa solo con uno schema che prevede la finanziaria.
+  const schemaCfg = SR_SCHEMI_PAGAMENTO[(p.schema_pagamento ?? "tre_step") as keyof typeof SR_SCHEMI_PAGAMENTO];
+  const piani = Array.isArray(p.fin_piani) ? (p.fin_piani as SrPianoFinanziamento[]) : [];
+  const finanziamentoNelPdf = piani.length > 0 && Boolean(schemaCfg?.hasFinanziamento);
+  const finanziatoAtteso = importiDiFirma.totale * (1 - (Number(p.fin_anticipo_pct) || 0) / 100);
+  const pianoSulTotaleVecchio = finanziamentoNelPdf && piani.some((x) => Math.abs(Number(x.finanziato) - finanziatoAtteso) > 1);
+
+  // Le rate del PDF («Modalità di pagamento») devono coprire tutto il totale: con rate che fanno il 70% il cliente
+  // legge un piano a metà. Non ferma il PDF né la commessa (che non ne dipendono), ma il documento non va al cliente
+  // così. Senza rate scritte non c'è niente da controllare; 99,99 (33,33 × 3) vale 100.
+  const rate = Array.isArray(p.pagamento_milestones) ? (p.pagamento_milestones as SrPagamentoMilestone[]) : [];
+  const sommaRate = rate.reduce((acc, m) => acc + (Number(m?.percentuale) || 0), 0);
+  const rateAl100 = Math.abs(sommaRate - 100) < 0.05;
+
   const checks: ChecklistItem[] = [
     {
       ok: !!(p.cliente_nome || p.cliente_cognome),
@@ -107,6 +131,20 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
       hint: !Number(p.totale_max ?? p.totale_min ?? 0) ? "Vai allo Step Economia e clicca 'Applica calcoli'" : undefined,
       breve: "totale", passo: "economia",
     },
+    ...(finanziamentoNelPdf ? [{
+      ok: !pianoSulTotaleVecchio,
+      facoltativo: true,
+      label: "Finanziamento calcolato sul totale di adesso",
+      hint: pianoSulTotaleVecchio ? "il piano di finanziamento è stato calcolato su un totale diverso: riapri Economia e ricalcolalo" : undefined,
+      breve: "finanziamento", passo: "economia" as SrWizardStep,
+    }] : []),
+    ...(rate.length > 0 ? [{
+      ok: rateAl100,
+      facoltativo: true,
+      label: "Rate di pagamento al 100%",
+      hint: rateAl100 ? undefined : `le rate fanno ${formatNumero(sommaRate, 2)}%: nel PDF il cliente legge un piano che non copre tutto il totale`,
+      breve: "rate", passo: "economia" as SrWizardStep,
+    }] : []),
     {
       ok: !!p.consulenza_at,
       label: "Appuntamento di consulenza",
@@ -117,6 +155,9 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
   ];
 
   const ready = checks.every((c) => c.ok || c.facoltativo);
+  // «Invia per firma» manda il documento al cliente: lì anche le rate devono tornare.
+  const rateSbagliate = rate.length > 0 && !rateAl100;
+  const motiviSoloInvio = [...(rateSbagliate ? ["rate"] : []), ...(pianoSulTotaleVecchio ? ["finanziamento"] : [])];
   const erroriCount = checks.filter((c) => !c.ok && !c.facoltativo).length;
   const paginaFirmaUrl = p.public_url ?? p.pdf_html_url;
   // Telefono: al posto della checklist, una riga con quello che manca davvero.
@@ -124,14 +165,6 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
     .filter((c) => !c.ok && !c.facoltativo && c.breve)
     .filter((c, i, tutte) => tutte.findIndex((x) => x.breve === c.breve) === i);
   const titoloInvio = `Preventivo ${p.code ?? ""}`.trim();
-
-  // Preventivo da mandare al cliente: PDF con impronta, codice via email, firma (InviaFirmaCard).
-  const totaleLordo = (() => {
-    const t = Number(p.totale_max ?? p.totale_min ?? 0);
-    const aliquota = Number(p.iva_percentuale ?? 22);
-    return p.iva_inclusa ? t : t * (1 + aliquota / 100);
-  })();
-  const imponibile = totaleLordo / (1 + Number(p.iva_percentuale ?? 22) / 100);
 
   return (
     <div className="space-y-3">
@@ -161,14 +194,14 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
           clientName={[p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente"}
           clientEmail={p.cliente_email}
           clientPhone={p.cliente_telefono}
-          subtotal={imponibile}
-          vatAmount={totaleLordo - imponibile}
-          total={totaleLordo}
+          subtotal={importiDiFirma.imponibile}
+          vatAmount={importiDiFirma.iva}
+          total={importiDiFirma.totale}
           validityDays={p.valido_fino_giorni ?? 15}
           pdfDisponibile={ready}
           onIndietro={onIndietro}
-          disabled={!ready}
-          disabledReason={`Completa prima: ${mancano.map((c) => c.breve).join(", ")}`}
+          disabled={!ready || motiviSoloInvio.length > 0}
+          disabledReason={`Completa prima: ${[...mancano.map((c) => c.breve), ...motiviSoloInvio].join(", ")}`}
           generaPdfBlob={() => renderSerramentoBlob({ detail, template: template ?? null, company: company ?? null, useFreshTemplate: true })}
         />
       )}

@@ -20,6 +20,7 @@ import { avvisoSchedeNonAllegate } from "@/lib/quotes/allegatiPreventivo";
 import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { RIGHE_SENZA_COSTO } from "@/hooks/usePreventivoCosti";
+import { ricavoNettoPreventivo } from "@/lib/preventivi/ricavoNetto";
 
 interface QuoteSummary {
   id: string;
@@ -159,9 +160,15 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
   // Prezzo scritto a mano (21/09/2026): le righe sono a 0€, la somma delle
   // righe direbbe "margine -100%" su un preventivo che invece va benissimo.
   // Il ricavo vero è quello autoritativo salvato (subtotal − discount_amount).
-  const ricavoNetto = Number(quote?.prezzo_manuale ?? 0) > 0
-    ? Number(quote?.subtotal ?? 0) - Number(quote?.discount_amount ?? 0)
-    : ricavoRighe;
+  // Altrimenti è la somma delle righe vendute meno lo sconto globale: prima era al
+  // lordo dello sconto e il margine usciva più alto di quello del builder.
+  const ricavoNetto = ricavoNettoPreventivo({
+    prezzoManualeAttivo: Number(quote?.prezzo_manuale ?? 0) > 0,
+    subtotal: quote?.subtotal,
+    discount_amount: quote?.discount_amount,
+    discount_percent: quote?.discount_percent,
+    sommaRighe: ricavoRighe,
+  });
 
   const margineEur = ricavoNetto - costoTotale - (quote?.totale_overhead ?? 0);
   const marginePct = ricavoNetto > 0 ? (margineEur / ricavoNetto) * 100 : 0;

@@ -7,11 +7,15 @@ const text = z.string();
 const number = z.number().finite();
 const flag = z.boolean();
 const nullableText = text.nullable();
+// Le categorie che il database ammette per una riga (CHECK su quote_items.item_category):
+// «pratica» e «tiro_piano» le sceglie «Voce dal listino tariffe». Se mancano dallo schema, la
+// bozza che le contiene non si rilegge più. L'aliquota e l'unità di misura possono essere
+// vuote (famiglie del listino: il database ha un default ma la colonna ammette null).
 const item = z.object({
   item_type: z.enum(["product", "service"]),
-  item_category: z.enum(["prodotto", "posa", "trasporto", "smaltimento", "nolo", "nota", "subtotale", "sconto"]),
+  item_category: z.enum(["prodotto", "posa", "trasporto", "tiro_piano", "smaltimento", "nolo", "pratica", "nota", "subtotale", "sconto"]),
   name: text, description: text, quantity: number, unit_price: number,
-  discount_percent: number, vat_rate: number, unit_of_measure: text,
+  discount_percent: number, vat_rate: number.nullable(), unit_of_measure: nullableText,
   sort_order: number, prezzo_acquisto: number, mostra_nel_pdf: flag, is_optional: flag,
 }).passthrough();
 

@@ -19,6 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { costoTariffa } from "@/lib/listino/costoTariffa";
+import { ricavoNettoPreventivo } from "@/lib/preventivi/ricavoNetto";
 import type {
   MargineBreakdown,
   MargineQuoteItem,
@@ -39,6 +40,8 @@ interface QuoteItemRow {
   tariffa_id: string | null;
   prezzo_acquisto?: number | null;
   costo_unitario?: number | null;
+  /** Riga facoltativa: non è venduta, resta fuori da ricavo e costo del totale. */
+  is_optional?: boolean | null;
 }
 
 interface TariffaLite {
@@ -53,6 +56,8 @@ interface QuoteRicavoManuale {
   prezzo_manuale: number | null;
   subtotal: number | null;
   discount_amount: number | null;
+  /** Sconto globale del preventivo (%): il ricavo del margine è al netto. */
+  discount_percent?: number | null;
 }
 
 /**
@@ -106,7 +111,10 @@ export function computeBreakdown(
     const pvUnit = Number(item.unit_price ?? 0);
     const pvUnitEff = pvUnit * scontoFactor;
     const totVend = qty * pvUnitEff;
-    totaleVendita += totVend;
+    // Le righe facoltative non sono vendute: restano in elenco col loro margine,
+    // ma ricavo e costo del totale sono quelli delle righe vendute.
+    const venduta = item.is_optional !== true;
+    if (venduta) totaleVendita += totVend;
 
     let costoUnit = 0;
     let fonte: FonteCosto = "stimato";
@@ -152,7 +160,7 @@ export function computeBreakdown(
     // else: righe decorative (nota/subtotale/sconto) → costo 0, fonte stimato (non conta)
 
     const totCost = qty * costoUnit;
-    totaleCosto += totCost;
+    if (venduta) totaleCosto += totCost;
 
     const margineEuro = totVend - totCost;
     const marginePct = totVend > 0 ? (margineEuro / totVend) * 100 : 0;
@@ -190,9 +198,13 @@ export function computeBreakdown(
   // NON cambia: resta a 0€, è un limite noto dello strumento (assegna il
   // costo manodopera riga per riga, non il ricavo).
   const prezzoManualeAttivo = Number(quoteRicavo?.prezzo_manuale ?? 0) > 0;
+  // Senza prezzo a mano il ricavo è la somma delle righe vendute meno lo sconto
+  // globale (prima era al lordo: il margine usciva più alto di quello del builder).
   const totaleVenditaEffettivo = prezzoManualeAttivo
-    ? Number(quoteRicavo?.subtotal ?? 0) - Number(quoteRicavo?.discount_amount ?? 0)
-    : totaleVendita;
+    ? ricavoNettoPreventivo({ prezzoManualeAttivo, subtotal: quoteRicavo?.subtotal, discount_amount: quoteRicavo?.discount_amount, sommaRighe: 0 })
+    : (quoteRicavo?.discount_percent
+      ? ricavoNettoPreventivo({ prezzoManualeAttivo: false, discount_percent: quoteRicavo.discount_percent, sommaRighe: totaleVendita })
+      : totaleVendita);
 
   const margineTotEuro = totaleVenditaEffettivo - totaleCosto;
   const margineTotPct = totaleVenditaEffettivo > 0 ? (margineTotEuro / totaleVenditaEffettivo) * 100 : 0;
@@ -224,7 +236,7 @@ export function useMargineBreakdown(quoteId: string | null | undefined) {
       // (vedi QuoteQuickViewSheet.tsx, stessa query/logica).
       const { data: quoteRicavo, error: quoteErr } = await supabase
         .from("quotes")
-        .select("prezzo_manuale, subtotal, discount_amount")
+        .select("prezzo_manuale, subtotal, discount_amount, discount_percent")
         .eq("id", quoteId!)
         .maybeSingle();
       if (quoteErr) throw new Error(quoteErr.message);

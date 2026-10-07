@@ -92,12 +92,12 @@ describe("i salvataggi dello stesso progetto passano uno alla volta", () => {
 describe("un progetto nuovo parte dai predefiniti dell'azienda", () => {
   const template = { default_iva_pct: 10, default_detrazione_pct: 50 };
 
-  it("senza scelte prende IVA e detrazione dal template", () => {
-    expect(condizioniDiPartenza({}, template)).toEqual({ iva_pct: 10, detrazione_pct: 50 });
+  it("senza scelte prende IVA e detrazione dal template, e il 50% col suo tetto di spesa", () => {
+    expect(condizioniDiPartenza({}, template)).toEqual({ iva_pct: 10, detrazione_pct: 50, massimale_detrazione: 96_000 });
   });
 
   it("quello che chi crea ha già scelto resta, zero compreso", () => {
-    expect(condizioniDiPartenza({ iva_pct: 4 }, template)).toEqual({ detrazione_pct: 50 });
+    expect(condizioniDiPartenza({ iva_pct: 4 }, template)).toEqual({ detrazione_pct: 50, massimale_detrazione: 96_000 });
     expect(condizioniDiPartenza({ iva_pct: 0, detrazione_pct: 0 }, template)).toEqual({});
   });
 

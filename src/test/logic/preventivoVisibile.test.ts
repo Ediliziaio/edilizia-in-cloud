@@ -98,11 +98,13 @@ describe("generate-quote-pdf controlla il preventivo con le regole di chi chiama
     expect(pdf).toMatch(
       /const comeChiChiama = createClient\(Deno\.env\.get\("SUPABASE_URL"\)!, Deno\.env\.get\("SUPABASE_ANON_KEY"\)!, \{\s+global: \{ headers: \{ Authorization: req\.headers\.get\("Authorization"\) \?\? "" \} \},/,
     );
-    expect(pdf).toContain("if (!(await preventivoVisibile(comeChiChiama, quote.id))) {");
+    // Dal 27/09/2026 la chiamata interna del bot operativo (chiave di servizio + utente già
+    // riconosciuto) non ha il token dell'utente: per lei il controllo è sull'utente, qui sotto.
+    expect(pdf).toContain("if (!interna && !(await preventivoVisibile(comeChiChiama, quote.id))) {");
   });
 
   it("subito dopo l'azienda e prima del PDF dei moduli, dei file e del caricamento", () => {
-    const controllo = posizione("if (!(await preventivoVisibile(comeChiChiama, quote.id))) {");
+    const controllo = posizione("if (!interna && !(await preventivoVisibile(comeChiChiama, quote.id))) {");
     expect(posizione("await requireCompanyAccess(supabaseAdmin, userId, quote.company_id, corsH);")).toBeLessThan(controllo);
     expect(controllo).toBeLessThan(posizione('quote.source.startsWith("modulo:")'));
     expect(controllo).toBeLessThan(posizione('supabaseAdmin.storage.from("quote-materials").download(filePath)'));

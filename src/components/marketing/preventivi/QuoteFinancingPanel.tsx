@@ -18,7 +18,7 @@
  * il calcolo riflette ESATTAMENTE quello che la finanziaria offrira'.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -58,6 +58,8 @@ interface Props {
 const fmtEur = (n: number) =>
   n.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" });
 
+const alCentesimo = (n: number) => Math.round(n * 100) / 100;
+
 export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
   const [enabled, setEnabled] = useState(!!value);
   const [tableId, setTableId] = useState<string | null>(value?.table_id ?? null);
@@ -79,6 +81,24 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
   useEffect(() => {
     if (!value && enabled) setAmount(quoteTotal);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteTotal, enabled]);
+
+  // Il totale cambia con la proposta già fatta (uno sconto, il prezzo scritto a
+  // mano, o righe cambiate prima di tornare qui): l'importo che coincideva col
+  // totale lo segue, e un importo più alto del totale — si finanzierebbe più di
+  // quanto costa — si ferma al totale. Un importo scelto a mano più basso (si
+  // finanzia solo una parte) resta, e sotto si dice quanto è sul totale. Prima
+  // restava quello della prima volta e il PDF stampava la rata di quell'importo.
+  const totalePrecedente = useRef(quoteTotal);
+  useEffect(() => {
+    const prima = totalePrecedente.current;
+    totalePrecedente.current = quoteTotal;
+    if (!enabled || !(quoteTotal > 0)) return;
+    setAmount((corrente) => {
+      if (corrente > quoteTotal + 0.005) return alCentesimo(quoteTotal);
+      const seguivaIlTotale = Math.abs(corrente - prima) < 0.005 && Math.abs(quoteTotal - prima) >= 0.005;
+      return seguivaIlTotale ? alCentesimo(quoteTotal) : corrente;
+    });
   }, [quoteTotal, enabled]);
 
   // Calcolo rata
@@ -215,13 +235,29 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
                   min={0}
                   step={100}
                   value={amount}
-                  onChange={(e) => setAmount(Number(e.target.value) || 0)}
+                  onChange={(e) => {
+                    const scritto = Number(e.target.value) || 0;
+                    // Non si finanzia più del totale del preventivo.
+                    setAmount(quoteTotal > 0 ? Math.min(scritto, alCentesimo(quoteTotal)) : scritto);
+                  }}
                   className="h-9"
                 />
                 <p className="mt-1 text-[10px] text-muted-foreground">
                   Default: totale preventivo {fmtEur(quoteTotal)}.
                   Modificalo se finanzia solo parte (es. acconto contanti + rate sul saldo).
                 </p>
+                {quoteTotal > 0 && Math.abs(amount - quoteTotal) >= 0.005 && (
+                  <p className="mt-1 text-[11px] text-amber-700">
+                    Stai finanziando {fmtEur(amount)} su un totale di {fmtEur(quoteTotal)}: la rata nel PDF è calcolata su {fmtEur(amount)}.{" "}
+                    <button
+                      type="button"
+                      className="tap-compact font-medium underline underline-offset-2"
+                      onClick={() => setAmount(alCentesimo(quoteTotal))}
+                    >
+                      Usa il totale
+                    </button>
+                  </p>
+                )}
               </div>
             </div>
           )}

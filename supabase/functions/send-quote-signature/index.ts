@@ -7,6 +7,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { dataItalianaLunga } from "../_shared/dataItaliana.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -60,6 +61,22 @@ Deno.serve(async (req) => {
     // tecniche). Risponde la policy di modifica di quotes, coi permessi di chi chiama.
     if (!(await preventivoModificabile(comeChiChiama, quote.id))) {
       return errorResponse("Per mandare il preventivo al cliente serve il permesso di modificare i preventivi.", 403, corsH);
+    }
+
+    // Un'offerta già decisa non si rimanda «per la firma»: in questa modalità il
+    // preventivo torna SEMPRE «inviata», le richieste di firma aperte si annullano
+    // e il cliente riceve un link nuovo. Con una pagina rimasta aperta («Reinvia»)
+    // dopo che il cliente aveva firmato, un'offerta accettata tornava «inviata».
+    // Il PDF semplice non cambia lo stato (vedi sotto) e resta possibile.
+    if (mode !== "solo_pdf" && ["accettata", "rifiutata", "convertita", "annullata"].includes(String(quote.status))) {
+      const dettaglio = quote.status === "accettata" ? "già accettato (firmato)"
+        : quote.status === "convertita" ? "già diventato commessa"
+        : quote.status === "rifiutata" ? "stato rifiutato dal cliente" : "annullato";
+      return errorResponse(
+        `Questo preventivo è ${dettaglio}: non si può rimandare per la firma. Per un'altra offerta, duplicalo o fanne una nuova revisione.`,
+        409,
+        corsH,
+      );
     }
 
     // Determine recipient
@@ -301,11 +318,8 @@ Deno.serve(async (req) => {
       currency: "EUR",
     }).format(Number(quote.total || 0));
 
-    const expiresFormatted = expiresAt.toLocaleDateString("it-IT", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
+    // Il giorno italiano: il server è in UTC e dopo mezzanotte il giorno UTC è ancora quello prima.
+    const expiresFormatted = dataItalianaLunga(expiresAt);
 
     // Build email HTML
     const emailHtml = `

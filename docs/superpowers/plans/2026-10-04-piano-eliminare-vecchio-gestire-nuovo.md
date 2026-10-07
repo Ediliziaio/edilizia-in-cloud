@@ -108,3 +108,11 @@ Chiave feature via `resolve_company_feature` (default: attivo solo per Demo 2 e 
 5. Interruttore per azienda: attivo di default per tutti o solo migrati?
 6. PDF standard `quotes`: con disegni o con foto?
 7. Primo passo: Fase A + B subito?
+
+## 9. Renova (05/10/2026) — eseguito
+Piano: (1) i preventivi consegnati erano già congelati (`disegno_config.nessuno`, 14 righe); (2) modelli presi dalla variante Linea
+che avevano (PVC Salamander 76, PVC Aluplast Ideal 5000); (3) installazione dal modello «Infissi con disegno automatico»
+(42→40 tipologie per linea senza i vecchi monoblocchi, con la scelta «Con monoblocco») + persiane (62); (4) prezzi al mq copiati
+sui prodotti con lo stesso nome (23 per linea; le tipologie nuove restano a zero, prezzo a mano); (5) vecchi non usati nel cestino
+(`_archiviato_pulizia_disegni` = 2026-10-05), i 6 usati dai preventivi spenti.
+Esito: 2 linee × 40 serramenti col disegno + persiane lamelle fisse/orientabili × 31; nessuna riga di preventivo modificata.

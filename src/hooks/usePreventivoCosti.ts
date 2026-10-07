@@ -127,6 +127,77 @@ export function normalizzaRigaSconto<
   return { ...riga, unit_price: prezzoRigaSconto(riga.unit_price), discount_percent: 0, prezzo_acquisto: 0 };
 }
 
+/**
+ * Un numero di riga leggibile: NaN, Infinity e valori mancanti valgono 0. Il
+ * database li riceverebbe come null, e una riga con quantità o prezzo null non
+ * ha line_total e non entra nei totali: la stessa cosa. Prima una sola riga
+ * rotta faceva diventare NaN il totale di tutto il preventivo.
+ */
+function numeroOZero(v: unknown): number {
+  const x = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(x) ? x : 0;
+}
+
+type RigaDaNormalizzare = {
+  quantity?: number | null;
+  unit_price?: number | null;
+  discount_percent?: number | null;
+  vat_rate?: number | null;
+};
+
+/**
+ * La riga come il database la salva (06/10/2026). Le colonne di quote_items
+ * hanno una scala fissa — quantity numeric(10,2), unit_price numeric(12,2),
+ * discount_percent e vat_rate numeric(5,2) — e il database arrotonda a quella
+ * scala (il mezzo lontano da zero) PRIMA di calcolare line_total e i totali.
+ * La pagina invece teneva i numeri come arrivavano (0,333 pezzi, 122,265 € al
+ * pezzo da m² × prezzo): il totale a video non era quello salvato, e il
+ * salvataggio finiva in errore «i totali restituiti dal server differiscono
+ * dall'anteprima» dopo aver già scritto righe e testata.
+ * Un'aliquota mancante o rotta vale 22, come COALESCE nel database.
+ */
+export function normalizzaRigaPerDatabase<T extends RigaDaNormalizzare>(riga: T): T & {
+  quantity: number; unit_price: number; discount_percent: number; vat_rate: number;
+} {
+  const aliquota = riga.vat_rate == null || !Number.isFinite(Number(riga.vat_rate)) ? 22 : round2(Number(riga.vat_rate));
+  return {
+    ...riga,
+    quantity: round2(numeroOZero(riga.quantity)),
+    unit_price: round2(numeroOZero(riga.unit_price)),
+    discount_percent: round2(numeroOZero(riga.discount_percent)),
+    vat_rate: aliquota,
+  };
+}
+
+type RigaImporto = RigaDaNormalizzare & { item_category?: string | null; is_optional?: boolean | null };
+
+/**
+ * L'importo di una riga come lo calcola il database (line_total): prodotto
+ * delle quantità e prezzi arrotondati alla scala delle colonne, meno lo sconto
+ * di riga, arrotondato al centesimo. La riga «Sconto» vale sempre in meno.
+ * Mai NaN e mai «-0»: in pagina diventerebbe «-0,00 €».
+ */
+export function importoRiga(voce: RigaImporto): number {
+  const riga = normalizzaRigaPerDatabase(normalizzaRigaSconto({ ...voce, unit_price: numeroOZero(voce.unit_price) }));
+  const importo = round2(riga.quantity * riga.unit_price * (1 - riga.discount_percent / 100));
+  return importo === 0 ? 0 : importo;
+}
+
+/**
+ * Il «Subtotale» sopra la riga `fine`: le righe prima, senza le opzionali (non
+ * sono nel totale), né le note né gli altri subtotali. Le righe «Sconto» sì.
+ * Lo stesso conto del PDF e dell'anteprima: a video il subtotale sommava anche
+ * le opzionali, e il PDF no.
+ */
+export function subtotaleFinoA(righe: ReadonlyArray<RigaImporto>, fine: number): number {
+  let somma = 0;
+  for (const r of righe.slice(0, Math.max(0, fine))) {
+    if (r.is_optional === true || ["nota", "subtotale"].includes(String(r.item_category ?? "prodotto"))) continue;
+    somma += importoRiga(r);
+  }
+  return round2(somma);
+}
+
 type RigaConIva = { item_category?: string | null; vat_rate?: number | null };
 
 function aliquotaOppureNull(v: unknown): number | null {
@@ -217,28 +288,36 @@ export function calcolaTotaliPreventivo(
   // Skip optional items from totals
   const activeItems = items.filter((i) => !i.is_optional);
 
-  const manuale = Number(prezzo_manuale ?? 0);
-  const prezzoManualeAttivo = Number.isFinite(manuale) && manuale > 0;
+  // Sconto globale: un valore rotto (NaN, vuoto) è «nessuno sconto», come nel database.
+  const scontoGlobale = numeroOZero(discount_global_pct);
+
+  // Il prezzo scritto a mano si salva su quotes.prezzo_manuale numeric(12,2): al
+  // centesimo, e uno che arrotonda a zero non è un prezzo (il vincolo > 0 lo rifiuterebbe).
+  const manuale = round2(numeroOZero(prezzo_manuale));
+  const prezzoManualeAttivo = manuale > 0;
 
   let sommaVociRaw = 0;
   let costo_totale = 0;
   let righeVendute = 0;
   let righe_senza_costo = 0;
-  const iva_breakdown: Record<string, number> = {};
+  // Somma degli importi di riga per aliquota: l'IVA si calcola su questa somma, come
+  // fa do_recalculate_quote_totals (SUM(line_total) per aliquota).
+  const baseIvaPerAliquota: Record<string, number> = {};
 
   for (const voce of activeItems) {
     // Una riga «Sconto» vale sempre in meno, anche se arriva col segno sbagliato
-    // (bozze vecchie): è la stessa correzione che si fa prima di salvarla.
-    const it = normalizzaRigaSconto(voce);
+    // (bozze vecchie): è la stessa correzione che si fa prima di salvarla. Poi la
+    // riga si porta alla scala delle colonne del database (normalizzaRigaPerDatabase).
+    const it = normalizzaRigaPerDatabase(normalizzaRigaSconto(voce));
     // line_total nel database è numeric(..., 2): sommare le righe già arrotondate.
     const imponibile = round2(
-      it.quantity * it.unit_price * (1 - (it.discount_percent || 0) / 100));
+      it.quantity * it.unit_price * (1 - it.discount_percent / 100));
     sommaVociRaw += imponibile;
 
-    const vatKey = String(it.vat_rate ?? 22);
-    iva_breakdown[vatKey] = (iva_breakdown[vatKey] || 0) + imponibile * ((it.vat_rate ?? 22) / 100);
+    const vatKey = String(it.vat_rate);
+    baseIvaPerAliquota[vatKey] = (baseIvaPerAliquota[vatKey] || 0) + imponibile;
 
-    const pa = (it.prezzo_acquisto ?? 0) * it.quantity;
+    const pa = numeroOZero(it.prezzo_acquisto) * it.quantity;
     costo_totale += pa;
 
     // Prodotti e servizi venduti senza costo: il margine non si può dire. Col
@@ -254,16 +333,17 @@ export function calcolaTotaliPreventivo(
   const subtotale = prezzoManualeAttivo ? manuale : sommaVociRaw;
 
   // subtotale_netto = ricavo reale dopo sconto globale preventivo
-  const subtotale_netto = round2(subtotale * (1 - discount_global_pct / 100));
+  const subtotale_netto = round2(subtotale * (1 - scontoGlobale / 100));
 
   const overhead_totale = round2(costo_totale * (overhead_pct / 100));
-  const vatFactor = 1 - discount_global_pct / 100;
+  const vatFactor = 1 - scontoGlobale / 100;
   let iva_breakdown_netto: Record<string, number>;
   if (prezzoManualeAttivo) {
     // Un'unica aliquota esplicita sul netto: con le righe a 0€ non c'è niente
-    // da ripartire per aliquota come nel ramo sotto.
-    const ivaPct = Number(prezzo_manuale_iva_pct ?? 0);
-    iva_breakdown_netto = { [String(ivaPct)]: round2(subtotale_netto * (Number.isFinite(ivaPct) ? ivaPct : 0) / 100) };
+    // da ripartire per aliquota come nel ramo sotto. L'aliquota si salva su
+    // quotes.prezzo_manuale_iva_pct numeric(5,2): a due decimali.
+    const ivaPct = round2(numeroOZero(prezzo_manuale_iva_pct));
+    iva_breakdown_netto = { [String(ivaPct)]: round2(subtotale_netto * ivaPct / 100) };
   } else {
     // IVA PER ALIQUOTA arrotondata al centesimo, POI sommata (standard fiscale
     // italiano: l'imposta si calcola e arrotonda per singola aliquota). Il
@@ -271,8 +351,9 @@ export function calcolaTotaliPreventivo(
     // PDF/UI. Il vecchio round-of-sum (Σ raw, poi un solo arrotondamento)
     // divergeva di ±1 cent sui preventivi multi-aliquota → footing rotto.
     iva_breakdown_netto = {};
-    for (const [k, v] of Object.entries(iva_breakdown)) {
-      iva_breakdown_netto[k] = round2(v * vatFactor);
+    for (const [k, base] of Object.entries(baseIvaPerAliquota)) {
+      // ROUND(SUM(line_total) * aliquota / 100 * (1 - sconto / 100), 2), nello stesso ordine del database.
+      iva_breakdown_netto[k] = round2(round2(base) * Number(k) / 100 * vatFactor);
     }
   }
   const vatAmount = round2(
