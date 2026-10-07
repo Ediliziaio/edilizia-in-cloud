@@ -48,10 +48,10 @@ export function Testata({ d, c }: { d: DatiRacconto; c: Palette }) {
             <IconaPdf nome="temperatura" colore="#FFFFFF" lato={9} />
           </View>
         )}
-        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8.5, color: c.navy }}>{d.azienda.nome}</Text>
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9, color: c.navy }}>{d.azienda.nome}</Text>
       </View>
       {/* Il codice del preventivo, non il nome del cliente (richiesta di Renova, 05/10/2026). */}
-      <Text style={{ fontSize: 7, color: BASE.grigio }}>
+      <Text style={{ fontSize: 8, color: BASE.grigio }}>
         {"Preventivo "}<Text style={{ fontFamily: "Helvetica-Bold", color: c.navy }}>{d.preventivo.codice}</Text>
       </Text>
     </View>
@@ -62,8 +62,8 @@ export function PiePagina({ d }: { d: DatiRacconto }) {
   const contatti = [d.azienda.nome, d.azienda.sito, d.azienda.telefono].filter(Boolean).join(" · ");
   return (
     <View fixed style={{ position: "absolute", bottom: 0, left: 0, right: 0, paddingHorizontal: MARGINE, paddingTop: 8, paddingBottom: 18, flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: BASE.linea }}>
-      <Text style={{ fontSize: 6.5, color: BASE.grigioChiaro }}>{contatti}</Text>
-      <Text style={{ fontSize: 6.5, color: BASE.grigio, fontFamily: "Helvetica-Bold" }} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+      <Text style={{ fontSize: 7.5, color: BASE.grigioChiaro }}>{contatti}</Text>
+      <Text style={{ fontSize: 7.5, color: BASE.grigio, fontFamily: "Helvetica-Bold" }} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
     </View>
   );
 }
@@ -87,12 +87,12 @@ export function Intestazione({ c, occhiello, titolo, evidenza, sottotitolo }: { 
   const pezzi = titolo.split("*");
   return (
     <View style={{ marginBottom: 16 }}>
-      <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7, letterSpacing: 1.4, color: BASE.arancio, marginBottom: 7 }}>{occhiello.toUpperCase()}</Text>
+      <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8, letterSpacing: 1.4, color: BASE.arancio, marginBottom: 7 }}>{occhiello.toUpperCase()}</Text>
       <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 27, lineHeight: 1.1, letterSpacing: -0.9, color: c.navy }}>
         {pezzi.map((p, i) => (i % 2 === 1 ? <Text key={i} style={{ color: BASE.arancio }}>{p}</Text> : p))}
         {evidenza ? <Text style={{ color: BASE.arancio }}>{evidenza}</Text> : null}
       </Text>
-      {sottotitolo ? <Text style={{ fontSize: 9.5, lineHeight: 1.45, color: BASE.grigio, marginTop: 8, maxWidth: 440 }}>{sottotitolo}</Text> : null}
+      {sottotitolo ? <Text style={{ fontSize: 10, lineHeight: 1.45, color: BASE.grigio, marginTop: 8, maxWidth: 440 }}>{sottotitolo}</Text> : null}
     </View>
   );
 }
@@ -101,9 +101,9 @@ export function Kpi({ etichetta, valore, nota, tono = "neutro", grande = false, 
   const t = TONI[tono];
   return (
     <View style={{ flex: 1, backgroundColor: t.fondo, borderWidth: 1, borderColor: t.bordo, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 11, marginRight: ultimo ? 0 : 8 }}>
-      <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1, color: t.etichetta }}>{etichetta.toUpperCase()}</Text>
+      <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 1, color: t.etichetta }}>{etichetta.toUpperCase()}</Text>
       <Text style={{ fontFamily: "Helvetica-Bold", fontSize: grande ? 24 : 18, letterSpacing: -0.6, color: t.valore, marginTop: 5 }}>{valore}</Text>
-      {nota ? <Text style={{ fontSize: 7, color: BASE.grigio, marginTop: 3, lineHeight: 1.35 }}>{nota}</Text> : null}
+      {nota ? <Text style={{ fontSize: 8, color: BASE.grigio, marginTop: 3, lineHeight: 1.35 }}>{nota}</Text> : null}
     </View>
   );
 }
@@ -114,15 +114,15 @@ export function Nota({ tono = "blu", titolo, testo, icona = "verifica" }: { tono
     <View wrap={false} style={{ flexDirection: "row", backgroundColor: t.fondo, borderLeftWidth: 3, borderLeftColor: t.valore, borderRadius: 6, paddingVertical: 9, paddingHorizontal: 11 }}>
       <View style={{ marginRight: 8, marginTop: 1 }}><IconaPdf nome={icona} colore={t.valore} lato={10} /></View>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8, color: BASE.ink }}>{titolo}</Text>
-        <Text style={{ fontSize: 7.5, color: BASE.testo, marginTop: 2, lineHeight: 1.45 }}>{testo}</Text>
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9, color: BASE.ink }}>{titolo}</Text>
+        <Text style={{ fontSize: 9, color: BASE.testo, marginTop: 2, lineHeight: 1.45 }}>{testo}</Text>
       </View>
     </View>
   );
 }
 
 export function TitoletoSezione({ children }: { children: string }) {
-  return <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9.5, color: BASE.ink, marginBottom: 7 }}>{children}</Text>;
+  return <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 10, color: BASE.ink, marginBottom: 7 }}>{children}</Text>;
 }
 
 export function Spinta() {
@@ -135,7 +135,7 @@ export function Foto({ src, altezza, larghezza = LARGHEZZA, didascalia = true, s
   return (
     <View style={{ width: larghezza, ...(stile ?? {}) }}>
       <Image src={src} style={{ width: "100%", height: altezza, objectFit: "cover", borderRadius: 8 }} />
-      {didascalia ? <Text style={{ fontSize: 6, color: BASE.grigioChiaro, marginTop: 3 }}>Immagine illustrativa.</Text> : null}
+      {didascalia ? <Text style={{ fontSize: 7.5, color: BASE.grigioChiaro, marginTop: 3 }}>Immagine illustrativa.</Text> : null}
     </View>
   );
 }
@@ -161,14 +161,14 @@ export function GraficoSpesa({ oggi, domani, etichettaOggi, etichettaDomani, c, 
       <Rect x={x2} y={base - altezza(domani)} width={barra} height={altezza(domani)} rx={4} fill={BASE.verde} />
       <Text x={x1 + barra / 2} y={base - altezza(oggi) - 7} fill={BASE.arancioScuro} style={{ fontSize: 11, fontFamily: "Helvetica-Bold", textAnchor: "middle" } as never}>{formato(oggi)}</Text>
       <Text x={x2 + barra / 2} y={base - altezza(domani) - 7} fill={BASE.verdeScuro} style={{ fontSize: 11, fontFamily: "Helvetica-Bold", textAnchor: "middle" } as never}>{formato(domani)}</Text>
-      <Text x={x1 + barra / 2} y={base + 14} fill={BASE.grigio} style={{ fontSize: 7.5, textAnchor: "middle" } as never}>{etichettaOggi}</Text>
-      <Text x={x2 + barra / 2} y={base + 14} fill={BASE.grigio} style={{ fontSize: 7.5, textAnchor: "middle" } as never}>{etichettaDomani}</Text>
+      <Text x={x1 + barra / 2} y={base + 14} fill={BASE.grigio} style={{ fontSize: 8, textAnchor: "middle" } as never}>{etichettaOggi}</Text>
+      <Text x={x2 + barra / 2} y={base + 14} fill={BASE.grigio} style={{ fontSize: 8, textAnchor: "middle" } as never}>{etichettaDomani}</Text>
       {oggi > domani ? (
         <G>
           <Path d={`M ${w * 0.82} ${base - altezza(oggi)} L ${w * 0.82} ${base - altezza(domani)}`} stroke={c.navy} strokeWidth={1.2} strokeDasharray="3 2" />
           <Path d={`M ${w * 0.82 - 4} ${base - altezza(domani) - 6} L ${w * 0.82} ${base - altezza(domani)} L ${w * 0.82 + 4} ${base - altezza(domani) - 6}`} stroke={c.navy} strokeWidth={1.2} fill="none" />
           <Text x={w * 0.82 + 8} y={(2 * base - altezza(oggi) - altezza(domani)) / 2} fill={c.navy} style={{ fontSize: 10, fontFamily: "Helvetica-Bold" } as never}>{`-${formato(oggi - domani)}`}</Text>
-          <Text x={w * 0.82 + 8} y={(2 * base - altezza(oggi) - altezza(domani)) / 2 + 11} fill={BASE.grigio} style={{ fontSize: 7 } as never}>{sottoDifferenza}</Text>
+          <Text x={w * 0.82 + 8} y={(2 * base - altezza(oggi) - altezza(domani)) / 2 + 11} fill={BASE.grigio} style={{ fontSize: 8 } as never}>{sottoDifferenza}</Text>
         </G>
       ) : null}
     </Svg>
@@ -202,16 +202,16 @@ export function GraficoCumulato({ anni, rientro, c }: { anni: { anno: number; cu
       {aree.sotto ? <Path d={aree.sotto} fill={BASE.rosso} fillOpacity={0.13} /> : null}
       {aree.sopra ? <Path d={aree.sopra} fill={BASE.verde} fillOpacity={0.16} /> : null}
       <Line x1={padL} y1={zero} x2={w - padR} y2={zero} stroke={BASE.grigioChiaro} strokeWidth={0.8} />
-      <Text x={padL - 6} y={zero + 3} fill={BASE.grigio} style={{ fontSize: 7, textAnchor: "end" } as never}>{`0 ${PDF_EURO}`}</Text>
+      <Text x={padL - 6} y={zero + 3} fill={BASE.grigio} style={{ fontSize: 8, textAnchor: "end" } as never}>{`0 ${PDF_EURO}`}</Text>
       {tacche.map((v, i) => (
         <G key={`t-${i}`}>
           <Line x1={padL} y1={yOf(v)} x2={w - padR} y2={yOf(v)} stroke={BASE.linea} strokeWidth={0.5} strokeDasharray="2 3" />
-          <Text x={padL - 6} y={yOf(v) + 3} fill={BASE.grigio} style={{ fontSize: 7, textAnchor: "end" } as never}>{kEuro(v)}</Text>
+          <Text x={padL - 6} y={yOf(v) + 3} fill={BASE.grigio} style={{ fontSize: 8, textAnchor: "end" } as never}>{kEuro(v)}</Text>
         </G>
       ))}
       <Path d={linea} stroke={c.navy} strokeWidth={1.8} fill="none" />
       {etichette.map((i) => (
-        <Text key={`x-${i}`} x={xOf(i)} y={h - 8} fill={BASE.grigio} style={{ fontSize: 7, textAnchor: "middle" } as never}>{i === 0 ? "Oggi" : `Anno ${anni[i].anno}`}</Text>
+        <Text key={`x-${i}`} x={xOf(i)} y={h - 8} fill={BASE.grigio} style={{ fontSize: 8, textAnchor: "middle" } as never}>{i === 0 ? "Oggi" : `Anno ${anni[i].anno}`}</Text>
       ))}
       <Circle cx={punti[0].x} cy={punti[0].y} r={3} fill={BASE.rosso} />
       <Circle cx={punti[ultimo].x} cy={punti[ultimo].y} r={3.4} fill={anni[ultimo].cumulato >= 0 ? BASE.verde : BASE.rosso} />
@@ -219,7 +219,7 @@ export function GraficoCumulato({ anni, rientro, c }: { anni: { anno: number; cu
         <G>
           <Line x1={rientroX} y1={padT} x2={rientroX} y2={h - padB} stroke={BASE.arancio} strokeWidth={1} strokeDasharray="3 2" />
           <Rect x={etichettaX} y={padT + 2} width={100} height={17} rx={3} fill={BASE.arancio} />
-          <Text x={etichettaX + 50} y={padT + 13.5} fill="#FFFFFF" style={{ fontSize: 7, fontFamily: "Helvetica-Bold", textAnchor: "middle" } as never}>{`SPESA RIPAGATA · ${anniTesto(rientro ?? 0).toUpperCase()}`}</Text>
+          <Text x={etichettaX + 50} y={padT + 13.5} fill="#FFFFFF" style={{ fontSize: 8, fontFamily: "Helvetica-Bold", textAnchor: "middle" } as never}>{`SPESA RIPAGATA · ${anniTesto(rientro ?? 0).toUpperCase()}`}</Text>
         </G>
       ) : null}
     </Svg>
@@ -232,7 +232,7 @@ export function Legenda({ voci }: { voci: { colore: string; testo: string; tratt
       {voci.map((v) => (
         <View key={v.testo} style={{ flexDirection: "row", alignItems: "center", marginRight: 14 }}>
           <View style={{ width: 14, height: 0, borderTopWidth: 2, borderTopColor: v.colore, borderStyle: v.tratteggio ? "dashed" : "solid", marginRight: 5 }} />
-          <Text style={{ fontSize: 7, color: BASE.testo }}>{v.testo}</Text>
+          <Text style={{ fontSize: 8, color: BASE.testo }}>{v.testo}</Text>
         </View>
       ))}
     </View>
@@ -247,8 +247,8 @@ export function Scheda({ icona, titolo, testo, c, ultimaColonna }: { icona: Nome
         <IconaPdf nome={icona} colore={BASE.arancioScuro} lato={12} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9, color: c.navy }}>{titolo}</Text>
-        <Text style={{ fontSize: 7.8, lineHeight: 1.45, color: BASE.testo, marginTop: 3 }}>{testo}</Text>
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 10, color: c.navy }}>{titolo}</Text>
+        <Text style={{ fontSize: 9, lineHeight: 1.45, color: BASE.testo, marginTop: 3 }}>{testo}</Text>
       </View>
     </View>
   );
@@ -258,7 +258,7 @@ export function Spunta({ testo }: { testo: string }) {
   return (
     <View style={{ flexDirection: "row", marginBottom: 5 }}>
       <View style={{ marginRight: 6, marginTop: 1 }}><IconaPdf nome="verifica" colore={BASE.verde} lato={9} /></View>
-      <Text style={{ flex: 1, fontSize: 8, lineHeight: 1.4, color: BASE.testo }}>{testo}</Text>
+      <Text style={{ flex: 1, fontSize: 9, lineHeight: 1.4, color: BASE.testo }}>{testo}</Text>
     </View>
   );
 }
