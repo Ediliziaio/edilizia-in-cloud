@@ -30,12 +30,18 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
+import { faseHaSottofasi, messaggioErrore, sottofaseDaRiga, sottofasiPerFase, type Sottofase } from "@/lib/orders/sottofasi";
 
 // Le foto restano indirizzate come prima nel database; in lettura passano da
 // un link a scadenza (linkFileRiservato), cosi' funzionano anche quando il
 // contenitore non e' piu' aperto a chiunque.
 const PHOTO_BUCKET = "campo-rapportini";
 const MAX_PHOTO_MB = 10;
+
+// La tabella delle sottofasi non è ancora nei tipi generati: cast localizzato.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 
 interface Fase {
   id: string;
@@ -121,6 +127,40 @@ export default function CampoAvanzamento() {
     },
     enabled: orderIds.length > 0,
     staleTime: 60_000,
+  });
+
+  // Le sottofasi dei MIEI cantieri: non hanno l'azienda, si filtra per quella della
+  // loro fase (la RLS è la stessa delle fasi). Se la lettura fallisce (tabella non
+  // ancora creata) le fasi restano come sempre.
+  const sottofasiQuery = useQuery({
+    queryKey: ["campo-sottofasi", companyId, user?.id],
+    queryFn: async (): Promise<Sottofase[]> => {
+      const { data, error } = await db
+        .from("order_work_subphases")
+        .select("id, phase_id, name, position, peso, fatta, fatta_il, fase:order_work_phases!inner(company_id)")
+        .eq("fase.company_id", companyId!)
+        .order("position", { ascending: true });
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map(sottofaseDaRiga);
+    },
+    enabled: !!user?.id && !!companyId,
+    staleTime: 30_000,
+    retry: false,
+  });
+  const sottofasiDi = useMemo(() => sottofasiPerFase(sottofasiQuery.data ?? []), [sottofasiQuery.data]);
+
+  const segnaSottofase = useMutation({
+    mutationFn: async ({ id, fatta }: { id: string; fatta: boolean }) => {
+      const { error } = await db.from("order_work_subphases").update({ fatta }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      // La fase si ricalcola nel database: si rileggono le sottofasi e le fasi.
+      queryClient.invalidateQueries({ queryKey: ["campo-sottofasi"] });
+      queryClient.invalidateQueries({ queryKey: ["campo-avanzamento-fasi"] });
+    },
+    // Il database dice da sé perché no («Le sottofasi le spunta il capocantiere.»).
+    onError: (err: unknown) => toast.error(messaggioErrore(err, "Non riesco a salvare la sottofase")),
   });
 
   const gruppi = useMemo(() => {
@@ -282,14 +322,20 @@ export default function CampoAvanzamento() {
                 const done = fase.status === "completata";
                 const foto = toPhotoList(fase.foto_urls);
                 const busy = uploadingFaseId === fase.id;
+                const sotto = sottofasiDi.get(fase.id) ?? [];
+                const derivata = faseHaSottofasi(sotto);
                 return (
                   <li key={fase.id} className="p-3">
                     <div className="flex items-start gap-3">
                       <button
                         type="button"
                         onClick={() => toggleFase.mutate(fase)}
-                        disabled={toggleFase.isPending}
-                        aria-label={done ? `Riapri la fase ${fase.name}` : `Segna ${fase.name} come completata`}
+                        disabled={toggleFase.isPending || derivata}
+                        aria-label={
+                          derivata
+                            ? `${fase.name}: si completa spuntando le sottofasi`
+                            : done ? `Riapri la fase ${fase.name}` : `Segna ${fase.name} come completata`
+                        }
                         className="mt-0.5 shrink-0"
                       >
                         {done ? (
@@ -331,6 +377,24 @@ export default function CampoAvanzamento() {
                             </span>
                           )}
                         </div>
+
+                        {derivata && (
+                          <ul className="mt-2 space-y-0.5" aria-label={`Sottofasi di ${fase.name}`}>
+                            {sotto.map((s) => (
+                              <li key={s.id}>
+                                <label className="flex min-h-11 items-center gap-2.5 text-sm">
+                                  <Checkbox
+                                    checked={s.fatta}
+                                    disabled={segnaSottofase.isPending}
+                                    onCheckedChange={(v) => segnaSottofase.mutate({ id: s.id, fatta: v === true })}
+                                    aria-label={`${s.name}: ${s.fatta ? "fatta" : "da fare"}`}
+                                  />
+                                  <span className={cn(s.fatta && "text-muted-foreground line-through")}>{s.name}</span>
+                                </label>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
 
                         {foto.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1.5">

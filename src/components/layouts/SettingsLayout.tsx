@@ -35,6 +35,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   scontistica:            { title: "Margini e sconti",        description: "Limiti di sconto per commerciali, clienti e fasce di importo" },
   "stati-ordine":         { title: "Stati ordine",             description: "Configura gli stati del flusso degli ordini" },
   "rapportini-cantiere":  { title: "Rapportini e presenze",    description: "Come lavorano i tuoi cantieri: chi scrive il rapportino e da dove vengono le ore" },
+  "modelli-fasi":         { title: "Fasi e avanzamento",       description: "I modelli di fasi con le sottofasi, chi le spunta e come si calcola l'avanzamento delle commesse" },
   "cartelle-documenti":   { title: "Cartelle documenti",       description: "Le cartelle in cui si dividono i documenti di ogni commessa" },
   fornitori:              { title: "Fornitori",                description: "Gestisci l'anagrafica fornitori" },
   "categorie-costi":      { title: "Categorie costi",          description: "Organizza le categorie di costo dei cantieri" },

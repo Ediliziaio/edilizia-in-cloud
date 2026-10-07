@@ -16,6 +16,7 @@ const state = vi.hoisted(() => ({
   crew: [] as Membro[],
   regole: undefined as RegoleCampo | undefined,
   oreGia: null as { ore: number; da: string } | null,
+  fasi: [] as unknown[], sottofasi: [] as unknown[],
 }));
 vi.mock("react-router-dom", () => ({ useParams: () => ({ orderId: "order" }), useNavigate: () => vi.fn(), useSearchParams: () => [new URLSearchParams(), vi.fn()] }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "worker" }, profile: { company_id: "company", first_name: "Mario", last_name: "Rossi" } }) }));
@@ -33,7 +34,8 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: string[] }) => ({ data:
     queryKey[0] === "campo-articoli-commessa-rapportino" ? [] :
     queryKey[0] === "campo-rapportino-cantiere" ? { order_code: "C-123", description: "Ristrutturazione Via Roma" } :
-    queryKey[0] === "campo-fasi-commessa" ? [] :
+    queryKey[0] === "campo-fasi-commessa" ? state.fasi :
+    queryKey[0] === "campo-sottofasi" ? state.sottofasi :
     queryKey[0] === "campo-ruolo" ? state.role :
     queryKey[0] === "campo-squadra" ? state.crew :
     queryKey[0] === "campo-regole-ordine" ? state.regole :
@@ -60,6 +62,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
 beforeEach(() => {
   vi.clearAllMocks();
   state.role = { isCapocantiere: false, esisteCapo: false }; state.crew = []; state.regole = undefined; state.oreGia = null; state.gia = null;
+  state.fasi = []; state.sottofasi = [];
   vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-09-24T15:00:00+02:00"));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -331,5 +334,36 @@ describe("Il rapportino respinto si corregge e si rimanda", () => {
     expect(screen.getByText(/Esiste già un rapportino per questa giornata/)).toBeInTheDocument();
     expect(screen.queryByText("L’ufficio ha respinto questo rapportino")).toBeNull();
     expect(screen.getByRole("button", { name: "Avanti" })).toBeDisabled();
+  });
+});
+
+describe("Le sottofasi nel rapportino del capocantiere", () => {
+  const sotto = (patch: Record<string, unknown>) => ({ id: "s1", phase_id: "f1", name: "Tracce", position: 0, peso: 1, fatta: false, fatta_il: null as string | null, ...patch });
+  const apri = () => {
+    state.role = { isCapocantiere: true, esisteCapo: true };
+    state.fasi = [{ id: "f1", name: "Impianto elettrico", status: "in_corso", percentuale: 33 }];
+    state.sottofasi = [sotto({ fatta: true }), sotto({ id: "s2", name: "Cavi", position: 1 }), sotto({ id: "s3", name: "Quadro", position: 2 })];
+    render(<CampoRapportino />);
+    fireEvent.change(ore()!, { target: { value: "8" } });   // le ore del capo: si confermano nel primo passo
+    avanti();                                                // le fasi stanno nel secondo (l'ultimo)
+    fireEvent.click(screen.getByRole("button", { name: "Impianto elettrico" }));
+  };
+
+  it("al posto dello slider c'è la checklist: le già fatte sono ferme, le altre si spuntano e l'anteprima cresce", () => {
+    apri();
+    expect(screen.queryByRole("slider")).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "Tracce: già fatta" })).toBeDisabled();
+    expect(screen.getByText("33%")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Cavi: da fare" }));
+    expect(screen.getByText("67%")).toBeInTheDocument();
+  });
+
+  it("il rapportino porta le spunte, dentro la voce della fase, e l'avanzamento che ne deriva", async () => {
+    apri();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Cavi: da fare" }));
+    invia();
+    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({
+      fasi_lavorate: [{ phase_id: "f1", percentuale: 67, sottofasi_fatte: ["s2"] }],
+    })));
   });
 });

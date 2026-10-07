@@ -54,6 +54,7 @@ import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
 import { OrderFinancialOverview } from "@/components/orders/OrderFinancialOverview";
 import { OrderHeaderSummary, VoceRiepilogo } from "@/components/orders/OrderHeaderSummary";
 import { useConteggiCommessa } from "@/hooks/useConteggiCommessa";
+import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { OrderDetailNavigation } from "@/components/orders/OrderDetailNavigation";
 import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
 import { CantiereViewNav, VISTE_SOLO_SCHERMO_GRANDE } from "@/components/orders/CantiereViewNav";
@@ -502,6 +503,8 @@ function OrderDetailInner() {
     enabled: !!id,
     staleTime: 30_000,
   });
+
+  const { daMostrare: avanzamentoDellaCommessa } = useAvanzamentoCommessa(id);
 
   // Fetch status history
   const { data: statusHistory = [] } = useQuery({
@@ -1211,7 +1214,7 @@ function OrderDetailInner() {
     agreedAmount * (1 + (order.vat_rate ?? 22) / 100) - (order.financing_cost ?? 0),
   );
   // Avanzamento fisico (media % fasi) per esposizione e proiezione margine.
-  const avanzamentoPct = phaseProgress?.avgPct ?? null;
+  const avanzamentoPct = avanzamentoDellaCommessa(phaseProgress?.avgPct ?? null);
 
   const vaiAllaFinanza = (section: OrderDetailSection = "section-pagamenti") => {
     navigateTo({ tab: "finanza", section });

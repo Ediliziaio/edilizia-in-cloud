@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, FileBarChart2, Loader2, Download, Trash2, Sparkles, Wand2, Banknote, Check, Clock, ListChecks } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { maturatoPrecedente, nettoSal } from "@/lib/orders/salNetto";
 import { vociSalDaFasi, type FasePerSal } from "@/lib/orders/salDaFasi";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import type { Installment } from "@/lib/orderUtils";
@@ -282,6 +283,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   };
 
   const totalDialogImporto = voci.reduce((sum, v) => sum + computedImporto(v), 0);
+  const numeroNuovo = salList.reduce((m, s) => Math.max(m, s.numero_sal), 0) + 1;
+  const precedenteNuovo = maturatoPrecedente({ id: "nuovo", numero_sal: numeroNuovo }, salList);
 
   // ── Avanzamento incassi (piano rate della commessa) ─────────────────
   // Stessa matematica di FinancialSummaryReadOnly: il saldo è il residuo del
@@ -465,6 +468,19 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Emesso il {fmtDate(sal.data_emissione)} · Totale: {formatCurrency(sal.importo_totale)}
                     </p>
+                    {(() => {
+                      const precedente = maturatoPrecedente(sal, salList);
+                      if (precedente <= 0) return null;
+                      const { daFatturare } = nettoSal(sal.importo_totale, precedente);
+                      return (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Già maturato nei SAL precedenti: {formatCurrency(precedente)} ·{" "}
+                          <span className={daFatturare < 0 ? "font-medium text-rose-600" : "font-medium text-foreground"}>
+                            {daFatturare < 0 ? "Rettifica" : "Da fatturare con questo SAL"}: {formatCurrency(daFatturare)}
+                          </span>
+                        </p>
+                      );
+                    })()}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <Button
@@ -533,6 +549,18 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                           <td className="p-2" colSpan={3}>Totale SAL</td>
                           <td className="p-2 text-right">{formatCurrency(sal.importo_totale)}</td>
                         </tr>
+                        {maturatoPrecedente(sal, salList) > 0 && (
+                          <>
+                            <tr className="border-t text-muted-foreground">
+                              <td className="p-2" colSpan={3}>Meno SAL precedenti</td>
+                              <td className="p-2 text-right">− {formatCurrency(maturatoPrecedente(sal, salList))}</td>
+                            </tr>
+                            <tr className="bg-muted/30 font-semibold">
+                              <td className="p-2" colSpan={3}>Da fatturare con questo SAL</td>
+                              <td className="p-2 text-right">{formatCurrency(nettoSal(sal.importo_totale, maturatoPrecedente(sal, salList)).daFatturare)}</td>
+                            </tr>
+                          </>
+                        )}
                       </tfoot>
                     </table>
                   </div>
@@ -726,6 +754,18 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
               <div className="flex justify-end text-sm font-semibold text-primary bg-muted/30 rounded-lg p-2">
                 Totale SAL: {formatCurrency(totalDialogImporto)}
               </div>
+              {precedenteNuovo > 0 && (
+                <div className="space-y-1 rounded-lg bg-muted/30 p-2 text-sm">
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Già maturato nei SAL precedenti</span>
+                    <span>− {formatCurrency(precedenteNuovo)}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold text-primary">
+                    <span>Da fatturare con questo SAL</span>
+                    <span>{formatCurrency(nettoSal(totalDialogImporto, precedenteNuovo).daFatturare)}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Note */}

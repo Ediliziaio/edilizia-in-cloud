@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useOrderWorkPhases } from "@/hooks/useOrderWorkPhases";
+import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
 import { useOrderScheduleHealth } from "@/hooks/useOrderScheduleHealth";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
@@ -183,6 +184,7 @@ export function CronoprogrammaCommessa({
   const crono = useCronoprogramma(orderId, order.quote_id ?? null);
   const { data: salute } = useOrderScheduleHealth(orderId);
   const { data: costiMateriali } = useCostiMaterialiFasi(orderId, canViewCosts);
+  const { daMostrare: avanzamentoDellaCommessa } = useAvanzamentoCommessa(orderId);
 
   const oggi = giornoLocale(new Date().toISOString());
   const economia = useMemo(
@@ -210,7 +212,7 @@ export function CronoprogrammaCommessa({
   const asse = intervalloCronoprogramma(nelGrafico, traguardi, oggi);
   const segni = tacche(asse);
   const etichetteTraguardi = posizioniTraguardi(traguardi, asse);
-  const avanzamento = avanzamentoComplessivo(fasi);
+  const avanzamento = avanzamentoDellaCommessa(avanzamentoComplessivo(fasi));
   const sullaFine = fasi.map(ritardoFase).filter((r) => r?.su === "fine");
   const sullInizio = fasi.map(ritardoFase).filter((r) => r?.su === "inizio");
   const ritardoMassimo = Math.max(0, ...sullaFine.map((r) => r!.giorni));

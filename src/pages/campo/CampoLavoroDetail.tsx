@@ -9,6 +9,8 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { NoteCantiereCampo } from "@/components/campo/NoteCantiereCampo";
 import { ChiLavoraCampo } from "@/components/campo/ChiLavoraCampo";
+import { SottofasiContate } from "@/components/campo/SottofasiContate";
+import { sottofaseDaRiga, sottofasiPerFase, type Sottofase } from "@/lib/orders/sottofasi";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
@@ -439,6 +441,26 @@ export default function CampoLavoroDetail() {
       }));
     },
   });
+
+  // Le sottofasi delle fasi di questo cantiere (sola lettura qui: si spuntano da «Avanzamento lavori» o dal rapportino).
+  // Non hanno la commessa: si filtra per quella della loro fase. Se la lettura fallisce si va come sempre.
+  const { data: sottofasiLavoro = [] } = useQuery({
+    queryKey: ["campo-sottofasi", "lavoro", orderId],
+    enabled: !!orderId && activeTab === "descrizione",
+    staleTime: 60_000,
+    retry: false,
+    queryFn: async (): Promise<Sottofase[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("order_work_subphases")
+        .select("id, phase_id, name, position, peso, fatta, fatta_il, fase:order_work_phases!inner(order_id)")
+        .eq("fase.order_id", orderId)
+        .order("position", { ascending: true });
+      if (error) return [];
+      return ((data ?? []) as Record<string, unknown>[]).map(sottofaseDaRiga);
+    },
+  });
+  const sottofasiDi = useMemo(() => sottofasiPerFase(sottofasiLavoro), [sottofasiLavoro]);
 
   // Le date delle fasi e quali toccano a me (io o la mia squadra).
   const { data: mieFasi = [] } = useQuery({
@@ -906,6 +928,7 @@ export default function CampoLavoroDetail() {
                             style={{ width: `${pct}%` }}
                           />
                         </div>
+                        <SottofasiContate sottofasi={sottofasiDi.get(fase.id) ?? []} />
                       </div>
                     );
                   })}

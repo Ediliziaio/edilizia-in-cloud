@@ -26,7 +26,7 @@ import {
   UserCircle, ShieldCheck, Building2, MapPin, Paintbrush, Wallet, Receipt,
   Users, ListOrdered, FolderOpen, FileText, FileSignature, Truck, ScrollText,
   Banknote, Plug, Calendar, Mail, Tag, LogOut, ChevronRight,
-  Brain, Bell, Bot, Wrench, ImagePlus, HardHat } from "lucide-react";
+  Brain, Bell, Bot, Wrench, ImagePlus, HardHat, ListChecks } from "lucide-react";
 
 interface SectionItem {
   to: string;
@@ -66,6 +66,7 @@ const SECTIONS: Section[] = [
       { to: "/azienda/impostazioni/cartelle-documenti", label: "Cartelle documenti", icon: FolderOpen, iconColor: "text-amber-600" },
       { to: "/azienda/impostazioni/calendari-lavori", label: "Calendari lavori", icon: HardHat,   iconColor: "text-orange-600" },
       { to: "/azienda/impostazioni/rapportini-cantiere", label: "Rapportini e presenze", icon: ScrollText, iconColor: "text-orange-600" },
+      { to: "/azienda/impostazioni/modelli-fasi", label: "Fasi e avanzamento", icon: ListChecks, iconColor: "text-orange-600" },
       { to: "/azienda/impostazioni/categorie-costi", label: "Categorie costi",  icon: FolderOpen,  iconColor: "text-emerald-600" },
       { to: "/azienda/impostazioni/fornitori",       label: "Fornitori",        icon: Truck,       iconColor: "text-amber-600" },
       { to: "/azienda/impostazioni/sopralluoghi",    label: "Sopralluoghi",     icon: ScrollText,  iconColor: "text-amber-600" },
@@ -129,6 +130,7 @@ const HIDDEN_ON_MOBILE = new Set<string>([
   // I calendari su telefono si consultano, non si configurano (25/09/2026).
   "/azienda/impostazioni/calendari-lavori",   // Calendari lavori
   "/azienda/impostazioni/rapportini-cantiere",// Rapportini e presenze (si sceglie una volta, al computer)
+  "/azienda/impostazioni/modelli-fasi",       // Modelli di fasi (si preparano una volta, al computer)
   "/azienda/impostazioni/calendari",          // Calendari marketing
 ]);
 
