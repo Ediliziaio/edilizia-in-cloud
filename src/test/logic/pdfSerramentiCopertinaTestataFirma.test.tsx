@@ -1,7 +1,7 @@
 /**
  * Il PDF dei serramenti dopo le richieste di Renova (05/10/2026, valgono per tutte le aziende):
  *  - copertina: niente «A cura di», e col logo non si ripete il nome dell'azienda (senza logo il nome resta);
- *  - ogni pagina: in testata l'azienda e il numero della stima, non il nome del cliente;
+ *  - ogni pagina: in testata l'azienda e il numero del preventivo («PREVENTIVO N.»), non il nome del cliente;
  *  - «La tua consulenza»: il telefono sì, l'email del profilo no (è quella con cui il consulente entra nel gestionale);
  *  - la pagina da firmare si chiama «ACCETTAZIONE PROPOSTA», e l'Art. 1 dice dove sono i lavori (non «presso .»).
  * Renderer vero, offline: si legge il testo del PDF come lo legge il cliente.
@@ -100,12 +100,12 @@ describe("il resto del documento (con tutte le pagine)", () => {
   // Lavori a Trieste, cliente senza indirizzo: come il preventivo di Renova (06/10/2026 li ha separati).
   const lavoriAltrove: Record<string, unknown> = { cliente_indirizzo: null, cantiere_indirizzo: "Via Monte", cantiere_citta: "Trieste", cliente_citta: null };
 
-  it("testata: azienda e numero della stima in ogni pagina, mai il nome del cliente", async () => {
+  it("testata: azienda e numero del preventivo in ogni pagina, mai il nome del cliente", async () => {
     const pagine = await pagineDelPdf({ logo: true, tuttePagine: true, progetto: lavoriAltrove });
     const interne = pagine.slice(1);
     expect(interne.length).toBeGreaterThan(5);
     for (const [i, p] of interne.entries()) {
-      expect(p.testata.includes(AZIENDA) && p.testata.includes("STIMA N.") && p.testata.includes("SF-DEMO-0001"), `testata della pagina ${i + 2}: «${p.testata}»`).toBe(true);
+      expect(p.testata.includes(AZIENDA) && p.testata.includes("PREVENTIVO N.") && p.testata.includes("SF-DEMO-0001"), `testata della pagina ${i + 2}: «${p.testata}»`).toBe(true);
       expect(/Mario|Rossi/.test(p.testata), `il cliente nella testata della pagina ${i + 2}: «${p.testata}»`).toBe(false);
     }
     // Il nome del cliente resta dove serve: in anagrafica e nella pagina da firmare.

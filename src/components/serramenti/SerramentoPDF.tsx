@@ -1636,7 +1636,7 @@ function PageHeader({ code, companyName, logoUrl, primaryColor, styles }: {
         </View>
       </View>
       <View style={styles.headerRight}>
-        <Text>STIMA N.</Text>
+        <Text>PREVENTIVO N.</Text>
         <Text style={styles.headerStimaCode}>{code}</Text>
       </View>
     </View>
@@ -2451,6 +2451,10 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     : null;
   const detrazioneTotale = detrazioneCalcolata ? roundMoney(detrazioneCalcolata.detrazione_totale) : 0;
   const detrazioneAnno = detrazioneCalcolata ? roundMoney(detrazioneCalcolata.rata_annuale) : 0;
+  // Le tappe del pagamento: la pagina economica le mostra, e l'Art. 4 delle condizioni le ripete uguali.
+  const milestones = (Array.isArray(p.pagamento_milestones) ? p.pagamento_milestones : []) as SrPagamentoMilestone[];
+  const schemaPagamento = p.schema_pagamento ?? "tre_step";
+  const schemaCfg = SR_SCHEMI_PAGAMENTO[schemaPagamento as keyof typeof SR_SCHEMI_PAGAMENTO];
   // Il luogo dei lavori: lo stesso che si legge nel riepilogo della pagina della firma e in anagrafica.
   const luogoLavori = [p.cantiere_indirizzo ?? p.cliente_indirizzo, p.cantiere_citta ?? p.cliente_citta].filter(Boolean).join(", ");
   // Merge tag dei blocchi importati dalla libreria ({{cliente.nome_completo}}, {{azienda.ragione_sociale}}…)
@@ -2472,6 +2476,14 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
       numero: p.code, dataDocumento: p.created_at ?? null,
       // Il totale vero del documento: senza, «{{preventivo.totale}}» usciva vuoto.
       totale: totaleDocumento,
+      // Il piano della pagina economica: senza, l'Art. 4 diceva «…secondo il piano concordato: come da
+      // condizioni di pagamento concordate» anche con le tappe stampate due pagine prima.
+      pagamentoModalita: milestones.length > 0 ? schemaCfg?.label ?? null : null,
+      pagamentoFasi: milestones.map((m) => ({
+        label: m.label,
+        percent: Number(m.percentuale) || 0,
+        amount: roundMoney((totaleDocumento * (Number(m.percentuale) || 0)) / 100),
+      })),
     },
   ) || null;
   // Il riepilogo della pagina della firma: che cosa si firma, in poche righe.
@@ -2520,10 +2532,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
     .some((pg) => pg.id === "recensioni" && pg.visible);
   const recensioniInPagina = paginaRecensioniAccesa && (votiOnline.length > 0 || paroleClienti.length > 0);
   const temaProve = creaTema({ primario: primaryColor, tipografia: "lineare" });
-  const milestones = (Array.isArray(p.pagamento_milestones) ? p.pagamento_milestones : []) as SrPagamentoMilestone[];
   const piani = (Array.isArray(p.fin_piani) ? p.fin_piani : []) as SrPianoFinanziamento[];
-  const schemaPagamento = p.schema_pagamento ?? "tre_step";
-  const schemaCfg = SR_SCHEMI_PAGAMENTO[schemaPagamento as keyof typeof SR_SCHEMI_PAGAMENTO];
   // Prima & Dopo: situazione (foto attuale del cliente) vs render (AI)
   const primaUrls = detail.media.filter((m) => m.kind === "situazione" && m.url).map((m) => m.url!);
   const renderUrls = detail.media.filter((m) => m.kind === "render" && m.url).map((m) => m.url!);
@@ -2909,7 +2918,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
   return (
     <Document
-      title={`Stima ${p.code} - ${clienteNome}`}
+      title={`Preventivo ${p.code} - ${clienteNome}`}
       author={companyName}
       subject={`Preventivo serramenti per ${clienteNome}`}
     >
@@ -3204,7 +3213,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 {[p.cantiere_citta || p.cliente_citta, quantiPezzi, p.tipo_intervento].filter(Boolean).join(" · ")}
               </Text>
 
-              <Text style={styles.sectionTitle}>Anagrafica cliente</Text>
+              <Text style={styles.sectionTitle} minPresenceAhead={40}>Anagrafica cliente</Text>
               <View style={styles.kvRow}><Text style={styles.kvKey}>Intestatario</Text><Text style={styles.kvValue}>{clienteNome}</Text></View>
               {p.cliente_indirizzo && (
                 <View style={styles.kvRow}>
@@ -3233,18 +3242,23 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 </View>
               )}
 
-              <Text style={styles.sectionTitle}>L'intervento in sintesi</Text>
+              {/* Il testo si spezza fra le righe: col titolo ne restano almeno due. */}
+              <Text style={styles.sectionTitle} minPresenceAhead={56}>L'intervento in sintesi</Text>
               <Text style={styles.sintesiBox}>{sintesi}</Text>
 
               {esigenze.length > 0 && (
                 <>
-                  <Text style={styles.sectionTitle}>Le tue esigenze</Text>
+                  {/* Il titolo di un gruppo sta con la sua prima voce: da solo in fondo al foglio, con le voci su quello
+                      dopo, non si legge (come «Perché …» nel preventivo di Renova, pagina 3). */}
                   {esigenze.slice(0, 3).map((e, i) => (
-                    <View key={i} style={styles.bulletItem} wrap={false}>
-                      <View style={styles.bulletDot} />
-                      <View style={styles.bulletContent}>
-                        <Text style={styles.bulletTitle}>{e.titolo}</Text>
-                        {e.descrizione && <Text style={styles.bulletText}>{e.descrizione}</Text>}
+                    <View key={i} wrap={false}>
+                      {i === 0 ? <Text style={styles.sectionTitle}>Le tue esigenze</Text> : null}
+                      <View style={styles.bulletItem}>
+                        <View style={styles.bulletDot} />
+                        <View style={styles.bulletContent}>
+                          <Text style={styles.bulletTitle}>{e.titolo}</Text>
+                          {e.descrizione && <Text style={styles.bulletText}>{e.descrizione}</Text>}
+                        </View>
                       </View>
                     </View>
                   ))}
@@ -3253,13 +3267,15 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
               {soluzione.length > 0 && (
                 <>
-                  <Text style={styles.sectionTitle}>La soluzione per te</Text>
                   {soluzione.slice(0, 4).map((sol, i) => (
-                    <View key={i} style={styles.bulletItem} wrap={false}>
-                      <View style={styles.bulletDot} />
-                      <View style={styles.bulletContent}>
-                        <Text style={styles.bulletTitle}>{sol.titolo}</Text>
-                        {sol.descrizione && <Text style={styles.bulletText}>{sol.descrizione}</Text>}
+                    <View key={i} wrap={false}>
+                      {i === 0 ? <Text style={styles.sectionTitle}>La soluzione per te</Text> : null}
+                      <View style={styles.bulletItem}>
+                        <View style={styles.bulletDot} />
+                        <View style={styles.bulletContent}>
+                          <Text style={styles.bulletTitle}>{sol.titolo}</Text>
+                          {sol.descrizione && <Text style={styles.bulletText}>{sol.descrizione}</Text>}
+                        </View>
                       </View>
                     </View>
                   ))}
@@ -3268,23 +3284,27 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
               {(percheNoi.length > 0 || percheNoiMetriche.length > 0) && (
                 <>
-                  <Text style={styles.sectionTitle} minPresenceAhead={30}>Perché {companyName}</Text>
-
-                  {/* Milestone 10: row di big-number metriche sopra la lista USP.
-                      Mostrate solo se almeno una è configurata. */}
+                  {/* Il titolo sta con la riga delle metriche; senza metriche, con la prima voce. Prima aveva
+                      «minPresenceAhead=30» e la riga delle metriche (circa 80 punti, non si spezza) passava al
+                      foglio dopo: «Perché …» restava solo in fondo alla pagina. */}
                   {percheNoiMetriche.length > 0 && (
-                    <View style={styles.percheNoiMetricheRow}>
-                      {percheNoiMetriche.map((m, i) => (
-                        <View key={i} style={styles.percheNoiMetricaCard} wrap={false}>
-                          {/* Solo ASCII stampabile: emoji/simboli non-WinAnsi diventano glifi rotti in Helvetica. */}
-                          {m.icon && /^[\x20-\x7E]+$/.test(m.icon) && <Text style={styles.percheNoiMetricaIcon}>{m.icon}</Text>}
-                          <Text style={styles.percheNoiMetricaValue}>
-                            {m.value}
-                            {m.suffix && <Text style={styles.percheNoiMetricaSuffix}>{m.suffix}</Text>}
-                          </Text>
-                          <Text style={styles.percheNoiMetricaLabel}>{m.label}</Text>
-                        </View>
-                      ))}
+                    <View wrap={false}>
+                      <Text style={styles.sectionTitle}>Perché {companyName}</Text>
+                      {/* Milestone 10: row di big-number metriche sopra la lista USP.
+                          Mostrate solo se almeno una è configurata. */}
+                      <View style={styles.percheNoiMetricheRow}>
+                        {percheNoiMetriche.map((m, i) => (
+                          <View key={i} style={styles.percheNoiMetricaCard} wrap={false}>
+                            {/* Solo ASCII stampabile: emoji/simboli non-WinAnsi diventano glifi rotti in Helvetica. */}
+                            {m.icon && /^[\x20-\x7E]+$/.test(m.icon) && <Text style={styles.percheNoiMetricaIcon}>{m.icon}</Text>}
+                            <Text style={styles.percheNoiMetricaValue}>
+                              {m.value}
+                              {m.suffix && <Text style={styles.percheNoiMetricaSuffix}>{m.suffix}</Text>}
+                            </Text>
+                            <Text style={styles.percheNoiMetricaLabel}>{m.label}</Text>
+                          </View>
+                        ))}
+                      </View>
                     </View>
                   )}
 
@@ -3292,11 +3312,14 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     const titolo = typeof it === "string" ? it : it.titolo;
                     const descrizione = typeof it === "string" ? null : it.descrizione;
                     return (
-                      <View key={i} style={styles.bulletItem} wrap={false}>
-                        <View style={styles.bulletDot} />
-                        <View style={styles.bulletContent}>
-                          <Text style={styles.bulletTitle}>{titolo}</Text>
-                          {descrizione && <Text style={styles.bulletText}>{descrizione}</Text>}
+                      <View key={i} wrap={false}>
+                        {i === 0 && percheNoiMetriche.length === 0 ? <Text style={styles.sectionTitle}>Perché {companyName}</Text> : null}
+                        <View style={styles.bulletItem}>
+                          <View style={styles.bulletDot} />
+                          <View style={styles.bulletContent}>
+                            <Text style={styles.bulletTitle}>{titolo}</Text>
+                            {descrizione && <Text style={styles.bulletText}>{descrizione}</Text>}
+                          </View>
                         </View>
                       </View>
                     );
@@ -3374,7 +3397,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 <Text style={{ fontSize: 8, color: C.gray500, lineHeight: 1.4 }}>Raggruppamento per ambiente indicato in offerta. Misure, aperture e abbinamenti per singolo vano sono da verificare nel dettaglio tecnico.</Text>
               </View>}
 
-              <Text style={styles.sectionTitle}>{isLocalModule ? "Composizione della fornitura" : "Composizione serramenti"} · {numSerr} {numSerr === 1 ? "pezzo" : "pezzi"}</Text>
+              {/* Titolo e prima riga della tabella sullo stesso foglio: la testata `fixed` da sola in fondo non dice niente. */}
+              <Text style={styles.sectionTitle} minPresenceAhead={150}>{isLocalModule ? "Composizione della fornitura" : "Composizione serramenti"} · {numSerr} {numSerr === 1 ? "pezzo" : "pezzi"}</Text>
               <View style={styles.table}>
                 {/* fixed: l'header colonne si ripete sulle pagine successive SOLO
                     finché la tabella composizione continua (react-pdf lo propaga
@@ -3653,7 +3677,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
 
               {detail.accessori.length > 0 && (
                 <>
-                  <Text style={styles.sectionTitle}>Accessori e complementi</Text>
+                  {/* Titolo, testata e almeno la prima voce (miniatura da 44 punti compresa) sullo stesso foglio. */}
+                  <Text style={styles.sectionTitle} minPresenceAhead={90}>Accessori e complementi</Text>
                   <View style={styles.table}>
                     <View style={styles.tableHeader}>
                       <View style={{ width: COLONNA_IMMAGINE_ACCESSORIO }} />
@@ -3800,8 +3825,15 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 ) : null}
                 <View style={styles.macroPageHero}>
                   {linea.immagine_url ? (
-                    <View style={styles.macroPageImgWrap}>
-                      <Image src={linea.immagine_url} style={styles.macroPageImg} />
+                    <View>
+                      <View style={styles.macroPageImgWrap}>
+                        <Image src={linea.immagine_url} style={styles.macroPageImg} />
+                      </View>
+                      {/* La foto è quella del catalogo del produttore, con le finiture di catalogo (un sistema bianco
+                          poteva comparire «effetto legno»): lo si dice, e i colori veri sono quelli del preventivo. */}
+                      <Text style={{ fontSize: 7.5, color: C.gray500, marginTop: 5 }}>
+                        Immagine di catalogo: colori e finiture del tuo preventivo sono quelli indicati nella composizione.
+                      </Text>
                     </View>
                   ) : null}
                   {linea.dati.length > 0 ? (
@@ -4101,7 +4133,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
               )}
 
               {inlineModuleInclusions && incluso.length > 0 && <View style={styles.investmentBlock}>
-                <Text style={styles.investmentSectionTitle}>Cosa è incluso</Text>
+                <Text style={styles.investmentSectionTitle} minPresenceAhead={36}>Cosa è incluso</Text>
                 {incluso.map((item, i) => <View key={i} style={styles.bulletItem} wrap={false}>
                   <View style={styles.bulletDot} />
                   <Text style={styles.bulletText}>{typeof item === "string" ? item : [item.titolo, item.descrizione].filter(Boolean).join(" · ")}</Text>
@@ -4473,7 +4505,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     </View>
                   </View>
                   <View style={styles.headerRight}>
-                    <Text>STIMA N.</Text>
+                    <Text>PREVENTIVO N.</Text>
                     <Text style={styles.headerStimaCode}>{p.code}</Text>
                   </View>
                 </View>

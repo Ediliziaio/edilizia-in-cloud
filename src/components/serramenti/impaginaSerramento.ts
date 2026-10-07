@@ -42,7 +42,10 @@ export interface Pezzo {
   alto: number;
   /** Testo che si può spezzare fra una riga e l'altra: l'altezza di una riga. */
   riga?: number;
-  /** Titolo: se dopo di lui non ci stanno almeno questi punti del pezzo dopo, va a capo con lui (minPresenceAhead). */
+  /**
+   * Titolo: se dopo di lui non ci stanno almeno questi punti del pezzo dopo, va a capo con lui (minPresenceAhead).
+   * `Infinity` quando titolo e pezzo dopo stanno in un contenitore che non si spezza (`wrap={false}`): vanno insieme.
+   */
   conSeguente?: number;
   /** Intestazione che si ripete in cima a ogni foglio mentre il pezzo continua (la testata `fixed` di una tabella). */
   testataRipetuta?: number;
@@ -134,18 +137,20 @@ export interface DatiProposta {
 
 export function pezziProposta(d: DatiProposta): Pezzo[] {
   const pezzi: Pezzo[] = [{ alto: altezzaTesta(d.titolo, d.sottotitolo) }];
-  pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: 30 });
+  pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: 40 });
   for (const valore of d.righeAnagrafica) pezzi.push({ alto: Math.max(9, altezzaTesto(valore, UTILE_PAGINA - 95, "Helvetica-Bold", 10, INTERLINEA_NATURALE_GRASSETTO)) + 4 });
-  pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: 30 });
+  // Il testo della sintesi si spezza fra le righe: col titolo ne restano almeno due.
+  pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: 56 });
   const riga = 10.5 * 1.6;
   pezzi.push({ alto: altezzaTesto(d.sintesi, UTILE_PAGINA - 31, "Helvetica", 10.5, 1.6) + 24, riga });
   for (const [voci, quante] of [[d.esigenze, 3], [d.soluzione, 4]] as const) {
     if (voci.length === 0) continue;
-    pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: 30 });
+    // Il titolo sta con la prima voce (stesso contenitore che non si spezza).
+    pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: Infinity });
     for (const v of voci.slice(0, quante)) pezzi.push({ alto: altezzaVoce(v.titolo, v.descrizione) });
   }
   if (d.percheTitolo) {
-    pezzi.push({ alto: altezzaTesto(d.percheTitolo, UTILE_PAGINA, "Helvetica-Bold", 10, INTERLINEA_NATURALE_GRASSETTO) + 34, conSeguente: 30 });
+    pezzi.push({ alto: altezzaTesto(d.percheTitolo, UTILE_PAGINA, "Helvetica-Bold", 10, INTERLINEA_NATURALE_GRASSETTO) + 34, conSeguente: Infinity });
     if (d.metriche.length > 0) {
       const larga = (UTILE_PAGINA - 8 * (d.metriche.length - 1)) / d.metriche.length - 16;
       const etichetta = Math.max(...d.metriche.map((m) => altezzaTesto(m.label.toUpperCase(), larga, "Helvetica-Bold", 8, INTERLINEA_NATURALE_GRASSETTO)));
@@ -224,12 +229,13 @@ export const ALTEZZA_IMMAGINE_ACCESSORIO = 44;
 export function pezziAllegato(righe: RigaAllegato[], accessori: Array<{ descrizione: string; scelte: string | null; immagine?: boolean; per?: string | null }>): Pezzo[] {
   const pezzi: Pezzo[] = [
     { alto: altezzaTesta("Cosa installeremo\nin cantiere.", "Composizione dettagliata di serramenti, accessori e scelte tecniche previste.") },
-    { alto: TITOLO_GRUPPO, conSeguente: 60 },
-    { alto: 8 + TESTATA_TABELLA, conSeguente: 60 },
+    // Titolo e testata della tabella, con la prima riga (SerramentoPDF: minPresenceAhead 150).
+    { alto: TITOLO_GRUPPO + 8 + TESTATA_TABELLA, conSeguente: 120 },
     ...righe.map((r) => ({ alto: altezzaRigaAllegato(r), testataRipetuta: TESTATA_TABELLA })),
   ];
   if (accessori.length > 0) {
-    pezzi.push({ alto: TITOLO_GRUPPO, conSeguente: 40 }, { alto: 8 + TESTATA_TABELLA, conSeguente: 30 });
+    // Titolo, testata e prima voce (SerramentoPDF: minPresenceAhead 90).
+    pezzi.push({ alto: TITOLO_GRUPPO + 8 + TESTATA_TABELLA, conSeguente: 60 });
     for (const a of accessori) {
       const w = UTILE_PAGINA - 110 - 50 - 6 - (a.immagine ? COLONNA_IMMAGINE_ACCESSORIO : 0);
       const testo = 18.5 + altezzaTesto(a.descrizione, w, "Helvetica-Bold", 10, INTERLINEA_NATURALE_GRASSETTO)

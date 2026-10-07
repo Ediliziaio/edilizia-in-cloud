@@ -1,6 +1,6 @@
 /**
  * I PDF che si generano sul server dopo le richieste di Renova (05/10/2026, valgono per tutti i preventivi):
- *  - la versione HTML dei serramenti (il link da mandare al cliente): in testata l'azienda e il numero della stima, non il
+ *  - la versione HTML dei serramenti (il link da mandare al cliente): in testata l'azienda e il numero del preventivo, non il
  *    nome del cliente; nel riquadro del consulente il telefono sì, l'email del profilo no; l'Art. 1 dice dove sono i lavori;
  *  - il preventivo standard (pdf-lib): col logo il nome dell'azienda non si ripete, la firma è «ACCETTAZIONE PROPOSTA».
  * L'HTML dei serramenti è una funzione pura e si prova com'è; il preventivo standard vive dentro una funzione edge di
@@ -34,15 +34,18 @@ function datiSerramenti(extra: Partial<SrPdfData> = {}): SrPdfData {
 }
 
 describe("serramenti, versione HTML sul server", () => {
-  it("la testata di ogni pagina dice l'azienda e il numero della stima, mai il nome del cliente", () => {
+  it("la testata di ogni pagina dice l'azienda e il numero del preventivo («PREVENTIVO N.»), mai il nome del cliente", () => {
     const html = renderSrPdfHtml(datiSerramenti());
     const testate = html.match(/<header class="page-header">[\s\S]*?<\/header>/g) ?? [];
     expect(testate.length, "le pagine").toBeGreaterThanOrEqual(4);
     for (const [i, t] of testate.entries()) {
-      expect(t.includes("Impresa esempio") && t.includes("SF-DEMO-0001"), `testata ${i + 1}`).toBe(true);
+      expect(t.includes("Impresa esempio") && t.includes("PREVENTIVO N.") && t.includes("SF-DEMO-0001"), `testata ${i + 1}`).toBe(true);
+      expect(t.includes("STIMA N."), `l'etichetta vecchia nella testata ${i + 1}`).toBe(false);
       expect(/Mario|Rossi|Trieste/.test(t), `il cliente nella testata ${i + 1}`).toBe(false);
     }
     expect(html.includes("company-sub"), "la riga del cliente sotto il nome").toBe(false);
+    // Anche il titolo del documento parla di preventivo, non di stima.
+    expect(html).toMatch(/<title>Preventivo SF-DEMO-0001/);
   });
 
   it("nel riquadro del consulente c'è il telefono; l'email non si stampa nemmeno se arriva", () => {

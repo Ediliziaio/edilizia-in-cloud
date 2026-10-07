@@ -541,6 +541,10 @@ Deno.serve(async (req: Request) => {
               client_phone: prog.cliente_telefono ?? "",
               client_address: prog.cliente_indirizzo ?? "",
               created_at: prog.created_at,
+              // Le tappe del pagamento del preventivo (solo percentuali: qui il totale col suo IVA non c'è):
+              // l'Art. 4 le dice, invece di «come da condizioni di pagamento concordate».
+              payment_phases: (Array.isArray(prog.pagamento_milestones) ? prog.pagamento_milestones : [])
+                .map((m: { label?: string; percentuale?: number }) => ({ label: m?.label, percent: m?.percentuale })),
             },
             company: { name: tpl?.ragione_sociale ?? "", vat_number: tpl?.partita_iva ?? "", address: tpl?.indirizzo_completo ?? "", email: tpl?.email ?? "", phone: tpl?.telefono ?? "" },
             // L'Art. 1 dice «…presso {{cantiere.indirizzo}}»: l'indirizzo dei lavori, non solo quello del

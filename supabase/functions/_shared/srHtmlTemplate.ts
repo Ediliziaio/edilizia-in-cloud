@@ -188,7 +188,7 @@ function renderHeader(d: SrPdfData): string {
       </div>
     </div>
     <div class="stima-block">
-      <p class="stima-label">STIMA N.</p>
+      <p class="stima-label">PREVENTIVO N.</p>
       <p class="stima-num">${esc(d.code)}</p>
       <p class="stima-label">DATA</p>
       <p class="stima-date">${fmtDate(d.data_emissione)}</p>
@@ -795,6 +795,9 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
   font-weight: 700; margin-top: 18px; margin-bottom: 8px;
   padding-bottom: 4px; border-bottom: 1px solid #cbd5e1;
 }
+/* Stampando, un titolo non resta solo in fondo al foglio col suo contenuto su quello dopo, e una voce non si spezza. */
+.section-title, .cond-sub { break-after: avoid; page-break-after: avoid; }
+.bullet-item, .check-list li, .cond-list li { break-inside: avoid; page-break-inside: avoid; }
 
 /* Info grid (Anagrafica) */
 .info-grid { display: flex; flex-direction: column; gap: 6px; }
@@ -1046,7 +1049,7 @@ export function cssDelMarchio(colorePrimario: string | null | undefined): string
 }
 
 export function renderSrPdfHtml(d: SrPdfData): string {
-  const title = `Stima ${d.code} — ${[d.cliente_nome, d.cliente_cognome].filter(Boolean).join(" ")}`;
+  const title = `Preventivo ${d.code} — ${[d.cliente_nome, d.cliente_cognome].filter(Boolean).join(" ")}`;
   return `<!DOCTYPE html>
 <html lang="it">
 <head>

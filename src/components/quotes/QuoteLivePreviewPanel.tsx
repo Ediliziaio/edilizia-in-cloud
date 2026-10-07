@@ -60,7 +60,7 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
     cliente: { nome: props.clientName.split(" ")[0] || "Nome cliente", cognome: props.clientName.split(" ").slice(1).join(" "), nome_completo: props.clientName || "Nome cliente", indirizzo: props.clientAddress },
     cantiere: { indirizzo: props.siteAddress },
     azienda: { ragione_sociale: props.companyName },
-    preventivo: { data: today.toLocaleDateString("it-IT"), scadenza: expiry.toLocaleDateString("it-IT"), totale: formatCurrency(props.total), subtotale: formatCurrency(props.subtotal), iva: formatCurrency(props.total - props.net), piano_pagamenti: plan || t.payment_terms_text || "come da condizioni di pagamento concordate" },
+    preventivo: { data: today.toLocaleDateString("it-IT"), scadenza: expiry.toLocaleDateString("it-IT"), totale: formatCurrency(props.total), subtotale: formatCurrency(props.subtotal), iva: formatCurrency(props.total - props.net), piano_pagamenti: plan || t.payment_terms_text || "come da condizioni di pagamento concordate", frase_pagamenti: plan || t.payment_terms_text ? `Il pagamento avviene secondo il piano concordato: ${plan || t.payment_terms_text}` : "Il pagamento avviene secondo le modalità concordate tra le parti." },
     data: { oggi: today.toLocaleDateString("it-IT"), anno: String(today.getFullYear()) },
     ...props.mergeContext,
   };
