@@ -54,7 +54,9 @@ function inPratica(r: RegoleCampo): string[] {
   righe.push(
     r.chiCompila === "capo"
       ? "Dove c’è un capocantiere, gli operai timbrano entrata e uscita e basta: niente promemoria del rapportino e niente ore da scrivere. Il rapportino del cantiere lo manda il capocantiere."
-      : "Ogni operaio scrive il rapportino della sua giornata. Il capocantiere può aggiungere la squadra.",
+      : r.chiCompila === "ore_proprie"
+        ? "Dove c’è un capocantiere, ogni operaio manda solo le sue ore; il racconto del cantiere (lavori, foto, avanzamento) lo fa il capocantiere. Un cantiere senza capocantiere resta come «ognuno il suo»."
+        : "Ogni operaio scrive il rapportino della sua giornata. Il capocantiere può aggiungere la squadra.",
   );
   righe.push(
     r.oreDalle === "timbrature"
@@ -154,6 +156,11 @@ export default function RegoleCampoConfig() {
               value="capo" titolo="Lo scrive il capocantiere"
               descrizione="Un solo rapportino per cantiere e per giorno, del capocantiere (o del caposquadra per la sua squadra). Gli operai timbrano entrata e uscita e basta. Un cantiere senza capocantiere resta come «ognuno il suo»."
               scelta={regole.chiCompila === "capo"} disabilitata={!puoModificare}
+            />
+            <Opzione
+              value="ore_proprie" titolo="Il racconto al capo, le ore a ognuno"
+              descrizione="Il racconto del cantiere (lavori, foto, avanzamento) lo fa il capocantiere; ogni operaio manda solo le proprie ore. Un cantiere senza capocantiere resta come «ognuno il suo»."
+              scelta={regole.chiCompila === "ore_proprie"} disabilitata={!puoModificare}
             />
           </RadioGroup>
         </CardContent>

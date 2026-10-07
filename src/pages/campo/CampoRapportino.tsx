@@ -40,7 +40,7 @@ import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoReportHours } from "@/lib/campo/timeSummary";
 import { validateRapportinoHours, type CampoHoursDraft } from "@/lib/campo/rapportinoHours";
 import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
-import { REGOLE_COME_OGGI, giaCoperto, oreInTesto, proponiOre, scostamento } from "@/lib/campo/regoleCampo";
+import { REGOLE_COME_OGGI, giaCoperto, operaioSoloOre, oreInTesto, proponiOre, scostamento } from "@/lib/campo/regoleCampo";
 import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
 import { assertReportDay, campoWorkDay, reportDayAllowed, REPORT_DEADLINE_MESSAGE, shiftWorkDay, validWorkDay } from "@/lib/campo/workDay";
 
@@ -181,6 +181,9 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   // Operaio con un capo sopra: racconta la SUA giornata e basta, in un passo solo. Avanzamento,
   // fine lavori e firma del cliente sono del capo.
   const semplice = !!ruoloCampo && !faSquadra && ruoloCampo.esisteCapo;
+  // Flusso «ore_proprie»: l'operaio semplice manda SOLO le sue ore; il racconto
+  // del cantiere (cosa fatto, foto, materiali, avanzamento) lo fa il capocantiere.
+  const soloOreAllOperaio = !faSquadra && operaioSoloOre(regole, !!ruoloCampo?.esisteCapo);
   // Con "lavoro completato" attivo si aggiunge lo step Firma cliente;
   // sul giornaliero normale sono 2 step.
   const totalSteps = semplice ? 1 : lavoro_completato ? 3 : TOTAL_STEPS;
@@ -1265,14 +1268,24 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
             </div>
             {faSquadra && squadraLoading && <p role="status" className="text-sm text-muted-foreground">Carico chi c’era in cantiere…</p>}
             {bloccoSquadra}
-            <h2 className="text-lg font-black text-foreground md:text-xl">{workDay === today ? "Cosa hai fatto oggi?" : "Cosa hai fatto in questa giornata?"}</h2>
-            <textarea
-              className="w-full resize-none rounded-2xl border border-border bg-muted/60 px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-              rows={5}
-              placeholder="Es: Ho installato il telaio finestra al piano primo, sigillato con schiuma poliuretanica..."
-              value={descrizione}
-              onChange={e => setDescrizione(e.target.value)}
-            />
+            <h2 className="text-lg font-black text-foreground md:text-xl">
+              {soloOreAllOperaio
+                ? (workDay === today ? "Le tue ore di oggi" : "Le tue ore di questa giornata")
+                : (workDay === today ? "Cosa hai fatto oggi?" : "Cosa hai fatto in questa giornata?")}
+            </h2>
+            {/* Con «ore_proprie» l'operaio manda solo le ore: il racconto, le foto
+                e i materiali li scrive il capocantiere per tutto il cantiere. */}
+            {soloOreAllOperaio ? (
+              <p className="text-sm text-muted-foreground">Qui segni solo le tue ore. Il racconto del cantiere, le foto e i materiali li scrive il capocantiere.</p>
+            ) : (
+              <textarea
+                className="w-full resize-none rounded-2xl border border-border bg-muted/60 px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                rows={5}
+                placeholder="Es: Ho installato il telaio finestra al piano primo, sigillato con schiuma poliuretanica..."
+                value={descrizione}
+                onChange={e => setDescrizione(e.target.value)}
+              />
+            )}
             {/* Il meteo non si sceglie: si compila da solo dalle previsioni del cantiere (vedi sopra). Se uno lo scrive nella descrizione va bene. */}
             {/* Ore del solo cantiere: proposta verificabile, mai 8 ore implicite. */}
             {sessioneDaChiudere && !oreNonMie && <div role="status" className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -1335,6 +1348,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
             </div>
             ) : null}
 
+            {!soloOreAllOperaio && (
             <div className="rounded-2xl border bg-background p-4 shadow-sm">
               <p className="mb-2 text-sm font-semibold text-muted-foreground">Foto cantiere</p>
               <label className="block w-full">
@@ -1376,8 +1390,9 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                 </div>
               )}
             </div>
+            )}
 
-            {semplice && (
+            {semplice && !soloOreAllOperaio && (
               <details className="rounded-2xl border bg-background p-4 shadow-sm">
                 <summary className="min-h-11 cursor-pointer text-sm font-semibold">Altro da segnalare (facoltativo)</summary>
                 <p className="mb-3 text-xs text-muted-foreground">Su cosa hai lavorato, materiali, mezzi e straordinario. Avanzamento e firme sono del capocantiere.</p>

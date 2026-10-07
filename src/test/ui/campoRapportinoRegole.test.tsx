@@ -188,6 +188,29 @@ describe("L'operaio, secondo come lavora l'azienda", () => {
     expect(ore()).not.toBeNull();
   });
 
+  it("con «ore_proprie» manda solo le sue ore: niente racconto, foto o «Altro da segnalare»", async () => {
+    state.regole = { chiCompila: "ore_proprie", oreDalle: "capo", avvisoScostamentoMinuti: null };
+    state.role = { isCapocantiere: false, esisteCapo: true };
+    render(<CampoRapportino />);
+    expect(ore()).not.toBeNull();
+    expect(screen.getByText("Le tue ore di oggi")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/Ho installato il telaio/)).toBeNull();
+    expect(screen.queryByText("Foto cantiere")).toBeNull();
+    expect(screen.queryByText(/Altro da segnalare/)).toBeNull();
+    fireEvent.change(ore()!, { target: { value: "7" } });
+    invia();
+    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ ore_lavorate: 7 })));
+  });
+
+  it("con «ore_proprie» ma senza capo in cantiere, racconta la giornata come sempre", () => {
+    state.regole = { chiCompila: "ore_proprie", oreDalle: "capo", avvisoScostamentoMinuti: null };
+    state.role = { isCapocantiere: false, esisteCapo: false };
+    render(<CampoRapportino />);
+    expect(ore()).not.toBeNull();
+    expect(screen.getByText("Cosa hai fatto oggi?")).toBeInTheDocument();
+    expect(screen.getByText("Foto cantiere")).toBeInTheDocument();
+  });
+
   it("se il capo lo ha già messo nelle presenze, le sue ore non si scrivono due volte, in ogni flusso", async () => {
     state.regole = { chiCompila: "ognuno", oreDalle: "capo", avvisoScostamentoMinuti: null };
     state.oreGia = { ore: 8, da: "Marco Operaio" };

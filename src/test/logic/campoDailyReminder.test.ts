@@ -64,6 +64,10 @@ describe("Promemoria per giornata e cantiere", () => {
       state.chiCompila = "ognuno"; state.ruolo = { esiste_capo: true };
       expect(await giorni()).toHaveLength(3);
     });
+    it("con «ore_proprie» l'operaio deve mandare le sue ore: il promemoria resta", async () => {
+      state.chiCompila = "ore_proprie"; state.ruolo = { esiste_capo: true };
+      expect(await giorni()).toHaveLength(3);
+    });
     it("se la lettura delle regole fallisce, il promemoria resta com'era", async () => {
       state.rpcError = true;
       expect(await giorni()).toHaveLength(3);

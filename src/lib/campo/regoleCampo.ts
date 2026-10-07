@@ -11,8 +11,13 @@
  * comportamento finché non decide. Modulo puro: niente React, niente Supabase.
  */
 
-/** Chi manda il rapportino di cantiere. */
-export type ChiCompila = "ognuno" | "capo";
+/**
+ * Chi scrive il *racconto* del cantiere (lavori, foto, materiali, avanzamento).
+ *   'ognuno'      ogni operaio scrive il suo rapportino completo (come oggi)
+ *   'capo'        lo scrive il capocantiere; gli operai timbrano e basta
+ *   'ore_proprie' lo scrive il capocantiere, ma ogni operaio manda le SUE ore
+ */
+export type ChiCompila = "ognuno" | "capo" | "ore_proprie";
 /** Da dove arrivano le ore di ogni persona nel rapportino di squadra. */
 export type OreDalle = "capo" | "timbrature";
 
@@ -38,10 +43,20 @@ export function leggiRegole(raw: unknown): RegoleCampo {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const minuti = r.avviso_scostamento_minuti == null ? NaN : Number(r.avviso_scostamento_minuti);
   return {
-    chiCompila: r.chi_compila === "capo" ? "capo" : "ognuno",
+    chiCompila: r.chi_compila === "capo" ? "capo" : r.chi_compila === "ore_proprie" ? "ore_proprie" : "ognuno",
     oreDalle: r.ore_dalle === "timbrature" ? "timbrature" : "capo",
     avvisoScostamentoMinuti: Number.isFinite(minuti) && minuti >= 5 && minuti <= 480 ? Math.round(minuti) : null,
   };
+}
+
+/**
+ * Nel flusso «ore_proprie» l'operaio semplice manda SOLO le sue ore: il racconto
+ * del cantiere (lavori, foto, materiali, avanzamento) è del capocantiere. Vale
+ * solo dove il cantiere ha davvero un capo; senza capo l'operaio racconta la sua
+ * giornata come sempre (altrimenti il racconto non lo scriverebbe nessuno).
+ */
+export function operaioSoloOre(regole: RegoleCampo, esisteCapo: boolean): boolean {
+  return regole.chiCompila === "ore_proprie" && esisteCapo;
 }
 
 /** 7,5 → «7h 30»; 8 → «8h»; 0,25 → «15 min». */
