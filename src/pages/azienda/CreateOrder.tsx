@@ -73,6 +73,9 @@ import { orderSchema, orderDefaultValues, type OrderFormValues } from "@/lib/ord
 import { primoErroreForm } from "@/lib/form/primoErroreForm";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { SedeSelect } from "@/components/sedi/SedeSelect";
+import { FasiDiPartenzaSelect } from "@/components/orders/FasiDiPartenzaSelect";
+import { useFasiDiPartenza } from "@/hooks/useFasiDiPartenza";
+import { fasiPerCommessa } from "@/lib/orders/modelliFasi";
 
 function CreateOrderInner() {
   const navigate = useNavigate();
@@ -226,6 +229,8 @@ function CreateOrderInner() {
   // ── Draft auto-save ─────────────────────────────────────────
   const { loadDraft, saveDraft, clearDraft, draftRestored, setDraftRestored, dateToIso, isoToDate } = useOrderDraft(effectiveCompany?.id);
   const { bonusMultipli: bonusMultipliEnabled } = useBonusFiscaliFlags();
+  // Le fasi con cui parte la commessa: il modello di partenza dell'azienda, se ne ha scelto uno.
+  const fasiDiPartenza = useFasiDiPartenza();
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load draft on mount
@@ -870,6 +875,22 @@ function CreateOrderInner() {
         if (cantErr) console.warn("[CreateOrder] update indirizzo cantiere fallito (ordine creato comunque):", cantErr.message);
       }
 
+      // Le fasi scelte nel modulo (o quelle di partenza dell'azienda): fasi e sottofasi in un colpo
+      // solo, dal server. Come le altre scritture dopo la RPC, un errore non fa sparire la commessa.
+      if (fasiDiPartenza.modello && result.id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: fasiErr } = await (supabase as any).rpc("aggiungi_fasi_commessa", {
+          p_order_id: result.id,
+          p_fasi: fasiPerCommessa(fasiDiPartenza.modello),
+        });
+        if (fasiErr) {
+          console.warn("[CreateOrder] fasi di partenza non aggiunte (ordine creato comunque):", fasiErr.message);
+          toast.error("Fasi non aggiunte", {
+            description: "La commessa è stata creata: scegli le fasi dalla scheda Cantiere.",
+          });
+        }
+      }
+
       return result;
     },
     onSuccess: async (order) => {
@@ -1331,6 +1352,9 @@ function CreateOrderInner() {
                   </div>
                 )}
               />
+
+              {/* Fasi di lavoro: facoltative, di partenza quelle scelte dall'azienda nelle Impostazioni. */}
+              <FasiDiPartenzaSelect offerti={fasiDiPartenza.offerti} valore={fasiDiPartenza.scelta} onChange={fasiDiPartenza.scegli} />
 
               {/* Internal Notes */}
               <Controller

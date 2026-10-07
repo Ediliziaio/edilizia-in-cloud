@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { ArrowRight, HardHat, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { convertiFvInCommessa, convertiRstInCommessa } from "@/lib/moduli/convertiInCommessa";
@@ -26,12 +27,17 @@ interface Props {
   bloccoMotivo?: string | null;
   /** Chiamata dopo la conversione, per ricaricare la pagina del modulo. */
   onConvertito?: (orderId: string) => void;
+  /** Ristrutturazione: quanti capitoli ha il computo. Da due in su si offre «una fase per capitolo». */
+  capitoli?: number;
 }
 
-export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMotivo, onConvertito }: Props) {
+export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMotivo, onConvertito, capitoli = 0 }: Props) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [inCorso, setInCorso] = useState(false);
+  // Di partenza sì: i capitoli del computo sono già il modo in cui il lavoro è diviso.
+  const [fasiCapitoli, setFasiCapitoli] = useState(true);
+  const offriFasi = modulo === "rst" && capitoli >= 2;
 
   const converti = async () => {
     if (!user?.id) { toast.error("Sessione scaduta: accedi di nuovo"); return; }
@@ -39,7 +45,7 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
     try {
       const esito = modulo === "fv"
         ? await convertiFvInCommessa(progettoId, user.id)
-        : await convertiRstInCommessa(progettoId, user.id);
+        : await convertiRstInCommessa(progettoId, user.id, { fasiDaCapitoli: offriFasi && fasiCapitoli });
       toast.success("Commessa creata", {
         description: esito.righe > 0
           ? `${esito.righe} rig${esito.righe === 1 ? "a" : "he"} portate dal preventivo.`
@@ -85,6 +91,12 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
           <p className="text-xs text-orange-800/80 dark:text-orange-300/80 max-md:hidden">
             {bloccoMotivo ?? "La commessa nasce con cliente, importi e righe già dentro. Acconto e saldo si impostano dopo."}
           </p>
+          {offriFasi && !bloccoMotivo && (
+            <label className="mt-1.5 flex items-center gap-2 text-xs text-orange-900 dark:text-orange-200 max-md:hidden">
+              <Checkbox checked={fasiCapitoli} onCheckedChange={(v) => setFasiCapitoli(v === true)} aria-label="Una fase per ogni capitolo" />
+              Una fase per ognuno dei {capitoli} capitoli del computo, con il suo importo
+            </label>
+          )}
         </div>
         <Button
           size="sm"

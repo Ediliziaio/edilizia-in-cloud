@@ -52,6 +52,7 @@ import { cn } from "@/lib/utils";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { mapVociToQuoteItems, mapToOrderPayload, testataPreventivo } from "@/lib/simulatore/trasforma";
 import { round2 } from "@/lib/simulatore/calcoli";
+import { avviaCommessa } from "@/lib/orders/avviaCommessa";
 import type { SimulazioneDoc, SimulazioneRisultato } from "@/lib/simulatore/tipi";
 
 interface TrasformaDialogProps {
@@ -280,6 +281,9 @@ export function TrasformaDialog({
       if (error) throw error;
       const result = data as unknown as { id: string } | null;
       if (!result?.id) throw new Error("Risposta inattesa dalla funzione atomica");
+
+      // Le fasi e le rate di partenza che l'azienda ha scelto (se ne ha scelte): non bloccano mai.
+      await avviaCommessa(result.id);
 
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["cruscotto"] });

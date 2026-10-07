@@ -96,6 +96,8 @@ import { OrderAcceptanceReports } from "@/components/orders/OrderAcceptanceRepor
 import { OrdineFotoCantiere } from "@/components/campo/OrdineFotoCantiere";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
 import { CreaFatturaDialog } from "@/components/orders/CreaFatturaDialog";
+import { CantiereDaOrganizzare } from "@/components/orders/CantiereDaOrganizzare";
+import type { ControlloAvvio } from "@/lib/orders/nuovaCommessa";
 import { CreaDDTDialog } from "@/components/orders/CreaDDTDialog";
 import { OrderUsciteCard } from "@/components/orders/OrderUsciteCard";
 import { OrderCommunicationsCard } from "@/components/orders/OrderCommunicationsCard";
@@ -1220,6 +1222,15 @@ function OrderDetailInner() {
     navigateTo({ tab: "finanza", section });
   };
 
+  // «Cantiere da organizzare»: ogni cosa che manca porta dove si sistema.
+  const vaiAvvio = (chiave: ControlloAvvio) => {
+    if (chiave === "indirizzo") navigate(`/azienda/ordini/${id}/modifica`);
+    else if (chiave === "date") navigateTo({ tab: "cantiere", section: "section-pianificazione" });
+    else if (chiave === "fasi") navigateTo({ tab: "cantiere", section: "section-lavorazioni" });
+    else if (chiave === "chi") navigateTo({ tab: "cantiere", section: "section-squadra" });
+    else vaiAllaFinanza("section-pagamenti");
+  };
+
   // ── Cassa della commessa ───────────────────────────────────────────────────
   // Timeline acconto → materiali → saldo. Evidenzia il fabbisogno di anticipo
   // quando l'acconto incassato non copre il costo dei fornitori (capitale
@@ -1452,6 +1463,22 @@ function OrderDetailInner() {
                 </div>)}
               </div>
             </section>}
+
+            {/* Cantiere da organizzare: cosa manca a una commessa appena nata (indirizzo, date, fasi,
+                chi lavora, pagamenti), secondo le scelte dell'azienda. Sparisce da solo. */}
+            {order.status !== "completato" && order.order_type !== "appaltatore_lavoro" && (
+              <CantiereDaOrganizzare
+                orderId={id!}
+                indirizzo={order.indirizzo_lavori || order.work_address}
+                inizio={order.work_start_date}
+                fine={order.work_end_date}
+                fasi={phaseProgressLoading || phaseProgressError ? null : (phaseProgress?.total ?? 0)}
+                rate={installmentsPending || installmentsError ? null : displayInstallments.length}
+                puoModificare={permissions.canEditOrders}
+                puoConfigurare={permissions.canEditSettingsOrders}
+                onVai={vaiAvvio}
+              />
+            )}
 
             {/* Origine ordine (badge riga): nato da preventivo o diretto. I rilievi/
             sopralluoghi sono spostati dentro la Panoramica (sono un'attività). */}

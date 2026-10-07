@@ -39,7 +39,7 @@ describe("contratto di composizione del dettaglio commessa", () => {
   });
 
   it.each([
-    ["panoramica", ["OrdineCliente", "OrderSurveysCard", "OrderActivityFeed", "OrderAssistenzaTab", "OrderAttachments", "OrdineNote", "OrderCommunicationsCard", "ContrattoAIDialog", "AllocazioneOperaiAIDialog"]],
+    ["panoramica", ["CantiereDaOrganizzare", "OrdineCliente", "OrderSurveysCard", "OrderActivityFeed", "OrderAssistenzaTab", "OrderAttachments", "OrdineNote", "OrderCommunicationsCard", "ContrattoAIDialog", "AllocazioneOperaiAIDialog"]],
     ["cantiere", ["OrderWorkPhases", "MezziCommessaCard", "OrdineTempistiche", "LinkedAppointments", "LinkedTasks", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav"]],
     ["articoli", ["OrderMeasureControl", "OrdineArticoli", "OrderProcurementTools", "OrderUsciteCard", "LinkedPurchaseOrdersCard", "OrderSerialsTrackingCard"]],
     ["finanza", ["OrderEconomicsSummary", "OrdineEconomico", "EsposizioneCommessa", "RitenuteTab", "OrdineVariazione", "SupplierPaymentsCard", "OrderErrors", "OrdineSAL"]],

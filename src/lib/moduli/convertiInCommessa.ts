@@ -12,6 +12,8 @@
  * così la conversione non può ripetersi per sbaglio.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { aggiungiFasiDaCapitoli, avviaCommessa } from "@/lib/orders/avviaCommessa";
+import { fasiDaCapitoli } from "@/lib/orders/fasiDaCapitoli";
 
 export interface EsitoConversione {
   orderId: string;
@@ -311,6 +313,9 @@ export async function convertiFvInCommessa(progettoId: string, userId: string): 
     righe: righe.length > 0 ? righe : rigaRiepilogo(descrizione, totale, aliquota),
   });
 
+  // Le fasi e le rate di partenza che l'azienda ha scelto (se ne ha scelte): non bloccano mai.
+  await avviaCommessa(orderId);
+
   // Legame nei due sensi: la commessa ricorda il preventivo e il preventivo la
   // commessa, così il bottone non può creare un doppione.
   await supabase.from("orders").update({ fv_progetto_id: progettoId } as never).eq("id", orderId);
@@ -322,7 +327,11 @@ export async function convertiFvInCommessa(progettoId: string, userId: string): 
 
 // ────────────────────────── Ristrutturazione ──────────────────────────
 
-export async function convertiRstInCommessa(progettoId: string, userId: string): Promise<EsitoConversione> {
+export async function convertiRstInCommessa(
+  progettoId: string,
+  userId: string,
+  opzioni: { fasiDaCapitoli?: boolean } = {},
+): Promise<EsitoConversione> {
   const { data: progetto, error } = await supabase
     .from("rst_progetti")
     .select("id, company_id, code, stato, note, cliente_id, cliente_nome, cliente_cognome, cantiere_indirizzo, cantiere_citta, totale, totale_imponibile, iva_pct, prezzo_manuale, ordine_id")
@@ -411,6 +420,11 @@ export async function convertiRstInCommessa(progettoId: string, userId: string):
     note: `Da preventivo ristrutturazione ${progetto.code ?? ""}${luogo ? ` — ${luogo}` : ""}`.trim(),
     righe: righe.length > 0 ? righe : rigaRiepilogo(descrizione, totale, aliquota),
   });
+
+  // Un capitolo del computo = una fase, col suo venduto (solo se chi converte lo ha scelto); poi le
+  // fasi e le rate di partenza dell'azienda, che a una commessa già con le fasi non aggiungono niente.
+  if (opzioni.fasiDaCapitoli) await aggiungiFasiDaCapitoli(orderId, fasiDaCapitoli(voci ?? [], totale));
+  await avviaCommessa(orderId);
 
   await supabase.from("orders").update({ rst_progetto_id: progettoId } as never).eq("id", orderId);
   const { error: errLink } = await supabase.from("rst_progetti").update({ ordine_id: orderId } as never).eq("id", progettoId);
