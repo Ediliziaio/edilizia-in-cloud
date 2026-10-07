@@ -34,6 +34,7 @@ import { economiaFasi, type EconomiaFase } from "@/lib/orders/economiaFasi";
 import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
 import { EconomiaFaseRiga, costoSforato } from "./EconomiaFaseRiga";
 import { RiepilogoEconomicoFasi } from "./RiepilogoEconomicoFasi";
+import { AlertScostamentoSal } from "./AlertScostamentoSal";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
 import { fasiCronoprogramma, giornoLocale, lavoroRealeFasi, type FaseCrono } from "@/lib/orders/cronoprogramma";
 import { TempiFase, testoTempi, ritardoBreve } from "./TempiFase";
@@ -214,6 +215,14 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
     }),
     [phases, materials, allAssignments, costiMateriali],
   );
+
+  // Avanzamento fisico medio della commessa (media delle % di fase), per
+  // l'alert di scostamento SAL: lo confronta coi costi già consumati.
+  const avanzamentoMedio = useMemo(() => {
+    if (phases.length === 0) return null;
+    const somma = phases.reduce((s, p) => s + (Number(p.percentuale) || 0), 0);
+    return Math.round(somma / phases.length);
+  }, [phases]);
 
   // Tempi previsti e reali di ogni fase (06/10/2026), per il paragone nella
   // riga «Quando»: date reali dai rapportini e dalla chiusura, come nel
@@ -507,6 +516,16 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
             vedeCosti={canViewCosts}
             vedeMargini={canViewMargins}
             onSalvaVenduto={canEditOrders && canViewOrderAmounts ? (id, importo) => updatePhase.mutate({ id, importo_venduto: importo }) : undefined}
+          />
+        )}
+        {/* Alert scostamento SAL: avanzamento dichiarato vs costi consumati.
+            Si vede solo se l'azienda l'ha acceso in Governance e c'è il permesso costi. */}
+        {showWork && canViewCosts && !isLoading && !isError && phases.length > 0 && (
+          <AlertScostamentoSal
+            avanzamentoPerc={avanzamentoMedio}
+            costoPrevisto={economia.totaleFasi.costoPrevisto}
+            costoConsuntivo={economia.totaleFasi.costoConsuntivo}
+            className="mt-2 max-sm:hidden"
           />
         )}
       </CardHeader>

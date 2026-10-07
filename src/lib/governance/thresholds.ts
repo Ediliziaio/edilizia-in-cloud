@@ -219,6 +219,26 @@ export function valutaScostamentoSal(
   return { alert, severita, scostamentoPerc: scost, tolleranzaPerc: toll, messaggio };
 }
 
+/**
+ * Scostamento SAL a livello di commessa: ricava i costi% da costo previsto e
+ * consuntivo e applica le soglie. Torna `null` quando NON ha senso mostrarlo:
+ * feature spenta, avanzamento mancante o sotto il 15% (lì la stima è rumore,
+ * come la proiezione del margine), o costo previsto assente. Quando torna un
+ * esito, chi lo usa mostra l'alert solo se `esito.alert`.
+ */
+export function scostamentoSalCommessa(
+  cfg: GovernanceThresholds,
+  input: { avanzamentoPerc: number | null | undefined; costoPrevisto: number; costoConsuntivo: number },
+): ScostamentoSalEsito | null {
+  if (!cfg.salScostamento.enabled) return null;
+  if (input.avanzamentoPerc == null) return null;
+  const av = num(input.avanzamentoPerc);
+  if (av < 15) return null;
+  if (!(input.costoPrevisto > 0)) return null;
+  const costiPerc = Math.round((input.costoConsuntivo / input.costoPrevisto) * 1000) / 10;
+  return valutaScostamentoSal(cfg, { avanzamentoPerc: av, costiPerc });
+}
+
 // ── Valutatore 3: marginalità commessa ───────────────────────────────────────
 
 export type SemaforoMargine = "verde" | "giallo" | "rosso";
