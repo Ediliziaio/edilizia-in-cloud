@@ -126,7 +126,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
         .select("name, status, percentuale, importo_venduto")
         .eq("order_id", orderId);
       if (error) throw error;
-      return (data || []) as FasePerSal[];
+      // importo_venduto non è nei tipi generati: la lettura torna tipata come errore, si passa da unknown.
+      return (data || []) as unknown as FasePerSal[];
     },
     enabled: !!orderId,
   });
