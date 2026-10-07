@@ -454,14 +454,14 @@ h1, h2, h3, h4 { font-family: 'Outfit', -apple-system, sans-serif; letter-spacin
 }
 .page-header .brand { display: flex; align-items: center; gap: 7px; font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 11pt; color: #1E3A5F; }
 .page-header .brand-icon { width: 20px; height: 20px; border-radius: 4px; background: linear-gradient(135deg, #F97316 0%, #FBBF24 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: 700; }
-.page-header .ref { font-size: 8pt; color: #64748B; }
+.page-header .ref { font-size: 9pt; color: #64748B; }
 .page-header .ref strong { color: #0F172A; }
 
 .page-footer {
   position: absolute; bottom: 0; left: 0; right: 0;
   padding: 4mm 16mm 5mm;
   display: flex; justify-content: space-between; align-items: center;
-  font-size: 7.5pt; color: #94A3B8;
+  font-size: 8.5pt; color: #94A3B8;
   border-top: 1.2px solid #CBD5E1;
 }
 .page-footer .pnum { font-weight: 700; color: #1E3A5F; }
@@ -476,7 +476,7 @@ h1, h2, h3, h4 { font-family: 'Outfit', -apple-system, sans-serif; letter-spacin
    conclusione: una tabella o una scheda spinte giù lascerebbero un buco nel mezzo. */
 .content > .callout:last-child:not(:first-child) { margin-top: auto; }
 
-.eyebrow { font-size: 8pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #F97316; margin-bottom: 4px; }
+.eyebrow { font-size: 9pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #F97316; margin-bottom: 4px; }
 .page-title { font-size: 25pt; font-weight: 800; color: #1E3A5F; letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 3mm; }
 .page-subtitle { font-size: 10.5pt; color: #64748B; margin-bottom: 5mm; font-weight: 500; }
 p { margin-bottom: 2mm; }
@@ -493,23 +493,23 @@ p { margin-bottom: 2mm; }
 .cover-brand .icon { width: 54px; height: 54px; border-radius: 13px; background: linear-gradient(135deg, #F97316 0%, #FBBF24 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 26px; }
 .cover-brand .logo-img { width: 54px; height: 54px; border-radius: 13px; object-fit: contain; background: rgba(255,255,255,0.9); padding: 5px; }
 .cover-brand .name { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 20pt; }
-.cover-brand .tagline { font-size: 9.5pt; opacity: 0.7; margin-top: 2px; }
+.cover-brand .tagline { font-size: 10pt; opacity: 0.7; margin-top: 2px; }
 .cover-main { margin-top: auto; }
 .cover-eyebrow { font-size: 10pt; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #FBBF24; margin-bottom: 8mm; }
 .cover h1 { font-size: 46pt; font-weight: 800; letter-spacing: -0.04em; line-height: 1; color: white; margin-bottom: 5mm; }
 .cover .subtitle { font-size: 16pt; opacity: 0.85; line-height: 1.3; margin-bottom: 14mm; max-width: 75%; }
 .cover-client { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 10mm 12mm; margin-bottom: 6mm; }
-.cover-client .client-label { font-size: 8.5pt; letter-spacing: 0.15em; text-transform: uppercase; color: #FBBF24; margin-bottom: 4px; }
+.cover-client .client-label { font-size: 9.5pt; letter-spacing: 0.15em; text-transform: uppercase; color: #FBBF24; margin-bottom: 4px; }
 .cover-client .client-name { font-family: 'Outfit', sans-serif; font-size: 20pt; font-weight: 700; margin-bottom: 3px; }
 .cover-client .client-meta { font-size: 10.5pt; opacity: 0.85; }
-.cover-footer { display: flex; justify-content: space-between; align-items: flex-end; font-size: 9.5pt; opacity: 0.85; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 5mm; }
+.cover-footer { display: flex; justify-content: space-between; align-items: flex-end; font-size: 10pt; opacity: 0.85; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 5mm; }
 .cover-footer .doc-meta strong { color: #FBBF24; }
 
 .invest-hero { background: linear-gradient(135deg, #FEF3C7 0%, #FED7AA 100%); border-radius: 12px; padding: 9mm 11mm; margin-bottom: 4mm; position: relative; overflow: hidden; }
 .invest-hero::after { content: "€"; position: absolute; right: 8mm; top: 50%; transform: translateY(-50%); font-size: 100pt; color: rgba(249,115,22,0.15); font-weight: 800; font-family: 'Outfit', sans-serif; }
-.invest-hero .label { font-size: 8.5pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #C2410C; margin-bottom: 2mm; }
+.invest-hero .label { font-size: 9.5pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #C2410C; margin-bottom: 2mm; }
 .invest-hero .price { font-family: 'Outfit', sans-serif; font-size: 48pt; font-weight: 800; color: #C2410C; line-height: 1; letter-spacing: -0.04em; margin-bottom: 2mm; }
-.invest-hero .desc { font-size: 9.5pt; color: #7C2D12; max-width: 70%; }
+.invest-hero .desc { font-size: 10pt; color: #7C2D12; max-width: 70%; }
 
 .kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5mm; margin: 3mm 0; }
 .kpi-row.cols-2 { grid-template-columns: repeat(2, 1fr); }
@@ -517,23 +517,23 @@ p { margin-bottom: 2mm; }
 .kpi-row.grandi .kpi-block { padding: 4mm; }
 .kpi-row.grandi .kpi-value { font-size: 19pt; }
 .kpi-block { background: white; border: 1px solid #E2E8F0; border-radius: 8px; padding: 3.5mm; }
-.kpi-block .kpi-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748B; margin-bottom: 1px; }
+.kpi-block .kpi-label { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748B; margin-bottom: 1px; }
 .kpi-block .kpi-value { font-family: 'Outfit', sans-serif; font-size: 16pt; font-weight: 700; color: #1E3A5F; line-height: 1.05; }
-.kpi-block .kpi-value .unit { font-size: 9pt; color: #64748B; font-weight: 500; }
+.kpi-block .kpi-value .unit { font-size: 10pt; color: #64748B; font-weight: 500; }
 .kpi-block.orange .kpi-value { color: #F97316; }
 .kpi-block.green .kpi-value { color: #16A34A; }
-.kpi-block .kpi-sub { font-size: 7.5pt; color: #64748B; margin-top: 0.5mm; }
+.kpi-block .kpi-sub { font-size: 8.5pt; color: #64748B; margin-top: 0.5mm; }
 
 .kpi-big { background: #DCFCE7; border: 1px solid #BBF7D0; border-radius: 10px; padding: 4mm 5mm; }
 .kpi-big.orange { background: #FFEDD5; border-color: #FDBA74; }
 .kpi-big.red { background: #FEE2E2; border-color: #FECACA; }
-.kpi-big .kbig-label { font-size: 7pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #166534; margin-bottom: 1mm; }
+.kpi-big .kbig-label { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #166534; margin-bottom: 1mm; }
 .kpi-big.orange .kbig-label { color: #C2410C; }
 .kpi-big.red .kbig-label { color: #991B1B; }
 .kpi-big .kbig-value { font-family: 'Outfit', sans-serif; font-size: 30pt; font-weight: 800; color: #166534; line-height: 1; letter-spacing: -0.02em; }
 .kpi-big.orange .kbig-value { color: #C2410C; }
 .kpi-big.red .kbig-value { color: #991B1B; }
-.kpi-big .kbig-sub { font-size: 8pt; color: #166534; margin-top: 1.5mm; }
+.kpi-big .kbig-sub { font-size: 9pt; color: #166534; margin-top: 1.5mm; }
 .kpi-big.orange .kbig-sub { color: #7C2D12; }
 .kpi-big.red .kbig-sub { color: #7F1D1D; }
 
@@ -545,14 +545,14 @@ p { margin-bottom: 2mm; }
 .content > .blocco-foto { flex: 1 1 0; min-height: 50mm; max-height: 150mm; display: flex; gap: 4mm; margin: 1mm 0 1.5mm; }
 .content > .blocco-foto.due { max-height: 110mm; }
 .blocco-foto img { flex: 1 1 0; min-width: 0; height: 100%; object-fit: cover; border-radius: 10px; display: block; }
-.blocco-nota { font-size: 6.5pt; color: #94A3B8; margin-bottom: 4mm; }
+.blocco-nota { font-size: 7.5pt; color: #94A3B8; margin-bottom: 4mm; }
 .blocco-voci { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3mm; margin-top: 2mm; }
 .blocco-voci.tre { grid-template-columns: repeat(3, 1fr); }
 .blocco-voce { display: flex; gap: 3mm; align-items: flex-start; break-inside: avoid; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 3mm 3.5mm; }
 .blocco-icona { width: 8.5mm; height: 8.5mm; border-radius: 50%; background: #FFEDD5; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .blocco-voce-titolo { font-family: 'Outfit', sans-serif; font-size: 10.5pt; font-weight: 700; color: #1E3A5F; line-height: 1.25; padding-top: 0.6mm; }
-.blocco-voci.tre .blocco-voce-titolo { font-size: 9.5pt; padding-top: 1.8mm; }
-.blocco-voce-testo { font-size: 8.8pt; color: #475569; line-height: 1.45; margin-top: 0.8mm; }
+.blocco-voci.tre .blocco-voce-titolo { font-size: 10pt; padding-top: 1.8mm; }
+.blocco-voce-testo { font-size: 9.6pt; color: #475569; line-height: 1.45; margin-top: 0.8mm; }
 .blocco-editoriale .blocco-voci { grid-template-columns: 1fr; gap: 4mm; margin-top: 8mm; }
 .blocco-editoriale .blocco-voce { padding: 7mm; min-height: 33mm; align-items: center; background: linear-gradient(115deg, #F8FAFC, #FFFFFF); border-left: 1.5mm solid #F97316; }
 .blocco-editoriale .blocco-icona { width: 17mm; height: 17mm; margin-right: 3mm; }
@@ -566,12 +566,12 @@ p { margin-bottom: 2mm; }
 .blocco-tavola img { display: block; height: min(calc(100cqh - 6mm), calc(100cqw * 1.25)); width: auto; aspect-ratio: 4 / 5; object-fit: contain; border-radius: 10px; }
 .blocco-tavola figcaption { margin-top: 1.5mm; margin-bottom: 0; }
 
-.callout { border-radius: 8px; padding: 3.5mm 4.5mm; margin: 4mm 0; font-size: 9.5pt; display: flex; gap: 2.5mm; align-items: flex-start; }
+.callout { border-radius: 8px; padding: 3.5mm 4.5mm; margin: 4mm 0; font-size: 10pt; display: flex; gap: 2.5mm; align-items: flex-start; }
 .callout-icon { font-size: 12pt; line-height: 1; flex-shrink: 0; }
 .callout-success { background: #DCFCE7; border-left: 3px solid #16A34A; color: #166534; }
 .callout-tip { background: #FFEDD5; border-left: 3px solid #F97316; color: #C2410C; }
 .callout-info { background: #DBEAFE; border-left: 3px solid #3B82F6; color: #1E3A8A; }
-.callout > div > strong:first-child { display: block; margin-bottom: 0.5mm; font-size: 9.5pt; }
+.callout > div > strong:first-child { display: block; margin-bottom: 0.5mm; font-size: 10pt; }
 .page-title sub { font-size: 0.55em; line-height: 0; position: relative; bottom: -0.12em; vertical-align: baseline; letter-spacing: 0; }
 .rich-text p { margin-bottom: 1.5mm; }
 .rich-text ul, .rich-text ol { padding-left: 5mm; margin: 1.5mm 0; }
@@ -579,16 +579,16 @@ p { margin-bottom: 2mm; }
 
 .source-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2mm; margin: 2.5mm 0; }
 .source-cell { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 7px; padding: 2.4mm 3mm; }
-.source-cell .source-label { font-size: 6.8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748B; margin-bottom: 0.8mm; }
-.source-cell .source-value { font-size: 9pt; font-weight: 700; color: #1E3A5F; line-height: 1.25; }
+.source-cell .source-label { font-size: 7.8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748B; margin-bottom: 0.8mm; }
+.source-cell .source-value { font-size: 10pt; font-weight: 700; color: #1E3A5F; line-height: 1.25; }
 
 .service-list { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; margin: 2.5mm 0 3mm; }
 .service-item { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 2.6mm 3mm; min-height: 18mm; }
-.service-title { font-size: 8.8pt; font-weight: 700; color: #1E3A5F; margin-bottom: 0.8mm; }
-.service-meta { font-size: 7.2pt; color: #64748B; line-height: 1.35; }
+.service-title { font-size: 9.6pt; font-weight: 700; color: #1E3A5F; margin-bottom: 0.8mm; }
+.service-meta { font-size: 8.2pt; color: #64748B; line-height: 1.35; }
 
-table { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 2.5mm 0; }
-table th { background: #1E3A5F; color: white; padding: 2mm 3mm; text-align: left; font-weight: 600; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.04em; }
+table { width: 100%; border-collapse: collapse; font-size: 10pt; margin: 2.5mm 0; }
+table th { background: #1E3A5F; color: white; padding: 2mm 3mm; text-align: left; font-weight: 600; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.04em; }
 table th:first-child { border-top-left-radius: 6px; }
 table th:last-child { border-top-right-radius: 6px; }
 table td { padding: 1.8mm 3mm; border-bottom: 1px solid #E2E8F0; }
@@ -599,51 +599,51 @@ table .saving { color: #16A34A; font-weight: 700; }
 table .saving-zero { color: #64748B; }
 
 .bullets { padding-left: 4mm; }
-.bullets li { position: relative; padding: 1mm 0 1mm 6mm; list-style: none; font-size: 9pt; }
+.bullets li { position: relative; padding: 1mm 0 1mm 6mm; list-style: none; font-size: 10pt; }
 .bullets li::before { content: "✓"; position: absolute; left: 0; color: #16A34A; font-weight: 700; font-size: 10pt; }
 
 .chart-svg { width: 100%; height: auto; display: block; }
 .chart-card { background: white; border: 1px solid #E2E8F0; border-radius: 10px; padding: 5mm; margin: 4mm 0; }
 .chart-card .chart-title { font-size: 10pt; font-weight: 700; color: #1E3A5F; margin-bottom: 1mm; }
-.chart-card .chart-sub { font-size: 7.5pt; color: #64748B; margin-bottom: 2mm; }
+.chart-card .chart-sub { font-size: 8.5pt; color: #64748B; margin-bottom: 2mm; }
 
 .split-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5mm; margin: 3mm 0; }
 .split-3 .num-card { border-radius: 8px; padding: 3.5mm; text-align: center; }
 .split-3 .num-card.navy { background: #DBEAFE; }
 .split-3 .num-card.green { background: #DCFCE7; }
 .split-3 .num-card.orange { background: #FFEDD5; border: 2px solid #F97316; }
-.split-3 .num-card .nc-label { font-size: 6.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748B; margin-bottom: 1.5mm; }
+.split-3 .num-card .nc-label { font-size: 7.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748B; margin-bottom: 1.5mm; }
 .split-3 .num-card .nc-value { font-family: 'Outfit', sans-serif; font-size: 20pt; font-weight: 800; line-height: 1; }
 .split-3 .num-card.navy .nc-value { color: #1E3A5F; }
 .split-3 .num-card.green .nc-value { color: #16A34A; }
 .split-3 .num-card.orange .nc-value { color: #C2410C; }
-.split-3 .num-card .nc-period { font-size: 7.5pt; color: #64748B; margin-top: 1.5mm; }
+.split-3 .num-card .nc-period { font-size: 8.5pt; color: #64748B; margin-top: 1.5mm; }
 
 .tl { position: relative; padding-left: 24px; margin: 2.5mm 0; }
 .tl::before { content: ""; position: absolute; left: 7px; top: 5px; bottom: 5px; width: 2px; background: #E2E8F0; }
 .tl-item { position: relative; padding: 1.8mm 0; }
 .tl-item::before { content: ""; position: absolute; left: -22px; top: 3mm; width: 9px; height: 9px; border-radius: 50%; background: white; border: 2.5px solid #F97316; }
-.tl-item .tl-day { font-size: 7pt; font-weight: 700; color: #F97316; text-transform: uppercase; letter-spacing: 0.05em; }
-.tl-item .tl-title { font-size: 9.5pt; font-weight: 700; color: #1E3A5F; margin: 0.5mm 0; }
-.tl-item .tl-desc { font-size: 8.5pt; color: #64748B; }
+.tl-item .tl-day { font-size: 8pt; font-weight: 700; color: #F97316; text-transform: uppercase; letter-spacing: 0.05em; }
+.tl-item .tl-title { font-size: 10pt; font-weight: 700; color: #1E3A5F; margin: 0.5mm 0; }
+.tl-item .tl-desc { font-size: 9.5pt; color: #64748B; }
 
 .qa-item { margin-bottom: 2.5mm; padding-bottom: 2.5mm; border-bottom: 1px dashed #E2E8F0; }
 /* «Dicono di noi»: il voto sulle piattaforme, le parole dei clienti, gli impianti. */
 .voti-row { display: grid; gap: 3.5mm; margin: 1mm 0 1.5mm; }
 .voto-card { background: #F8FAFC; border-top: 0.8mm solid #1E3A5F; border-radius: 0 0 8px 8px; padding: 3.5mm 4.5mm 4mm; }
-.voto-nome { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1E3A5F; }
+.voto-nome { font-size: 8.5pt; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1E3A5F; }
 .voto-numero { font-family: 'Outfit', sans-serif; font-size: 27pt; font-weight: 800; color: #0F172A; line-height: 1; margin-top: 2mm; }
-.voto-numero small { font-family: 'Inter Tight', sans-serif; font-size: 9pt; font-weight: 500; color: #64748B; margin-left: 1.5mm; }
+.voto-numero small { font-family: 'Inter Tight', sans-serif; font-size: 10pt; font-weight: 500; color: #64748B; margin-left: 1.5mm; }
 .stelle { display: flex; gap: 0.9mm; margin-top: 2.2mm; }
-.voto-conta { font-size: 8.5pt; font-weight: 600; color: #0F172A; margin-top: 2mm; }
-.voto-link { font-size: 7.5pt; color: #64748B; margin-top: 0.4mm; }
-.voti-nota { font-size: 7pt; color: #94A3B8; margin: 0 0 5mm; }
+.voto-conta { font-size: 9.5pt; font-weight: 600; color: #0F172A; margin-top: 2mm; }
+.voto-link { font-size: 8.5pt; color: #64748B; margin-top: 0.4mm; }
+.voti-nota { font-size: 8pt; color: #94A3B8; margin: 0 0 5mm; }
 .citazioni { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm 7mm; }
 .citazione { border-left: 0.7mm solid #FED7AA; padding: 0.5mm 0 0.5mm 4mm; }
 .citazione.larga { grid-column: 1 / -1; }
 .citazione p { font-size: 10pt; font-style: italic; line-height: 1.5; color: #0F172A; margin: 0; }
 .citazione.larga p { font-size: 11.5pt; }
-.citazione .firma { font-size: 7pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #1E3A5F; margin-top: 2mm; }
+.citazione .firma { font-size: 8pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #1E3A5F; margin-top: 2mm; }
 .impianti-titolo { font-size: 11pt; color: #1E3A5F; margin: 6mm 0 0; }
 /* Tre foto affiancate: possono crescere più di una fascia sola, ma non diventare strisce verticali. */
 .content > .foto-fascia.impianti-fascia { max-height: 100mm; }
@@ -651,21 +651,21 @@ table .saving-zero { color: #64748B; }
 .foto-fascia .impianti img { height: 100%; margin-top: 0; border-radius: 8px; }
 .qa-item:last-child { border-bottom: none; }
 .qa-q { font-weight: 700; color: #1E3A5F; font-size: 10pt; margin-bottom: 1mm; display: flex; gap: 2mm; align-items: flex-start; }
-.qa-q::before { content: "Q"; background: #F97316; color: white; width: 4.5mm; height: 4.5mm; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 8pt; flex-shrink: 0; margin-top: 1px; }
-.qa-a { color: #475569; font-size: 8.5pt; padding-left: 6.5mm; }
+.qa-q::before { content: "Q"; background: #F97316; color: white; width: 4.5mm; height: 4.5mm; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 9pt; flex-shrink: 0; margin-top: 1px; }
+.qa-a { color: #475569; font-size: 9.5pt; padding-left: 6.5mm; }
 
 /* La firma del contratto: che cosa si accetta, poi luogo e data e le firme delle due parti. */
 .sig-box { border: 2px dashed #1E3A5F; border-radius: 10px; padding: 5mm; margin-top: 4mm; background: #F8FAFC; }
-.sig-box .sig-dich { font-size: 8.5pt; line-height: 1.5; color: #334155; margin: 0 0 2mm; }
+.sig-box .sig-dich { font-size: 9.5pt; line-height: 1.5; color: #334155; margin: 0 0 2mm; }
 .sig-box .sig-grid { display: grid; grid-template-columns: 0.8fr 1fr 1.2fr; gap: 6mm; align-items: start; }
 .sig-box .sig-line { height: 13mm; border-bottom: 1px solid #94A3B8; margin-bottom: 1.5mm; }
-.sig-box .sig-label { font-size: 7pt; text-transform: uppercase; letter-spacing: 0.1em; color: #64748B; font-weight: 700; }
-.sig-box .sig-name { font-size: 9pt; color: #1E3A5F; font-weight: 700; margin-top: 0.5mm; }
-.sig-box .sig-sub { font-size: 7.5pt; line-height: 1.35; color: #64748B; margin-top: 0.5mm; }
+.sig-box .sig-label { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.1em; color: #64748B; font-weight: 700; }
+.sig-box .sig-name { font-size: 10pt; color: #1E3A5F; font-weight: 700; margin-top: 0.5mm; }
+.sig-box .sig-sub { font-size: 8.5pt; line-height: 1.35; color: #64748B; margin-top: 0.5mm; }
 .firma-righe { border: 1px solid #E2E8F0; border-radius: 10px; background: #F8FAFC; padding: 1mm 5mm; margin: 2mm 0 1mm; }
-.firma-riga { display: grid; grid-template-columns: 38mm 1fr; gap: 4mm; padding: 2.3mm 0; border-bottom: 1px solid #E2E8F0; font-size: 9.5pt; line-height: 1.4; color: #0F172A; }
+.firma-riga { display: grid; grid-template-columns: 38mm 1fr; gap: 4mm; padding: 2.3mm 0; border-bottom: 1px solid #E2E8F0; font-size: 10pt; line-height: 1.4; color: #0F172A; }
 .firma-riga:last-child { border-bottom: none; }
-.firma-riga > span:first-child { font-size: 7pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748B; padding-top: 0.7mm; }
+.firma-riga > span:first-child { font-size: 8pt; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #64748B; padding-top: 0.7mm; }
 .firma-riga.importo > span:last-child { font-family: 'Outfit', sans-serif; font-size: 12pt; font-weight: 800; color: #1E3A5F; }
 .cond-clausole.due-colonne { column-count: 2; column-gap: 8mm; }
 .cond-testo { column-count: 2; column-gap: 7mm; font-size: 8.2pt; color: #475569; line-height: 1.5; margin-top: 3mm; }
@@ -688,23 +688,23 @@ table .saving-zero { color: #64748B; }
 
 .offer-box { background: linear-gradient(135deg, #1E3A5F 0%, #2C5184 100%); color: white; border-radius: 12px; padding: 6mm; margin: 3mm 0; position: relative; overflow: hidden; }
 .offer-box::after { content: ""; position: absolute; right: -20%; top: -50%; width: 60%; height: 200%; background: radial-gradient(circle, rgba(249,115,22,0.3) 0%, transparent 60%); }
-.offer-box .offer-eyebrow { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #FBBF24; margin-bottom: 2mm; }
+.offer-box .offer-eyebrow { font-size: 8.5pt; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #FBBF24; margin-bottom: 2mm; }
 .offer-box h3 { font-size: 15pt; margin-bottom: 2.5mm; position: relative; }
 .offer-box .offer-num { font-family: 'Outfit', sans-serif; font-size: 32pt; font-weight: 800; color: #FBBF24; line-height: 1; letter-spacing: -0.03em; position: relative; }
 
 .sat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5mm; margin: 2.5mm 0; }
 .sat-view { position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 4/3; border: 1px solid #E2E8F0; }
 .sat-view svg { width: 100%; height: 100%; display: block; }
-.sat-view .sat-label { position: absolute; bottom: 2mm; left: 2mm; background: rgba(15,23,42,0.72); backdrop-filter: blur(2px); padding: 0.8mm 2.2mm; border-radius: 4px; font-size: 7pt; font-weight: 600; color: white; letter-spacing: 0.02em; }
+.sat-view .sat-label { position: absolute; bottom: 2mm; left: 2mm; background: rgba(15,23,42,0.72); backdrop-filter: blur(2px); padding: 0.8mm 2.2mm; border-radius: 4px; font-size: 8pt; font-weight: 600; color: white; letter-spacing: 0.02em; }
 
 .product-card { display: grid; grid-template-columns: 42mm 1fr; gap: 4mm; background: white; border: 1px solid #E2E8F0; border-radius: 8px; padding: 3mm; margin-bottom: 2.5mm; }
 .product-img { background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%); border-radius: 6px; aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
 .product-img svg, .product-img img { width: 75%; height: 75%; object-fit: contain; }
 .product-info h3 { font-size: 10pt; color: #1E3A5F; margin-bottom: 0.5mm; line-height: 1.2; }
-.product-info .product-brand { font-size: 7.5pt; color: #64748B; font-weight: 600; margin-bottom: 1mm; text-transform: uppercase; letter-spacing: 0.05em; }
-.product-info p { font-size: 8pt; color: #475569; margin-bottom: 0.8mm; line-height: 1.3; }
+.product-info .product-brand { font-size: 8.5pt; color: #64748B; font-weight: 600; margin-bottom: 1mm; text-transform: uppercase; letter-spacing: 0.05em; }
+.product-info p { font-size: 9pt; color: #475569; margin-bottom: 0.8mm; line-height: 1.3; }
 .product-info .product-specs { display: flex; gap: 1.2mm; flex-wrap: wrap; margin-top: 1.2mm; }
-.product-info .spec-chip { background: #F1F5F9; color: #475569; font-size: 7pt; font-weight: 600; padding: 0.4mm 1.8mm; border-radius: 3px; }
+.product-info .spec-chip { background: #F1F5F9; color: #475569; font-size: 8pt; font-weight: 600; padding: 0.4mm 1.8mm; border-radius: 3px; }
 .product-info .spec-chip.green { background: #DCFCE7; color: #166534; }
 .product-card.featured { margin-top: 8mm; grid-template-columns: 1fr; padding: 7mm; gap: 6mm; }
 .product-card.featured .product-img { height: 82mm; aspect-ratio: auto; }
@@ -713,9 +713,9 @@ table .saving-zero { color: #64748B; }
 .product-card.featured .product-info p { font-size: 10pt; line-height: 1.5; margin: 4mm 0; }
 .product-card.featured .spec-chip { font-size: 10pt; padding: 2mm 4mm; }
 /* Composizione della fornitura: tabella prodotti (foto · descrizione · specifiche · q.tà) */
-.forn-caption { margin-top: 9mm; font-size: 8pt; font-weight: 800; letter-spacing: .10em; text-transform: uppercase; color: #1E3A5F; }
+.forn-caption { margin-top: 8mm; font-size: 9pt; font-weight: 800; letter-spacing: .10em; text-transform: uppercase; color: #1E3A5F; }
 .forn-tabella { width: 100%; border-collapse: collapse; margin-top: 4mm; }
-.forn-tabella thead th { font-size: 7pt; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: #94A3B8; text-align: left; padding: 0 4mm 3mm; border-bottom: 1.5px solid #1E3A5F; }
+.forn-tabella thead th { font-size: 8pt; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: #94A3B8; text-align: left; padding: 0 4mm 2.5mm; border-bottom: 1.5px solid #1E3A5F; }
 .forn-h-qta { text-align: right; }
 .forn-tabella tbody td { padding: 5mm 4mm; border-bottom: 1px solid #EEF2F6; vertical-align: middle; }
 .forn-idx { font-family: Georgia, 'Times New Roman', serif; font-size: 15pt; font-weight: 700; color: #CBD5E1; width: 9mm; }
@@ -723,14 +723,14 @@ table .saving-zero { color: #64748B; }
 .forn-thumb img { width: 18mm; height: 18mm; object-fit: contain; background: #F8FAFC; border: 1px solid #E7EDF3; border-radius: 9px; padding: 1.5mm; box-sizing: border-box; }
 .forn-thumb .ph { width: 18mm; height: 18mm; border-radius: 9px; background: #F1F5F9; display: flex; align-items: center; justify-content: center; color: #94A3B8; }
 .forn-thumb .ph svg { width: 11mm; height: 11mm; }
-.forn-cat { font-size: 7.5pt; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #F97316; margin-bottom: 1mm; }
+.forn-cat { font-size: 8.5pt; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #F97316; margin-bottom: 1mm; }
 .forn-t { font-size: 11pt; font-weight: 700; color: #0F172A; line-height: 1.2; }
-.forn-specs { margin-top: 1.5mm; font-size: 8.5pt; color: #64748B; }
+.forn-specs { margin-top: 1.5mm; font-size: 9.5pt; color: #64748B; }
 .forn-qta { text-align: right; font-size: 14pt; font-weight: 800; color: #1E3A5F; white-space: nowrap; }
-.forn-qta-u { font-size: 8pt; font-weight: 600; color: #94A3B8; margin-left: 1.5mm; }
+.forn-qta-u { font-size: 9pt; font-weight: 600; color: #94A3B8; margin-left: 1.5mm; }
 .forn-tot { margin-top: 9mm; display: flex; justify-content: space-between; align-items: flex-end; border-top: 2.5px solid #1E3A5F; padding-top: 4mm; }
-.forn-tot-l { font-size: 9.5pt; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #1E3A5F; display: flex; flex-direction: column; gap: 1.5mm; }
-.forn-tot-l span { font-size: 7.5pt; font-weight: 500; letter-spacing: 0; text-transform: none; color: #94A3B8; }
+.forn-tot-l { font-size: 10pt; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #1E3A5F; display: flex; flex-direction: column; gap: 1.5mm; }
+.forn-tot-l span { font-size: 8.5pt; font-weight: 500; letter-spacing: 0; text-transform: none; color: #94A3B8; }
 .forn-tot-v { font-size: 22pt; font-weight: 800; color: #1E3A5F; letter-spacing: -.01em; }
 .macro-hero { display: grid; grid-template-columns: 1fr 1.1fr; gap: 7mm; align-items: center; margin: 5mm 0; }
 .macro-hero-img { height: 92mm; border-radius: 12px; overflow: hidden; background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%); border: 1px solid #E2E8F0; display: flex; align-items: center; justify-content: center; }
@@ -740,23 +740,23 @@ table .saving-zero { color: #64748B; }
 .macro-copy h2 { font-size: 19pt; line-height: 1.08; color: #1E3A5F; margin-bottom: 3mm; }
 .macro-copy p { font-size: 10pt; color: #475569; line-height: 1.55; }
 .macro-pill-row { display: flex; gap: 2mm; flex-wrap: wrap; margin-top: 4mm; }
-.macro-pill { border-radius: 999px; background: #FFEDD5; color: #C2410C; font-size: 7.5pt; font-weight: 700; padding: 1.2mm 2.6mm; }
+.macro-pill { border-radius: 999px; background: #FFEDD5; color: #C2410C; font-size: 8.5pt; font-weight: 700; padding: 1.2mm 2.6mm; }
 
 /* La CO₂ con le foto: la fascia del bosco con le tonnellate, poi tre riquadri. */
 .co2-foto { position: relative; border-radius: 12px; overflow: hidden; height: 60mm; margin: 4mm 0 3mm; }
 .co2-foto img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .co2-foto::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8,28,18,0.78) 0%, rgba(8,28,18,0.42) 55%, rgba(8,28,18,0.08) 100%); }
 .co2-foto-testo { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 0 9mm; color: #FFFFFF; }
-.co2-foto-testo .etichetta { font-size: 7.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.92; }
+.co2-foto-testo .etichetta { font-size: 8.5pt; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.92; }
 .co2-foto-testo .valore { font-family: 'Outfit', sans-serif; font-size: 40pt; font-weight: 800; line-height: 1; letter-spacing: -0.02em; margin: 2mm 0 2.5mm; }
-.co2-foto-testo .sub { font-size: 9pt; opacity: 0.92; max-width: 100mm; line-height: 1.45; }
+.co2-foto-testo .sub { font-size: 10pt; opacity: 0.92; max-width: 100mm; line-height: 1.45; }
 .co2-carte { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
 .co2-carta { border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden; background: #FFFFFF; }
 .co2-carta img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
 .co2-carta .corpo { padding: 3mm 3.5mm 3.5mm; }
 .co2-carta .num { font-family: 'Outfit', sans-serif; font-size: 20pt; font-weight: 800; color: #16A34A; line-height: 1; }
-.co2-carta .cosa { font-size: 7.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748B; margin-top: 1mm; }
-.co2-carta .desc { font-size: 8pt; color: #475569; margin-top: 1.2mm; line-height: 1.4; }
+.co2-carta .cosa { font-size: 8.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748B; margin-top: 1mm; }
+.co2-carta .desc { font-size: 9pt; color: #475569; margin-top: 1.2mm; line-height: 1.4; }
 /* La fascia foto delle pagine con i contenuti variabili (fasi, investimento):
    prende solo lo spazio che resta, fino a 64 mm; sotto i 34 mm la foto non esce.
    Così una pagina piena non sborda mai per colpa di una foto. */
@@ -768,15 +768,15 @@ table .saving-zero { color: #64748B; }
 .content > .foto-fascia.alta { max-height: 125mm; }
 .eq-row { display: grid; grid-template-columns: 26mm 1fr; gap: 4mm; align-items: center; padding: 3mm 4mm; background: white; border: 1px solid #E2E8F0; border-radius: 8px; margin-bottom: 2.2mm; }
 .eq-row .eq-num { font-family: 'Outfit', sans-serif; font-size: 20pt; font-weight: 800; color: #16A34A; line-height: 1; text-align: center; }
-.eq-row .eq-num small { display: block; font-size: 7.5pt; color: #64748B; font-weight: 600; margin-top: 0.5mm; text-transform: uppercase; letter-spacing: 0.05em; }
+.eq-row .eq-num small { display: block; font-size: 8.5pt; color: #64748B; font-weight: 600; margin-top: 0.5mm; text-transform: uppercase; letter-spacing: 0.05em; }
 .eq-row .eq-icons { line-height: 1; min-height: 15px; }
-.eq-row .eq-desc { font-size: 8pt; color: #64748B; margin-top: 0.5mm; }
+.eq-row .eq-desc { font-size: 9pt; color: #64748B; margin-top: 0.5mm; }
 
 .guarantee-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; margin: 3mm 0; }
 .guarantee-card { background: white; border: 2px solid #16A34A; border-radius: 10px; padding: 4mm 5mm; }
 .guarantee-card .g-num { font-family: 'Outfit', sans-serif; font-size: 18pt; font-weight: 800; color: #16A34A; line-height: 1; margin-bottom: 1.5mm; }
 .guarantee-card .g-title { font-size: 10pt; font-weight: 700; color: #1E3A5F; margin-bottom: 1.5mm; }
-.guarantee-card .g-desc { font-size: 8pt; color: #475569; line-height: 1.4; }
+.guarantee-card .g-desc { font-size: 9pt; color: #475569; line-height: 1.4; }
 .guarantee-card.con-badge { display: grid; grid-template-columns: 13mm 1fr; column-gap: 3.5mm; align-items: start; }
 .guarantee-card .g-badge { width: 13mm; height: 13mm; object-fit: contain; display: block; }
 `;
@@ -1241,7 +1241,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
         if (!mp) return "";
         const tot = d.costi.prezzo_vendita_iva_inclusa;
         const h3 = `<h3 style="font-size:12pt;color:#1E3A5F;margin:4mm 0 2mm;">Modalità di pagamento</h3>`;
-        const noteP = mp.note ? `<p style="font-size:8.5pt;color:#64748B;margin-top:2mm;">${escHtml(mp.note)}</p>` : "";
+        const noteP = mp.note ? `<p style="font-size:9.5pt;color:#64748B;margin-top:2mm;">${escHtml(mp.note)}</p>` : "";
 
         // ── Finanziato: anticipo + resto a rate ──
         if (mp.tipo === "finanziato") {
@@ -1280,7 +1280,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
         if (!mp.tranche.length) return "";
         const sumPct = mp.tranche.reduce((s, t) => s + (Number(t.pct) || 0), 0);
         const sumImp = mp.tranche.reduce((s, t) => s + (Number(t.importo_eur) || 0), 0);
-        const th = "padding:1.5mm 0;color:#94A3B8;font-weight:600;font-size:8pt;text-transform:uppercase;letter-spacing:.04em;";
+        const th = "padding:1.5mm 0;color:#94A3B8;font-weight:600;font-size:9pt;text-transform:uppercase;letter-spacing:.04em;";
         const rows = mp.tranche.map((t) => `
           <tr style="border-bottom:1px solid #F1F5F9;">
             <td style="padding:1.8mm 0;color:#1E293B;">${escHtml(t.label)}</td>
@@ -1351,7 +1351,7 @@ function pageBundleKit(d: FvPdfTemplateData, pageN: number, total: number): stri
   const chips = [kwp, kwh].filter(Boolean).map((v) => `<span class="spec-chip">${escHtml(v!)}</span>`).join("");
   const voceRows = (b.voci ?? [])
     .slice(0, 8)
-    .map((v) => `<div style="display:flex;align-items:center;gap:3mm;padding:2mm 2.5mm;margin-bottom:1.5mm;border:1px solid #EEF2F7;border-radius:8px;font-size:8.5pt;background:#FCFDFE;">
+    .map((v) => `<div style="display:flex;align-items:center;gap:3mm;padding:2mm 2.5mm;margin-bottom:1.5mm;border:1px solid #EEF2F7;border-radius:8px;font-size:9.5pt;background:#FCFDFE;">
       ${v.foto
         ? `<img src="${escHtml(v.foto)}" alt="" style="width:12mm;height:12mm;border-radius:6px;object-fit:contain;background:#F8FAFC;border:1px solid #E2E8F0;flex-shrink:0;padding:1mm;"/>`
         : `<div style="width:12mm;height:12mm;border-radius:6px;background:#F1F5F9;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#94A3B8;font-size:14px;">☀</div>`}
@@ -1369,7 +1369,7 @@ function pageBundleKit(d: FvPdfTemplateData, pageN: number, total: number): stri
         <img src="${escHtml(b.cover_b64)}" alt="Kit ${escHtml(b.nome)}" style="max-width:100%;max-height:100%;object-fit:contain;"/>
       </div>` : ""}
       ${chips ? `<div class="product-specs" style="margin:3mm 0;">${chips}</div>` : ""}
-      ${voceRows ? `<div style="margin-top:4mm;"><p style="font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#F97316;margin-bottom:2mm;">Componenti inclusi</p>${voceRows}</div>` : ""}
+      ${voceRows ? `<div style="margin-top:4mm;"><p style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#F97316;margin-bottom:2mm;">Componenti inclusi</p>${voceRows}</div>` : ""}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1412,7 +1412,7 @@ function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number, comp
           ${description ? `<p>${escHtml(description)}</p>` : ""}
           ${c.quantita > 1 ? `<p>Quantità: <strong>${c.quantita} pezzi</strong></p>` : ""}
           ${chips.length > 0 ? `<div class="product-specs">${chips.join("")}</div>` : ""}
-          ${isFvAccumulo(d.template) && !imageUrl ? `<p style="color:#64748B;font-size:8pt;">Schema illustrativo. Per identificare il prodotto fanno fede il modello e la scheda tecnica della fornitura.</p>` : ""}
+          ${isFvAccumulo(d.template) && !imageUrl ? `<p style="color:#64748B;font-size:9pt;">Schema illustrativo. Per identificare il prodotto fanno fede il modello e la scheda tecnica della fornitura.</p>` : ""}
         </div>
       </div>`;
     })
@@ -1859,7 +1859,7 @@ const PITTOGRAMMI = {
 
 /** «TELEFONO  02 1234567»: un'etichetta piccola al posto dell'emoji della cornetta. */
 function etichettaContatto(nome: string): string {
-  return `<span style="display:inline-block;min-width:17mm;font-size:7pt;letter-spacing:0.08em;text-transform:uppercase;color:#94A3B8;font-weight:600;">${nome}</span>`;
+  return `<span style="display:inline-block;min-width:17mm;font-size:8pt;letter-spacing:0.08em;text-transform:uppercase;color:#94A3B8;font-weight:600;">${nome}</span>`;
 }
 
 function filaDiPittogrammi(quale: keyof typeof PITTOGRAMMI, quanti: number): string {
@@ -1900,7 +1900,7 @@ function pageCO2(d: FvPdfTemplateData, pageN: number, total: number): string {
       </div>` : `<div class="kpi-big" style="text-align:center;padding:8mm;margin:4mm 0;">
         <div class="kbig-label" style="margin-bottom:2mm;">CO₂ evitata in 25 anni</div>
         <div class="kbig-value" style="font-size:42pt;">${fmtNum(co2.ton_co2_totale, 1)} tonnellate</div>
-        <div class="kbig-sub" style="font-size:9pt;margin-top:2mm;">${fmtNum(co2.kg_co2_anno)} kg/anno · pari a una piccola foresta nel tuo cortile</div>
+        <div class="kbig-sub" style="font-size:10pt;margin-top:2mm;">${fmtNum(co2.kg_co2_anno)} kg/anno · pari a una piccola foresta nel tuo cortile</div>
       </div>
       <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">Ciò corrisponde a (ogni anno):</h3>
       <div class="eq-row"><div class="eq-num">${fmtNum(co2.alberi_anno)}<small>Alberi</small></div><div><div class="eq-icons">${treesIcons}</div><div class="eq-desc">Una piccola foresta che assorbe la stessa CO₂. Ogni albero medio assorbe ~25 kg di CO₂ all'anno.</div></div></div>
@@ -2075,7 +2075,7 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
         <div class="kpi-row cols-2">
           ${recensioni.map((rec) => {
             const fotoRec = imageHref(rec.foto_url);
-            return `<div class="kpi-block">${fotoRec ? `<div style="height:26mm;border-radius:6px;overflow:hidden;border:1px solid #E2E8F0;margin-bottom:2mm;"><img src="${escHtml(fotoRec)}" alt="Impianto installato" style="width:100%;height:100%;object-fit:cover;"/></div>` : ""}<div class="kpi-label">${escHtml([plainText(rec.citta), plainText(rec.intervento)].filter(Boolean).join(" · ") || "Recensione")}</div><div class="kpi-sub" style="font-size:8pt;color:#475569;">"${escHtml(plainText(rec.quote))}"</div><div class="kpi-value" style="font-size:11pt;margin-top:2mm;">${escHtml(plainText(rec.autore))}</div></div>`;
+            return `<div class="kpi-block">${fotoRec ? `<div style="height:26mm;border-radius:6px;overflow:hidden;border:1px solid #E2E8F0;margin-bottom:2mm;"><img src="${escHtml(fotoRec)}" alt="Impianto installato" style="width:100%;height:100%;object-fit:cover;"/></div>` : ""}<div class="kpi-label">${escHtml([plainText(rec.citta), plainText(rec.intervento)].filter(Boolean).join(" · ") || "Recensione")}</div><div class="kpi-sub" style="font-size:9pt;color:#475569;">"${escHtml(plainText(rec.quote))}"</div><div class="kpi-value" style="font-size:11pt;margin-top:2mm;">${escHtml(plainText(rec.autore))}</div></div>`;
           }).join("")}
         </div>` : ""}
       ${cantieriQui.length > 0 ? `<h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 2mm;">I nostri cantieri</h3>
@@ -2329,7 +2329,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
         <div class="offer-eyebrow">★ Riepilogo offerta — valida ${d.progetto.valido_giorni} giorni</div>
         <h3>${isFvAccumulo(d.template) ? `Aggiunta accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh<br/>su impianto esistente` : isFvLocalIntervention(d.template) ? escHtml(fvInterventionLabel(d.template)) + "<br/>Limitato alle voci elencate" : `Impianto FV ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` + accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}<br/>chiavi in mano`}</h3>
         <div class="offer-num">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
-        <div style="font-size:9pt;opacity:0.85;margin-top:2mm;position:relative;">IVA ${d.costi.iva_perc}% inclusa${fin ? ` · ${fmtRata(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi (${escHtml(fin.finanziaria)}${fin.taeg_perc != null ? ` TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""})` : ""}${netto != null ? `<br/>Costo netto reale: <strong style="color:#FBBF24;">${fmtRata(netto)}/mese</strong> (rata − risparmio)` : ""}</div>
+        <div style="font-size:10pt;opacity:0.85;margin-top:2mm;position:relative;">IVA ${d.costi.iva_perc}% inclusa${fin ? ` · ${fmtRata(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi (${escHtml(fin.finanziaria)}${fin.taeg_perc != null ? ` TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""})` : ""}${netto != null ? `<br/>Costo netto reale: <strong style="color:#FBBF24;">${fmtRata(netto)}/mese</strong> (rata − risparmio)` : ""}</div>
       </div>
       ${d.template?.urgenza_attiva && urgenzaDescrizione ? `<div class="callout callout-tip">
         <span class="callout-icon">★</span>
@@ -2346,7 +2346,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
       <div class="two-col">
         <div>
           <h3 style="font-size:11pt;color:#1E3A5F;margin-bottom:2mm;">Per accettare la proposta</h3>
-          <ol style="font-size:9pt;padding-left:5mm;line-height:1.8;color:#475569;">
+          <ol style="font-size:10pt;padding-left:5mm;line-height:1.8;color:#475569;">
             <li>Firma la proposta: online, con il link ricevuto via email, oppure su carta</li>
             ${fin ? `<li>Invia alla finanziaria i documenti richiesti</li>
             <li>Attendi l'esito della finanziaria</li>` : ""}
@@ -2355,7 +2355,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
         </div>
         <div>
           <h3 style="font-size:11pt;color:#1E3A5F;margin-bottom:2mm;">Per parlarne ancora</h3>
-          <div style="font-size:9pt;line-height:2;color:#475569;">
+          <div style="font-size:10pt;line-height:2;color:#475569;">
             ${d.azienda.phone ? `${etichettaContatto("Telefono")}<strong>${escHtml(d.azienda.phone)}</strong><br/>` : ""}
             ${d.azienda.email ? `${etichettaContatto("Email")}<strong>${escHtml(d.azienda.email)}</strong><br/>` : ""}
             ${d.azienda.website ? `${etichettaContatto("Sito")}<strong>${escHtml(d.azienda.website)}</strong>` : ""}
@@ -2426,7 +2426,7 @@ function pageFirmaContratto(d: FvPdfTemplateData, pageN: number, total: number):
         </div>
       </div>` : ""}
       ${haModuloRecesso(d) ? `
-      <p style="font-size:7.5pt;color:#94A3B8;margin-top:3mm;">
+      <p style="font-size:8.5pt;color:#94A3B8;margin-top:3mm;">
         Per recedere, quando ne ricorrono i presupposti, basta il modulo allegato nella pagina che segue, o una
         dichiarazione esplicita inviata a ${escHtml(d.azienda.email ?? d.azienda.name)}: non serve motivarla.
       </p>` : ""}
