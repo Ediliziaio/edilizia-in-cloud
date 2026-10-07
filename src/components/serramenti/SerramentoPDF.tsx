@@ -60,7 +60,7 @@ import { fotoPaginaPerIlPdf, fotoPerIlPdf, type FotoBloccoPronta } from "@/lib/p
 import { eTavola, proporzioniImmagine } from "@/lib/pdf/proporzioniImmagine";
 import { altezzaTesto, larghezzaTesto, testoDaHtml } from "@/components/preventivi/pdf/misuraTesto";
 import {
-  ALTEZZA_IMMAGINE_ACCESSORIO, ALTEZZA_UTILE, COLONNA_IMMAGINE_ACCESSORIO, FOTO_IN_FONDO_MINIMA, UTILE_PAGINA, altezzaGrafico, domandeCompatte, pezziAllegato, pezziCta, pezziDettagli, pezziInvestimento, pezziProposta,
+  ALTEZZA_IMMAGINE_ACCESSORIO, ALTEZZA_UTILE, COLONNA_IMMAGINE_ACCESSORIO, FOTO_IN_FONDO_MINIMA, PERCORSO_AMPIO, UTILE_PAGINA, altezzaGrafico, altezzaPercorsoAmpio, carteDelPercorsoPerRiga, domandeCompatte, paddingCartaPercorso, pezziAllegato, pezziCta, pezziDettagli, pezziInvestimento, pezziProposta,
   spazioInFondo, type DatiDettagli, type RigaAllegato,
 } from "@/components/serramenti/impaginaSerramento";
 import type {
@@ -808,6 +808,27 @@ function makeStyles(C: ReturnType<typeof makePalette>) {
     },
     percorsoStepIdxText: { color: C.onPrimary, fontSize: 7.5, fontWeight: 700 },
     percorsoStepText: { fontSize: 8.5, color: "#CBD5E1", flex: 1, lineHeight: 1.35 },
+    // «Il tuo percorso» senza foto: carte larghe, passaggi a 10,5 punti (misure in PERCORSO_AMPIO, impaginaSerramento).
+    percorsoFaseCardAmpia: { backgroundColor: "#0F172A", borderRadius: 12, padding: PERCORSO_AMPIO.paddingCarta },
+    percorsoFaseHeaderAmpio: {
+      flexDirection: "row", alignItems: "center", gap: 10,
+      marginBottom: 12, paddingBottom: 10,
+      borderBottomWidth: 0.5, borderBottomColor: "rgba(255,255,255,0.14)", borderBottomStyle: "solid",
+    },
+    percorsoFaseRomanBoxAmpio: {
+      width: PERCORSO_AMPIO.riquadroRomano, height: PERCORSO_AMPIO.riquadroRomano, borderRadius: 6,
+      backgroundColor: C.primary,
+      alignItems: "center", justifyContent: "center",
+    },
+    percorsoFaseNameAmpio: { fontSize: PERCORSO_AMPIO.corpoNomeFase, fontWeight: 700, color: "#FFFFFF", marginTop: 1, lineHeight: 1.15 },
+    percorsoStepRowAmpio: { flexDirection: "row", alignItems: "flex-start", gap: PERCORSO_AMPIO.spazioDopoPallino, marginBottom: PERCORSO_AMPIO.spazioFraPassi },
+    percorsoStepIdxAmpio: {
+      width: PERCORSO_AMPIO.pallino, height: PERCORSO_AMPIO.pallino, borderRadius: PERCORSO_AMPIO.pallino / 2,
+      backgroundColor: C.primary,
+      alignItems: "center", justifyContent: "center",
+    },
+    percorsoStepIdxTextAmpio: { color: C.onPrimary, fontSize: 8, fontWeight: 700 },
+    percorsoStepTextAmpio: { fontSize: PERCORSO_AMPIO.corpoPasso, color: "#E2E8F0", flex: 1, lineHeight: PERCORSO_AMPIO.interlineaPasso, marginTop: 3 },
 
     // Render disclaimer
     renderDisclaimerBox: {
@@ -1803,7 +1824,7 @@ function SezioneBlocco({ blocco, foto, C, styles, moduloLocale = false }: {
           <View wrap={false} style={{ flexDirection: "row", alignItems: "flex-start" }}>
             <View style={{ width: lt }}>
               <Image src={foto[0].src} style={{ width: lt, height: at, objectFit: "contain", borderRadius: 6 }} />
-              {blocco.nota && foto[0].diSerie ? <Text style={{ fontSize: 7, color: C.gray500, marginTop: 5 }}>{blocco.nota}</Text> : null}
+              {blocco.nota && foto[0].diSerie ? <Text style={{ fontSize: 8, color: C.gray500, marginTop: 5 }}>{blocco.nota}</Text> : null}
             </View>
             <View style={{ width: colonna, marginLeft: STACCO_TAVOLA_SR, paddingTop: 2 }}>
               {blocco.voci.map((x, i) => (
@@ -1829,7 +1850,7 @@ function SezioneBlocco({ blocco, foto, C, styles, moduloLocale = false }: {
             ))}
           </View>
           {blocco.nota && foto.some((f) => f.diSerie) ? (
-            <Text style={{ fontSize: 7, color: C.gray500, marginTop: 5 }}>{blocco.nota}</Text>
+            <Text style={{ fontSize: 8, color: C.gray500, marginTop: 5 }}>{blocco.nota}</Text>
           ) : null}
         </View>
       ) : null}
@@ -2167,14 +2188,27 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const showProductPhotos = !isLocalModule || Object.keys(disegni).length > 0 || detail.serramenti.some(row => row.family_id && familiesById[row.family_id]?.immagine_url);
   const moduleExclusions = serramentiModuleExclusions(template);
   const baseStyles = makeStyles(C);
+  const sfondoCartePercorso = fondoPerTestoBianco(C.primary);
   const styles = isLocalModule ? { ...baseStyles,
-    sectionTitle: { ...baseStyles.sectionTitle, marginTop: 10, marginBottom: 5 },
-    bulletItem: { ...baseStyles.bulletItem, marginBottom: 4 },
+    // Un po' più stretti di prima (10 e 4): nei portoni garage la proposta sbordava di 4 punti e l'ultimo punto di «Perché …»
+    // finiva da solo su un foglio (93% bianco). Con questo margine ci stanno anche i modelli dal testo più lungo.
+    sectionTitle: { ...baseStyles.sectionTitle, marginTop: 8, marginBottom: 5 },
+    bulletItem: { ...baseStyles.bulletItem, marginBottom: 3 },
     bulletTitle: { ...baseStyles.bulletTitle, fontSize: 10.5 },
     bulletText: { ...baseStyles.bulletText, fontSize: 9.5, lineHeight: 1.4 },
     pageSubtitle: { ...baseStyles.pageSubtitle, marginBottom: 14 },
     faqItem: { ...baseStyles.faqItem, marginBottom: 8, paddingBottom: 5 },
     percorsoFaseLabel: { ...baseStyles.percorsoFaseLabel, color: "#CBD5E1" },
+    // Le carte del percorso nel colore del modello (erano sempre blu notte, anche nei modelli verdi o marroni).
+    percorsoFaseCard: { ...baseStyles.percorsoFaseCard, backgroundColor: sfondoCartePercorso },
+    percorsoFaseCardAmpia: { ...baseStyles.percorsoFaseCardAmpia, backgroundColor: sfondoCartePercorso },
+    percorsoFaseRomanBox: { ...baseStyles.percorsoFaseRomanBox, backgroundColor: "rgba(255,255,255,0.18)" },
+    percorsoFaseRomanBoxAmpio: { ...baseStyles.percorsoFaseRomanBoxAmpio, backgroundColor: "rgba(255,255,255,0.18)" },
+    percorsoStepIdx: { ...baseStyles.percorsoStepIdx, backgroundColor: "rgba(255,255,255,0.18)" },
+    percorsoStepIdxAmpio: { ...baseStyles.percorsoStepIdxAmpio, backgroundColor: "rgba(255,255,255,0.18)" },
+    percorsoFaseRomanText: { ...baseStyles.percorsoFaseRomanText, color: "#FFFFFF" },
+    percorsoStepIdxText: { ...baseStyles.percorsoStepIdxText, color: "#FFFFFF" },
+    percorsoStepIdxTextAmpio: { ...baseStyles.percorsoStepIdxTextAmpio, color: "#FFFFFF" },
   } : baseStyles;
 
   const clienteNome = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ") || "Cliente";
@@ -2653,6 +2687,18 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
   const altezzaFotoPercorso = proporzionePercorso != null && proporzionePercorso > 507 / 220
     ? Math.round(507 / proporzionePercorso)
     : 220;
+  // La foto sotto le fasi, solo se la pagina ha posto: con tante fasi o tanti passaggi resta senza, invece di finire da sola su un foglio.
+  const fotoPercorsoMostrata = Boolean(fotoPercorso) && (() => {
+    const perRiga = percorso.fasi.length <= 4 ? percorso.fasi.length : percorso.fasi.length <= 6 ? 3 : 4;
+    const righe = Math.ceil(percorso.fasi.length / perRiga);
+    const passiMax = Math.max(...percorso.fasi.map((f) => f.step.length));
+    const occupato = 170 + righe * (58 + passiMax * 17);
+    return occupato + altezzaFotoPercorso + 10 <= 700;
+  })();
+  // Senza foto le carte si fanno larghe (due per riga, passaggi a 10,5 punti): quattro carte strette da 8,5 lasciavano
+  // mezzo foglio bianco. Se nemmeno così ci stanno (tante fasi, passaggi lunghi), restano come prima.
+  const percorsoAmpio = !fotoPercorsoMostrata && percorsoAttivo && percorso.fasi.length > 0
+    && altezzaPercorsoAmpio({ titolo: percorso.titolo, sottotitolo: percorso.sottotitolo, fasi: percorso.fasi }) <= ALTEZZA_UTILE - 8;
   const fotoConfronto =fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "confronto", "serramenti", tpl.pdf_blocchi);
   const fotoCta = fotoPaginaPerIlPdf(tpl.pdf_pagine_foto, "cta", "serramenti", tpl.pdf_blocchi);
 
@@ -4396,7 +4442,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                 <PageHeader code={p.code} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
 
                 {/* Hero centrato */}
-                <View style={{ alignItems: "center", marginBottom: 16, marginTop: 6 }}>
+                <View style={{ alignItems: "center", marginBottom: percorsoAmpio ? PERCORSO_AMPIO.spazioSottoTesta : 16, marginTop: percorsoAmpio ? 18 : 6 }}>
                   <View style={styles.percorsoBadge}>
                     <Text style={styles.percorsoBadgeText}>Il tuo percorso</Text>
                   </View>
@@ -4419,55 +4465,53 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                   </Text>
                 </View>
 
-                {/* Grid responsive: 1 fase → 100%, 2 → 49%, 3 → 32%, 4+ → 23.5%
-                    Layout intelligente che evita overflow del nome fase. */}
+                {/* Le carte: con la foto sotto restano strette (1 fase → 100%, 2 → 49%, 3 → 32%, 4 → 23.5%, 5+ → due per riga).
+                    Senza foto sono larghe (1, 2 e 3 fasi come prima, 4 e più due per riga) e il testo sale a 10,5 punti. */}
                 {(() => {
-                  const cardWidth =
-                    percorso.fasi.length === 1 ? "100%"
+                  const perRigaAmpio = carteDelPercorsoPerRiga(percorso.fasi.length);
+                  const cardWidth = percorsoAmpio
+                    ? (perRigaAmpio === 1 ? "100%" : perRigaAmpio === 2 ? "49%" : perRigaAmpio === 3 ? "32%" : "23.5%")
+                    : percorso.fasi.length === 1 ? "100%"
                     : percorso.fasi.length === 2 ? "49%"
                     : percorso.fasi.length === 3 ? "32%"
                     : percorso.fasi.length === 4 ? "23.5%"
-                    : "48%"; // 5+ fasi → 2 per riga
+                    : percorso.fasi.length <= 6 ? "32%" // cinque e sei fasi: due righe da tre (a due per riga la quinta finiva da sola su un foglio)
+                    : "23.5%";
                   return (
                 <View style={{
-                  flexDirection: "row", flexWrap: "wrap",
+                  flexDirection: "row", flexWrap: "wrap", justifyContent: "center",
                   gap: 8,
                   marginTop: 8,
                 }}>
                   {percorso.fasi.map((fase, fi) => {
                     const roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][fi] ?? `${fi + 1}`;
+                    const stepBefore = percorso.fasi.slice(0, fi).reduce((acc, f) => acc + f.step.length, 0);
                     return (
                       <View
                         key={fi}
-                        style={[styles.percorsoFaseCard, { width: cardWidth }]}
+                        style={[percorsoAmpio ? styles.percorsoFaseCardAmpia : styles.percorsoFaseCard, { width: cardWidth }, percorsoAmpio ? { padding: paddingCartaPercorso(perRigaAmpio) } : {}]}
                         wrap={false}
                       >
-                        <View style={styles.percorsoFaseHeader}>
-                          <View style={styles.percorsoFaseRomanBox}>
+                        <View style={percorsoAmpio ? styles.percorsoFaseHeaderAmpio : styles.percorsoFaseHeader}>
+                          <View style={percorsoAmpio ? styles.percorsoFaseRomanBoxAmpio : styles.percorsoFaseRomanBox}>
                             <Text style={styles.percorsoFaseRomanText}>{roman}</Text>
                           </View>
-                          <View>
+                          <View style={percorsoAmpio ? { flex: 1 } : undefined}>
                             <Text style={styles.percorsoFaseLabel}>Fase {fi + 1}</Text>
-                            <Text style={styles.percorsoFaseName}>{fase.nome.toUpperCase()}</Text>
+                            <Text style={percorsoAmpio ? styles.percorsoFaseNameAmpio : styles.percorsoFaseName}>{fase.nome.toUpperCase()}</Text>
                           </View>
                         </View>
                         {/* Numerazione globale step dentro la fase */}
-                        {(() => {
-                          const stepBefore = percorso.fasi.slice(0, fi).reduce((acc, f) => acc + f.step.length, 0);
-                          return fase.step.map((step, si) => {
-                            const globalIdx = stepBefore + si + 1;
-                            return (
-                              <View key={si} style={styles.percorsoStepRow}>
-                                <View style={styles.percorsoStepIdx}>
-                                  <Text style={styles.percorsoStepIdxText}>
-                                    {String(globalIdx).padStart(2, "0")}
-                                  </Text>
-                                </View>
-                                <Text style={styles.percorsoStepText}>{step}</Text>
-                              </View>
-                            );
-                          });
-                        })()}
+                        {fase.step.map((step, si) => (
+                          <View key={si} style={percorsoAmpio ? [styles.percorsoStepRowAmpio, si === fase.step.length - 1 ? { marginBottom: 0 } : {}] : styles.percorsoStepRow}>
+                            <View style={percorsoAmpio ? styles.percorsoStepIdxAmpio : styles.percorsoStepIdx}>
+                              <Text style={percorsoAmpio ? styles.percorsoStepIdxTextAmpio : styles.percorsoStepIdxText}>
+                                {String(stepBefore + si + 1).padStart(2, "0")}
+                              </Text>
+                            </View>
+                            <Text style={percorsoAmpio ? styles.percorsoStepTextAmpio : styles.percorsoStepText}>{step}</Text>
+                          </View>
+                        ))}
                       </View>
                     );
                   })}
@@ -4479,13 +4523,7 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     o tanti passaggi resta senza, invece di finire da sola su un foglio.
                     Una foto più larga del riquadro (il trittico prima/durante/dopo di
                     serie) esce intera, più bassa: ritagliata perderebbe i lati. */}
-                {fotoPercorso && (() => {
-                  const perRiga = percorso.fasi.length <= 4 ? percorso.fasi.length : 2;
-                  const righe = Math.ceil(percorso.fasi.length / perRiga);
-                  const passiMax = Math.max(...percorso.fasi.map((f) => f.step.length));
-                  const occupato = 170 + righe * (58 + passiMax * 17);
-                  return occupato + altezzaFotoPercorso + 10 <= 700;
-                })() ? (
+                {fotoPercorsoMostrata && fotoPercorso ? (
                   <Image src={fotoPercorso} style={{ width: "100%", height: altezzaFotoPercorso, objectFit: "cover", borderRadius: 6, marginTop: 18 }} />
                 ) : null}
 

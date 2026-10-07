@@ -296,6 +296,69 @@ export function pezziInvestimento(d: DatiInvestimento): Pezzo[] {
   return pezzi;
 }
 
+// ─── Il tuo percorso ──────────────────────────────────────────────────────
+
+/**
+ * «Il tuo percorso» senza la foto sotto le fasi: carte larghe, due per riga (tre se le fasi sono tre, una se è una),
+ * con i passaggi a 10,5 punti. Prima erano quattro carte strette da 8,5 punti e mezzo foglio bianco.
+ * Le misure sono prese dal PDF vero (07/10/2026): la testa della pagina (badge, numero, titolo, sottotitolo) è alta 178
+ * con titolo e sottotitolo su una riga, e lascia 26 prima delle carte.
+ */
+export const PERCORSO_AMPIO = {
+  paddingCarta: 20,
+  spazioFraCarte: 8,
+  corpoPasso: 10.5,
+  interlineaPasso: 1.35,
+  spazioFraPassi: 9,
+  pallino: 20,
+  spazioDopoPallino: 8,
+  corpoNomeFase: 13,
+  riquadroRomano: 30,
+  /** Riquadro romano o testo (il più alto), 10 di respiro e il filetto sotto, 12 prima dei passaggi. */
+  testataFase: 52.5,
+  testa: 178,
+  spazioSottoTesta: 26,
+} as const;
+
+/** Quante carte per riga nel percorso largo: quattro fasi fanno due righe da due, cinque e sei due righe da tre. */
+export function carteDelPercorsoPerRiga(fasi: number): number {
+  return fasi <= 1 ? 1 : fasi === 2 ? 2 : fasi === 3 ? 3 : fasi === 4 ? 2 : fasi <= 6 ? 3 : 4;
+}
+
+/** Il respiro dentro la carta: con tre o più carte per riga, 14 invece di 20 per lasciare larghezza al testo. */
+export function paddingCartaPercorso(perRiga: number): number {
+  return perRiga >= 3 ? 14 : PERCORSO_AMPIO.paddingCarta;
+}
+
+export interface DatiPercorso {
+  titolo: string;
+  sottotitolo: string;
+  fasi: Array<{ nome: string; step: string[] }>;
+}
+
+/** L'altezza della pagina del percorso con le carte larghe, dalla testata al fondo dell'ultima carta. */
+export function altezzaPercorsoAmpio(d: DatiPercorso): number {
+  const P = PERCORSO_AMPIO;
+  const perRiga = carteDelPercorsoPerRiga(d.fasi.length);
+  const pad = paddingCartaPercorso(perRiga);
+  const larghezzaCarta = (UTILE_PAGINA - P.spazioFraCarte * (perRiga - 1)) / perRiga;
+  const testoPasso = larghezzaCarta - 2 * pad - P.pallino - P.spazioDopoPallino;
+  const alteCarte = d.fasi.map((f) => {
+    const nome = altezzaTesto(String(f.nome ?? "").toUpperCase(), larghezzaCarta - 2 * pad - P.riquadroRomano - 10, "Helvetica-Bold", P.corpoNomeFase, 1.15);
+    const testata = P.testataFase + Math.max(0, nome + 9.5 - P.riquadroRomano);
+    const passi = f.step.reduce((acc, s) => acc + Math.max(P.pallino, altezzaTesto(String(s ?? ""), testoPasso, "Helvetica", P.corpoPasso, P.interlineaPasso) + 3) + P.spazioFraPassi, 0);
+    // L'ultimo passaggio non lascia spazio sotto: il respiro in fondo alla carta è il suo bordo, uguale a quello in alto.
+    return 2 * pad + testata + passi - P.spazioFraPassi;
+  });
+  let carte = 0;
+  for (let i = 0; i < alteCarte.length; i += perRiga) {
+    carte += Math.max(...alteCarte.slice(i, i + perRiga)) + (i > 0 ? P.spazioFraCarte : 0);
+  }
+  const titolo = altezzaTesto(String(d.titolo ?? ""), UTILE_PAGINA, "Helvetica-Bold", 18, 1.1) - 19.8;
+  const sotto = altezzaTesto(String(d.sottotitolo ?? ""), 380, "Helvetica", 10, 1.38) - 13.8;
+  return P.testa + Math.max(0, titolo) + Math.max(0, sotto) + P.spazioSottoTesta + 8 + carte;
+}
+
 // ─── Domande frequenti ────────────────────────────────────────────────────
 
 /** Una domanda con la sua risposta (faqDomanda, faqRisposta e il filetto sotto): `compatta` è lo spazio stretto dei modelli. */
