@@ -36,7 +36,7 @@ import { EconomiaFaseRiga, costoSforato } from "./EconomiaFaseRiga";
 import { RiepilogoEconomicoFasi } from "./RiepilogoEconomicoFasi";
 import { AlertScostamentoSal } from "./AlertScostamentoSal";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
-import { fasiCronoprogramma, giornoLocale, lavoroRealeFasi, type FaseCrono } from "@/lib/orders/cronoprogramma";
+import { avanzamentoFase, fasiCronoprogramma, giornoLocale, lavoroRealeFasi, type FaseCrono } from "@/lib/orders/cronoprogramma";
 import { TempiFase, testoTempi, ritardoBreve } from "./TempiFase";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
@@ -216,11 +216,12 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
     [phases, materials, allAssignments, costiMateriali],
   );
 
-  // Avanzamento fisico medio della commessa (media delle % di fase), per
-  // l'alert di scostamento SAL: lo confronta coi costi già consumati.
+  // Avanzamento fisico medio della commessa, per l'alert di scostamento SAL: lo
+  // confronta coi costi già consumati. Una fase chiusa conta 100 anche se la %
+  // salvata è a 0 (stessa regola del Cronoprogramma e del trigger del database).
   const avanzamentoMedio = useMemo(() => {
     if (phases.length === 0) return null;
-    const somma = phases.reduce((s, p) => s + (Number(p.percentuale) || 0), 0);
+    const somma = phases.reduce((s, p) => s + avanzamentoFase(p), 0);
     return Math.round(somma / phases.length);
   }, [phases]);
 

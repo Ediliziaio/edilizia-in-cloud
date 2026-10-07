@@ -123,7 +123,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_work_phases")
-        .select("name, percentuale, importo_venduto")
+        .select("name, status, percentuale, importo_venduto")
         .eq("order_id", orderId);
       if (error) throw error;
       return (data || []) as FasePerSal[];

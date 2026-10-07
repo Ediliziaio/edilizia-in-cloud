@@ -32,6 +32,14 @@ describe("vociSalDaFasi — ponte avanzamento fasi → voci SAL", () => {
     ]);
   });
 
+  it("una fase chiusa vale 100 anche se la % salvata è rimasta a 0 (si chiude dallo stato)", () => {
+    expect(vociSalDaFasi([
+      { name: "Demolizioni", status: "completata", percentuale: 0, importo_venduto: 800 },
+      { name: "Impianti", status: "in_corso", percentuale: 40, importo_venduto: null },
+      { name: "Finiture", status: "da_iniziare", percentuale: 0, importo_venduto: null },
+    ]).map((v) => v.percentuale_avanzamento)).toEqual(["100", "40", "0"]);
+  });
+
   it("nessuna fase → nessuna voce", () => {
     expect(vociSalDaFasi([])).toEqual([]);
   });
