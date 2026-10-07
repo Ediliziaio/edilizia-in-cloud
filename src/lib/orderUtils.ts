@@ -21,6 +21,11 @@ export interface Installment {
   /** Giorni di anticipo dell'avviso "non hai ancora incassato". */
   giorni_preavviso?: number | null;
   /**
+   * Solo nel modulo di nuova commessa, mai salvata: la percentuale che il modello di pagamento
+   * dà a questa rata. Se cambia il totale, l'importo la segue; un importo scritto a mano la toglie.
+   */
+  percent?: number | null;
+  /**
    * Fattura della fatturazione interna che incassa questa rata (25/09/2026):
    * pagata l'una, pagata l'altra, lo tiene il database. `fattura` è letta
    * insieme alla rata, per mostrarla.

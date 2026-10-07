@@ -46,6 +46,7 @@ import {
   type DateCommessa,
 } from "@/lib/orders/rateEventi";
 import { BonusLinesCard } from "@/components/orders/BonusLinesCard";
+import { quandoSiIncassa } from "@/lib/orders/modelliPagamento";
 import {
   type BonusLine,
   type DatiCausale,
@@ -379,24 +380,23 @@ export function FinancialSummary({
     }
   }, [totalAmount, inputMode, totalWithVat]);
 
-  // Sync raw amount inputs only when installments structure changes (count/positions)
+  // Sync raw amount inputs when the installments structure OR their amounts change. Gli importi cambiano
+  // da fuori quando si applica un modello di pagamento o cambia il totale: i campi li seguono. Mentre si
+  // digita l'importo non cambia (si salva al blur), quindi il testo scritto non viene toccato.
   const installmentsStructureKey = installments
     .filter(i => i.type !== 'balance')
-    .map(i => i.position)
+    .map(i => `${i.position}:${i.amount}`)
     .join(',');
 
   useEffect(() => {
-    setRawAmountInputs(prev => {
+    setRawAmountInputs(() => {
       const newRaw: Record<number, string> = {};
       installments.forEach(i => {
         if (i.type !== 'balance') {
-          // Keep existing raw value if position already exists, otherwise init from amount
           // Seed in formato IT: `String(1.234)` avrebbe rimesso nel campo una
           // stringa ambigua ("1.234") che al blur successivo verrebbe riletta
           // come 1234. Il numero entra nel campo già disambiguato.
-          newRaw[i.position] = prev[i.position] !== undefined
-            ? prev[i.position]
-            : (i.amount > 0 ? formatDecimalIT(i.amount) : "");
+          newRaw[i.position] = i.amount > 0 ? formatDecimalIT(i.amount) : "";
         }
       });
       return newRaw;
@@ -457,8 +457,9 @@ export function FinancialSummary({
   const handleInstallmentAmountBlur = (position: number) => {
     const raw = rawAmountInputs[position] || "";
     const val = parseDecimalIT(raw) || 0;
+    // Un importo scritto a mano non segue più la percentuale del modello di pagamento.
     const updated = installments.map(i =>
-      i.position === position ? { ...i, amount: val } : i
+      i.position === position ? { ...i, amount: val, percent: val === i.amount ? i.percent : null } : i
     );
     onInstallmentsChange(updated);
     // Rimette nel campo il valore interpretato (vuoto se 0, per non
@@ -910,6 +911,10 @@ export function FinancialSummaryReadOnly({
     oggi.setHours(0, 0, 0, 0);
     const scaduta = !inst.is_paid && !!inst.expected_date && new Date(inst.expected_date) < oggi;
     const canEditDate = !!onInstallmentDateChange && !!inst.id;
+    // La data prevista di una rata a evento è quella dell'evento (la tiene il database): non si scrive a
+    // mano. La data dell'incasso, invece, si scrive come sempre.
+    const aEvento = !!inst.trigger_evento && inst.trigger_evento !== 'data_fissa';
+    const canEditExpected = canEditDate && !aEvento;
 
     return (
       <div
@@ -1005,12 +1010,17 @@ export function FinancialSummaryReadOnly({
                   <span className="text-xs text-muted-foreground">il {formatPaymentDate(inst.paid_date)}</span>
                 )
               )
-            ) : canEditDate ? (
+            ) : canEditExpected ? (
               <DatePickerField
                 label="Data prevista"
                 date={inst.expected_date ? new Date(inst.expected_date) : undefined}
                 onDateChange={(d) => onInstallmentDateChange!(inst, 'expected_date', d)}
               />
+            ) : aEvento ? (
+              <span className="text-xs text-muted-foreground">
+                Si incassa {quandoSiIncassa(inst.trigger_evento, inst.trigger_numero)}
+                {inst.expected_date ? ` · il ${formatPaymentDate(inst.expected_date)}` : " · data ancora da conoscere"}
+              </span>
             ) : (
               inst.expected_date && (
                 <span className="text-xs text-muted-foreground">Previsto {formatPaymentDate(inst.expected_date)}</span>

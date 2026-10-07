@@ -4,6 +4,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import type { Installment } from "@/lib/orderUtils";
 import { BonusRipartizioneCard } from "./BonusRipartizioneCard";
 import { BloccaPrezzoCard } from "./BloccaPrezzoCard";
+import { PianoPagamentiAzioni } from "./PianoPagamentiAzioni";
 
 interface OrdineEconomicoProps {
   orderId: string;
@@ -54,6 +55,16 @@ export function OrdineEconomico({
   const permissions = usePermissions();
   return (
     <div className="space-y-4 max-sm:space-y-3">
+      {/* Come si paga: il piano da un modello, e il saldo salvato che non torna col totale. */}
+      <PianoPagamentiAzioni
+        orderId={orderId}
+        totalAmount={totalAmount}
+        vatRate={vatRate}
+        paymentType={paymentType}
+        financingCost={financingCost}
+        installments={installments}
+        puoModificare={permissions.canEditOrders}
+      />
       <FinancialSummaryReadOnly
         totalAmount={totalAmount}
         vatRate={vatRate}

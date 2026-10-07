@@ -76,8 +76,17 @@ import { SedeSelect } from "@/components/sedi/SedeSelect";
 import { FasiDiPartenzaSelect } from "@/components/orders/FasiDiPartenzaSelect";
 import { useFasiDiPartenza } from "@/hooks/useFasiDiPartenza";
 import { fasiPerCommessa } from "@/lib/orders/modelliFasi";
+import { ComeSiPagaSelect } from "@/components/orders/ComeSiPagaSelect";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useComeSiPagaDiPartenza } from "@/hooks/useComeSiPagaDiPartenza";
+import { useModelliPagamento } from "@/hooks/useModelliPagamento";
+import { rateDaModello, ricalcolaRatePercentuali, type ModelloPagamento } from "@/lib/orders/modelliPagamento";
 
-function CreateOrderInner() {
+/** Le rate con cui si apre il modulo: quelle del modello scelto dall'azienda per le commesse nuove (importi a zero finché non c'è il totale), o le due di sempre. */
+const rateDiPartenza = (modello: ModelloPagamento | null): Installment[] =>
+  modello ? rateDaModello(modello, 0) : createDefaultInstallments('standard', 2);
+
+function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamento | null }) {
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
   const { vertical } = useVertical();
@@ -143,10 +152,11 @@ function CreateOrderInner() {
   const paymentType = _paymentTypeRaw as PaymentType;
 
   // ── Non-form state (arrays / UI) ────────────────────────────
-  const [installments, setInstallments] = useState<Installment[]>(
-    createDefaultInstallments('standard', 2)
-  );
-  const [numInstallments, setNumInstallments] = useState(2);
+  const [installments, setInstallments] = useState<Installment[]>(() => rateDiPartenza(modelloIniziale));
+  const [numInstallments, setNumInstallments] = useState(modelloIniziale?.righe.length ?? 2);
+  // Quale modello di pagamento è stato applicato; si mostra solo finché le rate seguono ancora le sue percentuali.
+  const [comeSiPagaId, setComeSiPagaId] = useState(modelloIniziale?.id ?? "");
+  const { offerti: modelliPagamento } = useModelliPagamento();
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   // Ripartizione della commessa su più bonus edilizi (pratiche distinte).
   const [bonusLines, setBonusLines] = useState<BonusLine[]>([]);
@@ -196,6 +206,22 @@ function CreateOrderInner() {
     { label: "Stato iniziale", done: !!statusId },
     { label: "Righe ordine coerenti", done: invalidOrderItems.length === 0 },
   ];
+
+  // «Come si paga»: applica un modello alle rate. Gli importi sono la percentuale del totale con IVA (zero
+  // finché non c'è il totale: li ricalcola il modulo quando lo scrivi). «Scrivo io le rate» le lascia come
+  // sono, ma non seguono più il totale.
+  const applicaModelloPagamento = (id: string) => {
+    const modello = modelliPagamento.find((m) => m.id === id);
+    if (!modello) {
+      setInstallments((prev) => prev.map((i) => ({ ...i, percent: null as number | null })));
+      return;
+    }
+    setComeSiPagaId(id);
+    setValue("payment_type", "standard");
+    setNumInstallments(modello.righe.length);
+    setInstallments(rateDaModello(modello, totalWithVat));
+  };
+  const modelloApplicato = installments.some((i) => i.percent != null) ? comeSiPagaId : "";
 
   // Payment type change handler
   const handlePaymentTypeChange = (type: PaymentType) => {
@@ -511,13 +537,14 @@ function CreateOrderInner() {
   const handleClearDraft = useCallback(() => {
     clearDraft();
     reset(orderDefaultValues);
-    setInstallments(createDefaultInstallments('standard', 2));
-    setNumInstallments(2);
+    setInstallments(rateDiPartenza(modelloIniziale));
+    setNumInstallments(modelloIniziale?.righe.length ?? 2);
+    setComeSiPagaId(modelloIniziale?.id ?? "");
     setOrderItems([]);
     setCantiereAddress("");
     cantiereTouchedRef.current = false;
     lastCantiereCustomerRef.current = null;
-  }, [clearDraft, reset]);
+  }, [clearDraft, reset, modelloIniziale]);
 
   const { data: customers = [] } = useCompanyCustomers(effectiveCompany?.id);
 
@@ -1417,6 +1444,8 @@ function CreateOrderInner() {
             </div>
           </QuoteCard>
 
+          <ComeSiPagaSelect offerti={modelliPagamento} valore={modelloApplicato} onChange={applicaModelloPagamento} />
+
           <FinancialSummary
             dateCommessa={{
               created_at: new Date().toISOString(),
@@ -1433,8 +1462,15 @@ function CreateOrderInner() {
             onInstallmentsChange={setInstallments}
             numInstallments={numInstallments}
             onNumInstallmentsChange={handleNumInstallmentsChange}
-            onTotalAmountChange={(val) => setValue("total_amount", val)}
-            onVatRateChange={(val) => setValue("vat_rate", val)}
+            // Le rate che vengono da un modello seguono il totale e l'IVA.
+            onTotalAmountChange={(val) => {
+              setValue("total_amount", val);
+              setInstallments((prev) => ricalcolaRatePercentuali(prev, parseDecimalIT(val) * (1 + vat / 100)));
+            }}
+            onVatRateChange={(val) => {
+              setValue("vat_rate", val);
+              setInstallments((prev) => ricalcolaRatePercentuali(prev, total * (1 + (parseDecimalIT(val) || 22) / 100)));
+            }}
             onPaymentTypeChange={handlePaymentTypeChange}
             balance={balance}
             hasBuildingBonus={hasBuildingBonus}
@@ -1526,10 +1562,21 @@ function CreateOrderInner() {
   );
 }
 
+/**
+ * Aspetta di sapere con quale modello di pagamento parte l'azienda (una lettura breve, quasi sempre già in
+ * memoria), poi apre il modulo: lo stato iniziale delle rate si decide una volta sola, alla prima apertura.
+ * Una bozza o un preventivo importato la sostituiscono, come hanno sempre fatto con le rate di partenza.
+ */
+function CreateOrderConPartenza() {
+  const { pronto, modello } = useComeSiPagaDiPartenza();
+  if (!pronto) return <Skeleton className="h-96 w-full" />;
+  return <CreateOrderInner modelloIniziale={modello} />;
+}
+
 export default function CreateOrder() {
   return (
     <ErrorBoundary title="Errore nella creazione commessa">
-      <CreateOrderInner />
+      <CreateOrderConPartenza />
     </ErrorBoundary>
   );
 }

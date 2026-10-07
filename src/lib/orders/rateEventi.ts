@@ -8,6 +8,9 @@
  *
  * Le stesse regole vivono in SQL (`data_attesa_rata` e la vista
  * `v_rate_commessa_stato`): se cambi una regola qui, cambiala anche là.
+ * Dal 07/10/2026 il database tiene la data di ogni rata a evento non incassata
+ * in `order_installments.expected_date` (trigger, migrazione `rate_date_da_eventi`):
+ * le schermate la leggono da lì, e una data scritta a mano su una rata a evento non vale.
  */
 
 export type EventoRata =
@@ -53,7 +56,7 @@ export const EVENTI_RATA: readonly DefinizioneEvento[] = [
 
   { value: "inizio_lavori", gruppo: "lavori", label: "Prima dell'inizio lavori", descrizione: "Segue la data di inizio lavori: se la sposti, si sposta." },
   { value: "data_posa", gruppo: "lavori", label: "Alla posa", descrizione: "Segue la data di posa prevista." },
-  { value: "sal_numero", gruppo: "lavori", label: "Al SAL numero…", descrizione: "Quando emetti lo stato avanzamento lavori che indichi." },
+  { value: "sal_numero", gruppo: "lavori", label: "Al SAL numero…", descrizione: "Quando matura lo stato avanzamento lavori che indichi: appena lo emetti, o quando il cliente lo approva (lo sceglie l'azienda nelle Impostazioni)." },
   { value: "fine_lavori", gruppo: "lavori", label: "A fine lavori", descrizione: "Segue la data di fine lavori." },
 
   { value: "fattura_acconto", gruppo: "fatture", label: "Alla fattura di acconto", descrizione: "Dalla prima fattura emessa sulla commessa." },

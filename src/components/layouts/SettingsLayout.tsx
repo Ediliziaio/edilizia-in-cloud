@@ -36,6 +36,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   "stati-ordine":         { title: "Stati ordine",             description: "Configura gli stati del flusso degli ordini" },
   "rapportini-cantiere":  { title: "Rapportini e presenze",    description: "Come lavorano i tuoi cantieri: chi scrive il rapportino e da dove vengono le ore" },
   "modelli-fasi":         { title: "Fasi e avanzamento",       description: "I modelli di fasi con le sottofasi, chi le spunta e come si calcola l'avanzamento delle commesse" },
+  "modelli-pagamento":    { title: "Modelli di pagamento",     description: "Le rate con cui si incassa una commessa, e quando matura la rata di un SAL" },
   "cartelle-documenti":   { title: "Cartelle documenti",       description: "Le cartelle in cui si dividono i documenti di ogni commessa" },
   fornitori:              { title: "Fornitori",                description: "Gestisci l'anagrafica fornitori" },
   "categorie-costi":      { title: "Categorie costi",          description: "Organizza le categorie di costo dei cantieri" },
