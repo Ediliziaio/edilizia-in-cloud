@@ -96,10 +96,10 @@ function stimaTesta(tema: TemaDocumento, titolo: string, sommario?: string | nul
   const larga = UTILE - 64;
   const titoloH = righeDiTesto(senzaAsterischi(titolo), larga, fam(tema.caratteri.titolo), 23) * 23 * 1.2;
   const sommarioH = sommario ? 6 + altezzaTesto(sommario, Math.min(400, larga), fam(tema.caratteri.testo), 10, 1.45) : 0;
-  return Math.max(46, 3 + 7 * 1.2 + 5 + titoloH + sommarioH) + 18;
+  return Math.max(46, 3 + 8 * 1.2 + 5 + titoloH + sommarioH) + 18;
 }
 
-const STIMA_TITOLINO = 7 * 1.2 + 5 + 1 + 8;
+const STIMA_TITOLINO = 8 * 1.2 + 5 + 1 + 8;
 /** La miniatura di un prodotto del listino nella riga del piano dei lavori (quadrata) e lo stacco dal testo. */
 const FOTO_VOCE = 38;
 const STACCO_FOTO_VOCE = 8;
@@ -110,8 +110,8 @@ function stimaSchede(tema: TemaDocumento, voci: DocEdileVoceElenco[], colonne: 2
     const riga = voci.slice(i, i + colonne);
     const interna = (UTILE - 10 * (riga.length - 1)) / riga.length - 24;
     const alte = riga.map((v) => 10 + 18 * 1.2 + 4
-      + altezzaTesto(senzaNumeroDavanti(v.titolo), interna, fam(tema.caratteri.forte), 9.5, 1.3)
-      + (v.descrizione ? 3 + altezzaTesto(v.descrizione, interna, fam(tema.caratteri.testo), 8.5, 1.45) : 0) + 12);
+      + altezzaTesto(senzaNumeroDavanti(v.titolo), interna, fam(tema.caratteri.forte), 10, 1.3)
+      + (v.descrizione ? 3 + altezzaTesto(v.descrizione, interna, fam(tema.caratteri.testo), 9.5, 1.45) : 0) + 12);
     totale += Math.max(...alte) + 10;
   }
   return totale;
@@ -125,8 +125,8 @@ function stimaPassi(tema: TemaDocumento, voci: DocEdileVoceElenco[]): number {
     const colonna = UTILE / perRiga;
     const alte = riga.map((v, j) => {
       const larga = colonna - (j === riga.length - 1 ? 0 : 10);
-      return 24 + 8 + altezzaTesto(senzaNumeroDavanti(v.titolo), larga, fam(tema.caratteri.forte), 9.5, 1.25)
-        + (v.descrizione ? 3 + altezzaTesto(v.descrizione, larga, fam(tema.caratteri.testo), 8, 1.45) : 0);
+      return 24 + 8 + altezzaTesto(senzaNumeroDavanti(v.titolo), larga, fam(tema.caratteri.forte), 10, 1.25)
+        + (v.descrizione ? 3 + altezzaTesto(v.descrizione, larga, fam(tema.caratteri.testo), 9, 1.45) : 0);
     });
     totale += Math.max(...alte) + 14;
   }
@@ -137,12 +137,12 @@ function stimaTempi(tema: TemaDocumento, fasi: DocEdileFase[]): number {
   const larga = UTILE - 24 - 12 - 250;
   let totale = 0;
   for (const f of fasi) {
-    const sinistra = altezzaTesto(senzaNumeroDavanti(f.fase), larga, fam(tema.caratteri.forte), 9.5, 1.2)
-      + (f.descrizione ? 2 + altezzaTesto(f.descrizione, larga, fam(tema.caratteri.testo), 8, 1.4) : 0);
-    totale += 16.6 + Math.max(sinistra, 9 + (f.durata ? 3 + 7.5 * 1.2 : 0));
+    const sinistra = altezzaTesto(senzaNumeroDavanti(f.fase), larga, fam(tema.caratteri.forte), 10, 1.2)
+      + (f.descrizione ? 2 + altezzaTesto(f.descrizione, larga, fam(tema.caratteri.testo), 9, 1.4) : 0);
+    totale += 16.6 + Math.max(sinistra, 9 + (f.durata ? 3 + 8.5 * 1.2 : 0));
   }
   const giorni = fasi.map((f) => giorniDellaDurata(f.durata));
-  const nota = giorni.every((g) => g != null) && (giorni as number[]).reduce((a, b) => a + b, 0) >= 7 ? 9 + 8.5 * 1.3 : 0;
+  const nota = giorni.every((g) => g != null) && (giorni as number[]).reduce((a, b) => a + b, 0) >= 7 ? 9 + 9.5 * 1.3 : 0;
   return totale + nota;
 }
 
@@ -169,7 +169,7 @@ function FotoRiempimento({ tema, foto, altezza }: { tema: TemaDocumento; foto: D
     <View wrap={false} style={{ marginTop: 14 }}>
       <Image src={foto.src} style={{ width: UTILE, height: altezza, objectFit: "cover" }} />
       {foto.diSerie ? (
-        <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 5 }}>Immagine indicativa.</Text>
+        <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigioChiaro, marginTop: 5 }}>Immagine indicativa.</Text>
       ) : null}
     </View>
   );
@@ -192,7 +192,7 @@ function FotoInFondo({ tema, foto }: { tema: TemaDocumento; foto: DocEdileFotoBl
         <View style={{ flexGrow: 1, marginTop: 14 }}>
           <Image src={foto.src} style={{ flexGrow: 1, flexBasis: 0, width: UTILE, objectFit: "cover" }} />
           {foto.diSerie ? (
-            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 5 }}>Immagine indicativa.</Text>
+            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigioChiaro, marginTop: 5 }}>Immagine indicativa.</Text>
           ) : null}
         </View>
       );
@@ -341,13 +341,13 @@ function Intestazione({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati 
         ) : (
           // Una riga sola, e mai sopra il blocco a destra: con «Costruzioni Edili
           // Generali Fratelli Bianchi & Figli S.r.l. Unipersonale» ci finiva sopra.
-          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro, letterSpacing: 0.6, maxWidth: UTILE - 200, maxLines: 1, textOverflow: "ellipsis" }}>{azienda.nome.toUpperCase()}</Text>
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro, letterSpacing: 0.6, maxWidth: UTILE - 200, maxLines: 1, textOverflow: "ellipsis" }}>{azienda.nome.toUpperCase()}</Text>
         )}
         <View style={{ alignItems: "flex-end" }}>
-          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 6.5, color: tema.inchiostroMarca, letterSpacing: 1.3 }}>
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.inchiostroMarca, letterSpacing: 1.3 }}>
             {`PIANO DEI LAVORI · ${modulo.etichetta.toUpperCase()}`}
           </Text>
-          {codice ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigio, marginTop: 2 }}>{`N. ${codice} · ${oggi()}`}</Text> : null}
+          {codice ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 2 }}>{`N. ${codice} · ${oggi()}`}</Text> : null}
         </View>
       </View>
       <View style={{ marginTop: 8 }}><BarraSegmenti colore={tema.fondo} larghezza={UTILE} /></View>
@@ -363,18 +363,18 @@ function PieDiPagina({ tema, dati }: { tema: TemaDocumento; dati: DocEdileDati }
     <View fixed style={{ position: "absolute", bottom: 26, left: MARGINE, right: MARGINE, borderTopWidth: 0.6, borderTopColor: tema.filetto, paddingTop: 7 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
         <View style={{ flex: 1, paddingRight: 16 }}>
-          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostro }}>{azienda.nome}</Text>
-          {modello.mostraPieLegale && recapiti ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 6.5, color: tema.grigioChiaro, marginTop: 1.5 }}>{recapiti}</Text> : null}
-          {modello.mostraPieLegale && fiscali ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 6.5, color: tema.grigioChiaro, marginTop: 1.5 }}>{fiscali}</Text> : null}
-          {modello.testoPiePagina ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 6.5, color: tema.grigioChiaro, marginTop: 1.5 }}>{modello.testoPiePagina}</Text> : null}
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostro }}>{azienda.nome}</Text>
+          {modello.mostraPieLegale && recapiti ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigioChiaro, marginTop: 1.5 }}>{recapiti}</Text> : null}
+          {modello.mostraPieLegale && fiscali ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigioChiaro, marginTop: 1.5 }}>{fiscali}</Text> : null}
+          {modello.testoPiePagina ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigioChiaro, marginTop: 1.5 }}>{modello.testoPiePagina}</Text> : null}
           {modello.mostraPieVersione ? (
-            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 6.5, color: tema.grigioChiaro, marginTop: 1.5 }}>
+            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigioChiaro, marginTop: 1.5 }}>
               {`Documento ${codice ?? ""} · ${oggi()} · emesso tramite EdiliziaInCloud · Domus Group S.r.l.`}
             </Text>
           ) : null}
         </View>
         <Text
-          style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.inchiostroMarca }}
+          style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.inchiostroMarca }}
           render={({ pageNumber, totalPages }) => `Pag. ${pageNumber} / ${totalPages}`}
         />
       </View>
@@ -390,7 +390,7 @@ function Capitolo({ tema, numero, occhiello, titolo, sommario, staccoSopra = 0, 
     <View id={edileSectionDestination(sectionKey)} style={{ flexDirection: "row", marginTop: staccoSopra, marginBottom: 18 }} minPresenceAhead={130} wrap={false}>
       <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 46, color: tema.inchiostroMarca, width: 64, lineHeight: 1, letterSpacing: -1.5 }}>{dueCifre(numero)}</Text>
       <View style={{ flex: 1, paddingTop: 3 }}>
-        <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 5 }}>{occhiello.toUpperCase()}</Text>
+        <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 5 }}>{occhiello.toUpperCase()}</Text>
         <TitoloAccento tema={tema} testo={titolo} corpo={23} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
         {sommario ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.grigio, marginTop: 6, lineHeight: 1.45, maxWidth: 400 }}>{sommario}</Text> : null}
       </View>
@@ -401,7 +401,7 @@ function Capitolo({ tema, numero, occhiello, titolo, sommario, staccoSopra = 0, 
 function TitolinoSezione({ tema, testo }: { tema: TemaDocumento; testo: string }) {
   return (
     <View style={{ marginBottom: 8 }} minPresenceAhead={60}>
-      <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostro, letterSpacing: 1.5 }}>{testo.toUpperCase()}</Text>
+      <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostro, letterSpacing: 1.5 }}>{testo.toUpperCase()}</Text>
       <View style={{ height: 1, backgroundColor: tema.inchiostro, marginTop: 5 }} />
     </View>
   );
@@ -413,10 +413,10 @@ function ElencoInOrdine({ tema, voci }: { tema: TemaDocumento; voci: DocEdileVoc
     <View>
       {voci.map((v, i) => (
         <View key={i} wrap={false} style={{ flexDirection: "row", paddingVertical: 7, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
-          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.inchiostroMarca, width: 26, paddingTop: 0.5 }}>{dueCifre(i + 1)}</Text>
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostroMarca, width: 26, paddingTop: 0.5 }}>{dueCifre(i + 1)}</Text>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro, lineHeight: 1.3 }}>{senzaNumeroDavanti(v.titolo)}</Text>
-            {v.descrizione ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 2, lineHeight: 1.45 }}>{v.descrizione}</Text> : null}
+            <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro, lineHeight: 1.3 }}>{senzaNumeroDavanti(v.titolo)}</Text>
+            {v.descrizione ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio, marginTop: 2, lineHeight: 1.45 }}>{v.descrizione}</Text> : null}
           </View>
         </View>
       ))}
@@ -441,12 +441,12 @@ function Passi({ tema, voci }: { tema: TemaDocumento; voci: DocEdileVoceElenco[]
               <View key={i} style={{ flex: 1, paddingRight: ultimo ? 0 : 10 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
                   <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: tema.fondo, alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9, color: tema.bianco }}>{contatore}</Text>
+                    <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.bianco }}>{contatore}</Text>
                   </View>
                   {!ultimo ? <View style={{ flex: 1, height: 1, backgroundColor: tema.tintaForte, marginLeft: 6 }} /> : null}
                 </View>
-                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro, lineHeight: 1.25 }}>{senzaNumeroDavanti(v.titolo)}</Text>
-                {v.descrizione ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigio, marginTop: 3, lineHeight: 1.45 }}>{v.descrizione}</Text> : null}
+                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro, lineHeight: 1.25 }}>{senzaNumeroDavanti(v.titolo)}</Text>
+                {v.descrizione ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, marginTop: 3, lineHeight: 1.45 }}>{v.descrizione}</Text> : null}
               </View>
             );
           })}
@@ -474,8 +474,8 @@ function Schede({ tema, voci, colonne }: { tema: TemaDocumento; voci: DocEdileVo
               return (
                 <View key={i} style={{ width: larghezza, marginLeft: i === 0 ? 0 : spazio, backgroundColor: tema.cartaCalda, borderTopWidth: 2, borderTopColor: tema.fondo, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 }}>
                   <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 18, color: tema.inchiostroMarca, marginBottom: 4 }}>{dueCifre(contatore)}</Text>
-                  <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro, lineHeight: 1.3 }}>{senzaNumeroDavanti(v.titolo)}</Text>
-                  {v.descrizione ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 3, lineHeight: 1.45 }}>{v.descrizione}</Text> : null}
+                  <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro, lineHeight: 1.3 }}>{senzaNumeroDavanti(v.titolo)}</Text>
+                  {v.descrizione ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio, marginTop: 3, lineHeight: 1.45 }}>{v.descrizione}</Text> : null}
                 </View>
               );
             })}
@@ -495,8 +495,8 @@ function Galleria({ tema, foto }: { tema: TemaDocumento; foto: DocEdileFoto[] })
   const Didascalia = ({ f }: { f: DocEdileFoto }) =>
     f.didascalia || f.luogo ? (
       <View style={{ flexDirection: "row", marginTop: 5 }}>
-        {f.didascalia ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.inchiostro }}>{f.didascalia}</Text> : null}
-        {f.luogo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigioChiaro }}>{`${f.didascalia ? "  ·  " : ""}${f.luogo}`}</Text> : null}
+        {f.didascalia ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9, color: tema.inchiostro }}>{f.didascalia}</Text> : null}
+        {f.luogo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigioChiaro }}>{`${f.didascalia ? "  ·  " : ""}${f.luogo}`}</Text> : null}
       </View>
     ) : null;
   return (
@@ -535,22 +535,22 @@ function Tempi({ tema, fasi }: { tema: TemaDocumento; fasi: DocEdileFase[] }) {
         inizio += pesi[i];
         return (
           <View key={i} wrap={false} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
-            <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.inchiostroMarca, width: 24 }}>{dueCifre(i + 1)}</Text>
+            <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostroMarca, width: 24 }}>{dueCifre(i + 1)}</Text>
             <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro }}>{senzaNumeroDavanti(f.fase)}</Text>
-              {f.descrizione ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigio, marginTop: 2, lineHeight: 1.4 }}>{f.descrizione}</Text> : null}
+              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro }}>{senzaNumeroDavanti(f.fase)}</Text>
+              {f.descrizione ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, marginTop: 2, lineHeight: 1.4 }}>{f.descrizione}</Text> : null}
             </View>
             <View style={{ width: pista }}>
               <View style={{ height: 9, backgroundColor: tema.tinta }}>
                 <View style={{ position: "absolute", left: Math.min(x, pista - w), top: 0, width: w, height: 9, backgroundColor: tema.fondo }} />
               </View>
-              {f.durata ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigio, marginTop: 3, marginLeft: Math.min(x, pista - 60) }}>{f.durata}</Text> : null}
+              {f.durata ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 3, marginLeft: Math.min(x, pista - 60) }}>{f.durata}</Text> : null}
             </View>
           </View>
         );
       })}
       {misurabile && totale >= 7 ? (
-        <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 9 }}>
+        <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio, marginTop: 9 }}>
           {"Durata complessiva stimata: circa "}
           <Text style={{ fontFamily: tema.caratteri.forte, color: tema.inchiostro }}>{`${Math.round(totale / 7)} settimane`}</Text>
           {". I tempi si confermano insieme all'avvio dei lavori."}
@@ -569,8 +569,8 @@ function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostr
   /** Keep the last chapter with the following economic summary, not on an empty page. */
   spazioDopo?: number;
 }) {
-  const testa = { fontFamily: tema.caratteri.forte, fontSize: 6.5, color: tema.grigioChiaro, letterSpacing: 0.9 } as const;
-  const cella = { fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.inchiostro } as const;
+  const testa = { fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.grigioChiaro, letterSpacing: 0.9 } as const;
+  const cella = { fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro } as const;
   const riga = (v: DocEdileCapitolo["voci"][number]) => (
     <View key={v.id} wrap={false} style={{ flexDirection: "row", paddingVertical: 6, borderTopWidth: 0.6, borderTopColor: tema.filetto }}>
       <View style={{ flex: 1, paddingLeft: 28, paddingRight: 8, ...(v.foto ? { flexDirection: "row" as const } : {}) }}>
@@ -583,8 +583,8 @@ function TabellaCapitolo({ tema, cap, indice, mostraMargine, mostraPrezzi, mostr
         ) : null}
         <View style={v.foto ? { flex: 1 } : undefined}>
           <Text style={[cella, { lineHeight: 1.35 }]}>{v.descrizione}</Text>
-          {v.dettaglio ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigio, marginTop: 2, lineHeight: 1.4 }}>{v.dettaglio}</Text> : null}
-          {v.fonte ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 1.5 }}>{`Fonte: ${v.fonte}`}</Text> : null}
+          {v.dettaglio ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, marginTop: 2, lineHeight: 1.4 }}>{v.dettaglio}</Text> : null}
+          {v.fonte ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigioChiaro, marginTop: 1.5 }}>{`Fonte: ${v.fonte}`}</Text> : null}
         </View>
       </View>
       {mostraQta ? <Text style={[cella, { width: 40, textAlign: "center", color: tema.grigio }]}>{v.unitaMisura ?? ""}</Text> : null}
@@ -638,8 +638,8 @@ function LineaFirma({ tema, etichetta, chi, larghezza, altezza = 34 }: {
     <View style={{ width: larghezza, flex: larghezza ? undefined : 1 }}>
       <View style={{ height: altezza }} />
       <View style={{ borderTopWidth: 0.7, borderTopColor: tema.inchiostro, paddingTop: 4 }}>
-        <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigio, letterSpacing: 0.9 }}>{etichetta}</Text>
-        {chi ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.inchiostro, marginTop: 2, maxLines: 1, textOverflow: "ellipsis" }}>{chi}</Text> : null}
+        <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigio, letterSpacing: 0.9 }}>{etichetta}</Text>
+        {chi ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.inchiostro, marginTop: 2, maxLines: 1, textOverflow: "ellipsis" }}>{chi}</Text> : null}
       </View>
     </View>
   );
@@ -651,7 +651,7 @@ function RigaRiepilogo({ tema, etichetta, valore, forte = false }: {
 }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "flex-start", paddingVertical: 5, borderBottomWidth: 0.5, borderBottomColor: tema.filetto }}>
-      <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigio, letterSpacing: 0.8, width: 118, paddingTop: 2 }}>{etichetta.toUpperCase()}</Text>
+      <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, letterSpacing: 0.8, width: 118, paddingTop: 2 }}>{etichetta.toUpperCase()}</Text>
       <Text style={{ fontFamily: forte ? tema.caratteri.forte : tema.caratteri.testo, fontSize: forte ? 13 : 9.5, color: tema.inchiostro, flex: 1, lineHeight: 1.4 }}>{valore}</Text>
     </View>
   );
@@ -797,14 +797,14 @@ export function CopertinaDocumento({ tema, dati, bookmark, data, nota, avviso, c
             <View style={{ flexDirection: "row", marginTop: 14 }}>
               {scheda.map((s, i) => (
                 <View key={i} style={{ flex: i === 1 ? 1.5 : 1, paddingRight: 12 }}>
-                  <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 6.5, color: evidenza, letterSpacing: 1.4, marginBottom: 4 }}>{s.etichetta.toUpperCase()}</Text>
-                  <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: testo, lineHeight: 1.3 }}>{s.valore}</Text>
+                  <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: evidenza, letterSpacing: 1.4, marginBottom: 4 }}>{s.etichetta.toUpperCase()}</Text>
+                  <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: testo, lineHeight: 1.3 }}>{s.valore}</Text>
                 </View>
               ))}
             </View>
           </View>
         ) : null}
-        {nota ? <Text style={{ fontSize: 7.5, color: testo, opacity: 0.8, lineHeight: 1.4, marginTop: 12 }}>{nota}</Text> : null}
+        {nota ? <Text style={{ fontSize: 8.5, color: testo, opacity: 0.8, lineHeight: 1.4, marginTop: 12 }}>{nota}</Text> : null}
       </View>
     </Page>
   );
@@ -831,7 +831,7 @@ function FotoBlocco({ tema, foto, nota, altezza }: { tema: TemaDocumento; foto: 
         ))}
       </View>
       {nota && foto.some((f) => f.diSerie) ? (
-        <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 5 }}>{nota}</Text>
+        <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigioChiaro, marginTop: 5 }}>{nota}</Text>
       ) : null}
     </View>
   );
@@ -859,8 +859,8 @@ function altezzaTestoBlocco(tema: TemaDocumento, blocco: DocEdileBlocco, conEscl
     for (let i = 0; i < elenco.length; i += colonne) {
       const riga = elenco.slice(i, i + colonne);
       const alta = Math.max(22, ...riga.map((v) => (v.testo ? 1 : 5)
-        + altezzaTesto(v.titolo, larga, fam(tema.caratteri.forte), 9.5, 1.3)
-        + (v.testo ? 2 + altezzaTesto(v.testo, larga, fam(tema.caratteri.testo), 8.5, 1.45) : 0)));
+        + altezzaTesto(v.titolo, larga, fam(tema.caratteri.forte), 10, 1.3)
+        + (v.testo ? 2 + altezzaTesto(v.testo, larga, fam(tema.caratteri.testo), 9.5, 1.45) : 0)));
       totale += alta + (colonne === 2 ? 12 : 9);
     }
     return totale;
@@ -869,7 +869,7 @@ function altezzaTestoBlocco(tema: TemaDocumento, blocco: DocEdileBlocco, conEscl
   const voci = (conEscluse ? STIMA_TITOLINO : 0) + altezzaVoci(blocco.voci)
     + (conEscluse && blocco.escluse.length > 0 ? 10 + STIMA_TITOLINO + altezzaVoci(blocco.escluse) : 0);
   // La nota «Immagini indicative» esce sotto le foto: senza foto non c'è.
-  const nota = blocco.nota && blocco.foto.length > 0 ? 5 + 7 * 1.2 : 0;
+  const nota = blocco.nota && blocco.foto.length > 0 ? 5 + 8 * 1.2 : 0;
   return capitolo + voci + nota;
 }
 
@@ -895,8 +895,8 @@ function VociBlocco({ tema, voci, attenuate = false, colonne: scelte, larghezzaT
                 {x.icona ? <IconaPdf nome={x.icona} colore={attenuate ? tema.grigio : tema.inchiostroMarca} lato={11} /> : null}
               </View>
               <View style={{ flex: 1, paddingTop: x.testo ? 1 : 5 }}>
-                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: attenuate ? tema.grigio : tema.inchiostro, lineHeight: 1.3 }}>{x.titolo}</Text>
-                {x.testo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 2, lineHeight: 1.45 }}>{x.testo}</Text> : null}
+                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: attenuate ? tema.grigio : tema.inchiostro, lineHeight: 1.3 }}>{x.titolo}</Text>
+                {x.testo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio, marginTop: 2, lineHeight: 1.45 }}>{x.testo}</Text> : null}
               </View>
             </View>
           ))}
@@ -921,8 +921,8 @@ function tavolaDelBlocco(blocco: DocEdileBlocco): number | null {
 /** Quanto sono alte le voci nella colonna accanto alla tavola (ricalca VociColonna). */
 function altezzaVociInColonna(tema: TemaDocumento, voci: DocEdileBlocco["voci"], larga: number): number {
   return voci.reduce((t, v) => t + 12
-    + Math.max(16, altezzaTesto(v.titolo, larga - 22, fam(tema.caratteri.forte), 9.5, 1.3))
-    + (v.testo ? 3 + altezzaTesto(v.testo, larga, fam(tema.caratteri.testo), 8.5, 1.45) : 0), 0);
+    + Math.max(16, altezzaTesto(v.titolo, larga - 22, fam(tema.caratteri.forte), 10, 1.3))
+    + (v.testo ? 3 + altezzaTesto(v.testo, larga, fam(tema.caratteri.testo), 9.5, 1.45) : 0), 0);
 }
 
 /**
@@ -932,7 +932,7 @@ function altezzaVociInColonna(tema: TemaDocumento, voci: DocEdileBlocco["voci"],
  * stringe, e la colonna si allarga.
  */
 function misuraTavola(tema: TemaDocumento, blocco: DocEdileBlocco, proporzione: number) {
-  const nota = blocco.nota && blocco.foto.some((f) => f.diSerie) ? 5 + 7 * 1.2 : 0;
+  const nota = blocco.nota && blocco.foto.some((f) => f.diSerie) ? 5 + 8 * 1.2 : 0;
   const disponibile = ALTEZZA_UTILE - stimaTesta(tema, blocco.titolo, blocco.intro) - nota - SICUREZZA_RIEMPIMENTO;
   const massima = Math.floor(Math.min(disponibile * proporzione, UTILE - STACCO_TAVOLA - COLONNA_VOCI_MINIMA));
   let larghezza = massima;
@@ -952,9 +952,9 @@ function VociColonna({ tema, voci }: { tema: TemaDocumento; voci: DocEdileBlocco
             <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: tema.tinta, alignItems: "center", justifyContent: "center", marginRight: 6 }}>
               {x.icona ? <IconaPdf nome={x.icona} colore={tema.inchiostroMarca} lato={9} /> : null}
             </View>
-            <Text style={{ flex: 1, fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro, lineHeight: 1.3, paddingTop: 1.5 }}>{x.titolo}</Text>
+            <Text style={{ flex: 1, fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro, lineHeight: 1.3, paddingTop: 1.5 }}>{x.titolo}</Text>
           </View>
-          {x.testo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 3, lineHeight: 1.45 }}>{x.testo}</Text> : null}
+          {x.testo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio, marginTop: 3, lineHeight: 1.45 }}>{x.testo}</Text> : null}
         </View>
       ))}
     </View>
@@ -968,7 +968,7 @@ function TavolaBlocco({ tema, blocco, proporzione }: { tema: TemaDocumento; bloc
       <View style={{ width: larghezza }}>
         <Image src={blocco.foto[0].src} style={{ width: larghezza, height: altezza, objectFit: "contain" }} />
         {blocco.nota && blocco.foto[0].diSerie ? (
-          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 5 }}>{blocco.nota}</Text>
+          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigioChiaro, marginTop: 5 }}>{blocco.nota}</Text>
         ) : null}
       </View>
       <View style={{ width: colonna, marginLeft: STACCO_TAVOLA, paddingTop: 2 }}>
@@ -1157,30 +1157,30 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       <Passi tema={tema} voci={passiChiusura} />
       <View wrap={false} style={{ flexDirection: "row", width: UTILE, marginTop: 10 }}>
         <View style={{ width: (UTILE - 12) / 2.25, backgroundColor: tema.cartaCalda, padding: 14, marginRight: 12 }}>
-          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 7 }}>I NOSTRI CONTATTI</Text>
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 7 }}>I NOSTRI CONTATTI</Text>
           <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10.5, color: tema.inchiostro, marginBottom: 4 }}>{dati.azienda.nome}</Text>
           {[dati.azienda.telefono, emailACapo(dati.azienda.email), dati.azienda.indirizzo].filter(Boolean).map((r, i) => (
-            <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.5 }}>{r}</Text>
+            <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.grigio, lineHeight: 1.5 }}>{r}</Text>
           ))}
         </View>
         {/* Senza condizioni non c'è la pagina della firma: allora si firma qui.
             Con le condizioni, la firma sta lì e due riquadri sarebbero uno di troppo. */}
         {modello.condizioniLegali.length > 0 ? (
           <View style={{ width: (UTILE - 12) * 1.25 / 2.25, backgroundColor: tema.cartaCalda, padding: 14, justifyContent: "center" }}>
-            <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 6 }}>LA FIRMA</Text>
-            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.5 }}>
+            <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.4, marginBottom: 6 }}>LA FIRMA</Text>
+            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.grigio, lineHeight: 1.5 }}>
               Le condizioni generali e la pagina da firmare sono in fondo a questo documento.
             </Text>
           </View>
         ) : (
         <View style={{ width: (UTILE - 12) * 1.25 / 2.25, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 14 }}>
-          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostro, letterSpacing: 1.4 }}>PER ACCETTAZIONE</Text>
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostro, letterSpacing: 1.4 }}>PER ACCETTAZIONE</Text>
           <View style={{ flexDirection: "row", marginTop: 44 }}>
             <View style={{ width: 86, borderTopWidth: 0.6, borderTopColor: tema.grigioChiaro, paddingTop: 4, marginRight: 14 }}>
-              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, letterSpacing: 0.8 }}>DATA</Text>
+              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigioChiaro, letterSpacing: 0.8 }}>DATA</Text>
             </View>
             <View style={{ flex: 1, borderTopWidth: 0.6, borderTopColor: tema.grigioChiaro, paddingTop: 4 }}>
-              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, letterSpacing: 0.8 }}>FIRMA DEL CLIENTE</Text>
+              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigioChiaro, letterSpacing: 0.8 }}>FIRMA DEL CLIENTE</Text>
             </View>
           </View>
         </View>
@@ -1224,7 +1224,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
   // Quanto occupa un capitolo che non si spezza (null: non si sa, o si spezza).
   const stimaGalleria = (foto: DocEdileFoto[]) => {
     if (!foto.length) return 0;
-    const didascalia = (f: DocEdileFoto) => (f.didascalia || f.luogo ? 5 + 8.5 * 1.2 : 0);
+    const didascalia = (f: DocEdileFoto) => (f.didascalia || f.luogo ? 5 + 9 * 1.2 : 0);
     let h = 246 + didascalia(foto[0]) + 14;
     for (let i = 1; i < foto.length; i += 2) h += 150 + Math.max(...foto.slice(i, i + 2).map(didascalia)) + 14;
     return h;
@@ -1245,10 +1245,10 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         const due = modello.esigenze.length > 0 && modello.soluzione.length > 0;
         const larga = (due ? (UTILE - 24) / 2 : UTILE) - 26;
         const colonna = (voci: DocEdileVoceElenco[]) => (voci.length ? STIMA_TITOLINO + voci.reduce((t, v) => t + 14.6
-          + altezzaTesto(senzaNumeroDavanti(v.titolo), larga, fam(tema.caratteri.forte), 9.5, 1.3)
-          + (v.descrizione ? 2 + altezzaTesto(v.descrizione, larga, fam(tema.caratteri.testo), 8.5, 1.45) : 0), 0) : 0);
+          + altezzaTesto(senzaNumeroDavanti(v.titolo), larga, fam(tema.caratteri.forte), 10, 1.3)
+          + (v.descrizione ? 2 + altezzaTesto(v.descrizione, larga, fam(tema.caratteri.testo), 9.5, 1.45) : 0), 0) : 0);
         h = stimaTesta(tema, "Le tue richieste, in ordine.")
-          + (fotoApertura ? 230 + 18 + (fotoApertura.didascalia ? 5 + 8 * 1.2 : 0) : 0)
+          + (fotoApertura ? 230 + 18 + (fotoApertura.didascalia ? 5 + 9 * 1.2 : 0) : 0)
           + Math.max(colonna(modello.esigenze), colonna(modello.soluzione)) + 26;
         break;
       }
@@ -1263,14 +1263,14 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       case "tempi": h = modello.cronoprogramma.length > 8 ? null : stimaTesta(tema, "Quanto dura il cantiere.") + stimaTempi(tema, modello.cronoprogramma) + 30; break;
       case "investimento": {
         const tabella = oc.livello !== "corpo" && capitoli.length > 1 && !prezzoManuale
-          ? 12 + 6.5 * 1.2 + capitoli.length * ((capitoli.length > 6 ? 10 : 16) + 9.5 * 1.2) + 14
+          ? 12 + 7.5 * 1.2 + capitoli.length * ((capitoli.length > 6 ? 10 : 16) + 10 * 1.2) + 14
           : 0;
-        const totaliH = (totali.scontoPct > 0 ? 4 : 2) * (10 + 9.5 * 1.2 + 0.6);
+        const totaliH = (totali.scontoPct > 0 ? 4 : 2) * (10 + 10 * 1.2 + 0.6);
         const pagamentoH = modello.pagamentoHtml ? STIMA_TITOLINO + stimaTestoRicco(tema, modello.pagamentoHtml, UTILE - 250 - 28 - 12, 9, 1.45) : 0;
         const banda = 16 + 44 + 32 * 1.2;
-        const finanziamento = promo && rata > 0 ? 14 + 22 + 10 * 1.2 + 2 + altezzaTesto("Simulazione indicativa in 120 rate mensili (TAN 9,9%), soggetta ad approvazione della finanziaria.", UTILE - 28 - 130, "Helvetica", 8, 1.4) : 0;
-        const detrazione = totali.detrazionePct > 0 ? 14 + 22 + Math.max(7 * 1.2 + 4 + 17 * 1.2 + 1 + 7.5 * 1.2, altezzaTesto("Importo indicativo, calcolato sull'imponibile e ripartito come prevede la normativa. L'effettiva detraibilità dipende dai requisiti del tuo intervento e va verificata con il tuo consulente fiscale.", UTILE - 28 - 150, "Helvetica", 8, 1.45)) : 0;
-        const margine = modello.mostraMargine ? 14 + 20 + 7.5 * 1.2 + 4 + 9 * 1.2 : 0;
+        const finanziamento = promo && rata > 0 ? 14 + 22 + 10 * 1.2 + 2 + altezzaTesto("Simulazione indicativa in 120 rate mensili (TAN 9,9%), soggetta ad approvazione della finanziaria.", UTILE - 28 - 130, "Helvetica", 9, 1.4) : 0;
+        const detrazione = totali.detrazionePct > 0 ? 14 + 22 + Math.max(8 * 1.2 + 4 + 17 * 1.2 + 1 + 8.5 * 1.2, altezzaTesto("Importo indicativo, calcolato sull'imponibile e ripartito come prevede la normativa. L'effettiva detraibilità dipende dai requisiti del tuo intervento e va verificata con il tuo consulente fiscale.", UTILE - 28 - 150, "Helvetica", 9, 1.45)) : 0;
+        const margine = modello.mostraMargine ? 14 + 20 + 8.5 * 1.2 + 4 + 10 * 1.2 : 0;
         h = stimaTesta(tema, "Il tuo investimento.", "Un prezzo chiaro: quanto costa e che cosa comprende, senza giri di parole.")
           + tabella + Math.max(totaliH, pagamentoH) + banda + finanziamento + detrazione + margine;
         break;
@@ -1304,13 +1304,13 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
     else {
       const larga = UTILE - 28 - 8 - (oc.mostraQta ? 84 : 0) - (oc.mostraPrezzi && !prezzoManuale ? 66 : 0) - (!prezzoManuale ? 74 : 0) - (modello.mostraMargine ? 58 : 0);
       for (const cap of capitoli) {
-        metti(6 + 17 + 1.2 + 6 + 6.5 * 1.2 + 4, 50);
+        metti(6 + 17 + 1.2 + 6 + 7.5 * 1.2 + 4, 50);
         for (const v of cap.voci) {
           // La miniatura toglie larghezza al testo e dà un'altezza minima alla riga; la descrizione del prodotto ne aggiunge.
           const toltaDallaFoto = v.foto ? FOTO_VOCE + STACCO_FOTO_VOCE : 0;
-          const dettaglio = v.dettaglio ? 2 + altezzaTesto(v.dettaglio, larga - toltaDallaFoto, fam(tema.caratteri.testo), 8, 1.4) : 0;
-          const testo = altezzaTesto(v.descrizione, larga - 3 - toltaDallaFoto, fam(tema.caratteri.testo), 9, 1.35) + dettaglio + (v.fonte ? 1.5 + 7 * 1.2 : 0);
-          metti(12.6 + Math.max(9 * 1.2, v.foto ? FOTO_VOCE : 0, testo));
+          const dettaglio = v.dettaglio ? 2 + altezzaTesto(v.dettaglio, larga - toltaDallaFoto, fam(tema.caratteri.testo), 9, 1.4) : 0;
+          const testo = altezzaTesto(v.descrizione, larga - 3 - toltaDallaFoto, fam(tema.caratteri.testo), 10, 1.35) + dettaglio + (v.fonte ? 1.5 + 8 * 1.2 : 0);
+          metti(12.6 + Math.max(10 * 1.2, v.foto ? FOTO_VOCE : 0, testo));
         }
         usato = Math.min(ALTEZZA_UTILE, usato + 16);
       }
@@ -1510,7 +1510,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           {libera.fotoUrl ? (
             <View wrap={false} style={{ marginBottom: 18 }}>
               <Image src={libera.fotoUrl} style={{ width: UTILE, height: 250, objectFit: "cover" }} />
-              {libera.didascalia ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigioChiaro, marginTop: 5 }}>{libera.didascalia}</Text> : null}
+              {libera.didascalia ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigioChiaro, marginTop: 5 }}>{libera.didascalia}</Text> : null}
             </View>
           ) : null}
           {libera.testoHtml ? <TestoRicco tema={tema} html={libera.testoHtml} stile={corpoTesto} /> : null}
@@ -1544,7 +1544,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               {fotoApertura ? (
                 <View wrap={false} style={{ marginBottom: 18 }}>
                   <Image src={fotoApertura.url} style={{ width: UTILE, height: 230, objectFit: "cover" }} />
-                  {fotoApertura.didascalia ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigioChiaro, marginTop: 5 }}>{fotoApertura.didascalia}</Text> : null}
+                  {fotoApertura.didascalia ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigioChiaro, marginTop: 5 }}>{fotoApertura.didascalia}</Text> : null}
                 </View>
               ) : null}
               <View style={{ flexDirection: "row" }}>
@@ -1608,7 +1608,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           ))
         )}
         <View wrap={false} style={{ flexDirection: "row", justifyContent: "flex-end", alignItems: "flex-end", marginTop: 6, paddingTop: 10, borderTopWidth: 1.2, borderTopColor: tema.inchiostro }}>
-          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.grigio, letterSpacing: 1.3, marginRight: 16, marginBottom: 2 }}>TOTALE LAVORAZIONI · IVA ESCLUSA</Text>
+          <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.grigio, letterSpacing: 1.3, marginRight: 16, marginBottom: 2 }}>TOTALE LAVORAZIONI · IVA ESCLUSA</Text>
           <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 14, color: tema.inchiostro, paddingRight: 3.5 }}>{formatCurrency(importoLordo)}</Text>
         </View>
 </>);
@@ -1618,15 +1618,15 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         {oc.livello !== "corpo" && capitoli.length > 1 && !prezzoManuale ? (
           <View style={{ marginBottom: 14 }}>
             <View style={{ flexDirection: "row", backgroundColor: tema.fondo, paddingVertical: 6, paddingHorizontal: 10 }}>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 6.5, color: tema.bianco, letterSpacing: 1.2, width: 30 }}>N.</Text>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 6.5, color: tema.bianco, letterSpacing: 1.2, flex: 1 }}>CAPITOLO</Text>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 6.5, color: tema.bianco, letterSpacing: 1.2 }}>IMPONIBILE</Text>
+              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.bianco, letterSpacing: 1.2, width: 30 }}>N.</Text>
+              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.bianco, letterSpacing: 1.2, flex: 1 }}>CAPITOLO</Text>
+              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.bianco, letterSpacing: 1.2 }}>IMPONIBILE</Text>
             </View>
             {capitoli.map((cap, i) => (
               <View key={cap.nome} wrap={false} style={{ flexDirection: "row", paddingVertical: capitoli.length > 6 ? 5 : 8, paddingHorizontal: 10, backgroundColor: i % 2 === 0 ? tema.tinta : tema.carta }}>
-                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostroMarca, width: 30 }}>{dueCifre(i + 1)}</Text>
-                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.inchiostro, flex: 1 }}>{cap.nome}</Text>
-                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro }}>{formatCurrency(cap.subtotale)}</Text>
+                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostroMarca, width: 30 }}>{dueCifre(i + 1)}</Text>
+                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, flex: 1 }}>{cap.nome}</Text>
+                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro }}>{formatCurrency(cap.subtotale)}</Text>
               </View>
             ))}
           </View>
@@ -1640,7 +1640,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             {modello.pagamentoHtml ? (
               <>
                 <TitolinoSezione tema={tema} testo="Modalità di pagamento" />
-                <TestoRicco tema={tema} html={modello.pagamentoHtml} stile={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.inchiostro, lineHeight: 1.45 }} />
+                <TestoRicco tema={tema} html={modello.pagamentoHtml} stile={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, lineHeight: 1.45 }} />
               </>
             ) : null}
           </View>
@@ -1654,8 +1654,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               { e: `IVA ${percento(totali.ivaPct)}`, v: formatCurrency(totali.iva) },
             ].map((r, i) => (
               <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
-                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio }}>{r.e}</Text>
-                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro, paddingRight: 2.5 }}>{r.v}</Text>
+                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.grigio }}>{r.e}</Text>
+                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro, paddingRight: 2.5 }}>{r.v}</Text>
               </View>
             ))}
           </View>
@@ -1664,8 +1664,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           {/* La banda a tutta pagina: il numero che il cliente cerca, nel colore dell'azienda. */}
           <View style={{ marginHorizontal: -MARGINE, marginTop: 16, backgroundColor: tema.fondo, paddingHorizontal: MARGINE, paddingVertical: 22, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <View>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: tema.bianco, letterSpacing: 1.8 }}>IL TUO INVESTIMENTO</Text>
-              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.bianco, opacity: 0.82, marginTop: 4 }}>
+              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.bianco, letterSpacing: 1.8 }}>IL TUO INVESTIMENTO</Text>
+              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.bianco, opacity: 0.82, marginTop: 4 }}>
                 {`IVA ${percento(totali.ivaPct)} inclusa${modello.giorniValidita && modello.giorniValidita > 0 ? ` · offerta valida ${modello.giorniValidita} giorni` : ""}`}
               </Text>
             </View>
@@ -1677,7 +1677,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
           <View wrap={false} style={{ marginTop: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: tema.cartaCalda, borderLeftWidth: 2, borderLeftColor: tema.fondo, paddingVertical: 11, paddingHorizontal: 14 }}>
             <View style={{ flex: 1, paddingRight: 12 }}>
               <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro }}>Possibilità di finanziamento</Text>
-              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigio, marginTop: 2, lineHeight: 1.4 }}>
+              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, marginTop: 2, lineHeight: 1.4 }}>
                 {`Simulazione indicativa in ${promo.rate} rate mensili${promo.tan_pct > 0 ? ` (TAN ${percento(promo.tan_pct)})` : " a tasso zero"}, soggetta ad approvazione della finanziaria.`}
               </Text>
             </View>
@@ -1688,11 +1688,11 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         {totali.detrazionePct > 0 ? (
           <View wrap={false} style={{ marginTop: 14, flexDirection: "row", backgroundColor: tema.cartaCalda, borderLeftWidth: 2, borderLeftColor: tema.fondo, paddingVertical: 11, paddingHorizontal: 14 }}>
             <View style={{ width: 150 }}>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.3 }}>{`DETRAZIONE FISCALE ${percento(totali.detrazionePct)}`}</Text>
+              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.3 }}>{`DETRAZIONE FISCALE ${percento(totali.detrazionePct)}`}</Text>
               <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 17, color: tema.inchiostro, marginTop: 4 }}>{formatCurrency(totali.detrazioneEur)}</Text>
-              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigio, marginTop: 1 }}>recuperabili, a norma vigente</Text>
+              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 1 }}>recuperabili, a norma vigente</Text>
             </View>
-            <Text style={{ flex: 1, fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigio, lineHeight: 1.45 }}>
+            <Text style={{ flex: 1, fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.45 }}>
               Importo indicativo, calcolato sull'imponibile e ripartito come prevede la normativa. L'effettiva detraibilità dipende dai requisiti del tuo intervento e va verificata con il tuo consulente fiscale.
             </Text>
           </View>
@@ -1700,8 +1700,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
         {modello.mostraMargine ? (
           <View wrap={false} style={{ marginTop: 14, borderWidth: 0.8, borderColor: "#B91C1C", borderStyle: "dashed", padding: 10 }}>
-            <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7.5, color: "#B91C1C", letterSpacing: 0.8 }}>MARGINALITÀ · RISERVATO, DA NON CONSEGNARE AL CLIENTE</Text>
-            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.inchiostro, marginTop: 4 }}>
+            <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: "#B91C1C", letterSpacing: 0.8 }}>MARGINALITÀ · RISERVATO, DA NON CONSEGNARE AL CLIENTE</Text>
+            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, marginTop: 4 }}>
               {/* Costi incompleti: niente margine (prima un 100% falso, poi «0 €»), 05/10/2026. */}
               {totali.margineEur == null || totali.marginePct == null
                 ? `Costo totale ${formatCurrency(totali.costoTot)} · margine non calcolabile: costi incompleti`
@@ -1742,7 +1742,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       {visibile("apertura") ? (
         <Page size="A4" style={pagina}>
           {cornice}
-        <Text id={edileSectionDestination("apertura")} style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 8 }}>LA TUA PROPOSTA</Text>
+        <Text id={edileSectionDestination("apertura")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 8 }}>LA TUA PROPOSTA</Text>
         <TitoloAccento tema={tema} testo={dati.clienteNome ? `Per *${dati.clienteNome}*,` : "Gentile *cliente*,"} corpo={34} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
         <Text style={[corpoTesto, { fontSize: 11, marginTop: 14, maxWidth: 420, color: tema.grigio }]}>
           {`in queste pagine trovi il piano dei lavori che ${dati.azienda.nome} ha preparato per ${dati.cantiere ? `l'immobile di ${dati.cantiere}` : "il tuo immobile"}: che cosa faremo, in che ordine, e con quale investimento.`}
@@ -1754,7 +1754,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
               {dati.scheda.map((s, i) => (
                 <View key={i} style={{ width: "50%", paddingVertical: 6, paddingRight: 16, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
-                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigioChiaro, marginBottom: 2 }}>{s.etichetta}</Text>
+                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigioChiaro, marginBottom: 2 }}>{s.etichetta}</Text>
                   <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10.5, color: tema.inchiostro }}>{s.valore}</Text>
                 </View>
               ))}
@@ -1769,7 +1769,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               {inNumeri.map((v, i) => (
                 <View key={i} style={{ flex: 1, paddingTop: 4, paddingRight: 12, borderLeftWidth: i === 0 ? 0 : 0.6, borderLeftColor: tema.filetto, paddingLeft: i === 0 ? 0 : 14 }}>
                   <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 34, color: tema.inchiostroMarca, lineHeight: 1.05, letterSpacing: -0.8 }}>{v.numero}</Text>
-                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 3, lineHeight: 1.35 }}>{v.etichetta}</Text>
+                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio, marginTop: 3, lineHeight: 1.35 }}>{v.etichetta}</Text>
                 </View>
               ))}
             </View>
@@ -1785,7 +1785,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             {sommario.map((v) => (
               <View key={v.numero} style={{ width: sommario.length > 10 ? "33.33%" : "50%", flexDirection: "row", alignItems: "flex-end", paddingVertical: 5, paddingRight: 12, borderBottomWidth: 0.6, borderBottomColor: tema.filetto }}>
                 <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 12, color: tema.inchiostroMarca, width: 24, lineHeight: 1 }}>{dueCifre(v.numero)}</Text>
-                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.inchiostro, flex: 1 }}>{v.titolo}</Text>
+                <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, flex: 1 }}>{v.titolo}</Text>
               </View>
             ))}
           </View>
@@ -1871,7 +1871,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       {modello.condizioniLegali.length > 0 ? (
         <Page size="A4" style={pagina}>
           {cornice}
-          <Text id={edileSectionDestination("condizioni")} style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
+          <Text id={edileSectionDestination("condizioni")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
           <TitoloAccento tema={tema} testo="Condizioni *contrattuali*." corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
           <View style={{ marginTop: 14 }}>
             {/* Un articolo per volta: il titolo non resta mai in fondo a una pagina
@@ -1880,9 +1880,9 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
               <View key={g} wrap={gruppo.length > 14} minPresenceAhead={36}>
                 {gruppo.map((r, i) =>
                   r.tipo === "h1" ? <Text key={i} style={{ fontFamily: tema.caratteri.forte, fontSize: 11, color: tema.inchiostroMarca, marginTop: g === 0 ? 0 : 14, marginBottom: 5 }}>{r.testo}</Text>
-                  : r.tipo === "h2" ? <Text key={i} style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro, marginTop: g === 0 ? 0 : 10, marginBottom: 3 }}>{r.testo}</Text>
-                  : r.tipo === "li" ? <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, lineHeight: 1.5, marginLeft: 10, marginBottom: 2 }}>{`- ${r.testo}`}</Text>
-                  : <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, lineHeight: 1.5, marginBottom: 5 }}>{r.testo}</Text>,
+                  : r.tipo === "h2" ? <Text key={i} style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro, marginTop: g === 0 ? 0 : 10, marginBottom: 3 }}>{r.testo}</Text>
+                  : r.tipo === "li" ? <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio, lineHeight: 1.5, marginLeft: 10, marginBottom: 2 }}>{`- ${r.testo}`}</Text>
+                  : <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio, lineHeight: 1.5, marginBottom: 5 }}>{r.testo}</Text>,
                 )}
               </View>
             ))}
@@ -1898,7 +1898,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       {modello.condizioniLegali.length > 0 ? (
         <Page size="A4" style={pagina}>
           {cornice}
-          <Text id={edileSectionDestination("firma")} style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>PER ACCETTAZIONE</Text>
+          <Text id={edileSectionDestination("firma")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>PER ACCETTAZIONE</Text>
           {/* «ACCETTAZIONE PROPOSTA»: lo stesso titolo in tutti i PDF dei preventivi (richiesta di Renova, 05/10/2026). */}
           <TitoloAccento tema={tema} testo="ACCETTAZIONE PROPOSTA" corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
 
@@ -1914,7 +1914,7 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             ) : null}
           </View>
 
-          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.inchiostro, lineHeight: 1.55, marginTop: 14 }}>
+          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, lineHeight: 1.55, marginTop: 14 }}>
             Il Committente dichiara di aver ricevuto, letto e accettato il presente documento in ogni sua parte — il piano
             dei lavori, l'investimento e le condizioni generali di contratto che lo accompagnano — e ne sottoscrive il
             contenuto.
@@ -1930,12 +1930,12 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
 
           {modello.clausoleDaApprovare.length > 0 ? (
             <View wrap={false} style={{ marginTop: 22, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 14 }}>
-              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostro, letterSpacing: 1.2, marginBottom: 6 }}>APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)</Text>
-              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, lineHeight: 1.5, marginBottom: 6 }}>
+              <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostro, letterSpacing: 1.2, marginBottom: 6 }}>APPROVAZIONE SPECIFICA (ARTT. 1341 E 1342 C.C.)</Text>
+              <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio, lineHeight: 1.5, marginBottom: 6 }}>
                 Il Committente, dopo averle rilette, approva specificamente le clausole seguenti:
               </Text>
               {modello.clausoleDaApprovare.map((c, i) => (
-                <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.inchiostro, lineHeight: 1.45, marginBottom: 2 }}>{`- ${c}`}</Text>
+                <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.inchiostro, lineHeight: 1.45, marginBottom: 2 }}>{`- ${c}`}</Text>
               ))}
               <View style={{ flexDirection: "row", marginTop: 6 }}>
                 <LineaFirma tema={tema} etichetta="LUOGO E DATA" larghezza={150} altezza={30} />
@@ -1954,25 +1954,25 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
       {modello.condizioniLegali.length > 0 && modello.conRecesso ? (
         <Page size="A4" style={pagina}>
           {cornice}
-          <Text id={edileSectionDestination("recesso")} style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
+          <Text id={edileSectionDestination("recesso")} style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>ALLEGATO</Text>
           <TitoloAccento tema={tema} testo="Modulo di *recesso*." corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
-          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, lineHeight: 1.55, marginTop: 12 }}>
+          <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.grigio, lineHeight: 1.55, marginTop: 12 }}>
             {MODULO_RECESSO.istruzioni}
           </Text>
 
           <View style={{ marginTop: 16, borderWidth: 0.8, borderColor: tema.inchiostro, padding: 18 }}>
-            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.inchiostro, lineHeight: 1.6 }}>
+            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, lineHeight: 1.6 }}>
               Destinatario: <Text style={{ fontFamily: tema.caratteri.forte }}>{dati.azienda.nome}</Text>
               {dati.azienda.indirizzo ? `, ${dati.azienda.indirizzo}` : ""}
               {dati.azienda.email ? ` — ${dati.azienda.email}` : ""}
             </Text>
-            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.inchiostro, lineHeight: 1.6, marginTop: 10 }}>
+            <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 10, color: tema.inchiostro, lineHeight: 1.6, marginTop: 10 }}>
               {MODULO_RECESSO.dichiarazione(dati.codice)}
             </Text>
             <View style={{ marginTop: 14 }}>
               {MODULO_RECESSO.campi.map((e) => (
                 <View key={e} style={{ marginBottom: 16 }}>
-                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigio, letterSpacing: 0.8, marginBottom: 14 }}>{e.toUpperCase()}</Text>
+                  <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, letterSpacing: 0.8, marginBottom: 14 }}>{e.toUpperCase()}</Text>
                   <View style={{ borderTopWidth: 0.6, borderTopColor: tema.grigioChiaro }} />
                 </View>
               ))}
