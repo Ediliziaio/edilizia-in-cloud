@@ -15,6 +15,12 @@
  */
 import { massimaleDiSerie } from "@/lib/preventivi/incentivi";
 
+/**
+ * Dopo un errore del salvataggio automatico si ritenta da soli, senza aspettare un'altra modifica: passato questo
+ * tempo il wizard ci riprova (il tentativo parte 2 secondi dopo, come ogni autosave).
+ */
+export const RITENTA_SALVATAGGIO_DOPO_MS = 8000;
+
 /** Colonne dei progetti che il form del wizard non scrive mai. */
 export const COLONNE_DEL_SERVER = [
   "id",

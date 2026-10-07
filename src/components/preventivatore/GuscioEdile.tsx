@@ -25,7 +25,7 @@ import { BottoneTotale } from "./BottoneTotale";
 import { CorpoPreventivatore } from "./CorpoPreventivatore";
 import { PannelloAnteprima } from "./PannelloAnteprima";
 import { PiedePreventivatore, StatoDelSalvataggio, type StatoSalvataggio } from "./PiedePreventivatore";
-import { STICKY_ALTO } from "./posizione";
+import { RISERVA_BARRA_INVIO_TELEFONO, STICKY_ALTO } from "./posizione";
 import { useAnteprimaNascosta } from "./useAnteprimaNascosta";
 
 export interface TestataGuscioEdile {
@@ -96,7 +96,8 @@ export function GuscioEdile({
   }, [corrente]);
 
   return (
-    <div className="-m-3 min-h-full bg-slate-50 md:-m-6">
+    // Al passo PDF da telefono la barra di invio è fissa: sotto il contenuto serve lo spazio per non coprirne la fine.
+    <div className={cn("-m-3 min-h-full bg-slate-50 md:-m-6", piede.nascostoSuTelefono && RISERVA_BARRA_INVIO_TELEFONO)}>
       {sopra}
 
       {/* Testata: codice, stato, cliente, salvataggio. Non è fissa: la barra delle fasi sotto sì. */}
@@ -129,6 +130,11 @@ export function GuscioEdile({
               ) : statoSalvataggio === "modifiche" ? (
                 <span className="text-[10px] text-amber-600 max-md:order-5 max-md:text-xs md:hidden" title="Le modifiche verranno salvate automaticamente entro 2 secondi">
                   ● Modifiche non salvate
+                </span>
+              ) : statoSalvataggio === "errore" ? (
+                // Da telefono il piede non ha lo stato: l'errore del salvataggio si deve vedere comunque.
+                <span className="text-[10px] font-medium text-red-600 max-md:order-5 max-md:text-xs md:hidden" title="Il salvataggio automatico non è riuscito: le modifiche restano qui e si riprova da soli">
+                  ● Salvataggio non riuscito: riprovo da solo
                 </span>
               ) : null}
             </div>

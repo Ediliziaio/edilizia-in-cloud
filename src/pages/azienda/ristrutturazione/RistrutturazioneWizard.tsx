@@ -42,6 +42,8 @@ import {
 import type { RstComputoVoce, RstProgetto } from "@/types/ristrutturazione";
 import { GuscioEdile, type StatoSalvataggio } from "@/components/preventivatore";
 import { anteprimaComputo } from "@/lib/preventivatore/anteprimaComputo";
+import { RITENTA_SALVATAGGIO_DOPO_MS } from "@/lib/moduli/salvataggioProgetto";
+import { leggiClienteDelContatto, riempiClienteVuoto } from "@/lib/preventivatore/clienteDalContatto";
 import { righeSenzaPrezzo } from "@/lib/preventivatore/anteprima";
 import * as calcoliRst from "@/lib/ristrutturazione/calcoli";
 import {
@@ -187,6 +189,12 @@ export default function RistrutturazioneWizard() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- prefill one-shot da query string
     setForm((prev) => ({ ...prev, ...patch }));
     setDirty(Object.keys(patch).length > 0);
+    // Il contatto porta anche chi è: nome, cognome, email e telefono. Quello che nel frattempo si è già scritto non si tocca.
+    if (urlContactId) {
+      void leggiClienteDelContatto(urlContactId).then((cliente) => {
+        if (cliente) setForm((prev) => riempiClienteVuoto(prev, cliente));
+      });
+    }
   }, [isNew, urlContactId, urlOpportunityId]);
 
   // Auto-advance Step 1 → Step 2 dopo creazione iniziale (single-fire).
@@ -226,26 +234,44 @@ export default function RistrutturazioneWizard() {
   };
 
   // ─── Autosave debounced (solo su progetto esistente) ─────────────────────
+  // Se non riesce lo si dice: il piede scrive «Salvataggio non riuscito», un avviso (uno solo per serie di
+  // errori) e si ritenta da soli dopo qualche secondo. Prima l'errore era ingoiato e il piede continuava a
+  // promettere «si salvano da sole tra un attimo», senza che succedesse più niente.
   const autosaveTimerRef = useRef<number | null>(null);
+  const [erroreSalvataggio, setErroreSalvataggio] = useState(false);
+  const [tentativoDi, setTentativoDi] = useState(0);
+  const avvisoErroreDatoRef = useRef(false);
   useEffect(() => {
     if (isNew || !id) return;
     if (!dirty) return;
     if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+    let ritentaTimer: number | null = null;
     autosaveTimerRef.current = window.setTimeout(() => {
       void (async () => {
         try {
           await upsertMut.mutateAsync({ ...form, id });
+          avvisoErroreDatoRef.current = false;
+          setErroreSalvataggio(false);
           if (formRef.current === form) setDirty(false);
           setLastSavedAt(new Date());
-        } catch {
-          // Errore: lasciamo dirty=true così il prossimo ciclo ritenta.
+        } catch (e) {
+          // dirty resta true: le modifiche sono ancora da salvare.
+          setErroreSalvataggio(true);
+          if (!avvisoErroreDatoRef.current) {
+            avvisoErroreDatoRef.current = true;
+            toast.error("Salvataggio automatico non riuscito", {
+              description: `${e instanceof Error ? e.message : "Errore sconosciuto"}. Le modifiche restano qui e riprovo da solo.`,
+            });
+          }
+          ritentaTimer = window.setTimeout(() => setTentativoDi((n) => n + 1), RITENTA_SALVATAGGIO_DOPO_MS);
         }
       })();
     }, 2000);
     return () => {
       if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+      if (ritentaTimer) window.clearTimeout(ritentaTimer);
     };
-  }, [form, dirty, id, isNew]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form, dirty, id, isNew, tentativoDi]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Beforeunload guard
   useEffect(() => {
@@ -259,9 +285,10 @@ export default function RistrutturazioneWizard() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty, upsertMut.isPending]);
 
-  // Uscendo (freccia «Esci», menu, «indietro» del telefono) prima dei 2 secondi dell'autosave, la modifica
-  // appena scritta si salva lo stesso: prima il timer moriva con la pagina e il dato andava perso.
-  useSalvaUscendo({ id, dirty, form, salva: upsertMut.mutateAsync });
+  // Rete di sicurezza: uscendo senza passare dalla freccia (menu, «indietro» del browser o del telefono) prima dei 2
+  // secondi dell'autosave, la modifica appena scritta si salva lo stesso, e se non riesce lo si dice. La freccia
+  // «Esci» salva ORA (esci) e poi lo segna qui, così la chiusura della pagina non risalva la stessa cosa.
+  const salvaUscendo = useSalvaUscendo({ id, dirty, form, salva: upsertMut.mutateAsync });
 
   const saveProgetto = async (): Promise<boolean> => {
     if (!id) return false;
@@ -269,6 +296,8 @@ export default function RistrutturazioneWizard() {
       await upsertMut.mutateAsync({ ...form, id });
       if (formRef.current === form) setDirty(false);
       setLastSavedAt(new Date());
+      setErroreSalvataggio(false);
+      avvisoErroreDatoRef.current = false;
       return true;
     } catch (e) {
       toast.error("Salvataggio fallito", {
@@ -300,6 +329,7 @@ export default function RistrutturazioneWizard() {
   const statoSalvataggio: StatoSalvataggio = isNew
     ? "nuovo"
     : (upsertMut.isPending || statoComputo === "salvando") ? "salvando"
+    : (erroreSalvataggio && dirty) ? "errore"
     : (dirty || statoComputo === "modifiche") ? "modifiche"
     : "salvato";
 
@@ -342,6 +372,18 @@ export default function RistrutturazioneWizard() {
 
   const handleBack = () => {
     if (currentStepIndex > 0) void handleStepClick(RST_WIZARD_STEPS[currentStepIndex - 1].key);
+  };
+
+  // Dalla freccia: un preventivo già creato salva ORA ciò che non è ancora salvato e si esce solo se il salvataggio
+  // riesce (altrimenti si resta qui, con l'errore a video e le modifiche al sicuro). Un preventivo nuovo con dati
+  // chiede se tenerli come bozza.
+  const esci = async () => {
+    if (isNew && dirty) { setExitDialogOpen(true); return; }
+    if (!isNew && (dirty || upsertMut.isPending)) {
+      if (!(await saveProgetto())) return;
+      salvaUscendo.segnaSalvato(form); // salvato: la chiusura della pagina non lo risalva
+    }
+    navigate("/azienda/marketing/preventivi");
   };
 
   // ─── Stati di caricamento/errore ─────────────────────────────────────────
@@ -459,7 +501,7 @@ export default function RistrutturazioneWizard() {
           titolo: isNew ? model?.title ?? "Nuovo progetto" : detail?.progetto.code ?? "Progetto",
           cliente: isNew ? null : compactText(detail?.progetto.cliente_nome, detail?.progetto.cliente_cognome) || null,
           stato: !isNew && detail ? statoMeta : null,
-          onEsci: () => { if (isNew && dirty) { setExitDialogOpen(true); return; } navigate("/azienda/marketing/preventivi"); },
+          onEsci: () => { void esci(); },
         }}
         passi={RST_WIZARD_STEPS.map((s) => ({ key: s.key, label: s.label }))}
         corrente={currentStep}

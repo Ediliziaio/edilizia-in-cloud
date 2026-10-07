@@ -8,7 +8,7 @@
  * salvataggio all'uscita dal passo Computo, che ha il suo). Si prova la pagina vera, con
  * i passi finti: si scrive, si esce, e la modifica deve essere stata inviata.
  */
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClmProgetto } from "@/types/climatizzazione";
@@ -68,17 +68,33 @@ const monta = () => render(
 beforeEach(() => { stato.id = "p1"; upsert.mockClear(); navigate.mockClear(); });
 afterEach(() => cleanup());
 
+/** Il preventivo esiste già: si torna al passo Cliente (il wizard apre l'Immobile se il cliente c'è) e si scrive il nome. */
+async function scriviIlNome() {
+  const vista = monta();
+  const fasi = await screen.findByRole("navigation", { name: "Fasi del preventivo climatizzazione" });
+  fireEvent.click(within(fasi).getByRole("button", { name: "Cliente" }));
+  fireEvent.click(await screen.findByRole("button", { name: "scrivi il nome del cliente" }));
+  expect(upsert).not.toHaveBeenCalled(); // l'autosave aspetta 2 secondi
+  return vista;
+}
+
 describe("uscire da un preventivo edile con una modifica non ancora autosalvata", () => {
-  it("la modifica scritta un attimo prima di uscire viene inviata lo stesso", async () => {
-    const { unmount } = monta();
-    // Il wizard apre il passo Immobile se il cliente c'è: si torna al passo Cliente per scrivere.
-    const fasi = await screen.findByRole("navigation", { name: "Fasi del preventivo climatizzazione" });
-    fireEvent.click(within(fasi).getByRole("button", { name: "Cliente" }));
-    fireEvent.click(await screen.findByRole("button", { name: "scrivi il nome del cliente" }));
-    expect(upsert).not.toHaveBeenCalled(); // l'autosave aspetta 2 secondi
-    // Si esce con la freccia: la pagina si smonta prima dello scadere dei 2 secondi.
+  // Adattato il 06/10/2026: la freccia «Esci» salva ORA e naviga solo a salvataggio riuscito (prima navigava subito e
+  // lasciava il salvataggio alla chiusura della pagina). Il salvataggio parte nel clic; l'uscita lo aspetta.
+  it("dalla freccia la modifica scritta un attimo prima viene inviata prima di uscire, e la chiusura non la rimanda", async () => {
+    const { unmount } = await scriviIlNome();
     fireEvent.click(screen.getByRole("button", { name: "Esci dal preventivo" }));
-    expect(navigate).toHaveBeenCalledWith("/azienda/marketing/preventivi");
+    expect(upsert).toHaveBeenCalledTimes(1); // parte subito, senza aspettare i 2 secondi
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/azienda/marketing/preventivi"));
+    unmount();
+    expect(upsert).toHaveBeenCalledTimes(1); // la chiusura non risalva quello che la freccia ha già salvato
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ id: "p1", cliente_nome: "Luigi", cliente_cognome: "Rossi" }));
+  });
+
+  // Il caso che prima era qui insieme alla freccia: la pagina si smonta senza passare da «Esci» (un link del menu,
+  // «indietro» del browser o del telefono) e la modifica viene inviata dalla chiusura.
+  it("uscendo senza la freccia (menu, «indietro») la modifica viene inviata lo stesso, una volta sola", async () => {
+    const { unmount } = await scriviIlNome();
     unmount();
     expect(upsert).toHaveBeenCalledTimes(1);
     expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ id: "p1", cliente_nome: "Luigi", cliente_cognome: "Rossi" }));
