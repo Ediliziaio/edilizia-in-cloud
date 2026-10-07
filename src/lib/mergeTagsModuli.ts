@@ -38,7 +38,9 @@ export function applicaMergeTagModulo(testo: string | null | undefined, dati: Da
       client_name: nomeCompleto || undefined,
       client_email: dati.clienteEmail ?? "",
       client_phone: dati.clienteTelefono ?? "",
-      client_address: dati.cantiereIndirizzo ?? dati.clienteIndirizzo ?? "",
+      // {{cliente.indirizzo}} è l'indirizzo del cliente; quello dei lavori è {{cantiere.indirizzo}}.
+      // Una stringa vuota non è un indirizzo: si ricade sull'altro.
+      client_address: dati.clienteIndirizzo || dati.cantiereIndirizzo || "",
       total: dati.totale ?? null,
       created_at: dati.dataDocumento ?? new Date().toISOString(),
     },
@@ -50,7 +52,7 @@ export function applicaMergeTagModulo(testo: string | null | undefined, dati: Da
       phone: dati.companyPhone ?? "",
     },
     contact: { first_name: dati.clienteNome ?? "", last_name: dati.clienteCognome ?? "", city: dati.cantiereCitta ?? "" },
-    cantiere: { indirizzo: dati.cantiereIndirizzo ?? dati.clienteIndirizzo ?? "", citta: dati.cantiereCitta ?? "" },
+    cantiere: { indirizzo: dati.cantiereIndirizzo || dati.clienteIndirizzo || "", citta: dati.cantiereCitta ?? "" },
     template: { payment_terms_text: dati.pianoPagamenti ?? "" },
   });
   return substituteMergeTags(testo, ctx);

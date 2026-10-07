@@ -359,7 +359,8 @@ export function Firma({ d, c, oggetto, importo, righeExtra = [], cosaSiAccetta, 
   const dichiarazione = `Il committente dichiara di aver ricevuto, letto e accettato il presente documento in ogni sua parte: ${elenco}${conCondizioni ? ", e ne sottoscrive il contenuto" : ""}.${avvertenza ? ` ${avvertenza}` : ""}`;
   return (
     <Pagina d={d} c={c}>
-      <Intestazione c={c} occhiello="Per accettazione" titolo={conCondizioni ? "Firma del\n" : "Firma della\n"} evidenza={conCondizioni ? "contratto." : "proposta."} />
+      {/* «ACCETTAZIONE PROPOSTA»: lo stesso titolo in tutti i PDF dei preventivi (richiesta di Renova, 05/10/2026). */}
+      <Intestazione c={c} occhiello="Per accettazione" titolo={"ACCETTAZIONE\n"} evidenza="PROPOSTA" />
       <View style={{ borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 }}>
         {righe.map(([k, v], i) => (
           <View key={k} style={{ flexDirection: "row", paddingVertical: 6.5, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: BASE.linea }}>
@@ -470,8 +471,10 @@ export function CopertinaRacconto({ d, c, foto, sottoNome, occhiello, titolo, so
           </View>
         )}
         <View>
-          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 12, color: "#FFFFFF" }}>{d.azienda.nome}</Text>
-          <Text style={{ fontSize: 7.5, color: "#FFFFFF", opacity: 0.7, marginTop: 1 }}>{sottoNome}</Text>
+          {/* Col logo il nome dell'azienda non si ripete accanto (il logo lo porta già: richiesta di Renova,
+              05/10/2026, per tutti i PDF): resta solo quando al posto del logo c'è l'icona. */}
+          {d.azienda.logoUrl ? null : <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 12, color: "#FFFFFF" }}>{d.azienda.nome}</Text>}
+          <Text style={{ fontSize: 7.5, color: "#FFFFFF", opacity: 0.7, marginTop: d.azienda.logoUrl ? 0 : 1 }}>{sottoNome}</Text>
         </View>
       </View>
 
@@ -496,12 +499,6 @@ export function CopertinaRacconto({ d, c, foto, sottoNome, occhiello, titolo, so
           <Text style={{ fontSize: 7.5, color: "#FFFFFF" }}>{"Preventivo "}<Text style={{ fontFamily: "Helvetica-Bold", color: BASE.ambra }}>{d.preventivo.codice}</Text></Text>
           <Text style={{ fontSize: 7.5, color: "#FFFFFF", opacity: 0.72, marginTop: 2 }}>{`${dataLunga(d.preventivo.dataIso)} · valido ${d.preventivo.validitaGiorni} giorni`}</Text>
         </View>
-        {d.preventivo.consulente ? (
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={{ fontSize: 7.5, color: "#FFFFFF", opacity: 0.72 }}>A cura di</Text>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, color: "#FFFFFF", marginTop: 2 }}>{d.preventivo.consulente}</Text>
-          </View>
-        ) : null}
       </View>
     </Page>
   );

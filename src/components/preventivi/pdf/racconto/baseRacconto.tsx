@@ -27,7 +27,7 @@ export interface DatiRacconto {
     piva?: string | null;
   };
   cliente: { nome: string; indirizzo?: string | null };
-  preventivo: { codice: string; dataIso: string; validitaGiorni: number; consulente?: string | null };
+  preventivo: { codice: string; dataIso: string; validitaGiorni: number };
   /**
    * Le pagine che ogni preventivo ha — chi siamo, voce per voce, foto, garanzie,
    * recensioni, condizioni e firma — con i dati del documento degli altri
@@ -50,8 +50,9 @@ export function Testata({ d, c }: { d: DatiRacconto; c: Palette }) {
         )}
         <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8.5, color: c.navy }}>{d.azienda.nome}</Text>
       </View>
+      {/* Il codice del preventivo, non il nome del cliente (richiesta di Renova, 05/10/2026). */}
       <Text style={{ fontSize: 7, color: BASE.grigio }}>
-        {"Preventivo "}<Text style={{ fontFamily: "Helvetica-Bold", color: c.navy }}>{d.preventivo.codice}</Text>{` · ${d.cliente.nome}`}
+        {"Preventivo "}<Text style={{ fontFamily: "Helvetica-Bold", color: c.navy }}>{d.preventivo.codice}</Text>
       </Text>
     </View>
   );

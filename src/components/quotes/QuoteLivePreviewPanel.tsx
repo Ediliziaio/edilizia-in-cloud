@@ -72,6 +72,7 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
     {t.show_client_details && <div><p className="mb-1 opacity-60">PREPARATO PER</p><p className="font-semibold">{props.clientName || "Nome del cliente"}</p><p className="mt-1 whitespace-pre-line opacity-75">{props.clientAddress}</p></div>}
     <div><p className="mb-1 opacity-60">IL TUO PROGETTO</p><p className="font-semibold">{props.title || "Titolo del progetto"}</p><p className="mt-1 opacity-75">{props.siteAddress}</p>{t.show_validity_date && <p className="mt-2 opacity-75">Validità: {props.validityDays} giorni</p>}</div>
   </div>;
+  // Col logo il nome dell'azienda non si ripete (come nel PDF: richiesta di Renova, 05/10/2026).
   const logo = t.show_logo && props.logoSrc && failedLogo !== props.logoSrc
     ? <img src={props.logoSrc} onError={() => setFailedLogo(props.logoSrc ?? null)} alt={props.companyName} className="mb-3 max-h-10 max-w-36 object-contain" /> : null;
 
@@ -88,10 +89,10 @@ export function QuoteLivePreviewPanel(props: QuoteLivePreviewProps) {
         <article className="min-h-[420px] break-words bg-white shadow-sm" style={{ color: t.text_color, fontFamily: t.font_family === 'times' ? 'Georgia, serif' : 'Arial, sans-serif' }}>
           {page === 'cover' ? <div className="relative flex min-h-[490px] flex-col justify-between overflow-hidden p-7 text-white" style={{ backgroundColor: fondoCopertina }}>
             {t.show_cover_image && props.coverSrc && failedCover !== props.coverSrc && <><img alt="" src={props.coverSrc} onError={() => setFailedCover(props.coverSrc ?? null)} className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-b from-slate-950/45 via-slate-950/40 to-slate-950/95" /></>}
-            <div className="relative">{logo}<p className="text-xs font-semibold tracking-widest">{props.companyName}</p><p className="mt-2 text-[10px] uppercase tracking-[.2em]">Proposta commerciale</p></div>
+            <div className="relative">{logo}{!logo && <p className="text-xs font-semibold tracking-widest">{props.companyName}</p>}<p className="mt-2 text-[10px] uppercase tracking-[.2em]">Proposta commerciale</p></div>
             <div className="relative mt-16"><h3 className="text-3xl font-semibold leading-tight">{copy(t.cover_title) || props.title || 'Il tuo progetto, la nostra proposta'}</h3><p className="mb-8 mt-4 whitespace-pre-line text-sm leading-relaxed text-white/85">{copy(t.cover_subtitle || t.cover_tagline)}</p>{meta}</div>
           </div> : <div className="p-6 text-xs leading-relaxed">
-            <header className="mb-5 border-b-4 pb-4" style={{ borderColor: primary }}>{logo}<p className="font-bold" style={{ color: primary }}>{props.companyName}</p><h3 className="mt-4 text-xl font-semibold">{props.title || 'La tua offerta'}</h3>{props.description && <p className="mt-2 whitespace-pre-line text-slate-500">{props.description}</p>}</header>
+            <header className="mb-5 border-b-4 pb-4" style={{ borderColor: primary }}>{logo}{!logo && <p className="font-bold" style={{ color: primary }}>{props.companyName}</p>}<h3 className="mt-4 text-xl font-semibold">{props.title || 'La tua offerta'}</h3>{props.description && <p className="mt-2 whitespace-pre-line text-slate-500">{props.description}</p>}</header>
             {meta}
             {!props.onlyTotal && <><h4 className="mb-2 mt-6 font-semibold" style={{ color: primary }}>Prodotti e lavorazioni</h4>
             {visibleItems.length === 0 ? <p className="rounded-lg border border-dashed p-6 text-center text-slate-400">Aggiungi un prodotto o una lavorazione: li vedrai qui.</p> : <div>

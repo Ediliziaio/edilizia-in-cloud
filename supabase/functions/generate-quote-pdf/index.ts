@@ -832,7 +832,8 @@ Deno.serve(async (req) => {
 
       // In alto: il logo su una targhetta bianca arrotondata (i loghi nascono per il
       // fondo chiaro), grande quanto dice il modello; senza logo, il nome. A destra
-      // chi emette il preventivo: nome, mail e telefono dell'impresa.
+      // chi emette il preventivo: mail e telefono dell'impresa. Col logo il nome non si
+      // ripete (il logo lo porta già: richiesta di Renova, 05/10/2026, per tutti i PDF).
       // 25/09/2026: prima una targhetta di 40 punti, qualunque dimensione si scegliesse.
       const margineC = 48;
       const largoC = pageWidth - margineC * 2;
@@ -848,11 +849,10 @@ Deno.serve(async (req) => {
         cover.drawImage(logoEmbed, { x: margineC + padX, y: topC - lh - padY, width: lw, height: lh });
       }
       const contattiC = [company?.email, company?.phone ? `Tel. ${company.phone}` : null].filter(Boolean).join("  ·  ");
-      // Col logo, nome e contatti a destra, mai sopra la targhetta; senza logo il nome
+      // Col logo, i contatti a destra, mai sopra la targhetta; senza logo il nome
       // spaziato sta a sinistra e i contatti gli vanno sotto (un nome lungo li copriva).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const righeEmittente: Array<{ testo: string; f: any; size: number; opacity: number }> = [
-        ...(conLogoC && company?.name ? [{ testo: String(company.name), f: fontBold, size: 10, opacity: 1 }] : []),
         ...(conLogoC && contattiC ? [{ testo: contattiC, f: font, size: 7.8, opacity: 0.8 }] : []),
       ];
       const largoDestra = Math.min(largoC * 0.5, largoC - largoTarghetta - 24);
@@ -1250,9 +1250,11 @@ Deno.serve(async (req) => {
       let hy = pageHeight - 40;
       if (logoEmbed && t.show_logo) {
         hy = drawLogo(page, hy);
+      } else {
+        // Col logo il nome dell'azienda non si ripete (il logo lo porta già: richiesta di Renova, 05/10/2026).
+        page.drawText(company?.name || "Azienda", { x: margin, y: hy, size: 14, font: fontBold, color: headerTextC });
+        hy -= 20;
       }
-      page.drawText(company?.name || "Azienda", { x: margin, y: hy, size: 14, font: fontBold, color: headerTextC });
-      hy -= 20;
       if (t.show_quote_number) {
         page.drawText(`OFFERTA N. ${quote.quote_number}${revLabel}`, { x: margin, y: hy, size: 9, font, color: headerTextC });
         hy -= 27;
@@ -1271,9 +1273,13 @@ Deno.serve(async (req) => {
       // Thin line
       page.drawRectangle({ x: margin, y: y, width: contentWidth, height: 2, color: primaryC });
       y -= 20;
-      y = drawLogo(page, y);
-      page.drawText(company?.name || "Azienda", { x: margin, y, size: 16, font: fontBold, color: textC });
-      y -= 20;
+      if (logoEmbed && t.show_logo) {
+        y = drawLogo(page, y);
+      } else {
+        // Col logo il nome dell'azienda non si ripete (il logo lo porta già: richiesta di Renova, 05/10/2026).
+        page.drawText(company?.name || "Azienda", { x: margin, y, size: 16, font: fontBold, color: textC });
+        y -= 20;
+      }
       if (t.show_quote_number) {
         page.drawText(`N. ${quote.quote_number}${revLabel}`, { x: margin, y, size: 9, font, color: grayC });
         y -= 25;
@@ -2377,7 +2383,8 @@ Deno.serve(async (req) => {
 
         // Riquadri firma (più alti col timbro dell'impresa)
         newPageIfNeeded(timbroEmbed ? 170 : 150);
-        titolinoSu(page, "ACCETTAZIONE DEL PREVENTIVO", margin, y, contentWidth);
+        // «ACCETTAZIONE PROPOSTA»: lo stesso titolo in tutti i PDF dei preventivi (richiesta di Renova, 05/10/2026).
+        titolinoSu(page, "ACCETTAZIONE PROPOSTA", margin, y, contentWidth);
         y -= 20;
         // La firma vale anche per le condizioni che seguono: va detto qui, dove
         // si firma, non solo nelle pagine allegate.

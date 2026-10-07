@@ -378,11 +378,13 @@ Deno.serve(async (req: Request) => {
     }
 
     // 3. Consulente
-    let consulente: { nome: string; ruolo: string | null; telefono: string | null; email: string | null; foto: string | null } | null = null;
+    // L'email del profilo non si legge più: è quella con cui il consulente entra nel gestionale, non un
+    // recapito dell'azienda, e nel documento non si stampa (richiesta di Renova, 05/10/2026).
+    let consulente: { nome: string; ruolo: string | null; telefono: string | null; foto: string | null } | null = null;
     if (prog.consulente_id) {
       const { data: cons } = await supabaseAdmin
         .from("profiles")
-        .select("first_name, last_name, email, phone, role_interno, avatar_url")
+        .select("first_name, last_name, phone, role_interno, avatar_url")
         .eq("id", prog.consulente_id)
         .maybeSingle();
       if (cons) {
@@ -390,7 +392,6 @@ Deno.serve(async (req: Request) => {
           nome: [cons.first_name, cons.last_name].filter(Boolean).join(" ") || "Consulente",
           ruolo: cons.role_interno || "Consulente tecnico",
           telefono: cons.phone,
-          email: cons.email,
           foto: cons.avatar_url,
         };
       }
@@ -542,7 +543,12 @@ Deno.serve(async (req: Request) => {
               created_at: prog.created_at,
             },
             company: { name: tpl?.ragione_sociale ?? "", vat_number: tpl?.partita_iva ?? "", address: tpl?.indirizzo_completo ?? "", email: tpl?.email ?? "", phone: tpl?.telefono ?? "" },
-            cantiere: { indirizzo: prog.cliente_indirizzo ?? "", citta: prog.cantiere_citta ?? prog.cliente_citta ?? "" },
+            // L'Art. 1 dice «…presso {{cantiere.indirizzo}}»: l'indirizzo dei lavori, non solo quello del
+            // cliente (06/10/2026 li ha separati), come «Luogo dei lavori» nel PDF scaricato dall'app.
+            cantiere: {
+              indirizzo: [prog.cantiere_indirizzo ?? prog.cliente_indirizzo, prog.cantiere_citta ?? prog.cliente_citta].filter(Boolean).join(", "),
+              citta: prog.cantiere_citta ?? prog.cliente_citta ?? "",
+            },
         }));
       })(),
       condizioni_legali_attivo: tpl?.condizioni_legali_attivo ?? true,
@@ -616,7 +622,6 @@ Deno.serve(async (req: Request) => {
       consulente_nome: consulente?.nome ?? null,
       consulente_ruolo: consulente?.ruolo ?? null,
       consulente_telefono: consulente?.telefono ?? null,
-      consulente_email: consulente?.email ?? null,
       consulente_foto_url: consulente?.foto ?? null,
       crono_fasi: cronoFasi,
       crono_durata_giorni: cronoDurata,

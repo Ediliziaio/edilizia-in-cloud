@@ -7,7 +7,7 @@ function standardFvPreview(): FvPdfTemplateData {
     // Fixture coerente: 4.200 kWh autoconsumati + 900 kWh dalla rete = 5.100 kWh
     // consumati. Prima il PDF dichiarava 4.200 kWh ma visualizzava flussi per
     // 5.100 kWh, creando un'incongruenza percepibile dal cliente.
-    progetto: { numero: "FV-ANTEPRIMA", titolo: "Mario Rossi", creato_il: "2026-01-01T10:00:00Z", valido_giorni: 30, venditore: "Consulente", potenza_kwp: 6, numero_pannelli: 12, has_accumulo: true, capacita_accumulo_kwh: 10, consumo_annuo_kwh: 5100, costo_kwh_attuale: 0.32, profilo_consumo: "misto", ore_sole_annue: 1450, superficie_tetto_disponibile_mq: 55 },
+    progetto: { numero: "FV-ANTEPRIMA", titolo: "Mario Rossi", creato_il: "2026-01-01T10:00:00Z", valido_giorni: 30, potenza_kwp: 6, numero_pannelli: 12, has_accumulo: true, capacita_accumulo_kwh: 10, consumo_annuo_kwh: 5100, costo_kwh_attuale: 0.32, profilo_consumo: "misto", ore_sole_annue: 1450, superficie_tetto_disponibile_mq: 55 },
     costi: { prezzo_vendita_iva_inclusa: 18000, iva_perc: 10, detrazione_eur: 9000, detrazione_perc: 50, costo_netto_dopo_detrazione: 9000 },
     finanziamento: { finanziaria: "Finanziaria", durata_mesi: 84, rata_mensile: 230, tan_perc: 4, taeg_perc: 5, importo_finanziato: 18000 },
     scenario: { risparmio_mensile_eur: 150, risparmio_anno1_eur: 1800, risparmio_25_anni_eur: 46000, payback_anni: 8, npv_25_anni: 24000, cassa_anno_per_anno: [{ anno: 0, cumulato: -18000 }, { anno: 8, cumulato: 0 }, { anno: 25, cumulato: 46000 }] },

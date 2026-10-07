@@ -103,7 +103,6 @@ export interface SrPdfData {
   consulente_nome: string | null;
   consulente_ruolo: string | null;
   consulente_telefono: string | null;
-  consulente_email: string | null;
   consulente_foto_url: string | null;
 
   // Cronoprogramma
@@ -174,7 +173,9 @@ function esc(s: string | null | undefined): string {
 
 // ─── Templates ──────────────────────────────────────────────────────────────
 
-function renderHeader(d: SrPdfData, page: number, total: number): string {
+// Nell'intestazione di ogni pagina: l'azienda e il numero della stima. Il nome del cliente no
+// (richiesta di Renova, 05/10/2026, per tutti i PDF).
+function renderHeader(d: SrPdfData): string {
   const initial = d.azienda_nome.charAt(0).toUpperCase();
   return `
   <header class="page-header">
@@ -184,10 +185,6 @@ function renderHeader(d: SrPdfData, page: number, total: number): string {
         : `<span class="logo-letter">${esc(initial)}</span>`}
       <div class="company-block">
         <p class="company-name">${esc(d.azienda_nome)}</p>
-        ${page === 1
-          ? ""  // Pagina 1: niente sottotitolo cliente nel header (è nel titolo)
-          : `<p class="company-sub">${esc([d.cliente_nome, d.cliente_cognome].filter(Boolean).join(" "))}${d.cliente_citta ? `, ${esc(d.cliente_citta)}` : ""}</p>`
-        }
       </div>
     </div>
     <div class="stima-block">
@@ -243,7 +240,7 @@ function renderModuloRecesso(d: SrPdfData, page: number, total: number): string 
   const destinatario = [d.azienda_nome, d.azienda_indirizzo, d.azienda_email].filter(Boolean).map((v) => esc(String(v))).join(" — ");
   return `
   <section class="page">
-    ${renderHeader(d, page, total)}
+    ${renderHeader(d)}
     <main class="page-body">
       <p class="overline">ALLEGATO</p>
       <h1 class="page-title">${esc(MODULO_RECESSO.titolo)}</h1>
@@ -288,7 +285,7 @@ function renderPaginaCondizioni(d: SrPdfData, page: number, total: number): stri
   chiudiLista();
   return `
   <section class="page">
-    ${renderHeader(d, page, total)}
+    ${renderHeader(d)}
     <main class="page-body">
       <p class="overline">CONDIZIONI</p>
       <h1 class="page-title">Condizioni contrattuali e termini legali</h1>
@@ -317,7 +314,7 @@ function renderPage1(d: SrPdfData, total = totalPages(d)): string {
 
   return `
   <section class="page">
-    ${renderHeader(d, 1, total)}
+    ${renderHeader(d)}
     <main class="page-body">
       <p class="overline">PROPOSTA DI INTERVENTO</p>
       <h1 class="page-title">${esc(titolo)}</h1>
@@ -375,7 +372,7 @@ function renderPage1(d: SrPdfData, total = totalPages(d)): string {
 function renderPage2(d: SrPdfData, total = totalPages(d)): string {
   return `
   <section class="page">
-    ${renderHeader(d, 2, total)}
+    ${renderHeader(d)}
     <main class="page-body">
       <h2 class="section-title">TOTALE PREVENTIVO</h2>
       <div class="big-price-box">
@@ -504,7 +501,7 @@ function renderPage3(d: SrPdfData, total = totalPages(d)): string {
 
   return `
   <section class="page">
-    ${renderHeader(d, 3, total)}
+    ${renderHeader(d)}
     <main class="page-body">
       <h1 class="page-title">Allegato tecnico</h1>
       <p class="page-subtitle">Composizione dell'intervento e totale preventivo indicato nell'offerta.</p>
@@ -576,7 +573,6 @@ function renderPage3(d: SrPdfData, total = totalPages(d)): string {
             <p class="consulente-nome">${esc(d.consulente_nome ?? d.azienda_nome)}</p>
             <p class="consulente-ruolo">${esc(d.consulente_ruolo ?? "Consulente tecnico")}</p>
             ${d.consulente_telefono ? `<p class="consulente-line">${esc(d.consulente_telefono)}</p>` : ""}
-            ${d.consulente_email ? `<p class="consulente-line">${esc(d.consulente_email)}</p>` : ""}
           </div>
         </div>
       ` : ""}
@@ -594,7 +590,7 @@ function renderPage4(d: SrPdfData, total = totalPages(d)): string {
 
   return `
   <section class="page">
-    ${renderHeader(d, 4, total)}
+    ${renderHeader(d)}
     <main class="page-body">
       <p class="overline">CONFERMA E FIRMA</p>
       <h1 class="page-title">Cosa fare adesso</h1>
@@ -666,7 +662,7 @@ function renderPagineMacroDedicate(d: SrPdfData): string {
       .join("");
     return `
     <section class="page macro-page">
-      ${renderHeader(d, 5 + idx, baseTotal)}
+      ${renderHeader(d)}
       <main class="page-body">
         <div class="macro-page-meta">
           <span class="macro-page-eyebrow">Linea prodotto · ${idx + 1} di ${total}</span>
@@ -776,7 +772,6 @@ html, body { background: #f5f6f8; font-family: -apple-system, "Segoe UI", Roboto
 }
 .company-block { min-width: 0; }
 .company-name { font-weight: 700; font-size: 13px; line-height: 1.2; max-width: 350px; overflow-wrap: anywhere; }
-.company-sub { font-size: 10.5px; color: #64748b; }
 .stima-block { text-align: right; }
 .stima-label { font-size: 8.5px; color: #94a3b8; letter-spacing: 0.05em; }
 .stima-num { font-weight: 700; color: var(--sr-green); font-size: 12px; margin-bottom: 4px; }

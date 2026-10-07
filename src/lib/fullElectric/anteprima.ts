@@ -76,7 +76,7 @@ export function anteprimaFullElectric(foto: Partial<Record<FotoFullElectric, str
   return {
     azienda: { nome: "La tua azienda", telefono: "+39 02 000 000", email: "info@azienda.it", sito: "azienda.it", piva: "IT00000000000" },
     cliente: { nome: "Mario Rossi", indirizzo: "Via Roma 1, 20100 Milano (MI)" },
-    preventivo: { codice: "FE-ESEMPIO", dataIso: "2026-09-25T10:00:00Z", validitaGiorni: 30, consulente: "Il tuo consulente" },
+    preventivo: { codice: "FE-ESEMPIO", dataIso: "2026-09-25T10:00:00Z", validitaGiorni: 30 },
     sistema: {
       componenti: d.componenti,
       impiantoAttuale: d.impianto_attuale,

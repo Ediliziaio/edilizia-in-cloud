@@ -221,7 +221,7 @@ describe("modulo di recesso e pagina della firma in tutti i documenti", () => {
 
   it("Serramenti: c'è una firma su carta, con il riepilogo, prima della seconda firma", () => {
     const src = leggi("src/components/serramenti/SerramentoPDF.tsx");
-    const firma = src.indexOf("Firma del contratto</Text>");
+    const firma = src.indexOf("ACCETTAZIONE PROPOSTA</Text>");
     const seconda = src.indexOf("SECONDA FIRMA DEL COMMITTENTE");
     expect(firma).toBeGreaterThan(0);
     expect(seconda).toBeGreaterThan(firma);

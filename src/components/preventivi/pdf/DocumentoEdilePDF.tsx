@@ -1899,7 +1899,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
         <Page size="A4" style={pagina}>
           {cornice}
           <Text id={edileSectionDestination("firma")} style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1.6, marginBottom: 6 }}>PER ACCETTAZIONE</Text>
-          <TitoloAccento tema={tema} testo="Firma del *contratto*." corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
+          {/* «ACCETTAZIONE PROPOSTA»: lo stesso titolo in tutti i PDF dei preventivi (richiesta di Renova, 05/10/2026). */}
+          <TitoloAccento tema={tema} testo="ACCETTAZIONE PROPOSTA" corpo={21} colore={tema.inchiostro} coloreAccento={tema.inchiostroMarca} />
 
           <View style={{ marginTop: 16, backgroundColor: tema.cartaCalda, padding: 16 }}>
             <RigaRiepilogo tema={tema} etichetta="Impresa" valore={[dati.azienda.nome, dati.azienda.partitaIva ? `P.IVA ${dati.azienda.partitaIva}` : null].filter(Boolean).join(" · ")} />

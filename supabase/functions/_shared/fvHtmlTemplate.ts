@@ -170,7 +170,6 @@ export interface FvPdfTemplateData {
     titolo: string;
     creato_il: string;
     valido_giorni: number;
-    venditore?: string | null;
     potenza_kwp: number;
     numero_pannelli: number;
     has_accumulo: boolean;
@@ -784,10 +783,12 @@ table .saving-zero { color: #64748B; }
 
 // ─── Page header/footer comuni ────────────────────────────────────────────
 
-function header(numero: string, cliente: string, brand: string): string {
+// Nell'intestazione di ogni pagina: l'azienda e il numero del preventivo. Il nome del cliente no
+// (richiesta di Renova, 05/10/2026, per tutti i PDF: è già in copertina e nella pagina della firma).
+function header(numero: string, brand: string): string {
   return `<div class="page-header">
     <div class="brand"><div class="brand-icon">☀</div><span>${escHtml(brand)}</span></div>
-    <div class="ref">Preventivo <strong>${escHtml(numero)}</strong> · ${escHtml(cliente)}</div>
+    <div class="ref">Preventivo <strong>${escHtml(numero)}</strong></div>
   </div>`;
 }
 
@@ -1152,6 +1153,11 @@ function pageCover(d: FvPdfTemplateData): string {
       ? "margin-top:auto;margin-bottom:auto;"
       : "margin-top:auto;margin-bottom:0;";
   const brandMb = textVertical === "bottom" ? "auto" : "0";
+  // Col logo il nome dell'azienda non si ripete accanto (il logo lo porta già: richiesta di Renova,
+  // 05/10/2026, per tutti i PDF): resta solo quando al posto del logo c'è l'icona. Lo slogan, se
+  // l'azienda l'ha scritto, resta.
+  const nomeAccantoAlLogo = logoUrl ? "" : `<div class="name">${escHtml(d.azienda.name)}</div>`;
+  const sloganAccantoAlLogo = d.azienda.tagline ? `<div class="tagline">${escHtml(d.azienda.tagline)}</div>` : "";
 
   return `<div class="page"><div class="cover${showDecoration ? "" : " cover--flat"}" style="background:${escHtml(bgColor)};color:${escHtml(textColor)};">
     ${imageUrl ? `<img class="cover-bg-img" src="${escHtml(imageUrl)}" alt="Copertina fotovoltaico"/>` : ""}
@@ -1159,10 +1165,7 @@ function pageCover(d: FvPdfTemplateData): string {
     <div class="cover-content" style="color:${escHtml(textColor)};text-align:${align};align-items:${align === "center" ? "center" : "stretch"};">
     ${showBrand ? `<div class="cover-brand" style="justify-content:${brandJustify};width:100%;margin-bottom:${brandMb};">
       ${logoUrl ? `<img class="logo-img" src="${escHtml(logoUrl)}" alt="${escHtml(d.azienda.name)}"/>` : `<div class="icon">☀</div>`}
-      <div>
-        <div class="name">${escHtml(d.azienda.name)}</div>
-        ${d.azienda.tagline ? `<div class="tagline">${escHtml(d.azienda.tagline)}</div>` : ""}
-      </div>
+      ${nomeAccantoAlLogo || sloganAccantoAlLogo ? `<div>${nomeAccantoAlLogo}${sloganAccantoAlLogo}</div>` : ""}
     </div>` : `<div style="margin-bottom:${brandMb};"></div>`}
     <div class="cover-main" style="max-width:${align === "center" ? "150mm" : "165mm"};${mainMargin}">
       <div class="cover-eyebrow" style="font-size:${eyebrowSize}pt;">${escHtml(eyebrow)}</div>
@@ -1176,13 +1179,11 @@ function pageCover(d: FvPdfTemplateData): string {
     </div>` : ""}
     <div class="cover-footer">
       <div class="doc-meta">Preventivo <strong>${escHtml(d.progetto.numero)}</strong><br/>${escHtml(fmtData(d.progetto.creato_il))} · valido ${d.progetto.valido_giorni} giorni</div>
-      <div style="text-align:right;">${d.progetto.venditore ? `A cura di<br/><strong>${escHtml(d.progetto.venditore)}</strong>` : ""}</div>
     </div>
   </div></div></div>`;
 }
 
 function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const valoreProposta = safeRichText(d.template?.valore_proposta_html);
   const inclusi: string[] = [];
   const pannello = d.componenti.find((c) => c.categoria === "pannello");
@@ -1210,7 +1211,7 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
   const altriInclusi = Math.max(0, inclusi.length - 10);
 
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">L'investimento</div>
       <h1 class="page-title">${isFvLocalIntervention(d.template) ? "La tua proposta,<br/>voce per voce." : "Il tuo impianto,<br/>tutto compreso."}</h1>
@@ -1311,7 +1312,7 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
   const np = d.progetto.numero_pannelli;
   const renderDisclaimer = plainText(d.template?.render_disclaimer);
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Anteprima dell'impianto</div>
       <h1 class="page-title">La tua casa,<br/>con i pannelli.</h1>
@@ -1344,7 +1345,6 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
 }
 
 function pageBundleKit(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const b = d.bundle!;
   const kwp = b.fv_kwp ? `${fmtNum(b.fv_kwp, 1)} kWp` : null;
   const kwh = b.fv_accumulo_kwh ? `${fmtNum(b.fv_accumulo_kwh, 1)} kWh` : null;
@@ -1360,7 +1360,7 @@ function pageBundleKit(d: FvPdfTemplateData, pageN: number, total: number): stri
     </div>`)
     .join("");
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Il tuo kit</div>
       <h1 class="page-title">${escHtml(b.nome)}</h1>
@@ -1390,7 +1390,6 @@ function gruppiComponenti(d: FvPdfTemplateData): FvPdfTemplateData["componenti"]
 }
 
 function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number, componenti = gruppiComponenti(d)[0], parte = 0): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const cards = componenti
     .map((c) => {
       const media = productCategoryMedia(d, c.categoria);
@@ -1420,7 +1419,7 @@ function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number, comp
     .join("");
 
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">I componenti${parte ? ` · continua ${parte + 1}` : ""}</div>
       <h1 class="page-title">I componenti,<br/>uno per uno.</h1>
@@ -1505,7 +1504,6 @@ function pagineFornitura(d: FvPdfTemplateData): RigaFornitura[][] {
 
 /** Una pagina della tabella: `righe` sono le sue, `prima` quante ne sono già uscite nelle pagine di prima (la numerazione continua). */
 function pageComposizioneFornitura(d: FvPdfTemplateData, pageN: number, total: number, righe: RigaFornitura[], ultima: boolean, parte: number, prima: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const local = isFvLocalIntervention(d.template);
 
   // I pezzi sono quelli di tutta la fornitura, non solo quelli di questa pagina.
@@ -1523,7 +1521,7 @@ function pageComposizioneFornitura(d: FvPdfTemplateData, pageN: number, total: n
       </tr>`).join("");
 
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">La fornitura${parte ? ` · continua ${parte + 1}` : ""}</div>
       <h1 class="page-title">Cosa installiamo,<br/>in dettaglio.</h1>
@@ -1548,7 +1546,6 @@ function pageMacroCategoriaDedicata(
   pageN: number,
   total: number,
 ): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const title = plainText(macro.nome) || FV_PRODUCT_CATEGORY_LABELS[macro.categoria] || "Linea prodotto";
   const description = plainText(macro.descrizione_estesa) || plainText(macro.descrizione);
   const imageUrl = imageHref(macro.immagine_url);
@@ -1565,7 +1562,7 @@ function pageMacroCategoriaDedicata(
     .slice(0, 5);
 
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Pagina dedicata · Linea prodotto</div>
       <h1 class="page-title">Pagina dedicata<br/>${escHtml(title)}.</h1>
@@ -1594,7 +1591,7 @@ function pageProduzione(d: FvPdfTemplateData, pageN: number, total: number): str
   const mensili = calcolaProducibilitaMensile(d.flows.produzione_kwh);
   const source = roofSourceLabel(d.progetto.fonte_dati_tetto);
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">La produzione</div>
       <h1 class="page-title">Quanta energia<br/>produrrai.</h1>
@@ -1638,9 +1635,8 @@ function calloutAccumulo(d: FvPdfTemplateData): string {
 }
 
 function pageFlussi(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Flussi energetici</div>
       <h1 class="page-title">Dove va<br/>la tua energia.</h1>
@@ -1665,7 +1661,6 @@ function pageFlussi(d: FvPdfTemplateData, pageN: number, total: number): string 
 }
 
 function pageRisparmio(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const bolletta = calcolaBollettaPrimaDopo({
     consumo_annuo_kwh: d.progetto.consumo_annuo_kwh,
     prelievo_rete_kwh: d.flows.prelievo_rete_kwh,
@@ -1674,7 +1669,7 @@ function pageRisparmio(d: FvPdfTemplateData, pageN: number, total: number): stri
   });
   const conRid = Number(d.scenario.ricavi_rid_anno1_eur) > 0;
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Il risparmio</div>
       <h1 class="page-title">${fmtEur(d.scenario.risparmio_mensile_eur)} al mese<br/>che restano a te.</h1>
@@ -1702,7 +1697,6 @@ function pageRisparmio(d: FvPdfTemplateData, pageN: number, total: number): stri
 }
 
 function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   // L'inflazione dell'energia del calcolo finanziario (2,5% di serie): prima qui era 3%,
   // e i 20 anni non tornavano con la cassa a 25 anni.
   const inflazione = Number(d.scenario.inflazione_energia_pct) > 0 ? Number(d.scenario.inflazione_energia_pct) * 100 : 2.5;
@@ -1714,7 +1708,7 @@ function pageCostiFuturi(d: FvPdfTemplateData, pageN: number, total: number): st
     orizzonte_anni: 20,
   });
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Costi energetici futuri</div>
       <h1 class="page-title">Quanto pagherai<br/>nei prossimi 20 anni.</h1>
@@ -1744,12 +1738,11 @@ function fmtTasso(valore: number | null): string {
 // Esce solo con un finanziamento vero (vedi pagineDaDisegnare). Prima, senza,
 // stampava una rata pari al 120% del prezzo in 84 mesi con TAN 4,75% e TAEG 5,4%.
 function pagePiano(d: FvPdfTemplateData, fin: FvFinanziamentoPdf, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const rata = fin.rata_mensile;
   const risparmioM = d.scenario.risparmio_mensile_eur;
   const netto = Math.max(0, rata - risparmioM);
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">★ Il piano economico</div>
       <h1 class="page-title">${fmtRata(netto)} al mese.<br/><span style="color:#F97316">Tutto qui.</span></h1>
@@ -1786,7 +1779,7 @@ function pageBollette240(d: FvPdfTemplateData, pageN: number, total: number): st
     25 *
     1.6; // fattore inflazione composta 25 anni @3%
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Perché farlo adesso</div>
       <h1 class="page-title">Bollette: <span style="color:#DC2626">+240%</span><br/>Stipendio: <span style="color:#F97316">+11,5%</span></h1>
@@ -1813,7 +1806,6 @@ function pageBollette240(d: FvPdfTemplateData, pageN: number, total: number): st
 }
 
 function pageCassa25(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const cassa = d.scenario.cassa_anno_per_anno;
   const final = cassa.length > 0 ? cassa[cassa.length - 1].cumulato : d.scenario.risparmio_25_anni_eur;
   // Gli eventi seguono il calcolo (fv-calcolo-finanziario): investimento pagato
@@ -1830,7 +1822,7 @@ function pageCassa25(d: FvPdfTemplateData, pageN: number, total: number): string
     .filter((e): e is { anno: number; descr: string; cumulato: number } => e.cumulato != null)
     .sort((a, b) => a.anno - b.anno);
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">La cassa nei 25 anni</div>
       <h1 class="page-title">${final > 0 ? "+" : ""}${fmtEur(final)}<br/>nelle tue tasche.</h1>
@@ -1876,7 +1868,6 @@ function filaDiPittogrammi(quale: keyof typeof PITTOGRAMMI, quanti: number): str
 }
 
 function pageCO2(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const co2 = calcolaCO2Equivalenze({ produzione_kwh_anno: d.flows.produzione_kwh });
   const treesIcons = filaDiPittogrammi("albero", Math.min(20, Math.round(co2.alberi_anno / 8)));
   const flightsIcons = filaDiPittogrammi("volo", Math.min(20, co2.voli_anno));
@@ -1888,7 +1879,7 @@ function pageCO2(d: FvPdfTemplateData, pageN: number, total: number): string {
   const foto = d.foto_di_serie;
   const conFoto = Boolean(foto?.alberi && foto?.voli && foto?.auto && foto?.bosco);
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">L'impatto sul pianeta</div>
       <h1 class="page-title">${fmtNum(co2.ton_co2_anno, 2)} t di CO<sub>2</sub><br/>in meno ogni anno.</h1>
@@ -1958,7 +1949,6 @@ function titoloConAccento(titolo: string): string {
 }
 
 function pageBlocco(d: FvPdfTemplateData, id: PaginaBlocco, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const { blocco, foto } = bloccoFv(d, id);
   // Con una spiegazione le voci stanno su due colonne; solo titoli, su tre.
   const tre = !blocco.voci.some((v) => v.testo);
@@ -1971,7 +1961,7 @@ function pageBlocco(d: FvPdfTemplateData, id: PaginaBlocco, pageN: number, total
   // con le voci accanto, come nel Piano dei lavori, sotto restavano 6 cm bianchi.
   if (foto.length === 1 && eTavola(foto[0].src) != null) {
     return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">${escHtml(blocco.occhiello)}</div>
       <h1 class="page-title blocco-titolo">${titoloConAccento(blocco.titolo)}</h1>
@@ -1985,7 +1975,7 @@ function pageBlocco(d: FvPdfTemplateData, id: PaginaBlocco, pageN: number, total
   </div>`;
   }
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content${isFvAccumulo(d.template) && foto.length === 0 && blocco.voci.length <= 4 ? " blocco-editoriale" : ""}">
       <div class="eyebrow">${escHtml(blocco.occhiello)}</div>
       <h1 class="page-title blocco-titolo">${titoloConAccento(blocco.titolo)}</h1>
@@ -2012,7 +2002,6 @@ function testataFv(d: FvPdfTemplateData, pagina: PaginaConTestata): TestataPagin
 const titoloHtml = (titolo: string): string => escHtml(titolo).replace(/\n/g, "<br/>");
 
 function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const chiSiamoTitolo = plainText(d.template?.chi_siamo_titolo) || "L'azienda dietro al tuo impianto";
   const presentazione = safeRichText(d.template?.presentazione_impresa_html);
   const teamImage = imageHref(d.template?.foto_team_url);
@@ -2055,7 +2044,7 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
     .map((u) => ({ titolo: plainText(u.titolo), descrizione: plainText(u.descrizione) }))
     .slice(0, 6);
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">${escHtml(testata.occhiello)}</div>
       <h1 class="page-title">${testata.titolo ? titoloHtml(testata.titolo) : anniPannelli ? `${anniPannelli} anni di<br/>tranquillità.` : "Garanzie e<br/>assistenza."}</h1>
@@ -2132,7 +2121,7 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
   // fondo si tagliava. Restano elencati nella pagina dell'investimento («Cosa è incluso»).
   const quanteFasi = customCrono.length > 0 ? customCrono.length : fasiStandard.length;
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">${isFvLocalIntervention(d.template) ? "Il percorso dell'intervento" : "Iter pratiche"}</div>
       <h1 class="page-title">${isFvLocalIntervention(d.template) ? "Dalla verifica<br/>alla consegna." : "Pensiamo a<br/>tutto noi."}</h1>
@@ -2206,7 +2195,6 @@ const meseAnno = (iso: string | null): string | null => {
 };
 
 function pageRecensioni(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const voti = votiFv(d);
   // La pagina ha altezza fissa (quello che sborda si taglia): le recensioni in ordine
   // finché stanno in circa 900 caratteri, almeno una, al massimo quattro.
@@ -2225,7 +2213,7 @@ function pageRecensioni(d: FvPdfTemplateData, pageN: number, total: number): str
   // Con un numero dispari di recensioni la prima prende tutta la riga.
   const larga = (i: number) => recensioni.length % 2 === 1 && i === 0;
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">${escHtml(testata.occhiello)}</div>
       <h1 class="page-title">${titoloHtml(testata.titolo ?? "")}</h1>
@@ -2255,10 +2243,9 @@ function pageRecensioni(d: FvPdfTemplateData, pageN: number, total: number): str
 }
 
 function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number, faqs = faqDellAzienda(d)): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const testata = testataFv(d, "domande");
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">${escHtml(testata.occhiello)}</div>
       <h1 class="page-title">${titoloHtml(testata.titolo ?? "")}</h1>
@@ -2304,7 +2291,6 @@ function altezzaRiquadro(testo: string, caratteriPerRiga = 90): number {
 }
 
 function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const fin = d.finanziamento;
   // Rata e costo netto mensile solo con un finanziamento vero.
   const netto = fin && !isFvAccumulo(d.template) ? Math.max(0, fin.rata_mensile - d.scenario.risparmio_mensile_eur) : null;
@@ -2331,7 +2317,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
   ].reduce((a, b) => a + b, 0);
   const conNumeri = numeri.length >= 3 && occupato <= 60;
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">La tua decisione</div>
       <h1 class="page-title">${renderCoverLines(ctaTitolo)}</h1>
@@ -2381,7 +2367,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
       ${fasciaFotoPagina(d, "decisione", "center 55%")}
       <div class="callout callout-info">
         <span class="callout-icon">i</span>
-        <div><strong>Come si firma</strong>Online, con il link ricevuto via email. Oppure su carta, nella pagina «Firma del contratto»${haPaginaCondizioni(d) ? ", dopo le condizioni generali" : " che segue"}: c'è il riepilogo di quello che si firma, e lo spazio per le firme.</div>
+        <div><strong>Come si firma</strong>Online, con il link ricevuto via email. Oppure su carta, nella pagina «Accettazione proposta»${haPaginaCondizioni(d) ? ", dopo le condizioni generali" : " che segue"}: c'è il riepilogo di quello che si firma, e lo spazio per le firme.</div>
       </div>
     </div>
     <div class="page-footer"><span>${escHtml(docMeta)}</span><span class="pnum">${pageN} / ${total}</span></div>
@@ -2414,10 +2400,10 @@ function pageFirmaContratto(d: FvPdfTemplateData, pageN: number, total: number):
   if (fin) righe.push(["Pagamento", `${fmtRata(fin.rata_mensile)}/mese × ${fin.durata_mesi} mesi · ${fin.finanziaria}${fin.taeg_perc != null ? ` · TAEG ${fmtNum(fin.taeg_perc, 2)}%` : ""}`]);
   righe.push(["Validità", `${d.progetto.valido_giorni} giorni dalla data del documento`]);
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Per accettazione</div>
-      <h1 class="page-title">Firma del<br/>contratto.</h1>
+      <h1 class="page-title">ACCETTAZIONE<br/>PROPOSTA</h1>
       <div class="firma-righe">
         ${righe.map(([k, v]) => `<div class="firma-riga${k === "Importo" ? " importo" : ""}"><span>${escHtml(k)}</span><span>${escHtml(v)}</span></div>`).join("")}
       </div>
@@ -2534,7 +2520,7 @@ function pagineCondizioni(d: FvPdfTemplateData, primoNumero: number, total: numb
     const ultima = i === gruppi.length - 1;
     const pageN = primoNumero + i;
     return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       ${i === 0 ? `<div class="eyebrow">Condizioni generali di contratto</div>
       <h1 class="page-title">Quello che<br/>firmiamo insieme.</h1>` : `<div class="eyebrow">Condizioni generali di contratto · segue</div>`}
@@ -2553,11 +2539,10 @@ function pagineCondizioni(d: FvPdfTemplateData, primoNumero: number, total: numb
  * recedere non è più di 14 giorni ma si allunga di un anno.
  */
 function pageModuloRecesso(d: FvPdfTemplateData, pageN: number, total: number): string {
-  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const docMeta = `${d.azienda.name}${d.azienda.vat_number ? ` · P.IVA ${d.azienda.vat_number}` : ""} · Doc ${d.progetto.numero} · ${fmtData(d.progetto.creato_il)}`;
   const destinatario = [escHtml(d.azienda.name), d.azienda.email ? escHtml(d.azienda.email) : null].filter(Boolean).join(" — ");
   return `<div class="page">
-    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    ${header(d.progetto.numero, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Allegato</div>
       <h1 class="page-title">${escHtml(MODULO_RECESSO.titolo)}.</h1>
