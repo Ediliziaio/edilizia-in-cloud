@@ -69,6 +69,28 @@ export function fasceTabella(righe: RigaFinanziamento[], importoFinanziato: numb
   };
 }
 
+export interface MotivoPianoIndietro {
+  /** Il piano è calcolato su un totale diverso da quello di adesso. */
+  totale: boolean;
+  /** L'anticipo del piano non è quello scritto adesso (sul totale del piano stesso). */
+  anticipo: boolean;
+}
+
+/**
+ * Perché un piano scritto non corrisponde ai dati di adesso: il TOTALE è cambiato (anticipo + finanziato del piano sono
+ * di un altro totale) e/o l'ANTICIPO è cambiato (la quota di anticipo del piano non è quella di adesso). Tutti e due
+ * falsi: il piano è sbagliato per altro (la tabella della finanziaria è cambiata). Si confrontano gli importi al
+ * centesimo: anticipo e finanziato si arrotondano ognuno per conto suo, e la somma può scostarsi di un centesimo.
+ */
+export function motivoPianoIndietro(piano: SrPianoFinanziamento, totale: number, anticipoPct: number): MotivoPianoIndietro {
+  const anticipo = Number(piano.anticipo) || 0;
+  const totaleDelPiano = anticipo + (Number(piano.finanziato) || 0);
+  return {
+    totale: Math.abs(totaleDelPiano - totale) >= 0.02,
+    anticipo: Math.abs(anticipo - (totaleDelPiano * anticipoPct) / 100) >= 0.02,
+  };
+}
+
 /** Il piano che nasce da una riga della tabella: TAN e rata sono della finanziaria, anticipo e finanziato del preventivo. */
 export function pianoDaTabella(input: {
   nomeTabella: string | null | undefined;

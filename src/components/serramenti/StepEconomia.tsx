@@ -38,8 +38,8 @@ import { ExtraRichiudibile } from "@/components/serramenti/ExtraRichiudibile";
 import { RatePagamento } from "@/components/serramenti/RatePagamento";
 import { SimulazioneFinanziamento, type ModalitaFinanziamento } from "@/components/serramenti/SimulazioneFinanziamento";
 import {
-  durateConRata, fasceTabella, importoFinanziatoDa, pianiManuali, pianiManualiDaSalvati, pianiUguali, pianoDaTabella,
-  type PianiManuali,
+  durateConRata, fasceTabella, importoFinanziatoDa, motivoPianoIndietro, pianiManuali, pianiManualiDaSalvati, pianiUguali,
+  pianoDaTabella, type PianiManuali,
 } from "@/lib/serramenti/pianoFinanziamento";
 import { anticipoDaRate, rateConAnticipo, schemaDopoAnticipo } from "@/lib/serramenti/ratePagamento";
 import { campiRisparmio, paybackAtteso } from "@/lib/serramenti/risparmioPreventivo";
@@ -853,6 +853,12 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forbice.media, anticipoPct, righeTabella, form.fin_piani, form.fin_tabella_id, form.fin_tabella_riga_id, pagamentoScelto, schemaCfg.hasFinanziamento, deciso]);
   const avvisoPianoIndietro = deciso && pianoDaAllineare() != null;
+  // Perché non corrisponde: il totale è cambiato, l'anticipo è cambiato (cambiando a mano una rata l'anticipo si aggiorna
+  // e il piano no), tutti e due, o nessuno dei due (la tabella della finanziaria non dà più quella rata).
+  const motiviIndietro = avvisoPianoIndietro ? motivoPianoIndietro(pianiSalvati[0], forbice.media, anticipoPct) : null;
+  const aCosaNonCorrisponde = !motiviIndietro ? "" : motiviIndietro.totale && motiviIndietro.anticipo
+    ? "al totale e all'anticipo attuali"
+    : motiviIndietro.anticipo ? "all'anticipo attuale" : motiviIndietro.totale ? "al totale attuale" : "ai dati attuali";
 
   // Il recupero in 10 anni segue il totale: l'anno di pareggio si rifà dal totale, dal risparmio scritto e dalla
   // detrazione. Solo con il risparmio acceso e una detrazione; non si scrive se è già uguale.
@@ -1355,7 +1361,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
         >
           {avvisoPianoIndietro && (
             <SrCallout variant="warning" icon={<AlertTriangle className="h-3.5 w-3.5" />} className="mb-3">
-              Il preventivo è già {motivoDeciso}: il piano di finanziamento non corrisponde al totale attuale. Resta com'è, non si riscrive da solo.
+              Il preventivo è già {motivoDeciso}: il piano di finanziamento non corrisponde {aCosaNonCorrisponde}. Resta com'è, non si riscrive da solo.
             </SrCallout>
           )}
           <SimulazioneFinanziamento

@@ -143,3 +143,44 @@ describe("finanziamento calcolato sul totale di adesso, prima di mandare il PDF"
     expect(invio({ schema_pagamento: "acconto_finanziato", fin_piani: [] as never }).disabled).toBe(false);
   });
 });
+
+describe("il suggerimento sul finanziamento è vero anche per un preventivo già deciso", () => {
+  // Per un preventivo aperto «riapri Economia: si ricalcola da solo» è vero (lo step riscrive il piano sul totale di adesso).
+  // Per uno firmato, accettato o in commessa lo step NON lo riscrive (il piano fa parte di ciò che è stato firmato): il
+  // suggerimento dice com'è, e come si cambia (una nuova revisione).
+  // Totale 7.700, anticipo 30%: da finanziare 5.390; il piano scritto è rimasto sul totale di prima (4.620).
+  const piano = (finanziato: number) => [{ nome: "Standard", mesi: 60, tasso: 4.75, rata_mese: 100, anticipo: 7700 - finanziato, finanziato }];
+  const INDIETRO = { schema_pagamento: "acconto_finanziato" as const, fin_anticipo_pct: 30, fin_piani: piano(4620) as never };
+  const mostra = (extra: Partial<SrProgettoRow>) => {
+    render(<StepPdf progettoId="p1" detail={preventivo({ ...INDIETRO, ...extra }, 7700)} />);
+    return ricevuti.props as { disabled: boolean; disabledReason: string };
+  };
+  const RIAPRI = /riapri Economia/;
+  const DA_SOLO = /si ricalcola da solo/;
+
+  it("aperto (bozza, consegnato): resta «riapri Economia, si ricalcola da solo»", () => {
+    mostra({ stato: "consegnato" });
+    expect(screen.getByText(/il piano di finanziamento è stato calcolato su un totale diverso: riapri Economia, si ricalcola da solo/)).toBeTruthy();
+  });
+
+  it.each([
+    ["firmato (data della firma)", { stato: "consegnato", firmato_il: "2026-10-05T09:00:00Z" }, "Il preventivo è già firmato: il piano di finanziamento resta quello firmato; per cambiarlo serve una nuova revisione."],
+    ["firmato (immagine della firma)", { stato: "in_valutazione", firma_cliente_url: "firme/p1.png" }, "Il preventivo è già firmato: il piano di finanziamento resta quello firmato; per cambiarlo serve una nuova revisione."],
+    ["accettato", { stato: "accettato" }, "Il preventivo è già accettato: il piano di finanziamento resta quello accettato; per cambiarlo serve una nuova revisione."],
+    ["in commessa", { stato: "consegnato", ordine_id: "o1" }, "Il preventivo è già in commessa: il piano di finanziamento resta quello della commessa; per cambiarlo serve una nuova revisione."],
+  ] as const)("%s: il suggerimento dice che il piano resta com'è e che serve una nuova revisione, non di riaprire Economia", (_nome, extra, testo) => {
+    const p = mostra(extra as Partial<SrProgettoRow>);
+    expect(screen.getByText(new RegExp(testo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))).toBeTruthy();
+    expect(screen.queryByText(RIAPRI)).toBeNull();
+    expect(screen.queryByText(DA_SOLO)).toBeNull();
+    // il controllo resta quello di prima: ferma l'invio e lo dice
+    expect(p.disabled).toBe(true);
+    expect(p.disabledReason).toContain("finanziamento");
+  });
+
+  it("deciso ma con il piano giusto: nessun suggerimento sul finanziamento", () => {
+    mostra({ stato: "accettato", fin_piani: piano(5390) as never });
+    expect(screen.queryByText(/il piano di finanziamento resta quello/)).toBeNull();
+    expect(screen.queryByText(RIAPRI)).toBeNull();
+  });
+});

@@ -20,9 +20,13 @@ import { ClipboardList } from "lucide-react";
 import { renderSerramentoBlob, useSerramentoPDF } from "@/hooks/useSerramentoPDF";
 import { generateInterventoSintesi } from "@/lib/serramenti/sintesiIntervento";
 import { importiDelPreventivo } from "@/lib/serramenti/righePreventivo";
+import { motivoPreventivoDeciso, type MotivoDeciso } from "@/lib/serramenti/preventivoDeciso";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
 
 import { useIsMobile } from "@/hooks/use-mobile";
+/** Di chi è il piano di un preventivo già deciso: «resta quello firmato / accettato / della commessa». */
+const PIANO_DEL_DECISO: Record<MotivoDeciso, string> = { firmato: "firmato", accettato: "accettato", "in commessa": "della commessa" };
+
 interface Props {
   progettoId: string;
   detail: SrProgettoDetail;
@@ -81,6 +85,9 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
   const finanziamentoNelPdf = piani.length > 0 && Boolean(schemaCfg?.hasFinanziamento);
   const finanziatoAtteso = importiDiFirma.totale * (1 - (Number(p.fin_anticipo_pct) || 0) / 100);
   const pianoSulTotaleVecchio = finanziamentoNelPdf && piani.some((x) => Math.abs(Number(x.finanziato) - finanziatoAtteso) > 1);
+  // Un preventivo già firmato, accettato o in commessa non si riscrive da solo (lo step Economia si ferma e lo dice): per
+  // lui «riapri Economia, si ricalcola da solo» sarebbe falso, il suggerimento dice com'è e come si cambia.
+  const motivoDeciso = motivoPreventivoDeciso(p);
 
   // Le rate del PDF («Modalità di pagamento») devono coprire tutto il totale: con rate che fanno il 70% il cliente
   // legge un piano a metà. Non ferma il PDF né la commessa (che non ne dipendono), ma il documento non va al cliente
@@ -137,7 +144,11 @@ export function StepPdf({ progettoId, detail, onIndietro, onVaiAlPasso }: Props)
       ok: !pianoSulTotaleVecchio,
       facoltativo: true,
       label: "Finanziamento calcolato sul totale di adesso",
-      hint: pianoSulTotaleVecchio ? "il piano di finanziamento è stato calcolato su un totale diverso: riapri Economia, si ricalcola da solo" : undefined,
+      hint: !pianoSulTotaleVecchio
+        ? undefined
+        : motivoDeciso
+          ? `Il preventivo è già ${motivoDeciso}: il piano di finanziamento resta quello ${PIANO_DEL_DECISO[motivoDeciso]}; per cambiarlo serve una nuova revisione.`
+          : "il piano di finanziamento è stato calcolato su un totale diverso: riapri Economia, si ricalcola da solo",
       breve: "finanziamento", passo: "economia" as SrWizardStep,
     }] : []),
     ...(rate.length > 0 ? [{

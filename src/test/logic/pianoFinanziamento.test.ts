@@ -7,7 +7,7 @@ import type { RigaFinanziamento } from "@/hooks/useTabelleFinanziamento";
 import { findMigliorRiga } from "@/hooks/useTabelleFinanziamento";
 import { calcolaPianoFinanziamento } from "@/lib/serramenti/ecobonus";
 import {
-  ANTICIPI_VELOCI, durateConRata, fasceTabella, importoFinanziatoDa, PIANO_MANUALE_DI_SERIE, pianiManuali, pianiManualiDaSalvati,
+  ANTICIPI_VELOCI, durateConRata, fasceTabella, importoFinanziatoDa, motivoPianoIndietro, PIANO_MANUALE_DI_SERIE, pianiManuali, pianiManualiDaSalvati,
   pianiUguali, pianoDaTabella,
 } from "@/lib/serramenti/pianoFinanziamento";
 import type { SrPianoFinanziamento } from "@/types/serramenti";
@@ -175,5 +175,55 @@ describe("pianiUguali", () => {
     expect(pianiUguali([], [])).toBe(true);
     expect(pianiUguali(undefined, [])).toBe(true);
     expect(pianiUguali(null, a)).toBe(false);
+  });
+});
+
+describe("motivoPianoIndietro: perché un piano scritto non corrisponde ai dati di adesso", () => {
+  // Il piano di un preventivo da 11.000 € con anticipo 30%: 3.300 di anticipo, 7.700 da finanziare.
+  const piano: SrPianoFinanziamento = { nome: "Prestito", mesi: 48, tasso: 5.9, rata_mese: 201.6, anticipo: 3_300, finanziato: 7_700 };
+
+  it("tutto com'era: né il totale né l'anticipo sono cambiati", () => {
+    expect(motivoPianoIndietro(piano, 11_000, 30)).toEqual({ totale: false, anticipo: false });
+  });
+
+  it("il totale è cambiato (stesso anticipo in percentuale): è il totale", () => {
+    expect(motivoPianoIndietro(piano, 9_900, 30)).toEqual({ totale: true, anticipo: false });
+    expect(motivoPianoIndietro(piano, 13_200, 30)).toEqual({ totale: true, anticipo: false });
+  });
+
+  it("l'anticipo è cambiato (stesso totale): è l'anticipo", () => {
+    expect(motivoPianoIndietro(piano, 11_000, 35)).toEqual({ totale: false, anticipo: true });
+    expect(motivoPianoIndietro(piano, 11_000, 0)).toEqual({ totale: false, anticipo: true });
+  });
+
+  it("cambiati tutti e due", () => {
+    expect(motivoPianoIndietro(piano, 9_900, 35)).toEqual({ totale: true, anticipo: true });
+  });
+
+  it("le cifre arrotondate al centesimo non sono un cambiamento (anticipo e finanziato si arrotondano ognuno per conto suo)", () => {
+    for (const [totale, pct] of [[12_901.23, 33], [7_777.77, 33.33], [10_000.01, 7.5], [99.99, 33]] as const) {
+      const p = pianoDaTabella({ nomeTabella: "Prestito", riga: riga(48, 8_000, 201.6), totale, anticipoPct: pct });
+      expect(motivoPianoIndietro(p, totale, pct), `${totale} al ${pct}%`).toEqual({ totale: false, anticipo: false });
+    }
+  });
+
+  it("una differenza piccola ma vera si vede: un euro sul totale, un euro sull'anticipo, cinque centesimi; un centesimo no", () => {
+    expect(motivoPianoIndietro(piano, 10_999, 30).totale).toBe(true);
+    expect(motivoPianoIndietro(piano, 11_000.05, 30).totale).toBe(true);
+    expect(motivoPianoIndietro(piano, 11_000.01, 30).totale).toBe(false);
+    expect(motivoPianoIndietro({ ...piano, anticipo: 3_301, finanziato: 7_699 }, 11_000, 30).anticipo).toBe(true);
+    expect(motivoPianoIndietro({ ...piano, anticipo: 3_300.05, finanziato: 7_699.95 }, 11_000, 30).anticipo).toBe(true);
+    expect(motivoPianoIndietro({ ...piano, anticipo: 3_300.01, finanziato: 7_699.99 }, 11_000, 30).anticipo).toBe(false);
+  });
+
+  it("un piano senza anticipo (tutto finanziato) torna con anticipo 0; con un anticipo scritto adesso è l'anticipo", () => {
+    const tutto: SrPianoFinanziamento = { ...piano, anticipo: 0, finanziato: 11_000 };
+    expect(motivoPianoIndietro(tutto, 11_000, 0)).toEqual({ totale: false, anticipo: false });
+    expect(motivoPianoIndietro(tutto, 11_000, 30)).toEqual({ totale: false, anticipo: true });
+  });
+
+  it("un piano illeggibile non rompe niente: i valori che mancano valgono zero", () => {
+    const rotto = { nome: "x", mesi: 12, tasso: 0, rata_mese: 0 } as unknown as SrPianoFinanziamento;
+    expect(motivoPianoIndietro(rotto, 11_000, 30)).toEqual({ totale: true, anticipo: false });
   });
 });
