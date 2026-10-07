@@ -18,6 +18,9 @@
 
 **Misura del piano:** 41 task in 7 tappe (M1–M7), 8 migrazioni. Le tappe si possono fermare a ogni confine: ognuna lascia l'app funzionante. M7 si appoggia a M5 (il verbale con il netto, che il Task 40 allarga) e a M6 (la funzione `commessa_avvia`, che il Task 34 allarga).
 
+
+**Stato di esecuzione (07/10/2026).** M1–M7 sono realizzate nel ramo `traccia-ui` in tre commit (M1–M5 `d445f6295`, M6 `0a1d1d09b`, M7 `13c614330`), **salvo il Task 27** (il PDF del SAL per il cliente: aspetta la conferma su come contare il «già maturato»; la copia `supabase/functions/_shared/salNetto.ts` del Task 25 c'è ma nessuna funzione la usa ancora). Le **nove migrazioni** (le otto del piano e `20281007120000`, «ore proprie») sono applicate in produzione e allineate al registro; le prove sono state rilanciate sugli oggetti veri (annullate di proposito) e sono verdi. Nessun push. Trovato eseguendo: nella prova a secco del Task 15 un `raise exception` aveva due `%` e un solo argomento (non compilava): corretto con `%%`.
+
 **Regole del progetto da rispettare** (CLAUDE.md e memoria di progetto):
 - Lavoro **solo in locale** (worktree `eic-ui`, branch `traccia-ui`): niente push, mai `supabase db push`.
 - Le migrazioni toccano la produzione: si applicano con il tool MCP `apply_migration` e si riallinea la versione (CLAUDE.md, punti 1-4), **solo dopo l'OK dell'utente** e dopo una prova a secco. Un file in `supabase/migrations/` va in produzione al primo push: **prima di ogni push va applicato e riallineato**.
@@ -230,7 +233,7 @@ La fase `completata` conta 100 anche con `percentuale` a 0 (`avanzamentoFase`).
 - **Il codice di M6 e M7** è stato scritto e provato nella stessa copia pulita (dopo aver rigiocato M1–M5): i file nuovi hanno i loro test, la suite `logic` + `ui` completa ha **gli stessi 28 casi rossi di prima** e nessuno nuovo, il controllo dei tipi non peggiora nessun file e i file nuovi sono puliti, ESLint è uguale al punto di partenza.
 - Nel registro delle migrazioni di produzione c'è già `20281006170000`, non presente in questo branch (viene da un'altra sessione): non confligge con le versioni di questo piano.
 
-**Decisioni che mi servono** (le prime non bloccano M1–M3):
+**Decisioni che mi servono** — la 1, la 2 e la 9 (applicare le migrazioni) sono già eseguite (07/10/2026, vedi «Stato di esecuzione» in cima); le altre restano aperte (le prime non bloccano M1–M3):
 1. **OK per applicare le migrazioni in produzione**, una alla volta, ognuna preceduta dalla prova a secco (già verde).
 2. `20281007120000_campo_regole_ore_proprie.sql` (rapportini «ore proprie») è ancora **solo un file**: senza applicarla, scegliere quell'opzione dà «Scelta non valida». Va applicata prima del prossimo push.
 3. **Approvazioni di Silvio:** oggi non applicano l'avanzamento; con la M3 lo applicano (è il comportamento di sempre per l'ufficio). Va bene?
@@ -4136,7 +4139,7 @@ begin
 
   -- P3: ha sottofasi e la voce porta solo una %: la % non si applica
   select percentuale into v_pct from public.order_work_phases where id = p3;
-  if v_pct <> 0 then raise exception 'KO 5: p3 (con sottofasi) ha preso la % dichiarata (%)', v_pct; end if;
+  if v_pct <> 0 then raise exception 'KO 5: p3 (con sottofasi) ha preso la %% dichiarata (%)', v_pct; end if;
 
   -- P4: 100 chiude
   select percentuale, status into v_pct, v_stato from public.order_work_phases where id = p4;
