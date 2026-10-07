@@ -23,6 +23,7 @@ vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissio
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[] }), useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
+vi.mock("@/components/orders/AlertScostamentoSal", () => ({ AlertScostamentoSal: (): null => null }));
 vi.mock("@/hooks/useOrderScheduleHealth", () => ({ useOrderScheduleHealth: () => ({ data: null as null }) }));
 vi.mock("@/hooks/useOrderWorkPhases", () => ({
   PHASE_TEMPLATES: [{ key: "simple", label: "Intervento semplice", hint: "Due fasi", phases: ["Preparazione", "Posa"] }],
