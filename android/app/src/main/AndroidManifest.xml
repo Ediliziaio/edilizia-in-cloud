@@ -49,7 +49,10 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- READ_MEDIA_IMAGES rimosso (06/10/2026): le foto si scelgono col selettore
+         di sistema (Photo Picker, @capacitor/camera 8), che non chiede permessi.
+         Con questo permesso Google Play pretende la dichiarazione «foto e video»
+         e la concede solo alle app che ne hanno bisogno per la funzione principale. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
                      android:maxSdkVersion="32" />
 </manifest>

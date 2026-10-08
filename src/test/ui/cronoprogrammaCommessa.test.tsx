@@ -27,6 +27,9 @@ vi.mock("@/hooks/useCronoprogramma", () => ({
   useCronoprogramma: () => ({ rapportini: stato.rapportini, firmaPreventivo: stato.firma, isLoading: false, isError: false }),
 }));
 vi.mock("@/hooks/useOrderScheduleHealth", () => ({ useOrderScheduleHealth: () => ({ data: { stato: "in_ritardo", n_fasi_datate: 3, fasi: [] as unknown[] } }) }));
+vi.mock("@/hooks/useAvanzamentoCommessa", () => ({
+  useAvanzamentoCommessa: () => ({ percentuale: null as number | null, peso: "uguale", daMostrare: (locale: unknown) => locale }),
+}));
 vi.mock("@/hooks/useCostiMaterialiFasi", () => ({ useCostiMaterialiFasi: () => ({ data: { acquisti: [] as unknown[], movimenti: [] as unknown[] } }) }));
 
 const fase = (extra: Record<string, unknown>): Record<string, unknown> => ({

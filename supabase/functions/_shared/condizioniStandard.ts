@@ -156,7 +156,9 @@ export function condizioniStandard(settore: SettoreCondizioni = "generico"): str
     {
       titolo: "Pagamenti",
       righe: [
-        "Il pagamento avviene secondo il piano concordato: {{preventivo.piano_pagamenti}}",
+        // La frase intera viene dal piano del preventivo: con un piano lo cita, senza dice solo «secondo le
+        // modalità concordate». Prima «…il piano concordato: come da condizioni di pagamento concordate».
+        "{{preventivo.frase_pagamenti}}",
         "In caso di ritardo nei pagamenti l'Impresa può sospendere i lavori, previa comunicazione scritta, fino alla regolarizzazione; la sospensione prolunga i tempi di esecuzione di un periodo pari al ritardo e non costituisce inadempimento dell'Impresa. Sui ritardi si applicano gli interessi di legge.",
       ],
     },

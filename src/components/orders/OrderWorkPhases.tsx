@@ -34,15 +34,21 @@ import { economiaFasi, type EconomiaFase } from "@/lib/orders/economiaFasi";
 import { useCostiMaterialiFasi } from "@/hooks/useCostiMaterialiFasi";
 import { EconomiaFaseRiga, costoSforato } from "./EconomiaFaseRiga";
 import { RiepilogoEconomicoFasi } from "./RiepilogoEconomicoFasi";
+import { AlertScostamentoSal } from "./AlertScostamentoSal";
 import { useCronoprogramma } from "@/hooks/useCronoprogramma";
-import { fasiCronoprogramma, giornoLocale, lavoroRealeFasi, type FaseCrono } from "@/lib/orders/cronoprogramma";
+import { useSottofasi } from "@/hooks/useSottofasi";
+import { useAvanzamentoCommessa } from "@/hooks/useAvanzamentoCommessa";
+import { SottofasiFase } from "./SottofasiFase";
+import { ModelliFasiPicker } from "./ModelliFasiPicker";
+import { SalvaFasiComeModello } from "./SalvaFasiComeModello";
+import { faseHaSottofasi, type Sottofase } from "@/lib/orders/sottofasi";
+import { avanzamentoFase, fasiCronoprogramma, giornoLocale, lavoroRealeFasi, type FaseCrono } from "@/lib/orders/cronoprogramma";
 import { TempiFase, testoTempi, ritardoBreve } from "./TempiFase";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 
 import {
   useOrderWorkPhases,
-  PHASE_TEMPLATES,
   type WorkPhase,
   type PhaseAssignment,
   type PhaseMaterial,
@@ -145,7 +151,9 @@ interface OrderWorkPhasesProps {
 export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, importoContratto }: OrderWorkPhasesProps) {
   const showWork = view !== "squadra";
   const showTeam = view !== "lavorazioni";
-  const { canEditOrders, canViewCosts, canEditOperai, canViewOrderAmounts, canViewMargins } = usePermissions();
+  const { canEditOrders, canViewCosts, canEditOperai, canViewOrderAmounts, canViewMargins, canEditSettingsOrders } = usePermissions();
+  const { role } = useAuth();
+  const puoModelli = role === "company_admin" || role === "super_admin" || !!canEditSettingsOrders;
   // Squadre: le mette sulla commessa chi modifica le commesse o gli operai.
   const puoSquadre = canEditOrders || canEditOperai;
   const [aggiungiSquadra, setAggiungiSquadra] = useState(false);
@@ -197,6 +205,7 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
     setMaterialPhase,
     splitMaterial,
   } = useOrderWorkPhases(orderId);
+  const { perFase: sottofasiDi, segna: segnaSottofase, aggiungi: aggiungiSottofase, rinomina: rinominaSottofase, elimina: eliminaSottofase } = useSottofasi(orderId);
 
   // Economia delle lavorazioni (06/10/2026): venduto, costo previsto e costo
   // consuntivo per fase. I costi sostenuti dei materiali si leggono solo con
@@ -214,6 +223,16 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
     }),
     [phases, materials, allAssignments, costiMateriali],
   );
+
+  // Avanzamento fisico medio della commessa, per l'alert di scostamento SAL: lo
+  // confronta coi costi già consumati. Una fase chiusa conta 100 anche se la %
+  // salvata è a 0 (stessa regola del Cronoprogramma e del trigger del database).
+  const avanzamentoMedio = useMemo(() => {
+    if (phases.length === 0) return null;
+    const somma = phases.reduce((s, p) => s + avanzamentoFase(p), 0);
+    return Math.round(somma / phases.length);
+  }, [phases]);
+  const { daMostrare: avanzamentoDellaCommessa } = useAvanzamentoCommessa(orderId);
 
   // Tempi previsti e reali di ogni fase (06/10/2026), per il paragone nella
   // riga «Quando»: date reali dai rapportini e dalla chiusura, come nel
@@ -258,13 +277,10 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
   const mostraFiltri = phases.length > 6 || filter !== "all" || !!search.trim();
   const visiblePhases = phases.filter(p => matchesWorkFilter(p, filter, today, fasiConSquadra) && p.name.toLocaleLowerCase("it").includes(search.trim().toLocaleLowerCase("it")) && (!view || !groupCompleted || showCompleted || p.status !== "completata"));
   const [newPhaseName, setNewPhaseName] = useState("");
-  const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null);
-  const selectedTemplate = PHASE_TEMPLATES.find((t) => t.key === selectedTemplateKey) ?? null;
 
   const closePhaseDialog = () => {
     setNewPhaseOpen(false);
     setNewPhaseName("");
-    setSelectedTemplateKey(null);
   };
 
   const handleAddPhase = () => {
@@ -277,16 +293,6 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
       onSuccess: () => {
         setNewPhaseName("");
         toast.success("Fase aggiunta");
-      },
-    });
-  };
-
-  const handleApplyTemplate = () => {
-    if (!selectedTemplate) return;
-    applyTemplate.mutate(selectedTemplate.phases, {
-      onSuccess: () => {
-        toast.success(`${selectedTemplate.phases.length} fasi aggiunte`);
-        closePhaseDialog();
       },
     });
   };
@@ -339,62 +345,18 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
                 </DialogHeader>
 
                 <div className="space-y-4">
-                  {/* Modelli di fasi per tipo di lavoro */}
-                  <div className="space-y-2">
-                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Parti da un modello
-                    </Label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {PHASE_TEMPLATES.map((t) => (
-                        <button
-                          key={t.key}
-                          type="button"
-                          onClick={() =>
-                            setSelectedTemplateKey((k) => (k === t.key ? null : t.key))
-                          }
-                          className={cn(
-                            "rounded-full border px-3 py-1 text-xs transition-colors",
-                            selectedTemplateKey === t.key
-                              ? "border-primary bg-primary/10 font-medium text-primary"
-                              : "border-border text-muted-foreground hover:bg-accent",
-                          )}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {selectedTemplate && (
-                      <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                        <p className="text-xs text-muted-foreground">
-                          {selectedTemplate.hint} · {selectedTemplate.phases.length} fasi
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {selectedTemplate.phases.map((p, i) => (
-                            <span
-                              key={i}
-                              className="rounded border bg-background px-1.5 py-0.5 text-[11px] text-foreground"
-                            >
-                              {i + 1}. {p}
-                            </span>
-                          ))}
-                        </div>
-                        <Button
-                          size="sm"
-                          className="w-full"
-                          onClick={handleApplyTemplate}
-                          disabled={applyTemplate.isPending}
-                        >
-                          {applyTemplate.isPending ? (
-                            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                          ) : (
-                            <ListPlus className="mr-1 h-4 w-4" />
-                          )}
-                          Aggiungi le {selectedTemplate.phases.length} fasi
-                        </Button>
-                      </div>
-                    )}
-                  </div>
+                  {/* Modelli di fasi: quelli dell'azienda (con le sottofasi); finché non sono suoi, gli stessi di sempre */}
+                  <ModelliFasiPicker
+                    inCorso={applyTemplate.isPending}
+                    onApplica={(fasi) =>
+                      applyTemplate.mutate(fasi, {
+                        onSuccess: () => {
+                          toast.success(`${fasi.length} fasi aggiunte`);
+                          closePhaseDialog();
+                        },
+                      })
+                    }
+                  />
 
                   <div className="relative">
                     <Separator />
@@ -437,6 +399,14 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
                       </Button>
                     </div>
                   </div>
+
+                  {/* Un modello dalle fasi di questa commessa: solo da computer e solo a chi gestisce le impostazioni */}
+                  {puoModelli && phases.length > 0 && !isMobile && (
+                    <>
+                      <Separator />
+                      <SalvaFasiComeModello orderId={orderId} numeroFasi={phases.length} />
+                    </>
+                  )}
                 </div>
               </DialogContent>
             </Dialog>
@@ -507,6 +477,16 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
             vedeCosti={canViewCosts}
             vedeMargini={canViewMargins}
             onSalvaVenduto={canEditOrders && canViewOrderAmounts ? (id, importo) => updatePhase.mutate({ id, importo_venduto: importo }) : undefined}
+          />
+        )}
+        {/* Alert scostamento SAL: avanzamento dichiarato vs costi consumati.
+            Si vede solo se l'azienda l'ha acceso in Governance e c'è il permesso costi. */}
+        {showWork && canViewCosts && !isLoading && !isError && phases.length > 0 && (
+          <AlertScostamentoSal
+            avanzamentoPerc={avanzamentoDellaCommessa(avanzamentoMedio)}
+            costoPrevisto={economia.totaleFasi.costoPrevisto}
+            costoConsuntivo={economia.totaleFasi.costoConsuntivo}
+            className="mt-2 max-sm:hidden"
           />
         )}
       </CardHeader>
@@ -641,6 +621,13 @@ export function OrderWorkPhases({ orderId, orderCode, onOpenReports, view, impor
                 mezziFase={mezziPerFase.get(phase.id) ?? []}
                 puoSquadre={puoSquadre}
                 fasiOpzioni={phaseOptions}
+                sottofasi={sottofasiDi.get(phase.id) ?? []}
+                azioniSottofasi={{
+                  onSegna: (id, fatta) => segnaSottofase.mutate({ id, fatta }),
+                  onAggiungi: (nome) => aggiungiSottofase.mutate({ phaseId: phase.id, nome }),
+                  onRinomina: (id, nome) => rinominaSottofase.mutate({ id, nome }),
+                  onElimina: (id) => eliminaSottofase.mutate(id),
+                }}
               />
             ))}
             {/* Da telefono le completate si aprono in fondo, dopo quelle da fare */}
@@ -771,6 +758,14 @@ interface PhaseCardProps {
   mezziFase: MezzoDellaPersona[];
   puoSquadre: boolean;
   fasiOpzioni: { id: string; name: string }[];
+  /** Le sottofasi della fase: se ce ne sono, la percentuale ne deriva. */
+  sottofasi: Sottofase[];
+  azioniSottofasi: {
+    onSegna: (id: string, fatta: boolean) => void;
+    onAggiungi: (nome: string) => void;
+    onRinomina: (id: string, nome: string) => void;
+    onElimina: (id: string) => void;
+  };
 }
 
 function PhaseCard({
@@ -799,6 +794,8 @@ function PhaseCard({
   mezziFase,
   puoSquadre,
   fasiOpzioni,
+  sottofasi,
+  azioniSottofasi,
 }: PhaseCardProps) {
   const { canEditOrders, canViewCosts, canViewOrderAmounts, canViewMargins } = usePermissions();
   const [eliminaAperto, setEliminaAperto] = useState(false);
@@ -886,7 +883,7 @@ function PhaseCard({
     />
   );
   const tendinaStato = (classe: string) => (
-    <Select value={phase.status} onValueChange={(v) => onUpdatePhase({ status: v as PhaseStatus })}>
+    <Select value={phase.status} disabled={derivata} onValueChange={(v) => onUpdatePhase({ status: v as PhaseStatus })}>
       <SelectTrigger className={classe} aria-label={`Stato di ${phase.name}`}>
         <SelectValue />
       </SelectTrigger>
@@ -918,6 +915,9 @@ function PhaseCard({
     </DropdownMenu>
   );
   const actualPct = phase.status === "completata" ? 100 : phase.percentuale;
+  // Con le sottofasi la percentuale e lo stato li calcola il database: a mano
+  // verrebbero riscritti alla prossima spunta.
+  const derivata = faseHaSottofasi(sottofasi);
   const pctInRitardo = !!health && Number(health.delta_pct) < 0 && phase.status !== "completata";
 
   return (
@@ -1029,10 +1029,10 @@ function PhaseCard({
                       sbagliata (prima non c'era rimedio se non SQL). */}
                   <button
                     type="button"
-                    disabled={!canEditOrders}
+                    disabled={!canEditOrders || derivata}
                     aria-label={`Avanzamento ${phase.name}: ${actualPct}%`}
                     className="rounded px-0.5 text-[11px] tabular-nums text-muted-foreground underline-offset-2 hover:underline"
-                    title="Correggi l'avanzamento della fase"
+                    title={derivata ? "Si calcola dalle sottofasi" : "Correggi l'avanzamento della fase"}
                     onClick={(e) => {
                       e.stopPropagation();
                       setProgressDraft(String(actualPct));
@@ -1193,6 +1193,17 @@ function PhaseCard({
                   <span className="text-[11px] text-muted-foreground max-sm:hidden">Le squadre della fase seguono queste date.</span>
                 )}
               </div>
+
+              {/* ── Sottofasi: i passi che decidono l'avanzamento ── */}
+              <SottofasiFase
+                nomeFase={phase.name}
+                sottofasi={sottofasi}
+                // Una fase già avviata (o chiusa) che si divide in sottofasi riparte da quelle fatte: si avvisa.
+                avviata={phase.status !== "da_iniziare" || phase.percentuale > 0 ? { percentuale: actualPct, chiusa: phase.status === "completata" } : null}
+                puoModificare={canEditOrders}
+                puoSegnare={canEditOrders}
+                {...azioniSottofasi}
+              />
 
               {/* ── Economia: venduto, costo previsto, consuntivo, margine ── */}
               {economia && (

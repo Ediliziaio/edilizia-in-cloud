@@ -59,7 +59,7 @@ export function anteprimaContoTermico(foto: Partial<Record<FotoContoTermico, str
   return {
     azienda: { nome: "La tua azienda", telefono: "+39 02 000 000", email: "info@azienda.it", sito: "azienda.it", piva: "IT00000000000" },
     cliente: { nome: "Mario Rossi", indirizzo: "Via Roma 1, 20100 Milano (MI)" },
-    preventivo: { codice: "CT-ESEMPIO", dataIso: "2026-09-25T10:00:00Z", validitaGiorni: 30, consulente: "Il tuo consulente" },
+    preventivo: { codice: "CT-ESEMPIO", dataIso: "2026-09-25T10:00:00Z", validitaGiorni: 30 },
     intervento: {
       tipo: DATI_CONTO_TERMICO_DIMOSTRATIVI.tipo,
       titolo: DATI_CONTO_TERMICO_DIMOSTRATIVI.titolo,

@@ -3,14 +3,28 @@
  * trova tipologie, linee e prodotti suoi; quelli che ha già con lo stesso nome
  * restano come sono, quindi si può ripetere.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SceltaAzienda } from "@/components/admin/listino/SceltaAzienda";
-import { useAziendeLibreria, useModelliAreaMutations, type ModelloConInstallazioni } from "@/hooks/useModelliArea";
-import { testoContenuto, testoEsito, testoPrezzi, type EsitoInstallazione } from "@/lib/listino/modelliArea";
+import { AvvisoInstallazioneModello } from "@/components/listino/AvvisoInstallazioneModello";
+import {
+  useAnteprimaInstallazione,
+  useAziendeLibreria,
+  useModelliAreaMutations,
+  type ModelloConInstallazioni,
+} from "@/hooks/useModelliArea";
+import {
+  haMaggiorazioniDaCopiare,
+  messaggioErroreInstallazione,
+  testoContenuto,
+  testoEsito,
+  testoPrezzi,
+  tipoErroreInstallazione,
+  type EsitoInstallazione,
+} from "@/lib/listino/modelliArea";
 
 interface Props {
   modello: ModelloConInstallazioni;
@@ -26,6 +40,13 @@ export function InstallaModelloDialog({ modello, onChiudi }: Props) {
   const { data: aziende = [] } = useAziendeLibreria();
   const inCorso = installa.isPending;
   const azienda = aziende.find((a) => a.id === aziendaId) ?? null;
+  // Cosa succederebbe alle maggiorazioni di QUELL'azienda: il modello arriva «senza» e senza questo controllo i
+  // prodotti nuovi perdono in silenzio quelle che l'azienda ha già (Renova, 05/10/2026).
+  const anteprima = useAnteprimaInstallazione({ modelloId: modello.id, companyId: aziendaId, enabled: !esito });
+  const [copia, setCopia] = useState(true);
+  const recente = !!anteprima.data?.installazione_recente;
+  // Un secondo click prima che la finestra se ne accorga non parte.
+  const invioInCorso = useRef(false);
 
   const note = useMemo(
     () => new Map(modello.installazioni.map((i) => [i.company_id, `già installato il ${giorno(i.installato_il)}`])),
@@ -33,12 +54,29 @@ export function InstallaModelloDialog({ modello, onChiudi }: Props) {
   );
 
   const vai = () => {
-    if (!aziendaId || inCorso) return;
+    if (!aziendaId || inCorso || anteprima.isLoading || recente || invioInCorso.current) return;
+    invioInCorso.current = true;
+    // Se c'è da scegliere si passa la scelta; se non c'è niente da copiare non si passa nulla, così il database
+    // resta la rete di sicurezza anche quando l'anteprima è vecchia.
+    const daScegliere = haMaggiorazioniDaCopiare(anteprima.data);
     installa.mutate(
-      { modelloId: modello.id, companyId: aziendaId },
+      { modelloId: modello.id, companyId: aziendaId, copiaMaggiorazioni: daScegliere ? copia : undefined },
       {
         onSuccess: (e) => setEsito(e),
-        onError: (e) => toast.error("Modello non installato", { description: (e as Error).message }),
+        onError: (e) => {
+          const tipo = tipoErroreInstallazione(e);
+          if (tipo === "recente" || tipo === "in_corso") {
+            toast.info(messaggioErroreInstallazione(e));
+          } else if (tipo === "scelta_maggiorazioni") {
+            toast.warning("Prima scegli cosa fare delle maggiorazioni", { description: messaggioErroreInstallazione(e) });
+            void anteprima.refetch();
+          } else {
+            toast.error("Modello non installato", { description: messaggioErroreInstallazione(e) });
+          }
+        },
+        onSettled: () => {
+          invioInCorso.current = false;
+        },
       },
     );
   };
@@ -82,6 +120,15 @@ export function InstallaModelloDialog({ modello, onChiudi }: Props) {
               {testoPrezzi(modello.con_prezzi_vendita)} Tipologie e linee con lo stesso nome si riusano; i prodotti che
               l&apos;azienda ha già con lo stesso nome restano come sono.
             </p>
+            {aziendaId && (
+              <AvvisoInstallazioneModello
+                anteprima={anteprima.data}
+                caricamento={anteprima.isLoading}
+                copia={copia}
+                onCopia={setCopia}
+                disabilitato={inCorso}
+              />
+            )}
           </div>
         )}
 
@@ -95,7 +142,11 @@ export function InstallaModelloDialog({ modello, onChiudi }: Props) {
               <Button variant="ghost" onClick={onChiudi} disabled={inCorso} className="h-10 w-full sm:w-auto">
                 Annulla
               </Button>
-              <Button onClick={vai} disabled={!aziendaId || inCorso} className="h-10 w-full sm:w-auto">
+              <Button
+                onClick={vai}
+                disabled={!aziendaId || inCorso || anteprima.isLoading || recente}
+                className="h-10 w-full sm:w-auto"
+              >
                 {inCorso ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> Installo…

@@ -6,7 +6,7 @@ import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUpdateOpportunity, useDeleteOpportunity, useCompanyStaff, useCompanySalespeople, useCompanyCallCenterUsers, useOpportunityNotes, useAddOpportunityNote, usePipelines } from "@/hooks/useOpportunitiesData";
 import {
-  useOpportunityCustomFields,
+  useOpportunityCustomFields, useContactCustomFields,
   useContactFieldValues, useOpportunityFieldValues,
   useUpdateContact, useUpsertContactFieldValues, useUpsertOpportunityFieldValues,
 } from "@/hooks/useOpportunityDetailData";
@@ -35,7 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
   Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder,
-  Target, AlertTriangle, ChevronDown, Trophy, MessageCircle, ExternalLink, History,
+  Target, AlertTriangle, ChevronDown, Trophy, MessageCircle, ExternalLink, History, Printer,
 } from "lucide-react";
 import { useUpdateOpportunityMutation } from "@/hooks/useSalesOS";
 import { format } from "date-fns";
@@ -63,6 +63,8 @@ import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 import { NotaModificabile } from "@/components/marketing/NotaModificabile";
 import { puoModificareNota } from "@/lib/marketing/modificaNota";
 import { idModuloDaFonte, origineOpportunita, type DatiOrigine } from "@/lib/origineOpportunita";
+import { OpportunityPrintSheet } from "@/components/opportunities/OpportunityPrintSheet";
+import { costruisciSchedaStampa } from "@/lib/opportunita/schedaStampa";
 
 interface Props {
   opportunity: any;
@@ -118,6 +120,26 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
   const { data: oppCustomFields = [] } = useOpportunityCustomFields();
   const { data: contactFieldValues = [] } = useContactFieldValues(opportunity?.contact_id || null);
+  const { data: contactCustomFieldDefs = [] } = useContactCustomFields();
+  // Gli appuntamenti dell'opportunità (e del contatto) per la stampa A4.
+  const { data: appuntamentiScheda = [] } = useQuery({
+    queryKey: ["opportunita-appuntamenti-stampa", opportunity?.id, opportunity?.contact_id],
+    enabled: open && !!opportunity?.id && !!companyId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const filtro = opportunity?.contact_id
+        ? `opportunity_id.eq.${opportunity.id},contact_id.eq.${opportunity.contact_id}`
+        : `opportunity_id.eq.${opportunity.id}`;
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("appointment_date, appointment_time, appointment_end_time, title, appointment_type, status, formatted_address, meeting_url, assigned_to, description")
+        .eq("company_id", companyId!)
+        .or(filtro)
+        .order("appointment_date", { ascending: true });
+      if (error) return [];
+      return data ?? [];
+    },
+  });
   const { data: oppFieldValues = [] } = useOpportunityFieldValues(opportunity?.id || null);
   const updateContact = useUpdateContact();
   const upsertContactFields = useUpsertContactFieldValues();
@@ -672,6 +694,41 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const totaleNote = notes.length;
   const ultimaNotaRegistro = (notes as any[])[0] ?? null;
 
+  // La scheda in formato A4 (si stampa con il bottone «Stampa» o con Ctrl/Cmd+P).
+  const schedaStampa = costruisciSchedaStampa({
+    nomeOpportunita: name,
+    creazione: testoCreazione,
+    contatto: {
+      nome: contactFirstName, cognome: contactLastName, email: contactEmail, telefono: contactPhone,
+      indirizzo: contactAddress, citta: contactCity, provincia: contactProvince, regione: contactRegion,
+    },
+    campiContatto: contactCustomFieldDefs as Array<{ id: string; name: string; field_type?: string | null }>,
+    valoriContatto: contactCustomValues,
+    pipeline: (pipelines as Array<{ id: string; name: string }>).find((p) => p.id === pipelineId)?.name ?? "",
+    fase: stages.find((st) => st.id === stageId)?.name ?? "",
+    stato: STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status,
+    valore: value,
+    venditore: nomiStaff.get(assignedTo) ?? "",
+    follower: nomiStaff.get(followerId) ?? "",
+    callCenter: nomiStaff.get(callCenterId) ?? "",
+    azienda: companyName,
+    fonte: source,
+    etichette: oppTags,
+    campiOpportunita: oppCustomFields as Array<{ id: string; name: string; field_type?: string | null }>,
+    valoriOpportunita: oppCustomValues,
+    probabilita: opportunity.probability ?? null,
+    chiusuraPrevista: opportunity.expected_close_date ?? null,
+    prossimaAzione: opportunity.next_action ?? null,
+    dataProssimaAzione: opportunity.next_action_date ?? null,
+    motivoPerdita: motivoPerditaScritto,
+    note: (notes as any[]).map((n) => ({
+      created_at: n.created_at,
+      content: n.content,
+      autore: [n.profiles?.first_name, n.profiles?.last_name].filter(Boolean).join(" "),
+    })),
+    appuntamenti: (appuntamentiScheda as any[]).map((a) => ({ ...a, assegnato: nomiStaff.get(a.assigned_to) ?? null })),
+  });
+
   const sidebarTabs: { key: Tab; label: string; mobileLabel?: string; icon: React.ReactNode; enabled: boolean }[] = [
     { key: "details", label: "Dettagli dell'opportunità", mobileLabel: "Dettagli", icon: <FileText className="h-4 w-4" />, enabled: true },
     { key: "appointments", label: "Prenota/aggiorna appuntamento", mobileLabel: "Appuntamento", icon: <CalendarDays className="h-4 w-4" />, enabled: true },
@@ -679,13 +736,15 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: true },
     { key: "notes", label: totaleNote ? `Appunti (${totaleNote})` : "Appunti", mobileLabel: totaleNote ? `Appunti ${totaleNote}` : "Appunti", icon: <StickyNote className="h-4 w-4" />, enabled: true },
     { key: "documents", label: "Documenti", icon: <Folder className="h-4 w-4" />, enabled: true },
-    { key: "quotes", label: "Preventivi", icon: <FileText className="h-4 w-4" />, enabled: true },
+    // Nel CRM di piattaforma non si fanno preventivi con i preventivatori: niente scheda.
+    ...(isPlatformCrm ? [] : [{ key: "quotes" as Tab, label: "Preventivi", icon: <FileText className="h-4 w-4" />, enabled: true }]),
   ];
 
   const searchTrimmed = contactSearch.trim();
 
   return (
     <>
+    {open && <OpportunityPrintSheet scheda={schedaStampa} />}
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Altezza FISSA su desktop (21/09/2026): con sm:h-auto il pop-up si
           stringeva e si allungava a ogni sezione — Note e Attività corte,
@@ -783,16 +842,29 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   <CalendarDays className="h-4 w-4" />
                 </button>
                 <span className="mx-0.5 hidden sm:block h-5 w-px bg-border" aria-hidden />
-                {/* Crea preventivo direttamente dal deal — link contatto/opportunità preservato */}
-                <NewPreventivoMenu
-                  opportunityId={opportunity.id}
-                  contactId={opportunity.contact_id ?? null}
-                  size="sm"
-                  label="Preventivo"
-                  className="max-sm:flex-1 max-sm:shadow-none max-sm:hover:translate-y-0"
-                />
+                {/* Crea preventivo direttamente dal deal — link contatto/opportunità preservato.
+                    Non nel CRM di piattaforma: lì si vendono servizi, non preventivi di cantiere. */}
+                {!isPlatformCrm && (
+                  <NewPreventivoMenu
+                    opportunityId={opportunity.id}
+                    contactId={opportunity.contact_id ?? null}
+                    size="sm"
+                    label="Preventivo"
+                    className="max-sm:flex-1 max-sm:shadow-none max-sm:hover:translate-y-0"
+                  />
+                )}
               </div>
             )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="hidden sm:inline-flex shrink-0 h-8 gap-1.5 mt-1 sm:mt-0"
+              onClick={() => window.print()}
+              title="Stampa tutta la scheda in formato A4"
+            >
+              <Printer className="h-4 w-4" /> Stampa
+            </Button>
             <button
               type="button"
               onClick={() => onOpenChange(false)}

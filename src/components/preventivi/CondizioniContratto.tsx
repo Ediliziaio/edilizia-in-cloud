@@ -127,7 +127,8 @@ export function CondizioniContratto({ companyId, settore, attivo, testo, onAttiv
             Formato: <code>#</code> sezione, <code>##</code> articolo, <code>-</code> elenco. Tag disponibili:{" "}
             <code>{"{{azienda.ragione_sociale}}"}</code>, <code>{"{{cliente.nome_completo}}"}</code>,{" "}
             <code>{"{{preventivo.numero}}"}</code>, <code>{"{{preventivo.totale}}"}</code>,{" "}
-            <code>{"{{preventivo.piano_pagamenti}}"}</code>, <code>{"{{cantiere.indirizzo}}"}</code>.
+            <code>{"{{preventivo.piano_pagamenti}}"}</code>, <code>{"{{preventivo.frase_pagamenti}}"}</code>{" "}
+            (la frase intera sui pagamenti: cita il piano solo se c'è), <code>{"{{cantiere.indirizzo}}"}</code>.
             <br />
             Il testo di base è un punto di partenza scritto sulle norme più ricorrenti nei lavori edili: rileggilo con il
             tuo consulente prima di usarlo con i clienti.

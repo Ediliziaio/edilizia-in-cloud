@@ -12,7 +12,7 @@
  *
  * Le ore vanno confermate: 0 per sole foto/note; nessuna presenza implicita.
  */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -38,9 +38,11 @@ import { RapportinoSiteContext } from "@/components/campo/RapportinoSiteContext"
 import { compressImage } from "@/lib/campo/compressImage";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoReportHours } from "@/lib/campo/timeSummary";
+import { SottofasiRapportino } from "@/components/campo/SottofasiRapportino";
+import { fasiLavorateDelRapportino, sottofaseDaRiga, sottofasiPerFase, sottofasiSpuntate, type Sottofase } from "@/lib/orders/sottofasi";
 import { validateRapportinoHours, type CampoHoursDraft } from "@/lib/campo/rapportinoHours";
 import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
-import { REGOLE_COME_OGGI, giaCoperto, oreInTesto, proponiOre, scostamento } from "@/lib/campo/regoleCampo";
+import { REGOLE_COME_OGGI, giaCoperto, operaioSoloOre, oreInTesto, proponiOre, scostamento } from "@/lib/campo/regoleCampo";
 import { useCampoWorkDay } from "@/hooks/campo/useCampoWorkDay";
 import { assertReportDay, campoWorkDay, reportDayAllowed, REPORT_DEADLINE_MESSAGE, shiftWorkDay, validWorkDay } from "@/lib/campo/workDay";
 
@@ -146,6 +148,33 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
     },
   });
 
+  // Le sottofasi della commessa: il capocantiere le spunta al posto dello slider.
+  // Non hanno la commessa: si filtra per quella della loro fase. Se la lettura
+  // fallisce (tabella non ancora creata) si lavora come sempre.
+  const { data: sottofasiCommessa = [] } = useQuery({
+    queryKey: ["campo-sottofasi", "commessa", orderId],
+    enabled: !!orderId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<Sottofase[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("order_work_subphases")
+        .select("id, phase_id, name, position, peso, fatta, fatta_il, fase:order_work_phases!inner(order_id)")
+        .eq("fase.order_id", orderId)
+        .order("position", { ascending: true });
+      if (error) return [];
+      return ((data ?? []) as Record<string, unknown>[]).map(sottofaseDaRiga);
+    },
+  });
+  const sottofasiDi = useMemo(() => sottofasiPerFase(sottofasiCommessa), [sottofasiCommessa]);
+  // Le sottofasi spuntate in QUESTO rapportino (valgono quando viene approvato).
+  const [sottofasiSpunte, setSottofasiSpunte] = useState<string[]>([]);
+  // Cosa direbbe il rapportino per ogni fase dichiarata, sottofasi comprese (anche per il riepilogo).
+  const percentualiFinali = useMemo(
+    () => new Map(fasiLavorateDelRapportino(fasiDichiarate, sottofasiDi, sottofasiSpunte).map((v) => [v.phase_id, v.percentuale] as const)),
+    [fasiDichiarate, sottofasiDi, sottofasiSpunte],
+  );
+
   // Chi dichiara l'avanzamento? L'OPERAIO racconta la giornata (ore, foto,
   // su quali fasi ha lavorato — serve ad attribuire il costo); il
   // CAPOCANTIERE, che segue lo stato avanzamento, dichiara le percentuali.
@@ -181,6 +210,9 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   // Operaio con un capo sopra: racconta la SUA giornata e basta, in un passo solo. Avanzamento,
   // fine lavori e firma del cliente sono del capo.
   const semplice = !!ruoloCampo && !faSquadra && ruoloCampo.esisteCapo;
+  // Flusso «ore_proprie»: l'operaio semplice manda SOLO le sue ore; il racconto
+  // del cantiere (cosa fatto, foto, materiali, avanzamento) lo fa il capocantiere.
+  const soloOreAllOperaio = !faSquadra && operaioSoloOre(regole, !!ruoloCampo?.esisteCapo);
   // Con "lavoro completato" attivo si aggiunge lo step Firma cliente;
   // sul giornaliero normale sono 2 step.
   const totalSteps = semplice ? 1 : lavoro_completato ? 3 : TOTAL_STEPS;
@@ -305,6 +337,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
       setFotoPreviews(foto);
       if (Array.isArray(r.fasi_lavorate)) {
         setFasiDichiarate(Object.fromEntries(r.fasi_lavorate.filter(f => f?.phase_id).map(f => [f.phase_id, Number(f.percentuale) || 0])));
+        setSottofasiSpunte(sottofasiSpuntate(r.fasi_lavorate));
       }
       if (Array.isArray(r.materiali_usati)) {
         setMaterialiSel(Object.fromEntries(r.materiali_usati.map((m, i) => [
@@ -511,10 +544,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
       const orePayload = oreNonMie ? 0 : validateRapportinoHours(oreLavorate, oreStraordinario, faSquadra ? presenzeSel : {});
 
       // Fasi dichiarate dall'operaio: [{phase_id, percentuale}] (Fase C)
-      const fasiLavorate = Object.entries(fasiDichiarate).map(([phase_id, percentuale]) => ({
-        phase_id,
-        percentuale,
-      }));
+      const fasiLavorate = fasiLavorateDelRapportino(fasiDichiarate, sottofasiDi, sottofasiSpunte);
 
       // ── Firme: dataURL → PNG → bucket campo-rapportini ──
       // La firma dell'operaio/capocantiere vale su OGNI rapportino (finisce
@@ -1026,48 +1056,64 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                   })}
                 </div>
 
-                {puoDichiararePercentuali && fasiDichiarabili.filter(f => f.id in fasiDichiarate).map(fase => (
-                  <div key={fase.id} className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
-                    <div className="mb-1 flex items-center justify-between">
-                      <p className="min-w-0 truncate text-sm font-medium text-foreground">{fase.name}</p>
-                      <span className="shrink-0 text-primary font-bold">{fasiDichiarate[fase.id]}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={5}
-                      value={fasiDichiarate[fase.id]}
-                      onChange={e =>
-                        setFasiDichiarate(prev => ({ ...prev, [fase.id]: Number(e.target.value) }))
-                      }
-                      className="w-full accent-primary"
-                    />
-                    <div className="mt-2 flex items-center justify-between gap-2">
-                      {fase.percentuale > 0 ? (
-                        <p className="text-xs text-muted-foreground">
-                          Avanzamento attuale: {fase.percentuale}%
-                        </p>
-                      ) : <span />}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setFasiDichiarate(prev => ({
-                            ...prev,
-                            [fase.id]: prev[fase.id] === 100 ? fase.percentuale : 100,
-                          }))
+                {puoDichiararePercentuali && fasiDichiarabili.filter(f => f.id in fasiDichiarate).map(fase => {
+                  const sotto = sottofasiDi.get(fase.id) ?? [];
+                  if (sotto.length > 0) {
+                    return (
+                      <SottofasiRapportino
+                        key={fase.id}
+                        nomeFase={fase.name}
+                        sottofasi={sotto}
+                        spunte={sottofasiSpunte}
+                        onSpunta={(id, spuntata) =>
+                          setSottofasiSpunte(prev => (spuntata ? [...new Set([...prev, id])] : prev.filter(x => x !== id)))
                         }
-                        className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                          fasiDichiarate[fase.id] === 100
-                            ? "border-green-500 bg-green-500/10 text-green-600"
-                            : "border-border bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {fasiDichiarate[fase.id] === 100 ? "✓ Fase completata" : "Segna completata"}
-                      </button>
+                      />
+                    );
+                  }
+                  return (
+                    <div key={fase.id} className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
+                      <div className="mb-1 flex items-center justify-between">
+                        <p className="min-w-0 truncate text-sm font-medium text-foreground">{fase.name}</p>
+                        <span className="shrink-0 text-primary font-bold">{fasiDichiarate[fase.id]}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={fasiDichiarate[fase.id]}
+                        onChange={e =>
+                          setFasiDichiarate(prev => ({ ...prev, [fase.id]: Number(e.target.value) }))
+                        }
+                        className="w-full accent-primary"
+                      />
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        {fase.percentuale > 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            Avanzamento attuale: {fase.percentuale}%
+                          </p>
+                        ) : <span />}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFasiDichiarate(prev => ({
+                              ...prev,
+                              [fase.id]: prev[fase.id] === 100 ? fase.percentuale : 100,
+                            }))
+                          }
+                          className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                            fasiDichiarate[fase.id] === 100
+                              ? "border-green-500 bg-green-500/10 text-green-600"
+                              : "border-border bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {fasiDichiarate[fase.id] === 100 ? "✓ Fase completata" : "Segna completata"}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -1265,14 +1311,24 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
             </div>
             {faSquadra && squadraLoading && <p role="status" className="text-sm text-muted-foreground">Carico chi c’era in cantiere…</p>}
             {bloccoSquadra}
-            <h2 className="text-lg font-black text-foreground md:text-xl">{workDay === today ? "Cosa hai fatto oggi?" : "Cosa hai fatto in questa giornata?"}</h2>
-            <textarea
-              className="w-full resize-none rounded-2xl border border-border bg-muted/60 px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-              rows={5}
-              placeholder="Es: Ho installato il telaio finestra al piano primo, sigillato con schiuma poliuretanica..."
-              value={descrizione}
-              onChange={e => setDescrizione(e.target.value)}
-            />
+            <h2 className="text-lg font-black text-foreground md:text-xl">
+              {soloOreAllOperaio
+                ? (workDay === today ? "Le tue ore di oggi" : "Le tue ore di questa giornata")
+                : (workDay === today ? "Cosa hai fatto oggi?" : "Cosa hai fatto in questa giornata?")}
+            </h2>
+            {/* Con «ore_proprie» l'operaio manda solo le ore: il racconto, le foto
+                e i materiali li scrive il capocantiere per tutto il cantiere. */}
+            {soloOreAllOperaio ? (
+              <p className="text-sm text-muted-foreground">Qui segni solo le tue ore. Il racconto del cantiere, le foto e i materiali li scrive il capocantiere.</p>
+            ) : (
+              <textarea
+                className="w-full resize-none rounded-2xl border border-border bg-muted/60 px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+                rows={5}
+                placeholder="Es: Ho installato il telaio finestra al piano primo, sigillato con schiuma poliuretanica..."
+                value={descrizione}
+                onChange={e => setDescrizione(e.target.value)}
+              />
+            )}
             {/* Il meteo non si sceglie: si compila da solo dalle previsioni del cantiere (vedi sopra). Se uno lo scrive nella descrizione va bene. */}
             {/* Ore del solo cantiere: proposta verificabile, mai 8 ore implicite. */}
             {sessioneDaChiudere && !oreNonMie && <div role="status" className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -1335,6 +1391,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
             </div>
             ) : null}
 
+            {!soloOreAllOperaio && (
             <div className="rounded-2xl border bg-background p-4 shadow-sm">
               <p className="mb-2 text-sm font-semibold text-muted-foreground">Foto cantiere</p>
               <label className="block w-full">
@@ -1376,8 +1433,9 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                 </div>
               )}
             </div>
+            )}
 
-            {semplice && (
+            {semplice && !soloOreAllOperaio && (
               <details className="rounded-2xl border bg-background p-4 shadow-sm">
                 <summary className="min-h-11 cursor-pointer text-sm font-semibold">Altro da segnalare (facoltativo)</summary>
                 <p className="mb-3 text-xs text-muted-foreground">Su cosa hai lavorato, materiali, mezzi e straordinario. Avanzamento e firme sono del capocantiere.</p>
@@ -1458,14 +1516,17 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
               {Object.keys(fasiDichiarate).length > 0 && (
                 <div className="pt-2 border-t border-border">
                   <p className="text-xs text-muted-foreground mb-1">{puoDichiararePercentuali ? "Avanzamento dichiarato delle fasi" : workDay === today ? "Lavorazioni svolte oggi" : "Lavorazioni svolte nella giornata"}</p>
-                  {fasiCommessa.filter(f => f.id in fasiDichiarate).map(f => (
-                    <p key={f.id} className="text-sm text-foreground">
-                      {f.name}{" "}
-                      <span className="font-semibold text-primary">
-                        {!puoDichiararePercentuali ? workDay === today ? "· lavorata oggi" : "· lavorata nella giornata" : fasiDichiarate[f.id] === 100 ? "✓ completata" : `→ ${fasiDichiarate[f.id]}%`}
-                      </span>
-                    </p>
-                  ))}
+                  {fasiCommessa.filter(f => f.id in fasiDichiarate).map(f => {
+                    const finale = percentualiFinali.get(f.id) ?? fasiDichiarate[f.id];
+                    return (
+                      <p key={f.id} className="text-sm text-foreground">
+                        {f.name}{" "}
+                        <span className="font-semibold text-primary">
+                          {!puoDichiararePercentuali ? workDay === today ? "· lavorata oggi" : "· lavorata nella giornata" : finale === 100 ? "✓ completata" : `→ ${finale}%`}
+                        </span>
+                      </p>
+                    );
+                  })}
                 </div>
               )}
               {descrizione && (

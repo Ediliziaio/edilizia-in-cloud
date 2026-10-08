@@ -44,7 +44,7 @@ vi.mock("@/integrations/supabase/client", () => {
   };
   return { supabase: { from: (t: string) => costruttore(t), rpc: () => costruttore("rpc"), channel: () => ({ on: () => ({ subscribe: () => ({}) }) }), removeChannel: (): void => undefined } };
 });
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: "company_admin", user: { id: "u1" }, effectiveCompany: { id: "c1", name: "Suntech" } }) }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: "company_admin", user: { id: "u1" }, effectiveCompany: { id: "c1", name: "Azienda di prova" } }) }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "c1" }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => new Proxy({}, { get: (_t, p) => (typeof p === "string" && p.startsWith("can") ? true : p === "onlyAssigned" ? false : undefined) }) }));

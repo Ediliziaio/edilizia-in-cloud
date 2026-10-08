@@ -13,10 +13,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, FileBarChart2, Loader2, Download, Trash2, Sparkles, Wand2, Banknote, Check, Clock } from "lucide-react";
+import { Plus, FileBarChart2, Loader2, Download, Trash2, Sparkles, Wand2, Banknote, Check, Clock, ListChecks } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { maturatoPrecedente, nettoSal } from "@/lib/orders/salNetto";
+import { vociSalDaFasi, type FasePerSal } from "@/lib/orders/salDaFasi";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import type { Installment } from "@/lib/orderUtils";
+import { queryKeys } from "@/lib/queryKeys";
+import { useSalMatura } from "@/hooks/useSalMatura";
+import { useSostituisciRate } from "@/hooks/usePianoPagamenti";
+import { rataPerServer } from "@/lib/orders/modelliPagamento";
+import { salMaturato } from "@/lib/orders/salMaturazione";
+import { numeroNuovoSal, prossimoStatoSal, rataDaAllineareAlSal, rataDaSal, rateSalDaEmettere } from "@/lib/orders/salRate";
 
 interface SalVoce {
   id: string;
@@ -114,6 +122,27 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     enabled: !!orderId && !!companyId,
   });
 
+  // Quando matura la rata di un SAL (lo sceglie l'azienda) e come si cambia una rata dal verbale.
+  const salMatura = useSalMatura(companyId);
+  const sostituisciRate = useSostituisciRate(orderId);
+
+  // Fasi di lavorazione della commessa: per compilare il verbale dall'avanzamento
+  // dichiarato in cantiere (nome, % e venduto). importo_venduto può tornare null
+  // senza il permesso sugli importi: in quel caso la % arriva lo stesso.
+  const { data: fasiSal = [] } = useQuery<FasePerSal[]>({
+    queryKey: ["sal-fasi-commessa", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_work_phases")
+        .select("name, status, percentuale, importo_venduto")
+        .eq("order_id", orderId);
+      if (error) throw error;
+      // importo_venduto non è nei tipi generati: la lettura torna tipata come errore, si passa da unknown.
+      return (data || []) as unknown as FasePerSal[];
+    },
+    enabled: !!orderId,
+  });
+
   // AI: suggerisce % avanzamento dalle voci ordine + storico SAL + rapportini
   const aiSuggestMutation = useMutation({
     mutationFn: async () => {
@@ -163,7 +192,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
         return sum + (contrattuale * perc) / 100;
       }, 0);
 
-      const nextNumero = (salList.length > 0 ? salList[0].numero_sal : 0) + 1;
+      // Il numero che la rata aspetta (se è libero), altrimenti il prossimo: la rata «al SAL n°» matura con quel verbale.
+      const nextNumero = numeroNuovoSal((installments ?? []).find((i) => i.id === rataCollegata) ?? null, salList);
 
       const { data: sal, error: salError } = await supabase
         .from("sal_records")
@@ -203,6 +233,9 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     onSuccess: () => {
       toast.success("SAL creato con successo!");
       queryClient.invalidateQueries({ queryKey: ["sal-records", orderId] });
+      // Il database muove la data della rata che il verbale certifica (se è maturato).
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.installments(orderId) });
+      queryClient.invalidateQueries({ queryKey: ["order-installments", orderId] });
       setDialogOpen(false);
       setNote("");
       setStato("bozza");
@@ -220,6 +253,22 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     onSuccess: () => {
       toast.success("SAL eliminato");
       queryClient.invalidateQueries({ queryKey: ["sal-records", orderId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // Emetti / segna approvato. La data in cui la rata del verbale matura la scrive il database, e con lei si
+  // muove la data prevista della rata.
+  const cambiaStato = useMutation({
+    mutationFn: async ({ id, stato: nuovo }: { id: string; stato: "emesso" | "approvato" }) => {
+      const { error } = await supabase.from("sal_records").update({ stato: nuovo }).eq("id", id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: (_dati, { stato: nuovo }) => {
+      toast.success(nuovo === "emesso" ? "SAL emesso" : "SAL segnato come approvato");
+      queryClient.invalidateQueries({ queryKey: ["sal-records", orderId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.installments(orderId) });
+      queryClient.invalidateQueries({ queryKey: ["order-installments", orderId] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -264,6 +313,9 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   };
 
   const totalDialogImporto = voci.reduce((sum, v) => sum + computedImporto(v), 0);
+  const rataScelta = (installments ?? []).find((i) => i.id === rataCollegata) ?? null;
+  const numeroNuovo = numeroNuovoSal(rataScelta, salList);
+  const precedenteNuovo = maturatoPrecedente({ id: "nuovo", numero_sal: numeroNuovo }, salList);
 
   // ── Avanzamento incassi (piano rate della commessa) ─────────────────
   // Stessa matematica di FinancialSummaryReadOnly: il saldo è il residuo del
@@ -365,14 +417,14 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="text-muted-foreground truncate">{inst.label}</span>
                     {(() => {
-                      // Il verbale collegato alla rata: quando è firmato dal
-                      // cliente la rata è MATURATA — via libera alla fattura.
+                      // Il verbale collegato alla rata: quando matura (emesso, o approvato dal
+                      // cliente: lo sceglie l'azienda) la rata è MATURATA — via libera alla fattura.
                       const salRata = inst.id ? salList.find((sr) => sr.installment_id === inst.id) : undefined;
                       if (!salRata) return null;
                       return (
                         <span
                           className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                            salRata.stato === "firmato"
+                            salMaturato(salMatura, salRata.stato)
                               ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
                               : "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200"
                           }`}
@@ -380,7 +432,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                         >
                           <FileBarChart2 className="h-3 w-3" aria-hidden="true" />
                           SAL {salRata.numero_sal}
-                          {salRata.stato === "firmato" ? " · maturata" : ""}
+                          {salMaturato(salMatura, salRata.stato) ? " · maturata" : ""}
                         </span>
                       );
                     })()}
@@ -416,6 +468,37 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
         </Card>
       )}
 
+      {/* SAL = rata: il piano rate aspetta questi verbali. «Emetti» apre il verbale già legato alla sua rata. */}
+      {(() => {
+        const attesi = rateSalDaEmettere(installments ?? [], salList);
+        if (attesi.length === 0) return null;
+        return (
+          <Card className="border-dashed">
+            <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-1">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <FileBarChart2 className="h-4 w-4 text-primary" aria-hidden="true" />
+                SAL da emettere
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1.5 max-sm:p-3 max-sm:pt-0">
+              {attesi.map((inst) => (
+                <div key={inst.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="min-w-0 truncate">
+                    {inst.trigger_numero ? `SAL n. ${inst.trigger_numero}` : "SAL"} <span className="text-muted-foreground">· {inst.label}</span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span className="font-medium">{formatCurrency(inst.amount)}</span>
+                    <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setRataCollegata(inst.id ?? ""); setDialogOpen(true); }}>
+                      Emetti
+                    </Button>
+                  </span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {salList.length === 0 ? (
         /* Empty state compatto: per gli incassi c'è già la card qui sopra.
            I verbali servono solo a bonus edilizi, banche e appalti — una riga
@@ -447,8 +530,80 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Emesso il {fmtDate(sal.data_emissione)} · Totale: {formatCurrency(sal.importo_totale)}
                     </p>
+                    {(() => {
+                      const precedente = maturatoPrecedente(sal, salList);
+                      if (precedente <= 0) return null;
+                      const { daFatturare } = nettoSal(sal.importo_totale, precedente);
+                      return (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Già maturato nei SAL precedenti: {formatCurrency(precedente)} ·{" "}
+                          <span className={daFatturare < 0 ? "font-medium text-rose-600" : "font-medium text-foreground"}>
+                            {daFatturare < 0 ? "Rettifica" : "Da fatturare con questo SAL"}: {formatCurrency(daFatturare)}
+                          </span>
+                        </p>
+                      );
+                    })()}
+                    {(() => {
+                      // La rata certificata da questo verbale (SAL = rata): quando matura è da incassare; se vale
+                      // altro del SAL (con l'IVA), si propone di allinearla.
+                      const rata = sal.installment_id ? (installments ?? []).find((i) => i.id === sal.installment_id) : undefined;
+                      if (!rata) return null;
+                      const mostrato = recapRows.find((r) => r.inst.id === rata.id)?.amount ?? rata.amount;
+                      const proposta = rataDaAllineareAlSal({
+                        rata,
+                        saldoFinale: isSaldoFinale(rata),
+                        importoMostrato: mostrato,
+                        nettoDaFatturare: nettoSal(sal.importo_totale, maturatoPrecedente(sal, salList)).daFatturare,
+                        aliquotaIva: vatRate,
+                      });
+                      return (
+                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                          <span>
+                            Rata «{rata.label}»: {formatCurrency(mostrato)}
+                            {salMaturato(salMatura, sal.stato) && !rata.is_paid ? " · da incassare" : ""}
+                          </span>
+                          {proposta !== null && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-6 px-2 text-[11px]"
+                              disabled={sostituisciRate.isPending}
+                              onClick={async () => {
+                                const ok = await confirm({
+                                  title: `Portare la rata a ${formatCurrency(proposta)}?`,
+                                  description: `Il SAL, da fatturare, vale ${formatCurrency(proposta)} con l'IVA. Le provvigioni sulla rata si ricalcolano sul nuovo importo.`,
+                                  confirmLabel: "Cambia la rata",
+                                });
+                                if (ok) {
+                                  sostituisciRate.mutate((installments ?? []).map((r) => rataPerServer(r.id === rata.id ? { ...r, amount: proposta } : r)));
+                                }
+                              }}
+                            >
+                              Imposta la rata a {formatCurrency(proposta)}
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    {(() => {
+                      const prossimo = prossimoStatoSal(sal.stato);
+                      if (!prossimo) return null;
+                      return (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          disabled={cambiaStato.isPending}
+                          onClick={() => cambiaStato.mutate({ id: sal.id, stato: prossimo.stato })}
+                        >
+                          {prossimo.etichetta}
+                        </Button>
+                      );
+                    })()}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -515,6 +670,18 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                           <td className="p-2" colSpan={3}>Totale SAL</td>
                           <td className="p-2 text-right">{formatCurrency(sal.importo_totale)}</td>
                         </tr>
+                        {maturatoPrecedente(sal, salList) > 0 && (
+                          <>
+                            <tr className="border-t text-muted-foreground">
+                              <td className="p-2" colSpan={3}>Meno SAL precedenti</td>
+                              <td className="p-2 text-right">− {formatCurrency(maturatoPrecedente(sal, salList))}</td>
+                            </tr>
+                            <tr className="bg-muted/30 font-semibold">
+                              <td className="p-2" colSpan={3}>Da fatturare con questo SAL</td>
+                              <td className="p-2 text-right">{formatCurrency(nettoSal(sal.importo_totale, maturatoPrecedente(sal, salList)).daFatturare)}</td>
+                            </tr>
+                          </>
+                        )}
                       </tfoot>
                     </table>
                   </div>
@@ -597,11 +764,34 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
               </div>
             )}
 
+            {rataScelta && (() => {
+              const mostrato = recapRows.find((r) => r.inst.id === rataScelta.id)?.amount ?? rataScelta.amount;
+              const netto = nettoSal(totalDialogImporto, precedenteNuovo).daFatturare;
+              return (
+                <p className="text-xs text-muted-foreground">
+                  SAL n. {numeroNuovo}. La rata «{rataScelta.label}» vale {formatCurrency(mostrato)} (IVA inclusa); questo SAL, da fatturare{" "}
+                  {formatCurrency(Math.max(0, netto))} + IVA, vale {formatCurrency(rataDaSal(netto, vatRate))}.
+                </p>
+              );
+            })()}
+
             {/* Voci */}
             <div className="space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <Label>Voci di avanzamento</Label>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { const v = vociSalDaFasi(fasiSal); if (v.length) setVoci(v); }}
+                    disabled={fasiSal.length === 0}
+                    className="gap-1"
+                    title="Compila le voci dalle fasi di lavorazione: descrizione e % di avanzamento dichiarate in cantiere"
+                  >
+                    <ListChecks className="h-3.5 w-3.5" />
+                    Dalle fasi
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
@@ -696,6 +886,18 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
               <div className="flex justify-end text-sm font-semibold text-primary bg-muted/30 rounded-lg p-2">
                 Totale SAL: {formatCurrency(totalDialogImporto)}
               </div>
+              {precedenteNuovo > 0 && (
+                <div className="space-y-1 rounded-lg bg-muted/30 p-2 text-sm">
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Già maturato nei SAL precedenti</span>
+                    <span>− {formatCurrency(precedenteNuovo)}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold text-primary">
+                    <span>Da fatturare con questo SAL</span>
+                    <span>{formatCurrency(nettoSal(totalDialogImporto, precedenteNuovo).daFatturare)}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Note */}

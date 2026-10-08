@@ -28,7 +28,7 @@
     "mobile:sync": "npx cap sync",
     "mobile:doctor": "npx cap doctor",
     "mobile:android:debug": "npm run mobile:build && npm run mobile:sync && scripts/mobile/android-gradle.sh :app:assembleDebug",
-    "mobile:android:release": "npm run mobile:build && npm run mobile:sync && scripts/mobile/android-gradle.sh :app:bundleRelease",
+    "mobile:android:release": "npm run mobile:build && npm run mobile:sync && scripts/mobile/android-immagini.sh && scripts/mobile/android-gradle.sh :app:bundleRelease",
     "mobile:android": "npx cap open android",
     "mobile:ios": "npx cap open ios",
     "mobile:run:android": "npx cap run android",

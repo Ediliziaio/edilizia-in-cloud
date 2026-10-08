@@ -44,7 +44,6 @@ function basePdfData(): FvPdfTemplateData {
       titolo: "Mario Rossi",
       creato_il: "2026-05-23T10:00:00Z",
       valido_giorni: 30,
-      venditore: "Venditore Demo",
       potenza_kwp: 6,
       numero_pannelli: 12,
       has_accumulo: true,
@@ -279,7 +278,7 @@ describe("fotovoltaico PDF template", () => {
     expect(html).toContain("Quello che<br/>firmiamo insieme.");
     expect(html).toContain("Offerta soggetta a sopralluogo");
     // Dal 21/09/2026 la firma ha una pagina sua, dopo le condizioni.
-    expect(html).toContain("Firma del<br/>contratto.");
+    expect(html).toContain("ACCETTAZIONE<br/>PROPOSTA");
     expect(html).toContain("dopo le condizioni generali");
     expect(html).not.toContain("Condizioni commerciali");
   });
@@ -581,7 +580,7 @@ describe("fotovoltaico PDF — la pagina della firma", () => {
     const d = conCondizioni();
     const html = renderFvPdfHtml(d);
     const condizioni = html.indexOf("Quello che<br/>firmiamo insieme.");
-    const firma = html.indexOf("Firma del<br/>contratto.");
+    const firma = html.indexOf("ACCETTAZIONE<br/>PROPOSTA");
     const seconda = html.indexOf("Seconda firma del Committente");
     const recesso = html.indexOf("Modulo di recesso.");
     expect(condizioni).toBeGreaterThan(0);
@@ -601,7 +600,7 @@ describe("fotovoltaico PDF — la pagina della firma", () => {
   it("con l'interruttore spento niente modulo, anche se le condizioni nominano il recesso", () => {
     const d = conCondizioni(false);
     const html = renderFvPdfHtml(d);
-    expect(html).toContain("Firma del<br/>contratto.");
+    expect(html).toContain("ACCETTAZIONE<br/>PROPOSTA");
     expect(html).not.toContain("Modulo di recesso.");
     expect(html).not.toContain("basta il modulo allegato");
     expect(pagineDisegnate(html)).toBe(getFvPdfRenderedPagesCount(d));
@@ -617,8 +616,8 @@ describe("fotovoltaico PDF — la pagina della firma", () => {
   it("senza condizioni la firma segue la decisione, senza seconda firma né modulo", () => {
     const d: FvPdfTemplateData = { ...basePdfData(), template: { condizioni_legali_attivo: false } };
     const html = renderFvPdfHtml(d);
-    expect(html).toContain("Firma del<br/>contratto.");
-    expect(html).toContain("«Firma del contratto» che segue");
+    expect(html).toContain("ACCETTAZIONE<br/>PROPOSTA");
+    expect(html).toContain("«Accettazione proposta» che segue");
     expect(html).not.toContain("Seconda firma del Committente");
     expect(html).not.toContain("Modulo di recesso.");
     expect(html).not.toContain("condizioni generali di contratto che la accompagnano");
@@ -633,9 +632,43 @@ describe("fotovoltaico PDF — la pagina della firma", () => {
     };
     const html = renderFvPdfHtml(d);
     const totale = getFvPdfRenderedPagesCount(d);
-    expect(html).toContain("Firma del<br/>contratto.");
+    expect(html).toContain("ACCETTAZIONE<br/>PROPOSTA");
     expect(pagineDisegnate(html)).toBe(totale);
     expect(html).toContain(`<span class="pnum">${totale} / ${totale}</span>`);
+  });
+});
+
+// 07/10/2026 — richieste di Renova, per tutti i PDF dei preventivi: in copertina niente «A cura di» e, col logo,
+// niente nome dell'azienda accanto; in testata di ogni pagina il numero del preventivo, non il nome del cliente.
+describe("fotovoltaico PDF — copertina e testata", () => {
+  const conLogo = (): FvPdfTemplateData => ({ ...basePdfData(), template: { logo_url: "data:image/png;base64,iVBORw0KGgo=" } });
+  const copertinaDi = (html: string) => {
+    const da = html.indexOf('<div class="cover');
+    return html.slice(da, html.indexOf('<div class="page">', da));
+  };
+
+  it("col logo la copertina non ripete il nome dell'azienda (lo slogan resta) e non dice «A cura di»", () => {
+    const copertina = copertinaDi(renderFvPdfHtml(conLogo()));
+    expect(copertina).toContain('class="logo-img"');
+    expect(copertina).not.toContain('<div class="name">');
+    expect(copertina).toContain("Fotovoltaico chiavi in mano");
+    expect(copertina).not.toContain("A cura di");
+  });
+
+  it("senza logo il nome dell'azienda resta al posto del logo", () => {
+    const copertina = copertinaDi(renderFvPdfHtml(basePdfData()));
+    expect(copertina).toContain('<div class="name">Demo Solar</div>');
+    expect(copertina).not.toContain("A cura di");
+  });
+
+  it("la testata di ogni pagina dice azienda e numero del preventivo, mai il nome del cliente", () => {
+    const testate = renderFvPdfHtml(conLogo()).match(/<div[^>]*class="page-header">[\s\S]*?<div class="ref">[\s\S]*?<\/div>\s*<\/div>/g) ?? [];
+    expect(testate.length).toBeGreaterThan(5);
+    for (const t of testate) {
+      expect(t).toContain('<div class="brand"><div class="brand-icon">☀</div><span>Demo Solar</span></div>');
+      expect(t).toContain('<div class="ref">Preventivo <strong>FV-TEST</strong></div>');
+      expect(t).not.toMatch(/Mario|Rossi/);
+    }
   });
 });
 

@@ -7,12 +7,24 @@ import type { WorkPhase, PhaseAssignment } from "@/hooks/useOrderWorkPhases";
 const state = vi.hoisted(() => ({
   permissions: { canEditOrders: true, canViewCosts: true, canManagePayments: true },
   phases: [] as WorkPhase[], unassigned: [] as PhaseAssignment[], loading: false, error: false,
-  add: vi.fn(), update: vi.fn(), remove: vi.fn(), addPhase: vi.fn(), applyTemplate: vi.fn(), updatePhase: vi.fn(), refetch: vi.fn(),
+  add: vi.fn(), update: vi.fn(), remove: vi.fn(), addPhase: vi.fn(), applyTemplate: vi.fn(), updatePhase: vi.fn(), refetch: vi.fn(), segnaSottofase: vi.fn(), aggiungiSottofase: vi.fn(), sottofasiPerFase: new Map<string, unknown[]>(),
 }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[] }) }));
+vi.mock("@/components/orders/AlertScostamentoSal", () => ({ AlertScostamentoSal: (): null => null }));
+vi.mock("@/hooks/useSottofasi", () => ({
+  useSottofasi: () => ({
+    sottofasi: [] as unknown[], perFase: state.sottofasiPerFase, isLoading: false, isError: false,
+    segna: { mutate: state.segnaSottofase }, aggiungi: { mutate: state.aggiungiSottofase },
+    rinomina: { mutate: vi.fn() }, elimina: { mutate: vi.fn() },
+  }),
+}));
+vi.mock("@/hooks/useModelliFasi", () => ({ useModelliFasi: () => ({ modelli: [] as unknown[], inizializzati: false }) }));
+vi.mock("@/hooks/useAvanzamentoCommessa", () => ({
+  useAvanzamentoCommessa: () => ({ percentuale: null as number | null, peso: "uguale", daMostrare: (locale: unknown) => locale }),
+}));
 vi.mock("@/hooks/useOrderScheduleHealth", () => ({ useOrderScheduleHealth: () => ({ data: null as null }) }));
 vi.mock("@/hooks/useOrderWorkPhases", () => ({
   PHASE_TEMPLATES: [{ key: "simple", label: "Intervento semplice", hint: "Due fasi", phases: ["Preparazione", "Posa"] }],
@@ -52,7 +64,7 @@ const setteFasi = () => [
 
 beforeEach(() => {
   vi.clearAllMocks(); state.phases = [phase(), phase({ id: "p2", name: "Collaudo", status: "completata", assignments: [] })];
-  state.unassigned = []; state.loading = false; state.error = false;
+  state.unassigned = []; state.loading = false; state.error = false; state.sottofasiPerFase = new Map();
   Object.assign(state.permissions, { canEditOrders: true, canViewCosts: true, canManagePayments: true });
   state.update.mockResolvedValue(undefined); state.remove.mockResolvedValue(undefined);
 });
@@ -65,6 +77,19 @@ const chooseEmployee = () => {
 };
 
 describe("Lavorazioni e squadra", () => {
+  it("una fase con sottofasi mostra la checklist e non si corregge a mano", () => {
+    state.sottofasiPerFase = new Map([["p1", [
+      { id: "s1", phase_id: "p1", name: "Tracce", position: 0, peso: 1, fatta: true, fatta_il: null },
+      { id: "s2", phase_id: "p1", name: "Cavi", position: 1, peso: 1, fatta: false, fatta_il: null },
+    ]]]);
+    // la fase «in corso» si apre da sola: la checklist è già visibile
+    draw();
+    expect(screen.getByText("1 di 2 · 50%")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Cavi: da fare" }));
+    expect(state.segnaSottofase).toHaveBeenCalledWith({ id: "s2", fatta: true });
+    // la percentuale non si corregge a mano: la decidono le sottofasi
+    expect(screen.getByRole("button", { name: /Avanzamento Opere murarie/ })).toBeDisabled();
+  });
   it("la vista lavorazioni esclude logistica, note generali e ditte", () => {
     render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
     expect(screen.getByRole("button", { name: "Opere murarie" })).toBeInTheDocument();

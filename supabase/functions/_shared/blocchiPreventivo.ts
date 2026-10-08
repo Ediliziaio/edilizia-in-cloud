@@ -765,6 +765,8 @@ const FOTO_PAGINE: Partial<Record<SettoreBlocchi, Partial<Record<ChiaveFotoPagin
     // Il dettaglio di una finestra nuova (22/09/2026; prima una livella laser su un muro).
     allegato: "serramenti/dettaglio",
     dettagli: "serramenti/tecnica-prima-dopo",
+    // Sotto il prezzo, quando la pagina economica lascia mezzo foglio bianco (07/10/2026): un salotto con le finestre nuove.
+    investimento: "serramenti/risultato",
   },
   fotovoltaico: {
     garanzie: "fotovoltaico/villa-tramonto",

@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVertical } from "@/hooks/useVertical";
 import { applyPlaybookToOrder } from "@/lib/orderPlaybook";
+import { collegaPreventivoAllaCommessa } from "@/lib/orders/collegaPreventivoAllaCommessa";
 import { useCompanyCustomers, type CompanyCustomer } from "@/hooks/useCompanyCustomers";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -73,8 +74,18 @@ import { orderSchema, orderDefaultValues, type OrderFormValues } from "@/lib/ord
 import { primoErroreForm } from "@/lib/form/primoErroreForm";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { SedeSelect } from "@/components/sedi/SedeSelect";
+import { FasiDiPartenzaSelect } from "@/components/orders/FasiDiPartenzaSelect";
+import { useFasiDiPartenza } from "@/hooks/useFasiDiPartenza";
+import { fasiPerCommessa } from "@/lib/orders/modelliFasi";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useComeSiPagaDiPartenza } from "@/hooks/useComeSiPagaDiPartenza";
+import { rateDaModello, ricalcolaRatePercentuali, type ModelloPagamento } from "@/lib/orders/modelliPagamento";
 
-function CreateOrderInner() {
+/** Le rate con cui si apre il modulo: quelle del modello scelto dall'azienda per le commesse nuove (importi a zero finché non c'è il totale), o le due di sempre. */
+const rateDiPartenza = (modello: ModelloPagamento | null): Installment[] =>
+  modello ? rateDaModello(modello, 0) : createDefaultInstallments('standard', 2);
+
+function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamento | null }) {
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
   const { vertical } = useVertical();
@@ -140,10 +151,8 @@ function CreateOrderInner() {
   const paymentType = _paymentTypeRaw as PaymentType;
 
   // ── Non-form state (arrays / UI) ────────────────────────────
-  const [installments, setInstallments] = useState<Installment[]>(
-    createDefaultInstallments('standard', 2)
-  );
-  const [numInstallments, setNumInstallments] = useState(2);
+  const [installments, setInstallments] = useState<Installment[]>(() => rateDiPartenza(modelloIniziale));
+  const [numInstallments, setNumInstallments] = useState(modelloIniziale?.righe.length ?? 2);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   // Ripartizione della commessa su più bonus edilizi (pratiche distinte).
   const [bonusLines, setBonusLines] = useState<BonusLine[]>([]);
@@ -226,6 +235,8 @@ function CreateOrderInner() {
   // ── Draft auto-save ─────────────────────────────────────────
   const { loadDraft, saveDraft, clearDraft, draftRestored, setDraftRestored, dateToIso, isoToDate } = useOrderDraft(effectiveCompany?.id);
   const { bonusMultipli: bonusMultipliEnabled } = useBonusFiscaliFlags();
+  // Le fasi con cui parte la commessa: il modello di partenza dell'azienda, se ne ha scelto uno.
+  const fasiDiPartenza = useFasiDiPartenza();
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load draft on mount
@@ -506,13 +517,13 @@ function CreateOrderInner() {
   const handleClearDraft = useCallback(() => {
     clearDraft();
     reset(orderDefaultValues);
-    setInstallments(createDefaultInstallments('standard', 2));
-    setNumInstallments(2);
+    setInstallments(rateDiPartenza(modelloIniziale));
+    setNumInstallments(modelloIniziale?.righe.length ?? 2);
     setOrderItems([]);
     setCantiereAddress("");
     cantiereTouchedRef.current = false;
     lastCantiereCustomerRef.current = null;
-  }, [clearDraft, reset]);
+  }, [clearDraft, reset, modelloIniziale]);
 
   const { data: customers = [] } = useCompanyCustomers(effectiveCompany?.id);
 
@@ -793,24 +804,22 @@ function CreateOrderInner() {
       }
 
       // Collega il preventivo di origine alla commessa (se creata da un preventivo via
-      // ?quote_id / "Importa da preventivo") → la commessa mostrerà il "Preventivo collegato".
+      // ?quote_id / "Importa da preventivo") → la commessa mostrerà il "Preventivo collegato", il blocca prezzo la
+      // segue, e la pagina del preventivo (che non offre una seconda commessa) rilegge la commessa collegata.
       if (selectedQuoteId) {
-        const { error: linkErr } = await supabase
-          .from("orders")
-          .update({ quote_id: selectedQuoteId, quote_number: quotePrefill?.quoteNumber ?? null })
-          .eq("id", result.id);
-        if (linkErr) console.error("[CreateOrder] collegamento preventivo non riuscito:", linkErr.message);
-
-        // Il blocca prezzo versato sul preventivo segue la commessa: senza
-        // questo aggancio resterebbe orfano sul preventivo e nessuno si
-        // ricorderebbe di restituirlo.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: bpErr } = await (supabase as any)
-          .from("blocca_prezzo")
-          .update({ order_id: result.id, customer_id: values.customer_id || null })
-          .eq("quote_id", selectedQuoteId)
-          .is("order_id", null);
-        if (bpErr) console.warn("[CreateOrder] aggancio blocca prezzo alla commessa fallito:", bpErr.message);
+        const { collegata } = await collegaPreventivoAllaCommessa({
+          queryClient,
+          orderId: result.id,
+          quoteId: selectedQuoteId,
+          quoteNumber: quotePrefill?.quoteNumber ?? null,
+          customerId: values.customer_id || null,
+        });
+        if (!collegata) {
+          toast.warning("La commessa è stata creata, ma non risulta collegata al preventivo", {
+            description: "Dal preventivo potresti rivedere «Crea commessa»: controlla di non farne una seconda.",
+            duration: 12000,
+          });
+        }
       }
 
       // v8.6.42 — sede_id non è nel RPC create_order_atomic, viene
@@ -868,6 +877,22 @@ function CreateOrderInner() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: cantErr } = await (supabase as any).from("orders").update(patch).eq("id", result.id);
         if (cantErr) console.warn("[CreateOrder] update indirizzo cantiere fallito (ordine creato comunque):", cantErr.message);
+      }
+
+      // Le fasi scelte nel modulo (o quelle di partenza dell'azienda): fasi e sottofasi in un colpo
+      // solo, dal server. Come le altre scritture dopo la RPC, un errore non fa sparire la commessa.
+      if (fasiDiPartenza.modello && result.id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: fasiErr } = await (supabase as any).rpc("aggiungi_fasi_commessa", {
+          p_order_id: result.id,
+          p_fasi: fasiPerCommessa(fasiDiPartenza.modello),
+        });
+        if (fasiErr) {
+          console.warn("[CreateOrder] fasi di partenza non aggiunte (ordine creato comunque):", fasiErr.message);
+          toast.error("Fasi non aggiunte", {
+            description: "La commessa è stata creata: scegli le fasi dalla scheda Cantiere.",
+          });
+        }
       }
 
       return result;
@@ -1394,6 +1419,7 @@ function CreateOrderInner() {
           </QuoteCard>
 
           <FinancialSummary
+            nuova
             dateCommessa={{
               created_at: new Date().toISOString(),
               warehouse_arrival_date: toDateStr(watch("warehouse_arrival_date")),
@@ -1409,8 +1435,15 @@ function CreateOrderInner() {
             onInstallmentsChange={setInstallments}
             numInstallments={numInstallments}
             onNumInstallmentsChange={handleNumInstallmentsChange}
-            onTotalAmountChange={(val) => setValue("total_amount", val)}
-            onVatRateChange={(val) => setValue("vat_rate", val)}
+            // Le rate che vengono da un modello seguono il totale e l'IVA.
+            onTotalAmountChange={(val) => {
+              setValue("total_amount", val);
+              setInstallments((prev) => ricalcolaRatePercentuali(prev, parseDecimalIT(val) * (1 + vat / 100)));
+            }}
+            onVatRateChange={(val) => {
+              setValue("vat_rate", val);
+              setInstallments((prev) => ricalcolaRatePercentuali(prev, total * (1 + (parseDecimalIT(val) || 22) / 100)));
+            }}
             onPaymentTypeChange={handlePaymentTypeChange}
             balance={balance}
             hasBuildingBonus={hasBuildingBonus}
@@ -1434,6 +1467,10 @@ function CreateOrderInner() {
             <DatePickerField name="warehouse_arrival_date" label="Arrivo Merce in Magazzino" />
             <DatePickerField name="work_start_date" label="Inizio Lavori" />
             <DatePickerField name="work_end_date" label="Fine Lavori" />
+          </div>
+          {/* Fasi di lavoro: facoltative, di partenza quelle scelte dall'azienda nelle Impostazioni. */}
+          <div className="mt-4 max-w-md">
+            <FasiDiPartenzaSelect offerti={fasiDiPartenza.offerti} valore={fasiDiPartenza.scelta} onChange={fasiDiPartenza.scegli} />
           </div>
         </QuoteCard>
 
@@ -1502,10 +1539,21 @@ function CreateOrderInner() {
   );
 }
 
+/**
+ * Aspetta di sapere con quale modello di pagamento parte l'azienda (una lettura breve, quasi sempre già in
+ * memoria), poi apre il modulo: lo stato iniziale delle rate si decide una volta sola, alla prima apertura.
+ * Una bozza o un preventivo importato la sostituiscono, come hanno sempre fatto con le rate di partenza.
+ */
+function CreateOrderConPartenza() {
+  const { pronto, modello } = useComeSiPagaDiPartenza();
+  if (!pronto) return <Skeleton className="h-96 w-full" />;
+  return <CreateOrderInner modelloIniziale={modello} />;
+}
+
 export default function CreateOrder() {
   return (
     <ErrorBoundary title="Errore nella creazione commessa">
-      <CreateOrderInner />
+      <CreateOrderConPartenza />
     </ErrorBoundary>
   );
 }

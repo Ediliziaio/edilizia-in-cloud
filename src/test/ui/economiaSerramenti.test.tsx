@@ -1918,3 +1918,79 @@ describe("13. il confronto delle liste non dipende dall'ordine delle chiavi: un 
     expect((ultimo("pagamento_milestones") as Array<{ percentuale: number }>).map((r) => r.percentuale)).toEqual([30, 70]);
   });
 });
+
+describe("14. l'avviso di un preventivo deciso dice PERCHÉ il piano non corrisponde: il totale, l'anticipo, o tutti e due", () => {
+  // Su un preventivo già deciso il piano non si riscrive da solo. Cambiando a mano una rata l'anticipo si aggiorna e il piano
+  // no (voluto): l'avviso non può parlare di «totale attuale» quando a cambiare è l'anticipo.
+  const t1 = () => { stato.tabelle = [TABELLA("t1", "Prestito Casa")]; stato.righe = { t1: RIGHE_TABELLA("t1") }; };
+  const ACCETTATO: Partial<SrProgettoRow> = { stato: "accettato" };
+  /** Le finestre allo stesso numero ma a un altro prezzo (totale = prezzo + IVA 10%), col preventivo già accettato. */
+  const accettatoCon = (prezzoTotale = 10_000): SrProgettoDetail => dettaglio({
+    progetto: { ...PROGETTO, ...ACCETTATO } as SrProgettoRow,
+    serramenti: [{ ...FINESTRE, prezzo_unitario: prezzoTotale / 4, prezzo_totale: prezzoTotale } as SrSerramentoRow],
+  });
+  const avviso = () => (screen.queryByText(/Il preventivo è già accettato: il piano di finanziamento non corrisponde/)?.textContent ?? "");
+  const scriviRata = (valore: string) => fireEvent.change(screen.getByLabelText("Percentuale dello step 1"), { target: { value: valore } });
+
+  it("il totale è cambiato (stesso anticipo): «non corrisponde al totale attuale», e non parla dell'anticipo", () => {
+    t1();
+    monta(COMPLETO, accettatoCon(9_000));
+    expect(avviso()).toMatch(/non corrisponde al totale attuale\./);
+    expect(avviso()).not.toMatch(/anticipo/);
+  });
+
+  it("l'anticipo è cambiato a mano (rata 35/65, stesso totale): «non corrisponde all'anticipo attuale», e non parla del totale", () => {
+    t1();
+    monta(COMPLETO, accettatoCon());
+    expect(avviso()).toBe(""); // piano, totale e anticipo tornano: niente avviso
+    scriviRata("35");
+    expect(ultimo("fin_anticipo_pct")).toBe(35); // la scelta di chi lavora si scrive...
+    expect(scritto("fin_piani")).toEqual([]); // ...il piano resta com'è (preventivo deciso)
+    expect(avviso()).toMatch(/non corrisponde all'anticipo attuale\./);
+    expect(avviso()).not.toMatch(/totale/);
+  });
+
+  it("tutti e due (rata cambiata a mano e totale cambiato dopo): «al totale e all'anticipo attuali»", () => {
+    t1();
+    const { conRighe } = monta(COMPLETO, accettatoCon());
+    scriviRata("35");
+    conRighe(accettatoCon(9_000));
+    expect(avviso()).toMatch(/non corrisponde al totale e all'anticipo attuali\./);
+  });
+
+  it("né il totale né l'anticipo (la rata scritta non è più quella della tabella): «ai dati attuali»", () => {
+    t1();
+    monta({ ...COMPLETO, fin_piani: [{ ...PIANO_48, rata_mese: 150 }] }, accettatoCon());
+    expect(avviso()).toMatch(/non corrisponde ai dati attuali\./);
+  });
+
+  it("oltre l'ultima fascia (totale salito a 22.000) il motivo è il totale", () => {
+    t1();
+    monta(COMPLETO, accettatoCon(20_000));
+    expect(avviso()).toMatch(/non corrisponde al totale attuale\./);
+  });
+
+  it("anche con il piano manuale (due piani, Estesa e Standard): il motivo si legge lo stesso", () => {
+    stato.tabelle = [];
+    const manuale = pianiManuali({ totale: 11_000, anticipoPct: 30, piani: PIANO_MANUALE_DI_SERIE });
+    const base: Partial<SrProgettoRow> = { ...COMPLETO, fin_tabella_id: null, fin_tabella_riga_id: null, fin_piani: manuale };
+    const { conRighe } = monta(base, accettatoCon());
+    expect(avviso()).toBe("");
+    conRighe(accettatoCon(9_000));
+    expect(avviso()).toMatch(/non corrisponde al totale attuale\./);
+    cleanup();
+    monta(base, accettatoCon());
+    scriviRata("35");
+    expect(scritto("fin_piani")).toEqual([]);
+    expect(avviso()).toMatch(/non corrisponde all'anticipo attuale\./);
+  });
+
+  it("una volta riportato l'anticipo a quello del piano (30%) l'avviso sparisce", () => {
+    t1();
+    monta(COMPLETO, accettatoCon());
+    scriviRata("35");
+    expect(avviso()).not.toBe("");
+    scriviRata("30");
+    expect(avviso()).toBe("");
+  });
+});

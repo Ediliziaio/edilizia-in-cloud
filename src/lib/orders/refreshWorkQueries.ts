@@ -9,12 +9,14 @@ export function refreshWorkQueries(qc: QueryClient, orderId: string | null | und
     "order-campo-assignments", "order-items-materials", "order-campo-rapportini",
     "campo-lavoro", "campo-fasi-commessa", "campo-mie-fasi", "note-cantiere", "campo-ruolo", "campo-squadra",
     "campo-rapportini-ordine", "campo-rapportino-gia-oggi", "campo-lavoro-rapportino-oggi",
+    "order_work_subphases", "order-avanzamento",
   ];
   const sharedKeys = [
     "order-employees-costs", "order-external-teams-costs", "laborStats",
     "campo-lavori-assegnati", "campo-cantieri-sub", "campo-e-capocantiere",
     "campo-cantiere-unico", "campo-ai-lavori-oggi", "campo-avanzamento-fasi",
     "campo-rapportini-sospesi", "campo-assignments", "campo-lavori-full", "campo-rapportini-da-compilare", "campo-labor-review",
+    "campo-sottofasi",
   ];
   for (const key of orderKeys) void qc.invalidateQueries({ queryKey: [key, orderId] });
   for (const key of sharedKeys) void qc.invalidateQueries({ queryKey: [key] });

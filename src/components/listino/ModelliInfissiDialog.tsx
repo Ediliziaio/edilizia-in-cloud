@@ -4,13 +4,16 @@
  * e le persiane. Si parte dal modello «Infissi con disegno automatico» (le tipologie di Demo Azienda 2).
  * Si può ripetere: un modello che c'è già non si duplica.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Layers, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useModelliArea, useModelliAreaMutations, useModelliDisponibili } from "@/hooks/useModelliArea";
+import { useDebounce } from "@/hooks/useDebounce";
+import { useAnteprimaInstallazione, useModelliAreaMutations, useModelliDisponibili } from "@/hooks/useModelliArea";
+import { haMaggiorazioniDaCopiare, messaggioErroreInstallazione, tipoErroreInstallazione } from "@/lib/listino/modelliArea";
+import { AvvisoInstallazioneModello } from "./AvvisoInstallazioneModello";
 
 const NOME_MODELLO = "Infissi con disegno automatico";
 const SUGGERITI = ["PVC Aluplast", "PVC Salamander", "Alluminio"];
@@ -30,6 +33,23 @@ export function ModelliInfissiDialog({ open, onOpenChange, companyId, giaPresent
   const [nomi, setNomi] = useState<string[]>([]);
   const [bozza, setBozza] = useState("");
   const [inCorso, setInCorso] = useState(false);
+  const [copia, setCopia] = useState(true);
+  // Un secondo click prima che la finestra se ne accorga non parte.
+  const invioInCorso = useRef(false);
+
+  const elenco = bozza.trim() ? [...nomi, bozza.trim()] : nomi;
+  // Cosa succederebbe alle maggiorazioni dell'azienda con questi nomi. Si aspetta che finisca di scrivere: a ogni
+  // lettera cambierebbe l'elenco e partirebbe una richiesta.
+  const nomiVisti = useDebounce(elenco.join("\u0001"), 400);
+  const anteprima = useAnteprimaInstallazione({
+    modelloId: modello?.id ?? null,
+    companyId,
+    modelli: nomiVisti ? nomiVisti.split("\u0001") : [],
+    enabled: open && !!nomiVisti,
+  });
+  // L'anteprima è per l'elenco di un attimo fa: se l'elenco è appena cambiato non è ancora quella giusta.
+  const anteprimaAggiornata = nomiVisti === elenco.join("\u0001");
+  const inAttesa = elenco.length > 0 && (!anteprimaAggiornata || anteprima.isLoading);
 
   const aggiungi = (testo: string) => {
     const t = testo.trim();
@@ -39,23 +59,53 @@ export function ModelliInfissiDialog({ open, onOpenChange, companyId, giaPresent
   };
 
   const crea = async () => {
-    if (!companyId || !modello) return;
-    const elenco = bozza.trim() ? [...nomi, bozza.trim()] : nomi;
+    if (!companyId || !modello || invioInCorso.current) return;
+    invioInCorso.current = true;
     setInCorso(true);
     let prodotti = 0;
+    let giaFatti = 0;
+    // Se c'è da scegliere si passa la scelta; se non c'è niente da copiare non si passa nulla, così il database
+    // resta la rete di sicurezza anche quando l'anteprima è vecchia.
+    const daScegliere = haMaggiorazioniDaCopiare(anteprima.data);
     try {
       // Un modello alla volta: ogni passo è tutto o niente e l'elenco avanza.
       for (const nome of elenco) {
-        const esito = await installa.mutateAsync({ modelloId: modello.id, companyId, modelli: [nome] });
-        prodotti += esito.prodotti_nuovi ?? 0;
+        try {
+          const esito = await installa.mutateAsync({
+            modelloId: modello.id,
+            companyId,
+            modelli: [nome],
+            copiaMaggiorazioni: daScegliere ? copia : undefined,
+          });
+          prodotti += esito.prodotti_nuovi ?? 0;
+        } catch (e) {
+          // Lo stesso nome aggiunto meno di un minuto fa, o che si sta aggiungendo adesso: c'è già, si passa al prossimo.
+          const tipo = tipoErroreInstallazione(e);
+          if (tipo === "recente" || tipo === "in_corso") {
+            giaFatti += 1;
+            continue;
+          }
+          throw e;
+        }
       }
-      toast.success(`Creato: ${elenco.length} ${elenco.length === 1 ? "modello" : "modelli"}, ${prodotti} prodotti con disegno`);
+      const creati = elenco.length - giaFatti;
+      if (creati === 0) {
+        toast.info(elenco.length === 1 ? "Questo modello è già stato aggiunto da poco" : "Questi modelli sono già stati aggiunti da poco");
+      } else {
+        toast.success(`Creato: ${creati} ${creati === 1 ? "modello" : "modelli"}, ${prodotti} prodotti con disegno`);
+      }
       setNomi([]);
       setBozza("");
       onOpenChange(false);
     } catch (e) {
-      toast.error("Non è andata fino in fondo", { description: e instanceof Error ? e.message : undefined });
+      if (tipoErroreInstallazione(e) === "scelta_maggiorazioni") {
+        toast.warning("Prima scegli cosa fare delle maggiorazioni", { description: messaggioErroreInstallazione(e) });
+        void anteprima.refetch();
+      } else {
+        toast.error("Non è andata fino in fondo", { description: messaggioErroreInstallazione(e) });
+      }
     } finally {
+      invioInCorso.current = false;
       setInCorso(false);
     }
   };
@@ -122,13 +172,23 @@ export function ModelliInfissiDialog({ open, onOpenChange, companyId, giaPresent
             <p className="text-xs text-muted-foreground">Hai già: {giaPresenti.join(", ")}. Se riscrivi un nome uguale non viene duplicato.</p>
           )}
           {!modello && <p className="text-xs text-destructive">Il modello degli infissi non è ancora disponibile.</p>}
+
+          {elenco.length > 0 && (
+            <AvvisoInstallazioneModello
+              anteprima={anteprimaAggiornata ? anteprima.data : undefined}
+              caricamento={inAttesa}
+              copia={copia}
+              onCopia={setCopia}
+              disabilitato={inCorso}
+            />
+          )}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={inCorso}>
             Non ora
           </Button>
-          <Button onClick={crea} disabled={inCorso || !modello || daCreare === 0}>
+          <Button onClick={crea} disabled={inCorso || !modello || daCreare === 0 || inAttesa}>
             {inCorso ? "Creo il listino…" : `Crea ${daCreare || ""} ${daCreare === 1 ? "modello" : "modelli"}`.replace("  ", " ")}
           </Button>
         </DialogFooter>

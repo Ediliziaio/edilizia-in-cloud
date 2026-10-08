@@ -221,7 +221,7 @@ describe("modulo di recesso e pagina della firma in tutti i documenti", () => {
 
   it("Serramenti: c'è una firma su carta, con il riepilogo, prima della seconda firma", () => {
     const src = leggi("src/components/serramenti/SerramentoPDF.tsx");
-    const firma = src.indexOf("Firma del contratto</Text>");
+    const firma = src.indexOf("ACCETTAZIONE PROPOSTA</Text>");
     const seconda = src.indexOf("SECONDA FIRMA DEL COMMITTENTE");
     expect(firma).toBeGreaterThan(0);
     expect(seconda).toBeGreaterThan(firma);
@@ -243,6 +243,8 @@ describe("Fotovoltaico: pagine meno vuote in fondo", () => {
 
   it("caratteri più leggibili su un A4", () => {
     expect(src).toContain(".page-title { font-size: 25pt;");
-    expect(src).toMatch(/\.callout \{[^}]*font-size: 9\.5pt;/);
+    // Dal 07/10/2026 il testo dei riquadri sale a 10 punti (era 9,5): conta che non scenda sotto i 9,5.
+    const callout = /\.callout \{[^}]*font-size: ([0-9.]+)pt;/.exec(src);
+    expect(Number(callout?.[1])).toBeGreaterThanOrEqual(9.5);
   });
 });

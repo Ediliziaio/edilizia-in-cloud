@@ -89,11 +89,11 @@ export function VotiOnline({ tema, voti, larghezza }: { tema: TemaDocumento; vot
           </View>
           <View style={{ flex: 1 }}>
             <Stelle voto={v.voto} lato={15} />
-            {conta ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro, marginTop: 7 }}>{conta}</Text> : null}
-            {indirizzo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigio, marginTop: 2 }}>{indirizzo}</Text> : null}
+            {conta ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro, marginTop: 7 }}>{conta}</Text> : null}
+            {indirizzo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, marginTop: 2 }}>{indirizzo}</Text> : null}
           </View>
         </View>
-        <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 5 }}>{nota}</Text>
+        <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigioChiaro, marginTop: 5 }}>{nota}</Text>
       </View>
     );
   }
@@ -113,26 +113,26 @@ export function VotiOnline({ tema, voti, larghezza }: { tema: TemaDocumento; vot
                 <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9, color: tema.grigio, marginLeft: 4, marginBottom: 3 }}>su 5</Text>
               </View>
               <View style={{ marginTop: 7 }}><Stelle voto={v.voto} lato={12} /></View>
-              {conta ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8.5, color: tema.inchiostro, marginTop: 7 }}>{conta}</Text> : null}
-              {indirizzo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7.5, color: tema.grigio, marginTop: 2 }}>{indirizzo}</Text> : null}
+              {conta ? <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9, color: tema.inchiostro, marginTop: 7 }}>{conta}</Text> : null}
+              {indirizzo ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 2 }}>{indirizzo}</Text> : null}
             </View>
           );
         })}
       </View>
-      <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 7, color: tema.grigioChiaro, marginTop: 5 }}>{nota}</Text>
+      <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8, color: tema.grigioChiaro, marginTop: 5 }}>{nota}</Text>
     </View>
   );
 }
 
 export function stimaVotiOnline(voti: VotoOnline[]): number {
   if (!voti.length) return 0;
-  const nota = 5 + 7 * 1.2;
+  const nota = 5 + 8 * 1.2;
   if (voti.length === 1) {
     const v = voti[0];
-    const destra = 15 + (v.numero != null ? 7 + 9.5 * 1.2 : 0) + (v.link ? 2 + 8 * 1.2 : 0);
+    const destra = 15 + (v.numero != null ? 7 + 10 * 1.2 : 0) + (v.link ? 2 + 9 * 1.2 : 0);
     return 28 + Math.max(7.5 * 1.2 + 6 + 32, destra) + nota + 22;
   }
-  const alta = Math.max(...voti.map((v) => 12 + 7.5 * 1.2 + 7 + 28 + 7 + 12 + (v.numero != null ? 7 + 8.5 * 1.2 : 0) + (v.link ? 2 + 7.5 * 1.2 : 0) + 13));
+  const alta = Math.max(...voti.map((v) => 12 + 7.5 * 1.2 + 7 + 28 + 7 + 12 + (v.numero != null ? 7 + 9 * 1.2 : 0) + (v.link ? 2 + 8.5 * 1.2 : 0) + 13));
   return alta + nota + 22;
 }
 
@@ -175,7 +175,7 @@ export function ParoleDeiClienti({ tema, voci, larghezza, testa }: {
             <Text style={{ fontFamily: tema.caratteri.accento, fontSize: corpoCitazione(sola), color: tema.inchiostro, lineHeight: 1.45 }}>
               {`«${senzaVirgolette(v.testo)}»`}
             </Text>
-            <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 7, color: tema.inchiostroMarca, letterSpacing: 1, marginTop: 8, lineHeight: 1.4 }}>{firmaDi(v)}</Text>
+            <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 8, color: tema.inchiostroMarca, letterSpacing: 1, marginTop: 8, lineHeight: 1.4 }}>{firmaDi(v)}</Text>
           </View>
         ))}
       </View>
@@ -200,7 +200,7 @@ export function stimaParoleDeiClienti(tema: TemaDocumento, voci: DocEdileTestimo
     const interna = (sola ? larghezza : (larghezza - SPAZIO_CITAZIONI) / 2) - 16;
     totale += 20 + 4 + Math.max(...riga.map((v) => (v.voto ? 9 + 7 : 0)
       + altezzaTesto(`«${senzaVirgolette(v.testo)}»`, interna, fam(tema.caratteri.accento), corpoCitazione(sola), 1.45)
-      + 8 + altezzaTesto(firmaDi(v), interna, fam(tema.caratteri.forte), 7, 1.4)));
+      + 8 + altezzaTesto(firmaDi(v), interna, fam(tema.caratteri.forte), 8, 1.4)));
   }
   return totale;
 }
@@ -245,8 +245,8 @@ export function SchedeGaranzie({ tema, voci, colonne, larghezza }: { tema: TemaD
             {riga.map((v, i) => (
               <View key={i} style={{ width: larga, marginLeft: i === 0 ? 0 : spazio, backgroundColor: tema.cartaCalda, borderTopWidth: 2, borderTopColor: tema.fondo, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 12 }}>
                 <SigilloGaranzia tema={tema} titolo={v.titolo} descrizione={v.descrizione} />
-                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 9.5, color: tema.inchiostro, lineHeight: 1.3, marginTop: 9 }}>{senzaNumeroDavanti(v.titolo)}</Text>
-                {v.descrizione ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 8.5, color: tema.grigio, marginTop: 3, lineHeight: 1.45 }}>{v.descrizione}</Text> : null}
+                <Text style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro, lineHeight: 1.3, marginTop: 9 }}>{senzaNumeroDavanti(v.titolo)}</Text>
+                {v.descrizione ? <Text style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio, marginTop: 3, lineHeight: 1.45 }}>{v.descrizione}</Text> : null}
               </View>
             ))}
           </View>
@@ -262,8 +262,8 @@ export function stimaSchedeGaranzie(tema: TemaDocumento, voci: DocEdileVoceElenc
     const riga = voci.slice(i, i + colonne);
     const interna = (larghezza - 10 * (riga.length - 1)) / riga.length - 24;
     const alte = riga.map((v) => 12 + 42 + 9
-      + altezzaTesto(senzaNumeroDavanti(v.titolo), interna, fam(tema.caratteri.forte), 9.5, 1.3)
-      + (v.descrizione ? 3 + altezzaTesto(v.descrizione, interna, fam(tema.caratteri.testo), 8.5, 1.45) : 0) + 12);
+      + altezzaTesto(senzaNumeroDavanti(v.titolo), interna, fam(tema.caratteri.forte), 10, 1.3)
+      + (v.descrizione ? 3 + altezzaTesto(v.descrizione, interna, fam(tema.caratteri.testo), 9.5, 1.45) : 0) + 12);
     totale += Math.max(...alte) + 10;
   }
   return totale;

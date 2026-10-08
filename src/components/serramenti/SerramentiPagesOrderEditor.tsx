@@ -38,10 +38,11 @@ import { bloccoDellaPagina, descrizioneBlocco, type ChiaveFotoPagina } from "../
  * cambiano quelle delle pagine senza una sezione nell'editor (proposta, allegato,
  * dettagli economici); le altre stanno nella sezione della loro pagina.
  */
-const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina> = {
-  percorso: "percorso", confronto: "confronto", cta: "cta",
-  // La foto che riempie il fondo quando la sezione finisce a metà foglio.
-  proposta: "proposta", allegato_tecnico: "allegato", investimento: "dettagli",
+const FOTO_DELLE_PAGINE: Record<string, ChiaveFotoPagina[]> = {
+  percorso: ["percorso"], confronto: ["confronto"], cta: ["cta"],
+  // La foto che riempie il fondo quando la sezione finisce a metà foglio. La pagina economica ne ha due:
+  // sotto il prezzo e in fondo ai dettagli.
+  proposta: ["proposta"], allegato_tecnico: ["allegato"], investimento: ["investimento", "dettagli"],
 };
 
 
@@ -223,15 +224,16 @@ function SerramentiPagesOrderEditorImpl({ value, onChange, blocchi, onBlocchi, c
                   onModifica={sezione && apriSezione ? () => apriSezione(sezione.id) : undefined}
                   onFoto={fotoPagina ? () => setAperta(aperta === `foto:${it.id}` ? null : `foto:${it.id}`) : undefined}
                 >
-                  {fotoPagina && aperta === `foto:${it.id}` && campoFoto ? (
+                  {fotoPagina && aperta === `foto:${it.id}` && campoFoto ? fotoPagina.map((chiave) => (
                     <EditorFotoPagina
-                      chiave={fotoPagina}
+                      key={chiave}
+                      chiave={chiave}
                       settore="serramenti"
                       salvati={blocchi}
                       onSalvati={(nuovi) => onBlocchi?.(nuovi)}
                       campoFoto={campoFoto}
                     />
-                  ) : null}
+                  )) : null}
                 </SortablePageItem>
               );
             })}

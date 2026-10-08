@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
+import type { FaseModello } from "@/lib/orders/modelliFasi";
 import { issuedPurchaseOrderNumber } from "@/lib/orders/materialProcurement";
 import { giornoLocale } from "@/lib/orders/cronoprogramma";
 
@@ -415,12 +416,10 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   });
 
   const applyTemplate = useMutation({
-    mutationFn: async (names: string[]) => {
-      const base = phases.length;
-      const rows = names.map((name, i) => ({
-        company_id: companyId, order_id: orderId, name, position: base + i,
-      }));
-      const { error } = await db.from("order_work_phases").insert(rows);
+    // Fasi e sottofasi in un colpo solo, dal server (aggiungi_fasi_commessa): il
+    // permesso si controlla là e un modello non resta a metà.
+    mutationFn: async (fasi: FaseModello[]) => {
+      const { error } = await db.rpc("aggiungi_fasi_commessa", { p_order_id: orderId, p_fasi: fasi });
       if (error) throw error;
     },
     onSuccess: invalidate,

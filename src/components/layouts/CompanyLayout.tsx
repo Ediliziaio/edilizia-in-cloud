@@ -67,7 +67,7 @@ import {
   Settings as SettingsIcon,
   PanelLeft,
   PanelLeftClose,
-  ImagePlus, HardHat } from "lucide-react";
+  ImagePlus, HardHat, ListChecks } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import ediliziaLogoSmall from "@/assets/edilizia-in-cloud-logo-small.webp";
 import { Button } from "@/components/ui/button";
@@ -849,6 +849,8 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, piano: 
         { to: "/azienda/impostazioni/cartelle-documenti",  label: "Cartelle documenti",  icon: <FolderOpen className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/calendari-lavori",   label: "Calendari lavori",    icon: <HardHat className="h-4 w-4" />,     visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/rapportini-cantiere", label: "Rapportini e presenze", icon: <ClipboardList className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/modelli-fasi", label: "Fasi e avanzamento", icon: <ListChecks className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/modelli-pagamento", label: "Modelli di pagamento", icon: <Banknote className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/categorie-costi",     label: "Categorie costi",     icon: <FolderOpen className="h-4 w-4" />, visible: isAdmin || permissions.canViewCosts },
         { to: "/azienda/impostazioni/fornitori",           label: "Fornitori",           icon: <Truck className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsSuppliers },
         { to: "/azienda/impostazioni/sopralluoghi",        label: "Sopralluoghi",        icon: <ClipboardList className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },

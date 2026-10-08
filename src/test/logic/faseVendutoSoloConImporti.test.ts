@@ -19,7 +19,8 @@
  *   · i permessi sono quelli e solo quelli, per azienda;
  *   · la migrazione è rilanciabile e con lock_timeout;
  *   · l'app scrive il venduto in un punto solo e solo con gli stessi due
- *     permessi.
+ *     permessi; il verbale SAL «Dalle fasi» (SalTab, salDaFasi) lo legge
+ *     soltanto, per l'importo contrattuale delle voci.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -108,9 +109,24 @@ describe("l'app scrive il venduto solo con gli stessi due permessi", () => {
     // permessi del trigger, altrimenti l'utente vede il campo e poi un errore.
     expect(conVenduto).toEqual([
       "src/components/orders/OrderWorkPhases.tsx",
+      "src/components/orders/SalTab.tsx",
       "src/hooks/useOrderWorkPhases.ts",
       "src/lib/orders/economiaFasi.ts",
+      "src/lib/orders/salDaFasi.ts",
     ]);
+  });
+
+  it("il verbale SAL legge il venduto delle fasi ma non lo scrive mai", () => {
+    for (const percorso of ["src/components/orders/SalTab.tsx", "src/lib/orders/salDaFasi.ts"]) {
+      const senzaCommenti = readFileSync(resolve(process.cwd(), percorso), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+      const tutte = senzaCommenti.match(/importo_venduto/g) ?? [];
+      // Il tipo della fase, la select, e la lettura sulla fase: niente update, insert o proprietà scritte.
+      const letture = senzaCommenti.match(/importo_venduto: number \| null;|\.select\("[^"]*importo_venduto"\)|\bf\.importo_venduto\b/g) ?? [];
+      expect(letture, `${percorso} usa importo_venduto in un modo che non è una lettura`).toHaveLength(tutte.length);
+      expect(tutte.length, `${percorso} non nomina più il venduto: togli il file dall'elenco qui sopra`).toBeGreaterThan(0);
+    }
   });
 
   it("la pagina delle lavorazioni salva il venduto solo con i due permessi", () => {

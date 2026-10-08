@@ -228,6 +228,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
             progettoId={progetto.id}
             ordineId={(progetto as { ordine_id?: string | null }).ordine_id ?? null}
             bloccoMotivo={computoVuoto ? "Aggiungi voci al computo prima di creare la commessa." : null}
+            capitoli={numCapitoli}
           />
         </div>
       )}

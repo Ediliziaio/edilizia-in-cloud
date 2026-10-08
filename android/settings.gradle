@@ -1,4 +1,6 @@
 include ':app'
+// Le immagini grandi dell'app, installate da Google Play insieme all'app (vedi immagini_app/build.gradle)
+include ':immagini_app'
 include ':capacitor-cordova-android-plugins'
 project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
 

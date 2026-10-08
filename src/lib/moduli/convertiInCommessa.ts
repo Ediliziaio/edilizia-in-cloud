@@ -12,6 +12,8 @@
  * così la conversione non può ripetersi per sbaglio.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { aggiungiFasiDaCapitoli, avviaCommessa } from "@/lib/orders/avviaCommessa";
+import { fasiDaCapitoli } from "@/lib/orders/fasiDaCapitoli";
 import { testoIndirizzo } from "@/lib/preventivatore/indirizzoLavori";
 
 export interface EsitoConversione {
@@ -181,9 +183,21 @@ function campiClienteCommessa(c: DatiClientePreventivo): Record<string, string> 
 }
 
 /**
+ * Un aggiornamento che non dà errore ma non cambia nessuna riga: l'`update` di PostgREST con `.select()` risponde con
+ * una lista vuota. Succede quando le regole di accesso non fanno vedere la riga a chi scrive: per il ruolo «solo assegnati»
+ * la commessa appena creata non è «sua» (can_see_order) e l'UPDATE passa senza errore e senza scrivere niente.
+ * (Una risposta senza lista non dice niente: non conta come «nessuna riga».)
+ */
+const nessunaRigaAggiornata = (righe: unknown): boolean => Array.isArray(righe) && righe.length === 0;
+
+/**
  * Dopo la RPC: quello che la RPC non scrive (cliente, indirizzo dei lavori, legame col preventivo) e il legame
  * inverso sul preventivo. Il preventivo si lega SEMPRE alla commessa, anche se cliente e indirizzo non si
  * riescono a scrivere (se ne avvisa): senza il legame un secondo clic ne creerebbe un'altra.
+ *
+ * «Non si riescono a scrivere» vale anche per l'aggiornamento che non dà errore ma non cambia nessuna riga (vedi
+ * nessunaRigaAggiornata): prima si guardava solo l'errore, e per il ruolo «solo assegnati» cliente e indirizzo non
+ * si scrivevano e l'avviso non compariva.
  */
 async function legaCommessaAlPreventivo(params: {
   orderId: string;
@@ -192,14 +206,23 @@ async function legaCommessaAlPreventivo(params: {
   colonnaCommessa: "fv_progetto_id" | "rst_progetto_id";
   cliente: DatiClientePreventivo;
 }): Promise<string | null> {
-  const { error: errCommessa } = await supabase
+  const { data: righeCommessa, error: errCommessa } = await supabase
     .from("orders")
     .update({ [params.colonnaCommessa]: params.progettoId, ...campiClienteCommessa(params.cliente) } as never)
-    .eq("id", params.orderId);
+    .eq("id", params.orderId)
+    .select("id");
+  const commessaNonScritta = Boolean(errCommessa) || nessunaRigaAggiornata(righeCommessa);
   // Il legame sul preventivo: se manca, il bottone resterebbe acceso e il preventivo si convertirebbe due volte.
-  const { error: errLink } = await supabase.from(params.tabella).update({ ordine_id: params.orderId } as never).eq("id", params.progettoId);
+  const { data: righeLink, error: errLink } = await supabase
+    .from(params.tabella)
+    .update({ ordine_id: params.orderId } as never)
+    .eq("id", params.progettoId)
+    .select("id");
   if (errLink) throw new Error(`Commessa creata ma non collegata al preventivo: ${errLink.message}`);
-  return errCommessa
+  if (nessunaRigaAggiornata(righeLink)) {
+    throw new Error("Commessa creata ma non collegata al preventivo: il preventivo non risulta modificabile da te (nessuna riga aggiornata).");
+  }
+  return commessaNonScritta
     ? "La commessa è stata creata, ma cliente e indirizzo dei lavori non sono stati scritti: aggiungili dalla scheda della commessa."
     : null;
 }
@@ -386,6 +409,9 @@ export async function convertiFvInCommessa(progettoId: string, userId: string): 
     righe: righe.length > 0 ? righe : rigaRiepilogo(descrizione, totale, aliquota),
   });
 
+  // Le fasi e le rate di partenza che l'azienda ha scelto (se ne ha scelte): non bloccano mai.
+  await avviaCommessa(orderId);
+
   // Legame nei due sensi: la commessa ricorda il preventivo e il preventivo la
   // commessa, così il bottone non può creare un doppione. Con loro, cliente e
   // indirizzo dei lavori, che la RPC non scrive.
@@ -408,7 +434,11 @@ export async function convertiFvInCommessa(progettoId: string, userId: string): 
 
 // ────────────────────────── Ristrutturazione ──────────────────────────
 
-export async function convertiRstInCommessa(progettoId: string, userId: string): Promise<EsitoConversione> {
+export async function convertiRstInCommessa(
+  progettoId: string,
+  userId: string,
+  opzioni: { fasiDaCapitoli?: boolean } = {},
+): Promise<EsitoConversione> {
   const { data: progetto, error } = await supabase
     .from("rst_progetti")
     .select("id, company_id, code, stato, note, cliente_id, cliente_nome, cliente_cognome, cliente_email, cliente_telefono, cantiere_indirizzo, cantiere_citta, cantiere_cap, cantiere_provincia, totale, totale_imponibile, iva_pct, prezzo_manuale, ordine_id")
@@ -498,6 +528,11 @@ export async function convertiRstInCommessa(progettoId: string, userId: string):
     note: `Da preventivo ristrutturazione ${progetto.code ?? ""}${luogo ? ` — ${luogo}` : ""}`.trim(),
     righe: righe.length > 0 ? righe : rigaRiepilogo(descrizione, totale, aliquota),
   });
+
+  // Un capitolo del computo = una fase, col suo venduto (solo se chi converte lo ha scelto); poi le
+  // fasi e le rate di partenza dell'azienda, che a una commessa già con le fasi non aggiungono niente.
+  if (opzioni.fasiDaCapitoli) await aggiungiFasiDaCapitoli(orderId, fasiDaCapitoli(voci ?? [], totale));
+  await avviaCommessa(orderId);
 
   const avviso = await legaCommessaAlPreventivo({
     orderId,

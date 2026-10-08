@@ -6,6 +6,7 @@ import {
   governanceToRow,
   valutaApprovazionePreventivo,
   valutaScostamentoSal,
+  scostamentoSalCommessa,
   valutaMarginalita,
   type GovernanceThresholds,
 } from "@/lib/governance/thresholds";
@@ -142,6 +143,32 @@ describe("valutaScostamentoSal", () => {
   it("feature off → mai alert", () => {
     const off = cfgWith({ salScostamento: { enabled: false, tolleranzaPerc: 5 } });
     expect(valutaScostamentoSal(off, { avanzamentoPerc: 10, costiPerc: 90 }).alert).toBe(false);
+  });
+
+  describe("scostamentoSalCommessa (gating per commessa)", () => {
+    const cfg = cfgWith({ salScostamento: { enabled: true, tolleranzaPerc: 5 } });
+    it("feature spenta → null", () => {
+      const off = cfgWith({ salScostamento: { enabled: false, tolleranzaPerc: 5 } });
+      expect(scostamentoSalCommessa(off, { avanzamentoPerc: 40, costoPrevisto: 100000, costoConsuntivo: 62000 })).toBeNull();
+    });
+    it("avanzamento sotto il 15% o mancante → null (rumore)", () => {
+      expect(scostamentoSalCommessa(cfg, { avanzamentoPerc: 10, costoPrevisto: 100000, costoConsuntivo: 90000 })).toBeNull();
+      expect(scostamentoSalCommessa(cfg, { avanzamentoPerc: null, costoPrevisto: 100000, costoConsuntivo: 90000 })).toBeNull();
+    });
+    it("senza costo previsto → null", () => {
+      expect(scostamentoSalCommessa(cfg, { avanzamentoPerc: 40, costoPrevisto: 0, costoConsuntivo: 10000 })).toBeNull();
+    });
+    it("40% avanzamento, consumato 62% del budget → critico", () => {
+      const e = scostamentoSalCommessa(cfg, { avanzamentoPerc: 40, costoPrevisto: 100000, costoConsuntivo: 62000 });
+      expect(e?.alert).toBe(true);
+      expect(e?.severita).toBe("critico");
+      expect(e?.scostamentoPerc).toBe(22);
+    });
+    it("in linea (50% av, 53% costi) → esito senza alert", () => {
+      const e = scostamentoSalCommessa(cfg, { avanzamentoPerc: 50, costoPrevisto: 100000, costoConsuntivo: 53000 });
+      expect(e).not.toBeNull();
+      expect(e?.alert).toBe(false);
+    });
   });
 });
 

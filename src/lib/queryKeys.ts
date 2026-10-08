@@ -353,6 +353,9 @@ export const queryKeys = {
     detail: (quoteId: string | undefined) => ["quotes", "detail", quoteId] as const,
     items: (quoteId: string | undefined) => ["quotes", "items", quoteId] as const,
     attachments: (quoteId: string | undefined) => ["quotes", "attachments", quoteId] as const,
+    // La commessa che nasce da questo preventivo (orders.quote_id): la pagina del preventivo la legge per non offrire
+    // una seconda commessa; chi crea il legame (Nuova commessa, «Converti in Cantiere») la invalida.
+    linkedOrder: (quoteId: string | undefined) => ["quotes", "linked-order", quoteId] as const,
   },
 
   // ── Quote Templates ────────────────────────────────────

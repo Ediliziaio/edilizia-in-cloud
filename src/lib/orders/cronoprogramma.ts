@@ -123,6 +123,18 @@ export function lavoroRealeFasi(rapportini: ReadonlyArray<RapportinoFasi>): Map<
   return fasi;
 }
 
+/**
+ * Quanto è avanzata una fase (0..100). Una fase chiusa vale 100 anche se la %
+ * salvata è rimasta a 0: si può chiudere dallo stato senza dichiarare la % (in
+ * produzione 8 fasi su 43 completate stanno così). È la stessa regola del
+ * trigger del database sull'avanzamento della commessa: chi legge la % grezza
+ * conterebbe quelle fasi come ferme.
+ */
+export function avanzamentoFase(f: { status: string; percentuale: number | null | undefined }): number {
+  if (f.status === "completata") return 100;
+  return Math.min(100, Math.max(0, Math.round(Number(f.percentuale) || 0)));
+}
+
 export function fasiCronoprogramma(
   fasi: ReadonlyArray<FaseInput>,
   reale: ReadonlyMap<string, LavoroReale>,
@@ -149,7 +161,7 @@ export function fasiCronoprogramma(
       id: f.id,
       nome: f.name,
       stato: f.status,
-      avanzamento: completata ? 100 : Math.min(100, Math.max(0, Math.round(Number(f.percentuale) || 0))),
+      avanzamento: avanzamentoFase(f),
       previstoInizio: f.start_date,
       previstoFine: f.end_date,
       realeInizio,

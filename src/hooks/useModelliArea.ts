@@ -12,12 +12,19 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { costruisciListino, type CategoriaListino, type MacroListino } from "@/lib/listino/lineeListino";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
-import type { EsitoInstallazione, ModelloArea, ModelloDisponibile, RiepilogoModello } from "@/lib/listino/modelliArea";
+import type {
+  AnteprimaInstallazione,
+  EsitoInstallazione,
+  ModelloArea,
+  ModelloDisponibile,
+  RiepilogoModello,
+} from "@/lib/listino/modelliArea";
 import { invalidaListinoNelPreventivatore } from "@/lib/serramenti/cacheListino";
 import type { FamilyWithAxes } from "@/types/articleFamily";
 
 const CHIAVE_MODELLI = ["listino-modelli-area"] as const;
 const CHIAVE_DISPONIBILI = ["listino-modelli-disponibili"] as const;
+const CHIAVE_ANTEPRIMA = ["listino-modello-anteprima"] as const;
 
 const COLONNE_MODELLO =
   "id, nome, descrizione, area, immagine_url, pubblicato, con_prezzi_vendita, origine_company_id, origine_nome, riepilogo, fotografato_il, updated_at";
@@ -92,6 +99,36 @@ export function useModelliDisponibili(enabled: boolean) {
       return (data ?? []) as unknown as ModelloDisponibile[];
     },
     staleTime: 60_000,
+  });
+}
+
+/**
+ * Cosa succederebbe installando il modello in quell'azienda, senza scrivere niente (listino_modello_anteprima):
+ * prodotti nuovi, maggiorazioni che l'azienda ha già sulle stesse varianti, installazione fatta un attimo fa.
+ * Usa lo stesso codice dell'installazione, quindi dice quello che poi succede davvero.
+ */
+export function useAnteprimaInstallazione(p: {
+  modelloId: string | null;
+  companyId: string | null;
+  /** I nomi di linea, se si installa «per nome» (Modelli di infissi). */
+  modelli?: string[];
+  enabled?: boolean;
+}) {
+  const nomi = (p.modelli ?? []).map((n) => n.trim()).filter(Boolean);
+  return useQuery({
+    queryKey: [...CHIAVE_ANTEPRIMA, p.modelloId, p.companyId, nomi],
+    enabled: (p.enabled ?? true) && !!p.modelloId && !!p.companyId,
+    queryFn: async (): Promise<AnteprimaInstallazione> => {
+      const { data, error } = await supabase.rpc("listino_modello_anteprima" as never, {
+        p_modello_id: p.modelloId,
+        p_company_id: p.companyId,
+        ...(nomi.length > 0 ? { p_modelli: nomi } : {}),
+      } as never);
+      if (error) throw error;
+      return data as unknown as AnteprimaInstallazione;
+    },
+    staleTime: 10_000,
+    retry: 1,
   });
 }
 
@@ -220,6 +257,7 @@ export function useModelliAreaMutations() {
   const aggiornaElenco = () => {
     void qc.invalidateQueries({ queryKey: CHIAVE_MODELLI });
     void qc.invalidateQueries({ queryKey: CHIAVE_DISPONIBILI });
+    void qc.invalidateQueries({ queryKey: CHIAVE_ANTEPRIMA });
   };
 
   const crea = useMutation({
@@ -268,11 +306,22 @@ export function useModelliAreaMutations() {
   });
 
   const installa = useMutation({
-    mutationFn: async (m: { modelloId: string; companyId: string; modelli?: string[] }): Promise<EsitoInstallazione> => {
+    /**
+     * copiaMaggiorazioni: true = i prodotti nuovi prendono le maggiorazioni che l'azienda ha già sulle stesse
+     * varianti; false = restano quelle del modello; non passato = «non ho scelto»: se ce ne sono da copiare il
+     * database si ferma prima di scrivere (errore «scelta_maggiorazioni»).
+     */
+    mutationFn: async (m: {
+      modelloId: string;
+      companyId: string;
+      modelli?: string[];
+      copiaMaggiorazioni?: boolean;
+    }): Promise<EsitoInstallazione> => {
       const { data, error } = await supabase.rpc("listino_modello_installa" as never, {
         p_modello_id: m.modelloId,
         p_company_id: m.companyId,
         ...(m.modelli && m.modelli.length > 0 ? { p_modelli: m.modelli } : {}),
+        ...(typeof m.copiaMaggiorazioni === "boolean" ? { p_copia_maggiorazioni: m.copiaMaggiorazioni } : {}),
       } as never);
       if (error) throw error;
       return data as unknown as EsitoInstallazione;

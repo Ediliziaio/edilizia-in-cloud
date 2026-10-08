@@ -25,6 +25,8 @@ def resolveSigningFile = { String path ->
 android {
     namespace = "com.ediliziaincloud.app"
     compileSdk = rootProject.ext.compileSdkVersion
+    // Le immagini grandi fuori dal modulo base (max 200 MB su Google Play): vedi immagini_app/build.gradle
+    assetPacks = [":immagini_app"]
     defaultConfig {
         applicationId "com.ediliziaincloud.app"
         minSdkVersion rootProject.ext.minSdkVersion

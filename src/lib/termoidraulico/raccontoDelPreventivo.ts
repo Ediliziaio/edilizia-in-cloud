@@ -68,7 +68,7 @@ export function raccontoDelPreventivo(e: IdrPdfEnriched): RaccontoDelPreventivo 
       piva: azienda?.partita_iva ?? null,
     },
     cliente: { nome: cliente, indirizzo },
-    preventivo: { codice: p.code ?? "Bozza", dataIso: creato, validitaGiorni: Number(t.default_validita_giorni) || 30, consulente: null },
+    preventivo: { codice: p.code ?? "Bozza", dataIso: creato, validitaGiorni: Number(t.default_validita_giorni) || 30 },
     standard,
     testi: {
       titoloCopertina: (t as unknown as { cover_title?: string | null }).cover_title ?? null,

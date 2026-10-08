@@ -73,16 +73,16 @@ function GraficoMesi({ r, c }: { r: FullElectricRisultato; c: Palette }) {
       <Line x1={padL} y1={base} x2={w - padR} y2={base} stroke={BASE.grigioChiaro} strokeWidth={0.8} />
       <Line x1={padL} y1={yOf(scala)} x2={w - padR} y2={yOf(scala)} stroke={BASE.linea} strokeWidth={0.5} strokeDasharray="2 3" />
       <Line x1={padL} y1={yOf(scala / 2)} x2={w - padR} y2={yOf(scala / 2)} stroke={BASE.linea} strokeWidth={0.5} strokeDasharray="2 3" />
-      <Text x={padL - 5} y={yOf(scala) + 3} fill={BASE.grigio} style={{ fontSize: 7, textAnchor: "end" } as never}>{kwh(scala)}</Text>
-      <Text x={padL - 5} y={yOf(scala / 2) + 3} fill={BASE.grigio} style={{ fontSize: 7, textAnchor: "end" } as never}>{kwh(scala / 2)}</Text>
-      <Text x={padL - 5} y={base + 3} fill={BASE.grigio} style={{ fontSize: 7, textAnchor: "end" } as never}>0</Text>
+      <Text x={padL - 5} y={yOf(scala) + 3} fill={BASE.grigio} style={{ fontSize: 8, textAnchor: "end" } as never}>{kwh(scala)}</Text>
+      <Text x={padL - 5} y={yOf(scala / 2) + 3} fill={BASE.grigio} style={{ fontSize: 8, textAnchor: "end" } as never}>{kwh(scala / 2)}</Text>
+      <Text x={padL - 5} y={base + 3} fill={BASE.grigio} style={{ fontSize: 8, textAnchor: "end" } as never}>0</Text>
       {r.mesi.map((m, i) => {
         const centro = padL + i * passo + passo / 2;
         return (
           <G key={m.mese}>
             <Rect x={centro - barra - 1} y={yOf(m.produzione)} width={barra} height={Math.max(0, base - yOf(m.produzione))} rx={2} fill={BASE.arancio} />
             <Rect x={centro + 1} y={yOf(m.consumo)} width={barra} height={Math.max(0, base - yOf(m.consumo))} rx={2} fill={c.navy} />
-            <Text x={centro} y={h - 8} fill={BASE.grigio} style={{ fontSize: 7, textAnchor: "middle" } as never}>{m.mese}</Text>
+            <Text x={centro} y={h - 8} fill={BASE.grigio} style={{ fontSize: 8, textAnchor: "middle" } as never}>{m.mese}</Text>
           </G>
         );
       })}
@@ -98,7 +98,7 @@ function PartiSenzaScritta({ parti }: { parti: { colore: string; testo: string }
       {parti.map((p) => (
         <View key={p.testo} style={{ flexDirection: "row", alignItems: "center", marginRight: 12 }}>
           <View style={{ width: 7, height: 7, borderRadius: 2, backgroundColor: p.colore, marginRight: 4 }} />
-          <Text style={{ fontSize: 7, color: BASE.testo }}>{p.testo}</Text>
+          <Text style={{ fontSize: 8, color: BASE.testo }}>{p.testo}</Text>
         </View>
       ))}
     </View>
@@ -111,14 +111,14 @@ function BarraDivisa({ etichetta, totale, parti }: { etichetta: string; totale: 
   return (
     <View wrap={false} style={{ marginBottom: 10 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
-        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8, color: BASE.ink }}>{etichetta}</Text>
-        <Text style={{ fontSize: 8, color: BASE.grigio }}>{kwh(totale)}</Text>
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9, color: BASE.ink }}>{etichetta}</Text>
+        <Text style={{ fontSize: 9, color: BASE.grigio }}>{kwh(totale)}</Text>
       </View>
       <View style={{ flexDirection: "row", height: 22, borderRadius: 5, overflow: "hidden", backgroundColor: BASE.fondo }}>
         {visibili.map((p) => (
           <View key={p.testo} style={{ flex: p.valore, backgroundColor: p.colore, justifyContent: "center", paddingHorizontal: 6 }}>
             {/* Il testo solo dove ci sta: una parte piccola resta un colore. */}
-            {totale > 0 && p.valore / totale >= 0.2 ? <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.8, color: "#FFFFFF" }}>{p.testo}</Text> : null}
+            {totale > 0 && p.valore / totale >= 0.2 ? <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF" }}>{p.testo}</Text> : null}
           </View>
         ))}
       </View>
@@ -202,8 +202,8 @@ function SchedaPezzo({ pezzo, foto, c, ultimaColonna }: { pezzo: PezzoFullElectr
           </View>
           <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 10, color: c.navy }}>{pezzo.titolo}</Text>
         </View>
-        {pezzo.dettaglio ? <Text style={{ fontSize: 7.6, fontFamily: "Helvetica-Bold", color: BASE.ink, marginTop: 5 }}>{pezzo.dettaglio}</Text> : null}
-        <Text style={{ fontSize: 7.5, color: BASE.testo, marginTop: 4, lineHeight: 1.4 }}>{info.cosaFa}</Text>
+        {pezzo.dettaglio ? <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: BASE.ink, marginTop: 5 }}>{pezzo.dettaglio}</Text> : null}
+        <Text style={{ fontSize: 9, color: BASE.testo, marginTop: 4, lineHeight: 1.4 }}>{info.cosaFa}</Text>
       </View>
     </View>
   );
@@ -219,7 +219,7 @@ function Sistema({ d, c }: { d: FullElectricPdfData; c: Palette }) {
       <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
         {d.sistema.componenti.map((p, i) => <SchedaPezzo key={p.tipo} pezzo={p} foto={d.foto?.[p.tipo]} c={c} ultimaColonna={i % 2 === 1} />)}
       </View>
-      {d.sistema.componenti.some((p) => d.foto?.[p.tipo]) ? <Text style={{ fontSize: 6, color: BASE.grigioChiaro, marginTop: -6, marginBottom: 8 }}>Immagini illustrative: i modelli sono quelli indicati.</Text> : null}
+      {d.sistema.componenti.some((p) => d.foto?.[p.tipo]) ? <Text style={{ fontSize: 7.5, color: BASE.grigioChiaro, marginTop: -6, marginBottom: 8 }}>Immagini illustrative: i modelli sono quelli indicati.</Text> : null}
       {scheda.length ? (
         <View wrap={false} style={{ marginTop: 4 }}>
           <TitoletoSezione>La scheda del sistema</TitoletoSezione>
@@ -228,14 +228,14 @@ function Sistema({ d, c }: { d: FullElectricPdfData; c: Palette }) {
               <View key={k} style={{ flex: 1, marginRight: k === 0 ? 12 : 0, borderWidth: col.length ? 1 : 0, borderColor: BASE.linea, borderRadius: 8 }}>
                 {col.map((x, i) => (
                   <View key={x.etichetta} style={{ flexDirection: "row", paddingVertical: 6.5, paddingHorizontal: 10, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: BASE.linea, backgroundColor: i % 2 === 0 ? "#FFFFFF" : BASE.fondo }}>
-                    <Text style={{ flex: 1.1, fontSize: 7.5, color: BASE.grigio }}>{x.etichetta}</Text>
-                    <Text style={{ flex: 1, fontSize: 8, fontFamily: "Helvetica-Bold", color: BASE.ink, textAlign: "right" }}>{x.valore}</Text>
+                    <Text style={{ flex: 1.1, fontSize: 9, color: BASE.grigio }}>{x.etichetta}</Text>
+                    <Text style={{ flex: 1, fontSize: 9, fontFamily: "Helvetica-Bold", color: BASE.ink, textAlign: "right" }}>{x.valore}</Text>
                   </View>
                 ))}
               </View>
             ))}
           </View>
-          <Text style={{ fontSize: 6.5, color: BASE.grigioChiaro, marginTop: 4 }}>Dati dei produttori per i modelli proposti. Fanno fede le schede tecniche allegate.</Text>
+          <Text style={{ fontSize: 8, color: BASE.grigioChiaro, marginTop: 4 }}>Dati dei produttori per i modelli proposti. Fanno fede le schede tecniche allegate.</Text>
         </View>
       ) : null}
     </Pagina>
@@ -260,8 +260,8 @@ function Energia({ d, r, c }: { d: FullElectricPdfData; r: FullElectricRisultato
         <Kpi etichetta="Dalla rete" valore={kwh(e.dallaRete)} nota="il resto, in bolletta" tono="blu" ultimo />
       </View>
       <View style={{ marginTop: 14, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, paddingTop: 12, paddingHorizontal: 6 }}>
-        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8.5, color: BASE.ink, marginLeft: 8 }}>Mese per mese</Text>
-        <Text style={{ fontSize: 7, color: BASE.grigio, marginLeft: 8, marginTop: 2, marginBottom: 4 }}>Andamento tipico, indicativo: la produzione vera dipende da orientamento, ombre e meteo.</Text>
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9.5, color: BASE.ink, marginLeft: 8 }}>Mese per mese</Text>
+        <Text style={{ fontSize: 9, color: BASE.grigio, marginLeft: 8, marginTop: 2, marginBottom: 4 }}>Andamento tipico, indicativo: la produzione vera dipende da orientamento, ombre e meteo.</Text>
         <GraficoMesi r={r} c={c} />
         <Legenda voci={[{ colore: BASE.arancio, testo: "Produzione del tetto" }, { colore: c.navy, testo: "Consumi della casa" }]} />
         <View style={{ height: 8 }} />
@@ -278,7 +278,7 @@ function Energia({ d, r, c }: { d: FullElectricPdfData; r: FullElectricRisultato
         ]} />
       </View>
       <Spinta />
-      <Foto src={d.foto?.energia} altezza={110} />
+      <Foto src={d.foto?.energia} altezza={100} />
     </Pagina>
   );
 }
@@ -306,30 +306,30 @@ function Bollette({ d, r, c }: { d: FullElectricPdfData; r: FullElectricRisultat
         <Kpi etichetta="Risparmio" valore={soldi(Math.max(0, r.risparmioAnnuo))} nota="ogni anno, ai prezzi di oggi" tono="verde" ultimo />
       </View>
       <View style={{ marginTop: 14, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, paddingTop: 12, paddingHorizontal: 8 }}>
-        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8.5, color: BASE.ink }}>La spesa di un anno per l'energia di casa</Text>
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9.5, color: BASE.ink }}>La spesa di un anno per l'energia di casa</Text>
         <GraficoSpesa oggi={b.oggi.totale} domani={Math.max(0, b.domani.totale)} etichettaOggi="Oggi · gas e luce" etichettaDomani="Domani · solo luce" c={c} />
       </View>
       <View style={{ marginTop: 12, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8 }}>
         <View style={{ flexDirection: "row", backgroundColor: c.navy, borderTopLeftRadius: 7, borderTopRightRadius: 7, paddingVertical: 6, paddingHorizontal: 11 }}>
-          <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF" }}>VOCE</Text>
-          <Text style={{ width: 90, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF", textAlign: "right" }}>OGGI</Text>
-          <Text style={{ width: 90, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF", textAlign: "right" }}>DOMANI</Text>
+          <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF" }}>VOCE</Text>
+          <Text style={{ width: 90, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF", textAlign: "right" }}>OGGI</Text>
+          <Text style={{ width: 90, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF", textAlign: "right" }}>DOMANI</Text>
         </View>
         {righe.map(([voce, oggi, domani]) => (
           <View key={voce} style={{ flexDirection: "row", paddingVertical: 6, paddingHorizontal: 11, borderTopWidth: 1, borderTopColor: BASE.linea }}>
-            <Text style={{ flex: 1, fontSize: 8, color: BASE.testo }}>{voce}</Text>
-            <Text style={{ width: 90, fontSize: 8, color: BASE.ink, textAlign: "right" }}>{oggi}</Text>
-            <Text style={{ width: 90, fontSize: 8, color: BASE.ink, textAlign: "right" }}>{domani}</Text>
+            <Text style={{ flex: 1, fontSize: 9, color: BASE.testo }}>{voce}</Text>
+            <Text style={{ width: 90, fontSize: 9, color: BASE.ink, textAlign: "right" }}>{oggi}</Text>
+            <Text style={{ width: 90, fontSize: 9, color: BASE.ink, textAlign: "right" }}>{domani}</Text>
           </View>
         ))}
         <View style={{ flexDirection: "row", paddingVertical: 7, paddingHorizontal: 11, borderTopWidth: 1, borderTopColor: BASE.linea, backgroundColor: BASE.fondo }}>
-          <Text style={{ flex: 1, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: BASE.ink }}>In un anno</Text>
-          <Text style={{ width: 90, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: BASE.rosso, textAlign: "right" }}>{soldi(b.oggi.totale)}</Text>
-          <Text style={{ width: 90, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: BASE.verdeScuro, textAlign: "right" }}>{soldi(b.domani.totale)}</Text>
+          <Text style={{ flex: 1, fontSize: 9.5, fontFamily: "Helvetica-Bold", color: BASE.ink }}>In un anno</Text>
+          <Text style={{ width: 90, fontSize: 9.5, fontFamily: "Helvetica-Bold", color: BASE.rosso, textAlign: "right" }}>{soldi(b.oggi.totale)}</Text>
+          <Text style={{ width: 90, fontSize: 9.5, fontFamily: "Helvetica-Bold", color: BASE.verdeScuro, textAlign: "right" }}>{soldi(b.domani.totale)}</Text>
         </View>
       </View>
       <Spinta />
-      <Foto src={d.foto?.bollette} altezza={110} stile={{ marginBottom: 10 }} />
+      <Foto src={d.foto?.bollette} altezza={100} stile={{ marginBottom: 10 }} />
       <Nota
         tono="arancio" icona="risparmio" titolo="Ai prezzi di oggi."
         testo={`I conti usano i prezzi scritti in questo preventivo: luce dalla rete ${soldiCent(d.economia.domani.prezzoLuce)} al kWh, energia venduta ${soldiCent(d.economia.domani.prezzoImmissione)} al kWh. Se l'energia aumenta cresce anche il risparmio: negli anni lo contiamo con un +${d.economia.aumentoEnergiaPct}% l'anno.`}
@@ -368,7 +368,7 @@ function Incentivi({ d, r, c }: { d: FullElectricPdfData; r: FullElectricRisulta
           <View style={{ flexDirection: "row", height: 30, borderRadius: 6, overflow: "hidden" }}>
             {parti.map((p) => (
               <View key={p.testo} style={{ flex: Math.max(0.001, quota(p.valore)), backgroundColor: p.colore, justifyContent: "center", paddingHorizontal: 8 }}>
-                {quota(p.valore) >= 0.18 ? <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, color: "#FFFFFF" }}>{p.testo}</Text> : null}
+                {quota(p.valore) >= 0.18 ? <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9, color: "#FFFFFF" }}>{p.testo}</Text> : null}
               </View>
             ))}
           </View>
@@ -378,16 +378,16 @@ function Incentivi({ d, r, c }: { d: FullElectricPdfData; r: FullElectricRisulta
       <View style={{ flexDirection: "row", marginTop: 16 }}>
         {det ? (
           <View style={{ flex: 1, marginRight: inc.contributoCt > 0 ? 10 : 0, backgroundColor: BASE.bluTenue, borderWidth: 1, borderColor: BASE.bluBordo, borderRadius: 8, padding: 12 }}>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.1, color: BASE.blu }}>{`DETRAZIONE ${det.pct}% PER LA CASA`}</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 1.1, color: BASE.blu }}>{`DETRAZIONE ${det.pct}% PER LA CASA`}</Text>
             <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 16, color: BASE.ink, marginTop: 5 }}>{soldi(det.totale)}</Text>
-            <Text style={{ fontSize: 7.8, color: BASE.testo, marginTop: 4, lineHeight: 1.45 }}>{`Su ${soldi(det.base)} di spesa detraibile (fotovoltaico, batteria e lavori collegati): ${FULL_ELECTRIC.anniDetrazione} quote annuali da ${soldi(det.perAnno)} nella dichiarazione dei redditi.`}</Text>
+            <Text style={{ fontSize: 9, color: BASE.testo, marginTop: 4, lineHeight: 1.45 }}>{`Su ${soldi(det.base)} di spesa detraibile (fotovoltaico, batteria e lavori collegati): ${FULL_ELECTRIC.anniDetrazione} quote annuali da ${soldi(det.perAnno)} nella dichiarazione dei redditi.`}</Text>
           </View>
         ) : null}
         {inc.contributoCt > 0 ? (
           <View style={{ flex: 1, backgroundColor: BASE.arancioTenue, borderWidth: 1, borderColor: BASE.arancioBordo, borderRadius: 8, padding: 12 }}>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.1, color: BASE.arancioScuro }}>CONTO TERMICO SULLA POMPA DI CALORE</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 1.1, color: BASE.arancioScuro }}>CONTO TERMICO SULLA POMPA DI CALORE</Text>
             <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 16, color: BASE.ink, marginTop: 5 }}>{soldi(inc.contributoCt)}</Text>
-            <Text style={{ fontSize: 7.8, color: BASE.testo, marginTop: 4, lineHeight: 1.45 }}>
+            <Text style={{ fontSize: 9, color: BASE.testo, marginTop: 4, lineHeight: 1.45 }}>
               {inc.scontoInFattura
                 ? `Lo scontiamo in fattura con il mandato all'incasso: ai lavori paghi ${soldi(r.pagaOggi)} invece di ${soldi(r.prezzo)}`
                 : "Lo versa il GSE sul tuo conto corrente, dopo l'accettazione della domanda."}
@@ -395,11 +395,11 @@ function Incentivi({ d, r, c }: { d: FullElectricPdfData; r: FullElectricRisulta
           </View>
         ) : null}
         {!det && inc.contributoCt <= 0 ? (
-          <Text style={{ fontSize: 8.5, color: BASE.testo, lineHeight: 1.5 }}>In questa proposta non ci sono incentivi stimati: se la tua casa ne ha diritto, li aggiungiamo prima della firma.</Text>
+          <Text style={{ fontSize: 9.5, color: BASE.testo, lineHeight: 1.5 }}>In questa proposta non ci sono incentivi stimati: se la tua casa ne ha diritto, li aggiungiamo prima della firma.</Text>
         ) : null}
       </View>
       <Spinta />
-      <Foto src={d.foto?.incentivi} altezza={170} stile={{ marginBottom: 10 }} />
+      <Foto src={d.foto?.incentivi} altezza={160} stile={{ marginBottom: 10 }} />
       <Nota tono="blu" icona="detrazione" titolo="Stime, a norma vigente." testo="Detrazione e Conto Termico non si sommano sullo stesso componente. Importi e aliquote dipendono dai requisiti della casa e dalle regole in vigore: verificali con il tuo consulente fiscale." />
     </Pagina>
   );
@@ -429,15 +429,15 @@ function Beneficio({ d, r, c }: { d: FullElectricPdfData; r: FullElectricRisulta
         <Kpi etichetta="Incentivi" valore={soldi(r.incentivi.totale)} tono="neutro" ultimo />
       </View>
       <View style={{ marginTop: 16, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, paddingTop: 12, paddingHorizontal: 6 }}>
-        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8.5, color: BASE.ink, marginLeft: 8 }}>Quanto hai in tasca, anno dopo anno</Text>
-        <Text style={{ fontSize: 7, color: BASE.grigio, marginLeft: 8, marginTop: 2 }}>Sotto lo zero finché la spesa non è ripagata, sopra da lì in poi.</Text>
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9.5, color: BASE.ink, marginLeft: 8 }}>Quanto hai in tasca, anno dopo anno</Text>
+        <Text style={{ fontSize: 9, color: BASE.grigio, marginLeft: 8, marginTop: 2 }}>Sotto lo zero finché la spesa non è ripagata, sopra da lì in poi.</Text>
         <GraficoCumulato anni={r.anniBeneficio} rientro={rientro} c={c} />
       </View>
       <View style={{ marginTop: 12, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8 }}>
         <View style={{ flexDirection: "row", backgroundColor: c.navy, borderTopLeftRadius: 7, borderTopRightRadius: 7, paddingVertical: 6, paddingHorizontal: 11 }}>
-          <Text style={{ width: 60, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF" }}>ANNO</Text>
-          <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF" }}>COSA SUCCEDE</Text>
-          <Text style={{ width: 90, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF", textAlign: "right" }}>IN TASCA</Text>
+          <Text style={{ width: 60, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF" }}>ANNO</Text>
+          <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF" }}>COSA SUCCEDE</Text>
+          <Text style={{ width: 90, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF", textAlign: "right" }}>IN TASCA</Text>
         </View>
         {tappe.map((anno) => {
           const a = r.anniBeneficio[anno];
@@ -450,9 +450,9 @@ function Beneficio({ d, r, c }: { d: FullElectricPdfData; r: FullElectricRisulta
             : "Risparmi in bolletta";
           return (
             <View key={anno} style={{ flexDirection: "row", paddingVertical: 6, paddingHorizontal: 11, borderTopWidth: 1, borderTopColor: BASE.linea }}>
-              <Text style={{ width: 60, fontSize: 8, fontFamily: "Helvetica-Bold", color: BASE.ink }}>{anno === 0 ? "Oggi" : String(anno)}</Text>
-              <Text style={{ flex: 1, fontSize: 8, color: BASE.testo }}>{cosa}</Text>
-              <Text style={{ width: 90, fontSize: 8, fontFamily: "Helvetica-Bold", color: a.cumulato >= 0 ? BASE.verdeScuro : BASE.rosso, textAlign: "right" }}>{soldi(a.cumulato)}</Text>
+              <Text style={{ width: 60, fontSize: 9, fontFamily: "Helvetica-Bold", color: BASE.ink }}>{anno === 0 ? "Oggi" : String(anno)}</Text>
+              <Text style={{ flex: 1, fontSize: 9, color: BASE.testo }}>{cosa}</Text>
+              <Text style={{ width: 90, fontSize: 9, fontFamily: "Helvetica-Bold", color: a.cumulato >= 0 ? BASE.verdeScuro : BASE.rosso, textAlign: "right" }}>{soldi(a.cumulato)}</Text>
             </View>
           );
         })}
@@ -480,11 +480,11 @@ function Ambiente({ d, r, c }: { d: FullElectricPdfData; r: FullElectricRisultat
         <Kpi etichetta="Come piantare" valore={`${a.alberi} alberi`} nota="che la assorbono in un anno" ultimo />
       </View>
       <View style={{ marginTop: 14, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, paddingTop: 12, paddingHorizontal: 8 }}>
-        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8.5, color: BASE.ink }}>La CO2 di un anno</Text>
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9.5, color: BASE.ink }}>La CO2 di un anno</Text>
         <GraficoSpesa oggi={a.co2OggiKg} domani={a.co2DomaniKg} etichettaOggi="Oggi · gas e luce" etichettaDomani="Domani · solo luce dalla rete" c={c} formato={co2Testo} sottoDifferenza="di CO2 ogni anno" />
       </View>
       <Spinta />
-      <Foto src={d.foto?.ambiente} altezza={190} stile={{ marginBottom: 10 }} />
+      <Foto src={d.foto?.ambiente} altezza={172} stile={{ marginBottom: 10 }} />
       <Nota tono="verde" icona="sole" titolo="Stime con fattori medi." testo={`${String(FULL_ELECTRIC.co2PerSmcGas).replace(".", ",")} kg di CO2 per Smc di gas bruciato, ${String(FULL_ELECTRIC.co2PerKwhRete).replace(".", ",")} kg per kWh preso dalla rete; un albero adulto assorbe in media ${FULL_ELECTRIC.co2PerAlbero} kg di CO2 in un anno.`} />
     </Pagina>
   );

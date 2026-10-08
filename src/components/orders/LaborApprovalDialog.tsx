@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { loadLaborReview, type LaborReviewRequest } from "@/lib/campo/loadLaborReview";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { AvanzamentoDaApprovare } from "@/components/orders/AvanzamentoDaApprovare";
 
 const eur = (n: number) => n.toLocaleString("it-IT", {style:"currency",currency:"EUR",useGrouping:true});
 interface Props extends LaborReviewRequest {
@@ -49,6 +50,7 @@ export function LaborApprovalDialog({busy, onClose, onApprove, onInspect, ...req
             </div>}
           </div>)}
         </div>
+        <AvanzamentoDaApprovare orderId={request.orderId} reportId={request.reportId} />
         {request.showCosts && <div className="rounded-xl bg-muted/50 p-3">
           {review.budget && <dl className="mb-3 grid grid-cols-1 gap-2 border-b pb-3 text-sm sm:grid-cols-2">
             <div><dt className="text-muted-foreground">Costo previsto manodopera interna</dt><dd className="font-semibold">{review.budget.planned == null ? "Non disponibile" : eur(review.budget.planned)}</dd></div>

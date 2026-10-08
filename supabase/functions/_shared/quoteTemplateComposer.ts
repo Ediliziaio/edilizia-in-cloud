@@ -173,6 +173,8 @@ export interface MergeContext {
     subtotale?: string;
     iva?: string;
     piano_pagamenti?: string;
+    /** La frase intera sui pagamenti per le condizioni di base: cita il piano solo se c'è (non è nell'elenco dei tag dell'editor). */
+    frase_pagamenti?: string;
   };
   azienda?: {
     ragione_sociale?: string;
@@ -190,12 +192,20 @@ export interface MergeContext {
 const TAG_RE = /\{\{\s*([a-zA-Z][\w]*(?:\.[a-zA-Z][\w]*)?)\s*\}\}/g;
 
 /**
+ * La frase dell'Art. 4 come stava nelle condizioni di base fino al 07/10/2026. Chi l'aveva già copiata nel proprio
+ * modello (il pulsante «condizioni standard» incolla il testo) la ritrova uguale: senza un piano diceva
+ * «…il piano concordato: come da condizioni di pagamento concordate». Si riscrive con la frase intera, che col
+ * piano dice la stessa cosa di prima e senza piano non si ripete.
+ */
+const FRASE_PAGAMENTI_DI_PRIMA = /Il pagamento avviene secondo il piano concordato:\s*\{\{\s*preventivo\.piano_pagamenti\s*\}\}/g;
+
+/**
  * Sostituisce {{group.field}} nel testo con valori da ctx. Chiavi non trovate
  * vengono lasciate vuote (non lascia il placeholder grezzo nel PDF, sembrerebbe un bug).
  */
 export function substituteMergeTags(text: string | null | undefined, ctx: MergeContext): string {
   if (!text) return "";
-  return text.replace(TAG_RE, (match, key: string) => {
+  return text.replace(FRASE_PAGAMENTI_DI_PRIMA, "{{preventivo.frase_pagamenti}}").replace(TAG_RE, (match, key: string) => {
     const parts = key.split(".");
     if (parts.length !== 2) return ""; // formato non valido
     const [group, field] = parts;
@@ -303,6 +313,24 @@ export function buildMergeContext(args: {
   const cognome = contact?.last_name ?? "";
   const nomeCompleto = (quote?.client_name ?? `${nome} ${cognome}`).trim();
 
+  // Il piano dei pagamenti, se c'è davvero: modalità e fasi strutturate, altrimenti il testo
+  // «Condizioni di pagamento» del template. Stringa vuota se il preventivo non ne dice niente.
+  const pianoPagamenti = (() => {
+    const parts: string[] = [];
+    const method = typeof quote?.payment_method === "string" ? quote.payment_method.trim() : "";
+    if (method) parts.push(`Modalità: ${method}`);
+    const phases = Array.isArray(quote?.payment_phases) ? quote.payment_phases : [];
+    for (const p of phases) {
+      if (!p || typeof p !== "object") continue;
+      const label = String((p as { label?: unknown }).label ?? "").trim() || "Rata";
+      const pct = Number((p as { percent?: unknown }).percent) || 0;
+      const amt = fmtMoney((p as { amount?: unknown }).amount);
+      parts.push(`${label} ${pct}%${amt ? ` (${amt})` : ""}`);
+    }
+    if (parts.length > 0) return parts.join(" · ");
+    return String(template?.payment_terms_text ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  })();
+
   return {
     cliente: {
       nome,
@@ -335,27 +363,15 @@ export function buildMergeContext(args: {
       subtotale: fmtMoney(quote?.subtotal),
       iva: fmtMoney(quote?.vat_amount),
       // Piano pagamenti strutturato (modalità + fasi) su una riga, disponibile nei
-      // template PDF via {{preventivo.piano_pagamenti}} → il cliente lo firma.
-      piano_pagamenti: (() => {
-        const parts: string[] = [];
-        const method = typeof quote?.payment_method === "string" ? quote.payment_method.trim() : "";
-        if (method) parts.push(`Modalità: ${method}`);
-        const phases = Array.isArray(quote?.payment_phases) ? quote.payment_phases : [];
-        for (const p of phases) {
-          if (!p || typeof p !== "object") continue;
-          const label = String((p as { label?: unknown }).label ?? "").trim() || "Rata";
-          const pct = Number((p as { percent?: unknown }).percent) || 0;
-          const amt = fmtMoney((p as { amount?: unknown }).amount);
-          parts.push(`${label} ${pct}%${amt ? ` (${amt})` : ""}`);
-        }
-        // Senza fasi strutturate il tag non deve restare vuoto nel contratto:
-        // vale il testo "Condizioni di pagamento" del template.
-        if (parts.length === 0) {
-          const testo = String(template?.payment_terms_text ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-          return testo || "come da condizioni di pagamento concordate";
-        }
-        return parts.join(" · ");
-      })(),
+      // template PDF via {{preventivo.piano_pagamenti}} → il cliente lo firma. Senza piano il tag
+      // non deve restare vuoto nel contratto.
+      piano_pagamenti: pianoPagamenti || "come da condizioni di pagamento concordate",
+      // Per l'Art. 4 delle condizioni di base. Prima «Il pagamento avviene secondo il piano concordato:
+      // come da condizioni di pagamento concordate» ripeteva due volte la stessa cosa senza dire niente:
+      // con un piano lo cita, senza promette solo le modalità concordate.
+      frase_pagamenti: pianoPagamenti
+        ? `Il pagamento avviene secondo il piano concordato: ${pianoPagamenti}`
+        : "Il pagamento avviene secondo le modalità concordate tra le parti.",
     },
     azienda: {
       ragione_sociale: company?.name ?? "",

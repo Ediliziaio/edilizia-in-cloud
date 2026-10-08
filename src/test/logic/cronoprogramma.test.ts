@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   avanzamentoComplessivo,
+  avanzamentoFase,
   barra,
   confrontoTempi,
   fasiCronoprogramma,
@@ -139,6 +140,18 @@ describe("l'asse del tempo", () => {
     const lunghe = tacche({ da: "2026-01-15", a: "2026-06-30", giorni: 167 });
     expect(lunghe.map((t) => t.data)).toEqual(["2026-02-01", "2026-03-01", "2026-04-01", "2026-05-01", "2026-06-01"]);
     expect(lunghe.every((t) => t.mese)).toBe(true);
+  });
+});
+
+describe("avanzamento di una fase (regola condivisa)", () => {
+  it("chiusa vale 100 anche con la % rimasta a 0; altrimenti la % dichiarata tra 0 e 100", () => {
+    expect(avanzamentoFase({ status: "completata", percentuale: 0 })).toBe(100);
+    expect(avanzamentoFase({ status: "completata", percentuale: null })).toBe(100);
+    expect(avanzamentoFase({ status: "in_corso", percentuale: 40 })).toBe(40);
+    expect(avanzamentoFase({ status: "in_corso", percentuale: 33.6 })).toBe(34);
+    expect(avanzamentoFase({ status: "in_corso", percentuale: 140 })).toBe(100);
+    expect(avanzamentoFase({ status: "da_iniziare", percentuale: -5 })).toBe(0);
+    expect(avanzamentoFase({ status: "da_iniziare", percentuale: undefined })).toBe(0);
   });
 });
 

@@ -42,6 +42,18 @@ export function withSrSectionAnchor(node: ReactNode, section: string): ReactNode
   return visit(node);
 }
 
+/**
+ * Un capitolo che disegna almeno una pagina. Le sezioni vuote, spente o senza dati sono frammenti con dentro solo
+ * `null` o `false`; qualunque altro elemento (una `Page`, o un componente che ne disegna una) conta come pagina:
+ * nel dubbio la pagina c'è, mai una pagina persa per errore.
+ */
+export function disegnaPagine(node: ReactNode): boolean {
+  if (Array.isArray(node)) return node.some(disegnaPagine);
+  if (!React.isValidElement<{ children?: ReactNode }>(node)) return false;
+  if (node.type === React.Fragment) return disegnaPagine(node.props.children);
+  return true;
+}
+
 /** Resolve the actual page reference; absent/hidden chapters are a no-op. */
 export async function srPreviewPage(
   pdf: Pick<PDFDocumentProxy, "getOutline" | "getDestination" | "getPageIndex">,

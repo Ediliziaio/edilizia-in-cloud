@@ -17,12 +17,24 @@ const state = vi.hoisted(() => ({
   mobile: true,
   permissions: { canEditOrders: true, canViewCosts: true, canManagePayments: true },
   phases: [] as WorkPhase[], unassigned: [] as PhaseAssignment[], loading: false, error: false,
-  add: vi.fn(), update: vi.fn(), remove: vi.fn(), addPhase: vi.fn(), applyTemplate: vi.fn(), updatePhase: vi.fn(), refetch: vi.fn(),
+  add: vi.fn(), update: vi.fn(), remove: vi.fn(), addPhase: vi.fn(), applyTemplate: vi.fn(), updatePhase: vi.fn(), refetch: vi.fn(), segnaSottofase: vi.fn(), aggiungiSottofase: vi.fn(),
 }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[] }), useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
+vi.mock("@/components/orders/AlertScostamentoSal", () => ({ AlertScostamentoSal: (): null => null }));
+vi.mock("@/hooks/useSottofasi", () => ({
+  useSottofasi: () => ({
+    sottofasi: [] as unknown[], perFase: new Map(), isLoading: false, isError: false,
+    segna: { mutate: state.segnaSottofase }, aggiungi: { mutate: state.aggiungiSottofase },
+    rinomina: { mutate: vi.fn() }, elimina: { mutate: vi.fn() },
+  }),
+}));
+vi.mock("@/hooks/useModelliFasi", () => ({ useModelliFasi: () => ({ modelli: [] as unknown[], inizializzati: false }) }));
+vi.mock("@/hooks/useAvanzamentoCommessa", () => ({
+  useAvanzamentoCommessa: () => ({ percentuale: null as number | null, peso: "uguale", daMostrare: (locale: unknown) => locale }),
+}));
 vi.mock("@/hooks/useOrderScheduleHealth", () => ({ useOrderScheduleHealth: () => ({ data: null as null }) }));
 vi.mock("@/hooks/useOrderWorkPhases", () => ({
   PHASE_TEMPLATES: [{ key: "simple", label: "Intervento semplice", hint: "Due fasi", phases: ["Preparazione", "Posa"] }],

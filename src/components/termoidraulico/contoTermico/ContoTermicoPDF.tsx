@@ -78,12 +78,12 @@ function GraficoConfronto({ r }: { r: ContoTermicoRisultato }) {
     <Svg viewBox={`0 0 ${w} ${h}`} style={{ width: w, height: h }}>
       <Line x1={padL} y1={yOf(0)} x2={w - padR} y2={yOf(0)} stroke={BASE.grigioChiaro} strokeWidth={0.8} />
       <Line x1={padL} y1={yOf(max)} x2={w - padR} y2={yOf(max)} stroke={BASE.linea} strokeWidth={0.5} strokeDasharray="2 3" />
-      <Text x={padL - 6} y={yOf(0) + 3} fill={BASE.grigio} style={{ fontSize: 7, textAnchor: "end" } as never}>{`0 ${PDF_EURO}`}</Text>
-      <Text x={padL - 6} y={yOf(max) + 3} fill={BASE.grigio} style={{ fontSize: 7, textAnchor: "end" } as never}>{soldi(max)}</Text>
+      <Text x={padL - 6} y={yOf(0) + 3} fill={BASE.grigio} style={{ fontSize: 8, textAnchor: "end" } as never}>{`0 ${PDF_EURO}`}</Text>
+      <Text x={padL - 6} y={yOf(max) + 3} fill={BASE.grigio} style={{ fontSize: 8, textAnchor: "end" } as never}>{soldi(max)}</Text>
       <Path d={tracciato(detratto)} stroke={BASE.grigioChiaro} strokeWidth={1.6} strokeDasharray="4 3" fill="none" />
       <Path d={tracciato(ricevuto)} stroke={BASE.verde} strokeWidth={2.2} fill="none" />
       {anni.map((a) => (
-        <Text key={`x-${a}`} x={xOf(a)} y={h - 8} fill={BASE.grigio} style={{ fontSize: 7, textAnchor: "middle" } as never}>{a === 0 ? "Oggi" : `Anno ${a}`}</Text>
+        <Text key={`x-${a}`} x={xOf(a)} y={h - 8} fill={BASE.grigio} style={{ fontSize: 8, textAnchor: "middle" } as never}>{a === 0 ? "Oggi" : `Anno ${a}`}</Text>
       ))}
     </Svg>
   );
@@ -159,9 +159,9 @@ function Caratteristiche({ d, c }: { d: ContoTermicoPdfData; c: Palette }) {
       <View style={{ flexDirection: "row" }}>
         {conFoto ? (
           <View style={{ width: LARGHEZZA * 0.44, marginRight: 14 }}>
-            <Foto src={d.foto?.interno} altezza={scheda.length > 5 ? 150 : 128} larghezza="100%" didascalia={false} />
-            {d.foto?.dettaglio ? <Foto src={d.foto.dettaglio} altezza={96} larghezza="100%" didascalia={false} stile={{ marginTop: 8 }} /> : null}
-            <Text style={{ fontSize: 6, color: BASE.grigioChiaro, marginTop: 3 }}>Immagini illustrative.</Text>
+            <Foto src={d.foto?.interno} altezza={scheda.length > 5 ? 140 : 120} larghezza="100%" didascalia={false} />
+            {d.foto?.dettaglio ? <Foto src={d.foto.dettaglio} altezza={88} larghezza="100%" didascalia={false} stile={{ marginTop: 8 }} /> : null}
+            <Text style={{ fontSize: 7.5, color: BASE.grigioChiaro, marginTop: 3 }}>Immagini illustrative.</Text>
           </View>
         ) : null}
         <View style={{ flex: 1 }}>
@@ -170,15 +170,15 @@ function Caratteristiche({ d, c }: { d: ContoTermicoPdfData; c: Palette }) {
             <View style={{ borderWidth: 1, borderColor: BASE.linea, borderRadius: 8 }}>
               {scheda.map((x, i) => (
                 <View key={x.etichetta} style={{ flexDirection: "row", paddingVertical: 6.5, paddingHorizontal: 10, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: BASE.linea, backgroundColor: i % 2 === 0 ? "#FFFFFF" : BASE.fondo }}>
-                  <Text style={{ flex: 1.1, fontSize: 7.5, color: BASE.grigio }}>{x.etichetta}</Text>
-                  <Text style={{ flex: 1, fontSize: 8, fontFamily: "Helvetica-Bold", color: BASE.ink, textAlign: "right" }}>{x.valore}</Text>
+                  <Text style={{ flex: 1.1, fontSize: 9, color: BASE.grigio }}>{x.etichetta}</Text>
+                  <Text style={{ flex: 1, fontSize: 9, fontFamily: "Helvetica-Bold", color: BASE.ink, textAlign: "right" }}>{x.valore}</Text>
                 </View>
               ))}
             </View>
           ) : (
-            <Text style={{ fontSize: 8, color: BASE.grigio, lineHeight: 1.45 }}>I dati del modello proposto si trovano nella scheda tecnica del produttore allegata alla proposta.</Text>
+            <Text style={{ fontSize: 9, color: BASE.grigio, lineHeight: 1.45 }}>I dati del modello proposto si trovano nella scheda tecnica del produttore allegata alla proposta.</Text>
           )}
-          {scheda.length ? <Text style={{ fontSize: 6.5, color: BASE.grigioChiaro, marginTop: 4, lineHeight: 1.35 }}>Dati del produttore per il modello proposto. Fa fede la scheda tecnica allegata.</Text> : null}
+          {scheda.length ? <Text style={{ fontSize: 8, color: BASE.grigioChiaro, marginTop: 4, lineHeight: 1.35 }}>Dati del produttore per il modello proposto. Fa fede la scheda tecnica allegata.</Text> : null}
         </View>
       </View>
 
@@ -190,8 +190,8 @@ function Caratteristiche({ d, c }: { d: ContoTermicoPdfData; c: Palette }) {
               <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: i === vantaggi.length - 1 ? BASE.arancioTenue : BASE.verdeTenue, alignItems: "center", justifyContent: "center", marginBottom: 6 }}>
                 <IconaPdf nome={ICONE_VANTAGGI[i] ?? "verifica"} colore={i === vantaggi.length - 1 ? BASE.arancioScuro : BASE.verdeScuro} lato={11} />
               </View>
-              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8.5, color: c.navy }}>{v.titolo}</Text>
-              <Text style={{ fontSize: 7.2, color: BASE.testo, marginTop: 3, lineHeight: 1.4 }}>{conEuro(v.testo)}</Text>
+              <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9.5, color: c.navy }}>{v.titolo}</Text>
+              <Text style={{ fontSize: 9, color: BASE.testo, marginTop: 3, lineHeight: 1.4 }}>{conEuro(v.testo)}</Text>
             </View>
           ))}
         </View>
@@ -216,10 +216,10 @@ function Incentivo({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisulta
         <TitoletoSezione>Chi paga cosa</TitoletoSezione>
         <View style={{ flexDirection: "row", height: 30, borderRadius: 6, overflow: "hidden" }}>
           <View style={{ flex: Math.max(0.001, 1 - quotaContributo), backgroundColor: c.navy, justifyContent: "center", paddingHorizontal: 8 }}>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF" }}>{`Tu · ${soldi(r.restaATe)}`}</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9, color: "#FFFFFF" }}>{`Tu · ${soldi(r.restaATe)}`}</Text>
           </View>
           <View style={{ flex: Math.max(0.001, quotaContributo), backgroundColor: BASE.arancio, justifyContent: "center", paddingHorizontal: 8 }}>
-            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF" }}>{`GSE · ${soldi(r.contributo)}`}</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9, color: "#FFFFFF" }}>{`GSE · ${soldi(r.contributo)}`}</Text>
           </View>
         </View>
       </View>
@@ -234,15 +234,15 @@ function Incentivo({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisulta
             {r.rate.length > 0 ? (
               <View style={{ marginTop: 10, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8 }}>
                 <View style={{ flexDirection: "row", backgroundColor: c.navy, borderTopLeftRadius: 7, borderTopRightRadius: 7, paddingVertical: 6, paddingHorizontal: 11 }}>
-                  <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF" }}>RATA</Text>
-                  <Text style={{ flex: 2, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF" }}>QUANDO</Text>
-                  <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF", textAlign: "right" }}>IMPORTO</Text>
+                  <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF" }}>RATA</Text>
+                  <Text style={{ flex: 2, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF" }}>QUANDO</Text>
+                  <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF", textAlign: "right" }}>IMPORTO</Text>
                 </View>
                 {r.rate.map((x) => (
                   <View key={x.numero} style={{ flexDirection: "row", paddingVertical: 6, paddingHorizontal: 11, borderTopWidth: 1, borderTopColor: BASE.linea }}>
-                    <Text style={{ flex: 1, fontSize: 8, color: BASE.ink }}>{r.rate.length === 1 ? "Unica" : `${x.numero}ª`}</Text>
-                    <Text style={{ flex: 2, fontSize: 8, color: BASE.testo }}>{x.anno === 1 ? "Dopo l'accettazione della domanda" : `Dopo ${x.anno - 1} ${x.anno - 1 === 1 ? "anno" : "anni"} dalla prima`}</Text>
-                    <Text style={{ flex: 1, fontSize: 8, fontFamily: "Helvetica-Bold", color: BASE.verdeScuro, textAlign: "right" }}>{soldi(x.importo)}</Text>
+                    <Text style={{ flex: 1, fontSize: 9, color: BASE.ink }}>{r.rate.length === 1 ? "Unica" : `${x.numero}ª`}</Text>
+                    <Text style={{ flex: 2, fontSize: 9, color: BASE.testo }}>{x.anno === 1 ? "Dopo l'accettazione della domanda" : `Dopo ${x.anno - 1} ${x.anno - 1 === 1 ? "anno" : "anni"} dalla prima`}</Text>
+                    <Text style={{ flex: 1, fontSize: 9, fontFamily: "Helvetica-Bold", color: BASE.verdeScuro, textAlign: "right" }}>{soldi(x.importo)}</Text>
                   </View>
                 ))}
               </View>
@@ -250,7 +250,7 @@ function Incentivo({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisulta
           </View>
         )}
       </View>
-      <Foto src={d.foto?.incentivo} altezza={132} stile={{ marginTop: 16 }} />
+      <Foto src={d.foto?.incentivo} altezza={120} stile={{ marginTop: 16 }} />
       <Spinta />
       <Nota tono="arancio" icona="verifica" titolo="Perché è una stima." testo="Il GSE calcola il contributo con una formula che tiene conto della potenza del generatore, della sua efficienza stagionale (SCOP) e della zona climatica. La cifra definitiva arriva con l'accettazione della domanda." />
     </Pagina>
@@ -273,24 +273,24 @@ function Risparmio({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisulta
         <Kpi etichetta="All'anno" valore={soldi(Math.max(0, r.risparmioAnnuo))} nota="il primo anno" tono="verde" grande ultimo />
       </View>
       <View style={{ marginTop: 18, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, paddingTop: 12, paddingHorizontal: 10 }}>
-        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8.5, color: BASE.ink, marginLeft: 4 }}>Spesa di un anno per riscaldamento e acqua calda</Text>
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9.5, color: BASE.ink, marginLeft: 4 }}>Spesa di un anno per riscaldamento e acqua calda</Text>
         <GraficoSpesa oggi={e.spesaAnnuaAttuale} domani={e.spesaAnnuaNuova} etichettaOggi={`Oggi · ${d.intervento.impiantoAttuale}`.slice(0, 44)} etichettaDomani={`Domani · ${tipo}`.slice(0, 44)} c={c} />
       </View>
       <View style={{ marginTop: 14, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8 }}>
         <View style={{ flexDirection: "row", backgroundColor: c.navy, borderTopLeftRadius: 7, borderTopRightRadius: 7, paddingVertical: 6, paddingHorizontal: 11 }}>
-          <Text style={{ flex: 2, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF" }}>VOCE</Text>
-          <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF", textAlign: "right" }}>OGGI</Text>
-          <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF", textAlign: "right" }}>DOMANI</Text>
-          <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF", textAlign: "right" }}>DIFFERENZA</Text>
+          <Text style={{ flex: 2, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF" }}>VOCE</Text>
+          <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF", textAlign: "right" }}>OGGI</Text>
+          <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF", textAlign: "right" }}>DOMANI</Text>
+          <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF", textAlign: "right" }}>DIFFERENZA</Text>
         </View>
         <View style={{ flexDirection: "row", paddingVertical: 7, paddingHorizontal: 11 }}>
-          <Text style={{ flex: 2, fontSize: 8, color: BASE.ink }}>Riscaldamento e acqua calda, in un anno</Text>
-          <Text style={{ flex: 1, fontSize: 8, color: BASE.ink, textAlign: "right" }}>{soldi(e.spesaAnnuaAttuale)}</Text>
-          <Text style={{ flex: 1, fontSize: 8, color: BASE.ink, textAlign: "right" }}>{soldi(e.spesaAnnuaNuova)}</Text>
-          <Text style={{ flex: 1, fontSize: 8, fontFamily: "Helvetica-Bold", color: r.risparmioAnnuo >= 0 ? BASE.verdeScuro : BASE.rosso, textAlign: "right" }}>{soldi(-r.risparmioAnnuo)}</Text>
+          <Text style={{ flex: 2, fontSize: 9, color: BASE.ink }}>Riscaldamento e acqua calda, in un anno</Text>
+          <Text style={{ flex: 1, fontSize: 9, color: BASE.ink, textAlign: "right" }}>{soldi(e.spesaAnnuaAttuale)}</Text>
+          <Text style={{ flex: 1, fontSize: 9, color: BASE.ink, textAlign: "right" }}>{soldi(e.spesaAnnuaNuova)}</Text>
+          <Text style={{ flex: 1, fontSize: 9, fontFamily: "Helvetica-Bold", color: r.risparmioAnnuo >= 0 ? BASE.verdeScuro : BASE.rosso, textAlign: "right" }}>{soldi(-r.risparmioAnnuo)}</Text>
         </View>
       </View>
-      <Foto src={d.foto?.comfort} altezza={118} stile={{ marginTop: 14 }} />
+      <Foto src={d.foto?.comfort} altezza={108} stile={{ marginTop: 14 }} />
       <Spinta />
       <Nota tono="blu" icona="energia" titolo="Il risparmio si misura in bolletta, non a parole." testo={`È una stima: parte dalla spesa annua che ci hai indicato (${soldi(e.spesaAnnuaAttuale)}) e da quella prevista col nuovo impianto (${soldi(e.spesaAnnuaNuova)}). Negli anni successivi consideriamo prezzi dell'energia in aumento del ${String(e.aumentoEnergiaPct).replace(".", ",")}% l'anno.`} />
     </Pagina>
@@ -320,15 +320,15 @@ function Beneficio({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisulta
         <Kpi etichetta="Contributo GSE" valore={soldi(r.contributo)} tono="neutro" ultimo />
       </View>
       <View style={{ marginTop: 16, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, paddingTop: 12, paddingHorizontal: 6 }}>
-        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8.5, color: BASE.ink, marginLeft: 8 }}>Quanto hai in tasca, anno dopo anno</Text>
-        <Text style={{ fontSize: 7, color: BASE.grigio, marginLeft: 8, marginTop: 2 }}>Sotto lo zero finché la spesa non è ripagata, sopra da lì in poi.</Text>
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9.5, color: BASE.ink, marginLeft: 8 }}>Quanto hai in tasca, anno dopo anno</Text>
+        <Text style={{ fontSize: 9, color: BASE.grigio, marginLeft: 8, marginTop: 2 }}>Sotto lo zero finché la spesa non è ripagata, sopra da lì in poi.</Text>
         <GraficoCumulato anni={r.anniBeneficio} rientro={r.anniDiRientro} c={c} />
       </View>
       <View style={{ marginTop: 12, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8 }}>
         <View style={{ flexDirection: "row", backgroundColor: c.navy, borderTopLeftRadius: 7, borderTopRightRadius: 7, paddingVertical: 6, paddingHorizontal: 11 }}>
-          <Text style={{ width: 60, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF" }}>ANNO</Text>
-          <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF" }}>COSA SUCCEDE</Text>
-          <Text style={{ width: 90, fontFamily: "Helvetica-Bold", fontSize: 7, color: "#FFFFFF", textAlign: "right" }}>IN TASCA</Text>
+          <Text style={{ width: 60, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF" }}>ANNO</Text>
+          <Text style={{ flex: 1, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF" }}>COSA SUCCEDE</Text>
+          <Text style={{ width: 90, fontFamily: "Helvetica-Bold", fontSize: 8, color: "#FFFFFF", textAlign: "right" }}>IN TASCA</Text>
         </View>
         {tappe.map((anno) => {
           const a = r.anniBeneficio[anno];
@@ -340,9 +340,9 @@ function Beneficio({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisulta
             : "Risparmi in bolletta";
           return (
             <View key={anno} style={{ flexDirection: "row", paddingVertical: 6, paddingHorizontal: 11, borderTopWidth: 1, borderTopColor: BASE.linea }}>
-              <Text style={{ width: 60, fontSize: 8, fontFamily: "Helvetica-Bold", color: BASE.ink }}>{anno === 0 ? "Oggi" : String(anno)}</Text>
-              <Text style={{ flex: 1, fontSize: 8, color: BASE.testo }}>{cosa}</Text>
-              <Text style={{ width: 90, fontSize: 8, fontFamily: "Helvetica-Bold", color: a.cumulato >= 0 ? BASE.verdeScuro : BASE.rosso, textAlign: "right" }}>{soldi(a.cumulato)}</Text>
+              <Text style={{ width: 60, fontSize: 9, fontFamily: "Helvetica-Bold", color: BASE.ink }}>{anno === 0 ? "Oggi" : String(anno)}</Text>
+              <Text style={{ flex: 1, fontSize: 9, color: BASE.testo }}>{cosa}</Text>
+              <Text style={{ width: 90, fontSize: 9, fontFamily: "Helvetica-Bold", color: a.cumulato >= 0 ? BASE.verdeScuro : BASE.rosso, textAlign: "right" }}>{soldi(a.cumulato)}</Text>
             </View>
           );
         })}
@@ -359,9 +359,9 @@ function Confronto({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisulta
       <Intestazione c={c} occhiello="Contributo o detrazione" titolo={"Il contributo arriva subito.\n"} evidenza="La detrazione in 10 anni." sottotitolo="Sullo stesso intervento si sceglie l'uno o l'altra: non si sommano. Ecco la differenza, con i numeri di questa proposta." />
       <View style={{ flexDirection: "row" }}>
         <View style={{ flex: 1, backgroundColor: BASE.verdeTenue, borderWidth: 1, borderColor: BASE.verdeBordo, borderRadius: 10, padding: 14, marginRight: 10 }}>
-          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.2, color: BASE.verdeScuro }}>CONTO TERMICO 3.0</Text>
+          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 1.2, color: BASE.verdeScuro }}>CONTO TERMICO 3.0</Text>
           <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 24, letterSpacing: -0.7, color: BASE.verdeScuro, marginTop: 6 }}>{soldi(r.contributo)}</Text>
-          <Text style={{ fontSize: 7.5, color: BASE.testo, marginTop: 3 }}>{sconto ? "subito, scontati in fattura" : r.rate.length > 1 ? `in ${r.rate.length} rate annuali` : "in un'unica soluzione"}</Text>
+          <Text style={{ fontSize: 9, color: BASE.testo, marginTop: 3 }}>{sconto ? "subito, scontati in fattura" : r.rate.length > 1 ? `in ${r.rate.length} rate annuali` : "in un'unica soluzione"}</Text>
           <View style={{ marginTop: 10 }}>
             <Spunta testo="Soldi versati sul conto (o sconto sul prezzo)." />
             <Spunta testo="Non servono tasse da scalare." />
@@ -369,9 +369,9 @@ function Confronto({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisulta
           </View>
         </View>
         <View style={{ flex: 1, backgroundColor: BASE.fondo, borderWidth: 1, borderColor: BASE.linea, borderRadius: 10, padding: 14 }}>
-          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 6.5, letterSpacing: 1.2, color: BASE.grigio }}>{`DETRAZIONE FISCALE ${r.detrazione.pct}%`}</Text>
+          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, letterSpacing: 1.2, color: BASE.grigio }}>{`DETRAZIONE FISCALE ${r.detrazione.pct}%`}</Text>
           <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 24, letterSpacing: -0.7, color: BASE.ink, marginTop: 6 }}>{soldi(r.detrazione.totale)}</Text>
-          <Text style={{ fontSize: 7.5, color: BASE.testo, marginTop: 3 }}>{`in 10 anni, ${soldi(r.detrazione.perAnno)} per dichiarazione dei redditi`}</Text>
+          <Text style={{ fontSize: 9, color: BASE.testo, marginTop: 3 }}>{`in 10 anni, ${soldi(r.detrazione.perAnno)} per dichiarazione dei redditi`}</Text>
           <View style={{ marginTop: 10 }}>
             <Spunta testo="Si recupera come minori tasse, un decimo l'anno." />
             <Spunta testo="Serve avere abbastanza IRPEF ogni anno." />
@@ -380,7 +380,7 @@ function Confronto({ d, r, c }: { d: ContoTermicoPdfData; r: ContoTermicoRisulta
         </View>
       </View>
       <View style={{ marginTop: 16, borderWidth: 1, borderColor: BASE.linea, borderRadius: 8, paddingTop: 12, paddingHorizontal: 6 }}>
-        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 8.5, color: BASE.ink, marginLeft: 8 }}>Quanto ti è tornato, anno dopo anno</Text>
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 9.5, color: BASE.ink, marginLeft: 8 }}>Quanto ti è tornato, anno dopo anno</Text>
         <Legenda voci={[{ colore: BASE.verde, testo: "Conto Termico" }, { colore: BASE.grigioChiaro, testo: `Detrazione ${r.detrazione.pct}% in 10 anni`, tratteggio: true }]} />
         <GraficoConfronto r={r} />
       </View>
