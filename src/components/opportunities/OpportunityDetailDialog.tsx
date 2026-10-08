@@ -855,15 +855,17 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 )}
               </div>
             )}
+            {/* Solo da computer: sul telefono non serve e ruba spazio. Solo l'icona, il nome sta nel suggerimento. */}
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="hidden sm:inline-flex shrink-0 h-8 gap-1.5 mt-1 sm:mt-0"
+              size="icon"
+              className="hidden lg:inline-flex shrink-0 h-8 w-8"
               onClick={() => window.print()}
               title="Stampa tutta la scheda in formato A4"
+              aria-label="Stampa la scheda"
             >
-              <Printer className="h-4 w-4" /> Stampa
+              <Printer className="h-4 w-4" />
             </Button>
             <button
               type="button"

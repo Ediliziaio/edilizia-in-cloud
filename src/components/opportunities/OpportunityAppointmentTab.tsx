@@ -216,14 +216,15 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
     queryFn: async (): Promise<Occupato[]> => {
       const inizioGiorno = new Date(date!.getFullYear(), date!.getMonth(), date!.getDate()).toISOString();
       const fineGiorno = new Date(date!.getFullYear(), date!.getMonth(), date!.getDate(), 23, 59, 59, 999).toISOString();
-      const leggi = async (tabella: "google_calendar_busy_slots" | "outlook_calendar_busy_slots" | "apple_calendar_busy_slots") => {
+      // Le tre tabelle hanno le stesse colonne; le viste non sono nei tipi generati (as never, come nel resto del repo).
+      const leggi = async (tabella: string): Promise<Occupato[]> => {
         const { data, error } = await supabase
-          .from(tabella)
+          .from(tabella as never)
           .select("start_at, end_at")
-          .eq("user_id", ownerCalendario!)
-          .lt("start_at", fineGiorno)
-          .gt("end_at", inizioGiorno);
-        return error ? [] : ((data ?? []) as Occupato[]);
+          .eq("user_id" as never, ownerCalendario as never)
+          .lt("start_at" as never, fineGiorno as never)
+          .gt("end_at" as never, inizioGiorno as never);
+        return error ? [] : ((data ?? []) as unknown as Occupato[]);
       };
       const [g, o, a] = await Promise.all([leggi("google_calendar_busy_slots"), leggi("outlook_calendar_busy_slots"), leggi("apple_calendar_busy_slots")]);
       return [...g, ...o, ...a];
@@ -1065,7 +1066,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
           queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
           aggiornaAgendaSchede(queryClient);
         }}
-        calendars={calendars}
+        calendars={calendars.map((c) => ({ ...c, default_meeting_provider: c.default_meeting_provider === "google_meet" ? ("google_meet" as const) : ("none" as const) }))}
         users={teamUsers}
         contestoScheda="opportunita"
       />

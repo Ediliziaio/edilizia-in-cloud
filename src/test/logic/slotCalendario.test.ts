@@ -2,11 +2,11 @@
  * Orari liberi della prenotazione interna: stesse regole della pagina pubblica.
  */
 import { describe, expect, it } from "vitest";
-import { calcolaSlotLiberi, fasceDelGiorno, impegniEsterniInFascia } from "@/lib/opportunita/slotCalendario";
+import { calcolaSlotLiberi, fasceDelGiorno, impegniEsterniInFascia, type Fascia, type Occupato, type RegolaDisponibilita } from "@/lib/opportunita/slotCalendario";
 
 const VENERDI = new Date(2026, 9, 9); // venerdì 9 ottobre 2026
 const PASSATO = new Date(2026, 9, 1).getTime();
-const settimana = [
+const settimana: RegolaDisponibilita[] = [
   { day_of_week: 5, start_time: "09:00:00", end_time: "12:00:00", is_enabled: true, specific_date: null },
   { day_of_week: 5, start_time: "14:00:00", end_time: "17:00:00", is_enabled: true, specific_date: null },
 ];
@@ -26,7 +26,7 @@ describe("fasceDelGiorno", () => {
 });
 
 describe("calcolaSlotLiberi", () => {
-  const base = { giorno: VENERDI, regole: settimana, appuntamenti: [], occupatiEsterni: [], durataMin: 60, adesso: PASSATO };
+  const base = { giorno: VENERDI, regole: settimana, appuntamenti: [] as Fascia[], occupatiEsterni: [] as Occupato[], durataMin: 60, adesso: PASSATO };
 
   it("riempie le fasce di lavoro", () => {
     const r = calcolaSlotLiberi(base);
