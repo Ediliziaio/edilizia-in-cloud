@@ -35,6 +35,7 @@ const ROLE_LABELS: Record<AppRole, string> = {
   platform_support: "Platform Support",
   platform_marketing: "Platform Marketing",
   platform_implementation: "Platform Implementation",
+  platform_callcenter: "Platform Call center",
   multi_company_user: "Multi-Azienda",
   produttore_admin: "Produttore",
 };
@@ -55,6 +56,7 @@ const ROLE_COLORS: Record<AppRole, string> = {
   platform_support: "bg-sky-100 text-sky-800",
   platform_marketing: "bg-amber-100 text-amber-800",
   platform_implementation: "bg-rose-100 text-rose-800",
+  platform_callcenter: "bg-teal-100 text-teal-800",
   multi_company_user: "bg-teal-100 text-teal-800",
   produttore_admin: "bg-lime-100 text-lime-800",
 };
@@ -80,6 +82,7 @@ const ROLE_ORDER: AppRole[] = [
   "platform_support",
   "platform_marketing",
   "platform_implementation",
+  "platform_callcenter",
 ];
 
 // Chip "area" del QuickLogin: le aree in cui il super-admin salta più spesso,
@@ -126,6 +129,7 @@ const REDIRECT_MAP: Record<AppRole, string> = {
   platform_support: "/admin",
   platform_marketing: "/admin",
   platform_implementation: "/admin",
+  platform_callcenter: "/admin/marketing/opportunita",
   multi_company_user: "/azienda",
   produttore_admin: "/produttore",
 };

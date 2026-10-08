@@ -24,6 +24,8 @@ const ROLE_HOME_PATHS: Record<AppRole, string> = {
   platform_support: PLATFORM_HOME,
   platform_marketing: PLATFORM_HOME,
   platform_implementation: PLATFORM_HOME,
+  // Atterra dove lavora: la dashboard con le statistiche non è per lui.
+  platform_callcenter: "/admin/marketing/opportunita",
 };
 
 export function getRoleHomePath(role: AppRole | null | undefined): string {

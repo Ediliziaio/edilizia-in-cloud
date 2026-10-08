@@ -206,11 +206,11 @@ const allNavItems: AdminNavItem[] = [
 const adminMarketingNavItems: AdminNavItem[] = [
   { title: "Dashboard", url: "/admin/marketing/dashboard", icon: LayoutDashboard, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
   { title: "Outreach", url: "/admin/marketing", icon: BarChart3, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
-  { title: "Contatti & Lead", url: "/admin/marketing/contatti", icon: Users, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
+  { title: "Contatti & Lead", url: "/admin/marketing/contatti", icon: Users, permission: "crm_operatore", subcategory: "sa_mkt_crm" },
   { title: "Form Builder", url: "/admin/marketing/form-builder", icon: FileText, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
   { title: "Lead Scraper", url: "/admin/marketing/lead-scraper", icon: Search, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
-  { title: "Opportunità", url: "/admin/marketing/opportunita", icon: Target, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
-  { title: "Calendario", url: "/admin/marketing/calendario", icon: CalendarDays, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
+  { title: "Opportunità", url: "/admin/marketing/opportunita", icon: Target, permission: "crm_operatore", subcategory: "sa_mkt_crm" },
+  { title: "Calendario", url: "/admin/marketing/calendario", icon: CalendarDays, permission: "crm_operatore", subcategory: "sa_mkt_crm" },
   { title: "Simulatore ROI", url: "/admin/marketing/simulatore-roi", icon: Calculator, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
   { title: "Email Marketing", url: "/admin/marketing/email", icon: Mail, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
   { title: "SMS Marketing", url: "/admin/marketing/sms", icon: MessageSquare, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },
@@ -858,6 +858,11 @@ function AdminMainSidebar() {
 export function AdminLayout() {
   const location = useLocation();
   const isMobile = useIsMobile();
+  const { role } = useAuth();
+  // Call center di piattaforma: vede solo il CRM. Niente scorciatoie di amministrazione, accesso come altri
+  // utenti, notifiche di piattaforma né l'assistente con i dati di tutte le aziende.
+  const soloCrm = role === "platform_callcenter";
+  const soloSuperAdmin = role === "super_admin";
   const isSettingsRoute = location.pathname.startsWith("/admin/impostazioni");
 
   // Mobile: no sidebar at all — bottom nav replaces it
@@ -875,9 +880,9 @@ export function AdminLayout() {
             <AdminBreadcrumb />
           </div>
           <div className="flex items-center gap-0.5 shrink-0">
-            <AdminNotificationCenter />
+            {!soloCrm && <AdminNotificationCenter />}
             <CompanyQuickEnterPopover />
-            <QuickLoginPopover />
+            {soloSuperAdmin && <QuickLoginPopover />}
           </div>
         </header>
 
@@ -912,11 +917,11 @@ export function AdminLayout() {
             <Separator orientation="vertical" className="h-5" />
             <AdminBreadcrumb />
             <div className="ml-auto flex items-center gap-2">
-              <AdminQuickActions />
-              <AdminNotificationCenter />
-              <Separator orientation="vertical" className="h-5" />
+              {!soloCrm && <AdminQuickActions />}
+              {!soloCrm && <AdminNotificationCenter />}
+              {!soloCrm && <Separator orientation="vertical" className="h-5" />}
               <CompanyQuickEnterPopover />
-              <QuickLoginPopover />
+              {soloSuperAdmin && <QuickLoginPopover />}
             </div>
           </header>
           <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-6 bg-muted/30">
@@ -925,7 +930,7 @@ export function AdminLayout() {
             </ErrorBoundary>
           </main>
         </div>
-        <SilvioFAB mode="admin" />
+        {!soloCrm && <SilvioFAB mode="admin" />}
         <AdminFirstRunTour />
       </div>
     </SidebarProvider>

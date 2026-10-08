@@ -622,7 +622,8 @@ export function usePermissions(): Permissions {
     role === "accountant" ? commercialistaCompanyIdFromUrl : null,
   );
 
-  const staffLikeRoles = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"];
+  // platform_callcenter: i permessi del CRM della piattaforma stanno in staff_permissions come per ogni staff.
+  const staffLikeRoles = ["company_staff", "salesperson", "call_center", "employee", "subcontractor", "platform_callcenter"];
 
   // Risolve il ruolo effettivo per la company corrente. Se l'utente ha una riga
   // multi_company_access, quella vince sul ruolo globale: evita che un admin in
@@ -673,7 +674,7 @@ export function usePermissions(): Permissions {
   const viewAsActive = role === "super_admin" && isImpersonating && !!viewAsRole;
   const viewAsNeedsDbFetch = viewAsActive &&
     !!viewAsUserId &&
-    ["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(viewAsRole || "");
+    ["company_staff", "salesperson", "call_center", "employee", "subcontractor", "platform_callcenter"].includes(viewAsRole || "");
 
   const {
     data: viewAsPermsRow,

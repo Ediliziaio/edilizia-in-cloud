@@ -33,6 +33,7 @@ export const ROLE_PRIORITY: AppRole[] = [
   "platform_support",
   "platform_marketing",
   "platform_implementation",
+  "platform_callcenter",
   "multi_company_user",
 
   // Amministrativi d'azienda — prima degli operativi, sempre

@@ -16,6 +16,7 @@ export type AppRole =
   | "platform_support"
   | "platform_marketing"
   | "platform_implementation"
+  | "platform_callcenter" // call center di piattaforma: solo CRM e chiamate, dall'area super admin
   | "multi_company_user"
   | "produttore_admin"; // admin di un'azienda PRODUTTORE (white-label rivenditori)
 
@@ -30,7 +31,8 @@ export type PlatformRole =
   | "platform_sales"
   | "platform_support"
   | "platform_marketing"
-  | "platform_implementation";
+  | "platform_implementation"
+  | "platform_callcenter";
 
 export const PLATFORM_ROLES: PlatformRole[] = [
   "platform_manager",
@@ -38,6 +40,7 @@ export const PLATFORM_ROLES: PlatformRole[] = [
   "platform_support",
   "platform_marketing",
   "platform_implementation",
+  "platform_callcenter",
 ];
 
 export const PLATFORM_ROLE_LABELS: Record<PlatformRole, string> = {
@@ -46,6 +49,7 @@ export const PLATFORM_ROLE_LABELS: Record<PlatformRole, string> = {
   platform_support: "Supporto",
   platform_marketing: "Marketing",
   platform_implementation: "Implementazione",
+  platform_callcenter: "Call center",
 };
 
 export const PLATFORM_ROLE_DESCRIPTIONS: Record<PlatformRole, string> = {
@@ -54,6 +58,7 @@ export const PLATFORM_ROLE_DESCRIPTIONS: Record<PlatformRole, string> = {
   platform_support: "Gestione ticket e assistenza clienti",
   platform_marketing: "Gestione marketing e campagne piattaforma",
   platform_implementation: "Onboarding e configurazione aziende",
+  platform_callcenter: "Solo contatti, opportunità e calendario del CRM: fa le chiamate e fissa gli appuntamenti",
 };
 
 export const PLATFORM_ROLE_COLORS: Record<PlatformRole, string> = {
@@ -62,6 +67,7 @@ export const PLATFORM_ROLE_COLORS: Record<PlatformRole, string> = {
   platform_support: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   platform_marketing: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
   platform_implementation: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200",
+  platform_callcenter: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
 };
 
 /**
@@ -121,6 +127,17 @@ export const PLATFORM_ROLE_PRESETS: Record<PlatformRole, Record<string, boolean>
     can_view_platform_stats: true,
     can_manage_marketing: false,
   },
+  // Solo il permesso «CRM e chiamate»: niente campagne, automazioni, statistiche, incassi, aziende.
+  platform_callcenter: {
+    can_manage_companies: false,
+    can_manage_plans: false,
+    can_manage_tickets: false,
+    can_manage_referrals: false,
+    can_manage_admins: false,
+    can_view_platform_stats: false,
+    can_manage_marketing: false,
+    crm_operatore: true,
+  },
 };
 
 export interface MultiCompanyAccess {
@@ -143,6 +160,7 @@ export const ADMIN_PLATFORM_ROLES: AppRole[] = [
   "platform_support",
   "platform_marketing",
   "platform_implementation",
+  "platform_callcenter",
 ];
 
 export type CompanySector = 

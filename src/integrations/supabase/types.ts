@@ -85447,6 +85447,7 @@ export type Database = {
           can_manage_tickets: boolean
           can_view_platform_stats: boolean
           created_at: string
+          crm_operatore: boolean
           data_export: boolean
           department: string | null
           feature_flags: boolean
@@ -85474,6 +85475,7 @@ export type Database = {
           can_manage_tickets?: boolean
           can_view_platform_stats?: boolean
           created_at?: string
+          crm_operatore?: boolean
           data_export?: boolean
           department?: string | null
           feature_flags?: boolean
@@ -85501,6 +85503,7 @@ export type Database = {
           can_manage_tickets?: boolean
           can_view_platform_stats?: boolean
           created_at?: string
+          crm_operatore?: boolean
           data_export?: boolean
           department?: string | null
           feature_flags?: boolean
@@ -107368,6 +107371,7 @@ export type Database = {
         | "platform_support"
         | "platform_marketing"
         | "platform_implementation"
+        | "platform_callcenter"
         | "multi_company_user"
         | "subcontractor"
         | "worker"
@@ -107621,6 +107625,7 @@ export const Constants = {
         "platform_support",
         "platform_marketing",
         "platform_implementation",
+        "platform_callcenter",
         "multi_company_user",
         "subcontractor",
         "worker",

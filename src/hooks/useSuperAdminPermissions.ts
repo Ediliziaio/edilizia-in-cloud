@@ -13,6 +13,8 @@ export interface SuperAdminPermissions {
   can_manage_admins: boolean;
   can_view_platform_stats: boolean;
   can_manage_marketing: boolean;
+  /** «CRM e chiamate»: contatti, opportunità e calendario della piattaforma. Chi ha il marketing completo ce l'ha già. */
+  crm_operatore: boolean;
   allowed_company_ids: string[] | null;
   // Granular action-level permissions (fine-grained control)
   billing_read: boolean;
@@ -35,6 +37,7 @@ const ALL_TRUE: SuperAdminPermissions = {
   can_manage_admins: true,
   can_view_platform_stats: true,
   can_manage_marketing: true,
+  crm_operatore: true,
   allowed_company_ids: null,
   billing_read: true,
   billing_write: true,
@@ -56,6 +59,7 @@ const ALL_FALSE: SuperAdminPermissions = {
   can_manage_admins: false,
   can_view_platform_stats: false,
   can_manage_marketing: false,
+  crm_operatore: false,
   allowed_company_ids: [],
   billing_read: false,
   billing_write: false,
@@ -79,6 +83,7 @@ function permissionsFromPlatformPreset(role: string | null): SuperAdminPermissio
     ...ALL_FALSE,
     ...preset,
     allowed_company_ids: null,
+    crm_operatore: !!(preset.crm_operatore || preset.can_manage_marketing),
     billing_read: preset.can_manage_plans,
     billing_write: preset.can_manage_plans,
     impersonation: false,
@@ -137,6 +142,7 @@ export function useSuperAdminPermissions() {
         can_manage_admins: row.can_manage_admins ?? false,
         can_view_platform_stats: row.can_view_platform_stats ?? false,
         can_manage_marketing: row.can_manage_marketing ?? false,
+        crm_operatore: (row.crm_operatore ?? false) || (row.can_manage_marketing ?? false),
         allowed_company_ids: row.allowed_company_ids ?? null,
         // Granular permissions — fallback to legacy values if not yet migrated
         billing_read: row.billing_read ?? row.can_manage_plans ?? false,

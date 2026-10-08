@@ -48,6 +48,7 @@ const ROLE_STAT_CARDS: { role: "super_admin" | PlatformRole; label: string; colo
   { role: "platform_support", label: PLATFORM_ROLE_LABELS.platform_support, colorClass: PLATFORM_ROLE_COLORS.platform_support },
   { role: "platform_marketing", label: PLATFORM_ROLE_LABELS.platform_marketing, colorClass: PLATFORM_ROLE_COLORS.platform_marketing },
   { role: "platform_implementation", label: PLATFORM_ROLE_LABELS.platform_implementation, colorClass: PLATFORM_ROLE_COLORS.platform_implementation },
+  { role: "platform_callcenter", label: PLATFORM_ROLE_LABELS.platform_callcenter, colorClass: PLATFORM_ROLE_COLORS.platform_callcenter },
 ];
 
 /**

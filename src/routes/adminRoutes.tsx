@@ -4,6 +4,7 @@ import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { RequireAdminPermission } from "@/components/auth/RequireAdminPermission";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { RequireSuperAdmin } from "@/components/auth/RequireSuperAdmin";
 import { PreserveQueryRedirect } from "@/components/routing/PreserveQueryRedirect";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -12,6 +13,22 @@ import { ADMIN_PLATFORM_ROLES } from "@/types/auth";
 
 // Admin pages
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
+
+/**
+ * La prima pagina di /admin. Chi può solo lavorare sul CRM (call center di piattaforma) non ha le
+ * statistiche della piattaforma: va dritto alle opportunità, invece di fermarsi su «Accesso negato».
+ */
+function AdminHomeRoute() {
+  const { permissions, isLoading } = useSuperAdminPermissions();
+  if (!isLoading && !permissions.can_view_platform_stats && permissions.crm_operatore) {
+    return <Navigate to="/admin/marketing/opportunita" replace />;
+  }
+  return (
+    <RequireAdminPermission permission="can_view_platform_stats">
+      <AdminDashboard />
+    </RequireAdminPermission>
+  );
+}
 const CompaniesList = lazy(() => import("@/pages/admin/CompaniesList"));
 const CreateCompany = lazy(() => import("@/pages/admin/CreateCompany"));
 const CompanyDetail = lazy(() => import("@/pages/admin/CompanyDetail"));
@@ -222,7 +239,7 @@ export default function AdminRoutesContainer() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<RequireAdminPermission permission="can_view_platform_stats"><AdminDashboard /></RequireAdminPermission>} />
+        <Route index element={<AdminHomeRoute />} />
         <Route path="menu" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminMobileMenu /></RequireAdminPermission>} />
         <Route path="aziende" element={<RequireSuperAdmin><CompaniesList /></RequireSuperAdmin>} />
         {/* Gestione utenti globale: prima non esisteva, le persone erano
@@ -350,7 +367,7 @@ export default function AdminRoutesContainer() {
             (ognuno vede solo le sue caselle via user_id).
             La vecchia /email-triage è rimossa: era una vista duplicata,
             tutto il triage AI è ora dentro il client 3-pane. */}
-        <Route path="email" element={<AdminEmailClientPage />} />
+        <Route path="email" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminEmailClientPage /></RequireAdminPermission>} />
         <Route path="email-triage" element={<Navigate to="/admin/email" replace />} />
         <Route path="cs-tasks" element={<Navigate to="/admin/attivita?tab=tutte" replace />} />
         <Route path="chat" element={<RequireAdminPermission permission="can_manage_companies"><AdminTeamChat /></RequireAdminPermission>} />
@@ -358,11 +375,11 @@ export default function AdminRoutesContainer() {
         <Route path="marketing" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingDashboard /></RequireAdminPermission>} />
         <Route path="marketing/dashboard" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingCommercialDashboard /></RequireAdminPermission>} />
         <Route path="marketing/clienti-servizio" element={<RequireAdminPermission permission="can_manage_marketing"><AdminServiceClients /></RequireAdminPermission>} />
-        <Route path="marketing/contatti" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingContacts /></RequireAdminPermission>} />
-        <Route path="marketing/contatti/:id" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingContactDetail /></RequireAdminPermission>} />
+        <Route path="marketing/contatti" element={<RequireAdminPermission permission="crm_operatore"><AdminMarketingContacts /></RequireAdminPermission>} />
+        <Route path="marketing/contatti/:id" element={<RequireAdminPermission permission="crm_operatore"><AdminMarketingContactDetail /></RequireAdminPermission>} />
         <Route path="marketing/lead-scraper" element={<RequireAdminPermission permission="can_manage_marketing"><AdminLeadScraper /></RequireAdminPermission>} />
-        <Route path="marketing/opportunita" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingOpportunities /></RequireAdminPermission>} />
-        <Route path="marketing/calendario" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingCalendar /></RequireAdminPermission>} />
+        <Route path="marketing/opportunita" element={<RequireAdminPermission permission="crm_operatore"><AdminMarketingOpportunities /></RequireAdminPermission>} />
+        <Route path="marketing/calendario" element={<RequireAdminPermission permission="crm_operatore"><AdminMarketingCalendar /></RequireAdminPermission>} />
         <Route path="marketing/email" element={<RequireAdminPermission permission="can_manage_marketing"><AdminEmailMarketing /></RequireAdminPermission>} />
         <Route path="marketing/sms" element={<RequireAdminPermission permission="can_manage_marketing"><AdminSmsMarketing /></RequireAdminPermission>} />
         {/* wildcard: AdminWhatsApp gestisce internamente broadcast/nuovo, broadcast/:id, numeri/:id */}

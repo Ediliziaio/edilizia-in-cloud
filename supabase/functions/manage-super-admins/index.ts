@@ -237,6 +237,7 @@ serveConMetriche("manage-super-admins", async (req) => {
         can_manage_admins: existing?.can_manage_admins ?? false,
         can_view_platform_stats: existing?.can_view_platform_stats ?? true,
         can_manage_marketing: existing?.can_manage_marketing ?? false,
+        crm_operatore: existing?.crm_operatore ?? false,
         allowed_company_ids: existing?.allowed_company_ids ?? null,
         // Now apply only the fields actually present in the incoming permissions object
         ...(permissions.can_manage_companies !== undefined && { can_manage_companies: permissions.can_manage_companies }),
@@ -246,6 +247,7 @@ serveConMetriche("manage-super-admins", async (req) => {
         ...(permissions.can_manage_admins !== undefined && { can_manage_admins: permissions.can_manage_admins }),
         ...(permissions.can_view_platform_stats !== undefined && { can_view_platform_stats: permissions.can_view_platform_stats }),
         ...(permissions.can_manage_marketing !== undefined && { can_manage_marketing: permissions.can_manage_marketing }),
+        ...(permissions.crm_operatore !== undefined && { crm_operatore: permissions.crm_operatore }),
         ...(permissions.allowed_company_ids !== undefined && { allowed_company_ids: permissions.allowed_company_ids }),
       };
 

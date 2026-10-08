@@ -36,6 +36,7 @@ interface Permissions {
   can_manage_admins: boolean;
   can_view_platform_stats: boolean;
   can_manage_marketing: boolean;
+  crm_operatore: boolean;
   allowed_company_ids: string[] | null;
 }
 
@@ -47,6 +48,7 @@ const PERM_KEYS: (keyof Omit<Permissions, "allowed_company_ids">)[] = [
   "can_manage_admins",
   "can_view_platform_stats",
   "can_manage_marketing",
+  "crm_operatore",
 ];
 
 const permItems: { key: keyof Omit<Permissions, "allowed_company_ids">; icon: typeof Building2; label: string; desc: string }[] = [
@@ -57,6 +59,7 @@ const permItems: { key: keyof Omit<Permissions, "allowed_company_ids">; icon: ty
   { key: "can_manage_admins", icon: ShieldCheck, label: SUPER_ADMIN_PERMISSION_LABELS.can_manage_admins, desc: "Creare ed eliminare altri admin" },
   { key: "can_view_platform_stats", icon: BarChart3, label: SUPER_ADMIN_PERMISSION_LABELS.can_view_platform_stats, desc: "Visualizzare statistiche globali" },
   { key: "can_manage_marketing", icon: Megaphone, label: SUPER_ADMIN_PERMISSION_LABELS.can_manage_marketing, desc: "Gestire CRM e marketing della piattaforma" },
+  { key: "crm_operatore", icon: HeadphonesIcon, label: SUPER_ADMIN_PERMISSION_LABELS.crm_operatore, desc: "Solo contatti, opportunità e calendario: per chi fa le chiamate" },
 ];
 
 /** Detect which preset matches the current permissions, or "custom" */
@@ -79,6 +82,7 @@ export default function PlatformPermissionsDialog({ open, onOpenChange, adminId,
     can_manage_admins: false,
     can_view_platform_stats: false,
     can_manage_marketing: false,
+    crm_operatore: false,
     allowed_company_ids: null,
   });
   const [allCompanies, setAllCompanies] = useState(true);
@@ -121,6 +125,7 @@ export default function PlatformPermissionsDialog({ open, onOpenChange, adminId,
         can_manage_admins: currentPerms.can_manage_admins,
         can_view_platform_stats: currentPerms.can_view_platform_stats,
         can_manage_marketing: currentPerms.can_manage_marketing,
+        crm_operatore: currentPerms.crm_operatore ?? false,
         allowed_company_ids: currentPerms.allowed_company_ids,
       };
       setPerms(p);

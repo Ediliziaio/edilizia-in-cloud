@@ -17,6 +17,7 @@
  */
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 import { Capacitor } from "@capacitor/core";
 import { Haptics, ImpactStyle } from "@capacitor/haptics";
@@ -26,6 +27,9 @@ import {
   LifeBuoy,
   Sparkles,
   LayoutGrid,
+  Target,
+  Users,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAdminSidebarBadges } from "@/hooks/useAdminSidebarBadges";
@@ -57,8 +61,15 @@ const ASSISTENZA: NavItem = {
 };
 const APP: NavItem = { label: "App", icon: LayoutGrid, href: "/admin/menu" };
 
+// Call center di piattaforma: solo le tre pagine del CRM, niente Silvio né amministrazione.
+const OPPORTUNITA: NavItem = { label: "Opportunità", icon: Target, href: "/admin/marketing/opportunita" };
+const CONTATTI: NavItem = { label: "Contatti", icon: Users, href: "/admin/marketing/contatti", exact: true };
+const CALENDARIO: NavItem = { label: "Calendario", icon: CalendarDays, href: "/admin/marketing/calendario" };
+
 export function AdminBottomNav() {
   const location = useLocation();
+  const { role } = useAuth();
+  const soloCrm = role === "platform_callcenter";
   const { data: badges } = useAdminSidebarBadges();
 
   // Hide-on-scroll stile Instagram: la pillola si comprime scrollando GIÙ e
@@ -104,13 +115,19 @@ export function AdminBottomNav() {
 
   // Layout fisso 5 slot: Home | Aziende | ⚫ AI | Assistenza | App.
   // AI (Silvio) è il "cuore pulsante" → 1 tap dalla bottom nav, qualunque pagina.
-  const navSlots: Array<{ type: "link"; item: NavItem } | { type: "ai" }> = [
-    { type: "link", item: HOME },
-    { type: "link", item: AZIENDE },
-    { type: "ai" },
-    { type: "link", item: ASSISTENZA },
-    { type: "link", item: APP },
-  ];
+  const navSlots: Array<{ type: "link"; item: NavItem } | { type: "ai" }> = soloCrm
+    ? [
+        { type: "link", item: OPPORTUNITA },
+        { type: "link", item: CONTATTI },
+        { type: "link", item: CALENDARIO },
+      ]
+    : [
+        { type: "link", item: HOME },
+        { type: "link", item: AZIENDE },
+        { type: "ai" },
+        { type: "link", item: ASSISTENZA },
+        { type: "link", item: APP },
+      ];
 
   return (
     <nav

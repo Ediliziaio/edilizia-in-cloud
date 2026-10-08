@@ -88,6 +88,7 @@ export const SUPER_ADMIN_PERMISSION_LABELS: Record<string, string> = {
   can_manage_admins: "Gestione Admin",
   can_view_platform_stats: "Statistiche Piattaforma",
   can_manage_marketing: "Marketing & Vendita",
+  crm_operatore: "CRM e chiamate",
 };
 
 export const PLATFORM_ADMIN_COMPANY_ID = "00000000-0000-0000-0000-000000000001";

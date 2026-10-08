@@ -22,7 +22,9 @@ const COMPANY_ACCESS_ROLES = new Set<AppRole>([
 // ruolo di accesso aziendale, nemmeno se il profilo ha una company_id (che
 // altrimenti genererebbe un finto accesso 'company_staff' via
 // mergeProfileCompanyAccess, sloggandoli dal loro portale).
-const PORTAL_ONLY_ROLES = new Set<AppRole>(["produttore_admin", "customer"]);
+// Il call center di piattaforma ha un profilo legato all'azienda Piattaforma (per i permessi sul database) ma
+// lavora dall'area super admin: il suo ruolo di rotta resta quello globale.
+const PORTAL_ONLY_ROLES = new Set<AppRole>(["produttore_admin", "customer", "platform_callcenter"]);
 
 /**
  * Un accesso multi-azienda conta solo se attivo e non scaduto: lo stesso

@@ -88,10 +88,10 @@ const allSections: AppSection[] = [
     items: [
       { icon: LayoutDashboard, label: "Dashboard", url: "/admin/marketing/dashboard", color: "text-blue-600 bg-blue-50", permission: "can_manage_marketing" },
       { icon: BarChart3, label: "Outreach", url: "/admin/marketing", color: "text-blue-600 bg-blue-50", permission: "can_manage_marketing" },
-      { icon: Users, label: "Contatti", url: "/admin/marketing/contatti", color: "text-indigo-600 bg-indigo-50", permission: "can_manage_marketing" },
+      { icon: Users, label: "Contatti", url: "/admin/marketing/contatti", color: "text-indigo-600 bg-indigo-50", permission: "crm_operatore" },
       { icon: FileText, label: "Form Builder", url: "/admin/marketing/form-builder", color: "text-sky-600 bg-sky-50", permission: "can_manage_marketing" },
-      { icon: Target, label: "Opportunita", url: "/admin/marketing/opportunita", color: "text-emerald-600 bg-emerald-50", permission: "can_manage_marketing" },
-      { icon: CalendarDays, label: "Calendario", url: "/admin/marketing/calendario", color: "text-orange-600 bg-orange-50", permission: "can_manage_marketing" },
+      { icon: Target, label: "Opportunita", url: "/admin/marketing/opportunita", color: "text-emerald-600 bg-emerald-50", permission: "crm_operatore" },
+      { icon: CalendarDays, label: "Calendario", url: "/admin/marketing/calendario", color: "text-orange-600 bg-orange-50", permission: "crm_operatore" },
       { icon: Mail, label: "Email MKT", url: "/admin/marketing/email", color: "text-rose-600 bg-rose-50", permission: "can_manage_marketing" },
       { icon: MessageCircle, label: "WhatsApp", url: "/admin/marketing/whatsapp", color: "text-green-600 bg-green-50", permission: "can_manage_marketing" },
       { icon: Zap, label: "Automazioni", url: "/admin/marketing/automazioni", color: "text-amber-600 bg-amber-50", permission: "can_manage_marketing" },
