@@ -6,7 +6,7 @@ import type { TaskKind } from "./types.ts";
 
 export interface PrecallCheckResult {
   allow: boolean;
-  reason: "ok" | "blocked" | "below_minimum" | "insufficient" | "no_company";
+  reason: "ok" | "blocked" | "below_minimum" | "insufficient" | "no_company" | "check_unavailable";
   balance_eur: number;
   est_cost_eur: number;
   user_message_it: string;
@@ -45,22 +45,22 @@ export async function precallCheck(
     p_task_kind: params.task_kind,
   });
 
-  if (error || !data || (data as Array<unknown>).length === 0) {
-    // Soft-fail: se il check fallisce, permetti la chiamata (meglio che bloccare)
+  if (error || !Array.isArray(data) || data.length !== 1 || typeof data[0]?.o_ok !== "boolean") {
+    // Nessuna spesa se non possiamo verificare il credito dell'azienda.
     console.error(
       JSON.stringify({
         level: "warn",
         fn: "precallCheck",
-        msg: "RPC error, soft-allow",
+        msg: "Credit check unavailable, blocked",
         error: error?.message,
       }),
     );
     return {
-      allow: true,
-      reason: "ok",
+      allow: false,
+      reason: "check_unavailable",
       balance_eur: 0,
       est_cost_eur: 0,
-      user_message_it: "",
+      user_message_it: "Non riesco a verificare il credito AI. Riprova più tardi: non ho avviato la richiesta.",
     };
   }
 
@@ -87,7 +87,7 @@ export async function precallCheck(
   }
 
   return {
-    allow: row.o_ok,
+    allow: row.o_ok === true,
     reason: row.o_reason as PrecallCheckResult["reason"],
     balance_eur: Number(row.o_balance_eur ?? 0),
     est_cost_eur: Number(row.o_est_cost_eur ?? 0),
@@ -101,6 +101,7 @@ export interface ChargeResult {
   balance_before?: number;
   balance_after?: number;
   cost_billed_eur?: number;
+  cost_real_eur?: number;
   margin_eur?: number;
   usage_log_id?: string;
 }
@@ -162,7 +163,7 @@ export async function chargeAndLog(
     },
   );
 
-  if (error || !data || (data as Array<unknown>).length === 0) {
+  if (error || !Array.isArray(data) || data.length !== 1 || typeof data[0]?.ok !== "boolean") {
     console.error(
       JSON.stringify({
         level: "error",
@@ -186,11 +187,12 @@ export async function chargeAndLog(
   }>)[0];
 
   return {
-    charged: row.ok === true,
+    charged: row.ok === true && typeof row.usage_log_id === "string" && row.usage_log_id.length > 0,
     reason: row.reason,
     balance_before: Number(row.balance_before ?? 0),
     balance_after: Number(row.balance_after ?? 0),
     cost_billed_eur: Number(row.cost_billed_eur ?? 0),
+    cost_real_eur: row.cost_real_eur == null ? undefined : Number(row.cost_real_eur),
     margin_eur: Number(row.margin_eur ?? 0),
     usage_log_id: row.usage_log_id,
   };

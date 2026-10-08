@@ -1,0 +1,26 @@
+[
+  {
+    "name": "unallocated_movement_is_blocked",
+    "passed": true
+  },
+  {
+    "name": "already_withdrawn_not_deducted_twice",
+    "passed": true
+  },
+  {
+    "name": "repeat_installation_is_idempotent",
+    "passed": true
+  },
+  {
+    "name": "only_residual_is_deducted_and_costed",
+    "passed": true
+  },
+  {
+    "name": "insufficient_stock_is_blocked",
+    "passed": true
+  },
+  {
+    "name": "failed_operation_keeps_stock",
+    "passed": true
+  }
+]

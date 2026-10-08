@@ -4,6 +4,8 @@
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
 import { resolveCantiere } from "../shared/resolve_cantiere.ts";
+import { requireSiteAccess } from "../shared/siteAccess.ts";
+import { rapportinoContentIssue } from "../../../_shared/operationalDraftValidation.ts";
 
 export const aggiungiAttivitaRapportinoDef: Omit<ToolDef, "handler"> = {
   name: "aggiungi_attivita_rapportino",
@@ -53,6 +55,8 @@ export async function aggiungiAttivitaRapportino(
   if (!ctx.user_id) {
     return errResult("no_user_id", "Non riesco a identificarti.");
   }
+  const issue = rapportinoContentIssue(args);
+  if (issue) return errResult("invalid_rapportino", issue);
 
   if (
     (!args.attivita || args.attivita.length === 0) &&
@@ -75,21 +79,27 @@ export async function aggiungiAttivitaRapportino(
   }
 
   const dataLavoro = args.data_lavoro ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
+  try { await requireSiteAccess(ctx, orderId); }
+  catch { return errResult("cantiere_access_unavailable", "Non posso verificare l’accesso al cantiere. Nessuna modifica salvata."); }
 
-  const { data: existing } = await ctx.supabase
+  const { data: existing, error: readError } = await ctx.supabase
     .from("campo_rapportini")
-    .select("id, descrizione_lavori, materiali_usati, note")
+    .select("id, stato, updated_at, descrizione_lavori, materiali_usati, note")
+    .eq("company_id", ctx.company_id)
     .eq("user_id", ctx.user_id)
     .eq("order_id", orderId)
     .eq("data_lavoro", dataLavoro)
     .maybeSingle();
+  if (readError) return errResult("rapportino_lookup_failed", "Lettura rapportino non disponibile. Nessuna modifica salvata.");
 
   if (!existing) {
     return errResult(
       "rapportino_not_found",
-      "Non c'è ancora un rapportino per oggi su questo cantiere. Dimmi prima le ore lavorate.",
+      `Non c’è un rapportino del ${dataLavoro} su questo cantiere. Dimmi le ore o le attività per prepararne una bozza.`,
     );
   }
+  if (existing.stato !== "bozza") return errResult("rapportino_locked", "Il rapportino è già inviato o approvato: la rettifica va gestita dall’ufficio.");
+  if (existing.materiali_usati != null && !Array.isArray(existing.materiali_usati)) return errResult("invalid_existing_materials", "Elenco materiali esistente da verificare nell’app.");
 
   const newAttivita = args.attivita?.join(". ");
   const mergedDescrizione = [existing.descrizione_lavori, newAttivita]
@@ -102,7 +112,7 @@ export async function aggiungiAttivitaRapportino(
     ? `${existing.note}\n${args.note}`
     : (existing.note ?? args.note ?? null);
 
-  const { error } = await ctx.supabase
+  let update = ctx.supabase
     .from("campo_rapportini")
     .update({
       descrizione_lavori: mergedDescrizione || existing.descrizione_lavori,
@@ -110,9 +120,11 @@ export async function aggiungiAttivitaRapportino(
       note: mergedNote,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", existing.id);
+    .eq("id", existing.id).eq("company_id", ctx.company_id).eq("user_id", ctx.user_id).eq("order_id", orderId).eq("stato", "bozza");
+  update = existing.updated_at == null ? update.is("updated_at", null) : update.eq("updated_at", existing.updated_at);
+  const { data: updated, error } = await update.select("id").maybeSingle();
 
-  if (error) return errResult(error.message, "Errore aggiungendo al rapportino.");
+  if (error || !updated?.id) return errResult("rapportino_update_unconfirmed", "Aggiornamento non confermato: il rapportino potrebbe essere cambiato. Verifica nell’app prima di riprovare.");
 
   const parts = [];
   if (args.attivita?.length) parts.push(`${args.attivita.length} attività`);
@@ -121,6 +133,6 @@ export async function aggiungiAttivitaRapportino(
 
   return okResult(
     { id: existing.id },
-    `✅ Aggiunto al rapportino: ${parts.join(", ")}.`,
+    `✅ Aggiunto alla bozza del ${dataLavoro}: ${parts.join(", ")}. Non ancora inviata all’ufficio. Materiali annotati, nessuno scarico di magazzino.`,
   );
 }

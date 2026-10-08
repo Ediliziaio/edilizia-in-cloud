@@ -162,12 +162,14 @@ describe("send-contact-message: il ramo WhatsApp", () => {
     }
   });
 
-  it("il numero scelto vale se è dell'azienda del contatto, se no il più recente attivo e verificato", () => {
-    const f = src.slice(src.indexOf("async function numeroMittente("), src.indexOf("Deno.serve("));
+  it("il numero scelto deve essere dell'azienda, attivo e verificato; non si cambia mittente silenziosamente", () => {
+    const f = leggi("supabase/functions/send-contact-message/numeroMittente.ts");
     expect(f).toContain('.eq("company_id", companyId)');
     expect(f).toContain('.is("deleted_at", null)');
     expect(f).toContain('.not("access_token_encrypted", "is", null)');
     expect(f).toMatch(/\.eq\("stato", "active"\)\s*\.eq\("webhook_verified", true\)/);
+    expect(f).toContain('if (!data?.id) throw new Error(');
+    expect(f).toContain('if (error) throw new Error(');
     expect(ramo).toContain("numeroMittente(adminClient, contact.company_id, wa_number_id)");
   });
 });

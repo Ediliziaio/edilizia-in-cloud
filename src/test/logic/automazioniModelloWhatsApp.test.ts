@@ -92,7 +92,9 @@ describe("motore: il passo passa da whatsapp-send", () => {
 
   it("il modello si rilegge a ogni invio, e deve essere approvato", () => {
     expect(passo).toMatch(/from\("wa_meta_templates"\)[\s\S]*\.eq\("company_id", companyId\)[\s\S]*\.eq\("template_name", nomeModello\)/);
-    expect(passo).toContain('String(modello.status).toUpperCase() !== "APPROVED"');
+    expect(passo).toContain('const statoModello = String(modello.status).toUpperCase()');
+    expect(passo).toContain('if (statoModello !== "APPROVED")');
+    expect(passo).toContain('statoModello === "PENDING" || statoModello === "IN_APPEAL"');
   });
 
   it("con una variabile vuota non si invia, e si dice quale", () => {

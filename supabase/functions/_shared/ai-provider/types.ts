@@ -1,4 +1,5 @@
 // MP05 — Tipi condivisi AI Provider layer.
+import type { AiTurnControl } from "../aiTurnControl.ts";
 
 export type TaskKind =
   | "bot_operativo_titolare"
@@ -57,6 +58,10 @@ export interface ChatRequest {
   json_mode?: boolean;
   model_override?: string;
   wa_message_id?: string | null;
+  /** Opaque, tenant-scoped conversation key, never a phone number. */
+  session_id?: string;
+  /** Same control across retries and tool iterations. Never sent to the provider. */
+  turnControl?: AiTurnControl;
 }
 
 export interface ChatResponse {
@@ -71,6 +76,8 @@ export interface ChatResponse {
     total_tokens: number;
   };
   cost_usd: number;
+  /** FX/costo effettivamente registrato dalla RPC, non ricalcolato dal modello richiesto. */
+  cost_real_eur?: number;
   latency_ms: number;
   fallback_hops: number;
 }
@@ -79,6 +86,9 @@ export type AIErrorCode =
   | "rate_limit"
   | "timeout"
   | "invalid_api_key"
+  | "provider_credits_exhausted"
+  | "provider_outcome_unknown"
+  | "cost_unavailable"
   | "model_not_found"
   | "context_too_long"
   | "feature_not_supported"

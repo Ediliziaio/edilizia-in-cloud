@@ -17,8 +17,10 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callOpenAI, type ChatMessage, type OpenAITool } from "./openai.ts";
-import { checkBudget, consumeBudget, estimateCostEur } from "./budget.ts";
+import { checkBudget, consumeBudget } from "./budget.ts";
 import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
+import { runWhatsAppTool } from "../_shared/whatsappOperations.ts";
+import { confirmationHash } from "./frozenConfirmation.ts";
 import {
   CUSTOMER_TOOL_SPECS,
   eseguiCustomerTool,
@@ -80,8 +82,13 @@ export async function gestisciMessaggioCliente(
   const suffix = suffissoTelefono(msg.from_phone);
   if (!suffix) return false;
 
+  // Customer tools use the pinned 2.49.1 type; this worker uses the shared v2
+  // client. Only the stable from()/rpc() public API crosses this boundary.
+  // Keep the same authenticated instance (no new client or weakened scope).
+  const customerDb = supabase as unknown as Parameters<typeof eseguiCustomerTool>[0];
+
   // È un cliente? Contatto CRM oppure almeno una commessa non chiusa col numero.
-  const contact = await trovaContattoPerTelefono(supabase, msg.company_id, suffix);
+  const contact = await trovaContattoPerTelefono(customerDb, msg.company_id, suffix);
   let haCommesse = false;
   if (!contact) {
     const { count } = await supabase
@@ -135,7 +142,8 @@ export async function gestisciMessaggioCliente(
     .from("whatsapp_messages")
     .select("direction, content_text, created_at")
     .eq("company_id", msg.company_id)
-    .eq("from_phone", msg.from_phone)
+    .eq("wa_number_id", msg.wa_number_id)
+    .or(`from_phone.eq.${String(msg.from_phone).replace(/[^0-9]/g, "")},to_phone.eq.${String(msg.from_phone).replace(/[^0-9]/g, "")}`)
     .lt("created_at", msg.created_at ?? new Date().toISOString())
     .order("created_at", { ascending: false })
     .limit(10);
@@ -156,8 +164,6 @@ export async function gestisciMessaggioCliente(
   const toolCtx: CustomerToolCtx = { rawPhone: msg.from_phone, suffix, fallbackCreatedBy: null };
 
   let finalText: string | null = null;
-  let tokensIn = 0, tokensOut = 0;
-  let modelUsed = "";
 
   // Il loop è protetto: se il provider AI è giù il cliente riceve comunque una
   // risposta di cortesia (il silenzio su WhatsApp è peggio di un errore).
@@ -173,9 +179,7 @@ export async function gestisciMessaggioCliente(
       temperature: 0.4,
       max_tokens: 500,
     });
-    tokensIn += resp.usage?.prompt_tokens ?? 0;
-    tokensOut += resp.usage?.completion_tokens ?? 0;
-    modelUsed = resp.model;
+    if (resp._meta?.cost_real_eur != null) await consumeBudget(supabase, msg.company_id, resp._meta.cost_real_eur);
 
     const assistantMsg = resp.choices[0]?.message;
     if (!assistantMsg) break;
@@ -191,7 +195,10 @@ export async function gestisciMessaggioCliente(
       const t0 = Date.now();
       let result;
       try {
-        result = await eseguiCustomerTool(supabase, msg.company_id, toolCtx, tc.function.name, args);
+        const execute = () => eseguiCustomerTool(customerDb, msg.company_id, toolCtx, tc.function.name, args);
+        result = msg.id ? await runWhatsAppTool(supabase, msg.company_id,
+          `customer:${msg.id}:${await confirmationHash(tc.function.name, args, null)}`,
+          tc.function.name, args, execute) : await execute();
       } catch (e) {
         result = { risposta: "Strumento momentaneamente non disponibile: proponi il richiamo dell'ufficio." };
         console.error(JSON.stringify({ level: "error", fn: "wa-cliente-tool", tool: tc.function.name, error: String(e) }));
@@ -208,17 +215,16 @@ export async function gestisciMessaggioCliente(
   }
 
   if (!finalText) {
-    finalText = "Ho girato la sua richiesta all'ufficio, che la ricontatterà al più presto. Posso aiutarla con altro?";
+    finalText = "Non riesco a completare la richiesta in questo momento. Per assistenza contatti l'ufficio; non ho confermato nuove operazioni.";
   }
 
   const sanitized = sanitizeAnswer(finalText);
   if (sanitized.isFullyChainOfThought) {
-    finalText = "Ho preso nota della sua richiesta: l'ufficio la ricontatterà al più presto.";
+    finalText = "Non riesco a fornire una risposta affidabile in questo momento. Contatti l'ufficio per verificare la richiesta.";
   } else {
     finalText = sanitized.cleaned || finalText;
   }
 
   await sendReply(msg, finalText);
-  await consumeBudget(supabase, msg.company_id, estimateCostEur(modelUsed, tokensIn, tokensOut));
   return true;
 }

@@ -1,9 +1,12 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isTrustedInternalSender, metaSendOutcome } from "./safety.ts";
 import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
 import { getWhatsAppWindowStatus } from "../_shared/whatsappWindow.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
-import { addebitaMessaggioWhatsApp, rimborsaMessaggioWhatsApp } from "../_shared/whatsappCredits.ts";
+import { addebitaMessaggioWhatsApp } from "../_shared/whatsappCredits.ts";
+import { claimWhatsAppOperation, finishWhatsAppOperation, WhatsAppOperationError, type WhatsAppOperation } from "../_shared/whatsappOperations.ts";
+import { canonicalJson } from "../whatsapp-ai-processor/frozenConfirmation.ts";
 import { addonWhatsAppAttivo, rispostaAddonWhatsApp } from "../_shared/whatsappAddon.ts";
 import { corpoDelModello, lingueDelModello, testoDelModello, valoriDaiComponenti } from "../_shared/modelloWhatsApp.ts";
 import { PLATFORM_ADMIN_COMPANY_ID } from "../_shared/platformAutomation.ts";
@@ -13,6 +16,7 @@ type SendType = "text" | "interactive" | "template" | "document";
 type TemplateLanguageInput = string | { code?: string } | undefined;
 
 interface SendBody {
+  idempotency_key?: string;
   company_id?: string;
   wa_number_id?: string | null;
   to?: string;
@@ -30,19 +34,6 @@ interface SendBody {
   log_message?: boolean;
   /** Il contatto a cui si scrive, se chi invia lo sa (Conversazioni, automazioni). */
   contact_id?: string | null;
-}
-
-function extractJwtRole(authHeader: string): string | null {
-  if (!authHeader.startsWith("Bearer ")) return null;
-  const jwt = authHeader.substring(7);
-  const parts = jwt.split(".");
-  if (parts.length !== 3) return null;
-  try {
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return typeof payload.role === "string" ? payload.role : null;
-  } catch {
-    return null;
-  }
 }
 
 function inferType(body: SendBody): SendType | null {
@@ -70,8 +61,7 @@ function templateLanguage(language: TemplateLanguageInput) {
 
 /** Il componente «header» con foto/video/PDF da allegare all'invio, o null. */
 async function headerMediaDelModello(
-  // deno-lint-ignore no-explicit-any
-  adminClient: any,
+  adminClient: SupabaseClient,
   companyId: string,
   waNumberId: string | null,
   nome: string,
@@ -111,7 +101,7 @@ function variablesToComponents(variables: Record<string, unknown> | undefined) {
  * modello non è tra quelli sincronizzati (vale allora l'etichetta).
  */
 async function testoDelModelloInviato(
-  adminClient: ReturnType<typeof createClient>,
+  adminClient: SupabaseClient,
   companyId: string,
   waNumberId: string | null,
   nome: string,
@@ -141,22 +131,27 @@ serveConMetriche("whatsapp-send", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: jsonHeaders });
+  }
 
+  let providerAttempted = false;
+  let operation: WhatsAppOperation | null = null;
+  let operationDb: SupabaseClient | null = null;
   try {
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!serviceKey) {
+      return new Response(JSON.stringify({ error: "Invio temporaneamente non disponibile" }), { status: 503, headers: jsonHeaders });
+    }
     const authHeader = req.headers.get("Authorization") ?? "";
     const cronSecret = req.headers.get("x-cron-secret");
-    const internalSecret = Deno.env.get("INTERNAL_CRON_SECRET") || serviceKey;
-    const roleClaim = extractJwtRole(authHeader);
-
-    let isAuthenticated =
-      authHeader === `Bearer ${serviceKey}` ||
-      roleClaim === "service_role" ||
-      (cronSecret?.length ? cronSecret === internalSecret : false);
+    let isAuthenticated = isTrustedInternalSender(
+      authHeader, cronSecret, serviceKey, Deno.env.get("INTERNAL_CRON_SECRET"),
+    );
 
     // Chi arriva col proprio accesso (dall'app) e non da una funzione interna:
     // più sotto si controlla che l'azienda sia la sua.
-    let clienteUtente: ReturnType<typeof createClient> | null = null;
+    let clienteUtente: SupabaseClient | null = null;
 
     if (!isAuthenticated && authHeader.startsWith("Bearer ")) {
       const token = authHeader.replace("Bearer ", "");
@@ -294,6 +289,9 @@ serveConMetriche("whatsapp-send", async (req) => {
       fromPhoneForLog = legacyConfig.phone_number_id;
     }
 
+    if (!accessTokenEncrypted || !phoneNumberId) {
+      return new Response(JSON.stringify({ error: "Credenziali WhatsApp mancanti" }), { status: 400, headers: jsonHeaders });
+    }
     const accessToken = await decryptMaybeEncrypted(accessTokenEncrypted, getEncryptionKey());
     const payload: Record<string, unknown> = {
       messaging_product: "whatsapp",
@@ -356,6 +354,12 @@ serveConMetriche("whatsapp-send", async (req) => {
           { status: 400, headers: jsonHeaders },
         );
       }
+      const win = await getWhatsAppWindowStatus(adminClient, companyId, to);
+      if (!win.open) {
+        return new Response(JSON.stringify({ error: "Finestra 24h chiusa: serve un template approvato.", code: "window_closed" }), {
+          status: 422, headers: jsonHeaders,
+        });
+      }
       payload.interactive = body.interactive;
       const interactiveBody = body.interactive.body as { text?: string } | undefined;
       logContent = interactiveBody?.text || JSON.stringify(body.interactive);
@@ -395,13 +399,23 @@ serveConMetriche("whatsapp-send", async (req) => {
     // contatto sui lead: era l'unico percorso che non guardava il saldo.
     // Si addebita PRIMA di consegnare a Meta — vedi _shared/whatsappCredits.ts
     // per il perché — e si rimborsa se il messaggio non parte davvero.
+    if (body.idempotency_key != null && (typeof body.idempotency_key !== "string" || !body.idempotency_key.trim() || body.idempotency_key.length > 200)) {
+      return new Response(JSON.stringify({ error: "invalid_idempotency_key" }), { status: 400, headers: jsonHeaders });
+    }
+    operationDb = adminClient;
+    operation = await claimWhatsAppOperation(adminClient, companyId, "send", body.idempotency_key ?? crypto.randomUUID(),
+      canonicalJson({ payload, number: body.wa_number_id ?? null, phoneNumberId }),
+      { to, type, wa_number_id: body.wa_number_id ?? null, content_text: logContent, from_phone: fromPhoneForLog });
+    if (operation.replay) return new Response(JSON.stringify(operation.replay), { status: 200, headers: jsonHeaders });
     const credito = await addebitaMessaggioWhatsApp(
       adminClient,
       companyId,
       `Messaggio WhatsApp (${type}) verso ${to}`,
       { to, type, wa_number_id: body.wa_number_id ?? null },
+      operation,
     );
     if (!credito.consentito) {
+      await finishWhatsAppOperation(adminClient, operation, "rejected", { success: false, code: credito.codice });
       return new Response(
         JSON.stringify({
           error: credito.codice ?? "insufficient_credits",
@@ -412,6 +426,7 @@ serveConMetriche("whatsapp-send", async (req) => {
       );
     }
 
+    providerAttempted = true;
     const metaRes = await fetch(
       `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
       {
@@ -421,18 +436,16 @@ serveConMetriche("whatsapp-send", async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(25_000),
       },
     );
 
     const metaResult = await metaRes.json();
-    if (!metaRes.ok) {
+    const outcome = metaSendOutcome(metaRes.status, metaResult);
+    if (outcome.kind === "rejected") {
       console.error("[whatsapp-send] Meta API error:", metaResult);
       // Il messaggio non è partito: il credito torna indietro.
-      await rimborsaMessaggioWhatsApp(
-        adminClient, companyId, credito.addebitato,
-        "Rimborso: invio WhatsApp rifiutato dal provider",
-        { to, type, meta_error: metaResult.error ?? null },
-      );
+      await finishWhatsAppOperation(adminClient, operation, "rejected", { success: false, meta_error: metaResult.error ?? null });
       return new Response(
         JSON.stringify({
           error: metaResult.error?.message || "Errore invio WhatsApp",
@@ -442,8 +455,17 @@ serveConMetriche("whatsapp-send", async (req) => {
       );
     }
 
-    const metaMessageId = metaResult.messages?.[0]?.id ||
-      `out_${Date.now()}_${crypto.randomUUID()}`;
+    if (outcome.kind === "unknown") {
+      await finishWhatsAppOperation(adminClient, operation, "unknown", { success: false, code: "delivery_unknown" });
+      console.error("[whatsapp-send] Invio con esito sconosciuto; verificare prima di riprovare", { company_id: companyId, status: metaRes.status });
+      return new Response(JSON.stringify({
+        success: false,
+        code: "delivery_unknown",
+        error: "Esito dell'invio non confermato. Verifica la conversazione prima di riprovare.",
+      }), { status: 502, headers: jsonHeaders });
+    }
+    const metaMessageId = outcome.messageId;
+    await finishWhatsAppOperation(adminClient, operation, "completed", { success: true, meta_message_id: metaMessageId }, metaMessageId);
 
     if (logMessage) {
       // Il contatto indicato da chi invia vale solo se è di questa azienda;
@@ -485,8 +507,23 @@ serveConMetriche("whatsapp-send", async (req) => {
       { status: 200, headers: jsonHeaders },
     );
   } catch (err: unknown) {
+    if (operation && operationDb && !operation.replay) {
+      try { await finishWhatsAppOperation(operationDb, operation, "unknown", { success: false, code: "delivery_unknown" }); }
+      catch { /* Persisted running state blocks a second provider attempt. */ }
+    }
+    if (err instanceof WhatsAppOperationError) {
+      return new Response(JSON.stringify({ success: false, code: err.code,
+        error: "Invio già in corso o da verificare. Controlla la conversazione prima di riprovare." }),
+        { status: err.code === "operation_store_unavailable" ? 503 : 409, headers: jsonHeaders });
+    }
     const message = err instanceof Error ? err.message : "Errore interno del server";
     console.error("[whatsapp-send] Error:", err);
+    if (providerAttempted) {
+      return new Response(JSON.stringify({
+        success: false, code: "delivery_unknown",
+        error: "Esito dell'invio non confermato. Verifica la conversazione prima di riprovare.",
+      }), { status: 502, headers: jsonHeaders });
+    }
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: {

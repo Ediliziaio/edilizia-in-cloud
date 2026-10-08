@@ -51,8 +51,9 @@ export async function addebitaMessaggioWhatsApp(
   companyId: string,
   descrizione: string,
   metadata: Record<string, unknown> = {},
+  operation?: { id: string; owner: string },
 ): Promise<EsitoAddebito> {
-  const billing = await getCompanyBillingConfig(admin, companyId, "whatsapp");
+  const billing = await getCompanyBillingConfig(admin, companyId, "whatsapp", true);
 
   if (!billing.isEnabled) {
     return {
@@ -65,18 +66,24 @@ export async function addebitaMessaggioWhatsApp(
 
   // Aziende in omaggio (comped): nessun addebito, nessun blocco.
   if (billing.isFree) {
+    if (operation) {
+      const { data, error } = await admin.rpc("whatsapp_operation_charge", { p_id: operation.id, p_owner: operation.owner, p_amount: 0 });
+      if (error || data?.success !== true) throw new Error("credit_check_failed");
+    }
     return { consentito: true, addebitato: 0 };
   }
 
   const prezzo = billing.pricePerUnitEur ?? PREZZO_MESSAGGIO_DEFAULT_EUR;
+  if (!Number.isFinite(prezzo) || prezzo < 0) throw new Error("invalid_whatsapp_price");
 
   // Il wallet può essere bloccato anche con saldo residuo (sospensione
   // amministrativa): va guardato prima, perché consume_credits non lo legge.
-  const { data: wallet } = await admin
+  const { data: wallet, error: walletError } = await admin
     .from("whatsapp_credits")
     .select("balance_eur, sends_blocked")
     .eq("company_id", companyId)
     .maybeSingle();
+  if (walletError) throw new Error("whatsapp_wallet_unavailable");
 
   const saldo = Number(wallet?.balance_eur ?? 0);
 
@@ -91,7 +98,9 @@ export async function addebitaMessaggioWhatsApp(
     };
   }
 
-  const { data: esito, error } = await admin.rpc("consume_credits", {
+  const { data: esito, error } = await admin.rpc(operation ? "whatsapp_operation_charge" : "consume_credits", operation ? {
+    p_id: operation.id, p_owner: operation.owner, p_amount: prezzo,
+  } : {
     p_company_id: companyId,
     p_credit_type: "whatsapp",
     p_amount: prezzo,

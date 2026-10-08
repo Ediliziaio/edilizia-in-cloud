@@ -1,0 +1,29 @@
+[
+  {
+    "scenario": "int",
+    "pages": 2,
+    "warnings": [],
+    "crewNamesMissing": false,
+    "materialsPresent": true,
+    "clientSigned": false,
+    "path": "tmp/pdfs/rapportino-int.pdf"
+  },
+  {
+    "scenario": "sub",
+    "pages": 2,
+    "warnings": [],
+    "crewNamesMissing": false,
+    "materialsPresent": true,
+    "clientSigned": false,
+    "path": "tmp/pdfs/rapportino-sub.pdf"
+  },
+  {
+    "scenario": "mix",
+    "pages": 2,
+    "warnings": [],
+    "crewNamesMissing": false,
+    "materialsPresent": true,
+    "clientSigned": false,
+    "path": "tmp/pdfs/rapportino-mix.pdf"
+  }
+]

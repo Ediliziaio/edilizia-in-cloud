@@ -5,6 +5,7 @@ import {
   assessOrderEconomicsQuality,
   calculateOrderEconomics,
   canonicalOrderEconomics,
+  ORDER_ECONOMICS_COLUMNS,
   orderVehicleCostEstimate,
   type CanonicalEconomicsRow,
   type EconItem,
@@ -24,7 +25,7 @@ export function useOrderEconomicsBase(orderId: string, totalAmount: number, item
     queryFn: async () => {
       const { data, error } = await supabase
         .from("v_ordine_marginalita")
-        .select("preventivo_contratto, variazioni_approvate, preventivo_totale, costo_acquisti, costo_materiali_magazzino, movimenti_magazzino_senza_costo, costo_manodopera, costo_provvigioni, costo_rimborsi_km, rimborsi_km_da_approvare, numero_rimborsi_km_da_approvare, costo_errori, costo_diretto, consuntivo, margine, margine_perc")
+        .select(ORDER_ECONOMICS_COLUMNS)
         .eq("id", orderId)
         .maybeSingle();
       if (error) throw error;

@@ -1,0 +1,77 @@
+CANTIERE — RIORDINO DESIGN / PRIMO BLOCCO
+
+Implementato
+- Quattro viste URL-addressable: Lavorazioni, Squadra e mezzi, Diario, Collaudo.
+- Pulsanti desktop/tablet e selettore mobile pilotano lo stesso stato.
+- Attività accanto alle lavorazioni; date/appuntamenti sotto dettaglio espandibile.
+- Fasi completate raccolte dietro comando esplicito; ricerca e filtri le recuperano.
+- Logistica, accesso Campo, squadre, note generali e ditte solo in Squadra e mezzi.
+- Rapportini, foto e storico solo in Diario; collaudi nella vista dedicata.
+- SAL in Economia e pagamenti; recupero dei vecchi link tab=sal e section-sal.
+- Attesa del caricamento commessa e varianti prima dello scroll automatico.
+- Nessuna modifica ai dati, formule economiche, schema o autorizzazioni.
+
+Verifica
+- 102 test mirati in 10 suite: navigazione, composizione, lavorazioni, collaudo,
+  usability demo, azioni rapide e isolamento dei turni locali.
+- ESLint sui componenti e contratti toccati: zero errori; resta un warning any
+  preesistente in OrderDetail, non correlato al riordino.
+- Controllo interattivo Casa Betulla: tutte e quattro le viste; 34 rapportini,
+  tre foto dimostrative caricate, verbale congelato con riserva, ritorno alle attività.
+- Otto fasi completate espandibili, controlli di stato e avanzamento nella fase aperta.
+- Viewport mobile 390x844, tablet 820x1180 e desktop; viewport ripristinato.
+- Link SAL da caricamento completo apre Economia e il dettaglio dei due verbali.
+- Non eseguita build completa né intera suite del repository.
+
+Architettura
+Mappatura Graphify limitata ai componenti e al contratto di navigazione:
+work/design-cantiere/graph.json. Ha guidato il riuso del resolver centralizzato
+per preservare notifiche, ancore e collegamenti preesistenti.
+
+Prossimi blocchi del piano (non dichiarati conclusi)
+1. Alleggerire testata e Panoramica; un solo elenco di priorità con azioni dirette.
+2. Riordinare Economia per ricavi, costi, margini, cassa senza riepiloghi duplicati.
+3. Semplificare materiali/acquisti e distinguere pianificato, impegnato, consumato.
+4. Misurare richieste e tempi; montaggio su richiesta dei dettagli secondari dove utile.
+5. Verifica completa sui tre scenari demo e sui ruoli operativi.
+
+Restano separati dal design gli sviluppi funzionali non conclusi: allegati del
+collaudo e percorso di firma elettronica del verbale. Non simulati come pronti.
+
+SECONDO BLOCCO — PULSANTI E VISTE OPERATIVE
+
+Implementato
+- Navigazione comune con pulsanti etichettati, anche su mobile (sostituisce
+  il selettore mobile del primo blocco). Stato selezionato blu, CTA arancione.
+- Azioni rapide: Nuova attività, Documenti, Appuntamento, Altre azioni.
+- Comandi espliciti per fasi, attività, sopralluoghi, caricamento file e seriali.
+- Economia: Margini e costi / Incassi e pagamenti / Varianti, SAL e documenti.
+- Materiali: Articoli e misure / Ordini d'acquisto / Magazzino e seriali.
+- Strumenti di acquisto montati una sola volta nella vista dedicata, visibili
+  anche da telefono con gli stessi permessi e verifiche delle quantità.
+- Panoramica: avvisi con destinazione diretta e dettagli richiudibili per
+  mezzi, storico, assistenza e documenti. Non è lazy loading dei dettagli.
+- Supporto dei link legacy con section nella query; rimozione della vecchia
+  sezione quando si cambia vista. Ancore SAL e documenti aprono i dettagli.
+- Nessuna scrittura sui dati demo, nessuna modifica alle formule economiche.
+
+Verifica secondo blocco
+- 136 test passati in 14 suite mirate, compresi permessi acquisti, navigazione
+  URL/cronologia, apertura SAL e seriali e callback delle azioni rapide.
+- ESLint: zero errori; 11 warning any già presenti nei file condivisi.
+- git diff --check senza errori.
+- TypeScript integrale tentato: processo terminato per heap esaurito a 4 GB.
+  NON considerato superato. Build e intera suite repository non eseguite.
+- Casa Betulla: viste economia e materiali, apertura documenti, seriali,
+  pulsanti acquisto, ritorno Cantiere verificati senza mutare dati.
+- Desktop, tablet 820x1180, mobile 390x844 e 320x740 verificati.
+  A 320 px: documento largo 320 px; azioni rapide senza overflow, altezza
+  minima 44 px. Viewport ripristinato, lasciata aperta Cantiere/Lavorazioni.
+- Graphify ha guidato il riuso del contratto centrale di navigazione;
+  nessuna nuova logica di navigazione separata per i singoli dispositivi.
+
+Residuo del piano generale
+- Ulteriore riduzione dei riepiloghi dentro il singolo conto economico.
+- Misurazione prestazioni/rete e caricamento differito dei dettagli secondari.
+- Collaudo completo sui tre scenari demo e sui ruoli operativi.
+- Verifica TypeScript integrale con memoria adeguata e baseline progetto.

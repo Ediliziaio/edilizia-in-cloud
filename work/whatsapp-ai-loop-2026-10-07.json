@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-07",
+  "status": "core_local_hardening_verified_remaining_work_open",
+  "scope": "Continuazione locale Silvio e WhatsApp; non certificazione dell'intero prodotto",
+  "production_changes": false,
+  "messages_sent": 0,
+  "paid_ai_calls": 0,
+  "commit_push_deploy": false,
+  "continuation": {
+    "completed": [
+      "Validazione unica della ricevuta WhatsApp nelle quattro schermate di invio e nel proxy send-contact-message: successo esplicito e ID provider obbligatori, esiti contraddittori rifiutati.",
+      "Un callback senza conferma non cancella più il testo; nuova bozza AI arrivata durante l'invio precedente conservata.",
+      "Numero scelto esplicitamente verificato per azienda, stato attivo e webhook: errore di lettura o numero revocato fermano l'invio, senza cambio silenzioso di mittente.",
+      "Messaggi di successo indicano accettazione WhatsApp, non consegna; errori backend leggibili nei tre composer diretti."
+    ],
+    "verification": {
+      "final_regression": { "files": 77, "tests": 934, "passed": true },
+      "draft_suite_after_last_case": { "files": 1, "tests": 5, "passed": true },
+      "deno_send_contact_message": "Passato dopo estrazione e verifica del mittente.",
+      "global_typecheck": "1007 diagnostiche come prima; nessuna nei nuovi helper o test ricevuta/mittente.",
+      "build_fast": "Passata; QA visiva e verifica reale ancora da svolgere."
+    },
+    "skill_use": "Graphify consultato con grafo preesistente: copertura limitata, integrata da codice diretto. Supabase: changelog e documentazione invoke consultati; nessuna modifica allo schema o remota.",
+    "remaining": "Restano valide tutte le attività aperte elencate in remaining; questo ciclo non completa budget AI condiviso, percorsi legacy o QA staging."
+  },
+  "completed": [
+    "Conferme congelate: azione, parametri, allegato, destinatario e hash; pulsanti vecchi non approvano una nuova proposta; anteprime troppo lunghe non vengono troncate.",
+    "Operazioni durevoli: un proprietario, replay della ricevuta, nessun reinvio automatico dopo esito sconosciuto; addebito una volta e rimborso atomico solo per rifiuto certo.",
+    "Conversazioni serializzate per azienda, numero e mittente; recupero ordinato e attese senza consumare tentativi.",
+    "Identità ambigue o revocate bloccate; operai limitati ai cantieri assegnati; indicazione esplicita del cantiere prevale sulla sessione precedente.",
+    "DDT usa l'allegato ricevuto, non un URL inventato dal modello; argomenti Silvio illeggibili bloccano l'azione.",
+    "Composer: blocco immediato del doppio invio, chiave stabile per lo stesso tentativo e bozza conservata dopo errore.",
+    "Controllo operativo: revisione umana registrata senza trasformare errori in successi e senza reinviare messaggi."
+  ],
+  "verification": {
+    "filtered_regression_suite": { "files": 75, "tests": 911, "passed": true },
+    "critical_suite": { "files": 21, "tests": 662, "passed": true, "note": "Parzialmente sovrapposta: non sommare come test unici." },
+    "isolated_sql": { "operations": 8, "sessions": 5, "passed": true, "limitations": "PGlite, schema sintetico e stub contabili; non concorrenza multi-connessione o database reale." },
+    "deno_check": "Passate processor, send, webhook, recovery e send-contact-message dopo le ultime correzioni.",
+    "build_fast": "Passata nel ciclo; nessun deploy.",
+    "targeted_lint": "Passato sui nuovi componenti e test UI e sul controllo operativo.",
+    "diff_check": "Passato.",
+    "global_typecheck": "Non verde: 1007 diagnostiche, pari alla baseline precedente; baseline non ampliata.",
+    "responsive_visual_qa": "Non eseguita: test UI non equivalgono a verifica visiva desktop/tablet/mobile.",
+    "remote_end_to_end": "Non eseguito."
+  },
+  "staging_prerequisites": [
+    "Verificare dipendenze SQL e funzioni contabili già presenti: il test sintetico non certifica una ricostruzione completa da zero.",
+    "Applicare insieme 20261007172959_whatsapp_scoped_operator_sessions.sql e 20261007183910_whatsapp_durable_operations.sql prima delle funzioni coordinate.",
+    "Verificare RLS, credito unificato, cron recovery e concorrenza reale; smoke Meta/OpenRouter solo con autorizzazione."
+  ],
+  "remaining": [
+    "Prenotazioni economiche condivise tra tutti i worker AI e stime basate sul prezzo del modello: l'idempotenza per messaggio non è una riserva globale di budget.",
+    "Copertura completa costi e correlazione di embeddings, Council, memoria, trascrizioni e campagne.",
+    "Audit di tutti i percorsi marketing, assistenza, lead, passaggio umano e invii legacy senza chiavi stabili.",
+    "Riconciliazione assistita di operazioni running/unknown, ricevute accettate con storico mancante e casi di registrazione interrotta.",
+    "Verifiche complete dei permessi ufficio e di tutti i tool, fixture end-to-end e QA visiva responsive.",
+    "Due discrepanze storiche del ledger per 0.51894618 EUR: nessun rimborso inventato o modifica remota.",
+    "Errori globali di tipizzazione preesistenti e verifica autorizzata in staging."
+  ]
+}

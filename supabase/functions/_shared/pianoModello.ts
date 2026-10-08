@@ -10,9 +10,8 @@
  *    avere la risposta vera (mai «vai sull'app»). Sono pochi messaggi: la qualità
  *    conta più del risparmio;
  *  - l'ufficio → economico solo per le AZIONI semplici e inequivocabili (segna
- *    fatto, annulla, presenze, foto, DDT); per tutto il resto (una domanda, un
- *    rapportino, una segnalazione) apre Silvio, così una domanda sui dati non
- *    finisce per sbaglio sul percorso economico senza strumenti.
+ *    fatto, annulla, presenze, foto, DDT), mantenendo però gli strumenti di
+ *    Silvio e i relativi permessi; per domande e analisi usa il modello forte.
  *
  * NB storico (28/09): un audio del titolare che chiedeva i dati era stato
  * classificato «rapportino» e col vecchio instradamento finiva sul modello
@@ -22,7 +21,7 @@
 
 export type TipoUtente = "operaio" | "ufficio" | "admin" | "unknown";
 
-/** Azioni semplici e inequivocabili: non servono i dati, basta il bot economico. */
+/** Azioni semplici: modello economico, senza ridurre il catalogo autorizzato. */
 const INTENT_AZIONI_SEMPLICI = new Set([
   "ddt",
   "foto_cantiere",
@@ -54,7 +53,9 @@ export function pianoModello(kind: TipoUtente, intent: string): PianoModello {
   }
   // Ufficio: economico solo per le azioni semplici e sicure.
   if (INTENT_AZIONI_SEMPLICI.has(intent)) {
-    return { taskKind: "bot_operativo_operaio", maxTokens: 800, usaSilvio: false, approfondito: false };
+    // Model cost and tool availability are independent: even a short confirmation
+    // must retain the same authorized catalog as the app.
+    return { taskKind: "bot_operativo_operaio", maxTokens: 800, usaSilvio: true, approfondito: false };
   }
   // Ufficio, tutto il resto (domande, rapportini, segnalazioni): Silvio.
   return { taskKind: "bot_operativo_titolare", maxTokens: 2500, usaSilvio: true, approfondito: true };

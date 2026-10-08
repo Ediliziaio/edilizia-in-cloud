@@ -5,40 +5,10 @@ import { numeroWhatsApp } from "../_shared/sequenzaContatto.ts";
 import { getErrorMessage } from "../_shared/metaAuth.ts";
 import { erroreInvioWhatsApp, richiestaWhatsAppSend } from "./invioWhatsApp.ts";
 import type { EsitoWhatsAppSend } from "./invioWhatsApp.ts";
+import { isWhatsAppReceipt } from "../_shared/whatsappReceipt.ts";
+import { numeroMittente } from "./numeroMittente.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
-
-/**
- * Il numero da cui parte il WhatsApp, con la regola di resolveWhatsAppSender:
- * quello scelto nel composer se è ancora dell'azienda e ha il token,
- * altrimenti il più recente attivo e verificato. null = il vecchio numero
- * unico (messaging_whatsapp_config), che whatsapp-send cerca da sé.
- */
-async function numeroMittente(
-  admin: ReturnType<typeof createClient>,
-  companyId: string,
-  scelto: unknown,
-): Promise<string | null> {
-  const numeri = () =>
-    admin
-      .from("ai_whatsapp_numbers")
-      .select("id")
-      .eq("company_id", companyId)
-      .not("phone_number_id", "is", null)
-      .not("access_token_encrypted", "is", null)
-      .is("deleted_at", null);
-  if (typeof scelto === "string" && scelto) {
-    const { data } = await numeri().eq("id", scelto).maybeSingle();
-    if (data?.id) return data.id as string;
-  }
-  const { data } = await numeri()
-    .eq("stato", "active")
-    .eq("webhook_verified", true)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return (data?.id as string | undefined) ?? null;
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -76,7 +46,7 @@ Deno.serve(async (req) => {
     //           indirizzo per preservare la natura "nascosta")
     // Validazione array di stringhe email lowercase. Limit 20 per lato per
     // evitare abuso/spam (l'utente che vuole inviare a >20 usi una campagna).
-    const { contact_id, channel, content, subject, cc, bcc, wa_number_id, template } = await req.json();
+    const { contact_id, channel, content, subject, cc, bcc, wa_number_id, template, idempotency_key } = await req.json();
     // template (solo whatsapp): { name, language, variables?: string[] } → invio type:template.
     const waTemplate = (channel === "whatsapp" && template && typeof template === "object" && template.name)
       ? {
@@ -218,17 +188,18 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
         },
-        body: JSON.stringify(richiestaWhatsAppSend({
+        body: JSON.stringify({ ...richiestaWhatsAppSend({
           companyId: contact.company_id,
           waNumberId: await numeroMittente(adminClient, contact.company_id, wa_number_id),
           to,
           contactId: contact.id,
           testo: content ?? "",
           modello: waTemplate,
-        })),
+        }), ...(idempotency_key != null ? { idempotency_key } : {}) }),
+        signal: AbortSignal.timeout(30_000),
       });
       const esito = (await invio.json().catch(() => ({}))) as EsitoWhatsAppSend;
-      const inviato = invio.ok && esito.success === true;
+      const inviato = invio.ok && isWhatsAppReceipt(esito);
       const errore = inviato ? null : erroreInvioWhatsApp(invio.status, esito);
 
       // Nelle attività del contatto, come prima: il messaggio partito e quello

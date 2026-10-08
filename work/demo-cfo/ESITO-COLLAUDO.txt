@@ -1,0 +1,257 @@
+COLLAUDO COMMESSE — DEMO AZIENDA 2
+30 settembre 2026
+
+AMBITO
+Tre ristrutturazioni parziali fittizie, dal 1 agosto al 30 settembre 2026.
+Identificativo dati: [DEMO CFO 2026-09 v1].
+Nessun invio email/WhatsApp, nessun nuovo account, firma, DURC o documento
+fiscale simulato come autentico. Foto sintetiche esplicitamente etichettate,
+non visibili al cliente, conservate in bucket privati.
+I record demo sono stati aggiunti in Supabase. Le correzioni applicative sono
+locali, non è stato eseguito un push Git. Le due funzioni SQL corrette sono
+state applicate al database collegato con migrazioni mirate, non db push.
+
+LE TRE COMMESSE
+1. DEMO-CFO-INT-01 — Appartamento Aurora, solo operai interni
+   http://127.0.0.1:8081/azienda/ordini/1778464d-0839-4011-a3f8-d267f7c9120f
+   Ricavo netto: 72.000,00 EUR
+   Materiali acquistati: 20.030,00; scorta consumata: 525,00
+   Operai interni: 16.640,00 (640 ore); subappalti: 0
+   Altri costi diretti: 2.400,00
+   Totale costi: 39.595,00; margine diretto: 32.405,00 (45,0%)
+   Incassato lordo: 55.440,00; residuo lordo: 23.760,00
+
+2. DEMO-CFO-MIX-02 — Casa Betulla, interni e subappalti
+   http://127.0.0.1:8081/azienda/ordini/d1d16e2e-437a-42eb-a7a0-60c38c22dfbe
+   Ricavo netto: 89.500,00 EUR (86.000 + variante approvata 3.500)
+   Materiali acquistati: 24.390,00; scorta consumata: 337,50
+   Operai interni: 8.160,00 (272 ore); subappalti: 23.000,00
+   Altri costi diretti: 2.850,00
+   Totale costi: 58.737,50; margine diretto: 30.762,50 (34,4%)
+   Incassato lordo: 68.915,00; residuo lordo: 29.535,00
+
+3. DEMO-CFO-SUB-03 — Ufficio Cedro, solo subappalti
+   http://127.0.0.1:8081/azienda/ordini/b20edd88-6b86-4024-af24-1b1b2a4b2674
+   Ricavo netto: 105.000,00 EUR
+   Materiali acquistati: 17.760,00; scorta consumata: 225,00
+   Operai interni: 0 (0 ore); subappalti: 50.500,00
+   Altri costi diretti: 3.500,00
+   Totale costi: 71.985,00; margine diretto: 33.015,00 (31,4%)
+   Incassato lordo: 80.850,00; residuo lordo: 34.650,00
+
+Il margine indicato è diretto, non utile netto aziendale. I canoni dei mezzi
+e la struttura sono mostrati separatamente come incidenze gestionali stimate.
+IVA demo 10% sul contratto, non una verifica dell'aliquota legalmente applicabile.
+
+CONTENUTI VERIFICATI
+24 fasi completate, 90 rapportini approvati (40/34/16), 9 foto (3 per cantiere).
+6 assegnazioni mezzi/attrezzature, 9 rate cliente, 6 SAL cliente,
+2 contratti di subappalto con 4 SAL e ritenute, ordini di acquisto ricevuti,
+scadenze fornitore, costi diretti e budget di manodopera.
+Magazzino: 200 sacchi iniziali, 160 prelevati, 15 resi, 145 consumati,
+55 rimasti. Valore consumato totale 1.087,50 EUR.
+Le 9 immagini sono caricate correttamente nelle tre gallerie a schermo,
+ottimizzate a 1.400 px, con 18 oggetti privati tra galleria e rapportini.
+
+PROBLEMI CORRETTI NEL COLLAUDO
+- Le varianti approvate entravano nel margine ma non nel contratto/rate:
+  stessa sorgente per ricavo concordato, saldo, incassato e SAL.
+- La revoca di un rapportino non riallineava la tariffa oraria ponderata:
+  prova con cambio 28 -> 40 EUR/h e revoca, tariffa residua corretta 28.
+- L'installazione poteva scaricare di nuovo materiale già prelevato:
+  conteggio dei movimenti collegati alla riga, scarico del solo residuo,
+  blocco in caso di giacenza insufficiente o movimenti non attribuiti.
+  La scelta è conservativa: NON assegna arbitrariamente un movimento a una
+  delle possibili righe. Per la demo l'associazione univoca è stata esplicitata.
+- ODA in bozza/annullati non vengono più trattati come acquisti emessi nella
+  preparazione delle fasi (resta da affinare il caso di quantità parziali).
+- Confronto costi materiali: include la scorta consumata, evitando falsi
+  risparmi di 525 / 337,50 / 225 EUR nei tre casi demo.
+- Timeline: stato approvato della variante non mostrato come rifiutato.
+- Cliente snapshot visibile anche senza profilo collegato; indirizzo cantiere
+  con fallback al campo work_address.
+- Operai individuali distinti dagli operai delle squadre nel riepilogo fasi.
+- Rapportini: primi 10, pulsante altri 10, apertura accessibile da tastiera,
+  dicitura Registrazione manuale quando non esiste un autore collegato.
+
+TEST E LIMITI DELLA VERIFICA
+88 test mirati Vitest superati in 11 file.
+4 prove SQL su approvazione/revoca, idempotenza e separazione cassa/margine.
+6 prove SQL su scarico/installazione, residui, insufficienza e rollback.
+Tutte le prove SQL comportamentali sono eseguite in transazione con ROLLBACK.
+Verifica finale di quantità, costi, margini, ore, foto e bucket privati superata.
+git diff --check superato.
+Il typecheck generale NON passa: il log contiene numerosi errori anche in
+aree estranee al collaudo. Non è stata certificata una build production,
+né un test completo RLS multi-tenant, offline o dell'app operai autenticata.
+I dipendenti fittizi non hanno account: l'avviso accesso app non configurato
+è corretto. Il DURC mancante è intenzionale, non è stato inventato un documento.
+
+ANCORA DA SVILUPPARE — PRIORITA'
+1. Un unico registro di liquidazione/pagamento subappalti, con pagamenti
+   parziali, IVA, ritenute e SAL. Oggi SAL pagato e pagamento squadra esterna
+   non sono sincronizzati: il flusso di cassa uscente può essere incompleto.
+   Il margine diretto usa invece il contratto imputato una sola volta.
+2. Storicizzare struttura mensile, commesse attive e criterio di riparto.
+   La stima attuale usa valori aziendali correnti anche per mesi passati.
+3. Interfaccia semplice per associare prelievi/resi alle righe commessa,
+   e gestione della copertura parziale tra acquisto e scorta: la vista attuale
+   esclude un movimento collegato a una riga coperta da ODA senza riparto
+   quantitativo. La nuova protezione evita doppioni ma non completa questo UX.
+4. Ricondurre importi netti/lordi dei compensi esterni a una convenzione unica
+   fra consuntivo e cassa; testare con documenti reali importati e aliquote varie.
+5. Verifiche successive: DDT e resi dal percorso utente, esportazione PDF,
+   app operai con account di test autorizzati, ruoli, mobile/tablet, concorrenza.
+
+RIPETIBILITA'
+node scripts/demo-cfo.mjs verify
+node scripts/demo-cfo-audit.mjs
+node scripts/demo-cfo-stock-audit.mjs
+Non rilanciare seed: rifiuta la presenza delle commesse per non sovrascriverle.
+enrich è uno strumento di fixture: non usarlo dopo modifiche manuali ai casi demo.
+manifest.json e enrichment-records.json identificano i dati creati.
+Nessuna cancellazione di commesse preesistenti è stata eseguita.
+
+MIGRAZIONI MIRATE
+20281001150000_rapportino_revoca_tariffa_ponderata.sql
+20281001160000_installazione_stock_senza_doppio_scarico.sql
+Applicate tramite query CLI; non è stato allineato automaticamente il registro
+generale delle migrazioni o applicato il resto delle migrazioni locali pendenti.
+
+VERIFICA RAPPORTINI, EXTRA E FIRME - 30/09/2026
+Eseguito su Demo Azienda 2, senza email/SMS né firme di clienti reali.
+- Integrati i nominativi mancanti nelle presenze dei 90 rapportini demo.
+- 29 rapportini dichiarano 145 sacchi: 70 interni, 45 misto, 30 subappalto.
+  Nessun nuovo scarico di magazzino: transazione verifica che costi e margini
+  restino invariati. Backup operativo reports-before-enrichment.json.
+- Tre PDF generati con il renderer reale e controllati pagina per pagina.
+  Ore per fase prima omesse: ora presenti. Note/foto usano lo spazio residuo,
+  senza aggiungere una pagina quasi vuota. Edizioni v3, vecchi PDF preservati.
+- Extra: webhook allineato alla RPC atomica; eliminati stato 'approvata'
+  incompatibile e incremento separato del contratto base. UI richiede nome,
+  firma e conferma; creazione link distinta dall'invio email.
+- Sei test DB in ROLLBACK: attesa non aumenta ricavi, firma aumenta una volta,
+  contratto base invariato, doppia firma/rifiuto successivo/token invalido respinti.
+  Sono test comportamentali col ruolo di gestione, non prove complete di RLS.
+- 122 test Vitest passati su 10 file, parsing 7 entrypoint modificati OK.
+  Non equivale a typecheck/build globale pulito (vedere problemi preesistenti).
+- Verificato in UI il nuovo modulo extra e la generazione del rapporto finale
+  Betulla: il PDF v3 risulta salvato e collegato. Le tre revisioni campione
+  locali sono state ispezionate visivamente; nessun campo foto fallito.
+- Pubblicati solo i cinque endpoint interessati: firma-odv-webhook,
+  genera-pdf-rapportino, fea-richiedi-firma, fea-documento-pubblico,
+  fea-completa-firma. Nessun commit/push Git.
+
+LACUNE DOCUMENTALI ANCORA DA COMPLETARE (NON DICHIARARE TUTTO PRONTO)
+1. Collaudo guidato in commessa: checklist specifica del lavoro, prove svolte,
+   esito, riserve, foto pertinenti, azioni/responsabili/scadenze e allegati
+   consegnati. Bozza -> anteprima -> versione congelata -> firma -> ricevuta.
+   Ora la categoria nell'app campo era solo un'etichetta senza verbale visibile:
+   invio e firma di queste richieste senza documento sono bloccati con motivo.
+   Non è una nuova implementazione del modulo di collaudo.
+2. Firma elettronica: associare SEMPRE il contenuto congelato e hash verificato,
+   richiesta e ricevuta scaricabile. Test completo OTP con account autorizzati
+   ancora da eseguire; nessuna attestazione di conformità giuridica fornita.
+   La firma grafica su rapportino NON equivale ad approvazione di extra.
+3. Extra: scadenza/revoca link, snapshot immutabile, prova/consenso persistito,
+   IVA e totale lordo espliciti, ricevuta/PDF, notifica realmente verificata.
+   La RPC pubblica legacy accetta ancora firme non validate come immagine:
+   il webhook nuovo valida formato/dimensione/nome, ma la RPC va irrobustita.
+4. Rapportini: test mobile con account operaio e subappaltatore, turni notturni,
+   correzione dopo firma (mai sovrascrivere l'edizione firmata), collegamento
+   dichiarazione materiali -> consumo da confermare, non doppio scarico.
+5. UI osservata: Pagamenti Fornitori mostra 0 pagato mentre la cassa include
+   movimenti fornitori; riconciliare le fonti prima di considerare completi
+   i saldi. Mezzi assegnati al progetto non coincidono con presenza in cantiere.
+
+RIPETIBILITA' AGGIUNTIVA
+node scripts/demo-cfo-documents-audit.mjs (lettura e PDF locali di QA)
+node scripts/demo-cfo-variation-audit.mjs (tutte le firme in rollback)
+NON rilanciare report-enrich dopo modifiche manuali: è una fixture demo.
+Graphify: analisi AST mirata di 12 file, 74 nodi/326 relazioni; ha aiutato
+a separare i percorsi rapportino, OdV e richiesta di collaudo.
+
+AGGIORNAMENTO 30/09/2026 — VERBALE GUIDATO IN COMMESSA
+Realizzato Cantiere > Collaudo e consegna: bozza, controlli espliciti (mai
+preconfermati), perimetro, referente, cliente, esito, riserve, attività con
+responsabili e scadenze, elenco documenti consegnati, note condivise.
+Flusso attuale: salva bozza -> genera/controlla PDF -> conferma revisione ->
+congela edizione non firmata. Nessuna modifica a ricavi, margini o stato lavori.
+La firma elettronica NON è ancora collegata e la schermata lo dichiara.
+Il flusso FEA generico usa conferme contrattuali: prima del collegamento servono
+consensi pertinenti al verbale, riferimento al PDF congelato/hash, ricevuta e
+prove OTP con account autorizzati. Restano foto/allegati effettivi (l'elenco
+consegne attuale è testuale) e trasformazione guidata delle riserve in attività.
+
+Database: nuova order_acceptance_reports, RLS lettura + commessa visibile e
+permessi azienda. Scritture solo endpoint autenticato, con controllo permesso
+can_edit_orders e versione attesa. Bucket privato, accesso server-only protetto
+anche da policy storage permissive preesistenti. SHA-256 del PDF verificato
+prima del congelamento; versioni congelate non sovrascrivibili/cancellabili.
+Migrazione 20260930161708 applicata isolatamente e registrata nella cronologia;
+nessun db push generale. Pubblicato solo endpoint collaudo-commessa.
+
+Tre bozze fittizie in Demo Azienda 2: Aurora positivo, Betulla con riserve,
+Cedro negativo. Test reale su Betulla: PDF generato e salvato, visualizzato,
+edizione congelata NON FIRMATA. Nessuna email/SMS/OTP o firma reale creata.
+Verificato anche il salvataggio reale del referente Aurora e la sua persistenza
+alla riapertura; tutti e tre i verbali hanno ora il PDF privato salvato e hash.
+Aurora e Cedro restano bozze da provare, Betulla è l'edizione congelata di QA.
+Risolto durante QA il PDF bianco dell'iframe: riusato il pannello canvas comune
+ai preventivi. Verificato il dialogo anche a larghezza mobile 390 px, poi
+ripristinato il viewport del browser. Tre PDF campione revisionati visivamente,
+una pagina ciascuno, con riserve/responsabili/scadenze leggibili.
+
+94 test Vitest verdi su 8 file (21 specifici del nuovo modulo inclusi).
+Audit DB in ROLLBACK: vincolo azienda/ordine, isolamento tra aziende, lettura
+autorizzata, scrittura diretta negata, invalidazione PDF, concorrenza versioni,
+modifica e cancellazione del congelato negate. Controlli con ruolo authenticated,
+non solo management. Supabase Security Advisor: nessuna segnalazione riferita
+al nuovo modulo; rimangono 7 segnalazioni globali preesistenti da auditare.
+Il typecheck globale di questa esecuzione termina per heap out of memory:
+non dichiarare build/typecheck globale riuscito. Nessun commit/push Git.
+
+Comandi QA: node scripts/demo-cfo-acceptance-audit.mjs --existing
+node scripts/demo-cfo-acceptance-fixtures.mjs (solo PDF locali; --seed inserisce
+solo le fixture mancanti e non sovrascrive quelle già modificate).
+
+AGGIORNAMENTO 30/09/2026 — DALLE RISERVE ALLE ATTIVITA'
+Completato il collegamento dei verbali congelati alle attività esistenti della
+commessa: pulsante «Crea attività per me», referente originario nelle note,
+scadenza riportata, assegnazione al richiedente per coordinamento. Le attività
+restano modificabili/riassegnabili dal dialogo già presente. Il verbale non cambia;
+completare l'attività NON significa firma o accettazione del cliente.
+
+Migrazione 20260930164535 applicata isolatamente e registrata nella cronologia.
+RPC SECURITY INVOKER, permessi/RLS aziendali, vincolo univoco verbale+indice
+intervento, collegamento originario non modificabile. Inserimento atomico:
+un intervento invalido annulla tutto. Nessuna sovrascrittura di attività esistenti.
+Le istruzioni Supabase hanno guidato controlli permessi e test in transazione.
+Audit rollback autenticato passato sia prima sia dopo la migrazione: ripetizione,
+attività completata non riaperta, isolamento azienda, bozza/anonimo negati,
+immutabilità fonte e ordine, nessuna modifica a verbale/hash/versione/importo.
+Il vincolo univoco copre richieste concorrenti; non eseguito un carico multi-sessione.
+Security Advisor: nessuna segnalazione sulle nuove funzioni o sul verbale;
+restano segnalazioni generali preesistenti, non risolte con questa modifica.
+
+Test UI reale in Demo Azienda 2, Betulla: creata una sola attività aperta
+3d91fb34-7f81-4da0-98c6-cf4a8d1823e4, scadenza 05/10/2026. Visibile in testata
+e in Cantiere > Calendario, date e attività, apribile con note complete.
+Controllate automazioni della demo prima della prova: nessun flusso configurato.
+Nessuna firma, SMS/OTP o messaggio cliente inviato.
+
+Bug trovato e corretto nel pannello attività esistente: l'auto-relazione tasks
+non era disponibile nella cache PostgREST. Rimossa la join fragile: predecessori
+caricati con singola query separata, filtrata per azienda. Gli errori ora hanno
+stato esplicito e Riprova, anziché un fuorviante «Nessuna attività collegata».
+
+77 test verdi su 10 file; lint del nuovo componente e relativi test superato.
+Verifica mobile 390 px: dialogo 374 px, nessun overflow orizzontale; viewport
+ripristinato. Imponibile Betulla 89.500,00 e margine 30.762,50 invariati in UI.
+Nessun typecheck/build globale dichiarato, nessun commit o push Git.
+Comando audit: node scripts/demo-cfo-acceptance-tasks-audit.mjs --existing
+
+PROSSIMI PASSI ANCORA APERTI
+- Foto/allegati effettivi al collaudo, non solo elenco testuale consegne.
+- Collegamento firma elettronica al PDF congelato, consenso specifico e ricevuta.
+- Prove end-to-end OTP/firma solo con destinatari di test autorizzati.

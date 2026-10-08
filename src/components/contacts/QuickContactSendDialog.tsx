@@ -18,6 +18,8 @@ import { useSendSms } from "@/hooks/useSendSms";
 import { MessageTemplatePicker } from "@/components/templates/MessageTemplatePicker";
 import { buildTemplateVars } from "@/lib/messageTemplateVars";
 import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
+import { requireWhatsAppReceipt } from "../../../supabase/functions/_shared/whatsappReceipt";
+import { readInvokeError } from "@/lib/readInvokeError";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -399,18 +401,20 @@ export function QuickContactSendDialog({
               <WhatsAppComposer
                 phone={cleanPhone} isSending={waSending} contactFields={waContactFields}
                 seedText={waSeedText} seedAt={waSeedAt}
-                onSend={async ({ waNumberId, content, template }) => {
-                  if (!effectiveCompany?.id) { toast.error("Azienda non disponibile"); return; }
+                onSend={async ({ waNumberId, content, template, idempotencyKey }) => {
+                  if (!effectiveCompany?.id) { toast.error("Azienda non disponibile"); return false; }
                   setWaSending(true);
                   try {
-                    const payload: Record<string, unknown> = { company_id: effectiveCompany.id, to: cleanPhone, wa_number_id: waNumberId, ...(contactId ? { contact_id: contactId } : {}) };
+                    const payload: Record<string, unknown> = { idempotency_key: idempotencyKey, company_id: effectiveCompany.id, to: cleanPhone, wa_number_id: waNumberId, ...(contactId ? { contact_id: contactId } : {}) };
                     if (template) payload.template = { name: template.name, language: template.language, variables: template.variables };
                     else payload.text = { body: content };
                     const { data, error } = await supabase.functions.invoke("whatsapp-send", { body: payload });
-                    if (error) throw error;
+                    if (error) throw new Error(await readInvokeError(error));
                     if ((data as { error?: string } | null)?.error) throw new Error((data as { error: string }).error);
-                    toast.success("Messaggio WhatsApp inviato"); onSent?.(); onOpenChange(false);
-                  } catch (e) { toast.error(e instanceof Error ? e.message : "Errore invio WhatsApp"); }
+                    requireWhatsAppReceipt(data);
+                    toast.success("Messaggio accettato da WhatsApp"); onSent?.(); onOpenChange(false);
+                    return true;
+                  } catch (e) { toast.error(e instanceof Error ? e.message : "Errore invio WhatsApp"); return false; }
                   finally { setWaSending(false); }
                 }}
               />

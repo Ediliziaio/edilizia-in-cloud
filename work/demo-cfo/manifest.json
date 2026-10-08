@@ -1,0 +1,1515 @@
+{
+  "company": "d2000000-0000-4000-a000-000000000002",
+  "marker": "[DEMO CFO 2026-09 v1]",
+  "records": [
+    {
+      "table": "suppliers",
+      "id": "cc15960f-ef63-4e45-a7b6-9bf20a9b55ef",
+      "key": "supplier"
+    },
+    {
+      "table": "employees",
+      "id": "86a427f4-636f-40df-af96-0b8e108a1aff",
+      "key": "employee-0"
+    },
+    {
+      "table": "employees",
+      "id": "94f56c0b-7a02-4728-a30c-05ebba006a60",
+      "key": "employee-1"
+    },
+    {
+      "table": "employees",
+      "id": "e99423dc-c9da-4f68-acdc-ee66436631fd",
+      "key": "employee-2"
+    },
+    {
+      "table": "warehouse_stock",
+      "id": "08063e1b-c1f7-4841-ab1a-9f1dfe705eec",
+      "key": "cemento"
+    },
+    {
+      "table": "orders",
+      "id": "1778464d-0839-4011-a3f8-d267f7c9120f",
+      "key": "order-int"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "e132669a-4446-4dc7-a999-371793a983ac",
+      "key": "int-phase-0"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "8811031d-0b6e-4e16-ac62-3aab8ae89e96",
+      "key": "int-phase-1"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "fb5fff93-3258-4ddd-a4e7-737c773cefc1",
+      "key": "int-phase-2"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "9f6866cb-592c-40b5-ab6d-ba3235623aa9",
+      "key": "int-phase-3"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "039ed966-2e45-4ce6-aebe-fecc1d8e70ed",
+      "key": "int-phase-4"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "686c4e45-2ce0-452a-a91b-ac2ab6f572fb",
+      "key": "int-phase-5"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "9820e15a-000c-4ce4-a678-75157cac3ccd",
+      "key": "int-phase-6"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "7bf05aaa-20de-4e2f-a7d7-e155bc226b09",
+      "key": "int-phase-7"
+    },
+    {
+      "table": "purchase_orders",
+      "id": "a60ff029-bbcc-4b65-a711-655d1fd7aa5d",
+      "key": "int-po"
+    },
+    {
+      "table": "order_items",
+      "id": "b8c0fe85-3e0b-45b8-af5d-9ac71a8423a1",
+      "key": "int-item-0"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "b08dfed1-453b-479b-a43d-47ac12dc067d",
+      "key": "int-poi-0"
+    },
+    {
+      "table": "order_items",
+      "id": "f1df0c0e-7b92-4866-abcd-7e66a734ccd6",
+      "key": "int-item-1"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "44446b66-b438-477f-ae53-f3bf5047907a",
+      "key": "int-poi-1"
+    },
+    {
+      "table": "order_items",
+      "id": "62c3280d-58ad-4738-a098-1b85ef78a152",
+      "key": "int-item-2"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "8995dd75-3b78-4761-a5e0-e14115cae75d",
+      "key": "int-poi-2"
+    },
+    {
+      "table": "order_items",
+      "id": "b0d9c71a-bd06-4a74-a99e-793061325020",
+      "key": "int-item-3"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "0f7efafc-b07d-4264-acee-15226402bdb7",
+      "key": "int-poi-3"
+    },
+    {
+      "table": "order_items",
+      "id": "66c8d8de-13af-4ca0-a67f-4303455d620f",
+      "key": "int-item-4"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "bf4f5ec5-56ba-4c5d-a638-758aabd9b460",
+      "key": "int-poi-4"
+    },
+    {
+      "table": "order_items",
+      "id": "d9261a38-3e1f-4dfd-a0be-5b8381d5d86f",
+      "key": "int-item-5"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "af380f11-0aa6-4f42-aef3-82fd2f546617",
+      "key": "int-poi-5"
+    },
+    {
+      "table": "order_items",
+      "id": "23f751df-7062-4703-ac1a-935f2b294b89",
+      "key": "int-item-6"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "87c9fd02-9bc2-4150-ad26-4fd5da596adc",
+      "key": "int-poi-6"
+    },
+    {
+      "table": "order_items",
+      "id": "f3c22354-6826-4293-a1f1-c791907d49d5",
+      "key": "int-item-7"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "b52e4366-d913-40d3-a654-8260c17e2b22",
+      "key": "int-poi-7"
+    },
+    {
+      "table": "order_items",
+      "id": "944357c3-5a75-4038-ae52-51f7b5ba7670",
+      "key": "int-cemento-item"
+    },
+    {
+      "table": "warehouse_movements",
+      "id": "a5fb430a-7008-447c-a285-91224b36d3f0",
+      "key": "int-reso"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "0c68dcb2-0860-4401-a083-a966274cddaa",
+      "key": "int-report-0"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "1fe95b89-5202-49f9-a332-42291267d3b5",
+      "key": "int-report-1"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "2b323c67-b13e-423f-ab58-9173ff973053",
+      "key": "int-report-2"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "6d9731b3-03fd-46cd-aa00-490a28756b1c",
+      "key": "int-report-3"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "1fdb5300-276b-4aac-ad4c-22d12a02a25d",
+      "key": "int-report-4"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "08116df5-0fff-4317-aeb1-4feb56578c30",
+      "key": "int-report-5"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "d1f39238-fc16-47a1-ad79-4f5e5d8072f0",
+      "key": "int-report-6"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "75709990-94ba-4f2a-a4ab-0f2c5c475a6a",
+      "key": "int-report-7"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "7c110948-5288-442b-a2ba-f4274ebef10e",
+      "key": "int-report-8"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "a7ae8080-bbfe-4df6-a72a-c165e9d8802c",
+      "key": "int-report-9"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "adbb60b2-dd48-4a5b-ad13-75ae89112441",
+      "key": "int-report-10"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "0e6583f5-60fe-4729-af8f-92218a8f4a51",
+      "key": "int-report-11"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "061527b5-e1a5-4f92-a7cf-765f3858d9e0",
+      "key": "int-report-12"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "6bb54446-edcd-4a3b-a64d-b1e22e8abe99",
+      "key": "int-report-13"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "8a90c838-9e23-4175-a1d6-eeb56bc90e4a",
+      "key": "int-report-14"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "b7d8aac7-a069-42cc-ae05-4c99965c0119",
+      "key": "int-report-15"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "ceec7910-7ff8-4846-a9d7-0366be045309",
+      "key": "int-report-16"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "410c13ee-d7d6-4aaa-adf0-5c2dcf2e052a",
+      "key": "int-report-17"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "15765c38-062c-42ea-adfe-f6520df831e9",
+      "key": "int-report-18"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "e8a0bddf-2c7d-496e-a66e-6602be67cfac",
+      "key": "int-report-19"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "c847cc3c-1ccb-48e7-a0bf-a1161d20e6cb",
+      "key": "int-report-20"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "1bb1dc99-2d63-4a4f-aa93-42d3a4ddb462",
+      "key": "int-report-21"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "e96f8eee-f658-4758-a1d5-bb7325637f71",
+      "key": "int-report-22"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "616177e8-22f4-415f-a32d-a69e65c62dc6",
+      "key": "int-report-23"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "ff74684e-ab22-40c0-a7e8-e0753056d239",
+      "key": "int-report-24"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "e39c3912-25fb-4eb7-a8fe-99590a266b84",
+      "key": "int-report-25"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "81979b39-c7b5-48d3-a009-c78c296495f5",
+      "key": "int-report-26"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "cc68d207-67d1-45b4-a487-426a7a5c7c4b",
+      "key": "int-report-27"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "22df77d1-b971-4e8c-a70b-4fce8981bb53",
+      "key": "int-report-28"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "fe1d0d18-6359-4b7d-afa6-90169bbd8881",
+      "key": "int-report-29"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "c1283698-dd18-4814-a411-4dcfe0980330",
+      "key": "int-report-30"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "63cdf557-fc5d-4466-a5d0-34625d5c496f",
+      "key": "int-report-31"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "b0d5d96e-01ee-4ca2-ada9-1664bf9ced55",
+      "key": "int-report-32"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "5c5be1a5-5c3d-446d-a60c-4939b1b2392f",
+      "key": "int-report-33"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "4c6778cc-7a9f-4a6b-ae4e-11a69f92013b",
+      "key": "int-report-34"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "0386462b-8311-403b-a7d3-15f44e6f70bf",
+      "key": "int-report-35"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "85f8ad7e-5f2f-4ce7-ab55-cece0ae69bd1",
+      "key": "int-report-36"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "fb9fe88b-651e-4bb2-a810-23c79bae374b",
+      "key": "int-report-37"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "2000a819-7f7d-4826-aca2-e0ac235d2bf8",
+      "key": "int-report-38"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "b81528b8-d88b-4b19-aaf9-a10850e5c13a",
+      "key": "int-report-39"
+    },
+    {
+      "table": "company_costs",
+      "id": "66e160de-bdd1-496a-a7e9-83248e0d3f53",
+      "key": "int-cost-0"
+    },
+    {
+      "table": "company_costs",
+      "id": "68f22fb0-9bb8-4c5e-a179-6452fb2a7bb7",
+      "key": "int-cost-1"
+    },
+    {
+      "table": "company_costs",
+      "id": "0e8e1a71-a9c8-42f2-a900-a09a3ab6faea",
+      "key": "int-cost-2"
+    },
+    {
+      "table": "mezzi",
+      "id": "8980c98c-e8f3-435a-a145-465f3304ae2b",
+      "key": "int-mezzo-0"
+    },
+    {
+      "table": "mezzi_assegnazioni",
+      "id": "ffd637d7-5d42-4af6-a185-c20d4b13fa52",
+      "key": "int-mezzo-ass-0"
+    },
+    {
+      "table": "mezzi",
+      "id": "820b01ad-f470-458d-a928-b7195cefba98",
+      "key": "int-mezzo-1"
+    },
+    {
+      "table": "mezzi_assegnazioni",
+      "id": "5d382df6-2c10-41b7-a625-25b5e7afaf99",
+      "key": "int-mezzo-ass-1"
+    },
+    {
+      "table": "order_installments",
+      "id": "e31e2295-e4ed-41cd-a9c9-d69075c25277",
+      "key": "int-incasso-0"
+    },
+    {
+      "table": "order_installments",
+      "id": "990bb771-d6f8-4b07-aa53-ce9c5956bea1",
+      "key": "int-incasso-1"
+    },
+    {
+      "table": "order_installments",
+      "id": "4fca2c92-d806-4dca-a2f9-562c4f82bbc6",
+      "key": "int-incasso-2"
+    },
+    {
+      "table": "sal_records",
+      "id": "f457975d-d3ef-46bd-ac21-3dd69358c095",
+      "key": "int-sal-0"
+    },
+    {
+      "table": "sal_voci",
+      "id": "a84c669c-b90b-4d89-a696-d221a8b7c59d",
+      "key": "int-sal-voce-0"
+    },
+    {
+      "table": "sal_records",
+      "id": "9aecf208-1ee6-40c7-a78d-853f593b7564",
+      "key": "int-sal-1"
+    },
+    {
+      "table": "sal_voci",
+      "id": "36a739fb-1753-4729-a8dc-dc12e6351ee7",
+      "key": "int-sal-voce-1"
+    },
+    {
+      "table": "foto_cantiere",
+      "id": "693f98a5-03cc-469f-a200-150d1fd2b5e0",
+      "key": "int-foto-prima"
+    },
+    {
+      "table": "foto_cantiere",
+      "id": "75b6b151-1a67-4aec-ad20-0d839f3c29e5",
+      "key": "int-foto-lavori"
+    },
+    {
+      "table": "foto_cantiere",
+      "id": "6dead534-9e95-4049-a148-84c08ec280a9",
+      "key": "int-foto-finale"
+    },
+    {
+      "table": "orders",
+      "id": "d1d16e2e-437a-42eb-a7a0-60c38c22dfbe",
+      "key": "order-mix"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "7f238543-5816-4e1b-a25b-445cbe43608d",
+      "key": "mix-phase-0"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "9e96fcb3-b5fd-40a2-adc4-420e72e87169",
+      "key": "mix-phase-1"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "acb3085c-feae-4e5b-a99c-789ab83a2001",
+      "key": "mix-phase-2"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "be432039-3e7a-40ed-a6d2-a2a1dd0c5a9a",
+      "key": "mix-phase-3"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "1f7b267b-b7c3-4944-a1b1-7e2df100e90f",
+      "key": "mix-phase-4"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "28f23393-92b9-45ef-a3af-384ea94751a5",
+      "key": "mix-phase-5"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "f6b7b3da-0fb7-412a-abf2-c2cb125ed37a",
+      "key": "mix-phase-6"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "3564835a-a801-4990-ac4a-b4a6bca6dad4",
+      "key": "mix-phase-7"
+    },
+    {
+      "table": "ordini_variazione",
+      "id": "25ba624e-a000-4f97-af37-1dc37af20b2c",
+      "key": "mix-variation"
+    },
+    {
+      "table": "purchase_orders",
+      "id": "ba8df57d-54a4-4a3e-a43e-8bb35d62bb5b",
+      "key": "mix-po"
+    },
+    {
+      "table": "order_items",
+      "id": "ebaca4b7-6320-4cbe-ac4c-20d57fd86bbf",
+      "key": "mix-item-0"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "f68eeafd-4b78-44a2-a103-7e1fac03bd59",
+      "key": "mix-poi-0"
+    },
+    {
+      "table": "order_items",
+      "id": "9398947f-eb24-4915-a601-a3471446b043",
+      "key": "mix-item-1"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "9f47b745-9443-46c1-a496-1b5c4cdabbde",
+      "key": "mix-poi-1"
+    },
+    {
+      "table": "order_items",
+      "id": "7c582fd0-efa8-4ec3-a0db-03a230a0ac75",
+      "key": "mix-item-2"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "022d6124-141a-4b78-a1dc-051c04705ba6",
+      "key": "mix-poi-2"
+    },
+    {
+      "table": "order_items",
+      "id": "15450300-1022-4163-a17c-102342313d36",
+      "key": "mix-item-3"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "6dee647a-23f0-4e60-adb1-b4db86711ad3",
+      "key": "mix-poi-3"
+    },
+    {
+      "table": "order_items",
+      "id": "a4b574bd-b178-4f28-a272-ee9c5772ce28",
+      "key": "mix-item-4"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "95f58fdc-8235-4527-afaf-544249dc5406",
+      "key": "mix-poi-4"
+    },
+    {
+      "table": "order_items",
+      "id": "95f0e0d1-8e3e-4e6b-af0b-751b47c4500d",
+      "key": "mix-item-5"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "d8c5a2c5-62c1-43b3-a158-9e1512533a45",
+      "key": "mix-poi-5"
+    },
+    {
+      "table": "order_items",
+      "id": "cd6ad2d7-2519-42c9-a877-6d7d848f81f9",
+      "key": "mix-item-6"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "ee96ae3b-d138-4cc0-aed2-f3b64491f40a",
+      "key": "mix-poi-6"
+    },
+    {
+      "table": "order_items",
+      "id": "342f166c-9b21-4282-a3b7-c000e8337ba3",
+      "key": "mix-item-7"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "230207aa-1316-4507-a9a5-8504a8d7b03b",
+      "key": "mix-poi-7"
+    },
+    {
+      "table": "order_items",
+      "id": "3f34e54a-5d97-4504-a36e-5ae0d4bde6ef",
+      "key": "mix-item-8"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "e70e408d-a2a4-4d32-aef7-9fd84dd7155f",
+      "key": "mix-poi-8"
+    },
+    {
+      "table": "order_items",
+      "id": "06027718-94a1-4a91-a786-390c7448fc26",
+      "key": "mix-cemento-item"
+    },
+    {
+      "table": "warehouse_movements",
+      "id": "b73586f6-c4c1-41ee-afa6-d5130a5d8739",
+      "key": "mix-reso"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "b4bbec70-4662-4b19-a6a0-35756152afed",
+      "key": "mix-report-0"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "ac331ff0-eded-4c92-af23-eefaa762247f",
+      "key": "mix-report-1"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "f0c47119-307e-4ac9-a2b1-261e3159ee8d",
+      "key": "mix-report-2"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "123fa714-b50d-41a4-a403-598c4367b27f",
+      "key": "mix-report-3"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "b0bf7703-ac2f-4c88-a3a1-f32e4861a8b9",
+      "key": "mix-report-4"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "37611cae-07f0-440f-a12e-9fe892f395d6",
+      "key": "mix-report-5"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "81041a66-3033-455a-a25f-22079e09379d",
+      "key": "mix-report-6"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "442282b4-4971-4170-a283-b09cfb2d1d7c",
+      "key": "mix-report-7"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "b6281f0c-0871-4dc3-a95a-cd9ab6b2f872",
+      "key": "mix-report-8"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "808ca96b-8453-4fca-ab1c-545571eb0eca",
+      "key": "mix-report-9"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "24c49dde-8523-424e-adab-59e25b556535",
+      "key": "mix-report-10"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "2178398a-1cd9-4939-ae47-6fb71fc1d27b",
+      "key": "mix-report-11"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "58b392af-7e21-44cc-a406-78089da9cc07",
+      "key": "mix-report-12"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "f70b4184-e2b0-4188-a7b7-fd9d29aa9026",
+      "key": "mix-report-13"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "906181ed-bd7b-4d5d-ae20-07cffcfdf997",
+      "key": "mix-report-14"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "e9fbdf91-6332-46e9-af67-040c2b348d10",
+      "key": "mix-report-15"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "c7bc28da-0231-4877-a1e9-aa2c4e8b8144",
+      "key": "mix-report-16"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "e1a66a20-8663-4949-a320-0fe95e850110",
+      "key": "mix-report-17"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "c28f9502-06df-4d26-a5de-31b551795718",
+      "key": "mix-report-18"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "09112153-5409-4886-a083-4b54e8fa9f21",
+      "key": "mix-report-19"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "7cc801ea-cc0d-4468-a893-50761101d2b4",
+      "key": "mix-report-20"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "a33c15b1-0307-4166-a339-aff2518ab25e",
+      "key": "mix-report-21"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "7ea41db9-b8e4-4aa7-a133-0f1a5e7ce90a",
+      "key": "mix-report-22"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "796cd1bd-b5bf-48ed-a5e2-301162633e8e",
+      "key": "mix-report-23"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "e3237fb7-db7d-4843-ad64-1a128ea9f463",
+      "key": "mix-report-24"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "9f133249-b822-4878-a3e6-7fa0acbcdb35",
+      "key": "mix-report-25"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "9d689b29-3301-471b-a1c8-710c31b0fc1b",
+      "key": "mix-report-26"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "4f3d32e6-def4-4e37-ae41-b4ad3b7d6a23",
+      "key": "mix-report-27"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "3611ccde-2fdc-48ee-aa56-39b7e904f82b",
+      "key": "mix-report-28"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "b09e2ee3-52de-4ac7-ab8b-1ae32cca7dea",
+      "key": "mix-report-29"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "3abfc770-1f5e-4360-a747-cb00351f5723",
+      "key": "mix-report-30"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "a9a51327-9c27-4ce1-a932-08536c729057",
+      "key": "mix-report-31"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "4170aad9-8234-4587-a0fc-23c38a189dd7",
+      "key": "mix-report-32"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "a9f7eef3-5a5e-432e-a05e-4eb58e75a89d",
+      "key": "mix-report-33"
+    },
+    {
+      "table": "subappaltatori",
+      "id": "2352239e-3133-4df7-a724-88b865f4f84d",
+      "key": "mix-sub"
+    },
+    {
+      "table": "subappaltatori_sicurezza",
+      "id": "6339745b-8cde-4872-a4a2-f874125c14bb",
+      "key": "mix-sicurezza"
+    },
+    {
+      "table": "external_teams",
+      "id": "663b6ccb-2432-4705-a8fb-18fdca8eb169",
+      "key": "mix-team"
+    },
+    {
+      "table": "contratti_subappalto",
+      "id": "a2d4a788-8cb0-4663-a4aa-1002c8de941a",
+      "key": "mix-contract"
+    },
+    {
+      "table": "order_external_teams",
+      "id": "69a088a4-61e3-45b7-af89-ab32d5817a3a",
+      "key": "mix-assignment-2"
+    },
+    {
+      "table": "order_external_teams",
+      "id": "23f49cea-6bb2-4039-a35f-4a4e6dfc6ab2",
+      "key": "mix-assignment-5"
+    },
+    {
+      "table": "sal_subappaltatori",
+      "id": "3a62de69-9882-4ddf-a14e-5a5a4097d72f",
+      "key": "mix-sub-sal-0"
+    },
+    {
+      "table": "sal_subappaltatori",
+      "id": "180d456b-b6b2-4f91-a2f1-166031e5922a",
+      "key": "mix-sub-sal-1"
+    },
+    {
+      "table": "company_costs",
+      "id": "5699f6ac-4cef-43f1-adc9-55522479af38",
+      "key": "mix-cost-0"
+    },
+    {
+      "table": "company_costs",
+      "id": "3ad8e458-84d7-4dff-abec-54592ff69190",
+      "key": "mix-cost-1"
+    },
+    {
+      "table": "company_costs",
+      "id": "d48326e1-532d-4a62-aeee-ecb7f91999a2",
+      "key": "mix-cost-2"
+    },
+    {
+      "table": "mezzi",
+      "id": "b9a57561-48df-4474-a636-0fe11d7b93b0",
+      "key": "mix-mezzo-0"
+    },
+    {
+      "table": "mezzi_assegnazioni",
+      "id": "ca85bd36-2480-4aec-a36c-b3457f59f723",
+      "key": "mix-mezzo-ass-0"
+    },
+    {
+      "table": "mezzi",
+      "id": "9dba1ba0-a093-4536-ad78-7d8a68d20572",
+      "key": "mix-mezzo-1"
+    },
+    {
+      "table": "mezzi_assegnazioni",
+      "id": "58a65ce8-349a-456c-adb7-6b3f4910d60b",
+      "key": "mix-mezzo-ass-1"
+    },
+    {
+      "table": "order_installments",
+      "id": "40f93bd2-149a-45b9-a69d-a2d7db172b32",
+      "key": "mix-incasso-0"
+    },
+    {
+      "table": "order_installments",
+      "id": "a149ce20-530c-480b-a221-c52723ab6cc9",
+      "key": "mix-incasso-1"
+    },
+    {
+      "table": "order_installments",
+      "id": "4df1e98b-9df8-4f39-a964-c9bc9408701c",
+      "key": "mix-incasso-2"
+    },
+    {
+      "table": "sal_records",
+      "id": "3c90e9e5-9f45-4206-a349-05b5864816b0",
+      "key": "mix-sal-0"
+    },
+    {
+      "table": "sal_voci",
+      "id": "8e65b78c-5140-4d33-a776-253a4d590d68",
+      "key": "mix-sal-voce-0"
+    },
+    {
+      "table": "sal_records",
+      "id": "89c66441-33a4-48e2-a267-c38a08ce0a85",
+      "key": "mix-sal-1"
+    },
+    {
+      "table": "sal_voci",
+      "id": "207743c8-817a-4603-a6da-fb2dca24fbd5",
+      "key": "mix-sal-voce-1"
+    },
+    {
+      "table": "foto_cantiere",
+      "id": "581dad75-219a-47d9-a344-b7fcc516edfa",
+      "key": "mix-foto-prima"
+    },
+    {
+      "table": "foto_cantiere",
+      "id": "3547f3b9-b59a-4f04-a7c7-34753f1f67fc",
+      "key": "mix-foto-lavori"
+    },
+    {
+      "table": "foto_cantiere",
+      "id": "39ab88e7-c93c-491c-a500-782906162c78",
+      "key": "mix-foto-finale"
+    },
+    {
+      "table": "orders",
+      "id": "b20edd88-6b86-4024-af24-1b1b2a4b2674",
+      "key": "order-sub"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "92e06b1a-0485-466a-a9e3-d1f59ba2e644",
+      "key": "sub-phase-0"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "d729b1b4-f610-4beb-aa77-e6760ca6b985",
+      "key": "sub-phase-1"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "5abde6e5-b3c8-4194-a8f0-646af3f2ff25",
+      "key": "sub-phase-2"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "c65184c1-4937-4fea-a85c-8d30790bbfb4",
+      "key": "sub-phase-3"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "555ebe2e-e0b2-42f9-a124-69b1eb8ab7f9",
+      "key": "sub-phase-4"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "223a4328-3edf-46a0-af91-e84288a416bc",
+      "key": "sub-phase-5"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "3895c456-a212-46bf-a034-b996d8ee4b21",
+      "key": "sub-phase-6"
+    },
+    {
+      "table": "order_work_phases",
+      "id": "9f30c8b9-8953-4e64-ab3b-824e0f31bbd2",
+      "key": "sub-phase-7"
+    },
+    {
+      "table": "purchase_orders",
+      "id": "1811408f-dd1a-4b99-a88f-4ae67eff970a",
+      "key": "sub-po"
+    },
+    {
+      "table": "order_items",
+      "id": "7ef4073a-2622-4ae9-a35c-ca7ee1963f50",
+      "key": "sub-item-0"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "cc9079f4-469f-4e04-a6f1-2ef910dd6424",
+      "key": "sub-poi-0"
+    },
+    {
+      "table": "order_items",
+      "id": "6875ecc9-99db-40db-a97e-ee49c08f9b7b",
+      "key": "sub-item-1"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "5fd73523-fbe5-4c7c-ad9f-aa29d0a62710",
+      "key": "sub-poi-1"
+    },
+    {
+      "table": "order_items",
+      "id": "cc432f4b-df76-475c-afa5-504172c1aab8",
+      "key": "sub-item-2"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "4b1f674a-3a06-4e7d-a493-73725fc18d2e",
+      "key": "sub-poi-2"
+    },
+    {
+      "table": "order_items",
+      "id": "d4659e17-5883-47fc-ac7b-0f12b6c5fc98",
+      "key": "sub-item-3"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "1fa1804c-4c54-4626-a17a-210e0bda5bfe",
+      "key": "sub-poi-3"
+    },
+    {
+      "table": "order_items",
+      "id": "6a2e4474-b888-45de-a5de-56a651de8027",
+      "key": "sub-item-4"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "ec223276-287b-47a5-ab6b-50242579f08a",
+      "key": "sub-poi-4"
+    },
+    {
+      "table": "order_items",
+      "id": "ee04727a-5521-4bf9-ae9a-2d0093957672",
+      "key": "sub-item-5"
+    },
+    {
+      "table": "purchase_order_items",
+      "id": "cbac91a5-c33c-429c-aa13-88078bc14acf",
+      "key": "sub-poi-5"
+    },
+    {
+      "table": "order_items",
+      "id": "17d6f14e-3be0-4f90-a320-d49c1d4c2a43",
+      "key": "sub-cemento-item"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "90ef0fbf-0855-4c34-a68f-b223476c708d",
+      "key": "sub-report-0"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "afabf53d-663b-4b56-aaf3-9fabed4e95a3",
+      "key": "sub-report-1"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "24d1e8a9-1622-4e24-ac0f-d98f44d7f692",
+      "key": "sub-report-2"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "464a4652-56de-4b99-a0c1-e7d51c851a78",
+      "key": "sub-report-3"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "860ecc72-d9b0-4229-a677-a658c6d58edf",
+      "key": "sub-report-4"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "5f1fc8d1-1726-4b3f-a862-9f7c7fed5a28",
+      "key": "sub-report-5"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "0a7f15a4-b73f-4090-ad4e-bea807445c18",
+      "key": "sub-report-6"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "4e9ac7f0-6f39-4ef9-aeab-e2d2ccf18703",
+      "key": "sub-report-7"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "73e4eda4-1263-43c2-a91a-4899b646e283",
+      "key": "sub-report-8"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "44aa8d45-9a82-44f3-a809-fbf085c0fa32",
+      "key": "sub-report-9"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "444c2fe7-5976-4b12-a1ef-34550b4e53be",
+      "key": "sub-report-10"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "477d9e2d-80ad-47c8-a9eb-2c53b7215277",
+      "key": "sub-report-11"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "e2643d92-0b5a-4a31-aebc-2517718b6ac5",
+      "key": "sub-report-12"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "c2f8ca28-c2b2-4db2-a2dd-bba320b5ddec",
+      "key": "sub-report-13"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "b9601463-b055-43e5-a70a-201674cb820c",
+      "key": "sub-report-14"
+    },
+    {
+      "table": "campo_rapportini",
+      "id": "cce02aff-e98f-4878-aa2d-efd78ce070d9",
+      "key": "sub-report-15"
+    },
+    {
+      "table": "subappaltatori",
+      "id": "bea1a18f-71b0-4629-ac01-6f85a276b18e",
+      "key": "sub-sub"
+    },
+    {
+      "table": "subappaltatori_sicurezza",
+      "id": "7d8751f7-6029-409a-a664-e42a250c8d2b",
+      "key": "sub-sicurezza"
+    },
+    {
+      "table": "external_teams",
+      "id": "75a6ab80-0360-4981-a46c-f79b27003751",
+      "key": "sub-team"
+    },
+    {
+      "table": "contratti_subappalto",
+      "id": "20a2ad66-b600-4a04-a535-747a3338b3a7",
+      "key": "sub-contract"
+    },
+    {
+      "table": "order_external_teams",
+      "id": "41e21653-f04c-4175-af34-66e00e2cf884",
+      "key": "sub-assignment-0"
+    },
+    {
+      "table": "order_external_teams",
+      "id": "993b0ead-da7c-495e-a8e6-a155f12364c8",
+      "key": "sub-assignment-1"
+    },
+    {
+      "table": "order_external_teams",
+      "id": "d9376c7c-904c-4cef-a937-bd89e990d966",
+      "key": "sub-assignment-2"
+    },
+    {
+      "table": "order_external_teams",
+      "id": "e9267282-837c-4ee8-a3ab-eb698f243c8c",
+      "key": "sub-assignment-3"
+    },
+    {
+      "table": "order_external_teams",
+      "id": "7a6c3e83-dcdc-41c4-acd1-6366cafae826",
+      "key": "sub-assignment-4"
+    },
+    {
+      "table": "order_external_teams",
+      "id": "9c7046f8-574a-448c-ade0-06d01ea61eb8",
+      "key": "sub-assignment-5"
+    },
+    {
+      "table": "order_external_teams",
+      "id": "4596641a-a833-4789-abd4-e4d1fb753bc4",
+      "key": "sub-assignment-6"
+    },
+    {
+      "table": "order_external_teams",
+      "id": "162c0c19-fe53-46a6-a573-37ea0339c50a",
+      "key": "sub-assignment-7"
+    },
+    {
+      "table": "sal_subappaltatori",
+      "id": "3c725770-ed25-49aa-a006-7f05d9a0e7b2",
+      "key": "sub-sub-sal-0"
+    },
+    {
+      "table": "sal_subappaltatori",
+      "id": "c7755ed6-65ab-4670-aee0-8dde94f9eebb",
+      "key": "sub-sub-sal-1"
+    },
+    {
+      "table": "company_costs",
+      "id": "9509b4bf-7f0d-4b47-a2df-93617b8bfbaa",
+      "key": "sub-cost-0"
+    },
+    {
+      "table": "company_costs",
+      "id": "3556cfac-f505-46e5-a6ec-63fda8d0e5f1",
+      "key": "sub-cost-1"
+    },
+    {
+      "table": "company_costs",
+      "id": "f90a8837-8a28-4331-ad1f-3dd10189ad1d",
+      "key": "sub-cost-2"
+    },
+    {
+      "table": "mezzi",
+      "id": "de14c7cd-fdf7-4ad3-a48f-64da62b0093d",
+      "key": "sub-mezzo-0"
+    },
+    {
+      "table": "mezzi_assegnazioni",
+      "id": "07f06e0e-23f8-433c-a3be-0b5e8aef78ce",
+      "key": "sub-mezzo-ass-0"
+    },
+    {
+      "table": "mezzi",
+      "id": "05e2241a-ec5f-45da-a56d-d7ea3f7cdad5",
+      "key": "sub-mezzo-1"
+    },
+    {
+      "table": "mezzi_assegnazioni",
+      "id": "59a0a50b-9c0f-44f2-a2dd-61f5a6650b93",
+      "key": "sub-mezzo-ass-1"
+    },
+    {
+      "table": "order_installments",
+      "id": "9540521c-be4a-4b1e-a362-9bb21e45831d",
+      "key": "sub-incasso-0"
+    },
+    {
+      "table": "order_installments",
+      "id": "23887526-d67f-4d63-a167-e57f27054c6d",
+      "key": "sub-incasso-1"
+    },
+    {
+      "table": "order_installments",
+      "id": "cbe81f83-05bd-4861-af88-957065771155",
+      "key": "sub-incasso-2"
+    },
+    {
+      "table": "sal_records",
+      "id": "74e6a9f9-ee2c-405e-a8c2-efbd047af2c6",
+      "key": "sub-sal-0"
+    },
+    {
+      "table": "sal_voci",
+      "id": "b2036760-68e3-44b0-acb2-ae7b97293757",
+      "key": "sub-sal-voce-0"
+    },
+    {
+      "table": "sal_records",
+      "id": "ed17071e-230b-4040-a35b-2da88ccc9ed0",
+      "key": "sub-sal-1"
+    },
+    {
+      "table": "sal_voci",
+      "id": "e5310c98-09bd-4dc0-a8f7-7a6dd4c893c2",
+      "key": "sub-sal-voce-1"
+    },
+    {
+      "table": "foto_cantiere",
+      "id": "e08295d7-a04f-4400-a97b-9fce2f938417",
+      "key": "sub-foto-prima"
+    },
+    {
+      "table": "foto_cantiere",
+      "id": "b9dcb31e-2716-4a19-a4a6-da1c6595e04d",
+      "key": "sub-foto-lavori"
+    },
+    {
+      "table": "foto_cantiere",
+      "id": "92cfddb6-935f-426d-a4b3-2600496be916",
+      "key": "sub-foto-finale"
+    }
+  ],
+  "jobs": [
+    {
+      "key": "int",
+      "code": "DEMO-CFO-INT-01",
+      "name": "DEMO · Appartamento Aurora · solo operai interni",
+      "client": "Famiglia Aurora (fittizia)",
+      "revenue": 72000,
+      "variation": 0,
+      "workers": [
+        0,
+        1
+      ],
+      "days": 40,
+      "sub": 0,
+      "direct": 2400,
+      "goods": [
+        [
+          "Gres porcellanato 60×60 (m²)",
+          110,
+          32,
+          4
+        ],
+        [
+          "Finestre PVC complete (pz)",
+          5,
+          920,
+          5
+        ],
+        [
+          "Porte interne (pz)",
+          6,
+          280,
+          5
+        ],
+        [
+          "Sanitari e rubinetterie (kit)",
+          2,
+          1450,
+          5
+        ],
+        [
+          "Materiale elettrico (kit)",
+          1,
+          2600,
+          2
+        ],
+        [
+          "Tubazioni e collettori (kit)",
+          1,
+          2100,
+          2
+        ],
+        [
+          "Lastre e profili cartongesso (kit)",
+          1,
+          1850,
+          1
+        ],
+        [
+          "Pittura lavabile (secchio)",
+          12,
+          65,
+          6
+        ]
+      ],
+      "id": "1778464d-0839-4011-a3f8-d267f7c9120f",
+      "phases": [
+        "e132669a-4446-4dc7-a999-371793a983ac",
+        "8811031d-0b6e-4e16-ac62-3aab8ae89e96",
+        "fb5fff93-3258-4ddd-a4e7-737c773cefc1",
+        "9f6866cb-592c-40b5-ab6d-ba3235623aa9",
+        "039ed966-2e45-4ce6-aebe-fecc1d8e70ed",
+        "686c4e45-2ce0-452a-a91b-ac2ab6f572fb",
+        "9820e15a-000c-4ce4-a678-75157cac3ccd",
+        "7bf05aaa-20de-4e2f-a7d7-e155bc226b09"
+      ],
+      "expected": {
+        "revenue": 72000,
+        "purchase": 20030,
+        "labor": 16640,
+        "sub": 0,
+        "materials": 525,
+        "direct": 2400,
+        "hours": 640,
+        "consuntivo": 39595,
+        "stockOut": 80,
+        "stockReturn": 10,
+        "margin": 32405
+      }
+    },
+    {
+      "key": "mix",
+      "code": "DEMO-CFO-MIX-02",
+      "name": "DEMO · Casa Betulla · interni e subappalti",
+      "client": "Famiglia Betulla (fittizia)",
+      "revenue": 86000,
+      "variation": 3500,
+      "workers": [
+        2
+      ],
+      "days": 34,
+      "sub": 23000,
+      "direct": 2850,
+      "goods": [
+        [
+          "Gres bagno e cucina (m²)",
+          120,
+          38,
+          4
+        ],
+        [
+          "Doccia filo pavimento (kit)",
+          2,
+          1350,
+          5
+        ],
+        [
+          "Mobili lavabo (pz)",
+          2,
+          980,
+          5
+        ],
+        [
+          "Sanitari sospesi (coppia)",
+          2,
+          780,
+          5
+        ],
+        [
+          "Finestre PVC (pz)",
+          6,
+          890,
+          5
+        ],
+        [
+          "Porte interne (pz)",
+          5,
+          310,
+          5
+        ],
+        [
+          "Collettori e tubazioni (kit)",
+          1,
+          2800,
+          2
+        ],
+        [
+          "Quadro e frutti elettrici (kit)",
+          1,
+          3200,
+          2
+        ],
+        [
+          "Pittura (secchio)",
+          10,
+          72,
+          6
+        ]
+      ],
+      "id": "d1d16e2e-437a-42eb-a7a0-60c38c22dfbe",
+      "phases": [
+        "7f238543-5816-4e1b-a25b-445cbe43608d",
+        "9e96fcb3-b5fd-40a2-adc4-420e72e87169",
+        "acb3085c-feae-4e5b-a99c-789ab83a2001",
+        "be432039-3e7a-40ed-a6d2-a2a1dd0c5a9a",
+        "1f7b267b-b7c3-4944-a1b1-7e2df100e90f",
+        "28f23393-92b9-45ef-a3af-384ea94751a5",
+        "f6b7b3da-0fb7-412a-abf2-c2cb125ed37a",
+        "3564835a-a801-4990-ac4a-b4a6bca6dad4"
+      ],
+      "expected": {
+        "revenue": 89500,
+        "purchase": 24390,
+        "labor": 8160,
+        "sub": 23000,
+        "materials": 337.5,
+        "direct": 2850,
+        "hours": 272,
+        "consuntivo": 58737.5,
+        "stockOut": 50,
+        "stockReturn": 5,
+        "margin": 30762.5
+      }
+    },
+    {
+      "key": "sub",
+      "code": "DEMO-CFO-SUB-03",
+      "name": "DEMO · Ufficio Cedro · solo subappalti",
+      "client": "Studio Cedro (fittizio)",
+      "revenue": 105000,
+      "variation": 0,
+      "workers": [],
+      "days": 16,
+      "sub": 50500,
+      "direct": 3500,
+      "goods": [
+        [
+          "Pavimento gres ufficio (m²)",
+          160,
+          30,
+          4
+        ],
+        [
+          "Pareti vetrate (modulo)",
+          6,
+          850,
+          1
+        ],
+        [
+          "Porte ufficio (pz)",
+          6,
+          390,
+          5
+        ],
+        [
+          "Corpi illuminanti LED (pz)",
+          24,
+          95,
+          2
+        ],
+        [
+          "Controsoffitto (m²)",
+          120,
+          22,
+          1
+        ],
+        [
+          "Pittura ufficio (secchio)",
+          10,
+          60,
+          6
+        ]
+      ],
+      "id": "b20edd88-6b86-4024-af24-1b1b2a4b2674",
+      "phases": [
+        "92e06b1a-0485-466a-a9e3-d1f59ba2e644",
+        "d729b1b4-f610-4beb-aa77-e6760ca6b985",
+        "5abde6e5-b3c8-4194-a8f0-646af3f2ff25",
+        "c65184c1-4937-4fea-a85c-8d30790bbfb4",
+        "555ebe2e-e0b2-42f9-a124-69b1eb8ab7f9",
+        "223a4328-3edf-46a0-af91-e84288a416bc",
+        "3895c456-a212-46bf-a034-b996d8ee4b21",
+        "9f30c8b9-8953-4e64-ab3b-824e0f31bbd2"
+      ],
+      "expected": {
+        "revenue": 105000,
+        "purchase": 17760,
+        "labor": 0,
+        "sub": 50500,
+        "materials": 225,
+        "direct": 3500,
+        "hours": 0,
+        "consuntivo": 71985,
+        "stockOut": 30,
+        "stockReturn": 0,
+        "margin": 33015
+      }
+    }
+  ]
+}

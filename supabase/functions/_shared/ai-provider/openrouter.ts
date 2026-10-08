@@ -3,6 +3,7 @@
 
 import { makeAIError, type AIProviderError } from "./types.ts";
 import { segnalaErroreAI } from "../allarmeAI.ts";
+import { AiTurnLimitError, type AiTurnControl } from "../aiTurnControl.ts";
 
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_TIMEOUT_MS = 25_000;
@@ -16,6 +17,7 @@ interface OpenRouterParams {
   temperature?: number;
   max_tokens?: number;
   response_format?: { type: "json_object" };
+  session_id?: string;
 }
 
 export interface OpenRouterResult {
@@ -39,11 +41,12 @@ export interface OpenRouterResult {
 
 export async function callOpenRouter(
   params: OpenRouterParams,
-  metadata: { task_kind: string; company_id?: string | null },
+  metadata: { task_kind: string; company_id?: string | null; turnControl?: AiTurnControl },
 ): Promise<OpenRouterResult> {
   try {
     return await chiamaOpenRouter(params, metadata);
   } catch (e) {
+    if (e instanceof AiTurnLimitError) throw e;
     // Credito finito (402), chiave rifiutata (401), tetto della chiave: si
     // segnala QUI, dove nasce l'errore, per tutte le funzioni che passano da
     // questo client — anche quelle che lo chiamano senza la catena di ripiego
@@ -60,7 +63,7 @@ export async function callOpenRouter(
 
 async function chiamaOpenRouter(
   params: OpenRouterParams,
-  metadata: { task_kind: string; company_id?: string | null },
+  metadata: { task_kind: string; company_id?: string | null; turnControl?: AiTurnControl },
 ): Promise<OpenRouterResult> {
   const apiKey = Deno.env.get("OPENROUTER_API_KEY");
   if (!apiKey) {
@@ -79,8 +82,10 @@ async function chiamaOpenRouter(
   let lastError: AIProviderError | null = null;
 
   for (let attempt = 0; attempt <= DEFAULT_RETRIES; attempt++) {
+    const attemptId = metadata.turnControl?.beginAttempt(JSON.stringify([params.messages, params.tools ?? []]).length, params.max_tokens ?? 1500);
+    const timeoutMs = Math.min(DEFAULT_TIMEOUT_MS, metadata.turnControl?.remainingMs() ?? DEFAULT_TIMEOUT_MS);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const startMs = Date.now();
 
     try {
@@ -101,10 +106,6 @@ async function chiamaOpenRouter(
         body: JSON.stringify({ ...params, usage: { include: true } }),
         signal: controller.signal,
       });
-      clearTimeout(timeoutId);
-
-      const latencyMs = Date.now() - startMs;
-
       if (resp.status === 429) {
         const body = await safeRead(resp);
         lastError = makeAIError(
@@ -123,16 +124,16 @@ async function chiamaOpenRouter(
       if (resp.status >= 500) {
         const body = await safeRead(resp);
         lastError = makeAIError(
-          "unknown",
+          "provider_outcome_unknown",
           `OpenRouter ${resp.status}: ${body}`,
-          true,
+          false,
           resp.status,
         );
-        if (attempt < DEFAULT_RETRIES) {
-          await sleep(backoff[attempt] ?? 2000);
-          continue;
-        }
         throw lastError;
+      }
+
+      if (resp.status === 402) {
+        throw makeAIError("provider_credits_exhausted", "OpenRouter credit unavailable", false, 402);
       }
 
       if (resp.status === 401 || resp.status === 403) {
@@ -167,6 +168,7 @@ async function chiamaOpenRouter(
       }
 
       const json = (await resp.json()) as {
+        error?: { code?: number | string; message?: string };
         id?: string;
         choices?: Array<{
           message?: {
@@ -184,6 +186,14 @@ async function chiamaOpenRouter(
           cost?: number;
         };
       };
+
+      if (json.error) {
+        const code = Number(json.error.code);
+        throw makeAIError(code === 402 ? "provider_credits_exhausted" : "provider_outcome_unknown",
+          "OpenRouter returned an error body", false, Number.isFinite(code) ? code : undefined);
+      }
+
+      if (attemptId !== undefined) metadata.turnControl!.recordUsage(attemptId, json.usage);
 
       const choice = json.choices?.[0];
       if (!choice) {
@@ -205,6 +215,11 @@ async function chiamaOpenRouter(
         ? costoHeader
         : null;
       const costIsEstimated = costoVero === null;
+      // Nessun costo noto e nessun conteggio utilizzabile ≠ chiamata gratuita.
+      if (costIsEstimated && ![json.usage?.prompt_tokens, json.usage?.completion_tokens]
+        .every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0)) {
+        throw makeAIError("cost_unavailable", "Provider cost and token usage unavailable", false);
+      }
       const costUsd = costoVero ?? estimateCost(json.usage ?? null, params.model);
 
       if (costIsEstimated) {
@@ -230,35 +245,31 @@ async function chiamaOpenRouter(
         cost_is_estimated: costIsEstimated,
         generation_id: typeof json.id === "string" ? json.id : null,
         finish_reason: choice.finish_reason ?? "stop",
-        latency_ms: latencyMs,
+        latency_ms: Date.now() - startMs,
       };
     } catch (e) {
       clearTimeout(timeoutId);
       const err = e as AIProviderError;
-      if (err?.code) throw err;
+      // DOMException AbortError ha anch'essa un code numerico (20).
+      if (typeof err?.code === "string") throw err;
       const asError = e as Error;
       if (asError.name === "AbortError") {
         lastError = makeAIError(
           "timeout",
-          `Timeout dopo ${DEFAULT_TIMEOUT_MS}ms`,
-          true,
+          `Timeout dopo ${timeoutMs}ms`,
+          false,
         );
-        if (attempt < DEFAULT_RETRIES) {
-          await sleep(backoff[attempt] ?? 2000);
-          continue;
-        }
         throw lastError;
       }
       lastError = makeAIError(
-        "unknown",
+        "provider_outcome_unknown",
         String(asError.message ?? e),
-        true,
+        false,
       );
-      if (attempt < DEFAULT_RETRIES) {
-        await sleep(backoff[attempt] ?? 2000);
-        continue;
-      }
       throw lastError;
+    } finally {
+      // Il limite copre anche la lettura del corpo, non solo gli header HTTP.
+      clearTimeout(timeoutId);
     }
   }
 

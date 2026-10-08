@@ -1,13 +1,14 @@
 /**
  * SilvioActionProposals — Lista bozze azioni Silvio in attesa di conferma.
  *
- * Mostra ai_action_proposals con status='pending', con bottoni:
+ * Mostra proposte pending e azioni confirmed in verifica, senza reinviare queste ultime.
+ * Per le proposte ancora eseguibili:
  *   - Conferma e applica → invoca silvio-execute-action edge function
  *   - Modifica payload → apre dialog editor
  *   - Rifiuta → invoca RPC auditata
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,6 +27,10 @@ import {
   Sparkles, CheckCircle2, X, Pencil, Mail, Wallet, Package, Send, Loader2, Clock, ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { readSilvioActionOutcome, type SilvioActionOutcome } from "@/lib/silvio/actionOutcome";
+import { SilvioActionVerification } from "./SilvioActionVerification";
+import { SilvioActionSummary } from "./SilvioActionSummary";
+import { SilvioCompletedActions } from "./SilvioCompletedActions";
 
 interface Proposal {
   id: string;
@@ -123,29 +128,57 @@ function sanitizePayloadForDisplay(value: unknown): unknown {
 }
 
 export function SilvioActionProposals({ compact = false }: { compact?: boolean }) {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
+  const userId = user?.id;
   const qc = useQueryClient();
   const [editing, setEditing] = useState<Proposal | null>(null);
   const [confirming, setConfirming] = useState<Proposal | null>(null);
+  const executionLock = useRef(false);
+  const [reviews, setReviews] = useState<Record<string, string>>({});
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+  const reviewKey = (id: string) => `${companyId}:${userId}:${id}`;
+  const rememberReview = (id: string, outcome: SilvioActionOutcome) => {
+    if (outcome.kind === "review") setReviews(previous => ({ ...previous, [reviewKey(id)]: outcome.message }));
+  };
+  const refreshActions = () => {
+    qc.invalidateQueries({ queryKey: ["silvio_completed_actions"] });
+    qc.invalidateQueries({ queryKey: ["silvio-proposals-count"] });
+    qc.invalidateQueries({ queryKey: ["silvio_action_proposals_pending"] });
+    qc.invalidateQueries({ queryKey: ["silvio_alerts_open"] });
+    qc.invalidateQueries({ queryKey: ["silvio_alerts_stats"] });
+  };
+  const invokeAction = async (body: Record<string, unknown>) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("silvio-execute-action", { body });
+      return await readSilvioActionOutcome(data, error);
+    } catch (error) {
+      return await readSilvioActionOutcome(null, error);
+    }
+  };
 
-  const { data: proposals, isLoading } = useQuery({
-    queryKey: ["silvio_action_proposals_pending", companyId],
+  const { data: proposals, isLoading, isError, refetch } = useQuery({
+    queryKey: ["silvio_action_proposals_pending", companyId, userId],
     queryFn: async () => {
-      if (!companyId) return [];
+      if (!companyId || !userId) return [];
       // FIX TENANT ISOLATION: filtro company_id esplicito (super_admin RLS
       // bypass + get_my_company_id non rispetta impersonation).
       const { data, error } = await supabase
         .from("ai_action_proposals" as never)
         .select("id, action_type, summary, payload, status, risk_level, expires_at, created_at")
         .eq("company_id", companyId)
-        .eq("status", "pending")
+        .eq("user_id", userId)
+        .in("status", ["pending", "confirmed"])
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;
       return (data ?? []) as unknown as Proposal[];
     },
-    enabled: !!companyId,
+    enabled: !!companyId && !!userId,
     staleTime: 30_000,
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
@@ -178,36 +211,24 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
       overridePayload?: Record<string, unknown>;
       confirmationText?: string;
     }) => {
-      const { data, error } = await supabase.functions.invoke("silvio-execute-action", {
-        body: { proposal_id: proposalId, override_payload: overridePayload, confirmation_text: confirmationText },
-      });
-      if (error) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ctx = (error as any).context;
-        if (ctx) {
-          try {
-            const body = await ctx.json?.();
-            throw new Error(body?.error ?? body?.message ?? error.message);
-          } catch (parseErr) {
-            if (parseErr instanceof Error) throw parseErr;
-          }
-        }
-        throw new Error(error.message);
-      }
-      return data;
+      if (executionLock.current) throw new Error("Attendi la conclusione dell'azione in corso.");
+      executionLock.current = true;
+      try {
+        const outcome = await invokeAction({ proposal_id: proposalId, override_payload: overridePayload, confirmation_text: confirmationText });
+        rememberReview(proposalId, outcome);
+        return outcome;
+      } finally { executionLock.current = false; }
     },
     onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ["silvio_action_proposals_pending"] });
-      qc.invalidateQueries({ queryKey: ["silvio_alerts_open"] });
-      qc.invalidateQueries({ queryKey: ["silvio_alerts_stats"] });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const r = result as any;
-      if (r?.ok) toast.success(`✅ ${r.message}`);
-      else toast.error(`❌ ${r?.message ?? "Esecuzione fallita"}`);
+      refreshActions();
+      if (result.kind === "applied") toast.success(result.message);
+      else if (result.kind === "review") toast.warning(result.message);
+      else toast.error(result.message);
       setEditing(null);
       setConfirming(null);
     },
-    onError: (e: Error) => toast.error(`Errore: ${e.message}`),
+    onError: (e: Error) => toast.error(e.message),
+    onSettled: refreshActions,
   });
 
   // MP-SILVIO-BRIEF-ACTIONABLE-01 — «Approva tutte»: esegue in sequenza le proposte
@@ -216,32 +237,36 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
   // reale è N invocazioni di silvio-execute-action, come fa il bottone Conferma.
   const approveAllMut = useMutation({
     mutationFn: async (batch: Proposal[]) => {
+      if (executionLock.current) throw new Error("Attendi la conclusione dell'azione in corso.");
+      executionLock.current = true;
       let ok = 0;
       let failed = 0;
-      for (const p of batch) {
-        const { data, error } = await supabase.functions.invoke("silvio-execute-action", {
-          body: { proposal_id: p.id },
-        });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const r = data as any;
-        if (error || r?.ok === false) failed++;
-        else ok++;
-      }
-      return { ok, failed };
+      let review = 0;
+      try {
+        for (const p of batch) {
+          const outcome = await invokeAction({ proposal_id: p.id });
+          rememberReview(p.id, outcome);
+          if (outcome.kind === "applied") ok++;
+          else if (outcome.kind === "rejected") failed++;
+          else { review++; break; } // Do not continue blindly after losing acknowledgement.
+        }
+        return { ok, failed, review, remaining: batch.length - ok - failed - review };
+      } finally { executionLock.current = false; }
     },
-    onSuccess: ({ ok, failed }) => {
-      qc.invalidateQueries({ queryKey: ["silvio_action_proposals_pending"] });
-      qc.invalidateQueries({ queryKey: ["silvio_alerts_open"] });
-      qc.invalidateQueries({ queryKey: ["silvio_alerts_stats"] });
-      if (failed === 0) toast.success(`✅ ${ok} ${ok === 1 ? "azione applicata" : "azioni applicate"}`);
-      else toast.warning(`Applicate ${ok}, fallite ${failed}. Controlla le rimaste.`);
+    onSuccess: ({ ok, failed, review, remaining }) => {
+      if (review) toast.warning(`Applicate ${ok}, non applicate ${failed}, da verificare ${review}. ${remaining} non avviate. Controlla il risultato prima di proseguire.`);
+      else if (failed === 0) toast.success(`${ok} ${ok === 1 ? "azione applicata" : "azioni applicate"}`);
+      else toast.warning(`Applicate ${ok}, non applicate ${failed}. Controlla le rimaste.`);
     },
     onError: (e: Error) => toast.error(`Errore batch: ${e.message}`),
+    onSettled: refreshActions,
   });
 
   // Proposte approvabili in blocco: escluse quelle a conferma forte (red / mark_payment / generic_email)
-  const batchEligible = (proposals ?? []).filter((p) => !requiresStrongConfirmation(p));
+  const isExecutable = (p: Proposal) => p.status === "pending" && !reviews[reviewKey(p.id)] && new Date(p.expires_at).getTime() > now;
+  const batchEligible = (proposals ?? []).filter((p) => isExecutable(p) && !requiresStrongConfirmation(p));
   const bulkRunning = approveAllMut.isPending;
+  const anyRunning = bulkRunning || executeMut.isPending || dismissMut.isPending;
 
   if (isLoading) {
     return (
@@ -252,7 +277,13 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
     );
   }
 
-  if (!proposals || proposals.length === 0) return null;
+  if (isError) return <div role="alert" className="rounded-lg border p-3 text-sm">Impossibile verificare lo stato delle azioni. Non ripeterle senza controllare il risultato.<Button variant="outline" size="sm" onClick={() => refetch()}>Riprova caricamento</Button></div>;
+  const reviewMessages = Object.entries(reviews).filter(([key]) => key.startsWith(`${companyId}:${userId}:`));
+  const checks = new Map(reviewMessages.map(([key, warning]) => [key.split(":").pop()!, warning]));
+  for (const p of proposals ?? []) {
+    if (p.status === "confirmed" && !checks.has(p.id)) checks.set(p.id, "Esito non ancora registrato: controlla lo stato senza ripetere l’azione.");
+  }
+  if ((!proposals || proposals.length === 0) && reviewMessages.length === 0) return <SilvioCompletedActions companyId={companyId} userId={userId} />;
 
   return (
     <>
@@ -263,7 +294,7 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
             Azioni proposte da Silvio
           </CardTitle>
           <CardDescription className="text-xs">
-            {proposals.length} {proposals.length === 1 ? "bozza" : "bozze"} in attesa di conferma. Verifica e applica.
+            Verifica le proposte prima di applicarle. Le azioni già avviate non possono essere reinviate.
           </CardDescription>
           {batchEligible.length >= 2 && (
             <Button
@@ -271,7 +302,7 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
               variant="outline"
               className="mt-2 h-8 w-full gap-1.5 border-orange-300 text-xs font-semibold text-orange-700 hover:bg-orange-100"
               onClick={() => approveAllMut.mutate(batchEligible)}
-              disabled={bulkRunning}
+              disabled={anyRunning}
             >
               {bulkRunning
                 ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Applico {batchEligible.length}…</>
@@ -280,10 +311,16 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
           )}
         </CardHeader>
         <CardContent className={cn("space-y-2", compact && "px-3 pb-3")}>
-          {proposals.map(p => (
+          {companyId && userId && [...checks].map(([id, warning]) => <SilvioActionVerification
+            key={reviewKey(id)} companyId={companyId} userId={userId} proposalId={id}
+            summary={(proposals ?? []).find(p => p.id === id)?.summary ?? `Verifica azione ${id.slice(0, 8)}`}
+            warning={warning} onCheck={() => setReviews(previous => ({ ...previous, [reviewKey(id)]: warning }))}
+          />)}
+          {(proposals ?? []).map(p => (
             <ProposalRow
               key={p.id}
               proposal={p}
+              now={now}
               onConfirm={() => {
                 if (requiresStrongConfirmation(p)) {
                   setConfirming(p);
@@ -295,12 +332,14 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
               onDismiss={() => dismissMut.mutate(p.id)}
               isApplying={executeMut.isPending && executeMut.variables?.proposalId === p.id}
               isDismissing={dismissMut.isPending && dismissMut.variables === p.id}
-              disabled={bulkRunning}
+              disabled={anyRunning || p.status !== "pending" || !!reviews[reviewKey(p.id)]}
               compact={compact}
             />
           ))}
         </CardContent>
       </Card>
+
+      <SilvioCompletedActions companyId={companyId} userId={userId} />
 
       {editing && (
         <ProposalEditDialog
@@ -333,9 +372,10 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
 // ════════════════════════════════════════════════════════════════════════════
 
 function ProposalRow({
-  proposal, onConfirm, onEdit, onDismiss, isApplying, isDismissing, disabled = false, compact,
+  proposal, now, onConfirm, onEdit, onDismiss, isApplying, isDismissing, disabled = false, compact,
 }: {
   proposal: Proposal;
+  now: number;
   onConfirm: () => void;
   onEdit: () => void;
   onDismiss: () => void;
@@ -348,7 +388,9 @@ function ProposalRow({
   const label = ACTION_LABEL[proposal.action_type] ?? proposal.action_type;
   const isHighRisk = proposal.risk_level === "red";
   const needsStrongConfirmation = requiresStrongConfirmation(proposal);
-  const expiresIn = Math.max(0, Math.floor((new Date(proposal.expires_at).getTime() - Date.now()) / (1000 * 60 * 60)));
+  const expiry = new Date(proposal.expires_at).getTime();
+  const expired = !Number.isFinite(expiry) || expiry <= now;
+  const expiresIn = Math.max(0, Math.ceil((expiry - now) / (1000 * 60 * 60)));
   const actionPayload = getActionPayload(proposal.payload);
 
   const recipient =
@@ -367,7 +409,7 @@ function ProposalRow({
             <div className="text-sm font-medium leading-tight">{label}</div>
             {isHighRisk && <Badge variant="destructive" className="text-[10px]">RISCHIO ALTO</Badge>}
           </div>
-          <p className={cn("text-xs text-muted-foreground mt-0.5", compact ? "line-clamp-1" : "line-clamp-2")}>{proposal.summary}</p>
+          <p className="mt-0.5 break-words text-xs leading-relaxed text-muted-foreground">{proposal.summary}</p>
           {needsStrongConfirmation && (
             <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-800">
               Richiede conferma forte prima dell'esecuzione.
@@ -379,15 +421,16 @@ function ProposalRow({
             </p>
           )}
           <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-            <Clock className="h-2.5 w-2.5" /> Scade in {expiresIn}h
+            <Clock className="h-2.5 w-2.5" /> {proposal.status === "confirmed" ? "Azione già avviata. Verifica il risultato prima di ripeterla." : expired ? "Proposta scaduta" : `Scade in ${expiresIn}h`}
           </p>
         </div>
       </div>
+      <SilvioActionSummary payload={proposal.payload} actionType={proposal.action_type} />
       <div className={cn("gap-1.5 pt-1", compact ? "grid grid-cols-[1fr_auto_auto]" : "flex flex-wrap")}>
         <Button
-          size="sm" className={cn("h-7 px-2 text-xs gap-1", compact && "min-w-0")}
+          size="sm" className={cn("min-h-9 h-auto whitespace-normal px-2 py-1.5 text-xs gap-1", compact && "min-w-0")}
           onClick={onConfirm}
-          disabled={isApplying || isDismissing || disabled}
+          disabled={isApplying || isDismissing || disabled || expired}
         >
           {isApplying
             ? <><Loader2 className="h-3 w-3 animate-spin" /> Applico…</>
@@ -395,14 +438,14 @@ function ProposalRow({
           }
         </Button>
         <Button
-          size="sm" variant={compact ? "ghost" : "outline"} className="h-7 px-2 text-xs gap-1"
+          size="sm" variant={compact ? "ghost" : "outline"} className="min-h-9 px-2 text-xs gap-1"
           onClick={onEdit}
-          disabled={isApplying || isDismissing || disabled}
+          disabled={isApplying || isDismissing || disabled || expired}
         >
           <Pencil className="h-3 w-3" /> <span className={cn(compact && "sr-only")}>Modifica</span>
         </Button>
         <Button
-          size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1 text-rose-600 hover:bg-rose-50"
+          size="sm" variant="ghost" className="min-h-9 px-2 text-xs gap-1 text-rose-600 hover:bg-rose-50"
           onClick={onDismiss}
           disabled={isApplying || isDismissing || disabled}
         >
@@ -455,7 +498,7 @@ function ProposalEditDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Modifica proposta</DialogTitle>
           <DialogDescription>
@@ -542,18 +585,20 @@ function StrongConfirmDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Conferma forte richiesta</DialogTitle>
           <DialogDescription>
             {label}: {proposal.summary}
           </DialogDescription>
         </DialogHeader>
+        <SilvioActionSummary payload={proposal.payload} actionType={proposal.action_type} />
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           Questa azione modifica dati economici o invia comunicazioni esterne. Scrivi esattamente:
           <div className="mt-2 rounded bg-white px-2 py-1 font-mono text-xs">{expected}</div>
         </div>
         <Input
+          aria-label="Testo di conferma dell’azione"
           value={confirmation}
           onChange={(e) => setConfirmation(e.target.value)}
           placeholder={expected}

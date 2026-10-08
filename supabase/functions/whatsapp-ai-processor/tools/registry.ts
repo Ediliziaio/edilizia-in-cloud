@@ -1,7 +1,7 @@
 // MP02 — Tool Registry centrale.
 // Filter per role_grants + conversione a spec OpenAI + lookup per name.
 
-import type { ToolDef } from "./shared/types.ts";
+import { errResult, type ToolDef } from "./shared/types.ts";
 
 // Operaio
 import { creaRapportino, creaRapportinoDef } from "./operaio/crea_rapportino.ts";
@@ -60,6 +60,11 @@ import {
 import { inviaPdfPreventivo, inviaPdfPreventivoDef } from "./ufficio/invia_pdf_preventivo.ts";
 import { inviaPreventivoBagno, inviaPreventivoBagnoDef } from "./ufficio/invia_preventivo_bagno.ts";
 import { creaPreventivoAi, creaPreventivoAiDef } from "./ufficio/crea_preventivo_ai.ts";
+import { salvaPreventivoBozza, salvaPreventivoBozzaDef } from "./ufficio/salva_preventivo_bozza.ts";
+import { verificaModelloPreventivo, verificaModelloPreventivoDef } from "./ufficio/verifica_modello_preventivo.ts";
+import { generaPdfModelloBagno, generaPdfModelloBagnoDef } from "./ufficio/genera_pdf_modello_bagno.ts";
+import { inviaPdfModelloBagno, inviaPdfModelloBagnoDef } from "./ufficio/invia_pdf_modello_bagno.ts";
+import { preparaPreventivoModello, preparaPreventivoModelloDef } from "./ufficio/prepara_preventivo_modello.ts";
 
 // Shared (cross-ruolo)
 import { chiediConferma, chiediConfermaDef } from "./shared/chiedi_conferma.ts";
@@ -71,10 +76,20 @@ export const TOOLS_REGISTRY: ToolDef[] = [
   // Operaio (8)
   { ...creaRapportinoDef, handler: creaRapportino as ToolDef["handler"] },
   { ...aggiungiAttivitaRapportinoDef, handler: aggiungiAttivitaRapportino as ToolDef["handler"] },
-  { ...caricaDDTDef, handler: caricaDDT as ToolDef["handler"] },
+  { ...caricaDDTDef, handler: async (ctx, args) => {
+    if (typeof args.numero_ddt !== "string" || typeof args.fornitore !== "string") return errResult("invalid_args", "Indica numero DDT e fornitore.");
+    return await caricaDDT(ctx, { ...args, numero_ddt: args.numero_ddt, fornitore: args.fornitore });
+  } },
   { ...caricaFotoCantiereDef, handler: caricaFotoCantiere as ToolDef["handler"] },
-  { ...registraPresenzaDef, handler: registraPresenza as ToolDef["handler"] },
-  { ...creaSegnalazioneDef, handler: creaSegnalazione as ToolDef["handler"] },
+  { ...registraPresenzaDef, handler: async (ctx, args) => {
+    const tipo = args.tipo;
+    if (tipo !== "entrata" && tipo !== "uscita" && tipo !== "inizio_pausa" && tipo !== "fine_pausa") return errResult("invalid_args", "Indica entrata, uscita o pausa.");
+    return await registraPresenza(ctx, { ...args, tipo });
+  } },
+  { ...creaSegnalazioneDef, handler: async (ctx, args) => {
+    if (typeof args.descrizione !== "string") return errResult("invalid_args", "Descrivi il problema.");
+    return await creaSegnalazione(ctx, { ...args, descrizione: args.descrizione });
+  } },
   { ...elencaMieiCantieriOggiDef, handler: elencaMieiCantieriOggi as ToolDef["handler"] },
   { ...impostaCantiereCorrenteDef, handler: impostaCantiereCorrente as ToolDef["handler"] },
   { ...caricaScontrinoDef, handler: caricaScontrino as ToolDef["handler"] },
@@ -85,13 +100,22 @@ export const TOOLS_REGISTRY: ToolDef[] = [
   { ...scadenzeFattureDef, handler: scadenzeFatture as ToolDef["handler"] },
   { ...costiMeseDef, handler: costiMese as ToolDef["handler"] },
   { ...listaApprovazioniDef, handler: listaApprovazioni as ToolDef["handler"] },
-  { ...approvaRichiestaDef, handler: approvaRichiesta as ToolDef["handler"] },
+  { ...approvaRichiestaDef, handler: async (ctx, args) => {
+    const esito = args.esito;
+    if (typeof args.richiesta_id !== "string" || (esito !== "approvata" && esito !== "rifiutata")) return errResult("invalid_args", "Indica la richiesta e se approvarla o rifiutarla.");
+    return await approvaRichiesta(ctx, { ...args, richiesta_id: args.richiesta_id, esito });
+  } },
   { ...scostamentiCommesseDef, handler: scostamentiCommesse as ToolDef["handler"] },
 
   // Ufficio e amministratore (3)
   { ...inviaPdfPreventivoDef, handler: inviaPdfPreventivo as ToolDef["handler"] },
   { ...inviaPreventivoBagnoDef, handler: inviaPreventivoBagno as ToolDef["handler"] },
   { ...creaPreventivoAiDef, handler: creaPreventivoAi as ToolDef["handler"] },
+  { ...salvaPreventivoBozzaDef, handler: salvaPreventivoBozza },
+  { ...verificaModelloPreventivoDef, handler: verificaModelloPreventivo },
+  { ...generaPdfModelloBagnoDef, handler: generaPdfModelloBagno },
+  { ...inviaPdfModelloBagnoDef, handler: inviaPdfModelloBagno },
+  { ...preparaPreventivoModelloDef, handler: preparaPreventivoModello },
 ];
 
 /** Filtra tool disponibili in base ai grants dell'utente. */

@@ -20,11 +20,12 @@ describe("scelta del modello e dei token per turno", () => {
       expect(p.maxTokens).toBeGreaterThanOrEqual(2000);
     }
   });
-  it("l'ufficio resta economico solo sulle azioni semplici e sicure", () => {
+  it("l'ufficio resta economico sulle azioni semplici ma mantiene gli strumenti", () => {
     for (const i of ["ddt", "conferma", "presenze", "foto_cantiere", "annulla"]) {
       const p = pianoModello("ufficio", i);
       expect(p.taskKind).toBe("bot_operativo_operaio");
-      expect(p.usaSilvio).toBe(false);
+      expect(p.usaSilvio).toBe(true);
+      expect(p.approfondito).toBe(false);
     }
   });
   it("l'ufficio con domanda/rapportino/segnalazione/unknown va sul forte con Silvio", () => {

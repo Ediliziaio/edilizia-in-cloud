@@ -37,6 +37,8 @@ import {
   type WANumber,
 } from "@/hooks/whatsapp/useWhatsAppNumbers";
 import CarichiDaRegistrareCard from "./CarichiDaRegistrareCard";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { WhatsAppOperationsReview } from "@/components/whatsapp/WhatsAppOperationsReview";
 
 type OrderMini = { order_code?: string | null; description?: string | null };
 
@@ -66,6 +68,7 @@ type OperationalReport = {
 };
 
 type OperationalMessage = {
+  metadata: Json | null;
   ai_confidence: number | null;
   ai_extracted_data: Json | null;
   ai_intent: string | null;
@@ -194,7 +197,7 @@ export default function OperationalControlPage() {
         : withClientTimeout(
           supabase
             .from("whatsapp_messages")
-            .select("id, created_at, from_phone, message_type, content_text, processing_status, processing_error, wa_number_id, ai_intent, ai_confidence, ai_extracted_data, linked_record_type, linked_record_id, cantiere_id")
+            .select("id, metadata, created_at, from_phone, message_type, content_text, processing_status, processing_error, wa_number_id, ai_intent, ai_confidence, ai_extracted_data, linked_record_type, linked_record_id, cantiere_id")
             .eq("company_id", companyId!)
             .eq("direction", "inbound")
             .in("wa_number_id", operativeNumberIds)
@@ -247,6 +250,7 @@ export default function OperationalControlPage() {
       const { error } = await supabase
         .from("cantiere_segnalazioni")
         .update({ stato: "risolto", resolved_at: new Date().toISOString() })
+        .eq("company_id", companyId!)
         .eq("id", id);
       if (error) throw error;
     },
@@ -262,6 +266,7 @@ export default function OperationalControlPage() {
       const { error } = await supabase
         .from("campo_rapportini")
         .update({ stato: "approvato", approvato: true, approvato_at: new Date().toISOString() })
+        .eq("company_id", companyId!)
         .eq("id", id);
       if (error) throw error;
     },
@@ -274,19 +279,13 @@ export default function OperationalControlPage() {
 
   const markMessageReviewed = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("whatsapp_messages")
-        .update({
-          processing_status: "processed",
-          processing_error: null,
-          processed_at: new Date().toISOString(),
-        })
-        .eq("id", id);
+      const { data, error } = await (supabase as unknown as SupabaseClient).rpc("whatsapp_message_review", { p_company: companyId!, p_message: id });
       if (error) throw error;
+      if (data !== true) throw new Error("Messaggio ancora in elaborazione o non disponibile. Nessuno stato modificato.");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-operational-control"] });
-      toast.success("Messaggio segnato come gestito");
+      toast.success("Verifica manuale registrata; l’esito originale resta conservato");
     },
     onError: (error: Error) => toast.error("Errore aggiornamento", { description: error.message }),
   });
@@ -306,7 +305,8 @@ export default function OperationalControlPage() {
   );
   const messagesToReview = useMemo(
     () => triagedMessages.filter(({ message, triage }) =>
-      triage.requiresReview || REVIEW_STATUSES.has(message.processing_status ?? ""),
+      (!message.metadata || typeof message.metadata !== "object" || Array.isArray(message.metadata) || !message.metadata.manually_reviewed_at) &&
+      (triage.requiresReview || REVIEW_STATUSES.has(message.processing_status ?? "")),
     ),
     [triagedMessages],
   );
@@ -546,6 +546,7 @@ export default function OperationalControlPage() {
       </div>
 
       <CarichiDaRegistrareCard companyId={companyId} />
+      <WhatsAppOperationsReview companyId={companyId} />
 
       <Card>
         <CardHeader>
@@ -622,8 +623,8 @@ function TriageQueueItem({
               Apri
             </Button>
           ) : null}
-          <Button size="sm" variant="secondary" onClick={onMarkDone} disabled={marking}>
-            Gestito
+          <Button size="sm" variant="secondary" onClick={onMarkDone} disabled={marking || ["received", "processing"].includes(message.processing_status ?? "")}>
+            Ho verificato
           </Button>
         </div>
       </div>

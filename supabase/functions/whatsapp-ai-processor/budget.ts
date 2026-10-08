@@ -43,11 +43,18 @@ export async function consumeBudget(
   companyId: string,
   eurDelta: number,
 ): Promise<void> {
-  if (eurDelta <= 0) return;
-  await supabase.rpc("increment_budget_spend", {
-    p_company_id: companyId,
-    p_eur: eurDelta,
-  });
+  if (!Number.isFinite(eurDelta) || eurDelta <= 0) return;
+  try {
+    const { error } = await supabase.rpc("increment_budget_spend", {
+      p_company_id: companyId,
+      p_eur: eurDelta,
+    });
+    if (error) throw error;
+  } catch {
+    // Il ledger resta la fonte contabile. Il contatore giornaliero è diagnostico:
+    // non ripetere la generazione o l'addebito se questo aggiornamento fallisce.
+    console.error("[whatsapp-budget] daily_counter_not_updated", { companyId, eurDelta });
+  }
 }
 
 export function estimateCostEur(

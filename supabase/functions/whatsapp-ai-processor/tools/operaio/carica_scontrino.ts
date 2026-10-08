@@ -11,6 +11,7 @@ interface Args {
   esercente?: string;
   data?: string;
   cantiere?: string;
+  order_id?: string;
   categoria?: string;
 }
 
@@ -27,6 +28,7 @@ export const caricaScontrinoDef = {
       esercente: { type: "string", description: "Nome del negozio/fornitore sullo scontrino" },
       data: { type: "string", description: "Data YYYY-MM-DD (o gg/mm/aaaa); se assente oggi" },
       cantiere: { type: "string", description: "Cantiere/commessa di destinazione, se indicato (nome o codice)" },
+      order_id: { type: "string", description: "ID della commessa verificata nella conferma" },
       categoria: { type: "string", description: "Categoria di spesa (default 'Materiali cantiere')" },
     },
     required: ["importo"],
@@ -58,15 +60,21 @@ export async function caricaScontrino(ctx: ToolCtx, args: Args): Promise<ToolRes
   // si registra lo stesso e si scrive il cantiere nella descrizione.
   let orderId: string | null = null;
   const cantiere = String(args.cantiere ?? "").trim();
-  if (cantiere) {
+  if (args.order_id) {
+    const { data: order, error: orderError } = await ctx.supabase.from("orders").select("id")
+      .eq("company_id", ctx.company_id).eq("id", args.order_id).maybeSingle();
+    if (orderError || !order) return errResult("invalid_order", "La commessa confermata non è disponibile. Nessuna spesa registrata.");
+    orderId = order.id;
+  } else if (cantiere) {
     const { data: byCode } = await ctx.supabase
-      .from("orders").select("id").eq("company_id", ctx.company_id).ilike("order_code", `%${cantiere.slice(0, 40)}%`).limit(1).maybeSingle();
-    orderId = byCode?.id ?? null;
+      .from("orders").select("id").eq("company_id", ctx.company_id).ilike("order_code", `%${cantiere.slice(0, 40)}%`).limit(2);
+    orderId = Array.isArray(byCode) && byCode.length === 1 ? byCode[0].id : null;
     if (!orderId) {
       const { data: byName } = await ctx.supabase
         .from("orders").select("id").eq("company_id", ctx.company_id).ilike("client_name", `%${cantiere.slice(0, 40)}%`).limit(2);
       if (Array.isArray(byName) && byName.length === 1) orderId = byName[0].id;
     }
+    if (!orderId) return errResult("ambiguous_order", "Quale commessa? Indica il codice esatto prima di registrare la spesa.");
   }
 
   const descrizione = [esercente ? `Scontrino ${esercente}` : "Scontrino",

@@ -13,6 +13,8 @@ import { Mail, MessageSquare, MessageCircle, Send, Loader2, Instagram, Facebook 
 import { cn } from "@/lib/utils";
 import type { EntitaTipo } from "@/hooks/useConversazioni";
 import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
+import { requireWhatsAppReceipt } from "../../../../supabase/functions/_shared/whatsappReceipt";
+import { readInvokeError } from "@/lib/readInvokeError";
 
 type Canale = "email" | "whatsapp" | "whatsapp_locale" | "sms" | "instagram" | "messenger";
 type PiattaformaSocial = "instagram" | "messenger";
@@ -388,14 +390,15 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
               compatto
               phone={cleanPhone}
               isSending={waSending}
-              onSend={async ({ waNumberId, content, template }) => {
-                if (!effectiveCompany?.id) { toast.error("Azienda non disponibile"); return; }
+              onSend={async ({ waNumberId, content, template, idempotencyKey }) => {
+                if (!effectiveCompany?.id) { toast.error("Azienda non disponibile"); return false; }
                 setWaSending(true);
                 try {
                   const payload: Record<string, unknown> = {
                     company_id: effectiveCompany.id,
                     to: cleanPhone,
                     wa_number_id: waNumberId,
+                    idempotency_key: idempotencyKey,
                     // Il messaggio resta su questo contatto anche se il numero è su più schede.
                     ...(entitaTipo === "contatto" ? { contact_id: entitaId } : {}),
                   };
@@ -405,8 +408,9 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
                     payload.text = { body: content };
                   }
                   const { data, error } = await supabase.functions.invoke("whatsapp-send", { body: payload });
-                  if (error) throw error;
+                  if (error) throw new Error(await readInvokeError(error));
                   if ((data as { error?: string } | null)?.error) throw new Error((data as { error: string }).error);
+                  requireWhatsAppReceipt(data);
                   // Una persona ha risposto a mano: l'agente WhatsApp non le
                   // parla sopra. Col template no: chi manda il primo messaggio
                   // vuole proprio che alla risposta del lead pensi l'agente.
@@ -424,12 +428,14 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
                     if (pausaErr) console.warn("[composer] pausa assistente non salvata:", pausaErr.message);
                     qc.invalidateQueries({ queryKey: ["conversazione-assistente"] });
                   }
-                  toast.success("Messaggio WhatsApp inviato");
+                  toast.success("Messaggio accettato da WhatsApp");
                   qc.invalidateQueries({ queryKey: ["conversazione-timeline", entitaTipo, entitaId] });
                   qc.invalidateQueries({ queryKey: ["conversazioni-lista"] });
                   onSent?.();
+                  return true;
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : "Errore invio WhatsApp");
+                  return false;
                 } finally {
                   setWaSending(false);
                 }

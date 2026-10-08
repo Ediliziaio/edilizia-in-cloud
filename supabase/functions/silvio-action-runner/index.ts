@@ -46,7 +46,7 @@ interface ActionRow {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function executeSendEmail(payload: Record<string, any>): Promise<{ ok: boolean; result?: unknown; error?: string }> {
+async function executeSendEmail(payload: Record<string, any>, actionId: string): Promise<{ ok: boolean; result?: unknown; error?: string; retryable?: boolean }> {
   if (!RESEND_API_KEY) {
     return { ok: false, error: "RESEND_API_KEY non configurata" };
   }
@@ -62,9 +62,13 @@ async function executeSendEmail(payload: Record<string, any>): Promise<{ ok: boo
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
+      signal: AbortSignal.timeout(30_000),
       headers: {
         "Authorization": `Bearer ${RESEND_API_KEY}`,
         "Content-Type": "application/json",
+        // Provider deduplicates retries for 24h; not an unlimited exactly-once guarantee.
+        // https://resend.com/docs/dashboard/emails/idempotency-keys
+        "Idempotency-Key": `silvio-action/${actionId}`,
       },
       body: JSON.stringify({
         from: payload.from ?? FROM_EMAIL,
@@ -77,18 +81,19 @@ async function executeSendEmail(payload: Record<string, any>): Promise<{ ok: boo
     });
     const data = await res.json();
     if (!res.ok) {
-      return { ok: false, error: data?.message ?? `HTTP ${res.status}` };
+      return { ok: false, error: data?.message ?? `HTTP ${res.status}`,
+        retryable: res.status === 429 || res.status >= 500 };
     }
     return { ok: true, result: { provider_message_id: data.id, provider: "resend" } };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    return { ok: false, error: e instanceof Error ? e.message : String(e), retryable: true };
   }
 }
 
-async function dispatch(action: ActionRow): Promise<{ ok: boolean; result?: unknown; error?: string }> {
+async function dispatch(action: ActionRow): Promise<{ ok: boolean; result?: unknown; error?: string; retryable?: boolean }> {
   const t = action.action_type;
   if (t.startsWith("send_email")) {
-    return executeSendEmail(action.payload);
+    return executeSendEmail(action.payload, action.id);
   }
   // V2 placeholders
   if (t === "send_whatsapp") {
@@ -165,7 +170,7 @@ serveConMetriche("silvio-action-runner", async (req) => {
 
       if (result.ok) {
         // Success → mark done
-        await supabase
+        const { error: savedError } = await supabase
           .from("silvio_action_queue")
           .update({
             status: "done",
@@ -174,6 +179,7 @@ serveConMetriche("silvio-action-runner", async (req) => {
             attempts: action.attempts + 1,
           })
           .eq("id", action.id);
+        if (savedError) throw savedError;
 
         // Log success
         await supabase.from("silvio_action_log").insert({
@@ -189,22 +195,25 @@ serveConMetriche("silvio-action-runner", async (req) => {
 
         // Workflow advance (se action era step di workflow)
         if (action.workflow_run_id) {
-          await supabase.rpc("silvio_workflow_advance", {
+          const { error: advanceError } = await supabase.rpc("silvio_workflow_advance", {
             p_run_id: action.workflow_run_id,
-          }).catch((e) => console.warn("[action-runner] workflow advance:", e));
+          });
+          if (advanceError) console.warn("[action-runner] workflow advance:", advanceError.message);
         }
 
         succeeded += 1;
       } else {
         // Failure → check retry
         const newAttempts = action.attempts + 1;
-        const canRetry = newAttempts < action.max_attempts;
+        // Missing configuration, malformed payloads and unimplemented channels
+        // need intervention, not three identical attempts every few minutes.
+        const canRetry = result.retryable === true && newAttempts < Math.min(action.max_attempts, 3);
         const nextRetryAt = canRetry
           ? new Date(Date.now() + (RETRY_BACKOFF_SEC[Math.min(newAttempts - 1, 2)] * 1000)).toISOString()
           : null;
 
         if (canRetry) {
-          await supabase
+          const { error: retryError } = await supabase
             .from("silvio_action_queue")
             .update({
               status: "queued",
@@ -214,9 +223,10 @@ serveConMetriche("silvio-action-runner", async (req) => {
               started_at: startedAt,
             })
             .eq("id", action.id);
+          if (retryError) throw retryError;
           retried += 1;
         } else {
-          await supabase
+          const { error: failureError } = await supabase
             .from("silvio_action_queue")
             .update({
               status: "failed",
@@ -225,12 +235,13 @@ serveConMetriche("silvio-action-runner", async (req) => {
               executed_at: new Date().toISOString(),
             })
             .eq("id", action.id);
+          if (failureError) throw failureError;
 
           // Alert critical: action fallita 3 volte
           await supabase.from("silvio_admin_alerts").insert({
             category: "ops",
             severity: "critical",
-            title: `🔥 Action fallita 3x: ${action.action_type}`,
+            title: `Azione non completata: ${action.action_type}`,
             description: `Azione id ${action.id.slice(0, 8)} ha fallito ${newAttempts} volte. Ultimo errore: ${result.error}`,
             related_entity: { type: "action", id: action.id },
             dedup_key: `action_failed:${action.id}`,

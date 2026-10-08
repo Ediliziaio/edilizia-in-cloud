@@ -10,8 +10,8 @@
  *   2. Per ogni top_rated → embed risposta + insert ai_brain_documents come
  *      kb_section='gold_standard' (positive example da imitare)
  *   3. Per ogni bottom_rated → idem ma kb_section='avoid_pattern'
- *   4. RPC silvio_self_improvement_promote() → pattern usati >=5x salgono
- *      in silvio_persona_memory
+ *   4. RPC silvio_promote_reviewed_learning() → solo regole revisionate
+ *      manualmente, con fonte ancora valida, salgono in silvio_persona_memory.
  *   5. Insert silvio_self_improvement_log con counters
  *
  * Auth: service_role (cron) o super_admin (manuale).
@@ -41,6 +41,9 @@ interface RatedRun {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+  if (req.method !== "POST") return new Response(JSON.stringify({ ok: false, error: "POST only" }), {
+    status: 405, headers: { ...CORS, "Content-Type": "application/json" },
+  });
 
   const t0 = Date.now();
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
@@ -85,7 +88,8 @@ Deno.serve(async (req) => {
   } catch {
     body = {};
   }
-  const days = Math.min(Math.max(body.days ?? 7, 1), 30);
+  const days = typeof body.days === "number" && Number.isFinite(body.days)
+    ? Math.min(Math.max(Math.trunc(body.days), 1), 30) : 7;
 
   // 1) Aggrega dataset
   const { data: agg, error: aggErr } = await supabase.rpc(
@@ -118,12 +122,13 @@ Deno.serve(async (req) => {
       const hash = await contentHash(fullText);
 
       // Skip se già presente
-      const { data: existing } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from("ai_brain_documents")
         .select("id")
         .eq("source_hash", hash)
         .eq("scope", "silvio_admin")
         .maybeSingle();
+      if (existingError) throw existingError;
       if (existing) continue;
 
       const embedding = await generateEmbedding(fullText);
@@ -131,6 +136,10 @@ Deno.serve(async (req) => {
 
       const { error: insErr } = await supabase.from("ai_brain_documents").insert({
         scope: "silvio_admin",
+        company_id: null,
+        source_type: "admin_feedback",
+        source_id: run.run_id,
+        content_hash: hash,
         kb_section: "gold_standard",
         kb_subsection: "feedback_loop",
         title: `✅ Pattern vincente — ${run.persona_key ?? "general"} — ${run.run_id.slice(0, 8)}`,
@@ -148,6 +157,7 @@ Deno.serve(async (req) => {
           created_via: body.source ?? triggeredBy,
         },
       });
+      if (insErr?.code === "23505") continue; // Already saved by a concurrent retry.
       if (insErr) {
         errors.push({ run_id: run.run_id, error: insErr.message });
       } else {
@@ -165,12 +175,13 @@ Deno.serve(async (req) => {
       const fullText = `PROMPT: ${run.prompt_excerpt}\n\nRISPOSTA DA EVITARE: ${run.response_excerpt}\n\n(Florin ha votato 👎 — non replicare questo stile/contenuto)`;
       const hash = await contentHash(fullText);
 
-      const { data: existing } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from("ai_brain_documents")
         .select("id")
         .eq("source_hash", hash)
         .eq("scope", "silvio_admin")
         .maybeSingle();
+      if (existingError) throw existingError;
       if (existing) continue;
 
       const embedding = await generateEmbedding(fullText);
@@ -178,6 +189,10 @@ Deno.serve(async (req) => {
 
       const { error: insErr } = await supabase.from("ai_brain_documents").insert({
         scope: "silvio_admin",
+        company_id: null,
+        source_type: "admin_feedback",
+        source_id: run.run_id,
+        content_hash: hash,
         kb_section: "avoid_pattern",
         kb_subsection: "feedback_loop",
         title: `❌ Da evitare — ${run.persona_key ?? "general"} — ${run.run_id.slice(0, 8)}`,
@@ -195,6 +210,7 @@ Deno.serve(async (req) => {
           created_via: body.source ?? triggeredBy,
         },
       });
+      if (insErr?.code === "23505") continue;
       if (insErr) {
         errors.push({ run_id: run.run_id, error: insErr.message });
       } else {
@@ -209,7 +225,7 @@ Deno.serve(async (req) => {
   let promoted = 0;
   try {
     const { data: prom, error: promErr } = await supabase.rpc(
-      "silvio_self_improvement_promote",
+      "silvio_promote_reviewed_learning",
     );
     if (promErr) {
       errors.push({ run_id: "_promote", error: promErr.message });
@@ -223,7 +239,7 @@ Deno.serve(async (req) => {
   const durationMs = Date.now() - t0;
 
   // 5) Log run
-  await supabase.from("silvio_self_improvement_log").insert({
+  const { error: logError } = await supabase.from("silvio_self_improvement_log").insert({
     period_start: periodStart,
     period_end: periodEnd,
     runs_analyzed: totalAnalyzed,
@@ -236,16 +252,18 @@ Deno.serve(async (req) => {
     duration_ms: durationMs,
     ok: errors.length === 0,
   });
+  if (logError) errors.push({ run_id: "_log", error: logError.message });
 
   return new Response(
     JSON.stringify({
-      ok: true,
+      ok: errors.length === 0,
       period_days: days,
       runs_analyzed: totalAnalyzed,
       gold_added: goldAdded,
       avoid_added: avoidAdded,
       promoted_to_memory: promoted,
       errors_count: errors.length,
+      errors: errors.slice(0, 5),
       duration_ms: durationMs,
       triggered_by: triggeredBy,
     }),

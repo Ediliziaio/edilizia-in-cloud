@@ -17,6 +17,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSilvioPageContext } from "@/hooks/useSilvioPageContext";
+import { useSilvioContextLabel } from "@/hooks/useSilvioContextLabel";
+import { useSilvioChatScroll } from "@/hooks/useSilvioChatScroll";
+import { shouldSendSilvioOnEnter } from "@/lib/silvio/composerKeyboard";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -55,6 +58,7 @@ import {
   Maximize2,
   MoreVertical,
   Trash2,
+  ArrowDown,
 } from "lucide-react";
 import { SilvioAvatar } from "@/components/silvio/SilvioAvatar";
 import {
@@ -73,9 +77,14 @@ import {
 } from "@/lib/chat/channelMessagesCache";
 import { useAutoSizeTextarea } from "@/hooks/useAutoSizeTextarea";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeSilvioWithRecovery } from "@/lib/silvio/replyDelivery";
 import { segnalaCreditoEsaurito } from "@/lib/creditoEsaurito";
 import { useAuth } from "@/contexts/AuthContext";
-import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
+import { type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
+import { SilvioAnswer } from "./SilvioAnswer";
+import { SilvioRequestStatus, type SilvioRequestPhase } from "./SilvioRequestStatus";
+import { SilvioContextBar } from "./SilvioContextBar";
+import { silvioContextSuggestions } from "@/lib/silvio/contextSuggestions";
 import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components/silvio/AiMessageMeta";
 
 const SILVIO_SENDER_ID_AZIENDA = "00000000-0000-0000-0000-000000000002";
@@ -185,67 +194,6 @@ interface SilvioMessage {
   requested_model_id?: string | null;
 }
 
-/**
- * Element 3 — Typewriter hook (effetto streaming).
- * Quando un messaggio Silvio NUOVO arriva, mostra il testo carattere-per-carattere
- * a velocità `cps` (default 50 char/sec). Una volta completato il typing,
- * il messaggio resta statico. Skip rapido on click/scroll = UX gracefull.
- *
- * @param text — testo target completo da animare
- * @param enabled — se false, ritorna text intero subito (per messaggi vecchi)
- * @param cps — caratteri per secondo (default 50)
- */
-// FIX 15 (A6): typewriter con auto-skip per messaggi lunghi e API skip()
-// - Long msg (>LONG_MSG_THRESHOLD char): renderizza subito intero
-// - skip() esposto: completa l'animazione su demand (click bolla / scroll utente)
-const LONG_MSG_THRESHOLD = 1200;
-
-function useTypewriter(text: string, enabled: boolean, cps = 50) {
-  const skippedRef = useRef(false);
-  const isLongMsg = (text?.length ?? 0) > LONG_MSG_THRESHOLD;
-  const effectiveEnabled = enabled && !isLongMsg; // long msg = no animation
-  const [displayed, setDisplayed] = useState(effectiveEnabled ? "" : text);
-
-  useEffect(() => {
-    if (!effectiveEnabled) {
-      setDisplayed(text);
-      skippedRef.current = false;
-      return;
-    }
-    if (skippedRef.current) {
-      setDisplayed(text);
-      return;
-    }
-    setDisplayed("");
-    if (!text) return;
-    const intervalMs = Math.max(8, Math.floor(1000 / cps));
-    let i = 0;
-    const tick = setInterval(() => {
-      if (skippedRef.current) {
-        setDisplayed(text);
-        clearInterval(tick);
-        return;
-      }
-      i++;
-      if (i >= text.length) {
-        setDisplayed(text);
-        clearInterval(tick);
-      } else {
-        const step = text[i] === " " ? 1 : 2;
-        i = Math.min(text.length, i + step - 1);
-        setDisplayed(text.substring(0, i));
-      }
-    }, intervalMs);
-    return () => clearInterval(tick);
-  }, [text, effectiveEnabled, cps]);
-
-  const skip = () => {
-    skippedRef.current = true;
-    setDisplayed(text);
-  };
-
-  return { displayed, skip, isLong: isLongMsg };
-}
 
 interface Props {
   open: boolean;
@@ -322,11 +270,13 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
   // Context pagina corrente: passato a silvio-chat come HINT (non filtro).
   // Vedi useSilvioPageContext per le route mappate.
   const pageContext = useSilvioPageContext();
+  const [ignoredContextPath, setIgnoredContextPath] = useState<string | null>(null);
+  const activePageContext = pageContext?.route_path === ignoredContextPath ? null : pageContext;
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const userId = user?.id;
+  const contextLabel = useSilvioContextLabel(pageContext, companyId, userId, open);
   const qc = useQueryClient();
-  const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // v8.6.75 — Input dedicato per la camera: stesso onChange ma con
   // `capture="environment"` per aprire direttamente la fotocamera retro
@@ -340,29 +290,14 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
   // AI Test Lab — selettore modello (visibile solo per Demo Azienda + utente demo)
   const aiSelector = useAIModelSelector('silvio_chat', 'text');
   const [sending, setSending] = useState(false);
-  // Tempo trascorso dall'inizio dell'invio in secondi — guida i micro-feedback
-  // UX ("riflette" → "analizza" → "ci sta mettendo troppo") senza far credere
-  // all'utente che la chat sia bloccata. Reset a 0 ad ogni nuovo invio.
-  const [sendingElapsed, setSendingElapsed] = useState(0);
-  // AbortController per cancellare DAVVERO la chiamata edge function
-  // quando l'utente clicca "Annulla attesa". Senza questo la promise
-  // continua server-side anche dopo aver sbloccato l'UI, consumando
-  // budget AI inutilmente.
+  // Stato effettivo della richiesta, senza inventare attività in base al tempo.
+  const [requestPhase, setRequestPhase] = useState<SilvioRequestPhase>("sending");
+  // Interrompe l'attesa/trasporto client. Non cancella il lavoro server:
+  // un'eventuale risposta tardiva viene recuperata nella stessa chat.
   const sendAbortRef = useRef<AbortController | null>(null);
+  const sendRunRef = useRef({ saved: false });
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
-  // Element 3: messaggi Silvio appena arrivati che devono ricevere effetto
-  // typewriter. Quando arrivano via realtime, vengono inseriti in questo set;
-  // dopo render iniziale, restano "freschi" finché l'animazione finisce.
-  const [streamingMessageIds, setStreamingMessageIds] = useState<Set<string>>(new Set());
-  const seenMessageIdsRef = useRef<Set<string>>(new Set());
-  // hasHydratedRef: la prima volta che messages si popola (initial load di 30
-  // msg storici) NON vogliamo animarli. Solo i messaggi che arrivano DOPO il
-  // mount via realtime devono attivare il typewriter.
-  const hasHydratedRef = useRef(false);
-  // F4 — auto-brief: flag che segnala al secondo effect di triggerare l'invio
-  // non appena il draft (settato nel primo effect) è effettivamente in stato.
-  const [autoSendPending, setAutoSendPending] = useState(false);
 
   useEffect(() => {
     if (!open || !prefillDraft) return;
@@ -374,18 +309,6 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
     requestAnimationFrame(() => draftTextareaRef.current?.focus());
   }, [draftTextareaRef, open, prefillDraft]);
 
-  // F4 — Trigger effettivo invio quando draft è sincronizzato allo stato
-  useEffect(() => {
-    if (!autoSendPending || !draft.trim() || sending) return;
-    setAutoSendPending(false);
-    setSending(true);
-    sendMutation.mutate();
-  // sendMutation è stabile (React Query) — non serve in deps
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoSendPending, draft, sending]);
-  // mountTimeRef: cutoff per distinguere messaggi storici (created_at <)
-  // da messaggi davvero "live" (created_at >=). Resettato sul cambio canale.
-  const mountTimeRef = useRef<string>(new Date().toISOString());
 
   // Recording state
   const [recording, setRecording] = useState(false);
@@ -418,6 +341,8 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
 
   useEffect(() => {
     return () => {
+      sendRunRef.current = { saved: false };
+      sendAbortRef.current?.abort();
       attachmentsLatestRef.current.forEach((a) => {
         if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
       });
@@ -433,7 +358,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
 
   // ── 1. Trova/crea il channel Silvio personale via RPC idempotente ──────
   const { data: channelId, isLoading: loadingChannel } = useQuery({
-    queryKey: ["silvio-channel", companyId, userId],
+    queryKey: ["silvio-channel", mode, companyId, userId],
     queryFn: async (): Promise<string | null> => {
       if (!companyId || !userId) return null;
       // RPC restituisce uuid del channel — cast tipizzato senza `any`.
@@ -452,24 +377,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
     staleTime: 60_000,
   });
 
-  // F4 — Daily auto-brief: quando il canale si carica per la prima volta oggi,
-  // invia automaticamente "Cosa conta ora?" senza che l'utente debba cliccare.
-  // Deduplica via localStorage (una sola volta per company per giornata).
-  // NB: DEVE stare DOPO la dichiarazione di channelId qui sopra — prima era più
-  // in alto e le deps dell'effect leggevano `channelId` in TDZ → ReferenceError
-  // "Cannot access 'channelId' before initialization": OGNI apertura della chat
-  // Silvio buttava giù l'area azienda con la pagina di errore.
-  useEffect(() => {
-    if (!open || !channelId || loadingChannel || mode !== "azienda" || !companyId) return;
-    const briefKey = `silvio_brief_${companyId}`;
-    const todayStr = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD locale (no shift UTC notturno)
-    if (localStorage.getItem(briefKey) === todayStr) return;
-    localStorage.setItem(briefKey, todayStr);
-    setDraft("Cosa conta ora?");
-    setAutoSendPending(true);
-  // channelId cambia solo se la company cambia — stabile durante la sessione
-
-  }, [open, channelId, loadingChannel, mode, companyId]);
+  // Opening the panel only reads history. A briefing is a draft, never an automatic send.
 
   // ── 2. Carica gli ULTIMI N messaggi (Element 4 Sprint AI Uploads:
   //       Supabase Realtime invece di polling — risparmio batteria mobile
@@ -486,12 +394,13 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
     queryKey: channelMessagesQueryKey(channelId),
     queryFn: async (): Promise<ChannelMessagesCache<SilvioMessage>> => {
       if (!channelId) return { items: [], hasOlder: false };
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("internal_chat_messages")
         .select("*")
         .eq("channel_id", channelId)
         .order("created_at", { ascending: false })
         .limit(MESSAGES_PAGE_SIZE + 1); // +1 per calcolare hasOlder senza count
+      if (error) throw error;
       const rows = (data ?? []) as SilvioMessage[];
       // Reverse client-side: ordine ASC per render UI (più vecchio in alto).
       return {
@@ -500,15 +409,21 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
       };
     },
     enabled: !!channelId && open,
-    // staleTime alto: il refresh viene pilotato dal realtime listener qui sotto
-    staleTime: 30 * 60 * 1000,
-    // gcTime alto: la cache sopravvive a chiusura/riapertura sheet senza fetch
+    // Realtime principale; fallback per risposte tardive dopo Stop/disconnessione.
+    staleTime: 0,
+    refetchInterval: sending ? false : 15_000,
+    // La cache resta visibile alla riapertura mentre si verifica lo storico.
     gcTime: 60 * 60 * 1000,
   });
   const liveMessages = useMemo(
     () => readChannelMessagesItems<SilvioMessage>(liveData),
     [liveData],
   );
+  const latestLive = liveMessages[liveMessages.length - 1];
+  const { scrollRef, contentRef, onScroll, scrollToBottom, showScrollDown, hasNewReply } = useSilvioChatScroll({
+    open, channelId, hasMessages: liveMessages.length > 0,
+    latestMessage: `${latestLive?.id ?? ""}:${latestLive?.content ?? ""}`,
+  });
 
   // ── 2.a Paginazione backward — "Carica messaggi più vecchi" ──────────
   // Quando l'utente vuole vedere conversazioni storiche oltre i 30 caricati,
@@ -519,16 +434,10 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMoreOlder, setHasMoreOlder] = useState(true);
 
-  // Reset paginazione + tracking typewriter quando cambia canale o si chiude
-  // la sheet. Senza il reset di hasHydratedRef/mountTimeRef, riaprire la
-  // sheet con la cache già piena animerebbe di nuovo TUTTI i messaggi
-  // storici come "live".
+  // Reset paginazione quando cambia canale o si chiude la sheet.
   useEffect(() => {
     setOlderMessages([]);
     setHasMoreOlder(true);
-    seenMessageIdsRef.current = new Set();
-    hasHydratedRef.current = false;
-    mountTimeRef.current = new Date().toISOString();
   }, [channelId, open]);
 
   // Combina: messaggi storici (paginati) + live (cache condivisa con realtime).
@@ -577,7 +486,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
     } finally {
       setLoadingOlder(false);
     }
-  }, [channelId, loadingOlder, hasMoreOlder, messages]);
+  }, [channelId, loadingOlder, hasMoreOlder, messages, scrollRef]);
 
   // ── 2.b Realtime subscription per nuovi messaggi (Sprint AI Uploads #4)
   // PERF FIX: prima ogni INSERT/UPDATE triggerava invalidateQueries → refetch
@@ -634,165 +543,14 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
           );
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void qc.invalidateQueries({ queryKey });
+      });
     return () => {
       void supabase.removeChannel(channel);
     };
   }, [channelId, open, qc]);
 
-  // ── 3. Scroll bottom su nuovi messaggi + streaming ─────────────────────
-  // v8.6.65 — Bug fix: durante streaming AI (token-per-token) il contenuto
-  // dell'ultimo messaggio cresce ma messages.length resta uguale, quindi
-  // l'auto-scroll non scattava. Ora dipendiamo anche dal contenuto del
-  // messaggio più recente per seguire la risposta in tempo reale.
-  // Paginazione fix: tracciamo l'ID dell'ultimo messaggio LIVE (non storico).
-  // Se cambia l'ultimo live → nuovo messaggio in arrivo → scroll bottom.
-  // Se cresce solo `olderMessages` (paginazione) → NON scrollare (loadOlder
-  // restaura già la scroll position via scrollTop+delta).
-  const liveLength = liveMessages.length;
-  const lastLiveContent = liveMessages[liveLength - 1]?.content;
-  useEffect(() => {
-    if (!scrollRef.current) return;
-    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [liveLength, lastLiveContent]);
-
-  // v8.6.73 — Bug fix robusto: all'apertura del sheet, scroll all'ultimo
-  // messaggio. Senza questo, l'utente vedeva i messaggi dall'alto e doveva
-  // scrollare manualmente.
-  // Pattern WhatsApp: chat sempre in basso, vecchi caricati in alto.
-  // Approccio: sentinel <div ref={messagesEndRef} /> + scrollIntoView dopo
-  // un tick (con `instant` per non animare). Triggera anche dopo che le
-  // motion animations dei MessageBubble cambiano l'altezza.
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const hasScrolledOnOpenRef = useRef(false);
-  useEffect(() => {
-    if (!open) {
-      hasScrolledOnOpenRef.current = false;
-      return;
-    }
-    if (hasScrolledOnOpenRef.current) return;
-    if (messages.length === 0) return;
-    // Multi-frame scroll: ripetiamo lo scroll su più tick per beccare anche
-    // i ricalcoli di layout dopo i mount delle motion bubble. Cap a 6 frame.
-    let frameCount = 0;
-    const scrollNow = () => {
-      const el = scrollRef.current;
-      if (el) {
-        el.scrollTop = el.scrollHeight;
-      }
-      // Fallback con sentinel per browser che ignorano scrollHeight asincrono
-      messagesEndRef.current?.scrollIntoView({ block: "end", behavior: "instant" as ScrollBehavior });
-      frameCount++;
-      if (frameCount < 6) {
-        rafId = requestAnimationFrame(scrollNow);
-      } else {
-        hasScrolledOnOpenRef.current = true;
-      }
-    };
-    let rafId = requestAnimationFrame(scrollNow);
-    return () => cancelAnimationFrame(rafId);
-  }, [open, messages.length]);
-
-  // Ticker secondo-per-secondo durante l'invio. Senza questo l'utente vede
-  // solo i tre puntini animati e dopo 30s di silenzio pensa che la chat
-  // sia bloccata. Con il ticker possiamo mostrare "Silvio sta riflettendo…"
-  // → "Sta analizzando i dati…" → "Più tempo del previsto…" + pulsante
-  // annulla dopo 30s e toast warning a 45s.
-  useEffect(() => {
-    if (!sending) {
-      setSendingElapsed(0);
-      return;
-    }
-    const start = Date.now();
-    const iv = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - start) / 1000);
-      setSendingElapsed(elapsed);
-      if (elapsed === 45) {
-        toast.warning("Silvio ci sta mettendo più del previsto.", {
-          description: "Sta probabilmente analizzando un dataset grande. Puoi annullare e riprovare con una domanda più mirata.",
-          duration: 6000,
-        });
-      }
-    }, 1000);
-    return () => clearInterval(iv);
-  }, [sending]);
-
-  // Label dinamico per il typing indicator — testuale, non solo animato.
-  const sendingPhaseLabel = useMemo(() => {
-    if (!sending) return null;
-    if (sendingElapsed < 3) return "Silvio sta riflettendo…";
-    if (sendingElapsed < 10) return "Sta analizzando i tuoi dati…";
-    if (sendingElapsed < 25) return "Sta interrogando le aree aziendali…";
-    if (sendingElapsed < 45) return `Più tempo del previsto (${sendingElapsed}s)…`;
-    return `Operazione in corso da ${sendingElapsed}s — puoi annullare`;
-  }, [sending, sendingElapsed]);
-
-  // Element 3: quando arrivano messaggi nuovi di Silvio, marcali come streaming
-  // (effetto typewriter). I messaggi già visti restano statici.
-  //
-  // BUG FIX: prima la "prima hydration" (apertura sheet + arrivo dei 30 msg
-  // iniziali) trattava TUTTI i messaggi storici come nuovi → typewriter su
-  // ogni risposta Silvio storica. Stesso problema con paginazione backward
-  // (Carica messaggi più vecchi): i 30 messaggi vecchi appena prepended
-  // ripartivano in animazione.
-  // Fix: animare SOLO messaggi davvero arrivati DOPO il mount (created_at >=
-  // mountTime). Initial load + paginazione storica → no animazione.
-  // PERF/LEAK FIX: i setTimeout per finire l'animazione typewriter venivano
-  // creati senza tracking. Se la sheet veniva chiusa prima della scadenza
-  // (utenti chattano rapidamente), restavano callback orfani con setState
-  // su componente potenzialmente smontato. Ora trackiamo gli handle e li
-  // pulisco all'unmount.
-  const streamingTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
-  useEffect(() => () => {
-    streamingTimersRef.current.forEach(clearTimeout);
-    streamingTimersRef.current.clear();
-  }, []);
-
-  useEffect(() => {
-    const newSilvioIds: string[] = [];
-    const isFirstHydration = !hasHydratedRef.current && messages.length > 0;
-    for (const m of messages) {
-      if (!seenMessageIdsRef.current.has(m.id)) {
-        if (
-          !isFirstHydration &&
-          m.sender_id === silvioSenderId &&
-          m.content &&
-          m.content.trim().length > 0 &&
-          m.created_at >= mountTimeRef.current &&
-          // Streaming vero dal server: il testo arriva gia' a pezzi, il
-          // typewriter finto non serve. Il messaggio viene visto la prima
-          // volta con streaming=true e finisce fra i "gia' visti": quando
-          // diventa definitivo non riparte l'animazione.
-          !m.streaming
-        ) {
-          newSilvioIds.push(m.id);
-        }
-        seenMessageIdsRef.current.add(m.id);
-      }
-    }
-    if (isFirstHydration) hasHydratedRef.current = true;
-    if (newSilvioIds.length === 0) return;
-    setStreamingMessageIds((prev) => {
-      const next = new Set(prev);
-      newSilvioIds.forEach((id) => next.add(id));
-      return next;
-    });
-    newSilvioIds.forEach((id) => {
-      const msg = messages.find((m) => m.id === id);
-      const len = msg?.content.length ?? 0;
-      const durationMs = Math.max(800, (len / 50) * 1000 + 300);
-      const handle = setTimeout(() => {
-        streamingTimersRef.current.delete(handle);
-        setStreamingMessageIds((prev) => {
-          if (!prev.has(id)) return prev;
-          const next = new Set(prev);
-          next.delete(id);
-          return next;
-        });
-      }, durationMs);
-      streamingTimersRef.current.add(handle);
-    });
-  }, [messages]);
 
   // ── 4. Upload attachment to storage ────────────────────────────────────
   const uploadAttachment = async (att: PendingAttachment): Promise<PendingAttachment> => {
@@ -1086,6 +844,9 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
   const sendMutation = useMutation({
     mutationFn: async () => {
       if (!channelId || !companyId || !userId) throw new Error("Setup non pronto");
+      const ac = new AbortController();
+      sendAbortRef.current = ac;
+      const run = sendRunRef.current;
       const trimmed = draft.trim();
       const readyAttachments = attachments.filter((a) => a.storagePath && !a.uploadError);
       if (!trimmed && readyAttachments.length === 0) return;
@@ -1138,7 +899,9 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                 ? "file"
                 : "text";
 
+      const requestMessageId = crypto.randomUUID();
       const { error: insertErr } = await supabase.from("internal_chat_messages").insert({
+        id: requestMessageId,
         channel_id: channelId,
         sender_id: userId,
         company_id: companyId,
@@ -1148,15 +911,19 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
         attachment_name: firstAtt?.file.name ?? null,
       });
       if (insertErr) throw new Error(`Invio: ${insertErr.message}`);
+      run.saved = true;
       qc.invalidateQueries({ queryKey: ["internal-chat-messages", channelId] });
 
-      // Crea un nuovo AbortController per questa chiamata. Il pulsante
-      // "Annulla attesa" usa questo per interrompere realmente la fetch
-      // verso silvio-chat invece di lasciarla finire in background.
-      const ac = new AbortController();
-      sendAbortRef.current = ac;
+      if (ac.signal.aborted) throw new DOMException("Attesa interrotta", "AbortError");
+      if (run === sendRunRef.current) setRequestPhase("waiting");
       // Invoke Silvio with full attachments list
-      const res = await supabase.functions.invoke(modeCfg.edgeFunction, {
+      const res = await invokeSilvioWithRecovery({
+        functionName: modeCfg.edgeFunction,
+        requestMessageId,
+        senderId: modeCfg.senderId,
+        onRecovering: () => { if (run === sendRunRef.current) setRequestPhase("recovering"); },
+        onMessage: (message) => qc.setQueryData<ChannelMessagesCache<SilvioMessage>>(
+          channelMessagesQueryKey(channelId), (prev) => upsertChannelMessage(prev, message)),
         body: {
           channel_id: channelId,
           message: trimmed || "",
@@ -1170,7 +937,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
           // ha aperto la chat. Usato come HINT nel system prompt — Silvio
           // sceglie se applicarlo (domande vaghe) o ignorarlo (domande
           // esplicite su altra entità).
-          ...(pageContext ? { current_context: pageContext } : {}),
+          ...(activePageContext ? { current_context: activePageContext } : {}),
           // AI Test Lab — passa il modello selezionato SOLO se demo
           // (server-side è comunque gated, double safety).
           ...(aiSelector.showSelector ? { model: aiSelector.selectedModel } : {}),
@@ -1213,31 +980,39 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
       // Draft + attachments già clearati ottimisticamente in mutationFn — qui no-op.
     },
     onError: (e: Error, _vars, context) => {
+      if (!context || context.run !== sendRunRef.current) return;
       // AbortError silenzioso: è una cancellazione utente, NON un fail.
       // Il toast.info("Invio annullato") è già stato emesso dal click handler.
       const isAbort = e.name === "AbortError" || /aborted|abort/i.test(e.message);
       if (!isAbort) {
         toast.error(humanizeSilvioError(e.message));
       }
-      // Ripristina il draft se è stato clearato ottimisticamente — l'utente
-      // non perde il testo digitato in caso di errore di rete/server (o abort).
+      // Ripristina solo se la domanda non è stata salvata, evitando di
+      // invitare a reinviare un messaggio che Silvio potrebbe già elaborare.
       const restored = (context as { draft?: string } | undefined)?.draft;
-      if (restored) setDraft((cur) => cur || restored);
+      if (restored && !context.run.saved) setDraft((cur) => cur || restored);
     },
     onMutate: () => {
+      setRequestPhase("sending");
+      const run = { saved: false };
+      sendRunRef.current = run;
       // Snapshot pre-clear per ripristino in onError. Le attachments NON si
       // ripristinano (sono file utente già caricati, ricaricarli sarebbe peggio).
-      return { draft };
+      return { draft, channelId, run };
     },
-    onSettled: () => {
-      sendAbortRef.current = null;
-      setSending(false);
+    onSettled: (_data, _error, _variables, context) => {
+      void qc.invalidateQueries({ queryKey: channelMessagesQueryKey(context?.channelId) });
+      if (context?.run === sendRunRef.current) {
+        sendAbortRef.current = null;
+        setSending(false);
+      }
     },
   });
 
   const handleSend = () => {
     const hasContent = draft.trim() || attachments.some((a) => a.storagePath);
     if (!hasContent || sending) return;
+    scrollToBottom();
     setSending(true);
     sendMutation.mutate();
   };
@@ -1248,7 +1023,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   }, [recordingMs]);
 
-  // ── 7. Render single message (component standalone per useTypewriter) ──
+  // ── 7. Render single message ──
   // Vedi MessageBubble in fondo al file.
 
   // ── 8. Render ───────────────────────────────────────────────────────────
@@ -1275,10 +1050,8 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                 )}
               </p>
               <p className="text-[11px] text-slate-500 font-normal truncate">
-                {pageContext
-                  ? `Sai che sto guardando: ${pageContext.route_label}`
-                  : messages.length > 0
-                    ? `${messages.length} messaggi · live · multimodal`
+                {messages.length > 0
+                    ? "La tua conversazione di lavoro"
                     : mode === "admin"
                       ? "Gestione piattaforma + agenti cross-tenant"
                       : "Analizza testi, foto, PDF, DDT e vocali"}
@@ -1346,19 +1119,23 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
             </DropdownMenu>
           </SheetTitle>
         </SheetHeader>
+        {pageContext && <SilvioContextBar context={pageContext} enabled={!!activePageContext}
+          entityLabel={contextLabel} companyName={effectiveCompany?.name}
+          onToggle={() => setIgnoredContextPath(activePageContext ? pageContext.route_path : null)} />}
 
         {/* 🆕 Quick actions toolbar — sempre visibile (non solo nell'empty state)
             v8.6.72 — Padding ridotto su mobile per recuperare verticale. */}
-        <div className="px-2 sm:px-3 py-1.5 sm:py-2 border-b bg-white/60 flex gap-1.5 overflow-x-auto scrollbar-thin shrink-0">
-          {/* F4 — Brief giornata: re-triggerabile manualmente anche se già auto-inviato */}
+        <details className="border-b bg-white/60 shrink-0">
+        <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-slate-600">Strumenti rapidi</summary>
+        <div className="px-2 sm:px-3 pb-2 flex flex-wrap gap-1.5">
+          {/* Briefing preparato nel compositore: l'utente può modificarlo prima dell'invio. */}
           <SilvioQuickAction
             icon={Sparkles}
             label="Brief giornata"
             color="text-orange-700 bg-orange-50 border-orange-200 hover:bg-orange-100"
             onClick={() => {
-              if (companyId) localStorage.setItem(`silvio_brief_${companyId}`, new Date().toISOString().split("T")[0]);
               setDraft("Cosa conta ora?");
-              setAutoSendPending(true);
+              requestAnimationFrame(() => draftTextareaRef.current?.focus());
             }}
           />
           <SilvioQuickAction
@@ -1399,9 +1176,11 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
             }}
           />
         </div>
+        </details>
 
         {/* Messages area */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3 bg-slate-50">
+        <div ref={scrollRef} onScroll={onScroll} className="flex-1 min-h-0 overflow-y-auto px-3 py-3 bg-slate-50">
+          <div ref={contentRef} className="space-y-3">
           {loadingChannel ? (
             <div className="flex items-center justify-center h-32 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -1416,7 +1195,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                 Chiedi qualsiasi cosa con i tuoi dati reali, mandami foto, PDF o vocale.
               </p>
               <div className="grid grid-cols-1 gap-1.5 w-full max-w-sm">
-                {SUGGESTED_QUESTIONS.map((q) => (
+                {silvioContextSuggestions(activePageContext).map((q) => (
                   <button
                     key={q}
                     type="button"
@@ -1459,7 +1238,6 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                   key={m.id}
                   message={m}
                   isMe={m.sender_id === userId}
-                  streaming={streamingMessageIds.has(m.id)}
                   onAskFollowup={(q) => setDraft(q)}
                   silvioSenderId={silvioSenderId}
                   showRunMeta={aiSelector.showSelector}
@@ -1470,54 +1248,24 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
           {/* Mentre la risposta arriva in streaming la bolla e' gia' in chat:
               i tre puntini sopra sarebbero un doppione. */}
           {sending && !liveMessages.some((m) => m.streaming) && (
-            <div className="flex gap-2 justify-start">
-              <SilvioAvatar size={28} animated="thinking" className="rounded-full" />
-              <div className="flex flex-col gap-1.5 min-w-0">
-                <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-3 py-2.5 flex items-center gap-2 max-w-fit">
-                  <div className="flex gap-1">
-                    {[0, 1, 2].map((i) => (
-                      <motion.span
-                        key={i}
-                        className="h-1.5 w-1.5 rounded-full bg-slate-400"
-                        animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
-                        transition={{ duration: 1, repeat: Infinity, delay: i * 0.15 }}
-                      />
-                    ))}
-                  </div>
-                  {sendingPhaseLabel && (
-                    <span className="text-[11px] text-slate-500 whitespace-nowrap">
-                      {sendingPhaseLabel}
-                    </span>
-                  )}
-                </div>
-                {/* Pulsante annulla dopo 30s di attesa. Setta sending=false
-                    via la mutation reset — la promise edge function può
-                    completare comunque server-side ma il client smette di
-                    aspettare e sblocca l'input per la prossima domanda. */}
-                {sendingElapsed >= 30 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Aborta la fetch reale verso silvio-chat se ancora in corso.
-                      sendAbortRef.current?.abort();
-                      sendAbortRef.current = null;
-                      sendMutation.reset();
-                      setSending(false);
-                      toast.info("Invio annullato. Puoi scrivere una nuova domanda.");
-                    }}
-                    className="self-start text-[11px] text-orange-600 hover:text-orange-700 underline underline-offset-2"
-                  >
-                    Annulla attesa
-                  </button>
-                )}
-              </div>
-            </div>
+            <SilvioRequestStatus phase={requestPhase} onStop={() => {
+              sendRunRef.current = { saved: false };
+              sendAbortRef.current?.abort();
+              sendAbortRef.current = null;
+              sendMutation.reset();
+              setSending(false);
+              toast.info("Attesa interrotta. La risposta potrebbe comunque arrivare in questa chat.");
+            }} />
           )}
-          {/* v8.6.73 — Sentinel per scrollIntoView all'apertura: ancora il
-              viewport in fondo anche quando le animazioni di mount delle
-              motion.div fanno crescere l'altezza in modo asincrono. */}
-          <div ref={messagesEndRef} aria-hidden="true" />
+          </div>
         </div>
+        {showScrollDown && <div className="flex shrink-0 justify-center border-t bg-white py-1">
+          <button type="button" onClick={scrollToBottom}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-orange-700 hover:bg-orange-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500">
+            <ArrowDown aria-hidden="true" className="h-3.5 w-3.5" />
+            {hasNewReply ? "Nuovi messaggi · vai in fondo" : "Torna agli ultimi messaggi"}
+          </button>
+        </div>}
 
         {/* Attachments preview */}
         {attachments.length > 0 && (
@@ -1835,12 +1583,13 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (shouldSendSilvioOnEnter(e)) {
                   e.preventDefault();
                   handleSend();
                 }
               }}
               placeholder={attachments.length > 0 ? "Descrivi cosa vuoi che analizzi…" : "Scrivi a Silvio…"}
+              aria-label="Scrivi a Silvio"
               rows={1}
               className="flex-1 resize-none rounded-full bg-slate-100 border border-transparent focus:border-orange-300 focus:bg-white px-4 py-2.5 text-[15px] sm:text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-orange-200 min-h-[44px] placeholder:text-slate-500"
               disabled={sending || loadingChannel}
@@ -1956,13 +1705,6 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
   );
 }
 
-const SUGGESTED_QUESTIONS = [
-  "Cosa conta ora? Dimmi le priorità di oggi.",
-  "Come sta la mia cassa nei prossimi 30 giorni?",
-  "Quali commesse stanno erodendo margine?",
-  "Quanti preventivi devo ancora chiudere?",
-];
-
 // 🆕 Quick action chip riutilizzabile in toolbar
 function SilvioQuickAction({
   icon: Icon,
@@ -2048,21 +1790,18 @@ function humanizeSilvioError(rawMsg: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// MessageBubble — render di un singolo messaggio con effetto typewriter
-// (Element 3 Sprint AI Uploads). Estratto come component perché useTypewriter
-// è un hook e non può vivere dentro una map callback inline.
+// MessageBubble — testo disponibile subito, aggiornato dallo streaming reale
+// Componente separato per allegati, fonti e azioni del singolo messaggio.
 // ─────────────────────────────────────────────────────────────────────────
 function MessageBubble({
   message,
   isMe,
-  streaming,
   onAskFollowup,
   silvioSenderId = SILVIO_SENDER_ID,
   showRunMeta = false,
 }: {
   message: SilvioMessage;
   isMe: boolean;
-  streaming: boolean;
   onAskFollowup?: (query: string) => void;
   silvioSenderId?: string;
   /**
@@ -2080,34 +1819,8 @@ function MessageBubble({
   // server; il typewriter finto ripartirebbe da zero a ogni aggiornamento.
   // Si mostra il testo com'e', col cursore, finche' il server non lo chiude.
   const isLiveStream = isSilvio && message.streaming === true;
-  // FIX 15 (A6): typewriter con skip API + auto-skip per long msg
-  const { displayed: animatedContent, skip: skipTypewriter } = useTypewriter(
-    message.content || "",
-    isSilvio && streaming && !isLiveStream,
-    60,
-  );
-  const visibleContent = isSilvio && streaming && !isLiveStream ? animatedContent : message.content;
-  const isStillTyping = isLiveStream ||
-    (isSilvio && streaming && !isLiveStream && animatedContent.length < message.content.length);
-
-  // FIX 15 (A6): auto-skip se il bubble esce dalla viewport (utente scrolla via)
-  const bubbleRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!isStillTyping || !bubbleRef.current) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) {
-            skipTypewriter();
-          }
-        }
-      },
-      { threshold: 0.1 },
-    );
-    obs.observe(bubbleRef.current);
-    return () => obs.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isStillTyping]);
+  const visibleContent = message.content;
+  const isStillTyping = isLiveStream;
 
   return (
     <motion.div
@@ -2120,8 +1833,6 @@ function MessageBubble({
         <SilvioAvatar size={28} className="rounded-full shadow-sm" />
       )}
       <div
-        ref={bubbleRef}
-        onClick={isStillTyping ? skipTypewriter : undefined}
         title={isStillTyping ? "Tocca per saltare l'animazione" : undefined}
 	        className={`max-w-[84%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words shadow-sm ${
 	          isStillTyping ? "cursor-pointer" : ""
@@ -2177,11 +1888,10 @@ function MessageBubble({
         )}
         {visibleContent && (
           isMe || isStillTyping
-            // Per i messaggi utente E durante il typing animato, manteniamo il
-            // testo grezzo (typewriter funziona char-by-char, markdown si renderizza
-            // SOLO al completamento).
+            // Testo grezzo durante lo streaming reale: il Markdown incompleto
+            // potrebbe spezzare tabelle e link. Formattiamo al completamento.
             ? <span>{visibleContent}</span>
-            : <ChatMarkdown content={visibleContent} className="text-[13px]" sources={message.rag_sources ?? undefined} />
+            : <SilvioAnswer content={visibleContent} className="text-sm" sources={message.rag_sources ?? undefined} />
         )}
         {/* Cursor blinking durante typing */}
         {isStillTyping && (

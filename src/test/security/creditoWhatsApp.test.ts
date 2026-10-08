@@ -45,9 +45,11 @@ describe("0.5 · il controllo del credito è dove passano tutti i percorsi", () 
   });
 
   it("se Meta rifiuta, il credito torna indietro", () => {
-    const ramoErrore = edge.split("if (!metaRes.ok) {")[1].split("}")[0];
-    expect(ramoErrore).toContain("rimborsaMessaggioWhatsApp");
-    expect(edge).toMatch(/credito\.addebitato/);
+    const ramoErrore = edge.split('if (outcome.kind === "rejected") {')[1].split("}")[0];
+    expect(ramoErrore).toContain('finishWhatsAppOperation(adminClient, operation, "rejected"');
+    const sql = readFileSync(resolve(RADICE, "supabase/migrations/20261007183910_whatsapp_durable_operations.sql"), "utf8");
+    expect(sql).toContain("p_status='rejected' and r.kind='send' and r.credit_eur > 0");
+    expect(sql).toContain("public.pool_ricarica");
   });
 
   it("le aziende in omaggio non vengono addebitate né bloccate", () => {
@@ -75,7 +77,7 @@ describe("0.5 · il controllo del credito è dove passano tutti i percorsi", () 
   });
 
   it("l'addebito usa la RPC atomica, non una lettura seguita da una scrittura", () => {
-    expect(helper).toMatch(/admin\.rpc\("consume_credits"/);
+    expect(helper).toContain('admin.rpc(operation ? "whatsapp_operation_charge" : "consume_credits"');
     // il vecchio schema read-modify-write inseriva saldi negativi in silenzio
     expect(helper).not.toMatch(/\.update\(\{\s*balance_eur/);
   });

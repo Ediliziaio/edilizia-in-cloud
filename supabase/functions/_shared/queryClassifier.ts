@@ -9,6 +9,7 @@
  * Council orchestrator (ai-council-orchestrator).
  */
 import { aiRouterComplete } from "./aiRouter.ts";
+import type { AiTurnControl } from "./aiTurnControl.ts";
 import { isMezziQuestion } from "./domandeSuiMezzi.ts";
 
 export type Area =
@@ -308,6 +309,8 @@ export interface ClassifyOptions {
   currentPersona: string;
   companyId?: string | null;
   userId?: string | null;
+  turnControl?: AiTurnControl;
+  requestKey?: string;
 }
 
 export async function classifyQuery(opts: ClassifyOptions): Promise<QueryClassification> {
@@ -347,6 +350,9 @@ export async function classifyQuery(opts: ClassifyOptions): Promise<QueryClassif
     const r = await aiRouterComplete({
       supabase: opts.supabase,
       taskKey: "query_classifier",
+      turnControl: opts.turnControl,
+      idempotencyKey: opts.requestKey,
+      guardProviderRequest: !!opts.requestKey && !!opts.companyId && !!opts.userId,
       messages: [
         { role: "system", content: CLASSIFIER_PROMPT },
         {

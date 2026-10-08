@@ -34,6 +34,7 @@ export interface Accumulatore {
   usage: Record<string, unknown> | null;
   /** Messaggio dell'evento `error`, se arrivato. */
   errore: string | null;
+  errorCode?: number;
   /** Eventi con dati applicati (per distinguere uno stream vuoto). */
   eventi: number;
 }
@@ -95,6 +96,7 @@ export function applicaEvento(acc: Accumulatore, evento: string): "dati" | "fine
   if (json.error) {
     const e = json.error;
     acc.errore = typeof e === "string" ? e : String(e.message ?? e.code ?? JSON.stringify(e));
+    if (typeof e === "object" && Number.isFinite(Number(e.code))) acc.errorCode = Number(e.code);
   }
   if (typeof json.id === "string" && !acc.id) acc.id = json.id;
   if (typeof json.model === "string" && !acc.model) acc.model = json.model;

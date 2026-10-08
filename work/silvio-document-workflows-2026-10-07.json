@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-07",
+  "scope": "local only; no deployment, paid AI calls, external messages or production database changes",
+  "implemented": [
+    "Central validation of quote lines, explicit prices and VAT, calendar dates and work hours",
+    "Legacy quote draft tool delegates to atomic quote creation; no guessed quantity or price",
+    "WhatsApp AI generation returns an unsaved preview; separate confirmed atomic save tool",
+    "PDF sending requires confirmation and verified provider receipt with stable request key",
+    "Worker report drafts enforce assigned-site access, immutable submitted states and version-checked updates",
+    "Clear distinction between draft, submission, stock annotations and message acceptance",
+    "Italian legacy quote and office report confirmation summaries"
+  ],
+  "verification": {
+    "regression": "73 files / 897 tests passed before six additional receipt/input cases",
+    "latest_quote_workflow": "19 tests passed, including those six additional cases",
+    "build_fast": "passed",
+    "deno_check": "WhatsApp processor and Silvio chat passed",
+    "targeted_lint": "zero errors; four edge-function files ignored by repository ESLint configuration, covered by Deno check",
+    "isolated_quote_sql": "23 checks passed; no remote database mutation"
+  },
+  "remaining": [
+    "Audit and align legacy bathroom conversion/send path",
+    "Worker report submission remains through Campo app; WhatsApp report photos and submission flow not completed",
+    "End-to-end model-specific catalog linkage and ambiguous/parametric product selection",
+    "Global shared AI budget reservation and reconciliation",
+    "Responsive visual QA and authorized staging integration checks",
+    "Repository-wide TypeScript baseline remains non-green; not certified by this cycle"
+  ]
+}

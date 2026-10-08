@@ -25,6 +25,8 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireCompanyAccess, requireInternalSecret } from "../_shared/auth.ts";
 import { richiediAmministratoreAzienda } from "../_shared/amministraAzienda.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { aiRequestHash } from "../_shared/aiRequestGuard.ts";
+import { BriefingAiGate } from "../_shared/briefingAiGate.ts";
 import { destinatariBriefing } from "./destinatari.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi dal
@@ -91,6 +93,10 @@ serve(async (req: Request) => {
       targets = (profiles ?? []).map((p: any) => ({ user_id: p.id, company_id: p.company_id }));
     } else if (mode === "all_companies") {
       requireInternalSecret(req, corsHeaders);
+      // Reuse the existing daily cron to redact expired response bodies while
+      // retaining deduplication tombstones and accounting metadata.
+      const { error: cleanupError } = await supabaseAdmin.rpc("ai_provider_request_redact_expired");
+      if (cleanupError) console.warn("[silvio-briefing] AI response retention cleanup unavailable");
       // Cron mode: tutti gli utenti con preferences enabled = true, tranne chi
       // sta in un'azienda sospesa, scaduta o cessata (destinatari.ts: sul Test
       // Lab sospeso erano 4,3 $ in 14 giorni di messaggi che nessuno leggeva).
@@ -105,8 +111,8 @@ serve(async (req: Request) => {
         const { data: aziende, error: errAziende } = await supabaseAdmin
           .from("companies").select("id, status").in("id", idAziende);
         if (errAziende) {
-          // Senza gli stati non si filtra: meglio un briefing in più che nessuno a tutti.
-          console.error("[silvio-briefing] stato delle aziende non letto, nessun filtro:", errAziende.message);
+          // Background work must not spend money for potentially suspended tenants.
+          return errorResponse("Stato aziende non verificabile: briefing automatici sospesi", 503, corsHeaders);
         } else {
           statoAzienda = new Map(((aziende ?? []) as Array<{ id: string; status: string | null }>).map((a) => [a.id, a.status]));
         }
@@ -126,10 +132,11 @@ serve(async (req: Request) => {
     let sent = 0;
     let skipped = 0;
     const errors: string[] = [];
+    const aiGate = new BriefingAiGate();
 
     for (const t of targets) {
       try {
-        const result = await processBriefing(supabaseAdmin, t.user_id, t.company_id, !!body.force);
+        const result = await processBriefing(supabaseAdmin, t.user_id, t.company_id, !!body.force, aiGate);
         if (result.sent) sent++;
         else skipped++;
       } catch (e) {
@@ -146,6 +153,7 @@ serve(async (req: Request) => {
       skipped,
       skipped_by_status: saltatiPerStato,
       errors_count: errors.length,
+      provider_paused: aiGate.providerPaused,
       errors: errors.slice(0, 5),
     }, 200, corsHeaders);
   } catch (err) {
@@ -163,7 +171,14 @@ async function processBriefing(
   userId: string,
   companyId: string,
   force: boolean,
+  aiGate: BriefingAiGate,
 ): Promise<{ sent: boolean; reason?: string }> {
+  const day = new Date().toISOString().slice(0, 10);
+  const hash = await aiRequestHash(["silvio-briefing-message", companyId, userId, day]);
+  const messageId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-5${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+  const existing = await supabaseAdmin.from("internal_chat_messages").select("id").eq("id", messageId).maybeSingle();
+  if (existing.error) throw new Error("Impossibile verificare la consegna del briefing");
+  if (existing.data) return { sent: false, reason: "already delivered today" };
   // 1) Check user prefs
   const { data: prefs } = await supabaseAdmin
     .from("silvio_user_preferences")
@@ -236,17 +251,20 @@ async function processBriefing(
 
   // 6) Compose briefing message via LLM
   const briefingMessage = await composeBriefingMessage(
-    supabaseAdmin, companyId, userId, firstName, alerts, totalCritical, totalWarning,
+    supabaseAdmin, companyId, userId, firstName, alerts, totalCritical, totalWarning, aiGate, day,
   );
 
   // 7) Post in Silvio channel
-  await supabaseAdmin.from("internal_chat_messages").insert({
+  const delivered = await supabaseAdmin.from("internal_chat_messages").upsert({
+    id: messageId,
     channel_id: channelId,
     sender_id: SILVIO_SENDER_ID,
     company_id: companyId,
     content: briefingMessage,
     message_type: "text",
-  });
+  }, { onConflict: "id", ignoreDuplicates: true }).select("id");
+  if (delivered.error) throw new Error("Briefing non salvato: consegna da riprovare");
+  if (!delivered.data?.length) return { sent: false, reason: "already delivered concurrently" };
 
   // 8) Mark alerts as notified
   if (alerts.length > 0) {
@@ -277,6 +295,8 @@ async function composeBriefingMessage(
   alerts: Array<Record<string, unknown>>,
   countCritical: number,
   countWarning: number,
+  aiGate: BriefingAiGate,
+  day: string,
 ): Promise<string> {
   const greeting = firstName ? `Buongiorno ${firstName}` : "Buongiorno";
 
@@ -314,7 +334,7 @@ ${JSON.stringify(alertsForPrompt, null, 2)}
 
 Genera il messaggio briefing seguendo le regole del system prompt.`;
 
-  try {
+  return aiGate.compose(async () => {
     const result = await aiRouterComplete({
       supabase: supabaseAdmin,
       taskKey: "persona_silvio",
@@ -326,7 +346,8 @@ Genera il messaggio briefing seguendo le regole del system prompt.`;
       companyId,
       userId,
       personaKey: SILVIO_PERSONA_KEY,
-      idempotencyKey: `briefing_${userId}_${new Date().toISOString().slice(0, 10)}`,
+      idempotencyKey: `briefing_${userId}_${day}`,
+      guardProviderRequest: true,
     });
     const rawContent = result.content || "";
     if (!rawContent) return fallbackBriefing(greeting, alerts, countCritical, countWarning);
@@ -341,10 +362,7 @@ Genera il messaggio briefing seguendo le regole del system prompt.`;
       return fallbackBriefing(greeting, alerts, countCritical, countWarning);
     }
     return sanitized.cleaned || rawContent;
-  } catch (e) {
-    console.error("[silvio-briefing] LLM compose error, using fallback:", e);
-    return fallbackBriefing(greeting, alerts, countCritical, countWarning);
-  }
+  }, () => fallbackBriefing(greeting, alerts, countCritical, countWarning));
 }
 
 function fallbackBriefing(

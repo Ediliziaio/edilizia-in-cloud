@@ -22,6 +22,7 @@ import { handleMarketing } from "./handlers/marketing.ts";
 import { handleNotifiche } from "./handlers/notifiche.ts";
 import { lingueDelModello, statoDopoAvvisoMeta } from "./statoModello.ts";
 import { filtroStatiSuperabili, motivoMancataConsegna, statiSuperabili } from "./esitoConsegna.ts";
+import { WhatsAppReservationError } from "./reservationError.ts";
 
 interface MetaStatus {
   id: string;
@@ -103,12 +104,13 @@ export async function routeIncoming(
         .maybeSingle();
 
       if (waErr || !waNumber) {
+        if (waErr) throw new WhatsAppReservationError("number_lookup_unavailable");
         await logRoutingError(supabase, {
           error_kind: "unknown_phone_number_id",
           phone_number_id: phoneNumberId,
           wa_message_id: messages[0]?.id ?? null,
           error_detail:
-            waErr?.message ?? "nessun ai_whatsapp_numbers con questo phone_number_id",
+            "nessun ai_whatsapp_numbers con questo phone_number_id",
         });
         continue;
       }
@@ -147,6 +149,7 @@ export async function routeIncoming(
         try {
           await dispatchByPurpose(supabase, ctx);
         } catch (err) {
+          if (err instanceof WhatsAppReservationError) throw err;
           console.error(
             JSON.stringify({
               level: "error",
@@ -222,6 +225,13 @@ async function handleDeliveryStatus(
     .eq("meta_message_id", metaMessageId);
 
   await aggiornaEsitoMessaggio(supabase, status, isoTs);
+  const allowed = statiSuperabili(newStatus);
+  if (allowed.length) {
+    const { error } = await supabase.from("whatsapp_operations").update({ delivery_status: newStatus, updated_at: new Date().toISOString() })
+      .eq("kind", "send").eq("provider_message_id", metaMessageId).eq("status", "completed")
+      .or(filtroStatiSuperabili(allowed));
+    if (error) throw new WhatsAppReservationError("delivery_receipt_not_saved");
+  }
 }
 
 /**

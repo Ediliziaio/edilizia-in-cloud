@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-07",
+  "status": "implemented_and_verified_locally_not_deployed",
+  "production_writes": 0,
+  "paid_provider_requests": 0,
+  "pushes": 0,
+  "deployments": 0,
+  "implemented": [
+    "Service-only PostgreSQL request claims prevent concurrent or repeated provider calls for guarded requests; scope includes company, user, task and stable request key.",
+    "Guard enabled for Silvio chat, message-correlated classifier calls, daily briefing and memory extraction LLM calls. Other router clients are not automatically opted in.",
+    "Completed text responses are reusable without a second provider call or wallet debit. Cached tool-call responses require recovery and cannot silently repeat business actions.",
+    "Ambiguous network/stream outcomes and crashed workers are not automatically retried. No lease stealing or fail-open if the claim/checkpoint/completion store is unavailable.",
+    "Each guarded provider response is checkpointed with generation ID, model and known usage/cost before response validation or charging. Discarded paid responses remain visible separately from the company's single successful-call bill.",
+    "HTTP, JSON and SSE provider 402 errors stop model fallback. Persistent cooldown lasts 15 minutes per hashed API key. The briefing batch uses deterministic alerts after its first credit error.",
+    "Daily briefing delivery uses a deterministic per-company/user/day message ID and ignores duplicate inserts; save errors are no longer treated as successful deliveries.",
+    "Automatic briefings stop if company status cannot be read. Existing daily cron redacts expired response bodies after the seven-day replay TTL, retaining dedup tombstones.",
+    "Billing RPC JSON success=false or missing ledger ID is rejected, including HTTP-200 responses. No additional provider fallback after a billing failure.",
+    "Missing provider cost is explicitly classified as a tier estimate when complete token usage and valid tier prices exist. Missing cost and unavailable estimate are blocked, not recorded as a free success.",
+    "Ledger metadata records generation_id, original_idempotency_key, provider_request_key, cost_source and usage completeness. Commercial tariff formula is unchanged.",
+    "Precheck rejections use a separate tenant-scoped error key so a later funded retry cannot replay the zero-charge denial as its successful bill."
+  ],
+  "verification": {
+    "vitest_command": "npm test -- --maxWorkers=2 silvio aiRouterPerformance aiTurnControl aiRouterBillingVerification openrouterStream creditoEsaurito creditiSiRicaricanoSoloPagando briefing",
+    "vitest_files": 36,
+    "vitest_tests_passed": 506,
+    "billing_regression_tests": 26,
+    "postgres_checks_passed": 9,
+    "postgres_engine": "isolated in-memory PGlite, actual migration SQL and role grants",
+    "real_multiconnection_postgres_load_test": false,
+    "provider_and_wallet_calls_in_vitest": "mocked, no network or wallet mutation",
+    "deno_check": ["silvio-chat", "silvio-daily-briefing", "silvio-memory-extract"],
+    "build_fast": "passed",
+    "eslint_new_helpers_and_tests": "passed",
+    "git_diff_check": "passed",
+    "sample_duplicate_request": {
+      "fake_provider_usd_first_call": 0.045,
+      "company_eur_first_call": 0.1242,
+      "company_eur_replay": 0,
+      "provider_calls_including_replay": 1,
+      "note": "Synthetic fixture using the previously inspected t2 tariff, not a live price benchmark."
+    }
+  },
+  "deployment_requirements": {
+    "migration": "supabase/migrations/20261007164041_ai_provider_request_safety.sql",
+    "order": "Review/apply migration before deploying any guarded caller. Also review existing uncommitted dependencies separately; do not overwrite other-terminal work.",
+    "fail_closed": "Deploying the guarded edge functions without this migration blocks guarded provider calls. Frontend build alone does not activate server fixes.",
+    "functions_changed_this_followup": ["silvio-chat", "silvio-daily-briefing", "silvio-memory-extract"],
+    "shared_router_consumers": "Need redeployment to receive common billing/402 changes; not deployed by this task.",
+    "history_reporting": "For flow/iteration reports use coalesce(metadata->>'original_idempotency_key', idempotency_key). Guarded ledger keys are tenant-scoped digests."
+  },
+  "historical_reconciliation": {
+    "dry_run_sql": "scripts/audit-silvio-missing-credit-history.sql",
+    "ledger_ids": ["3b1f40eb-f4fe-4b14-8245-2d136157c1a1", "ecba26e1-3046-4611-b574-c609db7d69e0"],
+    "recorded_billed_eur": 0.51894618,
+    "linked_history_rows": 0,
+    "same_company_same_amount_candidates_within_five_seconds": 0,
+    "status": "blocked_missing_historical_balance_evidence",
+    "safety": "No charge_ai_call retry, fabricated zero balances, historical inserts or wallet changes. Missing history does not prove that no debit happened."
+  },
+  "remaining_limitations": [
+    "Production has not been changed or benchmarked with these fixes.",
+    "A complete cross-worker request-cost total and shared spending cap still require correlation of embeddings, nested tool AI, delegated Council and background memory. Current turn metrics explicitly exclude them; this work does not claim a complete total.",
+    "Historical generations without generation_id cannot be reconstructed from the ledger alone. Provider/account evidence is required.",
+    "Uncertain requests deliberately require reconciliation. There is no automatic provider re-spend or automatic business-tool replay to recover a crashed worker.",
+    "The paid provider and wallet test fixtures do not replace a multi-connection production-like load test or a controlled paid latency benchmark.",
+    "The entire application test suite/typecheck was not certified by this targeted verification."
+  ]
+}

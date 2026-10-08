@@ -32,30 +32,30 @@ export async function resolveModelConfig(
   _companyId?: string | null,
 ): Promise<ResolvedModelConfig> {
   // 1. Global task-specific (company_id IS NULL)
-  const { data: globalConf } = await supabase
+  const { data: globalConf, error: globalError } = await supabase
     .from("ai_model_config")
     .select(
       "primary_model, fallback_chain, max_cost_usd_per_call, temperature, max_tokens, enabled",
     )
     .is("company_id", null)
     .eq("task_kind", taskKind)
-    .eq("enabled", true)
     .maybeSingle();
+  if (globalError) throw new Error("AI model configuration unavailable");
   if (globalConf) return normalize(globalConf as DbConfigRow);
 
   // 2. Global 'default' fallback
-  const { data: defaultConf } = await supabase
+  const { data: defaultConf, error: defaultError } = await supabase
     .from("ai_model_config")
     .select(
       "primary_model, fallback_chain, max_cost_usd_per_call, temperature, max_tokens, enabled",
     )
     .is("company_id", null)
     .eq("task_kind", "default")
-    .eq("enabled", true)
     .maybeSingle();
+  if (defaultError) throw new Error("AI default model configuration unavailable");
   if (defaultConf) return normalize(defaultConf as DbConfigRow);
 
-  // 3. Emergency hardcoded — usata quando la config sul DB è irraggiungibile.
+  // 3. Default iniziale solo se non esistono righe: gli errori DB bloccano sopra.
   //    Audit 2026-09-03: in coda c'era `openrouter/auto`, che sceglie il modello
   //    da solo. Sembrava una rete di sicurezza, ma e' l'opposto: costo
   //    imprevedibile (qui sotto lo si prezza a occhio 1,5/6,0 $ per milione,

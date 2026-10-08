@@ -1,0 +1,20 @@
+[
+  {
+    "scenario": "int",
+    "pages": 1,
+    "path": "tmp/pdfs/collaudo-int.pdf",
+    "outcome": "positive"
+  },
+  {
+    "scenario": "mix",
+    "pages": 1,
+    "path": "tmp/pdfs/collaudo-mix.pdf",
+    "outcome": "reserves"
+  },
+  {
+    "scenario": "sub",
+    "pages": 1,
+    "path": "tmp/pdfs/collaudo-sub.pdf",
+    "outcome": "negative"
+  }
+]

@@ -12,6 +12,8 @@ export interface ToolCtx {
   locale: "it" | "en";
   waNumberId: string;
   sessionId: string | null;
+  /** Verified inbound message ID, used for business-operation idempotency. */
+  requestId?: string;
   kind: "operaio" | "ufficio" | "admin" | "unknown";
   /** Il file arrivato con questo messaggio, già salvato nel bucket (foto del DDT, foto di cantiere, vocale). */
   mediaCorrente?: { storagePath: string; url: string; tipo: string } | null;

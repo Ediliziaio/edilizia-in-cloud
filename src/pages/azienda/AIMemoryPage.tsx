@@ -149,6 +149,8 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
   // PERF: debounce search per evitare filter() ad ogni keystroke su liste grandi
   const debouncedSearch = useDebounce(search.trim().toLowerCase(), 200);
   const [showDisabled, setShowDisabled] = useState(false);
+  const [demoExamplesCompany, setDemoExamplesCompany] = useState<string | null>(null);
+  const showDemoExamples = !!effectiveCompany?.id && demoExamplesCompany === effectiveCompany.id;
   const [editOpen, setEditOpen] = useState(false);
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
 
@@ -180,7 +182,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
   );
 
   // Memory rows
-  const { data: realMemories = [], isLoading } = useQuery({
+  const { data: realMemories = [], isLoading, isError: memoriesError, refetch: retryMemories } = useQuery({
     queryKey: ["ai-persona-memory", effectiveCompany?.id, showDisabled],
     enabled: !!effectiveCompany?.id,
     queryFn: async (): Promise<MemoryRow[]> => {
@@ -248,6 +250,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
       const usedContent = existingByPersona.get(persona.persona_key) ?? new Set<string>();
       let addedForPersona = 0;
       for (const candidate of candidates) {
+        if (!Object.hasOwn(TYPE_LABEL, candidate.memory_type)) continue;
         const normalizedContent = candidate.content.trim().toLowerCase();
         if (usedContent.has(normalizedContent)) continue;
         usedContent.add(normalizedContent);
@@ -257,14 +260,14 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
           company_id: effectiveCompany?.id ?? DEMO_COMPANY_ID,
           user_id: null,
           persona_key: persona.persona_key,
-          memory_type: candidate.memory_type,
+          memory_type: candidate.memory_type as MemoryRow["memory_type"],
           content: candidate.content,
           source: shouldShowFullDemo ? "demo_preview" : "demo_coverage",
           confidence: candidate.confidence,
           enabled: true,
-          hits_count: candidate.hits_count,
+          hits_count: 0,
           last_used_at: null,
-          created_at: new Date(Date.now() - index * 1_800_000).toISOString(),
+          created_at: new Date(Date.UTC(2026, 0, 1) - index * 1_800_000).toISOString(),
           isDemoPreview: true,
         });
         addedForPersona++;
@@ -275,8 +278,8 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
   }, [effectiveCompany?.id, isDemoCompany, knownPersonaKeys, normalizedRealMemories, personasForMemory]);
 
   const memories = useMemo(
-    () => [...normalizedRealMemories, ...demoPreviewMemories],
-    [demoPreviewMemories, normalizedRealMemories],
+    () => showDemoExamples && isDemoCompany ? demoPreviewMemories : normalizedRealMemories,
+    [demoPreviewMemories, normalizedRealMemories, showDemoExamples, isDemoCompany],
   );
 
   // PERF: memoizzato per non ricalcolare ad ogni render (e mantenere identita
@@ -357,7 +360,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
     let stale = 0;
     let disabled = 0;
     const personasWithMemories = new Set<string>();
-    for (const m of memories) {
+    for (const m of normalizedRealMemories) {
       byType[m.memory_type] = (byType[m.memory_type] ?? 0) + 1;
       if (isDemoMemory(m)) demo++;
       else real++;
@@ -376,11 +379,11 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
     const coveragePct = personasForMemory.length > 0
       ? Math.round((personasWithMemories.size / personasForMemory.length) * 100)
       : 0;
-    const healthPct = memories.length > 0
-      ? Math.max(0, Math.round(100 - ((lowConfidence + neverUsed + stale) / Math.max(1, memories.length * 3)) * 100))
+    const healthPct = normalizedRealMemories.length > 0
+      ? Math.max(0, Math.round(100 - ((lowConfidence + neverUsed + stale) / Math.max(1, normalizedRealMemories.length * 3)) * 100))
       : 0;
     return {
-      total: memories.length,
+      total: normalizedRealMemories.length,
       byType,
       manual,
       auto,
@@ -397,7 +400,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
       personasWithoutMemories,
       latestAdd: latestAddTs > 0 ? new Date(latestAddTs) : null,
     };
-  }, [knownPersonaKeys, memories, personasForMemory]);
+  }, [knownPersonaKeys, normalizedRealMemories, personasForMemory]);
 
   const personaHealth = useMemo(
     () => personasForMemory.map((persona) => {
@@ -581,11 +584,17 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  La memoria AI alimenta prompt, chat e Cervello visuale.
+                  Memorie salvate per gli assistenti AI.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Le demo sono visibili per rendere coerente il Cervello; non sono salvate nel database finché non crei o importi memorie reali.
+                  I contatori riguardano le memorie salvate. Gli esempi demo non sono salvati né usati nelle risposte. Fatti e sintesi delle conversazioni sono una memoria distinta, soggetta ai permessi.
                 </p>
+                {isDemoCompany && (
+                  <Button type="button" size="sm" variant="outline" className="mt-2" aria-pressed={showDemoExamples}
+                    onClick={() => setDemoExamplesCompany(showDemoExamples ? null : effectiveCompany?.id ?? null)}>
+                    {showDemoExamples ? "Torna alle memorie salvate" : "Vedi esempi demo (non salvati)"}
+                  </Button>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[360px]">
@@ -606,6 +615,12 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
         </CardContent>
       </Card>
 
+      {memoriesError && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <span>Non riesco a caricare le memorie salvate. I contatori non sono disponibili: non significa che le memorie siano state cancellate.</span>
+          <Button size="sm" variant="outline" onClick={() => void retryMemories()}>Riprova</Button>
+        </div>
+      )}
       {/* Stats dashboard — aggiornate in realtime via Supabase subscription */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
         <div className="rounded-lg border bg-card p-3">

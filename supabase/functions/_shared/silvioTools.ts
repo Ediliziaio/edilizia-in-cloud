@@ -22,6 +22,9 @@ type SupabaseClient = any;
 import { chargeDirectAiCall, estimateEmbeddingUsage } from "./directAiLedger.ts";
 import { normalizzaStatoPreventivo } from "./statoPreventivo.ts";
 import { buildDdtCarico } from "./ddtCarico.ts";
+import { silvioOrderReport } from "./silvioOrderReport.ts";
+import { normalizeMarginalitaCommesse } from "./marginalitaCommesse.ts";
+import { isCalendarDate, legacyQuoteDraftInput, quoteDraftIssue, workHoursIssue } from "./operationalDraftValidation.ts";
 
 /**
  * MP-AIE-01 v2 — canali AI supportati. Ogni tool dichiara su quali può essere
@@ -362,13 +365,22 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r = res as any;
       if (!r || r.error) return r;
-      // Token-efficient: KPI aggregati + le 15 commesse a margine più basso (le azionabili).
-      const righe: unknown[] = Array.isArray(r.righe) ? r.righe : [];
-      const critiche = [...righe]
+      if (!Array.isArray(r.righe) || !r.kpi) return { error: "Dati di marginalità non disponibili." };
+      const normalized = normalizeMarginalitaCommesse(r);
+      // Same normalization as the dashboard; detailed labor requires report_commessa.
+      const righe = normalized.righe.map(({ costo_manodopera: _labor, ore_manodopera: _hours, ...row }) => ({
+        ...row, margine: row.dati_economici_completi ? row.margine : null,
+        margine_perc: row.dati_economici_completi ? row.margine_perc : null,
+      }));
+      const critiche = righe.filter(row => row.dati_economici_completi)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .sort((a: any, b: any) => (Number(a?.margine) || 0) - (Number(b?.margine) || 0))
         .slice(0, 15);
-      return { kpi: r.kpi, meta: r.meta, n_commesse: righe.length, commesse_a_margine_piu_basso: critiche };
+      return { kpi: normalized.kpi, meta: normalized.meta, n_commesse: righe.length, commesse_a_margine_piu_basso: critiche,
+        commesse_dati_da_completare: righe.filter(row => !row.dati_economici_completi).slice(0, 15),
+        nota: "Margini sui costi registrati, non utili finali. Commesse senza costi escluse dai KPI di margine. " +
+          "La proiezione è lineare e disponibile solo dal 20% di avanzamento: non è una previsione certa. " +
+          "Per completezza dei dati e dettaglio costi usa report_commessa." };
     },
     allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "cfo", "controller", "pm_cantiere", "assistente_imprenditore", "amministrazione", "*"],
@@ -1222,14 +1234,14 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         ? ctx.kbAreasFilter
         : null;
 
-      const { data, error } = await ctx.supabase.rpc("match_brain", {
+      const { data, error } = await ctx.supabase.rpc("silvio_match_brain", {
         p_company_id: ctx.companyId,
+        p_user_id: ctx.userId,
         p_query_embedding: `[${embedding.join(",")}]`,
         p_match_count: Math.min(args?.limit ?? 6, 15),
         p_min_similarity: 0.72,
         p_source_types: args?.source_types ?? null,
-        p_include_universal: true,
-        p_universal_categories: universalCategories,
+        p_kb_areas: universalCategories,
       });
 
       if (error) return { error: error.message };
@@ -1246,6 +1258,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     riskLevel: "safe",
     domain: "knowledge",
     estimatedCostEur: 0.02,
+    untrustedOutput: true,
   },
 
   create_quote_draft: {
@@ -1253,7 +1266,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "create_quote_draft",
-        description: "Crea una BOZZA di preventivo nel sistema con cliente, descrizione lavori e voci dettagliate. La bozza ha status='draft' e l'utente potrà rivederla, modificarla e inviarla al cliente. Usa quando l'utente chiede 'fai un preventivo per X', 'crea un preventivo', 'genera bozza preventivo'. Le voci devono includere: name, description, quantity, unit_of_measure, unit_price, vat_rate.",
+        description: "Prepara, dopo conferma, una BOZZA di preventivo con cliente, descrizione lavori e voci dettagliate. L'utente deve rivederla prima di inviarla. Non inventare prezzi o aliquote: usa il listino e i dati verificati, chiedi quelli mancanti. Le voci includono name, description, quantity, unit_of_measure, unit_price, vat_rate.",
         parameters: {
           type: "object",
           properties: {
@@ -1283,13 +1296,15 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
               },
             },
             validity_days: { type: "integer", default: 30 },
-            default_vat_rate: { type: "number", default: 22, description: "IVA default per voci che non la specificano. Per ristrutturazione casa privati: 10%. Manutenzione: 10%. Altro: 22%." },
+            default_vat_rate: { type: "number", description: "Aliquota confermata dall'utente per le voci senza vat_rate. Non dedurla automaticamente dal tipo di lavoro." },
           },
           required: ["client_name", "items"],
         },
       },
     },
     executor: async (args, ctx) => {
+      const issue = quoteDraftIssue(args ?? {});
+      if (issue) return { error: issue, needs_clarification: true, created: false };
       const { data, error } = await ctx.supabase.rpc("silvio_create_quote_draft", {
         p_company_id: ctx.companyId,
         p_user_id: ctx.userId,
@@ -1303,10 +1318,15 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         p_indirizzo_lavori: args.indirizzo_lavori ?? null,
         p_items: args.items ?? [],
         p_validity_days: args.validity_days ?? 30,
-        p_default_vat_rate: args.default_vat_rate ?? 22,
+        p_default_vat_rate: args.default_vat_rate ?? null,
         p_internal_notes: "Bozza generata da Silvio AI",
       });
       if (error) return { error: error.message };
+      if (!data || data.success !== true || typeof data.quote_id !== "string" || !data.quote_id.trim() ||
+        data.status !== "bozza" || data.items_count !== args.items.length ||
+        [data.subtotal_eur, data.vat_eur, data.total_eur].some(v => typeof v !== "number" || !Number.isFinite(v) || v < 0)) {
+        return { error: "Salvataggio della bozza non verificato. Controlla la lista preventivi prima di riprovare; non confermo una bozza completa senza ricevuta e totali.", verification_required: true, ...(data?.quote_id ? { quote_id: data.quote_id } : {}) };
+      }
       return data;
     },
     allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
@@ -1321,7 +1341,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "lista_fatture_restanti",
-        description: "Lista rate/fatture restanti sulle commesse con cliente reale, order_id e importo. Usa PRIMA di creare fatture quando l'utente chiede 'fammi le fatture restanti', 'quali fatture mancano', 'saldi/acconti da fatturare'. I risultati indicano can_create_invoice_draft: chiama create_invoice_draft solo su quelle righe e dopo conferma utente.",
+        description: "Consulta le rate e gli importi residui delle commesse. Una rata NON è una fattura: questi dati non provano che manchi un documento fiscale. Per creare una fattura usa il flusso Fatturazione dell'app; la creazione automatica di bozze fiscali con create_invoice_draft non è disponibile.",
         parameters: {
           type: "object",
           properties: {
@@ -1332,12 +1352,19 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         },
       },
     },
-    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_fatture_restanti", {
-      p_company_id: ctx.companyId,
-      p_user_id: ctx.userId,
-      p_only_unpaid: args?.only_unpaid !== false,
-      p_limit: args?.limit ?? 50,
-    }),
+    executor: async (args, ctx) => {
+      const result = await callRpc(ctx.supabase, "silvio_tool_fatture_restanti", {
+        p_company_id: ctx.companyId, p_user_id: ctx.userId,
+        p_only_unpaid: args?.only_unpaid !== false, p_limit: args?.limit ?? 50,
+      });
+      if (result?.error) return result;
+      if (!result || !Array.isArray(result.fatture_restanti)) return { error: "Impossibile verificare le rate residue." };
+      return {
+        ...result,
+        fatture_restanti: result.fatture_restanti.map((row: Record<string, unknown>) => ({ ...row, can_create_invoice_draft: false })),
+        nota_operativa: "Questi sono importi/rate della commessa, non uno stato verificato delle fatture. La creazione automatica di fatture non è disponibile: usa Fatturazione nell'app e verifica i documenti già presenti.",
+      };
+    },
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "amministrazione", "cfo", "controller", "assistente_imprenditore", "*"],
     allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram", "voice"],
@@ -1350,7 +1377,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "create_invoice_draft",
-        description: "Crea una riga fattura/rata su un ordine esistente. Usa quando l'utente chiede 'fai una fattura per ordine X', 'fammi la fattura del saldo per Y'. Prima usa lista_fatture_restanti o search_orders per recuperare order_id e cliente. Non chiamarla in massa senza conferma: la RPC deduplica e non crea rate già pagate.",
+        description: "NON DISPONIBILE: non crea una fattura fiscale. Non proporre questa azione e non usarla per creare rate spacciandole per fatture. Indica all'utente il flusso Fatturazione dell'app per creare e verificare la bozza.",
         parameters: {
           type: "object",
           properties: {
@@ -1370,18 +1397,10 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         },
       },
     },
-    executor: async (args, ctx) => {
-      const { data, error } = await ctx.supabase.rpc("silvio_create_invoice_draft", {
-        p_company_id: ctx.companyId,
-        p_user_id: ctx.userId,
-        p_order_id: args.order_id,
-        p_rata_type: args.rata_type,
-        p_amount: args.amount ?? null,
-        p_notes: args.notes ?? null,
-      });
-      if (error) return { error: error.message };
-      return data;
-    },
+    executor: async () => ({
+      ok: false,
+      error: "Nessuna fattura creata. La creazione automatica non è disponibile: usa il flusso Fatturazione dell'app. Nessuna rata è stata aggiunta.",
+    }),
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "amministrazione", "cfo"],
     allowedChannels: ["internal_chat", "web_persona", "mobile"],
@@ -3577,9 +3596,9 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         description:
           "Crea un PREVENTIVO in BOZZA completo di righe, pronto da rifinire e inviare dal preventivatore. " +
           "Usalo quando l'utente chiede 'fammi un preventivo per…' con cliente e lavori/prodotti. " +
-          "FLUSSO: 1) raccogli/il deduci cliente e righe (descrizione, quantità, e prezzo se indicato); 2) mostra il riepilogo con il totale stimato " +
-          "e chiedi conferma; 3) dopo il sì chiama questo tool. Per le righe SENZA prezzo prova ad abbinare una voce del LISTINO aziendale " +
-          "per nome/codice e usa il suo prezzo; se non trova nulla mette 0 e lo segnala (l'utente completa nel builder). " +
+          "FLUSSO: raccogli cliente, quantità, unità, prezzi e IVA verificati; consulta il listino PRIMA della conferma. " +
+          "Se una voce è ambigua, parametrica o senza prezzo chiedi i dati mancanti: non scegliere la prima corrispondenza e non usare zero come prezzo mancante. " +
+          "Mostra tutte le righe e chiedi conferma; dopo il sì salva esattamente quelle righe, senza ricalcolare prezzi da un listino cambiato. " +
           "È una BOZZA: non viene inviato nulla al cliente. Ritorna il link per aprirla nel builder.",
         parameters: {
           type: "object",
@@ -3596,128 +3615,34 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
                 type: "object",
                 properties: {
                   descrizione: { type: "string", description: "Descrizione voce — OBBLIGATORIA" },
-                  quantita: { type: "number", description: "Quantità (default 1)" },
-                  prezzo_unitario: { type: "number", description: "Prezzo unitario imponibile; se assente si tenta il listino" },
+                  quantita: { type: "number", description: "Quantità verificata, maggiore di zero" },
+                  prezzo_unitario: { type: "number", description: "Prezzo unitario imponibile verificato prima della conferma; zero solo se esplicitamente gratuito" },
                   unita: { type: "string", description: "Unità di misura (pz, mq, h...)" },
                   tipo: { type: "string", enum: ["product", "service", "labor"], description: "Tipo voce (default product)" },
                 },
-                required: ["descrizione"],
+                required: ["descrizione", "quantita", "prezzo_unitario"],
               },
             },
             note: { type: "string", description: "Note interne o condizioni" },
-            iva: { type: "number", description: "Aliquota IVA % di default per le righe (default 22)" },
+            iva: { type: "number", description: "Aliquota IVA % verificata, anche zero. Non dedurla dal tipo di lavoro." },
           },
-          required: ["cliente_nome", "righe"],
+          required: ["cliente_nome", "righe", "iva"],
         },
       },
     },
     executor: async (args, ctx) => {
-      const clienteNome = String(args?.cliente_nome ?? "").trim().slice(0, 200);
       const righe = Array.isArray(args?.righe) ? (args.righe as Array<Record<string, unknown>>) : [];
-      if (!clienteNome) return { error: "cliente_nome mancante." };
       if (righe.length === 0) return { error: "Nessuna riga: un preventivo vuoto non serve a nessuno." };
       if (righe.length > 100) return { error: `Troppe righe (${righe.length}): massimo 100.` };
-
-      // Numero preventivo dalla RPC ufficiale (stessa del QuoteBuilder).
-      let quoteNumber = "";
-      try {
-        const { data: numData } = await ctx.supabase.rpc("generate_quote_number", { p_company_id: ctx.companyId });
-        quoteNumber = typeof numData === "string" && numData ? numData : "";
-      } catch { /* fallback sotto */ }
-      if (!quoteNumber) quoteNumber = `OFF-SILVIO-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-
-      const ivaDefault = Number.isFinite(Number(args?.iva)) ? Number(args?.iva) : 22;
-      const { data: quote, error: qErr } = await ctx.supabase
-        .from("quotes")
-        .insert({
-          company_id: ctx.companyId,
-          quote_number: quoteNumber,
-          status: "bozza",
-          client_name: clienteNome,
-          client_email: String(args?.cliente_email ?? "").trim().slice(0, 200) || null,
-          client_phone: String(args?.cliente_telefono ?? "").trim().slice(0, 50) || null,
-          client_address: String(args?.cliente_indirizzo ?? "").trim().slice(0, 300) || null,
-          title: String(args?.titolo ?? "").trim().slice(0, 200) || `Preventivo ${clienteNome}`,
-          notes: String(args?.note ?? "").trim().slice(0, 2000) || null,
-          created_by: ctx.userId,
-          source: "silvio",
-        })
-        .select("id, quote_number")
-        .single();
-      if (qErr || !quote) return { error: `Creazione preventivo fallita: ${qErr?.message ?? "insert vuoto"}` };
-
-      // Righe: prezzo esplicito > match listino (codice/nome) > 0 (segnalato).
-      const items: Array<Record<string, unknown>> = [];
-      const senzaPrezzo: string[] = [];
-      let totale = 0;
-      let sort = 0;
-      for (const r of righe) {
-        const descrizione = String(r.descrizione ?? "").trim().slice(0, 500);
-        if (!descrizione) continue;
-        const quantita = Number.isFinite(Number(r.quantita)) && Number(r.quantita) > 0 ? Number(r.quantita) : 1;
-        let prezzo = Number(r.prezzo_unitario);
-        let unita = String(r.unita ?? "").trim().slice(0, 20) || null;
-        let familyId: string | null = null;
-        if (!Number.isFinite(prezzo) || prezzo < 0) {
-          // Tentativo listino: match sul nome (parola più significativa) o codice.
-          const term = descrizione.split(/\s+/).filter((w) => w.length >= 4).slice(0, 3).join(" ") || descrizione;
-          const { data: match } = await ctx.supabase
-            .from("article_families")
-            .select("id, nome, prezzo_base_vendita, unit_of_measure")
-            .eq("company_id", ctx.companyId)
-            .eq("attivo", true)
-            .is("deleted_at", null)
-            .ilike("nome", `%${term.slice(0, 60)}%`)
-            .limit(1)
-            .maybeSingle();
-          const m = match as { id?: string; prezzo_base_vendita?: number | null; unit_of_measure?: string | null } | null;
-          if (m?.prezzo_base_vendita != null) {
-            prezzo = Number(m.prezzo_base_vendita);
-            familyId = m.id ?? null;
-            if (!unita && m.unit_of_measure) unita = m.unit_of_measure;
-          } else {
-            prezzo = 0;
-            senzaPrezzo.push(descrizione.slice(0, 60));
-          }
-        }
-        totale += prezzo * quantita;
-        items.push({
-          quote_id: quote.id,
-          company_id: ctx.companyId,
-          name: descrizione.slice(0, 200),
-          description: descrizione,
-          quantity: quantita,
-          unit_price: prezzo,
-          vat_rate: ivaDefault,
-          unit_of_measure: unita,
-          item_type: ["product", "service", "labor"].includes(String(r.tipo)) ? String(r.tipo) : "product",
-          sort_order: sort++,
-          ...(familyId ? { family_id: familyId } : {}),
-        });
-      }
-      if (items.length > 0) {
-        const { error: iErr } = await ctx.supabase.from("quote_items").insert(items);
-        if (iErr) {
-          // Niente righe → la bozza resta ma vuota: meglio dirlo chiaramente.
-          return { error: `Preventivo ${quote.quote_number} creato ma righe NON salvate: ${iErr.message}. Aprilo nel builder e reinserisci le voci.`, quote_id: quote.id };
-        }
-      }
-      return {
-        quote_id: quote.id,
-        quote_number: quote.quote_number,
-        righe_create: items.length,
-        totale_imponibile_stimato: Math.round(totale * 100) / 100,
-        righe_senza_prezzo: senzaPrezzo,
-        link: `/azienda/marketing/preventivi/${quote.id}/modifica`,
-        nota: senzaPrezzo.length > 0
-          ? `BOZZA creata. ${senzaPrezzo.length} righe senza prezzo (nessun match a listino): completale nel builder.`
-          : "BOZZA creata: rifiniscila e inviala dal builder. Nulla è stato mandato al cliente.",
-      };
+      if (righe.some(r => !r || typeof r !== "object" || Array.isArray(r) ||
+        (r.tipo != null && !["product", "service", "labor"].includes(String(r.tipo))))) return { error: "Tipo di voce non valido: verifica le righe prima di confermare." };
+      // Same atomic writer as the structured tool. No partial header, guessed zero or post-confirmation list-price lookup.
+      return SILVIO_TOOLS.create_quote_draft.executor(legacyQuoteDraftInput(args ?? {}), ctx);
     },
     allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp"],
-    riskLevel: "safe",
+    riskLevel: "yellow",
     domain: "preventivi",
   },
 
@@ -4087,7 +4012,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
     allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales"],
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
-    riskLevel: "safe",
+    riskLevel: "yellow",
     domain: "calendar",
   },
 
@@ -4431,26 +4356,28 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     executor: async (args, ctx) => {
       const codice = String(args?.commessa_codice ?? "").trim();
       if (!codice) return { error: "Codice commessa obbligatorio." };
-      const ore = Math.round(Number(args?.ore) * 2) / 2;
-      if (!Number.isFinite(ore) || ore <= 0 || ore > 16) return { error: "Ore non valide (0,5–16)." };
-      const straord = Math.max(Math.round((Number(args?.straordinario) || 0) * 2) / 2, 0);
-      if (straord > 8) return { error: "Straordinario non valido (max 8 ore)." };
+      const issue = workHoursIssue(args?.ore, args?.straordinario);
+      if (issue) return { error: issue };
+      const ore = args?.ore;
+      if (typeof ore !== "number" || ore <= 0) return { error: "Indica le ore ordinarie effettivamente lavorate." };
+      const straord = args?.straordinario ?? 0;
       let data = String(args?.data ?? "").trim();
-      if (data && !/^\d{4}-\d{2}-\d{2}$/.test(data)) return { error: "Data non valida: usa YYYY-MM-DD." };
+      if (data && !isCalendarDate(data)) return { error: "Data non valida: usa una data reale YYYY-MM-DD." };
       if (!data) {
         try { data = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }); }
         catch { data = new Date().toISOString().slice(0, 10); }
       }
       const perc = args?.percentuale_avanzamento == null ? null : Math.round(Number(args.percentuale_avanzamento));
-      if (perc != null && (perc < 0 || perc > 100)) return { error: "Percentuale avanzamento fuori range (0-100)." };
+      if (perc != null && (!Number.isFinite(perc) || perc < 0 || perc > 100)) return { error: "Percentuale avanzamento fuori range (0-100)." };
       const METEO = ["soleggiato", "nuvoloso", "pioggia", "neve", "vento"];
       const meteo = String(args?.meteo ?? "").trim().toLowerCase() || null;
       if (meteo && !METEO.includes(meteo)) return { error: `Meteo non valido. Valori: ${METEO.join(", ")}.` };
 
-      const { data: ords } = await ctx.supabase
+      const { data: ords, error: orderError } = await ctx.supabase
         .from("orders").select("id, order_code")
         .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`)
         .limit(2);
+      if (orderError) return { error: "Verifica commessa non disponibile. Nessun rapportino registrato." };
       if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
       if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o: any) => o.order_code).join(", ")}. Specifica il codice esatto.` };
       const order = ords[0];
@@ -4460,14 +4387,16 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       let perNome: string | null = null;
       const perUtente = String(args?.per_utente_nome ?? "").trim();
       if (perUtente) {
-        const { data: people } = await ctx.supabase
+        const { data: people, error: peopleError } = await ctx.supabase
           .from("profiles").select("id, first_name, last_name")
           .eq("company_id", ctx.companyId).limit(300);
+        if (peopleError) return { error: "Verifica del team non disponibile. Nessun rapportino registrato." };
         const ids = (people ?? []).map((p: any) => p.id);
         const customerIds = new Set<string>();
         if (ids.length > 0) {
-          const { data: roles } = await ctx.supabase
+          const { data: roles, error: roleError } = await ctx.supabase
             .from("user_roles").select("user_id").eq("role", "customer").in("user_id", ids);
+          if (roleError) return { error: "Verifica ruoli non disponibile. Nessun rapportino registrato." };
           for (const r of roles ?? []) customerIds.add(r.user_id);
         }
         const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -4486,11 +4415,12 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
 
       // Anti-doppione: stesso giorno + commessa + persona.
       if (!args?.registra_comunque) {
-        const { data: dup } = await ctx.supabase
+        const { data: dup, error: duplicateError } = await ctx.supabase
           .from("campo_rapportini").select("id, ore_lavorate")
           .eq("company_id", ctx.companyId).eq("order_id", order.id)
           .eq("user_id", userId).eq("data_lavoro", data)
           .limit(1).maybeSingle();
+        if (duplicateError) return { error: "Verifica doppioni non disponibile. Nessun rapportino registrato." };
         if (dup?.id) {
           return { error: `Esiste già un rapportino del ${data} su ${order.order_code}${perNome ? ` per ${perNome}` : ""} (${dup.ore_lavorate ?? "?"} ore). Se è un secondo turno reale, ripeti con registra_comunque=true.` };
         }
@@ -4515,7 +4445,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         })
         .select("id")
         .single();
-      if (error) return { error: `Registrazione rapportino fallita: ${error.message}` };
+      if (error || !rap?.id) return { error: `Registrazione rapportino non confermata: ${error?.message ?? "ricevuta assente"}. Verifica prima di riprovare.` };
 
       return {
         rapportino_id: rap.id,
@@ -4529,7 +4459,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
-    riskLevel: "safe",
+    riskLevel: "yellow",
     domain: "cantiere",
   },
 
@@ -4539,8 +4469,8 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       function: {
         name: "report_commessa",
         description:
-          "CONTO ECONOMICO di una singola commessa: incrocia valore e incassi con TUTTI i costi tracciati " +
-          "(manodopera da rapportini, ordini a fornitori, fatture/scadenze, costi diretti, subappalti) e calcola il margine. " +
+          "Report economico di una singola commessa dal consuntivo ufficiale del dettaglio commessa. " +
+          "Mostra ricavi, varianti approvate, costi registrati e margine diretto; incassi separati dai ricavi. " +
           "Usa per 'quanto ho guadagnato sulla GE-0012', 'come sta andando questa commessa', 'dove sono finiti i soldi'. " +
           "IMPORTANTE: il risultato distingue COSTO ZERO da COSTO NON TRACCIATO e dichiara l'affidabilità del calcolo: " +
           "riporta sempre gli avvisi all'utente e NON presentare come margine reale un dato marcato parziale o insufficiente.",
@@ -4553,150 +4483,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
         },
       },
     },
-    executor: async (args, ctx) => {
-      const codice = String(args?.commessa_codice ?? "").trim();
-      if (!codice) return { error: "Codice commessa obbligatorio." };
-
-      const { data: ords } = await ctx.supabase
-        .from("orders")
-        .select("id, order_code, description, total_amount, customer_id, current_status_id")
-        .eq("company_id", ctx.companyId).ilike("order_code", `%${codice}%`).limit(2);
-      if (!ords || ords.length === 0) return { error: `Nessuna commessa trovata con codice simile a "${codice}".` };
-      if (ords.length > 1) return { error: `Più commesse corrispondono a "${codice}": ${ords.map((o: any) => o.order_code).join(", ")}. Specifica il codice esatto.` };
-      const order = ords[0];
-      const valore = Number(order.total_amount) || 0;
-
-      const r2 = (n: number) => Math.round(n * 100) / 100;
-      const somma = (rows: Array<Record<string, unknown>> | null, campo: string) =>
-        (rows ?? []).reduce((s, r) => s + (Number(r[campo]) || 0), 0);
-
-      // ── Fonti, lette una per una: ognuna sa dire se è VUOTA o solo a zero ──
-      const [rate, rapportini, oda, scadenzeF, costiDiretti, sal, pnEntrate] = await Promise.all([
-        ctx.supabase.from("order_installments").select("amount, is_paid").eq("order_id", order.id),
-        ctx.supabase.from("campo_rapportini").select("ore_lavorate, ore_straordinario, user_id").eq("order_id", order.id).eq("company_id", ctx.companyId),
-        ctx.supabase.from("purchase_orders").select("total, status").eq("order_id", order.id).eq("company_id", ctx.companyId),
-        ctx.supabase.from("scadenze").select("amount, paid_amount, status").eq("order_id", order.id).eq("company_id", ctx.companyId).eq("tipo", "pagamento_fornitore"),
-        ctx.supabase.from("company_costs").select("amount, is_paid").eq("order_id", order.id).eq("company_id", ctx.companyId),
-        ctx.supabase.from("sal_subappaltatori").select("importo, stato").eq("order_id", order.id),
-        ctx.supabase.from("prima_nota_entries").select("amount").eq("order_id", order.id).eq("company_id", ctx.companyId).eq("direction", "entrata"),
-      ]);
-
-      const avvisi: string[] = [];
-      const fonteVuota = (n: number, nome: string, comeSiPopola: string) => {
-        if (n === 0) { avvisi.push(`${nome}: NESSUN DATO (${comeSiPopola}) — non è un costo pari a zero, è un costo non tracciato.`); return true; }
-        return false;
-      };
-
-      // ── Ricavi ──
-      const righeRate = rate.data ?? [];
-      const incassatoRate = r2(somma(righeRate.filter((x: any) => x.is_paid), "amount"));
-      const daIncassareRate = r2(somma(righeRate.filter((x: any) => !x.is_paid), "amount"));
-      const incassiPrimaNota = r2(somma(pnEntrate.data, "amount"));
-      // NB: gli incassi possono essere registrati SIA come rata pagata SIA come
-      // entrata di Prima Nota collegata (lo fa registra_pagamento_commessa):
-      // le due cifre NON si sommano, si confrontano.
-      if (righeRate.length === 0) {
-        avvisi.push("Piano rate: NESSUNA RATA registrata — l'incassato potrebbe essere tracciato solo in Prima Nota o fuori piattaforma.");
-      }
-      if (incassiPrimaNota > 0 && incassatoRate > 0 && Math.abs(incassiPrimaNota - incassatoRate) > 0.01) {
-        avvisi.push(`Attenzione: rate pagate ${incassatoRate.toFixed(2)}€ e entrate in Prima Nota ${incassiPrimaNota.toFixed(2)}€ NON coincidono. Non sommarle: vanno riconciliate.`);
-      }
-
-      // ── Costi, per fonte ──
-      const righeRapp = rapportini.data ?? [];
-      const oreTot = r2(somma(righeRapp, "ore_lavorate") + somma(righeRapp, "ore_straordinario"));
-      const manodoperaNonTracciata = fonteVuota(righeRapp.length, "Manodopera", "nessun rapportino sulla commessa");
-
-      // Valorizzazione ore: SOLO se l'azienda ha una tariffa oraria configurata.
-      // Mai un costo orario "di mercato" inventato: falserebbe il margine.
-      let costoOrario: number | null = null;
-      if (oreTot > 0) {
-        const { data: tariffe } = await ctx.supabase
-          .from("tariffe_aziendali")
-          .select("nome, costo_interno, costo_default, unita")
-          .eq("company_id", ctx.companyId).eq("tipo", "manodopera")
-          .limit(20);
-        const conCosto = (tariffe ?? []).map((t: any) => Number(t.costo_interno ?? t.costo_default) || 0).filter((n: any) => n > 0);
-        if (conCosto.length > 0) costoOrario = r2(conCosto.reduce((a: any, b: any) => a + b, 0) / conCosto.length);
-        else avvisi.push("Ore presenti ma NON valorizzate: manca la tariffa oraria interna (Impostazioni → Tariffe). Il costo manodopera non entra nel margine.");
-      }
-      const costoManodopera = costoOrario != null ? r2(oreTot * costoOrario) : null;
-
-      const righeOda = (oda.data ?? []).filter((x: any) => x.status !== "annullato");
-      const costoOda = r2(somma(righeOda, "total"));
-      const odaNonTracciato = fonteVuota(righeOda.length, "Ordini a fornitori", "nessun ODA collegato alla commessa");
-
-      const righeScad = (scadenzeF.data ?? []).filter((x: any) => x.status !== "annullata");
-      const costoFornitori = r2(somma(righeScad, "amount"));
-      const scadNonTracciate = fonteVuota(righeScad.length, "Fatture/scadenze fornitori", "nessuna scadenza collegata alla commessa");
-
-      const righeCosti = costiDiretti.data ?? [];
-      const costoDiretto = r2(somma(righeCosti, "amount"));
-      const costiNonTracciati = fonteVuota(righeCosti.length, "Costi diretti", "nessun costo aziendale collegato alla commessa");
-
-      const righeSal = sal.data ?? [];
-      const costoSubappalti = r2(somma(righeSal, "importo"));
-      const salNonTracciati = fonteVuota(righeSal.length, "Subappalti", "nessun SAL subappaltatore sulla commessa");
-
-      const costoTracciato = r2((costoManodopera ?? 0) + costoOda + costoFornitori + costoDiretto + costoSubappalti);
-      const fontiCostoPopolate = [!manodoperaNonTracciata && costoManodopera != null, !odaNonTracciato, !scadNonTracciate, !costiNonTracciati, !salNonTracciati].filter(Boolean).length;
-
-      // ── Margine: si calcola SOLO se ha senso ──
-      let margine: Record<string, unknown> | null = null;
-      let affidabilita: string;
-      if (fontiCostoPopolate === 0) {
-        affidabilita = "INSUFFICIENTE";
-        avvisi.unshift("MARGINE NON CALCOLABILE: non risulta tracciato NESSUN costo su questa commessa. Un margine del 100% sarebbe falso: significa solo che i costi non sono stati registrati qui.");
-      } else {
-        // In edilizia la MANODOPERA pesa quanto o più dei materiali: un margine
-        // calcolato senza di essa è sistematicamente gonfiato. Perciò non basta
-        // contare le fonti — senza costo manodopera l'affidabilità resta parziale.
-        const manodoperaNelCalcolo = costoManodopera != null && costoManodopera > 0;
-        affidabilita = manodoperaNelCalcolo && fontiCostoPopolate >= 3 ? "BUONA" : "PARZIALE";
-        if (!manodoperaNelCalcolo) {
-          avvisi.unshift(
-            manodoperaNonTracciata
-              ? "Il margine NON include la manodopera (nessun rapportino sulla commessa): in edilizia è la voce che pesa di più, quindi il margine qui sotto è OTTIMISTICO."
-              : "Il margine NON include la manodopera (ore presenti ma senza tariffa oraria): il margine qui sotto è OTTIMISTICO.",
-          );
-        }
-        margine = {
-          importo: r2(valore - costoTracciato),
-          percentuale: valore > 0 ? r2(((valore - costoTracciato) / valore) * 100) : null,
-          include_manodopera: manodoperaNelCalcolo,
-          avvertenza: affidabilita === "PARZIALE"
-            ? `Calcolato su ${fontiCostoPopolate} fonti di costo su 5${!manodoperaNelCalcolo ? ", MANODOPERA ESCLUSA" : ""}: il margine reale è VEROSIMILMENTE PIÙ BASSO di quello indicato.`
-            : "Calcolato sui costi effettivamente tracciati a sistema (manodopera inclusa); eventuali costi fuori piattaforma non sono inclusi.",
-        };
-      }
-
-      return {
-        commessa: `${order.order_code}${order.description ? ` — ${order.description}` : ""}`,
-        ricavi: {
-          valore_commessa: valore,
-          incassato_da_rate: incassatoRate,
-          da_incassare_rate: daIncassareRate,
-          entrate_in_prima_nota: incassiPrimaNota,
-          nota: "incassato_da_rate ed entrate_in_prima_nota sono DUE LETTURE della stessa realtà: non sommarle.",
-        },
-        costi: {
-          manodopera: { ore: oreTot, costo_orario_usato: costoOrario, valorizzato: costoManodopera, righe: righeRapp.length, stato: manodoperaNonTracciata ? "NON TRACCIATO" : (costoManodopera == null ? "ORE SENZA TARIFFA" : "tracciato") },
-          ordini_fornitori: { importo: costoOda, righe: righeOda.length, stato: odaNonTracciato ? "NON TRACCIATO" : "tracciato" },
-          fatture_fornitori: { importo: costoFornitori, righe: righeScad.length, stato: scadNonTracciate ? "NON TRACCIATO" : "tracciato" },
-          costi_diretti: { importo: costoDiretto, righe: righeCosti.length, stato: costiNonTracciati ? "NON TRACCIATO" : "tracciato" },
-          subappalti: { importo: costoSubappalti, righe: righeSal.length, stato: salNonTracciati ? "NON TRACCIATO" : "tracciato" },
-          totale_tracciato: costoTracciato,
-          fonti_popolate: `${fontiCostoPopolate} su 5`,
-        },
-        margine,
-        affidabilita,
-        avvisi,
-        come_leggere:
-          "Riporta all'utente il livello di affidabilità e gli avvisi PRIMA dei numeri. Se l'affidabilità è INSUFFICIENTE non dare nessuna percentuale di margine. " +
-          "Se è PARZIALE, di' esplicitamente che il margine mostrato è ottimistico perché mancano fonti di costo. Non stimare, non estrapolare, non inventare costi mancanti.",
-        link: `/azienda/ordini/${order.id}`,
-      };
-    },
+    executor: silvioOrderReport,
     allowedRoles: ["super_admin", "company_admin"],
     allowedPersonas: ["silvio", "cfo", "controller", "pm_cantiere", "assistente_imprenditore", "titolare"],
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "voice"],
@@ -8835,7 +8622,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
               type: "array",
               items: {
                 type: "string",
-                enum: ["sicurezza", "magazzino", "persone", "clienti", "preventivi", "fatture", "banca", "cantieri", "mezzi", "posta", "campagne"],
+                enum: ["sicurezza", "magazzino", "persone", "clienti", "preventivi", "fatture", "banca", "cantieri", "mezzi", "posta", "campagne", "calendario", "contenuti", "assistenza"],
               },
               description: "Aree da caricare. Puoi chiederne piu di una in una volta sola.",
             },
@@ -8890,6 +8677,9 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
  * interni: e il modello a sceglierle, quindi devono suonare come il mestiere.
  */
 export const AREE_CARICABILI: Record<string, { etichetta: string; domini: ToolDomain[] }> = {
+  calendario: { etichetta: "appuntamenti, disponibilità, agenda", domini: ["calendar"] },
+  contenuti: { etichetta: "documenti, grafici, immagini e bozze campagne", domini: ["generative"] },
+  assistenza: { etichetta: "ticket e assistenza clienti", domini: ["support"] },
   sicurezza: { etichetta: "sicurezza, DURC, formazione, subappaltatori", domini: ["compliance"] },
   magazzino: { etichetta: "magazzino, fornitori, ordini e DDT", domini: ["warehouse", "filiera"] },
   persone: { etichetta: "dipendenti, ore, buste paga, candidati", domini: ["hr"] },
@@ -8957,12 +8747,9 @@ export function getToolsForRole(role: string): SilvioTool[] {
  */
 export const CORE_TOOL_DOMAINS: ToolDomain[] = [
   "ai",
-  "calendar",
-  "generative",
   "knowledge",
   "kpi",
   "meta",
-  "support",
   "titolare",
 ];
 
@@ -8985,10 +8772,10 @@ const AREA_TOOL_DOMAINS: Record<string, ToolDomain[] | null> = {
   finance: ["anomalie", "banking", "fattura", "finance"],
   fiscal: ["anomalie", "banking", "compliance", "fattura", "finance"],
   // `mezzi` (2 tool): «dov'e il demolitore» e una domanda di cantiere.
-  operations: ["cantiere", "filiera", "mezzi", "operations", "warehouse"],
-  sales: ["crm", "preventivi", "sales"],
-  marketing: ["crm", "email", "marketing", "sales"],
-  hr: ["hr"],
+  operations: ["calendar", "cantiere", "filiera", "mezzi", "operations", "warehouse"],
+  sales: ["calendar", "crm", "preventivi", "sales"],
+  marketing: ["crm", "email", "generative", "marketing", "sales"],
+  hr: ["calendar", "hr"],
   compliance: ["cantiere", "compliance", "hr", "operations"],
   client: ["crm", "fattura", "preventivi", "sales"],
   tech: ["operations", "support"],

@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import {
   MessageSquare,
   FileText,
@@ -15,11 +16,12 @@ import {
   CheckCircle2,
   Loader2,
   XCircle,
+  type LucideIcon,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 
-const intentIcons: Record<string, any> = {
+const intentIcons: Record<string, LucideIcon> = {
   rapportino: FileText,
   ddt: FileText,
   foto_cantiere: Camera,
@@ -41,13 +43,15 @@ const intentLabels: Record<string, string> = {
   unknown: "Messaggio",
 };
 
-const statusIcons: Record<string, any> = {
-  received: Loader2,
-  processing: Loader2,
-  processed: CheckCircle2,
-  failed: XCircle,
-  requires_confirmation: Clock,
+const statuses: Record<string, { icon: LucideIcon; label: string; className: string }> = {
+  received: { icon: Clock, label: "In attesa", className: "text-amber-600" },
+  processing: { icon: Loader2, label: "In elaborazione", className: "text-amber-600 animate-spin" },
+  processed: { icon: CheckCircle2, label: "Elaborato", className: "text-green-600" },
+  failed: { icon: XCircle, label: "Da verificare", className: "text-red-600" },
+  failed_max_retries: { icon: XCircle, label: "Elaborazione interrotta", className: "text-red-600" },
+  requires_confirmation: { icon: Clock, label: "Attende conferma", className: "text-amber-600" },
 };
+const unknownStatus = { icon: HelpCircle, label: "Stato da verificare", className: "text-muted-foreground" };
 
 interface WhatsAppActivityFeedProps {
   cantiereId: string;
@@ -58,11 +62,11 @@ export function WhatsAppActivityFeed({ cantiereId }: WhatsAppActivityFeedProps) 
   const companyId = (effectiveCompany as any)?.id;
   const queryClient = useQueryClient();
 
-  const { data: messages = [], isLoading } = useQuery({
+  const { data: messages = [], isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["wa-activity-feed", cantiereId, companyId],
     queryFn: async () => {
       if (!companyId || !cantiereId) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("whatsapp_messages")
         .select(`
           id, wa_message_id, direction, from_phone, message_type,
@@ -75,9 +79,14 @@ export function WhatsAppActivityFeed({ cantiereId }: WhatsAppActivityFeedProps) 
         .eq("direction", "inbound")
         .order("created_at", { ascending: false })
         .limit(10);
+      if (error) throw error;
       return data || [];
     },
     enabled: !!companyId && !!cantiereId,
+    // Recovery if a Realtime event is missed; never re-executes the message.
+    refetchInterval: (query) => query.state.data?.some(
+      (message) => message.processing_status === "received" || message.processing_status === "processing",
+    ) ? 15_000 : false,
   });
 
   // Realtime subscription
@@ -107,7 +116,14 @@ export function WhatsAppActivityFeed({ cantiereId }: WhatsAppActivityFeedProps) 
   ).length;
 
   if (isLoading) {
-    return null;
+    return <div role="status" className="text-sm text-muted-foreground p-3">Caricamento attività WhatsApp…</div>;
+  }
+
+  if (isError) {
+    return <Card><CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+      <p role="alert" className="text-sm">Attività WhatsApp non disponibili. I messaggi non vengono reinviati.</p>
+      <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>Ricarica attività</Button>
+    </CardContent></Card>;
   }
 
   if (messages.length === 0) {
@@ -120,7 +136,7 @@ export function WhatsAppActivityFeed({ cantiereId }: WhatsAppActivityFeedProps) 
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <MessageSquare className="h-4 w-4 text-emerald-600" />
-            Attivita WhatsApp
+            Attività WhatsApp
           </CardTitle>
           {pendingCount > 0 && (
             <Badge variant="secondary" className="text-xs">
@@ -134,7 +150,8 @@ export function WhatsAppActivityFeed({ cantiereId }: WhatsAppActivityFeedProps) 
           <div className="space-y-3">
             {messages.map((msg: any) => {
               const IntentIcon = intentIcons[msg.ai_intent || "unknown"] || MessageSquare;
-              const StatusIcon = statusIcons[msg.processing_status] || CheckCircle2;
+              const status = statuses[msg.processing_status] ?? unknownStatus;
+              const StatusIcon = status.icon;
               const employee = msg.employees;
               const name = employee
                 ? `${employee.first_name} ${employee.last_name}`
@@ -151,15 +168,9 @@ export function WhatsAppActivityFeed({ cantiereId }: WhatsAppActivityFeedProps) 
                       <Badge variant="outline" className="text-[10px]">
                         {intentLabels[msg.ai_intent || "unknown"]}
                       </Badge>
-                      <StatusIcon
-                        className={`h-3 w-3 flex-shrink-0 ${
-                          msg.processing_status === "processed"
-                            ? "text-green-500"
-                            : msg.processing_status === "failed"
-                            ? "text-red-500"
-                            : "text-yellow-500 animate-spin"
-                        }`}
-                      />
+                      <span role="img" aria-label={status.label} title={status.label}>
+                        <StatusIcon aria-hidden="true" className={`h-3 w-3 flex-shrink-0 ${status.className}`} />
+                      </span>
                     </div>
                     <p className="text-xs text-muted-foreground truncate mt-0.5">
                       {msg.content_text || `[${msg.message_type}]`}

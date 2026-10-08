@@ -2,6 +2,7 @@
 
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
+import { assignedSiteIds } from "../shared/siteAccess.ts";
 
 export const elencaMieiCantieriOggiDef: Omit<ToolDef, "handler"> = {
   name: "elenca_miei_cantieri_oggi",
@@ -37,11 +38,12 @@ export async function elencaMieiCantieriOggi(
   ctx: ToolCtx,
   args: { data?: string },
 ): Promise<ToolResult<{ cantieri: CantiereItem[] }>> {
-  if (!ctx.user_id) {
+  if (!ctx.user_id && !ctx.employee_id) {
     return errResult("no_user_id", "Non riesco a identificarti.");
   }
 
   const dataRif = args.data ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
+  const assigned = await assignedSiteIds(ctx, dataRif);
 
   const { data: rows, error } = await ctx.supabase
     .from("orders")
@@ -53,6 +55,7 @@ export async function elencaMieiCantieriOggi(
   if (error) return errResult(error.message, "Errore caricando i cantieri.");
 
   const filtered = (rows ?? []).filter((r) => {
+    if (assigned && !assigned.has(r.id)) return false;
     const startOk = !r.work_start_date || r.work_start_date <= dataRif;
     const endOk = !r.work_end_date || r.work_end_date >= dataRif;
     return startOk && endOk;

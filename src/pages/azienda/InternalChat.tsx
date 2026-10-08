@@ -10,7 +10,8 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
+import { type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
+import { SilvioAnswer } from "@/components/silvio/SilvioAnswer";
 import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components/silvio/AiMessageMeta";
 import { SilvioRatingButtons } from "@/components/silvio/SilvioRatingButtons";
 import { SILVIO_SKILLS, SILVIO_SKILL_CATEGORY_LABELS } from "@/lib/silvio-skills";
@@ -18,10 +19,12 @@ import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { useAutoSizeTextarea } from "@/hooks/useAutoSizeTextarea";
 import { AIModelSelector } from "@/components/ai/AIModelSelector";
 import { AIRunFooter } from "@/components/ai/AIRunFooter";
+import { invokeSilvioWithRecovery } from "@/lib/silvio/replyDelivery";
 import {
   channelMessagesQueryKey,
   readChannelMessagesHasOlder,
   readChannelMessagesItems,
+  upsertChannelMessage,
   type ChannelMessagesCache,
 } from "@/lib/chat/channelMessagesCache";
 import { useAIModelSelector } from "@/lib/ai/use-ai-model-selector";
@@ -706,7 +709,18 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
         queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
         onNewMessage?.();
       })
-      .subscribe();
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "internal_chat_messages",
+        filter: `channel_id=eq.${channelId}`,
+      }, (payload) => {
+        const message = payload.new as Message;
+        if (message?.id && message.channel_id === channelId) {
+          queryClient.setQueryData<ChannelMessagesData>(queryKey, (prev) => upsertChannelMessage(prev, message));
+        }
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void queryClient.invalidateQueries({ queryKey });
+      });
     return () => { supabase.removeChannel(sub); };
   }, [channelId, queryClient, onNewMessage]);
 
@@ -1097,7 +1111,7 @@ const MessageBubble = React.memo(function MessageBubble({
             isAIMsg ? (
               // Silvio + Lucia + canale AI: render markdown completo (### → h3, **bold**, liste, tabelle, [S1] chip)
               <div className="text-[14px] break-words pr-14">
-                <ChatMarkdown content={msg.content} sources={msg.rag_sources ?? undefined} />
+                <SilvioAnswer content={msg.content} sources={msg.rag_sources ?? undefined} />
               </div>
             ) : (
               <p className="text-[14px] whitespace-pre-wrap break-words pr-14 leading-relaxed">
@@ -1617,7 +1631,9 @@ export default function InternalChat({ companyIdOverride, embedded }: InternalCh
     setSilvioError(null);
     setLastSilvioPrompt(messageText.trim());
     // 1) Inserisci subito il messaggio dell'utente nel canale (UX feedback istantaneo)
+    const requestMessageId = crypto.randomUUID();
     const { error: insertErr } = await supabase.from("internal_chat_messages").insert({
+      id: requestMessageId,
       channel_id: selectedChannelId, sender_id: userId, company_id: companyId,
       content: messageText.trim(), message_type: "text",
     });
@@ -1634,7 +1650,13 @@ export default function InternalChat({ companyIdOverride, embedded }: InternalCh
       // Routing edge function: canale silvio-admin → silvio-admin-chat (cross-tenant
       // tools per super_admin), altrimenti silvio-chat (assistente cliente).
       const edgeFn = isSilvioAdminChannel ? "silvio-admin-chat" : "silvio-chat";
-      const res = await supabase.functions.invoke(edgeFn, {
+      const res = await invokeSilvioWithRecovery({
+        functionName: edgeFn,
+        requestMessageId,
+        senderId: isSilvioAdminChannel ? SILVIO_ADMIN_SENDER_ID : SILVIO_SENDER_ID,
+        onRecovering: () => toast.info("Recupero la risposta di Silvio. Non serve reinviare la domanda."),
+        onMessage: (message) => queryClient.setQueryData<ChannelMessagesData>(
+          channelMessagesQueryKey(selectedChannelId), (prev) => upsertChannelMessage(prev, message as Message)),
         body: {
           channel_id: selectedChannelId,
           message: messageText.trim(),
@@ -1683,6 +1705,7 @@ export default function InternalChat({ companyIdOverride, embedded }: InternalCh
       setSilvioError(message);
       toast.error(`Silvio: ${message}`);
     } finally {
+      void queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
       setAiTyping(false);
     }
   }, [selectedChannelId, companyId, userId, channels, queryClient, refetchUnread, isSilvioAdminChannel, aiSelector.showSelector, aiSelector.selectedModel]);

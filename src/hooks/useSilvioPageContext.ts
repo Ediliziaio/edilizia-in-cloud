@@ -62,6 +62,7 @@ const UUID_RE = "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
 
 const RULES: ContextRule[] = [
   // ── Specifici (con UUID) ─────────────────────────────────────────
+  { pattern: new RegExp(`^/azienda/ordini/${UUID_RE}(?:/|$)`), entity_type: "order", route_label: "Commessa", requiresId: true },
   { pattern: new RegExp(`^/azienda/commesse/${UUID_RE}`),       entity_type: "order",    route_label: "Commessa",   requiresId: true },
   { pattern: new RegExp(`^/azienda/clienti/${UUID_RE}`),        entity_type: "customer", route_label: "Cliente",    requiresId: true },
   { pattern: new RegExp(`^/azienda/fatturazione/editor/${UUID_RE}`), entity_type: "invoice", route_label: "Documento fiscale", requiresId: true },
@@ -72,6 +73,7 @@ const RULES: ContextRule[] = [
   { pattern: new RegExp(`^/azienda/mezzi/${UUID_RE}`),          entity_type: "mezzo",    route_label: "Mezzo o attrezzo", requiresId: true },
 
   // ── Overview (senza ID) ──────────────────────────────────────────
+  { pattern: /^\/azienda\/ordini\/?$/, entity_type: "cantiere_overview", route_label: "Commesse", requiresId: false },
   { pattern: /^\/azienda\/magazzino/,         entity_type: "warehouse_overview", route_label: "Magazzino",  requiresId: false },
   { pattern: /^\/azienda\/cassa/,             entity_type: "bank_overview",      route_label: "Cassa",      requiresId: false },
   { pattern: /^\/azienda\/commesse(?!\/)/,    entity_type: "cantiere_overview",  route_label: "Cantieri",   requiresId: false },
@@ -88,7 +90,10 @@ export function useSilvioPageContext(): SilvioPageContext | null {
   const { pathname } = useLocation();
   const [searchParams] = useSearchParams();
   const tab = searchParams.get("tab");
-  return useMemo(() => {
+  return useMemo(() => resolveSilvioPageContext(pathname, tab), [pathname, tab]);
+}
+
+export function resolveSilvioPageContext(pathname: string, tab: string | null = null): SilvioPageContext | null {
     // Sotto-tab "selezioni" del personale → context dedicato Talent Assessment
     if (pathname === "/azienda/personale" && tab === "selezioni") {
       return {
@@ -121,5 +126,4 @@ export function useSilvioPageContext(): SilvioPageContext | null {
       };
     }
     return null;
-  }, [pathname, tab]);
 }

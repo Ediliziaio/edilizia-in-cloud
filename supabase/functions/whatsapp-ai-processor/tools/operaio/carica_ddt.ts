@@ -112,8 +112,8 @@ export async function caricaDDT(
 
   // La foto del DDT è quella arrivata con il messaggio (o poco prima): il
   // modello non ne conosce il link, quindi media_url di solito manca.
-  const fotoUrl = args.media_url ||
-    (ctx.mediaCorrente && ["image", "document"].includes(ctx.mediaCorrente.tipo) ? ctx.mediaCorrente.url : null);
+  // Only the verified inbound attachment, never a model-invented external URL.
+  const fotoUrl = ctx.mediaCorrente && ["image", "document"].includes(ctx.mediaCorrente.tipo) ? ctx.mediaCorrente.url : null;
 
   const righeArg = Array.isArray(args.righe) ? args.righe : [];
   const dataIso = toIsoDate(args.data_ddt);

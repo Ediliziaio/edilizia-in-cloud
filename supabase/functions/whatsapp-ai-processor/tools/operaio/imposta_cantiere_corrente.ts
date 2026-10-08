@@ -3,6 +3,7 @@
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
 import { resolveCantiere } from "../shared/resolve_cantiere.ts";
+import { requireSiteAccess } from "../shared/siteAccess.ts";
 
 export const impostaCantiereCorrenteDef: Omit<ToolDef, "handler"> = {
   name: "imposta_cantiere_corrente",
@@ -39,6 +40,7 @@ export async function impostaCantiereCorrente(
     orderId = resolved.cantiere_id;
     nome = resolved.cantiere_nome ?? "";
   } else {
+    await requireSiteAccess(ctx, orderId);
     const { data: c } = await ctx.supabase
       .from("orders")
       .select("description, order_code")
@@ -48,13 +50,14 @@ export async function impostaCantiereCorrente(
     nome = c?.description || c?.order_code || "cantiere";
   }
 
-  await ctx.supabase
+  const { data: changed, error: saveError } = await ctx.supabase
     .from("whatsapp_sessions")
     .update({
       current_cantiere_id: orderId,
       last_activity_at: new Date().toISOString(),
     })
-    .eq("id", ctx.sessionId);
+    .eq("id", ctx.sessionId).eq("company_id", ctx.company_id).eq("wa_number_id", ctx.waNumberId).select("id");
+  if (saveError || changed?.length !== 1) return errResult("session_not_saved", "Il cantiere corrente non è stato aggiornato. Verifica la sessione nell’app.");
 
   return okResult(
     { order_id: orderId, cantiere_nome: nome },

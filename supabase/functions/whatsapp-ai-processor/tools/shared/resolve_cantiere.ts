@@ -15,6 +15,7 @@
 // per rapportino/foto/segnalazione/imposta_cantiere_corrente).
 
 import type { ToolCtx } from "./types.ts";
+import { assignedSiteIds } from "./siteAccess.ts";
 
 /** Segnali estratti dal documento per auto-puntare il cantiere (P0-B). */
 export interface ResolveCantiereSignals {
@@ -120,7 +121,8 @@ function addrScore(
   return shared + (numShared > 0 ? 2 : 0);
 }
 
-async function loadCantiereById(ctx: ToolCtx, orderId: string): Promise<ResolveCantiereResult | null> {
+async function loadCantiereById(ctx: ToolCtx, orderId: string, assigned: Set<string> | null): Promise<ResolveCantiereResult | null> {
+  if (assigned && !assigned.has(orderId)) return null;
   const { data: c } = await ctx.supabase
     .from("orders")
     .select("id, description, order_code")
@@ -131,7 +133,7 @@ async function loadCantiereById(ctx: ToolCtx, orderId: string): Promise<ResolveC
   return { cantiere_id: c.id, cantiere_nome: cantiereNome(c), ask_user: null, source: "oda" };
 }
 
-async function loadActiveCantieri(ctx: ToolCtx): Promise<OrderRow[]> {
+async function loadActiveCantieri(ctx: ToolCtx, assigned: Set<string> | null): Promise<OrderRow[]> {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
   const { data: cantieri } = await ctx.supabase
     .from("orders")
@@ -140,6 +142,7 @@ async function loadActiveCantieri(ctx: ToolCtx): Promise<OrderRow[]> {
     .in("status", ACTIVE_STATUSES)
     .limit(50);
   return ((cantieri ?? []) as OrderRow[]).filter((c) => {
+    if (assigned && !assigned.has(c.id)) return false;
     const startOk = !c.work_start_date || c.work_start_date <= today;
     const endOk = !c.work_end_date || c.work_end_date >= today;
     return startOk && endOk;
@@ -151,10 +154,11 @@ export async function resolveCantiere(
   hint?: string,
   signals?: ResolveCantiereSignals,
 ): Promise<ResolveCantiereResult> {
+  const assigned = await assignedSiteIds(ctx);
   // Carica i cantieri attivi una sola volta (memoizzato), riusato dalle regole 0c/3.
   let activeCache: OrderRow[] | null = null;
   const getActive = async (): Promise<OrderRow[]> => {
-    if (activeCache == null) activeCache = await loadActiveCantieri(ctx);
+    if (activeCache == null) activeCache = await loadActiveCantieri(ctx, assigned);
     return activeCache;
   };
 
@@ -180,7 +184,7 @@ export async function resolveCantiere(
         po = (bySup.data as PoRow | null) ?? null;
       }
       if (po?.order_id) {
-        const resolved = await loadCantiereById(ctx, po.order_id);
+        const resolved = await loadCantiereById(ctx, po.order_id, assigned);
         if (resolved) return resolved;
       }
     }
@@ -203,7 +207,7 @@ export async function resolveCantiere(
               .filter((x): x is string => !!x),
           ));
           if (openOrderIds.length === 1) {
-            const resolved = await loadCantiereById(ctx, openOrderIds[0]);
+            const resolved = await loadCantiereById(ctx, openOrderIds[0], assigned);
             if (resolved) return resolved;
           }
         }
@@ -240,11 +244,12 @@ export async function resolveCantiere(
   }
 
   // Regola 1 — sessione < 4h
-  if (ctx.sessionId) {
+  if (ctx.sessionId && !hint) {
     const { data: sess } = await ctx.supabase
       .from("whatsapp_sessions")
       .select("current_cantiere_id, last_activity_at")
       .eq("id", ctx.sessionId)
+      .eq("company_id", ctx.company_id)
       .maybeSingle();
 
     if (sess?.current_cantiere_id) {
@@ -252,14 +257,14 @@ export async function resolveCantiere(
         ? new Date(sess.last_activity_at).getTime()
         : 0;
       const hoursSince = (Date.now() - lastActivity) / 3_600_000;
-      if (hoursSince < 4) {
+      if (hoursSince >= 0 && hoursSince < 4) {
         const { data: c } = await ctx.supabase
           .from("orders")
           .select("id, description, order_code")
           .eq("id", sess.current_cantiere_id)
           .eq("company_id", ctx.company_id)
           .maybeSingle();
-        if (c) {
+        if (c && (!assigned || assigned.has(c.id))) {
           return {
             cantiere_id: c.id,
             cantiere_nome: cantiereNome(c),
@@ -279,7 +284,7 @@ export async function resolveCantiere(
       p_limit: 3,
     });
 
-    const ms = (matches ?? []) as TrigramMatch[];
+    const ms = ((matches ?? []) as TrigramMatch[]).filter(m => !assigned || assigned.has(m.id));
     if (ms.length === 1 && ms[0].similarity > 0.35) {
       return {
         cantiere_id: ms[0].id,
@@ -298,6 +303,8 @@ export async function resolveCantiere(
         source: "ask",
       };
     }
+    return { cantiere_id: null, cantiere_nome: null, source: "ask",
+      ask_user: "Non trovo un cantiere accessibile con quel nome. Indica il codice esatto o chiedi all’ufficio l’assegnazione." };
   }
 
   // Regola 2 — un solo cantiere attivo oggi

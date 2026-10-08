@@ -35,6 +35,8 @@ interface PersonaMemory {
   last_used_at: string | null;
   expires_at: string | null;
   created_at: string;
+  learning_document_id?: string | null;
+  learning_review_id?: string | null;
 }
 
 const MEMORY_TYPE_BADGE: Record<PersonaMemory["memory_type"], string> = {
@@ -332,6 +334,8 @@ function MemoryCard({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(memory.content);
   const persona = personas.find((p) => p.persona_key === memory.persona_key);
+  const fromLearning = memory.source === "feedback_loop" || !!memory.learning_document_id;
+  const unreviewed = fromLearning && (!memory.learning_document_id || !memory.learning_review_id);
 
   return (
     <Card className={memory.enabled ? "" : "opacity-60"}>
@@ -373,11 +377,17 @@ function MemoryCard({
                 {memory.content}
               </p>
             )}
+            {fromLearning && <p className="text-xs text-muted-foreground">
+              {unreviewed
+                ? "Memoria automatica storica non verificata: conservata, ma non usata nelle risposte. Verifica l'esempio nella scheda di apprendimento."
+                : "Usata solo se la fonte e l'approvazione restano valide. Modifica o revoca la regola nella scheda di apprendimento."}
+            </p>}
           </div>
           <div className="flex flex-col gap-1 shrink-0">
             <div className="flex items-center gap-1">
               <Switch
-                checked={memory.enabled}
+                checked={!unreviewed && memory.enabled}
+                disabled={unreviewed}
                 onCheckedChange={onToggle}
                 aria-label="Attiva memoria"
               />
@@ -415,6 +425,7 @@ function MemoryCard({
                     variant="ghost"
                     className="h-7 w-7 p-0"
                     onClick={() => setEditing(true)}
+                    disabled={fromLearning}
                     title="Modifica"
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -423,6 +434,7 @@ function MemoryCard({
                     size="sm"
                     variant="ghost"
                     className="h-7 w-7 p-0 text-rose-600 hover:text-rose-700"
+                    disabled={fromLearning}
                     onClick={async () => {
                       if (await confirm({ title: "Eliminare questa memoria?", confirmLabel: "Elimina", variant: "destructive" })) onDelete();
                     }}
@@ -439,4 +451,3 @@ function MemoryCard({
     </Card>
   );
 }
-

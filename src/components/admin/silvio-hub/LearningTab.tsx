@@ -13,6 +13,7 @@ import { Zap } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { GroundednessCard } from "./GroundednessCard";
+import { LearningReview } from "./LearningReview";
 
 interface LearningLog {
   id: string;
@@ -54,6 +55,9 @@ export function LearningTab() {
         },
       );
       if (error) throw error;
+      if (data?.ok !== true || Number(data?.errors_count ?? 0) > 0) {
+        throw new Error(data?.error ?? `Elaborazione incompleta (${data?.errors_count ?? 0} errori). Controlla lo storico.`);
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -65,13 +69,15 @@ export function LearningTab() {
       toast.success(
         `Self-improvement completato — +${d?.gold_added ?? 0} gold, +${d?.avoid_added ?? 0} avoid, ${d?.promoted_to_memory ?? 0} promossi a memoria`,
       );
-      queryClient.invalidateQueries({
-        queryKey: ["silvio-self-improvement-log"],
-      });
-      queryClient.invalidateQueries({ queryKey: ["silvio-persona-memory"] });
     },
     onError: (e) =>
       toast.error("Errore self-improvement", { description: String(e) }),
+    onSettled: () => {
+      // Partial runs can have saved data too: refresh on success AND failure.
+      queryClient.invalidateQueries({ queryKey: ["silvio-self-improvement-log"] });
+      queryClient.invalidateQueries({ queryKey: ["silvio-persona-memory"] });
+      queryClient.invalidateQueries({ queryKey: ["silvio-learning-review"] });
+    },
   });
 
   const logs = logsQuery.data ?? [];
@@ -89,9 +95,11 @@ export function LearningTab() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Cron settimanale (Domenica 03:00 UTC): analizza le risposte rated
-            👍/👎 degli ultimi 7gg, aggiunge gold standard e avoid pattern alla
-            KB, promuove pattern usati a memoria persona.
+            Analizza le risposte valutate 👍/👎 degli ultimi 7 giorni e registra
+            esempi utili o da evitare, da verificare qui sotto prima di trasformarli
+            in memoria. L'esecuzione automatica dipende dalla
+            configurazione del server: lo storico mostra gli esiti registrati,
+            non conferma che la pianificazione sia attiva.
           </p>
           {last && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
@@ -145,6 +153,7 @@ export function LearningTab() {
         </CardContent>
       </Card>
 
+      <LearningReview />
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Storico run</CardTitle>
@@ -152,10 +161,14 @@ export function LearningTab() {
         <CardContent className="p-0">
           {logsQuery.isLoading ? (
             <Skeleton className="h-32" />
+          ) : logsQuery.isError ? (
+            <div role="alert" className="p-4 text-sm text-destructive">
+              Impossibile caricare lo storico. Non significa che non ci siano esecuzioni.
+              <Button size="sm" variant="outline" className="ml-2" onClick={() => logsQuery.refetch()}>Riprova</Button>
+            </div>
           ) : logs.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
-              Nessuna run effettuata. Premi "Esegui ora" o aspetta il cron
-              settimanale.
+              Nessuna esecuzione registrata. Puoi avviarla con "Esegui ora".
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -201,6 +214,16 @@ export function LearningTab() {
                         >
                           {l.ok ? "✓ ok" : "✗ errors"}
                         </Badge>
+                        {!l.ok && Array.isArray(l.errors) && l.errors.length > 0 && (
+                          <details className="mt-1 max-w-xs text-xs">
+                            <summary className="cursor-pointer">Dettagli errore</summary>
+                            <ul className="mt-1 space-y-1 break-words">
+                              {l.errors.slice(0, 5).map((entry: { error?: string }, index: number) => (
+                                <li key={index}>{String(entry?.error ?? "Errore non specificato").slice(0, 300)}</li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
                       </td>
                     </tr>
                   ))}

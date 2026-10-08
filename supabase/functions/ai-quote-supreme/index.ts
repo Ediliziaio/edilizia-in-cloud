@@ -201,6 +201,21 @@ serve(async (req) => {
     const companyId = profile?.company_id;
     if (!companyId) return errorResponse("company_id non risolto", 403, cors);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, cors);
+    // Actor-bound roles: never inherit administrator privileges from another company.
+    const { data: actorRoles, error: rolesError } = await supabaseAdmin.rpc("silvio_context_actor_roles", {
+      p_company_id: companyId, p_user_id: userId,
+    });
+    if (rolesError || !Array.isArray(actorRoles)) return errorResponse("Impossibile verificare i permessi", 403, cors);
+    const canUseCompanyHistory = actorRoles.some((role: string) => ["company_admin", "super_admin"].includes(role));
+    if (!canUseCompanyHistory) {
+      const { data: permissions, error: permissionsError } = await supabaseAdmin.from("staff_permissions")
+        .select("can_view_preventivi").eq("company_id", companyId).eq("user_id", userId).maybeSingle();
+      if (permissionsError || !permissions || permissions.can_view_preventivi !== true) {
+        return errorResponse("Non hai accesso all'assistente preventivi", 403, cors);
+      }
+    }
+    const contextWarnings: string[] = canUseCompanyHistory ? []
+      : ["Storico clienti e margini aziendali non inclusi: analisi limitata ai dati forniti nella richiesta."];
 
     // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
     const paymentBlock = await gateAiPayment(supabaseAdmin, companyId, cors);
@@ -215,19 +230,18 @@ serve(async (req) => {
 
     // ── 1) Customer intelligence (margin history) ──────────────────────
     let custIntel: MarginHistRow | null = null;
-    if (body.customer_id || body.customer_name) {
-      const { data } = await supabaseAdmin
+    if (canUseCompanyHistory && (body.customer_id || body.customer_name)) {
+      let historyQuery = supabaseAdmin
         .from("client_margin_history")
         .select("customer_id, customer_name, total_quotes, accepted_quotes, avg_acceptance_margin_pct, avg_negotiation_discount_pct, preferred_payment_terms, typical_project_size_eur, loyalty_score, last_quote_at, last_accepted_at")
-        .eq("company_id", companyId)
-        .or(
-          body.customer_id
-            ? `customer_id.eq.${body.customer_id}`
-            : `customer_name.eq.${body.customer_name}`,
-        )
+        .eq("company_id", companyId);
+      historyQuery = body.customer_id ? historyQuery.eq("customer_id", body.customer_id)
+        : historyQuery.eq("customer_name", body.customer_name);
+      const { data, error } = await historyQuery
         .limit(1)
         .maybeSingle();
-      custIntel = (data as MarginHistRow | null) ?? null;
+      if (error) contextWarnings.push("Storico cliente temporaneamente non disponibile: verifica manualmente i margini.");
+      else custIntel = (data as MarginHistRow | null) ?? null;
     }
 
     // ── 2) Suggested clauses ──────────────────────────────────────────
@@ -253,19 +267,20 @@ serve(async (req) => {
       body.proposed_lines?.map((l) => l.descrizione).filter(Boolean).join(", ") ?? "",
     ].filter(Boolean).join(" — ").trim();
 
-    if (queryText.length >= 6) {
+    if (canUseCompanyHistory && queryText.length >= 6) {
       try {
         const [embedding] = await generateEmbeddingsBatch([queryText]);
         if (embedding && embedding.length > 0) {
-          const { data: matches } = await supabaseAdmin.rpc("match_brain", {
+          const { data: matches, error: matchesError } = await supabaseAdmin.rpc("silvio_match_brain", {
             p_company_id: companyId,
+            p_user_id: userId,
+            p_scope: "company",
             p_query_embedding: `[${embedding.join(",")}]`,
             p_match_count: 5,
             p_min_similarity: 0.7,
             p_source_types: ["quote"],
-            p_include_universal: false,
-            p_universal_categories: null,
           });
+          if (matchesError) throw matchesError;
           if (Array.isArray(matches)) {
             for (const m of matches) {
               similarQuotes.push({
@@ -278,6 +293,7 @@ serve(async (req) => {
           }
         }
       } catch (e) {
+        contextWarnings.push("Confronto con preventivi storici non disponibile: non incluso nell'analisi.");
         console.warn("[ai-quote-supreme] RAG quotes simili fallita (graceful):", e instanceof Error ? e.message : e);
       }
     }
@@ -286,7 +302,7 @@ serve(async (req) => {
     const strategy = buildPricingStrategy(custIntel, projectValue, proposedTotal, proposedMarginPct);
 
     // ── 5) Confidence + human review flag ──────────────────────────────
-    const warnings: string[] = [];
+    const warnings: string[] = [...contextWarnings];
     let confidence = 0.7; // baseline
     if (custIntel) confidence += 0.1;
     if (similarQuotes.length >= 3) confidence += 0.1;
@@ -301,7 +317,7 @@ serve(async (req) => {
     confidence = Math.max(0, Math.min(1, confidence));
     const requiresHumanReview =
       confidence < 0.55 ||
-      warnings.length >= 2 ||
+      contextWarnings.length > 0 || warnings.length >= 2 ||
       (proposedMarginPct !== null && proposedMarginPct < strategy.min_acceptable_margin_pct) ||
       (projectValue !== null && projectValue >= 100000);
 

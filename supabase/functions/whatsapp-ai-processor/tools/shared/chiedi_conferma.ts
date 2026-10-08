@@ -17,6 +17,7 @@ interface ChiediConfermaArgs {
   opzioni?: string[];
   /** Strumento che il Sì potrà eseguire (27/09/2026): il Sì sblocca solo quello. */
   azione?: string;
+  parametri?: Record<string, unknown>;
 }
 
 export const chiediConfermaDef = {
@@ -49,6 +50,7 @@ export const chiediConfermaDef = {
           "Nome dello strumento che eseguirai se l'utente dice Sì (es. 'carica_ddt', 'crea_rapportino'). " +
           "Il Sì sblocca SOLO quello. Lascialo vuoto solo se la domanda serve a scegliere, non a confermare.",
       },
+      parametri: { type: "object", description: "Dati esatti da eseguire dopo il Sì, con le stesse proprietà dello strumento indicato in azione. Obbligatori per approvare una scrittura." },
     },
     required: ["domanda"],
   },
@@ -85,6 +87,7 @@ export function chiediConferma(
       inviato: true,
       __interactive: interactive,
       azione: typeof args.azione === "string" ? args.azione.trim() || null : null,
+      parametri: args.parametri ?? null,
     }, ""),
   );
 }

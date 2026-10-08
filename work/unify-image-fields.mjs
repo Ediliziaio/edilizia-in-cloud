@@ -1,0 +1,10 @@
+import ts from 'typescript'; import fs from 'node:fs';
+const area=process.argv[2];
+const file=`src/components/${area}/${area[0].toUpperCase()+area.slice(1)}TemplateEditor.tsx`;
+const before=fs.readFileSync(file,'utf8');const sf=ts.createSourceFile(file,before,99,true,4);const nodes=[];const walk=n=>{nodes.push(n);ts.forEachChild(n,walk)};walk(sf);
+const fn=nodes.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='ImageUploadField');
+const ret=fn.body.statements.find(ts.isReturnStatement);
+if(!ret)throw Error('Missing image field return');
+let after=before.slice(0,ret.getStart(sf))+`return <TemplateImageFieldView label={label} hint={hint} value={value} busy={uploading} disabled={!companyId} localOnly={localOnly} inputRef={inputRef} onFile={handleFile} onRemove={() => onChange(null)} aspect={aspect} />;`+before.slice(ret.end);
+after='import { TemplateImageFieldView } from "@/components/preventivi/TemplateImageFieldView";\n'+after;
+console.log(JSON.stringify([{file,before,after}]));

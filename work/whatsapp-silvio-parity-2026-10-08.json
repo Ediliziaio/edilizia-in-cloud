@@ -1,0 +1,78 @@
+{
+  "scope": "Local implementation and synthetic tests only",
+  "completed": [
+    "Office keeps the authorized Silvio catalog in short operational turns without forcing the expensive model",
+    "Office employee report action is no longer suppressed as a duplicate of worker draft creation",
+    "Explicit model requests block PDF send until model linkage is verified; no generic substitution",
+    "Module quotes without a stored module PDF stop before generation and send",
+    "Prompt distinguishes classic quote, module project link, generated PDF, personal draft and office report",
+    "Read-only published-model inspection uses exact company archive and actor-scoped permission checks",
+    "Bathroom conversion prepared as one service-only transaction: exact confirmed quote and model revisions, frozen snapshot, original quote preserved, unique source binding and rollback",
+    "Bathroom PDF server path now consumes saved module project, actual computo and frozen model with the app's DocumentoEdilePDF renderer; no simplified fallback, guessed IVA or implicit completo",
+    "Generation stops on missing/unsupported/undecodable/oversized/untrusted images, changed project data, revoked permission, unavailable features and unconfirmed storage",
+    "Confirmed WhatsApp generation tool validates exact project/model/revision receipt and returns a verification link, without document send or customer delivery",
+    "Service-only immutable bathroom artifact receipts bind exact company/project/model/revision, renderer version, state fingerprint and PDF hash; stored bytes are downloaded and verified before reuse/send",
+    "Bathroom document self-send requires explicit human document review and frozen confirmation, verifies the actual inbound destination and current project/permissions, and uses durable idempotency; provider acceptance never claims delivery or customer send",
+    "Classic document sender now shares verified inbound/actor and exact signed storage URL guards; module links alone cannot fall back to a classic PDF; timeout or receipt replay never triggers another generation/send",
+    "Authorized private JPG/PNG project photos are signed for 300 seconds only within the exact company/bathroom/project path; render copies do not change saved references or receipt fingerprints; attachments, WEBP and ambiguous stored storage links fail explicitly",
+    "Operational WhatsApp chat shares whole-turn provider attempt, timeout, reserved-token and observed-spend limits across tool iterations and 429 retries; includes tool schema/argument input estimates",
+    "Stable instructions precede dynamic triage/date/context, provider session key is hashed per company/actor/number/role/conversation, and operational chat telemetry includes reported usage/cache/reasoning/cost without claiming whole-workflow cost coverage",
+    "Tool argument validation enforces review constants, text constraints and typed additional properties, rejects dangerous inherited keys, and uses bounded nesting; document confirmations show the actual recipient/review status in plain Italian",
+    "Published-model inspection reports actual workflow capabilities rather than implying generation for unsupported modules; app handoff paths are checked against every intervention in all 14 current app areas",
+    "Six edile adapters prepare 38 core intervention drafts in the actual clm/ele/idr/pav/pis/rst projects and computo schemas: exact published template/photo references frozen, available unit costs preserved, source quote untouched and technical/PDF review explicitly required",
+    "Edile source and model SHA-256 fingerprints invalidate confirmation even when timestamps/totals stay unchanged; actor/tenant/feature checks and original immutable model constraints stay enforced; retries reuse the matching project and duplicate conversion across these six adapters stops",
+    "Edile WhatsApp confirmation rereads trusted sale-side DB rows and shows client, exact model, every line and total; missing/changed data or overlong complete previews stop with clear app handoff instead of a truncated or invented approval; internal cost columns are hashed/preserved but never returned to the chat",
+    "SQL and actual wizard calculators agree for all 38 core models, including fractional quantities/prices; missing costs stay non-calculable rather than producing fake full margins"
+  ],
+  "verification": {
+    "targeted_regression": "80 files, 1139 tests passed, including 83 edile adapter/permission/confirmation/calculator cases, actual generation/send handlers, private media, shared provider limits and all app-area handoffs",
+    "authorization_regression": "test:critical: 21 suites, 662 tests passed; overlap with targeted suites exists, counts must not be added as unique tests",
+    "isolated_database_simulation": "294 edile checks with actual table DDL/model constraints plus 51 bathroom/artifact regression checks passed this cycle in isolated PGlite. Earlier provider/durable-operation/session/context/classic-quote simulations remain recorded, not rerun this cycle. Not concurrent production PostgreSQL",
+    "real_renderer_offline": "6 PDFs without project photos (11 pages) and 6 with a synthetic signed private photo (12 pages), local assets only, exact titles/lines/IVA/total and private-photo caption extracted; representative full document and private-photo page visually inspected",
+    "deno": "whatsapp-ai-processor and bgn-genera-pdf checks passed",
+    "build": "build:fast passed",
+    "lint": "This cycle's edile test passes ESLint; six modified/new edge/helper files pass Deno lint. Existing earlier scoped checks are retained, not a repository-wide lint claim",
+    "repository_typecheck": "Still fails: 1010 diagnostics across the shared repository, reconfirmed on the latest run; no diagnostics in the new edile helper/tool/test or confirmation helper. Not a zero-error repository claim.",
+    "not_verified": "Real concurrent database execution, full migration chain, deployed edge memory/time limits, full real-company templates, paid model behavior evaluations, actual cache hit/latency savings and real WhatsApp delivery"
+  },
+  "next": [
+    "Extend exact-model creation to Tetti/Serramenti/Fotovoltaico and remaining specialized interventions. Six edile modules now support 38 core model drafts, but still require actual engineering/business-input adapters and dedicated server PDF/render/review/send paths",
+    "Add a durable versioned artifact receipt to classic quote generation itself; the sender is now idempotent and path/actor scoped, but classic generation still uses the existing mutable object storage path",
+    "Support private model/library images, legacy stored links, WEBP conversion, resizing and grayscale through a compatible render worker; exact-project private JPG/PNG photos are now covered",
+    "Handle mixed IVA, discounts, optional rows, manual prices, configured/linked catalog products, line photos, prezzario references, additional overhead and financing without lossy conversion; current edile conversion gates require app review",
+    "Unify conversion identity across existing bathroom/legacy adapters and the six new edile adapters; preserve originals deliberately and check unified-list presentation without overwriting offers from other terminals",
+    "Complete a maintained app vs WhatsApp action matrix by role, domain, confirmation, channel restriction and verified result; current model capability matrix and all area handoffs are covered",
+    "Integration simulations for each module plus reports, attachments and office actions",
+    "Authorized staging and visual PDF checks before production rollout"
+  ],
+  "limitations": [
+    "Bathroom and edile conversion RPCs, artifact receipts and generation/send paths are locally prepared only; migrations are tested in disposable fixtures, not applied to the running app's database or deployed remotely",
+    "Climatizzazione/Elettrico/Termoidraulico/Pavimenti/Piscine/Ristrutturazione support reviewed drafts for 38 core interventions, not server PDF generation or engineering completeness. Extra/special interventions, Tetti/Serramenti/Fotovoltaico remain inspection/app handoff",
+    "Generated links alone are not sends. Reviewed bathroom artifacts and classic PDFs have tested self-send handlers; acceptance is not delivery, customer document sending remains app-only, no visual correctness claimed for unreviewed real company documents",
+    "Server image shim validates JPG/PNG but does not reproduce browser grayscale, resizing or WEBP conversion. Private project photos are scoped/signed; unsupported references/attached documents stop safely",
+    "Operational chat telemetry excludes media transcription/vision, tool-internal AI and the customer processor; it is not a complete workflow-cost ledger or guaranteed maximum invoice",
+    "Catalog availability does not imply every app action is allowed over WhatsApp",
+    "Sensitive operations retain existing app-only approvals",
+    "No production deployment, real messages or paid AI calls"
+  ],
+  "expert_ai_workstreams": [
+    { "id": "exact_quote_workflows", "status": "partial", "verified_local": "Classic confirmed draft/save; six bathroom exact-model conversion/render/review/self-send paths; 38 core edile drafts in six actual module schemas with frozen snapshots and content-bound approvals", "remaining": "Dedicated PDFs and engineering/business inputs for edile modules; other specialized modules/interventions; immutable classic artifacts; full catalog/discount/mixed VAT/optional-line adapters" },
+    { "id": "shared_permissions_execution", "status": "partial", "verified_local": "Shared Silvio routing for authorized office/admin, frozen approvals, durable operations and critical permission tests", "remaining": "Complete action matrix, broader attachment parity and staging checks" },
+    { "id": "grounded_business_data", "status": "verified_local_scopes", "verified_local": "Deterministic tested quote calculations, model/revision matching and tenant guards", "remaining": "Paid-model whole-conversation evaluations and unsupported-module business input adapters" },
+    { "id": "controlled_memory", "status": "prepared_local", "verified_local": "Existing tenant/private-memory review controls; 61 isolated context/memory SQL checks", "remaining": "Full migration replay, deployed retrieval quality and retention/permission lifecycle checks" },
+    { "id": "concise_resumable_ux", "status": "prepared_local", "verified_local": "Existing realtime reply/UI simulations plus clearer document confirmations and explicit uncertain outcomes", "remaining": "Manual desktop/tablet/mobile and real reconnect/staging conversation checks" },
+    { "id": "media_to_reviewed_operations", "status": "partial", "verified_local": "Existing operational-draft tests plus authorized private bathroom photo signing and real offline render", "remaining": "Compatible transform worker, attached PDF inclusion and more real OCR/audio report scenarios" },
+    { "id": "performance_and_costs", "status": "partial", "verified_local": "Shared operational-chat turn limits, stable prefix/session scope, provider-reported usage/cache/cost tests and durable billing guards", "remaining": "One complete cross-stage ledger, paid provider measurements of latency/cache/tool-internal media costs and production reconciliation" },
+    { "id": "whole_workflow_evals", "status": "partial", "verified_local": "1139 targeted tests, 662 critical tests, 294 actual-schema edile SQL checks and 51 bathroom SQL regression checks; earlier offline PDF checks retained", "remaining": "Every module end-to-end including PDF, true concurrency, real-provider agent behavior and authorized staging delivery tests" }
+  ],
+  "latest_cycle": {
+    "date": "2026-10-08",
+    "implementation": "prepara_preventivo_modello + whatsapp_review_edile_quote + whatsapp_prepare_edile_quote; service-only, exact actor/company/module/model and SHA-256 source/model confirmation",
+    "supported_core_models": { "climatizzazione": 6, "elettrico": 7, "termoidraulico": 8, "pavimenti": 6, "piscine": 6, "ristrutturazione": 5 },
+    "scope": "Bozze con computo e modello pubblicato congelato. Dati tecnici, condizioni, collegamenti catalogo non convertibili e PDF restano da verificare nell'app. No remote changes or real sends",
+    "migration": "supabase/migrations/20261008052535_whatsapp_edile_model_drafts.sql",
+    "test_script": "scripts/check-edile-drafts-local.mjs",
+    "verification_logs": ["/tmp/whatsapp-edile-full-tests.log", "/tmp/whatsapp-edile-critical.log", "/tmp/whatsapp-edile-sql.log", "/tmp/whatsapp-edile-bathroom-regression.log", "/tmp/whatsapp-edile-deno.log", "/tmp/whatsapp-edile-lint.log", "/tmp/whatsapp-edile-eslint.log", "/tmp/whatsapp-edile-build.log", "/tmp/whatsapp-edile-typecheck.log"]
+  },
+  "completion_claim": "No 100-percent feature or production claim. Local verification passes for the listed scopes; remaining implementation and external gates are explicit. Other terminal changes are preserved; no push/deploy/send/provider spend."
+}

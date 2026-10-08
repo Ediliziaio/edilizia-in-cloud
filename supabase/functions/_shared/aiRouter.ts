@@ -38,6 +38,9 @@
 
 import { checkPaymentMethod } from "./requirePaymentMethod.ts";
 import { segnalaErroreAI } from "./allarmeAI.ts";
+import { effectiveOutputTokens, isReasoningModel as modelUsesReasoning, precheckOutputTokens } from "./aiModelBudget.ts";
+import { AiTurnControl, AiTurnLimitError } from "./aiTurnControl.ts";
+import { AiProviderCreditError, AiRequestGuardError, aiRequestHash, isProviderCreditError, providerAttempt, runGuardedAiRequest, type GuardContext, type ProviderAttempt } from "./aiRequestGuard.ts";
 
 import { applicaEvento, creaAccumulatore, estraiEventiSse, rispostaDaAccumulatore } from "./openrouterStream.ts";
 
@@ -82,6 +85,9 @@ export interface AiRouterCompleteOptions {
    * Se assente, viene generata automaticamente da timestamp+random (idempotency garantita SOLO entro singola chiamata).
    */
   idempotencyKey?: string;
+  /** Durable cross-worker guard. Apply ai_provider_request_safety migration first.
+   * Requires a stable key, company and user. No fail-open on DB errors. */
+  guardProviderRequest?: boolean;
   /** Persona AI che ha originato la chiamata (Fase 2). Default null. */
   personaKey?: string | null;
   /** Se true, salta charge_ai_call (es. per task system internal). Default false. */
@@ -119,6 +125,10 @@ export interface AiRouterCompleteOptions {
    * riceve il testo accumulato lo vedra' ripartire da capo, e sovrascrive.
    */
   onDelta?: (testoAccumulato: string) => void;
+  /** Opt-in request-local limits shared by chat/classifier/retries. */
+  turnControl?: AiTurnControl;
+  /** Opaque, tenant-scoped identifier: no client names or prompt text. */
+  sessionId?: string;
 }
 
 export interface AiRouterCompleteResult {
@@ -144,6 +154,8 @@ export interface AiRouterCompleteResult {
   prechargeReason?: string;
   /** Tentativi falliti precedenti al successo (per AI Test Lab diagnostic). */
   failedAttempts?: Array<{ model: string; error: string }>;
+  idempotentReplay?: boolean;
+  costSource?: "provider" | "tier_estimate" | "unknown";
 }
 
 /** Errore custom con metadati per debug. */
@@ -421,6 +433,8 @@ async function chargeAiCall(
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const r = data as any;
+    // RPC-level failures can be returned as JSON with HTTP 200.
+    if (r?.success !== true || !r?.ledger_id) return null;
     return {
       ledgerId: r?.ledger_id,
       costRealEur: Number(r?.cost_real_eur ?? 0),
@@ -443,12 +457,9 @@ const PRECHECK_CHARS_PER_TOKEN = 3.6;
 
 /** Dimensione in caratteri di quello che verra' spedito al modello. */
 function payloadChars(messages: AiRouterMessage[], tools?: Array<unknown>): number {
-  let chars = 0;
-  for (const m of messages) {
-    chars += typeof m.content === "string"
-      ? m.content.length
-      : JSON.stringify(m.content ?? "").length;
-  }
+  // Include anche argomenti delle tool call, nomi e riferimenti: possono essere
+  // molto grandi pur avendo content=null. È una stima, non un tokenizer.
+  let chars = JSON.stringify(messages).length;
   // Gli schemi tool pesano quanto il testo: per Silvio col catalogo pieno sono
   // ~125 KB, cioe' la voce dominante dell'input. Ignorarli falserebbe la stima.
   if (tools?.length) chars += JSON.stringify(tools).length;
@@ -541,6 +552,7 @@ async function leggiStreamOpenRouter(
       for (const ev of eventi) {
         const esito = applicaEvento(acc, ev);
         if (esito === "fine") { fine = true; break; }
+        if (acc.errorCode === 402) throw new AiProviderCreditError();
         if (acc.errore) throw new Error(`errore nello stream: ${acc.errore}`);
         if (esito === "dati" && acc.toolCalls.size === 0 && acc.content && acc.content !== ultimoTestoEmesso) {
           ultimoTestoEmesso = acc.content;
@@ -558,6 +570,7 @@ async function leggiStreamOpenRouter(
     try { await reader.cancel(); } catch { /* gia' chiuso */ }
     try { reader.releaseLock(); } catch { /* gia' rilasciato */ }
   }
+  if (acc.errorCode === 402) throw new AiProviderCreditError();
   if (acc.errore) throw new Error(`errore nello stream: ${acc.errore}`);
   if (acc.eventi === 0) throw new Error("stream vuoto: nessun evento ricevuto");
   return rispostaDaAccumulatore(acc);
@@ -572,6 +585,9 @@ async function callOpenRouter(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   responseFormat?: any,
   onDelta?: (testoAccumulato: string) => void,
+  turnControl?: AiTurnControl,
+  sessionId?: string,
+  checkpoint?: (attempt: ProviderAttempt) => Promise<void>,
 ): Promise<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any;
@@ -584,41 +600,7 @@ async function callOpenRouter(
   // Se non disabilitato, l'attesa è 30-120s e il budget max_tokens viene
   // mangiato dal reasoning → content="". Per testing chat normale, forziamo
   // reasoning_effort: "low" (o "minimal" per OpenAI) per ottenere risposta rapida.
-  const REASONING_MODELS = [
-    // Moonshot Kimi. Audit 2026-09-03: c'era solo la K2.6, ma la K2.5 fa lo
-    // stesso ragionamento interno e falliva allo stesso modo — 10 errori su 30
-    // chiamate a registro, meta' "Signal timed out" e meta' "token ma nessun
-    // testo finale", che e' esattamente il sintomo del reasoning che si mangia
-    // il budget. Coperta tutta la famiglia K2.
-    /^moonshotai\/kimi-k2/,
-    /^moonshotai\/kimi-k2-thinking/,
-    // OpenAI o-series (o1, o3, o4 incluse mini/preview)
-    /^openai\/o[1-9]/,
-    // OpenAI GPT-5 family — TUTTI tranne le varianti -chat (che sono fast non-reasoning)
-    /^openai\/gpt-5(?!\.[0-9]+-chat)(?!-chat)(?:[\b-]|$)/i,
-    /^openai\/gpt-5\.[0-9]+(?!-chat)/i,
-    // Anthropic extended thinking (Sonnet/Opus 4+ con :thinking)
-    /^anthropic\/.*-thinking/i,
-    /^anthropic\/claude-(?:opus|sonnet)-4(?:\.5)?:thinking/i,
-    // DeepSeek R1 reasoning family
-    /^deepseek\/deepseek-r1/i,
-    /^deepseek\/.*-reasoner/i,
-    // Qwen QwQ + Qwen3 thinking
-    /^qwen\/qwq/i,
-    /^qwen\/qwen3.*-thinking/i,
-    // xAI Grok thinking
-    /^x-ai\/grok-(?:3|4).*-(?:thinking|reasoning|mini)/i,
-    /^x-ai\/grok.*-thinking/i,
-    // Google Gemini thinking variants
-    /^google\/gemini-.*-thinking/i,
-    // Z.AI GLM thinking
-    /^z-ai\/glm-.*-thinking/i,
-    // Catch-all suffix patterns
-    /\/.*-thinking/i,
-    /\/.*-reasoning/i,
-    /\/.*-reasoner/i,
-  ];
-  const isReasoningModel = REASONING_MODELS.some((re) => re.test(model));
+  const isReasoningModel = modelUsesReasoning(model);
 
   // ── Modelli che NON accettano temperature custom ──
   // OpenAI o-series + GPT-5 reasoning richiedono temperature=1 (default) o assenza.
@@ -638,10 +620,7 @@ async function callOpenRouter(
   // 6000 valeva solo quando il chiamante non passava nulla: ma silvio-chat
   // passa 2500 espliciti, quindi su un reasoning model il ragionamento si
   // mangiava quasi tutto e restava content="". Ora il pavimento vale sempre.
-  const REASONING_MIN_MAX_TOKENS = 6000;
-  const effectiveMaxTokens = isReasoningModel
-    ? Math.max(params.max_tokens ?? 0, REASONING_MIN_MAX_TOKENS)
-    : (params.max_tokens ?? 2000);
+  const effectiveMaxTokens = effectiveOutputTokens(model, params.max_tokens);
 
   // ── Prompt caching Anthropic ──
   // Il system prompt è grande e in larga parte statico per persona (preambolo +
@@ -733,17 +712,15 @@ async function callOpenRouter(
   if (params.top_p != null && !skipTemperature) body.top_p = params.top_p;
   if (params.tools) body.tools = params.tools;
   if (params.tool_choice) body.tool_choice = params.tool_choice;
-  // Contabilita reale (audit 2026-09-03): senza questo flag OpenRouter NON
-  // ritorna ne' `usage.cost` ne' `prompt_tokens_details.cached_tokens`. Il
-  // router lo dava per scontato e cadeva sempre nella stima da tier: il costo
-  // scritto su ai_router_usage_log era un listino, non la spesa vera, e la
-  // cache non era misurabile. Non costa nulla richiederlo.
+  // Legacy include flag; current OpenRouter responses include usage by default.
+  // The last SSE event remains necessary to collect the full usage/cost.
   body.usage = { include: true };
   if (responseFormat) body.response_format = responseFormat;
   // Streaming: la risposta arriva a pezzi (SSE) e viene ricomposta da
   // leggiStreamOpenRouter. OpenRouter manda comunque l'usage in un ultimo
   // evento prima di [DONE], quindi la contabilita' resta identica.
   if (onDelta) body.stream = true;
+  if (sessionId) body.session_id = sessionId;
 
   // ── Reasoning effort low → riduce latenza + libera budget per content ──
   // OpenRouter accetta `reasoning: { effort: "minimal"|"low"|"medium"|"high" }`.
@@ -757,21 +734,23 @@ async function callOpenRouter(
   // - 30s default (Anthropic/OpenAI/Google standard)
   // - 50s per slow models non-reasoning (DeepSeek, Llama)
   // - 120s per reasoning models (Kimi K2.6 thinking, o1/o3, GPT-5)
-  // Edge Function Supabase ha cap ~150s totale → 120s lascia margine.
+  // Se presente, il limite condiviso del turno riduce ulteriormente il timeout.
   // moonshotai aggiunto nell'audit 2026-09-03: mancava, quindi Kimi girava col
   // timeout corto da 30s e i 16 "Signal timed out" a registro erano tutti suoi.
   const SLOW_MODEL_PROVIDERS = ["deepseek", "x-ai", "meta-llama", "qwen", "thudm", "z-ai", "moonshotai"];
   const isSlowModel = SLOW_MODEL_PROVIDERS.some((p) => model.startsWith(`${p}/`));
   const FETCH_TIMEOUT_MS = isReasoningModel ? 120_000 : (isSlowModel ? 50_000 : 30_000);
   // Retry su errori TRANSITORI (timeout / 429 / 5xx) prima di passare al modello
-  // di fallback. I reasoning model hanno già budget 120s → 1 solo tentativo per
-  // non sforare il cap edge (~150s); i modelli veloci ne fanno fino a 2 con
+  // di fallback. I reasoning model hanno già budget 120s → 1 solo tentativo;
+  // i modelli veloci ne fanno fino a 2 con
   // backoff breve. Gli errori 4xx (≠429) NON si ritentano (config/input errati).
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   const MAX_ATTEMPTS = isReasoningModel ? 1 : 2;
   let lastErr: Error | null = null;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const turnAttempt = turnControl?.beginAttempt(payloadChars(messages, params.tools), effectiveMaxTokens);
+    const timeoutMs = Math.max(1, Math.min(FETCH_TIMEOUT_MS, turnControl?.remainingMs() ?? FETCH_TIMEOUT_MS));
     let res: Response;
     try {
       res = await fetch(OPENROUTER_URL, {
@@ -784,13 +763,15 @@ async function callOpenRouter(
           "X-Title": "Edilizia in Cloud",
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (fetchErr) {
+      await checkpoint?.({ ...providerAttempt(model, {}), status: "unknown" });
+      if (checkpoint) throw new AiRequestGuardError("provider_outcome_unknown");
       const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
       const isTimeout = /abort|timeout/i.test(errMsg);
       lastErr = isTimeout
-        ? new Error(`OpenRouter timeout (>${FETCH_TIMEOUT_MS / 1000}s) — modello ${model} non risponde`)
+        ? new Error(`OpenRouter timeout (>${timeoutMs / 1000}s) — modello ${model} non risponde`)
         : new Error(`OpenRouter network error: ${errMsg.slice(0, 300)}`);
       if (attempt < MAX_ATTEMPTS) { await sleep(300 * attempt + Math.floor(Math.random() * 250)); continue; }
       throw lastErr;
@@ -798,6 +779,8 @@ async function callOpenRouter(
 
     if (!res.ok) {
       const errText = await res.text();
+      await checkpoint?.({ ...providerAttempt(model, {}), status: "http_error", http_status: res.status });
+      if (res.status === 402) throw new AiProviderCreditError();
       lastErr = new Error(`OpenRouter ${res.status}: ${errText.slice(0, 500)}`);
       const retriable = res.status === 429 || res.status >= 500;
       if (retriable && attempt < MAX_ATTEMPTS) { await sleep(450 * attempt + Math.floor(Math.random() * 300)); continue; }
@@ -811,6 +794,9 @@ async function callOpenRouter(
       try {
         data = await leggiStreamOpenRouter(res.body, onDelta);
       } catch (streamErr) {
+        await checkpoint?.({ ...providerAttempt(model, {}), status: "unknown" });
+        if (isProviderCreditError(streamErr)) throw streamErr;
+        if (checkpoint) throw new AiRequestGuardError("provider_outcome_unknown");
         // Uno stream che si spezza a meta' vale come una chiamata fallita:
         // stessi ritentativi e stesso ripiego di modello di una chiamata
         // normale (il chiamante vedra' il testo ripartire da capo).
@@ -825,10 +811,18 @@ async function callOpenRouter(
     } else {
       // Il provider non ha risposto in stream (o non era stato chiesto):
       // si legge il JSON intero come sempre.
-      data = await res.json();
+      try { data = await res.json(); }
+      catch (error) {
+        await checkpoint?.({ ...providerAttempt(model, {}), status: "unknown" });
+        if (checkpoint) throw new AiRequestGuardError("provider_outcome_unknown");
+        throw error;
+      }
     }
     const durationMs = Date.now() - start;
+    if (turnAttempt !== undefined) turnControl?.recordUsage(turnAttempt, data.usage);
+    await checkpoint?.(providerAttempt(model, data));
     if (data.error) {
+      if (Number(data.error.code) === 402) throw new AiProviderCreditError();
       const em = data.error.message ?? JSON.stringify(data.error);
       lastErr = new Error(`OpenRouter error: ${em}`);
       // alcuni provider rispondono 200 con un errore transitorio nel body
@@ -894,7 +888,7 @@ async function estimateWholesaleCostUsd(
   promptTokens: number,
   completionTokens: number,
   fxUsdToEur: number,
-): Promise<number> {
+): Promise<number | null> {
   try {
     const { data, error } = await supabase
       .from("ai_pricing_tiers")
@@ -902,14 +896,15 @@ async function estimateWholesaleCostUsd(
       .eq("tier_key", tierKey)
       .eq("enabled", true)
       .maybeSingle();
-    if (error || !data) return 0;
+    if (error || !data) return null;
+    if (![data.cost_per_1m_input_eur, data.cost_per_1m_output_eur].every(v => v != null && Number.isFinite(Number(v)) && Number(v) >= 0)) return null;
     const costEur =
       (promptTokens / 1_000_000) * Number(data.cost_per_1m_input_eur ?? 0) +
       (completionTokens / 1_000_000) * Number(data.cost_per_1m_output_eur ?? 0);
     return fxUsdToEur > 0 ? costEur / fxUsdToEur : costEur / 0.92;
   } catch (e) {
     console.warn("[aiRouter] estimateWholesaleCostUsd failed:", e);
-    return 0;
+    return null;
   }
 }
 
@@ -968,6 +963,7 @@ async function sha256Hex(text: string): Promise<string> {
 export async function aiRouterComplete(
   opts: AiRouterCompleteOptions,
 ): Promise<AiRouterCompleteResult> {
+  opts.turnControl?.assertCanStart();
   const apiKey = Deno.env.get("OPENROUTER_API_KEY");
   if (!apiKey) {
     throw new AiRouterError(
@@ -1127,6 +1123,9 @@ export async function aiRouterComplete(
   // ───────────────────────────────────────────────────────────────────────
   const fxUsdToEur = opts.fxUsdToEur ?? Number(Deno.env.get("AI_FX_USD_EUR") ?? "0.92");
   const idempotencyKey = opts.idempotencyKey ?? generateIdempotencyKey(opts.taskKey);
+  if (opts.guardProviderRequest && (!opts.idempotencyKey || !opts.companyId || !opts.userId)) {
+    throw new AiRequestGuardError("missing_scope");
+  }
 
   if (!skipCharge && opts.companyId) {
     // Gate "carta obbligatoria": l'AI a consumo richiede un metodo di pagamento valido.
@@ -1140,8 +1139,8 @@ export async function aiRouterComplete(
       );
     }
     // Stima pre-chiamata: token del payload reale (messaggi + schemi tool) e
-    // budget di output effettivo. E' il caso PEGGIORE — max_tokens e' il tetto
-    // che il modello non puo' superare — quindi la stima non sottostima mai.
+    // Stima testuale (non tokenizer esatto); include il maggiore budget di
+    // output fra primario e fallback, compreso il reasoning.
     // Se il chiamante ha gia' dichiarato `estimatedCostEur`, la sua ha la
     // precedenza e i token non vengono passati.
     const estCost = opts.estimatedCostEur ?? 0.10;
@@ -1149,7 +1148,7 @@ export async function aiRouterComplete(
     const estTokensIn = stimaEsplicita
       ? null
       : Math.ceil(payloadChars(opts.messages, params.tools) / PRECHECK_CHARS_PER_TOKEN);
-    const estTokensOut = stimaEsplicita ? null : (params.max_tokens ?? 2000);
+    const estTokensOut = stimaEsplicita ? null : precheckOutputTokens(modelsToTry, params.max_tokens);
     const precheck = await precheckCredit(
       opts.supabase,
       opts.companyId,
@@ -1161,7 +1160,11 @@ export async function aiRouterComplete(
     if (!precheck.ok) {
       // Logga il rifiuto come error nel ledger (no addebito) e propaga errore
       await chargeAiCall(opts.supabase, {
-        idempotencyKey,
+        // No provider attempt has happened. A subsequent funded retry must
+        // not collide with this zero-charge precheck record.
+        idempotencyKey: opts.guardProviderRequest
+          ? `precheck_${await aiRequestHash([opts.companyId, opts.userId, opts.taskKey, idempotencyKey])}`
+          : idempotencyKey,
         companyId: opts.companyId,
         userId: opts.userId ?? null,
         taskKey: opts.taskKey,
@@ -1254,6 +1257,8 @@ export async function aiRouterComplete(
     }
   }
 
+  const execute = async (guard?: GuardContext): Promise<AiRouterCompleteResult> => {
+  const billingKey = guard?.key ?? idempotencyKey;
   for (let i = 0; i < modelsToTry.length; i++) {
     const model = modelsToTry[i];
     try {
@@ -1264,6 +1269,9 @@ export async function aiRouterComplete(
         params,
         opts.responseFormat,
         opts.onDelta,
+        opts.turnControl,
+        opts.sessionId,
+        guard?.checkpoint,
       );
 
       const choice = data.choices?.[0];
@@ -1293,9 +1301,10 @@ export async function aiRouterComplete(
         throw new Error("Structured output non-JSON dal modello — retry su modello di fallback");
       }
       const usage = data.usage ?? {};
-      const promptTokens = usage.prompt_tokens ?? 0;
-      const completionTokens = usage.completion_tokens ?? 0;
-      const totalTokens = usage.total_tokens ?? promptTokens + completionTokens;
+      const measured = providerAttempt(model, data);
+      const promptTokens = measured.input_tokens ?? 0;
+      const completionTokens = measured.output_tokens ?? 0;
+      const totalTokens = promptTokens + completionTokens;
       // ── Token letti/scritti in cache (audit 2026-09-03) ──────────────────
       // Prima si logvaga solo prompt_tokens, e quel numero non distingue un
       // token pagato pieno da uno riletto dalla cache a un decimo del prezzo:
@@ -1312,15 +1321,22 @@ export async function aiRouterComplete(
           0,
       ) || 0;
       const cacheWriteTokens = Number(
-        usage.cache_creation_input_tokens ??
+        usageDetails.cache_write_tokens ?? usage.cache_creation_input_tokens ??
           usageDetails.cache_creation_input_tokens ??
           0,
       ) || 0;
       // OpenRouter ritorna `usage.cost` in USD se disponibile; se manca, stimiamo dal tier wholesale.
-      const reportedCostUsd = Number(usage.cost ?? 0);
-      const costUsd = reportedCostUsd > 0
-        ? reportedCostUsd
-        : await estimateWholesaleCostUsd(opts.supabase, config.tier_key, promptTokens, completionTokens, fxUsdToEur);
+      const reportedCostUsd = usage.cost;
+      const hasProviderCost = typeof reportedCostUsd === "number" && Number.isFinite(reportedCostUsd) && reportedCostUsd >= 0;
+      const usageComplete = measured.input_tokens !== null && measured.output_tokens !== null;
+      const estimatedCost = hasProviderCost || !usageComplete ? null : await estimateWholesaleCostUsd(opts.supabase, config.tier_key, promptTokens, completionTokens, fxUsdToEur);
+      const costSource = hasProviderCost ? "provider" : estimatedCost !== null ? "tier_estimate" : "unknown";
+      if (costSource === "unknown") {
+        // Do not turn an unknown cost into a free successful call or retry a
+        // model that has already consumed tokens. The checkpoint is recoverable.
+        throw new AiRouterBillingError("AI cost unavailable; reconciliation required before billing");
+      }
+      const costUsd = hasProviderCost ? reportedCostUsd : estimatedCost!;
 
       // Log analytical (legacy)
       await logUsage(opts.supabase, {
@@ -1345,7 +1361,7 @@ export async function aiRouterComplete(
 
       if (!skipCharge && opts.companyId) {
         const charge = await chargeAiCall(opts.supabase, {
-          idempotencyKey,
+          idempotencyKey: billingKey,
           companyId: opts.companyId,
           userId: opts.userId ?? null,
           taskKey: opts.taskKey,
@@ -1361,13 +1377,18 @@ export async function aiRouterComplete(
           status: "success",
           durationMs,
           // generation_id: l'id OpenRouter della chiamata, per unire il registro all'export per generazione
-          metadata: { task: opts.taskKey, generation_id: (data as { id?: string })?.id ?? null },
+          metadata: { task: opts.taskKey, generation_id: (data as { id?: string })?.id ?? null,
+            original_idempotency_key: idempotencyKey,
+            provider_request_key: guard?.key ?? null, cost_source: costSource,
+            provider_cost_complete: hasProviderCost,
+            usage_complete: usageComplete },
         });
         if (charge) {
           ledgerId = charge.ledgerId;
           costRealEur = charge.costRealEur;
           costBilledEur = charge.costBilledEur;
           marginEur = charge.marginEur;
+          opts.turnControl?.recordBilled(costBilledEur);
         } else {
           const chargeFailOpen = Deno.env.get("AI_ROUTER_ALLOW_CHARGE_FAIL_OPEN") === "true";
           if (!chargeFailOpen) {
@@ -1384,7 +1405,7 @@ export async function aiRouterComplete(
             const { error: directInsErr } = await opts.supabase
               .from("ai_call_ledger")
               .insert({
-                idempotency_key: `${idempotencyKey}_failopen`,
+                idempotency_key: `${billingKey}_failopen`,
                 company_id: opts.companyId,
                 user_id: opts.userId ?? null,
                 task_key: opts.taskKey,
@@ -1420,7 +1441,7 @@ export async function aiRouterComplete(
           const fxRate = fxUsdToEur;
           const costRealEurApprox = costUsd * fxRate;
           await opts.supabase.from("ai_call_ledger").insert({
-            idempotency_key: `${idempotencyKey}_skipped`,
+            idempotency_key: `${billingKey}_skipped`,
             company_id: opts.companyId,
             user_id: opts.userId ?? null,
             task_key: opts.taskKey,
@@ -1500,10 +1521,15 @@ export async function aiRouterComplete(
         ledgerId,
         chargeSkipped,
         failedAttempts: attempts.length > 0 ? [...attempts] : undefined,
+        costSource,
       };
     } catch (e) {
-      if (e instanceof AiRouterBillingError) {
+      if (e instanceof AiRouterBillingError || e instanceof AiTurnLimitError || e instanceof AiRequestGuardError) {
         throw e;
+      }
+      if (isProviderCreditError(e)) {
+        segnalaErroreAI((e as Error).message, { funzione: opts.taskKey, modello: model, companyId: opts.companyId });
+        throw e; // Same account: changing models cannot replenish provider credit.
       }
       const errMsg = (e as Error).message ?? String(e);
       attempts.push({ model, error: errMsg });
@@ -1550,7 +1576,7 @@ export async function aiRouterComplete(
   // Insert ledger entry (status=error, billed=0). Tracciabilità ma nessun addebito.
   if (!skipCharge && opts.companyId) {
     await chargeAiCall(opts.supabase, {
-      idempotencyKey,
+      idempotencyKey: billingKey,
       companyId: opts.companyId,
       userId: opts.userId ?? null,
       taskKey: opts.taskKey,
@@ -1566,7 +1592,8 @@ export async function aiRouterComplete(
       status: "error",
       errorMessage,
       durationMs: 0,
-      metadata: { all_attempts_failed: true, attempts },
+      metadata: { all_attempts_failed: true, attempts, provider_request_key: guard?.key ?? null,
+        cost_source: "unknown", provider_cost_complete: false },
     });
   }
 
@@ -1579,6 +1606,21 @@ export async function aiRouterComplete(
     opts.taskKey,
     attempts,
   );
+  };
+  if (!opts.guardProviderRequest) return execute();
+  return runGuardedAiRequest({
+    db: opts.supabase, companyId: opts.companyId!, userId: opts.userId!, taskKey: opts.taskKey,
+    idempotencyKey, providerKey: apiKey,
+    fingerprint: [opts.messages, params, opts.responseFormat ?? null, opts.forceModel ?? null, skipCharge, fxUsdToEur],
+    execute,
+    replay: (result: AiRouterCompleteResult) => {
+      // Replaying a paid LLM completion must not replay business side effects.
+      if (result.rawResponse?.choices?.[0]?.message?.tool_calls?.length) throw new AiRequestGuardError("tool_replay_requires_recovery");
+      return { ...result, idempotentReplay: true, chargeSkipped: true, prechargeReason: "request_replay",
+        promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0,
+        costRealEur: 0, costBilledEur: 0, marginEur: 0, durationMs: 0 };
+    },
+  });
 }
 
 /** Helper di convenienza per task semplici (system + user prompt). */

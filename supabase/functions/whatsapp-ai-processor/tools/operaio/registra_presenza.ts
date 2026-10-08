@@ -26,6 +26,7 @@ export const registraPresenzaDef: Omit<ToolDef, "handler"> = {
         enum: ["entrata", "uscita", "inizio_pausa", "fine_pausa"],
       },
       ora: { type: "string", description: "HH:MM (default ora corrente)" },
+      data_evento: { type: "string", description: "YYYY-MM-DD, congelata nella conferma." },
       lat: { type: "number" },
       lng: { type: "number" },
       note: { type: "string" },
@@ -40,6 +41,7 @@ export const registraPresenzaDef: Omit<ToolDef, "handler"> = {
 interface Args {
   tipo: "entrata" | "uscita" | "inizio_pausa" | "fine_pausa";
   ora?: string;
+  data_evento?: string;
   lat?: number;
   lng?: number;
   note?: string;
@@ -59,8 +61,8 @@ const TIPO_DB: Record<Args["tipo"], string> = {
  * alle 09:00 italiane, e data_evento/ora_evento (GENERATED in Europe/Rome) lo
  * avrebbero fedelmente registrato sbagliato.
  */
-function istanteItaliano(ora: string): string {
-  const oggi = new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+function istanteItaliano(ora: string, giorno?: string): string {
+  const oggi = giorno ?? new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
   const comeSeUTC = new Date(`${oggi}T${ora}:00Z`);
   // Che ora segna Roma in quell'istante? La differenza È l'offset del giorno.
   const aRoma = comeSeUTC.toLocaleString("sv-SE", { timeZone: "Europe/Rome" });
@@ -80,6 +82,11 @@ export async function registraPresenza(
     minute: "2-digit",
   });
   const ora = args.ora ?? oraCorrente;
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(ora) || (args.data_evento &&
+    (!/^\d{4}-\d{2}-\d{2}$/.test(args.data_evento) || !Number.isFinite(Date.parse(args.data_evento)) ||
+      new Date(args.data_evento).toISOString().slice(0, 10) !== args.data_evento))) {
+    return errResult("invalid_time", "Indica una data valida e un orario HH:MM. Nessuna presenza registrata.");
+  }
 
   // Stessa risoluzione del trigger che specchia le timbrature di cantiere:
   // profilo HR diretto, oppure via anagrafica dipendente.
@@ -101,7 +108,7 @@ export async function registraPresenza(
       company_id: ctx.company_id,
       profilo_id: profiloId,
       tipo: TIPO_DB[args.tipo],
-      timestamp: istanteItaliano(ora),
+      timestamp: istanteItaliano(ora, args.data_evento),
       lat: args.lat ?? null,
       lng: args.lng ?? null,
       fonte: "app",

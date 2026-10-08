@@ -5,6 +5,8 @@
 import type { ToolCtx, ToolResult, ToolDef } from "../shared/types.ts";
 import { errResult, okResult } from "../shared/types.ts";
 import { resolveCantiere } from "../shared/resolve_cantiere.ts";
+import { requireSiteAccess } from "../shared/siteAccess.ts";
+import { rapportinoContentIssue, workHoursIssue } from "../../../_shared/operationalDraftValidation.ts";
 
 export const creaRapportinoDef: Omit<ToolDef, "handler"> = {
   name: "crea_rapportino",
@@ -72,6 +74,9 @@ export async function creaRapportino(
       "Non riesco a identificarti. Chiedi al titolare di registrarti in Edilizia in Cloud.",
     );
   }
+  const issue = rapportinoContentIssue(args) ?? workHoursIssue(args.ore_lavorate, args.ore_straordinario, 14);
+  if (issue) return errResult("invalid_rapportino", issue);
+  if (args.meteo != null && !["soleggiato", "nuvoloso", "pioggia", "neve", "vento", "non_specificato"].includes(args.meteo)) return errResult("invalid_meteo", "Meteo non valido.");
 
   if (!args.ore_lavorate && (!args.attivita || args.attivita.length === 0)) {
     return errResult(
@@ -96,14 +101,16 @@ export async function creaRapportino(
   }
 
   // Verifica cantiere
-  const { data: cantiere } = await ctx.supabase
+  try { await requireSiteAccess(ctx, orderId); }
+  catch { return errResult("cantiere_access_unavailable", "Non posso verificare l’accesso al cantiere. Nessun rapportino salvato."); }
+  const { data: cantiere, error: siteError } = await ctx.supabase
     .from("orders")
     .select("id, description, order_code, company_id")
     .eq("id", orderId)
     .eq("company_id", ctx.company_id)
     .maybeSingle();
 
-  if (!cantiere) {
+  if (siteError || !cantiere) {
     return errResult(
       "cantiere_not_found",
       "Questo cantiere non risulta nella tua azienda. Scrivi \"cantieri oggi\" per la lista.",
@@ -123,15 +130,21 @@ export async function creaRapportino(
     : null;
 
   // Cerca esistente
-  const { data: existing } = await ctx.supabase
+  const { data: existing, error: readError } = await ctx.supabase
     .from("campo_rapportini")
-    .select("id, ore_lavorate, descrizione_lavori, materiali_usati, note, ore_straordinario")
+    .select("id, stato, updated_at, ore_lavorate, descrizione_lavori, materiali_usati, note, ore_straordinario")
+    .eq("company_id", ctx.company_id)
     .eq("user_id", ctx.user_id)
     .eq("order_id", orderId)
     .eq("data_lavoro", dataLavoro)
     .maybeSingle();
+  if (readError) return errResult("rapportino_lookup_failed", "Non posso verificare il rapportino esistente. Nessuna nuova bozza creata: verifica prima di riprovare.");
 
   if (existing) {
+    if (existing.stato !== "bozza") return errResult("rapportino_locked", "Il rapportino è già inviato o approvato. Chiedi all’ufficio di gestire la rettifica: non lo modifico.");
+    if (existing.materiali_usati != null && !Array.isArray(existing.materiali_usati)) return errResult("invalid_existing_materials", "Elenco materiali esistente da verificare nell’app.");
+    const mergedHoursIssue = workHoursIssue(args.ore_lavorate ?? existing.ore_lavorate, args.ore_straordinario ?? existing.ore_straordinario, 14);
+    if (mergedHoursIssue) return errResult("invalid_rapportino", mergedHoursIssue);
     const mergedDescrizione = [existing.descrizione_lavori, descriptionFromAttivita]
       .filter(Boolean).join(". ");
     const mergedMateriali = [
@@ -142,7 +155,7 @@ export async function creaRapportino(
       ? `${existing.note}\n${args.note}`
       : (existing.note ?? args.note ?? null);
 
-    const { data: updated, error } = await ctx.supabase
+    let update = ctx.supabase
       .from("campo_rapportini")
       .update({
         ore_lavorate: args.ore_lavorate ?? existing.ore_lavorate,
@@ -155,15 +168,16 @@ export async function creaRapportino(
         updated_at: new Date().toISOString(),
       })
       .eq("id", existing.id)
-      .select("id")
-      .single();
+      .eq("company_id", ctx.company_id).eq("user_id", ctx.user_id).eq("order_id", orderId).eq("stato", "bozza");
+    update = existing.updated_at == null ? update.is("updated_at", null) : update.eq("updated_at", existing.updated_at);
+    const { data: updated, error } = await update.select("id").maybeSingle();
 
-    if (error) return errResult(error.message, "Errore aggiornando il rapportino.");
+    if (error || !updated?.id) return errResult("rapportino_update_unconfirmed", "Aggiornamento non confermato: il rapportino potrebbe essere cambiato. Verifica nell’app prima di riprovare.");
 
     const oreTot = args.ore_lavorate ?? existing.ore_lavorate ?? 0;
     return okResult(
       { id: updated.id, is_new: false, cantiere_nome: cantiereNome },
-      `✅ Rapportino aggiornato per ${cantiereNome}. Ore totali: ${oreTot}h.`,
+      `✅ Bozza rapportino aggiornata per ${cantiereNome} · ${dataLavoro}. Ore ordinarie: ${oreTot}h; straordinario: ${args.ore_straordinario ?? existing.ore_straordinario ?? 0}h. Non ancora inviata all’ufficio. Materiali annotati, nessuno scarico di magazzino.`,
     );
   }
 
@@ -190,7 +204,7 @@ export async function creaRapportino(
     .select("id")
     .single();
 
-  if (error) return errResult(error.message, "Errore creando il rapportino.");
+  if (error || !inserted?.id) return errResult("rapportino_insert_unconfirmed", "Salvataggio non confermato. Verifica nell’app prima di riprovare.");
 
   // Aggiorna sessione con current_cantiere_id
   if (ctx.sessionId) {
@@ -200,16 +214,17 @@ export async function creaRapportino(
         current_cantiere_id: orderId,
         last_activity_at: new Date().toISOString(),
       })
-      .eq("id", ctx.sessionId);
+      .eq("id", ctx.sessionId).eq("company_id", ctx.company_id).eq("wa_number_id", ctx.waNumberId);
   }
 
   const riepilogo = [
-    `✅ Rapportino creato per ${cantiereNome}`,
+    `✅ Bozza rapportino salvata per ${cantiereNome} · ${dataLavoro}`,
     args.ore_lavorate ? `• Ore: ${args.ore_lavorate}h` : null,
     args.attivita?.length ? `• Attività: ${args.attivita.join(", ")}` : null,
     args.materiali_usati?.length
       ? `• Materiali: ${args.materiali_usati.map((m) => m.descrizione).join(", ")}`
       : null,
+    "Non ancora inviata all’ufficio. Materiali annotati, nessuno scarico di magazzino.",
   ].filter(Boolean).join("\n");
 
   return okResult(

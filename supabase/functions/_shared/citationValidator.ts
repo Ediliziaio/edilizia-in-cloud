@@ -9,8 +9,8 @@
  *   5. Detecta prefix "[no-rag]" che indica risposta puramente conversazionale
  *
  * Modalità (Deno.env CITATION_VALIDATION):
- *   - "warn"     (default): valida e logga, NON modifica response (rollout iniziale)
- *   - "enforce":            usa cleanedResponse (auto-fix Fonti)
+ *   - "warn":               valida e logga, NON modifica response
+ *   - "enforce" (default):  rimuove riferimenti invalidi e normalizza Fonti
  *   - "off":                skip totale, ritorna risultato vuoto
  *
  * NON throw mai: degrada gracefully.
@@ -36,12 +36,13 @@ const INITIAL_MARKER_RE = /\[S(\d+)\]/g;
 const TOOL_MARKER_RE = /\[S(\d+)\+\]/g;
 // Formato chunk_id: [chunk:abc12345] (8 char alphanumerici)
 const CHUNK_ID_MARKER_RE = /\[chunk:([a-zA-Z0-9]{6,32})\]/g;
-const FONTI_SECTION_RE = /\n#{1,3}\s+Fonti\s*[\s\S]*$/i;
+// Stop at the next heading: never swallow unrelated answer sections.
+const FONTI_SECTION_RE = /(?:^|\n)#{1,3}\s+Fonti[^\n]*\n[\s\S]*?(?=\n#{1,3}\s|$)/i;
 
 export function validateCitations(
   response: string,
   sources: RagSource[],
-  mode: "warn" | "enforce" | "off" = "warn",
+  mode: "warn" | "enforce" | "off" = "enforce",
 ): CitationValidationResult {
   // Strip [no-rag] anche se mode='off' (è un marker interno mai user-facing)
   const responseStrippedForOff = String(response ?? "")
@@ -91,18 +92,17 @@ export function validateCitations(
     (id) => !chunkIdsAvailable.has(id)
   );
 
-  const usedArr = Array.from(used).sort();
+  const usedArr = [...used, ...toolUsed].sort();
   const invalid = usedArr.filter((s) => !available.includes(s));
-  const noRag = text.trimStart().startsWith("[no-rag]");
+  const noRag = text.trimStart().toLowerCase().startsWith("[no-rag]");
   const hasFontiSection = FONTI_SECTION_RE.test(text);
   const missingFonti =
     (used.size > 0 || toolUsed.size > 0 || chunkIdsUsedSet.size > 0) && !hasFontiSection;
   const citationsMissing =
     !noRag &&
     sources.length > 0 &&
-    used.size === 0 &&
-    toolUsed.size === 0 &&
-    chunkIdsUsedSet.size === 0;
+    !usedArr.some(id => available.includes(id)) &&
+    !Array.from(chunkIdsUsedSet).some(id => chunkIdsAvailable.has(id));
 
   let cleanedResponse = text;
 
@@ -115,24 +115,22 @@ export function validateCitations(
       .trimStart();
   }
 
-  if (mode === "enforce" && used.size > 0) {
+  if (mode === "enforce") {
+    cleanedResponse = cleanedResponse.replace(FONTI_SECTION_RE, "");
+    cleanedResponse = cleanedResponse.replace(/\[S(\d+)(\+)?\]/g, (marker, n, plus) =>
+      available.includes(`S${n}${plus ?? ''}`) ? marker : '');
+    cleanedResponse = cleanedResponse.replace(CHUNK_ID_MARKER_RE, (marker, id) =>
+      chunkIdsAvailable.has(id) ? marker : '');
+    const cited = sources.filter(s => usedArr.includes(s.id) || (s.chunk_id && chunkIdsUsedSet.has(s.chunk_id)));
     // Costruisci sezione Fonti deterministica
     const fontiBlock = [
       "",
       "## Fonti",
-      ...usedArr
-        .filter((id) => available.includes(id))
-        .map((id) => {
-          const s = sources.find((x) => x.id === id)!;
-          return `- [${id}] ${s.title} (sim ${s.similarity.toFixed(2)})`;
-        }),
+      ...cited.map(s => `- [${s.id}] ${s.title.replace(/[\r\n]/g, ' ')}`),
     ].join("\n");
-
-    if (hasFontiSection) {
-      cleanedResponse = cleanedResponse.replace(FONTI_SECTION_RE, fontiBlock);
-    } else {
-      cleanedResponse = cleanedResponse.trimEnd() + fontiBlock;
-    }
+    if (cited.length) cleanedResponse = cleanedResponse.trimEnd() + fontiBlock;
+    if (invalid.length || chunkIdsInvalid.length) cleanedResponse = cleanedResponse.trimEnd()
+      + "\n\nNota: alcuni riferimenti non erano verificabili e sono stati rimossi. Verifica le affermazioni interessate sulla fonte originale.";
   }
 
   return {
@@ -149,9 +147,9 @@ export function validateCitations(
   };
 }
 
-/** Helper per ricavare la mode dall'env (default warn). */
+/** Helper per ricavare la mode dall'env (default enforce). */
 export function getCitationMode(): "warn" | "enforce" | "off" {
-  const raw = (Deno.env.get("CITATION_VALIDATION") ?? "warn").toLowerCase();
+  const raw = (Deno.env.get("CITATION_VALIDATION") ?? "enforce").toLowerCase();
   if (raw === "enforce" || raw === "off") return raw;
   return "warn";
 }

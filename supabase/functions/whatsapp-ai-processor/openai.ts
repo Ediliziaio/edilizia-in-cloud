@@ -14,6 +14,7 @@ import {
   type TaskKind,
   type ToolDefinition,
 } from "../_shared/ai-provider/index.ts";
+import type { AiTurnControl } from "../_shared/aiTurnControl.ts";
 
 // ── Re-export tipi per compat con codice esistente ──────────────────────────
 
@@ -50,6 +51,8 @@ export interface OpenAIRequest {
   company_id?: string | null;
   wa_message_id?: string | null;
   json_mode?: boolean;
+  session_id?: string;
+  turnControl?: AiTurnControl;
 }
 
 export interface OpenAIChoice {
@@ -71,6 +74,7 @@ export interface OpenAIResponse {
   _meta?: {
     provider: string;
     cost_usd: number;
+    cost_real_eur?: number;
     latency_ms: number;
     fallback_hops: number;
   };
@@ -90,6 +94,8 @@ export async function callOpenAI(req: OpenAIRequest): Promise<OpenAIResponse> {
     model_override: req.model,
     wa_message_id: req.wa_message_id ?? null,
     json_mode: req.json_mode,
+    session_id: req.session_id,
+    turnControl: req.turnControl,
   };
 
   const response = await chat(chatReq);
@@ -113,6 +119,7 @@ export async function callOpenAI(req: OpenAIRequest): Promise<OpenAIResponse> {
     _meta: {
       provider: response.provider_used,
       cost_usd: response.cost_usd,
+      cost_real_eur: response.cost_real_eur,
       latency_ms: response.latency_ms,
       fallback_hops: response.fallback_hops,
     },

@@ -1,0 +1,120 @@
+{
+  "date": "2026-10-07",
+  "scope": "Silvio e WhatsApp AI: hardening locale, non completamento dell'intero prodotto",
+  "mode": "local_only",
+  "production_changes": false,
+  "real_messages_sent": 0,
+  "paid_ai_calls": 0,
+  "commits_or_push": false,
+  "preserved": "Modifiche preesistenti e di altri terminali non sovrascritte.",
+  "skills": {
+    "graphify": "Mappa preesistente consultata; copertura WhatsApp insufficiente, integrata con ispezione diretta.",
+    "supabase": "Migrazione creata con CLI, RLS e concorrenza provate su PGlite isolato; nessuna applicazione remota."
+  },
+  "completed": [
+    "Precheck credito e caricamento configurazione AI fail-closed; task disabilitati non aggirati dal fallback.",
+    "Limite output effettivo e input/tool inclusi nella stima preliminare dei token.",
+    "Addebito non confermato impedisce tool/risposta e non rilancia un secondo modello.",
+    "OpenRouter 402, timeout, errore nel corpo HTTP 200 e risultato incerto non avviano retry/fallback automatici; timeout copre lettura corpo.",
+    "Costo e token mancanti non diventano gratuiti; costo zero esplicito resta valido; conteggio per giro usa costo EUR del registro invece di prezzo fisso di un altro modello.",
+    "Sessioni separate per azienda, numero ricevente e mittente; identità dipendente distinta da account ufficio/admin.",
+    "Conferme esplicite, specifiche per azione e numero, non future né scadute; consumo atomico compare-and-swap e scritture sessione riservate al servizio.",
+    "Recupero messaggi con prenotazione atomica del tentativo, solo inbound ricevuti; timeout non sovrascrive elaborazioni in corso o concluse.",
+    "Errori di invio propagati: nessun falso elaborato o secondo messaggio dopo un esito incerto.",
+    "Rimosso bypass autenticazione in whatsapp-send basato su claim service_role non verificato; token utente validato e controllo azienda preservato.",
+    "Rimossi ID messaggio inventati; conferma Meta obbligatoria, attesa limitata, esiti ambigui non rimborsati o ritentati automaticamente.",
+    "Controllo finestra di conversazione anche per risposte interattive.",
+    "Passaggio WhatsApp/Silvio vincolato all'azienda, risultato validato: errore/malformazione/timeout non riavvia un secondo agente.",
+    "Storico cliente comprende entrambe le direzioni sul numero corretto; rimossi messaggi che promettevano falsamente un inoltro all'ufficio.",
+    "Attività WhatsApp mostra stati interrotti, sconosciuti, attesa conferma e errore lettura; ricarica e polling rileggono soltanto, senza reinvio."
+  ],
+  "verification": {
+    "combined": {
+      "files": 70,
+      "tests": 883,
+      "result": "passed",
+      "command": "npm test -- --maxWorkers=2 whatsapp modelloWhatsApp creditoWhatsApp botOperativo silvio aiRouterPerformance aiTurnControl aiRouterBillingVerification openrouterStream creditoEsaurito creditiSiRicaricanoSoloPagando briefing"
+    },
+    "sql": {
+      "checks": 5,
+      "result": "passed",
+      "environment": "PGlite isolato, schema minimo e identità fittizie; non test multi-connessione",
+      "command": "node scripts/check-whatsapp-sessions-local.mjs /tmp/silvio-pg-test.CxcyA6/node_modules/@electric-sql/pglite/dist/index.js"
+    },
+    "deno": {
+      "result": "passed",
+      "functions": [
+        "whatsapp-ai-processor",
+        "whatsapp-ai-recovery",
+        "silvio-canale-adapter",
+        "whatsapp-webhook",
+        "whatsapp-send"
+      ]
+    },
+    "build_fast": "passed (bundle + service worker, nessun deploy; warning bundle/dependency preesistenti)",
+    "lint_targeted": "0 errori; 3 warning any preesistenti nel feed",
+    "whole_project_typecheck": "Non verde: corsa finale completata con 1007 diagnostiche generali. Nessuna diagnostica sui nuovi helper/test WhatsApp o sul feed modificato. Nessuna baseline allargata; questo non certifica l'intero repository.",
+    "critical_regressions": { "files": 21, "tests": 662, "result": "passed", "command": "npm run test:critical -- --maxWorkers=2", "note": "Suite separata, parzialmente sovrapposta ai 883 test; non sommare come test unici." },
+    "final_smoke": { "files": 2, "tests": 21, "result": "passed", "scope": "whatsappRecoverySafety e whatsappActivityFeed dopo la correzione del tipo nel fixture" },
+    "real_end_to_end": "Non eseguito contro Meta/OpenRouter/Supabase remoti. Nessun messaggio, costo o modifica reale."
+  },
+  "deployment_order": [
+    "Rivedere diff preservando il lavoro concorrente e terminare le verifiche residue.",
+    "Applicare in staging la migrazione 20261007172959_whatsapp_scoped_operator_sessions.sql prima del processor.",
+    "Verificare privilegi, sessioni storiche e registri nella configurazione reale di staging.",
+    "Distribuire funzioni coordinate solo su autorizzazione, poi eseguire smoke controllati.",
+    "Verificare stato reale del cron di recovery prima di abilitarlo; il commento locale lo indica disabilitato, non verificato remoto.",
+    "Nessun riavvio indiscriminato dei messaggi processing/failed con possibili azioni già avviate."
+  ],
+  "remaining_plan": [
+    {
+      "priority": "P0",
+      "area": "Conferme vincolate al contenuto",
+      "work": "Congelare e mostrare il payload esatto approvato, hash/ID della proposta e riferimento al messaggio; impedire cambio destinatario/importo/argomenti fra domanda e Sì. Oggi i tool legacy vincolano nome azione e numero, non tutti gli argomenti.",
+      "acceptance": "Test alterazione payload, conferma vecchia/altro numero e consumi concorrenti: nessuna scrittura non approvata."
+    },
+    {
+      "priority": "P0",
+      "area": "Registro invii e riconciliazione",
+      "work": "Outbox persistente e deduplicazione business end-to-end; distinguere generazione, esecuzione tool, invio accettato, consegnato e letto. Gestire credito trattenuto/esito ignoto con controllo umano.",
+      "acceptance": "Crash prima/dopo invio o tool non crea duplicati. Nessun retry automatico di esiti incerti. Messaggio e costo recuperabili dal registro."
+    },
+    {
+      "priority": "P0",
+      "area": "Budget e costi condivisi",
+      "work": "Correlare turno e tutte le spese dei worker: modello principale, tool AI, embeddings, Council, memoria. Prezzi di stima per modello e prenotazione atomica condivisa; non reintrodurre tetti disattivati deliberatamente senza scelta esplicita.",
+      "acceptance": "Un unico riepilogo riconciliabile con generazioni provider e registro, incluso errore post-generazione. Nessuna seconda spesa automatica per esito ambiguo."
+    },
+    {
+      "priority": "P1",
+      "area": "Coda conversazioni e recupero",
+      "work": "Serializzare turni per conversazione, limite tempo per batch recovery, stati processing abbandonati e coda da verificare con azioni sicure.",
+      "acceptance": "Due worker e messaggi ravvicinati non si scavalcano; batch entro runtime; operatore recupera senza rieseguire azioni già concluse."
+    },
+    {
+      "priority": "P1",
+      "area": "Permessi completi",
+      "work": "Audit granularità tool e utenti revocati/bloccati, numeri ambigui, duplicati contatti, permessi invio e rubrica, funzioni marketing/assistenza/notifiche e allegati.",
+      "acceptance": "Matrice tenant/ruolo/strumento per ogni percorso, compresi non riconosciuti, ufficio senza dipendente e operaio senza account."
+    },
+    {
+      "priority": "P1",
+      "area": "Copertura funzionale",
+      "work": "Scenari locali completi per rapportini, presenze, foto, DDT, spese, commesse, preventivi, documenti, approvazioni, lead, assistenza, template, campagne, promemoria, notifiche e opt-out.",
+      "acceptance": "Ogni caso documenta input, autorizzazione, record atteso, costo, risposta, duplicato, timeout ed errore. Nessuna funzione dichiarata completa solo perché il test unitario passa."
+    },
+    {
+      "priority": "P1",
+      "area": "Esperienza utente",
+      "work": "Un unico stato chiaro per conversazione, separare assistente e operatore umano, presa in carico verificata, azioni compatte mobile, costi leggibili e messaggi utili senza promesse inventate.",
+      "acceptance": "Verifica visiva desktop/tablet/mobile con dati sintetici; nessun errore nascosto, successo falso o caricamento senza possibilità di controllo."
+    },
+    {
+      "priority": "P1",
+      "area": "Verifica pre-rilascio",
+      "work": "Staging con provider simulati, concorrenza reale database, migrazioni e rollback, quindi sandbox ufficiale autorizzata e costi misurati.",
+      "acceptance": "Release checklist firmata; nessuna promessa zero bug/100% prima delle verifiche."
+    }
+  ],
+  "silvio_remaining": "Costo condiviso cross-worker non concluso; 2 righe storiche senza credit history per EUR 0.51894618 restano da riconciliare con evidenza. Nessun credito inventato o rettifica effettuata."
+}

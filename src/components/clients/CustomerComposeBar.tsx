@@ -15,6 +15,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
+import { requireWhatsAppReceipt } from "../../../supabase/functions/_shared/whatsappReceipt";
+import { readInvokeError } from "@/lib/readInvokeError";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSendSms } from "@/hooks/useSendSms";
 import { MessageTemplatePicker } from "@/components/templates/MessageTemplatePicker";
@@ -659,10 +661,10 @@ export function CustomerComposeBar({
               contactFields={waContactFields}
               seedText={waSeed?.text}
               seedAt={waSeed?.at}
-              onSend={async ({ waNumberId, content, template }) => {
+              onSend={async ({ waNumberId, content, template, idempotencyKey }) => {
                 if (!effectiveCompany?.id) {
                   toast.error("Azienda non disponibile");
-                  return;
+                  return false;
                 }
                 setWaSending(true);
                 try {
@@ -670,6 +672,7 @@ export function CustomerComposeBar({
                     company_id: effectiveCompany.id,
                     to: cleanPhone,
                     wa_number_id: waNumberId,
+                    idempotency_key: idempotencyKey,
                   };
                   if (template) {
                     payload.template = {
@@ -681,16 +684,19 @@ export function CustomerComposeBar({
                     payload.text = { body: content };
                   }
                   const { data, error } = await supabase.functions.invoke("whatsapp-send", { body: payload });
-                  if (error) throw error;
+                  if (error) throw new Error(await readInvokeError(error));
                   if ((data as { error?: string } | null)?.error) {
                     throw new Error((data as { error: string }).error);
                   }
-                  toast.success("Messaggio WhatsApp inviato");
+                  requireWhatsAppReceipt(data);
+                  toast.success("Messaggio accettato da WhatsApp");
                   qc.invalidateQueries({ queryKey: ["customer-diary-timeline", customerId] });
                   qc.invalidateQueries({ queryKey: ["customer-messages", customerId] });
                   onSent?.();
+                  return true;
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : "Errore invio WhatsApp");
+                  return false;
                 } finally {
                   setWaSending(false);
                 }

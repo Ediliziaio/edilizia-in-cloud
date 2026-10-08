@@ -12,6 +12,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeSilvioWithRecovery } from "@/lib/silvio/replyDelivery";
 import { segnalaCreditoEsaurito } from "@/lib/creditoEsaurito";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -50,13 +51,13 @@ import {
   MoreVertical,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
-import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
+import { SilvioAnswer } from "@/components/silvio/SilvioAnswer";
+import { SilvioRequestStatus, type SilvioRequestPhase } from "@/components/silvio/SilvioRequestStatus";
 import { AIAssistantInterface } from "@/components/ui/ai-assistant-interface";
-import { AiLoader } from "@/components/ui/ai-loader";
 import { useAnimatedText } from "@/components/ui/animated-text";
 import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components/silvio/AiMessageMeta";
 import { SilvioRatingButtons } from "@/components/silvio/SilvioRatingButtons";
-import { SilvioActionProposals } from "@/components/silvio/SilvioActionProposals";
+import { SilvioActionsBar } from "@/components/silvio/SilvioActionsBar";
 import { SilvioProgrammatePanel } from "@/components/silvio/SilvioProgrammatePanel";
 import { SilvioAvatar } from "@/components/silvio/SilvioAvatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -74,6 +75,7 @@ import {
 import { SILVIO_SKILLS } from "@/lib/silvio-skills";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { shouldSendSilvioOnEnter } from "@/lib/silvio/composerKeyboard";
 import { cn } from "@/lib/utils";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
@@ -213,41 +215,6 @@ function titoloIntelligente(text: string, fallback: string): string {
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
-/** Stato "pensiero" dinamico: testo che evolve mentre Silvio elabora, con una
- *  prima fase scelta in base alla domanda (effetto agentico, 100% frontend). */
-function useThinkingStatus(active: boolean, hint: string): string {
-  const phases = useMemo(() => {
-    const h = hint.toLowerCase();
-    const first = /fattur|credit|pagament|scadut|sollecit|incass/.test(h)
-      ? "Sto controllando fatture e pagamenti…"
-      : /cantier|lavor|comm|budget/.test(h)
-        ? "Sto analizzando i cantieri…"
-        : /preventiv|offert|quotaz/.test(h)
-          ? "Sto preparando il preventivo…"
-          : /client|lead|opportun|crm/.test(h)
-            ? "Sto guardando clienti e opportunità…"
-            : /cassa|flusso|margin|cost|tesorer/.test(h)
-              ? "Sto calcolando i numeri…"
-              : /email|posta|mail/.test(h)
-                ? "Sto leggendo le email…"
-                : /document|ddt|bolletta|alleg|pdf|foto|fattura/.test(h)
-                  ? "Sto leggendo il documento…"
-                  : "Sto leggendo i dati…";
-    return [first, "Sto ragionando…", "Sto preparando la risposta…"];
-  }, [hint]);
-  const [idx, setIdx] = useState(0);
-  useEffect(() => {
-    if (!active) {
-      setIdx(0);
-      return;
-    }
-    setIdx(0);
-    const t = setInterval(() => setIdx((i) => Math.min(i + 1, phases.length - 1)), 2600);
-    return () => clearInterval(t);
-  }, [active, phases]);
-  return phases[idx] ?? "Silvio sta pensando…";
-}
-
 export default function SilvioAIPage() {
   const { effectiveCompany, user, profile } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -260,6 +227,7 @@ export default function SilvioAIPage() {
   const [draft, setDraft] = useState("");
   const isMobile = useIsMobile();
   const [sending, setSending] = useState(false);
+  const [requestPhase, setRequestPhase] = useState<SilvioRequestPhase>("sending");
   // Aperta di default solo da md in su: su mobile è un drawer a tutta altezza
   // che coprirebbe l'hero al primo ingresso nella pagina.
   const [sidebarOpen, setSidebarOpen] = useState(
@@ -292,6 +260,7 @@ export default function SilvioAIPage() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const heroFileInputRef = useRef<HTMLInputElement>(null);
   const sendAbortRef = useRef<AbortController | null>(null);
+  const sendRunRef = useRef({ saved: false });
   const deeplinkHandledRef = useRef(false);
   // Istante di mount: solo i messaggi creati DOPO vengono animati (typewriter).
   const [mountTime] = useState(() => Date.now());
@@ -496,11 +465,14 @@ export default function SilvioAIPage() {
   const { data: messages = [], isLoading: loadingMsgs } = useQuery({
     queryKey: ["silvio-ai-messages", activeId],
     enabled: !!activeId,
-    staleTime: 30 * 60 * 1000,
+    staleTime: 0,
+    // Reconcile late replies even after Stop or a lost WebSocket; React Query
+    // pauses this fallback when the browser is in the background.
+    refetchInterval: sending ? false : 15_000,
     gcTime: 60 * 60 * 1000,
     queryFn: async (): Promise<SilvioMsg[]> => {
       if (!activeId) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("internal_chat_messages")
         .select(
           "id, channel_id, sender_id, content, message_type, created_at, streaming, rag_sources, ai_confidence, ai_requires_human_review, followup_suggestions, council_data, attachment_url, attachment_name",
@@ -508,6 +480,7 @@ export default function SilvioAIPage() {
         .eq("channel_id", activeId)
         .order("created_at", { ascending: false })
         .limit(50);
+      if (error) throw error;
       return ((data ?? []) as SilvioMsg[]).slice().reverse();
     },
   });
@@ -560,7 +533,9 @@ export default function SilvioAIPage() {
           }
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void qc.invalidateQueries({ queryKey: key });
+      });
     return () => {
       void supabase.removeChannel(channel);
     };
@@ -590,6 +565,7 @@ export default function SilvioAIPage() {
   useEffect(
     () => () => {
       attachmentsRef.current.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+      sendRunRef.current = { saved: false };
       sendAbortRef.current?.abort();
     },
     [],
@@ -708,6 +684,9 @@ export default function SilvioAIPage() {
       // Abort pronto SUBITO: così "Stop" annulla anche durante upload/insert pre-invoke.
       const ac = new AbortController();
       sendAbortRef.current = ac;
+      const run = sendRunRef.current;
+      const requestMessageId = insertUser ? crypto.randomUUID()
+        : [...messages].reverse().find((m) => m.sender_id === userId && m.content === trimmed)?.id;
       if (insertUser) {
         const first = atts[0];
         let firstUrl: string | null = null;
@@ -727,6 +706,7 @@ export default function SilvioAIPage() {
                 : "file";
         const displayContent = trimmed || atts.map((a) => `📎 ${a.file.name}`).join(" · ");
         const { error: insErr } = await supabase.from("internal_chat_messages").insert({
+          id: requestMessageId,
           channel_id: channelId,
           sender_id: userId,
           company_id: companyId,
@@ -736,10 +716,24 @@ export default function SilvioAIPage() {
           attachment_name: first?.file.name ?? null,
         });
         if (insErr) throw new Error(insErr.message);
+        run.saved = true;
         qc.invalidateQueries({ queryKey: ["silvio-ai-messages", channelId] });
       }
       if (ac.signal.aborted) return; // "Stop" premuto durante gli await pre-invoke
-      const res = await supabase.functions.invoke("silvio-chat", {
+      if (run === sendRunRef.current) setRequestPhase("waiting");
+      const res = await invokeSilvioWithRecovery({
+        functionName: "silvio-chat",
+        requestMessageId,
+        ignoreMessageIds: messages.filter((m) => m.sender_id === SILVIO_SENDER_ID).map((m) => m.id),
+        senderId: SILVIO_SENDER_ID,
+        onRecovering: () => { if (run === sendRunRef.current) setRequestPhase("recovering"); },
+        onMessage: (message) => {
+          if (message.streaming) segnaStreamed(message.id);
+          qc.setQueryData<SilvioMsg[]>(["silvio-ai-messages", channelId], (prev = []) =>
+            prev.some((m) => m.id === message.id)
+              ? prev.map((m) => m.id === message.id ? message as SilvioMsg : m)
+              : [...prev, message as SilvioMsg]);
+        },
         body: {
           channel_id: channelId,
           message: trimmed || "",
@@ -762,20 +756,29 @@ export default function SilvioAIPage() {
       }
       qc.invalidateQueries({ queryKey: ["silvio-ai-messages", channelId] });
     },
-    onMutate: () => {
+    onMutate: (variables) => {
+      setRequestPhase("sending");
       setToolSteps([]); // #10 nuova richiesta → reset step live
+      const run = { saved: !variables.insertUser };
+      sendRunRef.current = run;
+      return { run };
     },
-    onError: (e: Error, variables) => {
+    onError: (e: Error, variables, context) => {
+      if (!context || context.run !== sendRunRef.current) return;
       const isAbort = e.name === "AbortError" || /abort/i.test(e.message);
       if (!isAbort) {
         console.error("[silvio-chat]", e);
-        toast.error("Silvio non è riuscito a rispondere. Riprova.");
-        if (variables?.text?.trim()) setLastFailed({ text: variables.text });
+        toast.error(e.message);
+        // A saved question may still be running: never offer a blind retry.
+        if (!context.run.saved && variables?.text?.trim() && variables.channelId === activeId) setLastFailed({ text: variables.text });
       }
     },
-    onSettled: () => {
-      sendAbortRef.current = null;
-      setSending(false);
+    onSettled: (_data, _error, variables, context) => {
+      void qc.invalidateQueries({ queryKey: ["silvio-ai-messages", variables.channelId] });
+      if (context?.run === sendRunRef.current) {
+        sendAbortRef.current = null;
+        setSending(false);
+      }
       void refetchConvs();
     },
   });
@@ -853,10 +856,11 @@ export default function SilvioAIPage() {
   };
 
   const handleStop = () => {
+    sendRunRef.current = { saved: false };
     sendAbortRef.current?.abort();
     sendAbortRef.current = null;
     setSending(false);
-    toast.info("Generazione interrotta");
+    toast.info("Attesa interrotta. La risposta potrebbe comunque arrivare in questa chat.");
   };
 
   const handleNuova = () => {
@@ -1044,15 +1048,6 @@ export default function SilvioAIPage() {
   const showHero = !activeId && attachments.length === 0;
   const threadVuoto = !!activeId && messages.length === 0 && !loadingMsgs;
 
-  // Stato "pensiero" dinamico basato sull'ultima domanda dell'utente
-  const lastUserText = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].sender_id !== SILVIO_SENDER_ID) return messages[i].content;
-    }
-    return "";
-  }, [messages]);
-  const thinking = useThinkingStatus(sending, lastUserText);
-
   // Deep-link: ?ask=… apre Silvio AI e avvia subito la domanda (da altre pagine)
   useEffect(() => {
     if (deeplinkHandledRef.current) return;
@@ -1082,13 +1077,14 @@ export default function SilvioAIPage() {
 
   // ── Performance: callback STABILI per le bolle memoizzate (così digitare nel
   // composer, i tick del "pensiero" e gli step NON ri-renderizzano il thread) ──
-  const handleSendRef = useRef(handleSend);
   const handleRigeneraRef = useRef(handleRigenera);
   useEffect(() => {
-    handleSendRef.current = handleSend;
     handleRigeneraRef.current = handleRigenera;
   });
-  const onFollowupStable = useCallback((q: string) => void handleSendRef.current(q), []);
+  const onFollowupStable = useCallback((q: string) => {
+    setDraft(previous => previous.trim() ? `${previous.trim()}\n${q}` : q);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, []);
   const onRegeneraStable = useCallback(() => handleRigeneraRef.current(), []);
   const onEditUserStable = useCallback((content: string) => {
     setDraft(content);
@@ -1108,7 +1104,7 @@ export default function SilvioAIPage() {
               key={m.id}
               m={m}
               live={m.streaming === true}
-              animate={isLast && isLive && !m.streaming && !streamedIds.has(m.id)}
+              animate={isLast && isLive && !m.streaming && !streamedIds.has(m.id) && m.content.length <= 360}
               canRegenerate={isLast && !sending}
               onFollowup={onFollowupStable}
               onRegenera={onRegeneraStable}
@@ -1483,10 +1479,10 @@ export default function SilvioAIPage() {
                     <SilvioAvatar size={48} className="mx-auto mb-3" />
                     <p className="text-sm">Nuova conversazione — scrivi un messaggio o allega un documento (DDT, fattura, bolletta…).</p>
                     <div className="mt-5 flex flex-wrap justify-center gap-2">
-                      {QUICK_PROMPTS.map((q) => (
+                      {QUICK_PROMPTS.slice(0, 3).map((q) => (
                         <button
                           key={q.label}
-                          onClick={() => void handleSend(q.prompt)}
+                          onClick={() => onFollowupStable(q.prompt)}
                           className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:border-orange-300 hover:text-orange-700 hover:bg-orange-50 transition"
                         >
                           {q.label}
@@ -1512,7 +1508,7 @@ export default function SilvioAIPage() {
                           ))}
                         </div>
                       )}
-                      <AiLoader size={30} text={thinking} />
+                      <SilvioRequestStatus phase={requestPhase} onStop={handleStop} />
                     </div>
                   </div>
                 )}
@@ -1547,7 +1543,7 @@ export default function SilvioAIPage() {
           <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] max-sm:px-2 max-sm:py-2">
             <div className="max-w-3xl mx-auto">
               {/* Azioni che Silvio può eseguire nel sistema (agentico) */}
-              <ActionsInlineBar />
+              <SilvioActionsBar key={`${companyId}:${userId}`} />
               {/* Anteprima allegati */}
               {attachments.length > 0 && (
                 // Pillola: sigla colorata del tipo (o miniatura), nome, e sotto
@@ -1667,12 +1663,13 @@ export default function SilvioAIPage() {
                   onChange={(e) => setDraft(e.target.value)}
                   onPaste={handlePaste}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
+                    if (shouldSendSilvioOnEnter(e)) {
                       e.preventDefault();
                       void handleComposerSend();
                     }
                   }}
                   rows={1}
+                  aria-label="Scrivi a Silvio"
                   enterKeyHint="send"
                   placeholder={attachments.length > 0 ? (isMobile ? "Cosa devo farci?" : "Descrivi cosa vuoi che analizzi…") : isMobile ? "Scrivi a Silvio…" : "Scrivi a Silvio…  (Invio per inviare)"}
                   className="flex-1 min-w-0 resize-none outline-none text-base md:text-sm text-slate-700 placeholder:text-slate-400 max-h-40 py-1.5 max-sm:px-1"
@@ -1792,52 +1789,6 @@ function MemoriaSilvioDialog({
   );
 }
 
-/** Barra agentica: mostra quante azioni Silvio ha pronto da eseguire nel sistema.
- *  Collassata di default (1 riga); espandendo si vedono le card conferma/esegui
- *  (riuso SilvioActionProposals → silvio-execute-action). */
-function ActionsInlineBar() {
-  const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
-  const [open, setOpen] = useState(false);
-  const { data: count = 0 } = useQuery({
-    queryKey: ["silvio-proposals-count", companyId],
-    enabled: !!companyId,
-    queryFn: async (): Promise<number> => {
-      if (!companyId) return 0;
-      const result = await supabase
-        .from("ai_action_proposals" as never)
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .eq("status", "pending");
-      return (result as { count: number | null }).count ?? 0;
-    },
-    staleTime: 15_000,
-    refetchInterval: 30_000,
-  });
-
-  if (!count) return null;
-
-  return (
-    <div className="mb-2">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800 hover:bg-orange-100 transition-colors"
-      >
-        <Sparkles className="h-4 w-4 text-orange-500 shrink-0" />
-        <span className="font-medium">
-          Silvio ha {count} {count === 1 ? "azione pronta" : "azioni pronte"} da eseguire
-        </span>
-        <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", open && "rotate-180")} />
-      </button>
-      {open && (
-        <div className="mt-2 max-h-[50vh] overflow-y-auto">
-          <SilvioActionProposals compact />
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** Scheletro di caricamento del thread. */
 function SkeletonThread() {
   return (
@@ -1909,7 +1860,7 @@ const MessaggioSilvio = memo(function MessaggioSilvio({
           ) : animate ? (
             <SilvioAnimatedMessage content={m.content} sources={m.rag_sources ?? undefined} />
           ) : (
-            <ChatMarkdown content={m.content} sources={m.rag_sources ?? undefined} />
+            <SilvioAnswer content={m.content} sources={m.rag_sources ?? undefined} />
           )}
           <AiMessageMetaBottom meta={meta} onAskFollowup={onFollowup} />
         </div>
@@ -1986,7 +1937,7 @@ function SilvioAnimatedMessage({
 }) {
   const animated = useAnimatedText(content, "", 3);
   const done = animated.length >= content.length;
-  if (done) return <ChatMarkdown content={content} sources={sources ?? undefined} />;
+  if (done) return <SilvioAnswer content={content} sources={sources ?? undefined} />;
   return (
     <span className="whitespace-pre-wrap text-sm text-slate-700">
       {animated}

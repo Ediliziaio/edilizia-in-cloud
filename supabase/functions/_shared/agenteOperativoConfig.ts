@@ -63,6 +63,9 @@ export const AREE_AGENTE = [
   "mezzi",
   "posta",
   "campagne",
+  "calendario",
+  "contenuti",
+  "assistenza",
 ];
 
 /** Tetto alle istruzioni: un prompt enorme costa a ogni messaggio e confonde. */

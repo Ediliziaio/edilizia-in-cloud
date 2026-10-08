@@ -1,0 +1,92 @@
+{
+  "audit_date": "2026-10-07",
+  "observed_at_utc": "2026-10-07T16:24:18Z",
+  "scope": "Local router verification plus read-only inspection of the linked Supabase project's last 30 days. No provider statement reconciliation.",
+  "mutations": {"production_writes": 0, "new_paid_ai_requests": 0, "deployments": 0, "pushes": 0},
+  "local_verification": {
+    "test_files_passed": 34,
+    "tests_passed": 479,
+    "new_billing_tests": 10,
+    "command": "npm test -- --maxWorkers=2 silvio aiRouterPerformance aiTurnControl aiRouterBillingVerification openrouterStream creditoEsaurito creditiSiRicaricanoSoloPagando",
+    "new_test_file": "src/test/logic/aiRouterBillingVerification.test.ts",
+    "new_test_eslint": "passed",
+    "rpc_is_simulated": true,
+    "concurrent_postgres_wallet_execution_tested": false,
+    "read_only_sql_formula_cases_passed": 4,
+    "isolated_node_typecheck": "No test-file diagnostics; seven missing-Deno-global diagnostics in imported edge router. Not a clean whole-application typecheck."
+  },
+  "configured_router": {
+    "task": "persona_silvio",
+    "primary_model": "anthropic/claude-sonnet-4.5",
+    "fallback_models": ["anthropic/claude-haiku-4.5", "openai/gpt-4o", "openai/gpt-4o-mini"],
+    "tier": "t2_vision",
+    "requested_max_tokens": 2500,
+    "note": "Persona or demo overrides can select another model. These are database defaults."
+  },
+  "observed_t2_tariff_eur": {
+    "wholesale_input_per_million": 0.55,
+    "wholesale_output_per_million": 2.2,
+    "retail_input_per_million": 1.925,
+    "retail_output_per_million": 7.7,
+    "minimum_multiplier_on_recorded_provider_eur": 3,
+    "normal_success_formula": "max(round8(input*1.925/1000000 + output*7.7/1000000), round8(recorded_provider_eur*3))",
+    "warning": "Tier estimates are not live model-specific provider prices; cached provider costs and retail token tariffs are separate."
+  },
+  "historical_persona_silvio_successes": {
+    "calls": 525,
+    "recorded_provider_usd": 9.64825950,
+    "recorded_provider_eur": 8.87639872,
+    "billed_company_eur": 27.07726944,
+    "note": "Includes chat, automatic briefings and other calls; not representative of the price of one chat question."
+  },
+  "historical_flows": {
+    "chat": {
+      "successful_calls": 32,
+      "requests_identifiable_by_iteration_key": 19,
+      "maximum_calls_per_identifiable_request": 2,
+      "recorded_provider_eur": 3.23008403,
+      "billed_company_eur": 9.94663376,
+      "average_billed_per_call_eur": 0.310832,
+      "average_billed_per_identifiable_request_eur": 0.523507,
+      "average_recorded_provider_per_identifiable_request_eur": 0.170004,
+      "average_successful_call_ms": 11764,
+      "p95_successful_call_ms": 38728.35,
+      "with_generation_id_in_ledger": 4,
+      "note": "Small historical sample, includes demo; main chat calls only, excludes classifier, embeddings, Council and nested AI. Latency is per successful router call, not end-to-end user response or time to first displayed text."
+    },
+    "automatic_briefing": {
+      "successful_calls": 490,
+      "recorded_provider_eur": 4.62117341,
+      "billed_company_eur": 14.05521184,
+      "error_402_records": 333,
+      "error_window_utc": ["2026-10-04T05:32:02Z", "2026-10-05T05:33:14Z"],
+      "note": "Historical insufficient-provider-credit errors; successful runs recorded afterward. Not evidence that the account is still blocked."
+    },
+    "other": {"successful_calls": 3, "recorded_provider_eur": 1.02514128, "billed_company_eur": 3.07542384}
+  },
+  "ledger_invariants": {
+    "rows_checked": 860,
+    "charged_calls": 525,
+    "duplicate_idempotency_keys": 0,
+    "duplicate_linked_credit_transactions": 0,
+    "linked_transaction_amount_mismatches": 0,
+    "funding_split_mismatches": 0,
+    "fx_mismatches": 0,
+    "margin_mismatches": 0,
+    "charged_error_or_timeout_rows": 0,
+    "negative_cost_rows": 0,
+    "successes_below_minimum_3x": 0,
+    "missing_linked_credit_transactions": 2,
+    "missing_transaction_date_utc": "2026-09-08",
+    "missing_transaction_total_eur": 0.51894618,
+    "warning": "No ledger or wallet records repaired. Missing linkage is not proof that no debit occurred. Historical zero-cost errors do not prove zero provider consumption."
+  },
+  "reproduced_limitations": [
+    "Router billing replay prevents a second wallet debit in the RPC simulation, but still sends a second provider request. A successful-response cache or in-flight deduplication is needed upstream to avoid that spend.",
+    "Provider cost missing plus tier lookup unavailable becomes legacy costUsd=0; the new local turn telemetry correctly marks provider_cost_complete=false. Legacy zero alone is not trustworthy proof of a free call.",
+    "Most historical chat ledger rows lack generation_id; they cannot be individually reconciled to OpenRouter from the ledger alone.",
+    "The new local performance metadata is absent from all five inspected online chat decision logs in the last seven days. Historical data is not a post-deployment benchmark of the local changes.",
+    "Request-local metering excludes embeddings, nested tool AI, background memory and delegated Council workers."
+  ],
+  "documentation": "https://openrouter.ai/docs/cookbook/administration/usage-accounting"
+}

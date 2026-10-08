@@ -1,0 +1,10 @@
+import ts from 'typescript';import fs from 'node:fs';
+const area=process.argv[2],file=`src/components/${area}/${area[0].toUpperCase()+area.slice(1)}TemplateEditor.tsx`;
+const before=fs.readFileSync(file,'utf8'),sf=ts.createSourceFile(file,before,99,true,4);
+const names=['SectionCard','ListItemsEditor','TestimonianzeEditor','FaqEditor','CronoEditor'];
+const removes=sf.statements.filter(n=>(ts.isFunctionDeclaration(n)&&names.includes(n.name?.text))||(ts.isInterfaceDeclaration(n)&&['SectionCardProps','ListItemsEditorProps'].includes(n.name.text)));
+if(removes.length!==7)throw Error('Unexpected definitions '+area);
+let after=before;
+for(const n of removes.sort((a,b)=>b.pos-a.pos))after=after.slice(0,n.getStart(sf))+after.slice(n.end);
+after=`import { ${names.map(n=>`Template${n==='SectionCard'?'SectionCard':n} as ${n}`).join(', ')} } from "@/components/preventivi/TemplateContentControls";\n`+after;
+console.log(JSON.stringify([{file,before,after}]));

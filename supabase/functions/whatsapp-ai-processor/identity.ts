@@ -112,16 +112,24 @@ export async function resolveIdentity(
   if (!chiaveTelefono(fromPhone)) return unknownResult(companyId);
 
   // 1) Dipendente col telefono.
-  const { data: employees } = await supabase
+  const { data: employees, error: employeeError } = await supabase
     .from("employees")
     .select("id, user_id, first_name, last_name, phone_whatsapp, phone")
     .eq("company_id", companyId)
     .eq("is_active", true);
-  const dip = (employees ?? []).find((e) =>
+  if (employeeError) throw new Error("identity_employee_lookup_unavailable");
+  const matches = (employees ?? []).filter((e) =>
     stessoTelefono(e.phone_whatsapp, fromPhone) || stessoTelefono(e.phone, fromPhone)
   );
+  if (matches.length > 1) return unknownResult(companyId);
+  const dip = matches[0];
   if (dip) {
+    const { data: owners, error: ownerError } = await supabase.from("profiles").select("id,phone")
+      .eq("company_id", companyId).not("phone", "is", null);
+    if (ownerError) throw new Error("identity_profile_lookup_unavailable");
+    if ((owners ?? []).some(p => stessoTelefono(p.phone, fromPhone) && p.id !== dip.user_id)) return unknownResult(companyId);
     const ruoli = dip.user_id ? await ruoliNellAzienda(supabase, dip.user_id, companyId) : [];
+    if (dip.user_id && !eUtenteInterno(ruoli)) return unknownResult(companyId);
     return riconosciuto(companyId, tipoUtenteBot(ruoli, !!dip.user_id), {
       user_id: dip.user_id,
       employee_id: dip.id,
@@ -132,12 +140,15 @@ export async function resolveIdentity(
 
   // 2) Utente dell'app col telefono nel profilo (i clienti hanno un profilo
   //    anche loro: senza un ruolo interno qui non entrano).
-  const { data: profili } = await supabase
+  const { data: profili, error: profileError } = await supabase
     .from("profiles")
     .select("id, phone, first_name, last_name, full_name")
     .eq("company_id", companyId)
     .not("phone", "is", null);
-  const prof = (profili ?? []).find((p) => stessoTelefono(p.phone, fromPhone));
+  if (profileError) throw new Error("identity_profile_lookup_unavailable");
+  const profileMatches = (profili ?? []).filter((p) => stessoTelefono(p.phone, fromPhone));
+  if (profileMatches.length > 1) return unknownResult(companyId);
+  const prof = profileMatches[0];
   if (prof) {
     const ruoli = await ruoliNellAzienda(supabase, prof.id, companyId);
     if (eUtenteInterno(ruoli)) {

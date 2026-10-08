@@ -13,7 +13,8 @@ import type { TipoUtenteBot } from "./botOperativoRuoli.ts";
 
 /** Strumenti di Silvio che sul bot non servono: c'è quello del bot. */
 export const SILVIO_DOPPIONI_DEL_BOT = new Set([
-  "registra_rapportino", // → crea_rapportino
+  // registra_rapportino is an office action for a named employee, not the
+  // worker's own draft. Keep both tools with their respective permissions.
   "carica_ddt", // → carica_ddt del bot (legge la foto del messaggio)
   "analyze_image", // la foto si legge già all'arrivo
   "carica_documento_cantiere", // cerca il file tra i caricamenti della chat dell'app

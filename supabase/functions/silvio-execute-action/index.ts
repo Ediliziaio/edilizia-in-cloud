@@ -25,9 +25,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
-import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
+import { requireAuth } from "../_shared/auth.ts";
 import { SILVIO_TOOLS, type Channel, type ToolContext } from "../_shared/silvioTools.ts";
+import { executeToolWithRouting } from "../_shared/silvioToolExecution.ts";
+import { legacyActionPermissionError, verifiedActionActorRoles, verifiedActionPermission } from "../_shared/silvioActionPermission.ts";
+import { ruoloPrincipaleSilvio, usaPermessiStaff } from "../_shared/ruoloSilvio.ts";
 
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 
@@ -222,32 +224,28 @@ serve(async (req: Request) => {
     }
 
     const effectiveAllowedRoles = permission.requiresCompanyAdmin
-      ? Array.from(new Set([
-        ...permission.allowedRoles.filter((role) => ["super_admin", "company_admin"].includes(role)),
-        "super_admin",
-        "company_admin",
-      ]))
+      ? permission.allowedRoles.filter((role) => ["super_admin", "company_admin"].includes(role))
       : permission.allowedRoles;
 
-    // Per auto-execute: skip requireCompanyAccess (l'access è autorizzato dalla policy
-    // DB stessa che è settata solo da super_admin/company_admin). Usiamo "system" come
-    // primary role per il decision log → tracciabile come "executed_by=ai".
-    let primaryRole: string;
-    if (autoExecuteBypass) {
-      primaryRole = "ai_auto_execute";
-    } else {
-      // I ruoli IN QUESTA azienda (26/09/2026): con allowedRoles valevano i
-      // ruoli globali, e l'amministratore della propria azienda eseguiva qui le
-      // azioni da amministratore anche se era entrato come staff.
-      const access = await requireCompanyAccess(supabaseAdmin, userId, proposal.company_id, corsHeaders);
-      const ruoli = await ruoliNellAzienda(supabaseAdmin, userId, proposal.company_id);
-      if (!access.isSuperAdmin && !effectiveAllowedRoles.some((role) => ruoli.includes(role))) {
-        return errorResponse("Forbidden: insufficient permissions for this action", 403, corsHeaders);
-      }
-      primaryRole = pickPrimaryRole(ruoli);
+    // The service worker authenticates transport, not the business actor. This
+    // same current, fail-closed check applies to manual AND automatic execution.
+    const { data: actorRoles, error: actorError } = await supabaseAdmin.rpc("silvio_context_actor_roles", {
+      p_company_id: proposal.company_id, p_user_id: userId,
+    });
+    let ruoli: string[];
+    try { ruoli = verifiedActionActorRoles(actorRoles, actorError, effectiveAllowedRoles); }
+    catch (error) { return errorResponse(error instanceof Error ? error.message : "Accesso non verificabile", 403, corsHeaders); }
+    const primaryRole = ruoloPrincipaleSilvio(ruoli.filter(role => effectiveAllowedRoles.includes(role)));
+    if (usaPermessiStaff(primaryRole) && Object.hasOwn(ACTION_POLICIES, canonicalType)) {
+      const { data: staffPermissions, error: staffError } = await supabaseAdmin.from("staff_permissions")
+        .select("*").eq("company_id", proposal.company_id).eq("user_id", userId).maybeSingle();
+      if (staffError) return errorResponse("Non riesco a verificare i permessi. Nessuna azione eseguita.", 403, corsHeaders);
+      const denial = legacyActionPermissionError(canonicalType, staffPermissions);
+      if (denial) return errorResponse(denial, 403, corsHeaders);
     }
 
     const requiresStrongConfirmation =
+      permission.mode === "require_strong_confirmation" ||
       proposal.risk_level === "red" ||
       permission.riskLevel === "red" ||
       policy.requiresStrongConfirmation ||
@@ -268,9 +266,10 @@ serve(async (req: Request) => {
     if (proposal.status !== "pending") {
       return errorResponse(`Proposta già ${proposal.status}`, 400, corsHeaders);
     }
-    if (proposal.expires_at && new Date(proposal.expires_at) < new Date()) {
+    if (proposal.expires_at && !(Date.parse(proposal.expires_at) > Date.now())) {
       await supabaseAdmin.from("ai_action_proposals")
-        .update({ status: "expired" }).eq("id", proposal.id);
+        .update({ status: "expired" }).eq("id", proposal.id)
+        .eq("company_id", proposal.company_id).eq("user_id", userId).eq("status", "pending");
       return errorResponse("Proposta scaduta", 400, corsHeaders);
     }
 
@@ -323,47 +322,79 @@ serve(async (req: Request) => {
     }
 
     // Aggiorna proposal
-    await supabaseAdmin.from("ai_action_proposals").update({
-      status: result.ok ? "applied" : "failed",
-      applied_result: result.details ?? { message: result.message },
-      applied_at: new Date().toISOString(),
-      resolved_by: userId,
-    }).eq("id", proposal.id).eq("company_id", proposal.company_id);
+    let savedOutcome: { id: string } | null = null;
+    let saveError: { message?: string } | null = null;
+    try {
+      const saved = await supabaseAdmin.from("ai_action_proposals").update({
+        status: result.ok ? "applied" : "failed",
+        applied_result: result.details ?? { message: result.message },
+        applied_at: new Date().toISOString(),
+        resolved_by: userId,
+      }).eq("id", proposal.id).eq("company_id", proposal.company_id)
+        .eq("user_id", userId).eq("status", "confirmed").select("id").maybeSingle();
+      savedOutcome = saved.data;
+      saveError = saved.error;
+    } catch (error) { saveError = { message: error instanceof Error ? error.message : String(error) }; }
+    if (saveError || !savedOutcome) {
+      // The handler may already have sent an email or changed business data.
+      // Keep the claim: never reset to pending or encourage an automatic retry.
+      console.error("[silvio-execute-action] outcome persistence failed:", proposal.id, saveError?.message);
+      return jsonResponse({
+        ok: false, proposal_id: proposal.id, needs_review: true, retryable: false,
+        execution_succeeded: result.ok,
+        message: result.ok
+          ? "Operazione eseguita, ma non riesco a registrare l’esito. Non ripeterla: verifica il risultato nell’app."
+          : "Tentativo terminato, ma non riesco a registrare l’esito. Verifica eventuali modifiche parziali prima di riprovare.",
+        details: result.details,
+      }, 200, corsHeaders);
+    }
 
-    await recordDecisionLogForAction(supabaseAdmin, proposal.id, result.ok, {
+    // A failed notification/audit is not a failed business action. The durable
+    // outcome above is authoritative; report ancillary failures without retries.
+    const warnings: string[] = [];
+    const followUp = async (label: string, task: () => Promise<void>) => {
+      try { await task(); } catch (error) {
+        warnings.push(label);
+        console.warn("[silvio-execute-action] follow-up failed:", label, error);
+      }
+    };
+    await followUp("Registro decisioni non aggiornato", () => recordDecisionLogForAction(supabaseAdmin, proposal.id, result.ok, {
       ok: result.ok,
       message: result.message,
       details: result.details ?? null,
       permission: {
+        execution_mode: autoExecuteBypass ? "automatic" : "manual",
         source: permission.source,
         mode: permission.mode,
         risk_level: permission.riskLevel,
       },
-    }, body.override_payload ?? {});
+    }, body.override_payload ?? {}));
 
     // Resolve alert correlato SOLO se l'azione è andata a buon fine
     if (result.ok) {
       const alertId = (proposal.payload as { alert_id?: string })?.alert_id;
       if (alertId) {
-        await supabaseAdmin.from("silvio_alerts").update({
-          status: "resolved",
-          resolved_at: new Date().toISOString(),
-          resolved_by: userId,
-        }).eq("id", alertId).eq("company_id", proposal.company_id);
+        await followUp("Avviso collegato non aggiornato", async () => {
+          const { data, error } = await supabaseAdmin.from("silvio_alerts").update({
+            status: "resolved", resolved_at: new Date().toISOString(), resolved_by: userId,
+          }).eq("id", alertId).eq("company_id", proposal.company_id).select("id").maybeSingle();
+          if (error || !data) throw new Error("Impossibile aggiornare l’avviso collegato");
+        });
       }
     }
 
     // Notifica nella chat Silvio
-    await postToSilvioChat(supabaseAdmin, userId, proposal.company_id,
+    await followUp("Notifica chat non consegnata", () => postToSilvioChat(supabaseAdmin, userId, proposal.company_id,
       result.ok
         ? `✅ **Azione applicata**: ${proposal.summary}\n\n${result.message}`
         : `❌ **Azione fallita**: ${proposal.summary}\n\nErrore: ${result.message}`,
-    );
+    ));
 
     return jsonResponse({
       ok: result.ok,
-      message: result.message,
+      message: warnings.length ? `${result.message}\n\nDa verificare: ${warnings.join("; ")}.${result.ok ? " Non ripetere l’operazione." : ""}` : result.message,
       details: result.details,
+      warnings,
       proposal_id: proposal.id,
       permission: {
         source: permission.source,
@@ -385,52 +416,24 @@ async function loadActionPermission(
   actionType: string,
   fallbackPolicy: { allowedRoles: string[]; requiresStrongConfirmation?: boolean },
 ): Promise<ActionPermission> {
-  const fallback: ActionPermission = {
-    source: "fallback",
-    riskLevel: fallbackPolicy.requiresStrongConfirmation ? "red" : "yellow",
-    mode: fallbackPolicy.requiresStrongConfirmation ? "require_strong_confirmation" : "require_confirmation",
-    allowedRoles: fallbackPolicy.allowedRoles,
-    requiresCompanyAdmin: fallbackPolicy.requiresStrongConfirmation ?? false,
-    requiresStrongConfirmation: fallbackPolicy.requiresStrongConfirmation ?? false,
-    maxDailyExecutions: null,
-    dailyExecutions: 0,
-    dailyLimitReached: false,
-  };
-
   const { data, error } = await supabase.rpc("get_ai_action_permission", {
     p_company_id: companyId,
     p_action_type: actionType,
   });
 
-  if (error || !data || typeof data !== "object") {
-    console.warn("[silvio-execute-action] get_ai_action_permission fallback:", error?.message ?? "no data");
-    return fallback;
-  }
-
-  const raw = data as Record<string, unknown>;
-  const allowedRoles = Array.isArray(raw.allowed_roles)
-    ? raw.allowed_roles.filter((role): role is string => typeof role === "string")
-    : fallbackPolicy.allowedRoles;
+  const raw = verifiedActionPermission(data, error);
 
   return {
     source: raw.source === "company_override" ? "company_override" : "default",
     riskLevel: raw.risk_level === "green" || raw.risk_level === "red" ? raw.risk_level : "yellow",
-    mode: isActionPermissionMode(raw.mode) ? raw.mode : fallback.mode,
-    allowedRoles: allowedRoles.length ? allowedRoles : fallbackPolicy.allowedRoles,
+    mode: raw.mode,
+    allowedRoles: raw.allowed_roles.filter((role) => fallbackPolicy.allowedRoles.includes(role)),
     requiresCompanyAdmin: Boolean(raw.requires_company_admin),
     requiresStrongConfirmation: Boolean(raw.requires_strong_confirmation),
     maxDailyExecutions: typeof raw.max_daily_executions === "number" ? raw.max_daily_executions : null,
     dailyExecutions: typeof raw.daily_executions === "number" ? raw.daily_executions : 0,
     dailyLimitReached: Boolean(raw.daily_limit_reached),
   };
-}
-
-function isActionPermissionMode(value: unknown): value is ActionPermission["mode"] {
-  return value === "disabled" ||
-    value === "propose" ||
-    value === "require_confirmation" ||
-    value === "require_strong_confirmation" ||
-    value === "auto_execute";
 }
 
 async function recordDecisionLogForAction(
@@ -454,7 +457,7 @@ async function recordDecisionLogForAction(
 
   if (error) {
     // Best-effort audit bridge: execution remains source-of-truth in ai_action_proposals.
-    console.warn("[silvio-execute-action] decision log bridge failed:", error.message);
+    throw new Error(`Decision log bridge failed: ${error.message}`);
   }
 }
 
@@ -464,6 +467,13 @@ function buildFinalPayload(
   overridePayload: Record<string, unknown> | null,
 ): Record<string, unknown> {
   if (!overridePayload) return basePayload;
+
+  // Execution identity and routing come from the persisted proposal, never the editor.
+  for (const field of ["__tool_meta", "tool_name", "tool_domain", "company_id", "user_id", "persona_key", "channel", "session_id", "trace_id"]) {
+    if (Object.prototype.hasOwnProperty.call(overridePayload, field)) {
+      throw new Error(`Campo di esecuzione protetto: ${field}`);
+    }
+  }
 
   const lockedFieldsByAction: Record<string, string[]> = {
     send_overdue_reminder: ["order_id", "client_email", "client_name"],
@@ -513,6 +523,12 @@ async function dispatchAction(
     case "generic_email":
       return await sendGenericEmail(payload, ctx);
     case "create_quote_draft":
+      // Structured and historic item-bearing proposals must keep all quote lines.
+      // Never fall back to a header-only draft when the atomic RPC fails.
+      if (Object.prototype.hasOwnProperty.call(payload, "items") ||
+        (payload.__tool_meta as { tool_name?: string } | undefined)?.tool_name === actionType) {
+        return await executeRegisteredSilvioTool(actionType, payload, ctx);
+      }
       return await createQuoteDraft(payload, ctx);
     case "create_invoice_draft":
       return await createInvoiceDraft(payload, ctx);
@@ -648,7 +664,7 @@ async function createQuoteDraft(
     title,
     description,
     subtotal,
-    tax_amount: 0,
+    vat_amount: 0,
     discount_amount: 0,
     total: subtotal,
     validity_days: validityDays,
@@ -679,7 +695,7 @@ async function createQuoteDraft(
 
 // Handler create_invoice_draft — schema invoices ha N campi obbligatori
 // (invoice_number/year/progressive, document_type, issue_date, ecc.) gestiti
-// dal flusso fatturazione standard. Per ora restituiamo successo informativo:
+// dal flusso fatturazione standard. Non dichiariamo applicata una bozza inesistente:
 // la bozza va creata da Fatturazione → Nuova fattura. In futuro: chiamata a
 // edge function ai-fattura-genera-bozza che orchestra correttamente.
 async function createInvoiceDraft(
@@ -694,8 +710,8 @@ async function createInvoiceDraft(
   const clientName = (p.client_name ?? "").trim() || "Cliente";
   const total = typeof p.total_estimate === "number" ? p.total_estimate : 0;
   return {
-    ok: true,
-    message: `Promemoria registrato: emetti fattura a ${clientName}${total ? ` per € ${total}` : ""}. Vai in Fatturazione → Nuova fattura per completare l'intestazione (numerazione, data emissione, IVA).`,
+    ok: false,
+    message: `Nessuna fattura creata. Per ${clientName}${total ? ` (€ ${total})` : ""}, usa Fatturazione → Nuova fattura: questa azione automatica non è ancora disponibile.`,
     details: { client_name: clientName, total, order_id: p.order_id },
   };
 }
@@ -711,11 +727,6 @@ function actionPolicyFromRegistryTool(tool: (typeof SILVIO_TOOLS)[string] | unde
     allowedRoles: allowedRoles.length > 0 ? allowedRoles : ["super_admin"],
     requiresStrongConfirmation: tool.riskLevel === "red",
   };
-}
-
-function pickPrimaryRole(roles: string[]): string {
-  const priority = ["super_admin", "company_admin", "salesperson", "call_center", "company_staff", "employee", "subcontractor", "worker"];
-  return priority.find((role) => roles.includes(role)) ?? roles[0] ?? "company_staff";
 }
 
 function normalizeProposalPayload(
@@ -810,7 +821,11 @@ async function executeRegisteredSilvioTool(
   };
 
   try {
-    const data = await tool.executor(cleanPayload, toolCtx);
+    const execution = await executeToolWithRouting(actionType, cleanPayload, toolCtx, String(ctx.proposal.id));
+    if (!execution.success || execution.proposalId) {
+      return { ok: false, message: execution.error?.message ?? "L'azione richiede una nuova conferma." };
+    }
+    const data = execution.data;
     if (data && typeof data === "object" && !Array.isArray(data)) {
       const payload = data as Record<string, unknown>;
       if (
@@ -826,9 +841,16 @@ async function executeRegisteredSilvioTool(
         return { ok: false, message, details: data };
       }
     }
+    const outcome = data && typeof data === "object" && !Array.isArray(data)
+      ? data as Record<string, unknown> : {};
+    const outcomeMessage = [outcome.message, outcome.nota].find(value => typeof value === "string" && value.trim());
+    // Only trusted in-app destinations returned by the actual executor. Never
+    // fabricate a detail URL from the request or link to an external destination.
+    const link = typeof outcome.link === "string" && /^\/azienda\/[a-zA-Z0-9/_?=&%#.-]+$/.test(outcome.link)
+      ? outcome.link : null;
     return {
       ok: true,
-      message: `Tool "${actionType}" eseguito dopo conferma.`,
+      message: `${outcomeMessage || "Operazione completata dopo conferma."}${link ? `\n\n[Apri il risultato](${link})` : ""}`,
       details: data,
     };
   } catch (e) {
@@ -1232,7 +1254,7 @@ function normalizeEmailPurchaseItems(items: unknown): Array<Record<string, unkno
         note: typeof row.note === "string" ? row.note : null,
       };
     })
-    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .filter((item): item is NonNullable<typeof item> => item !== null)
     .slice(0, 50);
 }
 
@@ -1405,14 +1427,25 @@ async function postToSilvioChat(
   companyId: string,
   message: string,
 ) {
-  const { data: channelId } = await supabase.rpc("ensure_user_silvio_channel", { p_user_id: userId });
-  if (channelId) {
-    await supabase.from("internal_chat_messages").insert({
+  const { data: channelId, error: channelError } = await supabase.rpc("ensure_user_silvio_channel", { p_user_id: userId });
+  if (channelError || !channelId) throw new Error("Canale Silvio non disponibile");
+  // The legacy channel RPC uses the user's home company. Never post a result
+  // for another tenant there, even when this actor has multi-company access.
+  const { data: channel, error: scopeError } = await supabase.from("internal_chat_channels")
+    .select("id, dm_user_ids").eq("id", channelId).eq("company_id", companyId)
+    .eq("name", "silvio-ai").eq("is_dm", true).maybeSingle();
+  const { data: member, error: memberError } = await supabase.from("internal_chat_members")
+    .select("user_id").eq("channel_id", channelId).eq("company_id", companyId).eq("user_id", userId).maybeSingle();
+  if (scopeError || memberError || !channel || !member || !Array.isArray(channel.dm_user_ids) ||
+    channel.dm_user_ids.length !== 2 || !channel.dm_user_ids.includes(userId) || !channel.dm_user_ids.includes(SILVIO_SENDER_ID)) {
+    throw new Error("Canale non autorizzato per questa azienda e questo utente");
+  }
+  const { error } = await supabase.from("internal_chat_messages").insert({
       channel_id: channelId,
       sender_id: SILVIO_SENDER_ID,
       company_id: companyId,
       content: message,
       message_type: "text",
-    });
-  }
+  });
+  if (error) throw error;
 }

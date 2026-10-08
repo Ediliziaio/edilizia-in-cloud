@@ -1,0 +1,52 @@
+[
+  {
+    "detail": {
+      "cliente_nome": "",
+      "company_id": "d2000000-0000-4000-a000-000000000002",
+      "consuntivo": 39595,
+      "costo_acquisti": 20030,
+      "costo_diretto": 2400,
+      "costo_errori": 0,
+      "costo_manodopera": 16640,
+      "costo_materiali_magazzino": 525,
+      "costo_provvigioni": 0,
+      "costo_rimborsi_km": 0,
+      "created_at": "2026-09-30T14:54:53.514175+00:00",
+      "description": "DEMO · Appartamento Aurora · solo operai interni",
+      "id": "1778464d-0839-4011-a3f8-d267f7c9120f",
+      "margine": 32405,
+      "margine_perc": 45,
+      "movimenti_magazzino_senza_costo": 0,
+      "numero_rimborsi_km_da_approvare": 0,
+      "order_code": "DEMO-CFO-INT-01",
+      "percentuale_avanzamento": 100,
+      "preventivo_contratto": 72000,
+      "preventivo_totale": 72000,
+      "rimborsi_km_da_approvare": 0,
+      "variazioni_approvate": 0,
+      "work_end_date": "2026-09-30",
+      "work_start_date": "2026-08-01"
+    },
+    "name": "reapproval_is_idempotent",
+    "passed": true
+  },
+  {
+    "detail": {},
+    "name": "repeated_approval_no_duplicate",
+    "passed": true
+  },
+  {
+    "detail": {},
+    "name": "payment_does_not_change_margin",
+    "passed": true
+  },
+  {
+    "detail": {
+      "cost": 896,
+      "hours": 32,
+      "rate": 28
+    },
+    "name": "revoke_recalculates_hourly_rate",
+    "passed": true
+  }
+]

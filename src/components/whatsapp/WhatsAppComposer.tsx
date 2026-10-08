@@ -25,6 +25,7 @@ import { useWhatsAppNumbers } from "@/hooks/whatsapp/useWhatsAppNumbers";
 import { useWhatsAppWindow, useApprovedTemplates } from "@/hooks/whatsapp/useWhatsAppCompliance";
 
 export interface WhatsAppSendArgs {
+  idempotencyKey: string;
   waNumberId: string | null;
   content: string;
   template: { name: string; language: string; variables: string[] } | null;
@@ -32,7 +33,7 @@ export interface WhatsAppSendArgs {
 
 interface Props {
   phone: string | null | undefined;
-  onSend: (args: WhatsAppSendArgs) => Promise<void> | void;
+  onSend: (args: WhatsAppSendArgs) => Promise<void | boolean> | void | boolean;
   isSending?: boolean;
   className?: string;
   /**
@@ -55,16 +56,19 @@ interface Props {
 
 export function WhatsAppComposer({ phone, onSend, isSending, className, contactFields, seedText, seedAt, compatto }: Props) {
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const sendLock = useRef(false);
+  const seededDraftVersion = useRef(0);
+  const intent = useRef<{ fingerprint: string; key: string } | null>(null);
+  const [localSending, setLocalSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const { data: numbers = [] } = useWhatsAppNumbers();
   const activeNumbers = useMemo(
     () => numbers.filter((n) => n.stato === "active" && n.webhook_verified),
     [numbers],
   );
 
-  const [numberId, setNumberId] = useState<string | null>(null);
-  useEffect(() => {
-    if (!numberId && activeNumbers.length > 0) setNumberId(activeNumbers[0].id);
-  }, [activeNumbers, numberId]);
+  const [chosenNumberId, setNumberId] = useState<string | null>(null);
+  const numberId = activeNumbers.some(n => n.id === chosenNumberId) ? chosenNumberId : activeNumbers[0]?.id ?? null;
 
   const window24 = useWhatsAppWindow(phone);
   const isOpen = window24.data?.open ?? false;
@@ -73,25 +77,18 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
   const { data: templates = [] } = useApprovedTemplates(numberId);
 
   // Modalità: testo se finestra aperta, altrimenti template (forzato).
-  const [mode, setMode] = useState<"text" | "template">("text");
-  const modeInizializzato = useRef(false);
-  useEffect(() => {
-    if (windowLoading) return;
-    if (!isOpen) {
-      // Fuori dalla finestra 24h si può inviare SOLO template: forziamo sempre.
-      setMode("template");
-    } else if (!modeInizializzato.current) {
-      // Finestra aperta: default "testo" solo alla prima volta, così un eventuale
-      // switch manuale su "template" non viene azzerato a ogni refetch della finestra.
-      setMode("text");
-      modeInizializzato.current = true;
-    }
-  }, [isOpen, windowLoading]);
+  const [chosenMode, setMode] = useState<"text" | "template">("text");
+  const mode = isOpen ? chosenMode : "template";
 
   const [text, setText] = useState("");
   // Inietta una bozza esterna (es. AI) quando seedAt cambia.
   useEffect(() => {
-    if (seedText) setText(seedText.slice(0, 4096));
+    // External AI/template drafts arrive asynchronously; apply only the explicit seed event.
+    if (seedText) {
+      seededDraftVersion.current += 1;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setText(seedText.slice(0, 4096));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seedAt]);
   const [templateId, setTemplateId] = useState<string | null>(null);
@@ -117,15 +114,25 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
   const noActiveNumber = activeNumbers.length === 0;
 
   const canSend =
-    !isSending && !!numberId &&
+    !isSending && !localSending && !windowLoading && !!phone && !!numberId && activeNumbers.some(n => n.id === numberId) &&
     (mode === "text"
       ? text.trim().length > 0
       : !!selectedTemplate && vars.every((v) => v.trim().length > 0));
 
   const handleSend = async () => {
-    if (!canSend) return;
-    if (mode === "template" && selectedTemplate) {
-      await onSend({
+    if (!canSend || sendLock.current) return;
+    sendLock.current = true;
+    setLocalSending(true);
+    setSendError(null);
+    const fingerprint = JSON.stringify([phone, numberId, mode, text.trim(), templateId, vars]);
+    if (intent.current?.fingerprint !== fingerprint) intent.current = { fingerprint, key: crypto.randomUUID() };
+    const idempotencyKey = intent.current.key;
+    const sendingDraftVersion = seededDraftVersion.current;
+    try {
+      let accepted: void | boolean;
+      if (mode === "template" && selectedTemplate) {
+        accepted = await onSend({
+        idempotencyKey,
         waNumberId: numberId,
         content: `📋 ${selectedTemplate.template_name}`,
         template: {
@@ -134,13 +141,24 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
           variables: vars,
         },
       });
-    } else {
-      await onSend({ waNumberId: numberId, content: text.trim(), template: null });
+      } else {
+        accepted = await onSend({ idempotencyKey, waNumberId: numberId, content: text.trim(), template: null });
+      }
+      if (accepted !== true) throw new Error("Invio non confermato. Il testo è conservato: verifica la conversazione prima di riprovare.");
+      intent.current = null;
+      // A new AI draft may arrive while the previous send is awaiting its receipt.
+      if (seededDraftVersion.current === sendingDraftVersion) {
+        setText("");
+        setTemplateId(null);
+        setVars([]);
+        if (areaRef.current) areaRef.current.style.height = "";
+      }
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : "Invio non confermato. Il testo è conservato.");
+    } finally {
+      sendLock.current = false;
+      setLocalSending(false);
     }
-    setText("");
-    setTemplateId(null);
-    setVars([]);
-    if (areaRef.current) areaRef.current.style.height = "";
   };
 
   if (noActiveNumber) {
@@ -157,13 +175,14 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
 
   return (
     <div className={`${compatto ? "space-y-1.5" : "space-y-2"} ${className ?? ""}`}>
+      {sendError && <p role="alert" className="text-xs text-destructive break-words">{sendError}</p>}
       {/* Riga unica: numero mittente + stato finestra 24h + toggle testo/template.
           Prima il caso "finestra chiusa" mostrava badge + Alert lungo: due avvisi
           per lo stesso concetto che ingolfavano il centro della scheda. Ora un
           solo badge compatto; la spiegazione completa sta nel title (tooltip). */}
       <div className="flex flex-wrap items-center gap-2">
         {activeNumbers.length > 1 && (
-          <Select value={numberId ?? undefined} onValueChange={setNumberId}>
+          <Select value={numberId ?? undefined} onValueChange={setNumberId} disabled={localSending || isSending}>
             <SelectTrigger className="h-7 w-auto min-w-[160px] text-xs">
               <SelectValue placeholder="Numero mittente" />
             </SelectTrigger>
@@ -201,6 +220,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
           <div className="inline-flex rounded-md border bg-muted/40 p-0.5 text-xs">
             <button
               type="button"
+              disabled={localSending || isSending}
               onClick={() => setMode("text")}
               className={`flex items-center gap-1 rounded px-2 py-1 ${mode === "text" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
             >
@@ -208,6 +228,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
             </button>
             <button
               type="button"
+              disabled={localSending || isSending}
               onClick={() => setMode("template")}
               className={`flex items-center gap-1 rounded px-2 py-1 ${mode === "template" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
             >
@@ -221,6 +242,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
       {mode === "text" && compatto ? (
         <div className="flex items-end gap-2">
           <textarea
+            disabled={localSending || isSending}
             ref={areaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -230,7 +252,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
               el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 void handleSend();
               }
@@ -248,11 +270,12 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
             aria-label="Invia WhatsApp"
             className="h-10 w-10 shrink-0 rounded-full bg-[#00a884] text-white hover:bg-[#019173]"
           >
-            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {isSending || localSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>
       ) : mode === "text" ? (
         <Textarea
+          disabled={localSending || isSending}
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={3}
@@ -262,7 +285,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
       ) : (
         <div className="space-y-2">
           <div className="space-y-1">
-            <Select value={templateId ?? undefined} onValueChange={handlePickTemplate}>
+            <Select value={templateId ?? undefined} onValueChange={handlePickTemplate} disabled={localSending || isSending}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder={templates.length ? "Scegli un template approvato…" : "Nessun template approvato"} />
               </SelectTrigger>
@@ -293,6 +316,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
                       {mappedKey ? " · compilata dal contatto" : ""}
                     </Label>
                     <Input
+                      disabled={localSending || isSending}
                       value={v}
                       onChange={(e) => setVars((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
                       placeholder={`Valore {{${i + 1}}}`}
@@ -309,7 +333,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
       {!(compatto && mode === "text") && (
         <div className="flex justify-end">
           <Button size="sm" onClick={handleSend} disabled={!canSend} className="gap-1.5">
-            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {isSending || localSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             Invia WhatsApp
           </Button>
         </div>

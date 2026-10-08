@@ -8,11 +8,17 @@
  */
 
 export interface ConfermaAttesa {
-  /** Strumento che il Sì può eseguire; null = qualunque (domanda senza azione indicata). */
+  /** Strumento che il Sì può eseguire; null = scelta, non autorizza scritture. */
   azione: string | null;
   /** Proposta di Silvio da eseguire al Sì. */
   proposta_id: string | null;
   chiesta_il: string;
+  numero_id?: string;
+  id?: string;
+  parametri?: Record<string, unknown>;
+  payload_hash?: string;
+  source_message_id?: string;
+  media?: { storagePath: string; url: string; tipo: string } | null;
 }
 
 export interface StatoSessioneBot {
@@ -28,7 +34,8 @@ function record(v: unknown): Record<string, unknown> | null {
 
 function recente(iso: unknown, adesso: Date): boolean {
   const t = typeof iso === "string" ? Date.parse(iso) : NaN;
-  return Number.isFinite(t) && adesso.getTime() - t <= VALIDITA_MS;
+  const age = adesso.getTime() - t;
+  return Number.isFinite(t) && age >= 0 && age <= VALIDITA_MS;
 }
 
 export function leggiStatoSessione(stateData: unknown, adesso: Date): StatoSessioneBot {
@@ -39,6 +46,12 @@ export function leggiStatoSessione(stateData: unknown, adesso: Date): StatoSessi
       azione: typeof c.azione === "string" && c.azione ? c.azione : null,
       proposta_id: typeof c.proposta_id === "string" && c.proposta_id ? c.proposta_id : null,
       chiesta_il: String(c.chiesta_il),
+      ...(typeof c.numero_id === "string" ? { numero_id: c.numero_id } : {}),
+      ...(typeof c.id === "string" ? { id: c.id } : {}),
+      ...(record(c.parametri) ? { parametri: record(c.parametri)! } : {}),
+      ...(typeof c.payload_hash === "string" ? { payload_hash: c.payload_hash } : {}),
+      ...(typeof c.source_message_id === "string" ? { source_message_id: c.source_message_id } : {}),
+      ...(record(c.media) ? { media: c.media as unknown as ConfermaAttesa["media"] } : {}),
     }
     : null;
   const a = record(s.bot_aree);
@@ -55,8 +68,16 @@ export function confermaValePer(
   utenteHaConfermato: boolean,
 ): boolean {
   if (!utenteHaConfermato) return false;
-  if (!conferma || !conferma.azione) return true;
+  if (!conferma?.azione) return false;
   return conferma.azione === nomeStrumento;
+}
+
+/** Una scelta di cantiere o «ok, ma cambia ...» non è approvazione dell'azione. */
+export function rispostaAllaConferma(testo: string): "si" | "no" | null {
+  const value = testo.trim().toLowerCase().replace(/[.!?]+$/g, "").trim();
+  if (/^(no|annulla|annullo|non confermo|ferma|stop|lascia stare)$/.test(value)) return "no";
+  if (/^(s[ìi]|ok|okay|va bene|confermo|conferma|procedi|approvo|d'accordo|certo|esatto)$/.test(value)) return "si";
+  return null;
 }
 
 /** Il nuovo state_data: tiene le altre chiavi, cambia solo quelle passate. */

@@ -196,8 +196,10 @@ describe("i chiamanti usano la regola", () => {
     // ripiego a company_staff che faceva entrare il bloccato.
     expect(chat).toMatch(/if \(roleList\.length === 0\) \{[\s\S]{0,160}?403/);
     const azioni = leggi("supabase/functions/silvio-execute-action/index.ts");
-    expect(azioni).toContain("const ruoli = await ruoliNellAzienda(supabaseAdmin, userId, proposal.company_id);");
-    expect(azioni).toContain("primaryRole = pickPrimaryRole(ruoli);");
+    expect(azioni).toContain('rpc("silvio_context_actor_roles"');
+    expect(azioni).toContain("verifiedActionActorRoles(actorRoles, actorError, effectiveAllowedRoles)");
+    expect(azioni).toContain("const primaryRole = ruoloPrincipaleSilvio(ruoli.filter(role => effectiveAllowedRoles.includes(role)));");
+    expect(azioni).not.toContain('primaryRole = "ai_auto_execute"');
     expect(azioni).not.toMatch(conAllowedAdmin);
     expect(azioni).not.toContain("allowedRoles: effectiveAllowedRoles");
     const bot = leggi("supabase/functions/telegram-bot-processor/index.ts");

@@ -1,0 +1,132 @@
+REVISIONE COMMESSA — DESIGN, CANTIERE E CONTROLLO COSTI
+30 settembre 2026
+
+AMBITO E ATTENDIBILITA
+Analisi del codice locale e verifica UI di Demo Azienda 2 / Casa Betulla.
+Non è una riconciliazione contabile dell'intero database. Le migrazioni locali
+descrivono il modello previsto: non dimostrano da sole lo schema distribuito.
+Graphify è stato usato per il collegamento OrderDetail → OrderQuickActions;
+la mappa parziale non copre l'intero dominio economico. Il resto è lettura
+diretta di componenti, hook e migrazioni. Nessuna scrittura sui dati aziendali.
+
+IMPLEMENTATO IN QUESTO BLOCCO
+- Email, WhatsApp, SMS e Crea fattura fuori da Altre azioni, con icona E testo.
+- Recapiti dalla commessa se manca il cliente collegato in anagrafica.
+- Compositore messaggi montato solo all'apertura: nessun invio automatico.
+- Crea fattura riusa il dialogo esistente: permessi, sola lettura e modalità
+  di fatturazione nativa continuano a governarne disponibilità e apertura.
+- Mezzi/attrezzature spostati da Panoramica a Cantiere → Squadra e mezzi.
+- Nessun doppione dei mezzi assegnati nella logistica; restano gli attrezzi
+  al seguito delle persone e le informazioni di accesso al cantiere.
+- Badge proprietà/leasing/noleggio, collegamento al parco e stato vuoto utile.
+- Costi mezzi esplicitamente presentati come STIME, non fatture di noleggio.
+
+STRUTTURA DA MANTENERE
+Panoramica: valori principali, stato, prossima azione, cliente e collegamenti.
+Cantiere: lavorazioni, persone/ditte, mezzi/noleggi, diario e collaudo.
+Materiali: fabbisogno, acquisti, consegne, consumi, resi e seriali.
+Economia: budget, impegni, costi maturati, previsione finale, incassi/pagamenti.
+Ogni dato si registra nel suo flusso operativo e si riusa in Economia:
+non richiedere di reinserirlo per aggiornare il margine.
+
+COSA ESISTE E QUALI SONO LE LACUNE
+
+1. MEZZI E NOLEGGI
+src/types/mezzi.ts: proprietà, leasing, noleggio breve/lungo, rata mensile,
+storico assegnazioni dal/al, documenti contratto e manutenzioni.
+src/components/mezzi/MezziCommessaCard.tsx: giorni assegnati, km e costo stimato.
+La stima annualizza rate/assicurazioni/manutenzioni e divide per 365:
+non rappresenta un contratto giornaliero a consumo né la fattura effettiva.
+Nel flusso analizzato manca un ciclo completo con fornitore, tariffa/periodo,
+restituzione prevista/effettiva, extra e riconciliazione dei documenti.
+NON implementato in questo blocco: motore noleggi e nuovi costi automatici.
+
+2. SIGNIFICATO DEL CONSUNTIVO
+useOrderEconomicsBase.ts e migrazione 20281001140000_costi_mezzi_commessa.sql:
+gli acquisti includono ordini inviati/confermati/parziali/ricevuti. Sono impegni
+di acquisto, non necessariamente materiali consumati o fatture maturate.
+Esistono costi diretti manuali company_costs e movimenti di magazzino con
+esclusioni dei collegamenti acquisto per prevenire doppi conteggi.
+Occorre una riconciliazione esplicita, non aggiungere un secondo totale noleggi.
+Tenere distinti: ordinato, maturato, stimato a finire e pagato.
+
+3. STRUTTURA MENSILE
+src/lib/controlloGestione/strutturaCommessa.ts usa quota corrente mensile /
+numero corrente di commesse attive e la applica alla durata della commessa.
+Manca, in questo calcolo, uno storico mensile congelato delle allocazioni:
+variando il denominatore corrente può cambiare anche la lettura del passato.
+Servono quote per mese, criterio visibile e ricalcoli espliciti/versionati.
+Gli incassi non devono spostare automaticamente la competenza dei costi.
+
+4. COMPLETEZZA ECONOMICA
+OrderEconomicsSummary.tsx controlla, fra l'altro, che esista almeno un costo.
+Questo è un controllo di configurazione, non prova che TUTTI i costi siano
+registrati. Separare "controlli eseguiti" da "costi completi/consolidati".
+Una fase completata o un'attività chiusa non certifica il margine finale.
+
+PIANO OPERATIVO — PRIORITA
+
+P0. AFFIDABILITA DEI NUMERI
+Definire una fonte unica per ogni costo con source_id, commessa, eventuale
+fase, periodo, importo e stato (impegnato/maturato/stimato).
+Documento e pagamento si collegano allo stesso costo: non lo ricreano.
+Accettazione: stesso acquisto presente in ordine, documento e pagamento
+contribuisce una sola volta al costo, con cassa separata.
+Distinguere controlli di configurazione e completezza dei costi a chiusura.
+
+P1. NOLEGGIO SEMPLICE DENTRO CANTIERE
+Percorso: Aggiungi noleggio → In uso → Restituisci → Verifica costo.
+Sei campi iniziali: mezzo/attrezzo, fornitore, inizio, restituzione prevista,
+tariffa e periodo tariffario. La commessa è già selezionata.
+Dettagli avanzati: consegna/ritiro, minimi, extra, cauzione, allegato contratto.
+La cauzione va distinta dal costo operativo; non sommarla indistintamente.
+Promemoria restituzione senza duplicati; registrare la restituzione effettiva
+separatamente dalla rimozione del mezzo dal cantiere.
+Mostrare "maturato a oggi" e "previsto fino alla restituzione".
+Costo effettivo confermato sostituisce la stima del periodo corrispondente;
+fatture parziali lasciano una stima SOLO sulla parte residua.
+Senza fatturazione integrata: importo, data, riferimento e allegato manuali.
+Nessun invio, pagamento o contabilizzazione definitiva senza azione prevista.
+
+P2. RIPARTIZIONE STRUTTURA E SPESE CONDIVISE
+Registro mensile costi struttura e quote commessa con criterio esplicito.
+Default semplice: divisione fra commesse attive nel mese; opzioni avanzate
+per giorni/ore o costo lavoro, con residuo non allocato visibile.
+Snapshot di chiusura mese; rettifiche tracciate, non retroattività silenziosa.
+Carburante, trasporti e piccoli acquisti: voce rapida, documento facoltativo,
+assegnazione diretta se nota, altrimenti proposta di riparto da confermare.
+La natura fissa/variabile non sostituisce l'attribuzione diretta/indiretta.
+
+P3. CHIUSURA GUIDATA E AUTOMAZIONI
+Un solo pannello "Da completare": ore mancanti, fatture/consuntivi ditte,
+materiali residui, resi, noleggi aperti, varianti da approvare e collaudi.
+Proposte automatiche spiegabili e correggibili, non scritture definitive mute.
+Riepilogo con costo maturato, costo a finire e margine previsto a chiusura;
+incassato/pagato sono un secondo asse, non un sinonimo del margine.
+
+P4. COLLAUDO TRASVERSALE
+Tre scenari: solo interni, misto, solo subappalto; cantieri di due mesi.
+Noleggio a cavallo mese, restituzione anticipata/tardiva, fattura parziale,
+extra contestati, cauzione restituita, annullamento e doppia importazione.
+Materiale comprato per due cantieri con avanzo a magazzino e reso.
+Controllare costi e somme prima/dopo ogni movimento e ogni rettifica.
+Ruoli amministrativo, responsabile cantiere, operaio e sola lettura.
+Desktop/tablet/mobile: azioni etichettate, bersagli almeno 44 px, nessun
+campo obbligatorio non necessario, una sola azione primaria per contesto.
+
+LIMITI DELLA VERIFICA LIVE
+Email: compositore aperto senza invio; azienda senza casella collegata.
+WhatsApp/SMS: disabilitati nella commessa demo priva di telefono.
+Crea fattura: disabilitato con modalità aziendale non nativa.
+Percorsi abilitati verificati con test dei componenti, non emissioni reali.
+Nessuna modifica a formule economiche o migrazioni applicate in questo blocco.
+
+VERIFICA DEL BLOCCO
+- 144 test passati in 17 suite mirate: navigazione, composizione, azioni,
+  permessi mezzi, acquisti, collaudo, costi mezzi e ripartizione struttura.
+- Controllo visivo a 320, 390, 820 e 1280 px. Comandi mobile uniformati in
+  altezza; testo introduttivo del parco su riga separata nei telefoni.
+- Menu Altre azioni senza doppioni dei quattro comandi esposti.
+- Viewport di test rimosso, lasciata aperta Cantiere → Squadra e mezzi.
+- Non eseguita build o verifica TypeScript integrale in questo blocco.
+  Il precedente tentativo TypeScript si era fermato per memoria esaurita.

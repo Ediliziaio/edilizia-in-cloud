@@ -26,7 +26,7 @@ describe("whatsapp-send: l'azienda deve essere dell'utente", () => {
   });
 
   it("vale solo per chi arriva col proprio accesso, non per le funzioni interne", () => {
-    expect(invio).toContain("let clienteUtente: ReturnType<typeof createClient> | null = null;");
+    expect(invio).toContain("let clienteUtente: SupabaseClient | null = null;");
     expect(invio).toContain("if (isAuthenticated) clienteUtente = supabaseUser;");
     // Il segreto del cron e il service role non passano di lì.
     const primaDelloUtente = invio.slice(0, invio.indexOf("if (!isAuthenticated && authHeader.startsWith"));

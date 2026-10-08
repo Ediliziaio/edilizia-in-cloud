@@ -21,6 +21,8 @@ import {
   type ToolDomain,
 } from "../_shared/silvioTools.ts";
 import { executeToolWithRouting } from "../_shared/silvioToolExecution.ts";
+import { frozenConfirmationValid, canonicalJson } from "./frozenConfirmation.ts";
+import type { ConfermaAttesa } from "../_shared/botOperativoConferme.ts";
 import { usaPermessiStaff } from "../_shared/ruoloSilvio.ts";
 import { unisciCatalogo } from "../_shared/botOperativoCatalogo.ts";
 import type { ToolResult } from "./tools/shared/types.ts";
@@ -130,7 +132,7 @@ export async function eseguiStrumentoSilvio(
   }
   if (!r.success) {
     return {
-      risultato: { ok: false, error: r.error?.code ?? "errore", user_message: "Non ci sono riuscito, riprova tra poco." },
+      risultato: { ok: false, error: r.error?.code ?? "errore", user_message: "Operazione non confermata. Verifica nell’app prima di riprovare." },
       proposta: null,
     };
   }
@@ -159,6 +161,7 @@ export async function chiudiPropostaDaChat(
   ponte: PonteSilvio,
   propostaId: string,
   confermata: boolean,
+  expected?: ConfermaAttesa,
 ): Promise<string> {
   const { data: prop } = await supabase
     .from("ai_action_proposals")
@@ -170,42 +173,53 @@ export async function chiudiPropostaDaChat(
   }
   const adesso = new Date().toISOString();
   if (!confermata) {
-    await supabase
+    const { data: rejected, error: rejectError } = await supabase
       .from("ai_action_proposals")
       .update({ status: "rejected", resolved_by: ponte.ctx.userId, resolved_at: adesso, resolution_note: "Rifiutata su WhatsApp" })
       .eq("id", prop.id)
-      .eq("status", "pending");
+      .eq("status", "pending").eq("company_id", ponte.ctx.companyId).eq("user_id", ponte.ctx.userId).select("id");
+    if (rejectError || rejected?.length !== 1) return "Non riesco a confermare il rifiuto: verifica la proposta nell’app.";
     return "Ok, lascio stare.";
   }
   if (prop.risk_level === "red") {
     return "Questa azione va approvata dall'app: la trovi in Silvio, tra le azioni da approvare.";
   }
-  const { data: presa } = await supabase
+  if (!expected || !await frozenConfirmationValid(expected) || expected.azione !== prop.action_type ||
+    canonicalJson(expected.parametri) !== canonicalJson(prop.payload ?? {})) {
+    return "I dati della proposta sono cambiati: richiedi una nuova anteprima prima di approvare.";
+  }
+  const { data: presa, error: claimError } = await supabase
     .from("ai_action_proposals")
     .update({ status: "confirmed", resolved_by: ponte.ctx.userId, resolved_at: adesso, resolution_note: "Confermata su WhatsApp" })
     .eq("id", prop.id)
     .eq("status", "pending")
+    .eq("company_id", ponte.ctx.companyId)
+    .eq("user_id", ponte.ctx.userId)
+    .eq("payload", JSON.stringify(prop.payload))
+    .eq("action_type", prop.action_type)
     .select("id");
-  if (!presa || presa.length === 0) return "Questa richiesta è già stata gestita dall'app.";
+  if (claimError) return "Non riesco a verificare la presa in carico: nessuna nuova esecuzione avviata.";
+  if (!presa || presa.length === 0) return "Questa richiesta è già stata gestita dall'app o è cambiata: verifica la proposta.";
 
   const payload = (prop.payload ?? {}) as Record<string, unknown>;
   const input = payload.input && typeof payload.input === "object" ? payload.input : payload;
   const r = await executeToolWithRouting(String(prop.action_type), input, { ...ponte.ctx, preApproved: true });
   const dati = r.data && typeof r.data === "object" ? (r.data as Record<string, unknown>) : null;
   const errore = !r.success
-    ? "Non ci sono riuscito, riprova tra poco."
+    ? "Operazione non confermata. Verifica nell’app prima di riprovare."
     : typeof dati?.error === "string"
     ? dati.error
     : null;
 
-  await supabase
+  const { data: saved, error: saveError } = await supabase
     .from("ai_action_proposals")
     .update({
       status: errore ? "failed" : "applied",
       applied_at: errore ? null : new Date().toISOString(),
       applied_result: (r.data ?? r.error ?? null) as unknown,
     })
-    .eq("id", prop.id);
+    .eq("id", prop.id).eq("company_id", ponte.ctx.companyId).eq("user_id", ponte.ctx.userId).eq("status", "confirmed").select("id");
+  if (saveError || saved?.length !== 1) return "L’azione è stata avviata ma l’esito non è registrato. Verifica nell’app prima di riprovare.";
 
   if (errore) return errore;
   return typeof dati?.nota === "string" && dati.nota.trim() ? `✅ ${dati.nota}` : "✅ Fatto.";

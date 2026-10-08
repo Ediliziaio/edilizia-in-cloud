@@ -21,7 +21,7 @@ describe("catalogo del bot operativo", () => {
       ["carica_ddt", "registra_rapportino", "analyze_image", "get_quadro_incassi"],
     );
     expect(bot).toEqual(["carica_ddt", "crea_rapportino", "chiedi_conferma"]);
-    expect(silvio).toEqual(["get_quadro_incassi"]);
+    expect(silvio).toEqual(["registra_rapportino", "get_quadro_incassi"]);
   });
   it("le letture vecchie del bot lasciano il posto a quelle di Silvio", () => {
     const { bot, silvio } = unisciCatalogo(

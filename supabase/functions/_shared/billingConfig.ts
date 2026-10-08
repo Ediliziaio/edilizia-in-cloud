@@ -61,7 +61,8 @@ const DEFAULT_CONFIG: BillingConfig = {
 export async function getCompanyBillingConfig(
   client: SupabaseLikeClient,
   companyId: string,
-  service: string
+  service: string,
+  strict = false,
 ): Promise<BillingConfig> {
   const { data, error } = await client
     .from("company_billing_overrides")
@@ -70,6 +71,7 @@ export async function getCompanyBillingConfig(
     .eq("service", service)
     .maybeSingle();
 
+  if (error && strict) throw new Error("billing_config_unavailable");
   if (error || !data) {
     return DEFAULT_CONFIG;
   }

@@ -37,7 +37,7 @@ interface ChatMessage {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AIMessage = { role: string; content: string | any[]; tool_calls?: any[]; tool_call_id?: string; name?: string };
+type AIMessage = { role: "system" | "user" | "assistant" | "tool"; content: string | any[]; tool_calls?: any[]; tool_call_id?: string; name?: string };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PREAMBOLO COSTITUZIONALE (vale per TUTTE le 21 personas)
@@ -823,6 +823,20 @@ Deno.serve(async (req) => {
       return jsonRes({ error: "Edge function dedicata al canale silvio-admin" }, 400);
     }
 
+    const requestMessageId = body.request_message_id;
+    if (requestMessageId !== undefined) {
+      if (typeof requestMessageId !== "string" || !/^[0-9a-f-]{36}$/i.test(requestMessageId)) {
+        return jsonRes({ error: "request_message_id non valido" }, 400);
+      }
+      const { data: requestMessage, error: requestError } = await supabase
+        .from("internal_chat_messages").select("id")
+        .eq("id", requestMessageId).eq("channel_id", channelId)
+        .eq("company_id", channel.company_id ?? PLATFORM_ADMIN_COMPANY)
+        .eq("sender_id", userId).maybeSingle();
+      if (requestError || !requestMessage) return jsonRes({ error: "Domanda non accessibile" }, 403);
+    }
+    const replyLink = requestMessageId ? { reply_to_id: requestMessageId } : {};
+
     const exactHealthCheckMatch = message.match(
       /rispondi\s+(?:solo|esattamente)\s+["“']?([A-Za-z0-9_. -]{2,80})["”']?\s+(?:se\s+mi\s+ricevi|per\s+test)/i,
     );
@@ -837,6 +851,7 @@ Deno.serve(async (req) => {
       const { error: insertErr } = await supabase
         .from("internal_chat_messages")
         .insert({
+          ...replyLink,
           channel_id: channelId,
           sender_id: SILVIO_ADMIN_SENDER_ID,
           company_id: channel.company_id ?? PLATFORM_ADMIN_COMPANY,
@@ -1064,6 +1079,7 @@ Deno.serve(async (req) => {
           e instanceof Error ? e.message.slice(0, 200) : "errore sconosciuto"
         }.`;
         await supabase.from("internal_chat_messages").insert({
+          ...replyLink,
           channel_id: channelId,
           sender_id: SILVIO_ADMIN_SENDER_ID,
           company_id: channel.company_id ?? PLATFORM_ADMIN_COMPANY,
@@ -1149,6 +1165,7 @@ Deno.serve(async (req) => {
     const { error: insertErr } = await supabase
       .from("internal_chat_messages")
       .insert({
+        ...replyLink,
         channel_id: channelId,
         sender_id: SILVIO_ADMIN_SENDER_ID,
         company_id: channel.company_id ?? PLATFORM_ADMIN_COMPANY,

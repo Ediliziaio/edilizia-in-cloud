@@ -60,6 +60,9 @@ export interface ErroreInvioWhatsApp {
 const CODICI_DEL_CREDITO = new Set(["insufficient_credits", "credit_check_failed", "whatsapp_disabled"]);
 
 export function erroreInvioWhatsApp(status: number, esito: EsitoWhatsAppSend): ErroreInvioWhatsApp {
+  if (status >= 200 && status < 300 && !esito.error && !esito.code) {
+    return { status: 503, code: "delivery_unknown", error: "Invio non confermato: manca una ricevuta valida. Verifica la conversazione prima di riprovare." };
+  }
   const codice = esito.code ?? (esito.error && CODICI_DEL_CREDITO.has(esito.error) ? esito.error : null);
   switch (codice) {
     case "window_closed":

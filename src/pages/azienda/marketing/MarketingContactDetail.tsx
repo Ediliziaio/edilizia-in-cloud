@@ -37,6 +37,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ListinoClienteCard } from "@/components/crm/ListinoClienteCard";
 import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
+import { requireWhatsAppReceipt } from "../../../../supabase/functions/_shared/whatsappReceipt";
 import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
 import { MessageTemplatePicker } from "@/components/templates/MessageTemplatePicker";
 import { buildTemplateVars } from "@/lib/messageTemplateVars";
@@ -422,7 +423,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   // 2026-05-27: supporto CC/BCC per channel=email.
   // Edge function `send-contact-message` riceve cc[] e bcc[] opzionali.
   const sendMessage = useMutation({
-    mutationFn: async (params: { channel: string; content: string; subject?: string; cc?: string[]; bcc?: string[]; wa_number_id?: string | null; template?: { name: string; language: string; variables: string[] } | null }) => {
+    mutationFn: async (params: { channel: string; content: string; idempotency_key?: string; subject?: string; cc?: string[]; bcc?: string[]; wa_number_id?: string | null; template?: { name: string; language: string; variables: string[] } | null }) => {
       const { data, error } = await supabase.functions.invoke("send-contact-message", {
         body: { contact_id: id, ...params },
       });
@@ -430,6 +431,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       // della risposta: error.message è il generico «non-2xx status code».
       if (error) throw new Error(await readInvokeError(error));
       if (data?.success === false) throw new Error(data?.error || "Invio fallito");
+      if (params.channel === "whatsapp") requireWhatsAppReceipt(data);
       return data;
     },
     onSuccess: (_data, vars) => {
@@ -446,7 +448,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       setEmailCcVisible(false);
       setEmailBccVisible(false);
       const channelLabel = vars.channel === "whatsapp" ? "WhatsApp" : vars.channel === "email" ? "Email" : "SMS";
-      toast.success(`Messaggio ${channelLabel} inviato`);
+      toast.success(vars.channel === "whatsapp" ? "Messaggio accettato da WhatsApp" : `Messaggio ${channelLabel} inviato`);
     },
     onError: (e: any) => toast.error(e.message || "Errore invio messaggio"),
   });
@@ -1703,11 +1705,12 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 isSending={sendMessage.isPending}
                 className="flex-1"
                 contactFields={waContactFields}
-                onSend={async ({ waNumberId, content, template }) => {
+                onSend={async ({ waNumberId, content, template, idempotencyKey }) => {
                   await sendMessage.mutateAsync({
                     channel: "whatsapp",
                     content,
                     wa_number_id: waNumberId,
+                    idempotency_key: idempotencyKey,
                     template,
                   });
                 }}

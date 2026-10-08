@@ -25,7 +25,7 @@ import { STR } from "./prompts/strings.ts";
 import {
   confermaValePer,
   leggiStatoSessione,
-  statoDaSalvare,
+  rispostaAllaConferma,
   type ConfermaAttesa,
 } from "../_shared/botOperativoConferme.ts";
 import {
@@ -49,7 +49,6 @@ import {
 } from "../_shared/agenteOperativoConfig.ts";
 import { SILVIO_TOOLS } from "../_shared/silvioTools.ts";
 import { adessoPerIlPrompt, formatoWhatsApp } from "../_shared/formatoWhatsApp.ts";
-import { anteprimaBozza } from "../_shared/anteprimaProposta.ts";
 import { buildInteractivePayload } from "./interactive.ts";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
 // di rispondere su WhatsApp (operai, titolari).
@@ -59,8 +58,17 @@ import { gestisciMessaggioCliente } from "./cliente.ts";
 import { leggiDocumentoOperativo, leggiFotoOperativa, scaricaMediaDelMessaggio, transcribeAudio } from "./media.ts";
 import { callOpenAI, type ChatMessage } from "./openai.ts";
 import { InsufficientCreditsError } from "../_shared/ai-provider/index.ts";
-import { checkBudget, consumeBudget, estimateCostEur } from "./budget.ts";
+import { checkBudget, consumeBudget } from "./budget.ts";
 import { logToolCall } from "./observability.ts";
+import { BotSessionState } from "./sessionState.ts";
+import { freezeConfirmation, confirmationReplyMatches, frozenConfirmationValid, confirmationHash, canonicalJson, confirmationPreview, ConfirmationReviewError } from "./frozenConfirmation.ts";
+import { validateToolArguments } from "./toolArguments.ts";
+import { requireSiteAccess } from "./tools/shared/siteAccess.ts";
+import { runWhatsAppTool } from "../_shared/whatsappOperations.ts";
+import { AiTurnControl, AiTurnLimitError } from "../_shared/aiTurnControl.ts";
+import { whatsappPromptContext, whatsappAiSessionKey } from "../_shared/whatsappPromptContext.ts";
+import { handoffAccepted } from "../_shared/silvioHandoff.ts";
+import { deliverWhatsAppReply, WhatsAppDeliveryError } from "./delivery.ts";
 import type { ToolCtx } from "./tools/shared/types.ts";
 import {
   buildOperationalSystemPrompt,
@@ -157,7 +165,7 @@ Deno.serve(async (req) => {
   const { data: msg, error: msgErr } = await supabase
     .from("whatsapp_messages")
     .select(
-      "id, company_id, wa_number_id, wa_message_id, from_phone, to_phone, message_type, content_text, media_url, media_storage_path, processing_status, metadata, ai_extracted_data, created_at",
+      "id, company_id, wa_number_id, wa_message_id, direction, from_phone, to_phone, message_type, content_text, media_url, media_storage_path, processing_status, metadata, ai_extracted_data, created_at",
     )
     .eq("id", body.message_id)
     .maybeSingle();
@@ -165,18 +173,21 @@ Deno.serve(async (req) => {
   if (msgErr || !msg) {
     return json({ error: "message_not_found" }, 404);
   }
+  if (msg.direction !== "inbound") return json({ error: "inbound_message_required" }, 400);
 
   if (msg.processing_status && !["received", "processing"].includes(msg.processing_status)) {
     return json({ skip: "already_processed", status: msg.processing_status }, 200);
   }
 
-  const { data: waNumberSettings } = msg.wa_number_id
+  const { data: waNumberSettings, error: numberError } = msg.wa_number_id
     ? await supabase
       .from("ai_whatsapp_numbers")
       .select("operational_settings, agent_id")
       .eq("id", msg.wa_number_id)
+      .eq("company_id", msg.company_id)
       .maybeSingle()
-    : { data: null };
+    : { data: null, error: null };
+  if (numberError || !waNumberSettings) return json({ error: "number_settings_unavailable" }, 503);
   const operationalSettings = normalizeOperationalSettings(
     waNumberSettings?.operational_settings,
   );
@@ -185,24 +196,31 @@ Deno.serve(async (req) => {
   // dal cron di recupero (27/09/2026). bot_enabled sta nel dato grezzo, non
   // nelle impostazioni normalizzate.
   const impostazioniNumero = waNumberSettings?.operational_settings;
-  if (isPlainRecord(impostazioniNumero) && impostazioniNumero.bot_enabled === false) {
-    return markDone(supabase, body.message_id, "processed", "bot_spento");
-  }
+  const { data: conversationClaimed, error: conversationError } = await supabase.rpc("whatsapp_conversation_claim", {
+    p_company: msg.company_id, p_number: msg.wa_number_id, p_phone: msg.from_phone, p_message: msg.id,
+  });
+  if (conversationError) return json({ error: "conversation_queue_unavailable" }, 503);
+  if (conversationClaimed !== true) return json({ skip: "conversation_busy" }, 200);
 
   // Lock ottimistico atomico: se due invocazioni concorrenti arrivano insieme,
   // solo quella che vince l'UPDATE (processing_status ancora 'received') ottiene
   // righe indietro. L'altra torna vuota → esce subito (già presa in carico),
   // evitando doppia risposta AI + doppio consumo budget.
-  const { data: claimed } = await supabase
+  const { data: claimed, error: claimError } = await supabase
     .from("whatsapp_messages")
-    .update({ processing_status: "processing" })
+    .update({ processing_status: "processing", last_processing_attempt_at: new Date().toISOString() })
     .eq("id", body.message_id)
     .eq("processing_status", "received")
     .select("id");
+  if (claimError) return json({ error: "message_claim_unavailable" }, 503);
   if (!claimed || claimed.length === 0) {
     return json({ skip: "already_claimed" }, 200);
   }
+  if (isPlainRecord(impostazioniNumero) && impostazioniNumero.bot_enabled === false) {
+    return markDone(supabase, body.message_id, "processed", "bot_spento");
+  }
 
+  const aiTurn = new AiTurnControl();
   try {
     // ── MP-SILVIO-07 — conferma verifica canale (reverse-OTP) ─────────────────
     // Se il messaggio è un codice di verifica pendente per QUESTO numero,
@@ -405,11 +423,9 @@ Deno.serve(async (req) => {
     const testoDellaRisposta = msg.message_type === "audio"
       ? userContent.replace(/^\[Audio trascritto\]:\s*/, "")
       : (msg.content_text ?? "");
-    const confirmTextRaw = testoDellaRisposta.trim().toLowerCase();
-    const confirmIsNegative = /^(no\b|annull|non |ferma|stop\b|lascia stare)/.test(confirmTextRaw);
-    const userJustConfirmed =
-      (msg.message_type === "interactive" && !confirmIsNegative) ||
-      /^(s[ìi]\b|ok(ay)?\b|va bene\b|conferm|procedi\b|approv|d'accordo\b|certo\b|esatto\b)/.test(confirmTextRaw);
+    const rispostaConferma = rispostaAllaConferma(testoDellaRisposta);
+    let confirmIsNegative = rispostaConferma === "no";
+    let userJustConfirmed = rispostaConferma === "si";
 
     // History: ultimi 10 messaggi, nei due versi. Fino al 25/09/2026 si
     // filtrava solo from_phone = operaio: le risposte del bot (che partono dal
@@ -443,36 +459,59 @@ Deno.serve(async (req) => {
     // tutti: prima l'amministratore le scavalcava perché non aveva quegli strumenti.
     const grantedTools = filterToolsByGrants(identity.role_grants);
     const availableTools = filterOperationalTools(grantedTools, operationalSettings);
-    const openaiTools = toOpenAISpec(availableTools);
 
     // Session — prima del prompt: serve sapere se c'è una domanda in attesa.
     let sessionId: string | null = null;
-    const { data: existingSess } = await supabase
+    let sessionData: unknown = null;
+    const { data: existingSess, error: sessionError } = await supabase
       .from("whatsapp_sessions")
       .select("id, state_data")
       .eq("phone_number", msg.from_phone)
       .eq("company_id", msg.company_id)
+      .eq("wa_number_id", msg.wa_number_id)
       .maybeSingle();
+    if (sessionError) throw new Error("bot_session_lookup_unavailable");
     if (existingSess) {
       sessionId = existingSess.id;
+      sessionData = existingSess.state_data;
       await supabase
         .from("whatsapp_sessions")
         .update({ last_activity_at: new Date().toISOString() })
         .eq("id", sessionId);
-    } else if (identity.user_id) {
-      const { data: newSess } = await supabase
+    } else if (identity.user_id || identity.employee_id) {
+      const { error: newSessionError } = await supabase
         .from("whatsapp_sessions")
-        .insert({
+        .upsert({
           company_id: msg.company_id,
+          wa_number_id: msg.wa_number_id,
           phone_number: msg.from_phone,
-          operaio_id: identity.user_id,
+          operaio_id: identity.employee_id,
+          user_id: identity.user_id,
           last_activity_at: new Date().toISOString(),
-        })
-        .select("id")
+        }, { onConflict: "company_id,wa_number_id,phone_number", ignoreDuplicates: true });
+      if (newSessionError) throw new Error("bot_session_create_unavailable");
+      // Another inbound may have won the insert. Never replace its state.
+      const { data: newSess, error: readSessionError } = await supabase.from("whatsapp_sessions")
+        .select("id, state_data")
+        .eq("company_id", msg.company_id).eq("wa_number_id", msg.wa_number_id).eq("phone_number", msg.from_phone)
         .single();
+      if (readSessionError || !newSess) throw new Error("bot_session_create_unavailable");
       sessionId = newSess?.id ?? null;
+      sessionData = newSess?.state_data ?? null;
     }
-    const statoSessione = leggiStatoSessione(existingSess?.state_data ?? null, new Date());
+    const sessionState = new BotSessionState(supabase, msg.company_id, sessionId, sessionData);
+    const statoSessione = leggiStatoSessione(sessionData, new Date());
+    // Una conferma su un altro numero dell'azienda non vale qui. Le vecchie
+    // conferme senza numero vanno richieste di nuovo, mai ampliate implicitamente.
+    if (statoSessione.conferma?.numero_id !== msg.wa_number_id) statoSessione.conferma = null;
+    if (!confirmationReplyMatches(statoSessione.conferma, msg.metadata, msg.message_type)) {
+      userJustConfirmed = false;
+      confirmIsNegative = false;
+      if (rispostaConferma) {
+        await sendReply(msg, "Questo pulsante appartiene a una domanda precedente. Usa i pulsanti dell’ultima conferma.");
+        return markDone(supabase, msg.id, "processed");
+      }
+    }
     // undefined = domanda in attesa invariata; null = da togliere; oggetto = nuova domanda.
     let confermaDopo: ConfermaAttesa | null | undefined = undefined;
 
@@ -532,15 +571,14 @@ Deno.serve(async (req) => {
     // Sì/No a una proposta di Silvio chiesta nel messaggio prima: si esegue
     // (o si scarta) senza passare dal modello.
     if (ponte && statoSessione.conferma?.proposta_id && (userJustConfirmed || confirmIsNegative)) {
-      const testo = await chiudiPropostaDaChat(supabase, ponte, statoSessione.conferma.proposta_id, userJustConfirmed);
-      if (sessionId) {
-        await supabase
-          .from("whatsapp_sessions")
-          .update({ state_data: statoDaSalvare(existingSess?.state_data ?? null, { conferma: null }, new Date()) })
-          .eq("id", sessionId);
-      }
+      if (!await sessionState.consume()) throw new Error("confirmation_already_consumed");
+      const testo = await chiudiPropostaDaChat(supabase, ponte, statoSessione.conferma.proposta_id, userJustConfirmed, statoSessione.conferma);
       await sendReply(msg, formatoWhatsApp(testo));
       return markDone(supabase, body.message_id, "processed");
+    }
+    if (confirmIsNegative && statoSessione.conferma) {
+      await sessionState.consume();
+      statoSessione.conferma = null;
     }
 
     const WA_SECURITY_GUARD =
@@ -551,22 +589,22 @@ Deno.serve(async (req) => {
       ? promptUfficio({ tipo: identity.kind, nome: identity.display_name })
       : SYSTEM_PROMPT_OPERAIO;
     const istruzioni = istruzioniAzienda(configAgente, ruoloAgente, sbloccatiOra);
-    // Data e ora in cima: senza, «questo mese» non ha un punto di partenza.
-    const systemPrompt =
-      `${adessoPerIlPrompt(inizioTurno)}\n\n${basePrompt}\n\n${buildOperationalSystemPrompt(operationalSettings)}\n\n${buildTriagePrompt(operationalTriage)}` +
+    // Keep current time and triage out of the reusable instruction prefix.
+    const stablePrompt = `${basePrompt}\n\n${buildOperationalSystemPrompt(operationalSettings)}` + WA_SECURITY_GUARD;
+    const currentContext = `${adessoPerIlPrompt(inizioTurno)}\n\n${buildTriagePrompt(operationalTriage)}` +
       (istruzioni ? `\n\n${istruzioni}` : "") +
       (ponte ? `\n\n${ponte.promptExtra()}` : "") +
       (piano.approfondito
         ? "\n\n[RISPOSTA] È una domanda sui numeri o sulla situazione: rispondi in modo APPROFONDITO — dai le cifre, il contesto e cosa significano, non solo il numero secco. Se serve, usa gli strumenti per incrociare i dati."
-        : "\n\n[RISPOSTA] Rispondi brevissimo, l'essenziale.") +
-      WA_SECURITY_GUARD;
+        : "\n\n[RISPOSTA] Rispondi brevissimo, l'essenziale.");
 
     const messages: ChatMessage[] = [
-      { role: "system", content: systemPrompt },
+      ...whatsappPromptContext(stablePrompt, currentContext),
       ...historyFormatted,
       { role: "user", content: userContent },
     ];
 
+    const aiSessionKey = await whatsappAiSessionKey(msg.company_id, identity.user_id, msg.wa_number_id!, sessionId, identity.kind, msg.id);
     const toolCtx: ToolCtx = {
       supabase,
       company_id: msg.company_id,
@@ -578,8 +616,29 @@ Deno.serve(async (req) => {
       waNumberId: msg.wa_number_id ?? "",
       sessionId,
       kind: identity.kind,
+      requestId: msg.id,
       mediaCorrente,
     };
+
+    // Approval executes the stored payload directly, never a second model reconstruction.
+    if (userJustConfirmed && statoSessione.conferma && !statoSessione.conferma.proposta_id) {
+      const pending = statoSessione.conferma;
+      const tool = pending.azione && nomiBot.has(pending.azione) ? findTool(pending.azione) : undefined;
+      if (!tool || !confermaValePer(pending, tool.name, true) || !await frozenConfirmationValid(pending)) {
+        await sessionState.consume();
+        await sendReply(msg, "La conferma non è più valida. Riformula la richiesta: ti mostrerò i dati esatti prima di procedere.");
+        return markDone(supabase, msg.id, "processed");
+      }
+      validateToolArguments(tool.parameters, pending.parametri);
+      if (pending.parametri?.order_id) await requireSiteAccess(toolCtx, String(pending.parametri.order_id));
+      if (!await sessionState.consume()) throw new Error("confirmation_already_consumed");
+      const result = await runWhatsAppTool(supabase, msg.company_id, `approval:${pending.id}`, tool.name,
+        pending.parametri, () => tool.handler({ ...toolCtx, mediaCorrente: pending.media ?? undefined }, pending.parametri!));
+      await logToolCall(supabase, { company_id: msg.company_id, wa_message_id: msg.id, tool_name: tool.name,
+        role_kind: identity.kind, args: pending.parametri!, result, duration_ms: 0, model_used: "confirmed_payload" });
+      await sendReply(msg, result.user_message || (result.ok ? "Operazione completata." : "Operazione non completata. Verifica dall’app prima di riprovare."));
+      return markDone(supabase, msg.id, result.ok ? "processed" : "failed", result.ok ? undefined : result.error);
+    }
 
     const model = budget.model_override ?? OPENAI_MODEL_DEFAULT;
     // MP05 + piano modello (28/09/2026): il task_kind lo decide il piano
@@ -590,27 +649,30 @@ Deno.serve(async (req) => {
     // MP-P1 — true quando un tool (chiedi_conferma) ha già inviato una risposta
     // interattiva: il sendReply testuale finale va saltato per non duplicare.
     let replyHandled = false;
-    let totalTokensIn = 0;
-    let totalTokensOut = 0;
+    const blockedCandidates = new Map<string, Record<string, unknown>>();
 
     // Con Silvio serve un giro in più: carica_strumenti, poi lo strumento vero.
     const giriMassimi = ponte ? 5 : MAX_ITERATIONS;
     for (let iter = 0; iter < giriMassimi; iter++) {
       const spec = specDelGiro();
-      const resp = await callOpenAI({
+      const aiInput = {
         model: budget.model_override ? model : undefined,
         task_kind: taskKind,
         company_id: msg.company_id,
         wa_message_id: msg.id,
         messages: conv,
-        tools: spec.length > 0 ? (spec as typeof openaiTools) : undefined,
-        tool_choice: spec.length > 0 ? "auto" : undefined,
+        tools: spec.length > 0 ? (spec as ReturnType<typeof toOpenAISpec>) : undefined,
+        tool_choice: spec.length > 0 ? "auto" as const : undefined,
         temperature: configAgente?.temperatura ?? 0.5,
         max_tokens: piano.maxTokens,
-      });
+        session_id: aiSessionKey,
+      };
+      const resp = await runWhatsAppTool(supabase, msg.company_id, `ai:${msg.id}:round:${iter}`,
+        "ai_generation", aiInput, () => callOpenAI({ ...aiInput, turnControl: aiTurn }));
 
-      totalTokensIn += resp.usage?.prompt_tokens ?? 0;
-      totalTokensOut += resp.usage?.completion_tokens ?? 0;
+      // Registra ciascun giro anche se un tool o l'invio successivo fallisce.
+      // La RPC ha già applicato il cambio: non usare prezzi di un altro modello.
+      if (resp._meta?.cost_real_eur != null) await consumeBudget(supabase, msg.company_id, resp._meta.cost_real_eur);
 
       const choice = resp.choices[0];
       const assistantMsg = choice.message;
@@ -628,24 +690,21 @@ Deno.serve(async (req) => {
             let argsSilvio: Record<string, unknown> = {};
             try {
               argsSilvio = JSON.parse(tc.function.arguments || "{}");
+              if (!argsSilvio || typeof argsSilvio !== "object" || Array.isArray(argsSilvio)) throw new Error("invalid_args");
             } catch {
-              // argomenti illeggibili: restano vuoti, lo strumento dirà cosa manca
+              return { tool_call_id: tc.id, result: { ok: false as const, error: "invalid_args", user_message: "Dati dell’azione non validi: nessuna operazione eseguita." } };
             }
             // Azione sbloccata che di suo partirebbe senza chiedere: qui chiede
             // comunque il Sì (le «gialle» lo chiedono già con la proposta).
             const rischioSilvio = SILVIO_TOOLS[tc.function.name]?.riskLevel ?? "safe";
-            if (
-              sbloccatiOra.includes(tc.function.name) && rischioSilvio === "safe" &&
-              !confermaValePer(statoSessione.conferma, tc.function.name, userJustConfirmed)
-            ) {
+            if (sbloccatiOra.includes(tc.function.name) && rischioSilvio === "safe") {
               return {
                 tool_call_id: tc.id,
                 result: {
                   ok: false as const,
                   error: "confirmation_required",
                   user_message:
-                    "Azione di norma vietata e sbloccata per questa persona: riassumi cosa farai e chiedi conferma " +
-                    `con chiedi_conferma (azione: ${tc.function.name}); esegui solo dopo il Sì.`,
+                    "Questa azione eccezionalmente sbloccata va eseguita dall’app, con anteprima e conferma dei dati.",
                 },
               };
             }
@@ -661,7 +720,7 @@ Deno.serve(async (req) => {
               args: argsSilvio,
               result: risultato,
               duration_ms: Date.now() - t0s,
-              model_used: model,
+              model_used: resp.model,
             });
             return { tool_call_id: tc.id, result: risultato };
           }
@@ -693,9 +752,10 @@ Deno.serve(async (req) => {
             };
           }
 
-          let args: Record<string, unknown> = {};
+          let args: Record<string, unknown>;
           try {
             args = JSON.parse(tc.function.arguments);
+            if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("invalid_args");
           } catch {
             return {
               tool_call_id: tc.id,
@@ -715,7 +775,8 @@ Deno.serve(async (req) => {
           // Il Sì vale solo per l'azione chiesta nella domanda in attesa.
           // Anche uno strumento sbloccato dalla scheda chiede sempre il Sì.
           const serveConferma = tool.requires_confirmation || sbloccatiOra.includes(tc.function.name);
-          if (serveConferma && !confermaValePer(statoSessione.conferma, tc.function.name, userJustConfirmed)) {
+          if (serveConferma) {
+            blockedCandidates.set(tool.name, args);
             const blocked = {
               ok: false as const,
               error: "confirmation_required",
@@ -731,7 +792,7 @@ Deno.serve(async (req) => {
               args,
               result: blocked,
               duration_ms: 0,
-              model_used: model,
+              model_used: resp.model,
             });
             return { tool_call_id: tc.id, result: blocked };
           }
@@ -739,12 +800,27 @@ Deno.serve(async (req) => {
           const t0 = Date.now();
           let result;
           try {
-            result = await tool.handler(toolCtx, args);
+            validateToolArguments(tool.parameters, args);
+            if (args.order_id) await requireSiteAccess(toolCtx, String(args.order_id));
+            if (tool.name === "chiedi_conferma" && typeof args.azione === "string" && args.azione.trim()) {
+              const action = args.azione.trim();
+              const target = nomiBot.has(action) ? findTool(action) : undefined;
+              if (!target || action === "chiedi_conferma") throw new Error("Azione non disponibile per questa persona.");
+              const input = blockedCandidates.get(action) ?? args.parametri;
+              validateToolArguments(target.parameters, input);
+              const frozen = await freezeConfirmation(toolCtx, action, input as Record<string, unknown>, msg.id);
+              result = { ok: true, data: { __interactive: frozen.interactive, __pending: frozen.pending }, user_message: "" };
+            } else {
+              const mutates = tool.requires_grants.some(g => g.endsWith(".write")) || tool.name === "imposta_cantiere_corrente";
+              result = mutates ? await runWhatsAppTool(supabase, msg.company_id,
+                `tool:${msg.id}:${await confirmationHash(tool.name, args, mediaCorrente)}`, tool.name, args,
+                () => tool.handler(toolCtx, args)) : await tool.handler(toolCtx, args);
+            }
           } catch (e) {
             result = {
               ok: false as const,
-              error: String(e),
-              user_message: STR.shared.generic_error,
+              error: e instanceof ConfirmationReviewError ? e.code : String(e),
+              user_message: e instanceof ConfirmationReviewError ? e.message : STR.shared.generic_error,
             };
           }
           const dur = Date.now() - t0;
@@ -759,7 +835,7 @@ Deno.serve(async (req) => {
             args,
             result,
             duration_ms: dur,
-            model_used: model,
+            model_used: resp.model,
           });
 
           return { tool_call_id: tc.id, result };
@@ -781,16 +857,14 @@ Deno.serve(async (req) => {
       // scelta dell'utente tornerà come prossimo messaggio inbound (il parser
       // mappa button_reply/list_reply.title → content_text).
       const risultatoInterattivo = results
-        .map((r) => r.result as { ok?: boolean; data?: { __interactive?: unknown; azione?: string | null } })
+        .map((r) => r.result as { ok?: boolean; data?: { __interactive?: unknown; __pending?: ConfermaAttesa; azione?: string | null } })
         .find((res) => res && res.ok === true && !!res.data?.__interactive);
       const interactivePayload = risultatoInterattivo?.data?.__interactive;
       if (interactivePayload) {
         // Si ricorda quale azione il Sì potrà eseguire (27/09/2026).
-        confermaDopo = {
-          azione: risultatoInterattivo?.data?.azione ?? null,
-          proposta_id: null,
-          chiesta_il: new Date().toISOString(),
-        };
+        confermaDopo = risultatoInterattivo?.data?.__pending ?? null;
+        await sessionState.save({ conferma: confermaDopo, domini: ponte ? [...ponte.domini] : undefined });
+        confermaDopo = undefined;
         await sendInteractiveReply(msg, interactivePayload as Record<string, unknown>);
         replyHandled = true;
         break;
@@ -805,18 +879,32 @@ Deno.serve(async (req) => {
       if (p.rischio === "red") {
         finalText = "Questa azione va approvata dall'app: la trovi in Silvio, tra le azioni da approvare.";
       } else {
-        const { data: prop } = await supabase.from("ai_action_proposals").select("summary, payload").eq("id", p.id).maybeSingle();
+        const { data: prop, error: proposalError } = await supabase.from("ai_action_proposals").select("summary, payload")
+          .eq("id", p.id).eq("company_id", msg.company_id).eq("user_id", identity.user_id).eq("status", "pending").maybeSingle();
+        if (proposalError || !prop) throw new Error("proposal_preview_unavailable");
         // Se è una bozza (email/messaggio a un cliente) la mostro per intero:
         // chi approva deve leggere cosa parte, non solo un'etichetta (28/09/2026).
-        const domanda = `${prop?.summary ?? "Preparo l'azione che mi hai chiesto."}${anteprimaBozza(prop?.payload)}\n\nConfermi?`;
+        let domanda: string;
+        const proposalPayload = (prop.payload ?? {}) as Record<string, unknown>;
+        const previewInput = proposalPayload.input && typeof proposalPayload.input === "object" ? proposalPayload.input as Record<string, unknown> : proposalPayload;
+        try { domanda = confirmationPreview(p.strumento, previewInput); }
+        catch {
+          await sendReply(msg, "La proposta è troppo lunga per una conferma WhatsApp completa. Leggila e approvala dall’app, in Silvio.");
+          return markDone(supabase, msg.id, "processed");
+        }
+        const pending: ConfermaAttesa = { id: crypto.randomUUID(), azione: p.strumento, proposta_id: p.id,
+          chiesta_il: new Date().toISOString(), numero_id: msg.wa_number_id!,
+          parametri: JSON.parse(canonicalJson(prop.payload ?? {})), media: null,
+          payload_hash: await confirmationHash(p.strumento, prop.payload ?? {}, null) };
+        await sessionState.save({ conferma: pending, domini: [...ponte!.domini] });
         await sendInteractiveReply(
           msg,
-          buildInteractivePayload(domanda, [{ id: "conf_0", title: "Sì" }, { id: "conf_1", title: "No" }]) as unknown as Record<
+          buildInteractivePayload(domanda, [{ id: `approve:${pending.id}`, title: "Sì" }, { id: `reject:${pending.id}`, title: "No" }]) as unknown as Record<
             string,
             unknown
           >,
         );
-        confermaDopo = { azione: p.strumento, proposta_id: p.id, chiesta_il: new Date().toISOString() };
+        confermaDopo = undefined;
         replyHandled = true;
       }
     }
@@ -847,31 +935,24 @@ Deno.serve(async (req) => {
     // Il Markdown del modello scritto per WhatsApp (**x** → *x*, # titoli, link).
     finalText = formatoWhatsApp(finalText);
 
-    // MP-P1 — Salta l'invio testuale se un tool ha già risposto in modo
-    // interattivo (bottoni/lista) in questo turno.
-    if (!replyHandled) {
-      await sendReply(msg, finalText);
-    }
-
     // Si ricordano la domanda in attesa e le aree di Silvio caricate.
-    if (sessionId && (confermaDopo !== undefined || ponte)) {
-      await supabase
-        .from("whatsapp_sessions")
-        .update({
-          state_data: statoDaSalvare(
-            existingSess?.state_data ?? null,
-            { conferma: confermaDopo, domini: ponte ? [...ponte.domini] : undefined },
-            new Date(),
-          ),
-        })
-        .eq("id", sessionId);
+    if (!replyHandled && sessionId && (confermaDopo !== undefined || ponte)) {
+      await sessionState.save({ conferma: confermaDopo, domini: ponte ? [...ponte.domini] : undefined });
     }
 
-    const costEur = estimateCostEur(model, totalTokensIn, totalTokensOut);
-    await consumeBudget(supabase, msg.company_id, costEur);
+    if (!replyHandled) await sendReply(msg, finalText);
 
     return markDone(supabase, body.message_id, "processed");
   } catch (err) {
+    if (err instanceof AiTurnLimitError) {
+      try { await sendReply(msg, "Mi fermo qui per evitare ulteriori elaborazioni. Le operazioni già confermate restano registrate: verifica gli esiti nell’app prima di ripetere la richiesta."); } catch { /* unknown reply must not be retried */ }
+      return markDone(supabase, body.message_id, "failed", `ai_turn_${err.reason}`);
+    }
+    // Non inviare un secondo messaggio dopo un timeout/errore d'invio: il
+    // primo potrebbe essere già partito. L'esito resta visibile come fallito.
+    if (err instanceof WhatsAppDeliveryError) {
+      return markDone(supabase, body.message_id, "failed", err.message);
+    }
     // MP05-FIX — Gestione crediti insufficienti: messaggio user-friendly
     // senza rivelare modello o costo reale (F1-F3).
     if (err instanceof InsufficientCreditsError) {
@@ -904,6 +985,11 @@ Deno.serve(async (req) => {
       // nada
     }
     return markDone(supabase, body.message_id, "failed", errorMsg);
+  } finally {
+    // Operational chat only: transcription, vision and AI called inside tools
+    // are excluded; this is telemetry, not a replacement billing ledger.
+    console.info(JSON.stringify({ fn: "whatsapp-ai-processor", event: "operational_chat_metrics", message_id: msg.id,
+      ...aiTurn.snapshot(), scope: "whatsapp_operational_chat", excluded_scopes: ["media_transcription", "vision", "tool_internal_ai", "customer_processor"] }));
   }
 });
 
@@ -962,15 +1048,20 @@ async function markDone(
   status: "processed" | "failed" = "processed",
   error?: string,
 ): Promise<Response> {
-  await supabase
+  const { data, error: saveError } = await supabase
     .from("whatsapp_messages")
     .update({
       processing_status: status,
       processing_error: error ?? null,
       processed_at: new Date().toISOString(),
     })
-    .eq("id", id);
-  return json({ ok: true, status }, 200);
+    .eq("id", id)
+    .in("processing_status", ["received", "processing"])
+    .select("id");
+  if (saveError || data?.length !== 1) return json({ ok: false, error: "processing_result_not_saved" }, 503);
+  const { error: releaseError } = await supabase.rpc("whatsapp_conversation_release", { p_message: id });
+  if (releaseError) console.error("conversation_release_failed", { message_id: id });
+  return json({ ok: status === "processed", status }, 200);
 }
 
 interface MsgForSend {
@@ -1035,6 +1126,7 @@ async function tryConfermaVerificaCanale(
     .from("silvio_canali_identita")
     .select("id, codice, codice_scadenza")
     .eq("canale", "whatsapp")
+    .eq("company_id", msg.company_id)
     .eq("identificativo", identificativo)
     .eq("verificato", false)
     .maybeSingle();
@@ -1104,6 +1196,7 @@ async function forwardToSilvio(msg: MsgForSend, testo: string): Promise<boolean>
       },
       body: JSON.stringify({
         canale: "whatsapp",
+        company_id: msg.company_id,
         identificativo,
         testo: trimmed,
         // Testo DIGITATO (non trascritto) → confidenza piena: senza questo
@@ -1113,20 +1206,14 @@ async function forwardToSilvio(msg: MsgForSend, testo: string): Promise<boolean>
       }),
       signal: AbortSignal.timeout(20_000),
     });
-    if (!res.ok) return false;
+    if (!res.ok) throw new Error("silvio_handoff_not_confirmed");
 
     const j = await res.json().catch(() => ({}));
-    const azione = String(j?.azione ?? "");
-    const inviati = Number(j?.dettaglio?.inviati ?? 0);
-    const inCoda = Number(j?.dettaglio?.in_coda ?? 0);
-
     // Presa in carico SOLO se Silvio ha davvero accodato/eseguito qualcosa.
-    const presoInCarico =
-      (azione === "in_coda" || azione === "fatto") && inviati + inCoda > 0;
-    if (!presoInCarico) return false;
+    if (!handoffAccepted(j)) return false;
 
     const messaggio = typeof j?.messaggio === "string" ? j.messaggio.trim() : "";
-    if (!messaggio) return false;
+    if (!messaggio) throw new Error("silvio_handoff_reply_missing");
 
     await sendReply(msg, messaggio);
     return true;
@@ -1134,41 +1221,14 @@ async function forwardToSilvio(msg: MsgForSend, testo: string): Promise<boolean>
     console.warn(
       JSON.stringify({ level: "warn", fn: "forwardToSilvio", error: String(e) }),
     );
-    return false;
+    // La richiesta può essere già accodata: non riavviarla col secondo agente.
+    throw e;
   }
 }
 
 async function sendReply(msg: MsgForSend, text: string): Promise<void> {
-  const baseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  try {
-    const res = await fetch(`${baseUrl}/functions/v1/whatsapp-send`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${serviceKey}`,
-      },
-      body: JSON.stringify({
-        wa_number_id: msg.wa_number_id,
-        company_id: msg.company_id,
-        to: msg.from_phone,
-        text,
-      }),
-    });
-    // whatsapp-send può fallire su crediti (402), payload invalido (422) o Meta
-    // giù (502): senza questo check la risposta veniva persa in silenzio.
-    if (!res.ok) {
-      const b = await res.text().catch(() => "");
-      console.error(
-        JSON.stringify({ level: "error", fn: "sendReply", msg: "whatsapp-send failed", status: res.status, body: b, wa_message_id: msg.id }),
-      );
-    }
-  } catch (e) {
-    console.error(
-      JSON.stringify({ level: "error", fn: "sendReply", error: String(e) }),
-    );
-  }
+  await deliverWhatsAppReply({ wa_number_id: msg.wa_number_id, company_id: msg.company_id, to: msg.from_phone, text,
+    ...(msg.id ? { idempotency_key: `reply:${msg.id}:text` } : {}) });
 }
 
 /**
@@ -1176,39 +1236,13 @@ async function sendReply(msg: MsgForSend, text: string): Promise<void> {
  * Stesso pattern auth/endpoint di sendReply, ma con type:"interactive". Il
  * payload `interactive` arriva già formattato (buildInteractivePayload) dal tool
  * chiedi_conferma; whatsapp-send valida interactive.type/body/action e lo
- * inoltra a Meta. Best-effort: gli errori sono loggati ma non bloccano il flow.
+ * inoltra a Meta. Gli errori impediscono di dichiarare la risposta inviata.
  */
 async function sendInteractiveReply(
   msg: MsgForSend,
   interactive: Record<string, unknown>,
 ): Promise<void> {
-  const baseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-  try {
-    const res = await fetch(`${baseUrl}/functions/v1/whatsapp-send`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${serviceKey}`,
-      },
-      body: JSON.stringify({
-        wa_number_id: msg.wa_number_id,
-        company_id: msg.company_id,
-        to: msg.from_phone,
-        type: "interactive",
-        interactive,
-      }),
-    });
-    if (!res.ok) {
-      const b = await res.text().catch(() => "");
-      console.error(
-        JSON.stringify({ level: "error", fn: "sendInteractiveReply", msg: "whatsapp-send failed", status: res.status, body: b, wa_message_id: msg.id }),
-      );
-    }
-  } catch (e) {
-    console.error(
-      JSON.stringify({ level: "error", fn: "sendInteractiveReply", error: String(e) }),
-    );
-  }
+  await deliverWhatsAppReply({ wa_number_id: msg.wa_number_id, company_id: msg.company_id,
+    to: msg.from_phone, type: "interactive", interactive,
+    ...(msg.id ? { idempotency_key: `reply:${msg.id}:interactive` } : {}) });
 }

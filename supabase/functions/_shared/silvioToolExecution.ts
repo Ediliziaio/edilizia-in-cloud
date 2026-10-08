@@ -23,6 +23,7 @@ import {
   type ToolContext,
 } from "./silvioTools.ts";
 import { usaPermessiStaff } from "./ruoloSilvio.ts";
+import { legacyQuoteDraftInput, quoteDraftIssue } from "./operationalDraftValidation.ts";
 
 export interface ToolExecutionResult {
   success: boolean;
@@ -56,6 +57,16 @@ interface AuditFields {
 // QUESTO flag. Varrà SEMPRE solo per tool 'yellow' (mai 'red'), loggato e annullabile.
 const DECISION_RULES_AUTOEXEC_ENABLED = false;
 
+function assertToolSucceeded(raw: unknown): void {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const result = raw as Record<string, unknown>;
+    if (result.ok === false || result.success === false || result.error) {
+      throw new Error(typeof result.error === "string" ? result.error
+        : typeof result.message === "string" ? result.message : "Lo strumento non ha completato l'operazione.");
+    }
+  }
+}
+
 /**
  * Esegue un singolo tool con permission + risk-level routing + audit.
  */
@@ -64,6 +75,7 @@ export async function executeToolWithRouting(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   input: any,
   ctx: ToolContext,
+  confirmedProposalId?: string,
 ): Promise<ToolExecutionResult> {
   const t0 = Date.now();
   const tool = SILVIO_TOOLS[toolName];
@@ -121,15 +133,19 @@ export async function executeToolWithRouting(
       // Non passati dal chiamante: li leggiamo noi. Una query in più è
       // preferibile a un permesso granulare aggirato.
       try {
-        const { data } = await ctx.supabase
+        const { data, error } = await ctx.supabase
           .from("staff_permissions")
           .select("*")
           .eq("user_id", ctx.userId)
           .eq("company_id", ctx.companyId)
           .maybeSingle();
+        if (error) throw error;
         staffPerms = (data as Record<string, unknown> | null) ?? null;
       } catch (_e) {
-        staffPerms = null;
+        return {
+          success: false, toolName, durationMs: Date.now() - t0,
+          error: { code: "permissions_unavailable", message: "Non riesco a verificare i permessi. Riprova tra poco." },
+        };
       }
     }
   }
@@ -242,9 +258,30 @@ export async function executeToolWithRouting(
   }
 
   // ── Risk-level routing ──
+  if (toolName === "create_quote_draft" || toolName === "crea_preventivo_bozza") {
+    const issue = quoteDraftIssue(toolName === "crea_preventivo_bozza" ? legacyQuoteDraftInput(input ?? {}) : input ?? {});
+    if (issue) return { success: false, toolName, error: { code: "needs_clarification", message: issue },
+      durationMs: Date.now() - t0, riskLevel: tool.riskLevel };
+  }
   const risk: RiskLevel = tool.riskLevel ?? "safe";
 
-  if (risk === "red") {
+  // Solo il dispatcher post-conferma può passare un ID già preso in carico.
+  // preApproved da solo NON scavalca la conferma forte delle azioni rosse.
+  let confirmed = false;
+  if (confirmedProposalId) {
+    const { data: proposal, error } = await ctx.supabase.from("ai_action_proposals")
+      .select("id, action_type, company_id, user_id, status, resolved_by")
+      .eq("id", confirmedProposalId).maybeSingle();
+    confirmed = !error && proposal?.status === "confirmed"
+      && proposal.company_id === ctx.companyId && proposal.user_id === ctx.userId
+      && proposal.resolved_by === ctx.userId && proposal.action_type === toolName;
+    if (!confirmed) return {
+      success: false, toolName, durationMs: Date.now() - t0,
+      error: { code: "invalid_confirmation", message: "Conferma non valida per questa azione." },
+    };
+  }
+
+  if (risk === "red" && !confirmed) {
     // Forza HITL anche per super_admin
     const proposalId = await createActionProposal(ctx, tool, toolName, input, "red");
     if (!proposalId) {
@@ -290,7 +327,9 @@ export async function executeToolWithRouting(
       const rule = await matchDecisionRule(ctx, tool, input);
       if (rule && rule.azione === "auto_approva") {
         try {
-          const data = await tool.executor(input, ctx);
+          const raw = await tool.executor(input, ctx);
+          assertToolSucceeded(raw);
+          const data = scope ? applyStaffScope(raw, scope, tool.domain) : raw;
           await logAudit(ctx, tool, toolName, {
             inputPayload: sanitize(input),
             outputPayload: sanitize(data),
@@ -300,8 +339,15 @@ export async function executeToolWithRouting(
             durationMs: Date.now() - t0,
           });
           return { success: true, toolName, data, durationMs: Date.now() - t0, riskLevel: "yellow" };
-        } catch (_e) {
-          // fall-through: in caso di errore creiamo comunque la proposta HITL
+        } catch (error) {
+          // Un esito incerto può aver già prodotto effetti: non proporre un duplicato.
+          const message = error instanceof Error ? error.message : "Esecuzione automatica non riuscita.";
+          await logAudit(ctx, tool, toolName, {
+            inputPayload: sanitize(input), outputPayload: null, status: "error",
+            errorMessage: message, proposalId: null, durationMs: Date.now() - t0,
+          });
+          return { success: false, toolName, durationMs: Date.now() - t0,
+            error: { code: "execution_error", message }, riskLevel: "yellow" };
         }
       }
     }
@@ -344,6 +390,7 @@ export async function executeToolWithRouting(
   // ── Esecuzione (safe oppure yellow preApproved) ──
   try {
     const raw = await tool.executor(input, ctx);
+    assertToolSucceeded(raw);
     const data = scope ? applyStaffScope(raw, scope, tool.domain) : raw;
     await logAudit(ctx, tool, toolName, {
       inputPayload: sanitize(input),
@@ -585,6 +632,9 @@ const AZIONE_LABEL: Record<string, string> = {
   crea_ordine_fornitore: "Creare un ordine d'acquisto",
   crea_commessa_bozza: "Creare una commessa",
   crea_cliente: "Creare un cliente in anagrafica",
+  create_quote_draft: "Creare una bozza di preventivo",
+  fissa_appuntamento: "Fissare un appuntamento",
+  registra_rapportino: "Registrare un rapportino",
   aggiorna_stato_commessa: "Cambiare stato a una commessa",
   aggiorna_stato_preventivo: "Cambiare stato a un preventivo",
   aggiorna_opportunita: "Aggiornare un'opportunità",
@@ -626,12 +676,12 @@ export function buildProposalSummary(toolName: string, tool: SilvioTool, input: 
 
   const chi = pick(input, [
     "fornitore_nome", "cliente_nome", "contatto_nome", "destinatario",
-    "nome_cliente", "opportunita_nome", "assegna_a", "articolo", "nome",
+    "nome_cliente", "client_name", "opportunita_nome", "assegna_a", "articolo", "nome",
   ]);
   // La freccia ha senso solo dopo un importo ("1.830 € → Limena Srl").
   if (typeof chi === "string") parti.push(parti.length > 0 ? `→ ${chi}` : chi);
 
-  const rif = pick(input, ["commessa_codice", "preventivo", "numero", "oda_number", "ticket", "titolo"]);
+  const rif = pick(input, ["commessa_codice", "preventivo", "numero", "oda_number", "ticket", "titolo", "title"]);
   if (typeof rif === "string") parti.push(`(${rif})`);
 
   // Per i cambi di stato l'informazione che conta è proprio lo stato nuovo.

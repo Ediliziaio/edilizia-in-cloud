@@ -112,7 +112,7 @@ export function AiMessageMetaTop({ meta }: { meta?: AiMeta }) {
         <div className="flex items-start gap-1.5 px-2 py-1.5 bg-amber-50 border border-amber-200 rounded-md text-[11px] text-amber-900">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
           <span>
-            <strong>Richiede review umana</strong> — verifica con responsabile dell'area prima di agire.
+            <strong>Da verificare prima di agire</strong> — confrontati con il responsabile dell’area.
           </span>
         </div>
       )}
@@ -120,7 +120,7 @@ export function AiMessageMetaTop({ meta }: { meta?: AiMeta }) {
         <div className="flex items-start gap-1.5 px-2 py-1 bg-orange-50 border border-orange-200 rounded-md text-[11px] text-orange-800">
           <Sparkles className="h-3 w-3 shrink-0 mt-0.5" />
           <span>
-            <strong>Confidence bassa</strong> — l'AI segnala incertezza.
+            <strong>Risposta incerta</strong> — verifica i dati prima di usarla.
           </span>
         </div>
       )}
@@ -142,7 +142,8 @@ export function AiMessageMetaBottom({
   onAskFollowup?: (query: string) => void;
 }) {
   if (!meta) return null;
-  const followups = meta.followup_suggestions ?? [];
+  const followups = [...new Set((Array.isArray(meta.followup_suggestions) ? meta.followup_suggestions : [])
+    .filter(q => typeof q === "string").map(q => q.trim()).filter(Boolean))];
   const subOutputs = meta.council_data?.sub_outputs ?? [];
 
   if (followups.length === 0 && subOutputs.length === 0) return null;
@@ -153,7 +154,7 @@ export function AiMessageMetaBottom({
       {subOutputs.length > 0 && <CouncilExpandable subOutputs={subOutputs} />}
 
       {/* Followup chips */}
-      {followups.length > 0 && (
+      {followups.length > 0 && onAskFollowup && (
         <div className="flex flex-wrap gap-1.5">
           {followups.slice(0, 3).map((q, i) => (
             <button
@@ -161,7 +162,7 @@ export function AiMessageMetaBottom({
               type="button"
               onClick={() => onAskFollowup?.(q)}
               // tap-compact: su mobile la regola dei 44px le gonfiava a pillole alte.
-              className="tap-compact px-2.5 py-1 text-left text-[11px] leading-snug rounded-full bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 hover:border-orange-300 transition-colors"
+              className="min-h-8 max-w-full break-words px-2.5 py-1.5 text-left text-xs leading-snug rounded-lg bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 hover:border-orange-300 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500"
             >
               {q}
             </button>
@@ -179,6 +180,7 @@ function CouncilExpandable({ subOutputs }: { subOutputs: CouncilSubOutput[] }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-purple-100/50 transition-colors"
       >
         <span className="flex items-center gap-1.5 text-[11px] font-semibold text-purple-700">

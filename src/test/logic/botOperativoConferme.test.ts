@@ -4,6 +4,7 @@ import {
   confermaValePer,
   leggiStatoSessione,
   statoDaSalvare,
+  rispostaAllaConferma,
 } from "../../../supabase/functions/_shared/botOperativoConferme";
 
 const ADESSO = new Date("2026-09-27T10:00:00Z");
@@ -34,9 +35,21 @@ describe("il Sì sblocca solo l'azione chiesta", () => {
   it("senza Sì non sblocca niente", () => {
     expect(confermaValePer(attesa, "carica_ddt", false)).toBe(false);
   });
-  it("domanda senza azione indicata o nessuna domanda: vale il Sì (comportamento di prima)", () => {
-    expect(confermaValePer({ ...attesa, azione: null }, "crea_rapportino", true)).toBe(true);
-    expect(confermaValePer(null, "crea_rapportino", true)).toBe(true);
+  it("nessuna domanda o una scelta generica non autorizzano scritture", () => {
+    expect(confermaValePer({ ...attesa, azione: null }, "crea_rapportino", true)).toBe(false);
+    expect(confermaValePer(null, "crea_rapportino", true)).toBe(false);
+  });
+  it("la data futura non è una conferma valida", () => {
+    expect(leggiStatoSessione({ bot_conferma: { ...attesa, chiesta_il: minutiFa(-1) } }, ADESSO).conferma).toBeNull();
+  });
+  it.each(["Cantiere Rossi", "ok ma cambia il prezzo", "sì, però non inviare", "confermo non inviare", "approvazione"])("non tratta %s come un Sì", (value) => {
+    expect(rispostaAllaConferma(value)).toBeNull();
+  });
+  it.each(["Sì", "ok!", "Confermo.", "procedi", "Va bene"])("riconosce %s", (value) => {
+    expect(rispostaAllaConferma(value)).toBe("si");
+  });
+  it.each(["No", "annulla", "non confermo", "stop"])("riconosce il rifiuto %s", (value) => {
+    expect(rispostaAllaConferma(value)).toBe("no");
   });
 });
 

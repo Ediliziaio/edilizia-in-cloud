@@ -1,0 +1,26 @@
+[
+  {
+    "name": "pending_does_not_increase_revenue",
+    "passed": true
+  },
+  {
+    "name": "approved_increases_revenue_once",
+    "passed": true
+  },
+  {
+    "name": "base_contract_unchanged",
+    "passed": true
+  },
+  {
+    "name": "second_signature_rejected",
+    "passed": true
+  },
+  {
+    "name": "approved_cannot_be_rejected",
+    "passed": true
+  },
+  {
+    "name": "invalid_token_rejected",
+    "passed": true
+  }
+]

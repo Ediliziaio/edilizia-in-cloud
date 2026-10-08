@@ -13,9 +13,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { recoverMessage } from "./recoverMessage.ts";
+import { recoveryBatch } from "./recoveryBatch.ts";
 const MAX_ATTEMPTS = 5;
 const STUCK_THRESHOLD_MIN = 3;
-const BATCH_SIZE = 50;
+const BATCH_SIZE = 20;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,6 +28,7 @@ serveConMetriche("whatsapp-ai-recovery", async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: corsHeaders });
 
   // Il cron invia x-cron-secret := current_setting('app.internal_cron_secret'),
   // che corrisponde alla env INTERNAL_CRON_SECRET (stesso pattern di
@@ -55,9 +58,19 @@ serveConMetriche("whatsapp-ai-recovery", async (req: Request) => {
 
   const threshold = new Date(Date.now() - STUCK_THRESHOLD_MIN * 60_000).toISOString();
 
+  // Anche un crash dopo la prenotazione dell'ultimo tentativo deve emergere.
+  // Non tocca mai messaggi processing: esito potenzialmente già eseguito.
+  const { error: exhaustedError } = await supabase.from("whatsapp_messages")
+    .update({ processing_status: "failed_max_retries", processing_error: "recovery_attempts_exhausted" })
+    .eq("direction", "inbound").eq("processing_status", "received")
+    .gte("processing_attempts", MAX_ATTEMPTS).lt("last_processing_attempt_at", threshold);
+  if (exhaustedError) return new Response(JSON.stringify({ error: "recovery_state_unavailable" }),
+    { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
   const { data: stuck, error: queryErr } = await supabase
     .from("whatsapp_messages")
-    .select("id, processing_attempts, company_id")
+    .select("id, processing_attempts, company_id, wa_number_id, from_phone")
+    .eq("direction", "inbound")
     .eq("processing_status", "received")
     .lt("created_at", threshold)
     .lt("processing_attempts", MAX_ATTEMPTS)
@@ -79,25 +92,9 @@ serveConMetriche("whatsapp-ai-recovery", async (req: Request) => {
     );
   }
 
-  let processed = 0;
-  let failed = 0;
-
-  for (const msg of stuck) {
-    const currentAttempts = msg.processing_attempts ?? 0;
-    const nextAttempts = currentAttempts + 1;
-
-    // Incrementa counter + timestamp PRIMA di tentare: così se il fetch
-    // crasha restiamo con counter aggiornato al prossimo giro.
-    await supabase
-      .from("whatsapp_messages")
-      .update({
-        processing_attempts: nextAttempts,
-        last_processing_attempt_at: new Date().toISOString(),
-      })
-      .eq("id", msg.id);
-
-    try {
-      const res = await fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-processor`, {
+  const { processed, failed, skipped } = await recoveryBatch(stuck,
+    msg => JSON.stringify([msg.company_id, msg.wa_number_id, msg.from_phone]),
+    msg => recoverMessage(supabase, msg, () => fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-processor`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -106,35 +103,11 @@ serveConMetriche("whatsapp-ai-recovery", async (req: Request) => {
           "x-internal-worker-key": workerKey,
         },
         body: JSON.stringify({ message_id: msg.id }),
-      });
-      if (!res.ok) {
-        throw new Error(`Processor returned status ${res.status}`);
-      }
-      processed++;
-    } catch (err) {
-      failed++;
-      const errMsg = err instanceof Error ? err.message : String(err);
-      console.error(`[whatsapp-ai-recovery] Attempt ${nextAttempts}/${MAX_ATTEMPTS} failed for ${msg.id}: ${errMsg}`);
-
-      if (nextAttempts >= MAX_ATTEMPTS) {
-        await supabase
-          .from("whatsapp_messages")
-          .update({
-            processing_status: "failed_max_retries",
-            processing_error: errMsg,
-          })
-          .eq("id", msg.id);
-      } else {
-        await supabase
-          .from("whatsapp_messages")
-          .update({ processing_error: errMsg })
-          .eq("id", msg.id);
-      }
-    }
-  }
+        signal: AbortSignal.timeout(30_000),
+      }), MAX_ATTEMPTS));
 
   return new Response(
-    JSON.stringify({ stuck: stuck.length, processed, failed }),
+    JSON.stringify({ stuck: stuck.length, processed, failed, skipped }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
 });

@@ -46,13 +46,21 @@ export class InsufficientCreditsError extends Error {
 }
 
 export async function chat(req: ChatRequest): Promise<ChatResponse> {
+  req.turnControl?.assertCanStart();
+  if (req.session_id !== undefined && !/^[a-f0-9]{64}$/.test(req.session_id)) throw new Error("Invalid opaque AI session key");
   const supabase = getSupabase();
+  // Resolve the actual output limit before estimating the credit required.
+  const config = await resolveModelConfig(supabase, req.task_kind, req.company_id);
+  if (!config.enabled) {
+    throw new Error(`Task ${req.task_kind} disabilitato globalmente`);
+  }
+  const max_tokens = req.max_tokens ?? config.max_tokens;
 
   // 1. Pre-call check saldo
   const precall = await precallCheck(supabase, {
     company_id: req.company_id,
     task_kind: req.task_kind,
-    estimated_tokens_total: req.max_tokens ? req.max_tokens + 500 : 1500,
+    estimated_tokens_total: max_tokens + Math.ceil(JSON.stringify([req.messages, req.tools ?? []]).length / 4),
   });
 
   if (!precall.allow) {
@@ -84,30 +92,18 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
     );
   }
 
-  // 2. Risolvi config modello (solo global SuperAdmin)
-  const config = await resolveModelConfig(
-    supabase,
-    req.task_kind,
-    req.company_id,
-  );
-  if (!config.enabled) {
-    throw new Error(`Task ${req.task_kind} disabilitato globalmente`);
-  }
-
   const modelChain = req.model_override
     ? [req.model_override]
     : [config.primary_model, ...config.fallback_chain];
 
   const temperature = req.temperature ?? config.temperature;
-  const max_tokens = req.max_tokens ?? config.max_tokens;
 
   let lastError: AIProviderError | null = null;
-  let hops = 0;
 
   // 3. Try fallback chain
   for (let i = 0; i < modelChain.length; i++) {
     const model = modelChain[i];
-    hops = i;
+    const hops = i;
     try {
       const result = await callOpenRouter(
         {
@@ -120,17 +116,18 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
               : undefined,
           temperature,
           max_tokens,
+          ...(req.session_id ? { session_id: req.session_id } : {}),
           ...(req.json_mode
             ? { response_format: { type: "json_object" as const } }
             : {}),
         },
-        { task_kind: req.task_kind, company_id: req.company_id },
+        { task_kind: req.task_kind, company_id: req.company_id, turnControl: req.turnControl },
       );
 
       // 4. Post-call: scala crediti + log atomico (MP05-FIX)
       // cost_is_estimated=true → costo stimato localmente (x-or-cost assente)
       // cost_is_estimated=false → costo reale da OpenRouter
-      await chargeAndLog(supabase, {
+      const charge = await chargeAndLog(supabase, {
         company_id: req.company_id,
         task_kind: req.task_kind,
         model_used: result.model,
@@ -147,6 +144,13 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
         },
       });
 
+      // La generazione è già avvenuta: un errore di addebito NON deve
+      // restituire una falsa riuscita né avviare un altro modello a pagamento.
+      if (req.company_id && !charge.charged) {
+        throw new Error(`AI billing not confirmed: ${charge.reason}`);
+      }
+      if (charge.charged && typeof charge.cost_real_eur === "number") req.turnControl?.recordBilled(charge.cost_real_eur);
+
       return {
         content: result.content,
         tool_calls: (result.tool_calls ?? []) as ChatResponse["tool_calls"],
@@ -155,6 +159,7 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
         finish_reason: result.finish_reason,
         usage: result.usage,
         cost_usd: result.cost_usd,
+        cost_real_eur: charge.cost_real_eur,
         latency_ms: result.latency_ms,
         fallback_hops: hops,
       };
@@ -167,11 +172,9 @@ export async function chat(req: ChatRequest): Promise<ChatResponse> {
 
       const shouldFallback =
         err.code === "rate_limit" ||
-        err.code === "timeout" ||
         err.code === "model_not_found" ||
         err.code === "context_too_long" ||
-        err.code === "feature_not_supported" ||
-        err.code === "unknown";
+        err.code === "feature_not_supported";
 
       if (!shouldFallback || i === modelChain.length - 1) throw err;
     }

@@ -88,7 +88,7 @@ export async function verifyHmacSha256Base64(
     : encoder.encode(secret);
   const key = await crypto.subtle.importKey(
     "raw",
-    rawSecret,
+    new Uint8Array(rawSecret).buffer,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],

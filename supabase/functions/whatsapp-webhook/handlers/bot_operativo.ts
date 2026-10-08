@@ -7,6 +7,7 @@
 // In MP2 questo handler verrà sostituito da un dispatcher function-calling.
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { WhatsAppReservationError } from "../reservationError.ts";
 import type { InboundContext } from "../types.ts";
 import { sanitizePhoneForQuery } from "../../_shared/webhookSecurity.ts";
 
@@ -80,8 +81,10 @@ export async function handleBotOperativo(
           wa_message_id: msg.id,
         }),
       );
+      throw new WhatsAppReservationError("inbound_reservation_unavailable");
     } else {
       reservedWaMsgId = reserved?.id ?? null;
+      if (!reservedWaMsgId) throw new WhatsAppReservationError("inbound_reservation_missing_id");
     }
   }
 
@@ -159,7 +162,7 @@ export async function handleBotOperativo(
   //   1. preferenza: ai_whatsapp_numbers.operational_settings (MP2)
   //   2. fallback:   messaging_whatsapp_config (retro-compat)
   //   3. default:    bot_enabled=true, ai_auto_process=true
-  const opSettings = (waNumber as Record<string, unknown>).operational_settings as
+  const opSettings = waNumber.operational_settings as
     | { bot_enabled?: boolean; ai_auto_process?: boolean }
     | null
     | undefined;

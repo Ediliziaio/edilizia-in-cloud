@@ -20,6 +20,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { richiedeRiformulazione, messaggioEsito, type Canale } from "../_shared/silvio-canali-logic.ts";
+import { orchestratorCounts } from "../_shared/silvioHandoff.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -48,6 +49,9 @@ Deno.serve(async (req) => {
   const confidenza: number | undefined = typeof body.confidenza === "number" ? body.confidenza : undefined;
 
   if (!CANALI_VALIDI.has(canale)) return json({ error: "canale_non_valido" }, 400, cors);
+  if (canale === "whatsapp" && (typeof body.company_id !== "string" || !body.company_id)) {
+    return json({ error: "azienda_mancante" }, 400, cors);
+  }
   if (!identificativo) return json({ error: "identificativo_mancante" }, 400, cors);
   if (!testo) return json({ ok: true, azione: "ignora", messaggio: "" }, 200, cors);
 
@@ -67,6 +71,12 @@ Deno.serve(async (req) => {
     const riga = Array.isArray(ident) ? ident[0] : ident;
     const companyId: string | null = riga?.company_id ?? null;
 
+    // L'identità telefonica globale non può spostare una conversazione
+    // ricevuta dall'azienda A sul cervello/dati dell'azienda B.
+    if (companyId && body.company_id && companyId !== body.company_id) {
+      return json({ ok: true, azione: "verifica_identita", messaggio: "" }, 200, cors);
+    }
+
     if (!companyId) {
       return json({
         ok: true, azione: "verifica_identita",
@@ -82,13 +92,12 @@ Deno.serve(async (req) => {
         origine: canale, richiesta: testo, company_id: companyId,
         contesto: { canale, identificativo },
       }),
+      signal: AbortSignal.timeout(18_000),
     });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) return json({ ok: false, azione: "errore", messaggio: "Si è verificato un problema. Riprova più tardi." }, 200, cors);
 
-    const inviati = Number(j.inviati || 0);
-    const inCoda = Number(j.in_coda || 0);
-    const ok = j.ok !== false;
+    const { inviati, inCoda, ok } = orchestratorCounts(j);
     return json({
       ok: true,
       azione: !ok ? "riformula" : inCoda > 0 ? "in_coda" : "fatto",

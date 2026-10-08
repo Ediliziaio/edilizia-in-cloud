@@ -88,14 +88,15 @@ Deno.serve(async (req) => {
             operation: "kb_test_rag_embedding",
           },
         });
-        const { data: hits, error } = await adminClient.rpc("match_brain", {
+        const { data: hits, error } = await adminClient.rpc("silvio_match_brain", {
           p_company_id: null,
+          p_user_id: userId,
+          p_scope: "universal",
           p_query_embedding: `[${queryEmb.join(",")}]`,
           p_match_count: topK,
           p_min_similarity: 0.20,
           p_source_types: ["kb_universal"],
-          p_include_universal: true,
-          p_universal_categories: null,
+          p_kb_areas: null,
         });
         if (error) throw error;
 
