@@ -83,7 +83,7 @@ export const LIVELLI: { id: LivelloConnettore; titolo: string; descrizione: stri
     esempi: [
       "Crea un contatto per Mario Rossi e un'opportunità da 12.000 €",
       "Apri una commessa «Ristrutturazione via Roma 5» da 45.000 €",
-      "Aggiungi al listino «Posa piastrelle» a 28 €/mq",
+      "Aggiungi al listino prodotti «Piastrella gres» a 28 €/mq",
     ],
   },
 ];
@@ -106,12 +106,32 @@ export type AssistenteAi = "claude" | "chatgpt";
 
 /**
  * A quale card appartiene un collegamento OAuth, dal nome che il client si è
- * registrato. Tutto ciò che non è ChatGPT va nella card Claude (la casa generica
- * dei connettori MCP), così ogni collegamento resta visibile e revocabile.
+ * registrato. Un nome sconosciuto non dimostra un collegamento con Claude.
  */
-export function assistenteDelClient(clientName: string | null | undefined): AssistenteAi {
+export function assistenteDelClient(clientName: string | null | undefined): AssistenteAi | null {
   const n = (clientName ?? "").toLowerCase();
-  return n.includes("chatgpt") || n.includes("openai") ? "chatgpt" : "claude";
+  if (n.includes("chatgpt") || n.includes("openai")) return "chatgpt";
+  return n.includes("claude") || n.includes("anthropic") ? "claude" : null;
+}
+
+export function statoCollegamentoAi(
+  assistente: AssistenteAi,
+  grants: { client_name: string | null; last_used_at: string | null }[],
+  keys: { name: string; is_active: boolean; expires_at: string | null }[],
+  now = Date.now(),
+): { status: "connected" | "warning" | "disconnected"; detail: string | null } {
+  const propri = grants.filter(g => assistenteDelClient(g.client_name) === assistente);
+  const usati = propri.map(g => Date.parse(g.last_used_at ?? "")).filter(t => Number.isFinite(t) && t <= now);
+  const ultimo = usati.length ? Math.max(...usati) : null;
+  if (ultimo !== null) return {
+    status: now - ultimo < 30 * 86400000 ? "connected" : "warning",
+    detail: `Ultimo utilizzo ${new Date(ultimo).toLocaleDateString("it-IT")}`,
+  };
+  const chiaviClaude = assistente === "claude" && keys.some(k => k.is_active
+    && (!k.expires_at || Date.parse(k.expires_at) > now) && /claude|assistente ai/i.test(k.name));
+  return propri.length || chiaviClaude
+    ? { status: "warning", detail: "Configurato · utilizzo da verificare" }
+    : { status: "disconnected", detail: null };
 }
 
 /** Claude sito, app e telefono: connettore personalizzato con accesso, nessuna chiave. */
@@ -132,8 +152,7 @@ export const PASSI_CHATGPT: string[] = [
 ];
 
 /**
- * Requisiti ChatGPT (verificati a ottobre 2026): i connettori personalizzati
- * passano dalla Modalità sviluppatore, che non c'è in tutti i piani.
+ * Disponibilità e autorizzazioni dipendono dal piano e dall'area di lavoro.
  */
 export const NOTA_PIANI_CHATGPT =
-  "Serve un piano ChatGPT con la Modalità sviluppatore: oggi Business, Enterprise ed Edu (con Pro solo letture; non c'è nei piani gratuiti). Il connettore si usa da chatgpt.com, non dall'app sul telefono. Le voci dei menu possono cambiare un po' da piano a piano.";
+  "Verifica nelle impostazioni del tuo piano la disponibilità della Modalità sviluppatore e delle app personalizzate. L'amministratore dell'area di lavoro può limitarne creazione e azioni. Piani, menu e dispositivi supportati possono cambiare.";

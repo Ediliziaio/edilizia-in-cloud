@@ -40,7 +40,7 @@ import {
   IncassiCartaPopup,
 } from "@/components/integrations/PopupIntegrazioniTeam";
 import { useOAuthGrants } from "@/hooks/useOAuthGrants";
-import { assistenteDelClient } from "@/lib/aiConnector";
+import { statoCollegamentoAi } from "@/lib/aiConnector";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 import { MetaTroubleshootDialog } from "@/components/integrations/MetaTroubleshootDialog";
@@ -138,16 +138,8 @@ export default function SettingsIntegrations() {
 
   // Assistenti AI: quante chiavi attive e non scadute (le usano Claude Code e
   // Claude Desktop) e quanti collegamenti OAuth, divisi per Claude e ChatGPT.
-  const { data: aiKeys = [] } = useApiKeys(companyId);
-  const aiKeysAttive = useMemo(
-    () => aiKeys.filter((k) => k.is_active && (!k.expires_at || new Date(k.expires_at) > new Date())).length,
-    [aiKeys],
-  );
-  const { data: aiGrants = [] } = useOAuthGrants(companyId);
-  const { aiGrantsClaude, aiGrantsChatGpt } = useMemo(() => {
-    const chatgpt = aiGrants.filter((g) => assistenteDelClient(g.client_name) === "chatgpt").length;
-    return { aiGrantsClaude: aiGrants.length - chatgpt, aiGrantsChatGpt: chatgpt };
-  }, [aiGrants]);
+  const { data: aiKeys = [], isError: aiKeysError, isLoading: aiKeysLoading } = useApiKeys(companyId);
+  const { data: aiGrants = [], isError: aiGrantsError, isLoading: aiGrantsLoading } = useOAuthGrants(companyId);
   const userId = user?.id;
   const permissions = usePermissions();
   // Conti correnti e incassi con carta servono con tesoreria, preventivi o
@@ -439,13 +431,14 @@ export default function SettingsIntegrations() {
         ? { status: "warning", detail: "Configurazione da completare" }
         : { status: "disconnected", detail: null };
 
-    // Assistenti AI, due card: Claude è connesso con una chiave attiva o un
-    // collegamento OAuth di Claude; ChatGPT solo con un collegamento OAuth
-    // (ChatGPT non usa chiavi).
-    const connessioni = (n: number) => (n > 0 ? quante(n, "connessione", "connessioni") : null);
-    const claudeTot = aiKeysAttive + aiGrantsClaude;
-    result["claude"] = { status: claudeTot > 0 ? "connected" : "disconnected", detail: connessioni(claudeTot) };
-    result["chatgpt"] = { status: aiGrantsChatGpt > 0 ? "connected" : "disconnected", detail: connessioni(aiGrantsChatGpt) };
+    // A saved credential is configuration, not evidence of a working client.
+    for (const client of ["claude", "chatgpt"] as const) {
+      result[client] = aiGrantsError || (client === "claude" && aiKeysError)
+        ? { status: "warning", detail: "Stato non verificabile · riprova" }
+        : aiGrantsLoading || (client === "claude" && aiKeysLoading)
+          ? { status: "warning", detail: "Verifica collegamenti…" }
+          : statoCollegamentoAi(client, aiGrants, aiKeys);
+    }
 
     return result;
   }, [
@@ -462,9 +455,7 @@ export default function SettingsIntegrations() {
     domini.daSistemare,
     contiBanca,
     incassiCarta,
-    aiKeysAttive,
-    aiGrantsClaude,
-    aiGrantsChatGpt,
+    aiKeys, aiGrants, aiKeysError, aiGrantsError, aiKeysLoading, aiGrantsLoading,
   ]);
 
   // ── Stale token warnings (>60gg) ──────────────────────────────────────────

@@ -15,7 +15,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Bot, Check, Loader2, ShieldCheck, Sparkles, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
@@ -35,12 +34,11 @@ export default function OAuthConsent() {
   const authorizationId = params.get("authorization_id") ?? "";
   const navigate = useNavigate();
   const { user, isLoading, effectiveCompany, profile, role } = useAuth();
-  const permessi = usePermissions();
 
   const companyId = effectiveCompany?.id ?? profile?.company_id ?? null;
   const companyName = effectiveCompany?.name ?? "la tua azienda";
   const puoAutorizzare =
-    role === "company_admin" || role === "super_admin" || permessi.canEditSettingsIntegrations;
+    role === "company_admin" || role === "super_admin";
 
   const [stato, setStato] = useState<"carico" | "consenso" | "invio" | "errore" | "concluso">("carico");
   const [errore, setErrore] = useState<string | null>(null);
@@ -84,11 +82,18 @@ export default function OAuthConsent() {
   }, [authorizationId, user, isLoading]);
 
   const approva = async () => {
-    if (!dettagli || !companyId) return;
+    if (!dettagli || !companyId || !puoAutorizzare) return;
     setStato("invio");
     setErrore(null);
+    let oauthApproved = false;
     try {
-      // 1) registra il consenso da noi (l'RPC verifica che tu sia admin dell'azienda)
+      // Approve without auto-navigation. A failed OAuth approval must never
+      // create an apparently active application grant.
+      const { data, error } = await supabase.auth.oauth.approveAuthorization(authorizationId, { skipBrowserRedirect: true });
+      if (error) throw new Error(error.message);
+      oauthApproved = true;
+      // Register the company grant before releasing the authorization code to
+      // the client. If this fails, MCP remains closed and we do not redirect.
       const { error: errGrant } = await supabase.rpc("mcp_oauth_upsert_grant" as never, {
         p_client_id: dettagli.clientId,
         p_company_id: companyId,
@@ -97,14 +102,12 @@ export default function OAuthConsent() {
         p_client_name: dettagli.clientName,
       } as never);
       if (errGrant) throw new Error(errGrant.message);
-      // 2) conferma a Supabase, che emette il token e rimanda al client
-      const { data, error } = await supabase.auth.oauth.approveAuthorization(authorizationId);
-      if (error) throw new Error(error.message);
       setStato("concluso");
       window.location.href = data.redirect_url;
     } catch (e) {
-      setErrore(traduciErrore(e instanceof Error ? e.message : String(e)));
-      setStato("consenso");
+      const message = traduciErrore(e instanceof Error ? e.message : String(e));
+      setErrore(oauthApproved ? `${message} Il collegamento aziendale non è stato salvato. Avvia una nuova connessione dall'assistente.` : message);
+      setStato(oauthApproved ? "errore" : "consenso");
     }
   };
 
@@ -169,6 +172,7 @@ export default function OAuthConsent() {
             <strong>{dettagli.clientName}</strong> chiede di collegarsi al gestionale di{" "}
             <strong>{companyName}</strong>. L'assistente lavorerà <strong>solo sui dati di questa azienda</strong>.
             Scegli cosa può fare.
+            Se questo stesso client era collegato a un'altra azienda, il nuovo consenso sostituisce quello precedente.
           </p>
 
           {dettagli.redirectHost && (

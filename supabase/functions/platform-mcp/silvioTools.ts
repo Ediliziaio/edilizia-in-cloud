@@ -3,8 +3,8 @@
 // silvio_tool_* (gli strumenti dell'assistente Silvio, ~186 RPC SECURITY DEFINER,
 // tutte legate all'azienda via p_company_id).
 //
-// Un'azienda che collega Claude/ChatGPT ottiene qui le stesse capacità di
-// Silvio, con l'ambito FORZATO dalla chiave: p_company_id è quello della chiave
+// Un'azienda che collega Claude/ChatGPT ottiene un sottoinsieme curato delle
+// capacità di Silvio, con l'ambito FORZATO: p_company_id è quello della chiave
 // (mai un valore scelto dal client) e p_user_id è chi ha emesso la chiave.
 //
 // Non si espongono tutte le 186: si cura la lista. Fuori restano quelle che
@@ -17,7 +17,7 @@
 // makeSilvioTool costruisce lo schema e il handler.
 // ═══════════════════════════════════════════════════════════════════════════
 import { type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { type KeyCtx, type ToolDef, ToolError, resolveCompany } from "./lib.ts";
+import { type KeyCtx, type ToolDef, ToolError, resolveCompany, assertToolSucceeded } from "./lib.ts";
 
 type TipoParam = "string" | "number" | "boolean" | "date" | "timestamp" | "time" | "uuid" | "uuid[]" | "json" | "righe";
 
@@ -35,6 +35,10 @@ interface Param {
   /** Solo per l'AI: non va alla RPC (lo consuma `prepara`, es. un nome da
    *  risolvere in UUID). */
   interno?: boolean;
+  enum?: string[];
+  minimum?: number;
+  maximum?: number;
+  integer?: boolean;
 }
 
 interface SilvioSpec {
@@ -56,9 +60,13 @@ function schemaTipo(t: TipoParam): Record<string, unknown> {
   switch (t) {
     case "number": return { type: "number" };
     case "boolean": return { type: "boolean" };
-    case "uuid[]": return { type: "array", items: { type: "string" } };
+    case "uuid[]": return { type: "array", items: { type: "string", format: "uuid" } };
     case "json": return { type: "object" };
     case "righe": return { type: "array", items: { type: "object" } };
+    case "uuid": return { type: "string", format: "uuid" };
+    case "date": return { type: "string", format: "date" };
+    case "timestamp": return { type: "string", format: "date-time" };
+    case "time": return { type: "string", pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$" };
     // date (YYYY-MM-DD), timestamp (ISO), time (HH:MM), uuid, string
     default: return { type: "string" };
   }
@@ -84,7 +92,9 @@ function makeSilvioTool(spec: SilvioSpec): ToolDef {
   const properties: Record<string, unknown> = {};
   const required: string[] = [];
   for (const p of spec.params ?? []) {
-    properties[p.arg] = { ...schemaTipo(p.tipo), description: p.descrizione };
+    properties[p.arg] = { ...schemaTipo(p.tipo), ...(p.integer ? { type: "integer" } : {}),
+      ...(p.enum ? { enum: p.enum } : {}), ...(p.minimum !== undefined ? { minimum: p.minimum } : {}),
+      ...(p.maximum !== undefined ? { maximum: p.maximum } : {}), description: p.descrizione };
     if (p.obbligatorio) required.push(p.arg);
   }
   // Le chiavi di piattaforma indicano l'azienda con "company"; per le chiavi
@@ -98,8 +108,59 @@ function makeSilvioTool(spec: SilvioSpec): ToolDef {
     inputSchema: { type: "object", properties, required: required.length ? required : undefined, additionalProperties: false },
     handler: async (admin: SupabaseClient, ctx: KeyCtx, args: Record<string, unknown>) => {
       const company = await resolveCompany(admin, ctx, args);
+      // The legacy prediction RPC writes to quotes. This read must never call it.
+      if (spec.name === "probabilita_chiusura") {
+        const { data, error } = await admin.from("quotes")
+          .select("id, ai_close_probability_pct, ai_predicted_close_date, ai_close_factors, ai_last_predicted_at")
+          .eq("company_id", company.id).eq("id", args.preventivo_id).maybeSingle();
+        if (error) throw new ToolError(error.message);
+        if (!data) throw new ToolError("Preventivo non trovato nell'azienda");
+        return { azienda: company.name, risultato: data, nota: "Ultima stima salvata, non ricalcolata. Valori null = stima non disponibile." };
+      }
       const input = { ...args };
       if (spec.prepara) await spec.prepara(admin, company.id, input);
+      if (spec.scope === "actions:sensitive") {
+        const followup = spec.name === "invia_followup_preventivo";
+        const reminder = spec.name === "invia_sollecito_pagamento";
+        const destId = followup || reminder ? input.cliente_id : input.destinatario_id;
+        const destType = followup || reminder ? "cliente" : input.destinatario_tipo;
+        const { data: recipient, error: recipientError } = await admin.rpc("silvio_outbound_resolve_recipient", {
+          p_company_id: company.id, p_dest_tipo: destType, p_dest_id: destId,
+        });
+        if (recipientError || !recipient?.email) throw new ToolError("Destinatario non risolvibile nell'azienda o email mancante");
+        if (followup || reminder) {
+          const { data: document, error } = await admin.from(followup ? "quotes" : "invoices")
+            .select("id, client_email, status").eq("company_id", company.id)
+            .eq("id", followup ? input.preventivo_id : input.fattura_id).is("deleted_at", null).maybeSingle();
+          if (error || !document) throw new ToolError("Documento non trovato nell'azienda");
+          if (String(document.client_email ?? "").trim().toLowerCase() !== String(recipient.email).trim().toLowerCase()) {
+            throw new ToolError("Il destinatario non corrisponde all'email del documento. Verifica l'anagrafica prima di inviare.");
+          }
+          if ((followup && ["signed", "refused", "accepted", "rejected"].includes(document.status))
+            || (reminder && ["paid", "cancelled", "void"].includes(document.status))) {
+            throw new ToolError("Lo stato del documento non consente questo invio");
+          }
+          // Legacy follow-up RPCs enqueue placeholder text. Use instead the exact
+          // subject/body reviewed by the user, without inventing attachments.
+          const { data, error: sendError } = await admin.rpc("silvio_tool_componi_e_invia_messaggio", {
+            p_company_id: company.id, p_user_id: ctx.created_by, p_dest_tipo: "cliente", p_dest_id: destId,
+            p_canale: "email", p_oggetto: input.oggetto, p_corpo: input.corpo,
+            p_scopo: `${followup ? "followup_preventivo" : "sollecito_pagamento"}:${document.id}`,
+          });
+          if (sendError) throw new ToolError(sendError.message);
+          assertToolSucceeded(data);
+          return { azienda: company.name, risultato: data, nota: "Email accodata, consegna non ancora verificata. Usa stato_invio." };
+        }
+      }
+      if (spec.name === "registra_assenza" && input.dipendente_id) {
+        if (String(input.data_fine) < String(input.data_inizio)) throw new ToolError("La data finale non può precedere quella iniziale");
+        const { data, error } = await admin.from("employees").select("id").eq("company_id", company.id).eq("id", input.dipendente_id).maybeSingle();
+        if (error || !data) throw new ToolError("Dipendente non trovato nell'azienda");
+      }
+      if (spec.name === "proposta_ordine_fornitore" && input.cantiere_id) {
+        const { data, error } = await admin.from("orders").select("id").eq("company_id", company.id).eq("id", input.cantiere_id).maybeSingle();
+        if (error || !data) throw new ToolError("Cantiere non trovato nell'azienda");
+      }
       const rpcArgs: Record<string, unknown> = { p_company_id: company.id };
       if (spec.injectUser) rpcArgs.p_user_id = ctx.created_by;
       for (const p of spec.params ?? []) {
@@ -114,6 +175,7 @@ function makeSilvioTool(spec: SilvioSpec): ToolDef {
       }
       const { data, error } = await admin.rpc(spec.rpc, rpcArgs);
       if (error) throw new ToolError(error.message);
+      assertToolSucceeded(data);
       return { azienda: company.name, risultato: data };
     },
   };
@@ -157,8 +219,8 @@ const FASE_1_LETTURA: SilvioSpec[] = [
     description: "KPI dell'azienda: team, venduto/fatturato/incassato, note di lettura." },
   { name: "performance_mensile", rpc: "silvio_tool_monthly_performance", scope: "stats:read",
     description: "Performance di un mese specifico.",
-    params: [{ arg: "anno", rpc: "p_year", tipo: "number", descrizione: "Anno", obbligatorio: true },
-             { arg: "mese", rpc: "p_month", tipo: "number", descrizione: "Mese 1-12", obbligatorio: true }] },
+    params: [{ arg: "anno", rpc: "p_year", tipo: "number", integer: true, minimum: 1900, maximum: 9999, descrizione: "Anno", obbligatorio: true },
+             { arg: "mese", rpc: "p_month", tipo: "number", integer: true, minimum: 1, maximum: 12, descrizione: "Mese 1-12", obbligatorio: true }] },
   { name: "cashflow", rpc: "silvio_tool_cashflow_status", scope: "stats:read",
     description: "Saldo dei conti e stato del flusso di cassa.",
     params: [{ arg: "giorni_indietro", rpc: "p_days_back", tipo: "number", descrizione: "Finestra in giorni (default 30)" }] },
@@ -212,9 +274,9 @@ const FASE_1_LETTURA: SilvioSpec[] = [
     params: [{ arg: "stato", rpc: "p_status", tipo: "string", descrizione: "Filtro stato" }] },
   { name: "preventivi_da_ricontattare", rpc: "silvio_tool_identifica_quotes_da_followup", scope: "quotes:read",
     description: "Preventivi che meritano un follow-up, per priorità.",
-    params: [{ arg: "soglia_priorita", rpc: "p_priority_threshold", tipo: "number", descrizione: "Soglia priorità 0-1" }] },
+    params: [{ arg: "soglia_priorita", rpc: "p_priority_threshold", tipo: "number", minimum: 0, maximum: 100, descrizione: "Soglia priorità percentuale 0-100 (default 60)" }] },
   { name: "probabilita_chiusura", rpc: "silvio_tool_stima_probabilita_close_quote", scope: "quotes:read",
-    description: "Stima la probabilità di chiudere un preventivo.",
+    description: "Legge l'ultima stima salvata della probabilità di chiusura. Non ricalcola e non modifica il preventivo.",
     params: [{ arg: "preventivo_id", rpc: "p_quote_id", tipo: "uuid", descrizione: "UUID preventivo", obbligatorio: true }] },
   { name: "azione_su_preventivo", rpc: "silvio_tool_suggerisci_azione_per_quote", scope: "quotes:read",
     description: "Suggerisce la prossima azione su un preventivo.",
@@ -306,31 +368,35 @@ const FASE_2_AZIONI: SilvioSpec[] = [
              { arg: "data_inizio", rpc: "p_data_inizio", tipo: "date", descrizione: "Dal YYYY-MM-DD", obbligatorio: true },
              { arg: "data_fine", rpc: "p_data_fine", tipo: "date", descrizione: "Al YYYY-MM-DD", obbligatorio: true },
              { arg: "tipo", rpc: "p_tipo_assenza", tipo: "string", descrizione: "Tipo: ferie | permesso_retribuito | malattia | infortunio | maternita | congedo_studio | sciopero | permesso_legge_104 | rol | altro", obbligatorio: true },
-             { arg: "ore_giorno", rpc: "p_ore_giorno", tipo: "number", descrizione: "Ore al giorno" },
+             { arg: "ore_giorno", rpc: "p_ore_giorno", tipo: "number", minimum: 0, maximum: 24, descrizione: "Ore al giorno" },
              { arg: "note", rpc: "p_note", tipo: "string", descrizione: "Note" }] },
 ];
 
 // ── FASE 3 — Invii reali e strumenti a pagamento (scope dedicato, off) ──────
 const FASE_3_SENSIBILI: SilvioSpec[] = [
   { name: "invia_messaggio", rpc: "silvio_tool_componi_e_invia_messaggio", scope: "actions:sensitive", injectUser: true,
-    description: "Compone e INVIA DAVVERO un messaggio a un contatto/cliente sul canale scelto.",
-    params: [{ arg: "destinatario_tipo", rpc: "p_dest_tipo", tipo: "string", descrizione: "Tipo destinatario (contatto/cliente)", obbligatorio: true },
+    description: "Accoda un'email a un destinatario verificato. Non equivale a consegna: verifica con stato_invio. Solo email; richiede conferma esplicita dell'utente.",
+    params: [{ arg: "destinatario_tipo", rpc: "p_dest_tipo", tipo: "string", enum: ["cliente", "fornitore", "dipendente", "lead"], descrizione: "Tipo destinatario; i contatti CRM sono lead", obbligatorio: true },
              { arg: "destinatario_id", rpc: "p_dest_id", tipo: "uuid", descrizione: "UUID destinatario", obbligatorio: true },
-             { arg: "canale", rpc: "p_canale", tipo: "string", descrizione: "email/whatsapp/sms", obbligatorio: true },
+             { arg: "canale", rpc: "p_canale", tipo: "string", enum: ["email"], descrizione: "Solo email è supportato dal worker MCP", obbligatorio: true },
              { arg: "oggetto", rpc: "p_oggetto", tipo: "string", descrizione: "Oggetto (email)" },
              { arg: "corpo", rpc: "p_corpo", tipo: "string", descrizione: "Testo del messaggio", obbligatorio: true },
              { arg: "scopo", rpc: "p_scopo", tipo: "string", descrizione: "Scopo (per il log)" }] },
   { name: "invia_followup_preventivo", rpc: "silvio_tool_invia_followup_preventivo", scope: "actions:sensitive", injectUser: true,
-    description: "INVIA DAVVERO un follow-up su un preventivo.",
+    description: "Accoda un'email di follow-up su un preventivo. Verifica la consegna con stato_invio. Richiede conferma esplicita dell'utente.",
     params: [{ arg: "cliente_id", rpc: "p_cliente_id", tipo: "uuid", descrizione: "UUID cliente", obbligatorio: true },
              { arg: "preventivo_id", rpc: "p_quote_id", tipo: "uuid", descrizione: "UUID preventivo", obbligatorio: true },
-             { arg: "canale", rpc: "p_canale", tipo: "string", descrizione: "email/whatsapp" }] },
+             { arg: "oggetto", tipo: "string", descrizione: "Oggetto esatto approvato dall'utente", obbligatorio: true },
+             { arg: "corpo", tipo: "string", descrizione: "Testo esatto approvato dall'utente", obbligatorio: true },
+             { arg: "canale", rpc: "p_canale", tipo: "string", enum: ["email"], predefinito: "email", descrizione: "Solo email" }] },
   { name: "invia_sollecito_pagamento", rpc: "silvio_tool_invia_sollecito_pagamento", scope: "actions:sensitive", injectUser: true,
-    description: "INVIA DAVVERO un sollecito di pagamento su una fattura.",
+    description: "Accoda un'email di sollecito su una fattura. Verifica la consegna con stato_invio. Richiede conferma esplicita dell'utente.",
     params: [{ arg: "cliente_id", rpc: "p_cliente_id", tipo: "uuid", descrizione: "UUID cliente", obbligatorio: true },
              { arg: "fattura_id", rpc: "p_fattura_id", tipo: "uuid", descrizione: "UUID fattura", obbligatorio: true },
+             { arg: "oggetto", tipo: "string", descrizione: "Oggetto esatto approvato dall'utente", obbligatorio: true },
+             { arg: "corpo", tipo: "string", descrizione: "Testo esatto approvato dall'utente", obbligatorio: true },
              { arg: "tono", rpc: "p_tono", tipo: "string", descrizione: "Tono (cortese/fermo)" },
-             { arg: "canale", rpc: "p_canale", tipo: "string", descrizione: "email/whatsapp" }] },
+             { arg: "canale", rpc: "p_canale", tipo: "string", enum: ["email"], predefinito: "email", descrizione: "Solo email" }] },
 ];
 
 export const SILVIO_TOOLS: ToolDef[] = [

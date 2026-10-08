@@ -18,7 +18,6 @@ import { useNavigate } from "react-router-dom";
 import { Bot, Check, Copy, Info, KeyRound, Loader2, RefreshCw, ShieldCheck, Sparkles, Unlink } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePermissions } from "@/hooks/usePermissions";
 import { useApiKeys, useCreateApiKey } from "@/hooks/useApiKeys";
 import { useOAuthGrants, useRevokeOAuthGrant, type OAuthGrant } from "@/hooks/useOAuthGrants";
 import { Button } from "@/components/ui/button";
@@ -84,8 +83,7 @@ function ElencoPassi({ passi }: { passi: string[] }) {
 function useGestioneAzienda() {
   const { effectiveCompany, profile, role } = useAuth();
   const companyId = effectiveCompany?.id ?? profile?.company_id ?? undefined;
-  const permissions = usePermissions();
-  const puoGestire = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsIntegrations;
+  const puoGestire = role === "company_admin" || role === "super_admin";
   return { companyId, puoGestire };
 }
 
@@ -95,7 +93,8 @@ function CollegamentiAttivi({ assistente }: { assistente: AssistenteAi }) {
   const { data: tutti = [] } = useOAuthGrants(companyId);
   const revoca = useRevokeOAuthGrant(companyId);
   const collegati = useMemo(
-    () => tutti.filter((g) => assistenteDelClient(g.client_name) === assistente),
+    () => tutti.filter((g) => assistenteDelClient(g.client_name) === assistente
+      || (assistente === "claude" && assistenteDelClient(g.client_name) === null)),
     [tutti, assistente],
   );
   if (collegati.length === 0) return null;
@@ -104,8 +103,9 @@ function CollegamentiAttivi({ assistente }: { assistente: AssistenteAi }) {
   const revocaCollegamento = async (g: OAuthGrant) => {
     if (!puoGestire) return;
     try {
-      await revoca.mutateAsync(g.id);
+      const outcome = await revoca.mutateAsync(g.id);
       toast.success(`Collegamento revocato: ${g.client_name ?? nomeDiRiserva}`);
+      if (outcome.needsProviderRevocation) toast.info("MCP è bloccato. Per ricollegare, il titolare deve revocare anche il consenso dell'app nel proprio account e avviare una nuova connessione.");
     } catch (e) {
       toast.error("Revoca non riuscita", {
         description: e instanceof Error ? e.message : "Riprova tra qualche secondo.",
@@ -115,7 +115,7 @@ function CollegamentiAttivi({ assistente }: { assistente: AssistenteAi }) {
 
   return (
     <div className="rounded-xl border p-2">
-      <p className="px-1 pb-1 text-xs font-medium text-muted-foreground">Collegamenti attivi ({collegati.length})</p>
+      <p className="px-1 pb-1 text-xs font-medium text-muted-foreground">Consensi configurati {assistente === "claude" ? "(Claude e altri client MCP)" : "(ChatGPT)"} · {collegati.length}</p>
       <ul className="space-y-1">
         {collegati.map((g) => (
           <li key={g.id} className="flex items-center gap-2 rounded-lg bg-muted/40 px-2 py-1.5">
@@ -202,7 +202,8 @@ export function ConnettoreClaudePopup({ onClose }: { onClose: () => void }) {
   const [chiaveNuova, setChiaveNuova] = useState<string | null>(null);
 
   const chiaviAttive = useMemo(
-    () => chiavi.filter((k) => k.is_active && (!k.expires_at || new Date(k.expires_at) > new Date())),
+    () => chiavi.filter((k) => k.is_active && /claude|assistente ai/i.test(k.name)
+      && (!k.expires_at || new Date(k.expires_at) > new Date())),
     [chiavi],
   );
 
@@ -224,12 +225,12 @@ export function ConnettoreClaudePopup({ onClose }: { onClose: () => void }) {
   const creaLaChiave = async () => {
     if (!puoGestire) return;
     // Un nome riconoscibile e unico: il vincolo del database è per nome attivo.
-    const base = livello === "operativo" ? "Assistente AI (operativo)" : "Assistente AI";
-    const nome = chiaviAttive.some((k) => k.name.toLowerCase() === base.toLowerCase())
-      ? `${base} · ${new Date().toLocaleDateString("it-IT")}`
-      : base;
+    const base = livello === "operativo" ? "Claude (operativo)" : "Claude (consulente)";
+    let nome = base;
+    let suffix = 2;
+    while (chiaviAttive.some(k => k.name.toLowerCase() === nome.toLowerCase())) nome = `${base} ${suffix++}`;
     try {
-      const raw = await creaChiave.mutateAsync({ name: nome, scopes: scopePerLivello(livello, invii), expiryOption: "never" });
+      const raw = await creaChiave.mutateAsync({ name: nome, scopes: scopePerLivello(livello, invii), expiryOption: "90d" });
       setChiaveNuova(raw);
     } catch (e) {
       toast.error("Chiave non creata", {
@@ -312,7 +313,7 @@ export function ConnettoreClaudePopup({ onClose }: { onClose: () => void }) {
           <span className="text-sm font-semibold">Claude Code e Claude Desktop</span>
         </div>
         <p className="text-xs text-muted-foreground max-sm:hidden">
-          Qui serve una chiave limitata alla tua azienda: scegli cosa può fare l'assistente e creala.
+          Qui serve una chiave limitata alla tua azienda: scegli cosa può fare l'assistente e creala. Scade dopo 90 giorni; puoi rinnovarla in Impostazioni → API.
         </p>
 
         {chiaviAttive.length > 0 && (

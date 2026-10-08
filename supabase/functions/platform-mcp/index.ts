@@ -27,21 +27,26 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import {
-  type KeyCtx, type ToolDef, ToolError,
+  type KeyCtx, type ToolDef, ToolError, authorizePrincipal, assertToolSucceeded,
   sha256Hex, hasScope, isSensitiveScope, scopesPerLivello, str, num, intLimit, resolveCompany, UUID_RE,
 } from "./lib.ts";
 import { SILVIO_TOOLS } from "./silvioTools.ts";
+import { argumentError, canonicalJson, isRecord, validOAuthClaims, validRpcMessage } from "./protocol.ts";
 
 const SUPPORTED_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const LATEST_PROTOCOL = "2025-06-18";
-const SERVER_INFO = { name: "edilizia-in-cloud", version: "1.0.0" };
+const SERVER_INFO = { name: "edilizia-in-cloud", version: "1.1.0" };
 
 const SERVER_INSTRUCTIONS = `Sei collegato a Edilizia in Cloud, gestionale per imprese edili italiane.
 Convenzioni: i tool che operano su dati aziendali accettano il parametro "company" (nome o UUID dell'azienda);
 se la chiave API è limitata a una singola azienda il parametro viene ignorato e l'ambito è forzato.
 Usa prima "lista_aziende" (se disponibile) per scoprire le aziende, poi opera con gli altri tool.
 Valori: gli importi sono in euro (numero), le date in formato YYYY-MM-DD.
-Stati opportunità: open | won | lost. Stati attività: da_fare | in_corso | completata.`;
+Stati opportunità: open | won | lost. Stati attività: da_fare | in_corso | completata.
+Per ogni scrittura genera un request_id UUID e riusa LO STESSO UUID e gli stessi argomenti nei retry.
+Non ripetere con un nuovo UUID un invio con esito incerto. Prima degli invii mostra destinatario e testo
+all'utente e richiedi conferma esplicita: confirmed=true. Email accodata non significa consegnata;
+usa stato_invio. WhatsApp/SMS e la generazione completa di preventivi/PDF non sono disponibili qui.`;
 
 // Tipi e helper (KeyCtx, ToolDef, ToolError, resolveCompany, str/num/…) sono in
 // ./lib.ts, condivisi con silvioTools.ts.
@@ -99,13 +104,18 @@ const TOOLS_MANUALI: ToolDef[] = [
         admin.from("invoices").select("subtotal").eq("company_id", company.id)
           .gte("issue_date", `${year}-01-01`).lt("issue_date", `${year + 1}-01-01`),
       ]);
+      for (const query of [contacts, oppOpen, orders, invoices]) {
+        if (query.error) throw new ToolError(query.error.message);
+      }
       const fatturato = (invoices.data ?? []).reduce((s, r) => s + Number((r as { subtotal: number | null }).subtotal ?? 0), 0);
+      const possiblyTruncated = (invoices.data?.length ?? 0) >= 1000;
       return {
         azienda: company.name,
         contatti: contacts.count ?? 0,
         opportunita_aperte: oppOpen.count ?? 0,
         commesse: orders.count ?? 0,
-        fatturato_imponibile_anno: Math.round(fatturato * 100) / 100,
+        fatturato_imponibile_anno: possiblyTruncated ? null : Math.round(fatturato * 100) / 100,
+        ...(possiblyTruncated ? { nota: "Fatturato non esposto: limite di lettura fatture raggiunto. Usa kpi_azienda per il riepilogo aggregato." } : {}),
         anno: year,
       };
     },
@@ -253,6 +263,12 @@ const TOOLS_MANUALI: ToolDef[] = [
 
       // Contatto: id esplicito, oppure lookup/creazione per email
       let contactId = str(args.contact_id);
+      if (contactId) {
+        if (!UUID_RE.test(contactId)) throw new ToolError("contact_id: UUID non valido");
+        const { data, error } = await admin.from("marketing_contacts").select("id")
+          .eq("company_id", company.id).eq("id", contactId).maybeSingle();
+        if (error || !data) throw new ToolError("Contatto non trovato nell'azienda");
+      }
       const contactEmail = str(args.contact_email);
       if (!contactId && contactEmail) {
         const { data: existing } = await admin.from("marketing_contacts")
@@ -604,12 +620,25 @@ const TOOLS_MANUALI: ToolDef[] = [
 ];
 
 // Tool scritti a mano + ponte verso il catalogo silvio_tool_* (silvioTools.ts).
-const TOOLS: ToolDef[] = [...TOOLS_MANUALI, ...SILVIO_TOOLS];
+const TOOLS: ToolDef[] = [...TOOLS_MANUALI, ...SILVIO_TOOLS, {
+  name: "stato_invio",
+  description: "Verifica un'email accodata tramite outbound_id. queued = in attesa, failed = errore, sent = accettata dal provider (non prova di lettura o consegna).",
+  scope: "email:read",
+  inputSchema: { type: "object", properties: {
+    outbound_id: { type: "string", format: "uuid" }, company: { type: "string" },
+  }, required: ["outbound_id"], additionalProperties: false },
+  handler: async (admin, ctx, args) => {
+    const company = await resolveCompany(admin, ctx, args);
+    const { data, error } = await admin.from("silvio_outbound_messages")
+      .select("id, status, canale, created_at, sent_at, error, attempts")
+      .eq("company_id", company.id).eq("id", args.outbound_id).maybeSingle();
+    if (error) throw new ToolError(error.message);
+    if (!data) throw new ToolError("Invio non trovato nell'azienda");
+    return { azienda: company.name, invio: data };
+  },
+}];
 
-// Endpoint (mcp:<tool>) degli strumenti SENSIBILI: invii reali e strumenti a
-// costo AI. Hanno un tetto giornaliero dedicato (sensitive_actions_per_day),
-// contato sulle chiamate riuscite in api_usage_log.
-const SENSITIVE_ENDPOINTS = TOOLS.filter((t) => isSensitiveScope(t.scope)).map((t) => `mcp:${t.name}`);
+// Quotas, including in-flight sensitive calls, are reserved atomically in mcp_reserve_tool_call.
 
 // ── JSON-RPC / MCP plumbing ─────────────────────────────────────────────────
 
@@ -638,7 +667,21 @@ function annotazioni(t: ToolDef) {
 }
 
 function toolToMcp(t: ToolDef) {
-  return { name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: annotazioni(t) };
+  const write = !!t.scope && !t.scope.endsWith(":read");
+  const sensitive = isSensitiveScope(t.scope);
+  const inputSchema = {
+    ...t.inputSchema,
+    properties: {
+      ...(t.inputSchema.properties as Record<string, unknown> ?? {}),
+      ...(write ? { request_id: { type: "string", format: "uuid", description: "UUID univoco dell'operazione. Riusa lo stesso UUID con gli stessi dati nei retry." } } : {}),
+      ...(sensitive ? { confirmed: { type: "boolean", enum: [true], description: "Solo dopo conferma esplicita dell'utente su destinatario e contenuto." } } : {}),
+    },
+    required: [...(t.inputSchema.required as string[] ?? []), ...(write ? ["request_id"] : []), ...(sensitive ? ["confirmed"] : [])],
+  };
+  // Application scopes are granted in the consent page, not Supabase's OIDC scope field.
+  const securitySchemes = [{ type: "oauth2", scopes: [] }];
+  return { name: t.name, description: t.description, inputSchema, annotations: annotazioni(t),
+    securitySchemes, _meta: { securitySchemes } };
 }
 
 // ── OAuth 2.1 (Supabase) — discovery e validazione token ────────────────────
@@ -672,13 +715,17 @@ function decodeJwtClaims(token: string): Record<string, unknown> | null {
 }
 
 /** Risposta 401 che avvia il flusso OAuth nei client che lo supportano. */
-function sfidaOAuth(messaggio: string, cors: HeadersInit) {
-  return new Response(JSON.stringify(rpcError(null, -32001, messaggio)), {
+function sfidaOAuth(messaggio: string, cors: HeadersInit, id: unknown = null) {
+  const challenge = `Bearer resource_metadata="${OAUTH_PRM_URL}", error="invalid_token"`;
+  return new Response(JSON.stringify(id === null ? rpcError(null, -32001, messaggio) : rpcResult(id, {
+    isError: true, content: [{ type: "text", text: messaggio }],
+    _meta: { "mcp/www_authenticate": [challenge] },
+  })), {
     status: 401,
     headers: {
       ...cors,
       "Content-Type": "application/json",
-      "WWW-Authenticate": `Bearer resource_metadata="${OAUTH_PRM_URL}"`,
+      "WWW-Authenticate": challenge,
     },
   });
 }
@@ -695,23 +742,26 @@ async function ctxDaOAuth(admin: SupabaseClient, token: string): Promise<KeyCtx 
   // claim client_id; un token di sessione dell'app NON ce l'ha. Richiederlo
   // chiude la porta a chi provasse a usare il token dell'app come credenziale
   // MCP, e rende la revoca per-client stretta (un grant è per quel client).
-  if (!clientId) return null;
+  // Strict resource audience requires a Supabase access-token hook; see the runbook.
+  const audience = Deno.env.get("MCP_OAUTH_AUDIENCE") ?? "authenticated";
+  if (!clientId || !validOAuthClaims(claims, userId, `${SB_URL}/auth/v1`, audience)) return null;
   const { data: grant } = await admin.from("mcp_oauth_grants")
     .select("id, company_id, client_name, livello, invii, rate_limit_per_minute, rate_limit_per_day, sensitive_actions_per_day")
     .eq("user_id", userId).eq("client_id", clientId).is("revoked_at", null)
-    .order("updated_at", { ascending: false }).limit(1)
-    .maybeSingle();
-  if (!grant) return null;
+    .order("updated_at", { ascending: false }).limit(2);
+  // A token without tenant binding cannot choose between multiple companies.
+  if (!Array.isArray(grant) || grant.length !== 1) return null;
+  const selected = grant[0];
 
   return {
     kind: "oauth",
-    id: grant.id,
-    company_id: grant.company_id,
-    name: grant.client_name ?? "Assistente AI (OAuth)",
-    scopes: scopesPerLivello(grant.livello as string, grant.invii as boolean),
-    rate_limit_per_minute: grant.rate_limit_per_minute ?? 60,
-    rate_limit_per_day: grant.rate_limit_per_day ?? 5000,
-    sensitive_actions_per_day: grant.sensitive_actions_per_day ?? 100,
+    id: selected.id,
+    company_id: selected.company_id,
+    name: selected.client_name ?? "Assistente AI (OAuth)",
+    scopes: scopesPerLivello(selected.livello as string, selected.invii as boolean),
+    rate_limit_per_minute: selected.rate_limit_per_minute ?? 60,
+    rate_limit_per_day: selected.rate_limit_per_day ?? 5000,
+    sensitive_actions_per_day: selected.sensitive_actions_per_day ?? 100,
     created_by: userId,
   };
 }
@@ -736,6 +786,32 @@ Deno.serve(async (req) => {
   }
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed. Il transport MCP usa POST." }), { status: 405, headers: jsonHeaders });
+  }
+
+  let msg: unknown;
+  try { msg = await req.json(); } catch {
+    return new Response(JSON.stringify(rpcError(null, -32700, "JSON non valido")), { status: 400, headers: jsonHeaders });
+  }
+  if (!validRpcMessage(msg)) {
+    return new Response(JSON.stringify(rpcError(null, -32600, "Richiesta JSON-RPC 2.0 non valida (batch non supportati)")), { status: 400, headers: jsonHeaders });
+  }
+  const method = msg.method as string;
+  const id = Object.hasOwn(msg, "id") ? msg.id : undefined;
+  const params = (msg.params ?? {}) as Json;
+
+  // Discovery is public; only invoking tools requires authorization.
+  if (!req.headers.get("authorization") && !req.headers.get("x-api-key")) {
+    if (method === "initialize") {
+      const requested = params.protocolVersion as string | undefined;
+      return new Response(JSON.stringify(rpcResult(id, {
+        protocolVersion: requested && SUPPORTED_PROTOCOL_VERSIONS.includes(requested) ? requested : LATEST_PROTOCOL,
+        capabilities: { tools: { listChanged: false } }, serverInfo: SERVER_INFO, instructions: SERVER_INSTRUCTIONS,
+      })), { headers: jsonHeaders });
+    }
+    if (method === "ping") return new Response(JSON.stringify(rpcResult(id, {})), { headers: jsonHeaders });
+    if (method.startsWith("notifications/") && id === undefined) return new Response(null, { status: 202, headers: cors });
+    if (method === "tools/list") return new Response(JSON.stringify(rpcResult(id, { tools: TOOLS.map(toolToMcp) })), { headers: jsonHeaders });
+    if (method === "tools/call") return sfidaOAuth("Collega l'assistente prima di usare gli strumenti.", cors, id);
   }
 
   const admin = createClient(
@@ -781,29 +857,19 @@ Deno.serve(async (req) => {
     // Token OAuth di Supabase.
     ctx = await ctxDaOAuth(admin, bearer);
     if (!ctx) {
-      return sfidaOAuth("Token non valido o nessun consenso attivo. Collega di nuovo l'assistente.", cors);
+      return sfidaOAuth("Token non valido, consenso assente o più aziende collegate allo stesso client. Verifica i consensi e ricollega l'assistente.", cors, id);
     }
   } else {
     // Nessuna credenziale: avvia il flusso OAuth (o suggerisci la chiave API).
-    return sfidaOAuth("Autenticazione richiesta: token OAuth (Authorization: Bearer) o header x-api-key.", cors);
+    return sfidaOAuth("Autenticazione richiesta: token OAuth (Authorization: Bearer) o header x-api-key.", cors, id);
   }
 
-  // ── Parse JSON-RPC ────────────────────────────────────────────────────────
-  let msg: Json;
-  try {
-    msg = await req.json();
-  } catch {
-    return new Response(JSON.stringify(rpcError(null, -32700, "JSON non valido")), { status: 400, headers: jsonHeaders });
+  try { await authorizePrincipal(admin, ctx); } catch {
+    return sfidaOAuth("Permessi del collegamento revocati o scaduti. Ricollega con un amministratore autorizzato.", cors, id);
   }
-  if (Array.isArray(msg)) {
-    return new Response(JSON.stringify(rpcError(null, -32600, "Batch JSON-RPC non supportato (spec MCP 2025-06-18)")), { status: 400, headers: jsonHeaders });
-  }
-  const method = msg.method as string | undefined;
-  const id = "id" in msg ? msg.id : undefined;
-  const params = (msg.params ?? {}) as Json;
 
   // Notifiche (nessuna risposta attesa) → 202
-  if (method?.startsWith("notifications/")) {
+  if (method?.startsWith("notifications/") && id === undefined) {
     return new Response(null, { status: 202, headers: cors });
   }
 
@@ -831,7 +897,8 @@ Deno.serve(async (req) => {
       if (!tool) {
         return new Response(JSON.stringify(rpcError(id, -32602, `Tool sconosciuto: ${toolName}`)), { headers: jsonHeaders });
       }
-      const args = (params.arguments ?? {}) as Record<string, unknown>;
+      const rawArgs = params.arguments ?? {};
+      const args = isRecord(rawArgs) ? { ...rawArgs } : {};
 
       // Chi chiama: chiave API (api_key_id) o consenso OAuth (grant_id). Log e
       // limiti puntano alla colonna giusta, così i due mondi non si mescolano.
@@ -858,58 +925,41 @@ Deno.serve(async (req) => {
         })), { headers: jsonHeaders });
       }
 
-      // Rate limit (minuto + giorno)
-      const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
-      const { count: minuteCount } = await admin.from("api_usage_log")
-        .select("*", { count: "exact", head: true })
-        .eq(principalCol, ctx.id).gte("created_at", oneMinuteAgo);
-      if ((minuteCount ?? 0) >= ctx.rate_limit_per_minute) {
-        await log(429, null);
-        return new Response(JSON.stringify(rpcResult(id, {
-          content: [{ type: "text", text: `Rate limit superato (${ctx.rate_limit_per_minute}/min). Riprova tra poco.` }],
-          isError: true,
-        })), { headers: jsonHeaders });
-      }
-      const oneDayAgo = new Date(Date.now() - 86_400_000).toISOString();
-      const { count: dayCount } = await admin.from("api_usage_log")
-        .select("*", { count: "exact", head: true })
-        .eq(principalCol, ctx.id).gte("created_at", oneDayAgo);
-      if ((dayCount ?? 0) >= ctx.rate_limit_per_day) {
-        await log(429, null);
-        return new Response(JSON.stringify(rpcResult(id, {
-          content: [{ type: "text", text: `Limite giornaliero superato (${ctx.rate_limit_per_day}/giorno).` }],
-          isError: true,
-        })), { headers: jsonHeaders });
-      }
-
-      // Tetto giornaliero delle AZIONI SENSIBILI (invii reali, strumenti a costo
-      // AI): separato e più basso del limite generale, per contenere costi e
-      // abusi. Conta le sensibili RIUSCITE (status 200) di questa chiave nelle
-      // ultime 24 h; blocca la prossima se ha già raggiunto il tetto.
-      if (isSensitiveScope(tool.scope) && SENSITIVE_ENDPOINTS.length > 0) {
-        const { count: sensitiveCount } = await admin.from("api_usage_log")
-          .select("*", { count: "exact", head: true })
-          .eq(principalCol, ctx.id)
-          .eq("status_code", 200)
-          .in("endpoint", SENSITIVE_ENDPOINTS)
-          .gte("created_at", oneDayAgo);
-        if ((sensitiveCount ?? 0) >= ctx.sensitive_actions_per_day) {
-          await log(429, null);
-          return new Response(JSON.stringify(rpcResult(id, {
-            content: [{ type: "text", text: `Tetto giornaliero di azioni sensibili raggiunto (${ctx.sensitive_actions_per_day}/giorno: invii reali e strumenti a costo AI). Riprova domani o alza il limite del collegamento.` }],
-            isError: true,
-          })), { headers: jsonHeaders });
-        }
-      }
-
+      let receipt: string | null = null;
+      const complete = async (response: Json) => {
+        if (!receipt) return;
+        const readOnly = !tool.scope || tool.scope.endsWith(":read");
+        const { data, error } = await admin.rpc("mcp_complete_tool_call", {
+          p_receipt: receipt, p_response: readOnly ? { isError: response.isError === true } : response,
+        });
+        if (error || data !== true) throw new ToolError("Operazione eseguita ma esito non registrato: verifica i dati, non ripetere con un nuovo request_id.");
+      };
       try {
+        const invalid = argumentError(rawArgs, toolToMcp(tool).inputSchema);
+        if (invalid) throw new ToolError(invalid);
+        const requestId = typeof args.request_id === "string" ? args.request_id : crypto.randomUUID();
+        const fingerprint = await sha256Hex(canonicalJson({ tool: tool.name, args }));
+        const { data: reservation, error: reserveError } = await admin.rpc("mcp_reserve_tool_call", {
+          p_kind: ctx.kind, p_id: ctx.id, p_request_id: requestId, p_fingerprint: fingerprint,
+          p_sensitive: isSensitiveScope(tool.scope), p_scope: tool.scope,
+          p_company_id: ctx.company_id, p_actor_id: ctx.created_by,
+        });
+        if (reserveError) throw new ToolError("Controllo di sicurezza non disponibile: nessuna azione eseguita. Verifica che la migrazione MCP sia installata.");
+        assertToolSucceeded(reservation);
+        if (!isRecord(reservation) || reservation.ok !== true) throw new ToolError("Prenotazione della richiesta non valida");
+        if (reservation.cached === true) return new Response(JSON.stringify(rpcResult(id, reservation.response)), { headers: jsonHeaders });
+        if (typeof reservation.receipt !== "string") throw new ToolError("Ricevuta della richiesta mancante");
+        receipt = reservation.receipt;
+        delete args.request_id;
+        delete args.confirmed;
         const result = await tool.handler(admin, ctx, args);
+        assertToolSucceeded(result);
+        const response: Json = { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+        await complete(response);
         await log(200, typeof (result as Json)?.company_id === "string" ? (result as Json).company_id as string : null);
         await admin.from(ctx.kind === "oauth" ? "mcp_oauth_grants" : "api_keys")
           .update({ last_used_at: new Date().toISOString() }).eq("id", ctx.id);
-        return new Response(JSON.stringify(rpcResult(id, {
-          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-        })), { headers: jsonHeaders });
+        return new Response(JSON.stringify(rpcResult(id, response)), { headers: jsonHeaders });
       } catch (e) {
         const friendly = e instanceof ToolError;
         await log(friendly ? 422 : 500, null);
@@ -919,10 +969,11 @@ Deno.serve(async (req) => {
               ? String((e as { message: unknown }).message)
               : JSON.stringify(e));
         console.error(`[platform-mcp] ${tool.name} failed:`, message);
-        return new Response(JSON.stringify(rpcResult(id, {
-          content: [{ type: "text", text: friendly ? message : `Errore interno del tool: ${message}` }],
-          isError: true,
-        })), { headers: jsonHeaders });
+        const response: Json = {
+          content: [{ type: "text", text: friendly ? message : "Errore interno. Verifica l'esito nell'app prima di ritentare una scrittura." }], isError: true,
+        };
+        try { await complete(response); } catch { /* pending receipt: reconcile, never repeat */ }
+        return new Response(JSON.stringify(rpcResult(id, response)), { headers: jsonHeaders });
       }
     }
     default:

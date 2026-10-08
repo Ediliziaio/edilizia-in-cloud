@@ -14,6 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface OAuthGrant {
   id: string;
+  client_id: string;
+  user_id: string;
   client_name: string | null;
   livello: "consulente" | "operativo" | string;
   invii: boolean;
@@ -31,7 +33,7 @@ export function useOAuthGrants(companyId: string | undefined) {
       if (!companyId) return [];
       const { data, error } = await (supabase as unknown as UntypedFrom)
         .from("mcp_oauth_grants")
-        .select("id, client_name, livello, invii, last_used_at, created_at")
+        .select("id, client_id, user_id, client_name, livello, invii, last_used_at, created_at")
         .eq("company_id", companyId)
         .is("revoked_at", null)
         .order("created_at", { ascending: false });
@@ -47,11 +49,24 @@ export function useRevokeOAuthGrant(companyId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as unknown as UntypedFrom)
+      if (!companyId) throw new Error("Seleziona un'azienda prima di revocare il collegamento");
+      const { data, error } = await (supabase as unknown as UntypedFrom)
         .from("mcp_oauth_grants")
         .update({ revoked_at: new Date().toISOString() })
-        .eq("id", id);
+        .eq("id", id).eq("company_id", companyId).is("revoked_at", null)
+        .select("id, client_id, user_id").single();
       if (error) throw error;
+      if (!data) throw new Error("Collegamento non trovato o revoca non autorizzata");
+      // Close MCP first. Also revoke the owner's OAuth consent so Supabase
+      // cannot silently skip our consent screen on the next connection.
+      try {
+        const { data: auth, error: authError } = await supabase.auth.getUser();
+        if (!authError && auth.user?.id === data.user_id) {
+          const { error: providerError } = await supabase.auth.oauth.revokeGrant({ clientId: data.client_id });
+          if (!providerError) return { needsProviderRevocation: false };
+        }
+      } catch { /* MCP is already closed; inform the user about reauthorization. */ }
+      return { needsProviderRevocation: true };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["oauth-grants", companyId] }),
   });

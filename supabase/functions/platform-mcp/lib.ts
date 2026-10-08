@@ -1,6 +1,7 @@
 // Helper condivisi tra index.ts (server + tool scritti a mano) e silvioTools.ts
 // (il ponte verso le RPC silvio_tool_*). Estratti da index.ts il 26/09/2026.
 import { type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { domainError } from "./protocol.ts";
 
 export interface KeyCtx {
   /** Come ci si è autenticati: chiave API o token OAuth (grant). Decide su quale
@@ -55,6 +56,17 @@ export interface ToolDef {
 
 /** Errore "di dominio" da mostrare all'AI (non un bug del server). */
 export class ToolError extends Error {}
+
+export function assertToolSucceeded(value: unknown): void {
+  const error = domainError(value);
+  if (error) throw new ToolError(error);
+}
+
+/** Service-role handlers must recheck the human actor, not only the stored key. */
+export async function authorizePrincipal(admin: SupabaseClient, ctx: KeyCtx): Promise<void> {
+  const { data, error } = await admin.rpc("mcp_authorize_principal", { p_kind: ctx.kind, p_id: ctx.id });
+  if (error || data !== true) throw new ToolError("Collegamento non autorizzato: verifica revoca, scadenza e permessi dell'amministratore.");
+}
 
 export async function sha256Hex(input: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
