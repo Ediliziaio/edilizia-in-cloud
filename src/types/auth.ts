@@ -99,6 +99,8 @@ export const PLATFORM_ROLE_PRESETS: Record<PlatformRole, Record<string, boolean>
     can_manage_admins: false,
     can_view_platform_stats: true,
     can_manage_marketing: false,
+    // Chi vende lavora sul CRM (contatti, opportunità, calendario), senza campagne.
+    crm_operatore: true,
   },
   platform_support: {
     can_manage_companies: true,
