@@ -5,6 +5,7 @@
  * di ripiego sul mittente, non un tentativo solo. Il perche' e il costo di non
  * averla sono documentati sul punto, cercare "Catena di ripiego sul MITTENTE".
  */
+import { canaleDelFreno, LIMITE_AL_MINUTO, riprovaDopoFreno } from "../_shared/frenoInvii.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
 import { romeMinuti, sendOpenWaMessage, OPENWA_PLATFORM_COMPANY_ID } from "../_shared/openwaSend.ts";
@@ -728,6 +729,26 @@ async function processQueue(supabase: any) {
           const { error } = await supabase.from("automation_queue").update({ status: "pending", execute_at: allowedAt.toISOString(), updated_at: new Date().toISOString() }).eq("id", item.id);
           if (error) throw error;
           continue;
+        }
+
+        // Freno agli invii (08/10/2026): oltre il tetto al minuto per azienda e canale il passo aspetta il minuto
+        // dopo, senza contare come rinvio. Una raffica di centinaia di messaggi aveva bloccato il database.
+        const canaleFreno = canaleDelFreno(actionId);
+        if (canaleFreno) {
+          const { data: posto, error: frenoErr } = await supabase.rpc("freno_invii_prenota", {
+            p_company_id: item.company_id,
+            p_canale: canaleFreno,
+            p_limite: LIMITE_AL_MINUTO[canaleFreno],
+          });
+          // Se il freno non risponde si invia come prima: meglio un messaggio in più che uno perso.
+          if (frenoErr) console.warn(`Freno invii non disponibile (${canaleFreno}): ${frenoErr.message}`);
+          if (!frenoErr && posto === false) {
+            const { error } = await supabase.from("automation_queue")
+              .update({ status: "pending", execute_at: riprovaDopoFreno(Date.now()).toISOString(), updated_at: new Date().toISOString() })
+              .eq("id", item.id);
+            if (error) throw error;
+            continue;
+          }
         }
       }
       const result: any = await executeNode(supabase, node, item);
