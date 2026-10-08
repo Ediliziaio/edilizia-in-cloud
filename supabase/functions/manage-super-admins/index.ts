@@ -5,6 +5,8 @@ import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { leggiImpostazioniPiattaforma } from "../_shared/getPlatformSetting.ts";
 import { createAuditedAdminClient } from "../_shared/auditContext.ts";
 
+import { ruoloPerNuovoAdmin } from "../_shared/superAdminAllowlist.ts";
+import { sincronizzaAccessoCrm } from "../_shared/accessoCrmPiattaforma.ts";
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 async function logAudit(
   supabaseAdmin: any,
@@ -131,8 +133,10 @@ serveConMetriche("manage-super-admins", async (req) => {
         throw new Error(profileError.message);
       }
 
+      // Super admin solo se l'email è nella lista consentita (stesso criterio di accept-admin-invite).
+      const ruoloAssegnato = ruoloPerNuovoAdmin(email);
       const { error: roleError } = await supabaseAdmin.from("user_roles").insert({
-        user_id: userId, role: "super_admin",
+        user_id: userId, role: ruoloAssegnato,
       });
       if (roleError) {
         await supabaseAdmin.from("profiles").delete().eq("id", userId);
@@ -141,7 +145,17 @@ serveConMetriche("manage-super-admins", async (req) => {
       }
 
       // Create default permissions
-      await supabaseAdmin.from("super_admin_permissions").insert({ user_id: userId });
+      await supabaseAdmin.from("super_admin_permissions").insert({
+        user_id: userId,
+        platform_role: ruoloAssegnato,
+        // Un Gestore creato da qui parte con il preset del Gestore, non con tutto spento.
+        ...(ruoloAssegnato === "platform_manager"
+          ? { can_manage_companies: true, can_manage_plans: true, can_manage_tickets: true, can_manage_referrals: true, can_view_platform_stats: true, can_manage_marketing: true }
+          : {}),
+      });
+      if (ruoloAssegnato === "platform_manager") {
+        await sincronizzaAccessoCrm(supabaseAdmin, userId, { can_manage_marketing: true });
+      }
 
       await logAudit(supabaseAdmin, callerId, "create_admin", "user", userId, {
         target_name: `${firstName || "Super"} ${lastName || "Admin"}`,
@@ -260,6 +274,12 @@ serveConMetriche("manage-super-admins", async (req) => {
         }, { onConflict: "user_id" });
 
       if (error) throw new Error(error.message);
+
+      // Chi non è super admin (ruolo di team) ha l'accesso al CRM che segue i permessi appena salvati.
+      const { data: ruoliTarget } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", userId);
+      if (!(ruoliTarget ?? []).some((r: { role: string }) => r.role === "super_admin")) {
+        await sincronizzaAccessoCrm(supabaseAdmin, userId, merged);
+      }
 
       // Get target name for audit
       const { data: targetProfile } = await supabaseAdmin.from("profiles").select("first_name, last_name").eq("id", userId).maybeSingle();

@@ -135,11 +135,11 @@ const allNavItems: AdminNavItem[] = [
   // Dashboard rimosso da qui — pinned in cima accanto ad Attività/Chat
   // ─── FATTURATO (sa_revenue) — lista clienti + revenue + piani uniti ───
   // Aziende è l'item primario perché è la lista dei clienti/paganti
-  { title: "Aziende", url: "/admin/aziende", icon: Building, permission: "can_manage_companies", subcategory: "sa_revenue" },
+  { title: "Aziende", url: "/admin/aziende", icon: Building, permission: "super_admin", subcategory: "sa_revenue" },
   // Utenti: voce mancante fino alla Fase 2 del piano di risalita. Senza di
   // essa il SuperAdmin non poteva cercare una persona su tutta la piattaforma,
   // vederne sessioni e dispositivi, bloccarla o resettarne la password.
-  { title: "Utenti", url: "/admin/utenti", icon: Users, permission: "can_manage_companies", subcategory: "sa_revenue" },
+  { title: "Utenti", url: "/admin/utenti", icon: Users, permission: "super_admin", subcategory: "sa_revenue" },
   // ⚡ Hub Fatturato — 5 tab in alto sostituiscono 5 voci sidebar separate
   // (Revenue · Piani · Fatture · Promo · Dunning). Pulisce visualmente la
   // navigazione mantenendo l'accesso a tutti i sotto-strumenti con 1 click.
@@ -152,10 +152,10 @@ const allNavItems: AdminNavItem[] = [
   // Insoluti: le quattro domande del recupero crediti (chi, quanto, da quando,
   // cosa succede). Prima rispondeva solo una query SQL scritta a mano.
   { title: "Insoluti", url: "/admin/insoluti", icon: AlertTriangle, permission: "billing_read", subcategory: "sa_revenue" },
-  { title: "Fatturazione Elettronica", url: "/admin/fatturazione-elettronica", icon: Receipt, permission: "billing_read", subcategory: "sa_revenue" },
+  { title: "Fatturazione Elettronica", url: "/admin/fatturazione-elettronica", icon: Receipt, permission: "super_admin", subcategory: "sa_revenue" },
   // ─── AI MANAGEMENT — Hub unico (Operate · Monitor · Config · Memoria
   //     in tab in alto). 4 voci → 1. Coerenza con Fatturato/CS/Operazioni. ──
-  { title: "AI", url: "/admin/ai", icon: Sparkles, permission: "can_view_platform_stats", subcategory: "sa_ai" },
+  { title: "AI", url: "/admin/ai", icon: Sparkles, permission: "super_admin", subcategory: "sa_ai" },
   // ─── CUSTOMER SUCCESS — Hub unico (Dashboard · Assistenza · Lifecycle ·
   //     Onboarding · Playbook in tab in alto). 5 voci → 1. ────────────────
   { title: "Assistenza Clienti", url: "/admin/cs", icon: HeartHandshake, permission: "can_manage_companies", subcategory: "sa_customer_success" },
@@ -163,15 +163,15 @@ const allNavItems: AdminNavItem[] = [
   // Modello LMS multi-tenant: corsi interni team Superadmin + grants alle
   // aziende clienti. Sufficientemente importante da meritare voce propria,
   // non un sotto-elemento di Customer Success.
-  { title: "Portale Formazione", url: "/admin/portale-formazione", icon: GraduationCap, permission: "can_manage_companies", subcategory: "sa_portale" },
+  { title: "Portale Formazione", url: "/admin/portale-formazione", icon: GraduationCap, permission: "super_admin", subcategory: "sa_portale" },
   // ─── PRODOTTO ──────────────────────────────────────────────────────
-  { title: "Funzionalità Azienda", url: "/admin/feature-flags", icon: Blocks, permission: "can_manage_companies", subcategory: "sa_prodotto" },
+  { title: "Funzionalità Azienda", url: "/admin/feature-flags", icon: Blocks, permission: "super_admin", subcategory: "sa_prodotto" },
   // Libreria Prezzari Regionali — curata dal super-admin, condivisa con le aziende.
-  { title: "Prezzari regionali", url: "/admin/prezzari-regionali", icon: Library, permission: "can_manage_companies", subcategory: "sa_listini" },
+  { title: "Prezzari regionali", url: "/admin/prezzari-regionali", icon: Library, permission: "super_admin", subcategory: "sa_listini" },
   // Libreria listino — curata dal super-admin: modelli di area, prodotti singoli, marche e serie.
-  { title: "Libreria listino", url: "/admin/template-articoli", icon: Library, permission: "can_manage_companies", subcategory: "sa_listini" },
+  { title: "Libreria listino", url: "/admin/template-articoli", icon: Library, permission: "super_admin", subcategory: "sa_listini" },
   // Manodopera (costo orario) — tariffe orarie edili ufficiali, curate dal super-admin.
-  { title: "Manodopera (costo orario)", url: "/admin/manodopera-tariffe", icon: HardHat, permission: "can_manage_companies", subcategory: "sa_listini" },
+  { title: "Manodopera (costo orario)", url: "/admin/manodopera-tariffe", icon: HardHat, permission: "super_admin", subcategory: "sa_listini" },
   { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats", subcategory: "sa_prodotto" },
   // Salute piattaforma: job falliti, errori ed elementi che richiedono
   // attenzione. Prima un guasto si scopriva quando chiamava il cliente.
@@ -179,7 +179,7 @@ const allNavItems: AdminNavItem[] = [
   // Connessioni: integrazioni, chiavi API e webhook. Prima nessuna schermata
   // diceva quale integrazione avesse smesso di funzionare, né quali chiavi
   // fossero vive ma inutilizzate.
-  { title: "Connessioni", url: "/admin/connessioni", icon: Plug, permission: "can_view_platform_stats", subcategory: "sa_operazioni" },
+  { title: "Connessioni", url: "/admin/connessioni", icon: Plug, permission: "super_admin", subcategory: "sa_operazioni" },
   // Traffico del sito: quali pagine vengono viste, quanto ci si ferma e dove si
   // esce. Dati di prima parte — nessun campionamento, nessun consenso da
   // aspettare — e il crawler del prerender resta fuori dal conteggio.
@@ -193,9 +193,9 @@ const allNavItems: AdminNavItem[] = [
   //    duplicava parzialmente "Registro Attività" già presente in
   //    Impostazioni → Sistema. Ora vive lì come singola voce.
   //    L'hub /admin/operazioni resta funzionante per i deep link.
-  { title: "Referral", url: "/admin/referral", icon: Gift, permission: "can_manage_referrals", subcategory: "sa_growth" },
-  { title: "Produttori", url: "/admin/produttori", icon: Factory, permission: "can_manage_companies", subcategory: "sa_growth" },
-  { title: "Commercialisti", url: "/admin/commercialisti", icon: Calculator, permission: "can_manage_companies", subcategory: "sa_growth" },
+  { title: "Referral", url: "/admin/referral", icon: Gift, permission: "super_admin", subcategory: "sa_growth" },
+  { title: "Produttori", url: "/admin/produttori", icon: Factory, permission: "super_admin", subcategory: "sa_growth" },
+  { title: "Commercialisti", url: "/admin/commercialisti", icon: Calculator, permission: "super_admin", subcategory: "sa_growth" },
   // NB (audit superadmin 2026-06): le route orfane /admin/campagne (A/B test
   // legacy su crm_campaigns, duplica l'Email Marketing dell'hub) e
   // /admin/cohort (la UI è pronta ma cohort_revenue_view NON esiste nel DB →

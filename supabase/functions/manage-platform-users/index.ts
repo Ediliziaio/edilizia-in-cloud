@@ -9,34 +9,9 @@ import { emailCredenziali } from "../_shared/emailCredenziali.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 import { buildStaffPermissionsRecord } from "../_shared/staffPermissionsDefaults.ts";
-import {
-  CALLCENTER_PIATTAFORMA_PERMESSI,
-  PIATTAFORMA_COMPANY_ID,
-  PRESET_CALLCENTER_ADMIN,
-} from "../_shared/callcenterPiattaforma.ts";
+import { PRESET_CALLCENTER_ADMIN } from "../_shared/callcenterPiattaforma.ts";
+import { sincronizzaAccessoCrm } from "../_shared/accessoCrmPiattaforma.ts";
 
-/**
- * Lega una persona al CRM della piattaforma come call center: profilo sull'azienda Piattaforma e permessi
- * sul CRM in staff_permissions. Idempotente: si può rilanciare senza duplicare niente.
- */
-async function assicuraCallCenterPiattaforma(supabaseAdmin: any, userId: string) {
-  const { error: profiloErr } = await supabaseAdmin
-    .from("profiles").update({ company_id: PIATTAFORMA_COMPANY_ID }).eq("id", userId);
-  if (profiloErr) throw new Error(`Profilo non legato alla piattaforma: ${profiloErr.message}`);
-
-  const { error: permErr } = await supabaseAdmin
-    .from("staff_permissions")
-    .upsert(buildStaffPermissionsRecord(userId, PIATTAFORMA_COMPANY_ID, CALLCENTER_PIATTAFORMA_PERMESSI), {
-      onConflict: "user_id,company_id",
-    });
-  if (permErr) throw new Error(`Permessi sul CRM non salvati: ${permErr.message}`);
-}
-
-/** Il contrario: chi smette di essere call center non resta legato alla piattaforma. */
-async function togliCallCenterPiattaforma(supabaseAdmin: any, userId: string) {
-  await supabaseAdmin.from("staff_permissions").delete().eq("user_id", userId).eq("company_id", PIATTAFORMA_COMPANY_ID);
-  await supabaseAdmin.from("profiles").update({ company_id: null }).eq("id", userId).eq("company_id", PIATTAFORMA_COMPANY_ID);
-}
 /**
  * Costruisce e invia l'email di benvenuto al nuovo utente piattaforma con
  * credenziali. Non blocca il flusso se l'email fallisce — l'utente è già
@@ -299,6 +274,8 @@ serveConMetriche("manage-platform-users", async (req) => {
           can_manage_companies: true, can_manage_plans: true, can_manage_tickets: false,
           can_manage_referrals: true, can_manage_admins: false, can_view_platform_stats: true,
           can_manage_marketing: false,
+          // Chi vende lavora sul CRM (contatti, opportunità, calendario), senza campagne.
+          crm_operatore: true,
         },
         platform_support: {
           can_manage_companies: true, can_manage_plans: false, can_manage_tickets: true,
@@ -330,19 +307,17 @@ serveConMetriche("manage-platform-users", async (req) => {
         ...preset,
       });
 
-      // Call center di piattaforma: profilo sull'azienda Piattaforma + permessi sul CRM.
-      if (platformRole === "platform_callcenter") {
-        try {
-          await assicuraCallCenterPiattaforma(supabaseAdmin, userId);
-        } catch (e) {
-          // Senza questi la persona entrerebbe e vedrebbe liste vuote: meglio non crearla affatto.
-          await supabaseAdmin.from("super_admin_permissions").delete().eq("user_id", userId);
-          await supabaseAdmin.from("staff_permissions").delete().eq("user_id", userId);
-          await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
-          await supabaseAdmin.from("profiles").delete().eq("id", userId);
-          await supabaseAdmin.auth.admin.deleteUser(userId);
-          throw e;
-        }
+      // Accesso al CRM della piattaforma secondo i permessi (marketing completo, solo CRM e chiamate, nessuno).
+      try {
+        await sincronizzaAccessoCrm(supabaseAdmin, userId, preset);
+      } catch (e) {
+        // Senza questo la persona entrerebbe e vedrebbe liste vuote: meglio non crearla affatto.
+        await supabaseAdmin.from("super_admin_permissions").delete().eq("user_id", userId);
+        await supabaseAdmin.from("staff_permissions").delete().eq("user_id", userId);
+        await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
+        await supabaseAdmin.from("profiles").delete().eq("id", userId);
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+        throw e;
       }
 
       // Insert company accesses into multi_company_access
@@ -510,12 +485,6 @@ serveConMetriche("manage-platform-users", async (req) => {
             .eq("user_id", userId)
             .in("role", rolesToRemove);
         }
-        // Chi diventa call center si lega al CRM della piattaforma; chi smette di esserlo si slega.
-        if (platformRole === "platform_callcenter") {
-          await assicuraCallCenterPiattaforma(supabaseAdmin, userId);
-        } else {
-          await togliCallCenterPiattaforma(supabaseAdmin, userId);
-        }
       }
 
       const { error } = await supabaseAdmin
@@ -523,6 +492,11 @@ serveConMetriche("manage-platform-users", async (req) => {
         .upsert(updateData, { onConflict: "user_id" });
 
       if (error) throw new Error(error.message);
+
+      // L'accesso al CRM segue i permessi appena salvati (si legge la riga vera, non il payload).
+      const { data: finali } = await supabaseAdmin
+        .from("super_admin_permissions").select("can_manage_marketing, crm_operatore").eq("user_id", userId).maybeSingle();
+      await sincronizzaAccessoCrm(supabaseAdmin, userId, finali ?? {});
 
       const { data: targetProfile } = await supabaseAdmin.from("profiles").select("first_name, last_name").eq("id", userId).maybeSingle();
       await logAudit(supabaseAdmin, callerId, "update_platform_permissions", "user", userId, {

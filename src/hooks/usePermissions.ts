@@ -622,8 +622,12 @@ export function usePermissions(): Permissions {
     role === "accountant" ? commercialistaCompanyIdFromUrl : null,
   );
 
-  // platform_callcenter: i permessi del CRM della piattaforma stanno in staff_permissions come per ogni staff.
-  const staffLikeRoles = ["company_staff", "salesperson", "call_center", "employee", "subcontractor", "platform_callcenter"];
+  // Team di piattaforma: i permessi sul CRM della piattaforma stanno in staff_permissions come per ogni staff
+  // (chi non ha accesso al CRM non ha la riga e non ottiene nessun permesso aziendale).
+  const staffLikeRoles = [
+    "company_staff", "salesperson", "call_center", "employee", "subcontractor",
+    "platform_manager", "platform_sales", "platform_support", "platform_marketing", "platform_implementation", "platform_callcenter",
+  ];
 
   // Risolve il ruolo effettivo per la company corrente. Se l'utente ha una riga
   // multi_company_access, quella vince sul ruolo globale: evita che un admin in
@@ -674,7 +678,7 @@ export function usePermissions(): Permissions {
   const viewAsActive = role === "super_admin" && isImpersonating && !!viewAsRole;
   const viewAsNeedsDbFetch = viewAsActive &&
     !!viewAsUserId &&
-    ["company_staff", "salesperson", "call_center", "employee", "subcontractor", "platform_callcenter"].includes(viewAsRole || "");
+    ["company_staff", "salesperson", "call_center", "employee", "subcontractor", "platform_callcenter", "platform_marketing", "platform_sales", "platform_manager"].includes(viewAsRole || "");
 
   const {
     data: viewAsPermsRow,
@@ -828,7 +832,9 @@ export function usePermissions(): Permissions {
   // normal staff users and company_admin users downgraded to staff in the
   // selected multi-company access.
   if (staffLikeRoles.includes(currentAccessRole || "")) {
-    if (!effectiveCompanyId) return { ...NO_PERMISSIONS, isLoading: true };
+    // Un ruolo di piattaforma senza azienda attiva (nessun accesso al CRM) non ha permessi aziendali e non deve restare
+    // in caricamento per sempre.
+    if (!effectiveCompanyId) return String(currentAccessRole).startsWith("platform_") ? NO_PERMISSIONS : { ...NO_PERMISSIONS, isLoading: true };
     if (isLoading) {
       return { ...NO_PERMISSIONS, isLoading: true };
     }

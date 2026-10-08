@@ -1,0 +1,85 @@
+# Sentinella del database, DA FUORI.
+#
+# Perché esiste (08/10/2026): alle 11:47 il database ha smesso di accettare connessioni e nessuno è stato avvisato.
+# La sonda interna (battito_esterno) gira DENTRO il database con pg_cron: quando il database si blocca si ferma anche
+# lei, e non può avvisare. Questa gira su GitHub, ogni 5 minuti, e chiede a Supabase:
+#   1. lo stato dei servizi (database, API, login);
+#   2. una query vera («select 1») con il tempo di risposta.
+# Se il database non risponde (o risponde troppo piano) il controllo FALLISCE: GitHub manda una email (e una notifica
+# sull'app GitHub) a chi ha attivato le notifiche delle Actions per questo repository.
+#
+# Prova: Actions → «Sentinella database» → Run workflow → prova = true. Deve fallire e farti arrivare l'avviso.
+name: Sentinella database
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      prova:
+        description: "Fai fallire il controllo apposta, per verificare che l'avviso arrivi"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sentinella-database
+  cancel-in-progress: false
+
+jobs:
+  controlla:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Controlla il database
+        env:
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          REF: rsbrguhkodgnqfomrevo
+          PROVA: ${{ inputs.prova }}
+          # Sopra questi millisecondi una «select 1» è lenta (la rete di GitHub e l'API aggiungono ~0,5 s).
+          SOGLIA_LENTO_MS: "8000"
+        run: |
+          set -u
+          ok=0; lenti=0; giu=0; righe=""
+          for i in 1 2 3; do
+            salute=$(curl -s -m 20 -H "Authorization: Bearer $TOKEN" \
+              "https://api.supabase.com/v1/projects/$REF/health?services=db,rest,auth" || echo "[]")
+            db=$(echo "$salute" | jq -r '[.[] | select(.name=="db") | .status][0] // "SCONOSCIUTO"' 2>/dev/null || echo "SCONOSCIUTO")
+            inizio=$(date +%s%3N)
+            risposta=$(curl -s -m 20 -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+              "https://api.supabase.com/v1/projects/$REF/database/query" -d '{"query":"select 1 as ok"}' || echo "timeout")
+            ms=$(( $(date +%s%3N) - inizio ))
+            if echo "$risposta" | grep -q '"ok":1'; then
+              if [ "$ms" -gt "$SOGLIA_LENTO_MS" ]; then esito="LENTO"; lenti=$((lenti+1)); else esito="OK"; ok=$((ok+1)); fi
+            else
+              esito="NON RISPONDE"; giu=$((giu+1))
+            fi
+            righe="$righe| $i | $(TZ=Europe/Rome date +%H:%M:%S) | $db | $esito | ${ms} ms |"$'\n'
+            [ "$i" -lt 3 ] && sleep 20
+          done
+
+          {
+            echo "### Sentinella database"
+            echo ""
+            echo "| Prova | Ora (Roma) | Stato database (Supabase) | Query | Tempo |"
+            echo "|---|---|---|---|---|"
+            printf "%s" "$righe"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${PROVA:-false}" = "true" ]; then
+            echo "::error title=Prova della sentinella::Questo è un fallimento di prova: se ti è arrivato l'avviso, la sentinella funziona."
+            exit 1
+          fi
+          # Tre prove su tre senza risposta: il database è giù.
+          if [ "$giu" -eq 3 ]; then
+            echo "::error title=Database NON RISPONDE::Edilizia in Cloud: il database non risponde da almeno un minuto. Pannello Supabase → Reports → Database; se non si vede niente: Settings → General → Restart project."
+            exit 1
+          fi
+          # Nessuna prova veloce: il database sta per bloccarsi (oggi alle 11:20 rispondeva in 56 s, alle 11:47 si è fermato).
+          if [ "$ok" -eq 0 ]; then
+            echo "::error title=Database LENTO::Edilizia in Cloud: il database risponde ma molto piano (oltre ${SOGLIA_LENTO_MS} ms in tutte e 3 le prove). Guarda subito cosa sta girando: invii di massa, automazioni, importazioni."
+            exit 1
+          fi
+          echo "Database in salute ($ok risposte veloci su 3)."

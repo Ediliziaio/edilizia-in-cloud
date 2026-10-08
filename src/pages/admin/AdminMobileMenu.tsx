@@ -42,7 +42,7 @@ const allSections: AppSection[] = [
   {
     title: "Aziende",
     items: [
-      { icon: Building, label: "Aziende", url: "/admin/aziende", color: "text-indigo-600 bg-indigo-50", permission: "can_manage_companies" },
+      { icon: Building, label: "Aziende", url: "/admin/aziende", color: "text-indigo-600 bg-indigo-50", permission: "super_admin" },
     ],
   },
   {
@@ -69,7 +69,7 @@ const allSections: AppSection[] = [
   {
     title: "Prodotto",
     items: [
-      { icon: Blocks, label: "Feature Flags", url: "/admin/feature-flags", color: "text-orange-600 bg-orange-50", permission: "can_manage_companies" },
+      { icon: Blocks, label: "Feature Flags", url: "/admin/feature-flags", color: "text-orange-600 bg-orange-50", permission: "super_admin" },
       { icon: Megaphone, label: "Annunci", url: "/admin/annunci", color: "text-pink-600 bg-pink-50", permission: "can_view_platform_stats" },
     ],
   },
@@ -101,7 +101,7 @@ const allSections: AppSection[] = [
   {
     title: "Growth",
     items: [
-      { icon: Gift, label: "Referral", url: "/admin/referral", color: "text-pink-600 bg-pink-50", permission: "can_manage_referrals" },
+      { icon: Gift, label: "Referral", url: "/admin/referral", color: "text-pink-600 bg-pink-50", permission: "super_admin" },
     ],
   },
   {

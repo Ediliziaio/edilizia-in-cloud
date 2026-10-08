@@ -53,3 +53,35 @@ export const PRESET_CALLCENTER_ADMIN = {
   can_manage_marketing: false,
   crm_operatore: true,
 };
+
+/**
+ * Il CRM e il marketing completi della piattaforma, per chi ha il marketing intero (Marketing, Gestore):
+ * tutto quello del call center più campagne, WhatsApp, SMS, automazioni, agenti AI, report e dashboard.
+ */
+export const MARKETING_PIATTAFORMA_PERMESSI: Record<string, boolean> = {
+  ...CALLCENTER_PIATTAFORMA_PERMESSI,
+  can_edit_marketing: true,
+  can_view_marketing_dashboard: true,
+  can_view_marketing_email: true,
+  can_view_marketing_whatsapp: true,
+  can_view_sms_marketing: true,
+  can_view_marketing_automations: true,
+  can_view_marketing_ai_agent: true,
+  can_view_marketing_reports: true,
+  can_view_sales_os: true,
+};
+
+/**
+ * Quali permessi sul CRM della piattaforma spettano a chi ha questi permessi di piattaforma:
+ *  - marketing completo → CRM + campagne + report;
+ *  - solo «CRM e chiamate» → contatti, opportunità, calendario;
+ *  - niente di tutto questo → nessun accesso (null: la riga si toglie).
+ */
+export function permessiCrmPiattaforma(p: {
+  can_manage_marketing?: boolean | null;
+  crm_operatore?: boolean | null;
+}): Record<string, boolean> | null {
+  if (p.can_manage_marketing) return MARKETING_PIATTAFORMA_PERMESSI;
+  if (p.crm_operatore) return CALLCENTER_PIATTAFORMA_PERMESSI;
+  return null;
+}

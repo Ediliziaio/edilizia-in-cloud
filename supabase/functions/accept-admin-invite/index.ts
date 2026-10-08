@@ -1,3 +1,5 @@
+import { ruoloPerNuovoAdmin } from "../_shared/superAdminAllowlist.ts";
+import { sincronizzaAccessoCrm } from "../_shared/accessoCrmPiattaforma.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -91,10 +93,13 @@ Deno.serve(async (req) => {
       }, { onConflict: "id" });
     }
 
-    // 3. Assign super_admin role (upsert to avoid duplicates)
+    // 3. Assegna il ruolo. Super admin SOLO se l'email è nella lista consentita: il ruolo dà accesso a tutto nel
+    //    database a prescindere dalle caselle, quindi per tutti gli altri si usa il ruolo di team (Gestore),
+    //    che il database rispetta davvero.
+    const ruoloAssegnato = ruoloPerNuovoAdmin(invite.email);
     await supabaseAdmin
       .from("user_roles")
-      .upsert({ user_id: userId, role: "super_admin" }, { onConflict: "user_id,role" });
+      .upsert({ user_id: userId, role: ruoloAssegnato }, { onConflict: "user_id,role" });
 
     // 4. Copy permissions from invite
     const perms = invite.permissions && typeof invite.permissions === "object" ? invite.permissions : {};
@@ -109,7 +114,15 @@ Deno.serve(async (req) => {
         can_manage_admins: perms.can_manage_admins ?? false,
         can_view_platform_stats: perms.can_view_platform_stats ?? true,
         can_manage_marketing: perms.can_manage_marketing ?? false,
+        crm_operatore: perms.crm_operatore ?? false,
+        platform_role: ruoloAssegnato === "super_admin" ? "super_admin" : ruoloAssegnato,
       }, { onConflict: "user_id" });
+    if (ruoloAssegnato !== "super_admin") {
+      await sincronizzaAccessoCrm(supabaseAdmin, userId, {
+        can_manage_marketing: perms.can_manage_marketing ?? false,
+        crm_operatore: perms.crm_operatore ?? false,
+      });
+    }
 
     // 5. Mark invite as accepted — con guard atomico su accepted_at IS NULL
     // per evitare che due richieste concorrenti con lo stesso token riescano
