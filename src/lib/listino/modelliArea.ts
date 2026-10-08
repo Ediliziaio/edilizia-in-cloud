@@ -72,10 +72,77 @@ export interface EsitoInstallazione {
   celle_griglia: number;
   documenti: number;
   con_prezzi: boolean;
+  /** Dal 06/10/2026: varianti dei prodotti nuovi che hanno preso la maggiorazione che l'azienda aveva già. */
+  maggiorazioni_copiate?: number;
+  copia_maggiorazioni?: boolean;
+  /** I nomi di linea richiesti, ripuliti e in ordine: servono al database per riconoscere una richiesta uguale. */
+  modelli_richiesti?: string[];
+}
+
+/** Quello che listino_modello_anteprima racconta prima di installare (non scrive niente). */
+export interface AnteprimaInstallazione {
+  modello: string;
+  prodotti_nuovi: number;
+  prodotti_gia_presenti: number;
+  /** Varianti dei prodotti nuovi dove l'azienda ha già una maggiorazione diversa da quella del modello. */
+  maggiorazioni_copiabili: number;
+  /** Su quali assi (Colore, Telaio…), con quante varianti. */
+  assi: Array<{ asse: string; varianti: number }>;
+  /** Quando lo stesso modello è stato aggiunto da meno di un minuto, se è successo. */
+  installazione_recente: string | null;
 }
 
 function quanti(n: number, singolare: string, plurale: string): string {
   return `${n} ${n === 1 ? singolare : plurale}`;
+}
+
+/** «Colore, Telaio e Tipologia Vetro». */
+export function elencoItaliano(voci: ReadonlyArray<string>): string {
+  if (voci.length <= 1) return voci[0] ?? "";
+  return `${voci.slice(0, -1).join(", ")} e ${voci[voci.length - 1]}`;
+}
+
+/** C'è qualcosa da copiare? Se sì l'azienda deve scegliere prima di installare. */
+export function haMaggiorazioniDaCopiare(a: AnteprimaInstallazione | null | undefined): boolean {
+  return Number(a?.maggiorazioni_copiabili ?? 0) > 0;
+}
+
+/** L'avviso prima di installare, quando l'azienda ha già maggiorazioni sulle stesse varianti dei prodotti nuovi. */
+export function testoMaggiorazioni(a: AnteprimaInstallazione): { titolo: string; dettaglio: string; sePiuttosto: string } {
+  const assi = elencoItaliano(a.assi.map((x) => x.asse));
+  return {
+    titolo: "Hai già maggiorazioni sulle stesse scelte",
+    dettaglio: `Nei tuoi prodotti ci sono già maggiorazioni su ${assi}. ${quanti(
+      Number(a.maggiorazioni_copiabili),
+      "variante dei prodotti nuovi arriva",
+      "varianti dei prodotti nuovi arrivano",
+    )} senza la tua.`,
+    sePiuttosto:
+      "Se non le copi, scegliere quelle varianti in un preventivo non aggiunge nulla al prezzo. Se le copi, ogni variante prende la maggiorazione che usi già più spesso per la stessa scelta: poi le puoi cambiare.",
+  };
+}
+
+/** Che cosa è andato storto in listino_modello_installa, quando il database lo dice con un «hint». */
+export type ErroreInstallazione = "recente" | "in_corso" | "scelta_maggiorazioni" | "altro";
+
+export function tipoErroreInstallazione(e: unknown): ErroreInstallazione {
+  const hint = typeof e === "object" && e !== null && "hint" in e ? (e as { hint?: unknown }).hint : null;
+  switch (hint) {
+    case "installazione_recente":
+      return "recente";
+    case "installazione_in_corso":
+      return "in_corso";
+    case "maggiorazioni_da_scegliere":
+      return "scelta_maggiorazioni";
+    default:
+      return "altro";
+  }
+}
+
+/** Il messaggio del database, già in italiano; se manca, una frase generica. */
+export function messaggioErroreInstallazione(e: unknown): string {
+  const m = typeof e === "object" && e !== null && "message" in e ? (e as { message?: unknown }).message : null;
+  return typeof m === "string" && m.trim() ? m : "Non è andata a buon fine. Riprova fra poco.";
 }
 
 /** «6 tipologie · 34 prodotti · 34 con foto · 12 con scheda tecnica». */
@@ -115,7 +182,12 @@ export function testoEsito(e: EsitoInstallazione): { titolo: string; dettaglio: 
   if (e.prodotti_gia_presenti > 0) {
     parti.push(`${quanti(e.prodotti_gia_presenti, "prodotto già presente", "prodotti già presenti")}, lasciati com'erano`);
   }
-  const dettaglio = [parti.join(", "), e.prodotti_nuovi > 0 ? testoPrezzi(e.con_prezzi) : ""]
+  const copiate = Number(e.maggiorazioni_copiate ?? 0);
+  const dettaglio = [
+    parti.join(", "),
+    copiate > 0 ? `${quanti(copiate, "maggiorazione copiata", "maggiorazioni copiate")} dal tuo listino` : "",
+    e.prodotti_nuovi > 0 ? testoPrezzi(e.con_prezzi) : "",
+  ]
     .filter(Boolean)
     .join(". ");
   return { titolo, dettaglio: dettaglio ? `${dettaglio}${dettaglio.endsWith(".") ? "" : "."}` : "" };

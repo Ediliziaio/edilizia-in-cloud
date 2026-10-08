@@ -11,19 +11,27 @@
  *    suo preventivatore (areeStandard.ts); le tipologie tolte restano fra le
  *    standard da aggiungere, nella colonna delle tipologie.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Check, ImageIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { useModelliAreaMutations, useModelliDisponibili } from "@/hooks/useModelliArea";
+import { useAnteprimaInstallazione, useModelliAreaMutations, useModelliDisponibili } from "@/hooks/useModelliArea";
 import { cn } from "@/lib/utils";
 import { nomeArea, type AreaStandard, type TipologiaStandard } from "@/lib/listino/areeStandard";
 import type { AreaListino } from "@/lib/listino/lineeListino";
-import { testoContenuto, testoEsito, testoPrezzi } from "@/lib/listino/modelliArea";
+import {
+  haMaggiorazioniDaCopiare,
+  messaggioErroreInstallazione,
+  testoContenuto,
+  testoEsito,
+  testoPrezzi,
+  tipoErroreInstallazione,
+} from "@/lib/listino/modelliArea";
 import { areeDaAggiungere, nomeTipologiaLibero } from "@/lib/listino/organizzaListino";
+import { AvvisoInstallazioneModello } from "./AvvisoInstallazioneModello";
 import { iconaArea } from "./iconaArea";
 
 interface Props {
@@ -55,6 +63,13 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
   const [modelloId, setModelloId] = useState<string | null>(null);
   const modello = modelli.find((m) => m.id === modelloId) ?? modelli[0] ?? null;
   const occupato = inCorso || installa.isPending;
+  // Cosa succederebbe alle maggiorazioni dell'azienda, prima di installare: il modello arriva «senza» e senza questo
+  // controllo i prodotti nuovi perdono in silenzio quelle che l'azienda ha già (Renova, 05/10/2026).
+  const anteprima = useAnteprimaInstallazione({ modelloId: modello?.id ?? null, companyId, enabled: modo === "modello" });
+  const [copia, setCopia] = useState(true);
+  const recente = !!anteprima.data?.installazione_recente;
+  // Un secondo click prima che la finestra se ne accorga non parte: il database lo fermerebbe comunque, ma con un errore.
+  const invioInCorso = useRef(false);
 
   const scegli = (area: AreaStandard) => {
     setScelta(area);
@@ -70,9 +85,13 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
     });
 
   const installaModello = () => {
-    if (!modello || !companyId || occupato) return;
+    if (!modello || !companyId || occupato || anteprima.isLoading || recente || invioInCorso.current) return;
+    invioInCorso.current = true;
+    // Se c'è da scegliere si passa la scelta; se non c'è niente da copiare non si passa nulla, così il database
+    // resta la rete di sicurezza anche quando l'anteprima è vecchia.
+    const daScegliere = haMaggiorazioniDaCopiare(anteprima.data);
     installa.mutate(
-      { modelloId: modello.id, companyId },
+      { modelloId: modello.id, companyId, copiaMaggiorazioni: daScegliere ? copia : undefined },
       {
         onSuccess: (esito) => {
           const racconto = testoEsito(esito);
@@ -80,7 +99,25 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
           onAreaDaModello?.(modello.area);
           onChiudi();
         },
-        onError: (e) => toast.error("Area non aggiunta", { description: (e as Error).message }),
+        onError: (e) => {
+          const tipo = tipoErroreInstallazione(e);
+          if (tipo === "recente") {
+            // Già aggiunto un attimo fa: non è un errore, il listino ce l'ha.
+            toast.info(messaggioErroreInstallazione(e));
+            onAreaDaModello?.(modello.area);
+            onChiudi();
+          } else if (tipo === "in_corso") {
+            toast.info(messaggioErroreInstallazione(e));
+          } else if (tipo === "scelta_maggiorazioni") {
+            toast.warning("Prima scegli cosa fare delle maggiorazioni", { description: messaggioErroreInstallazione(e) });
+            void anteprima.refetch();
+          } else {
+            toast.error("Area non aggiunta", { description: messaggioErroreInstallazione(e) });
+          }
+        },
+        onSettled: () => {
+          invioInCorso.current = false;
+        },
       },
     );
   };
@@ -179,6 +216,13 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
               {testoPrezzi(modello.con_prezzi_vendita)} Se hai già tipologie o linee con lo stesso nome si usano quelle; i
               prodotti che hai già con lo stesso nome restano come sono.
             </p>
+            <AvvisoInstallazioneModello
+              anteprima={anteprima.data}
+              caricamento={anteprima.isLoading}
+              copia={copia}
+              onCopia={setCopia}
+              disabilitato={occupato}
+            />
           </div>
         ) : modo === "modello" && caricoModelli ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -273,7 +317,11 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
             {modo === "vuota" && disponibili.length === 0 ? "Chiudi" : "Annulla"}
           </Button>
           {modo === "modello" && modello ? (
-            <Button onClick={installaModello} disabled={occupato || !companyId} className="h-10 w-full sm:w-auto">
+            <Button
+              onClick={installaModello}
+              disabled={occupato || !companyId || anteprima.isLoading || recente}
+              className="h-10 w-full sm:w-auto"
+            >
               {installa.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
