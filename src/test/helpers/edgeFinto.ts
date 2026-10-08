@@ -37,6 +37,7 @@ class Interrogazione {
   private dati: unknown;
   private ordine: { colonna: string; crescente: boolean } | null = null;
   private massimo: number | null = null;
+  private intervallo: [number, number] | null = null;
   private unica: "single" | "maybe" | null = null;
   private conSelectDopoScrittura = false;
 
@@ -63,6 +64,7 @@ class Interrogazione {
   }
   order(colonna: string, opzioni?: { ascending?: boolean }) { this.ordine = { colonna, crescente: opzioni?.ascending !== false }; return this; }
   limit(n: number) { this.massimo = n; return this; }
+  range(from: number, to: number) { this.intervallo = [from, to]; return this; }
   single() { this.unica = "single"; return this; }
   maybeSingle() { this.unica = "maybe"; return this; }
 
@@ -96,6 +98,7 @@ class Interrogazione {
       risultato = [...risultato].sort((a, b) => (String(a[colonna] ?? "") < String(b[colonna] ?? "") ? -1 : 1) * (crescente ? 1 : -1));
     }
     if (this.massimo != null) risultato = risultato.slice(0, this.massimo);
+    if (this.intervallo) risultato = risultato.slice(this.intervallo[0], this.intervallo[1] + 1);
     const visibili = risultato.map((r) => (this.verbo === "select" || this.conSelectDopoScrittura ? this.proietta(r) : r));
     if (this.unica === "single") {
       return visibili.length === 1

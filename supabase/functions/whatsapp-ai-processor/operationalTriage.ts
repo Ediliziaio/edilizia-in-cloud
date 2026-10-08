@@ -186,6 +186,15 @@ function contieneParola(text: string, keyword: string): boolean {
   return new RegExp(`(^|[^a-z0-9])${esc}${fine}`).test(text);
 }
 
+/** Questions about records are reads, not photos/DDTs/attendance commands. Keep genuine safety emergencies first. */
+export function isOperationalQuestion(text: string, messageType: string): boolean {
+  if (!["text", "audio"].includes(messageType)) return false;
+  text = normalizeText(text);
+  if (/\b(incidente|infortunio|pericolo|ferito|emergenza|caduta|dpi|ponteggio)\b/.test(text)) return false;
+  return /\b(quanti|quante|quali|quando|dove|come|quanto|situazione)\b/.test(text)
+    || /\b(dimmi|mostra|elenca|riassumi)\b/.test(text);
+}
+
 function scoreRule(rule: Rule, text: string, messageType: string) {
   const keywordHits = rule.keywords.filter((keyword) => contieneParola(text, keyword));
   const mediaHit = rule.mediaTypes?.includes(messageType) ?? false;
@@ -213,6 +222,10 @@ export function classifyOperationalMessage(input: {
     if (scored.score > best.score) {
       best = { rule, score: scored.score, signals: scored.signals };
     }
+  }
+
+  if (isOperationalQuestion(text, messageType)) {
+    best = { rule: RULES.find(rule => rule.intent === "domanda")!, score: 5, signals: ["domanda_esplicita"] };
   }
 
   const intent = best.rule?.intent ?? (messageType === "image" ? "foto_cantiere" : "unknown");

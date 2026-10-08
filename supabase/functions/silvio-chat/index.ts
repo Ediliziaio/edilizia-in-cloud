@@ -36,6 +36,7 @@ import { AiRequestGuardError, isProviderCreditError } from "../_shared/aiRequest
 import { createLatestStreamWriter } from "../_shared/latestStreamWriter.ts";
 import { publicAiAnswer, visibleAiAnswer } from "../_shared/visibleAiAnswer.ts";
 import { SILVIO_REPLY_STYLE } from "../_shared/silvioReplyStyle.ts";
+import { SITE_HEALTH_TOOL, isSiteHealthQuestion, siteHealthPreflight, siteHealthDirectAnswer } from "../_shared/silvioSiteHealth.ts";
 import {
   domainsForClassification,
   getToolsForChannel,
@@ -941,6 +942,7 @@ serve(async (req: Request) => {
     // Partita in 4.bis (condizioni e kill-switch sono la'), insieme a memoria,
     // RAG e storico: la chiamata al classificatore non e' piu' in coda a loro.
     const classification: QueryClassification | null = await classificationPromise;
+    const siteHealthRequested = isSiteHealthQuestion(userMessage) && attachments.length === 0;
 
     // ── 7) Ottieni tool disponibili per il ruolo ────────────────────────
     // Filtro per dominio SOLO con classificazione affidabile. null = catalogo
@@ -953,6 +955,7 @@ serve(async (req: Request) => {
         involvedAreas: classification.involved_areas,
       })
       : null;
+    if (siteHealthRequested && toolDomains && !toolDomains.includes("cantiere")) toolDomains.push("cantiere");
     // RBAC granulare per-utente: per chi lavora coi permessi della riga
     // (usaPermessiStaff) carichiamo staff_permissions e la passiamo al filtro
     // tool — un'area coi permessi esplicitamente false nasconde i suoi tool
@@ -1225,6 +1228,10 @@ serve(async (req: Request) => {
     if (history.length === 0 || !isDuplicate) {
       messages.push({ role: "user", content: userContent });
     }
+    const healthMessages = siteHealthRequested ? await siteHealthPreflight(userMessage,
+      allowedTools.map(t => t.schema.function.name),
+      () => executeToolWithRouting(SITE_HEALTH_TOOL, {}, toolCtx)) : [];
+    messages.push(...healthMessages);
 
     // ── 8.5) MP-09: Auto-delegate al Council se la query è multi-area ───
     // Se la classificazione segnala is_multi_area + complexity != simple, invochiamo
@@ -1241,7 +1248,7 @@ serve(async (req: Request) => {
     let councilSynthesis: string | null = null;
     // Token-opt: riusa la classification calcolata in 6.5 (stessi gate:
     // lunghezza >= 25, niente allegati → userContent è sempre string qui).
-    if (ENABLE_COUNCIL_AUTO && classification) {
+    if (ENABLE_COUNCIL_AUTO && classification && healthMessages.length === 0) {
       try {
         if (classification.is_multi_area && classification.estimated_complexity !== "simple") {
           turnControl.assertCanStart();
@@ -1297,7 +1304,7 @@ serve(async (req: Request) => {
         content: message.content,
       }))],
     ]);
-    let finalContent = "";
+    let finalContent = siteHealthDirectAnswer(userMessage, healthMessages) ?? "";
     let lastResult: Awaited<ReturnType<typeof aiRouterComplete>> | null = null;
     let iteration = 0;
     let totalCostEur = 0;

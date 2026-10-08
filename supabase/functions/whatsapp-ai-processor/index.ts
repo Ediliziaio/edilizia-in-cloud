@@ -53,6 +53,10 @@ import { buildInteractivePayload } from "./interactive.ts";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
 // di rispondere su WhatsApp (operai, titolari).
 import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
+import { publicAiAnswer } from "../_shared/visibleAiAnswer.ts";
+import { WHATSAPP_SILVIO_REPLY_STYLE } from "../_shared/silvioReplyStyle.ts";
+import { FINANCE_RECONCILIATION_RULES, MONEY_CONFIRMATION_RULES } from "../_shared/chartRules.ts";
+import { SITE_HEALTH_TOOL, siteHealthPreflight, siteHealthDirectAnswer } from "../_shared/silvioSiteHealth.ts";
 import { resolveIdentity } from "./identity.ts";
 import { gestisciMessaggioCliente } from "./cliente.ts";
 import { leggiDocumentoOperativo, leggiFotoOperativa, scaricaMediaDelMessaggio, transcribeAudio } from "./media.ts";
@@ -590,12 +594,13 @@ Deno.serve(async (req) => {
       : SYSTEM_PROMPT_OPERAIO;
     const istruzioni = istruzioniAzienda(configAgente, ruoloAgente, sbloccatiOra);
     // Keep current time and triage out of the reusable instruction prefix.
-    const stablePrompt = `${basePrompt}\n\n${buildOperationalSystemPrompt(operationalSettings)}` + WA_SECURITY_GUARD;
+    const stablePrompt = `${basePrompt}\n\n${buildOperationalSystemPrompt(operationalSettings)}` + WA_SECURITY_GUARD
+      + (ponte ? WHATSAPP_SILVIO_REPLY_STYLE + FINANCE_RECONCILIATION_RULES + MONEY_CONFIRMATION_RULES : "");
     const currentContext = `${adessoPerIlPrompt(inizioTurno)}\n\n${buildTriagePrompt(operationalTriage)}` +
       (istruzioni ? `\n\n${istruzioni}` : "") +
       (ponte ? `\n\n${ponte.promptExtra()}` : "") +
       (piano.approfondito
-        ? "\n\n[RISPOSTA] È una domanda sui numeri o sulla situazione: rispondi in modo APPROFONDITO — dai le cifre, il contesto e cosa significano, non solo il numero secco. Se serve, usa gli strumenti per incrociare i dati."
+        ? "\n\n[RISPOSTA] Verifica i dati e rispondi con esito, cifre essenziali e limiti. Sintesi breve salvo richiesta esplicita di dettaglio; non confondere approfondimento dell'analisi e lunghezza della risposta."
         : "\n\n[RISPOSTA] Rispondi brevissimo, l'essenziale.");
 
     const messages: ChatMessage[] = [
@@ -645,7 +650,20 @@ Deno.serve(async (req) => {
     // (forte per le analisi, economico per le azioni operative).
     const taskKind = piano.taskKind;
     const conv: ChatMessage[] = [...messages];
-    let finalText: string | null = null;
+    let healthMessages: Awaited<ReturnType<typeof siteHealthPreflight>> = [];
+    // Same canonical read as the app, after identity/tenant/catalog checks and before model selection.
+    if (ponte && ["text", "audio"].includes(msg.message_type)) {
+      healthMessages = await siteHealthPreflight(testoDellaRisposta, ponte.nomi, async () => {
+        const start = Date.now();
+        const { risultato } = await eseguiStrumentoSilvio(ponte, SITE_HEALTH_TOOL, {});
+        await logToolCall(supabase, { company_id: msg.company_id, wa_message_id: msg.id,
+          tool_name: SITE_HEALTH_TOOL, role_kind: identity.kind, args: {}, result: risultato,
+          duration_ms: Date.now() - start, model_used: "canonical_preflight" });
+        return risultato;
+      });
+      conv.push(...healthMessages);
+    }
+    let finalText: string | null = siteHealthDirectAnswer(testoDellaRisposta, healthMessages);
     // MP-P1 — true quando un tool (chiedi_conferma) ha già inviato una risposta
     // interattiva: il sendReply testuale finale va saltato per non duplicare.
     let replyHandled = false;
@@ -653,7 +671,7 @@ Deno.serve(async (req) => {
 
     // Con Silvio serve un giro in più: carica_strumenti, poi lo strumento vero.
     const giriMassimi = ponte ? 5 : MAX_ITERATIONS;
-    for (let iter = 0; iter < giriMassimi; iter++) {
+    for (let iter = 0; !finalText && iter < giriMassimi; iter++) {
       const spec = specDelGiro();
       const aiInput = {
         model: budget.model_override ? model : undefined,
@@ -913,6 +931,7 @@ Deno.serve(async (req) => {
 
     // 🛡️ Sanitize: strip tool names ("send_attendance ritorna..."), opener
     // narrativi ("Ho i dati dai tool. Analizzo:") prima dell'invio WhatsApp.
+    finalText = publicAiAnswer(finalText);
     const sanitizedReply = sanitizeAnswer(finalText);
     if (sanitizedReply.wasModified) {
       console.warn(JSON.stringify({
