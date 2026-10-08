@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { PAYMENT_METHODS } from "@/components/orders/OrderItemsList";
+import { PAGAMENTI_FORNITORI as PAYMENT_METHODS, etichettaPagamentoFornitore } from "@/lib/impostazioni/pagamentiFornitori";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Truck, Plus, Pencil, Trash2, Loader2, Search, Check, ChevronsUpDown, QrCode, AlertCircle, Merge, ArrowUpDown } from "lucide-react";
 import {
@@ -242,8 +242,7 @@ function supplierToForm(s: Supplier): SupplierFormData {
 }
 
 const getPaymentMethodLabel = (value: string | null) => {
-  if (!value) return "—";
-  return PAYMENT_METHODS.find((m) => m.value === value)?.label || value;
+  return etichettaPagamentoFornitore(value);
 };
 
 function SupplierTable({

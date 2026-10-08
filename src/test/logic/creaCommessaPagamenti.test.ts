@@ -33,4 +33,10 @@ describe("il modello di pagamento nel modulo di nuova commessa", () => {
   it("il riepilogo sa che la commessa è nuova: la rata di oggi non risulta «scaduta»", () => {
     expect(SORGENTE).toContain("<FinancialSummary\n            nuova\n");
   });
+  it("lo zero dell'IVA non viene trasformato in 22% nei totali, nel salvataggio o nelle rate", () => {
+    expect(SORGENTE).not.toMatch(/parseDecimalIT\([^)]*\)\s*\|\|\s*22/);
+    expect(SORGENTE).toContain('const vat = parseDecimalIT(vatRate?.trim() ? vatRate : "22")');
+    expect(SORGENTE).toContain('const vatValue = parseDecimalIT(values.vat_rate?.trim() ? values.vat_rate : "22")');
+    expect(SORGENTE).toContain('parseDecimalIT(val.trim() ? val : "22")');
+  });
 });

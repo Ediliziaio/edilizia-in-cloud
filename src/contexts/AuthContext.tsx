@@ -390,7 +390,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Best-effort: forza Supabase JS a dimenticare anche l'eventuale sessione in memoria.
-    void supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+    void supabase.auth.signOut({ scope: "local" }).catch((): void => undefined);
   }, []);
 
   // Sync impersonation state to sessionStorage
@@ -1734,7 +1734,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 company_id: string;
                 created_at: string;
                 companies: Company | null;
-              }>).map((row) => ({
+              }>).map<MultiCompanyAccess>((row) => ({
                 id: `accountant-${row.id}`,
                 user_id: currentUser.id,
                 company_id: row.company_id,

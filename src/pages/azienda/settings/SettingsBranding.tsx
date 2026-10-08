@@ -46,6 +46,8 @@ import {
   CheckCircle2, RefreshCw, Image as ImageIcon, Wand2, Monitor, LogIn,
 } from "lucide-react";
 import { LogoUploader } from "@/components/settings/LogoUploader";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { campiMarginiModificati } from "@/lib/impostazioni/salvataggioMargini";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    UTILITY validazione
@@ -256,13 +258,14 @@ function AnteprimaPiattaforma({
 export default function SettingsBranding() {
   const { effectiveCompany, user, refreshAuth } = useAuth();
   const permissions = usePermissions();
-  const { brand, saveBrand, uploadBrandFile, isLoading } = useBrandSettings();
+  const { brand, saveBrand, uploadBrandFile, isLoading, isError, refetch } = useBrandSettings();
   const { branding: companyBranding } = useBranding();
   const wlGate = useWhitelabelGate();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
-  const canEdit = permissions.isAdmin;
   const [saving, setSaving] = useState(false);
+  const [syncNeeded, setSyncNeeded] = useState(false);
+  const canEdit = permissions.isAdmin && !isLoading && !isError && !saving;
   const [uploading, setUploading] = useState<string | null>(null);
   const [subdomain, setSubdomain] = useState("");
   const [customDomain, setCustomDomain] = useState("");
@@ -315,16 +318,36 @@ export default function SettingsBranding() {
     brand_hide_powered_by: b?.brand_hide_powered_by || false,
   });
 
-  useEffect(() => {
-    if (brand) setForm(buildFormFromBrand(brand));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brand]);
+  const [baseline, setBaseline] = useState<typeof form | null>(null);
+  const hydratedCompany = useRef<string | undefined>(undefined);
+  const dirtyRef = useRef(false);
+  const isDirty = baseline !== null && JSON.stringify(form) !== JSON.stringify(baseline);
+  useEffect(() => { dirtyRef.current = isDirty; }, [isDirty]);
+  useSettingsDraftGuard((permissions.isAdmin && isDirty) || saving);
 
-  const initialFormSnapshot = JSON.stringify(buildFormFromBrand(brand));
-  const isDirty = JSON.stringify(form) !== initialFormSnapshot;
+  useEffect(() => {
+    if (hydratedCompany.current !== companyId) {
+      hydratedCompany.current = companyId;
+      setSyncNeeded(false);
+      setBaseline(null);
+      dirtyRef.current = false;
+      setForm(buildFormFromBrand(brand));
+    }
+    if (brand && !dirtyRef.current) {
+      const incoming = buildFormFromBrand(brand);
+      setBaseline(incoming);
+      setForm(incoming);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brand, companyId]);
 
   const resetForm = () => {
-    if (brand) setForm(buildFormFromBrand(brand));
+    if (brand) {
+      const incoming = buildFormFromBrand(brand);
+      setBaseline(incoming);
+      dirtyRef.current = false;
+      setForm(incoming);
+    }
   };
 
   const handleSave = async () => {
@@ -347,27 +370,29 @@ export default function SettingsBranding() {
     try {
       // white_label_enabled è il flag runtime letto dai layout: va acceso
       // quando l'azienda ha un tier white-label attivo.
-      await saveBrand.mutateAsync({
-        ...form,
+      const savedBrand = await saveBrand.mutateAsync({
+        ...campiMarginiModificati(form, baseline ?? {}),
         ...(wlGate.isWhiteLabel ? { white_label_enabled: true } : {}),
       } as Partial<typeof brand>);
+      const savedForm = buildFormFromBrand(savedBrand);
 
       // Sync su company_branding (per login page + custom domain branding)
+      let syncFailed = false;
       if (companyId) {
         await supabase
           .from("company_branding" as never)
           .upsert(
             {
               company_id: companyId,
-              primary_color: form.brand_primary_color,
-              secondary_color: form.brand_secondary_color,
-              accent_color: form.brand_accent_color,
-              platform_name: form.brand_platform_name || null,
-              hide_platform_branding: form.brand_hide_powered_by,
-              logo_url: effectiveCompany?.logo_url || null,
-              favicon_url: brand?.brand_favicon_url || null,
-              login_bg_color: brand?.brand_login_bg_url
-                ? buildLoginBackgroundValue(brand.brand_login_bg_url)
+              primary_color: savedForm.brand_primary_color,
+              secondary_color: savedForm.brand_secondary_color,
+              accent_color: savedForm.brand_accent_color,
+              platform_name: savedForm.brand_platform_name || null,
+              hide_platform_branding: savedForm.brand_hide_powered_by,
+              logo_url: savedBrand.logo_url || null,
+              favicon_url: savedBrand.brand_favicon_url || null,
+              login_bg_color: savedBrand.brand_login_bg_url
+                ? buildLoginBackgroundValue(savedBrand.brand_login_bg_url)
                 : companyBranding?.login_bg_color || null,
               is_active: true,
               updated_at: new Date().toISOString(),
@@ -375,7 +400,10 @@ export default function SettingsBranding() {
             { onConflict: "company_id" } as never,
           )
           .then((r) => {
-            if (r.error) console.warn("Sync company_branding skipped:", r.error.message);
+            if (r.error) syncFailed = true;
+          }, () => {
+            // Il salvataggio principale è riuscito anche se cade la connessione al mirror.
+            syncFailed = true;
           });
       }
 
@@ -393,11 +421,18 @@ export default function SettingsBranding() {
           } as never)
           .then((r) => {
             if (r.error) console.warn("Audit log skipped:", r.error.message);
+          }, () => {
+            console.warn("Audit log skipped: connessione non disponibile");
           });
       }
       queryClient.invalidateQueries({ queryKey: ["company-branding"] });
       queryClient.invalidateQueries({ queryKey: ["branding-by-domain"] });
-      toast.success("Brand aggiornato con successo");
+      setBaseline(savedForm);
+      dirtyRef.current = false;
+      setForm(savedForm);
+      setSyncNeeded(syncFailed);
+      if (syncFailed) toast.warning("Aspetto salvato, ma la pagina di accesso non è stata sincronizzata. Riprova più tardi.");
+      else toast.success("Brand aggiornato con successo");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Errore sconosciuto";
       toast.error(msg);
@@ -576,6 +611,10 @@ export default function SettingsBranding() {
     );
   }
 
+  if (isError || !brand || !companyId) {
+    return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">Non riesco a leggere il branding aziendale. Nessuna modifica verrà salvata.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription></Alert>;
+  }
+
   const isWhiteLabel = wlGate.isWhiteLabel || (brand?.white_label_enabled ?? false);
   // Gating capabilities dal tier: se tier presente, applica i flag
   // Capabilities tier (la palette colori è temporaneamente disabilitata sul
@@ -592,7 +631,7 @@ export default function SettingsBranding() {
       <p className="text-muted-foreground">
         Personalizza colori, logo, dominio e l'aspetto della piattaforma per la tua azienda.
       </p>
-      {!canEdit && (
+      {!permissions.isAdmin && (
         <Alert>
           <Lock className="h-4 w-4" />
           <AlertDescription>
@@ -1124,17 +1163,18 @@ export default function SettingsBranding() {
             </TabsContent>
           </Tabs>
 
-          {/* Save bar sticky in basso */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t sticky bottom-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 -mx-4 px-4 py-3 z-10">
+          {/* Nel flusso della pagina: non copre contenuti o navigazione mobile. */}
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t py-3">
             {isDirty && (
-              <span className="text-xs text-amber-600 mr-auto">• Modifiche non salvate</span>
+              <span role="status" className="w-full text-xs text-amber-700 sm:mr-auto sm:w-auto">Modifiche non salvate</span>
             )}
-            <Button variant="outline" onClick={resetForm} disabled={!canEdit || !isDirty || saving}>
+            {syncNeeded && <p role="status" className="w-full text-xs text-amber-700">Aspetto salvato. Riprova la sincronizzazione della pagina di accesso.</p>}
+            <Button size="sm" variant="outline" onClick={resetForm} disabled={!canEdit || !isDirty || saving}>
               Annulla modifiche
             </Button>
-            <Button onClick={handleSave} disabled={!canEdit || !isDirty || saving} size="lg">
+            <Button onClick={handleSave} disabled={!canEdit || (!isDirty && !syncNeeded) || saving} size="sm">
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Palette className="h-4 w-4 mr-2" />}
-              Salva brand
+              {syncNeeded && !isDirty ? "Riprova sincronizzazione" : "Salva brand"}
             </Button>
           </div>
         </>

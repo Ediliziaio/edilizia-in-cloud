@@ -11,6 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, Settings2, Bell, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { usePermissions } from "@/hooks/usePermissions";
+import { puoModificareCosti } from "@/lib/permessi/modificaSegueVisibilita";
 
 interface AlertPrefs {
   id?: string;
@@ -28,8 +32,10 @@ export function FinanceAutomationSettings() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
+  const permissions = usePermissions();
+  const canEdit = puoModificareCosti(permissions);
 
-  const { data: prefs, isLoading } = useQuery({
+  const { data: prefs, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.scadenzaPrefs.byCompany(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -43,26 +49,30 @@ export function FinanceAutomationSettings() {
     enabled: !!companyId,
   });
 
-  const [form, setForm] = useState<Partial<AlertPrefs>>({});
+  const [draft, setDraft] = useState<{ companyId: string | undefined; form: Partial<AlertPrefs> }>({ companyId, form: {} });
+  const form = draft.companyId === companyId ? draft.form : {};
+  const hasChanges = Object.keys(form).length > 0;
 
   const currentPrefs: AlertPrefs = {
     company_id: companyId!,
     alert_enabled: true,
     default_alert_days: 7,
-    alert_email: "",
     alert_on_overdue: true,
     alert_on_upcoming: true,
     auto_generate_from_invoices: true,
     auto_reconcile_payments: true,
     ...prefs,
     ...form,
+    alert_email: form.alert_email ?? prefs?.alert_email ?? "",
   };
 
-  const upd = (key: keyof AlertPrefs, value: any) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+  const upd = <K extends keyof AlertPrefs>(key: K, value: AlertPrefs[K]) =>
+    setDraft(prev => ({ companyId, form: { ...(prev.companyId === companyId ? prev.form : {}), [key]: value } }));
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      if (!companyId || isLoading || isError || !canEdit) throw new Error("Impostazioni non disponibili o in sola lettura.");
+      if (!Number.isInteger(currentPrefs.default_alert_days) || currentPrefs.default_alert_days < 1 || currentPrefs.default_alert_days > 30) throw new Error("Il preavviso deve essere tra 1 e 30 giorni.");
       const payload = {
         company_id: companyId!,
         alert_enabled: currentPrefs.alert_enabled,
@@ -78,8 +88,11 @@ export function FinanceAutomationSettings() {
       if (prefs?.id) {
         const { error } = await (supabase as any)
           .from("scadenza_alert_prefs")
-          .update(payload)
-          .eq("id", prefs.id);
+          .update({ ...form, updated_at: payload.updated_at })
+          .eq("id", prefs.id)
+          .eq("company_id", companyId)
+          .select("id")
+          .single();
         if (error) throw error;
       } else {
         const { error } = await (supabase as any)
@@ -88,13 +101,14 @@ export function FinanceAutomationSettings() {
         if (error) throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Impostazioni salvate");
-      queryClient.invalidateQueries({ queryKey: queryKeys.scadenzaPrefs.all });
-      setForm({});
+      await queryClient.invalidateQueries({ queryKey: queryKeys.scadenzaPrefs.byCompany(companyId) });
+      setDraft(prev => prev.companyId === companyId ? { companyId, form: {} } : prev);
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
   });
+  useSettingsDraftGuard(hasChanges || saveMutation.isPending);
 
   if (isLoading) {
     return (
@@ -106,10 +120,14 @@ export function FinanceAutomationSettings() {
     );
   }
 
-  const hasChanges = Object.keys(form).length > 0;
+  if (isError || !companyId) {
+    return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">Non riesco a leggere le impostazioni. Nessuna modifica verrà salvata.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription></Alert>;
+  }
 
   return (
     <div className="space-y-6">
+      {!canEdit && <p className="text-sm text-muted-foreground">Sola lettura: per modificare servono i permessi sui costi.</p>}
+      <fieldset disabled={!canEdit || saveMutation.isPending} className="m-0 min-w-0 border-0 p-0">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -205,10 +223,11 @@ export function FinanceAutomationSettings() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Giorni di preavviso</Label>
+                    <Label htmlFor="finance-alert-days" className="text-xs">Giorni di preavviso</Label>
                     <Input
+                      id="finance-alert-days"
                       type="number"
                       min={1}
                       max={30}
@@ -217,8 +236,9 @@ export function FinanceAutomationSettings() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Email per avvisi</Label>
+                    <Label htmlFor="finance-alert-email" className="text-xs">Email per avvisi</Label>
                     <Input
+                      id="finance-alert-email"
                       type="email"
                       value={currentPrefs.alert_email}
                       onChange={(e) => upd("alert_email", e.target.value)}
@@ -232,7 +252,8 @@ export function FinanceAutomationSettings() {
 
 
           {/* Save */}
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p role="status" className="text-xs text-muted-foreground">{saveMutation.isPending ? "Salvataggio…" : hasChanges ? "Modifiche non salvate" : "Nessuna modifica da salvare"}</p>
             <Button
               onClick={() => saveMutation.mutate()}
               disabled={!hasChanges || saveMutation.isPending}
@@ -246,6 +267,7 @@ export function FinanceAutomationSettings() {
           </div>
         </CardContent>
       </Card>
+      </fieldset>
     </div>
   );
 }

@@ -34,6 +34,8 @@ import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { AiTurnControl, AiTurnLimitError } from "../_shared/aiTurnControl.ts";
 import { AiRequestGuardError, isProviderCreditError } from "../_shared/aiRequestGuard.ts";
 import { createLatestStreamWriter } from "../_shared/latestStreamWriter.ts";
+import { publicAiAnswer, visibleAiAnswer } from "../_shared/visibleAiAnswer.ts";
+import { SILVIO_REPLY_STYLE } from "../_shared/silvioReplyStyle.ts";
 import {
   domainsForClassification,
   getToolsForChannel,
@@ -909,7 +911,7 @@ serve(async (req: Request) => {
     // byte-identico tra messaggi → cache-hit. Dinamico (data, memoria, RAG):
     // dopo il breakpoint. aiRouter mette i breakpoint su Anthropic e fonde i
     // due blocchi in un'unica stringa sugli altri provider.
-    const staticSystemPrompt = builtPrompt.systemPromptStatic + CHART_RULES + FINANCE_RECONCILIATION_RULES + MONEY_CONFIRMATION_RULES + TOOL_CONTRACT_LEGEND;
+    const staticSystemPrompt = builtPrompt.systemPromptStatic + CHART_RULES + FINANCE_RECONCILIATION_RULES + MONEY_CONFIRMATION_RULES + TOOL_CONTRACT_LEGEND + SILVIO_REPLY_STYLE;
     let dynamicSystemPrompt = builtPrompt.systemPromptDynamic;
     const preamboloVersion = builtPrompt.preamboloVersion;
     const useStructured = builtPrompt.useStructured;
@@ -1346,8 +1348,8 @@ serve(async (req: Request) => {
     //    («Controllo le fatture scadute») e POI chiama gli strumenti — quella
     //    e' una premessa interna, non la risposta; il router smette di
     //    chiamarci appena compare una tool call, e sotto soglia non si mostra;
-    //  - non si parte se il testo comincia con `{`, `[` o un fence: e' l'output
-    //    strutturato (JSON) che il codice a valle ripulisce prima di mostrarlo.
+    //  - da un output strutturato si estrae SOLO answer a ogni snapshot,
+    //    anche quando il provider antepone una premessa al JSON.
     // Le scritture sono in coda, una alla volta, cosi' un UPDATE non supera
     // l'INSERT. Kill-switch senza redeploy: SILVIO_STREAMING_DISABLED=true.
     const STREAMING_ATTIVO = Deno.env.get("SILVIO_STREAMING_DISABLED") !== "true";
@@ -1355,6 +1357,7 @@ serve(async (req: Request) => {
     const STREAMING_INTERVALLO_MS = 250;
     let segnapostoId: string | null = null;
     let streamingAvviato = false;
+    let streamInAttesa = false;
     let ultimoAggiornamentoStream = 0;
     const inizioMostrabile = (t: string): boolean => {
       const c = t.trimStart().charAt(0);
@@ -1387,17 +1390,28 @@ serve(async (req: Request) => {
     const scriviSegnaposto = streamWriter.push;
     const mostraInStreaming = (testo: string): void => {
       if (!STREAMING_ATTIVO) return;
+      // A prose preamble can precede the JSON. Check EVERY snapshot, not only its first character.
+      const risposta = visibleAiAnswer(testo, { streaming: true, structured: useStructured });
+      if (!risposta.trim()) {
+        if (streamingAvviato && !streamInAttesa) {
+          streamInAttesa = true;
+          scriviSegnaposto("…");
+        }
+        return;
+      }
       const adesso = Date.now();
       if (!streamingAvviato) {
-        if (testo.length < STREAMING_SOGLIA_AVVIO || !inizioMostrabile(testo)) return;
+        if (risposta.length < STREAMING_SOGLIA_AVVIO || !inizioMostrabile(risposta)) return;
         streamingAvviato = true;
+        streamInAttesa = false;
         ultimoAggiornamentoStream = adesso;
-        scriviSegnaposto(testo);
+        scriviSegnaposto(risposta);
         return;
       }
       if (adesso - ultimoAggiornamentoStream < STREAMING_INTERVALLO_MS) return;
       ultimoAggiornamentoStream = adesso;
-      scriviSegnaposto(testo);
+      streamInAttesa = false;
+      scriviSegnaposto(risposta);
     };
 
     // MP-09: se il council ha già prodotto la synthesis, usa quella come finalContent
@@ -1458,9 +1472,8 @@ serve(async (req: Request) => {
           guardProviderRequest: true,
           // AI Test Lab override (demo only) > persona.recommended_model > config primary
           forceModel: aiTestLabForceModel ?? persona.recommended_model ?? undefined,
-          // Streaming del testo verso la chat (vedi sopra). Non con l'output
-          // strutturato JSON: quel testo va ripulito prima di essere mostrato.
-          onDelta: STREAMING_ATTIVO && !skipToolsForModel && !(useStructured && toolSchemas.length === 0)
+          // The shared reader emits only the public answer, including partial structured output.
+          onDelta: STREAMING_ATTIVO && !skipToolsForModel
             ? mostraInStreaming
             : undefined,
         });
@@ -1656,37 +1669,20 @@ serve(async (req: Request) => {
     }
     // ── MP-04: Tenta parsing structured output (per tier balanced/premium) ──
     let structured: StructuredAiResponse | null = null;
+    const rispostaPubblica = visibleAiAnswer(finalContent);
+    const avevaEnvelope = rispostaPubblica !== finalContent;
     if (useStructured) {
       structured = parseStructuredResponse(finalContent);
       if (structured) {
-        finalContent = structured.answer; // sostituisce il JSON con il solo answer
+        // Recover metadata, but never promote a private thinking field to the public reply.
+        finalContent = avevaEnvelope ? publicAiAnswer(finalContent) : structured.answer;
+        structured.answer = finalContent;
       } else {
         console.warn("[silvio-chat] structured output: parse failed, fallback to raw content");
       }
     }
-
-    // 🆕 BUG FIX 2026-05-10: safety net JSON crudo (vedi ai-orchestrator pari)
-    if (
-      finalContent &&
-      /^\s*[`{[]/.test(finalContent) &&
-      /"(?:thinking|answer|confidence)"\s*:/.test(finalContent.substring(0, 200))
-    ) {
-      console.warn(`[silvio-chat] safety net: JSON-looking content detected, stripping wrapper`);
-      const recovered = parseStructuredResponse(finalContent);
-      if (recovered?.answer) {
-        finalContent = recovered.answer;
-      } else {
-        const answerMatch = /"answer"\s*:\s*"([\s\S]+?)"\s*[,}]/s.exec(finalContent);
-        if (answerMatch?.[1]) {
-          finalContent = answerMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\").trim();
-        } else {
-          const thinkingMatch = /"thinking"\s*:\s*"([\s\S]+?)(?:"\s*[,}]|$)/s.exec(finalContent);
-          if (thinkingMatch?.[1] && thinkingMatch[1].length > 50) {
-            finalContent = thinkingMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\").trim();
-          }
-        }
-      }
-    }
+    // Applies to every tier and to prose-prefixed/truncated JSON, not just strict-schema replies.
+    if (avevaEnvelope && !structured) finalContent = publicAiAnswer(finalContent);
 
     // 🆕 v3 (2026-05-10): final content sanitization — strip chain-of-thought
     // leak (tool names, opener narrativi tipo "Ho i dati dai tool. Analizzo:").

@@ -13,6 +13,7 @@ import { numeroWhatsApp } from "../../../supabase/functions/_shared/sequenzaCont
 import { romaVersoUtc } from "../../../supabase/functions/_shared/appuntamentiPubblici";
 import { pickOpenWaNumber } from "../../../supabase/functions/_shared/openwaPickNumber";
 import { automationEmailDelayMs } from "../../../supabase/functions/_shared/automationEmail";
+import { canaleDelFreno, LIMITE_AL_MINUTO, riprovaDopoFreno } from "../../../supabase/functions/_shared/frenoInvii";
 
 const engine = fs.readFileSync("supabase/functions/process-automation/index.ts", "utf8");
 const scheduler = fs.readFileSync("supabase/functions/check-scheduled-triggers/index.ts", "utf8");
@@ -28,13 +29,18 @@ function load(name: string, globals: Record<string, any> = {}, source = engine):
     PLATFORM_TRIGGER_EVENT_MAP: {}, isPlatformCompany: () => false, isPlatformEvent: () => false,
     jsonResponse: (body: any, status = 200) => ({ body, status }), completeExecutionRun: async () => {},
     fusoDelFlusso: (s: string) => s || "Europe/Rome", matchesAutomationTriggerConfig, evaluateAutomationFilters,
-    resolveAutomationRecord, automationEntityType, loadAutomationCustomFields, automationEventEntity, automationEventPayload, ...globals,
+    resolveAutomationRecord, automationEntityType, loadAutomationCustomFields, automationEventEntity, automationEventPayload,
+    canaleDelFreno, LIMITE_AL_MINUTO, riprovaDopoFreno, ...globals,
   });
 }
 type Call = { table: string; steps: any[][] };
 function db(resolver: (q: Call) => any = () => ({ data: [], error: null })) {
   const calls: Call[] = [];
-  return { calls, from(table: string) {
+  return { calls, async rpc(table: string, args: Record<string, unknown>) {
+    const call = { table, steps: [["rpc", args]] };
+    calls.push(call);
+    return resolver(call);
+  }, from(table: string) {
     const call = { table, steps: [] as any[][] };
     const chain: any = new Proxy({}, { get(_, method) {
       if (method === "then") return (ok: any, bad: any) => { calls.push(call); return Promise.resolve(resolver(call)).then(ok, bad); };
@@ -154,6 +160,35 @@ describe("automation runtime regressions (isolated)", () => {
     const delay = mock.calls.filter(q=>q.table==="automation_queue" && has(q,"update")).map(q=>q.steps.find(s=>s[0]==="update")![1]).find(v=>v.context_json?._email_delay_queue_id);
     if (!resumed) expect(new Date(delay.execute_at).getTime()-Date.now()).toBeGreaterThan(7_100_000);
     else expect(delay).toBeUndefined();
+  });
+  it.each([true, false, "unavailable"])("the send throttle is consulted before dispatch: %s", async slot => {
+    const item = { id: "queue", current_node_id: "email", flow_id: "flow", enrollment_id: "enrollment", entity_id: id, entity_type: "contact", company_id: "company", context_json: {} };
+    const mock = db(q => {
+      if (q.table === "freno_invii_prenota") return slot === "unavailable"
+        ? { data: null, error: { message: "temporarily unavailable" } }
+        : { data: slot, error: null };
+      if (has(q, "update") || has(q, "insert")) return { data: [{ id: "updated" }] };
+      if (q.table === "automation_queue") return { data: [item] };
+      if (q.table === "automation_flows") return { data: has(q, "in") ? [{ id: "flow", status: "published" }] : {} };
+      if (q.table === "automation_enrollments") return { data: { status: "active" } };
+      if (q.table === "automation_nodes") return { data: { id: "email", node_type: "action", config_json: { item_id: "invia_email" } } };
+      return { data: null };
+    });
+    let executed = 0;
+    await load("processQueue", { automationEmailDelayMs, prendiInCarico: async () => ({ presa: true }),
+      dentroLaFinestra: (date: Date) => date, executeNode: async () => { executed++; return { success: true }; },
+      markQueueItem: async () => {}, queueNextNodes: async () => {} })(mock);
+    expect(mock.calls.find(q => q.table === "freno_invii_prenota")?.steps).toEqual([
+      ["rpc", { p_company_id: "company", p_canale: "email", p_limite: LIMITE_AL_MINUTO.email }],
+    ]);
+    expect(executed).toBe(slot === false ? 0 : 1);
+    if (slot === false) {
+      const deferred = mock.calls.filter(q => q.table === "automation_queue")
+        .flatMap(q => q.steps.filter(s => s[0] === "update").map(s => s[1]))
+        .find(update => update.status === "pending");
+      expect(new Date(deferred.execute_at).getTime()).toBeGreaterThan(Date.now() + 59_000);
+      expect(deferred).not.toHaveProperty("context_json");
+    }
   });
   it("WhatsApp selection preserves session metadata and the original record", () => {
     const number = { id, stato: "connected", tags: [] as string[], daily_cap: 10, daily_sent: 0, daily_sent_date: null as string | null, session_id: "mock-session", numero: "+393331234567" };

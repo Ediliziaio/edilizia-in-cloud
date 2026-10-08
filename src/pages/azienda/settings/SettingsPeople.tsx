@@ -1,7 +1,7 @@
 /**
  * Pagina unificata "Persone & Accessi"
  *
- * 7 tab:
+ * Sezioni:
  *  1. Utenti & Accessi  — gestione accessi, ruoli, permessi, sicurezza
  *  2. Sicurezza accessi — governance, rischi, 2FA, multi-azienda
  *  3. Template permessi — template assegnabili
@@ -100,7 +100,7 @@ export default function SettingsPeople() {
       if ((tabParam === "utenti" && canViewUsers) || (tabParam === "sicurezza-accessi" && canViewAccessSecurity)) {
         return tabParam;
       }
-      if (tabParam === "accessi-azienda" && canViewUsers) {
+      if ((tabParam === "accessi-azienda" || tabParam === "commercialista") && canViewUsers) {
         return tabParam;
       }
       if (tabParam === "template-permessi" && canManagePermissionTemplates) {
@@ -116,7 +116,11 @@ export default function SettingsPeople() {
   const activeTab = isMobile && canViewUsers ? "utenti" : resolveDefaultTab();
 
   const handleTabChange = (tab: string) => {
-    setSearchParams({ tab }, { replace: true });
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", tab);
+      return next;
+    }, { replace: true });
   };
 
   const schedeAltro = ([

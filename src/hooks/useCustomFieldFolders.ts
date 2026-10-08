@@ -50,17 +50,7 @@ export function useCustomFieldFolders() {
         .is("deleted_at", null)
         .order("position", { ascending: true })
         .order("name", { ascending: true });
-      if (error) {
-        // v8.6.45 — graceful: la tabella potrebbe non esistere ancora
-        // (migration 20270517130000 pending). Ritorna [] invece di lanciare.
-        if (
-          /marketing_custom_field_folders.*does not exist/i.test(error.message ?? "") ||
-          /relation.*marketing_custom_field_folders.*does not exist/i.test(error.message ?? "")
-        ) {
-          return [];
-        }
-        throw error;
-      }
+      if (error) throw error;
       return (data ?? []) as CustomFieldFolder[];
     },
     enabled: !!companyId,
@@ -106,8 +96,10 @@ export function useCreateCustomFieldFolder() {
 
 export function useUpdateCustomFieldFolder() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async ({ id, ...patch }: { id: string } & Partial<CustomFieldFolderInput>) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       if (patch.name !== undefined) {
         const name = patch.name.trim();
         if (!name) throw new Error("Il nome cartella è obbligatorio");
@@ -118,7 +110,7 @@ export function useUpdateCustomFieldFolder() {
       const { error } = await (supabase as any)
         .from("marketing_custom_field_folders")
         .update(patch)
-        .eq("id", id);
+        .eq("id", id).eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
     onSuccess: () => {
@@ -134,15 +126,17 @@ export function useUpdateCustomFieldFolder() {
 
 export function useDeleteCustomFieldFolder() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       // Soft-delete: marca come eliminata. I campi che la referenziano
       // mantengono folder_id ma il join filtra deleted_at IS NULL.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
         .from("marketing_custom_field_folders")
         .update({ deleted_at: new Date().toISOString() })
-        .eq("id", id);
+        .eq("id", id).eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
     onSuccess: () => {

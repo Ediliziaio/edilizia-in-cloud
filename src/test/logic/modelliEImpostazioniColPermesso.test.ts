@@ -71,9 +71,11 @@ describe("il resto dell'app dice la stessa cosa", () => {
 
   it("Margini in sola lettura per chi non modifica il listino", () => {
     const p = leggi("src/pages/azienda/settings/SettingsMargini.tsx");
-    expect(p).toContain('<fieldset disabled={!puoModificareListino} className="m-0 min-w-0 space-y-6 border-0 p-0">');
-    expect(p).toMatch(/const triggerAutoSave = useCallback\(\(\) => \{\s*if \(!puoModificareListino\) return;/);
-    expect(p).toMatch(/const handleManualSave = \(\) => \{\s*if \(!puoModificareListino\) return;/);
+    expect(p).toContain('<fieldset disabled={!puoModificareListino || isLoading || isError || saveMutation.isPending} className="m-0 min-w-0 space-y-6 border-0 p-0">');
+    expect(p).not.toContain("triggerAutoSave");
+    expect(p).toMatch(/const markDirty = useCallback\(\(\) => \{\s*if \(!puoModificareListino \|\| isLoading \|\| isError\) return;/);
+    expect(p).toMatch(/const handleManualSave = \(\) => \{\s*if \(!puoModificareListino \|\| isLoading \|\| isError \|\| saveMutation.isPending\) return;/);
+    expect(p).toContain('if (!puoModificareListino || isLoading || isError) throw new Error("Carica le impostazioni prima di salvarle.");');
   });
 
   it("Firma elettronica si salva solo con le integrazioni in modifica", () => {

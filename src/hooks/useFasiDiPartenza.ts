@@ -1,5 +1,5 @@
 // src/hooks/useFasiDiPartenza.ts
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { PHASE_TEMPLATES } from "@/hooks/useOrderWorkPhases";
 import { useImpostazioniAvvio } from "@/hooks/useImpostazioniAvvio";
 import { useModelliFasi } from "@/hooks/useModelliFasi";
@@ -17,5 +17,6 @@ export function useFasiDiPartenza() {
   const [scelto, setScelto] = useState<string | null>(null);
   const offerti = useMemo(() => modelliDaOffrire(inizializzati, modelli, PHASE_TEMPLATES), [inizializzati, modelli]);
   const modello: ModelloFasi | null = modelloDiAvvio(offerti, scelto, modelloFasi);
-  return { offerti, modello, scelta: modello?.id ?? "", scegli: (id: string) => setScelto(id) };
+  const scegli = useCallback((id: string | null) => setScelto(id), []);
+  return { offerti, modello, scelta: modello?.id ?? "", scelto, scegli };
 }

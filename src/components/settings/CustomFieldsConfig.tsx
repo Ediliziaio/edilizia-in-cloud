@@ -1,9 +1,10 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1509,7 +1510,8 @@ export function CustomFieldsConfig() {
   const { effectiveCompany } = useAuth();
   // Campi e cartelle li cambia chi ha «Personalizzazione» in modifica: è la
   // stessa regola del database (policy «Permesso personalizzazione»).
-  const { canEditSettingsCustomization: puoModificare } = usePermissions();
+  const permissions = usePermissions();
+  const puoModificare = !permissions.isLoading && permissions.canEditSettingsCustomization;
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
@@ -1536,6 +1538,14 @@ export function CustomFieldsConfig() {
   const [folderColor, setFolderColor] = useState("#1E3A5F");
   const [folderObjectType, setFolderObjectType] = useState<string>("contact");
   const [folderDeleteId, setFolderDeleteId] = useState<string | null>(null);
+  const [fieldBaseline, setFieldBaseline] = useState("");
+  const [folderBaseline, setFolderBaseline] = useState("");
+  const conferma = useSettingsDraftGuard(
+    (dialogOpen && JSON.stringify([name, fieldType, section, objectType, optionsInput, isRequired, helpText]) !== fieldBaseline) ||
+    (folderDialogOpen && JSON.stringify([folderName, folderColor, folderObjectType]) !== folderBaseline),
+  );
+  const chiudiCampo = (open: boolean) => { if (!busy && (open || conferma())) { setDialogOpen(open); if (!open) resetForm(); } };
+  const chiudiCartella = (open: boolean) => { if (!busy && (open || conferma())) setFolderDialogOpen(open); };
 
   // v8.6.45 — Resiliente alla migration `deleted_at` non ancora applicata.
   // Se la colonna non esiste (migration 20270517130000 ancora pending),
@@ -1565,7 +1575,7 @@ export function CustomFieldsConfig() {
   // e ritorno [] + flag per mostrare un banner informativo.
   const [softDeleteSupported, setSoftDeleteSupported] = useState(true);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: deletedFields = [] } = useQuery<any[]>({
+  const { data: deletedFields = [], isLoading: deletedLoading, isError: deletedError, refetch: refetchDeleted } = useQuery<any[]>({
     queryKey: ["marketing_custom_fields_deleted", companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -1592,7 +1602,7 @@ export function CustomFieldsConfig() {
   });
 
   // v8.6.45 — Tab Cartelle: hook CRUD
-  const { data: folders = [] } = useCustomFieldFolders();
+  const { data: folders = [], isLoading: foldersLoading, isError: foldersError, refetch: refetchFolders } = useCustomFieldFolders();
   const createFolder = useCreateCustomFieldFolder();
   const updateFolder = useUpdateCustomFieldFolder();
   const deleteFolder = useDeleteCustomFieldFolder();
@@ -1602,6 +1612,7 @@ export function CustomFieldsConfig() {
     setFolderName("");
     setFolderColor("#1E3A5F");
     setFolderObjectType("contact");
+    setFolderBaseline(JSON.stringify(["", "#1E3A5F", "contact"]));
     setFolderDialogOpen(true);
   };
   const openEditFolderDialog = (f: CustomFieldFolder) => {
@@ -1609,9 +1620,11 @@ export function CustomFieldsConfig() {
     setFolderName(f.name);
     setFolderColor(f.color ?? "#1E3A5F");
     setFolderObjectType(f.object_type ?? "contact");
+    setFolderBaseline(JSON.stringify([f.name, f.color ?? "#1E3A5F", f.object_type ?? "contact"]));
     setFolderDialogOpen(true);
   };
   const submitFolder = () => {
+    if (!puoModificare || foldersError || foldersLoading || busy || !companyId) return;
     if (folderEditId) {
       updateFolder.mutate(
         { id: folderEditId, name: folderName, color: folderColor, object_type: folderObjectType },
@@ -1704,6 +1717,7 @@ export function CustomFieldsConfig() {
 
   const openCreateDialog = () => {
     resetForm();
+    setFieldBaseline(JSON.stringify(["", "text", "general_info", "contact", "", false, ""]));
     setDialogOpen(true);
   };
 
@@ -1720,6 +1734,7 @@ export function CustomFieldsConfig() {
     const raw = customFields.find((f: any) => f.id === field.id) as any;
     setIsRequired(Boolean(raw?.is_required));
     setHelpText(raw?.help_text ?? "");
+    setFieldBaseline(JSON.stringify([field.name, field.fieldType || "text", field.section || field.objectType, field.objectType, (field.options || []).join(", "), Boolean(raw?.is_required), raw?.help_text ?? ""]));
     setDialogOpen(true);
   };
 
@@ -1730,6 +1745,7 @@ export function CustomFieldsConfig() {
   const previewKey = objectType ? `{{ ${objectType}.${toSnakeCase(normalizedName || "nome_campo")} }}` : "";
 
   const validateForm = () => {
+    if (!puoModificare || isLoading || isError) throw new Error("Modifica non consentita: verifica permessi e caricamento dei campi.");
     if (!companyId) throw new Error("Azienda non disponibile");
     if (!normalizedName) throw new Error("Inserisci il nome del campo");
     if (normalizedName.length > 100) throw new Error("Il nome del campo deve restare sotto i 100 caratteri");
@@ -1767,6 +1783,7 @@ export function CustomFieldsConfig() {
       const { error } = await (supabase as any).from("marketing_custom_fields").insert(fullPayload);
       if (error) {
         if (/is_required|help_text.*does not exist/i.test(error.message ?? "")) {
+          if (isRequired || helpText.trim()) throw new Error("Obbligatorietà e testo di aiuto non sono ancora disponibili. Nessun campo è stato salvato.");
           // Migration C5 pending — retry senza i nuovi campi
           const { error: retryErr } = await supabase.from("marketing_custom_fields").insert({
             company_id: companyId!,
@@ -1823,9 +1840,10 @@ export function CustomFieldsConfig() {
           help_text: helpText.trim() || null,
         })
         .eq("id", editTarget.id)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId).select("id").single();
       if (error) {
         if (/is_required|help_text.*does not exist/i.test(error.message ?? "")) {
+          if (isRequired || helpText.trim()) throw new Error("Obbligatorietà e testo di aiuto non sono ancora disponibili. Le modifiche non sono state salvate.");
           const { error: retryErr } = await supabase
             .from("marketing_custom_fields")
             .update({
@@ -1836,7 +1854,7 @@ export function CustomFieldsConfig() {
               object_type: objectType,
             })
             .eq("id", editTarget.id)
-            .eq("company_id", companyId);
+            .eq("company_id", companyId).select("id").single();
           if (retryErr) throw retryErr;
         } else {
           throw error;
@@ -1860,6 +1878,7 @@ export function CustomFieldsConfig() {
   // il campo torna disponibile in 1 click. Lo manteniamo come WARNING.
   const deleteMutation = useMutation({
     mutationFn: async ({ id, force }: { id: string; force?: boolean }) => {
+      if (!puoModificare || isError || isLoading) throw new Error("Modifica non consentita");
       if (!companyId) throw new Error("Azienda non disponibile");
       const usage = await getCustomFieldUsageCounts(id);
       if (!force && (usage.contacts > 0 || usage.opportunities > 0 || usage.entities > 0)) {
@@ -1871,15 +1890,16 @@ export function CustomFieldsConfig() {
         .from("marketing_custom_fields")
         .update({ deleted_at: new Date().toISOString() })
         .eq("id", id)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId).select("id").single();
       if (error) {
         // Migration pending: fallback hard-delete (backward compat)
         if (/deleted_at.*does not exist/i.test(error.message ?? "")) {
+          if (usage.contacts > 0 || usage.opportunities > 0 || usage.entities > 0) throw new CustomFieldInUseError(usage);
           const { error: hardErr } = await supabase
             .from("marketing_custom_fields")
             .delete()
             .eq("id", id)
-            .eq("company_id", companyId);
+            .eq("company_id", companyId).select("id").single();
           if (hardErr) throw hardErr;
           return { hard: true };
         }
@@ -1910,13 +1930,14 @@ export function CustomFieldsConfig() {
   // v8.6.45 — Ripristina un campo soft-deleted (UPDATE deleted_at = null)
   const restoreMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!puoModificare || deletedError || deletedLoading) throw new Error("Modifica non consentita");
       if (!companyId) throw new Error("Azienda non disponibile");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
         .from("marketing_custom_fields")
         .update({ deleted_at: null })
         .eq("id", id)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1931,6 +1952,7 @@ export function CustomFieldsConfig() {
   // tab Eliminati. Solo se non hanno valori storici associati.
   const purgeMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!puoModificare || deletedError || deletedLoading) throw new Error("Modifica non consentita");
       if (!companyId) throw new Error("Azienda non disponibile");
       const usage = await getCustomFieldUsageCounts(id);
       if (usage.contacts > 0 || usage.opportunities > 0 || usage.entities > 0) {
@@ -1940,7 +1962,7 @@ export function CustomFieldsConfig() {
         .from("marketing_custom_fields")
         .delete()
         .eq("id", id)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1957,6 +1979,8 @@ export function CustomFieldsConfig() {
     },
   });
 
+  const busy = addMutation.isPending || updateMutation.isPending || deleteMutation.isPending || restoreMutation.isPending || purgeMutation.isPending || createFolder.isPending || updateFolder.isPending || deleteFolder.isPending;
+  useSettingsDraftGuard(busy);
   const copyKey = (key: string) => {
     navigator.clipboard
       .writeText(key)
@@ -1969,11 +1993,8 @@ export function CustomFieldsConfig() {
   const safePage = Math.min(currentPage, totalPages);
   const visibleFields = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  // Reset page on filter/search changes
-  useEffect(() => { setCurrentPage(1); }, [search, activeTab, groupBy]);
-
   return (
-    <div className="space-y-0">
+    <div className="min-w-0 space-y-0 max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:grid max-md:[&_tr]:grid-cols-2 max-md:[&_tr]:gap-x-2 max-md:[&_tr]:p-2 max-md:[&_td]:block max-md:[&_td]:min-w-0 max-md:[&_td]:break-words max-md:[&_td]:p-1">
       {/* ── Header tabs + buttons ──
           v8.6.45 — 2 tab prima `disabled` ora attive:
           - "Cartelle": CRUD folders custom
@@ -1981,7 +2002,7 @@ export function CustomFieldsConfig() {
       {/* v8.6.74 — flex-wrap su mobile: prima i 3 tabs + button "Aggiungi
           campo" andavano in overflow su 375px → button tagliato a destra. */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 mb-0">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="min-w-0">
+        <Tabs value={activeTab} onValueChange={(tab) => { if (!busy && conferma()) { setActiveTab(tab); setCurrentPage(1); } }} className="min-w-0 max-w-full">
           <TabsList className="bg-transparent h-auto p-0 gap-0 overflow-x-auto max-w-full">
             <TabsTrigger value="all" className="rounded-none border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-3 sm:px-4 pb-2.5 pt-1 shrink-0">
               Tutti i campi
@@ -2002,11 +2023,11 @@ export function CustomFieldsConfig() {
 
         <div className="flex items-center gap-2 pb-1 shrink-0 w-full sm:w-auto">
           {!puoModificare ? null : activeTab === "folders" ? (
-            <Button size="sm" onClick={openCreateFolderDialog} disabled={!companyId} className="w-full sm:w-auto">
+            <Button size="sm" onClick={openCreateFolderDialog} disabled={!companyId || foldersLoading || foldersError || busy} className="w-full sm:w-auto">
               <FolderPlus className="h-4 w-4 mr-1.5" /> Aggiungi cartella
             </Button>
           ) : (
-            <Button size="sm" onClick={openCreateDialog} disabled={!companyId} className="w-full sm:w-auto">
+            <Button size="sm" onClick={openCreateDialog} disabled={!companyId || isLoading || isError || busy} className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-1.5" /> Aggiungi campo
             </Button>
           )}
@@ -2023,19 +2044,20 @@ export function CustomFieldsConfig() {
 
       {/* ── Search bar (solo su "all") ── */}
       {activeTab === "all" && (
-      <div className="flex items-center justify-between gap-3 py-3">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:flex-1 sm:max-w-sm">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Cerca"
+            aria-label="Cerca campi personalizzati"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             className="pl-8 h-9"
           />
         </div>
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <span>Raggruppa per:</span>
-          <Select value={groupBy} onValueChange={setGroupBy}>
+          <Select value={groupBy} onValueChange={(group) => { setGroupBy(group); setCurrentPage(1); }}>
             <SelectTrigger className="h-8 w-[160px] text-sm">
               <SelectValue />
             </SelectTrigger>
@@ -2100,14 +2122,14 @@ export function CustomFieldsConfig() {
               ) : (
                 visibleFields.map((f) => (
                   <TableRow key={f.id} className="group">
-                    <TableCell className="px-3">
+                    <TableCell className="max-md:!hidden px-3 md:table-cell">
                       {f.isSystem ? (
                         <Lock className="h-3.5 w-3.5 text-muted-foreground/50" />
                       ) : (
-                        <Checkbox />
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="font-medium text-sm">{f.name}</TableCell>
+                    <TableCell className="col-span-2 font-medium text-sm">{f.name}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       <span className="inline-flex items-center gap-1.5">
                         {f.object}
@@ -2126,24 +2148,24 @@ export function CustomFieldsConfig() {
                         {FOLDER_LABELS[f.folder] || f.folder}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{f.uniqueKey}</code>
+                    <TableCell className="col-span-2">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <code className="min-w-0 break-all text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{f.uniqueKey}</code>
                         <button
                           onClick={() => copyKey(f.uniqueKey)}
                           aria-label="Copia chiave campo"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                          className="shrink-0 p-2 text-muted-foreground hover:text-foreground"
                         >
                           <Copy className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground md:max-xl:hidden">
+                    <TableCell className="max-md:!hidden text-sm text-muted-foreground md:max-xl:hidden">
                       {formatSafeDate(f.createdAt)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className={f.isSystem ? "max-md:!hidden" : "col-span-2"}>
                       {!f.isSystem && (
-                        <div className={puoModificare ? "flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity" : "hidden"}>
+                        <div className={puoModificare ? "flex items-center justify-end gap-1" : "hidden"}>
                           <Button
                             size="icon"
                             variant="ghost"
@@ -2176,7 +2198,7 @@ export function CustomFieldsConfig() {
       ))}
 
       {/* ── Footer pagination (solo tab "all") ── */}
-      {activeTab === "all" && (
+      {activeTab === "all" && !isLoading && !isError && (
         <TablePagination
           currentPage={safePage}
           totalPages={totalPages}
@@ -2202,7 +2224,7 @@ export function CustomFieldsConfig() {
               </AlertDescription>
             </Alert>
           )}
-          {folders.length === 0 ? (
+          {foldersError ? <div role="alert" className="space-y-2 rounded-lg border p-4 text-sm"><p>Impossibile leggere le cartelle.</p><Button variant="outline" size="sm" onClick={() => void refetchFolders()}>Riprova</Button></div> : foldersLoading ? <p role="status">Caricamento cartelle…</p> : folders.length === 0 ? (
             <div className="rounded-lg border-2 border-dashed p-10 text-center">
               <FolderOpen className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
               <p className="text-sm font-medium">Nessuna cartella creata</p>
@@ -2249,7 +2271,7 @@ export function CustomFieldsConfig() {
                         {formatSafeDate(f.created_at)}
                       </TableCell>
                       <TableCell>
-                        <div className={puoModificare ? "flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity" : "hidden"}>
+                        <div className={puoModificare ? "flex items-center justify-end gap-1" : "hidden"}>
                           <Button
                             size="icon" aria-label="Modifica cartella"
                             variant="ghost"
@@ -2292,7 +2314,7 @@ export function CustomFieldsConfig() {
               </AlertDescription>
             </Alert>
           )}
-          {deletedFields.length === 0 ? (
+          {deletedError ? <div role="alert" className="space-y-2 rounded-lg border p-4 text-sm"><p>Impossibile leggere i campi eliminati.</p><Button variant="outline" size="sm" onClick={() => void refetchDeleted()}>Riprova</Button></div> : deletedLoading ? <p role="status">Caricamento campi eliminati…</p> : deletedFields.length === 0 ? (
             <div className="rounded-lg border-2 border-dashed p-10 text-center">
               <Trash2 className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
               <p className="text-sm font-medium">Nessun campo eliminato</p>
@@ -2323,7 +2345,7 @@ export function CustomFieldsConfig() {
                       <TableCell className="text-sm text-muted-foreground">
                         {(f as { deleted_at?: string }).deleted_at ? formatSafeDate((f as { deleted_at?: string }).deleted_at!) : "—"}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="col-span-2">
                         <div className={puoModificare ? "flex items-center justify-end gap-1" : "hidden"}>
                           <Button
                             size="sm"
@@ -2361,12 +2383,12 @@ export function CustomFieldsConfig() {
       )}
 
       {/* Dialog Cartelle */}
-      <Dialog open={folderDialogOpen} onOpenChange={setFolderDialogOpen}>
+      <Dialog open={folderDialogOpen} onOpenChange={chiudiCartella}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{folderEditId ? "Modifica cartella" : "Nuova cartella"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <fieldset disabled={busy} className="m-0 min-w-0 space-y-4 border-0 p-0 py-2">
             <div className="space-y-1.5">
               <Label htmlFor="folder-name">Nome cartella *</Label>
               <Input
@@ -2403,9 +2425,9 @@ export function CustomFieldsConfig() {
                 <code className="text-xs text-muted-foreground font-mono">{folderColor}</code>
               </div>
             </div>
-          </div>
+          </fieldset>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFolderDialogOpen(false)}>Annulla</Button>
+            <Button variant="outline" disabled={busy} onClick={() => chiudiCartella(false)}>Annulla</Button>
             <Button
               onClick={submitFolder}
               disabled={!folderName.trim() || createFolder.isPending || updateFolder.isPending}
@@ -2466,23 +2488,20 @@ export function CustomFieldsConfig() {
       {/* ── Add field dialog ── */}
       <Dialog
         open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) resetForm();
-        }}
+        onOpenChange={chiudiCampo}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editTarget ? "Modifica Campo Personalizzato" : "Nuovo Campo Personalizzato"}</DialogTitle>
             <DialogDescription>
               Configura il campo e verifica l'anteprima prima di salvarlo. I dati esistenti vengono protetti da modifiche distruttive.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <fieldset disabled={busy} className="m-0 min-w-0 space-y-4 border-0 p-0">
             <div className="space-y-1.5">
-              <Label>Oggetto *</Label>
+              <Label htmlFor="cf-object">Oggetto *</Label>
               <Select value={objectType} onValueChange={handleObjectTypeChange}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="cf-object"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {GROUP_OPTIONS.filter((g) => g.value !== "all").map((g) => (
                     <SelectItem key={g.value} value={g.value}>
@@ -2510,15 +2529,16 @@ export function CustomFieldsConfig() {
               )}
             </div>
             <div className="space-y-1.5">
-              <Label>Nome del campo *</Label>
+              <Label htmlFor="cf-name">Nome del campo *</Label>
               <Input
+                id="cf-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="es. Tipo di caldaia"
                 maxLength={100}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Tipo</Label>
                 <Select value={fieldType} onValueChange={setFieldType}>
@@ -2558,7 +2578,7 @@ export function CustomFieldsConfig() {
             )}
             {/* v8.6.46 — C5: validazione + UX (is_required + help_text) */}
             <div className="space-y-3 pt-2 border-t">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Checkbox
                   id="cf-required"
                   checked={isRequired}
@@ -2599,9 +2619,9 @@ export function CustomFieldsConfig() {
                 </p>
               )}
             </div>
-          </div>
+          </fieldset>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
+            <Button variant="outline" disabled={busy} onClick={() => chiudiCampo(false)}>Annulla</Button>
             <Button
               onClick={() => editTarget ? updateMutation.mutate() : addMutation.mutate()}
               disabled={!companyId || !normalizedName || (needsOptions && normalizedOptions.length === 0) || addMutation.isPending || updateMutation.isPending}

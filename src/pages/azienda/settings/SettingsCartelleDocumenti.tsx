@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -26,15 +28,16 @@ const messaggio = (e: unknown) => (e instanceof Error ? e.message : String(e));
 function useDocumentiPerCartella(ids: string[]) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cartelle-documenti-uso", companyId, ids.length],
+    queryKey: ["cartelle-documenti-uso", companyId, [...ids].sort()],
     enabled: !!companyId && ids.length > 0,
     queryFn: async (): Promise<Record<string, number>> => {
       const risultati = await Promise.all(
         ids.map(async (id) => {
-          const { count } = await supabase
+          const { count, error } = await supabase
             .from("order_attachments")
             .select("id", { count: "exact", head: true })
             .eq("folder_id" as never, id as never);
+          if (error) throw error;
           return [id, count ?? 0] as const;
         }),
       );
@@ -45,29 +48,33 @@ function useDocumentiPerCartella(ids: string[]) {
 
 export default function SettingsCartelleDocumenti() {
   const permissions = usePermissions();
-  const canEdit = permissions.isAdmin || permissions.canEditSettingsOrders;
-  const { cartelle: tutte, isLoading } = useCartelleDocumenti({ tutte: true });
+  const { cartelle: tutte, isLoading, isError, refetch } = useCartelleDocumenti({ tutte: true });
   const salva = useSalvaCartella();
   const riordina = useRiordinaCartelle();
 
   const attive = tutte.filter((c) => !c.archiviata_at);
   const archiviate = tutte.filter((c) => c.archiviata_at);
-  const { data: uso } = useDocumentiPerCartella(tutte.map((c) => c.id));
+  const { data: uso, isError: erroreConteggi, refetch: ricaricaConteggi } = useDocumentiPerCartella(tutte.map((c) => c.id));
+  const busy = salva.isPending || riordina.isPending;
+  const canEdit = !permissions.isLoading && !isLoading && !isError && (permissions.isAdmin || permissions.canEditSettingsOrders);
 
   const [nuova, setNuova] = useState("");
   const [inModifica, setInModifica] = useState<{ id: string; nome: string } | null>(null);
   const [daArchiviare, setDaArchiviare] = useState<CartellaDocumenti | null>(null);
+  const confermaUscita = useSettingsDraftGuard(!!nuova.trim() || !!inModifica || busy);
 
   const conErrore = (titolo: string) => (e: unknown) => toast.error(titolo, { description: messaggio(e) });
 
-  const aggiungi = () =>
+  const aggiungi = () => {
+    if (!canEdit || busy || !nuova.trim()) return;
     salva.mutate({ nome: nuova }, {
       onSuccess: () => { toast.success(`Cartella «${nuova.trim()}» aggiunta`); setNuova(""); },
       onError: conErrore("Cartella non aggiunta"),
     });
+  };
 
   const salvaNome = () => {
-    if (!inModifica) return;
+    if (!inModifica || !canEdit || busy) return;
     salva.mutate({ id: inModifica.id, nome: inModifica.nome }, {
       onSuccess: () => { setInModifica(null); toast.success("Nome aggiornato"); },
       onError: conErrore("Nome non aggiornato"),
@@ -75,6 +82,7 @@ export default function SettingsCartelleDocumenti() {
   };
 
   const sposta = (indice: number, verso: -1 | 1) => {
+    if (!canEdit || busy) return;
     const ids = attive.map((c) => c.id);
     const j = indice + verso;
     if (j < 0 || j >= ids.length) return;
@@ -82,31 +90,35 @@ export default function SettingsCartelleDocumenti() {
     riordina.mutate(ids, { onError: conErrore("Ordine non salvato") });
   };
 
-  const imposta = (c: CartellaDocumenti, patch: Partial<CartellaDocumenti>) =>
+  const imposta = (c: CartellaDocumenti, patch: Partial<CartellaDocumenti>) => {
+    if (!canEdit || busy) return;
     salva.mutate({ id: c.id, ...patch }, { onError: conErrore("Modifica non salvata") });
+  };
 
   return (
     <div className="space-y-4 max-w-3xl">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Cartelle documenti</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-base">Organizzazione dei documenti</CardTitle>
+          <CardDescription>Le stesse cartelle vengono usate in tutte le commesse. Le modifiche si salvano subito.</CardDescription>
+          <details className="text-sm text-muted-foreground"><summary className="cursor-pointer">Visibilità cliente e documenti obbligatori</summary><p className="mt-2">
             Le cartelle in cui si dividono i documenti di ogni commessa. Quando si carica un file
             la cartella viene proposta dal nome («fattura…» → Fatture, «visura…» → Catastali) e si
             può cambiare. <strong>Cliente</strong>: i file caricati nella cartella nascono visibili
             nell'area del cliente. <strong>Obbligatoria</strong>: la commessa segnala «Mancano» finché
             la cartella è vuota.
-          </CardDescription>
+          </p></details>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isLoading ? (
+          {isError ? <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-2">Cartelle non disponibili. Nessuna modifica verrà salvata.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription></Alert> : isLoading ? (
             <div className="space-y-2">
               {[0, 1, 2].map((i) => <Skeleton key={i} className="h-11 w-full" />)}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
+            <div>
+              {erroreConteggi && <Alert className="mb-3"><AlertDescription>Conteggi non disponibili: non sono zero.<Button size="sm" variant="ghost" onClick={() => ricaricaConteggi()}>Ricalcola</Button></AlertDescription></Alert>}
+              <table className="block w-full text-sm md:table">
+                <thead className="hidden md:table-header-group">
                   <tr className="text-xs text-muted-foreground border-b">
                     <th className="text-left font-medium py-2 pr-2">Cartella</th>
                     <th className="text-right font-medium py-2 px-2 whitespace-nowrap">Documenti</th>
@@ -115,16 +127,18 @@ export default function SettingsCartelleDocumenti() {
                     {canEdit && <th className="py-2 pl-2"><span className="sr-only">Azioni</span></th>}
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="block space-y-3 md:table-row-group md:space-y-0 md:divide-y">
                   {attive.map((c, i) => {
                     const modifica = inModifica?.id === c.id;
                     return (
-                      <tr key={c.id}>
-                        <td className="py-1.5 pr-2 min-w-[200px]">
+                      <tr key={c.id} className="grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg border p-2.5 md:table-row md:rounded-none md:border-0 md:p-0">
+                        <td className="col-span-2 min-w-0 py-1.5 md:pr-2">
                           {modifica ? (
                             <Input
                               id={`nome-cartella-${c.id}`}
                               autoFocus
+                              aria-label={`Nome cartella ${c.nome}`}
+                              disabled={busy}
                               value={inModifica.nome}
                               onChange={(e) => setInModifica({ ...inModifica, nome: e.target.value })}
                               onKeyDown={(e) => {
@@ -134,32 +148,35 @@ export default function SettingsCartelleDocumenti() {
                               className="h-8"
                             />
                           ) : (
-                            <span className="flex items-center gap-2">
+                            <span className="flex min-w-0 items-center gap-2">
                               <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
-                              {c.nome}
+                              <span className="min-w-0 flex-1 break-words">{c.nome}</span>
+                              <span className="shrink-0 text-xs text-muted-foreground md:hidden" aria-label="Documenti nella cartella">{erroreConteggi ? "–" : uso?.[c.id] ?? "–"} doc.</span>
                             </span>
                           )}
                         </td>
-                        <td className="py-1.5 px-2 text-right tabular-nums text-muted-foreground">{uso?.[c.id] ?? "–"}</td>
-                        <td className="py-1.5 px-2 text-center">
+                        <td className="hidden py-1.5 text-xs tabular-nums text-muted-foreground md:table-cell md:px-2 md:text-right">{erroreConteggi ? "–" : uso?.[c.id] ?? "–"}</td>
+                        <td className="flex items-center justify-between gap-1 py-1 px-0 md:table-cell md:py-1.5 md:px-2 md:text-center">
+                          <span className="text-xs md:hidden">Cliente</span>
                           <Switch
                             checked={c.visibile_cliente}
-                            disabled={!canEdit}
+                            disabled={!canEdit || busy}
                             onCheckedChange={(v) => imposta(c, { visibile_cliente: v })}
                             aria-label={`File di «${c.nome}» visibili al cliente`}
                           />
                         </td>
-                        <td className="py-1.5 px-2 text-center">
+                        <td className="flex items-center justify-between gap-1 py-1 px-0 md:table-cell md:py-1.5 md:px-2 md:text-center">
+                          <span className="text-xs md:hidden">Obbligatoria</span>
                           <Switch
                             checked={c.obbligatoria}
-                            disabled={!canEdit}
+                            disabled={!canEdit || busy}
                             onCheckedChange={(v) => imposta(c, { obbligatoria: v })}
                             aria-label={`«${c.nome}» obbligatoria`}
                           />
                         </td>
                         {canEdit && (
-                          <td className="py-1.5 pl-2">
-                            <div className="flex justify-end gap-0.5">
+                          <td className="col-span-2 pt-1 md:py-1.5 md:pl-2">
+                            <fieldset disabled={busy} className="m-0 min-w-0 border-0 p-0 flex justify-end gap-1">
                               {modifica ? (
                                 <>
                                   <Button size="icon" variant="ghost" className="h-8 w-8" onClick={salvaNome} disabled={salva.isPending} aria-label="Salva nome">
@@ -177,7 +194,7 @@ export default function SettingsCartelleDocumenti() {
                                   <Button size="icon" variant="ghost" className="h-8 w-8" disabled={i === attive.length - 1 || riordina.isPending} onClick={() => sposta(i, 1)} aria-label={`Sposta giù «${c.nome}»`}>
                                     <ArrowDown className="h-4 w-4" />
                                   </Button>
-                                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setInModifica({ id: c.id, nome: c.nome })} aria-label={`Rinomina «${c.nome}»`}>
+                                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { if (confermaUscita()) setInModifica({ id: c.id, nome: c.nome }); }} aria-label={`Rinomina «${c.nome}»`}>
                                     <Pencil className="h-4 w-4" />
                                   </Button>
                                   <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setDaArchiviare(c)} aria-label={`Archivia «${c.nome}»`}>
@@ -185,7 +202,7 @@ export default function SettingsCartelleDocumenti() {
                                   </Button>
                                 </>
                               )}
-                            </div>
+                            </fieldset>
                           </td>
                         )}
                       </tr>
@@ -208,12 +225,14 @@ export default function SettingsCartelleDocumenti() {
               <Input
                 id="nuova-cartella-documenti"
                 placeholder="Nuova cartella, es. Enel I-II-GSE"
+                aria-label="Nuova cartella"
+                disabled={busy}
                 value={nuova}
                 onChange={(e) => setNuova(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && nuova.trim()) aggiungi(); }}
                 className="h-9"
               />
-              <Button onClick={aggiungi} disabled={!nuova.trim() || salva.isPending} className="h-9 shrink-0">
+              <Button size="sm" onClick={aggiungi} disabled={!nuova.trim() || busy} className="h-9 shrink-0">
                 <Plus className="h-4 w-4 mr-1" /> Aggiungi
               </Button>
             </div>
@@ -240,6 +259,7 @@ export default function SettingsCartelleDocumenti() {
                     <Button
                       size="sm"
                       variant="ghost"
+                      disabled={busy}
                       onClick={() =>
                         salva.mutate({ id: c.id, archiviata_at: null }, {
                           onSuccess: () => toast.success(`«${c.nome}» ripristinata`),
@@ -273,7 +293,7 @@ export default function SettingsCartelleDocumenti() {
             <AlertDialogAction
               onClick={() => {
                 const c = daArchiviare;
-                if (!c) return;
+                if (!c || !canEdit || busy) return;
                 salva.mutate({ id: c.id, archiviata_at: new Date().toISOString() }, {
                   onSuccess: () => toast.success(`«${c.nome}» archiviata`),
                   onError: conErrore("Cartella non archiviata"),

@@ -1,7 +1,7 @@
 import type { ContextType } from "react";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
@@ -128,9 +128,7 @@ describe("Superadmin: gestione pipeline interna", () => {
 
   it("rinomina senza toccare le pipeline delle aziende", async () => {
     mount();
-    const pipeline = await screen.findByText("Vendita SaaS");
-    const row = pipeline.closest("div.cursor-pointer") ?? pipeline.closest("div").parentElement!;
-    fireEvent.pointerDown(within(row as HTMLElement).getByRole("button"), { button: 0, ctrlKey: false, pointerType: "mouse" });
+    fireEvent.pointerDown(await screen.findByRole("button", { name: "Azioni Vendita SaaS" }), { button: 0, ctrlKey: false, pointerType: "mouse" });
     fireEvent.click(await screen.findByRole("menuitem", { name: "Rinomina" }));
     fireEvent.change(screen.getByDisplayValue("Vendita SaaS"), { target: { value: "Vendite interne" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva" }));

@@ -121,14 +121,13 @@ export default function SettingsFatturazioneUnified() {
               </AlertDescription>
             </Alert>
           )}
-          {/* Disabilita interazioni se non-native via pointer-events + opacity.
-              I form interni continuano a renderizzare le INFO ma non sono submittibili
-              perché tutti i submit usano edge function che require billing_mode=native. */}
-          <div className={!isLoading && !isNative ? "pointer-events-none opacity-70" : ""}>
+          {/* Sola lettura reale anche da tastiera: fieldset disabilitato e inert.
+              Il controllo della modalità resta anche nelle funzioni server. */}
+          <fieldset disabled={isLoading || !isNative} ref={(element) => { element?.toggleAttribute("inert", isLoading || !isNative); }} className={isLoading || !isNative ? "m-0 min-w-0 border-0 p-0 opacity-70" : "m-0 min-w-0 border-0 p-0"}>
             <Suspense fallback={<TabFallback />}>
               <ImpostazioniFatturazione />
             </Suspense>
-          </div>
+          </fieldset>
         </TabsContent>
       </Tabs>
     </div>

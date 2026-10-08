@@ -12,9 +12,12 @@ const SORGENTE = readFileSync(join(__dirname, "../../pages/azienda/CreateOrder.t
 
 describe("fasi di partenza nel modulo di nuova commessa", () => {
   it("le fasi scelte si aggiungono dopo la RPC, dal server, e un errore non fa sparire la commessa", () => {
-    const rpc = SORGENTE.indexOf('.rpc("aggiungi_fasi_commessa"');
+    const rpc = SORGENTE.indexOf('await salvaFasiDiPartenza(');
     expect(rpc).toBeGreaterThan(SORGENTE.indexOf('createOrderAtomic("create_order_atomic"'));
-    expect(SORGENTE).toContain("p_fasi: fasiPerCommessa(fasiDiPartenza.modello)");
+    expect(SORGENTE).toContain("salvaFasiDiPartenza(result.id, fasiDaCreare");
+    expect(SORGENTE).toContain("createdOrderIdRef.current = result.id");
+    expect(SORGENTE).toContain("createOrderMutation.isPending || createdOrderIdRef.current");
+    expect(SORGENTE).toContain("saveDraft({ ...datiBozza, commessaCreataId: result.id })");
     expect(SORGENTE).toContain('toast.error("Fasi non aggiunte"');
     expect(SORGENTE.slice(rpc, SORGENTE.indexOf("return result;", rpc))).not.toContain("throw");
   });
@@ -23,11 +26,12 @@ describe("fasi di partenza nel modulo di nuova commessa", () => {
     expect(SORGENTE).not.toContain("commessa_avvia");
   });
 
-  it("il selettore è nella scheda «Tempistiche per il Cliente», sotto le date, e una volta sola", () => {
-    const scheda = SORGENTE.indexOf('title="Tempistiche per il Cliente"');
+  it("pianificazione, modello e anteprima sono nella stessa scheda, una volta sola", () => {
+    const scheda = SORGENTE.indexOf('title="Pianificazione lavori"');
     const fine = SORGENTE.indexOf("</QuoteCard>", scheda);
     expect(SORGENTE.match(/<FasiDiPartenzaSelect/g)).toHaveLength(1);
-    expect(SORGENTE.indexOf("<FasiDiPartenzaSelect")).toBeGreaterThan(SORGENTE.indexOf('label="Fine Lavori"', scheda));
+    expect(SORGENTE.indexOf("<FasiDiPartenzaSelect")).toBeGreaterThan(SORGENTE.indexOf('<PianificazioneCommessa', scheda));
     expect(SORGENTE.indexOf("<FasiDiPartenzaSelect")).toBeLessThan(fine);
+    expect(SORGENTE.indexOf("<AnteprimaFasiCommessa", scheda)).toBeLessThan(fine);
   });
 });

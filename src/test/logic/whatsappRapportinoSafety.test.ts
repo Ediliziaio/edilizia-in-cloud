@@ -6,7 +6,7 @@ import type { ToolCtx } from "../../../supabase/functions/whatsapp-ai-processor/
 let db: DbMinimo; let ctx: ToolCtx;
 const input = { order_id: "order", data_lavoro: "2026-10-07", ore_lavorate: 7.25, attivita: ["Posa pavimento"] };
 const row = () => ({ id: "report", company_id: "company", user_id: "user", order_id: "order", data_lavoro: input.data_lavoro,
-  stato: "bozza", updated_at: "2026-10-07T10:00:00Z", ore_lavorate: 7.25, ore_straordinario: 0, descrizione_lavori: "Preparazione", materiali_usati: [], note: null });
+  stato: "bozza", updated_at: "2026-10-07T10:00:00Z", ore_lavorate: 7.25, ore_straordinario: 0, descrizione_lavori: "Preparazione", materiali_usati: [] as unknown[], note: null as string | null });
 beforeEach(() => {
   db = new DbMinimo();
   db.tabelle.orders = [{ id: "order", company_id: "company", order_code: "TEST-01", description: "Cantiere test" }];

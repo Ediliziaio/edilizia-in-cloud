@@ -136,6 +136,7 @@ interface Message {
   channel_id: string;
   sender_id: string;
   content: string;
+  streaming?: boolean | null;
   reply_to_id: string | null;
   attachment_url: string | null;
   attachment_name: string | null;
@@ -1111,7 +1112,7 @@ const MessageBubble = React.memo(function MessageBubble({
             isAIMsg ? (
               // Silvio + Lucia + canale AI: render markdown completo (### → h3, **bold**, liste, tabelle, [S1] chip)
               <div className="text-[14px] break-words pr-14">
-                <SilvioAnswer content={msg.content} sources={msg.rag_sources ?? undefined} />
+                <SilvioAnswer content={msg.content} streaming={msg.streaming === true} sources={msg.rag_sources ?? undefined} />
               </div>
             ) : (
               <p className="text-[14px] whitespace-pre-wrap break-words pr-14 leading-relaxed">

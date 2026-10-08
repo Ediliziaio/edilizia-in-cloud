@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Loader2, Save, Building2, FileText, Phone, MapPin, StickyNote } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { campiMarginiModificati } from "@/lib/impostazioni/salvataggioMargini";
 
 const sectorLabels: Record<string, string> = {
   serramenti: "Serramenti",
@@ -48,6 +50,25 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
   const [operationalPostalCode, setOperationalPostalCode] = useState("");
   const [notes, setNotes] = useState("");
   const [orderCodePrefix, setOrderCodePrefix] = useState("O");
+  const [prefixResult, setPrefixResult] = useState<{ companyId?: string; error?: boolean }>({});
+  const prefixLoading = prefixResult.companyId !== company?.id;
+  const prefixError = !!prefixResult.error;
+  const [baseline, setBaseline] = useState<Record<string, string | null> | null>(null);
+  const hydratedCompany = useRef<string | undefined>(undefined);
+  const values = {
+    business_name: businessName.trim() || null, vat_number: vatNumber.trim() || null,
+    fiscal_code: fiscalCode.trim() || null, pec: pec.trim() || null, sdi_code: sdiCode.trim() || null,
+    phone: phone.trim() || null, website: website.trim() || null,
+    legal_address: legalAddress.trim() || null, legal_city: legalCity.trim() || null,
+    legal_province: legalProvince.trim() || null, legal_postal_code: legalPostalCode.trim() || null,
+    operational_address: operationalAddress.trim() || null, operational_city: operationalCity.trim() || null,
+    operational_province: operationalProvince.trim() || null, operational_postal_code: operationalPostalCode.trim() || null,
+    notes: notes.trim() || null, order_code_prefix: orderCodePrefix.trim() || "O",
+  };
+  const isDirty = baseline !== null && Object.keys(campiMarginiModificati(values, baseline)).length > 0;
+  const dirtyRef = useRef(false);
+  useEffect(() => { dirtyRef.current = isDirty; }, [isDirty]);
+  useSettingsDraftGuard((canEdit && isDirty) || isSaving);
 
   // Prefisso codice commessa: letto direttamente dal DB (può non essere nel
   // context auth se la sessione è precedente alla colonna).
@@ -55,13 +76,17 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
     if (!company?.id) return;
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("companies")
         .select("order_code_prefix")
         .eq("id", company.id)
         .maybeSingle();
       if (!cancelled) {
-        setOrderCodePrefix(((data as { order_code_prefix?: string } | null)?.order_code_prefix) || "O");
+        setPrefixResult({ companyId: company.id, error: !!error || !data });
+        if (error || !data) return;
+        const prefix = ((data as { order_code_prefix?: string } | null)?.order_code_prefix) || "O";
+        setBaseline(prev => prev ? { ...prev, order_code_prefix: prefix } : prev);
+        setOrderCodePrefix(prefix);
       }
     })();
     return () => { cancelled = true; };
@@ -69,6 +94,11 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
 
   useEffect(() => {
     if (company) {
+      if (hydratedCompany.current === company.id && dirtyRef.current) return;
+      hydratedCompany.current = company.id;
+      setBaseline(Object.fromEntries(Object.keys(values).map(key => [key,
+        key === "order_code_prefix" ? orderCodePrefix.trim() || "O" : ((company as unknown as Record<string, string | null>)[key] ?? "").trim() || null,
+      ])));
       setBusinessName(company.business_name || "");
       setVatNumber(company.vat_number || "");
       setFiscalCode(company.fiscal_code || "");
@@ -89,10 +119,10 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
       // Check if addresses are the same
       const legal = [company.legal_address, company.legal_city, company.legal_province, company.legal_postal_code].join("|");
       const operational = [company.operational_address, company.operational_city, company.operational_province, company.operational_postal_code].join("|");
-      if (legal === operational && legal !== "|||") {
-        setSameAddress(true);
-      }
+      setSameAddress(legal === operational && legal !== "|||");
     }
+    // La reidratazione segue i dati remoti, non ogni singolo edit del form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company]);
 
   useEffect(() => {
@@ -106,13 +136,16 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!company || !canEdit) return;
+    if (!company || !canEdit || isSaving || !isDirty || prefixLoading) return;
 
     setIsSaving(true);
     try {
       // Geocodifica la sede operativa: alimenta operational_lat/lng usate dai
       // travel legs dei calendari e dal badge distanza in scheda cliente.
       // Best-effort: se il geocoding fallisce si salva comunque senza coordinate.
+      const changes = campiMarginiModificati(values, baseline ?? {});
+      if (prefixError) delete changes.order_code_prefix;
+      const addressChanged = Object.keys(changes).some(key => key.startsWith("operational_"));
       let operationalCoords: { lat: number; lng: number } | null = null;
       const opAddressFull = [
         operationalAddress.trim(),
@@ -120,7 +153,7 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
         operationalCity.trim(),
         operationalProvince.trim(),
       ].filter(Boolean).join(", ");
-      if (opAddressFull) {
+      if (addressChanged && opAddressFull) {
         try {
           operationalCoords = await forwardGeocode(opAddressFull);
         } catch { /* best-effort */ }
@@ -129,31 +162,17 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
       const { error } = await supabase
         .from("companies")
         .update({
-          business_name: businessName.trim() || null,
-          vat_number: vatNumber.trim() || null,
-          fiscal_code: fiscalCode.trim() || null,
-          pec: pec.trim() || null,
-          sdi_code: sdiCode.trim() || null,
-          phone: phone.trim() || null,
-          website: website.trim() || null,
-          legal_address: legalAddress.trim() || null,
-          legal_city: legalCity.trim() || null,
-          legal_province: legalProvince.trim() || null,
-          legal_postal_code: legalPostalCode.trim() || null,
-          operational_address: operationalAddress.trim() || null,
-          operational_city: operationalCity.trim() || null,
-          operational_province: operationalProvince.trim() || null,
-          operational_postal_code: operationalPostalCode.trim() || null,
-          ...(operationalCoords
-            ? { operational_lat: operationalCoords.lat, operational_lng: operationalCoords.lng }
-            : {}),
-          notes: notes.trim() || null,
-          order_code_prefix: (orderCodePrefix.trim() || "O"),
+          ...changes,
+          ...(addressChanged ? { operational_lat: operationalCoords?.lat ?? null, operational_lng: operationalCoords?.lng ?? null } : {}),
         } as never)
-        .eq("id", company.id);
+        .eq("id", company.id)
+        .select("id")
+        .single();
 
       if (error) throw error;
 
+      setBaseline({ ...values });
+      dirtyRef.current = false;
       await refreshAuth();
       toast.success("Profilo aggiornato", { description: "I dati aziendali sono stati salvati." });
     } catch (error) {
@@ -171,7 +190,7 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
       {/* canEdit=false → fieldset disabilita nativamente tutti i campi e il submit (permesso "Modifica" non attivo) */}
       {/* Era className="contents": con display:contents lo space-y del form non
           arrivava alle sezioni, e separatori e titoli stavano attaccati ai campi. */}
-      <fieldset disabled={!canEdit} className="min-w-0 space-y-6 max-sm:space-y-4">
+      <fieldset disabled={!canEdit || isSaving || prefixLoading} className="min-w-0 space-y-6 max-sm:space-y-4">
       {/* Dati Generali */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
@@ -198,7 +217,7 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
           </div>
           <div className="space-y-2">
             <Label htmlFor="orderCodePrefix"><span className="max-sm:hidden">Prefisso Codice Commessa</span><span className="sm:hidden">Prefisso commesse</span></Label>
-            <Input id="orderCodePrefix" value={orderCodePrefix} onChange={(e) => setOrderCodePrefix(e.target.value)} placeholder="O" maxLength={16} />
+            <Input id="orderCodePrefix" value={orderCodePrefix} onChange={(e) => setOrderCodePrefix(e.target.value)} placeholder="O" maxLength={16} disabled={prefixError} />
             <p className="text-[11px] text-muted-foreground max-sm:hidden">
               Usato per il codice commessa progressivo automatico: es. <strong>{(orderCodePrefix.trim() || "O")}-0001</strong>, {(orderCodePrefix.trim() || "O")}-0002…
             </p>
@@ -326,8 +345,10 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
       </div>
 
       {/* Actions */}
-      <div className="flex justify-end pt-4">
-        <Button type="submit" disabled={isSaving}>
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-4">
+        <p role="status" className="text-xs text-muted-foreground">{isSaving ? "Salvataggio…" : isDirty ? "Modifiche non salvate" : "Nessuna modifica da salvare"}</p>
+        {prefixError && <p className="w-full text-xs text-amber-700">Prefisso commessa non caricato: il valore esistente non verrà modificato.</p>}
+        <Button size="sm" type="submit" disabled={isSaving || !isDirty || prefixLoading}>
           {isSaving ? (
             <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvataggio...</>
           ) : (

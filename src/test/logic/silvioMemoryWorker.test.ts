@@ -13,7 +13,7 @@ vi.mock('https://deno.land/std@0.190.0/http/server.ts', () => ({
 }));
 vi.mock('https://esm.sh/@supabase/supabase-js@2', () => ({ createClient: () => runtime.db }));
 vi.mock('../../../supabase/functions/_shared/auth.ts', () => ({
-  isInternalRequest: () => true, requireInternalSecret: () => undefined,
+  isInternalRequest: () => true, requireInternalSecret: (): void => undefined,
   requireAuth: async () => ({ userId: 'user' }),
   requireCompanyAccess: async () => ({ companyId: 'company', isSuperAdmin: false }),
 }));
@@ -22,7 +22,7 @@ vi.mock('../../../supabase/functions/_shared/brainEmbed.ts', () => ({
   generateEmbedding: (...args: unknown[]) => runtime.embed(...args), contentHash: async (text: string) => text,
 }));
 vi.mock('../../../supabase/functions/_shared/directAiLedger.ts', () => ({
-  chargeDirectAiCall: async () => undefined, estimateEmbeddingUsage: () => ({ tokens: 10, costUsd: 0.001 }),
+  chargeDirectAiCall: async (): Promise<void> => undefined, estimateEmbeddingUsage: () => ({ tokens: 10, costUsd: 0.001 }),
 }));
 
 beforeEach(async () => {

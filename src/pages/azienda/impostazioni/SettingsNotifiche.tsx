@@ -9,7 +9,7 @@
  * Tabella: user_messaging_channels (1 riga per utente, upsert).
  * Auth: self-only via RLS (umc_self_read + umc_self_write).
  */
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +29,9 @@ import {
   CalendarClock, Plus, Pause, Play, Trash2,
 } from "lucide-react";
 import { BulkScheduleWizard } from "@/components/automazioni/BulkScheduleWizard";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { verificaWhatsAppDaConservare } from "@/lib/impostazioni/verificaCanaleWhatsApp";
 
 type ChannelKey = "silvio_chat" | "telegram" | "whatsapp" | "email";
 
@@ -120,12 +123,12 @@ export default function SettingsNotifiche() {
       last_run_at: string | null;
     };
   }
-  const { data: companyFlows = [] } = useQuery({
+  const { data: companyFlows = [], isError: flowsError } = useQuery({
     queryKey: ["settings-notifiche-bulk-flows", effectiveCompany?.id],
     enabled: !!effectiveCompany?.id && isAdmin,
     queryFn: async (): Promise<CompanyBulkFlow[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("automation_flows")
         .select("id, name, status, bulk_trigger_config")
         .eq("company_id", effectiveCompany!.id)
@@ -133,6 +136,7 @@ export default function SettingsNotifiche() {
         .is("deleted_at", null)
         .order("updated_at", { ascending: false })
         .limit(20);
+      if (error) throw error;
       return (data ?? []) as CompanyBulkFlow[];
     },
   });
@@ -140,10 +144,12 @@ export default function SettingsNotifiche() {
   // Toggle status flow (pause/resume)
   const toggleFlowMut = useMutation({
     mutationFn: async ({ id, newStatus }: { id: string; newStatus: string }) => {
+      if (!isAdmin || !effectiveCompany?.id) throw new Error("Non hai i permessi per gestire le automazioni aziendali.");
       const { error } = await supabase
         .from("automation_flows")
         .update({ status: newStatus })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", effectiveCompany.id).select("id").single();
       if (error) throw error;
     },
     onSuccess: () => {
@@ -155,8 +161,9 @@ export default function SettingsNotifiche() {
 
   const deleteFlowMut = useMutation({
     mutationFn: async (id: string) => {
+      if (!isAdmin || !effectiveCompany?.id) throw new Error("Non hai i permessi per gestire le automazioni aziendali.");
       // Nel cestino delle automazioni, come «Elimina» nella lista.
-      const { error } = await supabase.from("automation_flows").update({ deleted_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await supabase.from("automation_flows").update({ deleted_at: new Date().toISOString() }).eq("id", id).eq("company_id", effectiveCompany.id).select("id").single();
       if (error) throw error;
     },
     onSuccess: () => {
@@ -167,16 +174,17 @@ export default function SettingsNotifiche() {
   });
 
   // Carica preferenze esistenti (può essere null → defaults)
-  const { data: prefs, isLoading } = useQuery({
+  const { data: prefs, isLoading, isError, refetch } = useQuery({
     queryKey: ["user-messaging-channels", user?.id],
     enabled: !!user?.id,
     queryFn: async (): Promise<UMCRow | null> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("user_messaging_channels")
         .select("*")
         .eq("user_id", user!.id)
         .maybeSingle();
+      if (error) throw error;
       return (data as UMCRow | null) ?? null;
     },
   });
@@ -191,10 +199,23 @@ export default function SettingsNotifiche() {
   const [order, setOrder] = useState<ChannelKey[]>(DEFAULT_ORDER);
   const [quietFrom, setQuietFrom] = useState("");
   const [quietTo, setQuietTo] = useState("");
+  const [baseline, setBaseline] = useState<string | null>(null);
+  const dirtyRef = useRef(false);
+  const snapshot = JSON.stringify({ silvioChatEnabled, emailEnabled, emailOverride, whatsappEnabled, whatsappPhone, order, quietFrom, quietTo });
+  const dirty = baseline != null && baseline !== snapshot;
+  useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
 
   // Inizializza da prefs caricate
   useEffect(() => {
+    if (dirtyRef.current) return;
     if (prefs) {
+      setBaseline(JSON.stringify({
+        silvioChatEnabled: prefs.silvio_chat_enabled, emailEnabled: prefs.email_enabled,
+        emailOverride: prefs.email_override ?? "", whatsappEnabled: !!prefs.whatsapp_phone,
+        whatsappPhone: prefs.whatsapp_phone ?? "",
+        order: Array.isArray(prefs.preferred_order) && prefs.preferred_order.length ? prefs.preferred_order : DEFAULT_ORDER,
+        quietFrom: prefs.quiet_from ?? "", quietTo: prefs.quiet_to ?? "",
+      }));
       setSilvioChatEnabled(prefs.silvio_chat_enabled);
       setEmailEnabled(prefs.email_enabled);
       setEmailOverride(prefs.email_override ?? "");
@@ -208,13 +229,18 @@ export default function SettingsNotifiche() {
         : DEFAULT_ORDER);
       setQuietFrom(prefs.quiet_from ?? "");
       setQuietTo(prefs.quiet_to ?? "");
+    } else if (!isLoading && !isError) {
+      setBaseline(JSON.stringify({ silvioChatEnabled: true, emailEnabled: true, emailOverride: "", whatsappEnabled: false, whatsappPhone: "", order: DEFAULT_ORDER, quietFrom: "", quietTo: "" }));
     }
-  }, [prefs]);
+  }, [prefs, isLoading, isError]);
 
   // Save
   const saveMut = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error("Utente non autenticato");
+      if (isLoading || isError) throw new Error("Carica le preferenze prima di salvarle.");
+      if (whatsappEnabled && !/^\+?[0-9][0-9\s()-]{6,19}$/.test(whatsappPhone.trim())) throw new Error("Inserisci un numero WhatsApp valido, con prefisso internazionale.");
+      if (!!quietFrom !== !!quietTo) throw new Error("Indica sia l'inizio sia la fine dell'orario di silenzio.");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
         .from("user_messaging_channels")
@@ -224,14 +250,9 @@ export default function SettingsNotifiche() {
           silvio_chat_enabled: silvioChatEnabled,
           email_enabled: emailEnabled,
           email_override: emailOverride.trim() || null,
-          // WhatsApp: salva il numero solo se abilitato.
-          // NOTA: la verifica vera richiede flow OTP separato (out of scope).
-          // Qui assumiamo che l'utente inserisca un numero già attivo su
-          // WhatsApp Business della company; il marker verified verrà
-          // settato in modo automatico a save (best-effort) — il runner
-          // controlla comunque whatsapp_verified_at prima di mandare.
+          // Conserva una verifica già presente solo se il numero non cambia.
           whatsapp_phone: whatsappEnabled ? whatsappPhone.trim() || null : null,
-          whatsapp_verified_at: whatsappEnabled && whatsappPhone.trim() ? new Date().toISOString() : null,
+          whatsapp_verified_at: verificaWhatsAppDaConservare(whatsappEnabled ? whatsappPhone.trim() : null, prefs?.whatsapp_phone, prefs?.whatsapp_verified_at),
           preferred_order: order,
           quiet_from: quietFrom || null,
           quiet_to: quietTo || null,
@@ -239,11 +260,14 @@ export default function SettingsNotifiche() {
       if (error) throw error;
     },
     onSuccess: () => {
+      setBaseline(snapshot);
+      dirtyRef.current = false;
       toast.success("Preferenze salvate");
       void qc.invalidateQueries({ queryKey: ["user-messaging-channels"] });
     },
     onError: (e: Error) => toast.error("Errore", { description: e.message }),
   });
+  useSettingsDraftGuard(dirty || saveMut.isPending);
 
   const moveChannel = (idx: number, direction: "up" | "down") => {
     setOrder((prev) => {
@@ -270,6 +294,9 @@ export default function SettingsNotifiche() {
       </div>
     );
   }
+  if (isError || !user?.id) {
+    return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">Non riesco a leggere le preferenze. Nessuna modifica verrà salvata.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription></Alert>;
+  }
 
   return (
     // Da 768 senza margine proprio né centratura: il margine lo dà la cornice
@@ -294,6 +321,7 @@ export default function SettingsNotifiche() {
       </div>
 
       {/* Gli avvisi che partono davvero: la campanella rimanda qui («Preferenze»). */}
+      {flowsError && isAdmin && <Alert variant="destructive"><AlertDescription>I messaggi programmati non sono disponibili. Non vengono mostrati come elenco vuoto.</AlertDescription></Alert>}
       <AvvisiPerEvento />
 
       {/* ── SEZIONE COMPANY_ADMIN: notifiche AZIENDALI ──────────────────
@@ -422,6 +450,7 @@ export default function SettingsNotifiche() {
       </Card>
 
       {/* Channels (toggles) */}
+      <fieldset disabled={saveMut.isPending} className="m-0 min-w-0 space-y-4 border-0 p-0">
       <Card>
         <CardHeader className="max-sm:px-3 max-sm:pb-2 max-sm:pt-3">
           <CardTitle className="text-base">Canali dei messaggi automatici</CardTitle>
@@ -435,7 +464,7 @@ export default function SettingsNotifiche() {
               : ch.key === "telegram" ? telegramEnabled
               : false;
             const isVerified = ch.key === "telegram" ? !!prefs?.telegram_verified_at
-              : ch.key === "whatsapp" ? !!prefs?.whatsapp_verified_at
+              : ch.key === "whatsapp" ? !!verificaWhatsAppDaConservare(whatsappEnabled ? whatsappPhone.trim() : null, prefs?.whatsapp_phone, prefs?.whatsapp_verified_at)
               : true;
             return (
               <div
@@ -464,8 +493,9 @@ export default function SettingsNotifiche() {
                   {ch.key === "email" && emailEnabled && (
                     // Telefono no: facoltativa, basta l'email del profilo.
                     <div className="mt-2 max-w-xs max-sm:hidden">
-                      <Label className="text-[11px] text-slate-500">Email alternativa (opzionale)</Label>
+                      <Label htmlFor="notifications-email" className="text-[11px] text-slate-500">Email alternativa (opzionale)</Label>
                       <Input
+                        id="notifications-email"
                         type="email"
                         value={emailOverride}
                         onChange={(e) => setEmailOverride(e.target.value)}
@@ -476,16 +506,17 @@ export default function SettingsNotifiche() {
                   )}
                   {ch.key === "whatsapp" && whatsappEnabled && (
                     <div className="mt-2 max-w-xs">
-                      <Label className="text-[11px] text-slate-500">Numero WhatsApp (con prefisso intl.)</Label>
+                      <Label htmlFor="notifications-whatsapp" className="text-[11px] text-slate-500">Numero WhatsApp (con prefisso intl.)</Label>
                       <Input
+                        id="notifications-whatsapp"
                         type="tel"
                         value={whatsappPhone}
                         onChange={(e) => setWhatsappPhone(e.target.value)}
                         placeholder="+393331234567"
                         className="h-8 text-sm mt-0.5"
                       />
-                      <p className="text-[10px] text-slate-400 mt-0.5 max-sm:hidden">
-                        Deve essere un numero attivo su WhatsApp e raggiungibile dal bot Business dell'azienda.
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {isVerified ? "Numero verificato." : "Salvare il numero non lo verifica. Finché non è verificato, il sistema usa gli altri canali disponibili."}
                       </p>
                     </div>
                   )}
@@ -512,6 +543,7 @@ export default function SettingsNotifiche() {
                   )}
                 </div>
                 <Switch
+                  aria-label={`Abilita ${ch.label}`}
                   className="max-sm:mt-1"
                   checked={isEnabled}
                   disabled={!ch.available}
@@ -611,12 +643,14 @@ export default function SettingsNotifiche() {
       </Card>
 
       {/* Save */}
-      <div className="flex justify-end sticky bottom-0 bg-background py-2">
-        <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending} className="gap-2 max-sm:w-full">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
+        <p role="status" className="text-xs text-muted-foreground">{saveMut.isPending ? "Salvataggio…" : dirty ? "Modifiche non salvate" : "Nessuna modifica da salvare"}</p>
+        <Button size="sm" onClick={() => saveMut.mutate()} disabled={saveMut.isPending || !dirty} className="gap-2">
           <Save className="h-4 w-4" />
           {saveMut.isPending ? "Salvataggio..." : "Salva preferenze"}
         </Button>
       </div>
+      </fieldset>
 
       {/* Wizard nuovo messaggio programmato — montato qui per riuso, gestito
           via stato bulkWizardOpen + chiamato dal pulsante Nuovo in cima */}

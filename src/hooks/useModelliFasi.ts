@@ -39,8 +39,7 @@ export function useModelliFasi() {
     enabled: !!companyId,
     staleTime: 60_000,
     queryFn: async (): Promise<ModelliAzienda> => {
-      // Se la lettura fallisce (tabelle non ancora create, rete) si offrono i soli modelli di partenza.
-      try {
+      // Una lettura fallita deve restare distinguibile dall'assenza di modelli.
         const [m, f, s, impostazioni] = await Promise.all([
           db.from("work_phase_templates").select("id, name, hint, position").eq("company_id", companyId!).order("position"),
           db.from("work_phase_template_phases").select("id, template_id, name, position").eq("company_id", companyId!).order("position"),
@@ -53,9 +52,6 @@ export function useModelliFasi() {
           inizializzati: Boolean(impostazioni.data?.modelli_inizializzati),
           disponibile: true,
         };
-      } catch {
-        return NESSUNO;
-      }
     },
   });
 
@@ -64,6 +60,7 @@ export function useModelliFasi() {
 
   const salva = useMutation({
     mutationFn: async (modello: PayloadModello): Promise<string> => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       const { data, error } = await db.rpc("salva_modello_fasi", { p_company_id: companyId, p_modello: modello });
       if (error) throw error;
       return data as string;
@@ -74,6 +71,7 @@ export function useModelliFasi() {
 
   const elimina = useMutation({
     mutationFn: async (id: string) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       const { error } = await db.rpc("elimina_modello_fasi", { p_company_id: companyId, p_id: id });
       if (error) throw error;
     },
@@ -84,6 +82,7 @@ export function useModelliFasi() {
   // I modelli di partenza diventano dell'azienda (una volta), o si rimettono quelli che mancano.
   const inizializza = useMutation({
     mutationFn: async ({ modelli, soloMancanti }: { modelli: ModelloPerServer[]; soloMancanti: boolean }): Promise<number> => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       const { data, error } = await db.rpc("inizializza_modelli_fasi", {
         p_company_id: companyId, p_modelli: modelli, p_solo_mancanti: soloMancanti,
       });
@@ -99,6 +98,8 @@ export function useModelliFasi() {
     inizializzati: query.data?.inizializzati ?? false,
     disponibile: query.data?.disponibile ?? false,
     isLoading: query.isLoading,
+    isError: query.isError,
+    refetch: query.refetch,
     salva, elimina, inizializza,
   };
 }

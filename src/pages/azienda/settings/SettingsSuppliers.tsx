@@ -25,8 +25,8 @@ import {
 const formatMoney = (value: number) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(value || 0);
 
-function SupplierReportsPanel() {
-  const { suppliers, isLoading } = useOperationalSuppliers();
+export function SupplierReportsPanel() {
+  const { suppliers, isLoading, isError, refetch } = useOperationalSuppliers();
 
   const report = useMemo(() => {
     const active = suppliers.filter((supplier) => supplier.is_active).length;
@@ -69,6 +69,10 @@ function SupplierReportsPanel() {
     return <div className="rounded-lg border p-6 text-sm text-muted-foreground">Caricamento report fornitori...</div>;
   }
 
+  if (isError) {
+    return <Alert variant="destructive"><AlertTitle>Report fornitori non disponibile</AlertTitle><AlertDescription className="flex flex-wrap items-center gap-3">Non è stato possibile leggere acquisti e scadenze. Nessun totale viene mostrato come zero.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription></Alert>;
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -98,8 +102,8 @@ function SupplierReportsPanel() {
         </Card>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-3">
+        <Card className="min-w-0 xl:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <TrendingUp className="h-4 w-4" />
@@ -111,21 +115,21 @@ function SupplierReportsPanel() {
             {report.topBySpend.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nessun ordine di acquisto collegato ai fornitori.</p>
             ) : report.topBySpend.map((supplier, index) => (
-              <div key={supplier.id} className="grid grid-cols-[32px_1fr_auto] items-center gap-3 rounded-md border p-3">
+              <div key={supplier.id} className="grid min-w-0 grid-cols-[24px_minmax(0,1fr)] items-center gap-x-2 gap-y-1 rounded-md border p-3 sm:grid-cols-[32px_minmax(0,1fr)_auto] sm:gap-3">
                 <span className="text-sm font-semibold text-muted-foreground">#{index + 1}</span>
                 <div className="min-w-0">
                   <p className="font-medium truncate">{supplier.name}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="break-words text-xs text-muted-foreground">
                     {supplier.product_category || "Senza categoria"} · {supplier.oda_count ?? 0} OdA
                   </p>
                 </div>
-                <p className="font-semibold">{formatMoney(supplier.oda_total ?? 0)}</p>
+                <p className="col-start-2 text-sm font-semibold sm:col-auto sm:text-base">{formatMoney(supplier.oda_total ?? 0)}</p>
               </div>
             ))}
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle className="text-base">Scadenze aperte</CardTitle>
             <CardDescription>Fornitori con pagamenti ancora da chiudere.</CardDescription>
@@ -134,12 +138,12 @@ function SupplierReportsPanel() {
             {report.withOpenPayments.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nessuna scadenza fornitore aperta.</p>
             ) : report.withOpenPayments.map((supplier) => (
-              <div key={supplier.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <div key={supplier.id} className="flex min-w-0 flex-col items-start gap-1 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <div className="min-w-0">
-                  <p className="font-medium truncate">{supplier.name}</p>
+                  <p className="break-words font-medium">{supplier.name}</p>
                   <p className="text-xs text-muted-foreground">{supplier.scadenze_aperte ?? 0} scadenze</p>
                 </div>
-                <p className="font-semibold">{formatMoney(supplier.scadenze_importo ?? 0)}</p>
+                <p className="shrink-0 text-sm font-semibold sm:text-base">{formatMoney(supplier.scadenze_importo ?? 0)}</p>
               </div>
             ))}
           </CardContent>
@@ -409,7 +413,7 @@ export default function SettingsSuppliers() {
     } catch (e) {
       toast({ title: "Errore export PDF", description: e instanceof Error ? e.message : "Generazione PDF fallita", variant: "destructive" });
     }
-  }, [buildExportRows, effectiveCompany?.name, toast]);
+  }, [buildExportRows, effectiveCompany, toast]);
 
   if (!canView) return null;
 
@@ -444,8 +448,8 @@ export default function SettingsSuppliers() {
       {/* Header con pattern h-10 w-10 bg-primary/10 — da 768 non c'è: titolo e
           frase ripetevano la testata delle Impostazioni, e «Esporta» sale
           nella riga delle schede. */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 md:hidden">
-        <div className="flex items-start gap-3 min-w-0">
+      <div className="flex justify-end md:hidden">
+        <div className="hidden">
           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
             <Truck className="h-5 w-5 text-primary" />
           </div>
@@ -471,7 +475,7 @@ export default function SettingsSuppliers() {
           </AlertDescription>
         </Alert>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {tab === "anagrafica" && <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="rounded-lg border-l-4 border-l-primary bg-card p-3">
           <div className="flex items-center justify-between">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Totale</p>
@@ -500,21 +504,21 @@ export default function SettingsSuppliers() {
           </div>
           <p className="text-xl font-bold mt-1">{stats.esteri}</p>
         </div>
-      </div>
+      </div>}
 
       <Tabs value={tab} onValueChange={setTab}>
         {/* Da 768 le schede e «Esporta» nella stessa riga (sul telefono la
             riga non è flex: le schede restano larghe come prima). */}
         <div className="md:flex md:items-center md:justify-between md:gap-3">
-          <TabsList className="flex h-auto flex-wrap">
+          <TabsList className="grid h-auto grid-cols-4 md:flex">
             <TabsTrigger value="anagrafica">Anagrafica</TabsTrigger>
             <TabsTrigger value="operativo">Operativo</TabsTrigger>
             <TabsTrigger value="report">
-              <BarChart3 className="mr-1.5 h-4 w-4" />
+              <BarChart3 className="mr-1.5 hidden h-4 w-4 sm:block" />
               Report
             </TabsTrigger>
             <TabsTrigger value="audit">
-              <ShieldCheck className="mr-1.5 h-4 w-4" />
+              <ShieldCheck className="mr-1.5 hidden h-4 w-4 sm:block" />
               Audit
             </TabsTrigger>
           </TabsList>

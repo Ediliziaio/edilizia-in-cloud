@@ -43,7 +43,7 @@ export function useBrandSettings(companyId?: string) {
   const id = companyId ?? effectiveCompany?.id;
   const queryClient = useQueryClient();
 
-  const { data: brand, isLoading } = useQuery({
+  const { data: brand, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.branding.settings(id),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -63,11 +63,14 @@ export function useBrandSettings(companyId?: string) {
   const saveBrand = useMutation({
     mutationFn: async (updates: Partial<BrandSettings>) => {
       if (!id) throw new Error("Nessuna azienda associata");
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("companies")
         .update(updates as never)
-        .eq("id", id);
+        .eq("id", id)
+        .select("white_label_enabled, brand_primary_color, brand_secondary_color, brand_accent_color, brand_text_on_primary, brand_platform_name, brand_favicon_url, brand_login_bg_url, brand_hide_powered_by, logo_url, brand_logo_dark_url")
+        .single();
       if (error) throw error;
+      return data as unknown as BrandSettings;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.branding.settings(id) });
@@ -101,5 +104,5 @@ export function useBrandSettings(companyId?: string) {
     isWhiteLabel: brand?.white_label_enabled ?? false,
   };
 
-  return { brand, effectiveBrand, saveBrand, uploadBrandFile, isLoading };
+  return { brand, effectiveBrand, saveBrand, uploadBrandFile, isLoading, isError, refetch };
 }

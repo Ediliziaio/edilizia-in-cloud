@@ -46,13 +46,14 @@ afterEach(cleanup);
 describe("la prima volta: i modelli di partenza diventano dell'azienda", () => {
   beforeEach(() => { state.inizializzati = false; });
 
-  it("chi può modificare li porta tra i suoi, una volta sola", () => {
+  it("importa solo su richiesta: aprire o rileggere la pagina non scrive", () => {
     const { rerender } = render(<ModelliFasiConfig />);
+    expect(state.inizializza).not.toHaveBeenCalled();
+    rerender(<ModelliFasiConfig />);
+    expect(state.inizializza).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Importa modelli standard" }));
     expect(state.inizializza).toHaveBeenCalledTimes(1);
     expect(state.inizializza).toHaveBeenCalledWith({ modelli: PARTENZA_PER_SERVER, soloMancanti: false });
-    rerender(<ModelliFasiConfig />);
-    expect(state.inizializza).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/Preparo i tuoi modelli/)).toBeInTheDocument();
   });
 
   it("nel frattempo si vedono, senza comandi sui singoli modelli", () => {
@@ -168,7 +169,7 @@ describe("con i modelli dell'azienda", () => {
     fireEvent.click(screen.getByRole("button", { name: "Elimina Impianti completi" }));
     expect(state.elimina).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Elimina il modello" }));
-    expect(state.elimina).toHaveBeenCalledWith("m1");
+    expect(state.elimina).toHaveBeenCalledWith("m1", expect.objectContaining({ onSuccess: expect.any(Function) }));
   });
 
   it("senza nessun modello c'è l'invito a crearne o a rimettere quelli di partenza", () => {

@@ -113,9 +113,10 @@ describe("le regole del menu principale", () => {
 
 describe("tutte le porte d'ingresso guardano il piano", () => {
   it("menu, ricerca, griglia su telefono, Cmd+K, integrazioni", () => {
-    expect(leggi("src/components/layouts/CompanyLayout.tsx")).toMatch(/visible: voce\.visible && impostazioneNelPiano\(voce\.to, piano\)/);
+    expect(leggi("src/lib/impostazioni/navigazioneImpostazioni.tsx")).toMatch(/visible: voce\.visible && impostazioneNelPiano\(voce\.to, piano\)/);
+    expect(leggi("src/components/layouts/CompanyLayout.tsx")).toContain("buildSettingsGroups");
     expect(leggi("src/components/layouts/SettingsSearch.tsx")).toContain("impostazioneNelPiano(e.url, piano)");
-    expect(leggi("src/pages/azienda/settings/SettingsMobileHub.tsx")).toContain("impostazioneNelPiano(i.to, piano)");
+    expect(leggi("src/pages/azienda/settings/SettingsMobileHub.tsx")).toContain("buildSettingsGroups");
     expect(leggi("src/components/CommandPalette.tsx")).toContain("impostazioneNelPiano(item.path, piano)");
     // Dal 05/10/2026 conti e incassi sono schede della griglia: senza piano la scheda non c'è (e con lei il popup).
     expect(leggi("src/pages/azienda/settings/SettingsIntegrations.tsx")).toContain("banca: mostraContiCorrenti && canViewTesoreria");

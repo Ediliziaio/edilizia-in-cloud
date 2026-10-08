@@ -28,14 +28,14 @@ export function useLossReasons() {
         .select("id, label, position")
         .eq("company_id", companyId!)
         .order("position");
-      if (error) return MOTIVI_PERDITA_DEFAULT;
+      if (error) throw error;
       // Il value dei motivi aziendali è l'etichetta stessa: i report
       // raggruppano per testo.
       return unisciMotivi(data ?? []);
     },
   });
 
-  return { motivi: query.data ?? MOTIVI_PERDITA_DEFAULT, isLoading: query.isLoading };
+  return { motivi: query.data ?? MOTIVI_PERDITA_DEFAULT, isLoading: query.isLoading, isError: query.isError, refetch: query.refetch };
 }
 
 /** Quante opportunità (non eliminate) portano ciascun motivo. */
@@ -73,12 +73,13 @@ export function useAddLossReason() {
       const attuali =
         queryClient.getQueryData<MotivoPerdita[]>(["loss-reasons", companyId]) ?? MOTIVI_PERDITA_DEFAULT;
       const pulita = nomeMotivoValido(label, attuali);
-      const { data: esistenti } = await supabase
+      const { data: esistenti, error: positionError } = await supabase
         .from("opportunity_loss_reasons")
         .select("position")
         .eq("company_id", companyId)
         .order("position", { ascending: false })
         .limit(1);
+      if (positionError) throw positionError;
       const posizione = ((esistenti?.[0]?.position as number | undefined) ?? 0) + 1;
       const { error } = await supabase
         .from("opportunity_loss_reasons")
@@ -100,6 +101,7 @@ export function useRenameLossReason() {
 
   return useMutation({
     mutationFn: async ({ id, label }: { id: string; label: string }) => {
+      if (!companyId) throw new Error("Contesto azienda mancante");
       const attuali =
         queryClient.getQueryData<MotivoPerdita[]>(["loss-reasons", companyId]) ?? MOTIVI_PERDITA_DEFAULT;
       const pulita = nomeMotivoValido(label, attuali, id);
@@ -116,11 +118,13 @@ export function useRenameLossReason() {
 }
 
 export function useDeleteLossReason() {
+  const companyId = useEffectiveCompanyId();
   const invalida = useInvalidaMotivi();
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!companyId) throw new Error("Contesto azienda mancante");
       // Le opportunità già perse tengono il testo: i report non perdono storia.
-      const { error } = await supabase.from("opportunity_loss_reasons").delete().eq("id", id);
+      const { error } = await supabase.from("opportunity_loss_reasons").delete().eq("id", id).eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
     onSuccess: invalida,

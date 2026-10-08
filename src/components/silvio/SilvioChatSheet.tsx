@@ -1817,7 +1817,7 @@ function MessageBubble({
   const isFile = message.message_type === "file" && message.attachment_url;
   // Streaming vero (colonna `streaming`): il testo arriva gia' a pezzi dal
   // server; il typewriter finto ripartirebbe da zero a ogni aggiornamento.
-  // Si mostra il testo com'e', col cursore, finche' il server non lo chiude.
+  // Il lettore condiviso mostra solo l'answer pubblico, già formattato durante l'arrivo.
   const isLiveStream = isSilvio && message.streaming === true;
   const visibleContent = message.content;
   const isStillTyping = isLiveStream;
@@ -1833,10 +1833,7 @@ function MessageBubble({
         <SilvioAvatar size={28} className="rounded-full shadow-sm" />
       )}
       <div
-        title={isStillTyping ? "Tocca per saltare l'animazione" : undefined}
-	        className={`max-w-[84%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words shadow-sm ${
-	          isStillTyping ? "cursor-pointer" : ""
-	        } ${
+	        className={`max-w-[84%] min-w-0 rounded-2xl px-3 py-2 text-sm break-words shadow-sm ${
 	          isMe
 	            ? "bg-orange-500 text-white rounded-br-sm"
 	            : "bg-white text-slate-800 rounded-bl-sm border border-slate-200"
@@ -1887,16 +1884,11 @@ function MessageBubble({
           />
         )}
         {visibleContent && (
-          isMe || isStillTyping
-            // Testo grezzo durante lo streaming reale: il Markdown incompleto
-            // potrebbe spezzare tabelle e link. Formattiamo al completamento.
-            ? <span>{visibleContent}</span>
-            : <SilvioAnswer content={visibleContent} className="text-sm" sources={message.rag_sources ?? undefined} />
+          isMe
+            ? <span className="whitespace-pre-wrap">{visibleContent}</span>
+            : <SilvioAnswer content={visibleContent} streaming={isStillTyping} className="text-sm" sources={message.rag_sources ?? undefined} />
         )}
-        {/* Cursor blinking durante typing */}
-        {isStillTyping && (
-          <span className="inline-block w-0.5 h-3.5 ml-0.5 bg-slate-500 align-middle animate-pulse" />
-        )}
+        {!visibleContent && isStillTyping && <SilvioAnswer content="" streaming />}
         {/* AI metadata bottom: council expandable + chip follow-up */}
         {isSilvio && !isStillTyping && (
           <AiMessageMetaBottom

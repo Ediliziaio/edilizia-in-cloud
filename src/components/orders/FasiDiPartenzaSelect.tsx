@@ -30,7 +30,7 @@ export function FasiDiPartenzaSelect({ offerti, valore, onChange }: Props) {
         </SelectContent>
       </Select>
       <p className="text-[11px] text-muted-foreground max-sm:hidden">
-        La commessa nasce già con queste fasi (e le loro sottofasi). Le cambi dopo, dalla scheda Cantiere.
+        Scegli un modello e verifica le fasi qui sotto. Le modifiche valgono solo per questa commessa.
       </p>
     </div>
   );

@@ -8,8 +8,8 @@
  *   - Enter naviga alla prima voce
  *   - Risultati cliccabili
  *
- * Source of truth: SETTINGS_INDEX qui sotto (sincronizzato con SECTION_MAP
- * di SettingsLayout + sidebarConfig).
+ * Le voci principali vengono dal menu condiviso; SETTINGS_INDEX aggiunge
+ * sinonimi e collegamenti secondari, sempre filtrati per piano e permessi.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -26,6 +26,9 @@ import { Button } from "@/components/ui/button";
 import { useStatoPiano } from "@/hooks/useStatoPiano";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { impostazioneNelPiano } from "@/lib/impostazioni/pianoImpostazioni";
+import { usePermissions } from "@/hooks/usePermissions";
+import { buildSettingsGroups, impostazioneAccessibile } from "@/lib/impostazioni/navigazioneImpostazioni";
+import { confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
 
 interface SettingsIndexEntry {
   title: string;
@@ -122,11 +125,12 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
   // Le impostazioni fuori dal piano dell'azienda non si cercano (21/09/2026).
   const { stato: piano } = useStatoPiano();
   const isMobile = useIsMobile();
+  const permissions = usePermissions();
 
   // Cmd/Ctrl+K shortcut
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         setOpen((v) => !v);
       }
@@ -138,7 +142,13 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
   // Filtro fuzzy semplice: title + keywords + group + description
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const nelPiano = SETTINGS_INDEX.filter((e) => impostazioneNelPiano(e.url, piano) && !(e.desktopOnly && isMobile));
+    const principali: SettingsIndexEntry[] = buildSettingsGroups(permissions.isAdmin, permissions, piano, isMobile)
+      .flatMap(g => g.items.filter(i => i.visible).map(i => ({ title: i.label, url: i.to, group: g.label })));
+    const indice = [
+      ...principali.map(e => ({ ...e, keywords: SETTINGS_INDEX.find(x => x.url === e.url)?.keywords })),
+      ...SETTINGS_INDEX.filter(e => !principali.some(p => p.url === e.url)),
+    ];
+    const nelPiano = permissions.isLoading ? [] : indice.filter((e) => impostazioneNelPiano(e.url, piano) && !(e.desktopOnly && isMobile) && impostazioneAccessibile(e.url, permissions, piano, isMobile));
     if (!q) return nelPiano;
     return nelPiano.filter((e) => {
       const haystack = [
@@ -151,7 +161,7 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [query, piano, isMobile]);
+  }, [query, piano, isMobile, permissions]);
 
   const grouped = useMemo(() => {
     const m = new Map<string, SettingsIndexEntry[]>();
@@ -165,6 +175,7 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
 
   const handleSelect = useCallback(
     (url: string) => {
+      if (!confermaNavigazioneImpostazioni()) return;
       setOpen(false);
       setQuery("");
       navigate(url);

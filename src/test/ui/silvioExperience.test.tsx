@@ -56,15 +56,14 @@ describe("Silvio: clear, contextual, accessible experience", () => {
     fireEvent.click(screen.getByRole("button", { name: "Interrompi attesa" }));
     expect(onStop).toHaveBeenCalledOnce();
   });
-  it("preserves all caveats and makes actual source payloads expandable", () => {
+  it("preserves all caveats without displaying a sources panel", () => {
     const source = { id: "S1", title: "Rapportini demo", similarity: 0.8, snippet: "Estratto dimostrativo" };
     render(<SilvioAnswer content="Margine stimato: 18%. Mancano le ore degli ultimi tre giorni." sources={[source, source]} />);
     expect(screen.getByText(/Mancano le ore/)).toBeVisible();
-    const summary = screen.getByText("Fonti disponibili (1)");
-    expect(summary.closest("details")).not.toHaveAttribute("open");
-    fireEvent.click(summary);
-    expect(summary.closest("details")).toHaveAttribute("open");
-    expect(screen.getByText("Estratto dimostrativo")).toBeVisible();
+    expect(screen.queryByText(/Fonti disponibili/)).toBeNull();
+    expect(screen.queryByText("Rapportini demo")).toBeNull();
+    expect(screen.queryByText("Estratto dimostrativo")).toBeNull();
+    expect(screen.getByRole("button", { name: "Copia risposta" })).toBeVisible();
   });
   it("does not fabricate sources when there are none", () => {
     render(<SilvioAnswer content="Dati insufficienti." />);

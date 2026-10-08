@@ -10,6 +10,7 @@
  * NON tocca la SilvioChatSheet. Tema CHIARO (no dark mode).
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeSilvioWithRecovery } from "@/lib/silvio/replyDelivery";
@@ -38,7 +39,6 @@ import {
   Square,
   Mic,
   Pin,
-  ChevronDown,
   Brain,
   RotateCcw,
   AlertTriangle,
@@ -52,6 +52,7 @@ import {
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { SilvioAnswer } from "@/components/silvio/SilvioAnswer";
+import { publicAiAnswer } from "@/lib/silvio/visibleAnswer";
 import { SilvioRequestStatus, type SilvioRequestPhase } from "@/components/silvio/SilvioRequestStatus";
 import { AIAssistantInterface } from "@/components/ui/ai-assistant-interface";
 import { useAnimatedText } from "@/components/ui/animated-text";
@@ -143,7 +144,7 @@ interface SilvioMsg {
   created_at: string;
   /** true mentre silvio-chat sta ancora scrivendo (arriva a lotti via UPDATE). */
   streaming?: boolean | null;
-  rag_sources?: Array<{ id?: string; title?: string; url?: string }> | null;
+  rag_sources?: ChatMarkdownSource[] | null;
   ai_confidence?: "high" | "medium" | "low" | null;
   ai_requires_human_review?: boolean | null;
   followup_suggestions?: string[] | null;
@@ -1498,17 +1499,7 @@ export default function SilvioAIPage() {
                   <div className="flex gap-3">
                     <SilvioAvatar size={32} animated="thinking" className="rounded-lg" />
                     <div className="flex-1 min-w-0 pt-1">
-                      {toolSteps.length > 0 && (
-                        <div className="mb-1.5 space-y-1">
-                          {toolSteps.map((s) => (
-                            <div key={s.id} className="flex items-center gap-1.5 text-xs text-slate-500">
-                              <Check className="h-3 w-3 text-emerald-500 shrink-0" />
-                              {s.label}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <SilvioRequestStatus phase={requestPhase} onStop={handleStop} />
+                      <SilvioRequestStatus phase={requestPhase} activities={toolSteps} onStop={handleStop} />
                     </div>
                   </div>
                 )}
@@ -1835,11 +1826,6 @@ const MessaggioSilvio = memo(function MessaggioSilvio({
     council_data: m.council_data ?? undefined,
   };
 
-  const copia = () => {
-    void navigator.clipboard?.writeText(m.content);
-    toast.success("Risposta copiata");
-  };
-
   return (
     <div className="group flex gap-3">
       {/* Mobile: niente avatar accanto (44px di larghezza tolti al testo). */}
@@ -1853,10 +1839,7 @@ const MessaggioSilvio = memo(function MessaggioSilvio({
         <div className="rounded-2xl rounded-tl-sm bg-white border border-slate-200 px-4 py-3 shadow-sm max-sm:px-3 max-sm:py-2.5 max-sm:text-sm">
           <AiMessageMetaTop meta={meta} />
           {live ? (
-            <span className="whitespace-pre-wrap text-sm text-slate-700">
-              {m.content}
-              <span className="inline-block w-1.5 h-4 -mb-0.5 ml-0.5 bg-orange-400 rounded-sm animate-pulse" />
-            </span>
+            <SilvioAnswer content={m.content} streaming sources={m.rag_sources ?? undefined} />
           ) : animate ? (
             <SilvioAnimatedMessage content={m.content} sources={m.rag_sources ?? undefined} />
           ) : (
@@ -1864,17 +1847,14 @@ const MessaggioSilvio = memo(function MessaggioSilvio({
           )}
           <AiMessageMetaBottom meta={meta} onAskFollowup={onFollowup} />
         </div>
-        <div className="flex items-center gap-1 mt-1 pl-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-          <button onClick={copia} className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-100" title="Copia">
-            <Copy className="h-3 w-3" /> Copia
-          </button>
+        {!live && <div className="flex items-center gap-1 mt-1 pl-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
           {canRegenerate && (
             <button onClick={onRegenera} className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-100" title="Rigenera">
               <RefreshCw className="h-3 w-3" /> Rigenera
             </button>
           )}
           <SilvioRatingButtons messageId={m.id} />
-        </div>
+        </div>}
       </div>
     </div>
   );
@@ -1935,13 +1915,9 @@ function SilvioAnimatedMessage({
   content: string;
   sources?: SilvioMsg["rag_sources"];
 }) {
-  const animated = useAnimatedText(content, "", 3);
-  const done = animated.length >= content.length;
+  const answer = publicAiAnswer(content);
+  const animated = useAnimatedText(answer, "", 3);
+  const done = animated.length >= answer.length;
   if (done) return <SilvioAnswer content={content} sources={sources ?? undefined} />;
-  return (
-    <span className="whitespace-pre-wrap text-sm text-slate-700">
-      {animated}
-      <span className="inline-block w-1.5 h-4 -mb-0.5 ml-0.5 bg-orange-400 rounded-sm animate-pulse" />
-    </span>
-  );
+  return <SilvioAnswer content={animated} streaming sources={sources ?? undefined} />;
 }

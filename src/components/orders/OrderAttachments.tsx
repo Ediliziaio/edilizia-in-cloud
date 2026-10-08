@@ -7,7 +7,6 @@
  * da pulsante o trascinandoli sulla card o direttamente su una cartella.
  */
 import { useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -45,10 +44,8 @@ import {
   Loader2,
   Folder,
   FolderInput,
-  FolderOpen,
   AlertTriangle,
   Search,
-  Settings2,
   MoreHorizontal,
   LayoutGrid,
   List,
@@ -58,6 +55,7 @@ import { useUrlMiniature, toStoragePath, fmtBytes, fileKind, KIND_LABEL, KIND_TI
          scaricaAllegato, type PreviewableFile } from "./filePreviewUtils";
 import { CaricaDocumentiDialog } from "./CaricaDocumentiDialog";
 import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
+import { DocumentFoldersNavigation } from "./DocumentFoldersNavigation";
 import { usePermissions } from "@/hooks/usePermissions";
 import { BUCKET_DOCUMENTI_CLIENTE, ETICHETTA_DOCUMENTO_CLIENTE } from "@/lib/clienti/documentiCliente";
 import {
@@ -344,42 +342,6 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
     );
   }
 
-  const voceCartella = (id: string, etichetta: string, n: number, extra?: { mancante?: boolean; dropId?: string | null }) => {
-    const attiva = selezione === id;
-    const dropAttivo = editable && extra?.dropId !== undefined;
-    return (
-      <button
-        key={id}
-        type="button"
-        onClick={() => setSelezione(id)}
-        {...(dropAttivo ? {
-          onDragOver: (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setSopraCartella(id); },
-          onDrop: (e: React.DragEvent) => handleDrop(e, extra!.dropId ?? null),
-        } : {})}
-        className={[
-          "tap-compact flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-left transition-colors shrink-0 md:shrink md:w-full",
-          "border md:border-0 whitespace-nowrap md:whitespace-normal",
-          attiva ? "bg-primary/10 text-primary font-medium border-primary/30" : "hover:bg-muted text-foreground",
-          sopraCartella === id ? "ring-2 ring-primary/50 bg-primary/5" : "",
-        ].join(" ")}
-        aria-current={attiva ? "true" : undefined}
-      >
-        {id === TUTTI ? (
-          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-        ) : attiva ? (
-          <FolderOpen className="h-4 w-4 shrink-0" />
-        ) : (
-          <Folder className={`h-4 w-4 shrink-0 ${n === 0 ? "text-muted-foreground/60" : "text-muted-foreground"}`} />
-        )}
-        <span className={`flex-1 min-w-0 md:break-words ${n === 0 && !attiva ? "text-muted-foreground" : ""}`}>{etichetta}</span>
-        {extra?.mancante && (
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" aria-label="Cartella obbligatoria vuota" />
-        )}
-        <span className="text-xs tabular-nums text-muted-foreground">{n}</span>
-      </button>
-    );
-  };
-
   return (
     <Card
       {...(editable ? {
@@ -439,29 +401,14 @@ export function OrderAttachments({ orderId, editable = true }: OrderAttachmentsP
         )}
 
         <div className="grid gap-3 md:grid-cols-[minmax(180px,240px)_1fr]">
-          {/* Cartelle: colonna su desktop, riga scorrevole su telefono */}
-          {/* Mobile: senza documenti le cartelle (tutte a 0) non servono. */}
-          <nav aria-label="Cartelle documenti" className={tutti.length === 0 ? "min-w-0 max-sm:hidden" : "min-w-0"}>
-            <div className="flex md:flex-col gap-1.5 md:gap-0.5 overflow-x-auto pb-1 md:pb-0 -mx-1 px-1">
-              {voceCartella(TUTTI, "Tutti", tutti.length)}
-              {caricoCartelle && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground m-2" />}
-              {cartelle.map((c) =>
-                voceCartella(c.id, c.nome, conteggi[c.id] ?? 0, {
-                  mancante: mancanti.some((m) => m.id === c.id),
-                  dropId: c.id,
-                }),
-              )}
-              {senzaCartella > 0 && voceCartella(SENZA, "Senza cartella", senzaCartella, { dropId: null })}
-            </div>
-            {puoGestireCartelle && (
-              <Link
-                to="/azienda/impostazioni/cartelle-documenti"
-                className="hidden md:inline-flex items-center gap-1.5 mt-2 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <Settings2 className="h-3.5 w-3.5" /> Gestisci cartelle
-              </Link>
-            )}
-          </nav>
+          <DocumentFoldersNavigation
+            cartelle={cartelle} conteggi={conteggi} totale={tutti.length} senzaCartella={senzaCartella}
+            mancanti={mancanti.map((c) => c.id)} loading={caricoCartelle}
+            selezione={selezione} onSelect={setSelezione} puoGestireCartelle={puoGestireCartelle}
+            sopraCartella={sopraCartella}
+            onDragOverCartella={editable ? (_e, id) => setSopraCartella(id) : undefined}
+            onDropCartella={editable ? handleDrop : undefined}
+          />
 
           <div className="min-w-0 space-y-2">
             {tutti.length > 0 && (

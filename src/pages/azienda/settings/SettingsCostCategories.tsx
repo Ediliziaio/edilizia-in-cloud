@@ -13,7 +13,7 @@
  *     apriva a #6366f1 anche quando la riga aveva un altro colore salvato
  *     post-edit in sessione).
  *   - Fix: `usageCounts` con `Record<string, number>` tipizzato.
- *   - UX: "Importa dai costi" ora mostra preview count prima di eseguire.
+ *   - UX: "Importa dai costi" chiede conferma prima di eseguire.
  *   - UX: edit-inline con Escape per annullare + Enter per salvare.
  *   - UX: alert in cima se ci sono categorie usate senza colore.
  */
@@ -47,6 +47,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
 import { puoModificareCosti } from "@/lib/permessi/modificaSegueVisibilita";
 import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 interface CostCategory {
   id: string;
   company_id: string;
@@ -85,7 +86,8 @@ export default function SettingsCostCategories() {
   // Prima la pagina non controllava nessun permesso: chiunque riuscisse ad
   // aprirla (route su canViewCosts) vedeva i pulsanti, e il database prima
   // d'oggi li accettava solo dall'amministratore — un bottone finto.
-  const puoModificare = puoModificareCosti(usePermissions());
+  const permissions = usePermissions();
+  const puoModificare = !permissions.isLoading && puoModificareCosti(permissions);
 
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(DEFAULT_COLOR);
@@ -96,6 +98,7 @@ export default function SettingsCostCategories() {
   const [search, setSearch] = useState("");
   const [usageFilter, setUsageFilter] = useState<UsageFilter>("all");
   const [sortMode, setSortMode] = useState<SortMode>("name");
+  const [importOpen, setImportOpen] = useState(false);
 
   const {
     data: categories = [],
@@ -120,6 +123,7 @@ export default function SettingsCostCategories() {
   // Conteggio utilizzi per ogni nome di categoria (company_costs.category = stringa)
   const {
     data: usageCounts = {},
+    isLoading: usageLoading,
     isError: usageIsError,
     error: usageError,
     refetch: refetchUsage,
@@ -142,6 +146,8 @@ export default function SettingsCostCategories() {
     },
     enabled: !!companyId,
   });
+  const usageKnown = !usageLoading && !usageIsError && !!companyId;
+  const canWrite = puoModificare && !isLoading && !categoriesIsError && !!companyId;
 
   const configuredCategoryKeys = useMemo(() => new Set(categories.map((category) => categoryKey(category.name))), [categories]);
 
@@ -156,19 +162,19 @@ export default function SettingsCostCategories() {
     let list = categories;
     const q = search.trim().toLowerCase();
     if (q) list = list.filter((c) => c.name.toLowerCase().includes(q));
-    if (usageFilter === "used") {
+    if (usageKnown && usageFilter === "used") {
       list = list.filter((c) => (usageCounts[normalizeCategoryName(c.name)] ?? 0) > 0);
-    } else if (usageFilter === "unused") {
+    } else if (usageKnown && usageFilter === "unused") {
       list = list.filter((c) => (usageCounts[normalizeCategoryName(c.name)] ?? 0) === 0);
     }
     return [...list].sort((a, b) => {
       const usageA = usageCounts[normalizeCategoryName(a.name)] ?? 0;
       const usageB = usageCounts[normalizeCategoryName(b.name)] ?? 0;
-      if (sortMode === "usage_desc") return usageB - usageA || a.name.localeCompare(b.name, "it");
-      if (sortMode === "usage_asc") return usageA - usageB || a.name.localeCompare(b.name, "it");
+      if (usageKnown && sortMode === "usage_desc") return usageB - usageA || a.name.localeCompare(b.name, "it");
+      if (usageKnown && sortMode === "usage_asc") return usageA - usageB || a.name.localeCompare(b.name, "it");
       return a.name.localeCompare(b.name, "it");
     });
-  }, [categories, search, usageFilter, sortMode, usageCounts]);
+  }, [categories, search, usageFilter, sortMode, usageCounts, usageKnown]);
 
   // KPI
   const stats = useMemo(() => {
@@ -185,6 +191,7 @@ export default function SettingsCostCategories() {
 
   const addMutation = useMutation({
     mutationFn: async ({ name, color }: { name: string; color: string }) => {
+      if (!canWrite) throw new Error("Modifica categorie non disponibile");
       if (!companyId) throw new Error("Azienda non selezionata");
       const safeName = normalizeCategoryName(name);
       if (!safeName) throw new Error("Inserisci il nome categoria");
@@ -210,10 +217,13 @@ export default function SettingsCostCategories() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, name, color }: { id: string; name: string; color: string }) => {
+      if (!canWrite) throw new Error("Modifica categorie non disponibile");
       if (!companyId) throw new Error("Azienda non selezionata");
       const current = categories.find((category) => category.id === id);
       const safeName = normalizeCategoryName(name);
       if (!safeName) throw new Error("Inserisci il nome categoria");
+      if (!current) throw new Error("Categoria non trovata: ricarica i dati");
+      if (!usageKnown && categoryKey(current.name) !== categoryKey(safeName)) throw new Error("Utilizzi non disponibili: non puoi ancora rinominare la categoria");
       if (current && categoryKey(current.name) !== categoryKey(safeName) && (usageCounts[normalizeCategoryName(current.name)] ?? 0) > 0) {
         throw new Error("Categoria già usata: puoi cambiare il colore, ma non rinominarla senza riclassificare i costi storici.");
       }
@@ -221,7 +231,7 @@ export default function SettingsCostCategories() {
         .from("cost_categories")
         .update({ name: safeName, color })
         .eq("id", id)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId).select("id").single();
       if (error) {
         if (error.code === "23505") throw new Error("Categoria già esistente");
         throw error;
@@ -238,8 +248,10 @@ export default function SettingsCostCategories() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!canWrite || !usageKnown) throw new Error("Eliminazione non disponibile: verifica categorie e utilizzi");
       if (!companyId) throw new Error("Azienda non selezionata");
       const category = categories.find((cat) => cat.id === id);
+      if (!category) throw new Error("Categoria non trovata: ricarica i dati");
       const usage = category ? usageCounts[normalizeCategoryName(category.name)] ?? 0 : 0;
       if (usage > 0) {
         throw new Error("Categoria già usata: eliminazione bloccata per proteggere costi storici, marginalità e report.");
@@ -248,7 +260,7 @@ export default function SettingsCostCategories() {
         .from("cost_categories")
         .delete()
         .eq("id", id)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
     onSuccess: () => {
@@ -262,6 +274,7 @@ export default function SettingsCostCategories() {
 
   const importMutation = useMutation({
     mutationFn: async () => {
+      if (!canWrite) throw new Error("Importazione non disponibile");
       if (!companyId) throw new Error("Azienda non selezionata");
 
       const { data: costs, error: costsError } = await supabase
@@ -313,31 +326,35 @@ export default function SettingsCostCategories() {
     },
     onSuccess: (count) => {
       invalidateAll();
+      setImportOpen(false);
       toast.success(`${count} ${count === 1 ? "categoria importata" : "categorie importate"}`);
     },
     onError: (e: unknown) =>
-      toast.info(e instanceof Error ? e.message : "Nessuna categoria da importare"),
+      toast.error(e instanceof Error ? e.message : "Importazione non riuscita: controlla i dati e riprova"),
   });
+  const busy = addMutation.isPending || updateMutation.isPending || deleteMutation.isPending || importMutation.isPending;
+  const confermaUscita = useSettingsDraftGuard(!!newName.trim() || !!editingId || busy);
 
   const handleAdd = useCallback(() => {
-    if (!newName.trim() || addMutation.isPending) return;
+    if (!canWrite || busy || !newName.trim()) return;
     const normalizedName = categoryKey(newName);
     if (categories.some((category) => categoryKey(category.name) === normalizedName)) {
       toast.error("Categoria già esistente");
       return;
     }
     addMutation.mutate({ name: newName, color: newColor });
-  }, [newName, newColor, addMutation, categories]);
+  }, [newName, newColor, addMutation, categories, canWrite, busy]);
 
   const startEdit = useCallback((cat: CostCategory) => {
+    if (!canWrite || busy || !confermaUscita()) return;
     setEditingId(cat.id);
     setEditName(cat.name);
     setEditColor(cat.color ?? DEFAULT_COLOR);
-  }, []);
+  }, [canWrite, busy, confermaUscita]);
 
   const saveEdit = useCallback(
     (id: string) => {
-      if (!editName.trim() || updateMutation.isPending) return;
+      if (!canWrite || busy || !editName.trim()) return;
       const normalizedName = categoryKey(editName);
       if (
         categories.some(
@@ -349,10 +366,11 @@ export default function SettingsCostCategories() {
       }
       updateMutation.mutate({ id, name: editName, color: editColor });
     },
-    [editName, editColor, updateMutation, categories],
+    [editName, editColor, updateMutation, categories, canWrite, busy],
   );
 
   const exportCategories = useCallback(() => {
+    if (isLoading || categoriesIsError || !usageKnown) return;
     const rows = [
       ["Nome", "Colore", "Utilizzi", "Protezione", "Configurata"],
       ...categories.map((category) => {
@@ -386,7 +404,7 @@ export default function SettingsCostCategories() {
     link.remove();
     URL.revokeObjectURL(url);
     toast.success("Export categorie generato");
-  }, [categories, historicalMissingCategories, usageCounts]);
+  }, [categories, historicalMissingCategories, usageCounts, isLoading, categoriesIsError, usageKnown]);
 
   // ─── Render ───────────────────────────────────────────
   const categoryToDelete = deleteId ? categories.find((c) => c.id === deleteId) : null;
@@ -399,11 +417,7 @@ export default function SettingsCostCategories() {
         <div className="flex items-start gap-3 min-w-0">
           {/* Da 768 icona e titolo li mostra già la testata delle Impostazioni
               (erano due volte): resta la riga sotto, con numeri e azioni. */}
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 md:hidden">
-            <FolderOpen className="h-5 w-5 text-primary" />
-          </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight md:hidden">Categorie Costi</h1>
             <p className="text-sm text-muted-foreground">
               Classifica i costi aziendali (affitto, utenze, marketing…) e i costi
               da fornitori per analizzarli nelle dashboard finanziarie.
@@ -414,8 +428,8 @@ export default function SettingsCostCategories() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => importMutation.mutate()}
-            disabled={importMutation.isPending || !companyId}
+            onClick={() => setImportOpen(true)}
+            disabled={busy || !canWrite}
           >
             <Download className="h-4 w-4 mr-1.5" />
             {importMutation.isPending ? "Importo…" : "Importa dai costi"}
@@ -427,7 +441,7 @@ export default function SettingsCostCategories() {
             variant="outline"
             size="sm"
             onClick={exportCategories}
-            disabled={categories.length === 0 && historicalMissingCategories.length === 0}
+            disabled={isLoading || categoriesIsError || !usageKnown || (categories.length === 0 && historicalMissingCategories.length === 0)}
           >
             <FileDown className="h-4 w-4 mr-1.5" />
             Esporta CSV
@@ -462,7 +476,7 @@ export default function SettingsCostCategories() {
         </Alert>
       )}
 
-      {historicalMissingCategories.length > 0 && (
+      {!categoriesIsError && usageKnown && historicalMissingCategories.length > 0 && (
         <Alert>
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <AlertTitle>Categorie storiche da configurare</AlertTitle>
@@ -474,30 +488,30 @@ export default function SettingsCostCategories() {
       )}
 
       {/* KPI row */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <Card className="border-l-4 border-l-primary">
-          <CardContent className="pt-4 pb-3">
+          <CardContent className="p-3 sm:p-4">
             <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Totali</p>
-            <p className="text-xl font-bold mt-0.5">{stats.totale}</p>
+            <p className="text-xl font-bold mt-0.5">{isLoading || categoriesIsError ? "–" : stats.totale}</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-emerald-500">
-          <CardContent className="pt-4 pb-3">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="h-3 w-3 text-emerald-500" />
               <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">In uso</p>
             </div>
-            <p className="text-xl font-bold mt-0.5">{stats.inUso}</p>
+            <p className="text-xl font-bold mt-0.5">{categoriesIsError || !usageKnown ? "–" : stats.inUso}</p>
             <p className="text-[10px] text-muted-foreground">Almeno 1 costo associato</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-amber-500">
-          <CardContent className="pt-4 pb-3">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-1.5">
               <Minus className="h-3 w-3 text-amber-500" />
-              <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Inutilizzate</p>
+              <p className="text-[11px] uppercase tracking-wide font-semibold text-muted-foreground">Non usate</p>
             </div>
-            <p className="text-xl font-bold mt-0.5">{stats.senzaUso}</p>
+            <p className="text-xl font-bold mt-0.5">{categoriesIsError || !usageKnown ? "–" : stats.senzaUso}</p>
             <p className="text-[10px] text-muted-foreground">Nessun costo collegato</p>
           </CardContent>
         </Card>
@@ -512,7 +526,7 @@ export default function SettingsCostCategories() {
           )}
           {/* Add form */}
           {puoModificare && (
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+          <fieldset disabled={busy || !canWrite} className="m-0 min-w-0 border-0 p-0 flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
             <div className="flex-1">
               <Label htmlFor="new-cat-name" className="text-xs">Nuova categoria</Label>
               <Input
@@ -558,7 +572,7 @@ export default function SettingsCostCategories() {
               <Plus className="h-4 w-4 mr-1.5" />
               {addMutation.isPending ? "Aggiungo…" : "Aggiungi"}
             </Button>
-          </div>
+          </fieldset>
           )}
 
           {/* Search and controls */}
@@ -596,6 +610,7 @@ export default function SettingsCostCategories() {
                       size="sm"
                       variant={usageFilter === value ? "default" : "outline"}
                       onClick={() => setUsageFilter(value)}
+                      disabled={value !== "all" && !usageKnown}
                     >
                       {label}
                     </Button>
@@ -607,8 +622,8 @@ export default function SettingsCostCategories() {
                     aria-label="Ordina categorie"
                   >
                     <option value="name">Nome A-Z</option>
-                    <option value="usage_desc">Più usate</option>
-                    <option value="usage_asc">Meno usate</option>
+                    <option value="usage_desc" disabled={!usageKnown}>Più usate</option>
+                    <option value="usage_asc" disabled={!usageKnown}>Meno usate</option>
                   </select>
                 </div>
               </div>
@@ -624,7 +639,7 @@ export default function SettingsCostCategories() {
           {/* Table */}
           {isLoading ? (
             <p className="text-sm text-muted-foreground py-6 text-center">Caricamento…</p>
-          ) : categories.length === 0 ? (
+          ) : categoriesIsError ? null : categories.length === 0 ? (
             <div className="py-10 text-center space-y-3 border border-dashed rounded-lg">
               <FolderOpen className="h-10 w-10 text-muted-foreground/40 mx-auto" />
               <p className="text-sm text-muted-foreground">
@@ -655,8 +670,8 @@ export default function SettingsCostCategories() {
               </Button>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
+            <Table className="block md:table">
+              <TableHeader className="hidden md:table-header-group">
                 <TableRow>
                   <TableHead className="w-16">Colore</TableHead>
                   <TableHead>Nome</TableHead>
@@ -664,16 +679,18 @@ export default function SettingsCostCategories() {
                   {puoModificare && <TableHead className="w-[140px] text-right">Azioni</TableHead>}
                 </TableRow>
               </TableHeader>
-              <TableBody>
+              <TableBody className="block space-y-2 md:table-row-group md:space-y-0">
                 {filtered.map((cat) => {
                   const isEditing = editingId === cat.id;
                   const usage = usageCounts[normalizeCategoryName(cat.name)] ?? 0;
                   return (
-                    <TableRow key={cat.id}>
-                      <TableCell>
+                    <TableRow key={cat.id} className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center rounded-lg border p-2 md:table-row md:border-x-0 md:border-t-0 md:p-0">
+                      <TableCell className="p-1 md:p-4">
                         {isEditing ? (
                           <Input
                             type="color"
+                            aria-label={`Colore categoria ${cat.name}`}
+                            disabled={busy || !canWrite}
                             value={editColor}
                             onChange={(e) => setEditColor(e.target.value)}
                             className="h-8 w-12 p-1 cursor-pointer"
@@ -686,11 +703,12 @@ export default function SettingsCostCategories() {
                           />
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="min-w-0 p-1 md:p-4">
                         {isEditing ? (
                           <div className="space-y-1.5">
                             <Input
                               value={editName}
+                              aria-label={`Nome categoria ${cat.name}`}
                               onChange={(e) => setEditName(e.target.value)}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") saveEdit(cat.id);
@@ -698,7 +716,7 @@ export default function SettingsCostCategories() {
                               }}
                               autoFocus
                               maxLength={80}
-                              disabled={usage > 0}
+                              disabled={busy || !canWrite || !usageKnown || usage > 0}
                             />
                             {usage > 0 && (
                               <p className="text-[11px] text-muted-foreground">
@@ -708,8 +726,8 @@ export default function SettingsCostCategories() {
                           </div>
                         ) : (
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium">{cat.name}</span>
-                            {usage > 0 && (
+                            <span className="break-words font-medium">{cat.name}</span>
+                            {usageKnown && usage > 0 && (
                               <Badge variant="secondary" className="gap-1">
                                 <ShieldCheck className="h-3 w-3" />
                                 Protetta
@@ -718,37 +736,39 @@ export default function SettingsCostCategories() {
                           </div>
                         )}
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="p-1 text-center md:p-4">
                         <Badge
                           variant={usage > 0 ? "secondary" : "outline"}
                           className={usage > 0 ? "" : "text-muted-foreground"}
                         >
-                          {usage}
+                          {usageKnown ? usage : "–"}
                         </Badge>
                       </TableCell>
                       {puoModificare && (
-                        <TableCell className="text-right">
+                        <TableCell className="col-span-3 p-1 text-right md:p-4">
                           {isEditing ? (
                             <div className="flex justify-end gap-1">
                               <Button
                                 size="sm"
                                 onClick={() => saveEdit(cat.id)}
-                                disabled={!editName.trim() || updateMutation.isPending}
+                                disabled={!canWrite || busy || !editName.trim()}
                               >
                                 Salva
                               </Button>
-                              <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
+                              <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditingId(null)}>
                                 Annulla
                               </Button>
                             </div>
                           ) : (
                             <div className="flex justify-end gap-1">
-                              <Button size="icon" variant="ghost" onClick={() => startEdit(cat)} aria-label={`Modifica ${cat.name}`}>
+                              <Button size="icon" variant="ghost" className="h-8 w-8" disabled={!canWrite || busy} onClick={() => startEdit(cat)} aria-label={`Modifica ${cat.name}`}>
                                 <Pencil className="h-4 w-4" />
                               </Button>
                               <Button
                                 size="icon"
+                                className="h-8 w-8"
                                 variant="ghost"
+                                disabled={!canWrite || busy || !usageKnown || usage > 0}
                                 onClick={() => setDeleteId(cat.id)}
                                 aria-label={usage > 0 ? `${cat.name} protetta: non eliminabile` : `Elimina ${cat.name}`}
                                 title={usage > 0 ? "Categoria protetta perché già usata nei costi" : "Elimina categoria inutilizzata"}
@@ -795,11 +815,23 @@ export default function SettingsCostCategories() {
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
-              disabled={deleteUsage > 0 || deleteMutation.isPending}
+              disabled={!canWrite || !usageKnown || deleteUsage > 0 || busy}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteUsage > 0 ? "Bloccata" : "Elimina"}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={importOpen} onOpenChange={(open) => { if (!busy) setImportOpen(open); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Importare le categorie mancanti?</AlertDialogTitle>
+            <AlertDialogDescription>Legge costi e fornitori dell'azienda e aggiunge solo le categorie che mancano. Non modifica i movimenti storici.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Annulla</AlertDialogCancel>
+            <AlertDialogAction disabled={busy || !canWrite} onClick={(event) => { event.preventDefault(); importMutation.mutate(); }}>{importMutation.isPending ? "Importo…" : "Importa categorie"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

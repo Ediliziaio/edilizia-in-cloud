@@ -181,6 +181,7 @@ export function useSalvaSquadra() {
   const companyId = effectiveCompany?.id;
   return useMutation({
     mutationFn: async (input: SquadraInput) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       const riga = {
         name: input.name,
         contact_name: input.contact_name || null,
@@ -195,7 +196,7 @@ export function useSalvaSquadra() {
         color: input.color || null,
       };
       if (input.id) {
-        const { error } = await supabase.from("external_teams").update(riga as never).eq("id", input.id);
+        const { error } = await supabase.from("external_teams").update(riga as never).eq("id", input.id).eq("company_id", companyId).select("id").single();
         if (error) throw error;
         return input.id;
       }
@@ -221,7 +222,8 @@ export function useEliminaSquadra() {
   const companyId = effectiveCompany?.id;
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("external_teams").delete().eq("id", id);
+      if (!companyId) throw new Error("Azienda non disponibile");
+      const { error } = await supabase.from("external_teams").delete().eq("id", id).eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
     onSuccess: () => {
@@ -245,6 +247,7 @@ export function useCollegaCalendarioSquadra() {
       google_calendar_id: string | null;
       google_sync_enabled?: boolean;
     }) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       const scollega = !p.google_connection_id || !p.google_calendar_id;
       const { error } = await supabase
         .from("external_teams")
@@ -254,7 +257,7 @@ export function useCollegaCalendarioSquadra() {
           google_sync_enabled: scollega ? false : (p.google_sync_enabled ?? true),
           google_last_error: null,
         } as never)
-        .eq("id", p.id);
+        .eq("id", p.id).eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
     onSuccess: (_r, p) => {
@@ -282,6 +285,7 @@ export function useSalvaCalendarLink() {
       google_calendar_id: string | null;
       enabled?: boolean;
     }) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
       const scollega = !p.google_connection_id || !p.google_calendar_id;
       const { error } = await supabase
         .from("company_calendar_links" as never)

@@ -7,15 +7,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { CALENDARIO_STANDARD } from "@/types/squadre";
 import { useCalendarLinks, useSalvaCalendarLink } from "@/hooks/useCalendariLavori";
 import { GoogleCalendarPicker } from "./GoogleCalendarPicker";
 
 export function CalendariStandardTab({ canManage }: { canManage: boolean }) {
-  const { data: links = [], isLoading } = useCalendarLinks();
+  const { data: links = [], isLoading, isError, refetch } = useCalendarLinks();
   const salva = useSalvaCalendarLink();
 
   if (isLoading) return <Skeleton className="h-24 w-full" />;
+  if (isError) return <div role="alert" className="space-y-2 rounded-lg border p-4 text-sm">
+    <p>Impossibile leggere i collegamenti. Nessun calendario è stato modificato.</p>
+    <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button>
+  </div>;
 
   return (
     <div className="space-y-3">
@@ -24,9 +29,9 @@ export function CalendariStandardTab({ canManage }: { canManage: boolean }) {
         const collegato = !!link?.google_calendar_id;
         return (
           <Card key={std.kind}>
-            <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+            <CardContent className="flex flex-col gap-3 p-4">
               <div className="min-w-0">
-                <p className="flex items-center gap-2 font-medium">
+                <div className="flex flex-wrap items-center gap-2 font-medium">
                   {std.label}
                   {collegato ? (
                     <Badge className={link?.enabled ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}>
@@ -35,13 +40,13 @@ export function CalendariStandardTab({ canManage }: { canManage: boolean }) {
                   ) : (
                     <Badge className="bg-muted text-muted-foreground">Nessun calendario</Badge>
                   )}
-                </p>
+                </div>
                 <p className="text-sm text-muted-foreground">{std.descrizione}</p>
                 {link?.last_error && <p className="mt-1 text-xs text-red-700">{link.last_error}</p>}
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <GoogleCalendarPicker
-                  disabled={!canManage}
+                  disabled={!canManage || salva.isPending}
                   value={{
                     google_connection_id: link?.google_connection_id ?? null,
                     google_calendar_id: link?.google_calendar_id ?? null,
@@ -51,7 +56,7 @@ export function CalendariStandardTab({ canManage }: { canManage: boolean }) {
                 {collegato && (
                   <Switch
                     checked={!!link?.enabled}
-                    disabled={!canManage}
+                    disabled={!canManage || salva.isPending}
                     aria-label="Invio attivo"
                     onCheckedChange={(on) =>
                       salva.mutate({
@@ -64,6 +69,7 @@ export function CalendariStandardTab({ canManage }: { canManage: boolean }) {
                   />
                 )}
               </div>
+              <p className="text-xs text-muted-foreground" role="status">{salva.isPending ? "Salvataggio…" : "Le modifiche si salvano automaticamente."}</p>
             </CardContent>
           </Card>
         );

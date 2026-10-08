@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent,
@@ -19,6 +19,7 @@ import { AUTO_STATUS_OPTIONS } from "@/types/opportunities";
 import { usePermissions } from "@/hooks/usePermissions";
 import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 import { queryKeys } from "@/lib/queryKeys";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 
 interface Stage {
   id: string;
@@ -78,14 +79,14 @@ function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChang
   return (
     <div ref={setNodeRef} style={style} className="rounded-lg border bg-background p-2 space-y-1">
       {/* Riga principale */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button {...attributes} {...listeners} aria-label="Trascina per riordinare" className="cursor-grab text-muted-foreground hover:text-foreground">
           <GripVertical className="h-4 w-4" />
         </button>
         <Input
           value={stage.name}
           onChange={(e) => onUpdate(stage.id, e.target.value)}
-          className="h-8 text-sm flex-1"
+          aria-label={`Nome fase ${stage.name}`} className="h-9 min-w-[120px] text-sm flex-1"
           maxLength={100}
         />
         <Select
@@ -94,6 +95,7 @@ function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChang
         >
           <SelectTrigger
             className="h-8 text-xs w-[130px]"
+            aria-label={`Esito automatico ${stage.name}`}
             title={AUTO_STATUS_OPTIONS.find((o) => o.value === (stage.auto_status || "none"))?.hint}
           >
             <SelectValue placeholder="Stato auto" />
@@ -107,22 +109,25 @@ function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChang
           </SelectContent>
         </Select>
         {canDelete && (
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDelete(stage.id)}>
+          <Button aria-label={`Elimina ${stage.name}`} variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={() => onDelete(stage.id)}>
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         )}
       </div>
       {/* Riga Sales OS */}
-      <div className="flex items-center gap-3 pl-8 text-xs text-muted-foreground">
-        <span>Prob. win %</span>
+      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground sm:flex sm:flex-wrap sm:items-center sm:pl-8">
+        <label className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+        <span>Prob. vittoria %</span>
         <Input
           type="number"
           value={stage.win_probability ?? ""}
           onChange={(e) => onSalesOSChange(stage.id, "win_probability", normalizeNumber(e.target.value, 0, 100))}
-          className="h-7 text-xs w-[72px]"
+          className="h-8 w-full text-xs sm:h-7 sm:w-[72px]"
           min={0}
           max={100}
         />
+        </label>
+        <label className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
         <span>Alert ferma (gg)</span>
         <Input
           type="number"
@@ -134,9 +139,10 @@ function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChang
               normalizeNumber(e.target.value, 1)
             )
           }
-          className="h-7 text-xs w-[72px]"
+          className="h-8 w-full text-xs sm:h-7 sm:w-[72px]"
           min={1}
         />
+        </label>
       </div>
     </div>
   );
@@ -144,16 +150,18 @@ function SortableStage({ stage, onUpdate, onDelete, canDelete, onAutoStatusChang
 
 export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId: string; pipelineName: string }) {
   const { effectiveCompany } = useAuth();
-  const { canEditSettingsCustomization: puoModificare } = usePermissions();
+  const permissions = usePermissions();
+  const puoModificare = !permissions.isLoading && permissions.canEditSettingsCustomization;
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const [stages, setStages] = useState<Stage[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const originalStagesRef = useRef<Stage[]>([]);
+  const [originalStages, setOriginalStages] = useState<Stage[]>([]);
+  useSettingsDraftGuard(hasChanges || isSaving);
 
   const { data: queryData, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["pipeline_stages", pipelineId],
+    queryKey: ["pipeline_stages", pipelineId, companyId],
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -168,12 +176,11 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
     enabled: !!pipelineId && !!companyId,
   });
 
-  useEffect(() => {
-    if (queryData && !hasChanges) {
-      setStages(queryData);
-      originalStagesRef.current = queryData;
-    }
-  }, [queryData, hasChanges]);
+  // Adatta la bozza alla nuova lettura solo quando non ci sono modifiche locali.
+  if (queryData && !hasChanges && originalStages !== queryData) {
+    setStages(queryData);
+    setOriginalStages(queryData);
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -181,6 +188,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
   );
 
   function handleDragEnd(event: DragEndEvent) {
+    if (!puoModificare || isSaving) return;
     const { active, over } = event;
     if (over && active.id !== over.id) {
       setStages((items) => {
@@ -209,6 +217,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
   }, []);
 
   const handleDelete = useCallback(async (id: string) => {
+    if (!puoModificare || isSaving) return;
     if (!companyId) {
       toast.error("Azienda non disponibile. Ricarica la pagina e riprova.");
       return;
@@ -221,7 +230,8 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
           .eq("stage_id", id)
           .eq("company_id", companyId);
 
-      if (!error && count && count > 0) {
+      if (error) { toast.error("Impossibile verificare le opportunità collegate. Riprova."); return; }
+      if (count && count > 0) {
         toast.error(`Impossibile rimuovere: ${count} opportunità collegate a questa fase. Spostale prima.`);
         return;
       }
@@ -229,7 +239,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
 
     setStages((prev) => prev.filter((s) => s.id !== id).map((s, idx) => ({ ...s, position: idx })));
     setHasChanges(true);
-  }, [companyId]);
+  }, [companyId, puoModificare, isSaving]);
 
   const handleAdd = useCallback(() => {
     setStages((prev) => [...prev, {
@@ -244,7 +254,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
   }, []);
 
   async function handleSave() {
-    if (!companyId) return;
+    if (!companyId || !puoModificare || isSaving || isError) return;
     setIsSaving(true);
     try {
       const normalizedStages = stages
@@ -263,7 +273,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
         return;
       }
 
-      const original = originalStagesRef.current;
+      const original = originalStages;
       const originalIds = new Set(original.map((s) => s.id));
       const currentIds = new Set(normalizedStages.map((s) => s.id));
 
@@ -276,7 +286,8 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
           .eq("stage_id", stage.id)
           .eq("company_id", companyId);
 
-        if (!error && count && count > 0) {
+        if (error) throw error;
+        if (count && count > 0) {
           toast.error(`Impossibile eliminare la fase "${stage.name}": ${count} opportunità collegate.`);
           setIsSaving(false);
           return;
@@ -284,7 +295,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
       }
 
       for (const stage of toDelete) {
-        const { error } = await supabase.from("marketing_pipeline_stages").delete().eq("id", stage.id).eq("company_id", companyId!);
+        const { error } = await supabase.from("marketing_pipeline_stages").delete().eq("id", stage.id).eq("company_id", companyId!).select("id").single();
         if (error) throw error;
       }
 
@@ -300,7 +311,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
               stalled_threshold_days: stage.stalled_threshold_days,
             } satisfies StageUpdatePayload)
             .eq("id", stage.id)
-            .eq("company_id", companyId);
+            .eq("company_id", companyId).select("id").single();
           if (error) throw error;
         }
       }
@@ -362,14 +373,14 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <CardTitle>Fasi di "{pipelineName}"</CardTitle>
           <CardDescription>Trascina per riordinare. Associa uno stato automatico per aggiornare le opportunità.</CardDescription>
         </div>
         {puoModificare && (
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleAdd}>
+            <Button disabled={isSaving} variant="outline" size="sm" onClick={handleAdd}>
               <Plus className="mr-2 h-4 w-4" /> Aggiungi Fase
             </Button>
             <Button size="sm" onClick={handleSave} disabled={!hasChanges || isSaving}>
@@ -391,7 +402,7 @@ export function PipelineStagesConfig({ pipelineId, pipelineName }: { pipelineId:
             <SortableContext items={stages.map((s) => s.id)} strategy={verticalListSortingStrategy}>
               {/* Senza permesso di modifica il fieldset spegne campi, menu,
                   cestino e maniglia di trascinamento in un colpo solo. */}
-              <fieldset disabled={!puoModificare} className="min-w-0 space-y-2">
+              <fieldset disabled={!puoModificare || isSaving} className="m-0 min-w-0 space-y-2 border-0 p-0">
                 {stages.map((stage) => (
                   <SortableStage
                     key={stage.id}

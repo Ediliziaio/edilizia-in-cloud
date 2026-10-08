@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/hooks/use-toast";
@@ -154,27 +155,20 @@ function WebhookFormDialog({
   const createMutation = useCreateWebhook(companyId);
   const updateMutation = useUpdateWebhook(companyId);
 
-  const [name, setName] = useState("");
-  const [url, setUrl] = useState("");
+  const [name, setName] = useState(webhook?.name || "");
+  const [url, setUrl] = useState(webhook?.url || "");
   const [secret, setSecret] = useState("");
-  const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
-  const [timeoutSec, setTimeoutSec] = useState<number>(15);
-  const [allowedIpsText, setAllowedIpsText] = useState<string>("");
+  const [selectedEvents, setSelectedEvents] = useState<string[]>(webhook?.events || []);
+  const [timeoutSec, setTimeoutSec] = useState<number>(webhook?.timeout_seconds ?? 15);
+  const [allowedIpsText, setAllowedIpsText] = useState<string>((webhook?.allowed_ips ?? []).join("\n"));
   const [testResult, setTestResult] = useState<{ status: string; http_status: number | null } | null>(null);
   const [testing, setTesting] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      setName(webhook?.name || "");
-      setUrl(webhook?.url || "");
-      setSecret("");
-      setSelectedEvents(webhook?.events || []);
-      // Campi security (migration 20261024110000)
-      setTimeoutSec(webhook?.timeout_seconds ?? 15);
-      setAllowedIpsText((webhook?.allowed_ips ?? []).join("\n"));
-      setTestResult(null);
-    }
-  }, [open, webhook]);
+  const busy = testing || createMutation.isPending || updateMutation.isPending;
+  const dirty = name !== (webhook?.name || "") || url !== (webhook?.url || "") || !!secret ||
+    timeoutSec !== (webhook?.timeout_seconds ?? 15) || allowedIpsText !== (webhook?.allowed_ips ?? []).join("\n") ||
+    JSON.stringify([...selectedEvents].sort()) !== JSON.stringify([...(webhook?.events || [])].sort());
+  const confermaUscita = useSettingsDraftGuard(dirty || busy);
 
   const allEvents = Object.values(WEBHOOK_EVENTS).flat() as string[];
   const allSelected = allEvents.every((e) => selectedEvents.includes(e));
@@ -199,6 +193,7 @@ function WebhookFormDialog({
   };
 
   const handleTest = async () => {
+    if (busy) return;
     if (!canManage) {
       toast({ title: "Permessi insufficienti", description: "Solo gli amministratori possono testare webhook.", variant: "destructive" });
       return;
@@ -221,9 +216,15 @@ function WebhookFormDialog({
         },
       });
       if (error) {
-        let errBody: any = null;
-        try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
-        throw new Error(errBody?.error ?? error.message ?? "Errore invio webhook");
+        let message = error.message || "Errore invio webhook";
+        try {
+          const context: unknown = error.context;
+          if (context instanceof Response) {
+            const body: unknown = await context.json();
+            if (body && typeof body === "object" && "error" in body && typeof body.error === "string") message = body.error;
+          }
+        } catch { /* Se il corpo non è JSON rimane il messaggio di trasporto. */ }
+        throw new Error(message);
       }
       setTestResult({ status: data?.status, http_status: data?.http_status });
     } catch {
@@ -233,6 +234,7 @@ function WebhookFormDialog({
   };
 
   const handleSave = async () => {
+    if (busy) return;
     if (!canManage) {
       toast({ title: "Permessi insufficienti", description: "Solo gli amministratori possono salvare webhook.", variant: "destructive" });
       return;
@@ -289,25 +291,25 @@ function WebhookFormDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => { if (next || (!busy && confermaUscita())) onOpenChange(next); }}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{webhook ? "Modifica Webhook" : "Crea Webhook"}</DialogTitle>
           <DialogDescription>Configura l'endpoint che riceverà le notifiche degli eventi.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5 py-2">
+        <fieldset disabled={busy || !canManage} className="min-w-0 space-y-5 py-2">
           {/* Name */}
           <div className="space-y-2">
-            <Label>Nome webhook *</Label>
-            <Input placeholder="Es. Notifica CRM" value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} />
+            <Label htmlFor="webhook-name">Nome webhook *</Label>
+            <Input id="webhook-name" placeholder="Es. Notifica CRM" value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} />
           </div>
 
           {/* URL */}
           <div className="space-y-2">
-            <Label>URL endpoint *</Label>
+            <Label htmlFor="webhook-url">URL endpoint *</Label>
             <div className="flex gap-2">
-              <Input placeholder="https://api.example.com/webhook" value={url} onChange={(e) => setUrl(e.target.value)} className="flex-1" disabled={!canManage} />
+              <Input id="webhook-url" placeholder="https://api.example.com/webhook" value={url} onChange={(e) => setUrl(e.target.value)} className="min-w-0 flex-1" disabled={!canManage} />
               <Button variant="outline" size="sm" onClick={handleTest} disabled={!url || testing || !canManage}>
                 {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
                 <span className="ml-1">Test</span>
@@ -325,9 +327,10 @@ function WebhookFormDialog({
 
           {/* Secret */}
           <div className="space-y-2">
-            <Label>Secret HMAC (opzionale)</Label>
+            <Label htmlFor="webhook-secret">Secret HMAC (opzionale)</Label>
             <div className="flex gap-2">
               <Input
+                id="webhook-secret"
                 placeholder={webhook ? "Lascia vuoto per mantenere il secret esistente" : "Signing secret"}
                 value={secret}
                 onChange={(e) => setSecret(e.target.value)}
@@ -407,15 +410,15 @@ function WebhookFormDialog({
               return (
                 <div key={group} className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <Checkbox checked={allGroupSelected} onCheckedChange={(v) => toggleGroup(events, !!v)} disabled={!canManage} />
+                    <Checkbox aria-label={`Tutti gli eventi ${group}`} checked={allGroupSelected} onCheckedChange={(v) => toggleGroup(events, !!v)} disabled={!canManage} />
                     <span className="font-medium text-sm">{group}</span>
                     <Badge variant="secondary" className="text-xs">{groupSelected}/{events.length}</Badge>
                   </div>
-                  <div className="grid grid-cols-2 gap-1 pl-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-6">
                     {events.map((evt) => (
                       <div key={evt} className="flex items-center gap-2">
-                        <Checkbox checked={selectedEvents.includes(evt)} onCheckedChange={() => toggleEvent(evt)} disabled={!canManage} />
-                        <span className="text-sm text-muted-foreground">{evt}</span>
+                        <Checkbox aria-label={`Evento ${evt}`} checked={selectedEvents.includes(evt)} onCheckedChange={() => toggleEvent(evt)} disabled={!canManage} />
+                        <span className="min-w-0 break-words text-sm text-muted-foreground">{evt}</span>
                       </div>
                     ))}
                   </div>
@@ -423,11 +426,11 @@ function WebhookFormDialog({
               );
             })}
           </div>
-        </div>
+        </fieldset>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-          <Button onClick={handleSave} disabled={!canManage || createMutation.isPending || updateMutation.isPending}>
+          <Button variant="outline" disabled={busy} onClick={() => { if (confermaUscita()) onOpenChange(false); }}>Annulla</Button>
+          <Button onClick={handleSave} disabled={!canManage || busy || !name.trim() || !url.trim() || selectedEvents.length === 0}>
             {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             {webhook ? "Salva modifiche" : "Crea webhook"}
           </Button>
@@ -471,8 +474,8 @@ function WebhookHealthIndicator({
             Endpoint apparentemente down — {recent.length} fallimenti consecutivi
           </p>
           <p className="text-destructive/80 mt-0.5">
-            Gli eventi continuano ad essere inviati. Consigliamo di disabilitare
-            temporaneamente il webhook per evitare latenze sul sistema.
+            Verifica l'endpoint prima di riprovare gli invii. Puoi disabilitare
+            temporaneamente il webhook; gli eventi automatici non sono ancora collegati.
           </p>
           <Button
             variant="outline"
@@ -501,15 +504,10 @@ function DeliveriesSheet({
   webhook: Webhook | null;
   canManage: boolean;
 }) {
-  const { data: deliveries = [], isLoading } = useWebhookDeliveries(open ? webhook?.id ?? null : null);
+  const { data: deliveries = [], isLoading, isError, refetch } = useWebhookDeliveries(open ? webhook?.id ?? null : null);
   const retryMutation = useRetryDelivery(webhook?.id ?? null);
   const { toast } = useToast();
   const [visibleCount, setVisibleCount] = useState(20);
-
-  // Reset paginazione quando si apre sheet nuovo
-  useEffect(() => {
-    if (open) setVisibleCount(20);
-  }, [open, webhook?.id]);
 
   // KPI successi/fallimenti su deliveries caricate
   const stats = (() => {
@@ -542,7 +540,7 @@ function DeliveriesSheet({
         </SheetHeader>
 
         {/* KPI statistiche */}
-        {!isLoading && deliveries.length > 0 && (
+        {!isLoading && !isError && deliveries.length > 0 && (
           <div className="grid grid-cols-3 gap-2 mt-4 p-3 rounded-lg bg-muted/30 border">
             <div>
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Totali</p>
@@ -567,7 +565,7 @@ function DeliveriesSheet({
         )}
 
         <div className="mt-4 space-y-3">
-          {isLoading ? (
+          {isError ? <Alert variant="destructive"><AlertDescription>Invii non disponibili.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova invii</Button></AlertDescription></Alert> : isLoading ? (
             Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)
           ) : deliveries.length === 0 ? (
             <div className="text-center py-12">
@@ -599,7 +597,7 @@ function DeliveriesSheet({
                           onClick={async () => {
                             try {
                               await retryMutation.mutateAsync(d.id);
-                              toast({ title: "Retry inviato" });
+                              toast({ title: "Nuovo invio riuscito" });
                             } catch (e) {
                               toast({
                                 title: "Errore retry",
@@ -651,7 +649,7 @@ function DeliveriesSheet({
 // ===== SettingsWebhooks (main page) =====
 export default function SettingsWebhooks() {
   const { effectiveCompany, role } = useAuth();
-  const companyId = (effectiveCompany as any)?.id as string | undefined;
+  const companyId = effectiveCompany?.id;
   const { toast } = useToast();
   const permissions = usePermissions();
   // 13/7/2026: vale anche il permesso "Integrazioni & Canali" (Modifica), non solo il ruolo admin
@@ -665,7 +663,7 @@ export default function SettingsWebhooks() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused" | "signed" | "failing">("all");
   const [eventFilter, setEventFilter] = useState("all");
 
-  const { data: webhooks = [], isLoading } = useWebhooks(companyId ?? "");
+  const { data: webhooks = [], isLoading, isError, refetch } = useWebhooks(companyId ?? "");
   const deleteMutation = useDeleteWebhook(companyId ?? "");
   const updateMutation = useUpdateWebhook(companyId ?? "");
 
@@ -710,6 +708,8 @@ export default function SettingsWebhooks() {
 
   const activeCount = webhooks.filter((w) => w.is_active).length;
   const signedCount = webhooks.filter((w) => !!w.secret).length;
+  // La query non espone i segreti: l'assenza del campo non significa "senza firma".
+  const signatureKnown = webhooks.length > 0 && webhooks.every((w) => w.secret !== undefined);
   const failingCount = webhooks.filter((w) => (w.consecutive_failures ?? 0) > 0).length;
   const totalEvents = webhooks.reduce((sum, webhook) => sum + (webhook.events?.length ?? 0), 0);
   const allEvents = Object.values(WEBHOOK_EVENTS).flat() as string[];
@@ -733,11 +733,7 @@ export default function SettingsWebhooks() {
         <div className="flex items-center gap-3">
           {/* Da 768 icona e titolo li mostra già la testata delle Impostazioni
               (erano due volte): resta la riga sotto, con numeri e azioni. */}
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 md:hidden">
-            <WebhookIcon className="h-5 w-5 text-primary" />
-          </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight md:hidden">Webhook</h1>
             <p className="text-sm text-muted-foreground">
               Endpoint esterni a cui mandare gli eventi del CRM
               {webhooks.length > 0 && (
@@ -746,7 +742,7 @@ export default function SettingsWebhooks() {
             </p>
           </div>
         </div>
-        <Button onClick={openCreate} className="h-9" size="sm" disabled={!canManageWebhooks}>
+        <Button onClick={openCreate} className="h-9 self-start" size="sm" disabled={!canManageWebhooks || isLoading || isError}>
           <Plus className="h-4 w-4 mr-2" />Crea Webhook
         </Button>
       </div>
@@ -755,7 +751,7 @@ export default function SettingsWebhooks() {
         <Alert>
           <ShieldCheck className="h-4 w-4" />
           <AlertDescription>
-            Puoi consultare webhook e log, ma solo un amministratore aziendale può crearli, testarli, modificarli o eliminarli.
+            Puoi consultare webhook e log. Per modificarli o inviare test serve il permesso di modifica delle integrazioni.
           </AlertDescription>
         </Alert>
       )}
@@ -770,21 +766,19 @@ export default function SettingsWebhooks() {
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
           <span className="font-medium">Gli eventi non partono ancora da soli.</span>{" "}
-          Qui l'endpoint si configura, si firma e si prova col pulsante «Test»
-          — e quella chiamata arriva davvero. Ma nessun evento del gestionale (ordine creato, opportunità
-          vinta, pagamento ricevuto…) chiama ancora il tuo indirizzo: se stai
-          costruendo un'integrazione, sappilo prima di scriverla.
+          Puoi configurare un endpoint, inviare un «Test» e riprovare gli invii dai log.
+          Gli eventi del gestionale non sono ancora collegati all'invio automatico.
         </AlertDescription>
       </Alert>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {!isLoading && !isError && webhooks.length > 0 && <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <WebhookStatCard label="Attivi" value={activeCount} description="endpoint configurati" icon={WebhookIcon} tone="success" />
-        <WebhookStatCard label="Firmati" value={signedCount} description="con HMAC configurato" icon={ShieldCheck} />
+        <WebhookStatCard label="Firmati" value={signatureKnown ? signedCount : "–"} description={signatureKnown ? "con HMAC configurato" : "stato firma non esposto"} icon={ShieldCheck} />
         <WebhookStatCard label="Eventi" value={totalEvents} description="sottoscrizioni totali" icon={Zap} />
         <WebhookStatCard label="Con errori" value={failingCount} description="fallimenti consecutivi" icon={AlertTriangle} tone={failingCount > 0 ? "warning" : "default"} />
-      </div>
+      </div>}
 
-      {isLoading ? (
+      {isError ? <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-2">Impossibile caricare i webhook. L'elenco non è vuoto: non è disponibile.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription></Alert> : isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
         </div>
@@ -824,7 +818,7 @@ export default function SettingsWebhooks() {
               <SelectItem value="all">Tutti gli stati</SelectItem>
               <SelectItem value="active">Attivi</SelectItem>
               <SelectItem value="paused">In pausa</SelectItem>
-              <SelectItem value="signed">Firmati HMAC</SelectItem>
+              <SelectItem value="signed" disabled={!signatureKnown}>Firmati HMAC{!signatureKnown ? " · dato non disponibile" : ""}</SelectItem>
               <SelectItem value="failing">Con errori</SelectItem>
             </SelectContent>
           </Select>
@@ -862,7 +856,7 @@ export default function SettingsWebhooks() {
                     onDisable={() => handleToggleActive(w)}
                     canManage={canManageWebhooks}
                   />
-                  <CardContent className="flex items-center justify-between py-4 gap-4">
+                  <CardContent className="flex flex-col items-stretch justify-between py-4 gap-3 sm:flex-row sm:items-center sm:gap-4">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className={cn(
                         "h-9 w-9 rounded-lg flex items-center justify-center shrink-0",
@@ -905,9 +899,10 @@ export default function SettingsWebhooks() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center justify-end gap-1 shrink-0">
                       <Switch
                         checked={w.is_active}
+                        aria-label={`Attiva webhook ${w.name}`}
                         onCheckedChange={() => handleToggleActive(w)}
                         disabled={!canManageWebhooks || updateMutation.isPending}
                       />
@@ -955,8 +950,8 @@ export default function SettingsWebhooks() {
         </>
       )}
 
-      <WebhookFormDialog open={formOpen} onOpenChange={setFormOpen} webhook={editingWebhook} companyId={companyId} canManage={canManageWebhooks} />
-      <DeliveriesSheet open={logsOpen} onOpenChange={setLogsOpen} webhook={logsWebhook} canManage={canManageWebhooks} />
+      {formOpen && <WebhookFormDialog key={editingWebhook?.id ?? "new"} open onOpenChange={setFormOpen} webhook={editingWebhook} companyId={companyId} canManage={canManageWebhooks} />}
+      {logsOpen && <DeliveriesSheet key={logsWebhook?.id} open onOpenChange={setLogsOpen} webhook={logsWebhook} canManage={canManageWebhooks} />}
     </div>
   );
 }

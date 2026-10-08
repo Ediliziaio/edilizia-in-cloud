@@ -10,7 +10,9 @@ export async function silvioOrderReport(args: Record<string, unknown>, ctx: Tool
   const code = String(args?.commessa_codice ?? "").trim();
   if (!code) return { error: "Codice commessa obbligatorio." };
   if (!ctx.companyId) return { error: "Azienda non identificata." };
-  const unavailable = (message: string) => ({
+  const unavailable = (message: string): {
+    error: string; affidabilita: string; margine: null; avvisi: string[]; come_leggere: string;
+  } => ({
     error: message, affidabilita: "NON DISPONIBILE", margine: null,
     avvisi: [message],
     come_leggere: "Non inventare importi o trattare errori di lettura come costi zero. Chiedi di riprovare.",

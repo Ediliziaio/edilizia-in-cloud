@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import {
   rimuovi, sostituisci, sposta, validaBozza,
   type BozzaModello, type FaseModello, type PayloadModello, type SottofaseModello,
@@ -45,12 +46,15 @@ export default function ModelloFasiEditor({ aperto, bozzaIniziale, ...resto }: M
 
 function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<ModelloFasiEditorProps, "aperto" | "bozzaIniziale"> & { bozzaIniziale: BozzaModello }) {
   const [bozza, setBozza] = useState<BozzaModello>(bozzaIniziale);
+  const conferma = useSettingsDraftGuard(salvataggio || JSON.stringify(bozza) !== JSON.stringify(bozzaIniziale));
+  const chiudi = () => { if (!salvataggio && conferma()) onChiudi(); };
   const fasi = bozza.fasi;
   const cambiaFasi = (nuove: FaseModello[]) => setBozza({ ...bozza, fasi: nuove });
   const cambiaFase = (i: number, patch: Partial<FaseModello>) => cambiaFasi(sostituisci(fasi, i, patch));
   const cambiaSotto = (i: number, nuove: SottofaseModello[]) => cambiaFase(i, { sottofasi: nuove });
 
   const salva = () => {
+    if (salvataggio) return;
     const esito = validaBozza(bozza);
     // Con strictNullChecks spento `!esito.ok` non restringe il tipo: si confronta con false.
     if (esito.ok === false) { toast.error(esito.errore); return; }
@@ -58,7 +62,7 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Mo
   };
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onChiudi(); }}>
+    <Dialog open onOpenChange={(o) => { if (!o) chiudi(); }}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{bozza.id ? "Modifica il modello" : "Nuovo modello di fasi"}</DialogTitle>
@@ -67,7 +71,7 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Mo
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <fieldset disabled={salvataggio} className="m-0 min-w-0 space-y-4 border-0 p-0">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="modello-nome">Nome del modello</Label>
@@ -82,23 +86,25 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Mo
           <ol className="space-y-3">
             {fasi.map((fase, i) => (
               <li key={i} className="rounded-lg border bg-muted/20 p-3">
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{i + 1}</span>
                   <Input
                     value={fase.nome} maxLength={160} placeholder="Nome della fase" aria-label={`Nome fase ${i + 1}`}
-                    onChange={(e) => cambiaFase(i, { nome: e.target.value })} className="h-9 min-w-0 flex-1"
+                    onChange={(e) => cambiaFase(i, { nome: e.target.value })} className="h-9 min-w-0 flex-1 basis-[calc(100%-1.625rem)] sm:basis-0"
                   />
+                  <div className="ml-auto flex items-center gap-1.5">
                   <Comandi
                     etichetta={`fase ${i + 1}`} indice={i} totale={fasi.length} eliminaDisabilitato={fasi.length === 1}
                     onSu={() => cambiaFasi(sposta(fasi, i, -1))} onGiu={() => cambiaFasi(sposta(fasi, i, 1))} onElimina={() => cambiaFasi(rimuovi(fasi, i))}
                   />
+                  </div>
                 </div>
-                <ul className="ml-6 mt-2 space-y-1.5">
+                <ul className="mt-2 space-y-1.5 sm:ml-6">
                   {fase.sottofasi.map((s, j) => (
-                    <li key={j} className="flex items-center gap-1.5">
+                    <li key={j} className="flex flex-wrap items-center gap-1.5">
                       <Input
                         value={s.nome} maxLength={160} placeholder="Sottofase" aria-label={`Nome sottofase ${i + 1}.${j + 1}`}
-                        onChange={(e) => cambiaSotto(i, sostituisci(fase.sottofasi, j, { nome: e.target.value }))} className="h-8 min-w-0 flex-1 text-sm"
+                        onChange={(e) => cambiaSotto(i, sostituisci(fase.sottofasi, j, { nome: e.target.value }))} className="h-9 min-w-[120px] flex-1 basis-full text-sm sm:basis-auto"
                       />
                       <Input
                         type="number" min={1} max={100} value={s.peso} aria-label={`Peso sottofase ${i + 1}.${j + 1}`}
@@ -125,10 +131,10 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Mo
           <Button type="button" variant="outline" size="sm" onClick={() => cambiaFasi([...fasi, { nome: "", sottofasi: [] }])}>
             <Plus className="mr-1 h-4 w-4" />Aggiungi fase
           </Button>
-        </div>
+        </fieldset>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onChiudi}>Annulla</Button>
+          <Button variant="outline" disabled={salvataggio} onClick={chiudi}>Annulla</Button>
           <Button onClick={salva} disabled={salvataggio}>Salva modello</Button>
         </DialogFooter>
       </DialogContent>

@@ -68,7 +68,7 @@ export async function creaPreventivoAi(ctx: ToolCtx, args: Args): Promise<ToolRe
       }),
       signal: AbortSignal.timeout(60_000),
     });
-    const j = await res.json().catch(() => null) as { success?: boolean; error?: unknown; sezioni?: Array<{ righe?: RigaAI[] }> } | null;
+    const j = await res.json().catch((): null => null) as { success?: boolean; error?: unknown; sezioni?: Array<{ righe?: RigaAI[] }> } | null;
     if (!res.ok || j?.success === false || j?.error || !Array.isArray(j?.sezioni) || j.sezioni.some(s => !s || typeof s !== "object" || Array.isArray(s) || !Array.isArray(s.righe))) {
       console.error(JSON.stringify({ level: "error", fn: "crea_preventivo_ai", passo: "motore", status: res.status }));
       return errResult("motore_ko", "Generazione non confermata. Nessuna bozza salvata: verifica nell’app prima di rilanciare l’analisi.");

@@ -3,6 +3,7 @@ import type { OrderItem } from "@/components/orders/OrderItemsList";
 import type { PaymentType } from "@/components/orders/FinancialSummary";
 import type { Installment } from "@/lib/orderUtils";
 import type { BonusLine } from "@/lib/orders/bonusFiscali";
+import type { FaseModello } from "@/lib/orders/modelliFasi";
 
 export interface OrderDraftData {
   customerId: string;
@@ -21,6 +22,16 @@ export interface OrderDraftData {
   warehouseArrivalDate: string | null;
   workStartDate: string | null;
   workEndDate: string | null;
+  // Pianificazione della nuova commessa; facoltativa per compatibilità con le bozze v2.
+  cantiereAddress?: string;
+  cantiereAddressData?: import("@/components/shared/AddressAutocomplete").AddressData | null;
+  cantiereAddressManuale?: boolean;
+  modelloFasiId?: string | null;
+  fasiLavoro?: FaseModello[] | null;
+  durataLavori?: string;
+  settimanaLavorativa?: 5 | 6;
+  /** Recupero dopo una creazione riuscita ma un completamento interrotto: non creare un duplicato. */
+  commessaCreataId?: string;
   // Financial
   paymentType: PaymentType;
   totalAmount: string;
@@ -60,7 +71,8 @@ function dateToIso(d: Date | undefined): string | null {
 }
 
 function isoToDate(s: string | null | undefined): Date | undefined {
-  return s ? new Date(s) : undefined;
+  const data = s ? new Date(s) : undefined;
+  return data && Number.isFinite(data.getTime()) ? data : undefined;
 }
 
 export function useOrderDraft(companyId: string | undefined, orderId?: string) {

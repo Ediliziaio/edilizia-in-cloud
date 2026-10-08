@@ -125,6 +125,8 @@ export function useOperationalSuppliers() {
   return {
     suppliers: suppliersQuery.data || [],
     isLoading: suppliersQuery.isLoading,
+    isError: suppliersQuery.isError,
+    refetch: suppliersQuery.refetch,
     update: updateMutation,
   };
 }

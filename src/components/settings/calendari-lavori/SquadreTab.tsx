@@ -57,6 +57,9 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
   const [daEliminare, setDaEliminare] = useState<ExternalTeam | null>(null);
   const [allegatiDi, setAllegatiDi] = useState<ExternalTeam | null>(null);
   const [composizioneDi, setComposizioneDi] = useState<ExternalTeam | null>(null);
+  const [calendarioDi, setCalendarioDi] = useState<string | null>(null);
+  const busy = salva.isPending || elimina.isPending || collega.isPending;
+  const canWrite = canManage && !isLoading && !isError && !busy;
 
   // Utenti dell'azienda per il capocantiere delle squadre interne.
   const { data: utenti = [] } = useQuery({
@@ -83,6 +86,7 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
   );
 
   const onSubmit = (data: ExternalTeamFormData) => {
+    if (!canWrite) return;
     salva.mutate(
       { id: inModifica?.id, ...data, kind: data.kind ?? "esterna" },
       {
@@ -96,12 +100,12 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
           Squadre interne di dipendenti e ditte esterne. Il calendario Google è facoltativo.
         </p>
         <Button
-          disabled={!canManage}
+          disabled={!canWrite}
           onClick={() => {
             setInModifica(null);
             setDialogOpen(true);
@@ -131,15 +135,15 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
             <p className="mb-4 text-sm text-muted-foreground">
               Crea la prima squadra di posa: poi la assegni sulle commesse.
             </p>
-            <Button disabled={!canManage} onClick={() => setDialogOpen(true)} className="gap-2">
+            <Button disabled={!canWrite} onClick={() => setDialogOpen(true)} className="gap-2">
               <Plus className="h-4 w-4" /> Nuova squadra
             </Button>
           </CardContent>
         </Card>
       ) : (
         <div className="overflow-x-auto rounded-md border">
-          <Table>
-            <TableHeader>
+          <Table className="block lg:table">
+            <TableHeader className="hidden lg:table-header-group">
               <TableRow>
                 <TableHead>Squadra</TableHead>
                 <TableHead className="hidden sm:table-cell">Tipo</TableHead>
@@ -149,7 +153,7 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
                 <TableHead className="w-32" />
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody className="block lg:table-row-group">
               {ordinate.map((s) => {
                 const stato = statoSyncSquadra({
                   google_calendar_id: s.google_calendar_id ?? null,
@@ -158,9 +162,9 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
                 });
                 const accesso = subappaltatori.find((x) => x.id === s.subappaltatore_id);
                 return (
-                  <TableRow key={s.id} className={s.is_active ? undefined : "opacity-60"}>
-                    <TableCell>
-                      <span className="flex items-center gap-2 font-medium">
+                  <TableRow key={s.id} className={`grid grid-cols-2 gap-1 p-3 lg:table-row lg:p-0 [&>td]:block [&>td]:p-1 lg:[&>td]:table-cell lg:[&>td]:p-4 ${s.is_active ? "" : "opacity-60"}`}>
+                    <TableCell className="col-span-2">
+                      <span className="flex flex-wrap items-center gap-2 break-words font-medium">
                         <span
                           className="inline-block h-3 w-3 shrink-0 rounded-full"
                           style={{ backgroundColor: s.color ?? "#94a3b8" }}
@@ -176,13 +180,17 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
                         <Users className="mr-1 h-3.5 w-3.5" /> Dipendenti della squadra
                       </Button>}
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell">{SQUADRA_KIND_LABEL[s.kind ?? "esterna"]}</TableCell>
-                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                    <TableCell className="text-xs text-muted-foreground lg:text-sm">{SQUADRA_KIND_LABEL[s.kind ?? "esterna"]}</TableCell>
+                    <TableCell className={`text-xs text-muted-foreground lg:text-sm ${accesso ? "" : "max-lg:!hidden"}`}>
                       {accesso ? (accesso.user_email ?? accesso.ragione_sociale) : "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="col-span-2">
+                      <Button variant="link" size="sm" className="h-auto px-0 text-xs lg:hidden" onClick={() => setCalendarioDi(calendarioDi === s.id ? null : s.id)} aria-expanded={calendarioDi === s.id}>
+                        {calendarioDi === s.id ? "Chiudi calendario" : "Calendario Google"}
+                      </Button>
+                      <div className={calendarioDi === s.id ? "mt-2 lg:mt-0" : "hidden lg:block"}>
                       <GoogleCalendarPicker
-                        disabled={!canManage}
+                        disabled={!canWrite}
                         value={{
                           google_connection_id: s.google_connection_id ?? null,
                           google_calendar_id: s.google_calendar_id ?? null,
@@ -190,6 +198,7 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
                         onChange={(next) => collega.mutate({ id: s.id, ...next })}
                       />
                       {s.google_last_error && <p className="mt-1 text-xs text-red-700">{s.google_last_error}</p>}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -197,7 +206,7 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
                         {s.google_calendar_id && (
                           <Switch
                             checked={!!s.google_sync_enabled}
-                            disabled={!canManage}
+                            disabled={!canWrite}
                             aria-label="Sincronizzazione attiva"
                             onCheckedChange={(on) =>
                               collega.mutate({
@@ -213,14 +222,14 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon" aria-label="Documenti" onClick={() => setAllegatiDi(s)}>
+                        <Button variant="ghost" size="icon" aria-label={`Documenti ${s.name}`} onClick={() => setAllegatiDi(s)}>
                           <FileText className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          disabled={!canManage}
-                          aria-label="Modifica"
+                          disabled={!canWrite}
+                          aria-label={`Modifica ${s.name}`}
                           onClick={() => {
                             setInModifica(s);
                             setDialogOpen(true);
@@ -231,8 +240,8 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          disabled={!canManage}
-                          aria-label="Elimina"
+                          disabled={!canWrite}
+                          aria-label={`Elimina ${s.name}`}
                           onClick={() => setDaEliminare(s)}
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -299,9 +308,10 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground"
-              onClick={() => {
-                if (daEliminare) elimina.mutate(daEliminare.id);
-                setDaEliminare(null);
+              disabled={!canWrite}
+              onClick={(e) => {
+                e.preventDefault();
+                if (daEliminare && canWrite) elimina.mutate(daEliminare.id, { onSuccess: () => setDaEliminare(null) });
               }}
             >
               Elimina

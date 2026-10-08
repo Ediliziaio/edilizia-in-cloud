@@ -1,5 +1,5 @@
 // src/components/settings/ModelliFasiConfig.tsx
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Copy, ListChecks, Loader2, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,24 +29,19 @@ const AVVISO = "rounded-lg border border-dashed p-4 text-sm text-muted-foregroun
 export default function ModelliFasiConfig() {
   const { role } = useAuth();
   const permissions = usePermissions();
-  const puoModificare = role === "company_admin" || role === "super_admin" || !!permissions.canEditSettingsOrders;
-  const { modelli, inizializzati, disponibile, isLoading, salva, elimina, inizializza } = useModelliFasi();
+  const puoModificare = !permissions.isLoading && (role === "company_admin" || role === "super_admin" || !!permissions.canEditSettingsOrders);
+  const { modelli, inizializzati, disponibile, isLoading, isError, refetch, salva, elimina, inizializza } = useModelliFasi();
   const [bozza, setBozza] = useState<BozzaModello | null>(null);
   const [daEliminare, setDaEliminare] = useState<ModelloFasi | null>(null);
 
-  // La prima volta, chi può modificare porta i modelli di partenza tra i suoi: da lì sono come gli altri.
+  // L'apertura della pagina non scrive dati: gli standard si importano esplicitamente.
   const preparaModelli = inizializza.mutate;
-  const avviata = useRef(false);
-  useEffect(() => {
-    if (avviata.current || isLoading || !disponibile || inizializzati || !puoModificare) return;
-    avviata.current = true;
-    preparaModelli({ modelli: modelliPerInizializzare(PHASE_TEMPLATES), soloMancanti: false });
-  }, [isLoading, disponibile, inizializzati, puoModificare, preparaModelli]);
 
   const elenco = modelliDaOffrire(inizializzati, modelli, PHASE_TEMPLATES);
   const mancanti = inizializzati ? modelliDiPartenzaMancanti(PHASE_TEMPLATES, modelli) : 0;
   const preparazione = disponibile && !inizializzati && puoModificare;
-  const puoAgire = puoModificare && disponibile;
+  const busy = salva.isPending || elimina.isPending || inizializza.isPending;
+  const puoAgire = puoModificare && disponibile && !isLoading && !isError && !busy;
 
   const ripristina = () =>
     inizializza.mutate(
@@ -57,7 +52,7 @@ export default function ModelliFasiConfig() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+        <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2 text-base"><ListChecks className="h-4 w-4" />I modelli di fasi</CardTitle>
             <CardDescription>
@@ -70,8 +65,12 @@ export default function ModelliFasiConfig() {
           )}
         </CardHeader>
         <CardContent className="space-y-3">
-          {!isLoading && !disponibile && <p className={AVVISO}>Non riesco a leggere i modelli in questo momento. Riprova tra poco.</p>}
-          {preparazione && !inizializza.isError && (
+          {isLoading && <p role="status" className={AVVISO}>Caricamento modelli…</p>}
+          {(isError || (!isLoading && !disponibile)) && <div role="alert" className={AVVISO}><p>Non riesco a leggere i modelli aziendali. Gli standard sotto sono solo un riferimento.</p><Button size="sm" variant="outline" onClick={() => void refetch()}>Riprova</Button></div>}
+          {preparazione && !busy && (
+            <div className={`${AVVISO} space-y-2`}><p>Importa gli standard per personalizzarli. Le commesse esistenti non cambiano.</p><Button size="sm" variant="outline" onClick={() => preparaModelli({ modelli: modelliPerInizializzare(PHASE_TEMPLATES), soloMancanti: false })}>Importa modelli standard</Button></div>
+          )}
+          {inizializza.isPending && (
             <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Preparo i tuoi modelli…</p>
           )}
           {preparazione && inizializza.isError && (
@@ -92,10 +91,10 @@ export default function ModelliFasiConfig() {
           ) : (
             <ul className="divide-y rounded-lg border">
               {elenco.map((m) => (
-                <li key={m.id} className="flex items-center gap-2 p-3">
+                <li key={m.id} className="flex flex-wrap items-center gap-2 p-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{m.nome}</p>
-                    <p className="truncate text-xs text-muted-foreground">{dettaglio(m)}</p>
+                    <p className="break-words text-sm font-medium">{m.nome}</p>
+                    <p className="break-words text-xs text-muted-foreground">{dettaglio(m)}</p>
                   </div>
                   {puoAgire && m.origine === "azienda" && (
                     <>
@@ -110,7 +109,7 @@ export default function ModelliFasiConfig() {
           )}
 
           {puoAgire && mancanti > 0 && (
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed p-3">
               <p className="text-xs text-muted-foreground">{testoMancanti(mancanti)}</p>
               <Button size="sm" variant="outline" disabled={inizializza.isPending} onClick={ripristina}>
                 <RotateCcw className="mr-1 h-4 w-4" />Ripristina i predefiniti
@@ -125,7 +124,7 @@ export default function ModelliFasiConfig() {
         bozzaIniziale={bozza}
         salvataggio={salva.isPending}
         onChiudi={() => setBozza(null)}
-        onSalva={(payload) => salva.mutate(payload, { onSuccess: () => setBozza(null) })}
+        onSalva={(payload) => { if (puoAgire) salva.mutate(payload, { onSuccess: () => setBozza(null) }); }}
       />
 
       <AlertDialog open={daEliminare !== null} onOpenChange={(o) => { if (!o) setDaEliminare(null); }}>
@@ -139,7 +138,7 @@ export default function ModelliFasiConfig() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (daEliminare) elimina.mutate(daEliminare.id); setDaEliminare(null); }}>Elimina il modello</AlertDialogAction>
+            <AlertDialogAction disabled={!puoAgire} onClick={(e) => { e.preventDefault(); if (daEliminare && puoAgire) elimina.mutate(daEliminare.id, { onSuccess: () => setDaEliminare(null) }); }}>Elimina il modello</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

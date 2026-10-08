@@ -14,7 +14,7 @@ vi.mock('../../../supabase/functions/_shared/auth.ts', () => ({
   requireAuth: async () => ({ userId: 'user', supabaseAdmin: runtime.db }),
   requireCompanyAccess: async () => ({ companyId: 'company', isSuperAdmin: false }),
 }));
-vi.mock('../../../supabase/functions/_shared/requirePaymentMethod.ts', () => ({ gateAiPayment: async () => null }));
+vi.mock('../../../supabase/functions/_shared/requirePaymentMethod.ts', () => ({ gateAiPayment: async (): Promise<null> => null }));
 vi.mock('../../../supabase/functions/_shared/brainEmbed.ts', () => ({ generateEmbeddingsBatch: (...args: unknown[]) => runtime.embed(...args) }));
 
 beforeEach(async () => {

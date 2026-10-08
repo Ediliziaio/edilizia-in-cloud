@@ -33,6 +33,8 @@ export function useCartelleDocumenti(opzioni: { tutte?: boolean } = {}) {
   return {
     cartelle: opzioni.tutte ? tutte : tutte.filter((c) => !c.archiviata_at),
     isLoading: query.isLoading,
+    isError: query.isError,
+    refetch: query.refetch,
     error: query.error,
   };
 }
@@ -57,7 +59,7 @@ export function useSalvaCartella() {
           if (c[k] !== undefined) patch[k] = c[k];
         }
         if (nome) patch.nome = nome;
-        const { error } = await tabella().update(patch as never).eq("id" as never, c.id as never);
+        const { error } = await tabella().update(patch as never).eq("id" as never, c.id as never).eq("company_id" as never, companyId as never).select("id").single();
         if (error) throw messaggioErrore(error, nome);
         return;
       }
@@ -82,13 +84,15 @@ export function useRiordinaCartelle() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (ids: string[]) => {
+      if (!companyId) throw new Error("Contesto azienda mancante");
       const risultati = await Promise.all(
-        ids.map((id, i) => tabella().update({ posizione: i + 1 } as never).eq("id" as never, id as never)),
+        ids.map((id, i) => tabella().update({ posizione: i + 1 } as never).eq("id" as never, id as never).eq("company_id" as never, companyId as never).select("id").single()),
       );
       const errore = risultati.find((r) => r.error)?.error;
       if (errore) throw messaggioErrore(errore);
     },
     onMutate: async (ids) => {
+      await qc.cancelQueries({ queryKey: chiave(companyId) });
       const prima = qc.getQueryData<CartellaDocumenti[]>(chiave(companyId));
       if (prima) {
         const pos = new Map(ids.map((id, i) => [id, i + 1]));

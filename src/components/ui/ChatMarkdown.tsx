@@ -35,6 +35,8 @@ interface Props {
   className?: string;
   /** Sources RAG mantenute per compatibilita' dati, senza tooltip in chat. */
   sources?: ChatMarkdownSource[];
+  /** Short AI comparisons become labelled rows on phones; other chats keep their tables. */
+  mobileCards?: boolean;
 }
 
 // Grafico/infografica in chat: lazy → recharts entra nel bundle solo se servono.
@@ -45,7 +47,7 @@ const SilvioImageJob = React.lazy(() => import("@/components/silvio/SilvioImageJ
 /** ImageFence — rende un blocco ```silvio-image``` (con {"job_id":"…"} o un uuid)
  *  come immagine generata live da Silvio (polling sul job). */
 function ImageFence({ raw }: { raw: string }) {
-  let jobId = "";
+  let jobId: string;
   const t = raw.trim();
   try {
     const o = JSON.parse(t) as { job_id?: string; jobId?: string; id?: string };
@@ -69,7 +71,7 @@ function ImageFence({ raw }: { raw: string }) {
 
 /** InfographicFence — rende un blocco ```infografica``` come card KPI brandizzata. */
 function InfographicFence({ raw }: { raw: string }) {
-  let spec: unknown = null;
+  let spec: unknown;
   try { spec = JSON.parse(raw); } catch { spec = null; }
   if (!spec || typeof spec !== "object") {
     return (
@@ -90,7 +92,7 @@ function InfographicFence({ raw }: { raw: string }) {
  * valido, ricade su un code-block (mostra comunque i dati, niente crash).
  */
 function ChartFence({ raw }: { raw: string }) {
-  let spec: unknown = null;
+  let spec: unknown;
   try { spec = JSON.parse(raw); } catch { spec = null; }
   if (!spec || typeof spec !== "object") {
     return (
@@ -109,11 +111,11 @@ function ChartFence({ raw }: { raw: string }) {
 // Context per passare le sources ai render inline (evita prop drilling)
 const SourcesCtx = React.createContext<ChatMarkdownSource[] | undefined>(undefined);
 
-export function ChatMarkdown({ content, className, sources }: Props) {
+export function ChatMarkdown({ content, className, sources, mobileCards = false }: Props) {
   if (!content) return null;
   return (
     <SourcesCtx.Provider value={sources}>
-      <div className={className}>{renderBlocks(content)}</div>
+      <div className={className}>{renderBlocks(content, mobileCards)}</div>
     </SourcesCtx.Provider>
   );
 }
@@ -121,7 +123,7 @@ export function ChatMarkdown({ content, className, sources }: Props) {
 // ─────────────────────────────────────────────────────────────────────────
 // Block-level
 // ─────────────────────────────────────────────────────────────────────────
-function renderBlocks(text: string): React.ReactNode[] {
+function renderBlocks(text: string, mobileCards = false): React.ReactNode[] {
   const lines = text.split("\n");
   const out: React.ReactNode[] = [];
   let i = 0;
@@ -218,6 +220,7 @@ function renderBlocks(text: string): React.ReactNode[] {
     if (line.includes("|") && i + 1 < lines.length && /^[\s|:-]+$/.test(lines[i + 1].trim()) && lines[i + 1].includes("|")) {
       flushPara(para); para = [];
       const headerCells = parseTableRow(line);
+      const cards = mobileCards && headerCells.length <= 3;
       const bodyRows: string[][] = [];
       i += 2; // skip header + separator
       while (i < lines.length && lines[i].includes("|") && lines[i].trim().length > 0) {
@@ -226,21 +229,22 @@ function renderBlocks(text: string): React.ReactNode[] {
       }
       out.push(
         <div key={`tbl-${key++}`} className="my-2 overflow-x-auto">
-          <table className="text-xs border-collapse">
-            <thead>
-              <tr>
+          <table role="table" className={cn("text-xs border-collapse", cards && "w-full sm:[overflow-wrap:normal] max-sm:block max-sm:text-sm")}>
+            <thead role="rowgroup" className={cards ? "max-sm:sr-only" : undefined}>
+              <tr role="row">
                 {headerCells.map((c, idx) => (
-                  <th key={idx} className="px-2 py-1 border border-slate-300 bg-slate-100 font-semibold text-left">
+                  <th role="columnheader" scope="col" key={idx} className="px-2 py-1 border border-slate-300 bg-slate-100 font-semibold text-left">
                     {renderInline(c)}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup" className={cards ? "max-sm:grid max-sm:gap-2" : undefined}>
               {bodyRows.map((row, ri) => (
-                <tr key={ri}>
+                <tr role="row" key={ri} className={cards ? "max-sm:block max-sm:rounded-lg max-sm:border max-sm:border-slate-200 max-sm:bg-slate-50 max-sm:p-3" : undefined}>
                   {row.map((c, ci) => (
-                    <td key={ci} className="px-2 py-1 border border-slate-200">
+                    <td role="cell" key={ci} className={cn("px-2 py-1 border border-slate-200", cards && "max-sm:block max-sm:border-0 max-sm:px-0 max-sm:py-1", cards && ci === 0 && "max-sm:font-semibold max-sm:text-slate-900")}>
+                      {cards && ci > 0 && headerCells[ci] && <span aria-hidden="true" className="hidden max-sm:block max-sm:text-[11px] max-sm:font-medium max-sm:text-slate-500">{renderInline(headerCells[ci])}</span>}
                       {renderInline(c)}
                     </td>
                   ))}

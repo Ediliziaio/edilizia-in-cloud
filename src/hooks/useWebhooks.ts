@@ -132,7 +132,9 @@ export function useUpdateWebhook(companyId: string | undefined) {
         .from("webhooks")
         .update({ ...payload, updated_at: new Date().toISOString() })
         .eq("id", id)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId)
+        .select("id")
+        .single();
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks", companyId] }),
@@ -144,7 +146,7 @@ export function useDeleteWebhook(companyId: string | undefined) {
   return useMutation({
     mutationFn: async (webhookId: string) => {
       if (!companyId) throw new Error("companyId richiesto");
-      const { error } = await supabase.from("webhooks").delete().eq("id", webhookId).eq("company_id", companyId);
+      const { error } = await supabase.from("webhooks").delete().eq("id", webhookId).eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks", companyId] }),
@@ -164,18 +166,9 @@ export function useRetryDelivery(webhookId: string | null) {
         .single();
       if (fetchErr || !delivery) throw new Error("Delivery non trovato");
 
-      // Update status to retrying and increment attempt count
-      await supabase
-        .from("webhook_deliveries")
-        .update({
-          status: "retrying",
-          attempt_count: (delivery.attempt_count ?? 1) + 1,
-          last_attempt_at: new Date().toISOString(),
-        } as never)
-        .eq("id", deliveryId)
-        .eq("webhook_id", webhookId);
-
-      const { error } = await supabase.functions.invoke("send-webhook", {
+      // Il server registra un nuovo tentativo. La consegna precedente resta
+      // storica: marcarla "retrying" la lasciava in attesa per sempre.
+      const { data, error } = await supabase.functions.invoke("send-webhook", {
         body: {
           webhook_id: delivery.webhook_id,
           event_type: delivery.event_type,
@@ -183,7 +176,11 @@ export function useRetryDelivery(webhookId: string | null) {
         },
       });
       if (error) throw error;
+      // L'Edge Function può rispondere HTTP 200 anche con endpoint fallito.
+      if (data?.status !== "success") {
+        throw new Error(data?.http_status ? `Endpoint non raggiunto correttamente (HTTP ${data.http_status})` : "Invio non riuscito: verifica l'endpoint e riprova");
+      }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["webhook-deliveries", webhookId] }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["webhook-deliveries", webhookId] }),
   });
 }

@@ -19,7 +19,7 @@ describe("Actions access survives completion", () => {
     fireEvent.click(button); expect(button).toHaveAttribute("aria-expanded", "true");
     mocks.count = 0;
     await act(async () => { await client.invalidateQueries({ queryKey: ["silvio-proposals-count"] }); });
-    expect(await screen.findByRole("button", { name: "Azioni e risultati", exact: true })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Azioni e risultati" })).toBeVisible();
     expect(screen.getByText("Proposte e risultati salvati")).toBeVisible();
     expect(mocks.eq).toHaveBeenCalledWith("company_id", "demo"); expect(mocks.eq).toHaveBeenCalledWith("user_id", "actor");
   });

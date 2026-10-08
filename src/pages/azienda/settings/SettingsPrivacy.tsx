@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Shield, Download, Trash2, FileCheck, Clock, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
@@ -38,7 +39,7 @@ export default function SettingsPrivacy() {
   const [deletionReason, setDeletionReason] = useState("");
 
   // Consents
-  const { data: consents = [] } = useQuery({
+  const { data: consents = [], isLoading: consentsLoading, isError: consentsError, refetch: reloadConsents } = useQuery({
     queryKey: queryKeys.gdpr.consents,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("gdpr-compliance", {
@@ -54,7 +55,7 @@ export default function SettingsPrivacy() {
   });
 
   // Requests
-  const { data: requests = [] } = useQuery({
+  const { data: requests = [], isLoading: requestsLoading, isError: requestsError, refetch: reloadRequests } = useQuery({
     queryKey: queryKeys.gdpr.requests,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("gdpr-compliance", {
@@ -171,7 +172,7 @@ export default function SettingsPrivacy() {
           <Card>
             <CardHeader className="max-sm:p-4 max-sm:pb-2">
               <CardTitle className="text-lg max-sm:text-base">Gestione consensi</CardTitle>
-              <CardDescription className="max-sm:hidden">
+              <CardDescription className="text-xs sm:text-sm">
                 Ogni scelta viene registrata con la data e resta nel registro
                 accessi: è la prova di cosa hai acconsentito e da quando.
                 Oggi però nessun invio la controlla da solo — se revochi un
@@ -180,6 +181,8 @@ export default function SettingsPrivacy() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 max-sm:space-y-2 max-sm:p-4 max-sm:pt-0">
+              {consentsError && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-2">Impossibile leggere i consensi. Non sono stati modificati.<Button size="sm" variant="outline" onClick={() => reloadConsents()}>Riprova</Button></AlertDescription></Alert>}
+              {consentsLoading && <p role="status" className="text-sm text-muted-foreground">Caricamento consensi…</p>}
               {CONSENT_TYPES.map((ct) => (
                 <div key={ct.key} className="flex items-center justify-between p-4 border rounded-lg max-sm:gap-2 max-sm:px-3 max-sm:py-2.5">
                   <div className="min-w-0 flex-1">
@@ -193,7 +196,7 @@ export default function SettingsPrivacy() {
                   </div>
                   <Switch
                     checked={getConsentValue(ct.key)}
-                    disabled={updateConsent.isPending}
+                    disabled={updateConsent.isPending || consentsLoading || consentsError}
                     onCheckedChange={(granted) => updateConsent.mutate({ consent_type: ct.key, granted })}
                   />
                 </div>
@@ -303,10 +306,12 @@ export default function SettingsPrivacy() {
               <CardDescription>Tutte le richieste GDPR inviate</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
+              {requestsError && <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-2">Impossibile leggere lo storico.<Button size="sm" variant="outline" onClick={() => reloadRequests()}>Riprova</Button></AlertDescription></Alert>}
+              {requestsLoading && <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento richieste…</p>}
               {/* Su telefono la tabella a 4 colonne diventava illeggibile e
                   portava un pulsante di download: qui l'elenco è a schede e il
                   download resta al computer. */}
-              {isMobile ? (
+              {!requestsLoading && !requestsError && (isMobile ? (
                 <div className="divide-y">
                   {requests.length === 0 ? (
                     <p className="py-8 text-center text-sm text-muted-foreground">Nessuna richiesta</p>
@@ -375,7 +380,7 @@ export default function SettingsPrivacy() {
                   })}
                 </TableBody>
               </Table>
-              )}
+              ))}
             </CardContent>
           </Card>
         </TabsContent>

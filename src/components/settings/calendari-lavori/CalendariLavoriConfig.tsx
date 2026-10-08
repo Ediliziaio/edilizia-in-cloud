@@ -25,7 +25,7 @@ export default function CalendariLavoriConfig() {
   const { role } = useAuth();
   const permissions = usePermissions();
   // Stessa regola della RLS: admin o staff con la modifica delle impostazioni commesse.
-  const canManage = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsOrders;
+  const canManage = !permissions.isLoading && (role === "company_admin" || role === "super_admin" || permissions.canEditSettingsOrders);
   const [params, setParams] = useSearchParams();
   const richiesto = params.get("tab") ?? "";
   const tab: Tab = (TABS as readonly string[]).includes(richiesto) ? (richiesto as Tab) : "squadre";
@@ -33,23 +33,22 @@ export default function CalendariLavoriConfig() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Calendari lavori</h1>
         <p className="text-sm text-muted-foreground">
           Le squadre di posa e i calendari del lavoro operativo, collegati ai calendari Google dell&apos;azienda.
         </p>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setParams({ tab: v })}>
-        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto">
-          <TabsTrigger value="squadre" className="gap-2 shrink-0">
+      <Tabs value={tab} onValueChange={(v) => setParams((prev) => { const next = new URLSearchParams(prev); next.set("tab", v); return next; })}>
+        <TabsList className="grid h-auto w-full grid-cols-3 gap-1">
+          <TabsTrigger value="squadre" className="min-w-0 gap-1 px-1 text-xs sm:gap-2 sm:text-sm">
             <HardHat className="h-4 w-4" />
             Squadre
           </TabsTrigger>
-          <TabsTrigger value="standard" className="gap-2 shrink-0">
+          <TabsTrigger value="standard" className="min-w-0 gap-1 px-1 text-xs sm:gap-2 sm:text-sm">
             <CalendarDays className="h-4 w-4" />
-            Calendari standard
+            <span className="sm:hidden">Standard</span><span className="hidden sm:inline">Calendari standard</span>
           </TabsTrigger>
-          <TabsTrigger value="collegamenti" className="gap-2 shrink-0">
+          <TabsTrigger value="collegamenti" className="min-w-0 gap-1 px-1 text-xs sm:gap-2 sm:text-sm">
             <Link2 className="h-4 w-4" />
             Collegamenti
           </TabsTrigger>

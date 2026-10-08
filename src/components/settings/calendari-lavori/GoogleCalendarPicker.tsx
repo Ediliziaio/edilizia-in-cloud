@@ -26,10 +26,14 @@ export function GoogleCalendarPicker({
   disabled?: boolean;
 }) {
   const [connectionId, setConnectionId] = useState<string | null>(value.google_connection_id);
-  const { data: connessioni = [], isLoading: caricoConnessioni } = useConnessioniGoogleAzienda();
-  const { data: calendari = [], isLoading: caricoCalendari, error } = useCalendariDiConnessione(connectionId);
+  const { data: connessioni = [], isLoading: caricoConnessioni, isError: erroreConnessioni, refetch: riprovaConnessioni } = useConnessioniGoogleAzienda();
+  const { data: calendari = [], isLoading: caricoCalendari, error, refetch: riprovaCalendari } = useCalendariDiConnessione(connectionId);
 
   const attive = connessioni.filter((c) => c.status === "connected");
+  if (erroreConnessioni) return <div role="alert" className="text-xs">
+    <p>Account Google non disponibili.</p>
+    <Button variant="outline" size="sm" onClick={() => void riprovaConnessioni()}>Riprova</Button>
+  </div>;
 
   if (!caricoConnessioni && attive.length === 0) {
     return (
@@ -40,16 +44,16 @@ export function GoogleCalendarPicker({
   }
 
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
       <Select
         value={connectionId ?? ""}
         disabled={disabled || caricoConnessioni}
         onValueChange={(v) => {
           setConnectionId(v);
-          onChange({ google_connection_id: v, google_calendar_id: null });
+          // Scegliere un account prepara la scelta: non scollega il calendario salvato.
         }}
       >
-        <SelectTrigger className="sm:w-56">
+        <SelectTrigger className="min-w-0 sm:w-56" aria-label="Account Google">
           <SelectValue placeholder="Account Google" />
         </SelectTrigger>
         <SelectContent>
@@ -62,11 +66,11 @@ export function GoogleCalendarPicker({
       </Select>
 
       <Select
-        value={value.google_calendar_id ?? ""}
-        disabled={disabled || !connectionId || caricoCalendari}
+        value={connectionId === value.google_connection_id ? value.google_calendar_id ?? "" : ""}
+        disabled={disabled || !connectionId || caricoCalendari || !!error}
         onValueChange={(v) => onChange({ google_connection_id: connectionId, google_calendar_id: v })}
       >
-        <SelectTrigger className="sm:w-64">
+        <SelectTrigger className="min-w-0 sm:w-64" aria-label="Calendario Google">
           {caricoCalendari ? (
             <span className="flex items-center gap-2 text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Leggo i calendari…
@@ -103,7 +107,7 @@ export function GoogleCalendarPicker({
         </Button>
       )}
 
-      {error && <p className="text-xs text-destructive">{(error as Error).message}</p>}
+      {error && <div role="alert" className="text-xs text-destructive"><p>Impossibile leggere i calendari di questo account.</p><Button variant="outline" size="sm" onClick={() => void riprovaCalendari()}>Riprova</Button></div>}
     </div>
   );
 }

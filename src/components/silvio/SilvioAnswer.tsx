@@ -1,27 +1,24 @@
 import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
 import { SilvioCopyAnswer } from "./SilvioCopyAnswer";
+import { publicAiAnswer, readableStreamingMarkdown, visibleAiAnswer } from "@/lib/silvio/visibleAnswer";
+import { PixelDotsLoader } from "@/components/ui/ai-agent-response";
 
-/** Preserve the complete answer and its caveats; supporting sources are optional disclosure. */
-export function SilvioAnswer({ content, sources, className }: {
+/** Preserve the complete answer and its caveats without a separate sources panel. */
+export function SilvioAnswer({ content, sources, className, streaming = false }: {
   content: string;
   sources?: ChatMarkdownSource[];
   className?: string;
+  streaming?: boolean;
 }) {
+  const answer = streaming ? visibleAiAnswer(content, { streaming: true }) : content.trim() ? publicAiAnswer(content) : "";
   const references = (Array.isArray(sources) ? sources : []).filter((s, i, all) =>
     s && typeof s.id === "string" && typeof s.title === "string" && s.title.trim() && all.findIndex(t => t?.id === s.id) === i);
-  return <div className="min-w-0 break-words [overflow-wrap:anywhere]">
-    <ChatMarkdown content={content} sources={references} className={className} />
-    {references.length > 0 && <details className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-600">
-      <summary className="min-h-8 cursor-pointer py-1.5 font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500">
-        Fonti disponibili ({references.length})
-      </summary>
-      <ul className="mt-1 space-y-2">
-        {references.map(source => <li key={source.id} className="rounded-lg bg-slate-50 p-2">
-          <span className="font-medium text-slate-700">{source.id} · {source.title}</span>
-          {typeof source.snippet === "string" && source.snippet && <p className="mt-1 whitespace-pre-wrap leading-relaxed">{source.snippet}</p>}
-        </li>)}
-      </ul>
-    </details>}
-    <SilvioCopyAnswer key={content} content={content} />
+  return <div className="min-w-0 break-words [overflow-wrap:anywhere] text-sm leading-6 text-slate-700">
+    <ChatMarkdown content={streaming ? readableStreamingMarkdown(answer) : answer} sources={references} className={className} mobileCards />
+    {streaming && <div role="status" aria-live="polite" aria-atomic="true" className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+      <PixelDotsLoader className="text-orange-500" />
+      <span className="silvio-thinking-shimmer">{answer ? "Silvio sta scrivendo…" : "Silvio sta preparando la risposta…"}</span>
+    </div>}
+    {!streaming && <SilvioCopyAnswer key={answer} content={answer} />}
   </div>;
 }

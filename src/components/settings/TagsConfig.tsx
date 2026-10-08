@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { queryKeys } from "@/lib/queryKeys";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,7 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Trash2, Plus, Tag, AlertCircle, Pencil, Search, Users, BriefcaseBusiness, RefreshCw } from "lucide-react";
+import { Trash2, Plus, AlertCircle, Pencil, Search, Users, BriefcaseBusiness, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -191,6 +193,8 @@ async function repairMarketingTagLinks(companyId: string, existingTags: Marketin
 export function TagsConfig() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
+  const canEdit = !permissions.isLoading && (permissions.isAdmin || permissions.canEditSettingsCustomization);
   const queryClient = useQueryClient();
   const [newTag, setNewTag] = useState("");
   const [newColor, setNewColor] = useState(DEFAULT_TAG_COLOR);
@@ -199,6 +203,8 @@ export function TagsConfig() {
   const [editTag, setEditTag] = useState<MarketingTag | null>(null);
   const [editName, setEditName] = useState("");
   const [editColor, setEditColor] = useState(DEFAULT_TAG_COLOR);
+  const [repairOpen, setRepairOpen] = useState(false);
+  const confermaUscita = useSettingsDraftGuard(canEdit && (!!newTag.trim() || (!!editTag && (editName !== editTag.name || editColor !== (editTag.color || DEFAULT_TAG_COLOR)))));
 
   const { data: tags = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.marketingTags.list(companyId),
@@ -233,6 +239,7 @@ export function TagsConfig() {
   });
 
   const normalizedNewTag = normalizeTagName(newTag);
+  const usageKnown = !!companyId && !isLoading && !isError && !isUsageLoading && !isUsageError;
   const filteredTags = useMemo(() => {
     const term = normalizeTagName(search);
     if (!term) return tags;
@@ -266,6 +273,7 @@ export function TagsConfig() {
 
   const addMutation = useMutation({
     mutationFn: async ({ name, color }: { name: string; color: string }) => {
+      if (!canEdit || isLoading || isError) throw new Error("Modifica dei tag non disponibile");
       if (!companyId) throw new Error("Azienda non disponibile");
       const normalizedName = normalizeTagName(name);
       if (!normalizedName) throw new Error("Inserisci un nome tag valido");
@@ -298,6 +306,7 @@ export function TagsConfig() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, currentName, nextName, color }: { id: string; currentName: string; nextName: string; color: string }) => {
+      if (!canEdit || isLoading || isError) throw new Error("Modifica dei tag non disponibile");
       if (!companyId) throw new Error("Azienda non disponibile");
       const normalizedName = normalizeTagName(nextName);
       if (!normalizedName) throw new Error("Inserisci un nome tag valido");
@@ -341,6 +350,7 @@ export function TagsConfig() {
 
   const deleteMutation = useMutation({
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      if (!canEdit || isLoading || isError) throw new Error("Modifica dei tag non disponibile");
       if (!companyId) throw new Error("Azienda non disponibile");
 
       const usage = await getTagUsageCounts(companyId, name);
@@ -369,6 +379,7 @@ export function TagsConfig() {
 
   const repairMutation = useMutation({
     mutationFn: async () => {
+      if (!canEdit || isLoading || isError) throw new Error("Modifica dei tag non disponibile");
       if (!companyId) throw new Error("Azienda non disponibile");
       return repairMarketingTagLinks(companyId, tags);
     },
@@ -386,7 +397,7 @@ export function TagsConfig() {
   });
 
   const handleAdd = () => {
-    if (!companyId || !normalizedNewTag || addMutation.isPending) return;
+    if (!canEdit || isLoading || isError || !companyId || !normalizedNewTag || addMutation.isPending) return;
     addMutation.mutate({ name: normalizedNewTag, color: newColor });
   };
 
@@ -407,25 +418,22 @@ export function TagsConfig() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Tag className="h-6 w-6" />
-            Tag
-          </h2>
-          <p className="text-muted-foreground mt-1 max-w-3xl">
-            Gestisci le etichette usate da contatti, opportunità, segmenti e automazioni. Qui puoi tenerle coerenti e disponibili in tutti i selettori CRM.
+          <p className="text-sm text-muted-foreground max-w-3xl">
+            Etichette condivise tra contatti, opportunità e automazioni.
           </p>
         </div>
         <Button
           type="button"
           variant="outline"
-          onClick={() => repairMutation.mutate()}
-          disabled={!companyId || repairMutation.isPending || isLoading}
-          className="gap-2 lg:mt-1"
+          onClick={() => setRepairOpen(true)}
+          disabled={!canEdit || !companyId || repairMutation.isPending || isLoading || isError}
+          size="sm" className="gap-2 self-start"
         >
           <RefreshCw className={cn("h-4 w-4", repairMutation.isPending && "animate-spin")} />
           {repairMutation.isPending ? "Sincronizzo..." : "Ripara collegamenti"}
         </Button>
       </div>
+      {!canEdit && <p role="status" className="text-sm text-muted-foreground">Sola lettura: puoi consultare i tag e i loro utilizzi.</p>}
 
       {!companyId && (
         <Alert>
@@ -435,7 +443,7 @@ export function TagsConfig() {
         </Alert>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {(isLoading || isError || tags.length > 0) && <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           { label: "Tag catalogo", value: usageSummary.total, helper: "disponibili nei selettori" },
           { label: "Usi su contatti", value: usageSummary.contacts, helper: "collegamenti CRM letti" },
@@ -448,15 +456,15 @@ export function TagsConfig() {
               {isLoading || isUsageLoading ? (
                 <Skeleton className="mt-2 h-7 w-16" />
               ) : (
-                <p className="mt-2 text-2xl font-semibold">{item.value}</p>
+                <p className="mt-2 text-xl font-semibold">{(isError || (item.label !== "Tag catalogo" && !usageKnown)) ? "–" : item.value}</p>
               )}
               <p className="mt-1 text-xs text-muted-foreground">{item.helper}</p>
             </CardContent>
           </Card>
         ))}
-      </div>
+      </div>}
 
-      <Card>
+      {canEdit && <Card>
         <CardContent className="pt-6">
           <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
             <div className="space-y-2">
@@ -468,7 +476,7 @@ export function TagsConfig() {
                 onChange={(e) => setNewTag(e.target.value)}
                 onKeyDown={handleKeyDown}
                 maxLength={50}
-                disabled={!companyId || addMutation.isPending}
+                disabled={!companyId || isLoading || isError || addMutation.isPending}
               />
               <p className="text-xs text-muted-foreground">
                 Il nome viene normalizzato per evitare duplicati tra CRM, segmenti e automazioni.
@@ -479,6 +487,7 @@ export function TagsConfig() {
                 <button
                   key={color}
                   type="button"
+                  disabled={isLoading || isError || addMutation.isPending}
                   aria-label={`Colore tag ${color}`}
                   onClick={() => setNewColor(color)}
                   className={cn(
@@ -488,14 +497,14 @@ export function TagsConfig() {
                   style={{ backgroundColor: color }}
                 />
               ))}
-              <Button onClick={handleAdd} disabled={!companyId || !normalizedNewTag || addMutation.isPending}>
+              <Button size="sm" onClick={handleAdd} disabled={!companyId || !normalizedNewTag || isLoading || isError || addMutation.isPending}>
                 <Plus className="h-4 w-4 mr-1" />
                 {addMutation.isPending ? "Aggiungo..." : "Aggiungi"}
               </Button>
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="relative max-w-md md:flex-1">
@@ -504,6 +513,7 @@ export function TagsConfig() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Cerca tag..."
+            aria-label="Cerca tag"
             className="pl-9"
           />
         </div>
@@ -545,16 +555,16 @@ export function TagsConfig() {
       ) : tags.length === 0 ? (
         <p className="text-muted-foreground text-sm">Nessun tag creato. Aggiungi il primo tag qui sopra.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <Table className="min-w-[620px]">
-            <TableHeader>
+        <div className="rounded-lg border">
+          <Table className="block md:table">
+            <TableHeader className="hidden md:table-header-group">
               <TableRow>
                 <TableHead>Tag</TableHead>
                 <TableHead className="w-[180px]">Utilizzi</TableHead>
                 <TableHead className="w-[120px] text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody className="block md:table-row-group">
               {filteredTags.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={3} className="h-24 text-center text-sm text-muted-foreground">
@@ -566,15 +576,15 @@ export function TagsConfig() {
                   const usage = usageByName[normalizeTagName(tag.name)];
                   const totalUsage = getUsageTotal(usage);
                   return (
-                    <TableRow key={tag.id}>
-                      <TableCell>
-                        <Badge variant="secondary" className="gap-2 px-3 py-1.5 text-sm">
+                    <TableRow key={tag.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center md:table-row">
+                      <TableCell className="col-span-2 min-w-0 md:w-auto">
+                        <Badge variant="secondary" className="max-w-full break-words whitespace-normal gap-2 px-3 py-1.5 text-sm">
                           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tag.color || DEFAULT_TAG_COLOR }} />
                           {tag.name}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {isUsageLoading ? (
+                        {isUsageError ? <span className="text-xs text-muted-foreground">Utilizzi non disponibili</span> : isUsageLoading ? (
                           <span className="text-sm text-muted-foreground">Calcolo...</span>
                         ) : (
                           <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
@@ -585,12 +595,14 @@ export function TagsConfig() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
+                        {canEdit && <>
                         <Button type="button" variant="ghost" size="icon" onClick={() => openEdit(tag)} aria-label={`Modifica tag ${tag.name}`}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => setDeleteId(tag.id)} aria-label={`Elimina tag ${tag.name}`}>
+                        <Button type="button" variant="ghost" size="icon" disabled={!usageKnown} onClick={() => setDeleteId(tag.id)} aria-label={`Elimina tag ${tag.name}`}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
+                        </>}
                       </TableCell>
                     </TableRow>
                   );
@@ -601,7 +613,7 @@ export function TagsConfig() {
         </div>
       )}
 
-      <Dialog open={!!editTag} onOpenChange={(open) => !open && setEditTag(null)}>
+      <Dialog open={!!editTag} onOpenChange={(open) => { if (!open && !updateMutation.isPending && confermaUscita()) setEditTag(null); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Modifica tag</DialogTitle>
@@ -646,10 +658,10 @@ export function TagsConfig() {
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEditTag(null)}>Annulla</Button>
+            <Button type="button" variant="outline" disabled={updateMutation.isPending} onClick={() => { if (confermaUscita()) setEditTag(null); }}>Annulla</Button>
             <Button
               type="button"
-              disabled={!editTag || !normalizeTagName(editName) || updateMutation.isPending}
+              disabled={!canEdit || !editTag || !normalizeTagName(editName) || updateMutation.isPending}
               onClick={() => {
                 if (!editTag) return;
                 updateMutation.mutate({
@@ -695,6 +707,9 @@ export function TagsConfig() {
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={repairOpen} onOpenChange={setRepairOpen}>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Riparare i collegamenti CRM?</AlertDialogTitle><AlertDialogDescription>Il sistema normalizza le etichette su contatti e opportunità e aggiunge al catalogo quelle mancanti. Non elimina i tag. Questa operazione modifica i dati dell'azienda.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Annulla</AlertDialogCancel><AlertDialogAction disabled={!canEdit || isError || repairMutation.isPending} onClick={() => repairMutation.mutate()}>Conferma riparazione</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
     </div>
   );

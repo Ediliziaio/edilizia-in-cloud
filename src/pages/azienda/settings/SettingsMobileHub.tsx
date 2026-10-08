@@ -10,98 +10,21 @@
  *   - Tap sull'icona della rotellina nell'header → naviga qui
  *   - Mostra subito tutte le sezioni con icona+label
  *   - Tap su una card → naviga alla pagina specifica
- *   - Su tablet/desktop la rotta index ridirige a "mio-profilo"
- *     (questo componente è quindi mobile-first)
+ *   - Su tablet/desktop presenta la stessa navigazione in una griglia più ampia
  */
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStatoPiano } from "@/hooks/useStatoPiano";
-import { impostazioneNelPiano } from "@/lib/impostazioni/pianoImpostazioni";
+import { buildSettingsGroups } from "@/lib/impostazioni/navigazioneImpostazioni";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  UserCircle, ShieldCheck, Building2, MapPin, Paintbrush, Wallet, Receipt,
-  Users, ListOrdered, FolderOpen, FileText, FileSignature, Truck, ScrollText,
-  Banknote, Plug, Calendar, Mail, Tag, LogOut, ChevronRight,
-  Brain, Bell, Bot, Wrench, ImagePlus, HardHat, ListChecks } from "lucide-react";
+import { LogOut, ChevronRight, Loader2 } from "lucide-react";
 
-interface SectionItem {
-  to: string;
-  label: string;
-  icon: typeof UserCircle;
-  iconColor: string;
-}
-
-interface Section {
-  label: string;
-  items: SectionItem[];
-}
-
-const SECTIONS: Section[] = [
-  {
-    label: "Account",
-    items: [
-      { to: "/azienda/impostazioni/mio-profilo",        label: "Il mio profilo",      icon: UserCircle,  iconColor: "text-blue-600" },
-      { to: "/azienda/impostazioni/sicurezza-privacy",  label: "Sicurezza & privacy", icon: ShieldCheck, iconColor: "text-emerald-600" },
-    ],
-  },
-  {
-    label: "La mia azienda",
-    items: [
-      { to: "/azienda/impostazioni/profilo",      label: "Profilo aziendale", icon: Building2, iconColor: "text-violet-600" },
-      { to: "/azienda/impostazioni/sedi",         label: "Sedi",              icon: MapPin,    iconColor: "text-rose-600" },
-      { to: "/azienda/impostazioni/branding",     label: "White-Label",       icon: Paintbrush, iconColor: "text-amber-600" },
-      { to: "/azienda/impostazioni/abbonamento",  label: "Piano abbonamento", icon: Wallet,    iconColor: "text-indigo-600" },
-      { to: "/azienda/impostazioni/fatturazione", label: "Fatturazione",      icon: Receipt,   iconColor: "text-orange-600" },
-      { to: "/azienda/impostazioni/persone",      label: "Persone & accessi", icon: Users,     iconColor: "text-cyan-600" },
-    ],
-  },
-  {
-    label: "Cantieri & Costi",
-    items: [
-      { to: "/azienda/impostazioni/stati-ordine",    label: "Stati ordine",     icon: ListOrdered, iconColor: "text-blue-600" },
-      { to: "/azienda/impostazioni/cartelle-documenti", label: "Cartelle documenti", icon: FolderOpen, iconColor: "text-amber-600" },
-      { to: "/azienda/impostazioni/calendari-lavori", label: "Calendari lavori", icon: HardHat,   iconColor: "text-orange-600" },
-      { to: "/azienda/impostazioni/rapportini-cantiere", label: "Rapportini e presenze", icon: ScrollText, iconColor: "text-orange-600" },
-      { to: "/azienda/impostazioni/modelli-fasi", label: "Fasi e avanzamento", icon: ListChecks, iconColor: "text-orange-600" },
-      { to: "/azienda/impostazioni/modelli-pagamento", label: "Modelli di pagamento", icon: Banknote, iconColor: "text-emerald-600" },
-      { to: "/azienda/impostazioni/categorie-costi", label: "Categorie costi",  icon: FolderOpen,  iconColor: "text-emerald-600" },
-      { to: "/azienda/impostazioni/fornitori",       label: "Fornitori",        icon: Truck,       iconColor: "text-amber-600" },
-      { to: "/azienda/impostazioni/sopralluoghi",    label: "Sopralluoghi",     icon: ScrollText,  iconColor: "text-amber-600" },
-    ],
-  },
-  {
-    label: "Vendite e operativo",
-    items: [
-      // Stesse cinque voci del menu da computer: manodopera e kit sono schede del Listino.
-      { to: "/azienda/impostazioni/listino",            label: "Listino",          icon: Tag,            iconColor: "text-blue-600" },
-      { to: "/azienda/impostazioni/finanziamenti",      label: "Finanziamenti",    icon: Banknote,      iconColor: "text-emerald-600" },
-      { to: "/azienda/impostazioni/margini",            label: "Margini e sconti", icon: Wrench,        iconColor: "text-teal-600" },
-      { to: "/azienda/impostazioni/template-preventivi", label: "Modelli di preventivo", icon: FileText,  iconColor: "text-violet-600" },
-      { to: "/azienda/impostazioni/condizioni-firma",   label: "Firma e condizioni", icon: FileSignature, iconColor: "text-rose-600" },
-    ],
-  },
-  {
-    label: "Marketing e integrazioni",
-    items: [
-      { to: "/azienda/impostazioni/calendari",     label: "Calendari marketing", icon: Calendar, iconColor: "text-blue-600" },
-      { to: "/azienda/impostazioni/lead-forms",    label: "Lead Facebook",       icon: Mail,     iconColor: "text-cyan-600" },
-      { to: "/azienda/impostazioni/integrazioni",  label: "Integrazioni",        icon: Plug,     iconColor: "text-violet-600" },
-    ],
-  },
-  {
-    label: "AI & Notifiche",
-    items: [
-      { to: "/azienda/impostazioni/ai-memoria",    label: "AI Personas (chat + memoria)", icon: Brain,    iconColor: "text-violet-600" },
-      { to: "/azienda/impostazioni/ai-automazioni", label: "AI Automazioni (auto-execute)", icon: Bot,      iconColor: "text-fuchsia-600" },
-      { to: "/azienda/impostazioni/notifiche",     label: "Preferenze notifiche", icon: Bell,     iconColor: "text-rose-600" },
-      { to: "/azienda/impostazioni/catalogo-render", label: "Catalogo render",    icon: ImagePlus, iconColor: "text-pink-600" },
-    ],
-  },
-];
 
 // Sezioni NASCOSTE nell'hub mobile: configurazioni avanzate/desktop che sul
 // telefono sono solo rumore (si gestiscono da desktop). Le rotte restano
@@ -138,6 +61,8 @@ const HIDDEN_ON_MOBILE = new Set<string>([
 
 export default function SettingsMobileHub() {
   const { signOut, user, profile } = useAuth();
+  const permissions = usePermissions();
+  const isMobile = useIsMobile();
   const [logoutOpen, setLogoutOpen] = useState(false);
   // Filtro rapido: ~23 card senza ricerca obbligavano a scorrere tutto l'hub
   // (su desktop esiste SettingsSearch, su mobile non c'era nulla).
@@ -145,13 +70,16 @@ export default function SettingsMobileHub() {
   const q = filtro.trim().toLowerCase();
   // Le impostazioni fuori dal piano dell'azienda non compaiono (21/09/2026).
   const { stato: piano } = useStatoPiano();
-  const sezioniFiltrate = SECTIONS.map((section) => ({
+  const sezioniFiltrate = buildSettingsGroups(permissions.isAdmin, permissions, piano, isMobile).map((section) => ({
     ...section,
     items: section.items
-      .filter((i) => !HIDDEN_ON_MOBILE.has(i.to))
-      .filter((i) => impostazioneNelPiano(i.to, piano))
+      .filter((i) => i.visible && !(isMobile && HIDDEN_ON_MOBILE.has(i.to)))
       .filter((i) => (q ? i.label.toLowerCase().includes(q) : true)),
   })).filter((s) => s.items.length > 0);
+
+  if (permissions.isLoading) {
+    return <div role="status" className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Caricamento impostazioni…</div>;
+  }
 
   // A righe, come le Impostazioni del telefono: icona piccola, nome, freccia.
   // Prima erano riquadri da 100px con l'icona grande, due per riga, e sopra un
@@ -173,6 +101,7 @@ export default function SettingsMobileHub() {
         <p className="px-1 text-sm text-muted-foreground">Nessuna impostazione trovata per «{filtro}».</p>
       )}
 
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
       {sezioniFiltrate.map((section) => (
         <section key={section.label} className="space-y-1.5">
           <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
@@ -180,15 +109,14 @@ export default function SettingsMobileHub() {
           </h3>
           <div className="divide-y overflow-hidden rounded-xl border bg-card">
             {section.items.map((item) => {
-              const Icon = item.icon;
               return (
                 <Link
                   key={item.to}
                   to={item.to}
-                  className="tap-compact flex min-h-[44px] items-center gap-3 px-3 py-2 active:bg-muted"
+                  className="tap-compact flex min-h-[44px] items-center gap-3 px-3 py-2 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary active:bg-muted"
                 >
-                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted ${item.iconColor}`}>
-                    <Icon className="h-4 w-4" aria-hidden="true" />
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary" aria-hidden="true">
+                    {item.icon}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm">{item.label}</span>
                   <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -198,6 +126,7 @@ export default function SettingsMobileHub() {
           </div>
         </section>
       ))}
+      </div>
 
       {/* v8.6.76 — Account + logout in fondo all'hub. Su mobile è l'unico
           punto di accesso al logout (la sidebar con il menu utente è md+). */}

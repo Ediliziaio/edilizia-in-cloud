@@ -11,13 +11,13 @@ import { contractImponibile, contractToInstallments, deriveIvaPct, type Contract
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { z } from "zod";
 import { ArrowLeft, ArrowRight, CalendarIcon, Plus, Trash2, AlertTriangle, ClipboardList, CheckCircle2, Sparkles } from "lucide-react";
-import { useOrderDraft } from "@/hooks/useOrderDraft";
+import { useOrderDraft, type OrderDraftData } from "@/hooks/useOrderDraft";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVertical } from "@/hooks/useVertical";
@@ -37,17 +37,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import {
   QuotePageHeader,
   QuoteCard,
-  QuotePrimaryButton,
 } from "@/components/marketing/preventivi/ui/builderUI";
-import { cn } from "@/lib/utils";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
@@ -76,7 +68,14 @@ import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { SedeSelect } from "@/components/sedi/SedeSelect";
 import { FasiDiPartenzaSelect } from "@/components/orders/FasiDiPartenzaSelect";
 import { useFasiDiPartenza } from "@/hooks/useFasiDiPartenza";
-import { fasiPerCommessa } from "@/lib/orders/modelliFasi";
+import { fasiPerCommessa, type FaseModello } from "@/lib/orders/modelliFasi";
+import { fasiDaBozza, salvaFasiDiPartenza, type SettimanaLavorativa } from "@/lib/orders/pianificazioneAvvio";
+import { PianificazioneCommessa } from "@/components/orders/PianificazioneCommessa";
+import { AnteprimaFasiCommessa } from "@/components/orders/AnteprimaFasiCommessa";
+import { CreateOrderActions } from "@/components/orders/CreateOrderActions";
+import { CreateOrderChecklist } from "@/components/orders/CreateOrderChecklist";
+import AddressAutocomplete, { type AddressData } from "@/components/shared/AddressAutocomplete";
+import { indirizzoCantiereDaTesto, testoIndirizzoCantiere, indirizzoCantiereDaBozza, coordinateIndirizzoCantiere } from "@/lib/orders/indirizzoCantiere";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useComeSiPagaDiPartenza } from "@/hooks/useComeSiPagaDiPartenza";
 import { rateDaModello, ricalcolaRatePercentuali, type ModelloPagamento } from "@/lib/orders/modelliPagamento";
@@ -119,7 +118,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   })();
 
   // ── react-hook-form ──────────────────────────────────────────
-  const form = useForm<OrderFormValues>({
+  const form = useForm<z.input<typeof orderSchema>, unknown, OrderFormValues>({
     resolver: zodResolver(orderSchema),
     defaultValues: orderDefaultValues,
   });
@@ -179,7 +178,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
   // Calculate balance (deduct financing_cost for financing payment type)
   const total = parseDecimalIT(totalAmount);
-  const vat = (parseDecimalIT(vatRate) || 22);
+  // Lo zero è un'aliquota valida, non l'assenza di un valore.
+  const vat = parseDecimalIT(vatRate?.trim() ? vatRate : "22");
   const fCostForBalance = paymentType === 'financing' ? (parseDecimalIT(financingCost || "")) : 0;
   const totalWithVat = total * (1 + vat / 100);
   const nonBalanceSum = installments
@@ -237,10 +237,37 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const { bonusMultipli: bonusMultipliEnabled } = useBonusFiscaliFlags();
   // Le fasi con cui parte la commessa: il modello di partenza dell'azienda, se ne ha scelto uno.
   const fasiDiPartenza = useFasiDiPartenza();
+  const scegliModelloFasi = fasiDiPartenza.scegli;
+  const [fasiPersonalizzate, setFasiPersonalizzate] = useState<FaseModello[] | null>(null);
+  const fasiDaCreare = useMemo(() => fasiPersonalizzate ?? (fasiDiPartenza.modello ? fasiPerCommessa(fasiDiPartenza.modello) : []), [fasiPersonalizzate, fasiDiPartenza.modello]);
+  const [durataLavori, setDurataLavori] = useState("");
+  const [settimanaLavorativa, setSettimanaLavorativa] = useState<SettimanaLavorativa>(5);
+  const [cantiereAddress, setCantiereAddress] = useState("");
+  const [cantiereAddressData, setCantiereAddressData] = useState<AddressData | null>(null);
+  const cantiereTouchedRef = useRef(false);
+  const lastCantiereCustomerRef = useRef<string | null>(null);
+  const createdOrderIdRef = useRef<string | null>(null);
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load draft on mount
   useEffect(() => {
+    createdOrderIdRef.current = null;
+    setCreatedOrderId(null);
+    reset({ ...orderDefaultValues, assigned_to: onlyAssigned ? user?.id ?? "" : "" });
+    setInstallments(rateDiPartenza(modelloIniziale));
+    setNumInstallments(modelloIniziale?.righe.length ?? 2);
+    setOrderItems([]);
+    setBonusLines([]);
+    setPendingFiles([]);
+    setDraftRestored(false);
+    fasiDiPartenza.scegli(null);
+    setFasiPersonalizzate(null);
+    setDurataLavori("");
+    setSettimanaLavorativa(5);
+    setCantiereAddress("");
+    setCantiereAddressData(null);
+    cantiereTouchedRef.current = false;
+    lastCantiereCustomerRef.current = null;
     const draft = loadDraft();
     if (!draft) return;
     reset({
@@ -270,6 +297,20 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     }
     if (draft.orderItems?.length) setOrderItems(draft.orderItems);
     if (draft.bonusLines?.length) setBonusLines(draft.bonusLines);
+    fasiDiPartenza.scegli(draft.modelloFasiId ?? null);
+    setFasiPersonalizzate(fasiDaBozza(draft.fasiLavoro));
+    setDurataLavori(typeof draft.durataLavori === "string" ? draft.durataLavori : "");
+    setSettimanaLavorativa(draft.settimanaLavorativa === 6 ? 6 : 5);
+    if (typeof draft.cantiereAddress === "string") {
+      setCantiereAddress(draft.cantiereAddress);
+      setCantiereAddressData(indirizzoCantiereDaBozza(draft.cantiereAddressData, draft.cantiereAddress));
+      cantiereTouchedRef.current = draft.cantiereAddressManuale ?? !!draft.cantiereAddress.trim();
+      lastCantiereCustomerRef.current = draft.customerId || null;
+    }
+    if (typeof draft.commessaCreataId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(draft.commessaCreataId)) {
+      createdOrderIdRef.current = draft.commessaCreataId;
+      setCreatedOrderId(draft.commessaCreataId);
+    }
     setDraftRestored(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveCompany?.id]);
@@ -401,7 +442,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       // Le righe "Totale infissi / Totale accessori" sono subtotali del
       // contratto, non merce: come articoli confondevano e doppiavano.
       const vociVere = ex.voci.filter((v) => !/^\s*(sub)?total[ei]?\b/i.test(v.descrizione ?? ""));
-      const itemsMerce = vociVere.map((v, idx) => {
+      const itemsMerce = vociVere.map<OrderItem>((v, idx) => {
         const match = mappaVoceSuListino(v.descrizione ?? "");
         return {
           name: v.descrizione,
@@ -428,7 +469,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       });
       // Imballaggio/trasporto/oneri: voci a sé, senza sconto (nel documento
       // sono calcolati DOPO lo sconto merce).
-      const itemsAltriCosti = ex.altri_costi.map((a, i) => ({
+      const itemsAltriCosti = ex.altri_costi.map<OrderItem>((a, i) => ({
         name: a.descrizione,
         quantity: 1,
         status: "da_ordinare",
@@ -473,12 +514,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     }
   };
 
-  // Auto-save draft on every change — debounced 800ms to avoid firing on every keystroke
-  useEffect(() => {
-    if (createdOrderId) return;
-    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
-    draftSaveTimer.current = setTimeout(() => {
-      saveDraft({
+  const datiBozza = useMemo<Omit<OrderDraftData, "savedAt">>(() => ({
         customerId: customerId || "",
         orderCode: orderCode || "",
         description: description || "",
@@ -493,6 +529,13 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         warehouseArrivalDate: dateToIso(warehouseArrivalDate),
         workStartDate: dateToIso(workStartDate),
         workEndDate: dateToIso(workEndDate),
+        cantiereAddress,
+        cantiereAddressData,
+        cantiereAddressManuale: cantiereTouchedRef.current,
+        modelloFasiId: fasiDiPartenza.scelto ?? fasiDiPartenza.modello?.id ?? null,
+        fasiLavoro: fasiPersonalizzate ?? (fasiDiPartenza.modello ? fasiDaCreare : null),
+        durataLavori,
+        settimanaLavorativa,
         paymentType: paymentType,
         totalAmount: totalAmount || "",
         vatRate: vatRate || "22",
@@ -501,18 +544,23 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         bonusLines,
         orderItems,
         installments,
-      });
-    }, 800);
-    return () => {
-      if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
-    };
-  }, [customerId, orderCode, description, internalNotes, statusId, salespersonId, salespersonData,
+      }), [customerId, orderCode, description, internalNotes, statusId, salespersonId, salespersonData,
       assignedTo, destinationWarehouseId, sedeId,
       expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
       paymentType, totalAmount, vatRate,
       installments, financingCost,
       hasBuildingBonus, bonusLines,
-      orderItems, createdOrderId, saveDraft, dateToIso]);
+      orderItems, dateToIso, cantiereAddress, cantiereAddressData,
+      fasiDiPartenza.scelto, fasiDiPartenza.modello, fasiPersonalizzate, fasiDaCreare,
+      durataLavori, settimanaLavorativa]);
+
+  // Anche il completamento usa questa fotografia: dopo la RPC la bozza conserva l'id già creato.
+  useEffect(() => {
+    if (createdOrderId || createdOrderIdRef.current) return;
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => saveDraft(datiBozza), 800);
+    return () => { if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current); };
+  }, [createdOrderId, saveDraft, datiBozza]);
 
   const handleClearDraft = useCallback(() => {
     clearDraft();
@@ -521,9 +569,16 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setNumInstallments(modelloIniziale?.righe.length ?? 2);
     setOrderItems([]);
     setCantiereAddress("");
+    setCantiereAddressData(null);
     cantiereTouchedRef.current = false;
     lastCantiereCustomerRef.current = null;
-  }, [clearDraft, reset, modelloIniziale]);
+    scegliModelloFasi(null);
+    setFasiPersonalizzate(null);
+    setDurataLavori("");
+    setSettimanaLavorativa(5);
+    setBonusLines([]);
+    setPendingFiles([]);
+  }, [clearDraft, reset, modelloIniziale, scegliModelloFasi]);
 
   const { data: customers = [] } = useCompanyCustomers(effectiveCompany?.id);
 
@@ -600,18 +655,18 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     const site = line(a.site_address, a.site_postal_code, a.site_city, a.site_province);
     return site || line(a.address, a.postal_code, a.city, a.province);
   }, [selectedCustomerAddr]);
-  const [cantiereAddress, setCantiereAddress] = useState("");
-  const cantiereTouchedRef = useRef(false);
-  const lastCantiereCustomerRef = useRef<string | null>(null);
   useEffect(() => {
     if (!customerId) return;
     // Cambio cliente → riparte l'auto-compilazione (azzera il "toccato a mano").
     if (lastCantiereCustomerRef.current !== customerId) {
       cantiereTouchedRef.current = false;
       lastCantiereCustomerRef.current = customerId;
+      setCantiereAddress("");
+      setCantiereAddressData(null);
     }
     if (!cantiereTouchedRef.current && suggestedCantiere) {
       setCantiereAddress(suggestedCantiere);
+      setCantiereAddressData(null);
     }
   }, [customerId, suggestedCantiere]);
 
@@ -687,11 +742,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: async () => {
+      if (createdOrderIdRef.current) return { id: createdOrderIdRef.current, success: true };
       if (!effectiveCompany?.id) throw new Error("Company not found");
 
       const values = getValues();
       const totalVal = parseDecimalIT(values.total_amount);
-      const vatValue = (parseDecimalIT(values.vat_rate) || 22);
+      const vatValue = parseDecimalIT(values.vat_rate?.trim() ? values.vat_rate : "22");
       const fCost = parseDecimalIT(values.financing_cost || "");
 
       // Compute legacy columns from installments for backward compat
@@ -802,6 +858,11 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       if (!result || !result.id) {
         throw new Error("Risposta inattesa dalla funzione atomica");
       }
+      // La commessa esiste già: un errore nelle operazioni successive non deve abilitarne una seconda.
+      createdOrderIdRef.current = result.id;
+      setCreatedOrderId(result.id);
+      if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+      saveDraft({ ...datiBozza, commessaCreataId: result.id });
 
       // Collega il preventivo di origine alla commessa (se creata da un preventivo via
       // ?quote_id / "Importa da preventivo") → la commessa mostrerà il "Preventivo collegato", il blocca prezzo la
@@ -869,8 +930,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       // non blocca l'ordine). La RPC atomica non ha queste colonne in whitelist.
       const cantiere = cantiereAddress.trim();
       if (cantiere && result.id) {
-        const patch: Record<string, unknown> = { indirizzo_lavori: cantiere, work_address: cantiere };
-        if (selectedCustomerAddr?.site_lat != null && selectedCustomerAddr?.site_lng != null) {
+        const patch: Record<string, unknown> = { indirizzo_lavori: cantiere, work_address: cantiere, ...coordinateIndirizzoCantiere(cantiereAddressData, cantiere) };
+        if (!cantiereAddressData && cantiere === suggestedCantiere && selectedCustomerAddr?.site_lat != null && selectedCustomerAddr?.site_lng != null) {
           patch.work_lat = selectedCustomerAddr.site_lat;
           patch.work_lng = selectedCustomerAddr.site_lng;
         }
@@ -881,24 +942,23 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
       // Le fasi scelte nel modulo (o quelle di partenza dell'azienda): fasi e sottofasi in un colpo
       // solo, dal server. Come le altre scritture dopo la RPC, un errore non fa sparire la commessa.
-      if (fasiDiPartenza.modello && result.id) {
+      if (fasiDaCreare.length && result.id) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: fasiErr } = await (supabase as any).rpc("aggiungi_fasi_commessa", {
-          p_order_id: result.id,
-          p_fasi: fasiPerCommessa(fasiDiPartenza.modello),
-        });
+        const fasiErr = await salvaFasiDiPartenza(result.id, fasiDaCreare, (nome, args) => (supabase as any).rpc(nome, args));
         if (fasiErr) {
-          console.warn("[CreateOrder] fasi di partenza non aggiunte (ordine creato comunque):", fasiErr.message);
+          console.warn("[CreateOrder] fasi di partenza non aggiunte (ordine creato comunque):", fasiErr);
           toast.error("Fasi non aggiunte", {
-            description: "La commessa è stata creata: scegli le fasi dalla scheda Cantiere.",
+            description: "La commessa è stata creata. Verifica le fasi nel Cantiere prima di aggiungerle di nuovo.",
+            duration: 15000,
           });
+          return { ...result, fasiDaVerificare: true };
         }
       }
 
       return result;
     },
     onSuccess: async (order) => {
-      clearDraft();
+      if (!("fasiDaVerificare" in order && order.fasiDaVerificare)) clearDraft();
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["margin"] });
       queryClient.invalidateQueries({ queryKey: ["break-even"] });
@@ -945,9 +1005,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       if (pendingFiles.length > 0) {
         let uploaded = 0;
         for (const pf of pendingFiles) {
-          const { file } = await riduciFile(pf.file);
-          const filePath = percorsoDocumento(order.id, file.name);
           try {
+            const { file } = await riduciFile(pf.file);
+            const filePath = percorsoDocumento(order.id, file.name);
             const { error: uploadError } = await supabase.storage
               .from("order-attachments")
               .upload(filePath, file, { contentType: file.type || undefined });
@@ -979,15 +1039,22 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         }
         setPendingFiles([]);
         queryClient.invalidateQueries({ queryKey: ["order-attachments", order.id] });
-        toast.success("Commessa creata", { description: `Commessa creata con ${uploaded} document${uploaded > 1 ? 'i' : 'o'}.` });
+        if (!("fasiDaVerificare" in order && order.fasiDaVerificare)) toast.success("Commessa creata", { description: `${uploaded} di ${pendingFiles.length} documenti caricati.` });
       } else {
-        toast.success("Commessa creata", { description: "La commessa è stata creata con successo." });
+        if (!("fasiDaVerificare" in order && order.fasiDaVerificare)) toast.success("Commessa creata", { description: "La commessa è stata creata con successo." });
       }
 
       // Auto-navigate to the new order detail
-      navigate(`/azienda/ordini/${order.id}`);
+      navigate(`/azienda/ordini/${order.id}${"fasiDaVerificare" in order && order.fasiDaVerificare ? "?tab=cantiere&vista_cantiere=lavorazioni" : ""}`);
     },
     onError: (error) => {
+      if (createdOrderIdRef.current) {
+        toast.warning("Commessa creata: alcuni dettagli sono da verificare", {
+          description: "Apri la commessa già creata. Non è necessario crearne un’altra.", duration: 15000,
+        });
+        logger.error("[CreateOrder] completamento successivo alla creazione fallito", error);
+        return;
+      }
       // 2026-05-27 (audit fix P1): mapping errori postgres → messaggi
       // italiani user-friendly. Prima l'utente edile vedeva stringhe come
       // "duplicate key value violates unique constraint orders_order_code_key"
@@ -1002,7 +1069,11 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
   const onSubmit = (values: OrderFormValues) => {
     // Enter sul form bypassa il disabled del bottone submit: guardia esplicita
-    if (createOrderMutation.isPending) return;
+    if (createOrderMutation.isPending || createdOrderIdRef.current) return;
+    if (fasiDaCreare.some((fase) => !fase.nome.trim() || fase.sottofasi.some((sotto) => !sotto.nome.trim()))) {
+      toast.error("Completa i nomi delle fasi", { description: "Dai un nome a ogni fase oppure rimuovi quelle che non servono." });
+      return;
+    }
     const totalVal = parseDecimalIT(values.total_amount);
     if (totalVal <= 0) {
       toast.error("Importo non valido", { description: "L'importo totale deve essere maggiore di zero." });
@@ -1058,39 +1129,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setValue("customer_id", newCustomerId, { shouldValidate: true });
   };
 
-  // ── Date picker helper ──────────────────────────────────────
-  const DatePickerField = ({ name, label: fieldLabel }: { name: "expected_date" | "warehouse_arrival_date" | "work_start_date" | "work_end_date"; label: string }) => (
-    <Controller
-      control={control}
-      name={name}
-      render={({ field }) => (
-        <div className="space-y-2">
-          <Label>{fieldLabel}</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "w-full justify-start text-left font-normal border-slate-200 hover:border-orange-300 hover:bg-orange-50/40",
-                  !field.value && "text-slate-400"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4 text-orange-500" />
-                {field.value ? format(field.value, "d MMMM yyyy", { locale: it }) : <span>Seleziona data</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={field.value} onSelect={field.onChange} autoFocus className="pointer-events-auto" />
-            </PopoverContent>
-          </Popover>
-        </div>
-      )}
-    />
-  );
-
   // v8.6.84 — Wall di blocco creazione ordini esteso a TUTTI i piani limitati
   // (non solo Scopri). Esempio: render-only / render-serramenti con max_orders=3.
-  if (!canCreateOrder) {
+  if (!canCreateOrder && !createdOrderId) {
     return (
       <div className="max-w-lg mx-auto mt-12 px-4">
         {isScopriPlan ? (
@@ -1157,11 +1198,19 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         }
       />
 
+      {createdOrderId && !createOrderMutation.isPending && <Alert className="border-blue-200 bg-blue-50">
+        <CheckCircle2 className="h-4 w-4 text-blue-700" />
+        <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm text-blue-900">Questa commessa è già stata creata. Aprila per verificare o completare i dettagli.</span>
+          <Button type="button" variant="outline" size="sm" className="h-9 bg-white text-xs" onClick={() => navigate(`/azienda/ordini/${createdOrderId}?tab=cantiere&vista_cantiere=lavorazioni`)}>Apri commessa</Button>
+        </AlertDescription>
+      </Alert>}
+
       {/* Draft restored banner */}
       {draftRestored && !createdOrderId && (
         <Alert className="border-amber-300 bg-gradient-to-br from-amber-50 to-orange-50">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertDescription className="flex items-center justify-between">
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-amber-900 font-medium">
               Bozza recuperata — i dati precedenti sono stati ripristinati.
             </span>
@@ -1169,7 +1218,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
               type="button"
               variant="outline"
               size="sm"
-              className="ml-4 shrink-0 border-amber-300 hover:bg-amber-100"
+              className="h-9 shrink-0 border-amber-300 text-xs hover:bg-amber-100"
               onClick={handleClearDraft}
             >
               <Trash2 className="h-3 w-3 mr-1" />
@@ -1179,34 +1228,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         </Alert>
       )}
 
-      <Alert className="border-slate-200 bg-white">
-        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-        <AlertDescription>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-medium text-slate-900">Checklist ordine</p>
-              <p className="text-xs text-slate-500">Controlli minimi prima del salvataggio.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {completionChecks.map((check) => (
-                <span
-                  key={check.label}
-                  className={cn(
-                    "rounded-full border px-2 py-1 text-xs font-medium",
-                    check.done
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-amber-200 bg-amber-50 text-amber-700"
-                  )}
-                >
-                  {check.done ? "OK" : "Da fare"} · {check.label}
-                </span>
-              ))}
-            </div>
-          </div>
-        </AlertDescription>
-      </Alert>
+      <CreateOrderChecklist checks={completionChecks} />
 
       <form onSubmit={rhfHandleSubmit(onSubmit, onFormError)} className="space-y-6">
+        <fieldset disabled={createOrderMutation.isPending || !!createdOrderId} className="min-w-0 space-y-6">
         {/* ── Importa da preventivo: precompila righe, prezzi e spina misure ── */}
         <div className="flex flex-col gap-2 rounded-lg border border-orange-200 bg-orange-50/60 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-orange-900/40 dark:bg-orange-950/20">
           <p className="text-sm text-muted-foreground">
@@ -1296,14 +1321,17 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
               {/* Indirizzo cantiere (luogo dei lavori) — precompilato dal cliente */}
               <div className="space-y-2">
-                <Label htmlFor="cantiere-address">Indirizzo cantiere / luogo dei lavori</Label>
-                <Textarea
-                  id="cantiere-address"
-                  value={cantiereAddress}
-                  onChange={(e) => { cantiereTouchedRef.current = true; setCantiereAddress(e.target.value); }}
-                  placeholder="Via del cantiere, CAP Città (PR)"
-                  rows={2}
-                  maxLength={300}
+                <AddressAutocomplete
+                  label="Indirizzo cantiere / luogo dei lavori"
+                  searchPlaceholder="Cerca via, civico o città..."
+                  editableSearch
+                  disabled={createOrderMutation.isPending}
+                  value={cantiereAddressData ?? indirizzoCantiereDaTesto(cantiereAddress)}
+                  onChange={(address) => {
+                    cantiereTouchedRef.current = true;
+                    setCantiereAddressData(address);
+                    setCantiereAddress(testoIndirizzoCantiere(address));
+                  }}
                 />
                 <p className="text-[11px] text-muted-foreground">
                   {customerId
@@ -1442,7 +1470,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             }}
             onVatRateChange={(val) => {
               setValue("vat_rate", val);
-              setInstallments((prev) => ricalcolaRatePercentuali(prev, total * (1 + (parseDecimalIT(val) || 22) / 100)));
+              setInstallments((prev) => ricalcolaRatePercentuali(prev, total * (1 + parseDecimalIT(val.trim() ? val : "22") / 100)));
             }}
             onPaymentTypeChange={handlePaymentTypeChange}
             balance={balance}
@@ -1459,18 +1487,22 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
         {/* Customer Dates Card */}
         <QuoteCard
-          title="Tempistiche per il Cliente"
+          title="Pianificazione lavori"
           icon={<CalendarIcon className="h-4 w-4" />}
         >
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <DatePickerField name="expected_date" label="Data Prevista" />
-            <DatePickerField name="warehouse_arrival_date" label="Arrivo Merce in Magazzino" />
-            <DatePickerField name="work_start_date" label="Inizio Lavori" />
-            <DatePickerField name="work_end_date" label="Fine Lavori" />
-          </div>
+          <div className="grid gap-5 lg:grid-cols-2 lg:gap-6">
+          <PianificazioneCommessa
+            date={{ work_start_date: workStartDate, work_end_date: workEndDate, expected_date: expectedDate, warehouse_arrival_date: warehouseArrivalDate }}
+            onData={(campo, valore) => setValue(campo, valore, { shouldDirty: true, shouldValidate: true })}
+            durata={durataLavori} onDurata={setDurataLavori}
+            settimana={settimanaLavorativa} onSettimana={setSettimanaLavorativa}
+            erroreFine={errors.work_end_date?.message}
+          />
           {/* Fasi di lavoro: facoltative, di partenza quelle scelte dall'azienda nelle Impostazioni. */}
-          <div className="mt-4 max-w-md">
-            <FasiDiPartenzaSelect offerti={fasiDiPartenza.offerti} valore={fasiDiPartenza.scelta} onChange={fasiDiPartenza.scegli} />
+          <div className="min-w-0 border-t border-slate-100 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+            <div className="max-w-md"><FasiDiPartenzaSelect offerti={fasiDiPartenza.offerti} valore={fasiDiPartenza.scelta} onChange={(id) => { fasiDiPartenza.scegli(id); setFasiPersonalizzate(null); }} /></div>
+            <AnteprimaFasiCommessa modello={fasiDiPartenza.modello} fasi={fasiDaCreare} personalizzate={fasiPersonalizzate !== null} onChange={setFasiPersonalizzate} onRipristina={() => setFasiPersonalizzate(null)} />
+          </div>
           </div>
         </QuoteCard>
 
@@ -1482,34 +1514,21 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           showStatusControls={false}
         />
 
+        </fieldset>
         {/* Order Attachments */}
-        {createdOrderId ? (
+        {createdOrderId && !createOrderMutation.isPending ? (
           <OrderAttachments orderId={createdOrderId} editable={true} />
         ) : (
-          <PendingFilesUpload files={pendingFiles} onFilesChange={setPendingFiles} />
+          <fieldset disabled={createOrderMutation.isPending} className="min-w-0"><PendingFilesUpload files={pendingFiles} onFilesChange={setPendingFiles} disabled={createOrderMutation.isPending} /></fieldset>
         )}
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 sticky bottom-0 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent pt-4 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
-          {createdOrderId ? (
-            <QuotePrimaryButton onClick={() => navigate(`/azienda/ordini/${createdOrderId}`)}>
-              Vai alla Commessa
-            </QuotePrimaryButton>
-          ) : (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate("/azienda/ordini")}
-              >
-                Annulla
-              </Button>
-              <QuotePrimaryButton type="submit" disabled={createOrderMutation.isPending}>
-                {createOrderMutation.isPending ? "Creazione..." : "Crea Commessa"}
-              </QuotePrimaryButton>
-            </>
-          )}
-        </div>
+        <CreateOrderActions
+          pending={createOrderMutation.isPending}
+          created={!!createdOrderId}
+          onCancel={() => navigate("/azienda/ordini")}
+          onOpenCreated={() => navigate(`/azienda/ordini/${createdOrderId}`)}
+        />
       </form>
 
       {/* Create Customer Dialog */}

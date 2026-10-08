@@ -89,7 +89,11 @@ describe("router performance controls (fake provider, no paid calls)", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
   it("delivers real streamed text and collects usage from the final SSE event", async () => {
-    const events = [
+    const events: Array<{
+      id?: string;
+      choices: Array<{ index: number; delta: { role?: string; content: string }; finish_reason?: string }>;
+      usage?: { prompt_tokens: number; completion_tokens: number; cost: number };
+    }> = [
       { id: "stream-test", choices: [{ index: 0, delta: { role: "assistant", content: "Ciao" } }] },
       { choices: [{ index: 0, delta: { content: ", ecco i dati." }, finish_reason: "stop" }] },
       { choices: [], usage: { prompt_tokens: 120, completion_tokens: 20, cost: 0.003 } },

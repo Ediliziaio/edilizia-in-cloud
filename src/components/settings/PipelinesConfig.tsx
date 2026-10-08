@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { PipelineStagesConfig } from "./PipelineStagesConfig";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useSettingsDraftGuard, confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
 import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 import { AUTO_STATUS_OPTIONS } from "@/types/opportunities";
 import { format } from "date-fns";
@@ -166,7 +167,8 @@ export function PipelinesConfig() {
   const { effectiveCompany } = useAuth();
   // Crea/rinomina/elimina solo con «Personalizzazione» in modifica: è la
   // stessa regola del database (policy «Permesso personalizzazione»).
-  const { canEditSettingsCustomization: puoModificare } = usePermissions();
+  const permissions = usePermissions();
+  const puoModificare = !permissions.isLoading && permissions.canEditSettingsCustomization;
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
 
@@ -188,6 +190,8 @@ export function PipelinesConfig() {
   const validCreateStages = createStages.filter((stage) => normalizeName(stage.name));
   const createHasDuplicateStages = hasDuplicateNames(createStages.map((stage) => stage.name));
   const activeTemplate = PIPELINE_TEMPLATES.find((t) => t.id === templateId);
+  const chiudiCreate = (open: boolean) => { if (!busy && (open || conferma())) setCreateOpen(open); };
+  const chiudiEdit = (open: boolean) => { if (!busy && (open || conferma())) setEditOpen(open); };
 
   const { data: pipelines = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.pipelinesConfig.list(companyId),
@@ -204,6 +208,10 @@ export function PipelinesConfig() {
     enabled: !!companyId,
   });
 
+  const conferma = useSettingsDraftGuard(
+    (createOpen && (!!newName || JSON.stringify(createStages.map(({ name, auto_status }) => ({ name, auto_status }))) !== JSON.stringify(PIPELINE_TEMPLATES[0].stages))) ||
+    (editOpen && editName !== (pipelines.find(p => p.id === editId)?.name ?? "")),
+  );
   const copyingFromPipelineId = templateId.startsWith(PREFISSO_SEQUENZA_ESISTENTE)
     ? templateId.slice(PREFISSO_SEQUENZA_ESISTENTE.length)
     : null;
@@ -225,6 +233,7 @@ export function PipelinesConfig() {
   };
 
   function openCreateDialog() {
+    if (!puoModificare || busy || isError) return;
     setTemplateId(PIPELINE_TEMPLATES[0].id);
     setNewName("");
     setLastSuggestedName(PIPELINE_TEMPLATES[0].defaultName);
@@ -274,6 +283,7 @@ export function PipelinesConfig() {
 
   const createPipeline = useMutation({
     mutationFn: async ({ name, stages }: { name: string; stages: CreateStage[] }) => {
+      if (!puoModificare || isError) throw new Error("Modifica non consentita");
       if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
       const cleanName = normalizeName(name);
       const cleanStages = stages
@@ -320,6 +330,7 @@ export function PipelinesConfig() {
 
   const updatePipeline = useMutation({
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      if (!puoModificare || isError) throw new Error("Modifica non consentita");
       if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
       const cleanName = normalizeName(name);
       if (!cleanName) throw new Error("Inserisci il nome della sequenza.");
@@ -327,7 +338,7 @@ export function PipelinesConfig() {
         throw new Error("Esiste gia una sequenza con questo nome.");
       }
 
-      const { error } = await supabase.from("marketing_pipelines").update({ name: cleanName }).eq("id", id).eq("company_id", companyId);
+      const { error } = await supabase.from("marketing_pipelines").update({ name: cleanName }).eq("id", id).eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
     onSuccess: () => {
@@ -340,6 +351,7 @@ export function PipelinesConfig() {
 
   const deletePipeline = useMutation({
     mutationFn: async (id: string) => {
+      if (!puoModificare || isError) throw new Error("Modifica non consentita");
       if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
       const { count, error: countError } = await supabase
         .from("marketing_opportunities")
@@ -349,7 +361,7 @@ export function PipelinesConfig() {
       if (countError) throw countError;
       if ((count ?? 0) > 0) throw new PipelineInUseError(count ?? 0);
 
-      const { error } = await supabase.from("marketing_pipelines").delete().eq("id", id).eq("company_id", companyId);
+      const { error } = await supabase.from("marketing_pipelines").delete().eq("id", id).eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
     onSuccess: () => {
@@ -368,6 +380,7 @@ export function PipelinesConfig() {
   // playbook…). La duplicata nasce senza opportunità collegate.
   const duplicatePipeline = useMutation({
     mutationFn: async (source: PipelineRow) => {
+      if (!puoModificare || isError) throw new Error("Modifica non consentita");
       if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
       const base = normalizeName(source.name);
       const esistenti = new Set(pipelines.map((p) => normalizeName(p.name).toLowerCase()));
@@ -416,6 +429,7 @@ export function PipelinesConfig() {
   // qui sia nel selettore delle Opportunità.
   const reorderPipeline = useMutation({
     mutationFn: async ({ id, direzione }: { id: string; direzione: -1 | 1 }) => {
+      if (!puoModificare || isError) throw new Error("Modifica non consentita");
       if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
       const ordinate = [...pipelines].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
       const idx = ordinate.findIndex((p) => p.id === id);
@@ -429,13 +443,16 @@ export function PipelinesConfig() {
           .from("marketing_pipelines")
           .update({ position: i })
           .eq("id", nuovo[i].id)
-          .eq("company_id", companyId);
+          .eq("company_id", companyId).select("id").single();
         if (error) throw error;
       }
     },
     onSuccess: () => invalidaPipeline(),
-    onError: (e: unknown) => toast.error(getErrorMessage(e)),
+    onError: (e: unknown) => { invalidaPipeline(); toast.error(getErrorMessage(e)); },
   });
+
+  const busy = createPipeline.isPending || updatePipeline.isPending || deletePipeline.isPending || duplicatePipeline.isPending || reorderPipeline.isPending;
+  useSettingsDraftGuard(busy);
 
   if (isLoading) {
     return (
@@ -465,7 +482,7 @@ export function PipelinesConfig() {
     const pipeline = pipelines.find((p) => p.id === selectedPipelineId);
     return (
       <div className="space-y-4">
-        <Button variant="ghost" size="sm" className="gap-2" onClick={() => setSelectedPipelineId(null)}>
+        <Button variant="ghost" size="sm" className="gap-2" onClick={() => { if (confermaNavigazioneImpostazioni()) setSelectedPipelineId(null); }}>
           <ArrowLeft className="h-4 w-4" /> Torna alle sequenze
         </Button>
         <PipelineStagesConfig pipelineId={selectedPipelineId} pipelineName={pipeline?.name || ""} />
@@ -484,7 +501,7 @@ export function PipelinesConfig() {
               <CardDescription>Gestisci le pipeline di vendita e le relative fasi</CardDescription>
             </div>
             {puoModificare && (
-              <Button size="sm" onClick={openCreateDialog} className="w-full sm:w-auto shrink-0">
+              <Button size="sm" disabled={busy} onClick={openCreateDialog} className="w-full sm:w-auto shrink-0">
                 <Plus className="mr-2 h-4 w-4" /> Crea Sequenza
               </Button>
             )}
@@ -506,29 +523,28 @@ export function PipelinesConfig() {
               {pipelines.map((p, idx) => (
                 <div
                   key={p.id}
-                  className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => setSelectedPipelineId(p.id)}
+                  className="flex items-center justify-between gap-2 p-3 rounded-lg border transition-colors"
                 >
-                  <div>
-                    <p className="font-medium text-sm">{p.name}</p>
+                  <button type="button" disabled={busy} className="min-w-0 flex-1 text-left hover:text-primary focus-visible:outline focus-visible:outline-2" onClick={() => setSelectedPipelineId(p.id)} aria-label={`Apri fasi di ${p.name}`}>
+                    <p className="break-words font-medium text-sm">{p.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {p.marketing_pipeline_stages?.length || 0} fasi · Aggiornata {format(new Date(p.updated_at), "dd MMM yyyy", { locale: it })}
                     </p>
-                  </div>
+                  </button>
                   {puoModificare && (
                   <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                     {pipelines.length > 1 && (
                       <div className="flex flex-col">
                         <Button
                           variant="ghost" size="icon" className="h-4 w-6" aria-label="Sposta su"
-                          disabled={idx === 0 || reorderPipeline.isPending}
+                          disabled={idx === 0 || busy}
                           onClick={() => reorderPipeline.mutate({ id: p.id, direzione: -1 })}
                         >
                           <ChevronUp className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           variant="ghost" size="icon" className="h-4 w-6" aria-label="Sposta giù"
-                          disabled={idx === pipelines.length - 1 || reorderPipeline.isPending}
+                          disabled={idx === pipelines.length - 1 || busy}
                           onClick={() => reorderPipeline.mutate({ id: p.id, direzione: 1 })}
                         >
                           <ChevronDown className="h-3.5 w-3.5" />
@@ -537,7 +553,7 @@ export function PipelinesConfig() {
                     )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" disabled={busy} aria-label={`Azioni ${p.name}`} className="h-9 w-9">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -563,10 +579,10 @@ export function PipelinesConfig() {
       </Card>
 
       {/* Create Dialog with default stages */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog open={createOpen} onOpenChange={chiudiCreate}>
         <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nuova Sequenza</DialogTitle></DialogHeader>
-          <div className="space-y-4">
+          <fieldset disabled={busy} className="m-0 min-w-0 space-y-4 border-0 p-0">
             <div>
               <label className="text-sm font-medium">Parti da un modello</label>
               <Select value={templateId} onValueChange={applyTemplate}>
@@ -603,8 +619,9 @@ export function PipelinesConfig() {
               </p>
             </div>
             <div>
-              <label className="text-sm font-medium">Nome della sequenza</label>
+              <label htmlFor="pipeline-name" className="text-sm font-medium">Nome della sequenza</label>
               <Input
+                id="pipeline-name"
                 placeholder="Es: Pipeline Vendita"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
@@ -622,12 +639,12 @@ export function PipelinesConfig() {
               </div>
               <div className="space-y-2">
                 {createStages.map((stage, idx) => (
-                  <div key={stage.id} className="flex items-center gap-2">
+                  <div key={stage.id} className="grid grid-cols-[20px_minmax(0,1fr)_32px] items-center gap-2 sm:flex">
                     <span className="text-xs text-muted-foreground w-5 text-center">{idx + 1}</span>
                     <Input
                       value={stage.name}
                       onChange={(e) => handleUpdateCreateStage(stage.id, e.target.value)}
-                      className="h-8 text-sm flex-1"
+                      aria-label={`Nome fase ${idx + 1}`} className="h-9 min-w-0 text-sm flex-1"
                       maxLength={100}
                     />
                     <Select
@@ -635,7 +652,7 @@ export function PipelinesConfig() {
                       onValueChange={(v) => setCreateStages((prev) => prev.map((s) => s.id === stage.id ? { ...s, auto_status: v === "none" ? null : v } : s))}
                     >
                       <SelectTrigger
-                        className="h-8 text-xs w-[120px]"
+                        aria-label={`Esito fase ${idx + 1}`} className="col-start-2 row-start-2 h-9 text-xs sm:w-[120px]"
                         title={AUTO_STATUS_OPTIONS.find((o) => o.value === (stage.auto_status || "none"))?.hint}
                       >
                         <SelectValue placeholder="Stato" />
@@ -650,7 +667,7 @@ export function PipelinesConfig() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-destructive"
+                        aria-label={`Elimina fase ${idx + 1}`} className="col-start-3 row-start-1 h-8 w-8 text-destructive"
                         onClick={() => handleRemoveCreateStage(stage.id)}
                         type="button"
                       >
@@ -682,9 +699,9 @@ export function PipelinesConfig() {
                 </p>
               </div>
             </div>
-          </div>
+          </fieldset>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>Annulla</Button>
+            <Button variant="outline" disabled={busy} onClick={() => chiudiCreate(false)}>Annulla</Button>
             <Button
               onClick={() => createPipeline.mutate({
                 name: newName,
@@ -699,12 +716,12 @@ export function PipelinesConfig() {
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      <Dialog open={editOpen} onOpenChange={chiudiEdit}>
         <DialogContent>
           <DialogHeader><DialogTitle>Rinomina Sequenza</DialogTitle></DialogHeader>
-          <Input value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus maxLength={100} />
+          <Input aria-label="Nome della sequenza" disabled={busy} value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus maxLength={100} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Annulla</Button>
+            <Button variant="outline" disabled={busy} onClick={() => chiudiEdit(false)}>Annulla</Button>
             <Button onClick={() => editId && updatePipeline.mutate({ id: editId, name: editName })} disabled={!editName.trim() || updatePipeline.isPending}>
               Salva
             </Button>
@@ -723,7 +740,7 @@ export function PipelinesConfig() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => deleteId && deletePipeline.mutate(deleteId)}>
+            <AlertDialogAction disabled={busy} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={(e) => { e.preventDefault(); if (deleteId) deletePipeline.mutate(deleteId); }}>
               Elimina
             </AlertDialogAction>
           </AlertDialogFooter>
