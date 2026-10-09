@@ -6,7 +6,10 @@ export function serramentiRoomSummary(rows: readonly SrSerramentoRow[]) {
   for (const row of rows) {
     const name = row.ambiente?.trim() || "Ambiente da indicare";
     const room = rooms.get(name) ?? { name, products: [] };
-    room.products.push({ label: row.tipologia_label?.trim() || row.tipologia || "Prodotto da specificare", quantity: row.quantita });
+    const product = row.tipologia_label?.trim() || row.tipologia || "Prodotto da specificare";
+    const dimensions = row.larghezza_mm != null && row.altezza_mm != null
+      ? ` · ${row.larghezza_mm} × ${row.altezza_mm} mm` : "";
+    room.products.push({ label: `${product}${dimensions}`, quantity: row.quantita });
     rooms.set(name, room);
   }
   return [...rooms.values()];
