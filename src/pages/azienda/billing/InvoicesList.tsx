@@ -17,6 +17,7 @@ import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, 
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import BillingReports from "./BillingReports";
+import { leggiOriginaleEmessa, riferimentoOriginale, scaricaFileOriginale } from "@/lib/fatturazione/originaleEmessaImportata";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -1062,7 +1063,14 @@ export default function InvoicesList() {
                                     </DropdownMenuItem>
                                   )}
                                   {inv.external_xml_url && (
-                                    <DropdownMenuItem onClick={() => window.open(inv.external_xml_url!, "_blank", "noopener")}>
+                                    <DropdownMenuItem onClick={async () => {
+                                      try {
+                                        const ref = riferimentoOriginale(inv.external_xml_url!, inv.company_id);
+                                        if ("url" in ref) { window.open(ref.url, "_blank", "noopener,noreferrer"); return; }
+                                        const originale = await leggiOriginaleEmessa(inv.external_xml_url!, inv.company_id);
+                                        scaricaFileOriginale(originale.file, originale.nome);
+                                      } catch { toast.error("Impossibile aprire il file originale della fattura."); }
+                                    }}>
                                       <FileCode className="h-4 w-4 mr-2" /> XML (SDI)
                                     </DropdownMenuItem>
                                   )}

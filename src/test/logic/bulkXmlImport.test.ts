@@ -135,6 +135,7 @@ describe("espandiXmlDaFiles", () => {
   it("un XML in chiaro non porta con se' nessun file firmato", async () => {
     const r = await espandiXmlDaFiles([file("a.xml")]);
     expect(r.xml[0].firmato).toBeUndefined();
+    expect(Array.from(r.xml[0].originale!)).toEqual(Array.from(new TextEncoder().encode(XML_VALIDO)));
   });
 
   it("scarta il p7m rotto senza far fallire gli altri file del lotto", async () => {
@@ -150,6 +151,7 @@ describe("espandiXmlDaFiles", () => {
     const r = await espandiXmlDaFiles([file("latina.xml", Uint8Array.from(latino, (c) => c.charCodeAt(0)))]);
     expect(r.xml[0].contenuto).toContain("più");
     expect(r.xml[0].contenuto).not.toContain("\uFFFD");
+    expect(r.xml[0].originale).toEqual(Uint8Array.from(latino, (c) => c.charCodeAt(0)));
   });
 
   it("salta in silenzio i file di servizio dello SDI", async () => {

@@ -31,6 +31,8 @@ export interface XmlDaImportare {
   contenuto: string;
   /** Il file .p7m così com'era: l'originale da conservare. Solo se firmato. */
   firmato?: Uint8Array;
+  /** Anche l'XML non firmato: conserva encoding e byte del file caricato. */
+  originale?: Uint8Array;
 }
 
 export interface FileScartato {
@@ -122,7 +124,7 @@ async function leggiFattura(nome: string, blob: Blob, dentroZip: boolean): Promi
     };
   }
   const originale = fileOriginale(dati);
-  return { xml: originale[0] === 0x30 ? { nome, contenuto, firmato: originale } : { nome, contenuto } };
+  return { xml: originale[0] === 0x30 ? { nome, contenuto, firmato: originale, originale } : { nome, contenuto, originale } };
 }
 
 /**

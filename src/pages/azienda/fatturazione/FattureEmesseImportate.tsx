@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Search } from "lucide-react";
+import { ArrowLeft, FileCode, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency } from "@/lib/formatters";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { raggruppaPerMese, type EmessaImportata } from "@/lib/fatturazione/emesseImportate";
+import { EmessaImportataDettaglio } from "@/components/fatturazione/EmessaImportataDettaglio";
 
 const dataBreve = (s: string | null) => {
   if (!s) return "—";
@@ -25,18 +26,23 @@ const dataBreve = (s: string | null) => {
 export default function FattureEmesseImportate() {
   const companyId = useEffectiveCompanyId();
   const [cerca, setCerca] = useState("");
+  const [selezionata, setSelezionata] = useState<{ id: string; xml: boolean } | null>(null);
+  const apriDettaglio = (id: string, xml = false) => setSelezionata({ id, xml });
 
   const { data = [], isLoading, isError } = useQuery({
-    queryKey: ["fatture-emesse-importate", companyId],
+    queryKey: ["fatture-emesse-importate", companyId, "dettagli-elenco"],
     enabled: !!companyId,
     queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("invoices")
-        .select("id, invoice_number, document_type, status, client_company_name, issue_date, subtotal, tax_amount, total, paid_amount")
+        .select("id, invoice_number, document_type, status, client_company_name, client_fiscal_code, client_vat_number, client_address, client_city, client_zip, issue_date, due_date, subtotal, tax_amount, total, paid_amount, external_xml_url, invoice_lines(description, sort_order)")
         .eq("company_id", companyId)
         .is("deleted_at", null)
+        .not("external_provider", "is", null)
         .order("issue_date", { ascending: false })
+        // Solo l'anteprima della prima riga; tutte le righe si caricano nel dettaglio.
+        .order("sort_order", { ascending: true, referencedTable: "invoice_lines" })
+        .limit(1, { referencedTable: "invoice_lines" })
         .limit(5000);
       if (error) throw error;
       return (data ?? []) as EmessaImportata[];
@@ -46,7 +52,7 @@ export default function FattureEmesseImportate() {
   const filtrate = useMemo(() => {
     const q = cerca.trim().toLowerCase();
     if (!q) return data;
-    return data.filter((f) => `${f.invoice_number} ${f.client_company_name ?? ""}`.toLowerCase().includes(q));
+    return data.filter((f) => [f.invoice_number, f.client_company_name, f.client_fiscal_code, f.client_vat_number, f.client_address, f.client_city, f.client_zip].filter(Boolean).join(" ").toLowerCase().includes(q));
   }, [data, cerca]);
   const mesi = useMemo(() => raggruppaPerMese(filtrate), [filtrate]);
   const totale = useMemo(() => mesi.reduce((s, m) => s + m.totale, 0), [mesi]);
@@ -60,12 +66,12 @@ export default function FattureEmesseImportate() {
         <div>
           <h1 className="text-xl font-bold">Fatture emesse importate</h1>
           <p className="text-sm text-muted-foreground">
-            Emesse con un altro programma (Aruba, Fatture in Cloud…) e importate dall'XML. Sola lettura, mese per mese.
+            Dati cliente, descrizioni e scadenze direttamente nell’elenco. Apri «Dettagli» per consultare tutte le righe e l’XML collegato.
           </p>
         </div>
         <div className="relative ml-auto w-full sm:w-72">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca numero o cliente…" className="h-9 pl-8" />
+          <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Numero, cliente, CF/P.IVA o indirizzo…" aria-label="Cerca fatture importate" className="h-9 pl-8" />
         </div>
       </div>
 
@@ -96,25 +102,53 @@ export default function FattureEmesseImportate() {
                     <TableRow>
                       <TableHead>Numero</TableHead>
                       <TableHead>Cliente</TableHead>
-                      <TableHead>Data</TableHead>
+                      <TableHead>Descrizione</TableHead>
+                      <TableHead>Emissione / scadenza</TableHead>
                       <TableHead className="text-right">Imponibile</TableHead>
                       <TableHead className="text-right">IVA</TableHead>
                       <TableHead className="text-right">Totale</TableHead>
                       <TableHead className="text-right">Incassato</TableHead>
+                      <TableHead>XML originale</TableHead>
+                      <TableHead><span className="sr-only">Dettagli</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {m.fatture.map((f) => (
                       <TableRow key={f.id}>
                         <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-orange-600">
-                          {f.invoice_number}{f.document_type === "TD04" ? " · NC" : ""}
+                          <button type="button" onClick={() => apriDettaglio(f.id)} className="rounded underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Apri fattura ${f.invoice_number}`}>
+                            {f.invoice_number}{f.document_type === "TD04" || f.document_type === "credit_note" ? " · NC" : ""}
+                          </button>
                         </TableCell>
-                        <TableCell className="max-w-[260px] truncate text-xs">{f.client_company_name || "—"}</TableCell>
-                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{dataBreve(f.issue_date)}</TableCell>
+                        <TableCell className="min-w-56 max-w-80 text-xs">
+                          <div className="font-medium break-words">{f.client_company_name || "—"}</div>
+                          <div className="mt-1 space-y-0.5 text-muted-foreground">
+                            {f.client_fiscal_code && <div className="break-all">CF: {f.client_fiscal_code}</div>}
+                            {f.client_vat_number && <div>P.IVA: {f.client_vat_number}</div>}
+                            {!f.client_fiscal_code && !f.client_vat_number && <div>CF / P.IVA non archiviati</div>}
+                            {[f.client_address, [f.client_zip, f.client_city].filter(Boolean).join(" ")].filter(Boolean).length > 0 &&
+                              <div className="break-words">{[f.client_address, [f.client_zip, f.client_city].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}</div>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="min-w-52 max-w-72 text-xs">
+                          {f.invoice_lines?.[0]?.description ? <>
+                            <p className="line-clamp-2 whitespace-pre-wrap break-words">{f.invoice_lines[0].description.slice(0, 200)}{f.invoice_lines[0].description.length > 200 ? "…" : ""}</p>
+                            <button type="button" className="mt-1 rounded text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => apriDettaglio(f.id)} aria-label={`Vedi tutte le righe della fattura ${f.invoice_number}`}>Vedi tutte le righe</button>
+                          </> : <span className="text-muted-foreground">Descrizione non archiviata</span>}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-xs">
+                          <div>{dataBreve(f.issue_date)}</div>
+                          <div className="mt-1 text-muted-foreground">{f.due_date ? `Scad. ${dataBreve(f.due_date)}` : "Scadenza non archiviata"}</div>
+                        </TableCell>
                         <TableCell className="text-right text-xs tabular-nums">{formatCurrency(Number(f.subtotal ?? 0))}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums">{formatCurrency(Number(f.tax_amount ?? 0))}</TableCell>
                         <TableCell className="text-right text-xs font-medium tabular-nums">{formatCurrency(Number(f.total ?? 0))}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums">{Number(f.paid_amount ?? 0) > 0 ? formatCurrency(Number(f.paid_amount)) : "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {f.external_xml_url ? <Button variant="outline" size="sm" onClick={() => apriDettaglio(f.id, true)} aria-label={`Visualizza XML della fattura ${f.invoice_number}`}><FileCode className="mr-1.5 h-4 w-4" />XML</Button> :
+                            <span className="text-xs text-muted-foreground">Non archiviato</span>}
+                        </TableCell>
+                        <TableCell><Button variant="outline" size="sm" onClick={() => apriDettaglio(f.id)} aria-label={`Dettagli della fattura ${f.invoice_number}`}>Dettagli</Button></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -124,6 +158,7 @@ export default function FattureEmesseImportate() {
           ))}
         </>
       )}
+      {selezionata && companyId && <EmessaImportataDettaglio key={`${companyId}:${selezionata.id}:${selezionata.xml}`} id={selezionata.id} companyId={companyId} apriXml={selezionata.xml} onClose={() => setSelezionata(null)} />}
     </div>
   );
 }

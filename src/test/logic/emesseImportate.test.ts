@@ -24,6 +24,10 @@ describe("fatture emesse importate", () => {
     const [m] = raggruppaPerMese([f("FPR 1/26", "2026-01-10", 1000), f("FPR 2/26", "2026-01-20", 400, { document_type: "TD04" })]);
     expect(m.totale).toBe(600);
   });
+  it.each(["credit_note", "TD08", "nota_credito"])("la nota di credito %s importata non gonfia i ricavi", (tipo) => {
+    const [m] = raggruppaPerMese([f("1", "2026-01-10", 1000), f("2", "2026-01-20", 400, { document_type: tipo })]);
+    expect(m.totale).toBe(600);
+  });
   it("le fatture senza data vanno in fondo, in «Senza data»", () => {
     const mesi = raggruppaPerMese([f("FPR 1/26", null, 10), f("FPR 2/26", "2026-02-01", 20)]);
     expect(mesi.map((m) => m.etichetta)).toEqual(["Febbraio 2026", "Senza data"]);

@@ -16,6 +16,14 @@ export interface EmessaImportata {
   tax_amount: number | null;
   total: number | null;
   paid_amount: number | null;
+  client_fiscal_code?: string | null;
+  client_vat_number?: string | null;
+  client_address?: string | null;
+  client_city?: string | null;
+  client_zip?: string | null;
+  due_date?: string | null;
+  external_xml_url?: string | null;
+  invoice_lines?: Array<{ description: string | null; sort_order: number | null }>;
 }
 
 export interface MeseEmesse {
@@ -58,7 +66,7 @@ export function raggruppaPerMese(righe: readonly EmessaImportata[]): MeseEmesse[
       m = { chiave: d, etichetta, fatture: [], imponibile: 0, iva: 0, totale: 0, incassato: 0 };
       mesi.set(d, m);
     }
-    const segno = f.document_type === "TD04" || f.document_type === "nota_credito" ? -1 : 1;
+    const segno = ["TD04", "TD08", "nota_credito", "credit_note"].includes(f.document_type ?? "") ? -1 : 1;
     m.fatture.push(f);
     m.imponibile = due(m.imponibile + segno * num(f.subtotal));
     m.iva = due(m.iva + segno * num(f.tax_amount));

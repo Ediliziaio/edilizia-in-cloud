@@ -527,10 +527,12 @@ export default function FattureRicevutePage() {
       }
 
       const funzione = direzione === "attiva" ? "importa-fattura-attiva-xml" : "ricevi-sdi";
-      // Una fattura ricevuta firmata (.p7m) va al server col suo file: è
-      // l'originale da conservare, e l'XML il server lo ricava da lì.
-      const body = direzione === "passiva" && f.firmato
-        ? { originale_base64: bytesToBase64(f.firmato), company_id: companyId }
+      // Il file va al server intero anche per le emesse e per gli XML non
+      // firmati. xml_content resta per compatibilità durante il deploy:
+      // le funzioni nuove ricavano comunque il testo dal file originale.
+      const originale = f.originale ?? f.firmato;
+      const body = originale
+        ? { originale_base64: bytesToBase64(originale), xml_content: f.contenuto, company_id: companyId }
         : { xml_content: f.contenuto, company_id: companyId };
 
       try {
@@ -564,6 +566,9 @@ export default function FattureRicevutePage() {
     setReport({ esiti, scartati });
     queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
     queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    queryClient.invalidateQueries({ queryKey: ["fatture-emesse-importate", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["emessa-importata-dettaglio", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["emessa-importata-originale", companyId] });
 
     const r = riepilogoEsiti(esiti);
     const testo = descriviRiepilogo(r);

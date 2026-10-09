@@ -23,7 +23,10 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 // Il lettore e' condiviso e testato: quello che gira qui e' esattamente il
 // codice verificato dai test, non una copia parallela.
-import { leggiFatturaPA, normalizzaPiva, type LettoreXml } from "../_shared/fatturapaReader.ts";
+import { leggiFatturaPA, normalizzaPiva } from "../_shared/fatturapaReader.ts";
+import { base64ToBytes } from "../_shared/base64.ts";
+import { fileOriginale, xmlDaFile } from "../_shared/ricevuteOpenapi.ts";
+import { archiviaOriginaleEmessa, originaleCorrispondeAllaFattura, scartaOriginaleNonCollegato } from "../_shared/originaleFatturaEmessa.ts";
 
 const PROVIDER = "xml_import";
 
@@ -49,14 +52,37 @@ Deno.serve(async (req) => {
     const { data: { user } } = await anon.auth.getUser(token);
     if (!user) return json({ error: "Non autorizzato" }, 401);
 
-    const { xml_content, company_id } = await req.json();
-    if (!xml_content || !company_id) return json({ error: "xml_content e company_id richiesti" }, 400);
+    const corpo = await req.json();
+    const company_id = typeof corpo.company_id === "string" ? corpo.company_id : "";
+    let xml_content = typeof corpo.xml_content === "string" ? corpo.xml_content : "";
+    const base64 = typeof corpo.originale_base64 === "string" ? corpo.originale_base64 : "";
+    if ((!xml_content && !base64) || !company_id) return json({ error: "XML o file originale e company_id richiesti" }, 400);
+    if (xml_content.length > 20 * 1024 * 1024 || base64.length > 28 * 1024 * 1024) return json({ error: "File originale troppo grande (massimo 20 MB)." }, 413);
 
     // L'utente deve avere accesso all'azienda: qui si scrive sul fatturato.
     // Si usa l'helper condiviso perche' i modi legittimi sono piu' d'uno
     // (super_admin, azienda primaria, impersonation attiva).
     if (!(await canAccessCompany(supabase, user.id, company_id))) {
       return json({ error: "Accesso negato a questa azienda" }, 403);
+    }
+
+    // Il contenuto si ricava dal file, non si crede al testo dichiarato dal browser.
+    let originale: Uint8Array;
+    if (base64) {
+      let dati: Uint8Array;
+      try { dati = base64ToBytes(base64); } catch { return json({ error: "File originale non leggibile." }, 422); }
+      if (dati.length > 20 * 1024 * 1024) return json({ error: "File originale troppo grande (massimo 20 MB)." }, 413);
+      const xml = xmlDaFile(dati);
+      if (!xml) return json({ error: "Il file originale non contiene una fattura elettronica leggibile." }, 422);
+      xml_content = xml;
+      originale = fileOriginale(dati);
+    } else {
+      const encoding = xml_content.match(/<\?xml[^?]*encoding\s*=\s*["']([^"']+)["']/i)?.[1];
+      if (encoding && !/^(UTF-?8|US-ASCII)$/i.test(encoding)) {
+        return json({ error: "Per conservare correttamente questa codifica, carica il file XML originale dalla pagina Importa XML, non il solo testo." }, 422);
+      }
+      originale = new TextEncoder().encode(xml_content);
+      if (originale.length > 20 * 1024 * 1024) return json({ error: "File originale troppo grande (massimo 20 MB)." }, 413);
     }
 
     // deno_dom soddisfa l'interfaccia strutturalmente; il cast serve solo a
@@ -80,20 +106,39 @@ Deno.serve(async (req) => {
     const externalId = `${fattura.numero}|${fattura.data}`;
 
     // Gia' importata da qui: e' un duplicato, non un errore.
-    const { data: gia } = await supabase
-      .from("invoices").select("id")
+    const { data: gia, error: errCerca } = await supabase
+      .from("invoices").select("*")
       .eq("company_id", company_id)
       .eq("external_provider", PROVIDER)
       .eq("external_id", externalId)
       .maybeSingle();
-    if (gia) return json({ success: true, duplicate: true, id: gia.id });
+    if (errCerca) return json({ error: "Impossibile verificare se la fattura è già importata. Riprova: nessun documento è stato creato." }, 500);
+    if (gia) {
+      if (gia.deleted_at) return json({ error: "La fattura è nel cestino. Non ho modificato né duplicato il documento." }, 409);
+      if (gia.external_xml_url) return json({ success: true, duplicate: true, id: gia.id });
+      const { data: righe, error: errRighe } = await supabase.from("invoice_lines").select("*").eq("invoice_id", gia.id);
+      if (errRighe) return json({ error: "Impossibile verificare le righe della fattura già importata. Non ho modificato nulla." }, 500);
+      if (!originaleCorrispondeAllaFattura(gia, fattura, righe ?? [])) {
+        return json({ error: "Lo stesso numero è già importato, ma i dati o le righe non corrispondono all'XML. Non ho modificato né duplicato la fattura." }, 409);
+      }
+      const ref = await archiviaOriginaleEmessa(supabase, company_id, originale);
+      const { data: completata, error: errCompleta } = await supabase.from("invoices")
+        .update({ external_xml_url: ref }).eq("id", gia.id).eq("company_id", company_id)
+        .eq("external_provider", PROVIDER).is("external_xml_url", null).select("id").maybeSingle();
+      if (errCompleta || !completata) {
+        await scartaOriginaleNonCollegato(supabase, ref);
+        return json({ error: "Collegamento dell'originale non riuscito o completato da un'altra richiesta. Ricarica e riprova: i dati contabili non sono stati modificati." }, 409);
+      }
+      return json({ success: true, duplicate: true, completed: true, id: gia.id });
+    }
 
     // PALETTO 2 — stesso numero ma altra provenienza: non si tocca.
-    const { data: conflitto } = await supabase
+    const { data: conflitto, error: errConflitto } = await supabase
       .from("invoices").select("id, external_provider")
       .eq("company_id", company_id)
       .eq("invoice_number", fattura.numero)
       .maybeSingle();
+    if (errConflitto) return json({ error: "Impossibile verificare la numerazione esistente. Nessun documento è stato creato." }, 500);
     if (conflitto) {
       return json({
         error: `Il numero ${fattura.numero} esiste gia' in piattaforma${conflitto.external_provider ? ` (da ${conflitto.external_provider})` : " (emessa nativamente)"}. Non l'ho toccata: verifica quale delle due e' quella buona.`,
@@ -136,6 +181,8 @@ Deno.serve(async (req) => {
       } catch { /* best-effort: l'anagrafica non deve bloccare la fattura */ }
     }
 
+    // Se il file non si conserva, la nuova fattura non viene registrata solo a metà.
+    const riferimentoOriginale = await archiviaOriginaleEmessa(supabase, company_id, originale);
     const { data: nuova, error: errIns } = await supabase.from("invoices").insert({
       company_id,
       document_type: fattura.documentType,
@@ -164,11 +211,13 @@ Deno.serve(async (req) => {
       notes: "Importata da XML del provider esterno.",
       external_provider: PROVIDER,
       external_id: externalId,
+      external_xml_url: riferimentoOriginale,
       last_synced_at: new Date().toISOString(),
       created_by: user.id,
     }).select("id").single();
 
     if (errIns || !nuova) {
+      await scartaOriginaleNonCollegato(supabase, riferimentoOriginale);
       return json({ error: errIns?.message ?? "Inserimento non riuscito." }, 500);
     }
 
