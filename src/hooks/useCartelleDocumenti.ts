@@ -5,6 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 import type { CartellaDocumenti } from "@/lib/commesse/documentiCommessa";
 
 // La tabella è nuova e non ancora nei tipi generati.
@@ -42,7 +43,8 @@ export function useCartelleDocumenti(opzioni: { tutte?: boolean } = {}) {
 function messaggioErrore(e: { code?: string; message?: string } | null, nome?: string): Error {
   if (e?.code === "23505") return new Error(`Esiste già una cartella «${nome ?? ""}»`);
   if (e?.code === "42501") return new Error("Non hai il permesso di modificare le cartelle");
-  return new Error(e?.message ?? "Operazione non riuscita");
+  // Mai il testo del database: rete, sessione scaduta e il resto passano dal traduttore di errori.
+  return new Error(userErrorMessage(e, "Operazione non riuscita. Riprova tra poco."));
 }
 
 export function useSalvaCartella() {

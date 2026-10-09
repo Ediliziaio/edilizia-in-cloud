@@ -1,8 +1,9 @@
 /**
- * Tab Squadre della pagina Calendari lavori: la tabella, il dialog, e per ogni
- * squadra il collegamento al suo calendario Google.
+ * Tab Squadre della pagina Squadre e calendari lavori: la tabella, il dialog, e per ogni
+ * squadra il collegamento al suo calendario Google (facoltativo).
  */
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, HardHat, FileText, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +31,7 @@ import type { ExternalTeam } from "@/types/employees";
 import { SQUADRA_KIND_LABEL, STATO_SYNC_LABEL, statoSyncSquadra, type StatoSyncSquadra } from "@/types/squadre";
 import {
   useCollegaCalendarioSquadra,
+  useConnessioniGoogleAzienda,
   useEliminaSquadra,
   useSalvaSquadra,
   useSquadre,
@@ -51,6 +53,10 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
   const salva = useSalvaSquadra();
   const elimina = useEliminaSquadra();
   const collega = useCollegaCalendarioSquadra();
+  // Senza un account Google collegato il menu del calendario non ha niente da offrire: lo si dice una volta sola sopra la
+  // tabella (con il link per collegarlo) invece di ripeterlo in ogni riga.
+  const { data: connessioni = [], isLoading: caricoConnessioni, isError: erroreConnessioni } = useConnessioniGoogleAzienda();
+  const senzaAccountGoogle = !caricoConnessioni && !erroreConnessioni && connessioni.filter((c) => c.status === "connected").length === 0;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [inModifica, setInModifica] = useState<ExternalTeam | null>(null);
@@ -141,15 +147,25 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
           </CardContent>
         </Card>
       ) : (
+        <>
+        {senzaAccountGoogle && (
+          <p role="note" className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+            Nessun account Google collegato: se vuoi un calendario per ogni squadra,{" "}
+            <Link to="?tab=google" className="font-medium text-primary underline">
+              collegalo da «Google Calendar»
+            </Link>
+            .
+          </p>
+        )}
         <div className="overflow-x-auto rounded-md border">
           <Table className="block lg:table">
             <TableHeader className="hidden lg:table-header-group">
               <TableRow>
                 <TableHead>Squadra</TableHead>
                 <TableHead className="hidden sm:table-cell">Tipo</TableHead>
-                <TableHead className="hidden md:table-cell">Accesso</TableHead>
+                <TableHead className="hidden md:table-cell">Accesso della ditta</TableHead>
                 <TableHead>Calendario Google</TableHead>
-                <TableHead>Sync</TableHead>
+                <TableHead>Google</TableHead>
                 <TableHead className="w-32" />
               </TableRow>
             </TableHeader>
@@ -185,11 +201,14 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
                       {accesso ? (accesso.user_email ?? accesso.ragione_sociale) : "—"}
                     </TableCell>
                     <TableCell className="col-span-2">
-                      <Button variant="link" size="sm" className="h-auto px-0 text-xs lg:hidden" onClick={() => setCalendarioDi(calendarioDi === s.id ? null : s.id)} aria-expanded={calendarioDi === s.id}>
-                        {calendarioDi === s.id ? "Chiudi calendario" : "Calendario Google"}
-                      </Button>
+                      {!senzaAccountGoogle && (
+                        <Button variant="link" size="sm" className="h-auto px-0 text-xs lg:hidden" onClick={() => setCalendarioDi(calendarioDi === s.id ? null : s.id)} aria-expanded={calendarioDi === s.id}>
+                          {calendarioDi === s.id ? "Chiudi calendario" : "Calendario Google"}
+                        </Button>
+                      )}
                       <div className={calendarioDi === s.id ? "mt-2 lg:mt-0" : "hidden lg:block"}>
                       <GoogleCalendarPicker
+                        senzaAccount="nascondi"
                         disabled={!canWrite}
                         value={{
                           google_connection_id: s.google_connection_id ?? null,
@@ -207,7 +226,7 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
                           <Switch
                             checked={!!s.google_sync_enabled}
                             disabled={!canWrite}
-                            aria-label="Sincronizzazione attiva"
+                            aria-label={`Invia a Google Calendar: ${s.name}`}
                             onCheckedChange={(on) =>
                               collega.mutate({
                                 id: s.id,
@@ -254,6 +273,7 @@ export function SquadreTab({ canManage }: { canManage: boolean }) {
             </TableBody>
           </Table>
         </div>
+        </>
       )}
 
       <ExternalTeamDialog

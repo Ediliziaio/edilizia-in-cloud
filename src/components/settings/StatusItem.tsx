@@ -2,7 +2,6 @@ import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Trash2, LifeBuoy, Lock } from "lucide-react";
-import { getStatusIcon } from "@/lib/statusIconRegistry";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,8 +34,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
   };
 
   const isSupportPhase = status.is_support_phase === true;
-  const IconComponent = getStatusIcon(status.icon);
-  // La fase Assistenza non è eliminabile mai.
+  // Lo stato Assistenza non è eliminabile mai.
   const deleteEnabled = canDelete && !isSupportPhase;
 
   return (
@@ -44,7 +42,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-3 p-3 rounded-lg border bg-card",
+        "flex flex-wrap items-center gap-x-3 gap-y-2 p-3 rounded-lg border bg-card",
         isDragging && "shadow-lg opacity-90 z-50",
         isSupportPhase && "border-amber-400/60 bg-amber-50/50 dark:bg-amber-950/20"
       )}
@@ -72,8 +70,9 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
       <Input
         value={status.name}
         onChange={(e) => onUpdate(status.id, { name: e.target.value })}
-        className="flex-1"
+        className="min-w-[8rem] flex-1 basis-40"
         placeholder="Nome stato"
+        aria-label={`Nome dello stato ${(status.position ?? 0) + 1}`}
         maxLength={50}
       />
 
@@ -86,11 +85,11 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
                 className="gap-1 border-amber-400 bg-amber-100/80 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100"
               >
                 <LifeBuoy className="h-3 w-3" />
-                Fase Assistenza
+                Stato Assistenza
               </Badge>
             </TooltipTrigger>
             <TooltipContent side="top" className="max-w-xs">
-              Quando apri un ticket per un ordine, l'ordine viene spostato automaticamente in questo stato. Può essere rinominato ma non eliminato.
+              Quando apri un ticket di assistenza per una commessa, la commessa passa da sola a questo stato. Puoi rinominarlo, non eliminarlo.
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -119,7 +118,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
                 size="icon"
                 onClick={() => deleteEnabled && onDelete(status.id)}
                 disabled={!deleteEnabled}
-                aria-label={isSupportPhase ? "La fase Assistenza non può essere eliminata" : "Elimina stato"}
+                aria-label={isSupportPhase ? "Lo stato Assistenza non si può eliminare" : `Elimina lo stato ${status.name}`}
                 className={cn(
                   "text-muted-foreground hover:text-destructive",
                   !deleteEnabled && "opacity-50 cursor-not-allowed"
@@ -132,7 +131,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
           {!deleteEnabled && (
             <TooltipContent side="top">
               {isSupportPhase
-                ? "La fase Assistenza è obbligatoria e non può essere eliminata"
+                ? "Lo stato Assistenza è obbligatorio e non si può eliminare"
                 : "Servono almeno 2 stati"}
             </TooltipContent>
           )}

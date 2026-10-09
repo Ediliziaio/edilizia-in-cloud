@@ -45,7 +45,7 @@ export function usePesoMediaFasi() {
       void qc.invalidateQueries({ queryKey: ["order-avanzamento"] });
       void qc.invalidateQueries({ queryKey: ["order_work_phases"] });
     },
-    onError: (e) => toast.error(messaggioModello(e)),
+    onError: (e) => toast.error(messaggioModello(e, "queste impostazioni")),
   });
 
   return { pesoMedia: query.data ?? "uguale", isLoading: query.isLoading, salva };

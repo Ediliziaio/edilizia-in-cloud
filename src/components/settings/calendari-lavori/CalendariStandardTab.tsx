@@ -1,7 +1,6 @@
 /**
- * I calendari standard del calendario lavori. Per ora uno solo, Posa: il
- * calendario Google aziendale dove finiscono tutte le pose. Le altre righe
- * (Merce, Interventi) arrivano quando avranno il loro invio.
+ * Il calendario di tutte le pose: un calendario Google aziendale dove finiscono le pose di qualunque squadra. Per ora è l'unico
+ * (CALENDARIO_STANDARD): una riga per ogni calendario di questo tipo, se in futuro ne arriveranno altri.
  */
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +45,8 @@ export function CalendariStandardTab({ canManage }: { canManage: boolean }) {
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <GoogleCalendarPicker
+                  // Questo riquadro sta nella scheda «Google Calendar», sotto la sezione «Account Google»: lì si collega l'account.
+                  senzaAccount="qui-sopra"
                   disabled={!canManage || salva.isPending}
                   value={{
                     google_connection_id: link?.google_connection_id ?? null,

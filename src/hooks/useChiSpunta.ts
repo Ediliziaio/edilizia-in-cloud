@@ -42,7 +42,7 @@ export function useChiSpunta() {
       toast.success("Fatto: vale da subito, anche per chi ha l'app aperta");
       void qc.invalidateQueries({ queryKey: chiaveChiSpunta(companyId) });
     },
-    onError: (e) => toast.error(messaggioModello(e)),
+    onError: (e) => toast.error(messaggioModello(e, "queste impostazioni")),
   });
 
   return { chiSpunta: query.data ?? "tutti", isLoading: query.isLoading, salva };

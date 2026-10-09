@@ -1,7 +1,7 @@
 /**
- * SurveyTemplatePreview — anteprima interattiva del template
+ * SurveyTemplatePreview — anteprima interattiva del modello
  *
- * Renderizza il template usando lo stesso engine che il tecnico vedrà
+ * Mostra il modello con lo stesso motore che il tecnico vedrà
  * sul cantiere, ma:
  *   - Senza salvare niente in DB (state solo locale)
  *   - Senza upload foto/audio (componenti mock con icona placeholder)
@@ -10,7 +10,7 @@
  *   - Show_if conditional FUNZIONANTI così l'utente può testare la logica
  *     (es. spunto "Tapparella" e vedo apparire la sezione)
  *
- * Bottoni di test in alto: "Mostra valori state" (debug JSON), Reset.
+ * Pulsanti di prova in alto: «Mostra i dati inseriti» (debug JSON), «Azzera».
  */
 import { useMemo, useState } from "react";
 import type {
@@ -157,30 +157,30 @@ export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePrevi
               <DialogTitle className="text-base">Anteprima — {template.name}</DialogTitle>
               <Badge variant="outline" className="text-[10px] bg-amber-100 text-amber-800 border-amber-300">
                 <Sparkles className="h-2.5 w-2.5 mr-0.5" />
-                Modalità test (no salvataggio)
+                Prova: non si salva niente
               </Badge>
             </div>
             <div className="flex items-center gap-1.5">
               <Button variant="outline" size="sm" onClick={() => setShowState((v) => !v)} className="gap-1.5">
                 <Code className="h-3.5 w-3.5" />
-                {showState ? "Nascondi state" : "Mostra state"}
+                {showState ? "Nascondi i dati inseriti" : "Mostra i dati inseriti"}
               </Button>
               <Button variant="outline" size="sm" onClick={reset} className="gap-1.5">
                 <RotateCcw className="h-3.5 w-3.5" />
-                Reset
+                Azzera
               </Button>
             </div>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Compila i campi per testare il rendering, validation, show_if condizionali.
-            Le foto e audio sono disabilitati in anteprima.
+            Compila i campi per provare come si vede il modulo e quali campi compaiono a seconda delle risposte.
+            Foto e note vocali sono disattivate in anteprima.
           </p>
         </DialogHeader>
 
         <Tabs defaultValue="form" className="flex-1 flex flex-col overflow-hidden">
           <TabsList className="w-full justify-start rounded-none border-b bg-muted/30 px-3 shrink-0">
-            <TabsTrigger value="form" className="gap-1.5"><Eye className="h-3.5 w-3.5" /> Form (come lo vede il tecnico)</TabsTrigger>
-            <TabsTrigger value="summary" className="gap-1.5"><FileSignature className="h-3.5 w-3.5" /> Riepilogo struttura</TabsTrigger>
+            <TabsTrigger value="form" className="gap-1.5"><Eye className="h-3.5 w-3.5" /> Modulo (come lo vede il tecnico)</TabsTrigger>
+            <TabsTrigger value="summary" className="gap-1.5"><FileSignature className="h-3.5 w-3.5" /> Riepilogo</TabsTrigger>
           </TabsList>
 
           {/* Native overflow-y-auto — ScrollArea Radix non funzionava
@@ -193,7 +193,7 @@ export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePrevi
                 {(schema?.header_schema?.length ?? 0) > 0 && (
                   <section>
                     <h3 className="text-sm font-bold uppercase tracking-wide text-orange-700 mb-2">
-                      Header sopralluogo ({schema.header_schema.length} sezioni)
+                      Dati iniziali del sopralluogo ({schema.header_schema.length} sezioni)
                     </h3>
                     <div className="space-y-2">
                       {schema.header_schema.map((sec) => (
@@ -260,7 +260,7 @@ export function SurveyTemplatePreview({ template, onClose }: SurveyTemplatePrevi
                   <CardHeader className="p-3 pb-2">
                     <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-violet-700">
                       <Code className="h-3 w-3" />
-                      State JSON corrente
+                      Dati inseriti (per i tecnici)
                     </div>
                   </CardHeader>
                   <CardContent className="p-3 pt-0">
@@ -425,7 +425,7 @@ function PreviewElementCard({
         )}
         <div className="rounded-lg border bg-muted/10 p-2 flex items-center gap-2 text-xs">
           <Mic className="h-3.5 w-3.5 text-violet-600" />
-          <span className="text-muted-foreground">Audio note (disabilitato in anteprima)</span>
+          <span className="text-muted-foreground">Nota vocale (disattivata in anteprima)</span>
         </div>
       </CardContent>
     </Card>
@@ -486,12 +486,12 @@ function SummaryStats({ template, schema }: { template: SurveyTemplateRow; schem
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-        <StatCard label="Sezioni header" value={headerSectionsCount} sub={`${headerFieldsCount} campi, ${headerRequired} obbligatori`} />
+        <StatCard label="Sezioni iniziali" value={headerSectionsCount} sub={`${headerFieldsCount} campi, ${headerRequired} obbligatori`} />
         <StatCard label="Campi area" value={areaFieldsCount} sub={`${areaPhotosCount} foto richieste`} />
         <StatCard label="Tipologie elementi" value={elementTypesCount} sub={`${totalElementFields} campi totali`} />
-        <StatCard label="Totale foto" value={totalPhotos} sub={`${genPhotosCount} gen · ${areaPhotosCount} area · ${totalElementPhotos} per elem.`} />
-        <StatCard label="Sezioni condizionali" value={conditionalSections} sub="con show_if attivo" highlight={conditionalSections > 0} />
-        <StatCard label="Versione" value={template.version} sub={template.is_system ? "Sistema" : "Personalizzato"} />
+        <StatCard label="Totale foto" value={totalPhotos} sub={`${genPhotosCount} generali · ${areaPhotosCount} area · ${totalElementPhotos} per elemento`} />
+        <StatCard label="Sezioni condizionali" value={conditionalSections} sub="compaiono solo in certi casi" highlight={conditionalSections > 0} />
+        <StatCard label="Versione" value={template.version} sub={template.is_system ? "Di serie" : "Tuo"} />
       </div>
 
       <Card>
@@ -504,7 +504,7 @@ function SummaryStats({ template, schema }: { template: SurveyTemplateRow; schem
               <Badge variant="outline" className="text-[10px] font-mono">{et.key}</Badge>
               <span className="font-medium">{et.label}</span>
               <span className="text-muted-foreground ml-auto">
-                {et.sections?.length ?? 0} sezioni · {(et.sections ?? []).filter((s) => s.show_if).length} cond.
+                {et.sections?.length ?? 0} sezioni · {(et.sections ?? []).filter((s) => s.show_if).length} condizionali
                 · {et.required_photos?.length ?? 0} foto
               </span>
             </div>

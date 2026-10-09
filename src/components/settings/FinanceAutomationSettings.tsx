@@ -3,29 +3,36 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Loader2, Settings2, Bell, FileText } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { usePermissions } from "@/hooks/usePermissions";
 import { puoModificareCosti } from "@/lib/permessi/modificaSegueVisibilita";
+import { userErrorMessage } from "@/lib/userErrorMessage";
+import { isValidEmail } from "@/lib/email/preferencesValidators";
+import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoSolaLetturaImpostazioni";
+import { RigaImpostazione, RigaInterruttore, SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
 
+/**
+ * Avvisi sulle scadenze (tabella `scadenza_alert_prefs`).
+ *
+ * Della tabella la pagina mostra solo le due colonne che qualcuno legge: `alert_enabled` e `alert_email`
+ * (le legge la funzione `check-scadenze-alerts`, che per ora nessun cron chiama). Le altre colonne
+ * (giorni di preavviso, avviso scadute / in arrivo, scadenze da fatture, riconciliazione) non le legge nessuno:
+ * non sono più nella pagina, ma restano nel database com'erano.
+ *
+ * Alla prima volta la riga si crea con SOLO azienda, avvisi attivi, email e data: le colonne che la pagina
+ * non mostra prendono i valori predefiniti del database (7 giorni, tutto acceso), gli stessi che prima si
+ * scrivevano uno per uno (lo prova settingsFinanceSafety.test.tsx leggendo la migrazione).
+ */
 interface AlertPrefs {
   id?: string;
   company_id: string;
   alert_enabled: boolean;
-  default_alert_days: number;
   alert_email: string;
-  alert_on_overdue: boolean;
-  alert_on_upcoming: boolean;
-  auto_generate_from_invoices: boolean;
-  auto_reconcile_payments: boolean;
 }
 
 export function FinanceAutomationSettings() {
@@ -53,18 +60,9 @@ export function FinanceAutomationSettings() {
   const form = draft.companyId === companyId ? draft.form : {};
   const hasChanges = Object.keys(form).length > 0;
 
-  const currentPrefs: AlertPrefs = {
-    company_id: companyId!,
-    alert_enabled: true,
-    default_alert_days: 7,
-    alert_on_overdue: true,
-    alert_on_upcoming: true,
-    auto_generate_from_invoices: true,
-    auto_reconcile_payments: true,
-    ...prefs,
-    ...form,
-    alert_email: form.alert_email ?? prefs?.alert_email ?? "",
-  };
+  // Quello che si vede: la bozza, altrimenti il salvato, altrimenti il valore di partenza (avvisi accesi, nessuna email).
+  const alertEnabled = form.alert_enabled ?? (prefs ? prefs.alert_enabled === true : true);
+  const alertEmail = form.alert_email ?? prefs?.alert_email ?? "";
 
   const upd = <K extends keyof AlertPrefs>(key: K, value: AlertPrefs[K]) =>
     setDraft(prev => ({ companyId, form: { ...(prev.companyId === companyId ? prev.form : {}), [key]: value } }));
@@ -72,32 +70,27 @@ export function FinanceAutomationSettings() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!companyId || isLoading || isError || !canEdit) throw new Error("Impostazioni non disponibili o in sola lettura.");
-      if (!Number.isInteger(currentPrefs.default_alert_days) || currentPrefs.default_alert_days < 1 || currentPrefs.default_alert_days > 30) throw new Error("Il preavviso deve essere tra 1 e 30 giorni.");
-      const payload = {
-        company_id: companyId!,
-        alert_enabled: currentPrefs.alert_enabled,
-        default_alert_days: currentPrefs.default_alert_days,
-        alert_email: currentPrefs.alert_email || null,
-        alert_on_overdue: currentPrefs.alert_on_overdue,
-        alert_on_upcoming: currentPrefs.alert_on_upcoming,
-        auto_generate_from_invoices: currentPrefs.auto_generate_from_invoices,
-        auto_reconcile_payments: currentPrefs.auto_reconcile_payments,
-        updated_at: new Date().toISOString(),
-      };
+      const adesso = new Date().toISOString();
+      const email = alertEmail.trim() || null;
 
       if (prefs?.id) {
-        const { error } = await (supabase as any)
+        // Solo quello che è cambiato.
+        const modifiche: { alert_enabled?: boolean; alert_email?: string | null } = {};
+        if (form.alert_enabled !== undefined) modifiche.alert_enabled = form.alert_enabled;
+        if (form.alert_email !== undefined) modifiche.alert_email = email;
+        const { error } = await supabase
           .from("scadenza_alert_prefs")
-          .update({ ...form, updated_at: payload.updated_at })
+          .update({ ...modifiche, updated_at: adesso })
           .eq("id", prefs.id)
           .eq("company_id", companyId)
           .select("id")
           .single();
         if (error) throw error;
       } else {
-        const { error } = await (supabase as any)
+        // Prima volta: solo i campi che la pagina mostra. Il resto lo mette il database.
+        const { error } = await supabase
           .from("scadenza_alert_prefs")
-          .insert(payload);
+          .insert({ company_id: companyId, alert_enabled: alertEnabled, alert_email: email, updated_at: adesso });
         if (error) throw error;
       }
     },
@@ -106,17 +99,25 @@ export function FinanceAutomationSettings() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.scadenzaPrefs.byCompany(companyId) });
       setDraft(prev => prev.companyId === companyId ? { companyId, form: {} } : prev);
     },
-    onError: (e) => toast.error("Errore", { description: String(e) }),
+    onError: (e) => toast.error("Impostazioni non salvate", { description: userErrorMessage(e, "Riprova tra poco.") }),
   });
   useSettingsDraftGuard(hasChanges || saveMutation.isPending);
 
+  const salva = () => {
+    if (!hasChanges || saveMutation.isPending) return;
+    const email = alertEmail.trim();
+    if (email && !isValidEmail(email)) {
+      toast.error("Scrivi un indirizzo email valido, per esempio amministrazione@azienda.it.");
+      return;
+    }
+    saveMutation.mutate();
+  };
+
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
+      <div className="flex justify-center rounded-lg border bg-card py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
     );
   }
 
@@ -125,148 +126,50 @@ export function FinanceAutomationSettings() {
   }
 
   return (
-    <div className="space-y-6">
-      {!canEdit && <p className="text-sm text-muted-foreground">Sola lettura: per modificare servono i permessi sui costi.</p>}
+    <div className="max-w-3xl space-y-4">
+      {!canEdit && <AvvisoSolaLetturaImpostazioni permesso="Costi" />}
       <fieldset disabled={!canEdit || saveMutation.isPending} className="m-0 min-w-0 border-0 p-0">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings2 className="h-5 w-5" />
-            Automazioni Finanziarie
-          </CardTitle>
-          <CardDescription>
-            Configura la generazione automatica delle scadenze e gli avvisi
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Auto-generation */}
-          <div className="space-y-4">
-            <h4 className="text-sm font-semibold flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Generazione automatica
-            </h4>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Scadenze da fatture</Label>
-                <p className="text-xs text-muted-foreground">
-                  Crea automaticamente una scadenza quando viene emessa una fattura con data di scadenza
-                </p>
-              </div>
-              <Switch
-                checked={currentPrefs.auto_generate_from_invoices}
-                onCheckedChange={(v) => upd("auto_generate_from_invoices", v)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Riconciliazione automatica</Label>
-                <p className="text-xs text-muted-foreground">
-                  Aggiorna automaticamente le scadenze quando una fattura viene segnata come pagata
-                </p>
-              </div>
-              <Switch
-                checked={currentPrefs.auto_reconcile_payments}
-                onCheckedChange={(v) => upd("auto_reconcile_payments", v)}
-              />
+        <SezioneImpostazione
+          id="avvisi-scadenze"
+          titolo="Avvisi sulle scadenze"
+          descrizione="I promemoria dei pagamenti in uscita arrivano già in campanella ogni mattina, a chi amministra l'azienda: non dipendono da questa pagina."
+        >
+          <RigaInterruttore
+            id="finance-alert-enabled"
+            titolo="Avvisi attivi"
+            descrizione="Un riepilogo per email delle scadenze scadute e in arrivo."
+            checked={alertEnabled}
+            onCheckedChange={(v) => upd("alert_enabled", v)}
+          />
+          <RigaImpostazione titolo="Email per avvisi" htmlFor="finance-alert-email">
+            <Input
+              id="finance-alert-email"
+              type="email"
+              className="mt-2 max-w-sm"
+              value={alertEmail}
+              onChange={(e) => upd("alert_email", e.target.value)}
+              placeholder="admin@azienda.it"
+            />
+          </RigaImpostazione>
+          <div className="space-y-3 px-4 py-3">
+            <p className="text-xs text-muted-foreground">
+              L&apos;invio di queste email non parte ancora da solo: la scelta resta salvata e varrà quando lo attiveremo.
+            </p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p role="status" className="text-xs text-muted-foreground">{saveMutation.isPending ? "Salvataggio…" : hasChanges ? "Modifiche non salvate" : "Nessuna modifica da salvare"}</p>
+              <Button
+                onClick={salva}
+                disabled={!hasChanges || saveMutation.isPending}
+              >
+                {saveMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Salvataggio...</>
+                ) : (
+                  "Salva impostazioni"
+                )}
+              </Button>
             </div>
           </div>
-
-          <Separator />
-
-          {/* Alerts */}
-          <div className="space-y-4">
-            <h4 className="text-sm font-semibold flex items-center gap-2">
-              <Bell className="h-4 w-4" />
-              Avvisi e notifiche
-            </h4>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Avvisi attivi</Label>
-                <p className="text-xs text-muted-foreground">
-                  Abilita il sistema di notifiche per le scadenze
-                </p>
-              </div>
-              <Switch
-                checked={currentPrefs.alert_enabled}
-                onCheckedChange={(v) => upd("alert_enabled", v)}
-              />
-            </div>
-
-            {currentPrefs.alert_enabled && (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Avviso scadenze in scadenza</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Ricevi un avviso quando una scadenza si avvicina
-                    </p>
-                  </div>
-                  <Switch
-                    checked={currentPrefs.alert_on_upcoming}
-                    onCheckedChange={(v) => upd("alert_on_upcoming", v)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Avviso scadenze scadute</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Ricevi un avviso per scadenze non pagate oltre la data
-                    </p>
-                  </div>
-                  <Switch
-                    checked={currentPrefs.alert_on_overdue}
-                    onCheckedChange={(v) => upd("alert_on_overdue", v)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="finance-alert-days" className="text-xs">Giorni di preavviso</Label>
-                    <Input
-                      id="finance-alert-days"
-                      type="number"
-                      min={1}
-                      max={30}
-                      value={currentPrefs.default_alert_days}
-                      onChange={(e) => upd("default_alert_days", Number(e.target.value))}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="finance-alert-email" className="text-xs">Email per avvisi</Label>
-                    <Input
-                      id="finance-alert-email"
-                      type="email"
-                      value={currentPrefs.alert_email}
-                      onChange={(e) => upd("alert_email", e.target.value)}
-                      placeholder="admin@azienda.it"
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-
-          {/* Save */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p role="status" className="text-xs text-muted-foreground">{saveMutation.isPending ? "Salvataggio…" : hasChanges ? "Modifiche non salvate" : "Nessuna modifica da salvare"}</p>
-            <Button
-              onClick={() => saveMutation.mutate()}
-              disabled={!hasChanges || saveMutation.isPending}
-            >
-              {saveMutation.isPending ? (
-                <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Salvataggio...</>
-              ) : (
-                "Salva impostazioni"
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        </SezioneImpostazione>
       </fieldset>
     </div>
   );

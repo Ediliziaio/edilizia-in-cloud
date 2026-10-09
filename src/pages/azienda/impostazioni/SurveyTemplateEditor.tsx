@@ -1,19 +1,24 @@
 /**
- * SurveyTemplateEditor — editor visuale del template sopralluogo
+ * SurveyTemplateEditor — editor a campi del modello di sopralluogo
  *
  * Modifica:
- *  - Info generali (nome, descrizione, categoria, label area/elemento)
- *  - Sezioni Header (add/rename/remove + campi per sezione)
- *  - Definizione Area (label, plurale, suggerimenti, campi)
- *  - Tipologie elementi (add/rename/remove + sezioni + campi + foto richieste)
+ *  - Info generali (nome, descrizione, categoria, nome dell'area e dell'elemento)
+ *  - Dati iniziali (aggiungi/rinomina/togli sezioni + campi per sezione)
+ *  - Definizione dell'area (nome al singolare e al plurale, suggerimenti, campi)
+ *  - Tipologie elementi (aggiungi/rinomina/togli + sezioni + campi + foto richieste)
  *  - Foto generali (a livello sopralluogo)
  *
- * NB: solo template company-owned (is_system=false) sono editabili.
- * Per i system: forza clone prima di editare.
+ * NB: solo i modelli dell'azienda (is_system=false) si possono modificare.
+ * Quelli di serie si copiano prima di cambiarli.
+ *
+ * Chiudere con Esc, clic fuori o «Annulla» chiede conferma se qualcosa è cambiato
+ * rispetto a quando si è aperto; salvare senza il permesso di modifica non è possibile.
  */
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateTemplate } from "@/lib/api/surveys";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 import type {
   TemplateSchema, FieldSection, FieldDefinition, ElementTypeDefinition,
   AreaDefinition, PhotoChecklistItem, FieldType, SurveyCategory,
@@ -53,7 +58,7 @@ const CATEGORIES: { value: SurveyCategory; label: string; emoji: string }[] = [
   { value: "pavimentazioni",   label: "Pavimentazioni",   emoji: "🪜" },
   { value: "porte_interne",    label: "Porte interne",    emoji: "🚪" },
   { value: "climatizzazione",  label: "Climatizzazione",  emoji: "❄️" },
-  { value: "custom",           label: "Custom",           emoji: "📋" },
+  { value: "custom",           label: "Altro",            emoji: "📋" },
 ];
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
@@ -81,13 +86,17 @@ interface SurveyTemplateEditorProps {
   initialAreaLabelPlural: string;
   initialElementLabel: string;
   initialSchema: TemplateSchema;
+  /** Chi ha «Branding & Template» in modifica. Senza, il modello non si salva. */
+  puoModificare: boolean;
   onClose: () => void;
 }
+
+const MSG_SOLA_LETTURA = "Non puoi modificare i modelli: serve «Branding & Template» in modifica.";
 
 export function SurveyTemplateEditor({
   templateId, initialName, initialDescription, initialCategory,
   initialAreaLabel, initialAreaLabelPlural, initialElementLabel,
-  initialSchema, onClose,
+  initialSchema, puoModificare, onClose,
 }: SurveyTemplateEditorProps) {
   const qc = useQueryClient();
 
@@ -135,27 +144,51 @@ export function SurveyTemplateEditor({
       });
     },
     onSuccess: () => {
-      toast.success("Template aggiornato");
+      toast.success("Modello salvato");
       qc.invalidateQueries({ queryKey: ["survey-templates-with-settings"] });
       onClose();
     },
-    onError: (e) => toast.error("Salvataggio fallito", { description: String(e) }),
+    onError: (e) => toast.error("Modello non salvato", {
+      description: userErrorMessage(e, "Non sono riuscito a salvare il modello. Riprova."),
+    }),
   });
 
+  // Bozza protetta: «cambiato» = lo stato modificabile è diverso da quello con cui si è aperto l'editor.
+  const istantanea = JSON.stringify([
+    name, description, category, areaLabel, areaLabelPlural, elementLabel,
+    headerSchema, areaDefinition, elementTypes, generalPhotos,
+  ]);
+  const [istantaneaIniziale] = useState(istantanea);
+  const confermaUscita = useSettingsDraftGuard(saveMut.isPending || istantanea !== istantaneaIniziale);
+
+  const chiudi = () => {
+    if (saveMut.isPending) return;
+    if (confermaUscita()) onClose();
+  };
+
+  const salva = () => {
+    // Difesa oltre al pulsante: senza il permesso di modifica non si scrive.
+    if (!puoModificare) {
+      toast.error("Modello non modificato", { description: MSG_SOLA_LETTURA });
+      return;
+    }
+    saveMut.mutate();
+  };
+
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
+    <Dialog open onOpenChange={(o) => { if (!o) chiudi(); }}>
       <DialogContent className="max-w-5xl max-h-[92vh] flex flex-col p-0">
         <DialogHeader className="px-5 pt-4 pb-3 border-b">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Pencil className="h-4 w-4 text-orange-600" />
-            Modifica template
+            Modifica modello
           </DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="general" className="flex-1 flex flex-col overflow-hidden">
           <TabsList className="w-full justify-start rounded-none border-b bg-muted/30 px-3">
             <TabsTrigger value="general" className="gap-1.5"><Settings className="h-3.5 w-3.5" /> Generale</TabsTrigger>
-            <TabsTrigger value="header" className="gap-1.5"><FormInput className="h-3.5 w-3.5" /> Header ({headerSchema.length})</TabsTrigger>
+            <TabsTrigger value="header" className="gap-1.5"><FormInput className="h-3.5 w-3.5" /> Dati iniziali ({headerSchema.length})</TabsTrigger>
             <TabsTrigger value="area" className="gap-1.5"><MapPin className="h-3.5 w-3.5" /> Aree</TabsTrigger>
             <TabsTrigger value="elements" className="gap-1.5"><Boxes className="h-3.5 w-3.5" /> Elementi ({elementTypes.length})</TabsTrigger>
             <TabsTrigger value="photos" className="gap-1.5"><Camera className="h-3.5 w-3.5" /> Foto generali ({generalPhotos.length})</TabsTrigger>
@@ -166,13 +199,13 @@ export function SurveyTemplateEditor({
               <TabsContent value="general" className="mt-0 space-y-3">
                 <div className="grid grid-cols-12 gap-3">
                   <div className="col-span-12 md:col-span-8">
-                    <Label className="text-xs">Nome template</Label>
-                    <Input value={name} onChange={(e) => setName(e.target.value)} />
+                    <Label htmlFor="modello-nome" className="text-xs">Nome del modello</Label>
+                    <Input id="modello-nome" value={name} onChange={(e) => setName(e.target.value)} />
                   </div>
                   <div className="col-span-12 md:col-span-4">
-                    <Label className="text-xs">Categoria</Label>
+                    <Label htmlFor="modello-categoria" className="text-xs">Categoria</Label>
                     <Select value={category} onValueChange={(v) => setCategory(v as SurveyCategory)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger id="modello-categoria"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {CATEGORIES.map((c) => (
                           <SelectItem key={c.value} value={c.value}>
@@ -183,25 +216,26 @@ export function SurveyTemplateEditor({
                     </Select>
                   </div>
                   <div className="col-span-12">
-                    <Label className="text-xs">Descrizione</Label>
+                    <Label htmlFor="modello-descrizione" className="text-xs">Descrizione</Label>
                     <Textarea
+                      id="modello-descrizione"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       rows={2}
-                      placeholder="Quando usare questo template e a chi è rivolto"
+                      placeholder="Quando usare questo modello e a chi è rivolto"
                     />
                   </div>
                   <div className="col-span-12 md:col-span-4">
-                    <Label className="text-xs">Etichetta area (singolare)</Label>
-                    <Input value={areaLabel} onChange={(e) => setAreaLabel(e.target.value)} placeholder="Stanza, Falda, Facciata" />
+                    <Label htmlFor="modello-area-singolare" className="text-xs">Nome dell'area al singolare</Label>
+                    <Input id="modello-area-singolare" value={areaLabel} onChange={(e) => setAreaLabel(e.target.value)} placeholder="Stanza, Falda, Facciata" />
                   </div>
                   <div className="col-span-12 md:col-span-4">
-                    <Label className="text-xs">Etichetta area (plurale)</Label>
-                    <Input value={areaLabelPlural} onChange={(e) => setAreaLabelPlural(e.target.value)} placeholder="Stanze, Falde, Facciate" />
+                    <Label htmlFor="modello-area-plurale" className="text-xs">Nome dell'area al plurale</Label>
+                    <Input id="modello-area-plurale" value={areaLabelPlural} onChange={(e) => setAreaLabelPlural(e.target.value)} placeholder="Stanze, Falde, Facciate" />
                   </div>
                   <div className="col-span-12 md:col-span-4">
-                    <Label className="text-xs">Etichetta elemento</Label>
-                    <Input value={elementLabel} onChange={(e) => setElementLabel(e.target.value)} placeholder="Infisso, Sanitario, Pannello" />
+                    <Label htmlFor="modello-elemento" className="text-xs">Nome dell'elemento</Label>
+                    <Input id="modello-elemento" value={elementLabel} onChange={(e) => setElementLabel(e.target.value)} placeholder="Infisso, Sanitario, Pannello" />
                   </div>
                 </div>
               </TabsContent>
@@ -213,22 +247,25 @@ export function SurveyTemplateEditor({
               <TabsContent value="area" className="mt-0 space-y-3">
                 <div className="grid grid-cols-12 gap-3">
                   <div className="col-span-6">
-                    <Label className="text-xs">Label area singolare</Label>
+                    <Label htmlFor="area-nome-singolare" className="text-xs">Nome dell'area al singolare</Label>
                     <Input
+                      id="area-nome-singolare"
                       value={areaDefinition.label}
                       onChange={(e) => setAreaDefinition({ ...areaDefinition, label: e.target.value })}
                     />
                   </div>
                   <div className="col-span-6">
-                    <Label className="text-xs">Label area plurale</Label>
+                    <Label htmlFor="area-nome-plurale" className="text-xs">Nome dell'area al plurale</Label>
                     <Input
+                      id="area-nome-plurale"
                       value={areaDefinition.label_plural}
                       onChange={(e) => setAreaDefinition({ ...areaDefinition, label_plural: e.target.value })}
                     />
                   </div>
                   <div className="col-span-12">
-                    <Label className="text-xs">Suggerimenti nomi (uno per riga)</Label>
+                    <Label htmlFor="area-suggerimenti" className="text-xs">Suggerimenti nomi (uno per riga)</Label>
                     <Textarea
+                      id="area-suggerimenti"
                       value={(areaDefinition.name_suggestions ?? []).join("\n")}
                       onChange={(e) => setAreaDefinition({
                         ...areaDefinition,
@@ -267,14 +304,14 @@ export function SurveyTemplateEditor({
         </Tabs>
 
         <DialogFooter className="px-5 py-3 border-t">
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" onClick={chiudi}>Annulla</Button>
           <Button
-            onClick={() => saveMut.mutate()}
+            onClick={salva}
             disabled={saveMut.isPending || !name.trim()}
-            className="gap-1.5 bg-orange-600 hover:bg-orange-700"
+            className="gap-1.5"
           >
             {saveMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salva template
+            Salva modello
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -420,7 +457,7 @@ function FieldsEditor({
         <div key={f.key} className="rounded-md border bg-muted/10 p-2 space-y-2">
           <div className="grid grid-cols-12 gap-2 items-end">
             <div className="col-span-12 md:col-span-5">
-              <Label className="text-[10px]">Label</Label>
+              <Label className="text-[10px]">Nome</Label>
               <Input
                 value={f.label}
                 onChange={(e) => updateField(idx, { label: e.target.value })}
@@ -479,7 +516,7 @@ function FieldsEditor({
           {/* Opzioni select/multiselect */}
           {(f.type === "select" || f.type === "multiselect") && (
             <div>
-              <Label className="text-[10px]">Opzioni (uno per riga, formato: valore|Etichetta)</Label>
+              <Label className="text-[10px]">Scelte possibili (una per riga, nel formato codice|nome da mostrare)</Label>
               <Textarea
                 value={(f.options ?? []).map((o) => `${o.value}|${o.label}`).join("\n")}
                 onChange={(e) => updateField(idx, {
@@ -525,21 +562,25 @@ function FieldsEditor({
                 />
               </div>
               <div className="col-span-12">
-                <Label className="text-[10px]">Placeholder</Label>
+                <Label className="text-[10px]">Testo di esempio nel campo</Label>
                 <Input
                   value={f.placeholder ?? ""}
                   onChange={(e) => updateField(idx, { placeholder: e.target.value })}
                   className="h-7 text-xs"
                 />
               </div>
-              <div className="col-span-12">
-                <Label className="text-[10px]">Chiave tecnica (snake_case, no spazi)</Label>
-                <Input
-                  value={f.key}
-                  onChange={(e) => updateField(idx, { key: e.target.value.replace(/[^a-z0-9_]/gi, "_").toLowerCase() })}
-                  className="h-7 text-xs font-mono"
-                />
-              </div>
+              {/* La chiave serve ai tecnici (preventivo automatico, esportazioni): chiusa di base, ma c'è. */}
+              <details className="col-span-12">
+                <summary className="cursor-pointer text-muted-foreground">Per i tecnici</summary>
+                <div className="mt-2">
+                  <Label className="text-[10px]">Chiave tecnica (snake_case, no spazi)</Label>
+                  <Input
+                    value={f.key}
+                    onChange={(e) => updateField(idx, { key: e.target.value.replace(/[^a-z0-9_]/gi, "_").toLowerCase() })}
+                    className="h-7 text-xs font-mono"
+                  />
+                </div>
+              </details>
             </div>
           </details>
         </div>
@@ -576,7 +617,7 @@ function PhotosEditor({
       {photos.map((p, idx) => (
         <div key={p.key} className="rounded-md border bg-muted/10 p-2 grid grid-cols-12 gap-2 items-end">
           <div className="col-span-12 md:col-span-5">
-            <Label className="text-[10px]">Label</Label>
+            <Label className="text-[10px]">Nome</Label>
             <Input value={p.label} onChange={(e) => updatePhoto(idx, { label: e.target.value })} className="h-8 text-xs" />
           </div>
           <div className="col-span-12 md:col-span-5">
@@ -661,11 +702,11 @@ function ElementTypesEditor({
               <CardContent className="p-3 space-y-3">
                 <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-6">
-                    <Label className="text-xs">Label singolare</Label>
+                    <Label className="text-xs">Nome al singolare</Label>
                     <Input value={et.label} onChange={(e) => updateType(idx, { label: e.target.value })} />
                   </div>
                   <div className="col-span-6">
-                    <Label className="text-xs">Label plurale</Label>
+                    <Label className="text-xs">Nome al plurale</Label>
                     <Input value={et.label_plural} onChange={(e) => updateType(idx, { label_plural: e.target.value })} />
                   </div>
                 </div>

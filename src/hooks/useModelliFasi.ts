@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 import { assemblaModelli, type ModelloFasi, type ModelloPerServer, type PayloadModello } from "@/lib/orders/modelliFasi";
 
 // Le tabelle non sono ancora nei tipi generati: cast localizzato.
@@ -20,12 +21,18 @@ const NESSUNO: ModelliAzienda = { modelli: [], inizializzati: false, disponibile
 
 export const chiaveModelliFasi = (companyId: string | undefined) => ["modelli-fasi", companyId] as const;
 
-/** Messaggi in italiano per gli errori che l'utente può causare. */
-export function messaggioModello(e: unknown): string {
+/**
+ * Messaggi in italiano per gli errori che l'utente può causare. `cosa` dice che cosa non si può modificare: i modelli
+ * (predefinito) o, per le regole della pagina, «queste impostazioni».
+ */
+export function messaggioModello(e: unknown, cosa = "i modelli di fasi"): string {
   const err = e as { code?: string; message?: string } | null;
   if (err?.code === "23505") return "Esiste già un modello con questo nome.";
-  if (err?.code === "42501") return "Non hai il permesso di modificare i modelli di fasi.";
-  return err?.message || "Operazione non riuscita. Riprova.";
+  if (err?.code === "42501") return `Non hai il permesso di modificare ${cosa}.`;
+  // I controlli del database (nome mancante, nessuna fase, scelta non valida…) rispondono già in italiano: si leggono così.
+  if (err?.code === "22023" || err?.code === "P0002") return err.message || "Controlla i dati e riprova.";
+  // Tutto il resto (rete, sessione scaduta, errori interni) non arriva al titolare con il suo testo tecnico.
+  return userErrorMessage(e);
 }
 
 /** I modelli di fasi dell'azienda. */

@@ -5,6 +5,8 @@ import SettingsCartelleDocumenti from "@/pages/azienda/settings/SettingsCartelle
 
 const state = vi.hoisted(() => ({ edit: true, readError: false, pending: false, mutate: vi.fn(), refetch: vi.fn(), countError: false }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isAdmin: false, canEditSettingsOrders: state.edit }) }));
+// La pagina dice se l'area clienti è spenta: legge l'azienda da AuthContext.
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company-1", customer_portal_enabled: false } }) }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "company-1" }));
 vi.mock("@/components/billing/SpazioArchiviazioneCard", () => ({ SpazioArchiviazioneCard: (): null => null }));
 vi.mock("@/hooks/useCartelleDocumenti", () => ({

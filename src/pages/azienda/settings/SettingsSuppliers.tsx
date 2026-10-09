@@ -15,11 +15,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoSolaLetturaImpostazioni";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Truck, Download, ChevronDown, FileText, FileSpreadsheet, Users, Euro, AlertCircle, BarChart3, ShieldCheck, Clock, TrendingUp,
+  Truck, Download, ChevronDown, FileText, FileSpreadsheet, Users, Euro, AlertCircle, BarChart3, History, Clock, TrendingUp,
 } from "lucide-react";
 
 const formatMoney = (value: number) =>
@@ -105,11 +107,12 @@ export function SupplierReportsPanel() {
       <div className="grid min-w-0 gap-4 xl:grid-cols-3">
         <Card className="min-w-0 xl:col-span-2">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+            {/* I riquadri sono titoli di secondo livello: il primo è quello della pagina. */}
+            <CardTitle aria-level={2} className="flex items-center gap-2 text-base">
               <TrendingUp className="h-4 w-4" />
-              Storico acquisti avanzato
+              Chi compriamo di più
             </CardTitle>
-            <CardDescription>Top fornitori per valore OdA, utile per procurement e negoziazione.</CardDescription>
+            <CardDescription>I fornitori con più ordini d'acquisto: utile per trattare i prezzi.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {report.topBySpend.length === 0 ? (
@@ -131,7 +134,7 @@ export function SupplierReportsPanel() {
 
         <Card className="min-w-0">
           <CardHeader>
-            <CardTitle className="text-base">Scadenze aperte</CardTitle>
+            <CardTitle aria-level={2} className="text-base">Scadenze aperte</CardTitle>
             <CardDescription>Fornitori con pagamenti ancora da chiudere.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -152,7 +155,7 @@ export function SupplierReportsPanel() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Categorie fornitore</CardTitle>
+          <CardTitle aria-level={2} className="text-base">Categorie fornitore</CardTitle>
           <CardDescription>Distribuzione per categoria, con valore OdA aggregato.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -169,16 +172,33 @@ export function SupplierReportsPanel() {
   );
 }
 
+/**
+ * Come si legge l'azione nel registro. Il database la scrive in inglese e in più modi
+ * (`supplier.updated`, `create_supplier`, `merge`): qui diventa una parola italiana.
+ * Un'azione che non si riconosce si legge «altro», mai l'inglese così com'è.
+ */
+function etichettaAzioneFornitore(azione: string): string {
+  const a = azione.toLowerCase();
+  if (a.includes("merge")) return "unito";
+  if (/creat|insert/.test(a)) return "creato";
+  if (/delet|remov|elimin/.test(a)) return "eliminato";
+  if (/updat|edit|modific/.test(a)) return "modificato";
+  return "altro";
+}
+
 function SupplierAuditPanel({ companyId }: { companyId?: string }) {
-  const { data: logs = [], isLoading, isError, error } = useQuery({
+  const { data: logs = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["supplier-audit-log", companyId],
     queryFn: async () => {
       if (!companyId) return [];
+      // «suppliers» (plurale) è come scrive il database oggi; «supplier» è come scriveva prima e come scrive l'unione
+      // dei fornitori. Leggendo solo «supplier» il registro mostrava soltanto le righe più vecchie
+      // (il 10/10/2026: 13 su 373).
       const { data, error } = await supabase
         .from("company_activity_log")
-        .select("id, action, target_id, target_type, details, created_at, user_id")
+        .select("id, action, target_id, target_type, target_label, details, created_at, user_id, actor_name")
         .eq("company_id", companyId)
-        .eq("target_type", "supplier")
+        .in("target_type", ["suppliers", "supplier"])
         .order("created_at", { ascending: false })
         .limit(80);
       if (error) throw error;
@@ -189,15 +209,18 @@ function SupplierAuditPanel({ companyId }: { companyId?: string }) {
   });
 
   if (isLoading) {
-    return <div className="rounded-lg border p-6 text-sm text-muted-foreground">Caricamento audit log fornitori...</div>;
+    return <div className="rounded-lg border p-6 text-sm text-muted-foreground">Caricamento registro…</div>;
   }
 
   if (isError) {
     return (
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Audit log non disponibile</AlertTitle>
-        <AlertDescription>{(error as Error | null)?.message || "Errore durante il caricamento log."}</AlertDescription>
+        <AlertTitle>Registro non disponibile</AlertTitle>
+        <AlertDescription className="flex flex-wrap items-center gap-3">
+          Non sono riuscito a leggere le modifiche ai fornitori.
+          <Button size="sm" variant="outline" onClick={() => void refetch()}>Riprova</Button>
+        </AlertDescription>
       </Alert>
     );
   }
@@ -205,12 +228,12 @@ function SupplierAuditPanel({ companyId }: { companyId?: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ShieldCheck className="h-5 w-5 text-primary" />
-          Audit log fornitori
+        <CardTitle aria-level={2} className="flex items-center gap-2 text-base">
+          <History className="h-4 w-4 text-primary" />
+          Cosa è cambiato
         </CardTitle>
         <CardDescription>
-          Registro automatico di creazioni, modifiche, eliminazioni e merge fornitori.
+          Creazioni, modifiche, eliminazioni e unioni dei fornitori, con la data.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -220,11 +243,13 @@ function SupplierAuditPanel({ companyId }: { companyId?: string }) {
           </div>
         ) : logs.map((log) => {
           const details = (log.details ?? {}) as Record<string, unknown>;
-          const supplierName = String(details.name ?? details.target_name ?? details.source_name ?? "Fornitore");
+          // Il nome del fornitore sta nel registro stesso: il codice interno (target_id) non serve a chi legge.
+          const supplierName = String(details.name ?? details.target_name ?? log.target_label ?? details.source_name ?? "Fornitore");
+          const azione = etichettaAzioneFornitore(log.action);
           return (
-            <div key={log.id} className="grid gap-2 rounded-md border p-3 md:grid-cols-[160px_1fr_auto] md:items-center">
+            <div key={log.id} className="grid gap-2 rounded-md border p-3 md:grid-cols-[160px_1fr] md:items-center">
               <div>
-                <Badge variant="outline">{log.action}</Badge>
+                <Badge variant="outline">{azione}</Badge>
                 <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                   <Clock className="h-3 w-3" />
                   {format(new Date(log.created_at), "dd/MM/yyyy HH:mm")}
@@ -232,13 +257,13 @@ function SupplierAuditPanel({ companyId }: { companyId?: string }) {
               </div>
               <div className="min-w-0">
                 <p className="font-medium truncate">{supplierName}</p>
-                {log.action === "merge" && (
+                {azione === "unito" && (
                   <p className="text-xs text-muted-foreground">
-                    Merge da {String(details.source_name ?? "duplicato")} verso {String(details.target_name ?? "principale")}
+                    Il doppione «{String(details.source_name ?? "senza nome")}» è passato a questo fornitore.
                   </p>
                 )}
+                {log.actor_name && <p className="text-xs text-muted-foreground">da {log.actor_name}</p>}
               </div>
-              <p className="text-xs text-muted-foreground truncate md:text-right">{log.target_id ?? "—"}</p>
             </div>
           );
         })}
@@ -265,13 +290,17 @@ export default function SettingsSuppliers() {
   const permissions = usePermissions();
   // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
   // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
-  const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsSuppliers;
-  const canView = isAdmin || permissions.canViewSettingsSuppliers;
+  // Chi può solo guardare vede l'elenco, gli ordini e i report, ma nessun comando che scrive
+  // (il database li rifiuterebbe: la policy di `suppliers` chiede can_edit_settings_suppliers).
+  // Boolean(): i componenti sotto hanno `true` come valore di partenza, e un permesso mancante (undefined) non deve
+  // diventare «sì».
+  const puoModificare = Boolean(role === "company_admin" || role === "super_admin" || permissions.canEditSettingsSuppliers);
+  const canView = puoModificare || Boolean(permissions.canViewSettingsSuppliers);
   const [tab, setTab] = useState("anagrafica");
 
   useEffect(() => {
     if (!canView) navigate("/azienda", { replace: true });
-  }, [isAdmin, navigate]);
+  }, [canView, navigate]);
 
   // Supplier list per l'export + KPI header (separata dal componente figlio
   // per evitare coupling con il suo stato interno di filtri).
@@ -279,7 +308,7 @@ export default function SettingsSuppliers() {
   // non esistono su suppliers (lo schema ha solo `payment_method`).
   // Prima la query falliva silenziosamente e i KPI mostravano tutti 0
   // mentre la tabella interna (che seleziona *) mostrava i dati.
-  const { data: suppliers = [], isError: suppliersExportIsError, error: suppliersExportError } = useQuery({
+  const { data: suppliers = [], isError: suppliersExportIsError, error: suppliersExportError, refetch: refetchExport } = useQuery({
     queryKey: ["suppliers-export", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -445,21 +474,10 @@ export default function SettingsSuppliers() {
     // flex+gap invece di space-y: la testata nascosta da 768 lasciava lo
     // spazio sopra i numeri (lo stesso 24px tra i blocchi sul telefono).
     <div className="flex flex-col gap-6">
-      {/* Header con pattern h-10 w-10 bg-primary/10 — da 768 non c'è: titolo e
-          frase ripetevano la testata delle Impostazioni, e «Esporta» sale
-          nella riga delle schede. */}
+      {!puoModificare && <AvvisoSolaLetturaImpostazioni permesso="Fornitori" />}
+      {/* Il titolo «Fornitori» (uno solo, h1) lo mette la testata delle Impostazioni.
+          Da 768 «Esporta» sale nella riga delle schede; sul telefono sta qui. */}
       <div className="flex justify-end md:hidden">
-        <div className="hidden">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <Truck className="h-5 w-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Fornitori</h1>
-            <p className="text-sm text-muted-foreground">
-              Anagrafica, listini, metodi di pagamento e performance dei tuoi fornitori.
-            </p>
-          </div>
-        </div>
         <div className="flex items-center gap-2 flex-wrap">
           {menuEsporta}
         </div>
@@ -470,8 +488,9 @@ export default function SettingsSuppliers() {
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Statistiche fornitori non disponibili</AlertTitle>
-          <AlertDescription className="text-xs">
-            {(suppliersExportError as Error | null)?.message || "Non è stato possibile caricare i dati per KPI ed export."}
+          <AlertDescription className="flex flex-wrap items-center gap-3 text-xs">
+            {userErrorMessage(suppliersExportError, "Non è stato possibile caricare i numeri e i dati da esportare.")}
+            <Button size="sm" variant="outline" onClick={() => void refetchExport()}>Riprova</Button>
           </AlertDescription>
         </Alert>
       )}
@@ -510,25 +529,25 @@ export default function SettingsSuppliers() {
         {/* Da 768 le schede e «Esporta» nella stessa riga (sul telefono la
             riga non è flex: le schede restano larghe come prima). */}
         <div className="md:flex md:items-center md:justify-between md:gap-3">
-          <TabsList className="grid h-auto grid-cols-4 md:flex">
+          <TabsList className="grid h-auto grid-cols-2 sm:grid-cols-4 md:flex">
             <TabsTrigger value="anagrafica">Anagrafica</TabsTrigger>
-            <TabsTrigger value="operativo">Operativo</TabsTrigger>
+            <TabsTrigger value="operativo">Ordini e pagamenti</TabsTrigger>
             <TabsTrigger value="report">
               <BarChart3 className="mr-1.5 hidden h-4 w-4 sm:block" />
-              Report
+              Acquisti
             </TabsTrigger>
             <TabsTrigger value="audit">
-              <ShieldCheck className="mr-1.5 hidden h-4 w-4 sm:block" />
-              Audit
+              <History className="mr-1.5 hidden h-4 w-4 sm:block" />
+              Cosa è cambiato
             </TabsTrigger>
           </TabsList>
           <div className="hidden md:block">{menuEsporta}</div>
         </div>
         <TabsContent value="anagrafica" className="mt-4">
-          <SuppliersConfig />
+          <SuppliersConfig puoModificare={puoModificare} />
         </TabsContent>
         <TabsContent value="operativo" className="mt-4">
-          <SuppliersOperational />
+          <SuppliersOperational puoModificare={puoModificare} incorporato />
         </TabsContent>
         <TabsContent value="report" className="mt-4">
           <SupplierReportsPanel />

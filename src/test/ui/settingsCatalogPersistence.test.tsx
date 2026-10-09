@@ -33,9 +33,10 @@ describe("Persistenza impostazioni: ambito azienda e fallimenti", () => {
     expect(db.single).toHaveBeenCalledOnce();
   });
   it("zero righe aggiornate non è un salvataggio riuscito", async () => {
+    // L'errore c'è ancora; il testo del database (qui simulato) non arriva più a schermo: la pagina mostra una frase italiana.
     db.error = { code: "PGRST116", message: "Nessuna riga aggiornata" };
     const { result } = open(useSalvaCartella);
-    await act(async () => { await expect(result.current.mutateAsync({ id: "f1", nome: "Nuova" })).rejects.toThrow("Nessuna riga"); });
+    await act(async () => { await expect(result.current.mutateAsync({ id: "f1", nome: "Nuova" })).rejects.toThrow("Operazione non riuscita. Riprova tra poco."); });
   });
   it("senza azienda non scrive cartelle né le riordina", async () => {
     db.companyId = null;
@@ -51,7 +52,7 @@ describe("Persistenza impostazioni: ambito azienda e fallimenti", () => {
     const folders = [{ id: "f1", posizione: 1 }, { id: "f2", posizione: 2 }];
     client.setQueryData(["cartelle-documenti", "company-1"], folders);
     db.error = { message: "Riordino rifiutato" };
-    await act(async () => { await expect(result.current.mutateAsync(["f2", "f1"])).rejects.toThrow("Riordino rifiutato"); });
+    await act(async () => { await expect(result.current.mutateAsync(["f2", "f1"])).rejects.toThrow("Operazione non riuscita. Riprova tra poco."); });
     expect(client.getQueryData(["cartelle-documenti", "company-1"])).toEqual(folders);
     expect(db.eq.mock.calls.filter(call => call[0] === "company_id")).toHaveLength(2);
   });

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 import {
   assemblaModelliPagamento, modelliPagamentoDaOffrire,
   type ModelloPagamento, type ModelloPagamentoPerServer, type PayloadModelloPagamento,
@@ -34,7 +35,8 @@ export function messaggioModelloPagamento(e: unknown): string {
   if (err?.code === "23505") return "Esiste già un modello con questo nome.";
   if (err?.code === "42501") return "Non hai il permesso di modificare i modelli di pagamento.";
   if (err?.code === "22023" || err?.code === "P0002") return err.message || "Controlla i dati del modello.";
-  return err?.message || "Operazione non riuscita. Riprova.";
+  // Tutto il resto (rete, sessione scaduta, errori interni) non arriva al titolare con il suo testo tecnico.
+  return userErrorMessage(e);
 }
 
 /** I modelli di pagamento dell'azienda, con le sue scelte (modello di partenza, quando matura un SAL). */
@@ -116,8 +118,10 @@ export function useModelliPagamento() {
       const { error } = await db.rpc("pagamenti_impostazioni_salva", { p_company_id: companyId, p_valori });
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("Fatto: vale da subito per le commesse nuove");
+    onSuccess: (_esito, valori) => {
+      // La stella (il modello di partenza) vale per le commesse nuove; la regola del SAL vale per TUTTE le commesse
+      // dell'azienda, anche per quelle già aperte (SalTab la legge quando mostra ogni rata).
+      toast.success(valori.salMatura !== undefined ? "Fatto: vale subito per tutte le commesse." : "Fatto: vale da subito per le commesse nuove.");
       void riparti();
     },
     onError,
@@ -134,6 +138,8 @@ export function useModelliPagamento() {
     salMatura: dati.salMatura,
     disponibile: dati.disponibile,
     isLoading: query.isLoading,
+    /** Per «Riprova» quando i modelli non si riescono a leggere. */
+    refetch: query.refetch,
     salva, elimina, inizializza, impostazioni,
   };
 }

@@ -10,7 +10,7 @@ import {
 const state = vi.hoisted(() => ({
   modelli: [] as unknown[], inizializzati: true, predefinito: null as string | null, disponibile: true, isLoading: false,
   puoModificare: true, inizializzaErrore: false,
-  salva: vi.fn(), elimina: vi.fn(), inizializza: vi.fn(), impostazioni: vi.fn(), successo: vi.fn(),
+  salva: vi.fn(), elimina: vi.fn(), inizializza: vi.fn(), impostazioni: vi.fn(), successo: vi.fn(), ricarica: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { success: state.successo, error: vi.fn() } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: state.puoModificare ? "company_admin" : "staff" }) }));
@@ -20,7 +20,7 @@ vi.mock("@/hooks/useModelliPagamento", () => ({
     modelli: state.modelli,
     offerti: modelliPagamentoDaOffrire(state.inizializzati, state.modelli as ModelloPagamento[]),
     inizializzati: state.inizializzati, predefinito: state.predefinito, salMatura: "emesso",
-    disponibile: state.disponibile, isLoading: state.isLoading,
+    disponibile: state.disponibile, isLoading: state.isLoading, refetch: state.ricarica,
     salva: { mutate: state.salva, isPending: false },
     elimina: { mutate: state.elimina, isPending: false },
     inizializza: { mutate: state.inizializza, isPending: false, isError: state.inizializzaErrore },
@@ -40,16 +40,21 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("la prima volta: i modelli di partenza diventano dell'azienda", () => {
+describe("la prima volta: i modelli di partenza diventano dell'azienda solo su richiesta", () => {
   beforeEach(() => { state.inizializzati = false; });
 
-  it("chi può modificare li porta tra i suoi, una volta sola", () => {
+  // Valutato il 10/10/2026: aprire la pagina scriveva nel database (6 modelli nell'azienda, anche se a guardare era un
+  // super amministratore sull'azienda di un cliente) e se il database rifiutava compariva un errore rosso senza che nessuno
+  // avesse premuto niente. Come i modelli di fasi dall'08/10, la pagina non scrive più quando si apre.
+  it("aprire o rileggere la pagina non scrive: si importa con «Importa modelli standard»", () => {
     const { rerender } = render(<ModelliPagamentoConfig />);
+    expect(state.inizializza).not.toHaveBeenCalled();
+    rerender(<ModelliPagamentoConfig />);
+    expect(state.inizializza).not.toHaveBeenCalled();
+    expect(screen.getByText(/Importa gli standard per personalizzarli/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Importa modelli standard" }));
     expect(state.inizializza).toHaveBeenCalledTimes(1);
     expect(state.inizializza).toHaveBeenCalledWith({ modelli: modelliPagamentoPerInizializzare(), soloMancanti: false });
-    rerender(<ModelliPagamentoConfig />);
-    expect(state.inizializza).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/Preparo i tuoi modelli/)).toBeInTheDocument();
   });
   it("nel frattempo si vedono, senza comandi sui singoli modelli", () => {
     render(<ModelliPagamentoConfig />);
@@ -61,21 +66,27 @@ describe("la prima volta: i modelli di partenza diventano dell'azienda", () => {
     render(<ModelliPagamentoConfig />);
     expect(state.inizializza).not.toHaveBeenCalled();
     expect(screen.getByText(/Sono i modelli di partenza/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Importa modelli standard" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Nuovo modello" })).not.toBeInTheDocument();
   });
-  it("non parte mentre carica, né se i modelli non si leggono", () => {
+  it("mentre carica, o se i modelli non si leggono, non propone di importare; se non si leggono c'è «Riprova»", () => {
     state.isLoading = true;
     const { rerender } = render(<ModelliPagamentoConfig />);
-    expect(state.inizializza).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Importa modelli standard" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Caricamento modelli/)).toBeInTheDocument();
     state.isLoading = false; state.disponibile = false;
     rerender(<ModelliPagamentoConfig />);
     expect(state.inizializza).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Importa modelli standard" })).not.toBeInTheDocument();
     expect(screen.getByText(/Non riesco a leggere i modelli/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
+    expect(state.ricarica).toHaveBeenCalledTimes(1);
   });
-  it("se la preparazione fallisce lo dice e si può riprovare", () => {
+  it("se l'importazione fallisce lo dice e si può riprovare", () => {
     state.inizializzaErrore = true;
     render(<ModelliPagamentoConfig />);
-    state.inizializza.mockClear();
+    expect(screen.getByText(/Non sono riuscito a preparare i modelli/)).toBeInTheDocument();
+    expect(state.inizializza).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
     expect(state.inizializza).toHaveBeenCalledWith({ modelli: modelliPagamentoPerInizializzare(), soloMancanti: false });
   });
@@ -227,7 +238,8 @@ describe("con i modelli dell'azienda", () => {
     fireEvent.click(screen.getByRole("button", { name: "Elimina Tre rate" }));
     expect(state.elimina).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Elimina il modello" }));
-    expect(state.elimina).toHaveBeenCalledWith("m1");
+    // La conferma si chiude solo quando l'eliminazione è riuscita (onSuccess): se fallisce, resta aperta.
+    expect(state.elimina).toHaveBeenCalledWith("m1", expect.objectContaining({ onSuccess: expect.any(Function) }));
   });
 
   it("senza nessun modello c'è l'invito a crearne o a rimettere quelli di partenza", () => {

@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { rimuovi, sostituisci, sposta } from "@/lib/orders/modelliFasi";
 import {
   EVENTI_MODELLO, mettiIlResto, normalizzaTipi, numeraSal, sommaPercentuali, validaBozzaPagamento,
@@ -32,6 +33,9 @@ const nuovaRata = (): RataModello => ({ nome: "Rata", percent: 0, tipo: "deposit
 
 function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Props, "aperto" | "bozzaIniziale"> & { bozzaIniziale: BozzaModelloPagamento }) {
   const [bozza, setBozza] = useState<BozzaModelloPagamento>(bozzaIniziale);
+  // Esc o un clic fuori non devono buttare via il lavoro: con modifiche si chiede conferma (come per i modelli di fasi).
+  const conferma = useSettingsDraftGuard(salvataggio || JSON.stringify(bozza) !== JSON.stringify(bozzaIniziale));
+  const chiudi = () => { if (!salvataggio && conferma()) onChiudi(); };
   // I tipi seguono la posizione: tutte acconti, l'ultima è il saldo.
   const righe = normalizzaTipi(bozza.righe);
   const cambiaRighe = (nuove: RataModello[]) => setBozza({ ...bozza, righe: nuove });
@@ -45,6 +49,7 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Pr
   const aCento = Math.abs(somma - 100) <= 0.01;
 
   const salva = () => {
+    if (salvataggio) return;
     const esito = validaBozzaPagamento(bozza);
     // Con strictNullChecks spento `!esito.ok` non restringe il tipo: si confronta con false.
     if (esito.ok === false) { toast.error(esito.errore); return; }
@@ -52,7 +57,7 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Pr
   };
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onChiudi(); }}>
+    <Dialog open onOpenChange={(o) => { if (!o) chiudi(); }}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{bozza.id ? "Modifica il modello" : "Nuovo modello di pagamento"}</DialogTitle>
@@ -61,7 +66,7 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Pr
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <fieldset disabled={salvataggio} className="m-0 min-w-0 space-y-4 border-0 p-0">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="piano-nome">Nome del modello</Label>
@@ -131,6 +136,12 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Pr
             ))}
           </ol>
 
+          {righe.some((r) => r.evento === "sal_numero") && (
+            <p className="text-xs text-muted-foreground">
+              Quando matura il SAL (appena lo emetti, o quando il cliente lo approva) lo scegli nella sezione «Quando matura la rata di un SAL», in fondo alla pagina.
+            </p>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-2">
             <Button type="button" variant="outline" size="sm" onClick={aggiungi} disabled={righe.length >= 12}>
               <Plus className="mr-1 h-4 w-4" />Aggiungi una rata
@@ -146,10 +157,10 @@ function EditorAperto({ bozzaIniziale, salvataggio, onChiudi, onSalva }: Omit<Pr
               )}
             </div>
           </div>
-        </div>
+        </fieldset>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onChiudi}>Annulla</Button>
+          <Button variant="outline" disabled={salvataggio} onClick={chiudi}>Annulla</Button>
           <Button onClick={salva} disabled={salvataggio}>Salva modello</Button>
         </DialogFooter>
       </DialogContent>

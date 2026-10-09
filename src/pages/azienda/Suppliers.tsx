@@ -35,7 +35,7 @@ function RatingStars({ rating }: { rating: number | null }) {
 }
 
 // ========== LIST VIEW ==========
-function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) => void }) {
+function SuppliersList({ onSelectSupplier, incorporato = false }: { onSelectSupplier?: (id: string) => void; incorporato?: boolean }) {
   const navigate = useNavigate();
   const { suppliers, isLoading } = useOperationalSuppliers();
   const [search, setSearch] = useState("");
@@ -60,13 +60,16 @@ function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) =
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Truck className="h-7 w-7 text-primary" />
-          <h1 className="text-2xl font-bold">Fornitori</h1>
-          <Badge variant="secondary" className="ml-2">{filtered.length}</Badge>
+      {/* Dentro le impostazioni il titolo «Fornitori» c'è già (uno solo per pagina): qui niente titolo né contatore. */}
+      {!incorporato && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Truck className="h-7 w-7 text-primary" />
+            <h1 className="text-2xl font-bold">Fornitori</h1>
+            <Badge variant="secondary" className="ml-2">{filtered.length}</Badge>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Summary KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -91,7 +94,7 @@ function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) =
       <div className="flex items-center gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Cerca fornitore..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
+          <Input placeholder="Cerca fornitore..." aria-label="Cerca un fornitore" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
         </div>
         <Button
           variant={showInactive ? "secondary" : "outline"}
@@ -167,7 +170,14 @@ function SuppliersList({ onSelectSupplier }: { onSelectSupplier?: (id: string) =
 }
 
 // ========== DETAIL VIEW ==========
-function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: () => void }) {
+function SupplierDetail({ supplierId, onBack, puoModificare = true, incorporato = false }: {
+  supplierId: string;
+  onBack?: () => void;
+  /** Senza il permesso la scheda si legge soltanto: niente «Modifica». */
+  puoModificare?: boolean;
+  /** Dentro le impostazioni il titolo della pagina è già l'h1: il nome del fornitore è un titolo di secondo livello. */
+  incorporato?: boolean;
+}) {
   const navigate = useNavigate();
   const { suppliers, isLoading: isSupLoading, update } = useOperationalSuppliers();
   const supplier = suppliers.find((s) => s.id === supplierId);
@@ -201,7 +211,10 @@ function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: (
     );
   }
 
+  const Titolo = incorporato ? "h2" : "h1";
+
   const startEdit = () => {
+    if (!puoModificare) return;
     setEditForm({
       email: supplier.email || "",
       phone: supplier.phone || "",
@@ -222,6 +235,7 @@ function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: (
   };
 
   const saveEdit = () => {
+    if (!puoModificare) return;
     const updates: Record<string, any> = {};
     Object.entries(editForm).forEach(([k, v]) => {
       if (v !== (supplier as any)[k]) {
@@ -254,7 +268,7 @@ function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: (
 
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{supplier.name}</h1>
+          <Titolo className="text-2xl font-bold">{supplier.name}</Titolo>
           <div className="flex items-center gap-3 mt-1">
             {supplier.product_category && <Badge variant="outline">{supplier.product_category}</Badge>}
             <RatingStars rating={supplier.rating} />
@@ -263,7 +277,7 @@ function SupplierDetail({ supplierId, onBack }: { supplierId: string; onBack?: (
           </div>
         </div>
         <div className="flex gap-2">
-          {!editing ? (
+          {!puoModificare ? null : !editing ? (
             <Button variant="outline" size="sm" onClick={startEdit}>
               <Pencil className="h-4 w-4 mr-1" /> Modifica
             </Button>
@@ -360,16 +374,16 @@ function AnagraficaTab({ supplier: s, editing, editForm, setEditForm }: {
           {editing ? (
             <div className="space-y-3">
               <div className="space-y-1">
-                <Label className="text-xs">Email</Label>
-                <Input value={editForm.email} onChange={(e) => upd("email", e.target.value)} placeholder="email@esempio.it" />
+                <Label htmlFor="rapida-email" className="text-xs">Email</Label>
+                <Input id="rapida-email" value={editForm.email} onChange={(e) => upd("email", e.target.value)} placeholder="email@esempio.it" />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Telefono</Label>
-                <Input value={editForm.phone} onChange={(e) => upd("phone", e.target.value)} placeholder="+39..." />
+                <Label htmlFor="rapida-telefono" className="text-xs">Telefono</Label>
+                <Input id="rapida-telefono" value={editForm.phone} onChange={(e) => upd("phone", e.target.value)} placeholder="+39..." />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Sito web</Label>
-                <Input value={editForm.website} onChange={(e) => upd("website", e.target.value)} placeholder="https://..." />
+                <Label htmlFor="rapida-sito" className="text-xs">Sito web</Label>
+                <Input id="rapida-sito" value={editForm.website} onChange={(e) => upd("website", e.target.value)} placeholder="https://..." />
               </div>
             </div>
           ) : (
@@ -384,11 +398,11 @@ function AnagraficaTab({ supplier: s, editing, editForm, setEditForm }: {
           <p className="text-sm font-medium text-muted-foreground">Indirizzo</p>
           {editing ? (
             <div className="space-y-3">
-              <Input value={editForm.address} onChange={(e) => upd("address", e.target.value)} placeholder="Via..." />
+              <Input aria-label="Via e numero" value={editForm.address} onChange={(e) => upd("address", e.target.value)} placeholder="Via..." />
               <div className="grid grid-cols-3 gap-2">
-                <Input value={editForm.postal_code} onChange={(e) => upd("postal_code", e.target.value)} placeholder="CAP" />
-                <Input value={editForm.city} onChange={(e) => upd("city", e.target.value)} placeholder="Città" />
-                <Input value={editForm.province} onChange={(e) => upd("province", e.target.value)} placeholder="Prov." />
+                <Input aria-label="CAP" value={editForm.postal_code} onChange={(e) => upd("postal_code", e.target.value)} placeholder="CAP" />
+                <Input aria-label="Città" value={editForm.city} onChange={(e) => upd("city", e.target.value)} placeholder="Città" />
+                <Input aria-label="Provincia" value={editForm.province} onChange={(e) => upd("province", e.target.value)} placeholder="Prov." />
               </div>
             </div>
           ) : (
@@ -416,17 +430,17 @@ function AnagraficaTab({ supplier: s, editing, editForm, setEditForm }: {
           {editing ? (
             <div className="space-y-3">
               <div className="space-y-1">
-                <Label className="text-xs">IBAN</Label>
-                <Input value={editForm.iban} onChange={(e) => upd("iban", e.target.value)} placeholder="IT..." className="font-mono text-xs" />
+                <Label htmlFor="rapida-iban" className="text-xs">IBAN</Label>
+                <Input id="rapida-iban" value={editForm.iban} onChange={(e) => upd("iban", e.target.value)} placeholder="IT..." className="font-mono text-xs" />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Banca</Label>
-                <Input value={editForm.bank_name} onChange={(e) => upd("bank_name", e.target.value)} />
+                <Label htmlFor="rapida-banca" className="text-xs">Banca</Label>
+                <Input id="rapida-banca" value={editForm.bank_name} onChange={(e) => upd("bank_name", e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Metodo di pagamento</Label>
+                <Label htmlFor="rapida-pagamento" className="text-xs">Metodo di pagamento</Label>
                 <Select value={editForm.payment_method} onValueChange={(v) => upd("payment_method", v)}>
-                  <SelectTrigger><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                  <SelectTrigger id="rapida-pagamento"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="bonifico">Bonifico</SelectItem>
                     <SelectItem value="ri.ba">Ri.Ba</SelectItem>
@@ -438,16 +452,16 @@ function AnagraficaTab({ supplier: s, editing, editForm, setEditForm }: {
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">Lead time (gg)</Label>
-                  <Input type="number" value={editForm.lead_time_days} onChange={(e) => upd("lead_time_days", Number(e.target.value))} />
+                  <Label htmlFor="rapida-tempi" className="text-xs">Lead time (gg)</Label>
+                  <Input id="rapida-tempi" type="number" value={editForm.lead_time_days} onChange={(e) => upd("lead_time_days", Number(e.target.value))} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Ordine min.</Label>
-                  <Input type="number" value={editForm.min_order_amount} onChange={(e) => upd("min_order_amount", Number(e.target.value))} />
+                  <Label htmlFor="rapida-minimo" className="text-xs">Ordine min.</Label>
+                  <Input id="rapida-minimo" type="number" value={editForm.min_order_amount} onChange={(e) => upd("min_order_amount", Number(e.target.value))} />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Fido</Label>
-                  <Input type="number" value={editForm.credit_limit} onChange={(e) => upd("credit_limit", Number(e.target.value))} />
+                  <Label htmlFor="rapida-fido" className="text-xs">Fido</Label>
+                  <Input id="rapida-fido" type="number" value={editForm.credit_limit} onChange={(e) => upd("credit_limit", Number(e.target.value))} />
                 </div>
               </div>
             </div>
@@ -487,7 +501,7 @@ function AnagraficaTab({ supplier: s, editing, editForm, setEditForm }: {
         <CardContent className="pt-4">
           <p className="text-sm font-medium text-muted-foreground mb-1">Note</p>
           {editing ? (
-            <Textarea value={editForm.notes} onChange={(e) => upd("notes", e.target.value)} rows={3} placeholder="Note interne..." />
+            <Textarea aria-label="Note" value={editForm.notes} onChange={(e) => upd("notes", e.target.value)} rows={3} placeholder="Note interne..." />
           ) : (
             <p className="text-sm whitespace-pre-wrap">{s.notes || <span className="text-muted-foreground italic">Nessuna nota</span>}</p>
           )}
@@ -783,13 +797,18 @@ function StatsTab({ supplier, oda, scadenze, primaNota }: { supplier: SupplierWi
 }
 
 // ========== EMBEDDED EXPORT (for Settings page) ==========
-export function SuppliersOperational() {
+export function SuppliersOperational({ puoModificare = true, incorporato = false }: {
+  /** Senza il permesso la scheda del fornitore si legge soltanto. */
+  puoModificare?: boolean;
+  /** Dentro le impostazioni il titolo «Fornitori» c'è già: qui non si ripete (e non c'è un secondo h1). */
+  incorporato?: boolean;
+} = {}) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   if (selectedId) {
-    return <SupplierDetail supplierId={selectedId} onBack={() => setSelectedId(null)} />;
+    return <SupplierDetail supplierId={selectedId} onBack={() => setSelectedId(null)} puoModificare={puoModificare} incorporato={incorporato} />;
   }
-  return <SuppliersList onSelectSupplier={(id) => setSelectedId(id)} />;
+  return <SuppliersList onSelectSupplier={(id) => setSelectedId(id)} incorporato={incorporato} />;
 }
 
 // ========== MAIN EXPORT ==========

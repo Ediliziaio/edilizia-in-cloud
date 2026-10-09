@@ -1,9 +1,9 @@
 // Impostazioni → Cantieri & Costi → Cartelle documenti.
 // Route protetta in companyRoutes.tsx con withCompanyPermission("canViewSettingsOrders").
+// Il titolo e la frase della pagina li mette già il layout delle Impostazioni.
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -21,6 +21,9 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useCartelleDocumenti, useRiordinaCartelle, useSalvaCartella } from "@/hooks/useCartelleDocumenti";
 import type { CartellaDocumenti } from "@/lib/commesse/documentiCommessa";
 import { SpazioArchiviazioneCard } from "@/components/billing/SpazioArchiviazioneCard";
+import { SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
+import { AvvisoAreaClienti } from "@/components/impostazioni/AvvisoAreaClienti";
+import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoSolaLetturaImpostazioni";
 
 const messaggio = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -56,7 +59,10 @@ export default function SettingsCartelleDocumenti() {
   const archiviate = tutte.filter((c) => c.archiviata_at);
   const { data: uso, isError: erroreConteggi, refetch: ricaricaConteggi } = useDocumentiPerCartella(tutte.map((c) => c.id));
   const busy = salva.isPending || riordina.isPending;
-  const canEdit = !permissions.isLoading && !isLoading && !isError && (permissions.isAdmin || permissions.canEditSettingsOrders);
+  // Chi modifica: amministratore o «Configurazione Ordini» in modifica. Senza, la pagina si consulta e basta, e lo dice.
+  const haPermessoDiModifica = !permissions.isLoading && Boolean(permissions.isAdmin || permissions.canEditSettingsOrders);
+  const soloLettura = !permissions.isLoading && !haPermessoDiModifica;
+  const canEdit = haPermessoDiModifica && !isLoading && !isError;
 
   const [nuova, setNuova] = useState("");
   const [inModifica, setInModifica] = useState<{ id: string; nome: string } | null>(null);
@@ -97,19 +103,29 @@ export default function SettingsCartelleDocumenti() {
 
   return (
     <div className="space-y-4 max-w-3xl">
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Organizzazione dei documenti</CardTitle>
-          <CardDescription>Le stesse cartelle vengono usate in tutte le commesse. Le modifiche si salvano subito.</CardDescription>
-          <details className="text-sm text-muted-foreground"><summary className="cursor-pointer">Visibilità cliente e documenti obbligatori</summary><p className="mt-2">
-            Le cartelle in cui si dividono i documenti di ogni commessa. Quando si carica un file
-            la cartella viene proposta dal nome («fattura…» → Fatture, «visura…» → Catastali) e si
-            può cambiare. <strong>Cliente</strong>: i file caricati nella cartella nascono visibili
-            nell'area del cliente. <strong>Obbligatoria</strong>: la commessa segnala «Mancano» finché
-            la cartella è vuota.
-          </p></details>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      {soloLettura && <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />}
+
+      <SezioneImpostazione
+        id="cartelle"
+        titolo="Cartelle dei documenti"
+        descrizione="Le stesse cartelle valgono per tutte le commesse. Ogni modifica si salva subito."
+      >
+        <div className="space-y-2 px-4 py-3 text-xs text-muted-foreground">
+          <p>
+            <strong className="font-medium text-foreground">Visibile al cliente:</strong> i file nuovi di quella cartella si vedono
+            nell&apos;area clienti. <strong className="font-medium text-foreground">Obbligatoria:</strong> la commessa segnala «Mancano»
+            finché la cartella è vuota.
+          </p>
+          <AvvisoAreaClienti />
+          <details>
+            <summary className="cursor-pointer">Come si sceglie la cartella di un file</summary>
+            <p className="mt-2">
+              Quando carichi un file, la cartella viene proposta dal nome («fattura…» → Fatture, «visura…» → Catastali) e puoi cambiarla.
+            </p>
+          </details>
+        </div>
+
+        <div className="space-y-4 px-4 py-4">
           {isError ? <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-2">Cartelle non disponibili. Nessuna modifica verrà salvata.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription></Alert> : isLoading ? (
             <div className="space-y-2">
               {[0, 1, 2].map((i) => <Skeleton key={i} className="h-11 w-full" />)}
@@ -122,7 +138,7 @@ export default function SettingsCartelleDocumenti() {
                   <tr className="text-xs text-muted-foreground border-b">
                     <th className="text-left font-medium py-2 pr-2">Cartella</th>
                     <th className="text-right font-medium py-2 px-2 whitespace-nowrap">Documenti</th>
-                    <th className="text-center font-medium py-2 px-2">Cliente</th>
+                    <th className="text-center font-medium py-2 px-2">Visibile al cliente</th>
                     <th className="text-center font-medium py-2 px-2">Obbligatoria</th>
                     {canEdit && <th className="py-2 pl-2"><span className="sr-only">Azioni</span></th>}
                   </tr>
@@ -157,7 +173,7 @@ export default function SettingsCartelleDocumenti() {
                         </td>
                         <td className="hidden py-1.5 text-xs tabular-nums text-muted-foreground md:table-cell md:px-2 md:text-right">{erroreConteggi ? "–" : uso?.[c.id] ?? "–"}</td>
                         <td className="flex items-center justify-between gap-1 py-1 px-0 md:table-cell md:py-1.5 md:px-2 md:text-center">
-                          <span className="text-xs md:hidden">Cliente</span>
+                          <span className="text-xs md:hidden">Visibile al cliente</span>
                           <Switch
                             checked={c.visibile_cliente}
                             disabled={!canEdit || busy}
@@ -219,63 +235,62 @@ export default function SettingsCartelleDocumenti() {
               </table>
             </div>
           )}
+        </div>
 
-          {canEdit && (
-            <div className="flex gap-2">
-              <Input
-                id="nuova-cartella-documenti"
-                placeholder="Nuova cartella, es. Enel I-II-GSE"
-                aria-label="Nuova cartella"
-                disabled={busy}
-                value={nuova}
-                onChange={(e) => setNuova(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && nuova.trim()) aggiungi(); }}
-                className="h-9"
-              />
-              <Button size="sm" onClick={aggiungi} disabled={!nuova.trim() || busy} className="h-9 shrink-0">
-                <Plus className="h-4 w-4 mr-1" /> Aggiungi
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <SpazioArchiviazioneCard compatta />
+        {canEdit && (
+          <div className="flex gap-2 px-4 py-3">
+            <Input
+              id="nuova-cartella-documenti"
+              placeholder="Nuova cartella, es. Foto cantiere"
+              aria-label="Nuova cartella"
+              disabled={busy}
+              value={nuova}
+              onChange={(e) => setNuova(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && nuova.trim()) aggiungi(); }}
+              className="h-9"
+            />
+            <Button size="sm" onClick={aggiungi} disabled={!nuova.trim() || busy} className="h-9 shrink-0">
+              <Plus className="h-4 w-4 mr-1" /> Aggiungi
+            </Button>
+          </div>
+        )}
+      </SezioneImpostazione>
 
       {archiviate.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Archiviate</CardTitle>
-            <CardDescription>Non si propongono più per i nuovi file; i documenti già dentro restano consultabili.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="divide-y">
-              {archiviate.map((c) => (
-                <li key={c.id} className="flex items-center gap-3 py-2 text-sm">
-                  <Folder className="h-4 w-4 text-muted-foreground" />
-                  <span className="flex-1 text-muted-foreground">{c.nome}</span>
-                  <span className="text-xs tabular-nums text-muted-foreground">{uso?.[c.id] ?? "–"} documenti</span>
-                  {canEdit && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={busy}
-                      onClick={() =>
-                        salva.mutate({ id: c.id, archiviata_at: null }, {
-                          onSuccess: () => toast.success(`«${c.nome}» ripristinata`),
-                          onError: conErrore("Cartella non ripristinata"),
-                        })
-                      }
-                    >
-                      <ArchiveRestore className="h-4 w-4 mr-1" /> Ripristina
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        <SezioneImpostazione
+          id="archiviate"
+          titolo="Archiviate"
+          descrizione="Non si propongono più per i nuovi file; i documenti già dentro restano consultabili."
+        >
+          <ul className="divide-y px-4">
+            {archiviate.map((c) => (
+              <li key={c.id} className="flex items-center gap-3 py-2 text-sm">
+                <Folder className="h-4 w-4 text-muted-foreground" />
+                <span className="flex-1 text-muted-foreground">{c.nome}</span>
+                <span className="text-xs tabular-nums text-muted-foreground">{uso?.[c.id] ?? "–"} documenti</span>
+                {canEdit && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() =>
+                      salva.mutate({ id: c.id, archiviata_at: null }, {
+                        onSuccess: () => toast.success(`«${c.nome}» ripristinata`),
+                        onError: conErrore("Cartella non ripristinata"),
+                      })
+                    }
+                  >
+                    <ArchiveRestore className="h-4 w-4 mr-1" /> Ripristina
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </SezioneImpostazione>
       )}
+
+      {/* Lo spazio è del piano, non delle cartelle: sta in fondo. */}
+      <SpazioArchiviazioneCard compatta />
 
       <AlertDialog open={!!daArchiviare} onOpenChange={(o) => { if (!o) setDaArchiviare(null); }}>
         <AlertDialogContent>

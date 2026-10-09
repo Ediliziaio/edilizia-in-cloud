@@ -1,43 +1,7 @@
 // MP-IMP-001 Fase 2 — gating gestito da withCompanyPermission("canViewSettingsOrders") in companyRoutes.tsx
-import { Link } from "react-router-dom";
-import { ListOrdered, Info } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+// Il titolo e la frase della pagina li mette già il layout delle Impostazioni: qui c'è solo il contenuto.
 import { OrderStatusConfig } from "@/components/settings/OrderStatusConfig";
 
 export default function SettingsOrderStatus() {
-  return (
-    <div className="space-y-6">
-      {/* Header pattern h-10 w-10 bg-primary/10 */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-start gap-3 min-w-0">
-          {/* Da 768 icona e titolo li mostra già la testata delle Impostazioni
-              (erano due volte): resta la riga sotto, con numeri e azioni. */}
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 md:hidden">
-            <ListOrdered className="h-5 w-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight md:hidden">Stati Ordine</h1>
-            <p className="text-sm text-muted-foreground">
-              Definisci le fasi di lavorazione degli ordini. Trascina per riordinare e
-              personalizza icona, colore e nome di ogni stato.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <Alert className="border-blue-300 bg-blue-50/50 dark:bg-blue-900/10">
-        <Info className="h-4 w-4 text-blue-600" />
-        <AlertTitle className="text-sm text-blue-900 dark:text-blue-200">Come vengono usati gli stati</AlertTitle>
-        <AlertDescription className="text-xs text-blue-800 dark:text-blue-300 space-y-1">
-          <p>· La <strong>Anteprima Progress Tracker</strong> qui sotto mostra esattamente ciò che vedranno i clienti sul portale privato.</p>
-          <p>· Ogni nuovo ordine parte dal <strong>primo stato</strong> della lista e avanza secondo la posizione.</p>
-          <p>· Per gestire le <strong>automazioni fra stati</strong> (azioni post-cambio stato) apri{" "}
-            <Link to="/azienda/impostazioni/automazioni-finanza" className="underline font-medium">/automazioni-finanza</Link>.
-          </p>
-        </AlertDescription>
-      </Alert>
-
-      <OrderStatusConfig />
-    </div>
-  );
+  return <OrderStatusConfig />;
 }

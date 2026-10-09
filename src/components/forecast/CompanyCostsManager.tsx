@@ -85,7 +85,7 @@ function getDuplicatedDueDate(dueDate?: string | null) {
   return format(addMonths(parsed, 1), "yyyy-MM-dd");
 }
 
-function CostIntegrationPanel({
+export function CostIntegrationPanel({
   summary,
   missingCategory,
   missingSupplier,
@@ -105,6 +105,10 @@ function CostIntegrationPanel({
   onShowMissingSuppliers: () => void;
 }) {
   const qualityIssues = missingCategory + missingSupplier + unscheduled;
+  // «Fornitori» porta a Impostazioni → Fornitori, che chiede un altro permesso di «Costi» (16 persone vedono i costi,
+  // 6 i fornitori): il collegamento si mostra solo a chi ci può entrare. «Categorie» no, usa lo stesso permesso dei costi.
+  const permissions = usePermissions();
+  const puoVedereFornitori = Boolean(permissions.isAdmin || permissions.canViewSettingsSuppliers);
   // In EURO, non in righe: prima 100 stipendi contavano quanto 100 fatture.
   const paidPct = summary.totalAmount > 0 ? Math.round((summary.paidAmount / summary.totalAmount) * 100) : 0;
 
@@ -175,11 +179,13 @@ function CostIntegrationPanel({
                 <Settings2 className="h-3.5 w-3.5" /> Categorie
               </Link>
             </Button>
-            <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
-              <Link to="/azienda/impostazioni/fornitori">
-                <Users className="h-3.5 w-3.5" /> Fornitori
-              </Link>
-            </Button>
+            {puoVedereFornitori && (
+              <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
+                <Link to="/azienda/impostazioni/fornitori">
+                  <Users className="h-3.5 w-3.5" /> Fornitori
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       </div>

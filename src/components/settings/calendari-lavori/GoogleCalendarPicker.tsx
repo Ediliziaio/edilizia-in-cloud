@@ -6,6 +6,7 @@
  * dell'account): finché non c'è una connessione scelta non chiede niente.
  */
 import { useState } from "react";
+import { Link, useInRouterContext } from "react-router-dom";
 import { Loader2, Link2Off } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,11 +21,19 @@ export function GoogleCalendarPicker({
   value,
   onChange,
   disabled,
+  senzaAccount = "messaggio",
 }: {
   value: SceltaCalendario;
   onChange: (next: SceltaCalendario) => void;
   disabled?: boolean;
+  /**
+   * Senza nessun account Google collegato: dice dove collegarlo («messaggio», con il link alla scheda «Google Calendar»);
+   * non dice niente perché lo dice già la pagina («nascondi»); o rimanda alla sezione «Account Google» che sta qui sopra,
+   * quando si è già nella scheda giusta («qui-sopra»).
+   */
+  senzaAccount?: "messaggio" | "nascondi" | "qui-sopra";
 }) {
+  const inRouter = useInRouterContext();
   const [connectionId, setConnectionId] = useState<string | null>(value.google_connection_id);
   const { data: connessioni = [], isLoading: caricoConnessioni, isError: erroreConnessioni, refetch: riprovaConnessioni } = useConnessioniGoogleAzienda();
   const { data: calendari = [], isLoading: caricoCalendari, error, refetch: riprovaCalendari } = useCalendariDiConnessione(connectionId);
@@ -36,9 +45,20 @@ export function GoogleCalendarPicker({
   </div>;
 
   if (!caricoConnessioni && attive.length === 0) {
+    if (senzaAccount === "nascondi") return null;
+    if (senzaAccount === "qui-sopra") {
+      return <p className="text-xs text-muted-foreground">Nessun account Google collegato: collegalo nella sezione «Account Google», qui sopra.</p>;
+    }
     return (
       <p className="text-xs text-muted-foreground">
-        Nessun account Google collegato: fallo nel tab <strong>Collegamenti</strong>.
+        Nessun account Google collegato.{" "}
+        {inRouter ? (
+          <Link to="?tab=google" className="font-medium text-primary underline">
+            Collegalo da «Google Calendar»
+          </Link>
+        ) : (
+          <>Collegalo da «Google Calendar».</>
+        )}
       </p>
     );
   }

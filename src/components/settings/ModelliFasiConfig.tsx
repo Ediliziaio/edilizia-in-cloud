@@ -1,9 +1,9 @@
 // src/components/settings/ModelliFasiConfig.tsx
 import { useState } from "react";
-import { Copy, ListChecks, Loader2, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Copy, Loader2, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -26,7 +26,8 @@ const dettaglio = (m: ModelloFasi): string => {
 const testoMancanti = (n: number): string => (n === 1 ? "Ti manca 1 modello di partenza." : `Ti mancano ${n} modelli di partenza.`);
 const AVVISO = "rounded-lg border border-dashed p-4 text-sm text-muted-foreground";
 
-export default function ModelliFasiConfig() {
+/** `evidenziata`: la sezione è quella a cui porta l'indirizzo con l'àncora (`…/modelli-fasi#modelli`). */
+export default function ModelliFasiConfig({ evidenziata = false }: { evidenziata?: boolean }) {
   const { role } = useAuth();
   const permissions = usePermissions();
   const puoModificare = !permissions.isLoading && (role === "company_admin" || role === "super_admin" || !!permissions.canEditSettingsOrders);
@@ -50,21 +51,15 @@ export default function ModelliFasiConfig() {
     );
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-base"><ListChecks className="h-4 w-4" />I modelli di fasi</CardTitle>
-            <CardDescription>
-              Sono i tuoi: quando apri una commessa e premi «Scegli le fasi» trovi questi. Cambiali, duplicali, eliminali, creane di nuovi.
-              Ogni fase può avere sottofasi: spuntandole, la fase avanza da sola. Le commesse già avviate non cambiano.
-            </CardDescription>
-          </div>
-          {puoAgire && (
-            <Button size="sm" onClick={() => setBozza(bozzaVuota())}><Plus className="mr-1 h-4 w-4" />Nuovo modello</Button>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-3">
+    <>
+      <SezioneImpostazione
+        id="modelli"
+        titolo="Modelli di fasi"
+        descrizione="Quando apri una commessa e premi «Scegli le fasi» trovi questi. Ogni fase può avere sottofasi: spuntandole, la fase avanza da sola. Le commesse già avviate non cambiano."
+        azione={puoAgire ? <Button size="sm" onClick={() => setBozza(bozzaVuota())}><Plus className="mr-1 h-4 w-4" />Nuovo modello</Button> : undefined}
+        evidenziata={evidenziata}
+      >
+        <div className="space-y-3 px-4 py-4">
           {isLoading && <p role="status" className={AVVISO}>Caricamento modelli…</p>}
           {(isError || (!isLoading && !disponibile)) && <div role="alert" className={AVVISO}><p>Non riesco a leggere i modelli aziendali. Gli standard sotto sono solo un riferimento.</p><Button size="sm" variant="outline" onClick={() => void refetch()}>Riprova</Button></div>}
           {preparazione && !busy && (
@@ -116,8 +111,8 @@ export default function ModelliFasiConfig() {
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </SezioneImpostazione>
 
       <ModelloFasiEditor
         aperto={bozza !== null}
@@ -142,6 +137,6 @@ export default function ModelliFasiConfig() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }

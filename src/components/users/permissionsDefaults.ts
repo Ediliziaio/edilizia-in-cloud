@@ -243,7 +243,7 @@ export const IMPOSTAZIONI_SECTIONS: PermissionSectionDef[] = [
   { label: "Finanziamenti",          viewKey: "can_view_settings_finanziamenti",  editKey: "can_edit_settings_finanziamenti", description: "Solo finanziarie, tassi e rate" },
   { label: "Listino · Kit e pacchetti", viewKey: "can_view_settings_bundle",         editKey: "can_edit_settings_bundle", description: "Solo kit e pacchetti chiavi in mano" },
   { label: "Branding & Template",    viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization", description: "Branding, tag, campi personalizzati, sequenze, calendari, form builder e AI" },
-  { label: "Configurazione Ordini",  viewKey: "can_view_settings_orders",         editKey: "can_edit_settings_orders", description: "Stati ordine, numerazioni e codici QR" },
+  { label: "Configurazione Ordini",  viewKey: "can_view_settings_orders",         editKey: "can_edit_settings_orders", description: "Stati della commessa, fasi e avanzamento, modelli di pagamento, cartelle documenti, rapportini, squadre e calendari lavori, codici QR" },
   { label: "Fornitori",              viewKey: "can_view_settings_suppliers",      editKey: "can_edit_settings_suppliers", description: "Configurazione fornitori" },
   { label: "Team & Utenti",          viewKey: "can_view_settings_people",         editKey: "can_edit_settings_people", description: "Utenti, ruoli e permessi, venditori, staff e sedi" },
   { label: "Integrazioni & Canali",  viewKey: "can_view_settings_integrations",   editKey: "can_edit_settings_integrations", description: "Integrazioni, API, webhook, WhatsApp bot, firma elettronica, lead form e telefonia" },

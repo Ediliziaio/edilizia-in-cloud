@@ -64,7 +64,7 @@ export function useImpostazioniAvvio() {
       toast.success("Fatto: vale da subito per le commesse nuove");
       void qc.invalidateQueries({ queryKey: chiaveImpostazioniAvvio(companyId) });
     },
-    onError: (e) => toast.error(messaggioModello(e)),
+    onError: (e) => toast.error(messaggioModello(e, "queste impostazioni")),
   });
 
   const dati = query.data ?? diPartenza();

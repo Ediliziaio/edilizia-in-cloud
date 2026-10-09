@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 
 export interface SupplierWithStats {
   id: string;
@@ -117,8 +118,9 @@ export function useOperationalSuppliers() {
       toast.success("Fornitore aggiornato");
       queryClient.invalidateQueries({ queryKey: ["operational-suppliers"] });
     },
-    onError: (e) => toast.error("Errore", {
-      description: e instanceof Error ? e.message : "Errore sconosciuto",
+    // Mai il testo del database in un toast: la modifica rapida dice in italiano cosa è andato storto.
+    onError: (e) => toast.error("Fornitore non aggiornato", {
+      description: userErrorMessage(e, "Non sono riuscito a salvare il fornitore. Riprova tra poco."),
     }),
   });
 
