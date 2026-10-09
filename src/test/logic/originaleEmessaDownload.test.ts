@@ -1,13 +1,13 @@
 import { Blob as NodeBlob } from "node:buffer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { leggiOriginaleEmessa, riferimentoOriginale } from "@/lib/fatturazione/originaleEmessaImportata";
+import { leggiOriginaleEmessa, riferimentoOriginale, scaricaFileOriginale } from "@/lib/fatturazione/originaleEmessaImportata";
 
 const mock = vi.hoisted(() => ({ download: vi.fn(), bucket: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { storage: { from: (bucket: string) => {
   mock.bucket(bucket); return { download: mock.download };
 } } } }));
 beforeEach(() => { vi.stubGlobal("Blob", NodeBlob); mock.download.mockReset(); mock.bucket.mockReset(); });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); });
 
 function der(tag: number, ...figli: Uint8Array[]): Uint8Array {
   const c = new Uint8Array(figli.reduce((n, f) => n + f.length, 0));
@@ -62,5 +62,20 @@ describe("Accesso agli originali XML delle emesse", () => {
     const originale = await leggiOriginaleEmessa("fatture-xml/az-1/f.xml.p7m", "az-1");
     expect(originale.firmato).toBe(true); expect(originale.file).toBe(blob); expect(originale.xml).toBe(xml);
     expect(Array.from(new Uint8Array(await originale.xmlEstratto!.arrayBuffer()))).toEqual(Array.from(payload));
+  });
+});
+
+describe("Download effettivo dal browser", () => {
+  it.each(["fattura.xml", "fattura.xml.p7m"])("attiva un link collegato al DOM per %s, poi pulisce link e Blob", nome => {
+    vi.useFakeTimers();
+    const crea = vi.fn(() => "blob:test"); const revoca = vi.fn();
+    vi.stubGlobal("URL", Object.assign(class extends URL {}, { createObjectURL: crea, revokeObjectURL: revoca }));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      expect(this.isConnected).toBe(true); expect(this.download).toBe(nome); expect(this.href).toBe("blob:test");
+    });
+    const file = new Blob(["originale"]); scaricaFileOriginale(file, nome);
+    expect(crea).toHaveBeenCalledWith(file); expect(click).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('a[href="blob:test"]')).toBeNull(); expect(revoca).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1000); expect(revoca).toHaveBeenCalledWith("blob:test");
   });
 });

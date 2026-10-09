@@ -51,7 +51,12 @@ export function scaricaFileOriginale(file: Blob, nome: string): void {
   const url = URL.createObjectURL(file);
   const a = document.createElement("a");
   a.href = url; a.download = nome.replace(/[\\/]/g, "_");
-  a.click();
-  // Il browser deve prima acquisire il Blob, specialmente su telefono.
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  // Safari/mobile deve poter attivare un link collegato al documento.
+  document.body.appendChild(a);
+  try { a.click(); }
+  finally {
+    a.remove();
+    // Il browser deve prima acquisire il Blob, specialmente su telefono.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 }

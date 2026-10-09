@@ -224,20 +224,21 @@ async function scaricaOriginale(sb: any, r: { tipo_documento: string | null; quo
     // pdf_url è un indirizzo: si scarica da lì.
     if (data?.pdf_url) {
       try {
-        const res = await fetch(data.pdf_url);
-        if (res.ok) {
-          const b = new Uint8Array(await res.arrayBuffer());
-          return { bytes: b.length <= MAX_ORIGINALE ? b : null, titolo };
-        }
-      } catch { /* resta il certificato */ }
+        const res = await fetch(data.pdf_url, { signal: AbortSignal.timeout(15_000) });
+        if (!res.ok) throw new Error("Documento originale non disponibile. Riprova più tardi.");
+        const b = new Uint8Array(await res.arrayBuffer());
+        if (b.length > MAX_ORIGINALE) throw new Error("Documento originale troppo grande.");
+        return { bytes: b, titolo };
+      } catch { throw new Error("Documento originale non scaricabile: la copia firmata non è stata generata. Riprova più tardi."); }
     }
     return { bytes: null, titolo };
   }
   if (!bucket || !path) return { bytes: null, titolo };
   const { data: file, error } = await sb.storage.from(bucket).download(path);
-  if (error || !file) return { bytes: null, titolo };
+  if (error || !file) throw new Error("Documento originale non disponibile: riprova il download della copia firmata più tardi.");
   const bytes = new Uint8Array(await file.arrayBuffer());
-  return { bytes: bytes.length <= MAX_ORIGINALE ? bytes : null, titolo };
+  if (bytes.length > MAX_ORIGINALE) throw new Error("Documento originale troppo grande.");
+  return { bytes, titolo };
 }
 
 const eUnPdf = (b: Uint8Array) => b.length > 5 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46; // %PDF
@@ -264,6 +265,7 @@ export async function assicuraPdfFirmato(sb: any, richiestaId: string): Promise<
   const originale = bytes && eUnPdf(bytes) ? bytes : null;
   const hashDocumento = bytes ? await sha256Hex(bytes) : (r.documento_hash ?? null);
   const impronteDiverse = !!(bytes && r.documento_hash && r.documento_hash !== hashDocumento);
+  if (impronteDiverse) throw new Error("Il documento originale è cambiato rispetto a quello inviato per la firma. La copia firmata non viene generata su un documento diverso.");
   const codiceVerifica = await codiceDiVerifica(r.id, hashDocumento, r.signed_at);
 
   // Il testo delle clausole approvate: gli id sono quelli di clausoleFirma.ts.

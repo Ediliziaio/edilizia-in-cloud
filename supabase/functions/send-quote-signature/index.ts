@@ -2,7 +2,7 @@ import { normalizzaTelefonoE164 } from "../_shared/telefonoE164.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
-import { preventivoModificabile, preventivoVisibile } from "../_shared/preventivoVisibile.ts";
+import { preventivoModificabile, preventivoVisibile, type ClienteDiChiChiama, type ClienteRpcDiChiChiama } from "../_shared/preventivoVisibile.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
@@ -53,13 +53,13 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    if (!(await preventivoVisibile(comeChiChiama, quote.id))) {
+    if (!(await preventivoVisibile(comeChiChiama as unknown as ClienteDiChiChiama, quote.id))) {
       return errorResponse("Preventivo non trovato", 404, corsH);
     }
     // Mandarlo al cliente cambia il preventivo e annulla le firme in corso: serve poterlo
     // MODIFICARE, non solo vederlo (deciso da Florin il 26/09/2026, come per righe e schede
     // tecniche). Risponde la policy di modifica di quotes, coi permessi di chi chiama.
-    if (!(await preventivoModificabile(comeChiChiama, quote.id))) {
+    if (!(await preventivoModificabile(comeChiChiama as unknown as ClienteRpcDiChiChiama, quote.id))) {
       return errorResponse("Per mandare il preventivo al cliente serve il permesso di modificare i preventivi.", 403, corsH);
     }
 
@@ -128,8 +128,8 @@ Deno.serve(async (req) => {
             Authorization: req.headers.get("Authorization") ?? `Bearer ${serviceRoleKey}`,
           },
           body: JSON.stringify({ quote_id }),
+          timeoutMs: 60_000,
         },
-        60_000,
       );
       if (!pdfResp.ok) {
         return errorResponse("Generazione PDF non riuscita", 500);
@@ -236,8 +236,8 @@ Deno.serve(async (req) => {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: req.headers.get("Authorization") ?? `Bearer ${serviceRoleKeyFirma}` },
           body: JSON.stringify({ quote_id }),
+          timeoutMs: 60_000,
         },
-        60_000,
       );
       if (!pdfResp.ok) {
         return errorResponse("Generazione PDF non riuscita: controlla il preventivo e riprova", 500);
@@ -395,7 +395,7 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${serviceRoleKey}`,
         },
-        body: JSON.stringify({ request_id: signatureRequest.id, azienda_nome: companyName }),
+        body: JSON.stringify({ request_id: signatureRequest.id, token: signatureRequest.token, azienda_nome: companyName }),
         timeoutMs: 15_000,
       });
 

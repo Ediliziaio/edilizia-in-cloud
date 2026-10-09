@@ -9,11 +9,12 @@ vi.mock("https://esm.sh/pdf-lib@1.17.1", async () => await import("pdf-lib"));
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PDFDocument } from "pdf-lib";
+import { DbMinimo } from "../helpers/edgeFinto";
 
 // Caricato per percorso in una variabile: il modulo importa pdf-lib da un indirizzo
 // esm.sh che il controllo dei tipi dell'app non sa risolvere, e non deve seguirlo.
 const PERCORSO = "../../../supabase/functions/_shared/pdfFirmato";
-const { codiceDiVerifica, costruisciPdfFirmato, dataItaliana, perPdf } = await import(/* @vite-ignore */ PERCORSO);
+const { codiceDiVerifica, costruisciPdfFirmato, dataItaliana, perPdf, assicuraPdfFirmato } = await import(/* @vite-ignore */ PERCORSO);
 
 const dati = {
   azienda: "Renova Solution S.r.l.",
@@ -98,5 +99,39 @@ describe("PDF firmato", () => {
     expect(fn).toContain("requireCompanyAccess");
     expect(fn).toContain('r.status !== "signed"');
     expect(leggi("src/pages/azienda/firma-elettronica/index.tsx")).toContain('invoke("fea-pdf-firmato"');
+  });
+});
+
+describe("Copia firmata: download reale dei byte e salvataggio simulato", () => {
+  async function ambiente() {
+    const originale = await pdfDiPagine(2);
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(originale)))).map(b => b.toString(16).padStart(2, "0")).join("");
+    const db = new DbMinimo();
+    db.tabelle.signature_requests = [{ id: "r1", company_id: "c1", status: "signed", signed_at: "2026-10-09T10:00:00Z", tipo_documento: "quote", quote_id: "q1", signer_name: "Mario Rossi", signer_email: "mario@example.test", documento_hash: hash }];
+    db.tabelle.quotes = [{ id: "q1", quote_number: "PREV-1", pdf_storage_path: "c1/originale.pdf" }];
+    db.tabelle.companies = [{ id: "c1", name: "Demo" }];
+    const download = vi.fn(async () => ({ data: { arrayBuffer: async () => new Uint8Array(originale).buffer }, error: null as unknown }));
+    const upload = vi.fn(async () => ({ error: null }));
+    const sb = Object.assign(db, { storage: { from: () => ({ download, upload }) } });
+    return { db, sb, download, upload };
+  }
+  it("scarica il PDF congelato, aggiunge il certificato e restituisce lo stesso file al secondo download", async () => {
+    const a = await ambiente();
+    const result = await assicuraPdfFirmato(a.sb, "r1");
+    expect(result.creato).toBe(true);
+    expect(a.download).toHaveBeenCalledWith("c1/originale.pdf");
+    const bytes = (a.upload.mock.calls[0] as unknown as [string, Uint8Array])[1];
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(3);
+    expect((await assicuraPdfFirmato(a.sb, "r1")).creato).toBe(false);
+    expect(a.upload).toHaveBeenCalledTimes(1);
+  });
+  it("un errore di storage non congela per sempre un certificato senza documento", async () => {
+    const a = await ambiente(); a.download.mockResolvedValue({ data: null!, error: { message: "rete non disponibile" } });
+    await expect(assicuraPdfFirmato(a.sb, "r1")).rejects.toThrow("originale non disponibile");
+    expect(a.upload).not.toHaveBeenCalled(); expect(a.db.tabelle.signature_requests[0].signed_pdf_path).toBeUndefined();
+  });
+  it("non timbra un documento cambiato rispetto all'impronta registrata all'invio", async () => {
+    const a = await ambiente(); a.db.tabelle.signature_requests[0].documento_hash = "a".repeat(64);
+    await expect(assicuraPdfFirmato(a.sb, "r1")).rejects.toThrow("cambiato"); expect(a.upload).not.toHaveBeenCalled();
   });
 });

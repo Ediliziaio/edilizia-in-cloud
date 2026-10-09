@@ -4,6 +4,7 @@ import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../_shared/campoD
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { clausoleDellaFirma } from "../_shared/clausoleFirma.ts";
 import { assicuraPdfFirmato } from "../_shared/pdfFirmato.ts";
+import { erroreStatoFirma, variantiTokenFirma } from "../_shared/statoFirma.ts";
 
 // Risolve l'utente "proprietario" del documento a cui inviare la notifica:
 //  - quote → quotes.assigned_to || quotes.created_by
@@ -80,7 +81,8 @@ Deno.serve(async (req: Request) => {
       clausole_approvate,
     } = body;
 
-    if (!token) {
+    const varianti = variantiTokenFirma(token);
+    if (!varianti.length) {
       return errore(400, "token obbligatorio");
     }
 
@@ -100,13 +102,15 @@ Deno.serve(async (req: Request) => {
     // Carica sigReq via token
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, tipo_firmatario, signer_email, signer_name, documento_hash, company_id, sessione_id, order_id, quote_id, fv_progetto_id, tipo_documento, created_by, categoria")
-      .eq("token", token)
-      .single();
+      .select("id, status, expires_at, tipo_firmatario, signer_email, signer_name, documento_hash, company_id, sessione_id, order_id, quote_id, fv_progetto_id, tipo_documento, created_by, categoria")
+      .in("token", varianti).order("created_at", { ascending: false }).limit(1)
+      .maybeSingle();
 
     if (fetchErr || !sigReq) {
       return errore(404, "Richiesta di firma non trovata");
     }
+    const statoNonValido = erroreStatoFirma(sigReq);
+    if (statoNonValido) return errore(statoNonValido.status, statoNonValido.error);
 
     // Check: status deve essere otp_verified
     if (missingCampoDocument(sigReq.tipo_documento, sigReq.categoria)) {
@@ -120,7 +124,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Check B2C: recesso obbligatorio
-    if (sigReq.tipo_firmatario === "b2c" && b2c_recesso_accettato === false) {
+    if (sigReq.tipo_firmatario === "b2c" && b2c_recesso_accettato !== true) {
       return errore(400, "Il diritto di recesso deve essere accettato per procedere");
     }
 
@@ -158,13 +162,17 @@ Deno.serve(async (req: Request) => {
     }
 
     // Aggiorna signature_requests
-    await supabaseAdmin
+    const { data: firmata, error: firmaErr } = await supabaseAdmin
       .from("signature_requests")
       .update(updatePayload)
-      .eq("id", sigReq.id);
+      .eq("id", sigReq.id).eq("status", "otp_verified")
+      .eq("expires_at", sigReq.expires_at).gt("expires_at", ora)
+      .select("id").maybeSingle();
+    if (firmaErr) return errore(500, "Firma non registrata. Riprova tra qualche istante.");
+    if (!firmata) return errore(409, "La richiesta di firma è cambiata. Ricarica il documento prima di procedere.");
 
     if (sigReq.quote_id) {
-      const { error: quoteUpdateErr } = await supabaseAdmin
+      const { data: preventivoAggiornato, error: quoteUpdateErr } = await supabaseAdmin
         .from("quotes")
         .update({
           status: "accettata",
@@ -173,16 +181,18 @@ Deno.serve(async (req: Request) => {
           updated_at: ora,
         })
         .eq("id", sigReq.quote_id)
-        .eq("company_id", sigReq.company_id);
+        .eq("company_id", sigReq.company_id).select("id").maybeSingle();
 
-      if (quoteUpdateErr) {
+      if (quoteUpdateErr || !preventivoAggiornato) {
         console.error("Quote FEA signed sync error:", quoteUpdateErr);
         // Rollback: la firma non può risultare completata se il preventivo
         // collegato non è stato aggiornato. Ripristina lo stato precedente.
         await supabaseAdmin
           .from("signature_requests")
-          .update({ status: sigReq.status, signed_at: null })
-          .eq("id", sigReq.id);
+          .update({ status: sigReq.status, signed_at: null, firma_ip: null, firma_user_agent: null,
+            firma_lat: null, firma_lng: null, b2c_recesso: null, b2c_recesso_ts: null,
+            b2c_clausole: null, clausole_approvate: null, clausole_approvate_ts: null })
+          .eq("id", sigReq.id).eq("status", "signed").eq("signed_at", ora);
         return errore(500, "Errore nell'aggiornamento del preventivo collegato. La firma non è stata registrata: riprova tra qualche istante.");
       }
     }
@@ -272,7 +282,7 @@ Deno.serve(async (req: Request) => {
           minute: "2-digit",
         });
 
-        await sendEmailUnified({
+        const invio = await sendEmailUnified({
           companyId:    sigReq.company_id,
           stream:       "transactional",
           to:           [sigReq.signer_email],
@@ -284,6 +294,7 @@ Deno.serve(async (req: Request) => {
           attachments:  allegato ? [allegato] : undefined,
           metadata:     { request_id: sigReq.id, signer_email: sigReq.signer_email },
         });
+        if (!invio.ok) throw new Error("Invio copia firmata non riuscito");
 
         await supabaseAdmin
           .from("signature_requests")

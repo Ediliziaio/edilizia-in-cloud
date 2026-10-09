@@ -175,6 +175,8 @@ export default function FirmaDocumento() {
   const [verificaOtpInCorso, setVerificaOtpInCorso] = useState(false);
   const [firmaInCorso, setFirmaInCorso] = useState(false);
   const [firmaTimestamp, setFirmaTimestamp] = useState('');
+  const [pdfFirmatoUrl, setPdfFirmatoUrl] = useState<string | null>(null);
+  const [recuperoPdfInCorso, setRecuperoPdfInCorso] = useState(false);
   const [rifiutoDialogAperto, setRifiutoDialogAperto] = useState(false);
   const [rifiutoMotivo, setRifiutoMotivo] = useState('');
   const [rifiutoInCorso, setRifiutoInCorso] = useState(false);
@@ -244,6 +246,7 @@ export default function FirmaDocumento() {
       if (data.error) throw new Error(data.error);
       // Documento già firmato: solo schermata di conferma, niente flusso di firma
       if (data.already_signed || data.status === 'signed') {
+        setPdfFirmatoUrl(data.pdf_firmato_url ?? null);
         setFirmaTimestamp(data.signed_at ?? '');
         setStep('gia_firmato');
         return;
@@ -257,16 +260,39 @@ export default function FirmaDocumento() {
     }
   }
 
+  const recuperaCopiaFirmata = async (silenzioso = false) => {
+    setRecuperoPdfInCorso(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fea-documento-pubblico', { body: { token } });
+      if (error) throw new Error(await messaggioErroreEdge(error, 'Copia firmata non disponibile'));
+      if (!data?.already_signed) throw new Error('La firma non risulta ancora registrata. Ricarica il documento.');
+      setPdfFirmatoUrl(data.pdf_firmato_url ?? null);
+      if (!data.pdf_firmato_url && !silenzioso) toast.error('La copia firmata è in preparazione. Riprova tra qualche istante; se non arriva, contatta l’azienda.');
+    } catch (err) {
+      if (!silenzioso) toast.error(err instanceof Error ? err.message : 'Copia firmata non disponibile');
+    } finally { setRecuperoPdfInCorso(false); }
+  };
+
+  const copiaFirmata = <div className="space-y-2">
+    {pdfFirmatoUrl ? <a href={pdfFirmatoUrl} target="_blank" rel="noopener noreferrer">
+      <Button variant="outline" className="gap-2 h-11"><FileText className="h-4 w-4" />Scarica copia firmata</Button>
+    </a> : <Button variant="outline" disabled={recuperoPdfInCorso} onClick={() => void recuperaCopiaFirmata()}>
+      {recuperoPdfInCorso ? 'Recupero copia…' : 'Recupera copia firmata'}
+    </Button>}
+  </div>;
+
   const inviaOtp = async () => {
     setInvioOtpInCorso(true);
     setOtpError('');
     try {
       const { data, error } = await supabase.functions.invoke('fea-genera-otp', {
-        body: { request_id: sessione!.request_id, azienda_nome: sessione!.azienda_nome },
+        body: { request_id: sessione!.request_id, token, azienda_nome: sessione!.azienda_nome },
       });
       if (error) throw new Error(await messaggioErroreEdge(error, 'Errore invio OTP'));
       if (data?.error) throw new Error(data.error);
+      if (data?.success !== true) throw new Error('Invio del codice non confermato. Riprova.');
       setOtpTimer(600);
+      setOtpTentativi(0);
       setOtpDigits(['', '', '', '', '', '']);
       setStep('otp');
       setTimeout(() => inputRefs.current[0]?.focus(), 100);
@@ -331,6 +357,7 @@ export default function FirmaDocumento() {
       });
       if (error) throw new Error(await messaggioErroreEdge(error, 'Codice non corretto'));
       if (data?.error) throw new Error(data.error);
+      if (data?.success !== true) throw new Error('Verifica del codice non confermata. Riprova.');
       // OTP verificato — passa allo step successivo.
       // B2C: mostra SEMPRE lo step recesso (il consenso è obbligatorio lato server).
       // Se l'azienda non ha configurato il testo, lo step usa il fallback di legge.
@@ -368,8 +395,10 @@ export default function FirmaDocumento() {
       });
       if (error) throw new Error(await messaggioErroreEdge(error, 'Errore nella firma'));
       if (data?.error) throw new Error(data.error);
+      if (data?.success !== true) throw new Error('Registrazione della firma non confermata. Riprova.');
       setFirmaTimestamp(data.firma_timestamp ?? new Date().toISOString());
       setStep('successo');
+      void recuperaCopiaFirmata(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Errore nella firma');
     } finally {
@@ -388,6 +417,7 @@ export default function FirmaDocumento() {
       });
       if (error) throw new Error(await messaggioErroreEdge(error, 'Errore nel rifiuto del documento'));
       if (data?.error) throw new Error(data.error);
+      if (data?.success !== true) throw new Error('Registrazione del rifiuto non confermata. Riprova.');
       setRifiutoDialogAperto(false);
       setStep('rifiutato');
     } catch (err) {
@@ -789,6 +819,7 @@ export default function FirmaDocumento() {
           <CheckCircle2 className="h-10 w-10 text-green-600" />
         </div>
         <h2 className="text-2xl font-bold text-slate-800">Documento già firmato</h2>
+        {copiaFirmata}
         <p className="text-slate-600 text-sm">
           {firmaTimestamp
             ? `Documento già firmato il ${format(new Date(firmaTimestamp), "dd/MM/yyyy 'alle' HH:mm", { locale: it })}.`
@@ -808,6 +839,7 @@ export default function FirmaDocumento() {
           <CheckCircle2 className="h-10 w-10 text-green-600" />
         </div>
         <h2 className="text-2xl font-bold text-slate-800">Documento firmato!</h2>
+        {copiaFirmata}
         {firmaTimestamp && (
           <p className="text-slate-600 text-sm">
             Firmato il {format(new Date(firmaTimestamp), "dd/MM/yyyy 'alle' HH:mm", { locale: it })}
@@ -821,7 +853,7 @@ export default function FirmaDocumento() {
           <a href={sessione.pdf_url} onClick={(e) => apriDocumento(e, sessione.pdf_url)} target="_blank" rel="noopener noreferrer">
             <Button variant="outline" className="gap-2 h-11">
               <FileText className="h-4 w-4" />
-              Scarica il documento
+              Apri documento originale
             </Button>
           </a>
         )}

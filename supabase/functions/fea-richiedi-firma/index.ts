@@ -280,7 +280,7 @@ Deno.serve(async (req: Request) => {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${serviceRoleKey}`,
         },
-        body: JSON.stringify({ request_id, azienda_nome }),
+        body: JSON.stringify({ request_id, token: inserted.token, azienda_nome }),
         timeoutMs: 15_000,
       });
 

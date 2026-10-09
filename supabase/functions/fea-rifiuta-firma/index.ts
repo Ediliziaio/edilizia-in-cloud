@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { erroreStatoFirma, variantiTokenFirma } from "../_shared/statoFirma.ts";
 
 // Risolve l'utente "proprietario" del documento a cui inviare la notifica:
 //  - quote → quotes.assigned_to || quotes.created_by
@@ -56,7 +57,8 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const { token, motivo } = body;
 
-    if (!token) {
+    const varianti = variantiTokenFirma(token);
+    if (!varianti.length) {
       return errore(400, "token obbligatorio");
     }
 
@@ -76,9 +78,9 @@ Deno.serve(async (req: Request) => {
     // Carica signature_request via token
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, company_id, quote_id, order_id, tipo_documento, signer_name, created_by")
-      .eq("token", token)
-      .single();
+      .select("id, status, expires_at, company_id, quote_id, order_id, tipo_documento, signer_name, created_by")
+      .in("token", varianti).order("created_at", { ascending: false }).limit(1)
+      .maybeSingle();
 
     if (fetchErr || !sigReq) {
       return errore(404, "Link di firma non trovato");
@@ -96,6 +98,8 @@ Deno.serve(async (req: Request) => {
         { status: 200, headers: { ...corsH, "Content-Type": "application/json" } }
       );
     }
+    const statoNonValido = erroreStatoFirma(sigReq);
+    if (statoNonValido) return errore(statoNonValido.status, statoNonValido.error);
 
     // Link non più utilizzabile (scaduto o annullato)
     if (sigReq.status === "expired" || sigReq.status === "cancelled") {
@@ -108,7 +112,7 @@ Deno.serve(async (req: Request) => {
       : null;
 
     // Aggiorna signature_requests → refused
-    const { error: updateErr } = await supabaseAdmin
+    const { data: rifiutata, error: updateErr } = await supabaseAdmin
       .from("signature_requests")
       .update({
         status: "refused",
@@ -116,12 +120,15 @@ Deno.serve(async (req: Request) => {
         rifiuto_motivo: motivoPulito,
         updated_at: ora,
       })
-      .eq("id", sigReq.id);
+      .eq("id", sigReq.id).eq("status", sigReq.status)
+      .eq("expires_at", sigReq.expires_at).gt("expires_at", ora)
+      .select("id").maybeSingle();
 
     if (updateErr) {
       console.error("fea-rifiuta-firma update error:", updateErr);
       return errore(500, "Errore nella registrazione del rifiuto. Riprova tra qualche istante.");
     }
+    if (!rifiutata) return errore(409, "La richiesta è già stata gestita o è cambiata. Ricarica il documento.");
 
     // Audit log firma_rifiutata (non bloccante, ma l'errore va loggato)
     const { error: auditErr } = await supabaseAdmin.from("fea_audit_log").insert({

@@ -50,7 +50,7 @@ Deno.serve(async (req: Request) => {
     const variantiToken = Array.from(new Set([tokenPulito, tokenPulito.replace(/-/g, "")]));
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, company_id, signed_at, categoria, signer_phone, otp_canale")
+      .select("id, status, tipo_documento, tipo_firmatario, signer_name, signer_email, expires_at, otp_scadenza, sessione_id, order_id, quote_id, fv_progetto_id, company_id, signed_at, categoria, signer_phone, otp_canale, signed_pdf_path")
       .in("token", variantiToken)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -87,12 +87,19 @@ Deno.serve(async (req: Request) => {
 
     // Già firmato: non esporre l'intero flusso, solo i dati per la conferma
     if (sigReq.status === "signed") {
+      let pdfFirmatoUrl: string | null = null;
+      if (sigReq.signed_pdf_path?.startsWith(`${sigReq.company_id}/`)) {
+        const { data: file } = await supabaseAdmin.storage.from("quote-pdfs")
+          .createSignedUrl(sigReq.signed_pdf_path, 3600, { download: "documento-firmato.pdf" });
+        pdfFirmatoUrl = file?.signedUrl ?? null;
+      }
       return new Response(
         JSON.stringify({
           already_signed: true,
           signed_at: sigReq.signed_at ?? null,
           tipo_documento: sigReq.tipo_documento ?? "order",
           signer_name: sigReq.signer_name,
+          pdf_firmato_url: pdfFirmatoUrl,
         }),
         { status: 200, headers: { ...corsH, "Content-Type": "application/json" } }
       );
