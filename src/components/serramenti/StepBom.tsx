@@ -1331,23 +1331,24 @@ export function SerramentoRow({
   }, [richiestaBulkPosa]);
 
   // Il ricalcolo chiesto mentre griglia o varianti erano in arrivo si rifà
-  // appena arrivano, con misure e scelte di quel momento. Prima il prezzo
-  // restava quello vecchio accanto alle misure o al colore nuovi.
+  // appena arrivano, usando la riga attuale: la richiesta precedente non deve
+  // ripristinare quantità, misure o scelte ormai modificate dal commerciale.
   useEffect(() => {
     const attesa = ricalcoloInSospeso.current;
     if (!attesa || datiInArrivo) return;
     ricalcoloInSospeso.current = null;
-    const nuovo = ricalcolaPrezzoUnitario(attesa.L, attesa.H, attesa.Q, attesa.selections, attesa.posaEsclusa);
+    const nuovo = ricalcolaPrezzoUnitario(
+      s.larghezza_mm ?? null,
+      s.altezza_mm ?? null,
+      s.quantita ?? 1,
+      (s.valori_assi ?? {}) as Record<string, string>,
+      s.posa_esclusa ?? false,
+    );
     if (nuovo == null || !Number.isFinite(nuovo)) return;
     onPatch({
-      larghezza_mm: attesa.L,
-      altezza_mm: attesa.H,
-      quantita: attesa.Q,
-      valori_assi: attesa.selections,
-      posa_esclusa: attesa.posaEsclusa,
       prezzo_unitario: Number(nuovo.toFixed(2)),
     });
-    // Scatta solo quando i dati arrivano: il ricalcolo usa la richiesta salvata.
+    // Scatta solo quando i dati arrivano; aggiorna esclusivamente il prezzo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datiInArrivo]);
 
