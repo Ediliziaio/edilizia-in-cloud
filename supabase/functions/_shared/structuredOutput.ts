@@ -151,9 +151,8 @@ L'utente NON deve MAI vedere nessuno di questi elementi nella tua risposta:
 1. ❌ Nomi di tool/funzioni: \`calculate_revenue_needed_next_month\`, \`get_overdue_payments\`,
    \`get_revenue_forecast\`, \`get_cashflow_status\`, \`search_brain\`, \`propose_action\`,
    o qualsiasi altro identificatore snake_case/camelCase di tipo programmatico.
-2. ❌ Frasi di "narrazione interna" tipo: "Ho i dati dai tool", "Analizzo:", "Vedo che",
-   "I tool ritornano", "Dai dati che ho", "Procedo a calcolare", "Esamino i risultati",
-   "Faccio un'analisi", "tool 1 ritorna...", "tool X ha errore".
+2. ❌ Frasi di "narrazione interna" tipo: "Ho i dati dai tool", "Analizzo i risultati dei tool",
+   "I tool ritornano", "Procedo a chiamare il tool", "tool 1 ritorna...", "tool X ha errore".
 3. ❌ Riferimenti a "persona", "CFO", "Cliente Tutor", "consulenti", "agenti",
    "Council", "orchestrator", "RPC", "edge function", "OpenRouter", o qualsiasi
    meta-discussione sull'architettura AI.
@@ -165,10 +164,10 @@ L'utente NON deve MAI vedere nessuno di questi elementi nella tua risposta:
 
 L'utente è un imprenditore edile italiano. La risposta deve sembrare scritta dal
 suo consulente più esperto, non da un programma. Quindi:
-- Inizia con un titolo H2/H3 chiaro in italiano
+- Inizia con la risposta concreta. Titoli H2/H3 solo per rapporti lunghi o quando richiesti
 - Numeri in formato italiano: € 1.234,56, dd/mm/yyyy
 - Bold per i valori chiave (€ totali, scadenze, percentuali)
-- Sezioni separate da divider (---) o titoli H3 quando la risposta è strutturata
+- Sezioni solo quando aiutano a leggere un rapporto; niente divider o sezioni obbligatorie nelle risposte brevi
 - Tabelle markdown quando ci sono ≥ 3 righe di dati da confrontare
 - Bullet point o numerazione per liste di azioni
 - Ogni numero deve avere contesto (cosa rappresenta, da dove viene)
@@ -187,26 +186,26 @@ DOMANDA: "Quanto dovrei fatturare il mese prossimo per pagare i costi fissi?"
 3. get_cashflow_status ha errore, ma non serve."
 
 ✅ GOOD (FAI COSÌ — risposta finale pulita per imprenditore):
-"## Quanto Fatturare a Giugno 2026 — Risposta Diretta
+"Il fabbisogno di cassa da coprire è **€ 20.495**. Risultano **€ 22.238 di
+crediti scaduti**: sono da recuperare, non liquidità già disponibile.
 
-**Il gap di cassa da coprire è € 20.495** per pagare stipendi (€ 43.500),
-costi fissi scaduti (€ 4.140) e IMU (€ 850).
+Gli ulteriori € 5.757 attesi vanno verificati per data di incasso e per evitare
+di contare due volte le stesse rate. Se i crediti scaduti vengono incassati in
+tempo e non sono già inclusi nel calcolo del fabbisogno, possono coprire il gap.
 
-### Incassi Già Disponibili
-- Rate scadute da recuperare: **€ 22.238** (6 clienti in ritardo)
-- Incassi previsti giugno: **€ 5.757** (saldo Costruzioni Rossi)
-- **Totale: € 27.995**
+Un obiettivo di nuovo fatturato non è ancora verificabile: servono margini,
+acconti e tempi di pagamento. Verifica prima le date di recupero dei crediti."
 
-**Buona notizia**: Se recuperi i crediti scaduti, copri il gap senza
-fatturare nuovo. ..."
+Questi importi sono solo esempi didattici: non copiarli nelle risposte reali.
 
 La differenza: il BAD descrive il PROCESSO di analisi, il GOOD presenta il
 RISULTATO come un report di consulenza.
 
 # REGOLE BUSINESS (sempre dentro "answer")
 
-- Per decisioni operative/economiche, separa: risposta breve, dati certi, ipotesi,
-  scenari, azioni consigliate. Non dare mai un solo numero senza contesto.
+- Per decisioni operative/economiche, rendi distinguibili dati certi, ipotesi
+  e azioni consigliate senza imporre una sezione per ciascuno nelle risposte
+  brevi. Non dare mai un solo numero senza contesto.
 - Per finanza/cassa, distingui sempre fatturato, incasso, margine e cassa libera
   dopo costi variabili.
 - Per domande su "quanto vendere/fatturare/incassare", non usare fatturato come
@@ -274,13 +273,22 @@ export function parseStructuredResponse(raw: string): StructuredAiResponse | nul
 const INTERNAL_NARRATION_OPENERS: RegExp[] = [
   /^\s*ho\s+i\s+dati\s+(?:dai\s+)?tool/i,
   /^\s*analizzo[:\s]/i,
+  /^\s*(?:vedo|noto|osservo)\s+che\s+(?:i|gli)\s+tool/i,
+  /^\s*procedo\s+(?:a|con)\s+(?:chiamare|invocare|eseguire)\s+(?:i|gli|il|un)\s+tool/i,
+  /^\s*esamino\s+(?:i\s+)?(?:risultati|dati)\s+(?:dei|degli)\s+tool/i,
+  /^\s*(?:i|gli)?\s*tool\s+ritornano?/i,
+  /^\s*okay[,.]?\s+ho\s+capito/i,
+];
+
+// Private-field recovery remains conservative even when a readable public
+// answer is allowed to start with ordinary words such as "Vedo che".
+const PRIVATE_NARRATION_OPENERS = [
+  ...INTERNAL_NARRATION_OPENERS,
   /^\s*(?:vedo|noto|osservo)\s+che/i,
   /^\s*procedo\s+(?:a|con)/i,
   /^\s*esamino\s+(?:i\s+)?(?:risultati|dati)/i,
-  /^\s*(?:i|gli)?\s*tool\s+ritornano?/i,
   /^\s*dai\s+dati\s+che\s+ho/i,
   /^\s*faccio\s+un[''\s]?analisi/i,
-  /^\s*okay[,.]?\s+ho\s+capito/i,
 ];
 
 /**
@@ -293,7 +301,7 @@ function looksLikeInternalNarration(text: string): boolean {
   if (!text) return false;
   // Prima riga (il modello tende a dichiarare l'inizio della narrazione qui)
   const firstLine = text.split(/\r?\n/, 1)[0]?.slice(0, 200) ?? "";
-  if (INTERNAL_NARRATION_OPENERS.some((re) => re.test(firstLine))) return true;
+  if (PRIVATE_NARRATION_OPENERS.some((re) => re.test(firstLine))) return true;
 
   // Tool names visibili (es. `calculate_revenue_needed_next_month ritorna:`)
   // Pattern: snake_case identifier followed by "ritorna" / "returns" / "ha errore"
@@ -327,7 +335,7 @@ export function sanitizeAnswer(rawAnswer: string): { cleaned: string; wasModifie
   for (const re of INTERNAL_NARRATION_OPENERS) {
     if (re.test(cleaned.split(/\r?\n/, 1)[0] ?? "")) {
       // Strip first line (e ogni riga successiva vuota)
-      cleaned = cleaned.replace(/^[^\n]*\n+/, "").trim();
+      cleaned = cleaned.replace(/^[^\n]*(?:\n+|$)/, "").trim();
       wasModified = true;
       break;
     }
@@ -351,10 +359,10 @@ export function sanitizeAnswer(rawAnswer: string): { cleaned: string; wasModifie
   // Non li rimuoviamo (rischio di rompere il flow), ma flagghiamo via warning
   // per logging. La pulizia 1-3 dovrebbe già aver coperto i casi grossi.
 
-  // Step 5: se dopo tutti gli strip l'output è troppo corto (< 30 char) →
-  // l'answer era TUTTA chain-of-thought. Non possiamo mostrare niente di utile.
+  // A short public fact is still useful. Only an entirely removed internal
+  // reply needs a fallback; length alone cannot classify private reasoning.
   cleaned = cleaned.replace(/\n{3,}/g, "\n\n").trim();
-  const isFullyChainOfThought = cleaned.length < 30 && rawAnswer.length > 100;
+  const isFullyChainOfThought = wasModified && cleaned.length === 0;
 
   return { cleaned, wasModified, isFullyChainOfThought };
 }

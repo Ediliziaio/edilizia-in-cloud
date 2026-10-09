@@ -36,6 +36,8 @@ import { AiRequestGuardError, isProviderCreditError } from "../_shared/aiRequest
 import { createLatestStreamWriter } from "../_shared/latestStreamWriter.ts";
 import { publicAiAnswer, visibleAiAnswer } from "../_shared/visibleAiAnswer.ts";
 import { SILVIO_REPLY_STYLE } from "../_shared/silvioReplyStyle.ts";
+import { silvioHistoryMessages, silvioToolResultForPrompt, silvioToolContextIsPartial, silvioCompletionNotice, silvioAnswerWasInterrupted } from "../_shared/silvioAnswerQuality.ts";
+import { silvioConversationContext, isSilvioReadFollowUp } from "../_shared/silvioConversationContext.ts";
 import { SITE_HEALTH_TOOL, isSiteHealthQuestion, siteHealthPreflight, siteHealthDirectAnswer } from "../_shared/silvioSiteHealth.ts";
 import {
   domainsForClassification,
@@ -612,14 +614,9 @@ serve(async (req: Request) => {
     const primaryRole = ruoloPrincipaleSilvio(roleList);
 
     // ── 4.bis) Tutto cio' che serve al prompt parte ADESSO, insieme ─────
-    // Profilo, memoria, RAG (un embedding + due RPC), storico, classificazione
-    // (spesso una chiamata al modello) e permessi staff non dipendono l'uno
-    // dall'altro, ma si aspettavano uno alla volta: misurato sugli ultimi 90
-    // giorni, un turno durava 22 secondi in mediana mentre il modello ne
-    // prendeva 2. I builder di supabase-js partono solo quando qualcuno li
-    // aspetta: Promise.resolve li fa partire qui. Ogni blocco piu' sotto
-    // aspetta il SUO risultato esattamente dove prima faceva la chiamata,
-    // cosi' la logica che segue non cambia.
+    // Profile, memory, history and permissions start together. Retrieval and
+    // classification remain parallel for standalone questions; follow-ups use
+    // the existing history read first so subject/period are not lost.
     const profilePromise = Promise.resolve(
       supabaseAdmin.from("profiles").select("first_name, last_name, email").eq("id", userId).maybeSingle(),
     );
@@ -633,24 +630,34 @@ serve(async (req: Request) => {
     const personaMemoryPromise = Promise.resolve(supabaseAdmin.rpc("silvio_recall_persona_memory", {
       p_company_id: companyId, p_user_id: userId, p_persona_key: PERSONA_KEY, p_limit: 5,
     }));
-    const ragPromise = buildPreRagContext({
+    const historyPromise = Promise.resolve(
+      supabaseAdmin
+        .from("internal_chat_messages")
+        .select("id, sender_id, content, created_at, streaming")
+        .eq("channel_id", channelId)
+        .order("created_at", { ascending: false })
+        .limit(MAX_HISTORY),
+    );
+    // Only follow-ups wait for the already-started history read. Standalone
+    // queries retain parallel retrieval; no extra rewrite/model call is added.
+    const conversationPromise = isSilvioReadFollowUp(userMessage) && attachments.length === 0
+      ? historyPromise.then(({ data }) => silvioConversationContext(userMessage, (data ?? []).slice().reverse(), {
+        userId, currentMessageId: requestMessageId,
+      })).catch((error: unknown) => {
+        console.warn("[silvio-chat] follow-up context unavailable:", error instanceof Error ? error.message : error);
+        return silvioConversationContext(userMessage, [], { userId });
+      })
+      : Promise.resolve(silvioConversationContext(userMessage, [], { userId }));
+    const ragPromise = conversationPromise.then(conversation => buildPreRagContext({
       supabase: supabaseAdmin,
       userId,
-      query: userMessage,
+      query: conversation.query,
       companyId,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       kbAreasFilter: (persona as any).kb_areas_filter ?? null,
       topKUniversal: 3,
       topKCompany: 3,
-    });
-    const historyPromise = Promise.resolve(
-      supabaseAdmin
-        .from("internal_chat_messages")
-        .select("sender_id, content, created_at")
-        .eq("channel_id", channelId)
-        .order("created_at", { ascending: false })
-        .limit(MAX_HISTORY),
-    );
+    }));
     // Classificazione (MP-09 + token-opt), una sola per due scopi: filtro tool
     // per dominio e auto-delegate al Council. Kill-switch:
     // SILVIO_TOOL_DOMAIN_FILTER_DISABLED=true → catalogo completo.
@@ -663,17 +670,17 @@ serve(async (req: Request) => {
       // classificazione, quindi nessun filtro per dominio e catalogo tool
       // COMPLETO proprio sulle domande piu frequenti. A 12 restano fuori solo
       // "ciao", "grazie", "ok" — dove il filtro non serve davvero.
-      userMessage.length >= 12 &&
+      (userMessage.length >= 12 || isSilvioReadFollowUp(userMessage)) &&
       attachments.length === 0     // skip multi-modal (immagini/pdf): troppo costoso classificare
-        ? classifyQuery({
+        ? conversationPromise.then(conversation => userMessage.length < 12 && !conversation.contextual ? null : classifyQuery({
           supabase: supabaseAdmin,
-          query: userMessage,
+          query: conversation.query,
           currentPersona: PERSONA_KEY,
           companyId,
           userId,
           turnControl,
           requestKey: requestMessageId ? `silvio_classifier:${requestMessageId}` : undefined,
-        }).catch((e: unknown) => {
+        })).catch((e: unknown) => {
           // classifyQuery ha già il suo fallback interno; questo è solo belt-and-suspenders.
           console.warn("[silvio-chat] classifyQuery failed (no tool filter):", e instanceof Error ? e.message : e);
           return null;
@@ -737,8 +744,10 @@ serve(async (req: Request) => {
       }
     }
 
+    const conversation = await conversationPromise;
     const userContextPrompt = [
       "",
+      ...(conversation.hint ? [conversation.hint, ""] : []),
       "# CONTESTO TEMPORALE",
       `- Oggi è ${_todayIt} (${_months[_now.getMonth()]} ${_now.getFullYear()}).`,
       `- "Mese corrente" = ${_months[_now.getMonth()]} ${_now.getFullYear()} (year=${_now.getFullYear()}, month=${_now.getMonth() + 1}).`,
@@ -924,13 +933,12 @@ serve(async (req: Request) => {
     // Partita in 4.bis insieme alle altre letture.
     const { data: historyRaw } = await historyPromise;
 
-    // Le bolle di errore di Silvio («⚠️ problema tecnico…», «💳 credito
-    // finito») non sono risposte: rimesse nello storico come "assistant"
-    // insegnano al modello a scusarsi di guasti che con la domanda non
-    // c'entrano. Restano in chat, escono solo dal contesto del modello.
-    const history: Array<{ sender_id: string; content: string }> = ((historyRaw ?? []) as Array<{ sender_id: string; content: string }>)
-      .filter((m) => !(m.sender_id === SILVIO_SENDER_ID && typeof m.content === "string" && /^\s*(⚠️|💳|⛔)/u.test(m.content)))
-      .reverse();
+    const history = silvioHistoryMessages((historyRaw ?? []).slice().reverse(), {
+      assistantSenderId: SILVIO_SENDER_ID,
+      currentSenderId: userId,
+      currentContent: userMessage,
+      currentMessageId: requestMessageId,
+    });
 
     // ── 6.5) Classificazione query (MP-09 + token-opt) ──────────────────
     // Una sola classifyQuery riusata per DUE scopi:
@@ -1046,25 +1054,7 @@ serve(async (req: Request) => {
     const messages: any[] = [
       { role: "system", content: staticSystemPrompt },
       ...(dynamicSystemPrompt ? [{ role: "system", content: dynamicSystemPrompt }] : []),
-      ...history.map((m) => {
-        const eSilvio = m.sender_id === SILVIO_SENDER_ID;
-        // Token guard: messaggi history molto lunghi (doc incollati, risposte
-        // chilometriche) troncati SOLO nel contesto LLM (non nel DB). Il messaggio
-        // corrente dell'utente è inviato integralmente più sotto.
-        // Le risposte PASSATE di Silvio si tagliano a 1500 caratteri: sono
-        // rapporti in markdown da 2-3.000 caratteri l'uno, e al modello basta
-        // ricordare COSA ha detto, non rileggere ogni tabella. Con 12 messaggi
-        // di storico erano 5-8.000 token a chiamata, pagati a ogni giro del
-        // loop. I messaggi dell'utente restano a 4.000: sono la domanda.
-        const tetto = eSilvio ? 1500 : 4000;
-        return {
-          role: eSilvio ? "assistant" : "user",
-          content:
-            typeof m.content === "string" && m.content.length > tetto
-              ? `${m.content.slice(0, tetto)} …[troncato]`
-              : m.content,
-        };
-      }),
+      ...history,
     ];
 
     // Sprint AI Upload: se ci sono allegati di qualunque tipo (image/pdf/text/office),
@@ -1072,6 +1062,7 @@ serve(async (req: Request) => {
     // trascritti client-side via /silvio-transcribe-audio prima di inviare il
     // messaggio, quindi qui arrivano sempre come testo normale.
     let userContent: unknown = userMessage || "(allegati senza testo)";
+    let documentContextPartial = false;
     const visualAttachments = attachments.filter(
       (a) => a.kind === "image" || a.kind === "pdf" || a.kind === "text-doc" || a.kind === "office-doc",
     );
@@ -1098,15 +1089,21 @@ serve(async (req: Request) => {
         "e crealo solo dopo conferma dell'utente; per il computo puoi anche usare analyze_computo_metrico " +
         "per verificarne la congruenza prezzi. Prima di confermare, di' SEMPRE quante voci hai letto. " +
         "Per computi GRANDI o complessi (Primus/STR/XPWE, centinaia di voci) consiglia lo strumento " +
-        "dedicato con estrazione 100% fedele + revisione: 'Preventivi → Carica computo' " +
+        "dedicato con controlli di completezza e revisione: 'Preventivi → Carica computo' " +
         "(percorso /azienda/marketing/preventivi?action=import-computo).]";
       for (const att of visualAttachments) {
+        if (docCharBudget <= 0 && att.kind !== "image") {
+          documentContextPartial = true;
+          parts.push({ type: "text", text: `[ALLEGATO "${att.file_name}" NON LETTO: budget documenti esaurito. Non dichiarare completa l'analisi né importare tutti gli allegati.]` });
+          continue;
+        }
         if (att.kind === "image") {
           // Per immagini: signed URL passata direttamente al modello vision
           const { data: signed, error: sErr } = await supabaseAdmin.storage
             .from("silvio-uploads")
             .createSignedUrl(att.storage_path, 300);
           if (sErr || !signed?.signedUrl) {
+            documentContextPartial = true;
             console.warn("[silvio-chat] signedUrl fallita per", attachmentLogLabel(att.storage_path), sErr?.message ?? sErr);
             continue;
           }
@@ -1122,7 +1119,7 @@ serve(async (req: Request) => {
             const { data: pdfRes, error: pdfErr } = await supabaseAdmin.functions.invoke(
               "silvio-extract-pdf",
               {
-                body: { storage_path: att.storage_path, max_chars: Math.min(80_000, Math.max(4_000, docCharBudget)) },
+                body: { storage_path: att.storage_path, max_chars: Math.min(80_000, docCharBudget) },
                 headers: {
                   Authorization: req.headers.get("Authorization") ?? "",
                 },
@@ -1135,6 +1132,7 @@ serve(async (req: Request) => {
               vision_fallback?: boolean;
               vision_error?: string;
               vision_model?: string;
+              coverage?: { complete?: boolean; pages_total?: number; pages_inspected?: number; pages_unreadable?: number[] };
             } | null) ?? null;
             // FIX 5 (C6): error message chiaro su PDF estrazione fallita.
             // Distinzione casi:
@@ -1144,12 +1142,14 @@ serve(async (req: Request) => {
             //   4. text presente con vision_fallback=true → OK (OCR ha lavorato)
             //   5. text presente nativo → OK (estrazione standard)
             if (pdfErr) {
+              documentContextPartial = true;
               console.warn("[silvio-chat] PDF extract RPC error:", pdfErr.message);
               parts.push({
                 type: "text",
                 text: `[ALLEGATO PDF "${att.file_name}" — IMPOSSIBILE LEGGERE]\nErrore tecnico: ${pdfErr.message.substring(0, 150)}.\nIstruzioni per Silvio: NON inventare contenuti del PDF. Chiedi all'utente di:\n1) verificare che il PDF sia accessibile (non protetto da password)\n2) se possibile, copiare/incollare il testo nel messaggio\n3) oppure scattare una foto chiara del documento.`,
               });
             } else if (!extracted?.text || extracted.text.length < 10) {
+              documentContextPartial = true;
               const visionErr = extracted?.vision_error;
               const errorReason = visionErr
                 ? `OCR vision fallito: ${visionErr}`
@@ -1159,6 +1159,8 @@ serve(async (req: Request) => {
                 text: `[ALLEGATO PDF "${att.file_name}" — CONTENUTO NON ESTRAIBILE]\n${errorReason}.\nIstruzioni per Silvio: NON inventare cosa contiene il PDF. Rispondi all'utente:\n"Mi dispiace, non riesco a leggere il PDF '${att.file_name}'. Possibili cause: PDF protetto da password, scansione di bassa qualità, o documento con solo immagini complesse. Soluzioni: copia/incolla il testo, scatta una foto chiara, oppure mandami un'export digitale (es. PDF generato da Word/Excel)."`,
               });
             } else {
+              const partial = extracted.truncated === true || extracted.coverage?.complete === false;
+              documentContextPartial ||= partial;
               docCharBudget -= extracted.text.length;
               const truncatedNote = extracted.truncated ? " (testo troncato)" : "";
               const sourceLabel = extracted.vision_fallback
@@ -1166,10 +1168,13 @@ serve(async (req: Request) => {
                 : `estrazione testo nativo`;
               parts.push({
                 type: "text",
-                text: `[CONTENUTO PDF "${att.file_name}" — ${extracted.pages_count ?? "?"} pagine · fonte: ${sourceLabel}${truncatedNote}]\n\n${extracted.text}\n\n[FINE PDF]${DOC_IMPORT_HINT}`,
+                text: `[CONTENUTO PDF "${att.file_name}" — ${extracted.pages_count ?? "?"} pagine · fonte: ${sourceLabel}${truncatedNote}]\n` +
+                  (partial ? `[LETTURA PARZIALE: pagine non verificate ${JSON.stringify(extracted.coverage?.pages_unreadable ?? [])}. Non importare un computo completo o certificare totali da questo testo.]\n` : "") +
+                  `\n${extracted.text}\n\n[FINE PDF]${DOC_IMPORT_HINT}`,
               });
             }
           } catch (pdfCatch) {
+            documentContextPartial = true;
             const msg = pdfCatch instanceof Error ? pdfCatch.message : String(pdfCatch);
             console.warn("[silvio-chat] PDF extract exception:", msg);
             parts.push({
@@ -1180,12 +1185,13 @@ serve(async (req: Request) => {
         } else if (att.kind === "text-doc") {
           // .txt / .csv / .md / .json / .log / .xml — leggi come testo
           try {
-            const capTxt = Math.min(180_000, Math.max(2_000, docCharBudget));
+            const capTxt = Math.min(180_000, docCharBudget);
             const docText = await downloadAsText(supabaseAdmin, att.storage_path, capTxt);
+            documentContextPartial ||= docText.length >= capTxt;
             docCharBudget -= docText.length;
             parts.push({
               type: "text",
-              text: `[CONTENUTO DOCUMENTO "${att.file_name}" (${att.mime_type})]\n\n${docText}\n\n[FINE DOCUMENTO]${DOC_IMPORT_HINT}`,
+              text: `[CONTENUTO DOCUMENTO "${att.file_name}" (${att.mime_type})${docText.length >= capTxt ? " — LETTURA POTENZIALMENTE PARZIALE: non importare un documento completo" : ""}]\n\n${docText}\n\n[FINE DOCUMENTO]${DOC_IMPORT_HINT}`,
             });
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
@@ -1193,6 +1199,7 @@ serve(async (req: Request) => {
               type: "text",
               text: `[Allegato documento testo "${att.file_name}" — lettura fallita: ${msg.substring(0, 120)}]`,
             });
+            documentContextPartial = true;
           }
         } else if (att.kind === "office-doc") {
           // .docx / .xlsx — estrazione via libreria esm
@@ -1203,12 +1210,14 @@ serve(async (req: Request) => {
               att.mime_type,
               att.file_name,
             );
-            const capOff = Math.min(180_000, Math.max(2_000, docCharBudget));
+            const capOff = Math.min(180_000, docCharBudget);
             const officeShown = officeText.substring(0, capOff);
+            const officePartial = officeText.length > officeShown.length;
+            documentContextPartial ||= officePartial;
             docCharBudget -= officeShown.length;
             parts.push({
               type: "text",
-              text: `[CONTENUTO OFFICE "${att.file_name}"]\n\n${officeShown}\n\n[FINE OFFICE]${DOC_IMPORT_HINT}`,
+              text: `[CONTENUTO OFFICE "${att.file_name}"${officePartial ? " — LETTURA PARZIALE: non importare un documento completo" : ""}]\n\n${officeShown}\n\n[FINE OFFICE]${DOC_IMPORT_HINT}`,
             });
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
@@ -1216,18 +1225,15 @@ serve(async (req: Request) => {
               type: "text",
               text: `[Allegato office "${att.file_name}" — estrazione fallita: ${msg.substring(0, 120)}]`,
             });
+            documentContextPartial = true;
           }
         }
       }
       userContent = parts;
     }
 
-    // Aggiungi user message se non già presente come ultimo
-    const lastHist = history[history.length - 1];
-    const isDuplicate = typeof userContent === "string" && lastHist?.content === userContent;
-    if (history.length === 0 || !isDuplicate) {
-      messages.push({ role: "user", content: userContent });
-    }
+    // Keep the current request; attachment coverage is tracked separately from history.
+    messages.push({ role: "user", content: userContent });
     const healthMessages = siteHealthRequested ? await siteHealthPreflight(userMessage,
       allowedTools.map(t => t.schema.function.name),
       () => executeToolWithRouting(SITE_HEALTH_TOOL, {}, toolCtx)) : [];
@@ -1248,7 +1254,9 @@ serve(async (req: Request) => {
     let councilSynthesis: string | null = null;
     // Token-opt: riusa la classification calcolata in 6.5 (stessi gate:
     // lunghezza >= 25, niente allegati → userContent è sempre string qui).
-    if (ENABLE_COUNCIL_AUTO && classification && healthMessages.length === 0) {
+    // The delegated worker does not receive this conversation. Keep contextual
+    // follow-ups in the normal loop with their full history and permission checks.
+    if (ENABLE_COUNCIL_AUTO && classification && healthMessages.length === 0 && !conversation.contextual) {
       try {
         if (classification.is_multi_area && classification.estimated_complexity !== "simple") {
           turnControl.assertCanStart();
@@ -1305,6 +1313,8 @@ serve(async (req: Request) => {
       }))],
     ]);
     let finalContent = siteHealthDirectAnswer(userMessage, healthMessages) ?? "";
+    let answerFinishReason: unknown = null;
+    let partialToolContext = documentContextPartial;
     let lastResult: Awaited<ReturnType<typeof aiRouterComplete>> | null = null;
     let iteration = 0;
     let totalCostEur = 0;
@@ -1582,7 +1592,8 @@ serve(async (req: Request) => {
           const { tc, toolName, toolArgs } = chiamate[k];
           const toolResult = risultati[k];
           if (toolName === "search_brain") registerBrainToolSources(toolResult, ragSources);
-          const resultStr = JSON.stringify(toolResult).slice(0, 8000);
+          const resultStr = silvioToolResultForPrompt(toolResult);
+          partialToolContext ||= silvioToolContextIsPartial(resultStr);
 
           toolCallsLog.push({
             name: toolName,
@@ -1658,6 +1669,7 @@ serve(async (req: Request) => {
         continue;
       }
       finalContent = testoFinale;
+      answerFinishReason = rawChoice?.finish_reason;
       break;
     }
 
@@ -1708,6 +1720,12 @@ serve(async (req: Request) => {
     }
 
     finalContent = appendEvidenceFooter(finalContent, toolCallsLog, lastResult);
+    finalContent = silvioCompletionNotice(finalContent, answerFinishReason, partialToolContext);
+    if (structured && partialToolContext && structured.confidence === "high") structured.confidence = "medium";
+    if (structured && silvioAnswerWasInterrupted(answerFinishReason)) {
+      structured.confidence = "low";
+      structured.requires_human_review = true;
+    }
 
     // ── MP-03: Citation enforcement validation ──────────────────────────
     const citationMode = getCitationMode();

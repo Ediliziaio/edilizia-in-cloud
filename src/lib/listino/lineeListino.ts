@@ -464,7 +464,7 @@ export function costruisciListino(
 }
 
 /** Tiene solo le righe che passano il filtro; linee, tipologie e aree rimaste vuote spariscono. */
-export function filtraListino(aree: AreaListino[], tieni: (riga: RigaListino) => boolean): AreaListino[] {
+export function filtraListino(aree: AreaListino[], tieni: (riga: RigaListino) => boolean, mantieniVuote = false): AreaListino[] {
   const risultato: AreaListino[] = [];
   for (const area of aree) {
     const tipologie: TipologiaListino[] = [];
@@ -473,11 +473,12 @@ export function filtraListino(aree: AreaListino[], tieni: (riga: RigaListino) =>
       const linee: LineaListino[] = [];
       for (const linea of tipologia.linee) {
         const righe = linea.righe.filter((r) => tieni(r));
-        if (righe.length === 0) continue;
+        // Una linea appena creata resta raggiungibile; una con soli disattivati no.
+        if (righe.length === 0 && !(mantieniVuote && linea.righe.length === 0)) continue;
         for (const r of righe) famiglie.add(r.famiglia.id);
         linee.push(righe.length === linea.righe.length ? linea : { ...linea, righe });
       }
-      if (linee.length > 0) tipologie.push({ ...tipologia, linee, articoli: famiglie.size });
+      if (linee.length > 0 || (mantieniVuote && tipologia.articoli === 0)) tipologie.push({ ...tipologia, linee, articoli: famiglie.size });
     }
     if (tipologie.length > 0) {
       risultato.push({ ...area, tipologie, articoli: tipologie.reduce((n, t) => n + t.articoli, 0) });

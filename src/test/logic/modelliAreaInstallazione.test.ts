@@ -321,7 +321,6 @@ describe("le finestre che installano avvisano e non si fanno scavalcare dal dopp
 
   it.each([
     ["Aggiungi un'area", nuovaArea],
-    ["Modelli di infissi", infissi],
     ["installazione dal super admin", admin],
   ])("%s: anteprima, avviso, scelta, guardia contro il doppio invio", (_nome, src) => {
     expect(src).toContain("useAnteprimaInstallazione(");
@@ -342,16 +341,18 @@ describe("le finestre che installano avvisano e non si fanno scavalcare dal dopp
   it("il pulsante resta spento finché l'anteprima non è arrivata", () => {
     expect(nuovaArea).toMatch(/disabled=\{occupato \|\| !companyId \|\| anteprima\.isLoading \|\| recente\}/);
     expect(admin).toMatch(/disabled=\{!aziendaId \|\| inCorso \|\| anteprima\.isLoading \|\| recente\}/);
-    expect(infissi).toMatch(/disabled=\{inCorso \|\| !modello \|\| daCreare === 0 \|\| inAttesa\}/);
   });
 
-  it("Modelli di infissi: stessa scelta per ogni nome; un nome appena aggiunto non ferma gli altri", () => {
-    expect(infissi).toContain("modelli: [nome],");
-    expect(infissi).toMatch(/tipo === "recente" \|\| tipo === "in_corso"[\s\S]*?giaFatti \+= 1;[\s\S]*?continue;/);
-    // L'anteprima si rifà dopo una pausa nella scrittura, non a ogni lettera.
-    expect(infissi).toContain("useDebounce(elenco.join(");
-    // E non è valida finché non è quella dell'elenco che si vede.
-    expect(infissi).toContain("const anteprimaAggiornata = nomiVisti === elenco.join(");
+  it("Linee di infissi: un catalogo geometrico atomico senza copiare prezzi o maggiorazioni Demo", () => {
+    expect(infissi).toContain("preparaModelliInfissi.mutateAsync(elenco)");
+    expect(infissi).not.toContain("useModelliArea");
+    expect(infissi).not.toContain("copiaMaggiorazioni");
+    expect(infissi).toContain("invioInCorso.current) return;");
+    expect(infissi).toContain("invioInCorso.current = false;");
+    expect(infissi).toContain("elenco.length > 20");
+    expect(infissi).toContain("Prezzi già impostati invariati");
+    expect(infissi).toContain("I prezzi mancanti seguono la base della stessa linea");
+    expect(infissi).toContain("non certifica la gamma del produttore");
   });
 
   it("Aggiungi un'area: un modello già aggiunto un attimo fa non è un errore, il listino ce l'ha", () => {

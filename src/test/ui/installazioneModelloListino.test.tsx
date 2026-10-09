@@ -1,9 +1,6 @@
 /**
- * Installare un modello di listino: l'avviso sulle maggiorazioni e la finestra «Modelli di infissi» (06/10/2026).
- *
- * «Modelli di infissi» è la finestra da cui è partito l'incidente di Renova Solution (05/10): una chiamata per ogni
- * nome di linea, e ogni variante dei prodotti nuovi arrivata a «nessuna maggiorazione». Qui si prova quello che
- * l'utente vede e quello che la finestra manda al database, con l'hook al posto del database.
+ * L'avviso sulle maggiorazioni dei modelli copiati resta invariato.
+ * Le nuove linee di infissi usano invece il catalogo geometrico atomico, senza tariffe Demo.
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,12 +10,16 @@ import type { AnteprimaInstallazione } from "@/lib/listino/modelliArea";
 
 const mocks = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
+  pending: false,
   refetch: vi.fn(),
   anteprima: { data: undefined as unknown, isLoading: false },
   toast: { success: vi.fn(), info: vi.fn(), warning: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock("sonner", () => ({ toast: mocks.toast }));
+vi.mock("@/hooks/useOrganizzaListino", () => ({
+  useOrganizzaListino: () => ({ preparaModelliInfissi: { mutateAsync: mocks.mutateAsync, isPending: mocks.pending } }),
+}));
 // Nessuna attesa mentre si scrive: qui conta quello che parte, non il ritardo.
 vi.mock("@/hooks/useDebounce", () => ({ useDebounce: <T,>(v: T) => v }));
 vi.mock("@/hooks/useModelliArea", () => ({
@@ -46,9 +47,9 @@ const DA_COPIARE = anteprima({
   ],
 });
 
-const esitoCon = (prodotti: number) => ({ prodotti_nuovi: prodotti });
 
 beforeEach(() => {
+  mocks.pending = false;
   mocks.mutateAsync.mockReset();
   mocks.refetch.mockReset();
   Object.values(mocks.toast).forEach((f) => f.mockReset());
@@ -94,129 +95,38 @@ describe("l'avviso sulle maggiorazioni", () => {
   });
 });
 
-describe("«Modelli di infissi»: cosa manda al database", () => {
-  const monta = () =>
-    render(<ModelliInfissiDialog open onOpenChange={vi.fn()} companyId="azienda-1" giaPresenti={[]} />);
-
+describe("linee di infissi: protezioni della creazione standard", () => {
+  const monta = () => render(<ModelliInfissiDialog open onOpenChange={vi.fn()} companyId="azienda-1" giaPresenti={[]} />);
   const scrivi = (nome: string) => {
-    fireEvent.change(screen.getByLabelText("Nome del modello"), { target: { value: nome } });
-    fireEvent.click(screen.getByRole("button", { name: /^Aggiungi$/ }));
+    fireEvent.change(screen.getByLabelText("Nome della linea"), { target: { value: nome } });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi linea" }));
   };
-  const crea = (n: number) =>
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^Crea ${n} ${n === 1 ? "modello" : "modelli"}$`) }));
-
-  it("con maggiorazioni da copiare la scelta di default è «copia» e parte col nome giusto", async () => {
-    mocks.anteprima = { data: DA_COPIARE, isLoading: false };
-    mocks.mutateAsync.mockResolvedValue(esitoCon(40));
-    monta();
-    scrivi("PVC Salamander 76");
-    crea(1);
-    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledTimes(1));
-    expect(mocks.mutateAsync).toHaveBeenCalledWith({
-      modelloId: "modello-1",
-      companyId: "azienda-1",
-      modelli: ["PVC Salamander 76"],
-      copiaMaggiorazioni: true,
-    });
-    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalled());
+  it("un retry già completato non promette prodotti nuovi", async () => {
+    mocks.mutateAsync.mockResolvedValue({ prodotti_nuovi: 0, linee: 1 });
+    monta(); scrivi("PVC Salamander 76");
+    fireEvent.click(screen.getByRole("button", { name: "Prepara le linee" }));
+    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith("Le configurazioni sono già presenti", expect.anything()));
   });
-
-  it("se si toglie la spunta, i prodotti nuovi restano come il modello", async () => {
-    mocks.anteprima = { data: DA_COPIARE, isLoading: false };
-    mocks.mutateAsync.mockResolvedValue(esitoCon(40));
-    monta();
-    scrivi("PVC Salamander 76");
-    fireEvent.click(screen.getByRole("checkbox", { name: /Copia le mie maggiorazioni/ }));
-    crea(1);
-    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledTimes(1));
-    expect(mocks.mutateAsync.mock.calls[0][0].copiaMaggiorazioni).toBe(false);
+  it("durante la transazione non consente di cambiare i nomi o chiudere", () => {
+    mocks.pending = true; monta();
+    expect((screen.getByLabelText("Nome della linea") as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Non ora" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /Creo le linee/ }) as HTMLButtonElement).disabled).toBe(true);
   });
-
-  it("se non c'è niente da copiare non passa nessuna scelta: il database resta la rete di sicurezza", async () => {
-    mocks.anteprima = { data: anteprima(), isLoading: false };
-    mocks.mutateAsync.mockResolvedValue(esitoCon(40));
-    monta();
-    scrivi("PVC Aluplast");
-    crea(1);
-    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledTimes(1));
-    expect(mocks.mutateAsync.mock.calls[0][0].copiaMaggiorazioni).toBeUndefined();
-  });
-
-  it("un nome appena aggiunto non ferma gli altri e non è un errore", async () => {
-    mocks.anteprima = { data: anteprima(), isLoading: false };
-    mocks.mutateAsync
-      .mockRejectedValueOnce({ hint: "installazione_recente", message: "Questo modello è già stato aggiunto alle 10:35: non lo aggiungo di nuovo." })
-      .mockResolvedValueOnce(esitoCon(40));
-    monta();
-    scrivi("PVC Salamander 76");
-    scrivi("PVC Aluplast Ideal 5000");
-    crea(2);
-    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledTimes(2));
-    expect(mocks.mutateAsync.mock.calls.map((c) => c[0].modelli)).toEqual([["PVC Salamander 76"], ["PVC Aluplast Ideal 5000"]]);
-    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalledWith("Creato: 1 modello, 40 prodotti con disegno"));
-    expect(mocks.toast.error).not.toHaveBeenCalled();
-  });
-
-  it("se erano tutti appena aggiunti lo dice, senza dire «creato»", async () => {
-    mocks.anteprima = { data: anteprima(), isLoading: false };
-    mocks.mutateAsync.mockRejectedValue({ hint: "installazione_recente", message: "x" });
-    monta();
-    scrivi("PVC Salamander 76");
-    crea(1);
-    await waitFor(() => expect(mocks.toast.info).toHaveBeenCalledWith("Questo modello è già stato aggiunto da poco"));
+  it("un errore mostra il messaggio del database e non dichiara un successo parziale", async () => {
+    mocks.mutateAsync.mockRejectedValue(new Error("Non puoi modificare il listino di questa azienda"));
+    monta(); scrivi("PVC Salamander 76"); scrivi("PVC Rehau");
+    fireEvent.click(screen.getByRole("button", { name: "Prepara le linee" }));
+    await waitFor(() => expect(mocks.toast.error).toHaveBeenCalledWith("Linee non create", { description: "Non puoi modificare il listino di questa azienda" }));
+    expect(mocks.mutateAsync).toHaveBeenCalledTimes(1);
     expect(mocks.toast.success).not.toHaveBeenCalled();
   });
-
-  it("se il database chiede la scelta, ci si ferma, si avvisa e si rifà l'anteprima", async () => {
-    mocks.anteprima = { data: anteprima(), isLoading: false };
-    mocks.mutateAsync.mockRejectedValue({
-      hint: "maggiorazioni_da_scegliere",
-      message: "Hai già prodotti con maggiorazioni sulle stesse varianti (Colore): scegli se copiarle sui prodotti nuovi o lasciarli senza.",
-    });
+  it("oltre 20 linee si ferma prima di chiamare il database", () => {
     monta();
-    scrivi("PVC Salamander 76");
-    scrivi("PVC Aluplast");
-    crea(2);
-    await waitFor(() => expect(mocks.toast.warning).toHaveBeenCalled());
-    // Il primo nome ha fermato tutto: il secondo non parte.
-    expect(mocks.mutateAsync).toHaveBeenCalledTimes(1);
-    expect(mocks.refetch).toHaveBeenCalled();
-    expect(mocks.toast.success).not.toHaveBeenCalled();
-  });
-
-  it("un errore vero resta un errore, col messaggio del database", async () => {
-    mocks.anteprima = { data: anteprima(), isLoading: false };
-    mocks.mutateAsync.mockRejectedValue({ message: "Solo l'amministratore dell'azienda può aggiungere un'area da un modello" });
-    monta();
-    scrivi("PVC Salamander 76");
-    crea(1);
-    await waitFor(() =>
-      expect(mocks.toast.error).toHaveBeenCalledWith("Non è andata fino in fondo", {
-        description: "Solo l'amministratore dell'azienda può aggiungere un'area da un modello",
-      }),
-    );
-  });
-
-  it("due click veloci sul pulsante mandano una sola installazione per nome", async () => {
-    mocks.anteprima = { data: anteprima(), isLoading: false };
-    let finisci: (v: unknown) => void = () => {};
-    mocks.mutateAsync.mockReturnValue(new Promise((ok) => (finisci = ok)));
-    monta();
-    scrivi("PVC Salamander 76");
-    const pulsante = screen.getByRole("button", { name: /^Crea 1 modello$/ });
-    fireEvent.click(pulsante);
-    fireEvent.click(pulsante);
-    expect(mocks.mutateAsync).toHaveBeenCalledTimes(1);
-    finisci(esitoCon(40));
-    await waitFor(() => expect(mocks.toast.success).toHaveBeenCalled());
-    expect(mocks.mutateAsync).toHaveBeenCalledTimes(1);
-  });
-
-  it("finché l'anteprima non è arrivata il pulsante resta spento", () => {
-    mocks.anteprima = { data: undefined, isLoading: true };
-    monta();
-    scrivi("PVC Salamander 76");
-    const pulsante = screen.getByRole("button", { name: /^Crea 1 modello$/ }) as HTMLButtonElement;
+    for (let i = 0; i < 21; i++) scrivi(`Linea ${i}`);
+    const pulsante = screen.getByRole("button", { name: "Prepara le linee" }) as HTMLButtonElement;
     expect(pulsante.disabled).toBe(true);
+    fireEvent.click(pulsante);
+    expect(mocks.mutateAsync).not.toHaveBeenCalled();
   });
 });

@@ -22,6 +22,9 @@ export const FILTRI_LISTINO_VUOTI: FiltriListino = {
   preventivo: "all",
 };
 
+/** Il lavoro quotidiano parte dagli attivi; «Tutti» e «Solo disattivati» restano nei filtri. */
+export const FILTRI_LISTINO_INIZIALI: FiltriListino = { ...FILTRI_LISTINO_VUOTI, stato: "attivi" };
+
 export const MODALITA_PREZZO: Record<ModalitaPrezzoBase, string> = {
   pz: "A pezzo",
   mq: "Al metro quadro",

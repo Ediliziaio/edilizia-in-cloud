@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
-  FILTRI_LISTINO_VUOTI,
+  FILTRI_LISTINO_INIZIALI,
   MODALITA_PREZZO,
   filtriAttivi,
   type FiltriListino,
@@ -157,7 +157,7 @@ export function ListinoBarra({
             size="sm"
             className="w-full"
             disabled={quantiFiltri === 0}
-            onClick={() => onFiltri(FILTRI_LISTINO_VUOTI)}
+            onClick={() => onFiltri(FILTRI_LISTINO_INIZIALI)}
           >
             Azzera i filtri
           </Button>

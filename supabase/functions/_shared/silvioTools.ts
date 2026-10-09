@@ -4489,11 +4489,15 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
           "Mostra ricavi, varianti approvate, costi registrati e margine diretto; incassi separati dai ricavi. " +
           "Usa per 'quanto ho guadagnato sulla GE-0012', 'come sta andando questa commessa', 'dove sono finiti i soldi'. " +
           "IMPORTANTE: il risultato distingue COSTO ZERO da COSTO NON TRACCIATO e dichiara l'affidabilità del calcolo: " +
-          "riporta sempre gli avvisi all'utente e NON presentare come margine reale un dato marcato parziale o insufficiente.",
+          "riporta sempre gli avvisi all'utente e NON presentare come margine reale un dato marcato parziale o insufficiente. " +
+          "Per 'e senza materiali/manodopera/rimborsi km?' usa escludi_costo: il backend calcola lo scenario, distinto dal margine reale. " +
+          "Non dedurre un costo orario dai soli costi aggregati né un budget dei costi dal ricavo contrattuale.",
         parameters: {
           type: "object",
           properties: {
             commessa_codice: { type: "string", description: "Codice della commessa (es. GE-0012) — OBBLIGATORIO" },
+            escludi_costo: { type: "string", enum: ["materiali", "manodopera", "rimborsi_km"],
+              description: "Solo su richiesta esplicita, simula l'esclusione di una categoria dai costi registrati. Non cambia i dati né i ricavi. Materiali = acquisti + magazzino; rimborsi_km non comprende tutti i costi di viaggio." },
           },
           required: ["commessa_codice"],
         },

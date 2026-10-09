@@ -542,8 +542,8 @@ describe("assi del disegno", () => {
   it("gli scorrevoli hanno solo il verso, e i fissi restano fissi", () => {
     const dx = anteDaApertura("traslante_4_ante", "scorre_dx")!;
     const sx = anteDaApertura("traslante_4_ante", "scorre_sx")!;
-    expect(dx.filter((a) => a.tipo === "scorrevole").every((a) => a.lato === "dx")).toBe(true);
-    expect(sx.filter((a) => a.tipo === "scorrevole").every((a) => a.lato === "sx")).toBe(true);
+    expect(dx.filter((a) => a.tipo === "scorrevole").map((a) => a.lato)).toEqual(["sx", "dx"]);
+    expect(sx.filter((a) => a.tipo === "scorrevole").map((a) => a.lato)).toEqual(["sx", "dx"]);
     expect(dx.map((a) => a.tipo)).toEqual(sx.map((a) => a.tipo));
   });
 
@@ -640,7 +640,7 @@ describe("disegno congelato nella riga", () => {
 
   it("salva tipologia e scelte come etichette", () => {
     const c = configDaFamiglia(famiglia("RAL 7016", "Apertura a sinistra"), scelte);
-    expect(c).toEqual({ v: 1, tipologia: "finestra_2_ante", apertura: "sx", colore: "RAL 7016", telaio: "Telaio a Z 35", tipologiaVetro: "Satinato" });
+    expect(c).toEqual({ v: 1, tipologia: "finestra_2_ante", apertura: "sx", ante: [{ tipo: "anta_ribalta", lato: "sx", maniglia: true }, { tipo: "battente", lato: "dx" }], colore: "RAL 7016", telaio: "Telaio a Z 35", tipologiaVetro: "Satinato" });
   });
   it("dalla configurazione il disegno è lo stesso di quello dal listino", () => {
     const f = famiglia("RAL 7016", "Apertura a sinistra");
@@ -749,8 +749,8 @@ describe("aperture del catalogo nel disegno", () => {
   it("scorrevole: il verso sposta le ante scorrevoli", () => {
     const dx = ante("traslante_4_ante", "scorre_dx", "Scorre verso DX").filter((a) => a.tipo === "scorrevole").map((a) => a.lato);
     const sx = ante("traslante_4_ante", "scorre_sx", "Scorre verso SX").filter((a) => a.tipo === "scorrevole").map((a) => a.lato);
-    expect(new Set(dx)).toEqual(new Set(["dx"]));
-    expect(new Set(sx)).toEqual(new Set(["sx"]));
+    expect(new Set(dx)).toEqual(new Set(["sx", "dx"]));
+    expect(new Set(sx)).toEqual(new Set(["sx", "dx"]));
   });
   it("si riconosce anche dal solo nome (righe lette dalle etichette)", () => {
     const f = { id: "f", disegno_tipologia: "finestra_1_anta", axes: [{ codice: "apertura", values: [{ id: "a", label: "Battente SX", is_default: false, attivo: true }] }] } as unknown as Parameters<typeof configDaFamiglia>[0];

@@ -1590,10 +1590,11 @@ export function SerramentoRow({
               valori configurati a listino. Cambiando una scelta, il prezzo
               unitario si aggiorna in automatico applicando le maggiorazioni
               (es. cambio Profilo da Etrum 70 a Etrum 82 +€30/m²). */}
-          {isFromListino && s.disegno_config && s.larghezza_mm && s.altezza_mm && chiedeMisureForma(s.disegno_config.tipologia) && (
+          {isFromListino && s.disegno_config && s.larghezza_mm && s.altezza_mm && chiedeMisureForma(s.disegno_config.tipologia, s.disegno_config.definizione) && (
             <div className="order-2 col-span-12">
               <MisureForma
                 tipologia={s.disegno_config.tipologia}
+                definizione={s.disegno_config.definizione}
                 larghezzaMm={s.larghezza_mm}
                 altezzaMm={s.altezza_mm}
                 valori={formaDaConfig(s.disegno_config)}

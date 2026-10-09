@@ -12,7 +12,10 @@ let tables: string[];
 let failures: Set<string>;
 const snapshot = () => ({ id: "order-a", company_id: "company-a", preventivo_contratto: 10000,
   variazioni_approvate: 1000, preventivo_totale: 11000, consuntivo: 6000, margine: 5000,
-  margine_perc: 5000 / 11000 * 100, costo_acquisti: 2000, costo_manodopera: 4000 });
+  margine_perc: 45.5, costo_acquisti: 2000, costo_manodopera: 4000,
+  costo_materiali_magazzino: 0, movimenti_magazzino_senza_costo: 0,
+  costo_provvigioni: 0, costo_rimborsi_km: 0, rimborsi_km_da_approvare: 0,
+  numero_rimborsi_km_da_approvare: 0, costo_errori: 0, costo_diretto: 0 });
 
 beforeEach(() => {
   db = new DbMinimo(); tables = []; failures = new Set();
@@ -145,6 +148,50 @@ describe("report Silvio = fonte e regole del dettaglio commessa", () => {
     const result = await report();
     expect(result.margine).toBeNull();
     expect(result.error).toContain("interrotta");
+  });
+  it.each([null, undefined, "", " ", true, [], "1.000,00", Number.NaN, Number.POSITIVE_INFINITY])("does not turn a missing/invalid component into zero: %s", value => {
+    db.tabelle.v_ordine_marginalita[0].costo_rimborsi_km = value;
+    return report().then(result => {
+      expect(result.margine).toBeNull();
+      expect(result.error).toContain("mancanti o non validi");
+    });
+  });
+  it.each(["preventivo_totale", "consuntivo", "margine", "margine_perc"])("rejects contradictory official %s", async key => {
+    db.tabelle.v_ordine_marginalita[0][key] += 100;
+    const result = await report();
+    expect(result.margine).toBeNull();
+    expect(result.error).toContain("non coincidono");
+  });
+  it("calculates an explicit scenario without changing real figures or writing", async () => {
+    const result = await SILVIO_TOOLS.report_commessa.executor({ commessa_codice: "TEST-01", escludi_costo: "materiali" }, ctx);
+    expect(result.simulazione).toMatchObject({ costo_escluso: 2000, costi_simulati: 4000, margine_simulato: 7000, ricavi_invariati: 11000 });
+    expect(result.margine.importo).toBe(5000);
+    expect(result.costi.totale).toBe(6000);
+    expect(db.scritture).toEqual([]);
+  });
+  it("invalid scenario never reads data", async () => {
+    expect((await SILVIO_TOOLS.report_commessa.executor({ commessa_codice: "TEST-01", escludi_costo: "tutto" }, ctx)).error).toContain("non valida");
+    expect(tables).toEqual([]);
+  });
+  it("unknown installment status does not become a confirmed outstanding amount", async () => {
+    db.tabelle.order_installments[1].is_paid = null;
+    expect((await report()).cassa).toMatchObject({ incassato_da_rate: null, da_incassare_da_rate: null, entrate_prima_nota: 3000 });
+  });
+  it.each(["internal_chat", "whatsapp", "mobile"] as const)("same verified scenario through the real %s permission/routing path", async channel => {
+    const result = await executeToolWithRouting("report_commessa", { commessa_codice: "TEST-01", escludi_costo: "materiali" }, { ...ctx, channel });
+    expect(result.success, JSON.stringify(result.error)).toBe(true);
+    expect(result.data.simulazione).toMatchObject({ costo_escluso: 2000, costi_simulati: 4000, margine_simulato: 7000 });
+  });
+  it.each(["worker", "subcontractor", "company_staff"])("scenario cannot bypass financial permissions for %s", async primaryRole => {
+    const result = await executeToolWithRouting("report_commessa", { commessa_codice: "TEST-01", escludi_costo: "materiali" }, { ...ctx, primaryRole });
+    expect(result.success).toBe(false);
+    expect(tables).not.toContain("v_ordine_marginalita");
+  });
+  it("a scenario retains partial-quality status", async () => {
+    db.tabelle.order_employees[0].total_cost = 0;
+    const result = await SILVIO_TOOLS.report_commessa.executor({ commessa_codice: "TEST-01", escludi_costo: "manodopera" }, ctx);
+    expect(result.simulazione.parziale).toBe(true);
+    expect(result.avvisi.join(" ")).toContain("operaio senza costo");
   });
 });
 

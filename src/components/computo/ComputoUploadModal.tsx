@@ -53,6 +53,8 @@ import {
 import { useComputoExtract } from "@/hooks/useComputoExtract";
 import { ComputoPreviewEditor } from "./ComputoPreviewEditor";
 import { AIProcessingStage } from "./AIProcessingStage";
+import { ComputoDocumentChecks } from "./ComputoDocumentChecks";
+import { getComputoDocumentReview, canConfirmComputoDocument } from "@/lib/computo/documentReview";
 import { MatchProductPickerDialog } from "@/components/quotes/MatchProductPickerDialog";
 import {
   MatchTariffaPickerDialog,
@@ -127,6 +129,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
     voci,
     vociLoading,
     computoUpload,
+    reviewError,
     upload,
     isUploading,
     generatePreventivo,
@@ -149,6 +152,11 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
   const [vociLocali, setVociLocali] = useState<ComputoVoceLocal[]>([]);
   const reviewSummary = useMemo(() => buildComputoReviewSummary(vociLocali), [vociLocali]);
   const canGenerateFromReview = useMemo(() => canGenerateComputoQuote(vociLocali), [vociLocali]);
+  const documentReview = useMemo(() => getComputoDocumentReview(computoUpload?.raw_extracted_json), [computoUpload?.raw_extracted_json]);
+  const [acknowledgedRevision, setAcknowledgedRevision] = useState<{ rows: ComputoVoceLocal[]; source: unknown } | null>(null);
+  const documentAcknowledged = acknowledgedRevision?.rows === vociLocali && acknowledgedRevision?.source === computoUpload?.raw_extracted_json;
+  const setDocumentAcknowledged = (accepted: boolean) => setAcknowledgedRevision(accepted ? { rows: vociLocali, source: computoUpload?.raw_extracted_json } : null);
+  const canConfirmDocument = !!computoUpload && !reviewError && canConfirmComputoDocument(documentReview, documentAcknowledged);
 
   // Costo e IVA delle voci del listino abbinate, per id (05/10/2026): prodotti
   // e famiglie dal catalogo del preventivatore (lo stesso del selettore, già in
@@ -193,6 +201,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
     setOggettoPreventivo("");
     setNotePreventivo("");
     setMargineTarget(22);
+    setAcknowledgedRevision(null);
     hasInitializedRef.current = false;
     initialComputoLoadedRef.current = null;
     onOpenChange(false);
@@ -327,7 +336,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
 
   useEffect(() => {
     if (status === "review" && step === 3 && !hasInitializedRef.current) {
-      if (vociLoading) return;
+      if (vociLoading || reviewError) return;
       hasInitializedRef.current = true;
       if (voci.length === 0) {
         // Fix 12: 0 voci — mostra errore con 3 azioni chiare invece di toast generico
@@ -364,10 +373,14 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
       );
       setStep(4);
     }
-  }, [status, step, voci, vociLoading, applyRicarico, ricarico, reset, computoUpload?.oggetto_lavori, file?.name]);
+  }, [status, step, voci, vociLoading, reviewError, applyRicarico, ricarico, reset, computoUpload?.oggetto_lavori, file?.name]);
 
   // ── Step 4 → Generate ──────────────────────────────────────────────────────
   const handleGenerate = () => {
+    if (!canGenerateFromReview || !canConfirmDocument || isGenerating) {
+      toast.error("Verifica le voci e gli avvisi del documento prima di proseguire.");
+      return;
+    }
     // Modalità "ritorna voci" (es. Ristrutturazione): consegna al chiamante le voci
     // incluse riviste invece di generare un preventivo marketing, e chiude.
     if (onConfirmVoci) {
@@ -463,6 +476,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
             </p>
           )}
         </DialogHeader>
+        {reviewError && <p role="alert" className="text-xs text-destructive">Impossibile caricare i dati di revisione. Chiudi e riapri il computo; le voci restano salvate.</p>}
 
         {/* ── Step 1: Upload ────────────────────────────────────────────── */}
         {step === 1 && (
@@ -644,16 +658,16 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Interrompere l'estrazione?</AlertDialogTitle>
+                    <AlertDialogTitle>Chiudere l'estrazione?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      L'analisi AI è in corso. Annullando ora, i file caricati verranno
-                      eliminati e dovrai ricominciare dall'inizio.
+                      Chiudere questa schermata non interrompe l'analisi sul server.
+                      Il file e le voci già salvate non vengono eliminati.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Continua l'estrazione</AlertDialogCancel>
                     <AlertDialogAction onClick={handleClose} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      Sì, annulla
+                      Chiudi schermata
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -695,6 +709,9 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
                 )}
               </div>
             )}
+
+            {!computoUpload && <p role="status" className="text-xs mb-3">Caricamento dei controlli del documento…</p>}
+            <ComputoDocumentChecks review={documentReview} acknowledged={documentAcknowledged} onAcknowledge={setDocumentAcknowledged} />
 
             {/* Stats */}
             <div className="flex gap-4 text-xs mb-3">
@@ -760,7 +777,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
                     onClick={handleGenerate}
                     disabled={
                       isGenerating ||
-                      !canGenerateFromReview
+                      !canGenerateFromReview || !canConfirmDocument
                     }
                   >
                     {isGenerating ? (

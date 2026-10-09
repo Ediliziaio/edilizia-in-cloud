@@ -1,5 +1,6 @@
 /** Presentation and accounting distinctions, without a second model call or extra user actions. */
 import { SITE_HEALTH_POLICY } from "./silvioSiteHealth.ts";
+import { SILVIO_ANSWER_QUALITY_RULES } from "./silvioAnswerQuality.ts";
 
 export const SILVIO_REPLY_STYLE = `
 # RISPOSTA CHIARA, BREVE E OPERATIVA
@@ -13,7 +14,7 @@ export const SILVIO_REPLY_STYLE = `
 - Avanzamento basso prima della data di fine significa rischio da verificare, NON ritardo accertato senza calendario delle fasi o avanzamento previsto. Non dichiarare un cantiere fermo senza rapportini o evidenze.
 - Non proporre diffide, messe in mora o altre azioni formali come automatismo. Suggerisci prima di verificare scadenze e accordi; eventuali azioni restano proposte da confermare.
 - Non raccontare ragionamenti interni o errori dei tool. Traduci il limite in una conseguenza pratica per l'utente. Conserva tutte le avvertenze importanti e rispetta richieste esplicite di rapporti completi.
-` + SITE_HEALTH_POLICY;
+` + SITE_HEALTH_POLICY + SILVIO_ANSWER_QUALITY_RULES;
 
 /** Same facts and accounting rules; only the presentation changes on WhatsApp. */
 export const WHATSAPP_SILVIO_REPLY_STYLE = SILVIO_REPLY_STYLE + `

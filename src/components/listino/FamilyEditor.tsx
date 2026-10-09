@@ -999,10 +999,10 @@ export function FamilyEditor() {
         {/* Colonna principale: step */}
         <div className="lg:col-span-2">
           <Tabs value={activeStep} onValueChange={setActiveStep}>
-            <TabsList className="grid grid-cols-5 w-full">
+            <TabsList className="flex justify-start gap-1 w-full max-w-full overflow-x-auto sm:grid sm:grid-cols-5 sm:gap-0">
               <TabsTrigger value="1">1. Dati base</TabsTrigger>
               <TabsTrigger value="2" disabled={isNew}>2. Prezzo</TabsTrigger>
-              <TabsTrigger value="3" disabled={isNew}>3. Variabili</TabsTrigger>
+              <TabsTrigger value="3" disabled={isNew}>3. Opzioni</TabsTrigger>
               <TabsTrigger value="4" disabled={isNew}>4. Manodopera</TabsTrigger>
               <TabsTrigger value="5" disabled={isNew}>5. Riepilogo</TabsTrigger>
             </TabsList>
@@ -3011,7 +3011,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
       {/* Card Assi */}
       <RiepilogoCard
         icon={ListChecks}
-        title={`Variabili Prodotto (${family.axes.length})`}
+        title={`Opzioni prodotto (${family.axes.length})`}
         onEdit={() => onGotoStep("3")}
       >
         {family.axes.length === 0 ? (

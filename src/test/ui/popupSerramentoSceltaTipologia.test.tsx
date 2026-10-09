@@ -24,6 +24,7 @@ vi.mock("@/hooks/useSchedeLinea", () => ({ useSchedeLinea: () => ({ indice: new 
 vi.mock("@/lib/serramenti/queries", () => ({
   useListinoGriglia: () => ({ data: dati.nessuno, isLoading: false }),
   useTariffeManodopera: () => ({ data: dati.nessuno }),
+  useMacroFields: () => ({ data: dati.nessuno, isLoading: false }),
 }));
 vi.mock("@/features/serramenti-listini/hooks/useSupplierProductLines", () => ({
   useSupplierProductLines: () => ({ lines: dati.nessuno, isLoading: false }),
@@ -155,6 +156,18 @@ describe("popup: scelta della tipologia", () => {
 });
 
 describe("popup: scelta della linea e del prodotto", () => {
+  it("uno schema standard senza tariffa non viene presentato come prodotto gratuito", async () => {
+    dati.famiglie = [finestraSalamander("f2a", { macrocategoria_id: "m-serr", prezzo_base_vendita: 0, custom_field_values: { configurazione_standard: true } })];
+    apri();
+    fireEvent.click((await screen.findByText("Serramenti", { selector: "p" })).closest("button") as HTMLElement);
+    const finestra = (await screen.findByText("Finestra 2 Ante", { selector: "p" })).closest("button") as HTMLElement;
+    expect(within(finestra).getByText("Prezzo da definire")).toBeTruthy();
+    fireEvent.click(finestra);
+    fireEvent.change(screen.getByPlaceholderText("es. 1200"), { target: { value: "1200" } });
+    fireEvent.change(screen.getByPlaceholderText("es. 1400"), { target: { value: "1400" } });
+    await screen.findByText(/non ha ancora una tariffa: non è gratuito/);
+    expect(screen.queryByText("Totale posizione")).toBeNull();
+  });
   it("anche le linee hanno la tessera piccola (foto, disegno o icona) e stanno su più colonne", async () => {
     apri();
     fireEvent.click((await screen.findByText("Tapparelle", { selector: "p" })).closest("button") as HTMLElement);

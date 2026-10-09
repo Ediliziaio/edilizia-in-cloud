@@ -1,4 +1,5 @@
-import { assessOrderEconomicsQuality, canonicalOrderEconomics, ORDER_ECONOMICS_COLUMNS } from "./orderEconomics.ts";
+import { assessOrderEconomicsQuality, ORDER_ECONOMICS_COLUMNS } from "./orderEconomics.ts";
+import { silvioVerifiedEconomics, silvioFiniteNumber, silvioCostScenario, SILVIO_COST_EXCLUSIONS, type SilvioCostExclusion } from "./silvioVerifiedEconomics.ts";
 import type { ToolContext } from "./silvioTools.ts";
 
 
@@ -10,6 +11,10 @@ export async function silvioOrderReport(args: Record<string, unknown>, ctx: Tool
   const code = String(args?.commessa_codice ?? "").trim();
   if (!code) return { error: "Codice commessa obbligatorio." };
   if (!ctx.companyId) return { error: "Azienda non identificata." };
+  const exclusion = args?.escludi_costo;
+  if (exclusion !== undefined && !SILVIO_COST_EXCLUSIONS.includes(exclusion as SilvioCostExclusion)) {
+    return { error: "Categoria da escludere non valida: scegli materiali, manodopera o rimborsi_km. Nessuna simulazione eseguita." };
+  }
   const unavailable = (message: string): {
     error: string; affidabilita: string; margine: null; avvisi: string[]; come_leggere: string;
   } => ({
@@ -41,19 +46,18 @@ export async function silvioOrderReport(args: Record<string, unknown>, ctx: Tool
     if (snapshot.error || !snapshot.data || [items, employees, teams].some(r => r.error || !Array.isArray(r.data) || r.data.length >= 1000)) {
       return { ...unavailable("Dati economici o controlli di completezza non disponibili integralmente. Apri la commessa o riprova."), link };
     }
-    // Core financial fields must be present and finite. A stale schema is not zero cost.
-    const numeric = (value: unknown) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
-    if (["preventivo_totale", "consuntivo", "margine", "margine_perc"].some(k => !numeric(snapshot.data[k]))) {
-      return { ...unavailable("La fonte economica ha importi mancanti o non validi. Nessun margine calcolato."), link };
-    }
-    const actual = canonicalOrderEconomics(snapshot.data);
+    const numeric = (value: unknown) => silvioFiniteNumber(value) !== null;
+    const verified = silvioVerifiedEconomics(snapshot.data);
+    if (!verified.actual) return { ...unavailable(verified.error!), link };
+    const actual = verified.actual;
     const quality = assessOrderEconomicsQuality({ sourceAvailable: true, actual,
       items: items.data, employees: employees.data, teams: teams.data });
     const warnings = quality.issues.map(issue => issue.label);
     const round = (n: number) => Math.round(n * 100) / 100;
     const readable = (result: { error: unknown; data: unknown }) => !result.error && Array.isArray(result.data)
       && result.data.length < 1000 && result.data.every(row => numeric(row.amount));
-    const hasInstallments = readable(installments) && installments.data.length > 0;
+    const hasInstallments = readable(installments) && installments.data.length > 0
+      && installments.data.every((row: { is_paid: unknown }) => typeof row.is_paid === "boolean");
     const hasCash = readable(cash) && cash.data.length > 0;
     const sum = (rows: { amount: number }[]) => round(rows.reduce((n, row) => n + Number(row.amount), 0));
     const paid = hasInstallments ? sum(installments.data.filter((r: { is_paid: boolean }) => r.is_paid === true)) : null;
@@ -79,6 +83,9 @@ export async function silvioOrderReport(args: Record<string, unknown>, ctx: Tool
       },
       margine: quality.canShowMargin ? { importo: actual.margin, percentuale: actual.marginPct,
         tipo: "Margine diretto sui costi registrati", parziale: quality.status !== "ready" } : null,
+      ...(exclusion !== undefined ? { simulazione: quality.canShowMargin
+        ? silvioCostScenario(actual, exclusion as SilvioCostExclusion, quality.status !== "ready")
+        : { disponibile: false, motivo: "Ricavi o costi insufficienti: nessuna simulazione attendibile." } } : {}),
       cassa: { incassato_da_rate: paid, da_incassare_da_rate: due, entrate_prima_nota: received,
         nota: "Letture separate da riconciliare: non sommare rate e Prima Nota; gli incassi non sono ricavi di competenza." },
       avvisi: warnings,
@@ -88,7 +95,8 @@ export async function silvioOrderReport(args: Record<string, unknown>, ctx: Tool
       link,
       come_leggere: "Rispondi brevemente: margine diretto (solo se non nullo), attendibilità e prossima azione con link. " +
         "Mostra gli avvisi prima di interpretare i numeri. Non aggiungere ODA, fatture, SAL o rapportini al totale: rischi duplicazioni. " +
-        "Non confondere assenza di operai interni con costo mancante in una commessa in subappalto. Dettagli su richiesta.",
+        "Non confondere assenza di operai interni con costo mancante in una commessa in subappalto. " +
+        "Se è presente simulazione, usa quei calcoli senza confonderli con il margine reale: ricavi invariati, categoria esclusa esplicita e limiti visibili. Dettagli su richiesta.",
     };
   } catch {
     return unavailable("Lettura economica interrotta. Nessun margine calcolato: riprova.");

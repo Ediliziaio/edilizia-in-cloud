@@ -40,6 +40,14 @@ export interface EsitoAllineaLinee {
   prodotti: number;
   linee: number;
 }
+export interface EsitoConfigurazioniInfissi {
+  categoria_id: string | null;
+  prodotti_nuovi: number;
+  assi_aggiunti: number;
+  valori_aggiunti: number;
+  configurazioni_standard: number;
+  prezzi_completati?: number;
+}
 
 export interface PrezziLineeTipologia {
   macrocategoriaId: string;
@@ -74,6 +82,7 @@ export interface EsitoCopiaTipologia {
 export interface VariantiDellaTipologia {
   macrocategoriaId: string;
   assi: AsseVariantiDati[];
+  familyIds?: string[];
 }
 
 export interface EsitoVariantiTipologia {
@@ -124,6 +133,21 @@ export function useOrganizzaListino() {
       chiama<EsitoAllineaLinee>("listino_allinea_linee", { p_macrocategoria_id: macrocategoriaId }),
     onSuccess: invalida,
   });
+  const completaInfissi = useMutation<EsitoConfigurazioniInfissi, Error, { macrocategoriaId: string; categoriaId?: string | null; nomeLinea?: string | null }>({
+    mutationFn: (p) => chiama<EsitoConfigurazioniInfissi>("listino_completa_configurazioni_infissi", {
+      p_macrocategoria_id: p.macrocategoriaId,
+      p_categoria_id: p.categoriaId ?? null,
+      p_nome_linea: p.nomeLinea ?? null,
+    }),
+    onSuccess: invalida,
+  });
+  const preparaModelliInfissi = useMutation<{ linee: number; prodotti_nuovi: number; configurazioni_standard: number }, Error, string[]>({
+    mutationFn: (nomi) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
+      return chiama("listino_prepara_modelli_infissi", { p_company_id: companyId, p_nomi: nomi });
+    },
+    onSuccess: invalida,
+  });
 
   const prezziLinee = useMutation<EsitoPrezziLinee, Error, PrezziLineeTipologia>({
     mutationFn: (p) =>
@@ -150,8 +174,9 @@ export function useOrganizzaListino() {
 
   const variantiTipologia = useMutation<EsitoVariantiTipologia, Error, VariantiDellaTipologia>({
     mutationFn: (p) =>
-      chiama<EsitoVariantiTipologia>("listino_varianti_tipologia", {
+      chiama<EsitoVariantiTipologia>(p.familyIds ? "listino_varianti_linea" : "listino_varianti_tipologia", {
         p_macrocategoria_id: p.macrocategoriaId,
+        ...(p.familyIds ? { p_family_ids: p.familyIds } : {}),
         p_assi: p.assi.map((a) => ({
           chiave: a.chiave,
           nome: a.nome,
@@ -173,5 +198,13 @@ export function useOrganizzaListino() {
     onSuccess: invalida,
   });
 
-  return { aggiungiLinea, allineaLinee, prezziLinee, copiaTipologia, variantiTipologia };
+  const completaPrezziInfissi = useMutation<{ prodotti_prezzo: number }, Error, { macrocategoriaId: string; categoriaId: string; prezzoMq: number }>({
+    mutationFn: (p) => chiama("listino_completa_prezzi_infissi", {
+      p_macrocategoria_id: p.macrocategoriaId,
+      p_categoria_id: p.categoriaId,
+      p_prezzo_vendita_mq: p.prezzoMq,
+    }),
+    onSuccess: invalida,
+  });
+  return { aggiungiLinea, allineaLinee, prezziLinee, copiaTipologia, variantiTipologia, completaInfissi, preparaModelliInfissi, completaPrezziInfissi };
 }

@@ -629,7 +629,26 @@ export function useFamilyMutations() {
       captureVelocityError("axes.bulkInsert", err, { companyId }),
   });
 
+  const saveOptions = useMutation({
+    mutationFn: async (args: {
+      familyId: string; axisId?: string; valueId?: string;
+      valueIds?: string[]; patch: AxisValueUpdate;
+    }) => {
+      if (!companyId) throw new Error("Azienda non identificata");
+      const { data, error } = await supabase.rpc("listino_salva_opzioni" as never, {
+        p_family_id: args.familyId, p_axis_id: args.axisId ?? null,
+        p_value_id: args.valueId ?? null, p_value_ids: args.valueIds ?? null,
+        p_patch: args.patch,
+      } as never);
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: (_data, args) => invalidate(args.familyId),
+    onError: (err: Error) => captureVelocityError("options.save", err, { companyId }),
+  });
+
   return {
+    saveOptions,
     createFamily,
     updateFamily,
     deleteFamily,

@@ -34,6 +34,8 @@ import { ImpostaStandardSerramentiDialog } from "./ImpostaStandardSerramentiDial
 import { ImportaSerieDialog } from "./ImportaSerieDialog";
 import { AssegnaDisegniDialog } from "./AssegnaDisegniDialog";
 import { ModelliInfissiDialog } from "./ModelliInfissiDialog";
+import { CompletaPrezziInfissiDialog } from "./CompletaPrezziInfissiDialog";
+import { TIPOLOGIE_DISEGNO } from "@/lib/serramenti/disegnoSerramento";
 import { ListinoBarra, type AzioneImporta, type VistaListino } from "./ListinoBarra";
 import { ListinoNavigatore } from "./ListinoNavigatore";
 import { NuovaAreaDialog } from "./NuovaAreaDialog";
@@ -61,7 +63,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { ArticleFamily, FamilyWithAxes } from "@/types/articleFamily";
 import { areaDiVerticale, chiaveTesto, type AreaStandard, type TipologiaStandard } from "@/lib/listino/areeStandard";
-import { FILTRI_LISTINO_VUOTI, filtriAttivi, rigaPassa, type FiltriListino } from "@/lib/listino/filtriListino";
+import { FILTRI_LISTINO_INIZIALI, rigaPassa, type FiltriListino } from "@/lib/listino/filtriListino";
 import {
   costruisciListino,
   filtraListino,
@@ -121,8 +123,8 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
   const isAdmin = gestore || permessi.canEditSettingsPricing;
   const companyId = effectiveCompany?.id ?? null;
 
-  // includeInactive: la pagina di gestione mostra anche i disattivati, per
-  // poterli riattivare. Il preventivatore usa useFamilies() → solo attivi.
+  // Carica anche i disattivati, ma li mostra solo con un filtro esplicito.
+  // Restano recuperabili senza confonderli con le linee utilizzabili.
   const {
     families,
     isLoading,
@@ -140,7 +142,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
   const { deleteFamily, restoreFamily, hardDeleteFamily, duplicateFamily, updateFamily } = useFamilyMutations();
   const { createMacrocategoria, updateMacrocategoria } = useMacrocategorieMutations();
   const { createCategoria } = useCategorieMutations();
-  const { aggiungiLinea, allineaLinee, prezziLinee, copiaTipologia, variantiTipologia } = useOrganizzaListino();
+  const { aggiungiLinea, allineaLinee, prezziLinee, copiaTipologia, variantiTipologia, completaInfissi } = useOrganizzaListino();
   const { indice: schedeLinea } = useSchedeLinea();
 
   const [vista, setVistaStato] = useState<VistaListino>(() => {
@@ -160,16 +162,17 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
   };
   const [disegniAperto, setDisegniAperto] = useState(false);
   const [modelliAperto, setModelliAperto] = useState(false);
+  const [prezziMancantiAperto, setPrezziMancantiAperto] = useState(false);
   const [cerca, setCerca] = useState("");
-  const [filtri, setFiltri] = useState<FiltriListino>(FILTRI_LISTINO_VUOTI);
+  const [filtri, setFiltri] = useState<FiltriListino>(FILTRI_LISTINO_INIZIALI);
 
   const aree = useMemo(
     () => costruisciListino(families, macrocategorie, categorie),
     [families, macrocategorie, categorie],
   );
-  const cercando = cerca.trim() !== "" || filtriAttivi(filtri) > 0;
+  const cercando = cerca.trim() !== "" || filtri.modalita !== "all" || filtri.margine !== "all" || filtri.preventivo !== "all" || filtri.stato === "disattivi";
   const visibili = useMemo(
-    () => (cercando ? filtraListino(aree, (r) => rigaPassa(r, cerca, filtri)) : aree),
+    () => filtraListino(aree, (r) => rigaPassa(r, cerca, filtri), !cercando),
     [aree, cercando, cerca, filtri],
   );
 
@@ -641,6 +644,13 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
     const ordine =
       Math.max(-1, ...categorie.filter((c) => c.macrocategoria_id === macroId).map((c) => Number(c.sort_order) || 0)) + 1;
     try {
+      if (nuovaLinea.area.chiave === "serramenti" && chiaveTesto(nuovaLinea.tipologia.nome) === "serramenti") {
+        const esito = await completaInfissi.mutateAsync({ macrocategoriaId: macroId, nomeLinea: nome });
+        toast.success(`Linea «${nome}» pronta: ${esito.configurazioni_standard} configurazioni`, { description: "Compila i tuoi prezzi e verifica la gamma del fornitore. I listini esistenti non cambiano." });
+        cambiaSelezione({ area: nuovaLinea.area.chiave, tipologia: nuovaLinea.tipologia.chiave, linea: `cat:${esito.categoria_id}` });
+        chiudiNuovaLinea();
+        return;
+      }
       const creata = await createCategoria.mutateAsync({ nome, macrocategoria_id: macroId, sort_order: ordine });
       toast.success(`Linea «${creata.nome}» creata in ${nuovaLinea.tipologia.nome}`, {
         description: "Sposta i prodotti nella linea dal menu di ogni prodotto.",
@@ -702,11 +712,11 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
     }
   };
 
-  const salvaVarianti = async (assi: AsseVariantiDati[]) => {
+  const salvaVarianti = async (assi: AsseVariantiDati[], familyIds?: string[]) => {
     const tipologia = variantiAperte;
     if (!tipologia?.macrocategoriaId) return;
     try {
-      const esito = await variantiTipologia.mutateAsync({ macrocategoriaId: tipologia.macrocategoriaId, assi });
+      const esito = await variantiTipologia.mutateAsync({ macrocategoriaId: tipologia.macrocategoriaId, assi, familyIds });
       const dettagli = [
         esito.valori > 0 ? `${esito.valori} valori aggiornati` : null,
         esito.elenchi > 0 ? `${esito.elenchi} ${esito.elenchi === 1 ? "elenco aggiornato" : "elenchi aggiornati"}` : null,
@@ -762,9 +772,27 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
   ];
 
   const lineaContenitore = scelta.linea?.fonte === "categoria" ? scelta.linea : null;
+  const prezziMancanti = lineaContenitore?.righe.filter(({ famiglia: f }) => f.attivo && f.mostra_preventivo && !f.deleted_at && f.modalita_prezzo_base === "mq" && f.prezzo_base_mode === "vendita" && Number(f.prezzo_base_vendita || 0) === 0 && TIPOLOGIE_DISEGNO.some((t) => t.id === f.disegno_tipologia)).length ?? 0;
 
   return (
     <div className="space-y-3">
+      {isAdmin && scelta.area?.chiave === "serramenti" && scelta.tipologia?.macrocategoriaId && chiaveTesto(scelta.tipologia.nome) === "serramenti" && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2">
+          <p className="text-xs text-muted-foreground">Configurazioni comuni. Prezzi mancanti dalla base della stessa linea, se presente; fattibilità da verificare col fornitore.</p>
+          <div className="flex flex-wrap gap-2">
+          {!!prezziMancanti && <Button size="sm" variant="outline" onClick={() => setPrezziMancantiAperto(true)}>Completa prezzi mancanti ({prezziMancanti})</Button>}
+          <Button size="sm" variant="outline" disabled={completaInfissi.isPending} onClick={async () => {
+            try {
+              const esito = await completaInfissi.mutateAsync({ macrocategoriaId: scelta.tipologia!.macrocategoriaId!, categoriaId: lineaContenitore?.categoriaId });
+              toast.success(esito.prodotti_nuovi ? `${esito.prodotti_nuovi} configurazioni aggiunte` : "Configurazioni già presenti", { description: `${esito.prezzi_completati ?? 0} prezzi mancanti completati dalla base della linea. Importi già impostati e preventivi salvati invariati.` });
+            } catch (err) { toast.error("Configurazioni non completate", { description: messaggioErrore(err) }); }
+          }}>{completaInfissi.isPending ? "Completamento…" : "Completa configurazioni"}</Button>
+          </div>
+        </div>
+      )}
+      {prezziMancantiAperto && lineaContenitore?.categoriaId && scelta.tipologia?.macrocategoriaId && <CompletaPrezziInfissiDialog
+        key={lineaContenitore.categoriaId} categoriaId={lineaContenitore.categoriaId} macrocategoriaId={scelta.tipologia.macrocategoriaId}
+        nomeLinea={lineaContenitore.nome} mancanti={prezziMancanti} onClose={() => setPrezziMancantiAperto(false)} />}
       <ListinoBarra
         cerca={cerca}
         onCerca={setCerca}
@@ -837,7 +865,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
           inAttesa={togglePendingIds}
           onAzzera={() => {
             setCerca("");
-            setFiltri(FILTRI_LISTINO_VUOTI);
+            setFiltri(FILTRI_LISTINO_INIZIALI);
           }}
           azioni={{
             onApri: (f) => navigate(`/azienda/impostazioni/listino/famiglie/${f.id}`),
@@ -1344,7 +1372,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
         <NuovaLineaDialog
           area={nuovaLinea.area}
           tipologia={nuovaLinea.tipologia}
-          inCorso={createCategoria.isPending || aggiungiLinea.isPending}
+          inCorso={createCategoria.isPending || aggiungiLinea.isPending || completaInfissi.isPending}
           onChiudi={chiudiNuovaLinea}
           onCreaCategoria={(nome) => void salvaLineaCartella(nome)}
           onCreaAsse={(dati) => void salvaLineaAsse(dati)}
@@ -1394,7 +1422,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
           area={aree.find((a) => a.tipologie.some((t) => t.chiave === variantiAperte.chiave))?.chiave ?? null}
           inCorso={variantiTipologia.isPending}
           onChiudi={() => setVariantiAperte(null)}
-          onSalva={(assi) => void salvaVarianti(assi)}
+          onSalva={(assi, ids) => void salvaVarianti(assi, ids)}
         />
       )}
 

@@ -68,7 +68,7 @@ function Workspace({ companyId, base }: { companyId: string; base: Partial<SrTem
       : <><div><p className="text-xs font-semibold uppercase tracking-wider text-orange-700">Area Serramenti / Modulo PDF</p><h2 className="mt-1 text-2xl font-semibold">{module.title}</h2><p className="mt-1 text-sm text-muted-foreground">{module.summary}</p></div>{notice}
         {canEdit ? <LocalEditor key={companyId + ":" + module.id} companyId={companyId} moduleId={module.id} base={base} onDirtyChange={onDirtyChange} /> : <p>Non hai i permessi per configurare i moduli.</p>}</>}
   </div>;
-  return <section className="space-y-5"><div><p className="text-xs font-semibold uppercase tracking-wider text-orange-700">Area Serramenti</p><h2 className="mt-1 text-2xl font-semibold">Scegli il modulo da preparare</h2><p className="mt-2 text-sm text-muted-foreground">Sette modelli distinti. Configura le pagine una volta, controlla il PDF e salva la tua versione.</p></div>{notice}
+  return <section className="space-y-5"><div><p className="text-xs font-semibold uppercase tracking-wider text-orange-700">Area Serramenti</p><h2 className="mt-1 text-2xl font-semibold">Scegli il modulo da preparare</h2><p className="mt-2 text-sm text-muted-foreground">{SERRAMENTI_TEMPLATE_MODULES.length} modelli distinti. Configura le pagine una volta, controlla il PDF e salva la tua versione.</p></div>{notice}
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{SERRAMENTI_TEMPLATE_MODULES.map((m, index) => {
       let status = "Pronto da personalizzare";
       const fullEdition = FULL_SERRAMENTI_MODULES.includes(m.id);

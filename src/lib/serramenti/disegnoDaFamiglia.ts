@@ -69,6 +69,8 @@ export function tipologiaDaDefinizione(def: DefinizioneDisegno | null | undefine
     inLinea: def.inLinea,
     sopraluce: def.sopraluce,
     sottoluce: def.sottoluce,
+    traversi: def.traversi,
+    inglesine: def.inglesine,
   };
 }
 
@@ -156,6 +158,10 @@ export interface DisegnoConfig {
   /** Apertura del listino (battente DX, ribalta su anta SX, scorre verso DX…): le ante vengono dal catalogo `assiDisegno`. */
   aperturaCodice?: string;
   aperturaNome?: string;
+  /** Composizione scelta congelata: le nuove aperture non cambiano un preventivo già salvato. */
+  ante?: AntaDisegno[];
+  soglia?: boolean;
+  sopraluceApribile?: boolean;
   colore?: string;
   /** Il colore di ogni lato, come lo scrive la riga (`colore_interno` / `colore_esterno`, anche se uguali): ha la precedenza su `colore`. */
   coloreInterno?: string;
@@ -209,6 +215,9 @@ export function configDaFamiglia(
   if (!family || !haDisegno(family)) return null;
   const e = (codice: string) => etichettaScelta(family, selection, codice, coloriRiga?.voci);
   const c: DisegnoConfig = { v: 1, tipologia: family.disegno_tipologia as string };
+  // Articoli storici importati prima della distinzione fra i due fissi.
+  // Il fix vale per le scelte nuove, mai per gli snapshot già salvati.
+  if (c.tipologia === "fisso" && /fisso nell['’\s]+anta/i.test(family.nome ?? "")) c.tipologia = "fisso_anta";
   if (c.tipologia === TIPOLOGIA_PERSONALIZZATA && family.disegno_definizione) c.definizione = family.disegno_definizione;
   const etichettaApertura = e("apertura");
   // Un'apertura del catalogo (anche solo dal nome, per le righe lette dalle etichette) detta le ante; le due voci
@@ -219,10 +228,22 @@ export function configDaFamiglia(
   if (daCatalogo) {
     c.aperturaCodice = daCatalogo.codice;
     c.aperturaNome = daCatalogo.nome;
+    c.ante = daCatalogo.ante.map((a) => ({ ...a }));
   } else {
     const apertura = aperturaDaEtichetta(etichettaApertura);
     if (apertura) c.apertura = apertura;
+    const tipologia = c.tipologia === "fisso_anta" ? TIPOLOGIE_DISEGNO.find((t) => t.id === c.tipologia) : tipologiaDiFamiglia(family);
+    if (tipologia) c.ante = conApertura(tipologia.ante, apertura).map((a) => ({ ...a }));
   }
+  const soglia = codiceScelto(family, selection, "soglia");
+  const sogliaNome = e("soglia");
+  if (sogliaNome && /senza|nessuna|^no$/i.test(sogliaNome)) c.soglia = false;
+  else if (sogliaNome && /con soglia|soglia bassa|soglia standard/i.test(sogliaNome)) c.soglia = true;
+  else if (soglia === "senza" || soglia === "no") c.soglia = false;
+  else if (soglia === "con" || soglia === "si") c.soglia = true;
+  const sopraluce = codiceScelto(family, selection, "apertura_sopraluce");
+  if (sopraluce === "vasistas") c.sopraluceApribile = true;
+  else if (sopraluce === "fisso") c.sopraluceApribile = false;
   if (e("colore")) c.colore = e("colore");
   if (coloriRiga?.forma?.frecciaMm) c.frecciaMm = coloriRiga.forma.frecciaMm;
   if (coloriRiga?.forma?.altezzaMinoreMm) c.altezzaMinoreMm = coloriRiga.forma.altezzaMinoreMm;
@@ -293,7 +314,13 @@ export function disegnoDaConfig(config: DisegnoConfig, larghezzaMm: number, alte
         zanzariera: config.zanzariera ?? mono.zanzariera,
       }
     : undefined;
-  const anteScelte = (config.aperturaCodice ? anteDaApertura(t, config.aperturaCodice) : null) ?? conApertura(tipologia.ante, config.apertura);
+  let anteScelte = config.ante ?? (config.aperturaCodice ? anteDaApertura(t, config.aperturaCodice) : null) ?? conApertura(tipologia.ante, config.apertura);
+  // Snapshot anteriori al catalogo comune: conservano l'antica interpretazione
+  // del verso (senza specchiare i fissi). Le righe nuove salvano `ante`.
+  if (!config.ante && /^scorre_(dx|sx)$/.test(config.aperturaCodice ?? "")) {
+    const versoStorico = config.aperturaCodice === "scorre_sx" ? "sx" as const : "dx" as const;
+    anteScelte = tipologia.ante.map((a) => a.tipo === "scorrevole" || a.tipo === "alzante_scorrevole" ? { ...a, lato: versoStorico } : { ...a });
+  }
   // Il muro dello scorrevole sta dalla parte in cui scorre l'anta.
   const verso = anteScelte.find((a) => a.tipo === "scorrevole" || a.tipo === "alzante_scorrevole")?.lato;
   const base: SerramentoDisegno = {
@@ -303,9 +330,11 @@ export function disegnoDaConfig(config: DisegnoConfig, larghezzaMm: number, alte
     scorrimento: tipologia.scorrimento ? { ...tipologia.scorrimento, lato: verso ?? tipologia.scorrimento.lato } : undefined,
     inLinea: tipologia.inLinea,
     // Sopraluce e sottoluce: l'altezza scritta nella riga, o quella di partenza della tipologia, o un quarto / un quinto dell'altezza.
-    sopraluce: tipologia.sopraluce ? { altezzaMm: config.sopraluceMm ?? tipologia.sopraluce.altezzaMm ?? Math.round(altezzaMm * 0.25), sezioni: tipologia.sopraluce.sezioni } : undefined,
+    sopraluce: tipologia.sopraluce ? { altezzaMm: config.sopraluceMm ?? tipologia.sopraluce.altezzaMm ?? Math.round(altezzaMm * 0.25), sezioni: tipologia.sopraluce.sezioni, apribile: config.sopraluceApribile ?? tipologia.sopraluce.apribile } : undefined,
     sottoluce: tipologia.sottoluce ? { altezzaMm: config.sottoluceMm ?? tipologia.sottoluce.altezzaMm ?? Math.round(altezzaMm * 0.2) } : undefined,
-    soglia: tipologia.soglia,
+    soglia: config.soglia ?? tipologia.soglia,
+    traversi: tipologia.traversi,
+    inglesine: tipologia.inglesine,
     forma: tipologia.forma,
     frecciaMm: config.frecciaMm ?? tipologia.frecciaMm,
     // Il lato basso di serie è una misura fissa: se la finestra è più bassa non regge, e si prende il 70% dell'altezza.

@@ -80,12 +80,13 @@ export function normalizzaSelezione(
 ): { valori: Record<string, string>; voci: Record<string, string> } {
   const prossimi = { ...valori };
   // Si ripete: un asse che compare può accendere un altro.
-  for (let giro = 0; giro < 4; giro++) {
+  for (let giro = 0; giro <= assi.length; giro++) {
     const ok = codiciVisibili(assi, prossimi);
     let cambiato = false;
     for (const a of assi) {
       if (ok.has(a.codice)) {
-        if (!prossimi[a.codice]) {
+        if (!a.values.some((v) => v.id === prossimi[a.codice] && v.attivo !== false)) {
+          delete prossimi[a.codice];
           const partenza = a.values.find((v) => v.is_default && v.attivo !== false) ?? a.values.find((v) => v.attivo !== false);
           if (partenza) {
             prossimi[a.codice] = partenza.id;

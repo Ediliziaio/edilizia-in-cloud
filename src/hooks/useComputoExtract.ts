@@ -2,11 +2,12 @@
  * Hook per gestire l'upload e l'estrazione AI di computi metrici.
  * Gestisce: upload file → invoca edge function → polling stato → carica voci estratte.
  */
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { computoFileType } from "@/lib/computo/uploadFileType";
 import type {
   ComputoUpload,
   ComputoVoceEstratta,
@@ -14,20 +15,12 @@ import type {
 } from "@/types/computo";
 import type { ComputoQuoteItemPayload } from "@/lib/computo/quoteItemMapping";
 
-const FILE_TYPE_MAP: Record<string, ComputoUpload["file_type"]> = {
-  "application/pdf": "pdf",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
-  "application/vnd.ms-excel": "xls",
-  "text/xml": "xpwe",
-  "application/xml": "xpwe",
-  "image/jpeg": "image",
-  "image/png": "image",
-};
-
 export function useComputoExtract() {
   const { effectiveCompany, user } = useAuth();
   const qc = useQueryClient();
   const companyId = effectiveCompany?.id;
+  const uploadRun = useRef(0);
+  useEffect(() => () => { uploadRun.current += 1; }, []);
 
   const [computoId, setComputoId] = useState<string | null>(null);
   const [status, setStatus] = useState<ComputoExtractionStatus | null>(null);
@@ -36,7 +29,7 @@ export function useComputoExtract() {
 
   // ── Upload + create record ─────────────────────────────────────────────────
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file, run }: { file: File; run: number }) => {
       if (!companyId || !user) throw new Error("Utente non autenticato");
 
       setStatus("uploading");
@@ -44,9 +37,7 @@ export function useComputoExtract() {
       setProgress("Caricamento file...");
 
       // Determine file type
-      let fileType = FILE_TYPE_MAP[file.type] || "pdf";
-      const ext = file.name.split(".").pop()?.toLowerCase();
-      if (ext === "xpwe" || ext === "dcf") fileType = "xpwe";
+      const fileType = computoFileType(file);
 
       // Upload to storage
       const storagePath = `${companyId}/${Date.now()}-${file.name}`;
@@ -54,6 +45,7 @@ export function useComputoExtract() {
         .from("computi")
         .upload(storagePath, file);
       if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
+      if (run !== uploadRun.current) return null;
 
       // Create computo_uploads record
       const { data: upload, error: dbErr } = await supabase
@@ -70,25 +62,43 @@ export function useComputoExtract() {
         .select()
         .single();
       if (dbErr) throw new Error(`DB error: ${dbErr.message}`);
+      if (run !== uploadRun.current) return null;
 
       setComputoId(upload.id);
 
-      // Invoke edge function (async - non-blocking)
+      // The request can time out even after the database has committed review.
       setProgress("Avvio estrazione AI...");
       const { error: fnErr } = await supabase.functions.invoke(
         "computo-ai-extract",
         { body: { computoUploadId: upload.id } }
       );
+      if (run !== uploadRun.current) return upload.id;
 
       if (fnErr) {
+        const { data: saved } = await supabase
+          .from("computo_uploads")
+          .select("extraction_status, extraction_error")
+          .eq("id", upload.id)
+          .eq("company_id", companyId)
+          .single();
+        if (run !== uploadRun.current) return upload.id;
+        if (saved && ["review", "completed"].includes(saved.extraction_status)) {
+          setStatus(saved.extraction_status as ComputoExtractionStatus);
+          setError(null);
+          await Promise.all([
+            qc.invalidateQueries({ queryKey: ["computo-voci", upload.id] }),
+            qc.invalidateQueries({ queryKey: ["computo-upload", upload.id] }),
+          ]);
+          return upload.id;
+        }
         setStatus("failed");
-        setError(fnErr.message);
-        throw fnErr;
+        throw new Error(saved?.extraction_error || fnErr.message);
       }
 
       return upload.id;
     },
-    onError: (err: any) => {
+    onError: (err: any, { run }) => {
+      if (run !== uploadRun.current) return;
       setStatus("failed");
       setError(err.message);
       toast.error(`Errore: ${err.message}`);
@@ -97,16 +107,23 @@ export function useComputoExtract() {
 
   // ── Poll status via Supabase Realtime or interval ──────────────────────────
   useEffect(() => {
-    if (!computoId) return;
+    if (!computoId || !companyId) return;
+    let disposed = false;
+    let pending = false;
+    const run = uploadRun.current;
 
     const interval = setInterval(async () => {
+      if (pending || disposed || run !== uploadRun.current) return;
+      pending = true;
+      try {
       const { data } = await supabase
         .from("computo_uploads")
         .select("extraction_status, extraction_error, raw_extracted_json")
         .eq("id", computoId)
+        .eq("company_id", companyId)
         .single();
 
-      if (!data) return;
+      if (disposed || run !== uploadRun.current || !data) return;
 
       const newStatus = data.extraction_status as ComputoExtractionStatus;
       setStatus(newStatus);
@@ -131,49 +148,56 @@ export function useComputoExtract() {
       }
       setProgress(progressText);
 
-      if (data.extraction_error) {
-        setError(data.extraction_error);
-      }
+      setError(data.extraction_error || null);
 
       // Stop polling when terminal
       if (["review", "completed", "failed"].includes(newStatus)) {
         clearInterval(interval);
         if (newStatus === "review") {
           qc.invalidateQueries({ queryKey: ["computo-voci", computoId] });
+          qc.invalidateQueries({ queryKey: ["computo-upload", computoId] });
         }
+      }
+      } catch {
+        // A transient network failure must not mark the server job as failed.
+      } finally {
+        pending = false;
       }
     }, 2000);
 
-    return () => clearInterval(interval);
-  }, [computoId, qc]);
+    return () => { disposed = true; clearInterval(interval); };
+  }, [computoId, companyId, qc]);
 
   // ── Load extracted voci ────────────────────────────────────────────────────
   const {
     data: voci = [],
     isLoading: vociLoading,
+    error: vociQueryError,
     refetch: refetchVoci,
   } = useQuery({
     queryKey: ["computo-voci", computoId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("computo_voci_estratte")
         .select("*")
         .eq("computo_upload_id", computoId!)
         .order("ordine");
+      if (error) throw error;
       return (data ?? []) as ComputoVoceEstratta[];
     },
     enabled: !!computoId && status === "review",
   });
 
   // ── Load upload metadata ───────────────────────────────────────────────────
-  const { data: computoUpload } = useQuery({
+  const { data: computoUpload, error: uploadQueryError } = useQuery({
     queryKey: ["computo-upload", computoId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("computo_uploads")
         .select("*")
         .eq("id", computoId!)
         .single();
+      if (error) throw error;
       return data as ComputoUpload | null;
     },
     enabled: !!computoId && status === "review",
@@ -237,6 +261,7 @@ export function useComputoExtract() {
   });
 
   const reset = useCallback(() => {
+    uploadRun.current += 1;
     setComputoId(null);
     setStatus(null);
     setProgress("");
@@ -244,6 +269,7 @@ export function useComputoExtract() {
   }, []);
 
   const loadExistingComputo = useCallback((id: string) => {
+    uploadRun.current += 1;
     setComputoId(id);
     setStatus("review");
     setProgress("Pronti per la revisione!");
@@ -261,8 +287,13 @@ export function useComputoExtract() {
     voci,
     vociLoading,
     computoUpload,
+    reviewError: vociQueryError || uploadQueryError,
     // Actions
-    upload: uploadMutation.mutate,
+    upload: (file: File) => {
+      const run = ++uploadRun.current;
+      setComputoId(null);
+      uploadMutation.mutate({ file, run });
+    },
     isUploading: uploadMutation.isPending,
     generatePreventivo: generateMutation.mutate,
     isGenerating: generateMutation.isPending,

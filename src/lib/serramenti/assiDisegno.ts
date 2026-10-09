@@ -142,6 +142,12 @@ const TRE_ANTE: AperturaDisegno[] = [
   { codice: "ribalta_laterali", nome: "Laterali anta-ribalta, centrale battente", ante: [ar("sx"), batt("dx"), ar("dx")] },
   { codice: "ribalta_centrale", nome: "Centrale anta-ribalta, laterali battente", ante: [batt("sx"), ar("dx"), batt("dx")] },
   { codice: "ribalta_tutte", nome: "Tutte anta-ribalta", ante: [ar("sx"), ar("dx"), ar("dx")] },
+  { codice: "battente_2_1", nome: "2+1: coppia SX, singola DX", ante: [batt("sx"), batt("dx", true), batt("dx")] },
+  { codice: "battente_1_2", nome: "1+2: singola SX, coppia DX", ante: [batt("sx"), batt("sx"), batt("dx", true)] },
+];
+const QUATTRO_ANTE: AperturaDisegno[] = [
+  { codice: "battente_2_2", nome: "2+2: due coppie a battente", ante: [batt("sx"), batt("dx", true), batt("sx"), batt("dx", true)] },
+  { codice: "ribalta_2_2", nome: "2+2: anta-ribalta sulle principali", ante: [batt("sx"), ar("dx"), batt("sx"), ar("dx")] },
 ];
 const PORTONCINO_2: AperturaDisegno[] = [
   { codice: "principale_dx", nome: "Anta principale DX", ante: [batt("sx"), batt("dx", true)] },
@@ -161,6 +167,8 @@ const APERTURE_BATTENTI: Record<string, AperturaDisegno[]> = {
   porta_finestra_2_ante_sopraluce: DUE_ANTE,
   finestra_2_ante: DUE_ANTE,
   finestra_3_ante: TRE_ANTE,
+  finestra_4_ante: QUATTRO_ANTE,
+  porta_finestra_4_ante: QUATTRO_ANTE,
   porta_finestra_1_anta: UNA_ANTA,
   porta_finestra_2_ante: DUE_ANTE,
   porta_finestra_3_ante: TRE_ANTE,
@@ -170,17 +178,18 @@ const APERTURE_BATTENTI: Record<string, AperturaDisegno[]> = {
   monoblocco_2_ante: DUE_ANTE,
 };
 
-/** Gli scorrevoli hanno solo il verso: le ante sono quelle della tipologia, con ogni scorrevole che va dal lato scelto. */
-const TIPOLOGIE_SCORREVOLI = ["traslante_4_ante", "alzante_as_fa", "alzante_fa_as_as_fa", "alzante_scomparsa", "traslante_fisso_telaio", "traslante_fisso_anta", "traslante_su_parete", "slide", "smart_slide", "scorri_ribalta_patio"];
+/** Il verso specchia lo schema completo, senza mandare nella stessa direzione le due ante centrali. */
+const TIPOLOGIE_SCORREVOLI = ["traslante_4_ante", "alzante_as_fa", "alzante_fa_as_as_fa", "alzante_scomparsa", "traslante_fisso_telaio", "traslante_fisso_anta", "traslante_su_parete", "slide", "slide_plus", "finestra_scorrevole_2_ante", "smart_slide", "scorri_ribalta_patio"];
 
 export function apertureDellaTipologia(tipologiaId: string): AperturaDisegno[] {
-  if (TIPOLOGIE_SCORREVOLI.includes(tipologiaId)) {
+  if (TIPOLOGIE_SCORREVOLI.includes(tipologiaId) || tipologiaId === "porta_finestra_scorrevole_2_ante") {
     const base = TIPOLOGIE_DISEGNO.find((t) => t.id === tipologiaId);
     if (!base) return [];
+    const latoBase = base.ante.find((a) => a.tipo === "scorrevole" || a.tipo === "alzante_scorrevole")?.lato ?? "dx";
     return (["dx", "sx"] as const).map((verso) => ({
       codice: `scorre_${verso}`,
       nome: `Scorre verso ${verso.toUpperCase()}`,
-      ante: base.ante.map((a) => (a.tipo === "scorrevole" || a.tipo === "alzante_scorrevole" ? { ...a, lato: verso } : { ...a })),
+      ante: verso === latoBase ? base.ante.map((a) => ({ ...a })) : [...base.ante].reverse().map((a) => ({ ...a, ...(a.lato ? { lato: a.lato === "dx" ? "sx" as const : "dx" as const } : {}) })),
     }));
   }
   return APERTURE_BATTENTI[tipologiaId] ?? [];

@@ -9,7 +9,7 @@
  * nei prodotti al m² è al m² e in quelli a griglia nei preventivi non conta.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { FamilyWithAxes } from "@/types/articleFamily";
 
@@ -32,6 +32,7 @@ vi.mock("@/hooks/useFamilyMutations", () => ({
       deleteAxis: m(),
       createAxisValue: m(mut.createAxisValue),
       updateAxisValue: m(mut.updateAxisValue),
+      saveOptions: m(mut.updateAxisValue),
       deleteAxisValue: m(),
       bulkInsertAxesWithValues: m(),
     };
@@ -112,9 +113,41 @@ function apriValore(f: FamilyWithAxes) {
 const salvato = () => (mut.updateAxisValue.mock.calls[0][0] as { patch: Record<string, unknown> }).patch;
 
 describe("maggiorazione negativa: una linea che costa meno", () => {
+  it("desktop: la scelta ha spazio per due colonne e azioni fuori dall'area scorrevole", () => {
+    apriValore(famiglia("pz"));
+    const dialog = screen.getByRole("dialog", { name: "Modifica scelta" });
+    expect(dialog).toHaveClass("sm:max-w-3xl", "flex", "overflow-hidden");
+    const body = within(dialog).getByLabelText("Nome della scelta").closest(".grid");
+    expect(body).toHaveClass("sm:grid-cols-2", "min-h-0", "overflow-y-auto");
+    expect(body?.contains(within(dialog).getByRole("button", { name: "Aggiorna" }))).toBe(false);
+    expect(within(dialog).getByRole("button", { name: "Aggiorna" }).parentElement).toHaveClass("shrink-0");
+  });
+
+  it("desktop: il gruppo resta compatto e scorre senza nascondere le azioni", () => {
+    apriValore(famiglia("pz"));
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    fireEvent.click(screen.getByRole("button", { name: "Modifica variabile" }));
+    const dialog = screen.getByRole("dialog", { name: "Modifica variazione" });
+    expect(dialog).toHaveClass("sm:max-w-lg", "flex", "overflow-hidden");
+    expect(within(dialog).getByLabelText("Nome").closest(".overflow-y-auto")).toHaveClass("min-h-0");
+    expect(within(dialog).getByRole("button", { name: "Aggiorna" }).parentElement).toHaveClass("shrink-0");
+  });
+
+  it("distingue vendita e costo anche quando hanno lo stesso supplemento", () => {
+    apriValore(famiglia("pz", { maggiorazione_valore: 10, maggiorazione_acquisto: 10 }));
+    expect(screen.getByText("Vendita +10%")).toBeInTheDocument();
+    expect(screen.getByText("Costo +10%")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Prezzo della scelta" })).toBeInTheDocument();
+  });
+
+  it("zero supplemento fornitore si legge esplicitamente, non come etichetta vuota", () => {
+    apriValore(famiglia("pz", { maggiorazione_valore: 10, maggiorazione_acquisto: 0 }));
+    expect(screen.getByText("Costo nessun supplemento")).toBeInTheDocument();
+  });
+
   it("risalvare il valore lascia −8%, non lo porta a 0%", async () => {
     apriValore(famiglia("pz"));
-    fireEvent.change(screen.getByLabelText("Label visibile"), { target: { value: "Linea base" } });
+    fireEvent.change(screen.getByLabelText("Nome della scelta"), { target: { value: "Linea base" } });
     fireEvent.click(screen.getByRole("button", { name: "Aggiorna" }));
     await waitFor(() => expect(mut.updateAxisValue).toHaveBeenCalledOnce());
     expect(salvato()).toMatchObject({ label: "Linea base", maggiorazione_valore: -8, maggiorazione_acquisto: -8 });
@@ -143,11 +176,10 @@ describe("maggiorazione negativa: una linea che costa meno", () => {
   });
 
   it("il prezzo proprio invece resta mai negativo", async () => {
-    apriValore(famiglia("pz"));
+    apriValore(famiglia("pz", { prezzo_vendita: 120 }));
     fireEvent.change(screen.getByLabelText("Prezzo vendita €"), { target: { value: "-20" } });
-    fireEvent.click(screen.getByRole("button", { name: "Aggiorna" }));
-    await waitFor(() => expect(mut.updateAxisValue).toHaveBeenCalledOnce());
-    expect(salvato()).toMatchObject({ prezzo_vendita: 0 });
+    expect(screen.getByRole("button", { name: "Aggiorna" })).toBeDisabled();
+    expect(mut.updateAxisValue).not.toHaveBeenCalled();
   });
 
   it("lettura degli importi", () => {
@@ -191,14 +223,14 @@ describe("maggiorazione negativa: una linea che costa meno", () => {
 
 describe("prezzo proprio della variante, detto per il prodotto", () => {
   it("prodotto al m²: etichette in €/m² e spiegazione sulla superficie", () => {
-    apriValore(famiglia("mq"));
+    apriValore(famiglia("mq", { prezzo_vendita: 120 }));
     expect(screen.getByLabelText("Prezzo vendita €/m²")).toBeInTheDocument();
     expect(screen.getByLabelText("Prezzo acquisto €/m²")).toBeInTheDocument();
     expect(screen.getByText(/si moltiplica per la superficie/)).toBeInTheDocument();
   });
 
   it("prodotto a griglia: dice che nei preventivi non si applica", () => {
-    apriValore(famiglia("griglia"));
+    apriValore(famiglia("griglia", { prezzo_vendita: 120 }));
     expect(screen.getByLabelText("Prezzo vendita €")).toBeInTheDocument();
     expect(screen.getByText(/nei preventivi il prezzo proprio non si applica/)).toBeInTheDocument();
   });
@@ -211,7 +243,7 @@ describe("prezzo proprio della variante, detto per il prodotto", () => {
       </QueryClientProvider>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Apri variabile Linea" }));
-    expect(screen.getByText("€120/m²")).toBeInTheDocument();
+    expect(screen.getByText("Vendita €120/m²")).toBeInTheDocument();
   });
 
   it("le parole seguono il motore dei preventivi", () => {

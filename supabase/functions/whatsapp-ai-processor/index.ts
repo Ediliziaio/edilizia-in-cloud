@@ -55,6 +55,7 @@ import { buildInteractivePayload } from "./interactive.ts";
 import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
 import { publicAiAnswer } from "../_shared/visibleAiAnswer.ts";
 import { WHATSAPP_SILVIO_REPLY_STYLE } from "../_shared/silvioReplyStyle.ts";
+import { silvioHistoryContent, silvioToolResultForPrompt, silvioToolContextIsPartial, silvioCompletionNotice } from "../_shared/silvioAnswerQuality.ts";
 import { FINANCE_RECONCILIATION_RULES, MONEY_CONFIRMATION_RULES } from "../_shared/chartRules.ts";
 import { SITE_HEALTH_TOOL, siteHealthPreflight, siteHealthDirectAnswer } from "../_shared/silvioSiteHealth.ts";
 import { resolveIdentity } from "./identity.ts";
@@ -449,14 +450,16 @@ Deno.serve(async (req) => {
 
     const historyFormatted: ChatMessage[] = (history ?? [])
       .reverse()
-      .map((h) => {
+      .flatMap((h) => {
         const letto = isPlainRecord(h.ai_extracted_data) ? h.ai_extracted_data.testo_per_assistente : null;
-        return {
+        const content = silvioHistoryContent(typeof letto === "string" && letto.trim() ? letto : h.content_text, {
+          assistant: h.direction !== "inbound",
+        });
+        return content ? [{
           role: (h.direction === "inbound" ? "user" : "assistant") as ChatMessage["role"],
-          content: typeof letto === "string" && letto.trim() ? letto : (h.content_text ?? ""),
-        };
-      })
-      .filter((h) => h.content.trim().length > 0);
+          content,
+        }] : [];
+      });
 
     // Tool filter per role
     // Le impostazioni del numero (presenze, diario foto, sicurezza) valgono per
@@ -664,6 +667,8 @@ Deno.serve(async (req) => {
       conv.push(...healthMessages);
     }
     let finalText: string | null = siteHealthDirectAnswer(testoDellaRisposta, healthMessages);
+    let answerFinishReason: unknown = null;
+    let partialToolContext = false;
     // MP-P1 — true quando un tool (chiedi_conferma) ha già inviato una risposta
     // interattiva: il sendReply testuale finale va saltato per non duplicare.
     let replyHandled = false;
@@ -697,6 +702,7 @@ Deno.serve(async (req) => {
 
       if (!assistantMsg.tool_calls || assistantMsg.tool_calls.length === 0) {
         finalText = assistantMsg.content ?? STR.shared.generic_error;
+        answerFinishReason = choice.finish_reason;
         break;
       }
 
@@ -862,10 +868,12 @@ Deno.serve(async (req) => {
 
       conv.push(assistantMsg);
       for (const r of results) {
+        const promptResult = silvioToolResultForPrompt(r.result);
+        partialToolContext ||= silvioToolContextIsPartial(promptResult);
         conv.push({
           role: "tool",
           tool_call_id: r.tool_call_id,
-          content: JSON.stringify(r.result),
+          content: promptResult,
         });
       }
 
@@ -952,7 +960,7 @@ Deno.serve(async (req) => {
     }
 
     // Il Markdown del modello scritto per WhatsApp (**x** → *x*, # titoli, link).
-    finalText = formatoWhatsApp(finalText);
+    finalText = formatoWhatsApp(silvioCompletionNotice(finalText, answerFinishReason, partialToolContext));
 
     // Si ricordano la domanda in attesa e le aree di Silvio caricate.
     if (!replyHandled && sessionId && (confermaDopo !== undefined || ponte)) {

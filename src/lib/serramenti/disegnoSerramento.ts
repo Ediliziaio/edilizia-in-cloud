@@ -598,10 +598,13 @@ export function disegnaSerramento(d: SerramentoDisegno): ScenaSerramento {
     const x = xAnte[i];
     const larghezzaAnta = larghezze[i];
     if (anta.tipo === "fisso") {
-      forme.push(...cornice(x, yTop, larghezzaAnta, altezzaAnte, s.ferma, "anta"));
-      vetri.push({ kind: "rect", ruolo: "vetro", x: x + s.ferma, y: yTop + s.ferma, w: larghezzaAnta - 2 * s.ferma, h: altezzaAnte - 2 * s.ferma });
-      vetri.push(...distanziatori(x + s.ferma, yTop + s.ferma, larghezzaAnta - 2 * s.ferma, altezzaAnte - 2 * s.ferma, d.vetro?.lastre));
-      vetri.push(...suddivisioni(d, x + s.ferma, yTop + s.ferma, larghezzaAnta - 2 * s.ferma, altezzaAnte - 2 * s.ferma, H, s.anta * 1.4));
+      // undefined conserva la rappresentazione dei vecchi preventivi. L'anta fissa
+      // esplicita ha il profilo d'anta, il vetro nel telaio solo il fermavetro.
+      const profilo = anta.nelTelaio === false ? s.anta : s.ferma;
+      forme.push(...cornice(x, yTop, larghezzaAnta, altezzaAnte, profilo, "anta"));
+      vetri.push({ kind: "rect", ruolo: "vetro", x: x + profilo, y: yTop + profilo, w: larghezzaAnta - 2 * profilo, h: altezzaAnte - 2 * profilo });
+      vetri.push(...distanziatori(x + profilo, yTop + profilo, larghezzaAnta - 2 * profilo, altezzaAnte - 2 * profilo, d.vetro?.lastre));
+      vetri.push(...suddivisioni(d, x + profilo, yTop + profilo, larghezzaAnta - 2 * profilo, altezzaAnte - 2 * profilo, H, s.anta * 1.4));
       return;
     }
     forme.push(...cornice(x, yTop, larghezzaAnta, altezzaAnte, s.anta, "anta"));
@@ -806,8 +809,10 @@ export interface TipologiaDisegno {
   scorrimento?: ScorrimentoDisegno;
   inLinea?: boolean;
   /** Sopraluce e sottoluce di partenza; senza altezza si prende un quarto (sopraluce) o un quinto (sottoluce) dell'altezza. */
-  sopraluce?: { altezzaMm?: number; sezioni?: number };
+  sopraluce?: { altezzaMm?: number; sezioni?: number; apribile?: boolean };
   sottoluce?: { altezzaMm?: number };
+  traversi?: SerramentoDisegno["traversi"];
+  inglesine?: SerramentoDisegno["inglesine"];
 }
 
 /** Un tipo di disegno composto a mano (articolo con «Personalizzata»): misure di partenza e ante. */
@@ -818,8 +823,10 @@ export interface DefinizioneDisegno {
   soglia?: boolean;
   scorrimento?: ScorrimentoDisegno;
   inLinea?: boolean;
-  sopraluce?: { altezzaMm?: number; sezioni?: number };
+  sopraluce?: { altezzaMm?: number; sezioni?: number; apribile?: boolean };
   sottoluce?: { altezzaMm?: number };
+  traversi?: SerramentoDisegno["traversi"];
+  inglesine?: SerramentoDisegno["inglesine"];
 }
 
 export const TIPOLOGIE_DISEGNO: TipologiaDisegno[] = [
@@ -850,6 +857,7 @@ export const TIPOLOGIE_DISEGNO: TipologiaDisegno[] = [
   { id: "porta_finestra_libro_4_ante", nome: "Porta finestra a libro 4 ante", larghezzaMm: 4000, altezzaMm: 2200, ante: [{ tipo: "libro", lato: "sx" }, { tipo: "libro", lato: "dx", maniglia: true }, { tipo: "libro", lato: "sx" }, { tipo: "libro", lato: "dx" }], soglia: true },
   { id: "scorri_ribalta_patio", nome: "Scorri-ribalta PATIO", larghezzaMm: 2400, altezzaMm: 2200, ante: [{ tipo: "fisso" }, { tipo: "scorrevole", lato: "sx", maniglia: true, conRibalta: true }], soglia: true },
   { id: "finestra_scorrevole_2_ante", nome: "Finestra scorrevole 2 ante", larghezzaMm: 1600, altezzaMm: 1200, ante: [{ tipo: "scorrevole", lato: "sx", maniglia: true }, { tipo: "scorrevole", lato: "dx", maniglia: true }] },
+  { id: "porta_finestra_scorrevole_2_ante", nome: "Porta finestra scorrevole 2 ante", larghezzaMm: 1600, altezzaMm: 2200, soglia: true, ante: [{ tipo: "scorrevole", lato: "sx", maniglia: true }, { tipo: "scorrevole", lato: "dx", maniglia: true }] },
   { id: "alzante_scomparsa", nome: "Alzante scorrevole a scomparsa", larghezzaMm: 2400, altezzaMm: 2200, ante: [{ tipo: "alzante_scorrevole", lato: "dx", maniglia: true }], soglia: true, scorrimento: { tipo: "scomparsa", lato: "dx" } },
   { id: "traslante_fisso_telaio", nome: "Traslante scorrevole con fisso nel telaio", larghezzaMm: 2400, altezzaMm: 2200, ante: [{ tipo: "fisso", nelTelaio: true }, { tipo: "scorrevole", lato: "sx", maniglia: true }], soglia: true },
   { id: "traslante_fisso_anta", nome: "Traslante scorrevole con fisso nell'anta", larghezzaMm: 2400, altezzaMm: 2200, ante: [{ tipo: "fisso" }, { tipo: "scorrevole", lato: "sx", maniglia: true }], soglia: true },
@@ -863,4 +871,12 @@ export const TIPOLOGIE_DISEGNO: TipologiaDisegno[] = [
   { id: "finestra_ogiva", nome: "Finestra ogivale (arco a punta)", larghezzaMm: 800, altezzaMm: 1600, ante: [{ tipo: "fisso" }], forma: "ogiva" },
   { id: "monoblocco_2_ante", nome: "Monoblocco 2 ante", larghezzaMm: 1200, altezzaMm: 1400, ante: [{ tipo: "battente", lato: "sx" }, { tipo: "anta_ribalta", lato: "dx", maniglia: true }], monoblocco: { cassonettoMm: 200, tapparella: { motore: false } } },
   { id: "monoblocco_1_anta", nome: "Monoblocco 1 anta", larghezzaMm: 900, altezzaMm: 1500, ante: [{ tipo: "anta_ribalta", lato: "dx" }], monoblocco: { cassonettoMm: 200, tapparella: { motore: true } } },
+  { id: "finestra_4_ante", nome: "Finestra 4 ante (2+2)", larghezzaMm: 2400, altezzaMm: 1400, ante: [{ tipo: "battente", lato: "sx" }, { tipo: "anta_ribalta", lato: "dx" }, { tipo: "battente", lato: "sx" }, { tipo: "anta_ribalta", lato: "dx" }] },
+  { id: "porta_finestra_4_ante", nome: "Porta finestra 4 ante (2+2)", larghezzaMm: 2600, altezzaMm: 2200, ante: [{ tipo: "battente", lato: "sx" }, { tipo: "anta_ribalta", lato: "dx" }, { tipo: "battente", lato: "sx" }, { tipo: "anta_ribalta", lato: "dx" }], soglia: true },
+  { id: "finestra_2_ante_fisso_sx", nome: "Finestra 2 ante con fisso laterale SX", larghezzaMm: 1800, altezzaMm: 1400, ante: [{ tipo: "fisso", nelTelaio: true }, { tipo: "battente", lato: "sx" }, { tipo: "anta_ribalta", lato: "dx" }] },
+  { id: "finestra_2_ante_fisso_dx", nome: "Finestra 2 ante con fisso laterale DX", larghezzaMm: 1800, altezzaMm: 1400, ante: [{ tipo: "battente", lato: "sx" }, { tipo: "anta_ribalta", lato: "dx" }, { tipo: "fisso", nelTelaio: true }] },
+  { id: "finestra_fisso_centrale", nome: "Finestra con fisso centrale e 2 ante laterali", larghezzaMm: 1800, altezzaMm: 1400, ante: [{ tipo: "anta_ribalta", lato: "sx" }, { tipo: "fisso", nelTelaio: true }, { tipo: "anta_ribalta", lato: "dx" }] },
+  { id: "porta_finestra_2_ante_fisso_sx", nome: "Porta finestra 2 ante con fisso laterale SX", larghezzaMm: 2100, altezzaMm: 2200, ante: [{ tipo: "fisso", nelTelaio: true }, { tipo: "battente", lato: "sx" }, { tipo: "anta_ribalta", lato: "dx" }], soglia: true },
+  { id: "porta_finestra_2_ante_fisso_dx", nome: "Porta finestra 2 ante con fisso laterale DX", larghezzaMm: 2100, altezzaMm: 2200, ante: [{ tipo: "battente", lato: "sx" }, { tipo: "anta_ribalta", lato: "dx" }, { tipo: "fisso", nelTelaio: true }], soglia: true },
+  { id: "fisso_anta", nome: "Fisso nell'anta", larghezzaMm: 800, altezzaMm: 1400, ante: [{ tipo: "fisso", nelTelaio: false }] },
 ];

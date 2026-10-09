@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AnteprimaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
 import { CONFIGURAZIONI_PERSIANA } from "@/lib/serramenti/assiDisegno";
+import { GRUPPI_CONFIGURAZIONI } from "@/lib/serramenti/catalogoConfigurazioni";
 import {
   TIPOLOGIA_PERSONALIZZATA,
   disegnoDaFamiglia,
@@ -28,27 +29,7 @@ interface Props {
   onChange: (v: ValoreTipoDisegno) => void;
 }
 
-const GRUPPI: Array<{ titolo: string; voci: Array<[string, string]> }> = [
-  { titolo: "Finestre", voci: [["finestra_1_anta", "Finestra 1 anta"], ["finestra_2_ante", "Finestra 2 ante"], ["finestra_3_ante", "Finestra 3 ante"], ["finestra_wasistas", "Finestra wasistas"], ["fisso", "Fisso nel telaio"], ["finestra_scorrevole_2_ante", "Finestra scorrevole 2 ante"]] },
-  {
-    titolo: "Finestre con sopraluce o sottoluce",
-    voci: [
-      ["finestra_1_anta_sopraluce", "1 anta con sopraluce"], ["finestra_2_ante_sopraluce", "2 ante con sopraluce"], ["finestra_2_ante_sopraluce_2_sezioni", "2 ante con sopraluce a due sezioni"],
-      ["finestra_3_ante_sopraluce", "3 ante con sopraluce"], ["finestra_1_anta_sottoluce", "1 anta con sottoluce"], ["finestra_2_ante_sottoluce", "2 ante con sottoluce"],
-    ],
-  },
-  { titolo: "Porte finestra e portoncini", voci: [["porta_finestra_1_anta", "Porta finestra 1 anta"], ["porta_finestra_2_ante", "Porta finestra 2 ante"], ["porta_finestra_3_ante", "Porta finestra 3 ante"], ["porta_finestra_2_ante_sopraluce", "Porta finestra 2 ante con sopraluce"], ["porta_finestra_libro_3_ante", "Porta finestra a libro 3 ante"], ["porta_finestra_libro_4_ante", "Porta finestra a libro 4 ante"], ["portoncino_1_anta", "Portoncino 1 anta"], ["portoncino_2_ante", "Portoncino 2 ante"]] },
-  {
-    titolo: "Scorrevoli e alzanti",
-    voci: [
-      ["traslante_4_ante", "Traslante scorrevole 4 ante"], ["traslante_fisso_telaio", "Traslante con fisso nel telaio"], ["traslante_fisso_anta", "Traslante con fisso nell'anta"],
-      ["traslante_su_parete", "Traslante su parete"], ["alzante_as_fa", "Alzante scorrevole AS + FA"], ["alzante_fa_as_as_fa", "Alzante scorrevole FA + AS + AS + FA"],
-      ["alzante_scomparsa", "Alzante a scomparsa"], ["scorri_ribalta_patio", "Scorri-ribalta PATIO"], ["slide", "Slide"], ["slide_plus", "Slide Plus"], ["smart_slide", "Smart Slide (in linea)"],
-    ],
-  },
-  { titolo: "Sagome", voci: [["finestra_arco", "Ad arco"], ["finestra_trapezio", "Trapezio"], ["finestra_lunetta", "Lunetta"], ["finestra_tonda", "Tonda / ovale"], ["finestra_triangolo", "Triangolare"], ["finestra_ogiva", "Ogivale"]] },
-  { titolo: "Monoblocchi", voci: [["monoblocco_1_anta", "Monoblocco 1 anta"], ["monoblocco_2_ante", "Monoblocco 2 ante"]] },
-];
+const GRUPPI = GRUPPI_CONFIGURAZIONI;
 
 const TIPI_ANTA: Array<[TipoAnta | "fisso_telaio", string]> = [
   ["fisso", "Fisso (anta fissa)"],
@@ -207,12 +188,13 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
                   onChange={(e) => {
                     const v = e.target.value as TipoAnta | "fisso_telaio";
                     const tipo: TipoAnta = v === "fisso_telaio" ? "fisso" : v;
-                    aggiornaAnta(i, { tipo, ...(conLato(tipo) ? { lato: a.lato ?? "dx" } : {}), ...(v === "fisso_telaio" ? { nelTelaio: true } : {}), ...(conLato(tipo) ? { maniglia: a.maniglia } : {}) });
+                    aggiornaAnta(i, { tipo, larghezzaMm: a.larghezzaMm, ...(conLato(tipo) ? { lato: a.lato ?? "dx" } : {}), ...(tipo === "fisso" ? { nelTelaio: v === "fisso_telaio" } : {}), ...(conLato(tipo) ? { maniglia: a.maniglia } : {}) });
                   }}
                   aria-label={`Tipo dell'anta ${i + 1}`}
                 >
                   {TIPI_ANTA.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
                 </select>
+                <Input type="number" min={1} className="h-9 w-28 text-xs" placeholder="Automatica" aria-label={`Larghezza dell'anta ${i + 1} (mm)`} key={`anta-${i}-${a.larghezzaMm ?? ""}`} defaultValue={a.larghezzaMm ?? ""} onBlur={(e) => aggiornaAnta(i, { ...a, larghezzaMm: numero(e.target.value) })} />
                 {eScorrevole(a) && (
                   <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-slate-700">
                     <input type="checkbox" className="h-3.5 w-3.5 accent-orange-500" checked={!!a.conRibalta} onChange={(e) => aggiornaAnta(i, { ...a, conRibalta: e.target.checked || undefined })} />
@@ -269,6 +251,24 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
               )}
             </div>
           )}
+          {def.sopraluce && (
+            <label className="inline-flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={!!def.sopraluce.apribile} onChange={(e) => aggiorna({ sopraluce: { ...def.sopraluce, apribile: e.target.checked } })} />
+              Sopraluce apribile a vasistas
+            </label>
+          )}
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div>
+              <Label className="text-xs">Traversi dal basso (mm)</Label>
+              <Input className="h-9 text-xs" placeholder="Es. 600, 1100" key={`traversi-${def.traversi?.map((t) => t.daBassoMm).join(",") ?? ""}`} defaultValue={def.traversi?.map((t) => t.daBassoMm).join(", ") ?? ""} onBlur={(e) => aggiorna({ traversi: e.target.value.split(/[,;]+/).map((s) => numero(s)).filter((n): n is number => n !== undefined).map((daBassoMm) => ({ daBassoMm })) })} />
+            </div>
+            {(["colonne", "righe"] as const).map((campo) => (
+              <div key={campo}>
+                <Label className="text-xs">Inglesine: {campo}</Label>
+                <Input type="number" min={1} max={8} className="h-9 text-xs" key={`${campo}-${def.inglesine?.[campo] ?? ""}`} defaultValue={def.inglesine?.[campo] ?? ""} onBlur={(e) => aggiorna({ inglesine: e.target.value.trim() ? { colonne: def.inglesine?.colonne ?? 1, righe: def.inglesine?.righe ?? 1, [campo]: Math.min(8, numero(e.target.value) ?? 1) } : undefined })} />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

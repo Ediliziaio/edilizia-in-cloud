@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { applyScontiFornitore, applyMarkup } from "@/lib/priceMarkup";
 import type { FamilyWithAxes, AxisSelection } from "@/types/articleFamily";
+import { assiVisibili, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
 import { suffissoMaggiorazione } from "@/lib/listino/maggiorazione";
 
 // Limiti plausibili per validazione client (#4)
@@ -122,13 +123,15 @@ export function FamilyPricePreview({ family }: Props) {
   const initialSelection: AxisSelection = useMemo(() => {
     const sel: AxisSelection = {};
     for (const ax of family.axes) {
-      const def = ax.values.find((v) => v.is_default) ?? ax.values[0];
+      const def = ax.values.find((v) => v.is_default && v.attivo) ?? ax.values.find((v) => v.attivo);
       if (def) sel[ax.codice] = def.id;
     }
-    return sel;
+    return normalizzaSelezione(family.axes, sel).valori;
   }, [family.axes]);
 
-  const [selection, setSelection] = useState<AxisSelection>(initialSelection);
+  const [selectedValues, setSelection] = useState<AxisSelection>(initialSelection);
+  const selection = useMemo(() => normalizzaSelezione(family.axes, selectedValues).valori, [family.axes, selectedValues]);
+  const visibleAxes = useMemo(() => assiVisibili(family.axes, selection), [family.axes, selection]);
   // #7 — Persistenza ultima simulazione su localStorage (per family.id).
   const lsKey = `eic:simulator:${family.id}`;
   type Persisted = { larghezza: string; altezza: string; quantita: string; unit: DimUnit };
@@ -291,6 +294,7 @@ export function FamilyPricePreview({ family }: Props) {
     // Step 4 — applica maggiorazioni assi su vendita e acquisto NETTO
     let prezzoVendita = baseVenditaCalcolata;
     let prezzoAcquisto = baseNettoAcquisto;
+    let costoCompleto = baseNettoAcquisto > 0;
 
     const mq = (w * h) / 1_000_000;
     const ml = w / 1000;
@@ -303,13 +307,14 @@ export function FamilyPricePreview({ family }: Props) {
     const assiPrezzoProprio = new Set<string>();
     if (family.modalita_prezzo_base !== "griglia") {
       const perMq = family.modalita_prezzo_base === "mq";
-      for (const ax of family.axes) {
+      for (const ax of visibleAxes) {
         const selId = selection[ax.codice];
         if (!selId) continue;
         const v = ax.values.find((x) => x.id === selId);
         if (!v || v.prezzo_vendita == null || !(Number(v.prezzo_vendita) > 0)) continue;
         prezzoVendita = perMq ? Number(v.prezzo_vendita) * mq : Number(v.prezzo_vendita);
-        if (v.prezzo_acquisto != null && Number(v.prezzo_acquisto) > 0) {
+        costoCompleto = v.prezzo_acquisto != null && Number(v.prezzo_acquisto) > 0;
+        if (costoCompleto) {
           prezzoAcquisto = perMq ? Number(v.prezzo_acquisto) * mq : Number(v.prezzo_acquisto);
         }
         assiPrezzoProprio.add(ax.codice);
@@ -317,7 +322,7 @@ export function FamilyPricePreview({ family }: Props) {
     }
 
     // Pass 1: percentuali
-    for (const ax of family.axes) {
+    for (const ax of visibleAxes) {
       const selId = selection[ax.codice];
       if (!selId || assiPrezzoProprio.has(ax.codice)) continue;
       const v = ax.values.find((x) => x.id === selId);
@@ -327,7 +332,7 @@ export function FamilyPricePreview({ family }: Props) {
     }
 
     // Pass 2: fisse
-    for (const ax of family.axes) {
+    for (const ax of visibleAxes) {
       const selId = selection[ax.codice];
       if (!selId || assiPrezzoProprio.has(ax.codice)) continue;
       const v = ax.values.find((x) => x.id === selId);
@@ -390,13 +395,14 @@ export function FamilyPricePreview({ family }: Props) {
       totAcquisto,
       margine,
       marginePerc,
+      costoCompleto,
       warnings,
       mq,
       breakdown,
       gridLookupInfo,
       outOfRange,
     };
-  }, [family, gridCells, selection, wMm, hMm, quantita]);
+  }, [family, visibleAxes, gridCells, selection, wMm, hMm, quantita]);
 
   // #1 — Liste W e H disponibili in griglia (per dropdown smart-fill)
   const availableWidths = useMemo(
@@ -558,13 +564,13 @@ export function FamilyPricePreview({ family }: Props) {
 
         {family.axes.length > 0 ? (
           <div className="space-y-2">
-            {family.axes.map((ax) => (
+            {visibleAxes.map((ax) => (
               <div key={ax.id}>
                 <label className="text-xs text-muted-foreground">{ax.nome}</label>
                 <Select
                   value={selection[ax.codice] ?? ""}
                   onValueChange={(v) =>
-                    setSelection({ ...selection, [ax.codice]: v })
+                    setSelection(normalizzaSelezione(family.axes, { ...selection, [ax.codice]: v }).valori)
                   }
                 >
                   <SelectTrigger className="h-8">
@@ -770,7 +776,7 @@ export function FamilyPricePreview({ family }: Props) {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Acquisto unitario</span>
                   <span className="font-mono text-muted-foreground">
-                    {formatEur(result.prezzoAcquisto)}
+                    {result.costoCompleto ? formatEur(result.prezzoAcquisto) : "Da impostare"}
                   </span>
                 </div>
               </>
@@ -781,8 +787,9 @@ export function FamilyPricePreview({ family }: Props) {
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-muted-foreground">
-                Margine: {formatEur(result.margine)} ({result.marginePerc.toFixed(1)}%
-                {result.breakdown ? " su vendita, vs netto" : ""})
+                {result.costoCompleto
+                  ? `Margine: ${formatEur(result.margine)} (${result.marginePerc.toFixed(1)}%)`
+                  : "Margine non calcolabile: manca il costo fornitore."}
               </span>
               {showDims ? (
                 <span className="text-muted-foreground">

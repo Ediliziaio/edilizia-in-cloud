@@ -50,12 +50,28 @@ interface Props {
   area?: string | null;
   inCorso: boolean;
   onChiudi: () => void;
-  onSalva: (assi: AsseVariantiDati[]) => void;
+  onSalva: (assi: AsseVariantiDati[], familyIds?: string[]) => void;
 }
 
 const prodotti = (n: number) => `${n} ${n === 1 ? "prodotto" : "prodotti"}`;
 
-export function VariantiTipologiaDialog({ tipologia, area, inCorso, onChiudi, onSalva }: Props) {
+export function VariantiTipologiaDialog(props: Props) {
+  const linee = props.tipologia.linee.filter(l => l.fonte === "categoria");
+  const [scope, setScope] = useState(() => linee[0]?.chiave ?? "__tutte");
+  const linea = linee.find(l => l.chiave === scope);
+  const scopeTipologia = linea
+    ? { ...props.tipologia, nome: `${props.tipologia.nome} · ${linea.nome}`, linee: [linea] }
+    : props.tipologia;
+  const ids = [...new Set(scopeTipologia.linee.flatMap(l => l.righe).filter(r => r.famiglia.attivo && !r.famiglia.deleted_at).map(r => r.famiglia.id))];
+  const scoped = { ...scopeTipologia, linee: scopeTipologia.linee.map(l => ({ ...l, righe: l.righe.filter(r => ids.includes(r.famiglia.id)) })), articoli: ids.length };
+  return <VariantiScopeEditor key={scope} {...props} tipologia={scoped}
+    onSalva={assi => props.onSalva(assi, ids)}
+    scope={scope} linee={linee} onScope={setScope} />;
+}
+
+function VariantiScopeEditor({ tipologia, area, inCorso, onChiudi, onSalva, scope, linee, onScope }: Props & {
+  scope: string; linee: TipologiaListino["linee"]; onScope: (scope: string) => void;
+}) {
   const riepilogo = useMemo(() => riepilogoVarianti(tipologia), [tipologia]);
   const iniziali = useMemo(
     () => new Map(riepilogo.assi.map((a) => [a.chiave, formVarianti(a)] as const)),
@@ -279,6 +295,17 @@ export function VariantiTipologiaDialog({ tipologia, area, inCorso, onChiudi, on
           </DialogDescription>
         </DialogHeader>
 
+        <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+          <label className="text-sm font-medium">Applica le modifiche a</label>
+          <Select value={scope} onValueChange={onScope} disabled={inCorso || daSalvare.length > 0}>
+            <SelectTrigger aria-label="Ambito delle opzioni"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {linee.map(l => <SelectItem key={l.chiave} value={l.chiave}>Solo linea {l.nome}</SelectItem>)}
+              <SelectItem value="__tutte">Tutti i prodotti attivi della tipologia</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">{riepilogo.prodotti} prodotti attivi coinvolti. {linee.length ? "Le altre linee non cambiano quando scegli una singola linea." : "Le linee da opzione condividono gli stessi prodotti e quindi le stesse opzioni."} {daSalvare.length > 0 ? "Salva o chiudi prima di cambiare ambito." : ""}</p>
+        </div>
         {!asse || !parole ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">

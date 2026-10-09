@@ -43,6 +43,12 @@ const PERSIANE: Regola[] = [
 ];
 
 const SERRAMENTI: Regola[] = [
+  [/\bporta finestra 2 ante con fisso laterale (sx|dx)/, "porta_finestra_2_ante_fisso_$1"],
+  [/\bfinestra 2 ante con fisso laterale (sx|dx)/, "finestra_2_ante_fisso_$1"],
+  [/\bfinestra con fisso centrale/, "finestra_fisso_centrale"],
+  [/\bporta ?finestra (pvc )?4 ante/, "porta_finestra_4_ante"],
+  [/\bfinestra (pvc )?4 ante/, "finestra_4_ante"],
+  [/\bfinestra (ad arco|arco) ribassato/, "finestra_arco_ribassato"],
   [/\balzante scorrevole a scomparsa/, "alzante_scomparsa"],
   [/\balzante scorrevole fa \+ as \+ as \+ fa/, "alzante_fa_as_as_fa"],
   [/\balzante scorrevole as \+ fa/, "alzante_as_fa"],
@@ -54,6 +60,7 @@ const SERRAMENTI: Regola[] = [
   [/\bsmart slide/, "smart_slide"],
   [/\bslide plus/, "slide_plus"],
   [/^slide$/, "slide"],
+  [/\bporta ?finestra scorrevole 2 ante/, "porta_finestra_scorrevole_2_ante"],
   [/\bfinestra scorrevole 2 ante/, "finestra_scorrevole_2_ante"],
   [/\bporta finestra a libro 3 ante/, "porta_finestra_libro_3_ante"],
   [/\bporta finestra a libro 4 ante/, "porta_finestra_libro_4_ante"],
@@ -79,7 +86,7 @@ const SERRAMENTI: Regola[] = [
   [/\bfinestra ogivale/, "finestra_ogiva"],
   [/\bfinestra (a )?wasistas/, "finestra_wasistas"],
   [/\bfisso nel telaio/, "fisso"],
-  [/\bfisso nell anta/, "fisso"],
+  [/\bfisso nell anta/, "fisso_anta"],
   [/\bfinestra 1 anta/, "finestra_1_anta"],
   [/\bfinestra (pvc )?2 ante/, "finestra_2_ante"],
   [/\bfinestra 3 ante/, "finestra_3_ante"],

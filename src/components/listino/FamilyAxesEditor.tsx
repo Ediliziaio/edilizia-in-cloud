@@ -16,18 +16,17 @@
 import { useEffect, useMemo, useState, useRef, type ChangeEvent } from "react";
 import {
   Plus,
-  Trash2,
-  ChevronUp,
-  ChevronDown,
   ChevronRight,
   Loader2,
   Pencil,
   Sparkles,
-  Copy,
   ChevronsUpDown,
-  FileText,
   Image as ImageIcon,
+  MoreHorizontal,
 } from "lucide-react";
+import { problemaCondizione, prezzoOpzioneValido } from "@/lib/listino/opzioniProdotto";
+import { BulkOpzioniDialog } from "./BulkOpzioniDialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
 import { Button } from "@/components/ui/button";
@@ -198,6 +197,7 @@ export function FamilyAxesEditor({ family }: Props) {
     updateAxisValue,
     deleteAxisValue,
     bulkInsertAxesWithValues,
+    saveOptions,
   } = useFamilyMutations();
 
   const companyId = useEffectiveCompanyId();
@@ -295,7 +295,7 @@ export function FamilyAxesEditor({ family }: Props) {
       0,
     );
     const senzaDefault = family.axes.filter(
-      (a) => a.obbligatorio && a.values.every((v) => !v.is_default),
+      (a) => a.obbligatorio && a.values.every((v) => !v.is_default || !v.attivo),
     ).length;
     return { totValori, obbligatori, conMaggiorazione, senzaDefault };
   }, [family.axes]);
@@ -400,125 +400,31 @@ export function FamilyAxesEditor({ family }: Props) {
     });
   };
   const clearSelection = () => setSelectedValueIds(new Set());
+  const [bulkType, setBulkType] = useState<"percentuale" | "fisso_pz" | null>(null);
 
-  const bulkDeactivate = async () => {
-    const ids = Array.from(selectedValueIds);
+  const bulkActivity = async (attivo: boolean) => {
     try {
-      await Promise.all(
-        ids.map((id) =>
-          updateAxisValue.mutateAsync({
-            id,
-            familyId: family.id,
-            patch: { attivo: false },
-          }),
-        ),
-      );
-      toast.success(`${ids.length} valori disattivati`);
+      await saveOptions.mutateAsync({ familyId: family.id, valueIds: [...selectedValueIds], patch: { attivo } });
+      toast.success(`${selectedValueIds.size} scelte ${attivo ? "attivate" : "disattivate"}`);
       clearSelection();
     } catch (err) {
-      // onError del hook fa solo telemetria (captureVelocityError), nessun
-      // toast: senza questo il fallimento sarebbe invisibile all'utente.
-      toast.error("Errore durante la disattivazione", {
-        description: err instanceof Error ? err.message : String(err),
-      });
+      toast.error("Modifica non salvata", { description: err instanceof Error ? err.message : String(err) });
     }
   };
-
-  const bulkActivate = async () => {
-    const ids = Array.from(selectedValueIds);
+  const bulkDeactivate = () => bulkActivity(false);
+  const bulkActivate = () => bulkActivity(true);
+  const bulkApplyMaggiorazione = async (tipo: MaggiorazioneTipo, vendita: number, acquisto?: number) => {
     try {
-      await Promise.all(
-        ids.map((id) =>
-          updateAxisValue.mutateAsync({
-            id,
-            familyId: family.id,
-            patch: { attivo: true },
-          }),
-        ),
-      );
-      toast.success(`${ids.length} valori attivati`);
-      clearSelection();
-    } catch (err) {
-      toast.error("Errore durante l'attivazione", {
-        description: err instanceof Error ? err.message : String(err),
+      await saveOptions.mutateAsync({
+        familyId: family.id, valueIds: [...selectedValueIds],
+        patch: { maggiorazione_tipo: tipo, maggiorazione_valore: vendita,
+          ...(acquisto === undefined ? {} : { maggiorazione_acquisto: acquisto }) },
       });
-    }
-  };
-
-  // "fisso_pz", non "fisso_eur": il CHECK su maggiorazione_tipo ammette solo
-  // none/percentuale/fisso_pz/fisso_mq/fisso_ml/fisso_mc — con "fisso_eur"
-  // ogni "Applica €" veniva rifiutato dal DB (e il catch lo ingoiava).
-  const bulkApplyMaggiorazione = async (
-    tipo: "percentuale" | "fisso_pz",
-    valore: number,
-    valoreAcquisto: number,
-  ) => {
-    const ids = Array.from(selectedValueIds);
-    try {
-      await Promise.all(
-        ids.map((id) =>
-          updateAxisValue.mutateAsync({
-            id,
-            familyId: family.id,
-            patch: {
-              maggiorazione_tipo: tipo,
-              maggiorazione_valore: valore,
-              maggiorazione_acquisto: valoreAcquisto,
-            },
-          }),
-        ),
-      );
-      toast.success(`Maggiorazione applicata a ${ids.length} valori`);
-      // Fuori dalla griglia una variante col prezzo proprio usa quello, e la
-      // maggiorazione appena scritta non cambia il suo prezzo: va detto (05/10/2026).
-      if (family.modalita_prezzo_base !== "griglia") {
-        const scelti = new Set(ids);
-        const conPrezzoProprio = family.axes
-          .flatMap((a) => a.values)
-          .filter((v) => scelti.has(v.id) && v.prezzo_vendita != null && Number(v.prezzo_vendita) > 0).length;
-        if (conPrezzoProprio > 0) {
-          toast.info(
-            `${conPrezzoProprio === 1 ? "Un valore ha" : `${conPrezzoProprio} valori hanno`} un prezzo proprio: nei preventivi vale quello, la maggiorazione non lo cambia.`,
-          );
-        }
-      }
-      clearSelection();
+      toast.success("Supplementi aggiornati");
+      setBulkType(null); clearSelection();
     } catch (err) {
-      toast.error("Errore nell'applicazione della maggiorazione", {
-        description: err instanceof Error ? err.message : String(err),
-      });
+      toast.error("Modifica non salvata", { description: err instanceof Error ? err.message : String(err) });
     }
-  };
-
-  // M-R (audit): parse+validazione condivisa dei prompt bulk. Virgola decimale
-  // accettata; non numerici rifiutati CON feedback — prima l'input invalido
-  // era un no-op silenzioso. Il negativo è ammesso dal 05/10/2026 (una linea
-  // che costa meno, es. −8%): vedi leggiValoreBulk.
-  const promptMaggiorazione = (label: string, percentuale: boolean): number | null => {
-    const v = window.prompt(label);
-    if (v === null || v.trim() === "") return null; // annullato dall'utente
-    const n = leggiValoreBulk(v, percentuale);
-    if (n === null) {
-      toast.error("Valore non valido", { description: aiutoValoreBulk(percentuale) });
-    }
-    return n;
-  };
-
-  // M-32 (audit): il bulk scriveva maggiorazione_acquisto = vendita in
-  // silenzio (margine zero sulla maggiorazione, costo fornitore gonfiato).
-  // Secondo prompt per il valore acquisto; invio vuoto = uguale alla vendita.
-  const promptMaggiorazioneAcquisto = (vendita: number, percentuale: boolean): number | null => {
-    const v = window.prompt(
-      "Valore ACQUISTO (costo fornitore) della maggiorazione — lascia vuoto per usare lo stesso valore della vendita:",
-      String(vendita),
-    );
-    if (v === null) return null; // annullato: niente bulk
-    if (v.trim() === "") return vendita;
-    const n = leggiValoreBulk(v, percentuale);
-    if (n === null) {
-      toast.error("Valore acquisto non valido", { description: aiutoValoreBulk(percentuale) });
-    }
-    return n;
   };
 
   // Applica un preset: traduce PresetAxis[] → payload bulkInsertAxesWithValues.
@@ -621,10 +527,10 @@ export function FamilyAxesEditor({ family }: Props) {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
         <div className="min-w-0">
           <h3 className="font-medium flex items-center gap-2">
-            Variabili Prodotto
+            Opzioni prodotto
             {family.axes.length > 0 ? (
               <span className="text-xs font-normal text-muted-foreground">
-                ({family.axes.length} variabil{family.axes.length === 1 ? "e" : "i"} · {stats.totValori} valori)
+                ({family.axes.length} gruppi · {stats.totValori} scelte)
               </span>
             ) : null}
           </h3>
@@ -680,7 +586,7 @@ export function FamilyAxesEditor({ family }: Props) {
             className="h-9"
           >
             <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
-            Aggiungi variabile
+            Aggiungi opzione
           </Button>
         </div>
       </div>
@@ -690,26 +596,18 @@ export function FamilyAxesEditor({ family }: Props) {
         <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 bg-primary/10 border border-primary/30 rounded-md px-3 py-2 text-sm">
           <span className="font-medium">{selectedValueIds.size} selezionati</span>
           <span className="flex-1" />
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={bulkActivate} disabled={updateAxisValue.isPending}>
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={bulkActivate} disabled={saveOptions.isPending}>
             Attiva
           </Button>
-          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={bulkDeactivate} disabled={updateAxisValue.isPending}>
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={bulkDeactivate} disabled={saveOptions.isPending}>
             Disattiva
           </Button>
           <Button
             size="sm"
             variant="outline"
             className="h-8 text-xs"
-            onClick={() => {
-              const n = promptMaggiorazione(
-                "Maggiorazione % da applicare ai selezionati (es. 10 per +10%, -8 per -8%):",
-                true,
-              );
-              if (n === null) return;
-              const acq = promptMaggiorazioneAcquisto(n, true);
-              if (acq !== null) bulkApplyMaggiorazione("percentuale", n, acq);
-            }}
-            disabled={updateAxisValue.isPending}
+            onClick={() => setBulkType("percentuale")}
+            disabled={saveOptions.isPending}
           >
             Applica %
           </Button>
@@ -717,20 +615,12 @@ export function FamilyAxesEditor({ family }: Props) {
             size="sm"
             variant="outline"
             className="h-8 text-xs"
-            onClick={() => {
-              const n = promptMaggiorazione(
-                "Maggiorazione € fissa (a pezzo) da applicare ai selezionati (es. 20, oppure -20 per uno sconto):",
-                false,
-              );
-              if (n === null) return;
-              const acq = promptMaggiorazioneAcquisto(n, false);
-              if (acq !== null) bulkApplyMaggiorazione("fisso_pz", n, acq);
-            }}
-            disabled={updateAxisValue.isPending}
+            onClick={() => setBulkType("fisso_pz")}
+            disabled={saveOptions.isPending}
           >
             Applica €
           </Button>
-          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={clearSelection}>
+          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={clearSelection} disabled={saveOptions.isPending}>
             Annulla
           </Button>
         </div>
@@ -772,13 +662,7 @@ export function FamilyAxesEditor({ family }: Props) {
               questa nota e' facile confondersi pensando che ogni valore
               debba avere una maggiorazione esplicita. */}
           <div className="rounded-md border border-emerald-200 bg-emerald-50/40 px-3 py-2 text-[11px] text-emerald-900 leading-relaxed">
-            <span className="font-semibold">Come funziona:</span> per ogni variabile, marca
-            come <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100 text-[10px] mx-0.5">standard</Badge> il
-            valore <strong>incluso nel prezzo base</strong> dell'articolo
-            (es. <em>Bianco RAL 9010</em>, <em>Doppio vetro</em>, <em>Standard</em>).
-            Gli altri valori avranno una <strong>maggiorazione</strong> opzionale
-            applicata se selezionati nel preventivo (es. <em>Antracite</em> +5%,
-            <em> Vetro triplo</em> +€80).
+            <span className="font-semibold">Come funziona:</span> la scelta <strong>predefinita</strong> è proposta nel preventivo. Il suo prezzo può essere incluso, avere un supplemento oppure sostituire il prezzo base: sono impostazioni separate.
           </div>
           {family.axes.map((axis, idx) => {
             const isExpanded = expandedAxisIds.has(axis.id);
@@ -802,13 +686,11 @@ export function FamilyAxesEditor({ family }: Props) {
                       <div className="flex-1 min-w-0">
                         <CardTitle className="text-sm truncate">
                           {axis.nome}
-                          <span className="ml-2 text-xs font-normal text-muted-foreground">
-                            ({axis.codice})
-                          </span>
+
                         </CardTitle>
                         <div className="flex flex-wrap gap-1.5 items-center mt-1">
                           <Badge variant="outline" className="text-[10px] sm:text-xs">
-                            {axis.tipo}
+                            {axis.tipo === "boolean" ? "Sì / No" : "Scelta"}
                           </Badge>
                           {axis.obbligatorio ? (
                             <Badge variant="secondary" className="text-[10px] sm:text-xs">
@@ -816,53 +698,25 @@ export function FamilyAxesEditor({ family }: Props) {
                             </Badge>
                           ) : null}
                           <span className="text-xs text-muted-foreground">
-                            {axis.values.length} {axis.values.length === 1 ? "valore" : "valori"}
+                            {axis.values.filter(v => v.attivo).length} scelte attive
                           </span>
+                          {axis.visibile_se ? <span className="text-xs text-muted-foreground">Solo con {family.axes.find(a => a.codice === axis.visibile_se?.asse)?.nome ?? axis.visibile_se.asse}</span> : null}
+                          {defaults > 1 ? <span className="text-xs text-destructive" role="alert">Più scelte predefinite: da correggere</span> : null}
                           {axis.obbligatorio && defaults === 0 ? (
                             <span className="text-xs text-destructive" role="alert">⚠ nessuno standard acceso</span>
                           ) : null}
                         </div>
                       </div>
                     </button>
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => moveAxis(axis, "up")}
-                        disabled={idx === 0 || updateAxis.isPending}
-                        aria-label="Sposta su"
-                        className="h-9 w-9"
-                      >
-                        <ChevronUp className="h-4 w-4" aria-hidden="true" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => moveAxis(axis, "down")}
-                        disabled={idx === family.axes.length - 1 || updateAxis.isPending}
-                        aria-label="Sposta giù"
-                        className="h-9 w-9"
-                      >
-                        <ChevronDown className="h-4 w-4" aria-hidden="true" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setEditingAxis(axis)}
-                        aria-label="Modifica variabile"
-                        className="h-9 w-9"
-                      >
-                        <Pencil className="h-4 w-4" aria-hidden="true" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-9 w-9 text-destructive hover:text-destructive"
-                        onClick={() => setAxisToDelete(axis)}
-                        aria-label="Elimina variabile"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </Button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => setEditingAxis(axis)} aria-label="Modifica variabile"><Pencil className="h-4 w-4" /></Button>
+                      <DropdownMenu><DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-9 w-9" aria-label={`Altre azioni ${axis.nome}`}><MoreHorizontal className="h-4 w-4" /></Button>
+                      </DropdownMenuTrigger><DropdownMenuContent align="end">
+                        <DropdownMenuItem disabled={idx === 0 || updateAxis.isPending} onSelect={() => moveAxis(axis, "up")}>Sposta su</DropdownMenuItem>
+                        <DropdownMenuItem disabled={idx === family.axes.length - 1 || updateAxis.isPending} onSelect={() => moveAxis(axis, "down")}>Sposta giù</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive" onSelect={() => setAxisToDelete(axis)}>Elimina opzione</DropdownMenuItem>
+                      </DropdownMenuContent></DropdownMenu>
                     </div>
                   </div>
                 </CardHeader>
@@ -917,9 +771,7 @@ export function FamilyAxesEditor({ family }: Props) {
                                   <span className="font-medium break-words">
                                     {v.label}
                                   </span>
-                                  <span className="text-xs font-mono text-muted-foreground">
-                                    {v.valore}
-                                  </span>
+
                                   {vociDi(v).length > 0 ? (
                                     <Badge
                                       variant="outline"
@@ -939,18 +791,16 @@ export function FamilyAxesEditor({ family }: Props) {
                                           : undefined
                                       }
                                     >
-                                      €{Number(v.prezzo_vendita).toLocaleString("it-IT")}
+                                      Vendita €{Number(v.prezzo_vendita).toLocaleString("it-IT")}
                                       {family.modalita_prezzo_base === "mq" ? "/m²" : ""}
                                     </Badge>
                                   ) : null}
                                   {v.is_default ? (
-                                    // Badge "standard" piu' esplicito di "default":
-                                    // comunica all'admin che il PREZZO BASE dell'articolo
-                                    // si riferisce a questa configurazione.
+                                    // Preselezione e inclusione nel prezzo sono indipendenti.
                                     <Badge
                                       className="text-[10px] sm:text-xs bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
                                     >
-                                      standard · incluso nel prezzo base
+                                      Predefinita
                                     </Badge>
                                   ) : null}
                                   {!v.attivo ? (
@@ -970,15 +820,20 @@ export function FamilyAxesEditor({ family }: Props) {
                                           : "Maggiorazione fissa additiva"
                                       }
                                     >
-                                      {magLabel}
+                                      Vendita {magLabel}
                                     </Badge>
                                   ) : null}
                                   {v.maggiorazione_tipo !== "none" &&
-                                  v.maggiorazione_acquisto !== 0 &&
-                                  v.maggiorazione_acquisto !==
-                                    v.maggiorazione_valore ? (
+                                  !(Number(v.prezzo_vendita) > 0) ? (
                                     <span className="text-[10px] sm:text-xs text-muted-foreground">
-                                      (acq. {v.maggiorazione_acquisto})
+                                      Costo {formattaMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_acquisto) || "nessun supplemento"}
+                                    </span>
+                                  ) : null}
+                                  {Number(v.prezzo_vendita) > 0 ? (
+                                    <span className="text-[10px] sm:text-xs text-muted-foreground">
+                                      {Number(v.prezzo_acquisto) > 0
+                                        ? `Costo €${Number(v.prezzo_acquisto).toLocaleString("it-IT")}${family.modalita_prezzo_base === "mq" ? "/m²" : ""}`
+                                        : "Costo da impostare"}
                                     </span>
                                   ) : null}
                                 </div>
@@ -989,76 +844,16 @@ export function FamilyAxesEditor({ family }: Props) {
                                 ) : null}
                               </div>
                               <div className="flex items-center gap-0.5 shrink-0">
-                                {/* #9 — Riordino valori */}
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => moveValue(axis, v.id, "up")}
-                                  disabled={updateAxisValue.isPending}
-                                  aria-label="Sposta su"
-                                  title="Sposta su"
-                                  className="h-9 w-9"
-                                >
-                                  <ChevronUp className="h-4 w-4" aria-hidden="true" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => moveValue(axis, v.id, "down")}
-                                  disabled={updateAxisValue.isPending}
-                                  aria-label="Sposta giù"
-                                  title="Sposta giù"
-                                  className="h-9 w-9"
-                                >
-                                  <ChevronDown className="h-4 w-4" aria-hidden="true" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => duplicateValue(axis, v)}
-                                  disabled={createAxisValue.isPending}
-                                  aria-label={`Duplica valore ${v.label}`}
-                                  title="Duplica valore"
-                                  className="h-9 w-9"
-                                >
-                                  <Copy className="h-4 w-4" aria-hidden="true" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => setDocsForValue(v)}
-                                  aria-label={`Schede della variante ${v.label}`}
-                                  title="Scheda / PDF della variante"
-                                  className="relative h-9 w-9"
-                                >
-                                  <FileText
-                                    className={`h-4 w-4 ${variantDocCounts[v.id] ? "text-primary" : ""}`}
-                                    aria-hidden="true"
-                                  />
-                                  {variantDocCounts[v.id] ? (
-                                    <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-0.5 text-[9px] text-primary-foreground">
-                                      {variantDocCounts[v.id]}
-                                    </span>
-                                  ) : null}
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => setEditingValue(v)}
-                                  aria-label="Modifica valore"
-                                  className="h-9 w-9"
-                                >
-                                  <Pencil className="h-4 w-4" aria-hidden="true" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-9 w-9 text-destructive hover:text-destructive"
-                                  onClick={() => setValueToDelete(v)}
-                                  aria-label="Elimina valore"
-                                >
-                                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                                </Button>
+                                <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => setEditingValue(v)} aria-label="Modifica valore"><Pencil className="h-4 w-4" /></Button>
+                                <DropdownMenu><DropdownMenuTrigger asChild>
+                                  <Button size="icon" variant="ghost" className="h-9 w-9" aria-label={`Altre azioni ${v.label}`}><MoreHorizontal className="h-4 w-4" /></Button>
+                                </DropdownMenuTrigger><DropdownMenuContent align="end">
+                                  <DropdownMenuItem disabled={axis.values[0]?.id === v.id || updateAxisValue.isPending} onSelect={() => moveValue(axis, v.id, "up")}>Sposta su</DropdownMenuItem>
+                                  <DropdownMenuItem disabled={axis.values.at(-1)?.id === v.id || updateAxisValue.isPending} onSelect={() => moveValue(axis, v.id, "down")}>Sposta giù</DropdownMenuItem>
+                                  <DropdownMenuItem disabled={createAxisValue.isPending} onSelect={() => duplicateValue(axis, v)}>Duplica scelta</DropdownMenuItem>
+                                  <DropdownMenuItem onSelect={() => setDocsForValue(v)}>Schede / PDF ({variantDocCounts[v.id] ?? "—"})</DropdownMenuItem>
+                                  <DropdownMenuItem className="text-destructive" onSelect={() => setValueToDelete(v)}>Elimina scelta</DropdownMenuItem>
+                                </DropdownMenuContent></DropdownMenu>
                               </div>
                             </li>
                           );
@@ -1082,10 +877,16 @@ export function FamilyAxesEditor({ family }: Props) {
         </div>
       )}
 
+      {bulkType ? <BulkOpzioniDialog key={bulkType} initialType={bulkType}
+        values={family.axes.flatMap(a => a.values).filter(v => selectedValueIds.has(v.id))}
+        busy={saveOptions.isPending} onClose={() => setBulkType(null)} onApply={bulkApplyMaggiorazione} /> : null}
+
       {/* Dialog nuovo asse / edit asse */}
       <AxisFormDialog
+        key={`axis:${newAxisOpen || !!editingAxis}:${editingAxis?.id ?? "new"}`}
         open={newAxisOpen || editingAxis !== null}
         axis={editingAxis}
+        availableAxes={family.axes}
         existingCodici={family.axes.map((a) => a.codice)}
         nextSortOrder={nextAxisSortOrder}
         onClose={() => {
@@ -1108,6 +909,7 @@ export function FamilyAxesEditor({ family }: Props) {
                 codice: values.codice,
                 descrizione: values.descrizione ?? null,
                 tipo: values.tipo,
+                visibile_se: values.visibile_se,
                 obbligatorio: values.obbligatorio,
                 sort_order: values.sort_order,
               });
@@ -1126,6 +928,7 @@ export function FamilyAxesEditor({ family }: Props) {
 
       {/* Dialog nuovo valore / edit valore */}
       <ValueFormDialog
+        key={`value:${!!newValueAxisId || !!editingValue}:${editingValue?.id ?? newValueAxisId ?? "new"}`}
         open={newValueAxisId !== null || editingValue !== null}
         value={editingValue}
         axisId={editingValue?.axis_id ?? newValueAxisId ?? ""}
@@ -1163,82 +966,19 @@ export function FamilyAxesEditor({ family }: Props) {
           setNewValueAxisId(null);
           setEditingValue(null);
         }}
-        onSave={async (values, otherDefaultIds) => {
+        onSave={async (values) => {
           try {
-            // FIX P2-B: save new value FIRST, then clear other defaults.
-            // Vecchio ordine (clear → save) rischiava: se la seconda op falliva,
-            // l'asse obbligatorio restava con ZERO default (hard constraint
-            // violation). Nuovo ordine: se la clear fallisce, abbiamo DUE
-            // default per un istante — recuperabile (unique constraint lato DB
-            // + retry utente), molto meno grave di zero default.
-            if (editingValue) {
-              await updateAxisValue.mutateAsync({
-                id: editingValue.id,
-                familyId: family.id,
-                patch: values,
-              });
-              toast.success("Valore aggiornato");
-            } else if (newValueAxisId) {
-              await createAxisValue.mutateAsync({
-                familyId: family.id,
-                axis_id: newValueAxisId,
-                valore: values.valore,
-                label: values.label,
-                descrizione: values.descrizione ?? null,
-                is_default: values.is_default ?? false,
-                maggiorazione_tipo: values.maggiorazione_tipo,
-                maggiorazione_valore: values.maggiorazione_valore,
-                maggiorazione_acquisto: values.maggiorazione_acquisto,
-                codice: values.codice,
-                prezzo_vendita: values.prezzo_vendita,
-                prezzo_acquisto: values.prezzo_acquisto,
-                sort_order: values.sort_order,
-                attivo: values.attivo ?? true,
-                opzioni: values.opzioni,
-              });
-              toast.success("Valore creato");
-            }
-            // Post-save: togli il flag is_default dagli altri valori
-            // (solo se il nuovo valore è effettivamente un default).
-            // M-16 (audit): fase separata dal save del valore — se fallisce
-            // restano DUE default persistiti e il pricing sceglie arbitrario.
-            // Retry singolo + toast dedicato: il valore è comunque salvato,
-            // il messaggio dice esattamente come sanare il default doppio.
-            if (values.is_default && otherDefaultIds.length > 0) {
-              const clearOthers = () =>
-                Promise.all(
-                  otherDefaultIds.map((id) =>
-                    updateAxisValue.mutateAsync({
-                      id,
-                      familyId: family.id,
-                      patch: { is_default: false },
-                    }),
-                  ),
-                );
-              try {
-                await clearOthers();
-              } catch {
-                try {
-                  await clearOthers(); // retry singolo per errori transienti
-                } catch (clearErr) {
-                  toast.error(
-                    "Valore salvato, ma il default precedente non è stato tolto",
-                    {
-                      description: `Sulla variabile risultano due valori di default: apri l'altro valore e disattiva il flag "Default". ${clearErr instanceof Error ? clearErr.message : ""}`,
-                    },
-                  );
-                }
-              }
-            }
-            setNewValueAxisId(null);
-            setEditingValue(null);
-          } catch (err) {
-            toast.error("Errore salvataggio valore", {
-              description: err instanceof Error ? err.message : "Errore sconosciuto",
+            await saveOptions.mutateAsync({
+              familyId: family.id, axisId: editingValue?.axis_id ?? newValueAxisId ?? "",
+              valueId: editingValue?.id, patch: values,
             });
+            toast.success(editingValue ? "Scelta aggiornata" : "Scelta creata");
+            setNewValueAxisId(null); setEditingValue(null);
+          } catch (err) {
+            toast.error("Scelta non salvata", { description: err instanceof Error ? err.message : String(err) });
           }
         }}
-        saving={createAxisValue.isPending || updateAxisValue.isPending}
+        saving={saveOptions.isPending}
       />
 
       {/* AlertDialog elimina asse */}
@@ -1386,11 +1126,13 @@ interface AxisFormValues {
   tipo: AxisTipo;
   obbligatorio: boolean;
   sort_order: number;
+  visibile_se: FamilyAxis["visibile_se"];
 }
 
 function AxisFormDialog({
   open,
   axis,
+  availableAxes,
   existingCodici,
   nextSortOrder,
   onClose,
@@ -1399,6 +1141,7 @@ function AxisFormDialog({
 }: {
   open: boolean;
   axis: FamilyAxis | null;
+  availableAxes: FamilyAxis[];
   existingCodici: string[];
   nextSortOrder: number;
   onClose: () => void;
@@ -1415,32 +1158,14 @@ function AxisFormDialog({
   const [obbligatorio, setObbligatorio] = useState<boolean>(() => axis?.obbligatorio ?? true);
   const [codiceManuallyEdited, setCodiceManuallyEdited] = useState<boolean>(() => axis !== null);
 
-  useEffect(() => {
-    if (!open) return;
-    if (axis) {
-      setNome(axis.nome);
-      setCodice(axis.codice);
-      setDescrizione(axis.descrizione ?? "");
-      setTipo(axis.tipo);
-      setObbligatorio(axis.obbligatorio);
-      setCodiceManuallyEdited(true);
-    } else {
-      setNome("");
-      setCodice("");
-      setDescrizione("");
-      setTipo("discrete");
-      setObbligatorio(true);
-      setCodiceManuallyEdited(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, axis?.id]);
-
+  const [condizione, setCondizione] = useState<FamilyAxis["visibile_se"]>(() => axis?.visibile_se ?? null);
   const editing = axis !== null;
   const conflict =
     !editing && codice && existingCodici.includes(codice)
       ? `Codice già usato nella famiglia`
       : null;
-  const canSave = nome.trim() && codice.trim() && !conflict && !saving;
+  const problemaVisibilita = problemaCondizione(codice, condizione, availableAxes);
+  const canSave = nome.trim() && codice.trim() && !conflict && !problemaVisibilita && !saving;
 
   return (
     <Dialog
@@ -1451,7 +1176,7 @@ function AxisFormDialog({
       }}
     >
       <DialogContent
-        className="w-[96vw] sm:w-full sm:max-w-md max-h-[94vh] overflow-y-auto"
+        className="flex w-[96vw] flex-col overflow-hidden sm:w-full sm:max-w-lg max-h-[90dvh]"
         key={axis?.id ?? "new"}
       >
         <DialogHeader>
@@ -1461,7 +1186,7 @@ function AxisFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="min-h-0 space-y-3 overflow-y-auto">
           {/* Chips suggerimenti rapidi nome asse: compilano sia nome che codice
               (lo slugify si aggancia on-name-change nella textbox sottostante). */}
           {!editing ? (
@@ -1545,6 +1270,23 @@ function AxisFormDialog({
               placeholder="Dettaglio visibile ai configuratori (tooltip, aiuto contestuale)…"
             />
           </div>
+          <div className="rounded-lg border p-3 space-y-2">
+            <label className="text-sm font-medium">Quando mostrare questa opzione</label>
+            <Select value={condizione?.asse ?? "__sempre"} onValueChange={v => setCondizione(v === "__sempre" ? null : { asse: v, valori: [] })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__sempre">Sempre</SelectItem>
+                {availableAxes.filter(a => a.id !== axis?.id && a.values.some(v => v.attivo)).map(a => <SelectItem key={a.id} value={a.codice}>Solo in base a {a.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {condizione ? <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Mostra quando è selezionata almeno una di queste scelte:</p>
+              {availableAxes.find(a => a.codice === condizione.asse)?.values.filter(v => v.attivo).map(v => <label key={v.id} className="flex gap-2 items-center text-sm">
+                <Checkbox checked={condizione.valori.includes(v.valore)} onCheckedChange={checked => setCondizione({ ...condizione, valori: checked ? [...condizione.valori, v.valore] : condizione.valori.filter(x => x !== v.valore) })} />{v.label}
+              </label>)}
+            </div> : null}
+            {problemaVisibilita ? <p role="alert" className="text-xs text-destructive">{problemaVisibilita}</p> : null}
+          </div>
           {/* Tipo asse come cards cliccabili: aumenta la leggibilità rispetto
               a un select opaco, specialmente per utenti non-tecnici. */}
           <div className="space-y-1.5">
@@ -1603,7 +1345,7 @@ function AxisFormDialog({
           </div>
         </div>
 
-        <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-2">
+        <DialogFooter className="flex shrink-0 flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:gap-2">
           <Button
             variant="ghost"
             onClick={onClose}
@@ -1621,6 +1363,7 @@ function AxisFormDialog({
                 tipo,
                 obbligatorio,
                 sort_order: axis?.sort_order ?? nextSortOrder,
+                visibile_se: condizione ?? null,
               })
             }
             disabled={!canSave}
@@ -1701,12 +1444,6 @@ export function leggiValoreBulk(raw: string, percentuale: boolean): number | nul
   return n;
 }
 
-function aiutoValoreBulk(percentuale: boolean): string {
-  return percentuale
-    ? "Inserisci un numero da -100 in su: 10 per +10%, -8 per una linea che costa meno."
-    : "Inserisci un numero: 20, oppure -20 per una linea che costa meno.";
-}
-
 /**
  * Unità e spiegazione del prezzo proprio della variante, per il prodotto che
  * si sta modificando (05/10/2026). Nei preventivi (calcolaPrezzoFamiglia e il
@@ -1769,7 +1506,7 @@ function ValueFormDialog({
   const [valore, setValore] = useState<string>(() => value?.valore ?? "");
   const [label, setLabel] = useState<string>(() => value?.label ?? "");
   const [descrizione, setDescrizione] = useState<string>(() => value?.descrizione ?? "");
-  const [isDefault, setIsDefault] = useState<boolean>(() => value?.is_default ?? false);
+  const [isDefault, setIsDefault] = useState<boolean>(() => value?.is_default ?? (otherDefaultIds.length === 0));
   const [attivo, setAttivo] = useState<boolean>(() => value?.attivo ?? true);
   const [magTipo, setMagTipo] = useState<MaggiorazioneTipo>(() => value?.maggiorazione_tipo ?? "none");
   const [magValore, setMagValore] = useState<string>(() => (value ? String(value.maggiorazione_valore) : "0"));
@@ -1777,46 +1514,14 @@ function ValueFormDialog({
   const [codiceArt, setCodiceArt] = useState<string>(() => value?.codice ?? "");
   const [prezzoV, setPrezzoV] = useState<string>(() => (value?.prezzo_vendita != null ? String(value.prezzo_vendita) : ""));
   const [prezzoA, setPrezzoA] = useState<string>(() => (value?.prezzo_acquisto != null ? String(value.prezzo_acquisto) : ""));
+  const [modoPrezzo, setModoPrezzo] = useState<"incluso" | "supplemento" | "sostitutivo">(() =>
+    Number(value?.prezzo_vendita) > 0 && modalitaPrezzoBase !== "griglia" ? "sostitutivo" : value?.maggiorazione_tipo && value.maggiorazione_tipo !== "none" ? "supplemento" : "incluso");
   const [voci, setVoci] = useState<string>(() => vociDi(value).join("\n"));
   const [valoreManuallyEdited, setValoreManuallyEdited] = useState<boolean>(() => value !== null);
 
   // Sincronizza il form ogni volta che cambia il record selezionato (open→close→
   // open su record diverso) o si apre/chiude. Difende dal caso in cui Radix
   // non chiama onOpenAutoFocus al re-mount via `key`.
-  useEffect(() => {
-    if (!open) return;
-    if (value) {
-      setValore(value.valore);
-      setLabel(value.label);
-      setDescrizione(value.descrizione ?? "");
-      setIsDefault(value.is_default);
-      setAttivo(value.attivo);
-      setMagTipo(value.maggiorazione_tipo);
-      setMagValore(String(value.maggiorazione_valore));
-      setMagAcquisto(String(value.maggiorazione_acquisto));
-      setCodiceArt(value.codice ?? "");
-      setPrezzoV(value.prezzo_vendita != null ? String(value.prezzo_vendita) : "");
-      setPrezzoA(value.prezzo_acquisto != null ? String(value.prezzo_acquisto) : "");
-      setVoci(vociDi(value).join("\n"));
-      setValoreManuallyEdited(true);
-    } else {
-      setValore("");
-      setLabel("");
-      setDescrizione("");
-      setIsDefault(false);
-      setAttivo(true);
-      setMagTipo("none");
-      setMagValore("0");
-      setMagAcquisto("0");
-      setCodiceArt("");
-      setPrezzoV("");
-      setPrezzoA("");
-      setVoci("");
-      setValoreManuallyEdited(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, value?.id]);
-
   const editing = value !== null;
   const conflict =
     !editing && valore && existingValori.includes(valore)
@@ -1830,8 +1535,11 @@ function ValueFormDialog({
     leggiMaggiorazione(magAcquisto),
   );
   const prezzoProprio = prezzoProprioVariante(modalitaPrezzoBase);
+  const prezziValidi = prezzoOpzioneValido(prezzoV) && prezzoOpzioneValido(prezzoA);
+  const supplementiValidi = magTipo === "none" || [magValore, magAcquisto].every(s => s.trim() && Number.isFinite(Number(s.replace(",", "."))));
   const canSave =
-    label.trim() && valore.trim() && !conflict && !problemaElenco && !problemaMagg && !saving;
+    label.trim() && valore.trim() && !conflict && !problemaElenco && !problemaMagg && prezziValidi &&
+    supplementiValidi && (!isDefault || attivo) && (modoPrezzo !== "sostitutivo" || Number(prezzoV) > 0) && !saving;
 
   return (
     <Dialog
@@ -1842,19 +1550,20 @@ function ValueFormDialog({
       }}
     >
       <DialogContent
-        className="w-[96vw] sm:w-full sm:max-w-md max-h-[94vh] overflow-y-auto"
+        className="flex w-[96vw] flex-col overflow-hidden sm:w-full sm:max-w-3xl max-h-[90dvh]"
         key={value?.id ?? `new-${axisId}`}
       >
         <DialogHeader>
-          <DialogTitle className="text-base sm:text-lg">{editing ? "Modifica valore" : "Nuovo valore"}</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg">{editing ? "Modifica scelta" : "Nuova scelta"}</DialogTitle>
           <DialogDescription className="text-xs sm:text-sm">
-            Un valore ammesso per la variabile + eventuale maggiorazione applicata al prezzo.
+            Nome e disponibilità a sinistra. Prezzo di vendita e costo fornitore a destra.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="grid min-h-0 gap-5 overflow-y-auto sm:grid-cols-2">
+          <div className="space-y-3">
           <div className="space-y-1.5">
-            <label htmlFor="val-label" className="text-sm font-medium">Label visibile</label>
+            <label htmlFor="val-label" className="text-sm font-medium">Nome della scelta</label>
             <Input
               id="val-label"
               value={label}
@@ -1869,7 +1578,9 @@ function ValueFormDialog({
               className="h-10"
             />
           </div>
-          <div className="space-y-1.5">
+          <details className="rounded-lg border p-3" open={!!conflict}>
+            <summary className="cursor-pointer text-sm text-muted-foreground">Codice e descrizione</summary>
+          <div className="space-y-1.5 pt-2">
             <label htmlFor="val-codice" className="text-sm font-medium">Codice valore</label>
             <Input
               id="val-codice"
@@ -1899,9 +1610,12 @@ function ValueFormDialog({
             />
           </div>
 
+          </details>
           {/* Cosa comprende: per una fascia come «Colore Standard» i colori veri.
               Nel preventivo si sceglie uno di questi, al prezzo del valore. */}
-          <div className="space-y-1.5">
+          <details className="rounded-lg border p-3" open={!!problemaElenco}>
+            <summary className="cursor-pointer text-sm text-muted-foreground">Colori e scelte comprese ({vociPulite.length})</summary>
+            <div className="space-y-1.5 pt-2">
             <label htmlFor="val-voci" className="text-sm font-medium">Cosa comprende (opzionale)</label>
             <Textarea
               id="val-voci"
@@ -1919,10 +1633,58 @@ function ValueFormDialog({
             {problemaElenco ? (
               <p className="text-xs text-destructive" role="alert">{problemaElenco}</p>
             ) : null}
+            </div>
+          </details>
+
+          {!prezziValidi ? <p role="alert" className="text-xs text-destructive">I prezzi devono essere numeri validi, non negativi.</p> : null}
+          {isDefault && !attivo ? <p role="alert" className="text-xs text-destructive">Una scelta predefinita deve essere attiva.</p> : null}
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            <div className="flex items-center gap-2 py-1">
+              <Checkbox
+                id="val-default"
+                checked={isDefault}
+                onCheckedChange={(c) => setIsDefault(c === true)}
+                className="h-5 w-5"
+              />
+              <label htmlFor="val-default" className="text-sm cursor-pointer select-none">
+                Predefinita nel preventivo
+              </label>
+            </div>
+            <div className="flex items-center gap-2 py-1">
+              <Checkbox
+                id="val-attivo"
+                checked={attivo}
+                onCheckedChange={(c) => setAttivo(c === true)}
+                className="h-5 w-5"
+              />
+              <label htmlFor="val-attivo" className="text-sm cursor-pointer select-none">
+                Attivo
+              </label>
+            </div>
           </div>
 
-          {/* P3 — Codice + prezzo propri della variante (entità completa) */}
-          <div className="rounded-md border p-3 space-y-2.5">
+          </div>
+          <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+          <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+            <label htmlFor="val-modo-prezzo" className="text-sm font-medium">Prezzo della scelta</label>
+            <Select value={modoPrezzo} onValueChange={v => {
+              const mode = v as typeof modoPrezzo; setModoPrezzo(mode);
+              if (mode !== "sostitutivo") { setPrezzoV(""); setPrezzoA(""); }
+              if (mode !== "supplemento") { setMagTipo("none"); setMagValore("0"); setMagAcquisto("0"); }
+              else if (magTipo === "none") setMagTipo("percentuale");
+            }}>
+              <SelectTrigger id="val-modo-prezzo"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="incluso">Inclusa nel prezzo base</SelectItem>
+                <SelectItem value="supplemento">Supplemento / riduzione</SelectItem>
+                {modalitaPrezzoBase !== "griglia" ? <SelectItem value="sostitutivo">Sostituisce il prezzo base</SelectItem> : null}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">{modoPrezzo === "incluso" ? "Nessuna variazione di vendita sul prezzo base." : modoPrezzo === "sostitutivo" ? "La vendita parte da questo prezzo, non dalla base del prodotto." : "Si applica al prezzo base solo quando viene selezionata."}</p>
+            {Number(prezzoV) > 0 && magTipo !== "none" && modalitaPrezzoBase !== "griglia" ? <p role="note" className="text-xs text-amber-800">Configurazione esistente: il prezzo sostitutivo prevale sul supplemento. I dati restano invariati finché non cambi modalità.</p> : null}
+          </div>
+          {/* Prezzi sostitutivi e dati tecnici legacy delle griglie. */}
+          {(modoPrezzo === "sostitutivo" || prezzoV.trim() || prezzoA.trim()) ? <div className="rounded-md border p-3 space-y-2.5">
             <div className="text-sm font-medium">Codice e prezzo variante</div>
             <div className="space-y-1">
               <label htmlFor="val-codice-art" className="text-xs text-muted-foreground">
@@ -1955,33 +1717,12 @@ function ValueFormDialog({
             <p className="text-[11px] text-muted-foreground">{prezzoProprio.aiuto}</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div className="flex items-center gap-2 py-1">
-              <Checkbox
-                id="val-default"
-                checked={isDefault}
-                onCheckedChange={(c) => setIsDefault(c === true)}
-                className="h-5 w-5"
-              />
-              <label htmlFor="val-default" className="text-sm cursor-pointer select-none">
-                Default (preselezionato)
-              </label>
-            </div>
-            <div className="flex items-center gap-2 py-1">
-              <Checkbox
-                id="val-attivo"
-                checked={attivo}
-                onCheckedChange={(c) => setAttivo(c === true)}
-                className="h-5 w-5"
-              />
-              <label htmlFor="val-attivo" className="text-sm cursor-pointer select-none">
-                Attivo
-              </label>
-            </div>
-          </div>
-
-          <div className="border rounded-md p-3 space-y-2.5 bg-muted/30">
-            <div className="text-sm font-medium">Maggiorazione</div>
+          : <details className="rounded-lg border p-3">
+              <summary className="cursor-pointer text-sm text-muted-foreground">Codice articolo / SKU</summary>
+              <Input aria-label="Codice articolo / SKU" className="mt-2" value={codiceArt} onChange={e => setCodiceArt(e.target.value)} />
+            </details>}
+          {(modoPrezzo === "supplemento" || magTipo !== "none") ? <div className="border rounded-md p-3 space-y-2.5 bg-muted/30">
+            <div className="text-sm font-medium">Supplemento / riduzione</div>
             <div className="space-y-1">
               <label htmlFor="val-mag-tipo" className="text-xs text-muted-foreground">Tipo</label>
               <Select
@@ -2083,6 +1824,9 @@ function ValueFormDialog({
                   su questo valore.
                 </p>
 
+                <details className="rounded-lg border bg-background p-2">
+                  <summary className="cursor-pointer text-xs text-muted-foreground">Confronto ed esempio di calcolo</summary>
+                  <div className="space-y-2 pt-2">
                 {/* #11 — Diff prezzi quando si modifica un valore esistente */}
                 {editing && value ? (
                   <div className="text-[11px] text-muted-foreground bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900 rounded px-2 py-1.5 space-y-0.5">
@@ -2142,12 +1886,15 @@ function ValueFormDialog({
                   vendita={leggiMaggiorazione(magValore)}
                   acquisto={leggiMaggiorazione(magAcquisto)}
                 />
+                  </div>
+                </details>
               </>
             ) : null}
+          </div> : null}
           </div>
         </div>
 
-        <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:gap-2">
+        <DialogFooter className="flex shrink-0 flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:gap-2">
           <Button
             variant="ghost"
             onClick={onClose}

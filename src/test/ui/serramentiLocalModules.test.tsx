@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { SerramentiModuleTemplatesPanel } from "@/components/serramenti/SerramentiModuleTemplatesPanel";
 import { loadLocalSerramentiTemplate } from "@/lib/moduli-vendita/localSerramentiTemplates";
+import { SERRAMENTI_TEMPLATE_MODULES } from "@/lib/moduli-vendita/serramentiTemplateModules";
 const state = vi.hoisted(() => ({ canEdit: true, company: "company-a", remote: vi.fn(), preview: vi.fn(), error: vi.fn(), brand: {}, archivio: vi.fn() }));
 // Dal 25/09 i modelli si salvano per l'azienda (archivioModelli.ts): qui l'archivio
 // scrive solo nel browser e registra il salvataggio, senza database.
@@ -27,8 +28,10 @@ beforeEach(() => { localStorage.clear(); state.canEdit = true; state.company = "
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.unstubAllGlobals(); });
 const mount = (module = "") => render(<MemoryRouter initialEntries={[`/?tab=moduli-vendita&modulo=serramenti&section=page_cover${module ? `&modello=${module}` : ""}`]}><SerramentiModuleTemplatesPanel /></MemoryRouter>);
 describe("libreria ed editor locali Serramenti", () => {
-  it("mostra sette moduli configurabili, non schede in progettazione", () => {
-    mount(); expect(screen.getAllByRole("button", { name: /^Configura / })).toHaveLength(7);
+  it("mostra tutti i moduli del catalogo, con numero e nomi coerenti", () => {
+    mount(); expect(screen.getAllByRole("button", { name: /^Configura / })).toHaveLength(SERRAMENTI_TEMPLATE_MODULES.length);
+    expect(screen.getByText(new RegExp(`^${SERRAMENTI_TEMPLATE_MODULES.length} modelli distinti`))).toBeTruthy();
+    for (const m of SERRAMENTI_TEMPLATE_MODULES) expect(screen.getByRole("button", { name: `Configura ${m.title}` })).toBeTruthy();
     expect(screen.queryByText("In progettazione")).toBeNull();
   });
   it("salva e riapre una personalizzazione senza mutazioni online", () => {

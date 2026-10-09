@@ -16,6 +16,9 @@ import { CHART_RULES } from "../_shared/chartRules.ts";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
 // di salvare in internal_chat_messages (chat di Florin con Silvio Superadmin).
 import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
+import { publicAiAnswer } from "../_shared/visibleAiAnswer.ts";
+import { SILVIO_ANSWER_QUALITY_RULES, silvioHistoryMessages, silvioToolResultForPrompt, silvioToolContextIsPartial, silvioCompletionNotice } from "../_shared/silvioAnswerQuality.ts";
+import { silvioConversationContext, isSilvioReadFollowUp } from "../_shared/silvioConversationContext.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -34,6 +37,7 @@ interface ChatMessage {
   sender_id: string;
   content: string | null;
   created_at: string;
+  streaming?: boolean | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -895,26 +899,29 @@ Deno.serve(async (req) => {
       });
     }
 
-    // OTTIMIZZAZIONE: history + persona routing + cardinal principles IN PARALLELO.
-    // Risparmio tipico: 200-300ms (era serial: 80+80+80 = 240ms).
+    // Standalone routing stays parallel; only follow-ups need the history first.
     // Cardinal principles inizia subito perché dipende solo da channel.company_id
     // (la persona_key viene aggiunta come "boost" dopo il routing — la cache TTL
     // 5min copre comunque entrambe le varianti).
     const tParallel = Date.now();
-    const [historyRes, personaRes, earlyCardinalBlock] = await Promise.all([
+    const earlyPersonaPromise = !isSilvioReadFollowUp(message)
+      ? Promise.resolve(supabase.rpc("pick_silvio_admin_persona", { p_query: message })) : null;
+    const [historyRes, earlyCardinalBlock] = await Promise.all([
       supabase
         .from("internal_chat_messages")
-        .select("id, sender_id, content, created_at")
+        .select("id, sender_id, content, created_at, streaming")
         .eq("channel_id", channelId)
         .order("created_at", { ascending: false })
         .limit(20),
-      supabase.rpc("pick_silvio_admin_persona", { p_query: message }),
       buildCardinalPrinciplesBlock(supabase, null, channel.company_id ?? null),
     ]);
     console.log(`[silvio-admin-chat] parallel fetch ${Date.now() - tParallel}ms`);
 
     const history = historyRes.data;
     const historyAsc = (history ?? []).reverse() as ChatMessage[];
+    const conversation = silvioConversationContext(message, historyAsc, { userId, currentMessageId: requestMessageId });
+    const personaRes = earlyPersonaPromise ? await earlyPersonaPromise
+      : await supabase.rpc("pick_silvio_admin_persona", { p_query: conversation.query });
 
     // 5. ROUTING PERSONAS — invocazione esplicita-by-name vs keyword vs no-match
     //    Modalità: SOLO (1 persona, 90% casi), PANEL (2-4 multi-area), DEBATE (visioni opposte)
@@ -1027,20 +1034,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    const fullSystemPrompt = `${PREAMBOLO_COSTITUZIONALE}\n\n${SYSTEM_PROMPT_BASE}${cardinalBlock}${pageContextAddendum}${personaAddendum}${strictFormatAddendum}${CHART_RULES}`;
+    const fullSystemPrompt = `${PREAMBOLO_COSTITUZIONALE}\n\n${SYSTEM_PROMPT_BASE}${cardinalBlock}${pageContextAddendum}${personaAddendum}${strictFormatAddendum}${CHART_RULES}${SILVIO_ANSWER_QUALITY_RULES}\n${conversation.hint}`;
     const aiMessages: AIMessage[] = [
       { role: "system", content: fullSystemPrompt },
     ];
-    for (const m of historyAsc) {
-      if (!m.content?.trim()) continue;
-      if (m.sender_id === SILVIO_ADMIN_SENDER_ID) {
-        aiMessages.push({ role: "assistant", content: m.content });
-      } else if (m.sender_id === userId) {
-        aiMessages.push({ role: "user", content: m.content });
-      } else {
-        aiMessages.push({ role: "user", content: `[altro super_admin] ${m.content}` });
-      }
-    }
+    aiMessages.push(...silvioHistoryMessages(historyAsc, {
+      assistantSenderId: SILVIO_ADMIN_SENDER_ID,
+      currentSenderId: userId,
+      currentContent: message,
+      currentMessageId: requestMessageId,
+      otherSenderPrefix: "[altro super_admin] ",
+    }));
+    aiMessages.push({ role: "user", content: message });
 
     const conversationId = channelId;
 
@@ -1059,6 +1064,8 @@ Deno.serve(async (req) => {
     let modelUsed = "";
     const toolCallsMade: Array<{ name: string; args: unknown; result_preview: string }> = [];
     let finalContent = "";
+    let answerFinishReason: unknown = null;
+    let partialToolContext = false;
 
     for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
       let result;
@@ -1118,6 +1125,8 @@ Deno.serve(async (req) => {
           }
 
           const toolResult = await executeTool(supabase, tcName, tcArgs);
+          const promptResult = silvioToolResultForPrompt(toolResult);
+          partialToolContext ||= silvioToolContextIsPartial(promptResult);
           const previewStr = JSON.stringify(toolResult).slice(0, 300);
           toolCallsMade.push({ name: tcName, args: tcArgs, result_preview: previewStr });
 
@@ -1125,7 +1134,7 @@ Deno.serve(async (req) => {
             role: "tool",
             tool_call_id: tc.id,
             name: tcName,
-            content: JSON.stringify(toolResult),
+            content: promptResult,
           });
         }
         // Continua il loop: prossima iterazione l'AI userà i tool result
@@ -1134,6 +1143,7 @@ Deno.serve(async (req) => {
 
       // Nessun tool call → risposta finale
       finalContent = result.content ?? "(risposta vuota)";
+      answerFinishReason = result.rawResponse?.choices?.[0]?.finish_reason;
       break;
     }
 
@@ -1143,6 +1153,7 @@ Deno.serve(async (req) => {
 
     // 🛡️ Sanitize: strip tool names ("get_mrr_breakdown ritorna..."), opener
     // narrativi ("Ho i dati dai tool. Analizzo:") prima del salvataggio.
+    finalContent = publicAiAnswer(finalContent);
     const sanitizedReply = sanitizeAnswer(finalContent);
     if (sanitizedReply.wasModified) {
       console.warn(JSON.stringify({
@@ -1160,6 +1171,7 @@ Deno.serve(async (req) => {
     } else {
       finalContent = sanitizedReply.cleaned || finalContent;
     }
+    finalContent = silvioCompletionNotice(finalContent, answerFinishReason, partialToolContext);
 
     // 7. Inserisci risposta nel canale
     const { error: insertErr } = await supabase

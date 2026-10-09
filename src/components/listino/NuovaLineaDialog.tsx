@@ -63,13 +63,14 @@ interface Props {
 export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCategoria, onCreaAsse }: Props) {
   const conAsse = haLineeDaAsse(tipologia);
   const serramenti = area.chiave === "serramenti";
+  const catalogoInfissi = serramenti && chiaveTesto(tipologia.nome) === "serramenti";
   const copiabili = useMemo(() => lineeDaAsse(tipologia).filter((l) => !eLineaBaseDeiModelli(l.nome)), [tipologia]);
   const haCartelle = tipologia.linee.some((l) => l.fonte === "categoria");
   const riferimento = lineeDaAsse(tipologia).find((l) => l.base) ?? copiabili[0] ?? null;
   const senzaLinee = prodottiSenzaLinee(tipologia);
 
   const [tipo, setTipo] = useState<TipoLinea>(
-    conAsse ? "asse" : haCartelle || tipologia.articoli === 0 ? "categoria" : "asse",
+    catalogoInfissi ? "categoria" : conAsse ? "asse" : haCartelle || tipologia.articoli === 0 ? "categoria" : "asse",
   );
   const [fonte, setFonte] = useState<FonteLinea>(
     serramenti ? "libreria" : conAsse && copiabili.length > 0 ? "copia" : "nuova",
@@ -131,7 +132,7 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
 
   const fonti: Array<[FonteLinea, string]> = [
     ...(serramenti ? [["libreria", "Dalla libreria"] as [FonteLinea, string]] : []),
-    ...(conAsse && copiabili.length > 0 ? [["copia", "Copia una linea"] as [FonteLinea, string]] : []),
+    ...(!catalogoInfissi && conAsse && copiabili.length > 0 ? [["copia", "Copia una linea"] as [FonteLinea, string]] : []),
     ["nuova", "Scritta da te"],
   ];
   const fonteVisibile = fonti.some(([f]) => f === fonte) ? fonte : fonti[0][0];
@@ -147,14 +148,16 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
         <DialogHeader>
           <DialogTitle>Nuova linea in {tipologia.nome}</DialogTitle>
           <DialogDescription>
-            {conAsse
+            {catalogoInfissi
+              ? "Una nuova linea riceve tutte le configurazioni standard con disegno. Prezzi e compatibilità vanno verificati con il tuo fornitore; i prodotti esistenti non cambiano."
+              : conAsse
               ? `Una linea con gli stessi ${tipologia.articoli} modelli e un altro prezzo, accanto a ${copiabili.map((l) => l.nome).join(", ")}.`
               : "Scegli se la linea ha gli stessi modelli con un altro prezzo o prodotti diversi."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="-mx-6 flex-1 space-y-4 overflow-y-auto px-6 py-1">
-          {!conAsse && (
+          {!conAsse && !catalogoInfissi && (
             <div role="radiogroup" aria-label="Che cosa cambia nella nuova linea" className="grid gap-2 sm:grid-cols-2">
               {(
                 [
@@ -187,7 +190,7 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
             </div>
           )}
 
-          {tipo === "asse" && fonti.length > 1 && (
+          {(tipo === "asse" || catalogoInfissi) && fonti.length > 1 && (
             <Tabs value={fonteVisibile} onValueChange={(v) => setFonte(v as FonteLinea)}>
               <TabsList className={cn("grid w-full", fonti.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
                 {fonti.map(([valore, etichetta]) => (
@@ -199,7 +202,7 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
             </Tabs>
           )}
 
-          {tipo === "asse" && fonteVisibile === "libreria" && <SceltaSerie scelta={serie} onScegli={scegliSerie} />}
+          {(tipo === "asse" || catalogoInfissi) && fonteVisibile === "libreria" && <SceltaSerie scelta={serie} onScegli={scegliSerie} />}
 
           {tipo === "asse" && fonteVisibile === "copia" && (
             <div className="space-y-1.5">
@@ -255,7 +258,7 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 placeholder={
-                  tipo === "categoria"
+                  catalogoInfissi ? "Es. PVC Rehau Synego" : tipo === "categoria"
                     ? "Es. PVC, Alluminio coibentato, Linea vasca tipo 1"
                     : serramenti
                       ? "Es. PVC Salamander bluEvolution 73"
@@ -292,7 +295,7 @@ export function NuovaLineaDialog({ area, tipologia, inCorso, onChiudi, onCreaCat
           )}
           {tipo === "categoria" && (
             <p className="text-xs text-muted-foreground">
-              Dopo sposti i prodotti nella linea dal menu di ogni prodotto, oppure li crei già lì con «Prodotto in».
+              {catalogoInfissi ? "Tutte le configurazioni saranno disponibili nel preventivatore. Il prezzo da definire non significa fornitura gratuita: puoi inserire un prezzo manuale oppure completare il listino." : "Dopo sposti i prodotti nella linea dal menu di ogni prodotto, oppure li crei già lì con «Prodotto in»."}
             </p>
           )}
         </div>

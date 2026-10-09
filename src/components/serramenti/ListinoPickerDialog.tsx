@@ -26,6 +26,7 @@
 import { MisureForma, chiedeMisureForma, type MisureFormaValori } from "@/components/serramenti/MisureForma";
 import { AnteprimaDisegnoFamiglia, MiniaturaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
 import { type DisegnoConfig, configDaFamiglia, disegnoDaConfig, haDisegno, misureTipiche } from "@/lib/serramenti/disegnoDaFamiglia";
+import { controllaMisure } from "@/lib/serramenti/limitiSerramento";
 import { useState, useEffect, useMemo } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { conAssiVisibili, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
@@ -370,6 +371,9 @@ export function ListinoPickerDialog({
     const config = configDaFamiglia(familyWithAxes, selezione, { coloreInterno: coloriTesti?.interno, coloreEsterno: coloriTesti?.esterno, voci: vociEffettive, forma: formaExtra });
     return config ? disegnoDaConfig(config, misuraDaTesto(larghezza) ?? tipiche.larghezzaMm, misuraDaTesto(altezza) ?? tipiche.altezzaMm) : null;
   }, [familyWithAxes, selezione, larghezza, altezza, vociEffettive, formaExtra, coloriTesti]);
+  const avvisiDisegno = useMemo(() => anteprimaDisegno?.tipo === "serramento" && larghezzaMm && altezzaMm
+    ? controllaMisure(anteprimaDisegno.viste[0].disegno) : [], [anteprimaDisegno, larghezzaMm, altezzaMm]);
+  const standardDaPrezzare = selectedFamily?.custom_field_values?.configurazione_standard === true && listinoSenzaPrezzoDiVendita(selectedFamily);
 
   // La scheda della linea scelta (PVC Salamander 76): foto, dati e testo da
   // leggere al cliente. La linea è il valore dell'asse Linea, o la categoria.
@@ -588,6 +592,7 @@ export function ListinoPickerDialog({
     : vista === "linea" ? "Scegli la linea: la ritrovi già scelta nelle variabili del prodotto"
     : vista === "prodotto" ? "Scegli il prodotto"
     : vista === "risultati" ? `Nome, codice o linea, fra i prodotti dell'area ${nomeArea}`
+    : standardDaPrezzare ? "Inserisci le misure. Il prezzo va compilato nel listino o nella riga del preventivo."
     : "Inserisci le misure: il prezzo è calcolato automaticamente";
   const percorso = vista === "risultati"
     ? `Ricerca nell'area ${nomeArea}`
@@ -879,14 +884,19 @@ export function ListinoPickerDialog({
               </p>
             )}
 
-            {familyWithAxes && chiedeMisureForma(familyWithAxes.disegno_tipologia) && (
+            {familyWithAxes && chiedeMisureForma(familyWithAxes.disegno_tipologia, familyWithAxes.disegno_definizione) && (
               <MisureForma
                 tipologia={familyWithAxes.disegno_tipologia}
+                definizione={familyWithAxes.disegno_definizione}
                 larghezzaMm={misuraDaTesto(larghezza) ?? misureTipiche(familyWithAxes).larghezzaMm}
                 altezzaMm={misuraDaTesto(altezza) ?? misureTipiche(familyWithAxes).altezzaMm}
                 valori={formaExtra}
                 onChange={setFormaExtra}
               />
+            )}
+            {avvisiDisegno.length > 0 && <div role="status" className="space-y-1 rounded-md border bg-amber-50 p-2 text-xs text-amber-900">{avvisiDisegno.map((a) => <p key={a.codice}>{a.testo}</p>)}</div>}
+            {selectedFamily?.custom_field_values?.configurazione_standard === true && (
+              <p className="rounded-md bg-blue-50 p-2 text-xs text-blue-900">Schema standard: verifica gamma, misure ammesse e prezzi con il fornitore. Non è una certificazione di fattibilità.</p>
             )}
 
             {/* Variabili Prodotto (axes): la linea parte già scelta, gli altri
@@ -954,7 +964,7 @@ export function ListinoPickerDialog({
             {calcolo && !calcolo.fuoriRange && (
               <Card className="border-orange-300 bg-orange-50/50 p-4">
                 <p className="text-[11px] uppercase tracking-wide text-orange-600 font-semibold mb-2 flex items-center gap-1">
-                  <Calculator className="h-3.5 w-3.5" /> Calcolo prezzo
+                  <Calculator className="h-3.5 w-3.5" /> {standardDaPrezzare ? "Prezzo da definire" : "Calcolo prezzo"}
                 </p>
                 <div className="space-y-1 text-xs">
                   {calcolo.note && (
@@ -967,6 +977,7 @@ export function ListinoPickerDialog({
                       </span>
                     </p>
                   )}
+                  {standardDaPrezzare ? <p className="text-sm text-orange-900">Aggiungi lo schema e inserisci il prezzo nella riga del preventivo, oppure completa il listino. Questo articolo non ha ancora una tariffa: non è gratuito.</p> : <>
                   <div className="border-t border-orange-300 pt-2 mt-2 flex justify-between items-center">
                     <span className="font-bold text-orange-900">Totale posizione</span>
                     <span className="text-xl font-bold text-orange-600 tabular-nums">
@@ -976,6 +987,7 @@ export function ListinoPickerDialog({
                   <p className="text-[10px] text-muted-foreground text-right">
                     Prezzo unitario: € {calcolo.unitario.toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })} × {calcolo.quantita} pz
                   </p>
+                  </>}
                 </div>
               </Card>
             )}
@@ -1036,6 +1048,7 @@ export function ListinoPickerDialog({
                 className="w-full bg-orange-500 hover:bg-orange-600 sm:w-auto"
                 disabled={
                   numeriNonValidi
+                  || avvisiDisegno.some((a) => a.gravita === "errore")
                   || (richiedeMisure && (!larghezza || !altezza))
                   || !calcolo
                   // Un prodotto di listino senza prezzo di vendita resta a 0€
@@ -1103,6 +1116,7 @@ function SchedaProdotto({ riga, contesto, onClick }: { riga: RigaListino; contes
               € {EURO.format(prezzo.prezzo)}{prezzo.alMetroQuadro ? "/m²" : ""}
             </span>
           )}
+          {!prezzo && f.custom_field_values?.configurazione_standard === true && <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">Prezzo da definire</span>}
         </div>
       </div>
     </button>

@@ -60,14 +60,14 @@ const TIPS_BY_PHASE: Record<string, string[]> = {
   ],
   analyzing_ai: [
     "L'AI identifica voci, quantità e prezzi unitari…",
-    "Sto confrontando con i prezzari di mercato Italia 2025-2026.",
+    "Mantengo i prezzi del documento: l'abbinamento al listino è da verificare.",
     "Riconosco capitoli, sub-voci e categorie merceologiche.",
     "Calcolo confidence per ogni voce estratta.",
     "Verifico coerenza tra subtotali parziali e totale dichiarato.",
   ],
   validating: [
     "Cross-check tra somma voci e totale del computo…",
-    "Segnalo eventuali anomalie o voci sotto-prezzo.",
+    "Segnalo campi mancanti e importi da verificare con l'originale.",
   ],
   review: [
     "Tutto pronto: ora puoi rivedere ed editare le voci.",
