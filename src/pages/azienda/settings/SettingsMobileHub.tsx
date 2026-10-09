@@ -38,7 +38,7 @@ const HIDDEN_ON_MOBILE = new Set<string>([
   "/azienda/impostazioni/categorie-costi",    // Categorie costi
   "/azienda/impostazioni/fornitori",          // Fornitori
   "/azienda/impostazioni/listino",            // Listino prodotti
-  "/azienda/impostazioni/margini",            // Margini e sconti
+  "/azienda/impostazioni/margini",            // Modelli di preventivo · Prezzo e margini
   "/azienda/impostazioni/template-preventivi",// Modelli di preventivo
   "/azienda/impostazioni/catalogo-render",    // Catalogo render
   "/azienda/impostazioni/condizioni-firma",   // Firma e condizioni

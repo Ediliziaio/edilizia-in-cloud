@@ -150,7 +150,7 @@ export interface SrProgettoRow {
   /**
    * Prezzo pieno scritto a mano, IVA esclusa: sostituisce la somma delle voci
    * (sconto e IVA si calcolano sopra). Null = somma delle voci. Si scrive solo
-   * se l'azienda l'ha acceso in Impostazioni → Margini
+   * se l'azienda l'ha acceso in Impostazioni → Modelli di preventivo → Prezzo e margini
    * (preventivo_impostazioni.prezzo_finale_a_mano).
    */
   prezzo_manuale?: number | null;

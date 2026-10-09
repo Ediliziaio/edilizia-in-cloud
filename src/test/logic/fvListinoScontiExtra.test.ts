@@ -165,7 +165,8 @@ describe("D. SettingsScontistica — tipi lavoro noti", () => {
 
   it("il copy spiega che le regole valgono per tutti i preventivatori e i privati", () => {
     const src = readFileSync(SETTINGS_SCONTI, "utf8");
-    expect(src).toContain("tutti i preventivatori");
+    // «TUTTI i preventivatori» è scritto con la maiuscola nell'intestazione della pagina.
+    expect(src.toLowerCase()).toContain("tutti i preventivatori");
     expect(src).toContain("privati inclusi");
   });
 });

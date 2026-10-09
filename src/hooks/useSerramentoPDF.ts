@@ -169,7 +169,7 @@ export interface SerramentoPdfPayload {
 
 /**
  * Lo sconto nell'offerta si vede, tranne dove l'azienda ha spento «Mostra
- * sconti applicati» (Impostazioni → Margini). È la regola del PDF del
+ * sconti applicati» (Impostazioni → Modelli di preventivo → Prezzo e margini). È la regola del PDF del
  * preventivo generico (generate-quote-pdf: `pdf_mostra_sconti !== false`): chi
  * non ha mai salvato quelle impostazioni lo vede. Prima il PDF serramenti non
  * mostrava mai lo sconto, e chi lo dava non poteva farlo vedere al cliente.

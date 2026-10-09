@@ -59,6 +59,7 @@ export const REQUISITI_IMPOSTAZIONI: Record<string, RequisitoPiano> = {
   "bundle-serramentista": PREVENTIVI,
   margini: PREVENTIVI,
   scontistica: PREVENTIVI,
+  approvazioni: PREVENTIVI,
   "template-preventivi": PREVENTIVI,
   "condizioni-firma": PREVENTIVI,
   finanziamenti: { funzioni: ["preventivi_crm", "simulatore"] },

@@ -1,7 +1,7 @@
 /**
  * Alert «scostamento SAL» di controllo di gestione: confronta l'avanzamento
  * fisico dichiarato con i costi già consumati (consuntivo / costo previsto).
- * La soglia la decide l'azienda in Impostazioni → Margini → Governance
+ * La soglia la decide l'azienda in Impostazioni → Modelli di preventivo → Approvazioni
  * (sal_scostamento_enabled / sal_tolleranza_perc). Finora quella scelta non
  * era mostrata da nessuna parte: questo componente la rende viva sulla commessa.
  *

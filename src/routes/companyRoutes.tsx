@@ -217,6 +217,7 @@ const MatriceListiniPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.MatriceListiniPage })),
 );
 const SettingsMargini = lazy(() => import("@/pages/azienda/settings/SettingsMargini"));
+const SettingsApprovazioni = lazy(() => import("@/pages/azienda/settings/SettingsApprovazioni"));
 const SettingsScontistica = lazy(() => import("@/pages/azienda/settings/SettingsScontistica"));
 const SettingsApiKeys = lazy(() => import("@/pages/azienda/settings/SettingsApiKeys"));
 const SettingsWebhooks = lazy(() => import("@/pages/azienda/settings/SettingsWebhooks"));
@@ -1256,6 +1257,7 @@ export default function CompanyRoutesContainer() {
           />
           <Route path="margini" element={withCompanyPermission("canViewCosts", <SettingsMargini />)} />
           <Route path="scontistica" element={withCompanyPermission("canViewSettingsScontistica", <SettingsScontistica />)} />
+          <Route path="approvazioni" element={withCompanyPermission("canViewCosts", <SettingsApprovazioni />)} />
           {/* Clausole contrattuali + testi mostrati al cliente quando firma */}
           <Route path="condizioni-firma" element={withCompanyPermission("canViewSettingsPricing", <SettingsCondizioniFirma />)} />
           <Route path="stati-ordine" element={withCompanyPermission("canViewSettingsOrders", <SettingsOrderStatus />)} />

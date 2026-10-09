@@ -1,6 +1,6 @@
 /**
  * Il prezzo del preventivo scritto a mano: si può fare solo se l'azienda l'ha
- * acceso in Impostazioni → Margini (preventivo_impostazioni.prezzo_finale_a_mano).
+ * acceso in Impostazioni → Modelli di preventivo → Prezzo e margini (preventivo_impostazioni.prezzo_finale_a_mano).
  *
  * Serve a chi usa i preventivatori per avere un bel documento ma non carica i
  * prezzi del listino: le voci restano a 0 € e il prezzo si scrive alla fine,

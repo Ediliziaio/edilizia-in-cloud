@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import SettingsMargini from "@/pages/azienda/settings/SettingsMargini";
 
 const state = vi.hoisted(() => ({
@@ -11,7 +12,6 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company-1" }, role: "company_admin" }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isAdmin: true, canEditSettingsPricing: true }) }));
-vi.mock("@/components/settings/GovernanceThresholdsCard", () => ({ GovernanceThresholdsCard: () => <p>Regole contenuto</p> }));
 vi.mock("@/hooks/usePrezzoFinaleAMano", () => ({ usePrezzoFinaleAMano: () => ({ data: false, isLoading: false }), useImpostaPrezzoFinaleAMano: () => ({ mutate: vi.fn(), isPending: false }) }));
 vi.mock("sonner", () => ({ toast: { error: state.error, success: state.success } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (table: string) => {
@@ -33,7 +33,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (table: str
 } } }));
 function open() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  render(<QueryClientProvider client={client}><SettingsMargini /></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><MemoryRouter><SettingsMargini /></MemoryRouter></QueryClientProvider>);
   return client;
 }
 beforeEach(() => { state.readError = false; state.writeError = false; state.writes.length = 0; state.error.mockClear(); state.success.mockClear(); });
@@ -77,13 +77,15 @@ describe("Margini: salvataggio esplicito e validazione", () => {
     expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeDisabled();
     expect(state.writes).toHaveLength(0);
   });
-  it("non perde la bozza cambiando scheda se si annulla la conferma", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("non perde la bozza passando a un'altra scheda se si annulla la conferma", async () => {
+    const conferma = vi.spyOn(window, "confirm").mockReturnValue(false);
     open(); await loaded();
     fireEvent.change(screen.getByLabelText("Margine target default %"), { target: { value: "35" } });
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Regole e approvazioni" }), { button: 0, ctrlKey: false });
+    // «Apri Sconti» è un link a un'altra scheda del gruppo: con modifiche non salvate chiede conferma prima di partire.
+    const evento = fireEvent.click(screen.getByRole("link", { name: "Apri Sconti" }));
+    expect(conferma).toHaveBeenCalledOnce();
+    expect(evento).toBe(false); // il clic è stato fermato
     expect(screen.getByLabelText("Margine target default %")).toHaveValue(35);
-    expect(screen.queryByText("Regole contenuto")).toBeNull();
   });
   it("filtra le categorie senza salvare e valida prima della scrittura automatica", async () => {
     open(); await loaded();

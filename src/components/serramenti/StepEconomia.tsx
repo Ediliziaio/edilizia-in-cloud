@@ -203,7 +203,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
   // ─── Prezzo scritto a mano ───────────────────────────────────────────────
   // Per chi non carica i prezzi del listino (o vuole fissare un totale diverso
   // dalla somma delle voci): si scrive nel riquadro condiviso PrezzoPreventivoAMano,
-  // che si auto-gestisce l'abilitazione aziendale (Impostazioni → Margini) e
+  // che si auto-gestisce l'abilitazione aziendale (Impostazioni → Modelli di preventivo → Prezzo e margini) e
   // mostra un suggerimento quando è spenta — così l'opzione è sempre individuabile.
   // IVA mista col prezzo scritto a mano: la regola dei beni significativi
   // ripartisce l'imponibile come le voci. Con le voci tutte a 0 € non c'è niente

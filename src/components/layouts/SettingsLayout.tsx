@@ -31,8 +31,9 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   finanziamenti:          { title: "Finanziamenti",             description: "Tabelle delle finanziarie convenzionate e calcolatore rate" },
   "bundle-serramentista": { title: "Bundle & Pacchetti",         description: "Pacchetti chiavi-in-mano pre-configurati per preventivi serramentista" },
   bundle:                 { title: "Bundle & Pacchetti",         description: "Pacchetti chiavi-in-mano pre-configurati per i preventivi" },
-  margini:                { title: "Preventivi & margini",     description: "Imposta margini e configurazioni dei preventivi" },
-  scontistica:            { title: "Margini e sconti",        description: "Limiti di sconto per commerciali, clienti e fasce di importo" },
+  margini:                { title: "Prezzo e margini",         description: "Prezzo a mano, margini, posa e trasporto, numero e PDF dei preventivi" },
+  scontistica:            { title: "Sconti",                   description: "Limiti di sconto per commerciali, clienti e fasce di importo" },
+  approvazioni:           { title: "Approvazioni",             description: "Quando serve una seconda firma sul preventivo e quando una commessa segnala che costi o margine non tornano" },
   "stati-ordine":         { title: "Stati commessa",           description: "Configura il percorso della commessa: gli stati non sono le fasi di lavoro" },
   "calendari-lavori":     { title: "Calendari lavori",         description: "Squadre, calendari standard e collegamenti dei cantieri" },
   "qr-codici":            { title: "QR & Codici",              description: "Collega codici e QR ad articoli e fornitori, controlla la copertura e verifica le scansioni" },
@@ -101,7 +102,7 @@ export function SettingsLayout() {
   const { pathname } = useLocation();
   const permissions = usePermissions();
   const { stato: piano } = useStatoPiano();
-  // Pagine raggruppate (Listino, Margini e sconti, Firma e condizioni): titolo
+  // Pagine raggruppate (Listino, Modelli di preventivo, Firma e condizioni): titolo
   // del gruppo e schede per passare da una pagina all'altra. Le schede fuori
   // dal piano dell'azienda non compaiono.
   const sezione = sezioneDaPercorso(pathname);

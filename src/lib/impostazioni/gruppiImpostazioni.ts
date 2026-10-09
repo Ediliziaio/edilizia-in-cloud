@@ -6,6 +6,11 @@
  * altre che coi preventivi non c'entravano. Qui le pagine restano quelle di
  * sempre, con gli stessi indirizzi: cambia che nel menu compare una voce per
  * argomento e, dentro, le schede per passare da una pagina all'altra.
+ *
+ * 09/10/2026: «Margini e sconti» non è più una voce a sé. Prezzo e margini,
+ * sconti e approvazioni sono schede di «Modelli di preventivo»: chi cerca
+ * come si fa il prezzo, quanto sconto si può dare o quando serve una seconda
+ * firma trova tutto dove sta il modello del preventivo.
  */
 
 export type PermessoImpostazione =
@@ -26,7 +31,7 @@ export interface SchedaImpostazione {
 }
 
 export interface GruppoImpostazioni {
-  id: "listino" | "margini" | "firma";
+  id: "listino" | "modelli" | "firma";
   titolo: string;
   descrizione: string;
   schede: SchedaImpostazione[];
@@ -58,12 +63,14 @@ export const GRUPPI_IMPOSTAZIONI: GruppoImpostazioni[] = [
     ],
   },
   {
-    id: "margini",
-    titolo: "Margini e sconti",
-    descrizione: "Margine minimo e target, spese generali, numerazione e limiti di sconto dei preventivi",
+    id: "modelli",
+    titolo: "Modelli di preventivo",
+    descrizione: "Come è fatto il preventivo e le regole che segue: prezzo, margini, sconti e approvazioni",
     schede: [
-      { sezione: "margini", etichetta: "Margini", to: `${BASE}/margini`, permesso: "canViewCosts" },
+      { sezione: "template-preventivi", etichetta: "Modelli", to: `${BASE}/template-preventivi`, permesso: "canViewSettingsPricing" },
+      { sezione: "margini", etichetta: "Prezzo e margini", to: `${BASE}/margini`, permesso: "canViewCosts" },
       { sezione: "scontistica", etichetta: "Sconti", to: `${BASE}/scontistica`, permesso: "canViewSettingsScontistica" },
+      { sezione: "approvazioni", etichetta: "Approvazioni", to: `${BASE}/approvazioni`, permesso: "canViewCosts" },
     ],
   },
   {

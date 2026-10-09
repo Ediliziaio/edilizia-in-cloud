@@ -8,8 +8,8 @@
  * vedono prezzo, sconto e totale. Serve a chi usa il preventivatore per il
  * documento ma non carica i prezzi: le righe possono restare a 0 €.
  *
- * Compare se l'azienda l'ha acceso (Impostazioni → Margini → «Prezzo del
- * preventivo»), e resta visibile su un preventivo che ha già un prezzo scritto,
+ * Compare se l'azienda l'ha acceso (Impostazioni → Modelli di preventivo →
+ * Prezzo e margini → «Prezzo del preventivo»), e resta visibile su un preventivo che ha già un prezzo scritto,
  * così lo si può togliere anche dopo che l'opzione è stata spenta.
  */
 import { Input } from "@/components/ui/input";
@@ -43,9 +43,9 @@ export function PrezzoPreventivoAMano({ id, companyId, value, sommaVoci, onCommi
       <p className="mt-1 text-xs text-muted-foreground">
         {isLoading ? "Verifica delle impostazioni aziendali…" : isError
           ? "Impossibile verificare l'abilitazione. Riprova prima di impostare un prezzo manuale."
-          : "Disponibile quando l'azienda abilita «Prezzo del preventivo» in Impostazioni → Margini e sconti. Per ora il totale segue i prezzi delle righe."}
+          : "Disponibile quando l'azienda abilita «Prezzo del preventivo» in Impostazioni → Modelli di preventivo → Prezzo e margini. Per ora il totale segue i prezzi delle righe."}
       </p>
-      {!isLoading && !isError && <a href="/azienda/impostazioni/margini" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs font-medium text-orange-700 underline">Apri impostazioni in nuova scheda</a>}
+      {!isLoading && !isError && <a href="/azienda/impostazioni/margini#prezzo" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs font-medium text-orange-700 underline">Apri impostazioni in nuova scheda</a>}
     </div>
   ) : null;
 

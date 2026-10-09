@@ -132,10 +132,10 @@ export function GovernanceThresholdsCard({
             <ShieldCheck className="h-5 w-5 text-primary" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold leading-tight">Governance &amp; soglie</h2>
+            <h2 className="text-lg font-semibold leading-tight">Approvazioni e avvisi</h2>
             <p className="text-sm text-muted-foreground">
-              Controlli automatici su preventivi, avanzamento SAL e marginalità delle commesse.
-              Sono <strong>avvisi non bloccanti</strong>: segnalano, non impediscono.
+              Quando serve una seconda firma sul preventivo e quando una commessa segnala che costi o margine
+              non tornano. Sono <strong>avvisi</strong>: segnalano, non bloccano.
             </p>
           </div>
         </div>
@@ -176,7 +176,7 @@ export function GovernanceThresholdsCard({
               Richiedi una seconda approvazione oltre l&apos;importo soglia
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Label className="whitespace-nowrap text-sm">Soglia importo (€, netto IVA)</Label>
             <Input
               type="number"
@@ -208,7 +208,7 @@ export function GovernanceThresholdsCard({
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Activity className="h-4 w-4 text-primary" />
-            Alert scostamento SAL
+            Avviso se i costi non seguono l&apos;avanzamento (SAL)
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -222,7 +222,7 @@ export function GovernanceThresholdsCard({
               Segnala quando i costi consumati divergono dall&apos;avanzamento dichiarato
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Label className="whitespace-nowrap text-sm">Tolleranza scostamento ±%</Label>
             <Input
               type="number"
@@ -256,7 +256,7 @@ export function GovernanceThresholdsCard({
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-primary" />
-            Marginalità minima commesse
+            Margine minimo delle commesse
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -270,7 +270,7 @@ export function GovernanceThresholdsCard({
               Semaforo giallo sotto la soglia di margine (il rosso per perdita è sempre attivo)
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Label className="whitespace-nowrap text-sm">Soglia margine minimo %</Label>
             <Input
               type="number"

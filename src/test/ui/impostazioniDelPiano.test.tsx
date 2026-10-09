@@ -64,7 +64,7 @@ describe("piano Marketing (Ener Italia)", () => {
   it("niente commesse, magazzino, costi, preventivi, fatture, firma, render", () => {
     for (const sezione of [
       "stati-ordine", "cartelle-documenti", "calendari-lavori", "qr-codici", "fornitori", "categorie-costi",
-      "automazioni-finanza", "fatturazione", "listino", "tariffe", "bundle", "margini", "scontistica",
+      "automazioni-finanza", "fatturazione", "listino", "tariffe", "bundle", "margini", "scontistica", "approvazioni",
       "template-preventivi", "condizioni-firma", "firma-elettronica", "catalogo-render", "sopralluoghi",
     ]) {
       expect(impostazioneNelPiano(sezione, MARKETING), sezione).toBe(false);

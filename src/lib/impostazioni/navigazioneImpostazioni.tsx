@@ -4,7 +4,7 @@ import type { Permissions } from "@/hooks/usePermissions";
 import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
 import { GRUPPI_IMPOSTAZIONI, percorsoNelGruppo, schedeVisibili, sezioneDaPercorso, type GruppoImpostazioni } from "./gruppiImpostazioni";
 import { impostazioneNelPiano, type StatoPiano } from "./pianoImpostazioni";
-import { Users, Building2, MapPin, Paintbrush, Wallet, Brain, Bell, ImagePlus, ListOrdered, FolderOpen, HardHat, ClipboardList, ListChecks, Banknote, Truck, QrCode, RefreshCw, Package, TrendingUp, FileSignature, Tag, SlidersHorizontal, GitBranch, ThumbsDown, FileText, CalendarDays, FormInput, Shield, Plug, Key, Globe, AtSign, Phone } from "lucide-react";
+import { Users, Building2, MapPin, Paintbrush, Wallet, Brain, Bell, ImagePlus, ListOrdered, FolderOpen, HardHat, ClipboardList, ListChecks, Banknote, Truck, QrCode, RefreshCw, Package, FileSignature, Tag, SlidersHorizontal, GitBranch, ThumbsDown, FileText, CalendarDays, FormInput, Shield, Plug, Key, Globe, AtSign, Phone } from "lucide-react";
 
 /** Ricerca e link secondari rispettano gli stessi permessi della sidebar.
  * Le schede raggruppate controllano il proprio permesso, non quello di una scheda vicina. */
@@ -120,12 +120,13 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
       label: "Preventivi & Listino",
       items: [
         // 15/09/2026: da undici voci a cinque. Le pagine e gli indirizzi sono gli
-        // stessi; manodopera e kit stanno nel Listino, sconti coi margini,
-        // condizioni con la firma. Render e sopralluoghi sono nei loro gruppi.
+        // stessi; manodopera e kit stanno nel Listino, condizioni con la firma.
+        // Render e sopralluoghi sono nei loro gruppi.
+        // 09/10/2026: da cinque a quattro. Prezzo e margini, sconti e approvazioni
+        // sono schede di «Modelli di preventivo», non più una voce a sé.
         voceGruppo("listino", <Package className="h-4 w-4" />),
         { to: "/azienda/impostazioni/finanziamenti",        label: "Finanziamenti",        icon: <Banknote className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsFinanziamenti },
-        voceGruppo("margini", <TrendingUp className="h-4 w-4" />),
-        { to: "/azienda/impostazioni/template-preventivi", label: "Modelli di preventivo", icon: <Paintbrush className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsPricing },
+        voceGruppo("modelli", <Paintbrush className="h-4 w-4" />),
         voceGruppo("firma", <FileSignature className="h-4 w-4" />),
       ],
     },

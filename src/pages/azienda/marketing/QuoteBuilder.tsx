@@ -3525,7 +3525,7 @@ export default function QuoteBuilder() {
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
                 Le modifiche qui valgono solo per questo preventivo. I valori di default si configurano in{" "}
-                <Link to="/azienda/impostazioni/margini" className="underline">Impostazioni → Margini e sconti</Link>.
+                <Link to="/azienda/impostazioni/margini#pdf-e-firma" className="underline">Impostazioni → Modelli di preventivo → Prezzo e margini</Link>.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -3585,7 +3585,7 @@ export default function QuoteBuilder() {
                 <div className="flex items-start justify-between gap-4 py-1.5">
                   <div className="flex-1">
                     <Label className="font-normal">Firma digitale abilitata</Label>
-                    <p className="text-xs text-muted-foreground">Aggiunge QR code e link "Accetta preventivo" al PDF.</p>
+                    <p className="text-xs text-muted-foreground">Il cliente firma online con il codice OTP, dal link che riceve.</p>
                   </div>
                   <Switch checked={pdfFirma} onCheckedChange={setPdfFirma} />
                 </div>

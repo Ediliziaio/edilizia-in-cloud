@@ -239,7 +239,7 @@ export const AUTOMAZIONI_SECTIONS: PermissionSectionDef[] = [
 export const IMPOSTAZIONI_SECTIONS: PermissionSectionDef[] = [
   { label: "Profilo Aziendale",      viewKey: "can_view_settings_profile",        editKey: "can_edit_settings_profile", description: "Anagrafica, logo, dati fiscali e portale clienti" },
   { label: "Listino & Prezzi (tutto)", viewKey: "can_view_settings_pricing",      editKey: "can_edit_settings_pricing", description: "Master: listino prodotti, tariffe, template offerte E le tre voci sotto" },
-  { label: "Margini e sconti · Sconti", viewKey: "can_view_settings_scontistica",    editKey: "can_edit_settings_scontistica", description: "Solo fasce sconto e limiti venditori, senza toccare il listino" },
+  { label: "Modelli di preventivo · Sconti", viewKey: "can_view_settings_scontistica",    editKey: "can_edit_settings_scontistica", description: "Solo fasce sconto e limiti venditori, senza toccare il listino" },
   { label: "Finanziamenti",          viewKey: "can_view_settings_finanziamenti",  editKey: "can_edit_settings_finanziamenti", description: "Solo finanziarie, tassi e rate" },
   { label: "Listino · Kit e pacchetti", viewKey: "can_view_settings_bundle",         editKey: "can_edit_settings_bundle", description: "Solo kit e pacchetti chiavi in mano" },
   { label: "Branding & Template",    viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization", description: "Branding, tag, campi personalizzati, sequenze, calendari, form builder e AI" },

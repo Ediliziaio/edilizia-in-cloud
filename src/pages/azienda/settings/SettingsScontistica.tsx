@@ -49,7 +49,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import {
@@ -317,7 +317,7 @@ export default function SettingsScontistica() {
               <Percent className="h-5 w-5 text-primary" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold leading-tight">Regole di scontistica</h1>
+              <h2 className="text-xl sm:text-2xl font-bold leading-tight">Regole di scontistica</h2>
               <p className="text-sm text-muted-foreground">
                 Limiti di sconto validi per TUTTI i preventivatori (serramenti e fotovoltaico)
                 e per tutti i tipi di cliente, privati inclusi — <strong>{rules.length}</strong> configurate,{" "}
@@ -331,27 +331,20 @@ export default function SettingsScontistica() {
           </Button>
         </div>
 
-        {/* "Come funziona" — più scannabile */}
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertTitle>Come funziona</AlertTitle>
-          <AlertDescription className="text-sm space-y-1">
-            <ul className="list-disc ml-5 space-y-0.5">
-              <li>
-                Le regole valgono per <strong>tutti i preventivatori</strong> (serramenti E
-                fotovoltaico) e per <strong>tutti i tipi di cliente</strong>, privati inclusi.
-              </li>
-              <li>Ogni preventivo matcha tutte le regole con scope + fascia importo + tipo lavoro coerenti.</li>
-              <li>Il sistema applica il limite <strong>più basso</strong> tra le regole matchanti (binding).</li>
-              <li>Oltre <em>approva oltre %</em> → richiede approvazione admin.</li>
-              <li>Oltre <em>sconto max %</em> → bloccato senza override admin.</li>
-              <li>Il <strong>margine minimo</strong> non si scende mai sotto: lo sconto viene limitato in automatico.</li>
-            </ul>
-          </AlertDescription>
-        </Alert>
-
-        {/* Simulatore */}
-        <DiscountSimulator rules={rules} salespeople={salespeople} />
+        {/* «Come funziona»: chiuso. Prima erano sei righe che spingevano l'elenco delle regole fuori dalla prima schermata. */}
+        <details className="rounded-lg border bg-card px-4 py-2.5 text-sm">
+          <summary className="flex cursor-pointer items-center gap-2 font-medium">
+            <Info className="h-4 w-4" />
+            Come funziona
+          </summary>
+          <ul className="mt-2 list-disc space-y-0.5 pb-1 pl-5">
+            <li>Ogni preventivo matcha tutte le regole con scope + fascia importo + tipo lavoro coerenti.</li>
+            <li>Il sistema applica il limite <strong>più basso</strong> tra le regole matchanti (binding).</li>
+            <li>Oltre <em>approva oltre %</em> → richiede approvazione admin.</li>
+            <li>Oltre <em>sconto max %</em> → bloccato senza override admin.</li>
+            <li>Il <strong>margine minimo</strong> non si scende mai sotto: lo sconto viene limitato in automatico.</li>
+          </ul>
+        </details>
 
         {/* Tabella / Card list */}
         <Card>
@@ -431,6 +424,9 @@ export default function SettingsScontistica() {
             )}
           </CardContent>
         </Card>
+
+        {/* Simulatore: dopo le regole, che sono quello che si viene a cambiare */}
+        <DiscountSimulator rules={rules} salespeople={salespeople} />
 
         {/* Dialog crea/modifica */}
         <Dialog open={dialogOpen} onOpenChange={(open) => {
