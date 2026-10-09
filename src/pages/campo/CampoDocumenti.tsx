@@ -22,6 +22,7 @@ import { useIsCampo } from "@/hooks/useIsCampo";
 import { useMyHrProfilo } from "@/hooks/useTimbratura";
 import { calcStato, categoriaLabel } from "@/types/hrDocumenti";
 import { cn } from "@/lib/utils";
+import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 import SubDocumenti from "./subappaltatore/SubDocumenti";
 
 const PRIVATE_DOC_BUCKET = "hr-documenti";
@@ -115,7 +116,7 @@ function CampoDocumentiDipendente() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 pb-28">
+      <div className="mx-auto max-w-3xl space-y-4">
         {pageHeader}
         <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 rounded-2xl border bg-background p-6 text-center">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -130,7 +131,7 @@ function CampoDocumentiDipendente() {
 
   if (isError) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 pb-28">
+      <div className="mx-auto max-w-3xl space-y-4">
         {pageHeader}
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
           <div className="flex items-start gap-3">
@@ -165,18 +166,16 @@ function CampoDocumentiDipendente() {
       return;
     }
 
-    const { data, error } = await supabase.storage
-      .from(PRIVATE_DOC_BUCKET)
-      .createSignedUrl(url, 60 * 5);
-    if (error || !data?.signedUrl) {
-      toast.error("Impossibile aprire il documento");
-      return;
-    }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    // Il link a scadenza arriva dopo un'attesa: la scheda va aperta prima (sul telefono, dopo l'attesa, la blocca).
+    const aperto = await apriDocumentoDopoAttesa(async () => {
+      const { data, error } = await supabase.storage.from(PRIVATE_DOC_BUCKET).createSignedUrl(url, 60 * 5);
+      return error ? null : data?.signedUrl;
+    });
+    if (!aperto) toast.error("Impossibile aprire il documento");
   };
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col space-y-4 pb-28">
+    <div className="mx-auto flex max-w-3xl flex-col space-y-4">
       {pageHeader}
 
       {/* Alert scadenze */}

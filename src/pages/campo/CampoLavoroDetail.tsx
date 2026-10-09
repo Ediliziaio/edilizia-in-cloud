@@ -4,7 +4,6 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../../../supabase/functions/_shared/campoDocumentGuard";
-import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { NoteCantiereCampo } from "@/components/campo/NoteCantiereCampo";
@@ -31,6 +30,11 @@ import { useIsCampo } from "@/hooks/useIsCampo";
 import { FirmaPad } from "@/components/campo/FirmaPad";
 import { loadCampoAssignments } from "@/lib/campo/assignments";
 import { notifyRapportinoPdf, openRapportinoPdf } from "@/lib/campo/rapportinoPdf";
+import { prossimoPassoGiornata, type PassoGiornata } from "@/lib/campo/prossimoPassoGiornata";
+import { campoDayWindow } from "@/lib/campo/timeSummary";
+import { campoWorkDay } from "@/lib/campo/workDay";
+import { rapportinoConsegnato, rapportinoDaRifare, statoRapportino } from "@/lib/campo/rapportinoStato";
+import { RapportinoCardCampo } from "@/components/campo/RapportinoCardCampo";
 
 type Tab = "descrizione" | "rapportini" | "diario" | "documenti" | "chat";
 
@@ -77,9 +81,11 @@ type CampoRapportinoRow = {
   descrizione_lavori: string | null;
   stato?: string | null;
   approvato?: boolean | null;
+  motivo_rifiuto?: string | null;
   created_at?: string | null;
   foto_urls?: string[] | null;
   materiali_usati?: unknown;
+  fasi_lavorate?: unknown;
   percentuale_avanzamento?: number | null;
   lavoro_completato?: boolean | null;
 };
@@ -237,7 +243,6 @@ export default function CampoLavoroDetail() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("descrizione");
   const [assignmentTimedOut, setAssignmentTimedOut] = useState(false);
-  const { timeline } = useOrderDiary(orderId);
   const companyId = profile?.company_id ?? null;
   const currentUserIds = Array.from(new Set([user?.id, profile?.id].filter((id): id is string => Boolean(id))));
   const currentUserId = currentUserIds[0] ?? null;
@@ -245,7 +250,8 @@ export default function CampoLavoroDetail() {
   const fallbackOrderCode = searchParams.get("order_code");
   const fallbackOrderTitle = searchParams.get("order_title");
   const fallbackOrderAddress = searchParams.get("order_address");
-  const today = format(new Date(), "yyyy-MM-dd");
+  // Il giorno di lavoro segue l'ora italiana, non quella del telefono (come il rapportino e la timbratura).
+  const today = campoWorkDay();
 
   // Verifica assegnazione — controlla order_campo_assignments e order_employees
   const { data: assignment, isLoading, isFetching, isError, error } = useQuery<CampoAssignment | null>({
@@ -422,7 +428,7 @@ export default function CampoLavoroDetail() {
   // così l'invalidazione post-invio riallinea anche questa vista.
   const { data: fasiCommessa = [] } = useQuery({
     queryKey: ["campo-fasi-commessa", orderId],
-    enabled: !!orderId && activeTab === "descrizione",
+    enabled: !!orderId && (activeTab === "descrizione" || activeTab === "rapportini"),
     staleTime: 60_000,
     queryFn: async (): Promise<{ id: string; name: string; status: string; percentuale: number }[]> => {
       // order_work_phases non è nei tipi generati → cast
@@ -441,6 +447,9 @@ export default function CampoLavoroDetail() {
       }));
     },
   });
+
+  // phase_id → nome, per i rapportini scritti prima che il nome entrasse nella voce della fase.
+  const nomiFasi = useMemo(() => new Map(fasiCommessa.map((f) => [f.id, f.name] as const)), [fasiCommessa]);
 
   // Le sottofasi delle fasi di questo cantiere (sola lettura qui: si spuntano da «Avanzamento lavori» o dal rapportino).
   // Non hanno la commessa: si filtra per quella della loro fase. Se la lettura fallisce si va come sempre.
@@ -547,8 +556,9 @@ export default function CampoLavoroDetail() {
         .eq("company_id", companyId!)
         .eq("order_id", orderId!)
         .eq("user_id", currentUserId!)
-        .gte("timestamp_evento", `${today}T00:00:00`)
-        .lte("timestamp_evento", `${today}T23:59:59`)
+        // Mezzanotte di Roma, non del database (UTC): le timbrature fra le 00 e le 02 stavano nel giorno sbagliato.
+        .gte("timestamp_evento", campoDayWindow(today).start.toISOString())
+        .lt("timestamp_evento", campoDayWindow(today).end.toISOString())
         .order("timestamp_evento", { ascending: true });
       if (error) throw error;
       return data ?? [];
@@ -701,7 +711,9 @@ export default function CampoLavoroDetail() {
 	  const isInCantiere = lastTimbro?.tipo === "entrata" || lastTimbro?.tipo === "pausa_fine";
 	  const isInPausa = lastTimbro?.tipo === "pausa_inizio";
 	  const uscitaRegistrataOggi = lastTimbro?.tipo === "uscita";
-	  const rapportinoInviatoOggi = !!rapportinoOggi;
+	  // Lo stato vero del rapportino di oggi: uno respinto o rimasto in bozza NON è consegnato.
+	  const statoRapportinoOggi = statoRapportino(rapportinoOggi);
+	  const rapportinoInviatoOggi = rapportinoConsegnato(statoRapportinoOggi);
 	  const checklistCompletataOggi = !!checklistOggi?.completata;
 	  const fotoCountOggi = countCollection(rapportinoOggi?.foto_urls);
 	  const materialiCountOggi = countCollection(rapportinoOggi?.materiali_usati);
@@ -716,6 +728,12 @@ export default function CampoLavoroDetail() {
   const checklistUrl = withOrderContext("/campo/sicurezza");
   const rapportinoManualeUrl = withOrderContext(`/campo/lavoro/${orderId}/rapportino`);
   const rapportinoVocaleUrl = withOrderContext(`/campo/lavoro/${orderId}/rapportino-vocale`);
+  // `data` apre il rapportino di quel giorno: se era respinto o in bozza si riapre già compilato.
+  const rapportinoDelGiornoUrl = (giorno: string) => {
+    const params = new URLSearchParams(orderContextQuery);
+    params.set("data", giorno);
+    return `/campo/lavoro/${orderId}/rapportino?${params.toString()}`;
+  };
   // La timbratura è un flusso da OPERAIO: il subappaltatore non ce l'ha né in
   // sidebar né nelle azioni rapide (CampoLayout subItems / AccesaoRapido), così
   // `hasTimbratoQui` restava false per sempre e il CTA principale del lavoro
@@ -726,16 +744,24 @@ export default function CampoLavoroDetail() {
   // inchiodato su "Timbra entrata" e senza quella non si arrivava mai al
   // resto. Ora l'ordine segue il lavoro (sicurezza → rapportino) e la
   // timbratura resta un passo consigliato, raggiungibile dalla card.
-  const nextStickyAction: { label: string; icon: LucideIcon; onClick: () => void; tone: "primary" | "success" } =
-    !checklistCompletataOggi
-      ? { label: "Checklist sicurezza", icon: ShieldCheck, onClick: () => navigate(checklistUrl), tone: "primary" }
-      : !rapportinoInviatoOggi
-        ? { label: "Rapportino AI", icon: Mic, onClick: () => navigate(rapportinoVocaleUrl), tone: "primary" }
-        : isOperaio && !hasTimbratoQui
-          ? { label: "Timbra entrata", icon: LogIn, onClick: () => navigate(timbraturaUrl), tone: "success" }
-          : isOperaio && !uscitaRegistrataOggi
-            ? { label: "Timbra uscita", icon: LogOut, onClick: () => navigate(timbraturaUrl), tone: "success" }
-            : { label: "Torna ai lavori", icon: CheckCircle, onClick: () => navigate("/campo/calendario"), tone: "primary" };
+  // Il rapportino di oggi, aperto per correggerlo se era stato respinto o lasciato in bozza.
+  const rapportinoDiOggiUrl = rapportinoDelGiornoUrl(today);
+  const passiGiornata: Record<PassoGiornata, { label: string; icon: LucideIcon; onClick: () => void; tone: "primary" | "success" }> = {
+    "checklist": { label: "Checklist sicurezza", icon: ShieldCheck, onClick: () => navigate(checklistUrl), tone: "primary" },
+    "rapportino-vocale": { label: "Rapportino AI", icon: Mic, onClick: () => navigate(rapportinoVocaleUrl), tone: "primary" },
+    "correggi-rapportino": { label: "Correggi il rapportino", icon: ClipboardList, onClick: () => navigate(rapportinoDiOggiUrl), tone: "primary" },
+    "completa-rapportino": { label: "Completa il rapportino", icon: ClipboardList, onClick: () => navigate(rapportinoDiOggiUrl), tone: "primary" },
+    "timbra-entrata": { label: "Timbra entrata", icon: LogIn, onClick: () => navigate(timbraturaUrl), tone: "success" },
+    "timbra-uscita": { label: "Timbra uscita", icon: LogOut, onClick: () => navigate(timbraturaUrl), tone: "success" },
+    "torna-ai-lavori": { label: "Torna ai lavori", icon: CheckCircle, onClick: () => navigate("/campo/calendario"), tone: "primary" },
+  };
+  const nextStickyAction = passiGiornata[prossimoPassoGiornata({
+    checklistFatta: checklistCompletataOggi,
+    statoRapportino: statoRapportinoOggi,
+    isOperaio,
+    hasTimbrato: hasTimbratoQui,
+    uscitaRegistrata: uscitaRegistrataOggi,
+  })];
   const NextStickyIcon = nextStickyAction.icon;
   const tabs: { key: Tab; label: string }[] = [
     { key: "descrizione", label: "Info" },
@@ -759,12 +785,12 @@ export default function CampoLavoroDetail() {
         <div className="mb-2 flex items-center gap-3 md:mb-3">
           <button
             onClick={() => navigate("/campo")}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted active:bg-muted"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted active:bg-muted max-md:hidden"
           >
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground md:text-xs">Lavoro assegnato</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lavoro assegnato</p>
             <p className="truncate text-lg font-black text-foreground md:text-xl">{order?.order_code}</p>
             <p className="truncate text-xs text-muted-foreground md:text-sm">{order?.description}</p>
           </div>
@@ -838,13 +864,14 @@ export default function CampoLavoroDetail() {
 	          uscitaRegistrata={uscitaRegistrataOggi}
 	          checklistDone={checklistCompletataOggi}
 	          rapportinoDone={rapportinoInviatoOggi}
+	          rapportinoDetail={statoRapportinoOggi === "rifiutato" ? "Respinto: da rifare" : statoRapportinoOggi === "bozza" ? "Da completare" : undefined}
 	          fotoCount={fotoCountOggi}
 	          materialiCount={materialiCountOggi}
 	          oreRapportino={rapportinoOggi?.ore_lavorate ?? null}
 	          avanzamentoRapportino={rapportinoOggi?.percentuale_avanzamento ?? null}
 	          onTimbratura={() => navigate(timbraturaUrl)}
 	          onChecklist={() => navigate(checklistUrl)}
-	          onRapportino={() => navigate(rapportinoManualeUrl)}
+	          onRapportino={() => navigate(rapportinoDaRifare(statoRapportinoOggi) ? rapportinoDiOggiUrl : rapportinoManualeUrl)}
 	        />
 
         {/* ── Tab: Descrizione ── */}
@@ -1013,77 +1040,21 @@ export default function CampoLavoroDetail() {
               </div>
             ) : (
               rapportini.map((r) => (
-                <div
+                <RapportinoCardCampo
                   key={r.id}
-                  className="bg-muted border border-border rounded-2xl p-4"
-                >
-                  <div className="flex items-start justify-between mb-1">
-                    <p className="font-semibold text-foreground">
-                      {format(new Date(r.data_lavoro), "d MMM yyyy", { locale: it })}
-                    </p>
-                    {r.approvato ? (
-                      <span className="flex items-center gap-1 text-[10px] bg-green-500/20 text-green-600 border border-green-500/20 rounded-full px-2 py-0.5">
-                        <CheckCircle className="w-3 h-3" />
-                        Approvato
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-[10px] bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5">
-                        <Clock className="w-3 h-3" />
-                        In attesa
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                    {r.ore_lavorate != null && <span>{r.ore_lavorate}h lavorate</span>}
-                    {r.percentuale_avanzamento != null && <span>{r.percentuale_avanzamento}% avanzamento</span>}
-                    {r.foto_urls?.length > 0 && <span>{r.foto_urls.length} foto</span>}
-                  </div>
-                  {r.descrizione_lavori && (
-                    <p className="text-sm text-foreground mt-1 line-clamp-2">{r.descrizione_lavori}</p>
-                  )}
-                  {r.foto_urls?.length > 0 && (
-                    <div className="flex gap-1 mt-2">
-                      {r.foto_urls.slice(0, 3).map((url: string, i: number) => (
-                        <ImgRiservata width={48} height={48} loading="lazy"
-                          key={i}
-                          src={url}
-                          className="w-12 h-12 rounded-lg object-cover"
-                          alt="Foto rapportino"
-                        />
-                      ))}
-                    </div>
-                  )}
-                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-                    <button
-                      onClick={() => void apriPdfRapportino(r)}
-                      disabled={pdfBusyId === r.id}
-                      className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground disabled:opacity-50"
-                    >
-                      {pdfBusyId === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                      {pdfBusyId === r.id ? "Preparo PDF…" : r.pdf_url ? "Apri PDF" : "Genera PDF"}
-                    </button>
-                    {r.firma_operaio_url ? (
-                      <span className="flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-1 text-[10px] font-semibold text-green-700">
-                        <PenLine className="h-3 w-3" />
-                        Firmato
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => { setFirmaRapportinoId(r.id); setFirmaDataUrl(null); }}
-                        className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground"
-                      >
-                        <PenLine className="h-3.5 w-3.5" />
-                        Firma
-                      </button>
-                    )}
-                  </div>
-                </div>
+                  r={r}
+                  pdfOccupato={pdfBusyId === r.id}
+                  onPdf={() => void apriPdfRapportino(r)}
+                  onFirma={() => { setFirmaRapportinoId(r.id); setFirmaDataUrl(null); }}
+                  onCorreggi={() => navigate(rapportinoDelGiornoUrl(r.data_lavoro))}
+                  nomiFasi={nomiFasi}
+                />
               ))
             )}
 
-            {/* Dialog firma rapportino */}
+            {/* Dialog firma rapportino (z-[60]: la barra in basso è z-50 e viene dopo nel DOM: copriva «Salva firma») */}
             {firmaRapportinoId && (
-              <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center">
+              <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-3 sm:items-center">
                 <div className="w-full max-w-md space-y-3 rounded-2xl bg-background p-4 shadow-xl">
                   <p className="text-base font-black text-foreground">Firma il rapportino</p>
                   <FirmaPad label="Firma con il dito" onChange={setFirmaDataUrl} />
@@ -1112,72 +1083,7 @@ export default function CampoLavoroDetail() {
         )}
 
         {/* ── Tab: Diario ── */}
-        {activeTab === "diario" && (
-          <div className="space-y-3">
-            <div className="rounded-2xl border bg-blue-50 p-4 text-blue-900">
-              <div className="flex items-start gap-3">
-                <BookOpenCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
-                <div>
-                  <p className="font-bold">Diario lavori sincronizzato</p>
-                  <p className="mt-1 text-sm text-blue-800/80">
-                    Rapportini, foto, note e aggiornamenti dal campo finiscono nello storico principale dell'ordine.
-                  </p>
-                </div>
-              </div>
-            </div>
-            {timeline.length === 0 ? (
-              <div className="flex flex-col items-center py-12 text-center">
-                <BookOpenCheck className="h-10 w-10 text-muted-foreground/40" />
-                <p className="mt-3 font-semibold text-foreground">Diario ancora vuoto</p>
-                <p className="mt-1 text-sm text-muted-foreground">Invia il primo rapportino per alimentare il diario del lavoro.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {timeline.slice(0, 20).map((entry) => {
-                  const isEvent = entry.kind === "event";
-                  const data = entry.data;
-                  const payload = entry.kind === "event" ? data.payload ?? {} : {};
-                  const title = entry.kind === "event"
-                    ? diaryEventLabel(data.event_type, payload)
-                    : entry.kind === "audit"
-                      ? data.title
-                      : data.subject || (data.channel === "nota_interna" ? "Nota interna" : "Messaggio");
-                  const body = entry.kind === "event"
-                    ? payload.descrizione_lavori || payload.note || payload.message
-                    : entry.kind === "audit"
-                      ? data.description
-                      : data.body;
-                  const actorName = entry.kind === "message" ? data.sent_by_name : data.actor_name;
-                  return (
-                    <div key={`${entry.kind}-${data.id}`} className="rounded-2xl border bg-background p-4 shadow-sm">
-                      <div className="flex items-start gap-3">
-                        <div className={cn(
-                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                          isEvent ? "bg-primary/10 text-primary" : "bg-emerald-50 text-emerald-600"
-                        )}>
-                          {isEvent ? <BookOpenCheck className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-bold text-foreground">{title}</p>
-                            <span className="text-[11px] text-muted-foreground">
-                              {format(new Date(data.created_at), "d MMM HH:mm", { locale: it })}
-                            </span>
-                          </div>
-                          {actorName && <p className="text-xs text-muted-foreground">Da {actorName}</p>}
-                          {body && <p className="mt-2 text-sm leading-relaxed text-foreground">{String(body)}</p>}
-                          {payload.foto_count ? (
-                            <p className="mt-2 text-xs font-semibold text-primary">{payload.foto_count} foto allegate al rapportino</p>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+        {activeTab === "diario" && orderId && <DiarioCantiere orderId={orderId} />}
 
         {/* ── Tab: Documenti e Firma ── */}
         {activeTab === "documenti" && (
@@ -1193,8 +1099,8 @@ export default function CampoLavoroDetail() {
       {/* CTA sticky in basso */}
       {/* -bottom-28 compensa il padding-bottom (pb-28) del <main>: senza,
           la barra si aggancia 112px sopra il fondo e il bottone copre il
-          contenuto. Il pb-20 tiene il bottone sopra la bottom nav fissa. */}
-      <div className="sticky -bottom-28 bg-background border-t border-border px-4 py-3 z-20 pb-20 md:bottom-0 md:pb-3">
+          contenuto. Il padding tiene il bottone sopra la bottom nav fissa, safe-area dell'iPhone compresa. */}
+      <div className="sticky -bottom-28 bg-background border-t border-border px-4 py-3 z-20 pb-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-0 md:pb-3">
         <button
           onClick={nextStickyAction.onClick}
           className={cn(
@@ -1210,6 +1116,80 @@ export default function CampoLavoroDetail() {
   );
 }
 
+/**
+ * Tab «Diario» del cantiere. Il hook del diario (eventi, messaggi, 5 query di audit, profili, canale in tempo
+ * reale) vive QUI e non nella pagina: prima partiva a ogni apertura del cantiere, anche se il tab non si apriva.
+ */
+function DiarioCantiere({ orderId }: { orderId: string }) {
+  const { timeline } = useOrderDiary(orderId);
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl border bg-blue-50 p-4 text-blue-900">
+        <div className="flex items-start gap-3">
+          <BookOpenCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+          <div>
+            <p className="font-bold">Diario lavori sincronizzato</p>
+            <p className="mt-1 text-sm text-blue-800/80">
+              Rapportini, foto, note e aggiornamenti dal campo finiscono nello storico principale dell'ordine.
+            </p>
+          </div>
+        </div>
+      </div>
+      {timeline.length === 0 ? (
+        <div className="flex flex-col items-center py-12 text-center">
+          <BookOpenCheck className="h-10 w-10 text-muted-foreground/40" />
+          <p className="mt-3 font-semibold text-foreground">Diario ancora vuoto</p>
+          <p className="mt-1 text-sm text-muted-foreground">Invia il primo rapportino per alimentare il diario del lavoro.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {timeline.slice(0, 20).map((entry) => {
+            const isEvent = entry.kind === "event";
+            const data = entry.data;
+            const payload = entry.kind === "event" ? data.payload ?? {} : {};
+            const title = entry.kind === "event"
+              ? diaryEventLabel(data.event_type, payload)
+              : entry.kind === "audit"
+                ? data.title
+                : data.subject || (data.channel === "nota_interna" ? "Nota interna" : "Messaggio");
+            const body = entry.kind === "event"
+              ? payload.descrizione_lavori || payload.note || payload.message
+              : entry.kind === "audit"
+                ? data.description
+                : data.body;
+            const actorName = entry.kind === "message" ? data.sent_by_name : data.actor_name;
+            return (
+              <div key={`${entry.kind}-${data.id}`} className="rounded-2xl border bg-background p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className={cn(
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+                    isEvent ? "bg-primary/10 text-primary" : "bg-emerald-50 text-emerald-600"
+                  )}>
+                    {isEvent ? <BookOpenCheck className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-bold text-foreground">{title}</p>
+                      <span className="text-[11px] text-muted-foreground">
+                        {format(new Date(data.created_at), "d MMM HH:mm", { locale: it })}
+                      </span>
+                    </div>
+                    {actorName && <p className="text-xs text-muted-foreground">Da {actorName}</p>}
+                    {body && <p className="mt-2 text-sm leading-relaxed text-foreground">{String(body)}</p>}
+                    {payload.foto_count ? (
+                      <p className="mt-2 text-xs font-semibold text-primary">{payload.foto_count} foto allegate al rapportino</p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CampoCloseDayCard({
   isOperaio,
   hasTimbrato,
@@ -1218,6 +1198,7 @@ function CampoCloseDayCard({
   uscitaRegistrata,
   checklistDone,
   rapportinoDone,
+  rapportinoDetail,
   fotoCount,
   materialiCount,
   oreRapportino,
@@ -1233,6 +1214,8 @@ function CampoCloseDayCard({
   uscitaRegistrata: boolean;
   checklistDone: boolean;
   rapportinoDone: boolean;
+  /** Cosa scrivere sotto «Rapportino» quando non è consegnato (di default «Manca»). */
+  rapportinoDetail?: string;
   fotoCount: number;
   materialiCount: number;
   oreRapportino: number | null;
@@ -1299,7 +1282,7 @@ function CampoCloseDayCard({
           <p className="text-sm font-black text-foreground">Chiudi giornata</p>
           <p className="mt-1 text-sm leading-snug text-muted-foreground">{status.text}</p>
         </div>
-        <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${status.cls}`}>
+        <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-bold ${status.cls}`}>
           {status.label}
         </span>
       </div>
@@ -1319,7 +1302,7 @@ function CampoCloseDayCard({
         )}
         <CloseDayStep ok={checklistDone} icon={ShieldCheck} label="Sicurezza" detail={checklistDone ? "Ok" : "Da fare"} onClick={onChecklist} />
         <CloseDayStep ok={evidenceOk} icon={Camera} label="Evidenze" detail={evidenceOk ? `${fotoCount} foto · ${materialiCount} mat.` : "Consigliate"} optional onClick={onRapportino} />
-        <CloseDayStep ok={rapportinoDone} icon={FileText} label="Rapportino" detail={rapportinoDone ? `${oreRapportino ?? 0} h` : "Manca"} onClick={onRapportino} />
+        <CloseDayStep ok={rapportinoDone} icon={FileText} label="Rapportino" detail={rapportinoDone ? `${oreRapportino ?? 0} h` : rapportinoDetail ?? "Manca"} onClick={onRapportino} />
         {isOperaio && (
         <CloseDayStep
           ok={giornataCompleta}
@@ -1377,7 +1360,7 @@ function CloseDayStep({
         <Icon className="h-4 w-4 shrink-0" />
         <p className="min-w-0 truncate text-xs font-black">{label}</p>
       </div>
-      <p className="mt-1 truncate text-[10px] font-semibold opacity-80">{detail}</p>
+      <p className="mt-1 truncate text-xs font-semibold opacity-80">{detail}</p>
     </Tag>
   );
 }
@@ -1397,7 +1380,7 @@ function QuickAction({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex h-10 flex-col items-center justify-center gap-0.5 rounded-xl border bg-background px-1 text-[10px] font-bold leading-tight text-foreground shadow-sm transition-transform active:scale-[0.98] disabled:opacity-50 md:h-12 md:flex-row md:gap-2 md:px-3 md:text-xs"
+      className="flex h-10 flex-col items-center justify-center gap-0.5 rounded-xl border bg-background px-1 text-xs font-bold leading-tight text-foreground shadow-sm transition-transform active:scale-[0.98] disabled:opacity-50 md:h-12 md:flex-row md:gap-2 md:px-3 md:text-xs"
     >
       <Icon className="h-4 w-4 shrink-0 text-primary" />
       {label}

@@ -7,26 +7,48 @@ nessuna scrittura su account o dati reali. Preservate le modifiche preesistenti
 nel worktree condiviso. Il PDF dimostrativo usa il renderer effettivo della
 funzione; le prove dell'handler sostituiscono soltanto servizi e dati esterni.
 
-## Contenuti e impaginazione
+## Contenuti e impaginazione (documento a blocchi, 06/10/2026)
 
-- Identità aziendale compatta, accento del brand, logo PNG/JPEG quando disponibile.
-- Data della giornata distinta dalla data di registrazione; `created_at` non viene
-  presentato come data di invio, perché potrebbe appartenere a una vecchia bozza.
-- Stato esplicito, commessa, cliente, indirizzo, compilatore e tipo di personale.
-- Le presenze sostituiscono le ore del compilatore nel totale, come nel contratto
-  dati esistente. Non si sommano entrambe. Le righe esterne non implicano costo orario.
-- Lavorazioni selezionate con percentuali dichiarate; nomi recuperati dalla stessa
-  commessa. Il nome recuperato è quello corrente, non uno snapshot storico.
-- Timbrature del compilatore, stesso cantiere e stessa data italiana. Intervallo
-  Europe/Rome, incluso cambio ora. Nessun calcolo inventato di ore validate.
-- Materiali con quantità/unità e registrazione: furgone, articolo commessa oppure
-  dichiarazione manuale. Non si presume uno scarico di magazzino.
-- Testi e note completi, paragrafi conservati, parole molto lunghe spezzate.
-- Tabelle con intestazioni ripetute; righe normali non spezzate tra pagine.
-- Fotografie su pagine dedicate, due per pagina; indice originale conservato se
-  una foto manca. L'assenza di foto/firma è un'avvertenza visibile, non un'omissione.
-- Firme effettive distinte dall'approvazione. Sul fine lavori l'assenza è dichiarata.
-- Nessun costo orario, costo manodopera, snapshot economico o coordinata GPS esportato.
+Il documento si legge dall'alto in basso, a blocchi con la stessa grammatica (bordo colorato a sinistra,
+etichette in maiuscoletto, tessere): `render.ts` per il disegno, `model.ts` per i dati.
+
+1. **Fascia** coi colori dell'azienda: nome, contatti, logo, tipo di documento («Rapportino giornaliero» /
+   «Rapporto di fine lavori»), data grande, riferimento e meteo. Il testo è bianco o scuro secondo il contrasto
+   del colore scelto (`inchiostroSu`: sull'arancione della piattaforma vince lo scuro, 5,2 a 1 contro 2,8 a 1).
+2. **Scheda commessa**: codice, descrizione, stato (pillola), cantiere, cliente, compilatore e ruolo.
+   Un rapportino **respinto** mostra subito, in cima, il motivo scritto dall'ufficio.
+3. **Quattro contatori**: ore (squadra o personali), lavorazioni, materiali, foto. I valori a zero sono attenuati.
+4. **Cosa è stato fatto**: la descrizione in un riquadro.
+5. **Lavorazioni: una scheda per ogni fase** su cui si è lavorato: nome, avanzamento (barra e pillola
+   «Completata / In corso / Lavorata»), ore dichiarate, poi i **materiali** e le **foto di quella fase**.
+   Il titolo della sezione viaggia sempre col primo pezzo del suo corpo: mai solo in fondo a una pagina.
+6. **Altri materiali** e **Altre foto del cantiere**: quello che non è legato a nessuna fase (con una fase sola
+   non ce n'è: tutto va alla fase; senza fasi le sezioni si chiamano «Materiali utilizzati» e
+   «Documentazione fotografica»).
+7. Squadra (con totale), tempi di chi compila (timbrature in ora italiana, straordinario), note e
+   segnalazioni («Da leggere»), verifica dell'ufficio e firme.
+8. Note del documento e avvertenze (foto o firme non incluse), con il piè di pagina su ogni pagina:
+   riferimento, edizione, data di generazione, «n / totale».
+
+Regole che restano: le presenze sostituiscono le ore del compilatore nel totale (non si sommano); nessun costo
+orario, costo di manodopera, snapshot economico o coordinata GPS nel documento; le tabelle ripetono le colonne a
+ogni salto pagina e una riga normale non si spezza; testi lunghi e parole lunghissime vanno a capo; i caratteri
+fuori dal set WinAnsi (emoji, simboli) diventano un solo «?» per simbolo.
+
+### Materiali e foto per fase (nessuna migrazione)
+
+I dati stanno dove stavano; si aggiunge solo il collegamento alla fase, dentro le colonne jsonb già esistenti:
+
+- `materiali_usati[].fase_id`: la fase del materiale (le liste di sempre restano intere);
+- `fasi_lavorate[].foto`: gli indirizzi delle foto di quella fase (sottoinsieme di `foto_urls`).
+
+Chi compila (`CampoRapportino`): con **una fase sola** tutto si collega da solo; con **più fasi** compaiono i menu
+«Fase» accanto a ogni materiale e a ogni foto (facoltativi: ciò che non si assegna resta generale). Togliere una fase
+dall'elenco scioglie i suoi collegamenti. Un rapportino respinto si riapre con i collegamenti già fatti.
+Un rapportino vocale/WhatsApp/storico (senza collegamenti) mostra le fasi senza materiali né foto e tutto il resto
+nelle liste generali, com'era. Le funzioni del database che leggono `fasi_lavorate` (costi) guardano solo
+`phase_id` della prima fase quando ce n'è una sola: i campi in più non le toccano.
+Raggruppamento unico per PDF, scheda dell'ufficio e lista dell'operaio: `bloccoFasi` in `model.ts`.
 
 ## Generazione e accessi
 
@@ -34,8 +56,10 @@ funzione; le prove dell'handler sostituiscono soltanto servizi e dati esterni.
   lettura amministrativa. Conservato anche il precedente controllo di azienda del profilo.
 - Foto/firme lette da Storage privato, solo bucket previsti e percorsi della stessa
   azienda. Non vengono scaricati URL arbitrari contenuti nel rapportino.
-- Nuovo oggetto `rapportino-v2-<edizione>.pdf` a ogni generazione, `upsert: false`.
+- Nuovo oggetto `rapportino-v4-<edizione>.pdf` a ogni generazione, `upsert: false`.
   I vecchi file restano intatti. `pdf_url` mantiene il riferimento all'ultima edizione.
+  Il numero di versione è anche il «disegno» del documento: i PDF fatti con un disegno precedente (v2, v3) si
+  rigenerano da soli la prima volta che qualcuno li apre (`openRapportinoPdf`); cambiare il disegno = alzare il numero.
 - Aggiornamento del riferimento condizionato a `updated_at`: se il rapportino cambia
   durante la generazione si restituisce 409, senza collegare la copia obsoleta.
 - I vecchi locator pubblici restano riconoscibili, ma l'apertura richiede un URL firmato.

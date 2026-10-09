@@ -16,6 +16,7 @@ import { useMyHrProfilo } from "@/hooks/useTimbratura";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { shiftWorkDay, workDayStart } from "@/lib/campo/workDay";
 
 const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
@@ -50,6 +51,10 @@ export default function CampoPresenze() {
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
+  // Il mese va da mezzanotte di Roma a mezzanotte di Roma: scritto come data senza fuso il database lo legge in UTC e le
+  // timbrature delle prime due ore del primo giorno finivano nel mese prima.
+  const meseDa = workDayStart(format(monthStart, "yyyy-MM-dd")).toISOString();
+  const meseA = workDayStart(shiftWorkDay(format(monthEnd, "yyyy-MM-dd"), 1)).toISOString();
 
   const { data: hrProfilo } = useMyHrProfilo();
   const profiloId = hrProfilo?.id ?? null;
@@ -66,16 +71,16 @@ export default function CampoPresenze() {
           .from("campo_timbrature")
           .select("*")
           .eq("user_id", user!.id)
-          .gte("timestamp_evento", format(monthStart, "yyyy-MM-dd") + "T00:00:00")
-          .lte("timestamp_evento", format(monthEnd, "yyyy-MM-dd") + "T23:59:59")
+          .gte("timestamp_evento", meseDa)
+          .lt("timestamp_evento", meseA)
           .order("timestamp_evento", { ascending: true }),
         profiloId
           ? supabase
               .from("hr_timbrature")
               .select("tipo, timestamp")
               .eq("profilo_id", profiloId)
-              .gte("timestamp", format(monthStart, "yyyy-MM-dd") + "T00:00:00")
-              .lte("timestamp", format(monthEnd, "yyyy-MM-dd") + "T23:59:59")
+              .gte("timestamp", meseDa)
+              .lt("timestamp", meseA)
           : Promise.resolve({ data: [], error: null }),
       ]);
       if (campoRes.error) throw campoRes.error;

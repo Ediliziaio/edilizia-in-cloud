@@ -34,7 +34,9 @@ import { useWeatherForecast } from "@/hooks/useWeatherForecast";
 import { hasRapportinoAssignment } from "@/lib/campo/rapportinoAssignment";
 import { buildRapportinoMaterials, rapportinoArticleKind, rapportinoMaterialUnit, rapportinoUnitOptions, type RapportinoArticle, type RapportinoMaterialDraft } from "@/lib/campo/rapportinoMaterials";
 import { loadRapportinoArticles } from "@/lib/campo/loadRapportinoArticles";
+import { costruisciFasiLavorate, faseDiAppartenenza } from "@/lib/campo/rapportinoFasi";
 import { RapportinoSiteContext } from "@/components/campo/RapportinoSiteContext";
+import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { compressImage } from "@/lib/campo/compressImage";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoReportHours } from "@/lib/campo/timeSummary";
@@ -54,6 +56,19 @@ interface FaseCommessa {
   name: string;
   status: "da_iniziare" | "in_corso" | "completata";
   percentuale: number;
+}
+
+/** Una scheda del riepilogo: titolo su fondo tenue e righe sotto. Definita fuori dal modulo: dentro ricostruirebbe i campi a ogni tasto. */
+function BloccoRiepilogo({ titolo, dettaglio, children }: { titolo: string; dettaglio?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
+      <header className="flex items-center justify-between gap-2 border-b border-border bg-muted/50 px-4 py-2.5">
+        <h4 className="min-w-0 truncate text-sm font-bold text-foreground">{titolo}</h4>
+        {dettaglio}
+      </header>
+      <div className="space-y-1.5 px-4 py-3">{children}</div>
+    </section>
+  );
 }
 
 export default function CampoRapportino() {
@@ -102,6 +117,8 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   const [materialeLibero, setMaterialeLibero] = useState("");
   const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
   const [fotoUrls, setFotoUrls] = useState<string[]>([]);
+  // Foto → fase, solo se l'operaio l'ha scelta (con più fasi). Con una fase sola si collega da sé al salvataggio.
+  const [fotoFase, setFotoFase] = useState<Record<string, string>>({});
   const [uploadingFoto, setUploadingFoto] = useState(false);
 
   // Step 3
@@ -266,9 +283,9 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   type RapportinoEsistente = {
     id: string; created_at: string; stato: string | null; motivo_rifiuto: string | null;
     descrizione_lavori: string | null; ore_lavorate: number | null; ore_straordinario: number | null;
-    foto_urls: string[] | null; fasi_lavorate: { phase_id: string; percentuale: number }[] | null;
+    foto_urls: string[] | null; fasi_lavorate: { phase_id: string; percentuale: number; foto?: string[] }[] | null;
     presenze: { employee_id?: string; subappaltatore_id?: string; ore?: number }[] | null;
-    materiali_usati: { nome: string; quantita: number; unita?: string; order_item_id?: string }[] | null;
+    materiali_usati: { nome: string; quantita: number; unita?: string; order_item_id?: string; fase_id?: string }[] | null;
     meteo: string | null; percentuale_avanzamento: number | null;
   };
   const { data: rapportinoGiaOggi } = useQuery({
@@ -338,11 +355,12 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
       if (Array.isArray(r.fasi_lavorate)) {
         setFasiDichiarate(Object.fromEntries(r.fasi_lavorate.filter(f => f?.phase_id).map(f => [f.phase_id, Number(f.percentuale) || 0])));
         setSottofasiSpunte(sottofasiSpuntate(r.fasi_lavorate));
+        setFotoFase(Object.fromEntries(r.fasi_lavorate.filter(f => f?.phase_id).flatMap(f => (Array.isArray(f.foto) ? f.foto : []).map((u): [string, string] => [u, f.phase_id]))));
       }
       if (Array.isArray(r.materiali_usati)) {
         setMaterialiSel(Object.fromEntries(r.materiali_usati.map((m, i) => [
           m.order_item_id ?? `libero_${i}`,
-          { nome: m.nome, quantita: Number(m.quantita) || 1, unita: m.unita },
+          { nome: m.nome, quantita: Number(m.quantita) || 1, unita: m.unita, ...(m.fase_id ? { faseId: m.fase_id } : {}) },
         ])));
       }
     });
@@ -412,6 +430,14 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   }, [meteoMap, coordCantiere, rapportinoGiaOggi, workDay]);
   // Solo le fasi non completate sono dichiarabili
   const fasiDichiarabili = fasiCommessa.filter(f => f.status !== "completata");
+  // Le fasi su cui si è lavorato oggi, nell'ordine in cui compaiono nel cantiere. Con più di una, accanto a ogni
+  // materiale e a ogni foto compare «Fase»; con una sola, tutto si collega lì senza chiedere niente.
+  const fasiSelezionate = fasiCommessa.filter(f => f.id in fasiDichiarate);
+  const sceltaFasePerOgniCosa = fasiSelezionate.length > 1;
+  const idsFasiDichiarate = Object.keys(fasiDichiarate);
+  // Quello che non appartiene a nessuna fase (con più fasi e nessuna scelta, o senza fasi).
+  const materialiGenerali = Object.values(materialiSel).filter(m => faseDiAppartenenza(m.faseId, idsFasiDichiarate) === null);
+  const fotoGenerali = fotoUrls.filter(u => faseDiAppartenenza(fotoFase[u], idsFasiDichiarate) === null).length;
 
   // ── Articoli/materiali della commessa (order_items) ─────────────────
   // L'operaio può confermare quali ha usato oggi (facoltativo). Se la
@@ -538,13 +564,21 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
       if (!hasAssignment) {
         throw new Error("Non puoi inviare rapportini per un lavoro non assegnato");
       }
-      const materialiPayload = buildRapportinoMaterials(materialiSel);
+      const materialiPayload = buildRapportinoMaterials(materialiSel, Object.keys(fasiDichiarate));
       // Se le mie ore le registra il capo, qui non se ne scrivono: sommate due
       // volte falserebbero il costo della commessa.
       const orePayload = oreNonMie ? 0 : validateRapportinoHours(oreLavorate, oreStraordinario, faSquadra ? presenzeSel : {});
 
-      // Fasi dichiarate dall'operaio: [{phase_id, percentuale}] (Fase C)
-      const fasiLavorate = fasiLavorateDelRapportino(fasiDichiarate, sottofasiDi, sottofasiSpunte);
+      // Fasi dichiarate dall'operaio: [{phase_id, percentuale, nome, foto?, sottofasi_fatte?}]. Per le fasi con sottofasi
+      // la voce la costruisce `fasiLavorateDelRapportino`; qui si aggiungono nome e foto. Le foto di ogni fase stanno anche
+      // in foto_urls (che resta l'elenco di tutte); i materiali portano la loro fase in materiali_usati[].fase_id.
+      const fasiLavorate = costruisciFasiLavorate({
+        dichiarate: fasiDichiarate,
+        nomi: Object.fromEntries(fasiCommessa.map(f => [f.id, f.name])),
+        fotoUrls,
+        fotoFase,
+        base: fasiLavorateDelRapportino(fasiDichiarate, sottofasiDi, sottofasiSpunte),
+      });
 
       // ── Firme: dataURL → PNG → bucket campo-rapportini ──
       // La firma dell'operaio/capocantiere vale su OGNI rapportino (finisce
@@ -1114,6 +1148,27 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                     </div>
                   );
                 })}
+
+                {sceltaFasePerOgniCosa && fotoPreviews.length > 0 && (
+                  <div className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
+                    <p className="text-sm font-medium text-foreground">Di quale fase sono le foto?</p>
+                    <p className="mb-2 text-xs text-muted-foreground">Facoltativo: le foto senza scelta restano tra quelle generali del cantiere.</p>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      {fotoPreviews.map((p, i) => (
+                        <div key={i}>
+                          <ImgRiservata loading="lazy" src={p} className="aspect-square w-full rounded-xl object-cover" alt={`Foto ${i + 1}`} />
+                          <select aria-label={`Fase della foto ${i + 1}`}
+                            value={fotoFase[fotoUrls[i]] && fasiSelezionate.some(f => f.id === fotoFase[fotoUrls[i]]) ? fotoFase[fotoUrls[i]] : ""}
+                            onChange={e => { const url = fotoUrls[i]; const fase = e.target.value; setFotoFase(prev => { const next = { ...prev }; if (fase) next[url] = fase; else delete next[url]; return next; }); }}
+                            className="mt-1 h-11 w-full min-w-0 rounded-lg border bg-background px-2 text-base">
+                            <option value="">Nessuna fase</option>
+                            {fasiSelezionate.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1145,6 +1200,18 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
               {Object.entries(materialiSel).map(([key, m]) => (
                 <div key={key} className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-muted/40 p-3">
                   <p className="w-full text-sm font-medium leading-tight text-foreground">{m.nome}</p>
+                  {sceltaFasePerOgniCosa && (
+                    <label className="flex w-full items-center gap-2 text-xs text-muted-foreground">
+                      <span className="shrink-0">Fase</span>
+                      <select aria-label={`Fase di ${m.nome}`}
+                        value={m.faseId && fasiSelezionate.some(f => f.id === m.faseId) ? m.faseId : ""}
+                        onChange={e => setMaterialiSel(prev => ({ ...prev, [key]: { ...m, faseId: e.target.value || undefined } }))}
+                        className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-2 text-base text-foreground">
+                        <option value="">Nessuna fase</option>
+                        {fasiSelezionate.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                      </select>
+                    </label>
+                  )}
                   <button
                     type="button"
                     aria-label={`Riduci quantità ${m.nome}`}
@@ -1418,15 +1485,21 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                 <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
                   {fotoPreviews.map((p, i) => (
                     <div key={i} className="relative">
-                      <img loading="lazy" src={p} className="aspect-square w-full rounded-xl object-cover" alt="preview" />
+                      <ImgRiservata loading="lazy" src={p} className="aspect-square w-full rounded-xl object-cover" alt="preview" />
                       <button
+                        type="button"
+                        aria-label={`Togli la foto ${i + 1}`}
                         onClick={() => {
                           setFotoPreviews(prev => prev.filter((_, idx) => idx !== i));
                           setFotoUrls(prev => prev.filter((_, idx) => idx !== i));
                         }}
-                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
+                        // tap-compact: senza, sotto i 768 px ogni bottone diventa 44x44 e copre mezza foto.
+                        // L'area di tocco è 32 px, il pallino rosso 24: sporge dall'angolo.
+                        className="tap-compact absolute -right-2.5 -top-2.5 flex h-8 w-8 items-center justify-center"
                       >
-                        <X className="w-3 h-3 text-white" />
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500 shadow">
+                          <X className="h-3.5 w-3.5 text-white" aria-hidden="true" />
+                        </span>
                       </button>
                     </div>
                   ))}
@@ -1466,8 +1539,9 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
           <>
             <h3 className="text-base font-black text-foreground">Riepilogo</h3>
 
-            {/* Riepilogo dati */}
-            <div className="space-y-3 rounded-2xl border border-border bg-muted/60 p-4">
+            {/* Riepilogo a blocchi: la giornata, poi una scheda per ogni fase con i suoi materiali e le sue foto
+                (le stesse schede del PDF), poi quello che non è legato a nessuna fase. */}
+            <BloccoRiepilogo titolo="Giornata">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Data</span>
                 <span className="text-foreground">{dayLabel}</span>
@@ -1499,43 +1573,50 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                   <span className="text-primary font-bold">{percentuale}%</span>
                 </div>
               )}
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Foto</span>
-                <span className="text-foreground">{fotoUrls.length} foto</span>
-              </div>
-              {Object.keys(materialiSel).length > 0 && (
-                <div className="pt-2 border-t border-border">
-                  <p className="text-xs text-muted-foreground mb-1">Materiali usati</p>
-                  {Object.values(materialiSel).map((m, i) => (
+            </BloccoRiepilogo>
+
+            {fasiSelezionate.map(f => {
+              const materialiFase = Object.values(materialiSel).filter(m => faseDiAppartenenza(m.faseId, idsFasiDichiarate) === f.id);
+              const fotoFaseConto = fotoUrls.filter(u => faseDiAppartenenza(fotoFase[u], idsFasiDichiarate) === f.id).length;
+              const finale = percentualiFinali.get(f.id) ?? fasiDichiarate[f.id];
+              const esito = !puoDichiararePercentuali ? (workDay === today ? "lavorata oggi" : "lavorata nella giornata") : finale === 100 ? "✓ completata" : `→ ${finale}%`;
+              return (
+                <BloccoRiepilogo key={f.id} titolo={f.name} dettaglio={<span className="shrink-0 text-xs font-semibold text-primary">{esito}</span>}>
+                  {materialiFase.length === 0 && fotoFaseConto === 0 && <p className="text-xs text-muted-foreground">Nessun materiale né foto legati a questa fase.</p>}
+                  {materialiFase.map((m, i) => (
                     <p key={i} className="text-sm text-foreground">
                       {m.nome} <span className="font-semibold text-primary">× {m.quantita} {m.unita || "· unità da scegliere"}</span>
                     </p>
                   ))}
+                  {fotoFaseConto > 0 && <p className="text-sm text-foreground">{fotoFaseConto} foto di questa fase</p>}
+                </BloccoRiepilogo>
+              );
+            })}
+
+            {(materialiGenerali.length > 0 || fotoGenerali > 0 || fasiSelezionate.length === 0) && (
+              <BloccoRiepilogo titolo={fasiSelezionate.length ? "Altro" : "Foto e materiali"}>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Foto</span>
+                  <span className="text-foreground">{fasiSelezionate.length ? fotoGenerali : fotoUrls.length} foto</span>
                 </div>
-              )}
-              {Object.keys(fasiDichiarate).length > 0 && (
-                <div className="pt-2 border-t border-border">
-                  <p className="text-xs text-muted-foreground mb-1">{puoDichiararePercentuali ? "Avanzamento dichiarato delle fasi" : workDay === today ? "Lavorazioni svolte oggi" : "Lavorazioni svolte nella giornata"}</p>
-                  {fasiCommessa.filter(f => f.id in fasiDichiarate).map(f => {
-                    const finale = percentualiFinali.get(f.id) ?? fasiDichiarate[f.id];
-                    return (
-                      <p key={f.id} className="text-sm text-foreground">
-                        {f.name}{" "}
-                        <span className="font-semibold text-primary">
-                          {!puoDichiararePercentuali ? workDay === today ? "· lavorata oggi" : "· lavorata nella giornata" : finale === 100 ? "✓ completata" : `→ ${finale}%`}
-                        </span>
+                {materialiGenerali.length > 0 && (
+                  <div className="border-t border-border pt-2">
+                    <p className="mb-1 text-xs text-muted-foreground">Materiali usati</p>
+                    {materialiGenerali.map((m, i) => (
+                      <p key={i} className="text-sm text-foreground">
+                        {m.nome} <span className="font-semibold text-primary">× {m.quantita} {m.unita || "· unità da scegliere"}</span>
                       </p>
-                    );
-                  })}
-                </div>
-              )}
-              {descrizione && (
-                <div className="pt-2 border-t border-border">
-                  <p className="text-xs text-muted-foreground mb-1">Descrizione</p>
-                  <p className="text-sm text-foreground">{descrizione}</p>
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </BloccoRiepilogo>
+            )}
+
+            {descrizione && (
+              <BloccoRiepilogo titolo="Descrizione">
+                <p className="whitespace-pre-line text-sm text-foreground">{descrizione}</p>
+              </BloccoRiepilogo>
+            )}
 
             {/* Toggle lavoro completato */}
             <div className="flex items-center gap-3 rounded-2xl border border-border bg-background p-4 shadow-sm">

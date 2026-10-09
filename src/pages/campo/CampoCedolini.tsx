@@ -22,27 +22,31 @@ const STATO_BADGE: Record<string, { label: string; className: string }> = {
 };
 
 export default function CampoCedolini() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const companyId = profile?.company_id ?? null;
 
-  // Cerca employee_id
-  const { data: employeeId } = useQuery({
-    queryKey: ["campo-emp-cedolini", user?.id],
+  // Cerca employee_id. Con l'azienda: chi lavora per due aziende ha due schede, e `maybeSingle` su due righe
+  // dava errore — letto come «nessun cedolino».
+  const { data: employeeId, isError: erroreScheda, refetch: rileggiScheda } = useQuery({
+    queryKey: ["campo-emp-cedolini", user?.id, companyId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("employees")
         .select("id")
         .eq("user_id", user!.id)
+        .eq("company_id", companyId!)
         .maybeSingle();
+      if (error) throw error;
       return data?.id ?? null;
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!companyId,
   });
 
   // I miei cedolini
-  const { data: cedolini = [], isLoading } = useQuery({
+  const { data: cedolini = [], isLoading, isError: erroreCedolini, refetch: rileggiCedolini } = useQuery({
     queryKey: ["campo-miei-cedolini", employeeId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("hr_cedolini")
         .select("*")
         .eq("employee_id", employeeId!)
@@ -52,10 +56,13 @@ export default function CampoCedolini() {
         .order("anno", { ascending: false })
         .order("mese", { ascending: false })
         .limit(24);
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!employeeId,
   });
+  // Un errore di lettura NON è «nessun cedolino»: con la rete debole l'operaio leggeva che l'ufficio non ne aveva caricati.
+  const nonRiesco = erroreScheda || erroreCedolini;
 
   // KPI
   const cedoliniPagati = cedolini.filter((c: any) => c.stato === "pagato");
@@ -74,8 +81,19 @@ export default function CampoCedolini() {
         <p className="text-xs md:text-sm text-muted-foreground mt-0.5">Buste paga e retribuzioni</p>
       </div>
 
+      {nonRiesco && (
+        <div role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-semibold">Non riesco a leggere i cedolini</p>
+          <p className="mt-0.5">Non vuol dire che non ce ne siano: riprova tra poco.</p>
+          <button type="button" onClick={() => { void rileggiScheda(); void rileggiCedolini(); }}
+            className="mt-3 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+            Riprova
+          </button>
+        </div>
+      )}
+
       {/* KPI */}
-      <div className="grid grid-cols-2 gap-2 md:gap-3">
+      {!nonRiesco && <div className="grid grid-cols-2 gap-2 md:gap-3">
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">Cedolini disponibili</p>
@@ -90,10 +108,10 @@ export default function CampoCedolini() {
             </p>
           </CardContent>
         </Card>
-      </div>
+      </div>}
 
       {/* Lista cedolini */}
-      <Card>
+      {!nonRiesco && <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Storico cedolini</CardTitle>
         </CardHeader>
@@ -159,7 +177,7 @@ export default function CampoCedolini() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   );
 }

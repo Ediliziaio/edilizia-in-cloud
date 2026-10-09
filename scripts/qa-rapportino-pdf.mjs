@@ -112,7 +112,7 @@ function db(kind) {
     return q;
   }, storage: { from(bucket) { return {
     download: async assetPath => { const buffer = imageBuffers.get(`${bucket}/${assetPath}`); return { data: buffer ? new Blob([buffer]) : null }; },
-    upload: async (assetPath, bytes, options) => { assert.equal(options.upsert, false); assert(assetPath.includes("/rapportino-v2-")); state.uploads.push(assetPath); state.bytes = bytes; return { error: state.uploadError ? {} : null }; },
+    upload: async (assetPath, bytes, options) => { assert.equal(options.upsert, false); assert(assetPath.includes("/rapportino-v4-")); state.uploads.push(assetPath); state.bytes = bytes; return { error: state.uploadError ? {} : null }; },
     getPublicUrl: assetPath => ({ data: { publicUrl: `https://local.invalid/storage/v1/object/public/${bucket}/${assetPath}` } }),
   }; } } };
 }

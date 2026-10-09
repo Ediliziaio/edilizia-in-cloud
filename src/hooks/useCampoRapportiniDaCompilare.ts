@@ -59,8 +59,10 @@ export function useCampoRapportiniDaCompilare(userId: string | undefined) {
   return useQuery({
     queryKey: ["campo-rapportini-da-compilare", userId, companyId, today],
     enabled: !!userId && !!companyId,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    // Si aggiorna da solo quando si invia un rapportino (l'invio la invalida) e al ritorno nell'app:
+    // rileggerla ogni minuto costava 3 richieste più 2 per cantiere.
+    staleTime: 120_000,
+    refetchInterval: 300_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     queryFn: async (): Promise<RapportinoMancante[]> => {

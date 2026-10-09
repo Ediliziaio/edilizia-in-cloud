@@ -6,14 +6,13 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { format, parseISO, isToday, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, startOfDay, isBefore } from "date-fns";
+import { format, isToday, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, startOfDay, isBefore } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  MapPin, AlertTriangle, ChevronRight, ChevronLeft,
+  MapPin, ChevronRight, ChevronLeft,
   CheckCircle, Clock,
   ShieldCheck, Mic, QrCode, MessageSquare, FileText,
   CalendarDays, Receipt, ClipboardCheck,
-  ClipboardList,
   Ticket, CalendarDays as CalendarDaysIcon,
   Sparkles, Navigation, Send, FilePenLine, Users, ShoppingBag
 } from "lucide-react";
@@ -21,20 +20,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { CampoCrewAgenda } from "@/components/campo/CampoCrewAgenda";
 import { CampoOggi } from "@/components/campo/CampoOggi";
 import { InterventiCampo } from "@/components/campo/InterventiCampo";
 import { useMiaGiornata } from "@/hooks/campo/useCampoGiornata";
 import { CampoTimbroCard } from "@/components/campo/CampoTimbroCard";
-// 🆕 GAP 5b: hook cantieri timbrati oggi senza rapportino
-import { useCampoRapportiniDaCompilare } from "@/hooks/useCampoRapportiniDaCompilare";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PushConsentBanner } from "@/components/hr/PushConsentBanner";
 import { MioMezzoCampoCard } from "@/components/mezzi/MioMezzoCampoCard";
+import { RapportiniDaCompilareOggi, RapportiniSospesi } from "@/components/campo/RapportiniDaFare";
+import { useCampoRapportiniDaCompilare } from "@/hooks/useCampoRapportiniDaCompilare";
 import { isNative } from "@/lib/mobile";
-import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -94,6 +93,9 @@ interface CampoAiTask {
 export default function CampoHome() {
   const { profile, user } = useAuth();
   const { isOperaio, isSubappaltatore } = useIsCampo();
+  // Sul telefono i blocchi nascosti col CSS (`hidden md:block`) erano comunque montati: ognuno faceva le sue
+  // richieste a vuoto a ogni apertura della Home. Qui non si montano proprio.
+  const isMobile = useIsMobile();
   // Chi è capocantiere di almeno un cantiere lo legge nel saluto, non solo dentro la card.
   const { data: isCapocantiere = false } = useQuery({
     queryKey: ["campo-e-capocantiere", user?.id],
@@ -143,12 +145,12 @@ export default function CampoHome() {
             {saluto}, {profile?.first_name ?? ""}
           </h1>
         </div>
-        {/* Company badge mobile */}
-        <div className="shrink-0 rounded-xl bg-primary/10 px-3 py-1.5 md:hidden">
-          <p className="text-[10px] text-primary font-semibold">
-            {isOperaio ? (isCapocantiere ? "Capocantiere" : "Operaio") : "Sub"}
-          </p>
-        </div>
+        {/* «Operaio» e «Sub» li dice già la testata («Area Operaio»): resta solo quello che la testata non dice */}
+        {isOperaio && isCapocantiere && (
+          <div className="shrink-0 rounded-xl bg-primary/10 px-3 py-1.5 md:hidden">
+            <p className="text-xs text-primary font-semibold">Capocantiere</p>
+          </div>
+        )}
         </div>
       </div>
 
@@ -181,12 +183,14 @@ export default function CampoHome() {
       {/* Sul telefono bastano Oggi e Da fare: l'elenco dei cantieri è in «Lavori», il calendario
           e l'assistente da tablet in su. Quando «Oggi» non c'è, l'elenco dei cantieri resta. */}
       <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">
-        <div className={cn("space-y-3 md:space-y-6", oggiVisibile && "hidden md:block")}>
-          {isOperaio && <CantieriAssegnati />}
-        </div>
+        {!(isMobile && oggiVisibile) && (
+          <div className="space-y-3 md:space-y-6">
+            {isOperaio && <CantieriAssegnati />}
+          </div>
+        )}
         <div className="space-y-3 md:space-y-6">
-          {isOperaio && <div className="hidden md:block"><AssistenteCampoOperaio /></div>}
-          <div className="hidden md:block"><MiniCalendarioCampo /></div>
+          {!isMobile && isOperaio && <AssistenteCampoOperaio />}
+          {!isMobile && <MiniCalendarioCampo />}
           <MieAttivitaCampo />
         </div>
       </div>
@@ -614,140 +618,6 @@ function CantieriSub() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Rapportini in sospeso (operaio)
-// ─────────────────────────────────────────────────────────────────────────────
-/**
- * 🆕 GAP 5b — RapportiniDaCompilareOggi
- *
- * Card prominente "Crea i rapportini di OGGI" per i cantieri in cui l'operaio
- * ha già timbrato oggi ma non ha ancora compilato il rapportino di intervento.
- *
- * Differenza vs RapportiniSospesi (esistente):
- *   - RapportiniSospesi → rapportini DI GIORNI PRECEDENTI ancora aperti (lavoro
- *     non completato)
- *   - RapportiniDaCompilareOggi → cantieri di OGGI senza rapportino — il "promemoria"
- *     proattivo che l'operaio dimentica spesso a fine giornata
- *
- * Il pattern è AI-native: l'app sa cosa hai fatto oggi (timbrature GPS) e
- * ti chiede di chiudere la giornata correttamente.
- */
-function RapportiniDaCompilareOggi() {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const { data: cantieri = [], isLoading } = useCampoRapportiniDaCompilare(user?.id);
-
-  if (isLoading || cantieri.length === 0) return null;
-
-  return (
-    <Card className="border-violet-200 bg-violet-50/60 dark:border-violet-900 dark:bg-violet-950/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2 text-violet-800 dark:text-violet-200">
-          <ClipboardList className="h-4 w-4" />
-          {cantieri.length === 1 ? "Rapportino da inviare" : `${cantieri.length} rapportini da inviare`}
-        </CardTitle>
-        <p className="text-xs text-violet-700 dark:text-violet-300 mt-1">
-          Oggi e ieri: invia entro il giorno successivo al lavoro. La timbratura di uscita va fatta separatamente.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {cantieri.slice(0, 5).map((c) => (
-          <button
-            key={`${c.order_id}:${c.data_lavoro}`}
-            onClick={() => navigate(`/campo/lavoro/${c.order_id}/rapportino?data=${c.data_lavoro}`)}
-            className="min-h-14 w-full flex items-center justify-between text-left rounded-lg px-2 py-2 hover:bg-violet-100/60 dark:hover:bg-violet-900/40 transition-colors"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="text-sm text-foreground font-medium truncate">
-                {c.order_code ?? "—"} · {format(parseISO(c.data_lavoro), "dd/MM")}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                {c.description?.slice(0, 60) ?? "—"} · ~{c.ore_in_cantiere_stimate}h stimate
-              </p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-violet-600 shrink-0 ml-2" />
-          </button>
-        ))}
-        {cantieri.length > 5 && (
-          <p className="text-[10px] text-muted-foreground text-center pt-1">
-            +{cantieri.length - 5} altri cantieri
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function RapportiniSospesi() {
-  const navigate = useNavigate();
-  const { user, profile } = useAuth();
-  const companyId = profile?.company_id ?? null;
-  const today = format(new Date(), "yyyy-MM-dd");
-
-  const { data: rapportini = [] } = useQuery({
-    queryKey: ["campo-rapportini-sospesi", user?.id, companyId],
-    queryFn: async () => {
-      // Filtro azienda: i rapportini sono dell'utente ma restano nel tenant
-      // in cui sono nati — cambiando azienda i vecchi non devono riapparire
-      // come "da completare" (e il link aprirebbe un cantiere non accessibile).
-      //
-      // "Da completare" = bozza mai inviata o rapportino RESPINTO dall'ufficio.
-      // Prima il filtro era lavoro_completato=false, ma quel flag significa
-      // "il CANTIERE è finito": ogni rapportino normale di un cantiere aperto
-      // restava segnato per sempre come sospeso, anche se già inviato — la
-      // card gridava al lupo tutti i giorni e i veri sospesi si perdevano.
-      const { data, error } = await supabase
-        .from("campo_rapportini")
-        .select("id, order_id, data_lavoro, stato, order:orders(order_code, description)")
-        .eq("user_id", user!.id)
-        .eq("company_id", companyId!)
-        .in("stato", ["bozza", "rifiutato"])
-        .lt("data_lavoro", today)
-        .order("data_lavoro", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!user?.id && !!companyId,
-  });
-
-  if (rapportini.length === 0) return null;
-
-  return (
-    <Card className="border-amber-200 bg-amber-50/50">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2 text-amber-800">
-          <AlertTriangle className="h-4 w-4" />
-          {rapportini.length} {rapportini.length === 1 ? "rapportino" : "rapportini"} da completare
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {rapportini.slice(0, 3).map((r: any) => (
-          <button
-            key={r.id}
-            onClick={() => navigate(`/campo/lavoro/${r.order_id}`)}
-            className="w-full flex items-center justify-between text-left rounded-lg px-2 py-2 hover:bg-amber-100/50 transition-colors"
-          >
-            <div>
-              <p className="text-sm text-foreground font-medium">
-                {r.order?.order_code}
-                {r.stato === "rifiutato" && (
-                  <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-red-600">
-                    Respinto — da rifare
-                  </span>
-                )}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {format(parseISO(r.data_lavoro), "d MMM", { locale: it })} — {r.order?.description?.slice(0, 40)}
-              </p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-amber-600 shrink-0" />
-          </button>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Mini Calendario mensile
 // ─────────────────────────────────────────────────────────────────────────────
 function MiniCalendarioCampo() {
@@ -1062,7 +932,7 @@ function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; is
               <div className={`flex h-11 w-11 items-center justify-center rounded-2xl md:h-14 md:w-14 ${bgColor}`}>
                 <item.icon className={`h-5 w-5 md:h-7 md:w-7 ${textColor}`} />
               </div>
-              <span className="max-w-full text-center text-[10px] font-semibold leading-tight text-foreground md:text-xs">
+              <span className="max-w-full text-center text-xs font-semibold leading-tight text-foreground">
                 {item.label}
               </span>
             </button>

@@ -1,14 +1,13 @@
 /**
- * Menu App — griglia categorizzata di tutte le sezioni campo.
- * Ispirato a design mobile-first con sezioni raggruppate per categoria.
- * Sostituisce la sidebar su mobile.
+ * Menu App — le sezioni campo che NON stanno già in barra o in testata.
+ * Home, Lavori, Timbra e Chat sono nella barra in basso, Impostazioni e avvisi nella testata: ripeterli qui
+ * (e una ricerca su una dozzina di icone) faceva solo cercare più a lungo. Sostituisce la sidebar su mobile.
  */
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Home, Calendar, Clock, CalendarDays, Receipt, Mic, MessageSquare,
-  ShieldCheck, CreditCard, FileText, Ticket, Settings, LogOut,
-  ClipboardCheck, Search, CheckSquare, Package, ListChecks, Truck, ShoppingBag,
+  Clock, CalendarDays, Receipt, Mic,
+  ShieldCheck, CreditCard, FileText, Ticket, LogOut,
+  ClipboardCheck, CheckSquare, Package, ListChecks, Truck, ShoppingBag,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
@@ -32,7 +31,6 @@ export default function CampoMenu() {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
   const { isOperaio, isSubappaltatore } = useIsCampo();
-  const [search, setSearch] = useState("");
   // «Il mio mezzo» compare solo a chi ha un mezzo in carico: sul telefono il meno è meglio.
   const { data: mieiMezzi = [] } = useMieiMezzi(isOperaio);
 
@@ -42,27 +40,17 @@ export default function CampoMenu() {
   // Sezioni per operaio
   const operaioSections: AppSection[] = [
     {
-      title: "Lavoro e Produttività",
+      title: "Lavoro",
       items: [
-        { icon: Home, label: "Dashboard", url: "/campo", color: "text-blue-600 bg-blue-50" },
-        { icon: Calendar, label: "Calendario", url: "/campo/calendario", color: "text-indigo-600 bg-indigo-50" },
         { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
         { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
         { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
         { icon: ListChecks, label: "Avanzamento", url: "/campo/avanzamento", color: "text-cyan-600 bg-cyan-50" },
-        { icon: Clock, label: "Timbratura", url: "/campo/timbratura", color: "text-lime-600 bg-lime-50" },
         { icon: Package, label: "Magazzino", url: "/campo/magazzino", color: "text-amber-700 bg-amber-50" },
         { icon: ShoppingBag, label: "Merce presa", url: "/campo/merce", color: "text-orange-700 bg-orange-50" },
         ...(mieiMezzi.length > 0
           ? [{ icon: Truck, label: mieiMezzi.length > 1 ? "I miei mezzi" : "Il mio mezzo", url: "/campo/mezzi", color: "text-slate-700 bg-slate-100" }]
           : []),
-      ],
-    },
-    {
-      title: "Comunicazione",
-      items: [
-        { icon: MessageSquare, label: "Chat", url: "/campo/chat", color: "text-blue-600 bg-blue-50" },
-        { icon: Ticket, label: "Apri Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
       ],
     },
     {
@@ -75,10 +63,10 @@ export default function CampoMenu() {
       ],
     },
     {
-      title: "Documenti e Altro",
+      title: "Documenti e assistenza",
       items: [
         { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-slate-600 bg-slate-50" },
-        { icon: Settings, label: "Impostazioni", url: "/campo/impostazioni", color: "text-gray-600 bg-gray-50" },
+        { icon: Ticket, label: "Apri Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
       ],
     },
   ];
@@ -86,10 +74,8 @@ export default function CampoMenu() {
   // Sezioni per subappaltatore
   const subSections: AppSection[] = [
     {
-      title: "Lavoro e Produttività",
+      title: "Lavoro",
       items: [
-        { icon: Home, label: "Dashboard", url: "/campo", color: "text-blue-600 bg-blue-50" },
-        { icon: Calendar, label: "Calendario", url: "/campo/calendario", color: "text-indigo-600 bg-indigo-50" },
         { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
         { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
         { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
@@ -97,32 +83,15 @@ export default function CampoMenu() {
       ],
     },
     {
-      title: "Comunicazione",
+      title: "Documenti e assistenza",
       items: [
-        { icon: MessageSquare, label: "Chat", url: "/campo/chat", color: "text-blue-600 bg-blue-50" },
+        { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-slate-600 bg-slate-50" },
         { icon: Ticket, label: "Apri Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
-      ],
-    },
-    {
-      title: "Documenti e Altro",
-      items: [
-        { icon: FileText, label: "Documenti", url: "/campo/sub/documenti", color: "text-slate-600 bg-slate-50" },
-        { icon: Settings, label: "Impostazioni", url: "/campo/impostazioni", color: "text-gray-600 bg-gray-50" },
       ],
     },
   ];
 
   const sections = isOperaio ? operaioSections : subSections;
-
-  // Filtra per ricerca
-  const filteredSections = search.trim()
-    ? sections.map(s => ({
-        ...s,
-        items: s.items.filter(i =>
-          i.label.toLowerCase().includes(search.toLowerCase())
-        ),
-      })).filter(s => s.items.length > 0)
-    : sections;
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto pb-8">
@@ -148,20 +117,8 @@ export default function CampoMenu() {
         </button>
       </div>
 
-      {/* Barra ricerca */}
-      <div className="relative">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Cerca app"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-muted/80 border border-border/60 rounded-2xl pl-10 pr-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 transition-all"
-        />
-      </div>
-
       {/* Sezioni categorizzate */}
-      {filteredSections.map((section) => (
+      {sections.map((section) => (
         <div key={section.title} className="bg-background border border-border/60 rounded-2xl p-4">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
             {section.title}
@@ -181,7 +138,7 @@ export default function CampoMenu() {
                   )}>
                     <item.icon className={cn("w-6 h-6", textColor)} />
                   </div>
-                  <span className="text-[11px] font-medium text-foreground text-center leading-tight line-clamp-2 max-w-[80px]">
+                  <span className="text-xs font-medium text-foreground text-center leading-tight line-clamp-2 max-w-[80px]">
                     {item.label}
                   </span>
                 </button>
@@ -190,14 +147,6 @@ export default function CampoMenu() {
           </div>
         </div>
       ))}
-
-      {/* Nessun risultato */}
-      {filteredSections.length === 0 && (
-        <div className="text-center py-12">
-          <Search className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">Nessuna app trovata per "{search}"</p>
-        </div>
-      )}
     </div>
   );
 }

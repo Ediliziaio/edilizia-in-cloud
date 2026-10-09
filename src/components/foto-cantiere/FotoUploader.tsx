@@ -42,11 +42,8 @@ export function FotoUploader({ onUpload, isUploading }: Props) {
             type="file"
             accept="image/*"
             multiple
-            // 2026-05-27 (mobile audit): `capture="environment"` apre
-            // direttamente la fotocamera posteriore su Android/iOS invece
-            // della galleria. -2 tap a foto, l'utente in cantiere
-            // riprende il cantiere senza navigare nelle app.
-            capture="environment"
+            // Niente `capture`: forzerebbe la fotocamera, rendendo irraggiungibili le foto già scattate
+            // (e ignorando `multiple`). Il telefono propone da solo «Scatta foto» o «Libreria».
             className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
           />
           <p className="text-xs text-muted-foreground">

@@ -128,7 +128,7 @@ export default function CampoAttivita() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-3 pb-28 md:space-y-4 md:pb-6">
+    <div className="mx-auto max-w-6xl space-y-3 md:space-y-4 md:pb-6">
       {/* Header */}
       <div className="rounded-2xl border bg-background p-4 shadow-sm md:p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -435,7 +435,7 @@ function TaskFormCampo({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col">
+    <div className="fixed inset-0 z-[60] bg-background flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 h-14 border-b shrink-0">
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted">

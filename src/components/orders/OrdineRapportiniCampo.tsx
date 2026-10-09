@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
+import { RapportinoBlocchi } from "@/components/campo/RapportinoBlocchi";
 import { linkFileRiservato } from "@/lib/storage/fileRiservati";
 import { notifyRapportinoPdf, openRapportinoPdf } from "@/lib/campo/rapportinoPdf";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -124,6 +125,20 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
       return data ?? [];
     },
     enabled: !!orderId && !!companyId,
+  });
+
+  // phase_id → nome della fase: i rapportini scritti prima che il nome entrasse nella voce hanno solo l'id.
+  const { data: nomiFasi } = useQuery({
+    queryKey: ["order-campo-fasi-nomi", orderId, companyId],
+    queryFn: async (): Promise<ReadonlyMap<string, string>> => {
+      // order_work_phases non è nei tipi generati → cast
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).from("order_work_phases").select("id, name").eq("order_id", orderId);
+      if (error) throw error;
+      return new Map(((data ?? []) as { id: string; name: string | null }[]).map((f) => [f.id, f.name ?? ""] as const));
+    },
+    enabled: !!orderId && !!companyId,
+    staleTime: 60_000,
   });
 
   // ── Approva ────────────────────────────────────────────────────────────────
@@ -448,20 +463,8 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                               </div>
                             )}
 
-                            {nFoto > 0 && (
-                              <div>
-                                <p className={ETICHETTA_SEZIONE}>Foto ({nFoto})</p>
-                                <div className="mt-1.5 flex gap-2 flex-wrap">
-                                  {r.foto_urls.map((url: string, i: number) => (
-                                    <ImgRiservata width={88} height={88} loading="lazy"
-                                      key={i} src={url} alt={`Foto ${i + 1}`}
-                                      className="h-[88px] w-[88px] cursor-pointer rounded-lg border object-cover transition-opacity hover:opacity-80"
-                                      onClick={() => { void linkFileRiservato(url).then((u) => setFotoModal(u)); }}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            )}
+                            {/* Lavorazioni con i loro materiali e le loro foto, poi quello che non è legato a una fase */}
+                            <RapportinoBlocchi report={r} nomiFasi={nomiFasi} onFoto={(url) => { void linkFileRiservato(url).then((u) => setFotoModal(u)); }} />
 
                             {/* Firme */}
                             {(r.firma_cliente_url || r.firma_operaio_url) && (

@@ -16,6 +16,14 @@ interface Props {
   onApri?: (foto: FotoCantiere) => void;
 }
 
+/** Quanto resta «appena caricata» una foto: il tempo di vederne l'analisi comparire. */
+export const MINUTI_ANALISI_AUTOMATICA = 10;
+
+export function fotoAppenaCaricata(createdAt: string, adesso: number = Date.now()): boolean {
+  const creata = new Date(createdAt).getTime();
+  return Number.isFinite(creata) && adesso - creata >= 0 && adesso - creata < MINUTI_ANALISI_AUTOMATICA * 60_000;
+}
+
 function dataCorta(value: string): string {
   const d = parseISO(value);
   return Number.isNaN(d.getTime()) ? '—' : format(d, "d MMM · HH:mm", { locale: it });
@@ -91,11 +99,13 @@ export function FotoCard({ foto, onElimina, getSignedUrl, onApri }: Props) {
         {foto.descrizione && (
           <p className="line-clamp-2 text-sm leading-snug text-slate-800">{foto.descrizione}</p>
         )}
-        {/* 🆕 GAP 5: AI quality badge auto-trigger appena la foto è caricata */}
+        {/* L'analisi AI parte da sola solo per la foto appena caricata: partendo per OGNI foto senza punteggio a
+            ogni apertura della galleria, 60 foto farebbero 60 chiamate AI insieme (e a pagamento). Per le altre
+            c'è il pulsante «Analizza con AI». */}
         <FotoAIQualityBadge
           fotoId={foto.id}
           companyId={foto.company_id}
-          autoAnalyze
+          autoAnalyze={fotoAppenaCaricata(foto.created_at)}
           variant="compact"
         />
         <div className="flex items-center justify-between gap-2">

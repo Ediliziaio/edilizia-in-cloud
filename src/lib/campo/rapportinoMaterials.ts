@@ -1,7 +1,11 @@
+import { faseDiAppartenenza } from "./rapportinoFasi";
+
 export interface RapportinoMaterialDraft {
   nome: string;
   quantita: number;
   unita?: string;
+  /** La fase scelta dall'operaio per questo materiale (vedi rapportinoFasi.ts). */
+  faseId?: string;
 }
 
 export interface RapportinoArticle {
@@ -29,20 +33,25 @@ export function rapportinoUnitOptions(unit?: string): string[] {
   return Array.from(new Set(["pz", "m", "m²", "m³", "kg", "l", "sacco", "confezione", ...(unit ? [unit] : [])]));
 }
 
-/** Keep the order article reference in the existing JSON payload; no stock movement. */
-export function buildRapportinoMaterials(selection: Record<string, RapportinoMaterialDraft>) {
+/**
+ * Keep the order article reference in the existing JSON payload; no stock movement.
+ * Con `fasiDichiarate` ogni materiale porta anche la fase a cui appartiene (`fase_id`), se ce n'è una.
+ */
+export function buildRapportinoMaterials(selection: Record<string, RapportinoMaterialDraft>, fasiDichiarate: string[] = []) {
   return Object.entries(selection).map(([key, material]) => {
     if (!Number.isFinite(material.quantita) || material.quantita <= 0) {
       throw new Error(`Indica una quantità maggiore di zero per ${material.nome}`);
     }
     const unita = rapportinoMaterialUnit(material.unita);
     if (!unita) throw new Error(`Scegli l'unità di misura per ${material.nome}`);
+    const fase = faseDiAppartenenza(material.faseId, fasiDichiarate);
     return {
       nome: material.nome,
       quantita: material.quantita,
       unita,
       da_furgone: false,
       ...(!key.startsWith("libero_") ? { order_item_id: key } : {}),
+      ...(fase ? { fase_id: fase } : {}),
     };
   });
 }

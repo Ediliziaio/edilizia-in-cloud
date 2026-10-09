@@ -45,9 +45,21 @@ describe("apertura da un tap mobile", () => {
   it("non apre un vecchio URL pubblico se la firma fallisce", async () => {
     const tab = { document: { title: "", body: { textContent: "" } }, opener: {}, closed: false, location: { replace: vi.fn() }, close: vi.fn() };
     const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
-    const url = "https://local.invalid/storage/v1/object/public/campo-rapportini/c/r/rapportino-v3-x.pdf";
+    const url = "https://local.invalid/storage/v1/object/public/campo-rapportini/c/r/rapportino-v4-x.pdf";
     m.sign.mockResolvedValue(url);
     await expect(openRapportinoPdf({ id: "g", pdf_url: url }, "order", qc)).rejects.toThrow("file riservato");
     expect(tab.close).toHaveBeenCalled(); expect(tab.location.replace).not.toHaveBeenCalled(); open.mockRestore();
+  });
+  it("un PDF fatto col disegno di prima (v3) si rigenera una volta, quello nuovo (v4) si apre com'è", async () => {
+    const tab = { document: { title: "", body: { textContent: "" } }, opener: {}, closed: false, location: { replace: vi.fn() }, close: vi.fn() };
+    const open = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    m.sign.mockResolvedValue("https://local.invalid/signed.pdf");
+    m.invoke.mockResolvedValue({ data: { pdf_url: "https://local.invalid/storage/v1/object/public/campo-rapportini/c/r/rapportino-v4-nuovo.pdf" } });
+    await openRapportinoPdf({ id: "h", pdf_url: "https://local.invalid/storage/v1/object/public/campo-rapportini/c/r/rapportino-v3-vecchio.pdf" }, "order", qc);
+    expect(m.invoke).toHaveBeenCalledTimes(1);
+    m.invoke.mockClear();
+    await openRapportinoPdf({ id: "i", pdf_url: "https://local.invalid/storage/v1/object/public/campo-rapportini/c/r/rapportino-v4-x.pdf" }, "order", qc);
+    expect(m.invoke).not.toHaveBeenCalled();
+    open.mockRestore();
   });
 });

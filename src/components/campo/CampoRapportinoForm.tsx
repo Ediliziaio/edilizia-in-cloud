@@ -1,6 +1,9 @@
 /**
  * Form rapportino vocale pre-compilato dall'AI.
  * L'operaio può correggere qualsiasi campo prima di confermare.
+ *
+ * Colori del tema dell'app (chiaro): era disegnato per uno sfondo scuro (testo bianco, slate-300, amber-200)
+ * ma la pagina è chiara, e titoli e controlli sparivano sul bianco.
  */
 import { useState, useEffect } from "react";
 import {
@@ -85,15 +88,15 @@ export default function CampoRapportinoForm({
       <div className="space-y-4 py-6">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-12 h-12 text-amber-400 animate-spin" />
-          <p className="text-white font-medium">Trascrizione in corso…</p>
-          <p className="text-xs text-slate-500">
+          <p className="text-foreground font-medium">Trascrizione in corso…</p>
+          <p className="text-xs text-muted-foreground">
             L&apos;AI sta analizzando la tua registrazione
           </p>
         </div>
         <div className="space-y-2">
-          <div className="h-12 bg-slate-800 rounded-xl animate-pulse" />
-          <div className="h-12 bg-slate-800 rounded-xl animate-pulse" />
-          <div className="h-20 bg-slate-800 rounded-xl animate-pulse" />
+          <div className="h-12 bg-muted rounded-xl animate-pulse" />
+          <div className="h-12 bg-muted rounded-xl animate-pulse" />
+          <div className="h-20 bg-muted rounded-xl animate-pulse" />
         </div>
       </div>
     );
@@ -125,8 +128,8 @@ export default function CampoRapportinoForm({
             <Sparkles className="h-4 w-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-amber-200">AI ha preparato il rapportino</p>
-            <p className="mt-1 text-xs leading-relaxed text-slate-300">
+            <p className="text-sm font-bold text-amber-900">AI ha preparato il rapportino</p>
+            <p className="mt-1 text-xs leading-relaxed text-foreground/80">
               Controlla i campi. Al salvataggio aggiorna rapportini, diario commessa e materiali.
               {!orderLinked && " Se hai un solo cantiere attivo, lo collega automaticamente."}
             </p>
@@ -143,10 +146,10 @@ export default function CampoRapportinoForm({
       {safetyAlert?.rilevato && (
         <div role="alert" className="rounded-2xl border border-red-500/40 bg-red-500/10 p-3">
           <div className="flex items-start gap-2">
-            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-red-300" />
+            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
             <div>
-              <p className="text-sm font-bold text-red-200">Segnalazione sicurezza rilevata</p>
-              <p className="mt-1 text-xs text-red-100/80">
+              <p className="text-sm font-bold text-red-800">Segnalazione sicurezza rilevata</p>
+              <p className="mt-1 text-xs text-red-700">
                 {safetyAlert.descrizione || "L'AI ha rilevato un possibile tema sicurezza nel vocale."}
               </p>
             </div>
@@ -157,18 +160,18 @@ export default function CampoRapportinoForm({
       {incidenti.length > 0 && (
         <div className="rounded-2xl border border-orange-500/35 bg-orange-500/10 p-3">
           <div className="flex items-start gap-2">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-300" />
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-600" />
             <div>
-              <p className="text-sm font-bold text-orange-200">Criticità nel rapportino</p>
-              <p className="mt-1 text-xs text-orange-100/80">{incidenti.slice(0, 2).join(" · ")}</p>
+              <p className="text-sm font-bold text-orange-800">Criticità nel rapportino</p>
+              <p className="mt-1 text-xs text-orange-700">{incidenti.slice(0, 2).join(" · ")}</p>
             </div>
           </div>
         </div>
       )}
 
       {local.dati_estratti.qualita_auto_valutazione && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-300">
-          Valutazione AI: <span className="font-semibold text-slate-100">{qualityLabel[local.dati_estratti.qualita_auto_valutazione]}</span>
+        <div className="rounded-xl border bg-muted px-3 py-2 text-sm text-muted-foreground">
+          Valutazione AI: <span className="font-semibold text-foreground">{qualityLabel[local.dati_estratti.qualita_auto_valutazione]}</span>
         </div>
       )}
 
@@ -176,7 +179,7 @@ export default function CampoRapportinoForm({
       <div className="space-y-1.5">
         <label
           htmlFor="ore"
-          className="text-xs font-bold text-slate-400 uppercase tracking-wide"
+          className="text-xs font-bold text-muted-foreground uppercase tracking-wide"
         >
           Ore lavorate
         </label>
@@ -194,7 +197,7 @@ export default function CampoRapportinoForm({
             })
           }
           placeholder="Es: 8"
-          className="w-full h-12 rounded-xl bg-slate-900 border border-slate-700 px-3 text-base text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+          className="w-full h-12 rounded-xl bg-background border border-input px-3 text-base text-foreground placeholder:text-muted-foreground focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
         />
       </div>
 
@@ -202,7 +205,7 @@ export default function CampoRapportinoForm({
       <div className="space-y-1.5">
         <label
           htmlFor="lavorazione"
-          className="text-xs font-bold text-slate-400 uppercase tracking-wide"
+          className="text-xs font-bold text-muted-foreground uppercase tracking-wide"
         >
           Tipo lavorazione
         </label>
@@ -212,20 +215,20 @@ export default function CampoRapportinoForm({
           value={local.dati_estratti.lavorazione ?? ""}
           onChange={(e) => update({ lavorazione: e.target.value })}
           placeholder="Es: posa piastrelle piano terra"
-          className="w-full h-12 rounded-xl bg-slate-900 border border-slate-700 px-3 text-base text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+          className="w-full h-12 rounded-xl bg-background border border-input px-3 text-base text-foreground placeholder:text-muted-foreground focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
         />
       </div>
 
       {/* Materiali */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-bold text-slate-400 uppercase tracking-wide">
+          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
             Materiali utilizzati
           </label>
           <button
             type="button"
             onClick={addMateriale}
-            className="text-xs font-bold text-amber-400 flex items-center gap-1 active:scale-95 transition-transform"
+            className="text-xs font-bold text-amber-700 flex items-center gap-1 active:scale-95 transition-transform"
           >
             <Plus className="w-3.5 h-3.5" />
             Aggiungi
@@ -233,7 +236,7 @@ export default function CampoRapportinoForm({
         </div>
 
         {materiali.length === 0 && (
-          <p className="text-xs text-slate-500 italic py-2">Nessun materiale</p>
+          <p className="text-xs text-muted-foreground italic py-2">Nessun materiale</p>
         )}
 
         {materiali.map((mat, idx) => (
@@ -243,7 +246,7 @@ export default function CampoRapportinoForm({
               value={mat.nome}
               onChange={(e) => updateMateriale(idx, { nome: e.target.value })}
               placeholder="Nome"
-              className="flex-1 h-11 rounded-lg bg-slate-900 border border-slate-700 px-3 text-sm text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+              className="min-w-0 flex-1 h-11 rounded-lg bg-background border border-input px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
             />
             <input
               type="number"
@@ -256,20 +259,20 @@ export default function CampoRapportinoForm({
                   quantita: parseFloat(e.target.value) || 0,
                 })
               }
-              className="w-16 h-11 rounded-lg bg-slate-900 border border-slate-700 px-2 text-sm text-white text-center focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+              className="w-16 h-11 rounded-lg bg-background border border-input px-2 text-sm text-foreground text-center focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
             />
             <input
               type="text"
               value={mat.unita}
               onChange={(e) => updateMateriale(idx, { unita: e.target.value })}
               placeholder="pz"
-              className="w-14 h-11 rounded-lg bg-slate-900 border border-slate-700 px-2 text-sm text-white placeholder-slate-500 text-center focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+              className="w-14 h-11 rounded-lg bg-background border border-input px-2 text-sm text-foreground placeholder:text-muted-foreground text-center focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
             />
             <button
               type="button"
               onClick={() => removeMateriale(idx)}
               aria-label="Rimuovi materiale"
-              className="w-11 h-11 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 flex items-center justify-center active:scale-95"
+              className="w-11 h-11 rounded-lg bg-muted border text-muted-foreground flex items-center justify-center active:scale-95"
             >
               <X className="w-4 h-4" />
             </button>
@@ -281,7 +284,7 @@ export default function CampoRapportinoForm({
       <div className="space-y-1.5">
         <label
           htmlFor="note"
-          className="text-xs font-bold text-slate-400 uppercase tracking-wide"
+          className="text-xs font-bold text-muted-foreground uppercase tracking-wide"
         >
           Note aggiuntive
         </label>
@@ -291,29 +294,29 @@ export default function CampoRapportinoForm({
           onChange={(e) => update({ note: e.target.value })}
           rows={3}
           placeholder="Osservazioni, problemi, anomalie…"
-          className="w-full rounded-xl bg-slate-900 border border-slate-700 p-3 text-sm text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 resize-none"
+          className="w-full rounded-xl bg-background border border-input p-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 resize-none"
         />
       </div>
 
       {/* Trascrizione originale (collapsible) */}
       {local.trascrizione && (
-        <div className="rounded-xl bg-slate-900 border border-slate-800 overflow-hidden">
+        <div className="rounded-xl bg-muted/60 border overflow-hidden">
           <button
             type="button"
             onClick={() => setShowTranscript((v) => !v)}
-            className="w-full p-3 flex items-center justify-between text-left active:bg-slate-800/50 transition-colors"
+            className="w-full p-3 flex items-center justify-between text-left active:bg-muted transition-colors"
           >
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
               Trascrizione originale
             </span>
             {showTranscript ? (
-              <ChevronUp className="w-4 h-4 text-slate-500" />
+              <ChevronUp className="w-4 h-4 text-muted-foreground" />
             ) : (
-              <ChevronDown className="w-4 h-4 text-slate-500" />
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
             )}
           </button>
           {showTranscript && (
-            <div className="px-3 pb-3 text-sm text-slate-300 italic leading-relaxed">
+            <div className="px-3 pb-3 text-sm text-foreground/80 italic leading-relaxed">
               &ldquo;{local.trascrizione}&rdquo;
             </div>
           )}
@@ -322,7 +325,7 @@ export default function CampoRapportinoForm({
 
       {/* CTA fissa */}
       <div
-        className="fixed left-0 right-0 bottom-[calc(4.35rem+env(safe-area-inset-bottom))] border-t border-slate-800 bg-slate-950/95 p-4 backdrop-blur md:bottom-0"
+        className="fixed left-0 right-0 bottom-[calc(4.35rem+env(safe-area-inset-bottom))] border-t border-border bg-background/95 p-4 backdrop-blur md:bottom-0"
         style={{ paddingBottom: "1rem" }}
       >
         <button
@@ -365,8 +368,8 @@ function AiCheck({
   label: string;
 }): JSX.Element {
   return (
-    <div className={`flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-[11px] font-semibold ${
-      ok ? "bg-emerald-400/15 text-emerald-200" : "bg-slate-900 text-slate-400"
+    <div className={`flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-xs font-semibold ${
+      ok ? "bg-emerald-100 text-emerald-800" : "bg-muted text-muted-foreground"
     }`}>
       <Icon className="h-3.5 w-3.5" />
       <span className="truncate">{label}</span>

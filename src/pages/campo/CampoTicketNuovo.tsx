@@ -109,7 +109,7 @@ export default function CampoTicketNuovo() {
       <div className="sticky -top-3 z-10 bg-muted border-b border-border px-4 py-3 flex items-center gap-3 md:top-14">
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 flex items-center justify-center rounded-xl bg-muted active:bg-muted shrink-0"
+          className="w-9 h-9 flex items-center justify-center rounded-xl bg-muted active:bg-muted shrink-0 max-md:hidden"
         >
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
@@ -195,7 +195,7 @@ export default function CampoTicketNuovo() {
 
       {/* Submit */}
       <div
-        className="sticky -bottom-28 z-20 border-t border-border bg-background px-4 py-3 pb-20 md:bottom-0 md:pb-3"
+        className="sticky -bottom-28 z-20 border-t border-border bg-background px-4 py-3 pb-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-0 md:pb-3"
       >
         <button
           onClick={() => submitMutation.mutate()}

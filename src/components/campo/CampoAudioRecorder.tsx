@@ -9,7 +9,8 @@ import { Mic, Square, Play, Pause, RotateCcw, Check, Loader2 } from "lucide-reac
 import type { JSX } from "react";
 
 const MAX_DURATION_SEC = 120;
-const BITRATE_BPS = 128_000;
+// Per la voce bastano 64 kbit/s: metà del peso di prima da caricare con la rete del cantiere.
+const BITRATE_BPS = 64_000;
 
 type RecorderState = "idle" | "requesting" | "recording" | "stopped" | "error";
 
@@ -191,7 +192,7 @@ export default function CampoAudioRecorder({
       {errorMsg && (
         <div
           role="alert"
-          className="rounded-xl bg-red-950/60 border border-red-500 p-3 text-sm text-red-200"
+          className="rounded-xl bg-red-50 border border-red-300 p-3 text-sm text-red-800"
         >
           {errorMsg}
         </div>
@@ -209,18 +210,18 @@ export default function CampoAudioRecorder({
           >
             <Mic className="w-10 h-10" strokeWidth={2.5} />
           </button>
-          <p className="text-sm text-slate-300 font-medium">Tocca per registrare</p>
-          <p className="text-xs text-slate-500">Max {MAX_DURATION_SEC / 60} minuti</p>
+          <p className="text-sm text-foreground font-medium">Tocca per registrare</p>
+          <p className="text-xs text-muted-foreground">Max {MAX_DURATION_SEC / 60} minuti</p>
         </div>
       )}
 
       {/* Requesting */}
       {state === "requesting" && (
         <div className="flex flex-col items-center gap-3 py-4">
-          <div className="w-24 h-24 rounded-full bg-slate-800 flex items-center justify-center">
+          <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center">
             <Loader2 className="w-10 h-10 text-amber-400 animate-spin" />
           </div>
-          <p className="text-sm text-slate-300">Accesso al microfono…</p>
+          <p className="text-sm text-muted-foreground">Accesso al microfono…</p>
         </div>
       )}
 
@@ -236,23 +237,23 @@ export default function CampoAudioRecorder({
             <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-40" />
             <Square className="w-9 h-9 fill-white relative" strokeWidth={0} />
           </button>
-          <div className="font-mono text-3xl font-bold text-white tabular-nums">
+          <div className="font-mono text-3xl font-bold text-foreground tabular-nums">
             {formatTime(elapsed)}
           </div>
-          <div className="w-48 h-1 rounded-full bg-slate-800 overflow-hidden">
+          <div className="w-48 h-1 rounded-full bg-muted overflow-hidden">
             <div
               className="h-full bg-red-500 transition-all duration-1000"
               style={{ width: `${(elapsed / MAX_DURATION_SEC) * 100}%` }}
             />
           </div>
-          <p className="text-xs text-slate-500">Registrazione in corso… tocca stop per terminare</p>
+          <p className="text-xs text-muted-foreground">Registrazione in corso… tocca stop per terminare</p>
         </div>
       )}
 
       {/* Stopped: player + azioni */}
       {state === "stopped" && audioUrl && (
         <div className="space-y-3">
-          <div className="rounded-xl bg-slate-900 border border-slate-800 p-4">
+          <div className="rounded-xl bg-muted/60 border p-4">
             <audio
               ref={audioElRef}
               src={audioUrl}
@@ -273,8 +274,8 @@ export default function CampoAudioRecorder({
                 )}
               </button>
               <div className="flex-1">
-                <p className="text-sm text-white font-medium">Registrazione pronta</p>
-                <p className="text-xs text-slate-500 font-mono">{formatTime(elapsed)}</p>
+                <p className="text-sm text-foreground font-medium">Registrazione pronta</p>
+                <p className="text-xs text-muted-foreground font-mono">{formatTime(elapsed)}</p>
               </div>
             </div>
           </div>
@@ -283,7 +284,7 @@ export default function CampoAudioRecorder({
             <button
               type="button"
               onClick={resetRecording}
-              className="flex-1 h-12 rounded-xl bg-slate-800 border border-slate-700 text-white font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform"
+              className="flex-1 h-12 rounded-xl bg-background border text-foreground font-medium flex items-center justify-center gap-2 active:scale-95 transition-transform"
             >
               <RotateCcw className="w-4 h-4" />
               Riprova

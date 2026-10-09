@@ -54,7 +54,7 @@ export default function CampoAttrezzo() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-lg space-y-4 pb-28">
+      <div className="mx-auto max-w-lg space-y-4">
         {indietro}
         <div className="flex min-h-[200px] items-center justify-center rounded-2xl border bg-background">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -65,7 +65,7 @@ export default function CampoAttrezzo() {
 
   if (isError || !esito) {
     return (
-      <div className="mx-auto max-w-lg space-y-4 pb-28">
+      <div className="mx-auto max-w-lg space-y-4">
         {indietro}
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
           <p className="text-sm font-bold">Codice non letto</p>
@@ -79,7 +79,7 @@ export default function CampoAttrezzo() {
   if (esito.esito !== "trovato" || esito.vista !== "campo") {
     const libero = esito.esito === "libero";
     return (
-      <div className="mx-auto max-w-lg space-y-4 pb-28">
+      <div className="mx-auto max-w-lg space-y-4">
         {indietro}
         <div className="rounded-2xl border bg-background p-5 text-center">
           <PackageSearch className="mx-auto mb-2 h-10 w-10 text-muted-foreground/60" />
@@ -120,7 +120,7 @@ export default function CampoAttrezzo() {
   const DoveIcona = { magazzino: Warehouse, cantiere: HardHat, persona: User, mezzo: Truck }[m.dove];
 
   return (
-    <div className="mx-auto max-w-lg space-y-4 pb-28">
+    <div className="mx-auto max-w-lg space-y-4">
       {indietro}
 
       <section className="overflow-hidden rounded-2xl border bg-background shadow-sm" aria-label={m.nome}>

@@ -5,6 +5,7 @@
  */
 import { useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { destinazioneIndietro } from "@/lib/campo/tornaIndietro";
 import { isNative } from "@/lib/mobile";
 import {
   Home,
@@ -288,7 +289,7 @@ export default function CampoLayout() {
                 variant="ghost"
                 size="icon"
                 className="-ml-1 h-10 w-10 shrink-0"
-                onClick={() => navigate(-1)}
+                onClick={() => { const dove = destinazioneIndietro(location.key); if (dove === -1) navigate(-1); else navigate(dove, { replace: true }); }}
                 aria-label="Torna indietro"
               >
                 <ArrowLeft className="h-5 w-5" />

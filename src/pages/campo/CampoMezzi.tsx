@@ -93,7 +93,7 @@ export default function CampoMezzi() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 pb-28">
+      <div className="mx-auto max-w-3xl space-y-4">
         {header}
         <div className="flex min-h-[220px] items-center justify-center rounded-2xl border bg-background">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -104,7 +104,7 @@ export default function CampoMezzi() {
 
   if (isError) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 pb-28">
+      <div className="mx-auto max-w-3xl space-y-4">
         {header}
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
           <p className="text-sm font-bold">Mezzi non caricati</p>
@@ -124,7 +124,7 @@ export default function CampoMezzi() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 pb-28">
+    <div className="mx-auto max-w-3xl space-y-4">
       {header}
       {principali.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-background px-4 py-10 text-center">

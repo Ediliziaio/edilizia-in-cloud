@@ -76,7 +76,8 @@ Deno.serve(async (req: Request) => {
     const revision = Date.now().toString(36) + "-" + crypto.randomUUID().slice(0, 8);
     const result = await renderRapportino({ report: rap, company, branding, phases, punches, warnings, revision, generatedAt }, loadImage);
     // Every edition has its own object; previous exports are never overwritten.
-    const path = rap.company_id + "/" + id + "/rapportino-v3-" + revision + ".pdf";
+    // v4 = documento a blocchi (schede per fase). Cambiare il numero fa rigenerare, alla prima apertura, i PDF già fatti.
+    const path = rap.company_id + "/" + id + "/rapportino-v4-" + revision + ".pdf";
     const { error: uploadError } = await admin.storage.from("campo-rapportini").upload(path, result.bytes, { contentType: "application/pdf", upsert: false });
     if (uploadError) return errorResponse("Impossibile salvare il PDF. Il rapportino rimane salvato: riprova.", 500, cors);
     // Canonical legacy-compatible locator; opening still requires a signed URL.

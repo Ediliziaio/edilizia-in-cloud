@@ -2,7 +2,7 @@
  * Pagina rapportino vocale: registra messaggio audio → AI trascrive →
  * form pre-compilato → operaio conferma.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -14,6 +14,8 @@ import {
   type RapportinoVocaleDraft,
 } from "@/hooks/campo/useRapportinoVocale";
 import { supabase } from "@/integrations/supabase/client";
+import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
+import { cantieriAperti } from "@/lib/campo/cantieriAperti";
 import type { JSX } from "react";
 import { isOnline } from "@/lib/campo/network-status";
 
@@ -35,6 +37,18 @@ export default function CampoRapportinoVoce(): JSX.Element {
   } = useRapportinoVocale();
   const [localDraft, setLocalDraft] = useState<RapportinoVocaleDraft | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Dal menu e dalla Home il rapportino vocale si apre senza cantiere. Con più cantieri aperti il server non
+  // sa a quale appartiene: la nota restava solo nel registro vocale e il toast diceva «salvato». Quindi si sceglie
+  // PRIMA di registrare: con un cantiere solo è quello, con più cantieri lo dice l'operaio.
+  const { data: assegnazioni = [], isLoading: assegnazioniInCorso } = useCampoAssignments();
+  const aperti = useMemo(() => (orderId ? [] : cantieriAperti(assegnazioni)), [orderId, assegnazioni]);
+  const [sceltaOrdine, setSceltaOrdine] = useState<string | null>(null);
+  const orderIdEffettivo = orderId ?? (aperti.length === 1 ? aperti[0].order_id : sceltaOrdine);
+  const dovrebbeScegliere = !orderId && aperti.length >= 2 && !sceltaOrdine;
+  // Finché non si sa quanti cantieri ci sono, niente registratore: poi comparirebbe la scelta e lo toglierebbe da sotto le mani.
+  const cercaCantieri = !orderId && assegnazioniInCorso;
+  const cantiereScelto = !orderId ? aperti.find(a => a.order_id === orderIdEffettivo)?.order ?? null : null;
 
   const { data: linkedOrder, isLoading: linkedOrderLoading } = useQuery({
     queryKey: ["campo-rapportino-vocale-order", orderId],
@@ -63,14 +77,14 @@ export default function CampoRapportinoVoce(): JSX.Element {
         indirizzo_lavori: fallbackOrderAddress,
       }
     : null;
-  const linkedOrderContext = linkedOrder ?? fallbackLinkedOrder;
+  const linkedOrderContext = orderId ? (linkedOrder ?? fallbackLinkedOrder) : cantiereScelto;
 
   const handleAudioConfirm = async (
     blob: Blob,
     durationSec: number,
     mimeType: string,
   ): Promise<void> => {
-    const result = await processAudio(blob, durationSec, mimeType, orderId ?? null);
+    const result = await processAudio(blob, durationSec, mimeType, orderIdEffettivo ?? null);
     if (result) {
       setLocalDraft(result);
       // Trascrizione ok ma estrazione vuota (es. crediti AI esauriti):
@@ -86,10 +100,10 @@ export default function CampoRapportinoVoce(): JSX.Element {
   const handleConfirm = async (): Promise<void> => {
     if (!localDraft) return;
     setSaving(true);
-    const ok = await confirmRapportino(localDraft, orderId ?? null);
+    const ok = await confirmRapportino(localDraft, orderIdEffettivo ?? null);
     setSaving(false);
     if (ok) {
-      if (isOnline()) toast.success(orderId ? "Rapportino salvato e commessa aggiornata" : "Rapportino salvato", { duration: 2500 });
+      if (isOnline()) toast.success(orderIdEffettivo ? "Rapportino salvato e commessa aggiornata" : "Nota vocale salvata. Non è legata a nessun cantiere: l'ufficio non la vede tra i rapportini.", { duration: orderIdEffettivo ? 2500 : 6000 });
       else toast.info("Nota vocale in coda locale: il rapportino di commessa non è ancora inviato. Riconnettiti entro il giorno successivo al lavoro.", { duration: 6000 });
       setTimeout(() => navigate("/campo"), 800);
     } else {
@@ -111,7 +125,26 @@ export default function CampoRapportinoVoce(): JSX.Element {
           registrazione (stato iniziale) e il "Registra di nuovo" sostituisce
           il vecchio back con reset del draft. */}
 
-      {orderId && (
+      {dovrebbeScegliere && !activeDraft && (
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+          <p className="text-base font-bold text-foreground">Per quale cantiere è il rapportino?</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">Scegli prima di registrare: il rapportino va sul cantiere che indichi.</p>
+          <div className="mt-3 space-y-2">
+            {aperti.map(a => (
+              <button key={a.order_id} type="button" onClick={() => setSceltaOrdine(a.order_id)}
+                className="flex w-full items-center gap-3 rounded-xl border bg-background px-3 py-2.5 text-left active:scale-[0.99]">
+                <HardHat className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-bold text-foreground">{a.order.order_code ?? "Cantiere"}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{a.order.description ?? a.order.indirizzo_lavori ?? ""}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {orderIdEffettivo && (
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
           {linkedOrderLoading && !linkedOrderContext ? (
             <div className="flex items-center gap-3 text-sm font-semibold text-primary">
@@ -172,7 +205,14 @@ export default function CampoRapportinoVoce(): JSX.Element {
 
       {/* Stato iniziale: mic centrato per riempire lo spazio (niente vuoto).
           Guida in una riga invece del box istruzioni ridondante. */}
-      {!activeDraft && !transcribing && !uploading && (
+      {cercaCantieri && !activeDraft && (
+        <div role="status" className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Carico i tuoi cantieri…
+        </div>
+      )}
+
+      {!activeDraft && !transcribing && !uploading && !dovrebbeScegliere && !cercaCantieri && (
         <div className="flex min-h-[68vh] flex-col items-center justify-center gap-6 text-center">
           <div className="space-y-1">
             <h1 className="flex items-center justify-center gap-2 text-lg font-bold text-foreground">
@@ -211,7 +251,7 @@ export default function CampoRapportinoVoce(): JSX.Element {
           onChange={(d) => setLocalDraft(d)}
           onConfirm={handleConfirm}
           saving={saving}
-          orderLinked={!!orderId}
+          orderLinked={!!orderIdEffettivo}
           />
         </>
       )}

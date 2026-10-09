@@ -9,10 +9,12 @@ export function useCampoAssignments() {
     queryKey: ["campo-assignments", profile?.company_id, user?.id],
     enabled: !!user?.id && !!profile?.company_id,
     queryFn: () => loadCampoAssignments(user!.id, profile!.company_id!),
-    staleTime: 30_000,
+    // Le assegnazioni cambiano quando l'ufficio assegna qualcuno: non ogni minuto. Ogni rilettura sono 4-7
+    // richieste, e il telefono le rifaceva a ogni minuto (e a ogni ritorno da Maps o da una chiamata).
+    staleTime: 120_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
-    refetchInterval: 60_000,
+    refetchInterval: 300_000,
     refetchIntervalInBackground: false,
   });
 }

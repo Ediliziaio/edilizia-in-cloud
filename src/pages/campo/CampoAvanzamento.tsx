@@ -19,6 +19,7 @@
 import { useMemo, useState } from "react";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { linkFileRiservato } from "@/lib/storage/fileRiservati";
+import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2, Circle, Camera, Loader2, RefreshCcw, MapPin,
@@ -259,7 +260,7 @@ export default function CampoAvanzamento() {
   const fatte = (fasiQuery.data ?? []).filter((f) => f.status === "completata").length;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 p-3 pb-24 md:p-4">
+    <div className="mx-auto max-w-3xl space-y-4 p-3 md:p-4">
       <header>
         <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Avanzamento lavori</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -405,9 +406,9 @@ export default function CampoAvanzamento() {
                                   target="_blank"
                                   rel="noreferrer"
                                   onClick={(e) => {
-                                    // Il link a scadenza si chiede al momento del clic.
+                                    // Il link a scadenza si chiede al momento del clic; la scheda si apre PRIMA (dopo l'attesa il telefono la blocca).
                                     e.preventDefault();
-                                    void linkFileRiservato(url).then((u) => window.open(u ?? url, "_blank", "noopener"));
+                                    void apriDocumentoDopoAttesa(async () => (await linkFileRiservato(url)) ?? url);
                                   }}
                                 >
                                   <ImgRiservata
@@ -417,13 +418,16 @@ export default function CampoAvanzamento() {
                                     className="h-14 w-14 rounded-md border border-border object-cover"
                                   />
                                 </a>
+                                {/* tap-compact: senza, sotto i 768 px il bottone diventa 44x44 e copre quasi tutta la miniatura */}
                                 <button
                                   type="button"
                                   onClick={() => removePhoto(fase, url)}
                                   aria-label="Rimuovi foto"
-                                  className="absolute -right-1 -top-1 rounded-full bg-background p-0.5 shadow ring-1 ring-border"
+                                  className="tap-compact absolute -right-2.5 -top-2.5 flex h-8 w-8 items-center justify-center"
                                 >
-                                  <X className="h-3 w-3" />
+                                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-background shadow ring-1 ring-border">
+                                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                                  </span>
                                 </button>
                               </div>
                             ))}
@@ -436,7 +440,6 @@ export default function CampoAvanzamento() {
                           <input
                             type="file"
                             accept="image/*"
-                            capture="environment"
                             multiple
                             className="hidden"
                             disabled={busy}

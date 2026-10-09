@@ -42,12 +42,12 @@ export default function CampoFotoCantiere() {
   const nomeCantiere = order?.order_code ?? order?.description ?? undefined;
 
   return (
-    <div className="pb-24">
+    <div>
       <div className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-2 py-2 backdrop-blur">
         <button
           onClick={() => navigate(`/campo/lavoro/${orderId}`)}
           aria-label="Torna al lavoro"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl active:bg-muted"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl active:bg-muted max-md:hidden"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>

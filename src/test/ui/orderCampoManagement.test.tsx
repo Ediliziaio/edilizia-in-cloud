@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
@@ -6,7 +6,7 @@ import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo
 
 const state = vi.hoisted(() => ({
   assignments: [] as Array<Record<string, unknown>>, reports: [] as Array<Record<string, unknown>>,
-  assignmentsError: false, subError: false, canEdit: true, canViewCosts: true,
+  assignmentsError: false, subError: false, canEdit: true, canViewCosts: true, fasiNomi: new Map<string, string>(),
   from: vi.fn(), invalidate: vi.fn(), success: vi.fn(), warning: vi.fn(), error: vi.fn(),
   recheck: vi.fn(), notifyPdf: vi.fn().mockResolvedValue(null),
 }));
@@ -26,7 +26,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: state.from,
 vi.mock("sonner", () => ({ toast: { success: state.success, warning: state.warning, error: state.error } }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: string[] }) => ({
-    data: queryKey[0] === "order-campo-assignments" ? state.assignments : queryKey[0] === "order-campo-rapportini" ? state.reports : [],
+    data: queryKey[0] === "order-campo-assignments" ? state.assignments : queryKey[0] === "order-campo-rapportini" ? state.reports : queryKey[0] === "order-campo-fasi-nomi" ? state.fasiNomi : [],
     isError: queryKey[0] === "order-campo-assignments" ? state.assignmentsError : state.subError,
     isLoading: false, refetch: vi.fn(),
   }),
@@ -51,7 +51,7 @@ function builder(data: unknown = null, error: unknown = null) {
   return q;
 }
 beforeEach(() => {
-  vi.clearAllMocks(); state.assignments = []; state.reports = []; state.assignmentsError = false; state.subError = false; state.canEdit = true; state.canViewCosts = true;
+  vi.clearAllMocks(); state.assignments = []; state.reports = []; state.assignmentsError = false; state.subError = false; state.canEdit = true; state.canViewCosts = true; state.fasiNomi = new Map();
   state.from.mockImplementation(() => builder());
   state.recheck.mockResolvedValue({stato:"inviato",updated_at:"version"});
 });
@@ -176,6 +176,28 @@ describe("Rapportini: permessi e aggiornamento del consuntivo", () => {
     fireEvent.click(screen.getByRole("button",{name:"Conferma approvazione"}));
     await waitFor(()=>expect(q.update).toHaveBeenCalled());
     expect(q.eq).toHaveBeenCalledWith("company_id","company");expect(q.eq).toHaveBeenCalledWith("updated_at","version");expect(q.eq).toHaveBeenCalledWith("stato","inviato");
+  });
+  it("nel dettaglio mostra le lavorazioni con i loro materiali e le loro foto", () => {
+    state.reports = [{ ...report,
+      fasi_lavorate: [{ phase_id: "p1", percentuale: 60, nome: "Posa serramenti", foto: ["f0"] }],
+      materiali_usati: [{ nome: "Schiuma", quantita: 2, unita: "pz", fase_id: "p1" }, { nome: "Viti", quantita: 50, unita: "pz" }],
+      foto_urls: ["f0", "f1"] }];
+    render(<OrdineRapportiniCampo orderId="order" />);
+    fireEvent.click(screen.getByText(/Mario Rossi/));
+    const scheda = screen.getByRole("heading", { name: "Posa serramenti" }).closest("section") as HTMLElement;
+    expect(within(scheda).getByText("60%")).toBeInTheDocument();
+    expect(within(scheda).getByText("Schiuma")).toBeInTheDocument();
+    expect(within(scheda).queryByText("Viti")).not.toBeInTheDocument();
+    expect(screen.getByText("Altri materiali (1)")).toBeInTheDocument();
+    expect(screen.getByText("Altre foto del cantiere (1)")).toBeInTheDocument();
+  });
+  it("un rapportino vecchio, con la fase scritta solo come id, nel dettaglio prende il nome dalla fase della commessa", () => {
+    state.reports = [{ ...report, fasi_lavorate: [{ phase_id: "p1", ore: 8 }] }];
+    state.fasiNomi = new Map([["p1", "Posa serramenti"]]);
+    render(<OrdineRapportiniCampo orderId="order" />);
+    fireEvent.click(screen.getByText(/Mario Rossi/));
+    expect(screen.getByRole("heading", { name: "Posa serramenti" })).toBeInTheDocument();
+    expect(screen.queryByText("Lavorazione non identificata")).not.toBeInTheDocument();
   });
   it("espone lo zero registrato senza dichiararlo lavoro gratuito", () => {
     state.reports=[{...report,stato:"approvato",costo_manodopera:0}];render(<OrdineRapportiniCampo orderId="order"/>);

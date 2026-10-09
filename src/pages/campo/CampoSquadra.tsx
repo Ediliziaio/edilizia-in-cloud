@@ -64,7 +64,7 @@ export default function CampoSquadra() {
   return (
     <div className="mx-auto w-full max-w-3xl space-y-3 md:space-y-4">
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => navigate(-1)} aria-label="Indietro">
+        <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 max-md:hidden" onClick={() => navigate(-1)} aria-label="Indietro">
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="min-w-0 flex-1">

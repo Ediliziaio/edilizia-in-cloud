@@ -131,7 +131,6 @@ export function SegnalaProblemaDialog({ mezzoId, companyId, nome, targa, onClose
               id="campo-segnala-foto"
               type="file"
               accept="image/*"
-              capture="environment"
               multiple
               className="sr-only"
               onChange={(e) => {

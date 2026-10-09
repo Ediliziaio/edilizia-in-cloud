@@ -363,7 +363,7 @@ describe("Le sottofasi nel rapportino del capocantiere", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Cavi: da fare" }));
     invia();
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({
-      fasi_lavorate: [{ phase_id: "f1", percentuale: 67, sottofasi_fatte: ["s2"] }],
+      fasi_lavorate: [{ phase_id: "f1", percentuale: 67, sottofasi_fatte: ["s2"], nome: "Impianto elettrico" }],
     })));
   });
 });

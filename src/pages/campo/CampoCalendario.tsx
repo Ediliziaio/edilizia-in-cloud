@@ -14,6 +14,7 @@ import {
   differenceInCalendarDays, eachDayOfInterval, getDay,
 } from "date-fns";
 import { lavoroQuelGiorno } from "@/lib/campo/mieiGiorni";
+import { cantiereCadeInGiorno } from "@/lib/campo/cantiereInGiorno";
 import { it } from "date-fns/locale";
 import {
   ChevronLeft, ChevronRight, MapPin, Loader2, CalendarOff,
@@ -242,21 +243,13 @@ export default function CampoCalendario() {
       const cantieri = allCantieri.filter((a) => {
         const o = a.order;
         if (!o) return false;
-        const mio = lavoroQuelGiorno(o.id ? mieDate?.get(o.id) : undefined, format(day, "yyyy-MM-dd"));
-        if (mio !== null) return mio;
-        if (o.work_start_date && o.work_end_date) {
-          if (isWithinInterval(day, { start: parseISO(o.work_start_date), end: parseISO(o.work_end_date) })) {
-            return true;
-          }
-          // Lavoro ancora APERTO (allCantieri esclude già chiuso/annullato) ma
-          // oltre la data di fine = in ritardo, non finito. Senza questo ramo
-          // spariva del tutto da "I miei lavori" proprio mentre la Home lo
-          // conta ancora tra i "Cantieri attivi" → le due schermate si
-          // contraddicevano. Lo teniamo visibile su OGGI finché non è chiuso.
-          return isToday(day) && isOverdueOrder(o);
-        }
-        if (o.work_start_date) return parseISO(o.work_start_date) <= day;
-        return true;
+        return cantiereCadeInGiorno({
+          giorno: day,
+          inizio: o.work_start_date,
+          fine: o.work_end_date,
+          mio: lavoroQuelGiorno(o.id ? mieDate?.get(o.id) : undefined, format(day, "yyyy-MM-dd")),
+          inRitardoAperto: () => isOverdueOrder(o),
+        });
       });
 
       const appuntamenti = allAppuntamenti.filter((a) =>
@@ -575,7 +568,7 @@ export default function CampoCalendario() {
             </div>
           </div>
 
-          <div className="min-h-[340px] px-3 py-3 pb-28 md:min-h-[520px] md:px-5 md:pb-6">
+          <div className="min-h-[340px] px-3 py-3 md:min-h-[520px] md:px-5 md:pb-6">
 
         {campoCrewAgendaEnabled && <div className="mb-3"><CampoCrewAgenda day={format(selectedDay, "yyyy-MM-dd")} /></div>}
 

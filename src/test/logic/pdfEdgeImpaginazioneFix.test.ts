@@ -116,20 +116,33 @@ describe("fix impaginazione/encoding PDF edge (audit)", () => {
   });
 
   describe("genera-pdf-rapportino", () => {
-    // Dal 25/09/2026 il disegno sta in render.ts: una sola funzione table() per tutte
-    // le tabelle, che ridisegna l'intestazione delle colonne a ogni salto pagina.
+    // Dal 06/10/2026 il documento è a blocchi (render.ts): una sola funzione tabella() per tutte le tabelle,
+    // quelle dei materiali di ogni fase, gli altri materiali e la squadra. L'intestazione delle colonne si
+    // ridisegna a ogni salto pagina; la prova vera (documento disegnato, pagina per pagina) è in
+    // rapportinoPdfBlocchi.test.ts: qui resta il contratto sul sorgente.
     const source = read("supabase/functions/genera-pdf-rapportino/render.ts");
 
-    it("ridisegna l'intestazione della tabella materiali al salto pagina", () => {
-      expect(source).toContain("const header = () => {");
-      expect(source).toContain("const table = (labels: string[], widths: number[], values: string[][]) => {");
+    it("ridisegna l'intestazione della tabella al salto pagina", () => {
+      expect(source).toContain("const intestazione = () => {");
+      expect(source).toContain("const tabella = (etichette: string[], larghezze: number[], valori: string[][]");
       // una riga normale che non ci sta passa intera alla pagina dopo, con l'intestazione
-      expect(source).toContain("if (rowHeight <= H - 68 - bottom - 23 && y - rowHeight < bottom) { nextPage(); header(); }");
+      expect(source).toContain("if (rowHeight <= H - 54 - bottom - 18 && y - rowHeight < bottom) { nextPage(); intestazione(); }");
       // una riga più alta di una pagina si spezza, e ogni pezzo riparte con l'intestazione
-      expect(source).toContain("if (y - 25 < bottom) { nextPage(); header(); }");
-      expect(source).toContain("if (offset < count) { nextPage(); header(); }");
-      // e i materiali passano da lì
-      expect(source).toMatch(/section\("Materiali utilizzati", 65\);\s*table\(\["Materiale", "Quantità", "Unità", "Registrazione"\]/);
+      expect(source).toContain("if (y - 24 < bottom) { nextPage(); intestazione(); }");
+      expect(source).toContain("if (offset < count) { nextPage(); intestazione(); }");
+    });
+
+    it("i materiali passano da quella tabella: nella scheda della fase e tra gli altri", () => {
+      expect(source).toMatch(/tabella\(\["Materiale", "Quantità", "Unità"\]/);
+      expect(source).toMatch(/sezione\(blocchi\.fasi\.length \? "Altri materiali" : "Materiali utilizzati", 100\);\s*tabella\(\["Materiale", "Quantità", "Unità", "Registrazione"\]/);
+    });
+
+    it("un titolo di sezione viaggia con il primo pezzo del suo corpo: mai solo in fondo a una pagina", () => {
+      expect(source).toContain("if (titolo) sezione(titolo, minimo + 36); else ensure(minimo + 10);");
+    });
+
+    it("emoji e simboli fuori dal set WinAnsi diventano «?» una volta sola per simbolo (flag u)", () => {
+      expect(source).toContain('/[^\\x20-\\x7E\\xA0-\\xFF\\n‘’“”…€]/gu');
     });
   });
 });

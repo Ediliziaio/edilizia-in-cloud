@@ -13,6 +13,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { apriDocumentoDopoAttesa } from "@/lib/campo/apriDocumento";
 import { toast } from "sonner";
 
 const TIPI_DOCUMENTO = [
@@ -164,14 +165,12 @@ export default function SubDocumenti() {
       return;
     }
 
-    const { data, error } = await supabase.storage
-      .from(PRIVATE_DOC_BUCKET)
-      .createSignedUrl(url, 60 * 5);
-    if (error || !data?.signedUrl) {
-      toast.error("Impossibile aprire il documento");
-      return;
-    }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    // Il link a scadenza arriva dopo un'attesa: la scheda va aperta prima (sul telefono, dopo l'attesa, la blocca).
+    const aperto = await apriDocumentoDopoAttesa(async () => {
+      const { data, error } = await supabase.storage.from(PRIVATE_DOC_BUCKET).createSignedUrl(url, 60 * 5);
+      return error ? null : data?.signedUrl;
+    });
+    if (!aperto) toast.error("Impossibile aprire il documento");
   };
 
   // Niente h-full + scroll interno: il <main> della shell è l'unico scroller
@@ -331,7 +330,7 @@ export default function SubDocumenti() {
 
       {/* Upload form overlay */}
       {showForm && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-end">
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-end">
           <div
             className="w-full bg-background rounded-t-3xl border-t border-border px-4 pt-4"
             style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}

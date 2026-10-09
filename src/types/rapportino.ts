@@ -2,6 +2,8 @@
  * Tipi per i Rapportini Digitali (MP4)
  */
 
+import type { FaseLavorataRapportino } from "@/lib/campo/rapportinoFasi";
+
 export type RapportinoStato = "bozza" | "inviato" | "approvato" | "rifiutato";
 
 export interface MaterialeUsato {
@@ -12,6 +14,8 @@ export interface MaterialeUsato {
   scorta_id?: string;
   /** Articolo della commessa dichiarato; non implica scarico di magazzino. */
   order_item_id?: string;
+  /** La fase (order_work_phases.id) su cui è stato usato; assente = materiale generale. */
+  fase_id?: string;
 }
 
 export interface CampoRapportino {
@@ -26,6 +30,8 @@ export interface CampoRapportino {
   descrizione_lavori: string | null;
   materiali_usati: MaterialeUsato[] | null;
   foto_urls: string[] | null;
+  /** Fasi su cui si è lavorato, con avanzamento e le foto di ognuna (vedi lib/campo/rapportinoFasi.ts). */
+  fasi_lavorate?: FaseLavorataRapportino[] | null;
   lavoro_completato: boolean;
   percentuale_avanzamento: number;
   gps_lat: number | null;
