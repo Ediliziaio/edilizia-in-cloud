@@ -12,7 +12,7 @@ Deno.test("Postgres: atomic save, rollback, tenant isolation, edited rows, linke
     await db.exec(base.split("-- 3. prezzari")[0]);
     await db.exec(`create table public.quote_items(id uuid primary key default gen_random_uuid(), computo_voce_id uuid references public.computo_voci_estratte(id) on delete set null);
       grant usage on schema public to service_role; grant select,insert,update,delete on all tables in schema public to service_role;`);
-    await db.exec(await Deno.readTextFile(new URL("../../migrations/20261009091218_computo_estrazione_salvataggio_atomico.sql", import.meta.url)));
+    await db.exec(await Deno.readTextFile(new URL("../../migrations/20261009141631_computo_estrazione_salvataggio_atomico.sql", import.meta.url)));
     await db.exec(`insert into companies values ('${companyId}'); insert into auth.users values ('${uploadId}');
       insert into computo_uploads(id,company_id,uploaded_by,file_name,file_type,file_size,storage_path,extraction_status,raw_extracted_json)
       values ('${uploadId}','${companyId}','${uploadId}','test.pdf','pdf',100,'${companyId}/test.pdf','validating','{"old":true}');
