@@ -11,7 +11,7 @@
  *  - Non espone note_interne, prezzi_unitari serramenti, costo medio finanziamento
  *
  * Body: { token: string }
- * Output: { ok, progetto, pdf_url, azienda }
+ * Output: { ok, firma_token, firma_in_corso, progetto, pdf_url, azienda, consulente }
  */
 import { jsonResponse, errorResponse } from "../_shared/headers.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -145,7 +145,15 @@ Deno.serve(async (req: Request) => {
 
     // La firma si fa col codice (flusso FEA, come gli altri preventivi): se
     // l'azienda ha già mandato la richiesta di firma, la pagina porta lì.
+    //
+    // Questa pagina la apre chiunque abbia il link della stima, non per forza il
+    // firmatario: il token di firma si dà SOLO con la richiesta in attesa del
+    // codice («pending»), perché per aprire la firma serve poi il codice, che arriva
+    // al firmatario. Con il codice già verificato («otp_verified») la pagina riceve
+    // soltanto «firma_in_corso», e il cliente riapre il link che ha ricevuto: da lì
+    // la firma si completa.
     let firmaToken: string | null = null;
+    let firmaInCorso = false;
     if (!prog.firmato_il) {
       const { data: ombra } = await sb
         .from("quotes")
@@ -156,20 +164,22 @@ Deno.serve(async (req: Request) => {
       if (ombra?.id) {
         const { data: richiesta } = await sb
           .from("signature_requests")
-          .select("token")
+          .select("token, status")
           .eq("quote_id", ombra.id)
           .in("status", ["pending", "otp_verified"])
           .gt("expires_at", new Date().toISOString())
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
-        firmaToken = (richiesta?.token as string | undefined) ?? null;
+        if (richiesta?.status === "pending") firmaToken = (richiesta.token as string | undefined) ?? null;
+        else if (richiesta?.status === "otp_verified") firmaInCorso = true;
       }
     }
 
     return jsonResponse({
       ok: true,
       firma_token: firmaToken,
+      firma_in_corso: firmaInCorso,
       progetto: {
         code: prog.code,
         stato: prog.stato,

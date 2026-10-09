@@ -4,7 +4,7 @@
  * URL: /stima/<public_token>
  *
  * Vista cliente del preventivo:
- *  - Vista del PDF in iframe
+ *  - Anteprima del documento (PDF da blob:, pagina HTML da srcdoc isolato)
  *  - Box riepilogo (totale, risparmio, payback)
  *  - CTA "Contatta consulente" (telefono / WhatsApp: l'email del profilo è quella di accesso, non si mostra)
  *  - CTA "Firma con il codice" se l'azienda ha mandato la richiesta di firma
@@ -25,6 +25,7 @@ import {
   Calendar, AlertCircle,
 } from "lucide-react";
 import { inchiostroSuBianco, testoSopra } from "@/lib/pdf/contrastoColori";
+import { AnteprimaDocumento, apriDocumento } from "@/components/fea/AnteprimaDocumento";
 
 interface PublicStima {
   progetto: {
@@ -102,6 +103,8 @@ export default function SerramentiStimaPubblica() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [firmaToken, setFirmaToken] = useState<string | null>(null);
+  // Il cliente ha già inserito il codice ma non ha finito: il token non arriva qui (vedi sr-public-progetto).
+  const [firmaInCorso, setFirmaInCorso] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -129,6 +132,7 @@ export default function SerramentiStimaPubblica() {
       }
       setData(r as PublicStima);
       setFirmaToken(typeof r.firma_token === "string" ? r.firma_token : null);
+      setFirmaInCorso(r.firma_in_corso === true);
     } catch (e) {
       console.error("[stima-pubblica] load", e);
       setError("Impossibile caricare il preventivo. Il link potrebbe essere scaduto.");
@@ -296,18 +300,14 @@ export default function SerramentiStimaPubblica() {
                 Documento completo
               </CardTitle>
               <Button asChild variant="outline" size="sm">
-                <a href={pdf_url} target="_blank" rel="noopener noreferrer" className="gap-1">
+                <a href={pdf_url} onClick={(e) => apriDocumento(e, pdf_url)} target="_blank" rel="noopener noreferrer" className="gap-1">
                   <ExternalLink className="h-3.5 w-3.5" /> Apri in nuova scheda
                 </a>
               </Button>
             </CardHeader>
             <CardContent className="p-0">
-              <iframe
-                src={pdf_url}
-                title="Preventivo"
-                className="w-full border-0"
-                style={{ height: "75vh", minHeight: 600 }}
-              />
+              {/* Mai un iframe puntato allo storage: la CSP (frame-src) non lo ammette. Vedi AnteprimaDocumento. */}
+              <AnteprimaDocumento url={pdf_url} classeIframe="w-full border-0 h-[75vh] min-h-[600px]" />
             </CardContent>
           </Card>
         )}
@@ -377,7 +377,9 @@ export default function SerramentiStimaPubblica() {
               <p className="text-sm text-muted-foreground mb-4">
                 {firmaToken
                   ? "Hai letto il preventivo? Per firmarlo ti mandiamo un codice di verifica via email: bastano due passaggi."
-                  : "Per firmare ti serve il link di firma che ti manda l'azienda via email, con il codice di verifica. Se non l'hai ricevuto, contatta il tuo consulente."}
+                  : firmaInCorso
+                    ? "Hai già inserito il codice di verifica, ma la firma non è ancora completata. Riapri il link che ti abbiamo mandato per email e completala da lì."
+                    : "Per firmare ti serve il link di firma che ti manda l'azienda via email, con il codice di verifica. Se non l'hai ricevuto, contatta il tuo consulente."}
               </p>
               {firmaToken && (
                 <Button

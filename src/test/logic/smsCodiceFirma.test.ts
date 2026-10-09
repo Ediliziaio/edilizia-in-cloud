@@ -108,11 +108,33 @@ describe("SMS col codice", () => {
     await expect(inviaSmsCodiceFirma(admin, dati)).resolves.toMatchObject({ inviato: false });
   });
 
-  it("il testo sta in un solo SMS da 160 caratteri e non ha accenti", () => {
+  // L'alfabeto GSM-7 di base (3GPP TS 23.038): un solo carattere fuori da qui e l'SMS passa a UCS-2, 70 caratteri per segmento.
+  const GSM7 = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+
+  it("il testo sta in un solo SMS da 160 caratteri, tutto nell'alfabeto GSM-7, anche con un nome lungo e accentato", () => {
     const t = testoSmsCodice("482913", "Società Édile Più & Figli S.r.l. di Mario Rossi e Associati");
     expect(t.length).toBeLessThanOrEqual(160);
-    expect(t).not.toMatch(/[^\x20-\x7E]/);
+    expect([...t].filter((c) => !GSM7.includes(c))).toEqual([]);
     expect(t).toContain("482913");
+  });
+
+  it("dice «è il tuo codice», con l'accento", () => {
+    expect(testoSmsCodice("482913", "Renova")).toMatch(/^482913 è il tuo codice per firmare il documento di Renova\./);
+  });
+
+  it("non raddoppia il punto dopo «S.r.l.»", () => {
+    expect(testoSmsCodice("482913", "Renova Solution S.r.l.")).toContain("di Renova Solution S.r.l. Valido 10 minuti.");
+    expect(testoSmsCodice("482913", "Renova")).toContain("di Renova. Valido 10 minuti.");
+    expect(testoSmsCodice("482913", "Società Édile Più & Figli S.r.l. di Mario Rossi e Associati")).not.toContain("..");
+  });
+
+  it("il taglio del nome a 40 caratteri non lascia uno spazio prima del punto", () => {
+    const t = testoSmsCodice("482913", `${"A".repeat(39)} BBBB`);
+    expect(t).toContain(`di ${"A".repeat(39)}. Valido`);
+  });
+
+  it("senza un nome valido si dice «dell'azienda» (non «di l'azienda»)", () => {
+    expect(testoSmsCodice("482913", "***")).toContain("il documento dell'azienda. Valido 10 minuti.");
   });
 });
 

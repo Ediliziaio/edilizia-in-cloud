@@ -8,7 +8,7 @@ vi.mock("https://esm.sh/pdf-lib@1.17.1", async () => await import("pdf-lib"));
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFPage } from "pdf-lib";
 import { DbMinimo } from "../helpers/edgeFinto";
 
 // Caricato per percorso in una variabile: il modulo importa pdf-lib da un indirizzo
@@ -74,6 +74,20 @@ describe("PDF firmato", () => {
     const molte = Array.from({ length: 60 }, (_, i) => `Clausola ${i + 1}: ${"testo di una clausola ".repeat(12)}`);
     const out = await costruisciPdfFirmato(null, { ...dati, clausole: molte });
     expect((await PDFDocument.load(out)).getPageCount()).toBeGreaterThan(1);
+  });
+
+  it("il testo del certificato è scritto con gli accenti (identità, è diversa, non è un PDF)", async () => {
+    const spia = vi.spyOn(PDFPage.prototype, "drawText");
+    try {
+      await costruisciPdfFirmato(null, { ...dati, impronteDiverse: true });
+      const scritto = spia.mock.calls.map((c) => String(c[0])).join("\n");
+      expect(scritto).toContain("VERIFICA DELL'IDENTITÀ");
+      expect(scritto).toContain("è diversa da quella registrata all'invio");
+      expect(scritto).toContain("non è un PDF");
+      expect(scritto).not.toMatch(/identita|\be diversa|non e un/i);
+    } finally {
+      spia.mockRestore();
+    }
   });
 
   it("il codice di verifica ha la forma XXXX-XXXX-XXXX e cambia se cambia l'istante di firma", async () => {

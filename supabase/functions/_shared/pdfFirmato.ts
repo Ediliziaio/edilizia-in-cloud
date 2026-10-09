@@ -147,11 +147,11 @@ function aggiungiCertificato(pdf: PDFDocument, regular: PDFFont, bold: PDFFont, 
   campo("Documento firmato", d.documento);
   campo("Firmatario", `${d.firmatario} (${d.tipoFirmatario === "b2c" ? "privato" : "azienda"}) - ${d.email}`);
   campo("Data e ora della firma", `${d.firmatoIl} (ora italiana)`);
-  campo("Verifica dell'identita", d.telefonoSms ? `Codice monouso a 6 cifre inviato all'indirizzo email del firmatario e via SMS al numero ${d.telefonoSms}, e inserito prima della firma.` : "Codice monouso a 6 cifre inviato all'indirizzo email del firmatario e inserito prima della firma.");
+  campo("Verifica dell'identità", d.telefonoSms ? `Codice monouso a 6 cifre inviato all'indirizzo email del firmatario e via SMS al numero ${d.telefonoSms}, e inserito prima della firma.` : "Codice monouso a 6 cifre inviato all'indirizzo email del firmatario e inserito prima della firma.");
   campo("Provenienza", `Indirizzo IP ${d.ip ?? "non rilevato"}${d.userAgent ? ` - ${d.userAgent.slice(0, 140)}` : ""}`);
   campo("Impronta SHA-256 del documento", d.hashDocumento ?? "non disponibile");
   if (d.impronteDiverse) {
-    testo("Attenzione: l'impronta del file al momento della firma e diversa da quella registrata all'invio.", { size: 9, font: bold, colore: [0.7, 0.1, 0.1], dopo: 5 });
+    testo("Attenzione: l'impronta del file al momento della firma è diversa da quella registrata all'invio.", { size: 9, font: bold, colore: [0.7, 0.1, 0.1], dopo: 5 });
   }
   if (d.tipoFirmatario === "b2c") {
     campo("Diritto di recesso", d.recessoAccettato ? "Informativa letta e accettata dal firmatario." : "Non registrato.");
@@ -175,7 +175,7 @@ function aggiungiCertificato(pdf: PDFDocument, regular: PDFFont, bold: PDFFont, 
   testo(
     d.conTimbro
       ? "Ogni pagina del documento porta il timbro di firma. Il codice di verifica e l'impronta legano questo certificato al documento firmato e all'istante della firma; gli eventi (apertura del link, codice, firma) sono conservati dal sistema in un registro non modificabile."
-      : "Il documento firmato non e un PDF: questo certificato ne riporta l'impronta SHA-256. Il codice di verifica lega il certificato al documento e all'istante della firma; gli eventi (apertura del link, codice, firma) sono conservati dal sistema in un registro non modificabile.",
+      : "Il documento firmato non è un PDF: questo certificato ne riporta l'impronta SHA-256. Il codice di verifica lega il certificato al documento e all'istante della firma; gli eventi (apertura del link, codice, firma) sono conservati dal sistema in un registro non modificabile.",
     { size: 8, colore: [0.4, 0.4, 0.45] },
   );
 }
