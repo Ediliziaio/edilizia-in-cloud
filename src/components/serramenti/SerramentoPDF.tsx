@@ -1114,7 +1114,7 @@ function materialeFromFamily(
 // si sommano; qualunque differenza (anche solo il colore) → riga separata.
 // Importante per il documento tecnico: l'installatore deve vedere ogni "lotto"
 // in modo distinto.
-function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
+export function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
   key: string;
   tipologia: string;
   materiale: string;
@@ -1168,7 +1168,7 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     posa_esclusa: boolean;
     serramento_ids: string[];
   }>();
-  for (const s of serr) {
+  for (const [rowIndex, s] of serr.entries()) {
     const L = s.larghezza_mm ?? null;
     const H = s.altezza_mm ?? null;
     const ci = s.colore_interno ?? "";
@@ -1193,7 +1193,9 @@ function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     // una "senza posa" devono restare separate (prezzo unitario diverso).
     const posaKey = s.posa_esclusa ? "noposa" : "posa";
     const supplierKey = `sup-${s.supplier_catalog_id ?? "-"}__line-${s.supplier_product_line_id ?? "-"}`;
-    const key = `${baseKey}__${supplierKey}__${L ?? "-"}x${H ?? "-"}__${s.ambiente ?? ""}__${ci}__${ce}__${assiKey}__${scelteKey}__${noteVal ?? ""}__${posaKey}`;
+    // Preserve each commercial line: quantities 2 and 1 are not a single line 3.
+    // Equal geometry does not establish that two source lines are interchangeable.
+    const key = `row-${rowIndex}-${s.id}__${baseKey}__${supplierKey}__${L ?? "-"}x${H ?? "-"}__${s.ambiente ?? ""}__${ci}__${ce}__${assiKey}__${scelteKey}__${noteVal ?? ""}__${posaKey}`;
     const existing = map.get(key);
     if (existing) {
       existing.quantita += s.quantita ?? 1;
