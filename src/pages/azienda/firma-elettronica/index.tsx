@@ -30,6 +30,7 @@ import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from '@/comp
 import { RichiediFirmaDialog } from '@/components/fea/RichiediFirmaDialog';
 import type { DocumentoTemplate } from '@/types/fea';
 import { toast } from 'sonner';
+import { apriPdfFirmato } from '@/lib/fea/pdfFirmatoDownload';
 import {
   filterSignatureRequests,
   formatFirmaDate,
@@ -414,12 +415,14 @@ export default function FirmaElettronicaHub() {
   const scaricaPdfFirmato = async (richiestaId: string) => {
     setPdfFirmatoInCorso(richiestaId);
     try {
-      const { data, error } = await supabase.functions.invoke("fea-pdf-firmato", { body: { request_id: richiestaId } });
-      if (error) throw error;
-      if (!data?.url) throw new Error("Link non disponibile");
-      window.open(data.url as string, "_blank", "noopener,noreferrer");
-    } catch {
-      toast.error("Non riesco a preparare il PDF firmato. Riprova tra qualche istante.");
+      await apriPdfFirmato(async () => {
+        const { data, error } = await supabase.functions.invoke("fea-pdf-firmato", { body: { request_id: richiestaId } });
+        if (error) throw new Error("Non riesco a preparare il PDF firmato. Riprova tra qualche istante.");
+        if (typeof data?.url !== "string" || !data.url) throw new Error("Link alla copia firmata non disponibile. Riprova.");
+        return data.url;
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Non riesco a preparare il PDF firmato. Riprova tra qualche istante.");
     } finally {
       setPdfFirmatoInCorso(null);
     }
