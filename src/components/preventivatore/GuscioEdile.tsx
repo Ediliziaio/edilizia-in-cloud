@@ -103,7 +103,15 @@ export function GuscioEdile({
       {/* Testata: codice, stato, cliente, salvataggio. Non è fissa: la barra delle fasi sotto sì. */}
       <div className="border-b bg-white">
         <div className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
-          <Button variant="ghost" size="icon" onClick={testata.onEsci} className="h-10 w-10 shrink-0" aria-label="Esci dal preventivo">
+          {/* Spenta mentre si salva: la freccia aspetta il salvataggio, e ogni clic in più ne metteva un altro in coda. */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={testata.onEsci}
+            disabled={statoSalvataggio === "salvando"}
+            className="h-10 w-10 shrink-0"
+            aria-label="Esci dal preventivo"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="min-w-0 flex-1">

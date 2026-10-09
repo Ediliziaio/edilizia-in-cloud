@@ -53,18 +53,31 @@ describe("segnaSalvato: cosa la chiusura non risalva", () => {
 });
 
 describe("se il salvataggio di chiusura non riesce", () => {
-  it("lo dice con un solo avviso, col motivo vero", async () => {
-    const { unmount } = monta({ id: "p1", dirty: true, form: { cliente_nome: "Anna" } }, vi.fn<Salva>(() => Promise.reject(new Error("Rete assente"))));
+  const descrizioneDelAvviso = () => (vi.mocked(toast.error).mock.calls[0][1] as { description: string }).description;
+
+  it("lo dice con un solo avviso, col motivo in italiano (mai «TypeError: Failed to fetch»)", async () => {
+    const { unmount } = monta({ id: "p1", dirty: true, form: { cliente_nome: "Anna" } }, vi.fn<Salva>(() => Promise.reject(new TypeError("Failed to fetch"))));
     expect(() => unmount()).not.toThrow();
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
-    expect(toast.error).toHaveBeenCalledWith("Modifiche non salvate", expect.objectContaining({ description: expect.stringContaining("Rete assente") }));
+    expect(toast.error).toHaveBeenCalledWith("Modifiche non salvate", expect.objectContaining({ id: "salva-uscendo" }));
+    expect(descrizioneDelAvviso()).toContain("Connessione persa");
+    expect(descrizioneDelAvviso()).toContain("Le modifiche non sono state salvate");
+    expect(descrizioneDelAvviso()).not.toMatch(/Failed to fetch|TypeError/);
   });
 
-  it("anche se l'errore non è un Error l'avviso c'è (e non lancia niente)", async () => {
+  it("un rifiuto per i permessi (anche se l'errore non è un Error) lo dice con la frase dei permessi", async () => {
     const { unmount } = monta({ id: "p1", dirty: true, form: { cliente_nome: "Anna" } }, vi.fn<Salva>(() => Promise.reject({ code: "42501" })));
     expect(() => unmount()).not.toThrow();
     await vi.waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
-    expect(toast.error).toHaveBeenCalledWith("Modifiche non salvate", expect.objectContaining({ description: expect.stringContaining("Errore sconosciuto") }));
+    expect(descrizioneDelAvviso()).toContain("Non hai i permessi");
+  });
+
+  it("un testo tecnico che l'app non conosce non arriva a chi lavora: frase generica", async () => {
+    const { unmount } = monta({ id: "p1", dirty: true, form: { cliente_nome: "Anna" } }, vi.fn<Salva>(() => Promise.reject(new TypeError("Cannot read properties of undefined (reading 'id')"))));
+    unmount();
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(descrizioneDelAvviso()).toContain("Il salvataggio non è andato a buon fine.");
+    expect(descrizioneDelAvviso()).not.toMatch(/Cannot read|undefined/);
   });
 
   it("se riesce, nessun avviso; senza modifiche o senza preventivo creato, né salvataggio né avviso", async () => {

@@ -31,6 +31,7 @@ import type {
 import { toast } from "sonner";
 import { markSurveyConverted } from "@/lib/api/surveys";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { ID_AVVISO_SALVATAGGIO_FALLITO, motivoSalvataggioNonRiuscito } from "@/lib/preventivatore/salvataggioFallito";
 
 // Gli elenchi filtrano per l'azienda aperta. Le regole del database bastano a
 // chi lavora nella sua azienda, ma a un super admin entrato in un'azienda
@@ -143,7 +144,8 @@ export function useUpdateProgetto(id: string | undefined) {
       qc.invalidateQueries({ queryKey: ["sr-progetti"] });
     },
     onSettled: () => rileggiAFineSalvataggi(qc, id),
-    onError: (e) => toast.error("Salvataggio fallito", { description: String(e) }),
+    // Il motivo in italiano (mai «Error: Failed to fetch»); lo stesso id dell'avviso della freccia «Esci», che lo sostituisce con «Esci comunque».
+    onError: (e) => toast.error("Salvataggio fallito", { id: ID_AVVISO_SALVATAGGIO_FALLITO, description: motivoSalvataggioNonRiuscito(e) }),
   });
 }
 

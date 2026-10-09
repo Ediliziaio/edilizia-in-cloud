@@ -28,6 +28,13 @@ const { stato } = vi.hoisted(() => ({
   stato: {
     prefisso: "idr",
     aggiornamentoFallisce: false,
+    /** L'errore del salvataggio che fallisce: di default quello vero di un browser senza rete. */
+    messaggioErrore: "Failed to fetch",
+    /** Se c'è, la lettura del contatto del CRM aspetta che si risolva: il contatto arriva quando decide la prova. */
+    attesaContatto: null as null | Promise<void>,
+    /** Se c'è, la scrittura del preventivo aspetta che si risolva: un salvataggio lento, che la prova tiene aperto. */
+    attesaAggiornamento: null as null | Promise<void>,
+    rilasciaAggiornamento: null as null | (() => void),
     aggiornamenti: [] as Array<{ tabella: string; patch: Record<string, unknown> }>,
   },
 }));
@@ -78,9 +85,14 @@ vi.mock("@/integrations/supabase/client", () => {
       get: (_t, nome) => {
         if (nome === "then") {
           return (ok: (v: unknown) => unknown, ko: (e: unknown) => unknown) =>
-            Promise.resolve(
+            (tabella === "marketing_contacts" && stato.attesaContatto
+              ? stato.attesaContatto
+              : aggiornamento && tabella === `${stato.prefisso}_progetti` && stato.attesaAggiornamento
+                ? stato.attesaAggiornamento
+                : Promise.resolve()
+            ).then(() =>
               aggiornamento && stato.aggiornamentoFallisce && tabella === `${stato.prefisso}_progetti`
-                ? { data: null, error: { message: "Rete assente" }, count: 0 }
+                ? { data: null as null, error: { message: stato.messaggioErrore }, count: 0 }
                 : { data: dati(tabella, singolo, perId), error: null as null, count: 0 },
             ).then(ok, ko);
         }
@@ -158,12 +170,19 @@ const aggiornamentiDelProgetto = (m: (typeof MODULI)[number]) => aggiornamenti()
 const piede = () => screen.getAllByRole("status").map((s) => s.textContent ?? "").join(" | ");
 
 beforeEach(() => {
+  stato.attesaContatto = null;
+  stato.attesaAggiornamento = null;
+  stato.messaggioErrore = "Failed to fetch";
   stato.aggiornamentoFallisce = false;
   aggiornamenti().length = 0;
   localStorage.clear();
   vi.mocked(toast.error).mockClear();
 });
 afterEach(() => {
+  // Un salvataggio tenuto aperto dalla prova si libera sempre: la coda dei salvataggi di un progetto è dello stesso
+  // processo, e uno rimasto appeso (prova fallita a metà) bloccherebbe tutte le prove dopo.
+  stato.rilasciaAggiornamento?.();
+  stato.rilasciaAggiornamento = null;
   vi.useRealTimers();
   // Smontare un wizard con modifiche in sospeso lancia il salvataggio di chiusura: che non fallisca fuori dal suo test.
   stato.aggiornamentoFallisce = false;
@@ -179,11 +198,20 @@ describe.each(MODULI)("$slug: dal contatto del CRM", (m) => {
     expect((screen.getByPlaceholderText("+39 333 1234567") as HTMLInputElement).value).toBe("347 000 1111");
   });
 
-  it("chi ha già scritto qualcosa non se lo vede cambiare dal contatto", async () => {
+  it("chi ha già scritto qualcosa non se lo vede cambiare dal contatto, che arriva dopo: riempie solo ciò che era vuoto", async () => {
+    // Il contatto si fa attendere: nel frattempo si scrive il cognome. Se il contatto arrivasse prima, la prova non direbbe niente.
+    let rilascia!: () => void;
+    stato.attesaContatto = new Promise<void>((ok) => { rilascia = ok; });
     await monta(m, "/azienda/x/nuovo?contact_id=cnt-1");
-    fireEvent.change(screen.getByPlaceholderText("Rossi"), { target: { value: "Bianchi" } });
+    const nome = screen.getByPlaceholderText("Mario") as HTMLInputElement;
+    const cognome = screen.getByPlaceholderText("Rossi") as HTMLInputElement;
+    expect(nome.value).toBe("");
+    fireEvent.change(cognome, { target: { value: "Bianchi" } });
+    expect(cognome.value).toBe("Bianchi");
+    rilascia(); // adesso arriva il contatto (nome Giulia, cognome Neri)
     await waitFor(() => expect((screen.getByPlaceholderText("Mario") as HTMLInputElement).value).toBe("Giulia"), { timeout: 8000 });
     expect((screen.getByPlaceholderText("Rossi") as HTMLInputElement).value).toBe("Bianchi");
+    expect((screen.getByPlaceholderText("mario.rossi@email.it") as HTMLInputElement).value).toBe("giulia.neri@example.it");
   });
 });
 
@@ -198,6 +226,12 @@ describe.each(MODULI)("$slug: salvataggio automatico", (m) => {
     expect(piede()).toMatch(/Salvataggio non riuscito/);
     expect(piede()).not.toMatch(/si salvano da sole/);
     expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1);
+    const chiamata = vi.mocked(toast.error).mock.calls[0];
+    expect(chiamata[0]).toBe("Salvataggio automatico non riuscito");
+    const descrizione = (chiamata[1] as { description: string }).description;
+    expect(descrizione).toContain("Connessione persa");
+    expect(descrizione).toContain("riprovo da solo");
+    expect(descrizione).not.toMatch(/Failed to fetch|TypeError/);
   });
 });
 
@@ -216,14 +250,77 @@ describe.each(MODULI)("$slug: uscita dal preventivo", (m) => {
     expect(scritturePer(m, "Anna")).toHaveLength(1);
   });
 
-  it("se quel salvataggio non riesce, dalla freccia non si esce (le modifiche non si perdono) e si dice perché", async () => {
+  /** L'avviso «Salvataggio fallito» della freccia: il testo e l'azione «Esci comunque». */
+  const avvisoDellaFreccia = () => {
+    const chiamata = vi.mocked(toast.error).mock.calls.find((c) => c[0] === "Salvataggio fallito");
+    return chiamata?.[1] as { description: string; action?: { label: string; onClick: () => void } } | undefined;
+  };
+
+  it("se quel salvataggio non riesce, dalla freccia non si esce (le modifiche non si perdono) e si dice perché, in italiano", async () => {
     const { nome } = await apriSulCliente(m);
     stato.aggiornamentoFallisce = true;
     fireEvent.change(nome, { target: { value: "Anna" } });
     fireEvent.click(screen.getByRole("button", { name: "Esci dal preventivo" }));
-    await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Salvataggio fallito", expect.objectContaining({ description: "Rete assente" })), { timeout: 5000 });
+    await waitFor(() => expect(avvisoDellaFreccia()).toBeTruthy(), { timeout: 5000 });
+    const avviso = avvisoDellaFreccia();
+    expect(avviso?.description).toContain("Connessione persa");
+    expect(avviso?.description).toContain("le modifiche non sono perse");
+    expect(avviso?.description).not.toMatch(/Failed to fetch|TypeError/);
     expect(screen.queryByText("Elenco preventivi")).toBeNull();
     expect((screen.getByPlaceholderText("Mario") as HTMLInputElement).value).toBe("Anna");
+  });
+
+  it("l'avviso offre «Esci comunque»: esce, la chiusura riprova e, se non riesce ancora, lo dice (mai un'uscita in silenzio)", async () => {
+    const { nome } = await apriSulCliente(m);
+    stato.aggiornamentoFallisce = true;
+    fireEvent.change(nome, { target: { value: "Anna" } });
+    fireEvent.click(screen.getByRole("button", { name: "Esci dal preventivo" }));
+    await waitFor(() => expect(avvisoDellaFreccia()?.action).toBeTruthy(), { timeout: 5000 });
+    expect(avvisoDellaFreccia()?.action?.label).toBe("Esci comunque");
+    expect(screen.queryByText("Elenco preventivi")).toBeNull();
+    act(() => { avvisoDellaFreccia()?.action?.onClick(); });
+    await waitFor(() => expect(screen.getByText("Elenco preventivi")).toBeTruthy(), { timeout: 5000 });
+    // il salvataggio di chiusura riprova, fallisce di nuovo e lo dice: «Modifiche non salvate»
+    await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Modifiche non salvate", expect.objectContaining({ description: expect.stringContaining("Connessione persa") })), { timeout: 5000 });
+  });
+
+  it("se il salvataggio è rifiutato SEMPRE (permesso tolto, account bloccato) la freccia non esce ma «Esci comunque» sì, col motivo giusto", async () => {
+    const { nome } = await apriSulCliente(m);
+    stato.messaggioErrore = 'new row violates row-level security policy for table "progetti"';
+    stato.aggiornamentoFallisce = true;
+    fireEvent.change(nome, { target: { value: "Anna" } });
+    fireEvent.click(screen.getByRole("button", { name: "Esci dal preventivo" }));
+    await waitFor(() => expect(avvisoDellaFreccia()?.action).toBeTruthy(), { timeout: 5000 });
+    expect(avvisoDellaFreccia()?.description).toContain("Non hai i permessi");
+    expect(avvisoDellaFreccia()?.description).not.toMatch(/row-level security|policy/);
+    expect(screen.queryByText("Elenco preventivi")).toBeNull();
+    act(() => { avvisoDellaFreccia()?.action?.onClick(); });
+    await waitFor(() => expect(screen.getByText("Elenco preventivi")).toBeTruthy(), { timeout: 5000 });
+  });
+
+  it("mentre la freccia sta salvando è spenta: un altro clic non mette un secondo salvataggio in coda", async () => {
+    const { nome } = await apriSulCliente(m);
+    stato.attesaAggiornamento = new Promise<void>((ok) => { stato.rilasciaAggiornamento = ok; }); // il salvataggio si fa attendere
+    fireEvent.change(nome, { target: { value: "Anna" } });
+    const freccia = screen.getByRole("button", { name: "Esci dal preventivo" });
+    fireEvent.click(freccia);
+    await waitFor(() => expect((freccia as HTMLButtonElement).disabled).toBe(true), { timeout: 5000 });
+    fireEvent.click(freccia);
+    fireEvent.click(freccia);
+    stato.rilasciaAggiornamento?.();
+    await waitFor(() => expect(screen.getByText("Elenco preventivi")).toBeTruthy(), { timeout: 5000 });
+    await dopoUnAttimo();
+    expect(scritturePer(m, "Anna")).toHaveLength(1);
+  });
+
+  it("se il salvataggio dalla freccia non riesce, la freccia si riaccende (non resta spenta)", async () => {
+    const { nome } = await apriSulCliente(m);
+    stato.aggiornamentoFallisce = true;
+    fireEvent.change(nome, { target: { value: "Anna" } });
+    const freccia = screen.getByRole("button", { name: "Esci dal preventivo" }) as HTMLButtonElement;
+    fireEvent.click(freccia);
+    await waitFor(() => expect(avvisoDellaFreccia()).toBeTruthy(), { timeout: 5000 });
+    await waitFor(() => expect(freccia.disabled).toBe(false), { timeout: 5000 });
   });
 
   it("se si scrive ancora mentre la freccia sta salvando, la modifica più recente si salva alla chiusura", async () => {
@@ -252,7 +349,11 @@ describe.each(MODULI)("$slug: uscita dal preventivo", (m) => {
     await waitFor(() => expect(vi.mocked(toast.error)).toHaveBeenCalled(), { timeout: 5000 });
     await dopoUnAttimo();
     expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Modifiche non salvate", expect.objectContaining({ description: expect.stringContaining("Rete assente") }));
+    const chiamata = vi.mocked(toast.error).mock.calls[0];
+    expect(chiamata[0]).toBe("Modifiche non salvate");
+    const descrizione = (chiamata[1] as { description: string }).description;
+    expect(descrizione).toContain("Connessione persa");
+    expect(descrizione).not.toMatch(/Failed to fetch|TypeError/);
   });
 
   it("senza modifiche, uscire non scrive niente", async () => {

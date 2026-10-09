@@ -92,6 +92,7 @@ vi.mock("@/components/serramenti/AiSerramentiDraftLauncher", () => ({ AiSerramen
 vi.mock("@/components/serramenti/AnteprimaPdfLive", () => ({ AnteprimaPdfLive: () => <p>PDF vero segnaposto</p> }));
 
 import SerramentiWizard from "@/pages/azienda/serramenti/SerramentiWizard";
+import { RISERVA_BARRA_INVIO_TELEFONO } from "@/components/preventivatore";
 
 const monta = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><SerramentiWizard /></QueryClientProvider>);
 const anteprima = () => screen.getByRole("complementary", { name: "Anteprima del preventivo", hidden: true });
@@ -214,6 +215,20 @@ describe("Serramenti nel guscio comune", () => {
     const tendina = await screen.findByRole("dialog");
     expect(within(tendina).getByText("Portafinestra")).toBeTruthy();
     expect(within(tendina).getByRole("button", { name: /Apri il PDF/ })).toBeTruthy();
+  });
+
+  it("al passo PDF da telefono la pagina riserva lo spazio per la barra di invio fissa; negli altri passi no", async () => {
+    const { container } = monta();
+    const nav = await screen.findByRole("navigation", { name: "Fasi del preventivo" });
+    const radice = container.firstElementChild as HTMLElement;
+    expect(radice.className).not.toContain("max-md:pb-");
+    fireEvent.click(within(nav).getByRole("button", { name: "Consulenza e PDF" }));
+    await screen.findByText("contenuto PDF");
+    // senza, l'ultimo riquadro del passo (la commessa) finiva sotto la barra: coperto e irraggiungibile (misurato a 375 px)
+    for (const classe of RISERVA_BARRA_INVIO_TELEFONO.split(" ")) expect(radice.className).toContain(classe);
+    fireEvent.click(within(nav).getByRole("button", { name: "Economia" }));
+    await screen.findByText("contenuto Economia");
+    expect(radice.className).not.toContain("max-md:pb-");
   });
 
   it("preventivo nuovo: le altre fasi aspettano, e quello che scrivi nel Contatto compare subito a destra", async () => {

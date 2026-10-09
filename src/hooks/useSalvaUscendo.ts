@@ -16,6 +16,7 @@
  */
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { motivoSalvataggioNonRiuscito } from "@/lib/preventivatore/salvataggioFallito";
 
 interface Opzioni<T extends object> {
   /** L'id del preventivo; senza, il preventivo non è ancora stato creato e non si salva da qui. */
@@ -56,7 +57,7 @@ export function useSalvaUscendo<T extends object>({ id, dirty, form, salva }: Op
     void invia({ ...modulo, id: idAllaFine }).catch((errore: unknown) => {
       toast.error("Modifiche non salvate", {
         id: ID_AVVISO,
-        description: `${errore instanceof Error ? errore.message : "Errore sconosciuto"}. Riapri il preventivo e controlla l'ultima modifica.`,
+        description: `${motivoSalvataggioNonRiuscito(errore)} Le modifiche non sono state salvate: riapri il preventivo e controlla l'ultima.`,
       });
     });
   }, []);

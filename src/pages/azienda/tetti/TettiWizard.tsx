@@ -42,6 +42,7 @@ import type { TetComputoVoce, TetProgetto } from "@/types/tetti";
 import { GuscioEdile, type StatoSalvataggio } from "@/components/preventivatore";
 import { anteprimaComputo } from "@/lib/preventivatore/anteprimaComputo";
 import { RITENTA_SALVATAGGIO_DOPO_MS } from "@/lib/moduli/salvataggioProgetto";
+import { avvisaSalvataggioFallito, motivoSalvataggioNonRiuscito, type OpzioniAvviso } from "@/lib/preventivatore/salvataggioFallito";
 import { leggiClienteDelContatto, riempiClienteVuoto } from "@/lib/preventivatore/clienteDalContatto";
 import { righeSenzaPrezzo } from "@/lib/preventivatore/anteprima";
 import * as calcoliTet from "@/lib/tetti/calcoli";
@@ -263,7 +264,7 @@ export default function TettiWizard() {
           if (!avvisoErroreDatoRef.current) {
             avvisoErroreDatoRef.current = true;
             toast.error("Salvataggio automatico non riuscito", {
-              description: `${e instanceof Error ? e.message : "Errore sconosciuto"}. Le modifiche restano qui e riprovo da solo.`,
+              description: `${motivoSalvataggioNonRiuscito(e)} Le modifiche restano qui e riprovo da solo.`,
             });
           }
           ritentaTimer = window.setTimeout(() => setTentativoDi((n) => n + 1), RITENTA_SALVATAGGIO_DOPO_MS);
@@ -293,7 +294,7 @@ export default function TettiWizard() {
   // «Esci» salva ORA (esci) e poi lo segna qui, così la chiusura della pagina non risalva la stessa cosa.
   const salvaUscendo = useSalvaUscendo({ id, dirty, form, salva: upsertMut.mutateAsync });
 
-  const saveProgetto = async (): Promise<boolean> => {
+  const saveProgetto = async (opzioni?: OpzioniAvviso): Promise<boolean> => {
     if (!id) return false;
     try {
       await upsertMut.mutateAsync({ ...form, id });
@@ -303,9 +304,7 @@ export default function TettiWizard() {
       avvisoErroreDatoRef.current = false;
       return true;
     } catch (e) {
-      toast.error("Salvataggio fallito", {
-        description: e instanceof Error ? e.message : "Errore sconosciuto",
-      });
+      avvisaSalvataggioFallito(e, opzioni);
       return false;
     }
   };
@@ -342,7 +341,7 @@ export default function TettiWizard() {
         navigate(`/azienda/tetti/${created.id}/modifica`, { replace: true });
       } catch (e) {
         toast.error("Creazione progetto fallita", {
-          description: e instanceof Error ? e.message : "Errore sconosciuto",
+          description: motivoSalvataggioNonRiuscito(e),
         });
       } finally {
         setCreating(false);
@@ -375,15 +374,17 @@ export default function TettiWizard() {
   };
 
   // Dalla freccia: un preventivo già creato salva ORA ciò che non è ancora salvato e si esce solo se il salvataggio
-  // riesce (altrimenti si resta qui, con l'errore a video e le modifiche al sicuro). Un preventivo nuovo con dati
-  // chiede se tenerli come bozza.
+  // riesce (altrimenti si resta qui, con il motivo e le modifiche al sicuro, e l'avviso offre «Esci comunque»: se il
+  // salvataggio fosse rifiutato SEMPRE, un account bloccato o un permesso tolto, dal preventivo non si uscirebbe più).
+  // Un preventivo nuovo con dati chiede se tenerlo come bozza.
   const esci = async () => {
     if (isNew && dirty) { setExitDialogOpen(true); return; }
+    const vaiAllElenco = () => navigate("/azienda/marketing/preventivi");
     if (!isNew && (dirty || upsertMut.isPending)) {
-      if (!(await saveProgetto())) return;
+      if (!(await saveProgetto({ esciComunque: vaiAllElenco }))) return;
       salvaUscendo.segnaSalvato(form); // salvato: la chiusura della pagina non lo risalva
     }
-    navigate("/azienda/marketing/preventivi");
+    vaiAllElenco();
   };
 
   // ─── Stati di caricamento/errore ─────────────────────────────────────────
@@ -481,7 +482,7 @@ export default function TettiWizard() {
                   await upsertMut.mutateAsync(isNew ? await createInput() : { ...form, id });
                   toast.success("Bozza salvata — la ritrovi nella lista");
                 } catch (e) {
-                  toast.error("Salvataggio bozza fallito", { description: e instanceof Error ? e.message : undefined });
+                  toast.error("Salvataggio bozza fallito", { description: motivoSalvataggioNonRiuscito(e) });
                   return;
                 }
                 navigate("/azienda/marketing/preventivi");

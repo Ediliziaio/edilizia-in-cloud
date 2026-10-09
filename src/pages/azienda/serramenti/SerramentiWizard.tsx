@@ -73,9 +73,10 @@ import { isSrQuoteModelId, makeSrQuoteModelSnapshot, readSrQuoteModelSnapshot, s
 import { findSerramentiTemplateModule } from "@/lib/moduli-vendita/serramentiTemplateModules";
 import {
   AnteprimaMobile, AnteprimaVeloce, BarraFasi, BottoneTotale, CorpoPreventivatore, EsigenzeCliente, IndirizzoDeiLavori, PannelloAnteprima,
-  PiedePreventivatore, StatoDelSalvataggio, STICKY_ALTO, useAnteprimaNascosta, type StatoSalvataggio,
+  PiedePreventivatore, RISERVA_BARRA_INVIO_TELEFONO, StatoDelSalvataggio, STICKY_ALTO, useAnteprimaNascosta, type StatoSalvataggio,
 } from "@/components/preventivatore";
 import { useIndirizzoLavori } from "@/lib/preventivatore/useIndirizzoLavori";
+import { avvisaSalvataggioFallito, type OpzioniAvviso } from "@/lib/preventivatore/salvataggioFallito";
 import { anteprimaSerramenti, ESIGENZE_NEL_PDF_SERRAMENTI } from "@/lib/serramenti/anteprima";
 import { esigenzeDelPreventivo, leggiEsigenze } from "@/lib/preventivatore/esigenze";
 import { ESIGENZE_DI_SERIE_SERRAMENTI } from "@/lib/preventivatore/esigenzeDiSerie";
@@ -568,15 +569,30 @@ export default function SerramentiWizard() {
     void previewPDF({ detail: detailSulloSchermo ?? detail, template: pdfTemplate ?? null, company: pdfCompany ?? null, useFreshTemplate: true });
   };
 
-  const saveProgetto = async (): Promise<boolean> => {
+  const saveProgetto = async (opzioni?: OpzioniAvviso): Promise<boolean> => {
     if (!id) return false;
     try {
       await salvaModifiche();
       return true;
-    } catch {
-      // Il messaggio d'errore lo mostra la mutation (useUpdateProgetto).
+    } catch (e) {
+      // L'avviso «Salvataggio fallito» lo dà già la mutation (useUpdateProgetto). Dalla freccia «Esci» lo si rifà con in più
+      // «Esci comunque» (stesso id: sostituisce il primo): le modifiche restano a video e nella copia di recupero di questo dispositivo.
+      if (opzioni?.esciComunque) avvisaSalvataggioFallito(e, { ...opzioni, conCopiaDiRecupero: true });
       return false;
     }
+  };
+
+  // Dalla freccia: un preventivo già creato salva ORA ciò che resta da salvare e si esce solo se il salvataggio riesce (altrimenti
+  // si resta qui, con il motivo e le modifiche al sicuro, e l'avviso offre «Esci comunque»: se il salvataggio fosse rifiutato SEMPRE,
+  // un account bloccato o un permesso tolto, dal preventivo non si uscirebbe più). Un preventivo nuovo con dati chiede se tenerlo
+  // come bozza. La rete di sicurezza per le altre uscite (menu, «indietro» del browser) è salvaPrimaDiUscireRef.
+  const esci = async () => {
+    if (isNew && dirty) { setExitDialogOpen(true); return; }
+    const vaiAllElenco = () => navigate("/azienda/marketing/preventivi");
+    if (!isNew && (dirty || pendingWrites > 0)) {
+      if (!(await saveProgetto({ esciComunque: vaiAllElenco }))) return;
+    }
+    vaiAllElenco();
   };
 
   // ─── Anteprima live a destra ─────────────────────────────────────────────
@@ -747,8 +763,9 @@ export default function SerramentiWizard() {
   }
 
   return (
-    // -m: il guscio va a bordo pagina (annulla il padding del contenitore che scorre).
-    <div className="-m-3 min-h-full bg-slate-50 md:-m-6">
+    // -m: il guscio va a bordo pagina (annulla il padding del contenitore che scorre). Al passo PDF da telefono la barra
+    // di invio è fissa: sotto il contenuto serve lo spazio per non coprirne la fine.
+    <div className={cn("-m-3 min-h-full bg-slate-50 md:-m-6", currentStep === "pdf" && id && detail && RISERVA_BARRA_INVIO_TELEFONO)}>
       {modelDefinition && <div className="mx-auto max-w-6xl px-4 pt-4"><div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm">
         <p className="font-semibold">{modelDefinition.title}</p>
         <p className="mt-1 text-muted-foreground">{isNew ? "Il PDF userà il modello personalizzato dall'azienda, se c'è, altrimenti quello standard. Prodotti e prezzi arrivano dal tuo listino." : "Il modello PDF è conservato in questo preventivo. Le modifiche successive ai modelli non ne sostituiscono testi e impostazioni."}</p>
@@ -825,7 +842,15 @@ export default function SerramentiWizard() {
       {/* Testata: codice, stato, cliente, salvataggio e azioni. Non è fissa: la barra delle fasi sotto sì. */}
       <div className="border-b bg-white">
         <div className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
-          <Button variant="ghost" size="icon" onClick={() => { if (isNew && dirty) { setExitDialogOpen(true); return; } navigate("/azienda/marketing/preventivi"); }} className="h-10 w-10 shrink-0">
+          {/* Spenta mentre si salva: la freccia aspetta il salvataggio, e ogni clic in più ne metteva un altro in coda. */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => { void esci(); }}
+            disabled={statoSalvataggio === "salvando"}
+            className="h-10 w-10 shrink-0"
+            aria-label="Esci dal preventivo"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
