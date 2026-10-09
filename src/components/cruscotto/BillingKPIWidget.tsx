@@ -19,7 +19,7 @@ import {
 export function BillingKPIWidget() {
   const { isNative } = useBillingMode();
   const companyId = useEffectiveCompanyId();
-  const { data: kpi, isLoading } = useDashboardBillingKPI(companyId, isNative);
+  const { data: kpi, isLoading, isError, refetch } = useDashboardBillingKPI(companyId, isNative);
   const navigate = useNavigate();
 
   if (!isNative) return null;
@@ -42,31 +42,30 @@ export function BillingKPIWidget() {
     );
   }
 
+  if (isError) return <div role="alert" className="text-sm text-destructive">Statistiche di fatturazione non disponibili. <Button variant="link" onClick={() => void refetch()}>Riprova</Button></div>;
   if (!kpi) return null;
 
   const cards = [
     {
-      label: "Fatturato Mese",
+      label: "Fatturato Mese · netto IVA",
       value: formatCurrencyCompact(kpi.fatturato_mese),
       sub: `${kpi.fatture_emesse_mese} fatture emesse`,
       icon: FileText,
-      onClick: () => navigate("/azienda/fatturazione/documenti"),
+      onClick: () => navigate("/azienda/documenti/report"),
     },
     {
       label: "Incassato Mese",
       value: formatCurrencyCompact(kpi.incassato_mese),
-      sub: kpi.fatturato_mese > 0
-        ? `${Math.round((kpi.incassato_mese / kpi.fatturato_mese) * 100)}% del fatturato`
-        : "—",
+      sub: "Pagamenti registrati nel mese · IVA inclusa",
       icon: Wallet,
-      onClick: () => navigate("/azienda/fatturazione/movimenti"),
+      onClick: () => navigate("/azienda/documenti?tab=incassi"),
     },
     {
       label: "Da Incassare",
       value: formatCurrencyCompact(kpi.da_incassare_totale),
       sub: `Totale residuo aperto`,
       icon: Clock,
-      onClick: () => navigate("/azienda/fatturazione/movimenti"),
+      onClick: () => navigate("/azienda/documenti?tab=incassi"),
     },
     {
       label: "Scaduto",
@@ -76,7 +75,7 @@ export function BillingKPIWidget() {
         : "Nessuna scaduta",
       icon: AlertTriangle,
       alert: kpi.scaduto > 0,
-      onClick: () => navigate("/azienda/fatturazione/movimenti"),
+      onClick: () => navigate("/azienda/documenti?tab=incassi"),
     },
   ];
 
@@ -92,12 +91,14 @@ export function BillingKPIWidget() {
           variant="ghost"
           size="sm"
           className="text-xs h-7 gap-1"
-          onClick={() => navigate("/azienda/fatturazione/documenti")}
+          onClick={() => navigate("/azienda/documenti")}
         >
           Vai alla fatturazione
           <ChevronRight className="w-3 h-3" />
         </Button>
       </div>
+
+      {kpi.fatture_importate_incassi_da_verificare > 0 && <p className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">Il fatturato include lo storico importato. Per {kpi.fatture_importate_incassi_da_verificare} fatture esterne gli incassi vanno verificati: non sono inclusi automaticamente negli insoluti.</p>}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
@@ -154,7 +155,7 @@ export function BillingKPIWidget() {
             variant="ghost"
             size="sm"
             className="shrink-0 text-xs h-7 gap-1"
-            onClick={() => navigate("/azienda/fatturazione/movimenti")}
+            onClick={() => navigate("/azienda/documenti?tab=incassi")}
           >
             Gestisci
             <ChevronRight className="w-3 h-3" />
@@ -175,7 +176,7 @@ export function BillingKPIWidget() {
             size="sm"
             className="shrink-0 text-xs h-7 gap-1"
             onClick={() =>
-              navigate("/azienda/fatturazione/documenti?stato=bozza")
+              navigate("/azienda/documenti?stato=bozza")
             }
           >
             Emetti

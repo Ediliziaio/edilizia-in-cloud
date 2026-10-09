@@ -79,6 +79,8 @@ import { indirizzoCantiereDaTesto, testoIndirizzoCantiere, indirizzoCantiereDaBo
 import { Skeleton } from "@/components/ui/skeleton";
 import { useComeSiPagaDiPartenza } from "@/hooks/useComeSiPagaDiPartenza";
 import { rateDaModello, ricalcolaRatePercentuali, type ModelloPagamento } from "@/lib/orders/modelliPagamento";
+import { datiLavoroDaEmessa, riconciliaEmessa } from "@/lib/fatturazione/collegamentiImportate";
+import { isNotaCredito } from "@/lib/fatturazione/registroVendite";
 
 /** Le rate con cui si apre il modulo: quelle del modello scelto dall'azienda per le commesse nuove (importi a zero finché non c'è il totale), o le due di sempre. */
 const rateDiPartenza = (modello: ModelloPagamento | null): Installment[] =>
@@ -95,6 +97,19 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
   // ── Prefill da preventivo (?quote_id): additivo, attivo solo se presente ──
   const [searchParams] = useSearchParams();
+  const invoiceId = searchParams.get("invoice_id");
+  const invoiceSource = useQuery({
+    queryKey: ["commessa-da-emessa",effectiveCompany?.id,invoiceId], enabled: !!invoiceId && !!effectiveCompany?.id, retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("invoices").select("id, invoice_number, document_type, issue_date, order_id, invoice_lines(description, sort_order)")
+        .eq("id",invoiceId!).eq("company_id",effectiveCompany!.id).is("deleted_at",null).not("external_provider","is",null).single();
+      if (error) throw error;
+      const match = await riconciliaEmessa(effectiveCompany!.id,invoiceId!);
+      if (match.status !== "ok" || !match.customer_id) throw new Error(match.motivo || "Crea o collega prima il cliente dal dettaglio della fattura.");
+      return { ...data, customerId: match.customer_id };
+    },
+  });
+  const invoiceAppliedRef = useRef<string | null>(null);
   // Preventivo da importare: parte da ?quote_id ma è scegliibile anche in pagina
   // tramite il selettore ImportFromQuotePicker.
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(
@@ -600,6 +615,17 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     if (getValues("customer_id")) return;
     setValue("customer_id", trovato.id, { shouldValidate: true });
   }, [customerIdDaUrl, customers, getValues, setValue]);
+  useEffect(() => {
+    const f = invoiceSource.data;
+    const key = `${effectiveCompany?.id}:${invoiceId}`;
+    if (!f || invoiceAppliedRef.current === key || f.order_id || isNotaCredito(f.document_type)) return;
+    invoiceAppliedRef.current = key;
+    const prefill = datiLavoroDaEmessa(f);
+    if (!getValues("customer_id")) setValue("customer_id",f.customerId,{ shouldValidate:true });
+    if (!getValues("description")?.trim()) setValue("description",prefill.description);
+    if (!getValues("internal_notes")?.trim()) setValue("internal_notes",prefill.internal_notes);
+    // Non copia importo, incassi, date lavori, avanzamento o articoli da ordinare.
+  }, [invoiceSource.data,effectiveCompany?.id,invoiceId,getValues,setValue]);
 
   // Clienti appena creati dal dialog inline. La query `useCompanyCustomers` viene
   // invalidata/rifetchata dopo la creazione; se quel refetch dovesse per qualsiasi
@@ -635,6 +661,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         .from("profiles")
         .select("address, city, postal_code, province, site_address, site_city, site_postal_code, site_province, site_lat, site_lng")
         .eq("id", customerId)
+        .eq("company_id",effectiveCompany!.id)
         .maybeSingle();
       if (error) return null;
       return data as {
@@ -653,8 +680,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         .filter(Boolean)
         .join(", ");
     const site = line(a.site_address, a.site_postal_code, a.site_city, a.site_province);
-    return site || line(a.address, a.postal_code, a.city, a.province);
-  }, [selectedCustomerAddr]);
+    return site || (invoiceId ? "" : line(a.address, a.postal_code, a.city, a.province));
+  }, [selectedCustomerAddr,invoiceId]);
   useEffect(() => {
     if (!customerId) return;
     // Cambio cliente → riparte l'auto-compilazione (azzera il "toccato a mano").
@@ -746,6 +773,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       if (!effectiveCompany?.id) throw new Error("Company not found");
 
       const values = getValues();
+      if (invoiceId) {
+        if (!invoiceSource.data || isNotaCredito(invoiceSource.data.document_type)) throw new Error("Questa fattura non può generare una nuova commessa.");
+        const fresh = await riconciliaEmessa(effectiveCompany.id,invoiceId);
+        if (fresh.status !== "ok" || fresh.order_id || fresh.customer_id !== values.customer_id) throw new Error("Verifica il cliente e la commessa già collegata prima di creare un nuovo lavoro.");
+        if (!cantiereAddress.trim()) throw new Error("Conferma l’indirizzo effettivo del cantiere: non viene dedotto dalla fattura.");
+      }
       const totalVal = parseDecimalIT(values.total_amount);
       const vatValue = parseDecimalIT(values.vat_rate?.trim() ? values.vat_rate : "22");
       const fCost = parseDecimalIT(values.financing_cost || "");
@@ -958,6 +991,16 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       return result;
     },
     onSuccess: async (order) => {
+      if (invoiceId && effectiveCompany?.id) {
+        try {
+          const linked = await riconciliaEmessa(effectiveCompany.id,invoiceId,true,order.id);
+          if (linked.status !== "ok") throw new Error(linked.motivo);
+          queryClient.invalidateQueries({queryKey:["fatture-emesse-importate",effectiveCompany.id]});
+          queryClient.invalidateQueries({queryKey:["collegamenti-emessa",effectiveCompany.id,invoiceId]});
+        } catch {
+          toast.error("Commessa creata, collegamento fattura da completare", { description:"Non creare un'altra commessa. Apri il dettaglio della fattura e collega quella appena salvata.", duration:15000 });
+        }
+      }
       if (!("fasiDaVerificare" in order && order.fasiDaVerificare)) clearDraft();
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["margin"] });
@@ -1131,6 +1174,11 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
   // v8.6.84 — Wall di blocco creazione ordini esteso a TUTTI i piani limitati
   // (non solo Scopri). Esempio: render-only / render-serramenti con max_orders=3.
+  if (invoiceId && !createdOrderId) {
+    if (invoiceSource.isPending) return <Skeleton className="h-48" />;
+    if (invoiceSource.isError) return <Alert variant="destructive"><AlertDescription>{invoiceSource.error instanceof Error ? invoiceSource.error.message : "Fattura non disponibile."} <Button variant="link" onClick={() => navigate("/azienda/documenti/emesse-importate")}>Torna alle fatture</Button></AlertDescription></Alert>;
+    if (invoiceSource.data?.order_id || isNotaCredito(invoiceSource.data?.document_type)) return <Alert><AlertDescription>Il documento è già collegato oppure è una nota di credito: non genera un nuovo cantiere. <Button variant="link" onClick={() => navigate(invoiceSource.data?.order_id ? `/azienda/ordini/${invoiceSource.data.order_id}` : "/azienda/documenti/emesse-importate")}>Apri collegamento</Button></AlertDescription></Alert>;
+  }
   if (!canCreateOrder && !createdOrderId) {
     return (
       <div className="max-w-lg mx-auto mt-12 px-4">
@@ -1180,6 +1228,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
   return (
     <div className="space-y-6">
+      {invoiceId && <Alert><AlertDescription>Lavoro da fattura importata {invoiceSource.data?.invoice_number}. Conferma indirizzo cantiere e importo del contratto: il documento può essere un acconto. Nessun incasso o avanzamento viene presunto.</AlertDescription></Alert>}
       {/* Header */}
       <QuotePageHeader
         icon={<ClipboardList className="h-5 w-5" />}

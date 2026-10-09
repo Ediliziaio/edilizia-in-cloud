@@ -12,6 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { raggruppaPerMese, type EmessaImportata } from "@/lib/fatturazione/emesseImportate";
 import { EmessaImportataDettaglio } from "@/components/fatturazione/EmessaImportataDettaglio";
+import { RecuperaClientiImportati } from "@/components/fatturazione/RecuperaClientiImportati";
+import { importoConSegno, isNotaCredito, isDocumentoEmesso, isTipoVendita, tutteLePagine } from "@/lib/fatturazione/registroVendite";
 
 const dataBreve = (s: string | null) => {
   if (!s) return "—";
@@ -33,26 +35,26 @@ export default function FattureEmesseImportate() {
     queryKey: ["fatture-emesse-importate", companyId, "dettagli-elenco"],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      return await tutteLePagine((from,to) => supabase
         .from("invoices")
-        .select("id, invoice_number, document_type, status, client_company_name, client_fiscal_code, client_vat_number, client_address, client_city, client_zip, issue_date, due_date, subtotal, tax_amount, total, paid_amount, external_xml_url, invoice_lines(description, sort_order)")
+        .select("id, invoice_number, document_type, status, client_id, order_id, client_company_name, client_fiscal_code, client_vat_number, client_address, client_city, client_zip, issue_date, due_date, subtotal, tax_amount, total, paid_amount, external_xml_url, invoice_lines(description, sort_order)")
         .eq("company_id", companyId)
         .is("deleted_at", null)
         .not("external_provider", "is", null)
         .order("issue_date", { ascending: false })
+        .order("id", { ascending: false })
         // Solo l'anteprima della prima riga; tutte le righe si caricano nel dettaglio.
         .order("sort_order", { ascending: true, referencedTable: "invoice_lines" })
         .limit(1, { referencedTable: "invoice_lines" })
-        .limit(5000);
-      if (error) throw error;
-      return (data ?? []) as EmessaImportata[];
+        .range(from,to)) as EmessaImportata[];
     },
   });
 
   const filtrate = useMemo(() => {
+    const emesse = data.filter(f => isDocumentoEmesso(f.status) && isTipoVendita(f.document_type));
     const q = cerca.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter((f) => [f.invoice_number, f.client_company_name, f.client_fiscal_code, f.client_vat_number, f.client_address, f.client_city, f.client_zip].filter(Boolean).join(" ").toLowerCase().includes(q));
+    if (!q) return emesse;
+    return emesse.filter((f) => [f.invoice_number, f.client_company_name, f.client_fiscal_code, f.client_vat_number, f.client_address, f.client_city, f.client_zip].filter(Boolean).join(" ").toLowerCase().includes(q));
   }, [data, cerca]);
   const mesi = useMemo(() => raggruppaPerMese(filtrate), [filtrate]);
   const totale = useMemo(() => mesi.reduce((s, m) => s + m.totale, 0), [mesi]);
@@ -84,8 +86,12 @@ export default function FattureEmesseImportate() {
       ) : (
         <>
           <p className="text-sm text-muted-foreground">
-            {filtrate.length} fatture · totale <span className="font-semibold tabular-nums text-foreground">{formatCurrency(totale)}</span>
+            {filtrate.length} documenti · totale al netto delle note di credito <span className="font-semibold tabular-nums text-foreground">{formatCurrency(totale)}</span>
           </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
+            <p className="text-sm text-muted-foreground">{filtrate.filter(f => f.order_id).length} collegati a commesse · {filtrate.filter(f => !f.order_id).length} da verificare. Incassi storici non certificati dall’XML.</p>
+            {companyId && <RecuperaClientiImportati key={companyId} companyId={companyId} invoiceIds={filtrate.map(f => f.id)} />}
+          </div>
           {mesi.map((m, i) => (
             <details key={m.chiave} open={i < 3 || !!cerca} className="rounded-xl border bg-card">
               <summary className="flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-1 rounded-xl px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -117,7 +123,7 @@ export default function FattureEmesseImportate() {
                       <TableRow key={f.id}>
                         <TableCell className="whitespace-nowrap font-mono text-xs font-semibold text-orange-600">
                           <button type="button" onClick={() => apriDettaglio(f.id)} className="rounded underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Apri fattura ${f.invoice_number}`}>
-                            {f.invoice_number}{f.document_type === "TD04" || f.document_type === "credit_note" ? " · NC" : ""}
+                            {f.invoice_number}{isNotaCredito(f.document_type) ? " · NC" : ""}
                           </button>
                         </TableCell>
                         <TableCell className="min-w-56 max-w-80 text-xs">
@@ -140,9 +146,9 @@ export default function FattureEmesseImportate() {
                           <div>{dataBreve(f.issue_date)}</div>
                           <div className="mt-1 text-muted-foreground">{f.due_date ? `Scad. ${dataBreve(f.due_date)}` : "Scadenza non archiviata"}</div>
                         </TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{formatCurrency(Number(f.subtotal ?? 0))}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{formatCurrency(Number(f.tax_amount ?? 0))}</TableCell>
-                        <TableCell className="text-right text-xs font-medium tabular-nums">{formatCurrency(Number(f.total ?? 0))}</TableCell>
+                        <TableCell className="text-right text-xs tabular-nums">{formatCurrency(importoConSegno(f.document_type, f.subtotal))}</TableCell>
+                        <TableCell className="text-right text-xs tabular-nums">{formatCurrency(importoConSegno(f.document_type, f.tax_amount))}</TableCell>
+                        <TableCell className="text-right text-xs font-medium tabular-nums">{formatCurrency(importoConSegno(f.document_type, f.total))}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums">{Number(f.paid_amount ?? 0) > 0 ? formatCurrency(Number(f.paid_amount)) : "—"}</TableCell>
                         <TableCell className="whitespace-nowrap">
                           {f.external_xml_url ? <Button variant="outline" size="sm" onClick={() => apriDettaglio(f.id, true)} aria-label={`Visualizza XML della fattura ${f.invoice_number}`}><FileCode className="mr-1.5 h-4 w-4" />XML</Button> :

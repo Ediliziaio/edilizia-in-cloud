@@ -21,6 +21,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { LettoreXmlMinimo } from "../_shared/xmlMinimo.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { ruoliNellAzienda } from "../_shared/amministraAzienda.ts";
+import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
 // Il lettore e' condiviso e testato: quello che gira qui e' esattamente il
 // codice verificato dai test, non una copia parallela.
 import { leggiFatturaPA, normalizzaPiva } from "../_shared/fatturapaReader.ts";
@@ -64,6 +66,15 @@ Deno.serve(async (req) => {
     // (super_admin, azienda primaria, impersonation attiva).
     if (!(await canAccessCompany(supabase, user.id, company_id))) {
       return json({ error: "Accesso negato a questa azienda" }, 403);
+    }
+    const ruoliQui = await ruoliNellAzienda(supabase,user.id,company_id);
+    const amministratore = ruoliQui.includes("company_admin") || (ruoliQui.includes("super_admin") && isSuperAdminEmailAllowed(user.email));
+    if (!amministratore) {
+      const { data: permessi } = await supabase.from("staff_permissions").select("can_view_billing")
+        .eq("company_id",company_id).eq("user_id",user.id).maybeSingle();
+      if (!ruoliQui.some(r => ["company_staff","salesperson"].includes(r)) || !permessi?.can_view_billing) {
+        return json({ error:"Non hai il permesso di importare fatture per questa azienda." },403);
+      }
     }
 
     // Il contenuto si ricava dal file, non si crede al testo dichiarato dal browser.
@@ -145,41 +156,8 @@ Deno.serve(async (req) => {
       }, 409);
     }
 
-    // Cliente: si riusa il contatto esistente, altrimenti si crea. Best-effort:
-    // se non riesce la fattura entra comunque, con i dati anagrafici in chiaro.
-    let clientId: string | null = null;
-    const chiave = fattura.cliente.piva || fattura.cliente.cf;
-    if (chiave) {
-      try {
-        let q = supabase.from("marketing_contacts").select("id")
-          .eq("company_id", company_id).is("deleted_at", null).limit(1);
-        q = fattura.cliente.piva
-          ? q.eq("vat_number", fattura.cliente.piva)
-          : q.eq("fiscal_code", fattura.cliente.cf!);
-        const { data: trovato } = await q.maybeSingle();
-        if (trovato?.id) {
-          clientId = trovato.id;
-        } else {
-          const { data: creato } = await supabase.from("marketing_contacts").insert({
-            company_id,
-            first_name: fattura.cliente.nome,
-            company_name: fattura.cliente.nome,
-            vat_number: fattura.cliente.piva,
-            fiscal_code: fattura.cliente.cf,
-            address: fattura.cliente.indirizzo,
-            city: fattura.cliente.citta,
-            postal_code: fattura.cliente.cap,
-            country: fattura.cliente.paese,
-            contact_type: "company",
-            source: "fatturazione",
-            tags: ["fatturazione"],
-            unsubscribed: false,
-            score: 0,
-          }).select("id").single();
-          clientId = creato?.id ?? null;
-        }
-      } catch { /* best-effort: l'anagrafica non deve bloccare la fattura */ }
-    }
+    // Lo storico non genera nuovi lead/automazioni contact_created. La RPC
+    // recupera la rubrica fiscale e riusa solo contatti univoci già esistenti.
 
     // Se il file non si conserva, la nuova fattura non viene registrata solo a metà.
     const riferimentoOriginale = await archiviaOriginaleEmessa(supabase, company_id, originale);
@@ -190,7 +168,7 @@ Deno.serve(async (req) => {
       // rimetterebbe in gioco un invio allo SDI gia' avvenuto.
       status: "issued",
       invoice_number: fattura.numero,
-      client_id: clientId,
+      client_id: null,
       client_company_name: fattura.cliente.nome,
       client_vat_number: fattura.cliente.piva,
       client_fiscal_code: fattura.cliente.cf,
@@ -236,7 +214,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ success: true, id: nuova.id, numero: fattura.numero, totale: fattura.totale });
+    const { data: cliente, error: clienteError } = await supabase.rpc("riconcilia_cliente_emessa_importata", {
+      p_company_id: company_id, p_invoice_id: nuova.id, p_apply: true,
+    });
+    return json({ success: true, id: nuova.id, numero: fattura.numero, totale: fattura.totale,
+      anagrafica_id: cliente?.anagrafica_id ?? null,
+      cliente_operativo_mancante: cliente?.cliente_operativo_mancante ?? true,
+      ...(clienteError || cliente?.status !== "ok" ? { warning: "Fattura importata. Anagrafica cliente da verificare dal dettaglio: " + (cliente?.motivo || "recupero non riuscito") } : {}),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Errore interno";
     console.error("[importa-fattura-attiva-xml]", message);

@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { CollegamentiEmessaImportata } from "./CollegamentiEmessaImportata";
+import { isNotaCredito } from "@/lib/fatturazione/registroVendite";
 
 const dataIt = (s: string | null) => s ? s.slice(0, 10).split("-").reverse().join("/") : "—";
 const campo = (v: string | null | undefined) => v?.trim() || "Non disponibile nei dati archiviati";
@@ -45,7 +47,7 @@ export function EmessaImportataDettaglio({ id, companyId, onClose, apriXml = fal
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
     <DialogContent className="max-w-5xl">
       <DialogHeader>
-        <DialogTitle>{fattura?.document_type === "credit_note" || fattura?.document_type === "TD04" ? "Nota di credito" : "Fattura"} {fattura?.invoice_number ?? "importata"}</DialogTitle>
+        <DialogTitle>{isNotaCredito(fattura?.document_type) ? "Nota di credito" : "Fattura"} {fattura?.invoice_number ?? "importata"}</DialogTitle>
         <DialogDescription>Documento emesso dal gestionale esterno. Consultazione in sola lettura: non modifica fatturato, incassi o invii allo SDI.</DialogDescription>
       </DialogHeader>
       {detail.isPending ? <Skeleton className="h-48" /> : detail.isError ?
@@ -70,6 +72,7 @@ export function EmessaImportataDettaglio({ id, companyId, onClose, apriXml = fal
               <Campo label="Email" value={fattura.client_email} />
             </dl>
           </section>
+          <CollegamentiEmessaImportata companyId={companyId} fattura={fattura} />
           <section aria-label="Righe della fattura">
             <h2 className="mb-3 font-semibold">Descrizioni e righe · {righe.length}</h2>
             {righe.length === 0 ? <p className="text-sm text-muted-foreground">Il gestionale ha importato solo il riepilogo, senza dettaglio righe. Consulta l’XML originale, se disponibile.</p> :

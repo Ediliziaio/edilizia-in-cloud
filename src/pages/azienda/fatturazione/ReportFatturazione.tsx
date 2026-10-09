@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import { formatCurrency } from "@/lib/formatters";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { caricaRegistroVendite } from "@/lib/fatturazione/caricaRegistroVendite";
+import { documentoNelRegistro, nomeIntestatario, chiaveClienteVendite, isNotaCredito } from "@/lib/fatturazione/registroVendite";
+import { scaricaFileOriginale } from "@/lib/fatturazione/originaleEmessaImportata";
 import { escapeCsvCell } from "@/lib/csvExport";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +13,6 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { format, parseISO, subMonths } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
-import type { DocumentoFiscale } from "@/types/fatturazione";
 
 /**
  * Fetches ALL invoices for reporting by paginating through results.
@@ -21,42 +22,17 @@ function useAllDocumentiForReport() {
   const companyId = useEffectiveCompanyId();
 
   return useQuery({
-    queryKey: ["documenti-report-all", companyId],
+    queryKey: ["documenti-report-all", companyId, "native-e-importate"],
     enabled: !!companyId,
     staleTime: 60_000,
-    queryFn: async () => {
-      const PAGE_SIZE = 1000;
-      let allDocs: Record<string, unknown>[] = [];
-      let page = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-
-        const { data, error } = await supabase
-          .from("documenti_fiscali" as never)
-          .select("numero, data_emissione, tipo, stato, cliente_snapshot, imponibile_totale, iva_totale, totale_documento, importo_pagato")
-          .eq("company_id", companyId!)
-          .is("deleted_at", null)
-          .order("data_emissione", { ascending: false })
-          .range(from, to);
-
-        if (error) throw error;
-
-        const rows = (data as unknown as Record<string, unknown>[]) ?? [];
-        allDocs = allDocs.concat(rows);
-        hasMore = rows.length === PAGE_SIZE;
-        page++;
-      }
-
-      return allDocs as unknown as Pick<DocumentoFiscale, "numero" | "data_emissione" | "tipo" | "stato" | "cliente_snapshot" | "imponibile_totale" | "iva_totale" | "totale_documento" | "importo_pagato">[];
-    },
+    queryFn: () => caricaRegistroVendite(companyId!),
   });
 }
 
 export default function ReportFatturazione() {
-  const { data: docs = [], isLoading } = useAllDocumentiForReport();
+  const { data: docs = [], isLoading, isError, refetch } = useAllDocumentiForReport();
+  const registrate = useMemo(() => docs.filter(documentoNelRegistro), [docs]);
+  const importate = registrate.filter(d => d.origine === "importata").length;
 
   // Monthly revenue last 12 months
   const monthlyData = useMemo(() => {
@@ -68,11 +44,10 @@ export default function ReportFatturazione() {
     }
 
     docs.forEach((doc) => {
-      if (!["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"].includes(doc.tipo)) return;
-      if (["bozza", "annullata"].includes(doc.stato)) return;
+      if (!documentoNelRegistro(doc)) return;
       const key = doc.data_emissione?.slice(0, 7);
       if (key && months[key] !== undefined) {
-        months[key].fatturato += doc.totale_documento;
+        months[key].fatturato += doc.imponibile_totale;
         months[key].incassato += doc.importo_pagato;
       }
     });
@@ -85,17 +60,18 @@ export default function ReportFatturazione() {
 
   // Top 10 clients
   const topClients = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map = new Map<string, { name: string; value: number }>();
     docs.forEach((doc) => {
-      if (!["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"].includes(doc.tipo)) return;
-      if (["bozza", "annullata"].includes(doc.stato)) return;
-      const name = doc.cliente_snapshot?.ragione_sociale || "Sconosciuto";
-      map[name] = (map[name] ?? 0) + doc.totale_documento;
+      if (!documentoNelRegistro(doc)) return;
+      const key = chiaveClienteVendite(doc);
+      const entry = map.get(key) ?? { name: nomeIntestatario(doc.cliente_snapshot), value: 0 };
+      entry.value += doc.imponibile_totale;
+      map.set(key, entry);
     });
-    return Object.entries(map)
-      .sort(([, a], [, b]) => b - a)
+    return [...map.values()]
+      .sort((a, b) => b.value - a.value)
       .slice(0, 10)
-      .map(([name, value]) => ({ name: name.length > 20 ? name.slice(0, 20) + "…" : name, fatturato: value }));
+      .map(({ name, value }) => ({ name: name.length > 20 ? name.slice(0, 20) + "…" : name, fatturato: value }));
   }, [docs]);
 
   // IVA summary
@@ -103,51 +79,46 @@ export default function ReportFatturazione() {
     let debito = 0;
     let credito = 0;
     docs.forEach((doc) => {
-      if (["bozza", "annullata"].includes(doc.stato)) return;
-      if (["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria"].includes(doc.tipo)) debito += doc.iva_totale;
-      if (doc.tipo === "nota_credito") credito += Math.abs(doc.iva_totale);
+      if (!documentoNelRegistro(doc)) return;
+      if (isNotaCredito(doc.tipo)) credito += Math.abs(doc.iva_totale);
+      else debito += doc.iva_totale;
     });
     return { debito, credito, saldo: debito - credito };
   }, [docs]);
 
   const handleExportCSV = () => {
-    const header = "Numero;Data;Tipo;Cliente;P.IVA;Imponibile;IVA;Totale\n";
+    const header = "Numero;Data;Tipo;Cliente;P.IVA;CF;Imponibile;IVA;Totale;Origine\n";
     // Numero all'italiana: separatore di colonna ";" e virgola decimale, come
     // se lo aspetta Excel in italiano (col punto leggeva 1234.56 come 123456).
     const num = (v: number) => v.toFixed(2).replace(".", ",");
     const rows = docs
       // Le annullate restano fuori, come nel registro a schermo: prima finivano
       // nel file mandato al commercialista e gonfiavano l'IVA a debito.
-      .filter((d) => ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "nota_credito"].includes(d.tipo)
-        && !["bozza", "annullata"].includes(d.stato))
+      .filter(documentoNelRegistro)
       .map((d) => {
         // La nota di credito storna: va col segno meno, come nel registro.
-        const segno = d.tipo === "nota_credito" ? -1 : 1;
         return [
           d.numero, d.data_emissione, d.tipo,
-          d.cliente_snapshot?.ragione_sociale ?? "", d.cliente_snapshot?.partita_iva ?? "",
-          num(segno * Math.abs(d.imponibile_totale)), num(segno * Math.abs(d.iva_totale)),
-          num(segno * Math.abs(d.totale_documento)),
+          nomeIntestatario(d.cliente_snapshot), d.cliente_snapshot?.partita_iva ?? "", d.cliente_snapshot?.codice_fiscale ?? "",
+          num(d.imponibile_totale), num(d.iva_totale), num(d.totale_documento), d.origine,
         ].map((v) => escapeCsvCell(v as string | number, ";")).join(";");
       })
       .join("\n");
-    const blob = new Blob([header + rows], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "registro-iva.csv"; a.click();
-    URL.revokeObjectURL(url);
+    scaricaFileOriginale(new Blob(["\uFEFF", header, rows], { type: "text/csv;charset=utf-8" }), "registro-iva.csv");
     toast.success("CSV esportato");
   };
 
   if (isLoading) {
     return <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
+  if (isError) return <div role="alert" className="p-6">Non riesco a caricare il registro completo. Nessun totale parziale viene mostrato. <Button variant="outline" onClick={() => void refetch()}>Riprova</Button></div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Report Fatturazione</h1>
-          <p className="text-muted-foreground">Analisi finanziaria e export dati ({docs.length} documenti).</p>
+          <p className="text-muted-foreground">{registrate.length} documenti emessi, di cui {importate} importati. Bozze escluse e note di credito sottratte.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleExportCSV}>
@@ -155,6 +126,7 @@ export default function ReportFatturazione() {
           </Button>
         </div>
       </div>
+      <p className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">Fatturato al netto dell’IVA. Gli incassi registrati sono raggruppati per mese di emissione della fattura, non per data del pagamento.{importate > 0 && " L’XML non certifica gli incassi: lo storico dei pagamenti importati va verificato separatamente."}</p>
 
       {/* Fatturato mensile */}
       <Card>
@@ -167,14 +139,14 @@ export default function ReportFatturazione() {
               <YAxis className="text-xs" />
               <Tooltip formatter={(v: number) => formatCurrency(v)} />
               <Legend />
-              <Area type="monotone" dataKey="fatturato" name="Fatturato" fill="hsl(var(--primary) / 0.2)" stroke="hsl(var(--primary))" />
-              <Area type="monotone" dataKey="incassato" name="Incassato" fill="hsl(142 76% 36% / 0.2)" stroke="hsl(142, 76%, 36%)" />
+              <Area type="monotone" dataKey="fatturato" name="Fatturato (netto IVA)" fill="hsl(var(--primary) / 0.2)" stroke="hsl(var(--primary))" />
+              <Area type="monotone" dataKey="incassato" name="Incassi registrati (IVA inclusa)" fill="hsl(142 76% 36% / 0.2)" stroke="hsl(142, 76%, 36%)" />
             </AreaChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid gap-6 md:grid-cols-2">
         {/* Top clients */}
         <Card>
           <CardHeader><CardTitle className="text-sm">Top 10 Clienti per Fatturato</CardTitle></CardHeader>
@@ -193,7 +165,7 @@ export default function ReportFatturazione() {
 
         {/* IVA summary */}
         <Card>
-          <CardHeader><CardTitle className="text-sm">Liquidazione IVA</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm">Riepilogo IVA vendite · tutto lo storico</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
               <div className="flex justify-between text-sm">

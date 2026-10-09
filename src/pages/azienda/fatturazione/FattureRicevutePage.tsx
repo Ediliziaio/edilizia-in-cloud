@@ -76,6 +76,7 @@ import {
   type FileScartato,
 } from "@/lib/fatturazione/bulkXmlImport";
 import { bytesToBase64 } from "../../../../supabase/functions/_shared/base64";
+import { invalidaStatisticheFatturazione } from "@/lib/fatturazione/invalidaStatistiche";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -552,7 +553,7 @@ export default function FattureRicevutePage() {
         } else if (resp.data?.duplicate) {
           esiti.push({ nome: f.nome, stato: "duplicata", direzione });
         } else if (resp.data?.success) {
-          esiti.push({ nome: f.nome, stato: "importata", direzione });
+          esiti.push({ nome: f.nome, stato: "importata", direzione, ...(resp.data.warning ? {avviso:String(resp.data.warning)} : {}) });
         } else {
           esiti.push({ nome: f.nome, stato: "errore", motivo: resp.data?.error ?? "Fattura rifiutata dal sistema.", direzione });
         }
@@ -564,6 +565,8 @@ export default function FattureRicevutePage() {
 
     setProgress(null);
     setReport({ esiti, scartati });
+    invalidaStatisticheFatturazione(queryClient,companyId);
+    queryClient.invalidateQueries({ queryKey:["anagrafiche-native",companyId] });
     queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
     queryClient.invalidateQueries({ queryKey: ["invoices"] });
     queryClient.invalidateQueries({ queryKey: ["fatture-emesse-importate", companyId] });
@@ -572,7 +575,7 @@ export default function FattureRicevutePage() {
 
     const r = riepilogoEsiti(esiti);
     const testo = descriviRiepilogo(r);
-    if (r.errori > 0 || scartati.length > 0) {
+    if (r.errori > 0 || scartati.length > 0 || esiti.some(e => e.avviso)) {
       toast.warning("Import completato con eccezioni", { description: testo });
     } else {
       toast.success("Import completato", { description: testo });
@@ -811,14 +814,14 @@ export default function FattureRicevutePage() {
               )}
             </div>
 
-            {(report.esiti.some((e) => e.stato === "errore") || report.scartati.length > 0) && (
+            {(report.esiti.some((e) => e.stato === "errore" || e.avviso) || report.scartati.length > 0) && (
               <div className="max-h-64 space-y-1 overflow-y-auto rounded-md border bg-muted/30 p-2 text-xs">
                 {report.esiti
-                  .filter((e) => e.stato === "errore")
+                  .filter((e) => e.stato === "errore" || e.avviso)
                   .map((e) => (
                     <div key={`err-${e.nome}`} className="flex gap-2">
                       <span className="shrink-0 font-medium text-destructive">{e.nome}</span>
-                      <span className="text-muted-foreground">{e.motivo}</span>
+                      <span className="text-muted-foreground">{e.motivo || e.avviso}</span>
                     </div>
                   ))}
                 {report.scartati.map((f) => (

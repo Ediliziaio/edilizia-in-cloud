@@ -40,6 +40,9 @@ beforeEach(() => {
   vi.stubGlobal("Blob", NodeBlob);
   runtime.db = new DbMinimo(); runtime.accesso = true; runtime.autenticato = true; handler = null;
   runtime.db.tabelle.companies = [{ id: "az-1", vat_number: "12345678901", name: "Impresa demo" }];
+  runtime.db.tabelle.profiles = [{ id: "utente-1", company_id: "az-1", is_blocked: false }];
+  runtime.db.tabelle.user_roles = [{ user_id: "utente-1", role: "company_admin" }];
+  runtime.db.rpcs.riconcilia_cliente_emessa_importata = () => ({ status:"ok",anagrafica_id:"anag-1",customer_id:null,cliente_operativo_mancante:true });
   runtime.db.tabelle.marketing_contacts = [{ id: "cliente-1", company_id: "az-1", fiscal_code: letta.cliente.cf, deleted_at: null }];
   carica = vi.fn(async () => ({ error: null })); rimuovi = vi.fn(async () => ({ error: null }));
   Object.assign(runtime.db, { auth: { getUser: async () => ({ data: { user: runtime.autenticato ? { id: "utente-1" } : null } }) },
@@ -67,6 +70,15 @@ function esistente(extra: Riga = {}) {
 }
 
 describe("Originale emessa: confronto prima di collegarlo allo storico", () => {
+  it("un cliente o dipendente senza accesso fatturazione non può importare emesse",async()=>{
+    runtime.db.tabelle.user_roles=[{user_id:"utente-1",role:"customer"}];
+    expect((await importa()).status).toBe(403);expect(runtime.db.scritture).toHaveLength(0);expect(carica).not.toHaveBeenCalled();
+  });
+  it("una nuova emessa recupera l'anagrafica fiscale senza creare lead CRM",async()=>{
+    const result=await importa();expect(result.status).toBe(200);expect(result.data.anagrafica_id).toBe("anag-1");
+    expect(runtime.db.rpcChiamate).toContainEqual({nome:"riconcilia_cliente_emessa_importata",args:{p_company_id:"az-1",p_invoice_id:"invoices-1",p_apply:true}});
+    expect(runtime.db.scritture.some(s=>s.tabella==="marketing_contacts"&&s.tipo==="insert")).toBe(false);
+  });
   it("riconosce il documento, usando i totali dichiarati anche quando diversi dalla somma righe", () => {
     expect(letta.totale).toBe(122.02);
     expect(originaleCorrispondeAllaFattura(archiviata(), letta, letta.righe.map(r => ({ ...r })))).toBe(true);

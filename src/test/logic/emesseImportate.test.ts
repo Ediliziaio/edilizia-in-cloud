@@ -36,4 +36,11 @@ describe("fatture emesse importate", () => {
     const righe = [f("FPR 1/26", "2026-01-01", 1), f("FPR 2/26", "2026-01-02", 1), f("FPR 5/26", "2026-01-03", 1)];
     expect(numeriMancanti(righe, 6)).toEqual([3, 4, 6]);
   });
+  it("non raddoppia il segno delle NC negative ed esclude documenti non emessi", () => {
+    const [m] = raggruppaPerMese([f("1", "2026-01-01", 1000), f("2", "2026-01-01", -400, { document_type: "credit_note", paid_amount: -20 }), f("3", "2026-01-01", 999, { status: "draft" }), f("4", "2026-01-01", 999, { status: "cancelled" })]);
+    expect(m.totale).toBe(600); expect(m.incassato).toBe(-20); expect(m.fatture).toHaveLength(2);
+  });
+  it("un mese non valido non genera etichette undefined", () => {
+    expect(raggruppaPerMese([f("1", "2026-99-01", 100)])[0].etichetta).toBe("Senza data");
+  });
 });

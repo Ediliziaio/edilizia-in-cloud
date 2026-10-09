@@ -62,10 +62,16 @@ interface CreateCustomerDialogProps {
     address?: string;
     fiscalCode?: string;
     vatNumber?: string;
+    isBusiness?: boolean;
+    city?: string;
+    postalCode?: string;
+    country?: string;
   };
   /** Default per il toggle "crea account portale" (es. dal preventivo: OFF → solo
    *  anagrafica, niente email di benvenuto a sorpresa). Se assente usa companyPortalEnabled. */
   defaultCreatePortalAccount?: boolean;
+  /** Recupero storico: niente accesso portale/email, identità verificata e riuso sul server. */
+  importedInvoiceId?: string;
 }
 
 export function CreateCustomerDialog({
@@ -74,6 +80,7 @@ export function CreateCustomerDialog({
   onCustomerCreated,
   initialValues,
   defaultCreatePortalAccount,
+  importedInvoiceId,
 }: CreateCustomerDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
@@ -96,6 +103,9 @@ export function CreateCustomerDialog({
       base.billing.address_line = initialValues.address;
       base.billing.formatted_address = initialValues.address;
     }
+    base.billing.address_city = initialValues?.city ?? "";
+    base.billing.address_postal_code = initialValues?.postalCode ?? "";
+    base.billing.address_country = initialValues?.country ?? "IT";
     return base;
   });
   const [fiscalCode, setFiscalCode] = useState(initialValues?.fiscalCode ?? "");
@@ -108,7 +118,7 @@ export function CreateCustomerDialog({
   // li gestisce da sempre — chiede la ragione sociale, rende nome e cognome
   // facoltativi e ci mette dentro il referente: mancava solo chi glieli
   // passasse.
-  const [isBusiness, setIsBusiness] = useState(false);
+  const [isBusiness, setIsBusiness] = useState(initialValues?.isBusiness ?? false);
   const [customerDocuments, setCustomerDocuments] = useState<FileDocumentiCliente>({});
   const [createPortalAccount, setCreatePortalAccount] = useState(defaultCreatePortalAccount ?? companyPortalEnabled);
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
@@ -189,7 +199,7 @@ export function CreateCustomerDialog({
     (firstName.trim() !== "" || lastName.trim() !== "" || email.trim() !== "" ||
      phone.trim() !== "" || hasAnyAddress(custAddresses.billing) || fiscalCode.trim() !== "" || vatNumber.trim() !== "" ||
      hasAnyAddress(custAddresses.site) || notes.trim() !== "" || selectedDocumentCount > 0 || isBusiness);
-  const shouldRequireEmail = companyPortalEnabled && createPortalAccount;
+  const shouldRequireEmail = !importedInvoiceId && companyPortalEnabled && createPortalAccount;
 
   const handleClose = () => {
     resetForm();
@@ -220,7 +230,7 @@ export function CreateCustomerDialog({
       toast.error("Campo obbligatorio", { description: "Inserisci il nome completo del cliente." });
       return;
     }
-    const shouldCreatePortal = companyPortalEnabled && createPortalAccount;
+    const shouldCreatePortal = !importedInvoiceId && companyPortalEnabled && createPortalAccount;
     if (shouldCreatePortal && !email.trim()) {
       toast.error("Campo obbligatorio", { description: "Inserisci l'email per creare l'accesso al portale." });
       return;
@@ -257,6 +267,7 @@ export function CreateCustomerDialog({
           vat_number: vatNumber.trim() || null,
           notes: notes.trim() || null,
           company_id: effectiveCompany.id,
+          ...(importedInvoiceId ? { imported_invoice_id: importedInvoiceId } : {}),
           // Indirizzo di fatturazione (via/città/CAP/provincia + coordinate)
           ...billingFields,
           // Indirizzo cantiere (site_*)
@@ -344,8 +355,8 @@ export function CreateCustomerDialog({
           : `${firstName.trim()} ${lastName.trim()}`;
         onCustomerCreated(newCustomerId, customerName, optimisticCustomer);
         handleClose();
-        toast.success("Cliente creato", {
-          description: `${customerName} (solo anagrafica) è stato selezionato per la commessa.`,
+        toast.success(data.reused ? "Cliente esistente riutilizzato" : "Cliente creato", {
+          description: `${customerName} (solo anagrafica) è disponibile per i lavori. Nessuna email inviata.`,
         });
         return;
       }
@@ -574,12 +585,11 @@ export function CreateCustomerDialog({
 
               {/* Toggle area privata */}
               <div className="rounded-lg border p-3 space-y-3 bg-muted/30">
-                {!companyPortalEnabled ? (
+                {!companyPortalEnabled || importedInvoiceId ? (
                   <Alert className="py-2">
                     <ShieldOff className="h-4 w-4" />
                     <AlertDescription className="text-xs">
-                      Area privata disattivata dalle impostazioni azienda. Il cliente verrà creato
-                      solo in anagrafica e non è possibile creare l'accesso al portale.
+                      {importedInvoiceId ? "Recupero dallo storico: cliente operativo senza accesso al portale e senza email di benvenuto." : "Area privata disattivata dalle impostazioni azienda. Il cliente verrà creato solo in anagrafica e non è possibile creare l'accesso al portale."}
                     </AlertDescription>
                   </Alert>
                 ) : (

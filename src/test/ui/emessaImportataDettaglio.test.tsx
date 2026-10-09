@@ -11,6 +11,9 @@ const state = vi.hoisted(() => ({
   xml: vi.fn(), download: vi.fn(), error: null as Error | null,
 }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "az-1" }));
+// I collegamenti operativi hanno test propri; qui verifichiamo il documento fiscale in sola lettura.
+vi.mock("@/components/fatturazione/CollegamentiEmessaImportata", () => ({ CollegamentiEmessaImportata: (): null => null }));
+vi.mock("@/components/fatturazione/RecuperaClientiImportati", () => ({ RecuperaClientiImportati: (): null => null }));
 vi.mock("@/lib/fatturazione/originaleEmessaImportata", () => ({
   leggiOriginaleEmessa: (...args: unknown[]) => state.xml(...args),
   scaricaFileOriginale: (...args: unknown[]) => state.download(...args),
@@ -18,7 +21,7 @@ vi.mock("@/lib/fatturazione/originaleEmessaImportata", () => ({
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   from: (tabella: string) => {
     const query: Record<string, unknown> = {};
-    for (const nome of ["select", "eq", "is", "not", "order", "limit"]) query[nome] = (...args: unknown[]) => {
+    for (const nome of ["select", "eq", "is", "not", "order", "limit", "range"]) query[nome] = (...args: unknown[]) => {
       state.filters.push([tabella, nome, ...args]); return query;
     };
     query.maybeSingle = async () => ({ data: state.invoice, error: state.error });
@@ -31,7 +34,7 @@ let client: QueryClient;
 beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   state.invoice = {
-    id: "inv-1", company_id: "az-1", invoice_number: "FPR 10/26", document_type: "invoice", issue_date: "2026-10-01",
+    id: "inv-1", company_id: "az-1", invoice_number: "FPR 10/26", document_type: "invoice", status: "issued", issue_date: "2026-10-01",
     external_provider: "xml_import", external_xml_url: null, deleted_at: null,
     client_company_name: "Mario Rossi", client_fiscal_code: "RSSMRA80A01H501U", client_address: "Via Prova 10",
     client_city: "Roma", client_zip: "00100", client_country: "IT", client_vat_number: null,

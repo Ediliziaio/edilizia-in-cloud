@@ -5,6 +5,8 @@
  * alla fatturazione interna (Renova, 01/10/2026) lo storico sembrava sparito.
  */
 
+import { importoConSegno, isDocumentoEmesso, isTipoVendita } from "./registroVendite";
+
 export interface EmessaImportata {
   id: string;
   invoice_number: string;
@@ -23,6 +25,8 @@ export interface EmessaImportata {
   client_zip?: string | null;
   due_date?: string | null;
   external_xml_url?: string | null;
+  client_id?: string | null;
+  order_id?: string | null;
   invoice_lines?: Array<{ description: string | null; sort_order: number | null }>;
 }
 
@@ -41,10 +45,6 @@ export interface MeseEmesse {
 const MESI = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
 
 const due = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-const num = (v: unknown) => {
-  const n = Number(v ?? 0);
-  return Number.isFinite(n) ? n : 0;
-};
 
 /** Il progressivo di «FPR 62/26» → 62, per ordinare 9 prima di 10 (non come testo). */
 export function progressivoDaNumero(numero: string): number {
@@ -59,19 +59,19 @@ export function progressivoDaNumero(numero: string): number {
 export function raggruppaPerMese(righe: readonly EmessaImportata[]): MeseEmesse[] {
   const mesi = new Map<string, MeseEmesse>();
   for (const f of righe) {
-    const d = f.issue_date && /^\d{4}-\d{2}/.test(f.issue_date) ? f.issue_date.slice(0, 7) : "senza-data";
+    if (!isDocumentoEmesso(f.status) || !isTipoVendita(f.document_type)) continue;
+    const d = f.issue_date && /^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(f.issue_date) ? f.issue_date.slice(0, 7) : "senza-data";
     let m = mesi.get(d);
     if (!m) {
       const etichetta = d === "senza-data" ? "Senza data" : `${MESI[parseInt(d.slice(5, 7), 10) - 1]} ${d.slice(0, 4)}`;
       m = { chiave: d, etichetta, fatture: [], imponibile: 0, iva: 0, totale: 0, incassato: 0 };
       mesi.set(d, m);
     }
-    const segno = ["TD04", "TD08", "nota_credito", "credit_note"].includes(f.document_type ?? "") ? -1 : 1;
     m.fatture.push(f);
-    m.imponibile = due(m.imponibile + segno * num(f.subtotal));
-    m.iva = due(m.iva + segno * num(f.tax_amount));
-    m.totale = due(m.totale + segno * num(f.total));
-    m.incassato = due(m.incassato + num(f.paid_amount));
+    m.imponibile = due(m.imponibile + importoConSegno(f.document_type, f.subtotal));
+    m.iva = due(m.iva + importoConSegno(f.document_type, f.tax_amount));
+    m.totale = due(m.totale + importoConSegno(f.document_type, f.total));
+    m.incassato = due(m.incassato + importoConSegno(f.document_type, f.paid_amount));
   }
   const out = [...mesi.values()];
   for (const m of out) m.fatture.sort((a, b) => progressivoDaNumero(a.invoice_number) - progressivoDaNumero(b.invoice_number));

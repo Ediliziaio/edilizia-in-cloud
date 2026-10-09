@@ -54,7 +54,7 @@ export function ClienteSituazioneWidget() {
                   >
                     {c.daIncassare > 0
                       ? formatCurrency(c.daIncassare)
-                      : "✓ incassato"}
+                      : c.incassiImportatiDaVerificare ? "Storico da verificare" : "Nessun residuo nativo"}
                   </td>
                   <td className="py-2 text-right">
                     <Button
@@ -63,7 +63,7 @@ export function ClienteSituazioneWidget() {
                       className="text-xs h-6 gap-1"
                       onClick={() =>
                         navigate(
-                          `/azienda/fatturazione/documenti?cliente=${c.id}`
+                          c.anagraficaId ? `/azienda/documenti/anagrafiche/${c.anagraficaId}` : `/azienda/documenti/emesse-importate`
                         )
                       }
                     >

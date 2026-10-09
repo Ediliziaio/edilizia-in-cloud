@@ -52,6 +52,8 @@ export interface EsitoImport {
   stato: StatoEsito;
   /** Presente solo quando stato === "errore". */
   motivo?: string;
+  /** Documento importato, ma dati/collegamenti da completare: non nascondere l'avviso. */
+  avviso?: string;
   /** Dove e' finita: serve al resoconto per dire "12 emesse · 40 ricevute". */
   direzione?: "attiva" | "passiva";
 }

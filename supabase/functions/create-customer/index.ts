@@ -6,6 +6,7 @@ import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sanitizeCustomerInput } from "../_shared/customerDataSanitizer.ts";
 import { messaggioErroreAuth } from "../_shared/authErrorMessage.ts";
+import { stessaIdentitaFattura, emailTecnicaClienteImportato } from "../_shared/clienteDaEmessaImportata.ts";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const INTERNAL_NO_EMAIL_DOMAIN = "no-email.ediliziaincloud.local";
@@ -156,6 +157,33 @@ Deno.serve(async (req) => {
     //  - rimozione caratteri invisibili
     // I fix applicati vengono loggati e ritornati al client (trasparenza).
     const sanitized = sanitizeCustomerInput(body as Record<string, unknown>);
+    const importedInvoiceId = typeof body.imported_invoice_id === "string" ? body.imported_invoice_id : null;
+    let importedAuthEmail: string | null = null;
+    if (importedInvoiceId) {
+      const { data: invoice, error: invoiceErr } = await supabaseAdmin.from("invoices")
+        .select("id, client_fiscal_code, client_vat_number").eq("id", importedInvoiceId)
+        .eq("company_id", company_id).is("deleted_at", null).not("external_provider", "is", null).maybeSingle();
+      if (invoiceErr || !invoice) return errorResponse("Fattura importata non accessibile", 404);
+      if (!stessaIdentitaFattura({ fiscal_code: invoice.client_fiscal_code, vat_number: invoice.client_vat_number }, sanitized)) {
+        return errorResponse("CF/P.IVA devono corrispondere all'intestatario della fattura importata.", 409);
+      }
+      importedAuthEmail = await emailTecnicaClienteImportato(company_id as string, {
+        fiscal_code:invoice.client_fiscal_code,vat_number:invoice.client_vat_number,
+      });
+      const { data: match, error: matchErr } = await supabaseAdmin.rpc("riconcilia_cliente_emessa_importata", {
+        p_company_id: company_id, p_invoice_id: importedInvoiceId, p_apply: false,
+      });
+      if (matchErr) return errorResponse("Verifica clienti non riuscita. Riprova senza creare duplicati.", 500);
+      if (match?.status !== "ok") return errorResponse(match?.motivo || "Identità da verificare", 409);
+      if (match.customer_id) {
+        const { data: existing, error: existingErr } = await supabaseAdmin.from("profiles")
+          .select("id, first_name, last_name, email, phone, address, portal_disabled")
+          .eq("id", match.customer_id).eq("company_id", company_id).is("deleted_at", null).single();
+        if (existingErr || !existing) return errorResponse("Cliente esistente non disponibile. Riprova.", 409);
+        return jsonResponse({ success: true, customer: existing, reused: true, password: null,
+          portal_account_created: false, welcome_email_sent: false, fixes_applied: sanitized.fixes_applied });
+      }
+    }
 
     const trimmedFirstName = sanitized.first_name;
     const trimmedLastName = sanitized.last_name;
@@ -192,7 +220,7 @@ Deno.serve(async (req) => {
     // - Se l'azienda l'ha acceso, rispetta la scelta del client per il singolo cliente.
     const companyPortalEnabled = companyRow.customer_portal_enabled === true;
     const clientWantsPortal = create_portal_account !== false; // default true
-    const shouldCreatePortal = companyPortalEnabled && clientWantsPortal;
+    const shouldCreatePortal = !importedInvoiceId && companyPortalEnabled && clientWantsPortal;
     const shouldSendWelcomeEmail = shouldCreatePortal && send_welcome_email !== false;
 
     // Validation (post-sanitize)
@@ -206,7 +234,7 @@ Deno.serve(async (req) => {
     if (rawEmail && !EMAIL_REGEX.test(rawEmail)) {
       return errorResponse("Indirizzo email non valido");
     }
-    const trimmedEmail = rawEmail || `cliente-${crypto.randomUUID()}@${INTERNAL_NO_EMAIL_DOMAIN}`;
+    const trimmedEmail = rawEmail || importedAuthEmail || `cliente-${crypto.randomUUID()}@${INTERNAL_NO_EMAIL_DOMAIN}`;
 
     // --- Password generation ---
     // Anche quando il portale è disabilitato creiamo un account auth shadow
@@ -215,7 +243,7 @@ Deno.serve(async (req) => {
     const password = generateSecurePassword(shouldCreatePortal ? 12 : 32);
 
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: trimmedEmail,
+      email: importedAuthEmail || trimmedEmail,
       password,
       email_confirm: true,
       user_metadata: { first_name: safeFirstName, last_name: safeLastName },
@@ -225,7 +253,7 @@ Deno.serve(async (req) => {
       const isEmailExists = authError.message?.includes("already been registered") ||
                             (authError as { code?: string }).code === "email_exists";
       const errorMessage = isEmailExists
-        ? "Esiste già un utente con questo indirizzo email. Usa un'email diversa."
+        ? importedInvoiceId ? "Questo cliente è già in creazione o esiste: riapri i collegamenti della fattura prima di riprovare." : "Esiste già un utente con questo indirizzo email. Usa un'email diversa."
         : messaggioErroreAuth(authError);
       return errorResponse(errorMessage);
     }

@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
+import { invalidaStatisticheFatturazione } from "@/lib/fatturazione/invalidaStatistiche";
 import {
   descriviEsitoIncassi,
   registraIncassi,
@@ -90,6 +91,7 @@ export function useCreateMovimento() {
       if (error) throw error;
     },
     onSuccess: () => {
+      invalidaStatisticheFatturazione(queryClient,companyId);
       queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
       // La rata della commessa legata alla fattura si muove con lei.
@@ -120,6 +122,7 @@ export function useDeleteMovimento() {
       if (error) throw error;
     },
     onSuccess: () => {
+      invalidaStatisticheFatturazione(queryClient,companyId);
       queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
@@ -156,6 +159,7 @@ export function useSegnaPagata() {
       );
     },
     onSuccess: (esito) => {
+      invalidaStatisticheFatturazione(queryClient,companyId);
       queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
