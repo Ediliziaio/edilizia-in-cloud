@@ -8,7 +8,7 @@
  * In fondo a ognuna c'è «Altro colore (scrivi)…»: la tendina diventa una casella di testo nello stesso posto, per un
  * colore che nel listino non c'è (un RAL particolare). Il testo resta su quel lato e tiene la fascia scelta per il
  * prezzo: scrivere non cambia mai prezzo né variante. Una freccia riporta alla tendina del listino. È ancora un
- * Select, non un Popover con ricerca: dentro un Dialog il Portal di quello non risponde.
+ * Select con campioni ricercabili inline, senza un secondo Portal dentro il Dialog.
  *
  * Sono due celle da mettere nella griglia delle variabili, una dopo l'altra (un frammento, non un riquadro); la riga
  * che spiega il prezzo sta sotto l'esterno, così non apre una riga di griglia vuota a metà.
@@ -22,6 +22,8 @@ import { cn } from "@/lib/utils";
 import { suffissoMaggiorazione } from "@/lib/listino/maggiorazione";
 import { LATI_COLORE, fasceDeiLati, testiColori, type ColoriDentroFuori, type LatoColore } from "@/lib/serramenti/coloriDentroFuori";
 import { SceltaVariante } from "./SceltaVariante";
+import { PaletteColore } from "./PaletteColore";
+import { valoriPerLato, verificaColori, type CatalogoColori } from "@/lib/serramenti/catalogoColori";
 
 interface Props {
   asse: { obbligatorio: boolean; values: AxisValue[] };
@@ -40,6 +42,7 @@ interface Props {
   formato: "listino" | "riga";
   /** Scrive «· standard» accanto al valore di serie (la riga lo fa, il listino no). */
   mostraStandard?: boolean;
+  catalogo?: CatalogoColori | null;
 }
 
 const FORMATO = {
@@ -51,7 +54,7 @@ const ETICHETTA_ALTRO = "Altro colore (scrivi)…";
 
 const conSuffisso = (v: AxisValue) => `${v.label}${suffissoMaggiorazione(v.maggiorazione_tipo, v.maggiorazione_valore)}`;
 
-export function SceltaColoriDentroFuori({ asse, colori, onChange, onScrivi, onElenco, guidaId, piuCaraId, formato, mostraStandard }: Props) {
+export function SceltaColoriDentroFuori({ asse, colori, onChange, onScrivi, onElenco, guidaId, piuCaraId, formato, mostraStandard, catalogo }: Props) {
   const stile = FORMATO[formato];
   // Un lato è «in scrittura» se lo si è aperto adesso o se il colore della riga non è nel listino.
   const [aperti, setAperti] = useState<Record<LatoColore, boolean>>({ interno: false, esterno: false });
@@ -91,7 +94,9 @@ export function SceltaColoriDentroFuori({ asse, colori, onChange, onScrivi, onEl
     ? null
     : scrivendo
       ? `Colore scritto: il prezzo resta quello di ${conSuffisso(fasciaPrezzo)}.`
-      : costaDiverso && guidaId === piuCaraId
+      : catalogo?.modalita === "combinazioni"
+        ? `Prezzo della combinazione: ${conSuffisso(fasciaPrezzo)}.`
+        : costaDiverso && guidaId === piuCaraId
         ? `Il prezzo segue il colore più caro: ${conSuffisso(fasciaPrezzo)}.`
         : null;
 
@@ -118,7 +123,7 @@ export function SceltaColoriDentroFuori({ asse, colori, onChange, onScrivi, onEl
               />
             ) : (
               <SceltaVariante
-                values={asse.values}
+                values={valoriPerLato(asse.values, catalogo, lato)}
                 valueId={scelta.valueId}
                 scelta={scelta.voce}
                 onChange={(valueId, voce) => onChange(lato, valueId, voce)}
@@ -129,7 +134,9 @@ export function SceltaColoriDentroFuori({ asse, colori, onChange, onScrivi, onEl
                 className={cn(stile.tendina, mancante && "border-rose-300")}
               />
             )}
+            <PaletteColore asse={{ ...asse, codice: "colore" }} catalogo={catalogo} lato={lato} scelta={scelta} onChange={(id, voce) => onChange(lato, id, voce)} />
             {lato === "esterno" && nota && <p className="pt-0.5 text-[10px] leading-tight text-muted-foreground">{nota}</p>}
+            {lato === "esterno" && verificaColori({ ...asse, codice: "colore" }, colori, catalogo).avvisi.map(avviso => <p key={avviso} className="text-[10px] leading-tight text-amber-800">{avviso}</p>)}
           </div>
         );
       })}

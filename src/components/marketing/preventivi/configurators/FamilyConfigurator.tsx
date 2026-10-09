@@ -40,6 +40,10 @@ import type { AxisSelection, FamilyWithAxes } from "@/types/articleFamily";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import type { CatalogItemFamily, ConfiguredItem } from "@/types/catalogItem";
 import { costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
+import { useColoriFamiglia } from "@/hooks/useColoriFamiglia";
+import { SceltaColoriDentroFuori } from "@/components/serramenti/SceltaColoriDentroFuori";
+import { configDaFamiglia, disegnoDaConfig } from "@/lib/serramenti/disegnoDaFamiglia";
+import { applicaPrezzoOpzioni } from "@/lib/listino/prezzoOpzioni";
 
 interface FamilyConfiguratorProps {
   confirmLabel?: string;
@@ -97,32 +101,40 @@ export function FamilyConfigurator({
     normalizzaSelezione(famigliaCompleta.axes, defaultSelections(famigliaCompleta)).valori,
   );
   // Solo le varianti che si vedono con le scelte fatte (il monoblocco accende altezza cassonetto, tapparella…).
-  const family = useMemo(() => conAssiVisibili(famigliaCompleta, selection), [famigliaCompleta, selection]);
+  const familyBase = useMemo(() => conAssiVisibili(famigliaCompleta, selection), [famigliaCompleta, selection]);
   const [includePosa, setIncludePosa] = useState<boolean>(
     item.ha_posa_automatica && item.posa_linked,
   );
 
-  const { data: grigliaPunti = [] } = useFamilyGrid(family.id);
+  const { data: grigliaPunti = [] } = useFamilyGrid(familyBase.id);
 
   const lMm = Number(larghezza);
   const hMm = Number(altezza);
   const qty = Math.max(1, Number(quantita) || 1);
   const misureValide =
-    !chiedeMisure(family) ||
+    !chiedeMisure(familyBase) ||
     (Number.isFinite(lMm) && lMm > 0 && Number.isFinite(hMm) && hMm > 0);
+
+  const colori = useColoriFamiglia(familyBase, selection, id => {
+    const selections = { ...selection, colore: id };
+    const p = calcolaPrezzoFamiglia({ family: familyBase, selections, larghezza_mm: lMm, altezza_mm: hMm, quantita: qty }, grigliaPunti);
+    return p.calcolo_disponibile !== false ? p.unit_price_vendita : applicaPrezzoOpzioni({ vendita: 1000, acquisto: 0, axes: familyBase.axes, selections, mq: 1, ml: 1 }).vendita;
+  });
+  const selezioneEffettiva = colori.selezione;
+  const family = conAssiVisibili(famigliaCompleta, selezioneEffettiva);
 
   const pricing = useMemo(() => {
     return calcolaPrezzoFamiglia(
       {
         family,
-        selections: selection,
+        selections: selezioneEffettiva,
         larghezza_mm: needsMisureXY(family) ? lMm : undefined,
         altezza_mm: needsMisureXY(family) ? hMm : undefined,
         quantita: qty,
       },
       grigliaPunti,
     );
-  }, [family, selection, lMm, hMm, qty, grigliaPunti]);
+  }, [family, selezioneEffettiva, lMm, hMm, qty, grigliaPunti]);
 
   // ── Manodopera: legge la modalità (tariffa/manuale/nessuna) dalla famiglia.
   // In modalità "manuale" i prezzi sono inline sulla famiglia (no tariffa).
@@ -175,13 +187,17 @@ export function FamilyConfigurator({
   const totaleCompleto = pricing.totale_vendita + posaTotale;
 
   const disegno = useMemo(
-    () => disegnoDaFamiglia(family, selection, lMm, hMm),
-    [family, selection, lMm, hMm],
+    () => {
+      if (!colori.testi) return disegnoDaFamiglia(family, selezioneEffettiva, lMm, hMm);
+      const config = configDaFamiglia(family, selezioneEffettiva, { coloreInterno: colori.testi.interno, coloreEsterno: colori.testi.esterno });
+      return config ? disegnoDaConfig(config, lMm, hMm) : null;
+    },
+    [family, selezioneEffettiva, lMm, hMm, colori.testi],
   );
 
   // Misura fuori listino: il prodotto non si fa a quella misura, e una riga a
   // 0 € nel preventivo non deve partire senza che nessuno se ne accorga.
-  const canConfirm = misureValide && qty > 0 && !pricing.fuori_listino;
+  const canConfirm = misureValide && qty > 0 && !pricing.fuori_listino && pricing.calcolo_disponibile !== false && !colori.stato?.blocca;
   // Gli avvisi del calcolo (misura arrotondata, variante obbligatoria non
   // scelta, griglia vuota…): prima si calcolavano e non si vedevano.
   const avvisi = [
@@ -192,6 +208,7 @@ export function FamilyConfigurator({
   ];
 
   function handleConfirm(): void {
+    if (!canConfirm) return;
     const prodottoTempId = uuid();
     const baseSort = currentSortOrder;
 
@@ -210,7 +227,7 @@ export function FamilyConfigurator({
       item_type: "product",
       item_category: "prodotto",
       name: family.nome,
-      description: family.descrizione ?? "",
+      description: [family.descrizione, colori.testi?.interno && `Colore interno: ${colori.testi.interno}`, colori.testi?.esterno && `Colore esterno: ${colori.testi.esterno}`, ...(colori.stato?.avvisi ?? [])].filter(Boolean).join("\n"),
       quantity: qty,
       unit_price: pricing.unit_price_vendita,
       discount_percent: 0,
@@ -224,7 +241,7 @@ export function FamilyConfigurator({
       misura_x: chiedeMisure(family) ? lMm : null,
       misura_y: chiedeMisure(family) ? hMm : null,
       family_id: family.id,
-      axis_selections: selection,
+      axis_selections: selezioneEffettiva,
       supplier_catalog_id: supplierCatalogId,
       supplier_product_line_id: supplierProductLineId,
       client_temp_id: prodottoTempId,
@@ -328,6 +345,7 @@ export function FamilyConfigurator({
         <div className="grid gap-3 md:grid-cols-2 max-sm:grid-cols-2">
           {/* Prima l'apertura (misure → apertura → colore → vetro…). */}
           {[...family.axes].sort((a, b) => Number(b.codice === "apertura") - Number(a.codice === "apertura")).map((axis) => {
+            if (axis.codice === "colore" && colori.asse && colori.colori) return <SceltaColoriDentroFuori key={axis.id} asse={colori.asse} colori={colori.colori} catalogo={colori.catalogo} guidaId={colori.guida?.valueId} piuCaraId={colori.guida?.valueId} formato="listino" onChange={colori.cambia} onScrivi={colori.scrivi} onElenco={colori.elenco} />;
             const values = axis.values.filter((v) => v.attivo);
             return (
               <div key={axis.id}>

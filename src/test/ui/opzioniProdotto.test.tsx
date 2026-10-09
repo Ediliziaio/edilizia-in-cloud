@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { problemaCondizione, prezzoOpzioneValido } from "@/lib/listino/opzioniProdotto";
 import { normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
-import type { FamilyAxis, FamilyWithAxes } from "@/types/articleFamily";
+import type { FamilyWithAxes } from "@/types/articleFamily";
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "demo" }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 import { FamilyPricePreview } from "@/components/listino/FamilyPricePreview";
@@ -17,7 +17,7 @@ const axes = [
   { id: "b", codice: "cassonetto", nome: "Cassonetto", visibile_se: { asse: "monoblocco", valori: ["yes"] }, values: [
     { id: "box", valore: "box", label: "Cassonetto alto", is_default: true, attivo: true, maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 50, maggiorazione_acquisto: 20 },
   ] },
-] as FamilyAxis[];
+] as unknown as FamilyWithAxes["axes"];
 function preview(costo = 0) {
   const family = { id: "test", prezzo_base_mode: "vendita", modalita_prezzo_base: "pz", prezzo_base_vendita: 100, prezzo_base_acquisto: costo, axes } as FamilyWithAxes;
   render(<QueryClientProvider client={new QueryClient()}><FamilyPricePreview family={family} /></QueryClientProvider>);

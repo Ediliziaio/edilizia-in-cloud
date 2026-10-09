@@ -76,8 +76,10 @@ import { SchedaLineaCompatta } from "./SchedaLineaCompatta";
 import { SceltaVariante } from "./SceltaVariante";
 import { scelteDopo } from "@/lib/listino/scelteVariante";
 import { SceltaColoriDentroFuori } from "./SceltaColoriDentroFuori";
+import { CHIAVE_CATALOGO_COLORI, leggiCatalogoColori, guidaPrezzoColori, testiColoriCatalogo, verificaColori } from "@/lib/serramenti/catalogoColori";
+import { leggiColori, snapshotColori } from "@/lib/serramenti/coloriDentroFuori";
 import {
-  CODICE_ASSE_COLORE, MISURA_DI_CONFRONTO_MM, PREZZO_DI_CONFRONTO, cambiaLato, scriviLato, sceltaPerIlPrezzo, testiColori, type ColoriDentroFuori,
+  CODICE_ASSE_COLORE, MISURA_DI_CONFRONTO_MM, PREZZO_DI_CONFRONTO, cambiaLato, scriviLato, type ColoriDentroFuori,
 } from "@/lib/serramenti/coloriDentroFuori";
 import { misuraDaTesto, quantitaDaTesto } from "@/lib/serramenti/righePreventivo";
 import {
@@ -318,6 +320,9 @@ export function ListinoPickerDialog({
   // Nella composizione «Colore» sono due tendine, interno ed esterno; per i complementi di una finestra (tapparelle,
   // zanzariere) e per i prodotti senza la variabile la tendina resta una sola.
   const asseColore = tipo === "principale" ? axes.find((a) => a.codice === CODICE_ASSE_COLORE) : undefined;
+  const catalogoColori = useMemo(() => leggiCatalogoColori(selectedFamily?.custom_field_values), [selectedFamily?.custom_field_values]);
+  const catalogoNonValido = selectedFamily?.custom_field_values?.[CHIAVE_CATALOGO_COLORI] != null && !catalogoColori;
+  const statoColori = asseColore && colori ? verificaColori(asseColore, colori, catalogoColori) : null;
 
   // Misure e pezzi come le colonne del preventivo: millimetri e pezzi interi.
   // Un decimale faceva fallire l'aggiunta con un errore generico.
@@ -347,11 +352,11 @@ export function ListinoPickerDialog({
     // Senza misure il prezzo base è 0 e le fasce sembrerebbero pari: per trovare la più cara si confronta su un prezzo
     // e su misure di riferimento (con le misure vere si rifà da sé).
     const base = calcBase.prezzo > 0 ? calcBase.prezzo : PREZZO_DI_CONFRONTO;
-    return sceltaPerIlPrezzo(colori, (id) => applyMaggiorazioniAssi(
+    return guidaPrezzoColori(asseColore, colori, catalogoColori, (id) => applyMaggiorazioniAssi(
       base, { ...axisSelection, [CODICE_ASSE_COLORE]: id }, familyWithAxes.axes,
       larghezzaMm ?? MISURA_DI_CONFRONTO_MM, altezzaMm ?? MISURA_DI_CONFRONTO_MM, pezzi ?? 1, selectedFamily?.modalita_prezzo_base,
     ));
-  }, [asseColore, colori, familyWithAxes, calcBase, axisSelection, larghezzaMm, altezzaMm, pezzi, selectedFamily?.modalita_prezzo_base]);
+  }, [asseColore, colori, catalogoColori, familyWithAxes, calcBase, axisSelection, larghezzaMm, altezzaMm, pezzi, selectedFamily?.modalita_prezzo_base]);
   // Le scelte come le leggono prezzo, disegno e riga: con le due tendine «Colore» è quella della guida.
   const selezione = useMemo(() => {
     if (!asseColore) return axisSelection;
@@ -363,14 +368,14 @@ export function ListinoPickerDialog({
     () => (asseColore ? scelteDopo(vociScelte, CODICE_ASSE_COLORE, guidaColore?.voce ?? null) : vociScelte),
     [asseColore, vociScelte, guidaColore],
   );
-  const coloriTesti = useMemo(() => (asseColore && colori ? testiColori(asseColore, colori) : null), [asseColore, colori]);
+  const coloriTesti = useMemo(() => (asseColore && colori ? testiColoriCatalogo(asseColore, colori, catalogoColori) : null), [asseColore, colori, catalogoColori]);
   // Il disegno dell'articolo, con le misure scritte (o quelle tipiche) e le scelte fatte.
   const anteprimaDisegno = useMemo(() => {
     if (!familyWithAxes || !haDisegno(familyWithAxes)) return null;
     const tipiche = misureTipiche(familyWithAxes);
-    const config = configDaFamiglia(familyWithAxes, selezione, { coloreInterno: coloriTesti?.interno, coloreEsterno: coloriTesti?.esterno, voci: vociEffettive, forma: formaExtra });
+    const config = configDaFamiglia(familyWithAxes, { ...selezione, ...(colori ? snapshotColori(colori, coloriTesti ?? undefined) : {}) }, { coloreInterno: coloriTesti?.interno, coloreEsterno: coloriTesti?.esterno, voci: vociEffettive, forma: formaExtra });
     return config ? disegnoDaConfig(config, misuraDaTesto(larghezza) ?? tipiche.larghezzaMm, misuraDaTesto(altezza) ?? tipiche.altezzaMm) : null;
-  }, [familyWithAxes, selezione, larghezza, altezza, vociEffettive, formaExtra, coloriTesti]);
+  }, [familyWithAxes, selezione, larghezza, altezza, vociEffettive, formaExtra, coloriTesti, colori]);
   const avvisiDisegno = useMemo(() => anteprimaDisegno?.tipo === "serramento" && larghezzaMm && altezzaMm
     ? controllaMisure(anteprimaDisegno.viste[0].disegno) : [], [anteprimaDisegno, larghezzaMm, altezzaMm]);
   const standardDaPrezzare = selectedFamily?.custom_field_values?.configurazione_standard === true && listinoSenzaPrezzoDiVendita(selectedFamily);
@@ -535,13 +540,15 @@ export function ListinoPickerDialog({
           const ordinate = normalizzaSelezione(prodotto.r.famiglia.axes ?? [], { ...partenza.valori }, { ...(partenza.voci ?? {}) });
           setAxisSelection(ordinate.valori);
           setVociScelte(ordinate.voci);
+          const asse = prodotto.r.famiglia.axes?.find(a => a.codice === CODICE_ASSE_COLORE);
+          if (asse) setColori(leggiColori(asse, { valori_assi: ordinate.valori, scelte_assi: ordinate.voci }));
         }
       }
     }
   }
 
   const handleConferma = () => {
-    if (!selectedFamily || !calcolo) return;
+    if (!selectedFamily || !calcolo || statoColori?.blocca || catalogoNonValido) return;
     // Type-guard sulla modalita: il backend è uno dei 4 valori canonici,
     // ma il tipo lato API è generico `string | null` per retrocompat.
     const m = selectedFamily.modalita_prezzo_base;
@@ -564,10 +571,10 @@ export function ListinoPickerDialog({
       note: calcolo.note,
       // Snapshot scelte assi: salvato sulla riga BOM in modo che modifiche
       // future al listino NON cambino i preventivi gia' inviati.
-      valori_assi: { ...selezione },
+      valori_assi: { ...selezione, ...(colori ? snapshotColori(colori, coloriTesti ?? undefined) : {}) },
       scelte_assi: { ...vociEffettive },
       // Il disegno si congela con la riga: un listino cambiato dopo non cambia il PDF di questo preventivo.
-      disegno_config: configDaFamiglia(familyWithAxes, selezione, { coloreInterno: coloriTesti?.interno, coloreEsterno: coloriTesti?.esterno, voci: vociEffettive, forma: formaExtra }),
+      disegno_config: configDaFamiglia(familyWithAxes, { ...selezione, ...(colori ? snapshotColori(colori, coloriTesti ?? undefined) : {}) }, { coloreInterno: coloriTesti?.interno, coloreEsterno: coloriTesti?.esterno, voci: vociEffettive, forma: formaExtra }),
       // I due colori si scrivono sempre dalle due tendine, anche se uguali: il PDF e il disegno leggono quelli.
       colore_interno: coloriTesti?.interno ?? null,
       colore_esterno: coloriTesti?.esterno ?? null,
@@ -914,6 +921,7 @@ export function ListinoPickerDialog({
                         <SceltaColoriDentroFuori
                           key={axis.id}
                           asse={axis}
+                          catalogo={catalogoColori}
                           colori={colori}
                           guidaId={guidaColore?.valueId}
                           piuCaraId={guidaColore?.valueId}
@@ -961,7 +969,10 @@ export function ListinoPickerDialog({
             {schedaLinea && <SchedaLineaCompatta scheda={schedaLinea} />}
 
             {/* Riepilogo calcolo — il commerciale vede solo il totale, niente posa esposta */}
-            {calcolo && !calcolo.fuoriRange && (
+            {(statoColori?.blocca || catalogoNonValido) && <p role="alert" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              {catalogoNonValido ? "Catalogo colori non valido: correggilo nel listino prima di aggiungere il prodotto." : "Prezzo da quotare: verifica i colori e configura una combinazione disponibile nel listino."}
+            </p>}
+            {calcolo && !calcolo.fuoriRange && !statoColori?.blocca && !catalogoNonValido && (
               <Card className="border-orange-300 bg-orange-50/50 p-4">
                 <p className="text-[11px] uppercase tracking-wide text-orange-600 font-semibold mb-2 flex items-center gap-1">
                   <Calculator className="h-3.5 w-3.5" /> {standardDaPrezzare ? "Prezzo da definire" : "Calcolo prezzo"}
@@ -1048,6 +1059,8 @@ export function ListinoPickerDialog({
                 className="w-full bg-orange-500 hover:bg-orange-600 sm:w-auto"
                 disabled={
                   numeriNonValidi
+                  || statoColori?.blocca === true
+                  || catalogoNonValido
                   || avvisiDisegno.some((a) => a.gravita === "errore")
                   || (richiedeMisure && (!larghezza || !altezza))
                   || !calcolo

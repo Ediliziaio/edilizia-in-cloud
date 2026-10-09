@@ -17,6 +17,8 @@ import { anteDaApertura, apertureDellaTipologia, persianaDaConfigurazione } from
 import { finituraDaEtichetta, type Finitura } from "./finituraSerramento";
 import { telaioDaEtichetta } from "./telaioSerramento";
 import { vetroDaEtichette } from "./vetroSerramento";
+import { chiaveColore, leggiCatalogoColori, testiColoriCatalogo } from "./catalogoColori";
+import { leggiColori } from "./coloriDentroFuori";
 
 export type DisegnoFamiglia =
   | {
@@ -166,6 +168,9 @@ export interface DisegnoConfig {
   /** Il colore di ogni lato, come lo scrive la riga (`colore_interno` / `colore_esterno`, anche se uguali): ha la precedenza su `colore`. */
   coloreInterno?: string;
   coloreEsterno?: string;
+  /** Campioni aziendali congelati nel PDF: cambiare il catalogo non cambia un documento storico. */
+  coloreInternoHex?: string;
+  coloreEsternoHex?: string;
   telaio?: string;
   /** «Con monoblocco» su una qualunque tipologia: il serramento ha il cassonetto sopra (non vale per le sagome e i fissi). */
   monoblocco?: boolean;
@@ -252,6 +257,20 @@ export function configDaFamiglia(
   if (coloriRiga?.forma?.sottoluceMm) c.sottoluceMm = coloriRiga.forma.sottoluceMm;
   if (coloriRiga?.coloreInterno) c.coloreInterno = coloriRiga.coloreInterno;
   if (coloriRiga?.coloreEsterno) c.coloreEsterno = coloriRiga.coloreEsterno;
+  const catalogo = leggiCatalogoColori(family.custom_field_values);
+  const asseColore = family.axes.find(a => a.codice === "colore");
+  if (catalogo && asseColore) {
+    const colori = leggiColori(asseColore, { valori_assi: selection, scelte_assi: coloriRiga?.voci, colore_interno: coloriRiga?.coloreInterno, colore_esterno: coloriRiga?.coloreEsterno });
+    const testi = testiColoriCatalogo(asseColore, colori, catalogo);
+    c.coloreInterno ??= testi.interno ?? undefined;
+    c.coloreEsterno ??= testi.esterno ?? undefined;
+    for (const lato of ["interno", "esterno"] as const) {
+      const scelta = colori[lato];
+      if (scelta.scritto || !scelta.valueId) continue;
+      const campione = catalogo.campioni.find(v => v.chiave === chiaveColore(scelta.valueId!, scelta.voce));
+      if (campione?.hex) c[lato === "interno" ? "coloreInternoHex" : "coloreEsternoHex"] = campione.hex;
+    }
+  }
   const telaio = etichettaTelaio(family, selection, coloriRiga?.voci);
   if (telaio) c.telaio = telaio;
   const cassonetto = /(\d{2,3})/.exec(e("altezza_cassonetto") ?? "");
@@ -270,8 +289,10 @@ export function configDaFamiglia(
 export function disegnoDaConfig(config: DisegnoConfig, larghezzaMm: number, altezzaMm: number): DisegnoFamiglia | null {
   if (config.nessuno) return null;
   if (!(larghezzaMm > 0) || !(altezzaMm > 0)) return null;
-  const coloreInterno = finituraDaEtichetta(config.coloreInterno ?? config.colore);
-  const coloreEsterno = finituraDaEtichetta(config.coloreEsterno ?? config.colore);
+  const finitura = (hex: string | undefined, nome: string | undefined): Finitura | null => hex && /^#[0-9a-f]{6}$/i.test(hex)
+    ? { tipo: "tinta", hex, nome: nome ?? "Campione" } : finituraDaEtichetta(nome);
+  const coloreInterno = finitura(config.coloreInternoHex, config.coloreInterno ?? config.colore);
+  const coloreEsterno = finitura(config.coloreEsternoHex, config.coloreEsterno ?? config.colore);
   const t = config.tipologia;
 
   if (t.startsWith("persiana:")) {

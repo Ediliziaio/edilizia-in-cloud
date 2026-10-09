@@ -57,6 +57,15 @@ const dettaglio = (over: Partial<SrProgettoDetail> = {}, p: Partial<SrProgettoRo
 });
 
 describe("anteprimaSerramenti: dispone i numeri di calcolaTotale", () => {
+  it("conserva i millimetri nella conversione in centimetri, anche nei complementi", () => {
+    const d = dettaglio({
+      serramenti: [serramento({ larghezza_mm: 1266, altezza_mm: 2230 })],
+      accessori: [accessorio({ larghezza_mm: 1266, altezza_mm: 281, profondita_mm: 205 })],
+    });
+    const a = anteprimaSerramenti({}, d, { oggi: OGGI });
+    expect(a.gruppi[0].righe[0].dettaglio).toContain("126,6 × 223 cm");
+    expect(a.gruppi[1].righe[0].dettaglio).toContain("126,6 × 28,1 × 20,5 cm");
+  });
   it("righe nell'ordine delle posizioni, in gruppi, con misure in cm e dettagli", () => {
     const a = anteprimaSerramenti({}, dettaglio(), { emittente: "Bianchi Infissi", oggi: OGGI });
     expect(a.gruppi.map((g) => [g.id, g.righe.length])).toEqual([["serramenti", 2], ["complementi", 1], ["servizi", 1]]);

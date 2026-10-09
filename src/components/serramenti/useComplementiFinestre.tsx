@@ -338,6 +338,7 @@ export function useComplementiFinestre({
         ...(cambiaPosa ? { posa_esclusa: dopo.posa_esclusa ?? false } : {}),
       };
       const prossimo = { ...c, ...patch };
+      let daPrezzare = false;
       const famiglia = c.family_id ? famiglie.find((f) => f.id === c.family_id) : undefined;
       if (famiglia && famiglia.modalita_prezzo_base !== "misura_libera") {
         try {
@@ -355,16 +356,22 @@ export function useComplementiFinestre({
             lineaFornitore: c.supplier_product_line_id,
           });
           if ("errore" in esito) {
+            daPrezzare = true;
             toast.warning(`${c.descrizione || nomeBreve(c.tipo)}: prezzo da controllare`, { description: esito.errore });
           } else {
             patch.prezzo_unitario = esito.unitario;
             if (esito.voce) patch.listino_voce_id = esito.voce;
           }
         } catch {
-          // Griglia non letta: le misure seguono la finestra, il prezzo resta quello di prima.
+          daPrezzare = true;
+          toast.warning(`${c.descrizione || nomeBreve(c.tipo)}: prezzo da controllare`, {
+            description: "Listino non leggibile. Le nuove misure non hanno un prezzo verificato.",
+          });
         }
       }
-      salvataggi.aggiorna(c.id, conTotale(c, patch));
+      salvataggi.aggiorna(c.id, daPrezzare
+        ? { ...patch, prezzo_unitario: null, prezzo_totale: null }
+        : conTotale(c, patch));
     }
   };
 

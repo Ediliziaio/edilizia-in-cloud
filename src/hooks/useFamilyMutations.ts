@@ -17,6 +17,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import { invalidaListinoNelPreventivatore } from "@/lib/serramenti/cacheListino";
 import { captureVelocityError } from "@/lib/velocity/sentry";
+import { CHIAVE_CATALOGO_COLORI, catalogoColoriSchema, leggiCatalogoColori, rimappaCatalogoColori, type CatalogoColori } from "@/lib/serramenti/catalogoColori";
 import type {
   ArticleFamily,
   FamilyAxis,
@@ -139,6 +140,27 @@ export function useFamilyMutations() {
     onSuccess: (f) => invalidate(f.id),
     onError: (err: Error) =>
       captureVelocityError("families.update", err, { companyId }),
+  });
+
+  // Rilegge i campi tecnici e usa compare-and-swap: un salvataggio colori non cancella modifiche di altri editor.
+  const saveColorCatalog = useMutation({
+    mutationFn: async (args: { id: string; catalogo: CatalogoColori; expected: CatalogoColori | null }) => {
+      if (!companyId) throw new Error("Azienda non identificata");
+      const catalogo = catalogoColoriSchema.parse(args.catalogo);
+      const { data, error } = await supabase.from("article_families" as never)
+        .select("custom_field_values, updated_at").eq("id", args.id).eq("company_id", companyId).single();
+      if (error || !data) throw new Error(error?.message ?? "Prodotto non accessibile");
+      const attuale = data as unknown as Pick<ArticleFamily, "custom_field_values" | "updated_at">;
+      if (JSON.stringify(leggiCatalogoColori(attuale.custom_field_values)) !== JSON.stringify(args.expected))
+        throw new Error("I colori sono stati modificati da un altro editor. Ricarica il prodotto prima di salvare.");
+      const { data: salvato, error: errore } = await supabase.from("article_families" as never)
+        .update({ custom_field_values: { ...attuale.custom_field_values, [CHIAVE_CATALOGO_COLORI]: catalogo } } as never)
+        .eq("id", args.id).eq("company_id", companyId).eq("updated_at", attuale.updated_at).select("id").single();
+      if (errore || !salvato) throw new Error(errore?.code === "PGRST116" ? "Il prodotto è cambiato durante il salvataggio. Ricarica e riprova." : errore?.message ?? "Salvataggio non riuscito");
+      return args.id;
+    },
+    onSuccess: id => invalidate(id),
+    onError: (err: Error) => captureVelocityError("colors.save", err, { companyId }),
   });
 
   /**
@@ -272,6 +294,9 @@ export function useFamilyMutations() {
       void _ignoreCA;
       void _ignoreUA;
       void _ignoreAxes;
+      const valueIds = new Map((source.axes ?? []).flatMap(a => (a.values ?? []).map(v => [v.id, crypto.randomUUID()] as const)));
+      const catalogo = leggiCatalogoColori(source.custom_field_values);
+      if (catalogo) famRest.custom_field_values = { ...source.custom_field_values, [CHIAVE_CATALOGO_COLORI]: rimappaCatalogoColori(catalogo, valueIds) };
 
       // Override di destinazione. Se la copia cambia macrocategoria, la
       // categoria del sorgente appartiene all'albero VECCHIO: tenerla
@@ -321,6 +346,7 @@ export function useFamilyMutations() {
 
         if (ax.values && ax.values.length > 0) {
           const rows = ax.values.map((v) => ({
+            id: valueIds.get(v.id),
             axis_id: newAxisId,
             company_id: companyId,
             valore: v.valore,
@@ -648,6 +674,7 @@ export function useFamilyMutations() {
   });
 
   return {
+    saveColorCatalog,
     saveOptions,
     createFamily,
     updateFamily,

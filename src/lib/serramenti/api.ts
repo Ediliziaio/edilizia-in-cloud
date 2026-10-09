@@ -797,8 +797,10 @@ export async function updateManodopera(
   if (patch.quantita !== undefined || patch.prezzo_unitario_costo !== undefined || patch.prezzo_unitario_vendita !== undefined) {
     // Devo recuperare i valori attuali per i campi non in patch
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: orig } = await (supabase as any)
+    const { data: orig, error: readError } = await (supabase as any)
       .from("sr_servizi_progetto").select("quantita, prezzo_unitario_costo, prezzo_unitario_vendita").eq("id", id).maybeSingle();
+    if (readError) throw new Error("Impossibile leggere il servizio: nessun importo modificato");
+    if (!orig) throw new Error("Servizio non trovato: nessun importo modificato");
     // Un prezzo svuotato svuota anche il totale: con `??` si riprendeva quello
     // vecchio e il totale restava nel preventivo accanto a un prezzo vuoto.
     const q = patch.quantita ?? orig?.quantita ?? 1;

@@ -4,6 +4,24 @@ import type { SrSerramentoRow } from "@/types/serramenti";
 import { serramentiRoomSummary } from "@/lib/moduli-vendita/serramentiRoomSummary";
 
 describe("PDF commercial line quantities", () => {
+  it("preserves the chosen product label even when the legacy type is generic", () => {
+    const row = { id: "row", family_id: "family", tipologia: "finestra_2ante", tipologia_label: "Porta Finestra 1 Anta", quantita: 2 } as SrSerramentoRow;
+    expect(groupSerramentiAdvanced([row])[0].tipologia).toBe("Porta Finestra 1 Anta");
+  });
+  it("preserves independent colours, opening snapshots, installation and notes", () => {
+    const rows = ["dx", "sx"].map((side, i) => ({
+      id: `row-${i}`, family_id: "family", tipologia: "finestra_2ante", quantita: 2,
+      larghezza_mm: 900, altezza_mm: 1200, colore_interno: i ? "Noce" : "Bianco",
+      posa_esclusa: !!i, note: `Nota ${i}`,
+      disegno_config: { v: 1, tipologia: "finestra_1_anta", aperturaCodice: `battente_${side}` },
+    } as SrSerramentoRow));
+    const output = groupSerramentiAdvanced(rows);
+    expect(output).toHaveLength(2);
+    expect(output.map((r) => r.quantita)).toEqual([2, 2]);
+    expect(output.map((r) => r.colore_interno)).toEqual(["Bianco", "Noce"]);
+    expect(output.map((r) => r.posa_esclusa)).toEqual([false, true]);
+    expect(output.map((r) => r.disegno_config)).toEqual(rows.map((r) => r.disegno_config));
+  });
   it("keeps different dimensions distinct in both the technical table and room summary", () => {
     const rows = [
       { id: "first", quantita: 1, larghezza_mm: 1300, altezza_mm: 2225 },

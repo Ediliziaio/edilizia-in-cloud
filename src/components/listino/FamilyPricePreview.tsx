@@ -1,20 +1,12 @@
 /**
  * Preventivatore Verticalizzato Serramentisti — FASE 4.6
  *
- * Preview live del prezzo di un'istanza famiglia. Versione interim (la logica
- * definitiva pura sarà in FASE 5: useFamilyPricing). Qui applichiamo una
- * formula semplice coerente con la spec:
- *
- *   prezzo_base = lookup griglia(L, H) ∨ prezzo_base_vendita ∨ 0
- *   per ogni asse selezionato:
- *     se maggiorazione.percentuale: prezzo_base *= (1 + v/100)
- *     se maggiorazione.fisso_*    : prezzo_base += v  (unità coerente con UM)
- *
- * La formula avverte l'utente che è provvisoria. Non deve essere usata al di
- * fuori dell'editor.
+ * Preview live del prezzo di un'istanza famiglia. Usa calcolaPrezzoFamiglia,
+ * lo stesso motore del preventivo generico, senza fallback o formule locali.
+ * I listini fornitore avanzati mantengono la loro politica di prezzo separata.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Calculator } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,10 +22,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { applyScontiFornitore, applyMarkup } from "@/lib/priceMarkup";
+import { calcolaPrezzoFamiglia, cellaGriglia } from "@/hooks/useFamilyPricing";
 import type { FamilyWithAxes, AxisSelection } from "@/types/articleFamily";
 import { assiVisibili, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
 import { suffissoMaggiorazione } from "@/lib/listino/maggiorazione";
+import { useColoriFamiglia } from "@/hooks/useColoriFamiglia";
+import { SceltaColoriDentroFuori } from "@/components/serramenti/SceltaColoriDentroFuori";
+import { applicaPrezzoOpzioni } from "@/lib/listino/prezzoOpzioni";
+import { guidaPrezzoColori } from "@/lib/serramenti/catalogoColori";
 
 // Limiti plausibili per validazione client (#4)
 const MIN_DIM_MM = 100;
@@ -80,7 +76,7 @@ function formatEur(n: number): string {
  *      superiore. Standard nel mercato.
  *   3. Fuori griglia (richiesta supera la cella massima) → blocca calcolo
  *      e segnala chiaramente la dimensione massima disponibile.
- *   4. Griglia vuota → fallback su prezzo_base_*.
+ *   4. Griglia vuota → prezzo non calcolabile, nessun fallback.
  */
 type GridLookupResult =
   | { kind: "exact"; cell: GridCell }
@@ -100,13 +96,9 @@ function findGridCell(
   if (exact) return { kind: "exact", cell: exact };
 
   // 2. Round-up: cella più piccola che contiene W×H
-  const containing = cells.filter((c) => c.valore_x >= w && c.valore_y >= h);
-  if (containing.length > 0) {
-    const best = containing.reduce(
-      (min, c) =>
-        c.valore_x * c.valore_y < min.valore_x * min.valore_y ? c : min,
-      containing[0],
-    );
+  const containing = cellaGriglia(cells.map(c => ({ ...c, prezzo_acquisto_netto: c.prezzo_acquisto })), w, h);
+  if (containing) {
+    const best = cells.find(c => c.valore_x === containing.punto.valore_x && c.valore_y === containing.punto.valore_y)!;
     return { kind: "round_up", cell: best };
   }
 
@@ -118,6 +110,7 @@ function findGridCell(
 
 export function FamilyPricePreview({ family }: Props) {
   const companyId = useEffectiveCompanyId();
+  const inputId = useId();
 
   // Selezione default dagli assi
   const initialSelection: AxisSelection = useMemo(() => {
@@ -130,8 +123,7 @@ export function FamilyPricePreview({ family }: Props) {
   }, [family.axes]);
 
   const [selectedValues, setSelection] = useState<AxisSelection>(initialSelection);
-  const selection = useMemo(() => normalizzaSelezione(family.axes, selectedValues).valori, [family.axes, selectedValues]);
-  const visibleAxes = useMemo(() => assiVisibili(family.axes, selection), [family.axes, selection]);
+  const selezioneBase = useMemo(() => normalizzaSelezione(family.axes, selectedValues).valori, [family.axes, selectedValues]);
   // #7 — Persistenza ultima simulazione su localStorage (per family.id).
   const lsKey = `eic:simulator:${family.id}`;
   type Persisted = { larghezza: string; altezza: string; quantita: string; unit: DimUnit };
@@ -148,6 +140,7 @@ export function FamilyPricePreview({ family }: Props) {
   const [altezza, setAltezza] = useState<string>(() => persisted?.altezza ?? "1400");
   const [quantita, setQuantita] = useState<string>(() => persisted?.quantita ?? "1");
   const [unit, setUnit] = useState<DimUnit>(() => persisted?.unit ?? "mm");
+  const [lunghezza, setLunghezza] = useState("1");
 
   // #6 — Mini-heatmap griglia (collapsible)
   const [showHeatmap, setShowHeatmap] = useState<boolean>(false);
@@ -170,15 +163,15 @@ export function FamilyPricePreview({ family }: Props) {
   // #4 — Validazione client min/max (in mm normalizzato)
   const wMm = toMm(parseFloat(larghezza) || 0, unit);
   const hMm = toMm(parseFloat(altezza) || 0, unit);
-  const wInvalid = wMm > 0 && (wMm < MIN_DIM_MM || wMm > MAX_DIM_MM);
-  const hInvalid = hMm > 0 && (hMm < MIN_DIM_MM || hMm > MAX_DIM_MM);
+  const wInvalid = !Number.isFinite(wMm) || wMm < MIN_DIM_MM || wMm > MAX_DIM_MM;
+  const hInvalid = !Number.isFinite(hMm) || hMm < MIN_DIM_MM || hMm > MAX_DIM_MM;
 
   // #1 — Dimensioni standard ricavate dalla griglia (per dropdown smart-fill)
   // (Calcolato dopo gridCells, vedi sotto.)
 
   // Carica griglia se serve. Chiave sua (05/10/2026): queste righe non hanno
   // `id`, e sotto grid(id) l'editor della griglia le prendeva per le sue.
-  const { data: gridCells = [] } = useQuery({
+  const { data: gridCells = [], isLoading: gridLoading, isError: gridError } = useQuery({
     queryKey: queryKeys.articleFamilies.gridView(family.id, "anteprima"),
     enabled: !!companyId && !!family.id && family.modalita_prezzo_base === "griglia",
     queryFn: async (): Promise<GridCell[]> => {
@@ -193,216 +186,76 @@ export function FamilyPricePreview({ family }: Props) {
     staleTime: 60 * 1000,
   });
 
-  // Calcolo (sempre in mm: wMm/hMm sono già normalizzati)
-  const result = useMemo(() => {
-    const w = wMm;
-    const h = hMm;
-    const q = parseFloat(quantita) || 1;
-    const warnings: string[] = [];
+  const pricingGrid = useMemo(() => gridCells.map(c => ({
+    ...c, prezzo_acquisto_netto: c.prezzo_acquisto,
+  })), [gridCells]);
+  const colori = useColoriFamiglia(family, selezioneBase, id => {
+    const selections = { ...selezioneBase, colore: id };
+    const p = calcolaPrezzoFamiglia({ family, selections, larghezza_mm: wMm, altezza_mm: hMm, lunghezza_ml: Number(lunghezza), quantita: 1 }, pricingGrid);
+    return p.calcolo_disponibile !== false ? p.unit_price_vendita : applicaPrezzoOpzioni({ vendita: 1000, acquisto: 0, axes: family.axes, selections, mq: 1, ml: 1 }).vendita;
+  });
+  const selection = colori.selezione;
+  const visibleAxes = assiVisibili(family.axes, selection);
+  const showDims =
+    family.modalita_prezzo_base === "griglia" || family.modalita_prezzo_base === "mq" ||
+    visibleAxes.some(a => a.values.some(v => v.id === selection[a.codice] && v.maggiorazione_tipo === "fisso_mq"));
+  const showLength = visibleAxes.some(a => a.values.some(v => v.id === selection[a.codice] && v.maggiorazione_tipo === "fisso_ml"));
+  const lengthValid = Number.isFinite(Number(lunghezza)) && Number(lunghezza) > 0;
+  // Anche le celle di confronto ricalcolano la fascia: a misure diverse un fisso può superare una percentuale.
+  const selezioneAlleMisure = (w: number, h: number) => {
+    if (!colori.asse || !colori.colori) return selection;
+    const guida = guidaPrezzoColori(colori.asse, colori.colori, colori.catalogo, id => {
+      const selections = { ...selezioneBase, colore: id };
+      const p = calcolaPrezzoFamiglia({ family, selections, larghezza_mm: w, altezza_mm: h, quantita: 1, lunghezza_ml: Number(lunghezza) }, pricingGrid);
+      return p.calcolo_disponibile !== false ? p.unit_price_vendita : null;
+    });
+    const selections = { ...selection };
+    delete selections.colore;
+    if (guida) selections.colore = guida.valueId;
+    return selections;
+  };
 
-    // Flag: strategia prezzo a livello famiglia.
-    const isAcquistoMarkup = family.prezzo_base_mode === "acquisto_markup";
+  // Nessuna formula locale: stessi importi e arrotondamenti del preventivo generico.
+  const result = useMemo(() => {
+    const w = wMm, h = hMm;
+    const q = Number(quantita);
+    const famigliaVisibile = { ...family, axes: visibleAxes };
+    const input = { family: famigliaVisibile, selections: selection,
+      larghezza_mm: w, altezza_mm: h, quantita: q,
+      lunghezza_ml: Number(lunghezza) > 0 ? Number(lunghezza) : undefined };
+    const calcolo = calcolaPrezzoFamiglia(input, pricingGrid);
+    const base = calcolaPrezzoFamiglia({ ...input,
+      family: { ...family, axes: [] }, selections: {}, quantita: 1 }, pricingGrid);
+    const gridLookupInfo = family.modalita_prezzo_base === "griglia"
+      ? findGridCell(w, h, gridCells) : null;
+    const disponibile = !colori.stato?.blocca && calcolo.calcolo_disponibile !== false &&
+      (!showDims || (!wInvalid && !hInvalid)) && (!showLength || lengthValid) &&
+      (family.modalita_prezzo_base !== "griglia" || (!gridLoading && !gridError));
+    const prezzoVendita = calcolo.unit_price_vendita;
+    const prezzoAcquisto = calcolo.unit_price_acquisto;
+    const mq = (w * h) / 1_000_000;
     const s1 = Number(family.sconto_fornitore_1 ?? 0);
     const s2 = Number(family.sconto_fornitore_2 ?? 0);
-    const scontiAttivi = s1 > 0 || s2 > 0;
-
-    // Step 1 — prezzo base LORDO (o prezzoVendita diretto) secondo modalità_prezzo_base
-    let baseLordoAcquisto = 0; // listino fornitore se mode=acquisto_markup
-    let baseVendita = 0; // solo se mode=vendita diretta
-    // M4 (audit): flag che indica se siamo caduti in fallback su prezzo_base_*
-    //   (vs lookup griglia diretto). In quel caso la vendita "diretta" deve
-    //   essere trattata come baseline, ma se siamo in acquisto_markup dobbiamo
-    //   comunque applicare il markup — coerenza con la policy famiglia.
-    let inFallback = false;
-    // Info per la UI (riquadro dimensione griglia usata)
-    let gridLookupInfo: GridLookupResult | null = null;
-    let outOfRange = false;
-    if (family.modalita_prezzo_base === "griglia") {
-      gridLookupInfo = findGridCell(w, h, gridCells);
-      switch (gridLookupInfo.kind) {
-        case "exact":
-          baseVendita = Number(gridLookupInfo.cell.prezzo_vendita);
-          baseLordoAcquisto = Number(gridLookupInfo.cell.prezzo_acquisto);
-          break;
-        case "round_up": {
-          const c = gridLookupInfo.cell;
-          baseVendita = Number(c.prezzo_vendita);
-          baseLordoAcquisto = Number(c.prezzo_acquisto);
-          warnings.push(
-            `Dimensione richiesta ${w}×${h} mm non in griglia — applicato prezzo della cella superiore ${c.valore_x}×${c.valore_y} mm (taglio dalla misura standard).`,
-          );
-          break;
-        }
-        case "out_of_range":
-          outOfRange = true;
-          baseVendita = 0;
-          baseLordoAcquisto = 0;
-          warnings.push(
-            `Dimensione ${w}×${h} mm fuori griglia: massimo disponibile ${gridLookupInfo.maxX}×${gridLookupInfo.maxY} mm. Riduci le misure o contatta il fornitore per dimensioni speciali.`,
-          );
-          break;
-        case "empty_grid":
-          inFallback = true;
-          baseVendita = Number(family.prezzo_base_vendita);
-          baseLordoAcquisto = Number(family.prezzo_base_acquisto);
-          warnings.push(
-            "Griglia non configurata — uso prezzo base famiglia. Configura la griglia per prezzi precisi.",
-          );
-          break;
-      }
-    } else if (family.modalita_prezzo_base === "mq") {
-      const mq = (w * h) / 1_000_000; // mm² → m²
-      baseVendita = Number(family.prezzo_base_vendita) * mq;
-      baseLordoAcquisto = Number(family.prezzo_base_acquisto) * mq;
-    } else {
-      baseVendita = Number(family.prezzo_base_vendita);
-      baseLordoAcquisto = Number(family.prezzo_base_acquisto);
-    }
-
-    // M4 (audit): degrade graceful quando siamo in fallback, in acquisto_markup
-    //   e l'admin NON ha impostato `prezzo_base_acquisto`. In quel caso
-    //   `baseLordoAcquisto` è 0 e dopo applyMarkup la vendita diventerebbe 0 —
-    //   esperienza pessima. Preferiamo usare direttamente `prezzo_base_vendita`
-    //   e avvisare che il markup non è stato applicato.
-    if (inFallback && isAcquistoMarkup && baseLordoAcquisto === 0 && baseVendita > 0) {
-      warnings.push(
-        "prezzo_base_acquisto a 0: uso direttamente prezzo_base_vendita del fallback (markup non applicato).",
-      );
-    }
-
-    // Step 2 — applica cascata sconti fornitore (solo se mode=acquisto_markup)
-    //   lordo × (1 - s1/100) × (1 - s2/100) = netto
-    const baseNettoAcquisto = isAcquistoMarkup && scontiAttivi
-      ? applyScontiFornitore(baseLordoAcquisto, s1, s2)
-      : baseLordoAcquisto; // se no sconti, "lordo" coincide con netto
-
-    // Step 3 — ricalcola vendita da markup sul netto (quando mode=acquisto_markup)
-    //   Questo rende il simulatore coerente con la policy famiglia, evitando
-    //   di mostrare valori stale se la grid è stata salvata prima di cambiare
-    //   markup/sconti.
-    //   M4 (audit): se siamo in fallback e non c'è acquisto, non possiamo
-    //   applicare il markup — cadiamo su `baseVendita` direttamente.
-    const canApplyMarkup = isAcquistoMarkup && baseNettoAcquisto > 0;
-    const baseVenditaCalcolata = canApplyMarkup
-      ? applyMarkup({
-          prezzoAcquisto: baseNettoAcquisto,
-          markupTipo: family.markup_tipo,
-          markupValore: Number(family.markup_valore ?? 0),
-        }).prezzoVendita
-      : baseVendita;
-
-    // Step 4 — applica maggiorazioni assi su vendita e acquisto NETTO
-    let prezzoVendita = baseVenditaCalcolata;
-    let prezzoAcquisto = baseNettoAcquisto;
-    let costoCompleto = baseNettoAcquisto > 0;
-
-    const mq = (w * h) / 1_000_000;
-    const ml = w / 1000;
-    const mc = (w * h * 1000) / 1_000_000_000;
-
-    // Pass 0: prezzo proprio della variante (una marca, una potenza): prende il
-    // posto del prezzo base, al m² per i prodotti al m², mai sulle griglie —
-    // come calcolaPrezzoFamiglia e il preventivatore serramenti. Prima il
-    // simulatore lo ignorava e mostrava il prezzo base (05/10/2026).
-    const assiPrezzoProprio = new Set<string>();
-    if (family.modalita_prezzo_base !== "griglia") {
-      const perMq = family.modalita_prezzo_base === "mq";
-      for (const ax of visibleAxes) {
-        const selId = selection[ax.codice];
-        if (!selId) continue;
-        const v = ax.values.find((x) => x.id === selId);
-        if (!v || v.prezzo_vendita == null || !(Number(v.prezzo_vendita) > 0)) continue;
-        prezzoVendita = perMq ? Number(v.prezzo_vendita) * mq : Number(v.prezzo_vendita);
-        costoCompleto = v.prezzo_acquisto != null && Number(v.prezzo_acquisto) > 0;
-        if (costoCompleto) {
-          prezzoAcquisto = perMq ? Number(v.prezzo_acquisto) * mq : Number(v.prezzo_acquisto);
-        }
-        assiPrezzoProprio.add(ax.codice);
-      }
-    }
-
-    // Pass 1: percentuali
-    for (const ax of visibleAxes) {
-      const selId = selection[ax.codice];
-      if (!selId || assiPrezzoProprio.has(ax.codice)) continue;
-      const v = ax.values.find((x) => x.id === selId);
-      if (!v || v.maggiorazione_tipo !== "percentuale") continue;
-      prezzoVendita *= 1 + Number(v.maggiorazione_valore) / 100;
-      prezzoAcquisto *= 1 + Number(v.maggiorazione_acquisto) / 100;
-    }
-
-    // Pass 2: fisse
-    for (const ax of visibleAxes) {
-      const selId = selection[ax.codice];
-      if (!selId || assiPrezzoProprio.has(ax.codice)) continue;
-      const v = ax.values.find((x) => x.id === selId);
-      if (!v || v.maggiorazione_tipo === "none" || v.maggiorazione_tipo === "percentuale") continue;
-      const vendAdd = Number(v.maggiorazione_valore);
-      const acqAdd = Number(v.maggiorazione_acquisto);
-      switch (v.maggiorazione_tipo) {
-        case "fisso_pz":
-          prezzoVendita += vendAdd;
-          prezzoAcquisto += acqAdd;
-          break;
-        case "fisso_mq":
-          prezzoVendita += vendAdd * mq;
-          prezzoAcquisto += acqAdd * mq;
-          break;
-        case "fisso_ml":
-          prezzoVendita += vendAdd * ml;
-          prezzoAcquisto += acqAdd * ml;
-          break;
-        case "fisso_mc":
-          prezzoVendita += vendAdd * mc;
-          prezzoAcquisto += acqAdd * mc;
-          break;
-      }
-    }
-
-    // Le riduzioni delle varianti (−8%, −20 €) non portano il prezzo sotto zero:
-    // conta 0, come nel preventivo (calcolaPrezzoFamiglia).
-    if (prezzoVendita < 0 || prezzoAcquisto < 0) {
-      warnings.push("Le riduzioni delle varianti portano il prezzo sotto zero: conta 0 €, controlla le maggiorazioni.");
-      prezzoVendita = Math.max(0, prezzoVendita);
-      prezzoAcquisto = Math.max(0, prezzoAcquisto);
-    }
-
-    const totVendita = prezzoVendita * q;
-    const totAcquisto = prezzoAcquisto * q;
-    const margine = totVendita - totAcquisto;
-    const marginePerc = totVendita > 0 ? (margine / totVendita) * 100 : 0;
-
-    // Dati per il breakdown tabellare (solo mode=acquisto_markup)
-    const breakdown = isAcquistoMarkup
-      ? {
-          lordo: baseLordoAcquisto,
-          dopoS1: s1 > 0 ? baseLordoAcquisto * (1 - s1 / 100) : baseLordoAcquisto,
-          netto: baseNettoAcquisto,
-          s1,
-          s2,
-          markupTipo: family.markup_tipo,
-          markupValore: Number(family.markup_valore ?? 0),
-          venditaBase: baseVenditaCalcolata,
-          maggiorazioneEuro: prezzoVendita - baseVenditaCalcolata,
-        }
+    const cella = gridLookupInfo && (gridLookupInfo.kind === "exact" || gridLookupInfo.kind === "round_up")
+      ? gridLookupInfo.cell : null;
+    const lordo = family.modalita_prezzo_base === "griglia"
+      ? Number(cella?.prezzo_acquisto ?? 0)
+      : Number(family.prezzo_base_acquisto) * (family.modalita_prezzo_base === "mq" ? mq : 1);
+    const breakdown = family.prezzo_base_mode === "acquisto_markup" && disponibile
+      ? { lordo, dopoS1: lordo * (1 - s1 / 100), netto: base.unit_price_acquisto,
+          s1, s2, markupTipo: family.markup_tipo, markupValore: Number(family.markup_valore ?? 0),
+          venditaBase: base.unit_price_vendita, maggiorazioneEuro: prezzoVendita - base.unit_price_vendita }
       : null;
-
+    const margine = calcolo.totale_vendita - calcolo.totale_acquisto;
     return {
-      base: baseVenditaCalcolata,
-      prezzoVendita,
-      prezzoAcquisto,
-      totVendita,
-      totAcquisto,
-      margine,
-      marginePerc,
-      costoCompleto,
-      warnings,
-      mq,
-      breakdown,
-      gridLookupInfo,
-      outOfRange,
+      base: base.unit_price_vendita, prezzoVendita, prezzoAcquisto,
+      totVendita: calcolo.totale_vendita, totAcquisto: calcolo.totale_acquisto,
+      margine, marginePerc: calcolo.totale_vendita > 0 ? margine / calcolo.totale_vendita * 100 : 0,
+      costoCompleto: calcolo.costo_completo === true,
+      warnings: calcolo.warnings.filter(w => !colori.stato?.avvisi.includes(w)), mq, breakdown, gridLookupInfo,
+      outOfRange: calcolo.fuori_listino === true, disponibile,
     };
-  }, [family, visibleAxes, gridCells, selection, wMm, hMm, quantita]);
+  }, [family, visibleAxes, gridCells, pricingGrid, selection, wMm, hMm, quantita, lunghezza, wInvalid, hInvalid, showDims, showLength, lengthValid, gridLoading, gridError, colori.stato]);
 
   // #1 — Liste W e H disponibili in griglia (per dropdown smart-fill)
   const availableWidths = useMemo(
@@ -417,9 +270,6 @@ export function FamilyPricePreview({ family }: Props) {
   // Helpers per applicare dimensioni dal banner / dropdown (input mostra unità corrente)
   const setLarghezzaMm = (mm: number) => setLarghezza(String(fromMm(mm, unit)));
   const setAltezzaMm = (mm: number) => setAltezza(String(fromMm(mm, unit)));
-
-  const showDims =
-    family.modalita_prezzo_base === "griglia" || family.modalita_prezzo_base === "mq";
 
   return (
     <Card className="border-primary/30 bg-primary/5">
@@ -450,6 +300,10 @@ export function FamilyPricePreview({ family }: Props) {
                       setUnit(u);
                       if (wMmCurrent > 0) setLarghezza(String(fromMm(wMmCurrent, u)));
                       if (hMmCurrent > 0) setAltezza(String(fromMm(hMmCurrent, u)));
+                      setComparisons(rows => rows.map(row => ({ ...row,
+                        w: String(fromMm(toMm(Number(row.w), unit), u)),
+                        h: String(fromMm(toMm(Number(row.h), unit), u)),
+                      })));
                     }}
                     className={`px-2 py-0.5 rounded border ${
                       unit === u
@@ -470,7 +324,7 @@ export function FamilyPricePreview({ family }: Props) {
 
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <label className="text-xs text-muted-foreground">Larghezza ({unit})</label>
+                <label htmlFor={`${inputId}-larghezza`} className="text-xs text-muted-foreground">Larghezza ({unit})</label>
                 {availableWidths.length > 0 ? (
                   <Select
                     value={availableWidths.includes(wMm) ? String(wMm) : "_custom"}
@@ -492,6 +346,7 @@ export function FamilyPricePreview({ family }: Props) {
                   </Select>
                 ) : null}
                 <Input
+                  id={`${inputId}-larghezza`}
                   type="number"
                   value={larghezza}
                   onChange={(e) => setLarghezza(e.target.value)}
@@ -505,7 +360,7 @@ export function FamilyPricePreview({ family }: Props) {
                 ) : null}
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">Altezza ({unit})</label>
+                <label htmlFor={`${inputId}-altezza`} className="text-xs text-muted-foreground">Altezza ({unit})</label>
                 {availableHeights.length > 0 ? (
                   <Select
                     value={availableHeights.includes(hMm) ? String(hMm) : "_custom"}
@@ -527,6 +382,7 @@ export function FamilyPricePreview({ family }: Props) {
                   </Select>
                 ) : null}
                 <Input
+                  id={`${inputId}-altezza`}
                   type="number"
                   value={altezza}
                   onChange={(e) => setAltezza(e.target.value)}
@@ -540,8 +396,9 @@ export function FamilyPricePreview({ family }: Props) {
                 ) : null}
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">Quantità</label>
+                <label htmlFor={`${inputId}-quantita`} className="text-xs text-muted-foreground">Quantità</label>
                 <Input
+                  id={`${inputId}-quantita`}
                   type="number"
                   value={quantita}
                   onChange={(e) => setQuantita(e.target.value)}
@@ -552,8 +409,9 @@ export function FamilyPricePreview({ family }: Props) {
           </div>
         ) : (
           <div>
-            <label className="text-xs text-muted-foreground">Quantità</label>
+            <label htmlFor={`${inputId}-quantita`} className="text-xs text-muted-foreground">Quantità</label>
             <Input
+              id={`${inputId}-quantita`}
               type="number"
               value={quantita}
               onChange={(e) => setQuantita(e.target.value)}
@@ -562,9 +420,18 @@ export function FamilyPricePreview({ family }: Props) {
           </div>
         )}
 
+        {showLength ? <div>
+          <label htmlFor={`${inputId}-lunghezza`} className="text-xs text-muted-foreground">Lunghezza (m)</label>
+          <Input id={`${inputId}-lunghezza`} type="number" min="0" step="any" value={lunghezza}
+            onChange={e => setLunghezza(e.target.value)} aria-invalid={!lengthValid} className="h-8 w-28" />
+          <p className="text-xs text-muted-foreground">Sviluppo usato per i supplementi al metro lineare.</p>
+        </div> : null}
+
         {family.axes.length > 0 ? (
           <div className="space-y-2">
-            {visibleAxes.map((ax) => (
+            {visibleAxes.map((ax) => ax.codice === "colore" && colori.asse && colori.colori ? (
+              <div key={ax.id} className="grid grid-cols-2 gap-3"><SceltaColoriDentroFuori asse={colori.asse} colori={colori.colori} catalogo={colori.catalogo} guidaId={colori.guida?.valueId} piuCaraId={colori.guida?.valueId} formato="listino" onChange={colori.cambia} onScrivi={colori.scrivi} onElenco={colori.elenco} /></div>
+            ) : (
               <div key={ax.id}>
                 <label className="text-xs text-muted-foreground">{ax.nome}</label>
                 <Select
@@ -595,7 +462,11 @@ export function FamilyPricePreview({ family }: Props) {
         ) : null}
 
         {/* Stato griglia: banner colorato per esatto/round-up/out-of-range/empty */}
-        {result.gridLookupInfo ? (
+        {family.modalita_prezzo_base === "griglia" && (gridLoading || gridError) ? (
+          <p role="status" className="text-xs text-muted-foreground">
+            {gridError ? "Impossibile caricare la griglia prezzi. Riprova prima di simulare." : "Caricamento griglia prezzi…"}
+          </p>
+        ) : result.gridLookupInfo ? (
           <GridStatusBanner
             info={result.gridLookupInfo}
             requestedW={wMm}
@@ -603,17 +474,16 @@ export function FamilyPricePreview({ family }: Props) {
             onUseMax={
               result.outOfRange && availableWidths.length > 0 && availableHeights.length > 0
                 ? () => {
-                    const maxW = Math.max(...availableWidths);
-                    const maxH = Math.max(...availableHeights);
-                    setLarghezzaMm(maxW);
-                    setAltezzaMm(maxH);
+                    const cell = gridCells.reduce((best, c) => c.valore_x * c.valore_y > best.valore_x * best.valore_y ? c : best);
+                    setLarghezzaMm(cell.valore_x);
+                    setAltezzaMm(cell.valore_y);
                   }
                 : undefined
             }
           />
         ) : null}
 
-        {result.warnings.length > 0 && !result.gridLookupInfo ? (
+        {result.warnings.length > 0 && !(family.modalita_prezzo_base === "griglia" && (gridLoading || gridError)) ? (
           <div className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-md p-2 space-y-0.5">
             {result.warnings.map((w, i) => (
               <div key={i}>⚠ {w}</div>
@@ -655,6 +525,11 @@ export function FamilyPricePreview({ family }: Props) {
                           const cell = gridCells.find(
                             (c) => c.valore_x === w && c.valore_y === h,
                           );
+                          const prezzoCella = cell ? calcolaPrezzoFamiglia({
+                            family: { ...family, axes: visibleAxes }, selections: selezioneAlleMisure(w, h),
+                            larghezza_mm: w, altezza_mm: h, quantita: 1,
+                            lunghezza_ml: lengthValid ? Number(lunghezza) : undefined,
+                          }, pricingGrid) : null;
                           const isCurrent = wMm === w && hMm === h;
                           return (
                             <td
@@ -674,7 +549,7 @@ export function FamilyPricePreview({ family }: Props) {
                               }}
                               title={
                                 cell
-                                  ? `${w}×${h} mm: ${formatEur(cell.prezzo_vendita ?? 0)}`
+                                  ? `${w}×${h} mm: ${!showLength || lengthValid ? formatEur(prezzoCella!.unit_price_vendita) : "lunghezza da impostare"}`
                                   : `${w}×${h} mm: non disponibile`
                               }
                             >
@@ -757,9 +632,9 @@ export function FamilyPricePreview({ family }: Props) {
           </div>
         ) : null}
 
-        {result.outOfRange ? (
+        {!result.disponibile ? (
           <div className="border-t pt-3 text-sm text-muted-foreground">
-            Calcolo non disponibile per questa dimensione — vedi avviso sopra.
+            Calcolo non disponibile: verifica quantità, misure, colori e griglia prezzi.
           </div>
         ) : (
           <div className="border-t pt-3 space-y-1 text-sm">
@@ -839,9 +714,13 @@ export function FamilyPricePreview({ family }: Props) {
                     cWMm > 0 && cHMm > 0
                       ? findGridCell(cWMm, cHMm, gridCells)
                       : null;
-                  const cellPrice = cLookup && (cLookup.kind === "exact" || cLookup.kind === "round_up")
-                    ? cLookup.cell.prezzo_vendita ?? null
-                    : null;
+                  const confronto = calcolaPrezzoFamiglia({
+                    family: { ...family, axes: visibleAxes }, selections: selezioneAlleMisure(cWMm, cHMm),
+                    larghezza_mm: cWMm, altezza_mm: cHMm, quantita: 1,
+                    lunghezza_ml: Number(lunghezza) > 0 ? Number(lunghezza) : undefined,
+                  }, pricingGrid);
+                  const cellPrice = cLookup && (cLookup.kind === "exact" || cLookup.kind === "round_up") && confronto.calcolo_disponibile !== false && (!showLength || lengthValid) && !gridLoading && !gridError
+                    ? confronto.unit_price_vendita : null;
                   const delta = cellPrice !== null && result.prezzoVendita > 0
                     ? cellPrice - result.prezzoVendita
                     : null;
@@ -970,7 +849,7 @@ function GridStatusBanner({
         {onUseMax ? (
           <div className="pl-5">
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onUseMax}>
-              Usa dimensione max disponibile ({info.maxX}×{info.maxY} mm)
+              Usa una misura presente in griglia
             </Button>
           </div>
         ) : null}
@@ -982,7 +861,7 @@ function GridStatusBanner({
     <div className="text-xs text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 rounded-md p-2 flex items-center gap-2">
       <span aria-hidden>ℹ</span>
       <span>
-        Griglia non configurata — calcolo da prezzo base famiglia. Configura la griglia per prezzi precisi.
+        Griglia non configurata — prezzo non calcolabile. Configura la griglia prima di usare il prodotto.
       </span>
     </div>
   );

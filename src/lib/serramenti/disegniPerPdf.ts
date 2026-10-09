@@ -73,16 +73,17 @@ export async function disegniDelPreventivo(
   const risultato: Record<string, DisegnoPdf> = {};
   const { DisegnoSerramentoSvg } = await import("@/components/serramenti/DisegnoSerramentoSvg");
   for (const r of righe) {
-    if (!r.family_id || !r.larghezza_mm || !r.altezza_mm) continue;
+    if (!r.larghezza_mm || !r.altezza_mm) continue;
     const congelato = r.disegno_config?.v === 1 ? r.disegno_config : null;
-    const tipologia = tipologiaPerFamiglia[r.family_id];
+    const tipologia = r.family_id ? tipologiaPerFamiglia[r.family_id] : null;
     if (!congelato && !tipologia) continue;
     const chiave = chiaveDisegno(r.family_id, r.larghezza_mm, r.altezza_mm, r.valori_assi, congelato, r.scelte_assi, { interno: r.colore_interno, esterno: r.colore_esterno });
     if (risultato[chiave]) continue;
-    let d: ReturnType<typeof disegnoDaConfig> = null;
+    let d: ReturnType<typeof disegnoDaConfig>;
     if (congelato) {
       d = disegnoDaConfig(congelato, r.larghezza_mm, r.altezza_mm);
     } else {
+      if (!r.family_id) continue;
       const family = famigliaDaEtichette(r.family_id, tipologia as string, etichette);
       if (!haDisegno(family)) continue;
       const config = configDaFamiglia(family, (r.valori_assi ?? {}) as AxisSelection, { coloreInterno: r.colore_interno, coloreEsterno: r.colore_esterno, voci: r.scelte_assi });

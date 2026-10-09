@@ -1109,11 +1109,8 @@ function materialeFromFamily(
   return map[raw] ?? raw;
 }
 
-// Raggruppa serramenti per (family_id, tipologia, materiale, serie, vetro,
-// L, H, ambiente, colore_int, colore_est). Serramenti completamente identici
-// si sommano; qualunque differenza (anche solo il colore) → riga separata.
-// Importante per il documento tecnico: l'installatore deve vedere ogni "lotto"
-// in modo distinto.
+// Mantiene una voce PDF per ogni riga commerciale, anche a parità di misure:
+// quantità, varianti, note e foto devono restare associate alla propria riga.
 export function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
   key: string;
   tipologia: string;
@@ -1204,7 +1201,7 @@ export function groupSerramentiAdvanced(serr: SrSerramentoRow[]): Array<{
     }
     else map.set(key, {
       key,
-      tipologia: s.family_id ? tipologiaLabel(s.tipologia) : (s.tipologia_label || tipologiaLabel(s.tipologia)),
+      tipologia: s.tipologia_label?.trim() || tipologiaLabel(s.tipologia),
       materiale: materialeLabel(s.materiale),
       serie: s.serie ?? "",
       vetro: s.vetro ?? "",

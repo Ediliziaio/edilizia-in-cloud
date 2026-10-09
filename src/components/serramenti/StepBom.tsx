@@ -63,12 +63,15 @@ import { lineaDellaRiga, schedaVuota, trovaSchedaLinea } from "@/lib/listino/sch
 import { SchedaLineaCompatta } from "./SchedaLineaCompatta";
 import { SceltaVariante } from "./SceltaVariante";
 import { SceltaColoriDentroFuori } from "./SceltaColoriDentroFuori";
+import { CHIAVE_CATALOGO_COLORI, leggiCatalogoColori, guidaPrezzoColori, testiColoriCatalogo, verificaColori } from "@/lib/serramenti/catalogoColori";
+import { snapshotColori } from "@/lib/serramenti/coloriDentroFuori";
 import { gruppiColori, pulisciVoci, scelteDopo, testoScelta, vociDi } from "@/lib/listino/scelteVariante";
 import {
-  CODICE_ASSE_COLORE, MISURA_DI_CONFRONTO_MM, PREZZO_DI_CONFRONTO, cambiaLato, fasceDeiLati, leggiColori, sceltaPerIlPrezzo, testiColori, type LatoColore,
+  CODICE_ASSE_COLORE, MISURA_DI_CONFRONTO_MM, PREZZO_DI_CONFRONTO, cambiaLato, fasceDeiLati, leggiColori, sceltaPerIlPrezzo, type LatoColore,
 } from "@/lib/serramenti/coloriDentroFuori";
 import { Checkbox } from "@/components/ui/checkbox";
 import { misuraDaTesto, quantitaDaTesto } from "@/lib/serramenti/righePreventivo";
+import { salvaPoiSincronizza } from "@/lib/serramenti/salvataggioSequenziale";
 import { preferenzeDaRiga } from "@/lib/serramenti/pickerListino";
 import { conAssiVisibili, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
 import { ComplementiFinestra, ComplementiSuTutteLeFinestre, EliminaComplementoDialog } from "./ComplementiFinestra";
@@ -358,9 +361,12 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
       const famigliaConAssi = famiglieConAssi.find((f) => f.id === orig.family_id);
       patch.disegno_config = configDaFamiglia(famigliaConAssi, (dopo.valori_assi ?? {}) as Record<string, string>, { coloreInterno: dopo.colore_interno, coloreEsterno: dopo.colore_esterno, voci: dopo.scelte_assi, forma: formaDaConfig(orig.disegno_config) }) ?? orig.disegno_config ?? null;
     }
-    updateMut.mutate({ id, patch });
-    // I complementi della finestra ne seguono misure, pezzi e posa.
-    if (orig) void complementi.seguiLaFinestra(orig, { ...orig, ...patch });
+    // Non cambiare i complementi se il salvataggio della finestra fallisce.
+    // mutateAsync conserva la sequenza anche con più richieste contemporanee.
+    void salvaPoiSincronizza(
+      () => updateMut.mutateAsync({ id, patch }),
+      () => orig ? complementi.seguiLaFinestra(orig, { ...orig, ...patch }) : undefined,
+    ).catch(() => { /* L'errore della mutation è già mostrato dal relativo hook. */ });
   };
 
   const accessoriDaEliminare = toDelete ? detail.accessori.filter((a) => a.serramento_id === toDelete.id) : [];
@@ -970,6 +976,8 @@ export function SerramentoRow({
   // scelte_assi: la fascia più cara dei due al momento della scelta). Le righe vecchie, monocolore o con i colori scritti a
   // mano, si leggono come le scrive il PDF; la loro fascia e il loro prezzo non cambiano finché non si tocca una tendina.
   const asseColore = useMemo(() => familyWithAxes?.axes.find((a) => a.codice === CODICE_ASSE_COLORE), [familyWithAxes]);
+  const catalogoColori = useMemo(() => leggiCatalogoColori(familyWithAxes?.custom_field_values), [familyWithAxes?.custom_field_values]);
+  const catalogoNonValido = familyWithAxes?.custom_field_values?.[CHIAVE_CATALOGO_COLORI] != null && !catalogoColori;
   const colori = useMemo(
     () => (asseColore ? leggiColori(asseColore, s) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- conta solo quello che la riga ricorda dei colori
@@ -1023,6 +1031,11 @@ export function SerramentoRow({
     if ((family.modalita_prezzo_base === "griglia" || family.modalita_prezzo_base === "mq") && (!L || !H)) return null;
     const Qsafe = Q || 1;
     const sels = selections ?? (s.valori_assi ?? {}) as Record<string, string>;
+    if (catalogoNonValido) return null;
+    if (asseColore && catalogoColori) {
+      const stato = verificaColori(asseColore, leggiColori(asseColore, { valori_assi: sels }), catalogoColori);
+      if (stato.blocca || (stato.fasciaId && sels[CODICE_ASSE_COLORE] !== stato.fasciaId)) return null;
+    }
     // Varianti non ancora caricate: il prezzo senza le loro maggiorazioni sarebbe
     // sbagliato (un colore a +15% sparirebbe dal totale). Meglio aspettare.
     if (!familyWithAxes && Object.keys(sels).length > 0) return null;
@@ -1149,6 +1162,10 @@ export function SerramentoRow({
    */
   const handleAxisPatch = (axisCodice: string, valueId: string, scelta: string | null = null) => {
     const scelteMesse = { ...(s.valori_assi ?? {}), [axisCodice]: valueId };
+    if (axisCodice === CODICE_ASSE_COLORE) {
+      delete scelteMesse.__colore_interno;
+      delete scelteMesse.__colore_esterno;
+    }
     // Le varianti che compaiono o spariscono (monoblocco sì/no) mettono in ordine le scelte della riga.
     const ordinate = familyCompleta ? normalizzaSelezione(familyCompleta.axes, scelteMesse, scelteDopo(s.scelte_assi, axisCodice, scelta)) : null;
     const nextSelections = ordinate ? ordinate.valori : scelteMesse;
@@ -1213,25 +1230,32 @@ export function SerramentoRow({
   const handleColorePatch = (lato: LatoColore, valueId: string, voce: string | null) => {
     if (!asseColore || !colori || !familyCompleta) return;
     const nuovi = cambiaLato(colori, lato, valueId, voce);
+    const verifica = verificaColori(asseColore, nuovi, catalogoColori);
+    // Una combinazione ancora da quotare si può descrivere, ma non si inventa un nuovo prezzo.
+    if (verifica.blocca || catalogoNonValido) {
+      const testi = testiColoriCatalogo(asseColore, nuovi, catalogoColori);
+      onPatch({ valori_assi: { ...(s.valori_assi ?? {}), ...snapshotColori(nuovi, testi) }, colore_interno: testi.interno, colore_esterno: testi.esterno });
+      return;
+    }
     const L = s.larghezza_mm ?? null;
     const H = s.altezza_mm ?? null;
     const Q = s.quantita ?? 1;
     const attuali = (s.valori_assi ?? {}) as Record<string, string>;
-    const guida = sceltaPerIlPrezzo(nuovi, prezzoPerFascia(L, H, Q)) ?? { valueId, voce };
+    const guida = guidaPrezzoColori(asseColore, nuovi, catalogoColori, prezzoPerFascia(L, H, Q)) ?? { valueId, voce };
     const ordinate = normalizzaSelezione(familyCompleta.axes, { ...attuali, [CODICE_ASSE_COLORE]: guida.valueId }, scelteDopo(s.scelte_assi, CODICE_ASSE_COLORE, guida.voce));
-    const testi = testiColori(asseColore, nuovi);
-    const scelte = { valori_assi: ordinate.valori, scelte_assi: ordinate.voci, colore_interno: testi.interno, colore_esterno: testi.esterno };
+    const testi = testiColoriCatalogo(asseColore, nuovi, catalogoColori);
+    const scelte = { valori_assi: { ...ordinate.valori, ...snapshotColori(nuovi, testi) }, scelte_assi: ordinate.voci, colore_interno: testi.interno, colore_esterno: testi.esterno };
     // Prezzo manuale («misura libera»): la scelta si salva e il prezzo resta quello del commerciale.
     if (isListinoManualPrice) {
       onPatch(scelte);
       return;
     }
-    const nuovoPrezzo = ricalcolaPrezzoUnitario(L, H, Q, ordinate.valori);
+    const nuovoPrezzo = ricalcolaPrezzoUnitario(L, H, Q, scelte.valori_assi);
     if (nuovoPrezzo != null && Number.isFinite(nuovoPrezzo)) {
       onPatch({ ...scelte, prezzo_unitario: Number(nuovoPrezzo.toFixed(2)) });
     } else {
       if (datiInArrivo) {
-        ricalcoloInSospeso.current = { L, H, Q, selections: ordinate.valori, posaEsclusa: s.posa_esclusa ?? false };
+        ricalcoloInSospeso.current = { L, H, Q, selections: scelte.valori_assi, posaEsclusa: s.posa_esclusa ?? false };
       }
       onPatch(scelte);
     }
@@ -1609,6 +1633,7 @@ export function SerramentoRow({
                 <div className="text-[10px] uppercase tracking-wide text-blue-800 font-semibold mb-2">
                   Variabili Prodotto
                 </div>
+                {catalogoNonValido && <p role="alert" className="mb-2 text-xs text-amber-800">Catalogo colori non valido. Il prezzo salvato resta invariato: correggi il listino prima di ricalcolarlo.</p>}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {familyWithAxes.axes
                     .slice()
@@ -1622,6 +1647,7 @@ export function SerramentoRow({
                           <SceltaColoriDentroFuori
                             key={axis.id}
                             asse={axis}
+                            catalogo={catalogoColori}
                             colori={colori}
                             guidaId={(s.valori_assi ?? {})[CODICE_ASSE_COLORE]}
                             piuCaraId={fasciaPiuCara}

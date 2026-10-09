@@ -21,6 +21,10 @@ import type { FamilyWithAxes, AxisSelection } from "@/types/articleFamily";
 import { queryKeys } from "@/lib/queryKeys";
 import { applyScontiFornitore, applyMarkup } from "@/lib/priceMarkup";
 import { round2 } from "./usePreventivoCosti";
+import { applicaPrezzoOpzioni } from "@/lib/listino/prezzoOpzioni";
+import { assiVisibili } from "@/lib/serramenti/assiCondizionati";
+import { leggiColori } from "@/lib/serramenti/coloriDentroFuori";
+import { CHIAVE_CATALOGO_COLORI, leggiCatalogoColori, verificaColori } from "@/lib/serramenti/catalogoColori";
 
 export interface GridPoint {
   valore_x: number;
@@ -65,6 +69,9 @@ export interface PricingResult {
   warnings: string[];
   /** Misura più grande della griglia: il prodotto non si fa a quella misura, il prezzo è 0. */
   fuori_listino?: boolean;
+  /** False se mancano misure/griglia: i supplementi non diventano un prezzo del prodotto. */
+  calcolo_disponibile?: boolean;
+  costo_completo?: boolean;
 }
 
 /**
@@ -149,6 +156,38 @@ export function calcolaPrezzoFamiglia(
     quantita,
   } = input;
   const warnings: string[] = [];
+  const indisponibile = (fuori_listino = false): PricingResult => ({
+    unit_price_vendita: 0, unit_price_acquisto: 0, prezzo_griglia_base: null,
+    mq: null, maggiorazioni_applicate: [], totale_vendita: 0, totale_acquisto: 0,
+    warnings, fuori_listino, calcolo_disponibile: false, costo_completo: false,
+  });
+  const asseColore = assiVisibili(family.axes, selections).find(a => a.codice === "colore");
+  let coloriDaVerificare = false;
+  if (asseColore && (asseColore.obbligatorio || selections.colore || family.custom_field_values?.[CHIAVE_CATALOGO_COLORI] != null)) {
+    const catalogo = leggiCatalogoColori(family.custom_field_values);
+    if (family.custom_field_values?.[CHIAVE_CATALOGO_COLORI] != null && !catalogo) {
+      warnings.push("Catalogo colori non valido: controlla le impostazioni della linea.");
+      return indisponibile();
+    }
+    const stato = verificaColori(asseColore, leggiColori(asseColore, { valori_assi: selections }), catalogo);
+    warnings.push(...stato.avvisi);
+    coloriDaVerificare = stato.avvisi.length > 0;
+    if (stato.blocca) return indisponibile();
+    if (stato.fasciaId && selections.colore !== stato.fasciaId) {
+      warnings.push("La fascia prezzo non corrisponde alla combinazione colori. Riconfigura il prodotto.");
+      return indisponibile();
+    }
+  }
+  if (!Number.isFinite(quantita) || quantita <= 0) {
+    warnings.push("Inserisci una quantità valida maggiore di zero");
+    return indisponibile();
+  }
+  if ((family.modalita_prezzo_base === "mq" || family.modalita_prezzo_base === "griglia") &&
+    (larghezza_mm != null && (!Number.isFinite(larghezza_mm) || larghezza_mm <= 0) ||
+     altezza_mm != null && (!Number.isFinite(altezza_mm) || altezza_mm <= 0))) {
+    warnings.push("Inserisci larghezza e altezza valide maggiori di zero");
+    return indisponibile();
+  }
 
   const mq =
     larghezza_mm != null && altezza_mm != null
@@ -160,7 +199,7 @@ export function calcolaPrezzoFamiglia(
   let pv = 0;
   let pa = 0;
   let prezzo_griglia_base: number | null = null;
-  let fuori_listino = false;
+  const fuori_listino = false;
 
   switch (family.modalita_prezzo_base) {
     case "pz":
@@ -171,7 +210,7 @@ export function calcolaPrezzoFamiglia(
     case "mq":
       if (mq == null) {
         warnings.push("Misure L×H mancanti per famiglia mq");
-        break;
+        return indisponibile();
       }
       pv = family.prezzo_base_vendita * mq;
       pa = family.prezzo_base_acquisto * mq;
@@ -179,11 +218,11 @@ export function calcolaPrezzoFamiglia(
     case "griglia":
       if (larghezza_mm == null || altezza_mm == null) {
         warnings.push("Misure L×H mancanti per famiglia griglia");
-        break;
+        return indisponibile();
       }
       if (!griglia || griglia.length === 0) {
         warnings.push("Griglia prezzi vuota per questa famiglia");
-        break;
+        return indisponibile();
       }
       {
         const cella = cellaGriglia(griglia, larghezza_mm, altezza_mm);
@@ -193,8 +232,7 @@ export function calcolaPrezzoFamiglia(
           warnings.push(
             `Misura ${larghezza_mm}×${altezza_mm} fuori listino: la griglia arriva a ${maxX}×${maxY} mm`,
           );
-          fuori_listino = true;
-          break;
+          return indisponibile(true);
         }
         if (!cella.esatta) {
           warnings.push(
@@ -239,141 +277,16 @@ export function calcolaPrezzoFamiglia(
     }
   }
 
-  // 2. + 3. Maggiorazioni in ordine sort_order degli assi
-  const maggiorazioni_applicate: AppliedMaggiorazione[] = [];
-  const axesSorted = [...family.axes].sort(
-    (a, b) => a.sort_order - b.sort_order,
-  );
-
-  // 1.6. Prezzo assoluto per-valore (Variabili Prodotto): un valore d'asse col
-  // proprio prezzo_vendita/prezzo_acquisto SOSTITUISCE il prezzo base della
-  // famiglia invece di applicarci sopra una maggiorazione — lo stesso "prezzo
-  // proprio" già usato da ordini/commesse (ArticleCombobox.variantPrice), qui
-  // attivato anche per i preventivi: editare il prezzo di una variante (es.
-  // una marca/serie serramenti) non tocca più le altre. Non si applica in
-  // modalità "griglia": il prezzo dipende dalla cella L×H, un numero fisso
-  // per variante non la rappresenterebbe.
-  const assiPrezzoAssoluto = new Set<string>();
-  if (family.modalita_prezzo_base !== "griglia") {
-    for (const axis of axesSorted) {
-      const selectedValueId = selections[axis.codice];
-      if (!selectedValueId) continue;
-      const val = axis.values.find((v) => v.id === selectedValueId);
-      if (!val || val.prezzo_vendita == null || !(val.prezzo_vendita > 0)) continue;
-      const prev_pv = pv;
-      const prev_pa = pa;
-      const perMq = family.modalita_prezzo_base === "mq" && mq != null;
-      pv = perMq ? val.prezzo_vendita * mq : val.prezzo_vendita;
-      if (val.prezzo_acquisto != null && val.prezzo_acquisto > 0) {
-        pa = perMq ? val.prezzo_acquisto * mq : val.prezzo_acquisto;
-      }
-      assiPrezzoAssoluto.add(axis.codice);
-      maggiorazioni_applicate.push({
-        axis_codice: axis.codice,
-        value_valore: val.valore,
-        tipo: "prezzo_assoluto",
-        valore: val.prezzo_vendita,
-        delta_vendita: round2(pv - prev_pv),
-        delta_acquisto: round2(pa - prev_pa),
-      });
-    }
-  }
-
-  // Prima tutte le percentuali
-  for (const axis of axesSorted) {
-    const selectedValueId = selections[axis.codice];
-    if (!selectedValueId) {
-      if (axis.obbligatorio) {
-        warnings.push(`Asse "${axis.nome}" obbligatorio non selezionato`);
-      }
-      continue;
-    }
-    const val = axis.values.find((v) => v.id === selectedValueId);
-    if (!val) {
-      warnings.push(`Valore non trovato per asse ${axis.nome}`);
-      continue;
-    }
-    if (assiPrezzoAssoluto.has(axis.codice)) continue;
-    if (val.maggiorazione_tipo !== "percentuale") continue;
-    const prev_pv = pv;
-    const prev_pa = pa;
-    pv = pv * (1 + val.maggiorazione_valore / 100);
-    pa = pa * (1 + val.maggiorazione_acquisto / 100);
-    maggiorazioni_applicate.push({
-      axis_codice: axis.codice,
-      value_valore: val.valore,
-      tipo: val.maggiorazione_tipo,
-      valore: val.maggiorazione_valore,
-      delta_vendita: round2(pv - prev_pv),
-      delta_acquisto: round2(pa - prev_pa),
-    });
-  }
-
-  // Poi i fissi
-  for (const axis of axesSorted) {
-    const selectedValueId = selections[axis.codice];
-    if (!selectedValueId) continue;
-    const val = axis.values.find((v) => v.id === selectedValueId);
-    if (
-      !val ||
-      val.maggiorazione_tipo === "none" ||
-      val.maggiorazione_tipo === "percentuale"
-    ) {
-      continue;
-    }
-    if (assiPrezzoAssoluto.has(axis.codice)) continue;
-    let dpv = 0;
-    let dpa = 0;
-    switch (val.maggiorazione_tipo) {
-      case "fisso_pz":
-        dpv = val.maggiorazione_valore;
-        dpa = val.maggiorazione_acquisto;
-        break;
-      case "fisso_mq":
-        if (mq == null) {
-          warnings.push(
-            `Maggiorazione mq su asse ${axis.nome} ma mq non calcolabile`,
-          );
-          break;
-        }
-        dpv = val.maggiorazione_valore * mq;
-        dpa = val.maggiorazione_acquisto * mq;
-        break;
-      case "fisso_ml":
-        if (ml == null) {
-          warnings.push(
-            `Maggiorazione ml su asse ${axis.nome} ma ml non calcolabile`,
-          );
-          break;
-        }
-        dpv = val.maggiorazione_valore * ml;
-        dpa = val.maggiorazione_acquisto * ml;
-        break;
-      case "fisso_mc":
-        warnings.push(
-          `Maggiorazione mc non ancora supportata (asse ${axis.nome})`,
-        );
-        break;
-    }
-    pv += dpv;
-    pa += dpa;
-    maggiorazioni_applicate.push({
-      axis_codice: axis.codice,
-      value_valore: val.valore,
-      tipo: val.maggiorazione_tipo,
-      valore: val.maggiorazione_valore,
-      delta_vendita: round2(dpv),
-      delta_acquisto: round2(dpa),
-    });
-  }
-
-  // Le varianti possono ridurre il prezzo (−8%, −20 €: ammesso dal 05/10/2026),
-  // ma un prezzo sotto zero non esiste: conta 0 e lo si dice.
-  if (pv < 0 || pa < 0) {
-    warnings.push("Le riduzioni delle varianti portano il prezzo sotto zero: conta 0 €, controlla le maggiorazioni");
-    pv = Math.max(0, pv);
-    pa = Math.max(0, pa);
-  }
+  // Regole delle varianti condivise col simulatore e col preventivatore serramenti.
+  const opzioni = applicaPrezzoOpzioni({
+    vendita: pv, acquisto: pa,
+    axes: assiVisibili(family.axes, selections), selections,
+    modalitaPrezzoBase: family.modalita_prezzo_base, mq, ml,
+  });
+  pv = opzioni.vendita;
+  pa = opzioni.acquisto;
+  warnings.push(...opzioni.warnings);
+  const maggiorazioni_applicate = opzioni.applicate;
 
   const unit_price_vendita = round2(pv);
   const unit_price_acquisto = round2(pa);
@@ -389,6 +302,8 @@ export function calcolaPrezzoFamiglia(
     totale_acquisto: round2(unit_price_acquisto * quantita),
     warnings,
     fuori_listino,
+    calcolo_disponibile: true,
+    costo_completo: opzioni.costoCompleto && !coloriDaVerificare,
   };
 }
 
@@ -439,4 +354,3 @@ export function useFamilyGrid(familyId: string | undefined) {
     },
   });
 }
-

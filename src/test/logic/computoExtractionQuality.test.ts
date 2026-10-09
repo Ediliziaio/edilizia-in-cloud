@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { computoNumber, computoSummaryRow, checkComputoExtraction, commitComputoExtraction } from "../../../supabase/functions/_shared/computoExtractionQuality";
-const voice = (extra = {}) => ({ descrizione_breve: "Posa", quantita: 2, prezzo_unitario: 10, importo: 20, confidence: 0.9, warnings: [], ...extra });
+const voice = (extra = {}) => ({ descrizione_breve: "Posa", quantita: 2, prezzo_unitario: 10, importo: 20, confidence: 0.9, warnings: [] as string[], ...extra });
 const result = (rows = [voice()], total: unknown = 20) => ({ metadata: { totale_computo: total }, capitoli: [{ numero: 1, totale: total, voci: rows }] });
 
 describe("computo source numbers", () => {

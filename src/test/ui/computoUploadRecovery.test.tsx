@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({ savedStatus: "review", toast: vi.fn(), eq: vi.
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" }, user: { id: "user" } }) }));
 vi.mock("sonner", () => ({ toast: { error: mocks.toast, success: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
-  storage: { from: () => ({ upload: async () => ({ error: null }) }) },
+  storage: { from: () => ({ upload: async () => ({ error: null as Error | null }) }) },
   functions: { invoke: (...args: unknown[]) => mocks.invoke(...args) ?? Promise.resolve({ error: { message: "Gateway timeout" } }) },
   from: () => {
     let inserting = false;
@@ -16,10 +16,10 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
       insert: () => { inserting = true; return chain; },
       select: () => chain,
       eq: (...args: unknown[]) => { mocks.eq(...args); return chain; },
-      order: async () => ({ data: [], error: null }),
+      order: async () => ({ data: [] as unknown[], error: null as Error | null }),
       single: async () => ({ data: inserting ? { id: "upload" } : {
         extraction_status: mocks.savedStatus, extraction_error: mocks.savedStatus === "failed" ? "Documento illeggibile" : null,
-      }, error: null }),
+      }, error: null as Error | null }),
     };
     return chain;
   },

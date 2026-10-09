@@ -12,6 +12,9 @@ import type { ListinoFamily } from "./api";
 import { formatEuro, formatNumero } from "./format";
 import { applyMarkup, applyScontiFornitore } from "@/lib/priceMarkup";
 import type { MarkupTipo } from "@/types/articleFamily";
+import { applicaPrezzoOpzioni, type AssePrezzo } from "@/lib/listino/prezzoOpzioni";
+import { CHIAVE_CATALOGO_COLORI, leggiCatalogoColori, verificaColori } from "./catalogoColori";
+import { leggiColori } from "./coloriDentroFuori";
 
 // ─── Tipi ──────────────────────────────────────────────────────────────────
 
@@ -294,7 +297,7 @@ export function calcolaPosaInclusa(
 
 /**
  * Applica le maggiorazioni degli ASSI (Variabili Prodotto) al prezzo base
- * prodotto. Replica la logica di `calcolaPrezzoFamiglia` (in useFamilyPricing)
+ * prodotto. Usa le stesse regole di `calcolaPrezzoFamiglia` (in useFamilyPricing)
  * ma sopra un prezzo BASE gia' calcolato (es. da `calcolaPrezzoProdotto`),
  * cosi' la strategia di lookup griglia resta coerente col picker (filtro
  * "quadrante che contiene le misure", min prezzo) invece di switchare a
@@ -310,77 +313,20 @@ export function calcolaPosaInclusa(
 export function applyMaggiorazioniAssi(
   prezzoBaseTotale: number,
   selections: Record<string, string>,
-  axes: Array<{
-    codice: string;
-    values: Array<{
-      id: string;
-      maggiorazione_tipo: "none" | "percentuale" | "fisso_pz" | "fisso_mq" | "fisso_ml" | "fisso_mc";
-      maggiorazione_valore: number;
-      prezzo_vendita?: number | null;
-    }>;
-  }>,
+  axes: AssePrezzo[],
   L: number | null,
   H: number | null,
   quantita: number,
   modalitaPrezzoBase?: string | null,
 ): number {
-  let pv = prezzoBaseTotale;
-  const mq = L != null && H != null ? (L / 1000) * (H / 1000) * quantita : null;
-  // Per i serramenti non esiste una colonna "lunghezza_ml" dedicata: usiamo
-  // la larghezza come sviluppo lineare principale, evitando che maggiorazioni
-  // fisso_ml configurate sul listino vengano ignorate silenziosamente.
-  const ml = L != null ? (L / 1000) * quantita : null;
-
-  // 0. Prezzo assoluto per-valore (Variabili Prodotto): un valore d'asse col
-  // proprio prezzo_vendita SOSTITUISCE il prezzo base invece di applicarci
-  // sopra una maggiorazione — stesso "prezzo proprio" di ordini/commesse
-  // (ArticleCombobox.variantPrice), qui attivo anche nel preventivatore. Non
-  // si applica in modalità "griglia" (il prezzo dipende dalla cella L×H).
-  const assiPrezzoAssoluto = new Set<string>();
-  if (modalitaPrezzoBase !== "griglia") {
-    for (const axis of axes) {
-      const valueId = selections[axis.codice];
-      if (!valueId) continue;
-      const val = axis.values.find((v) => v.id === valueId);
-      if (!val || val.prezzo_vendita == null || !(val.prezzo_vendita > 0)) continue;
-      pv = modalitaPrezzoBase === "mq" && mq != null ? val.prezzo_vendita * mq : val.prezzo_vendita * quantita;
-      assiPrezzoAssoluto.add(axis.codice);
-    }
-  }
-
-  // 1. Prima le percentuali (si applicano in cascata sul prezzo corrente).
-  for (const axis of axes) {
-    const valueId = selections[axis.codice];
-    if (!valueId) continue;
-    const val = axis.values.find((v) => v.id === valueId);
-    if (!val || assiPrezzoAssoluto.has(axis.codice) || val.maggiorazione_tipo !== "percentuale") continue;
-    pv = pv * (1 + Number(val.maggiorazione_valore) / 100);
-  }
-
-  // 2. Poi i fissi (additivi).
-  for (const axis of axes) {
-    const valueId = selections[axis.codice];
-    if (!valueId) continue;
-    const val = axis.values.find((v) => v.id === valueId);
-    if (!val || assiPrezzoAssoluto.has(axis.codice) || val.maggiorazione_tipo === "none" || val.maggiorazione_tipo === "percentuale") continue;
-    const valoreNum = Number(val.maggiorazione_valore);
-    switch (val.maggiorazione_tipo) {
-      case "fisso_pz":
-        pv += valoreNum * quantita;
-        break;
-      case "fisso_mq":
-        if (mq != null) pv += valoreNum * mq;
-        break;
-      case "fisso_ml":
-        if (ml != null) pv += valoreNum * ml;
-        break;
-      case "fisso_mc":
-        // mc non supportato per serramenti.
-        break;
-    }
-  }
-  // Le riduzioni delle varianti (−20 €) non portano mai il prezzo sotto zero.
-  return Math.max(0, pv);
+  if (!Number.isFinite(quantita) || quantita <= 0) return 0;
+  const result = applicaPrezzoOpzioni({
+    vendita: prezzoBaseTotale / quantita, acquisto: 0, axes, selections,
+    modalitaPrezzoBase,
+    mq: L != null && H != null ? (L / 1000) * (H / 1000) : null,
+    ml: L != null ? L / 1000 : null,
+  });
+  return result.vendita * quantita;
 }
 
 // ─── Costo d'acquisto della posizione (per il margine) ────────────────────
@@ -388,8 +334,14 @@ export function applyMaggiorazioniAssi(
 /** Le varianti come servono al costo: prezzo e maggiorazioni dal lato acquisto. */
 export type AsseCosto = {
   codice: string;
+  sort_order?: number;
   values: Array<{
     id: string;
+    attivo?: boolean | null;
+    valore?: string;
+    label?: string;
+    opzioni?: string[] | null;
+    is_default?: boolean | null;
     maggiorazione_tipo: "none" | "percentuale" | "fisso_pz" | "fisso_mq" | "fisso_ml" | "fisso_mc";
     maggiorazione_acquisto?: number | null;
     prezzo_vendita?: number | null;
@@ -416,7 +368,7 @@ export type FamigliaCosto = Pick<
   | "posa_tariffa_default_id"
   | "posa_quantita_default"
   | "manodopera_costo_acquisto"
->;
+> & { custom_field_values?: Record<string, unknown> | null };
 
 /**
  * Il costo d'acquisto di una posizione del preventivo, con le stesse regole
@@ -476,41 +428,23 @@ export function calcolaCostoPosizione(args: {
     }
   }
 
-  // 2. Varianti: stesse regole di applyMaggiorazioniAssi, coi valori d'acquisto.
-  const selections = args.selections ?? {};
-  const axes = args.axes ?? [];
-  const scelto = (axis: AsseCosto) => {
-    const valueId = selections[axis.codice];
-    return valueId ? axis.values.find((v) => v.id === valueId) ?? null : null;
-  };
-  const assiPrezzoAssoluto = new Set<string>();
-  if (modalita !== "griglia") {
-    for (const axis of axes) {
-      const val = scelto(axis);
-      if (!val || val.prezzo_vendita == null || !(val.prezzo_vendita > 0)) continue;
-      assiPrezzoAssoluto.add(axis.codice);
-      // Il prezzo proprio della variante sostituisce la base; il costo solo
-      // se la variante ne ha uno (come calcolaPrezzoFamiglia).
-      const acquisto = Number(val.prezzo_acquisto ?? 0);
-      if (acquisto > 0) costo = modalita === "mq" && mq != null ? acquisto * mq : acquisto * quantita;
-    }
-  }
-  if (costo != null) {
-    for (const axis of axes) {
-      const val = scelto(axis);
-      if (!val || assiPrezzoAssoluto.has(axis.codice) || val.maggiorazione_tipo !== "percentuale") continue;
-      costo *= 1 + Number(val.maggiorazione_acquisto ?? 0) / 100;
-    }
-    for (const axis of axes) {
-      const val = scelto(axis);
-      if (!val || assiPrezzoAssoluto.has(axis.codice)) continue;
-      const delta = Number(val.maggiorazione_acquisto ?? 0);
-      if (val.maggiorazione_tipo === "fisso_pz") costo += delta * quantita;
-      else if (val.maggiorazione_tipo === "fisso_mq" && mq != null) costo += delta * mq;
-      else if (val.maggiorazione_tipo === "fisso_ml" && ml != null) costo += delta * ml;
-    }
-    // Come il prezzo: le riduzioni non portano il costo sotto zero.
-    costo = Math.max(0, costo);
+  // Varianti: lo stesso motore di vendita, con la base d'acquisto già netta.
+  const opzioni = applicaPrezzoOpzioni({
+    vendita: 0, acquisto: costo != null ? costo / quantita : 0,
+    costoCompleto: costo != null,
+    axes: args.axes ?? [], selections: args.selections ?? {},
+    modalitaPrezzoBase: modalita,
+    mq: mq != null ? mq / quantita : null,
+    ml: ml != null ? ml / quantita : null,
+  });
+  costo = opzioni.costoCompleto ? opzioni.acquisto * quantita : null;
+  const asseColore = args.axes?.find(a => a.codice === "colore");
+  const catalogo = leggiCatalogoColori(family.custom_field_values);
+  if (family.custom_field_values?.[CHIAVE_CATALOGO_COLORI] != null && !catalogo) costo = null;
+  if (asseColore && (catalogo || args.selections?.__colore_interno || args.selections?.__colore_esterno)) {
+    const asse = { ...asseColore, values: asseColore.values.map(v => ({ ...v, label: v.label ?? v.id, valore: v.valore ?? v.id })) };
+    const stato = verificaColori(asse, leggiColori(asse, { valori_assi: args.selections }), catalogo);
+    if (stato.blocca || stato.avvisi.length > 0 || (stato.fasciaId && args.selections?.colore !== stato.fasciaId)) costo = null;
   }
 
   // 3. Posa compresa nel prezzo: stesso calcolo di calcolaPosaInclusa, col costo.

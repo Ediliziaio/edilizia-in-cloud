@@ -99,4 +99,3 @@ end;
 $fn$;
 revoke all on function public.listino_salva_opzioni(uuid,uuid,uuid,jsonb,uuid[]) from public,anon;
 grant execute on function public.listino_salva_opzioni(uuid,uuid,uuid,jsonb,uuid[]) to authenticated;
-

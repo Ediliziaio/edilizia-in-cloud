@@ -81,7 +81,7 @@ describe("Follow-up context contains readable, completed turns", () => {
 
 describe("Large tool results remain valid JSON with explicit coverage", () => {
   it("preserves small tool receipts, nulls, zeroes and warning lists exactly", () => {
-    const result = { success: false, error: "Permesso mancante", data: { total: null, paid: 0, data_quality: { warnings: ["Mancano i costi"] } } };
+    const result = { success: false, error: "Permesso mancante", data: { total: null as number | null, paid: 0, data_quality: { warnings: ["Mancano i costi"] } } };
     expect(silvioToolResultForPrompt(result)).toBe(JSON.stringify(result));
     expect(silvioToolResultForPrompt(undefined)).toBe("null");
   });
@@ -119,7 +119,7 @@ describe("Large tool results remain valid JSON with explicit coverage", () => {
   });
   it("bounds escaping-heavy data without returning broken JSON", () => {
     for (const budget of [512, 1000, 8000]) {
-      const text = silvioToolResultForPrompt({ data: Array.from({ length: 500 }, () => ({ note: '\\"\n'.repeat(100), amount: null })) }, budget);
+      const text = silvioToolResultForPrompt({ data: Array.from({ length: 500 }, () => ({ note: '\\"\n'.repeat(100), amount: null as number | null })) }, budget);
       expect(text.length).toBeLessThanOrEqual(budget);
       expect(JSON.parse(text)._silvio_partial_result).toBe(true);
     }

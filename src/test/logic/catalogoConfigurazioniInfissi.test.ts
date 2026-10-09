@@ -15,7 +15,7 @@ const f = (tipo: string, codice: string, label: string, asse = "apertura") => ({
 
 describe("catalogo geometrico indipendente dalla linea e dall'azienda", () => {
   it("editor e database espongono ogni configurazione del motore, senza copie divergenti", () => {
-    const sql = readFileSync("supabase/migrations/20261009081435_serramenti_catalogo_configurazioni_comune.sql", "utf8");
+    const sql = readFileSync("supabase/migrations/20261009082822_serramenti_catalogo_configurazioni_comune.sql", "utf8");
     const payload = JSON.parse(sql.split("$configurazioni$")[1]);
     expect(payload).toEqual(configurazioniStandard().filter((c) => c.id !== "porta_finestra_scorrevole_2_ante"));
     expect(new Set(payload.map((p: { id: string }) => p.id)).size).toBe(TIPOLOGIE_DISEGNO.length - 1);

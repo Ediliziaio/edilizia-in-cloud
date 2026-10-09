@@ -63,6 +63,11 @@ export interface SceltaLato {
 
 export type ColoriDentroFuori = Record<LatoColore, SceltaLato>;
 
+/** Chiavi riservate nel JSON delle scelte: nessuna nuova colonna, nessuna inferenza ambigua dai nomi. */
+export function snapshotColori(colori: ColoriDentroFuori, testi?: { interno: string | null; esterno: string | null }): Record<string, string> {
+  return Object.fromEntries(LATI_COLORE.map(lato => [`__colore_${lato}`, JSON.stringify({ ...colori[lato], ...(testi?.[lato] ? { testo: testi[lato] } : {}) })]));
+}
+
 /** Quello che la riga ricorda dei colori. */
 export interface RigaColori {
   valori_assi?: Record<string, string> | null;
@@ -145,6 +150,25 @@ export function leggiColori(asse: AsseColore, riga: RigaColori): ColoriDentroFuo
 
   const dalLato = (lato: LatoColore): SceltaLato => {
     const testo = (lato === "interno" ? riga.colore_interno : riga.colore_esterno)?.trim();
+    const snapshot = riga.valori_assi?.[`__colore_${lato}`];
+    if (snapshot) {
+      try {
+        const s: unknown = JSON.parse(snapshot);
+        if (s && typeof s === "object" && "valueId" in s && "voce" in s && "scritto" in s &&
+          (s.valueId === null || typeof s.valueId === "string") && (s.voce === null || typeof s.voce === "string") &&
+          (s.scritto === null || typeof s.scritto === "string")) {
+          const scelta: SceltaLato = {
+            valueId: typeof s.valueId === "string" ? s.valueId : null,
+            voce: typeof s.voce === "string" ? s.voce : null,
+            scritto: typeof s.scritto === "string" ? s.scritto : null,
+          };
+          const v = asse.values.find(v => v.id === scelta.valueId);
+          const descrizione = scelta.scritto ?? ("testo" in s && typeof s.testo === "string" ? s.testo : v ? testoColore(v, scelta.voce) : null);
+          // Un testo cambiato da un consumer legacy ha precedenza sullo snapshot vecchio.
+          if (!testo || normalizza(testo) === normalizza(descrizione)) return scelta;
+        }
+      } catch { /* Una riga storica/corrotta si legge come prima. */ }
+    }
     if (!testo) return dallaVariante(lato);
     const trovato = cercaTesto(asse, testo, salvato);
     if (trovato) return { ...trovato, scritto: null };

@@ -15,10 +15,11 @@ import { articoloEsempio, asseEsempio, valoreEsempio } from "@/lib/listino/esemp
 import { comeListinoFamily } from "@/lib/serramenti/pickerListino";
 import { schedaPosizione, scelteDaAssi } from "@/lib/serramenti/schedaPosizione";
 import { MACRO_SERRAMENTI, finestraSalamander, idColore, prodottoSenzaColore } from "../fixtures/finestraSalamander";
+import { CHIAVE_CATALOGO_COLORI, catalogoVuoto } from "@/lib/serramenti/catalogoColori";
 
 const { dati } = vi.hoisted(() => ({ dati: { famiglie: [] as unknown[], nessuno: [] as unknown[] } }));
 
-vi.mock("@/lib/serramenti/queries", () => ({ useListinoGriglia: () => ({ data: dati.nessuno, isLoading: false }) }));
+vi.mock("@/lib/serramenti/queries", () => ({ useListinoGriglia: () => ({ data: dati.nessuno, isLoading: false }), useMacroFields: () => ({ data: dati.nessuno, isLoading: false }) }));
 vi.mock("@/hooks/useFamilies", () => ({
   useFamily: (id: string | null | undefined) => ({ family: (dati.famiglie as FamilyWithAxes[]).find((f) => f.id === id) ?? null, isLoading: false }),
 }));
@@ -114,6 +115,23 @@ const ANTRACITE = "#383e42";
 const BIANCO = "#f1ece1";
 
 describe("riga del preventivo: «Colore» sono due tendine", () => {
+  it("una combinazione da quotare aggiorna il colore senza inventare un prezzo", async () => {
+    dati.famiglie = [finestraSalamander("f2a", { custom_field_values: { [CHIAVE_CATALOGO_COLORI]: { ...catalogoVuoto(), modalita: "combinazioni" } } })];
+    const onPatch = monta(posizione());
+    await scegli("Colore esterno", NOCE);
+    const patch = onPatch.mock.calls.at(-1)![0];
+    expect(patch.colore_esterno).toBe(NOCE);
+    expect(patch.prezzo_unitario).toBeUndefined();
+    expect(JSON.parse(patch.valori_assi!.__colore_esterno).valueId).toBe(idColore("f2a").standard);
+    expect(screen.getByText(/Combinazione interno\/esterno da quotare/)).toBeInTheDocument();
+  });
+  it("un catalogo corrotto non modifica il prezzo storico quando cambia il colore", async () => {
+    dati.famiglie = [finestraSalamander("f2a", { custom_field_values: { [CHIAVE_CATALOGO_COLORI]: { versione: 99 } } })];
+    const onPatch = monta(posizione());
+    await scegli("Colore esterno", NOCE);
+    expect(onPatch.mock.calls.at(-1)![0].prezzo_unitario).toBeUndefined();
+    expect(screen.getByRole("alert")).toHaveTextContent("prezzo salvato resta invariato");
+  });
   it("fra le variabili ci sono «Colore interno» e «Colore esterno»; niente casella, niente campi colore sotto", async () => {
     const c = idColore("f2a");
     monta(posizione({ valori_assi: { colore: c.standard, telaio: "f2a-telaio-l" }, scelte_assi: { colore: NOCE } }));

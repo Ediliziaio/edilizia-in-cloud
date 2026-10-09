@@ -157,7 +157,7 @@ describe("report Silvio = fonte e regole del dettaglio commessa", () => {
     });
   });
   it.each(["preventivo_totale", "consuntivo", "margine", "margine_perc"])("rejects contradictory official %s", async key => {
-    db.tabelle.v_ordine_marginalita[0][key] += 100;
+    db.tabelle.v_ordine_marginalita[0][key] = Number(db.tabelle.v_ordine_marginalita[0][key]) + 100;
     const result = await report();
     expect(result.margine).toBeNull();
     expect(result.error).toContain("non coincidono");
@@ -180,7 +180,7 @@ describe("report Silvio = fonte e regole del dettaglio commessa", () => {
   it.each(["internal_chat", "whatsapp", "mobile"] as const)("same verified scenario through the real %s permission/routing path", async channel => {
     const result = await executeToolWithRouting("report_commessa", { commessa_codice: "TEST-01", escludi_costo: "materiali" }, { ...ctx, channel });
     expect(result.success, JSON.stringify(result.error)).toBe(true);
-    expect(result.data.simulazione).toMatchObject({ costo_escluso: 2000, costi_simulati: 4000, margine_simulato: 7000 });
+    expect(result.data).toMatchObject({ simulazione: { costo_escluso: 2000, costi_simulati: 4000, margine_simulato: 7000 } });
   });
   it.each(["worker", "subcontractor", "company_staff"])("scenario cannot bypass financial permissions for %s", async primaryRole => {
     const result = await executeToolWithRouting("report_commessa", { commessa_codice: "TEST-01", escludi_costo: "materiali" }, { ...ctx, primaryRole });

@@ -77,7 +77,7 @@ export function SceltaVariante({
             return (
               <Fragment key={v.id}>
                 {dopoUnElenco && <SelectSeparator />}
-                <SelectItem value={`v:${v.id}`} className="text-xs">
+                <SelectItem value={`v:${v.id}`} disabled={!v.attivo} className="text-xs">
                   {etichetta}
                 </SelectItem>
               </Fragment>
@@ -89,11 +89,11 @@ export function SceltaVariante({
               {i > 0 && <SelectSeparator />}
               <SelectGroup>
                 <SelectLabel className="py-1 text-[11px] font-semibold text-muted-foreground">{etichetta}</SelectLabel>
-                <SelectItem value={`v:${v.id}`} className="text-xs italic">
+                <SelectItem value={`v:${v.id}`} disabled={!v.attivo} className="text-xs italic">
                   Da decidere
                 </SelectItem>
                 {voci.map((voce, j) => (
-                  <SelectItem key={voce} value={`o:${v.id}:${j}`} className="text-xs">
+                  <SelectItem key={voce} value={`o:${v.id}:${j}`} disabled={!v.attivo} className="text-xs">
                     {voce}
                   </SelectItem>
                 ))}

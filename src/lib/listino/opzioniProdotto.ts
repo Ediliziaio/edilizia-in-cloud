@@ -1,7 +1,7 @@
-import type { FamilyAxis } from "@/types/articleFamily";
+import type { FamilyAxis, FamilyWithAxes } from "@/types/articleFamily";
 
 /** Validate the single-parent visibility graph before saving; never infer supplier compatibility. */
-export function problemaCondizione(codice: string, condizione: FamilyAxis["visibile_se"], assi: FamilyAxis[]): string | null {
+export function problemaCondizione(codice: string, condizione: FamilyAxis["visibile_se"], assi: FamilyWithAxes["axes"]): string | null {
   if (!condizione) return null;
   const controllore = assi.find(a => a.codice === condizione.asse);
   if (!controllore || condizione.asse === codice) return "Scegli un'altra opzione esistente.";
@@ -21,4 +21,3 @@ export function prezzoOpzioneValido(input: string): boolean {
   const n = Number(input.replace(",", "."));
   return Number.isFinite(n) && n >= 0;
 }
-

@@ -45,7 +45,7 @@ export function codiciVisibili(assi: ReadonlyArray<AsseMinimo>, selezione: Recor
       if (visibili.has(a.codice) || !condizioneValida(a.visibile_se)) continue;
       const comanda = perCodice.get(a.visibile_se.asse);
       if (!comanda || !visibili.has(comanda.codice)) continue;
-      const valore = comanda.values.find((v) => v.id === scelta[comanda.codice]);
+      const valore = comanda.values.find((v) => v.id === scelta[comanda.codice] && v.attivo !== false);
       if (valore && a.visibile_se.valori.includes(valore.valore)) {
         visibili.add(a.codice);
         cambiato = true;

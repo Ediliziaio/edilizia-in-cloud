@@ -2,10 +2,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { ComputoVoceLocal } from "@/types/computo";
-const state = vi.hoisted(() => ({ raw: null as unknown, loaded: true, reviewError: null as Error | null, quantity: 2, generate: vi.fn(), confirm: vi.fn(), reset: vi.fn(), empty: [] }));
+const state = vi.hoisted(() => ({ raw: null as unknown, loaded: true, reviewError: null as Error | null, quantity: 2, generate: vi.fn(), confirm: vi.fn(), reset: vi.fn(), empty: [] as unknown[] }));
 vi.mock("@/hooks/useComputoExtract", () => ({ useComputoExtract: () => ({
-  status: "review", progress: "", error: null, vociLoading: false, reviewError: state.reviewError,
-  voci: [{ id: "v1", capitolo_numero: 1, capitolo_nome: "Opere", codice_voce: "1", descrizione_breve: "Posa", unita_misura: "mq", quantita: state.quantity, prezzo_unitario_computo: 10, importo_computo: 20, confidence: .9, is_included: true, warnings: [] }],
+  status: "review", progress: "", error: null as string | null, vociLoading: false, reviewError: state.reviewError,
+  voci: [{ id: "v1", capitolo_numero: 1, capitolo_nome: "Opere", codice_voce: "1", descrizione_breve: "Posa", unita_misura: "mq", quantita: state.quantity, prezzo_unitario_computo: 10, importo_computo: 20, confidence: .9, is_included: true, warnings: [] as string[] }],
   computoUpload: state.loaded ? { id: "upload", oggetto_lavori: "Computo", raw_extracted_json: state.raw } : undefined,
   upload: vi.fn(), generatePreventivo: state.generate, isUploading: false, isGenerating: false, loadExistingComputo: vi.fn(), reset: state.reset,
 }) }));
@@ -13,8 +13,8 @@ vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "
 vi.mock("@/hooks/useCatalogItems", () => ({ useCatalogItems: () => ({ items: state.empty }) }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: state.empty }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
-vi.mock("@/components/quotes/MatchProductPickerDialog", () => ({ MatchProductPickerDialog: () => null }));
-vi.mock("@/components/quotes/MatchTariffaPickerDialog", () => ({ MatchTariffaPickerDialog: () => null }));
+vi.mock("@/components/quotes/MatchProductPickerDialog", () => ({ MatchProductPickerDialog: (): null => null }));
+vi.mock("@/components/quotes/MatchTariffaPickerDialog", () => ({ MatchTariffaPickerDialog: (): null => null }));
 vi.mock("@/components/computo/AIProcessingStage", () => ({ AIProcessingStage: () => <span>Attendo dati</span> }));
 vi.mock("@/components/computo/ComputoPreviewEditor", () => ({ ComputoPreviewEditor: ({ voci, onChange }: { voci: ComputoVoceLocal[]; onChange: (rows: ComputoVoceLocal[]) => void }) =>
   <button onClick={() => onChange(voci.map(v => ({ ...v, quantita: v.quantita + 1, _importoImpresa: (v.quantita + 1) * v._prezzoImpresa })))}>Modifica voce</button>,

@@ -76,6 +76,7 @@ import { ArticlePdfDocumentsSection } from "./ArticlePdfDocumentsSection";
 import { formattaMaggiorazione } from "@/lib/listino/maggiorazione";
 import { dividiVoci, problemaVoci, pulisciVoci, vociDi } from "@/lib/listino/scelteVariante";
 import { parseImporto } from "@/lib/listino/listinoFornitore";
+import { CatalogoColoriEditor } from "./CatalogoColoriEditor";
 
 /**
  * Label compatto per il tipo maggiorazione (usato nei badge valore).
@@ -359,7 +360,7 @@ export function FamilyAxesEditor({ family }: Props) {
 
   // ── #9 Riordino valori dentro un asse ────────────────────────────────
   const moveValue = async (
-    axis: FamilyAxis,
+    axis: FamilyWithAxes["axes"][number],
     valueId: string,
     direction: "up" | "down",
   ) => {
@@ -471,7 +472,7 @@ export function FamilyAxesEditor({ family }: Props) {
 
   // Duplica un valore: crea una copia incrementando il codice con "_copia".
   // Non imposta is_default (mai duplicare il default — creerebbe conflitti).
-  const duplicateValue = async (ax: FamilyAxis, v: AxisValue) => {
+  const duplicateValue = async (ax: FamilyWithAxes["axes"][number], v: AxisValue) => {
     try {
       const baseCodice = v.valore;
       const existingCodici = new Set(ax.values.map((x: any) => x.valore));
@@ -523,6 +524,7 @@ export function FamilyAxesEditor({ family }: Props) {
 
   return (
     <div className="space-y-3">
+      <CatalogoColoriEditor key={family.id} family={family} />
       {/* Header: titolo + statistiche + azioni globali */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
         <div className="min-w-0">
@@ -1141,7 +1143,7 @@ function AxisFormDialog({
 }: {
   open: boolean;
   axis: FamilyAxis | null;
-  availableAxes: FamilyAxis[];
+  availableAxes: FamilyWithAxes["axes"];
   existingCodici: string[];
   nextSortOrder: number;
   onClose: () => void;
@@ -1964,7 +1966,7 @@ function PricePreviewRow({
     new Intl.NumberFormat("it-IT", {
       style: "currency",
       currency: "EUR",
-      maximumFractionDigits: 2, useGrouping: "always" }).format(n);
+      maximumFractionDigits: 2, useGrouping: true }).format(n);
   // Il segno lo porta il numero (05/10/2026): con le maggiorazioni negative
   // ammesse, «+ -8%» e «+-8,00 €» avrebbero confuso chi controlla il prezzo.
   const conSegnoEur = (n: number) => `${n < 0 ? "−" : "+"}${eur(Math.abs(n))}`;

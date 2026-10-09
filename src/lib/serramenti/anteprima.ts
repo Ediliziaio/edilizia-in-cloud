@@ -48,7 +48,7 @@ function leggibile(testo: string | null | undefined): string {
 function misureInCm(larghezzaMm: number | null | undefined, altezzaMm: number | null | undefined, profonditaMm?: number | null): string | null {
   const parti = [larghezzaMm, altezzaMm, profonditaMm].filter((v): v is number => typeof v === "number" && v > 0);
   if (parti.length < 2) return null;
-  return `${parti.map((v) => Math.round(v / 10)).join(" × ")} cm`;
+  return `${parti.map((v) => (v / 10).toLocaleString("it-IT", { maximumFractionDigits: 1, useGrouping: false })).join(" × ")} cm`;
 }
 
 function coloriDellaRiga(s: Pick<SrSerramentoRow, "colore_interno" | "colore_esterno">): string | null {

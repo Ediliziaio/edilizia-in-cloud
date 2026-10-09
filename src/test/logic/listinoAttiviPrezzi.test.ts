@@ -35,7 +35,7 @@ describe("listino attivi senza doppioni disattivati", () => {
 });
 
 describe("contratto server dei prezzi mancanti", () => {
-  const sql = readFileSync("supabase/migrations/20261009090423_serramenti_linee_attive_prezzi_mancanti.sql", "utf8");
+  const sql = readFileSync("supabase/migrations/20261009090642_serramenti_linee_attive_prezzi_mancanti.sql", "utf8");
   it("scrive solo vendita mq senza prezzo, attiva, non archiviata, nella propria categoria", () => {
     expect(sql).toContain("has_permission_for_company");
     expect(sql).toContain("f.company_id = v_company and f.macrocategoria_id = p_macrocategoria_id");

@@ -15,6 +15,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import type { FamilyWithAxes } from "@/types/articleFamily";
 import { COLORI_FUORI_STANDARD, COLORI_STANDARD, MACRO_SERRAMENTI, finestraSalamander, idColore } from "../fixtures/finestraSalamander";
 import { preferenzeDaRiga } from "@/lib/serramenti/pickerListino";
+import { CHIAVE_CATALOGO_COLORI, catalogoVuoto, chiaveColore } from "@/lib/serramenti/catalogoColori";
 
 const { dati } = vi.hoisted(() => ({
   dati: { famiglie: [] as unknown[], macro: [] as unknown[], nessuno: [] as unknown[] },
@@ -27,6 +28,7 @@ vi.mock("@/hooks/useSchedeLinea", () => ({ useSchedeLinea: () => ({ indice: new 
 vi.mock("@/lib/serramenti/queries", () => ({
   useListinoGriglia: () => ({ data: dati.nessuno, isLoading: false }),
   useTariffeManodopera: () => ({ data: dati.nessuno }),
+  useMacroFields: () => ({ data: dati.nessuno, isLoading: false }),
 }));
 vi.mock("@/features/serramenti-listini/hooks/useSupplierProductLines", () => ({
   useSupplierProductLines: () => ({ lines: dati.nessuno, isLoading: false }),
@@ -124,6 +126,31 @@ function scrivi(campo: HTMLInputElement, testo: string) {
 }
 
 describe("popup «Aggiungi serramento»: colore interno ed esterno", () => {
+  it("una combinazione non quotata non mostra un totale confermato né si aggiunge", async () => {
+    const ids = idColore("f2a");
+    dati.famiglie = [finestraSalamander("f2a", { custom_field_values: { [CHIAVE_CATALOGO_COLORI]: {
+      ...catalogoVuoto(), modalita: "combinazioni", combinazioni: [{ interno: chiaveColore(ids.bianco, null), esterno: chiaveColore(ids.standard, COLORI_STANDARD[0]), fasciaId: ids.unLato }],
+    } } })];
+    const { onSelect } = await apriLaFinestra();
+    expect(screen.getByRole("button", { name: "Aggiungi al preventivo" })).toBeDisabled();
+    expect(screen.queryByText("Totale posizione")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Campioni colore esterno" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Nussbaum/ })[0]);
+    expect(screen.getByRole("button", { name: "Aggiungi al preventivo" })).toBeEnabled();
+    conferma();
+    const riga = onSelect.mock.calls[0][0];
+    expect(riga.valori_assi.colore).toBe(ids.unLato);
+    expect(JSON.parse(riga.valori_assi.__colore_esterno).valueId).toBe(ids.standard);
+  });
+  it("un catalogo corrotto non torna silenziosamente alla tariffa legacy", async () => {
+    dati.famiglie = [finestraSalamander("f2a", { custom_field_values: { [CHIAVE_CATALOGO_COLORI]: { versione: 99 } } })];
+    const { onSelect } = await apriLaFinestra();
+    expect(screen.getByRole("button", { name: "Aggiungi al preventivo" })).toBeDisabled();
+    expect(screen.queryByText("Totale posizione")).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent("Catalogo colori non valido");
+    conferma();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
   it("al posto di «Colore» ci sono due tendine, interno ed esterno; niente casella né campi in più", async () => {
     await apriLaFinestra();
     expect(screen.getByRole("combobox", { name: "Colore interno" })).toBeTruthy();
