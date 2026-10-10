@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -44,9 +44,16 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Card, CardContent } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { userErrorMessage } from '@/lib/userErrorMessage'
 
 // ── Schema Zod ──────────────────────────────────────────────
-const emptyToUndefined = (v: string | undefined) => (!v || v.trim() === '' ? undefined : v)
+// Un campo vuoto è «niente». Le coordinate già salvate arrivano al modulo come numeri, non come testi: `.trim()` su un
+// numero lanciava un errore e una sede con le coordinate non si poteva più modificare. Il tipo resta quello di prima.
+const emptyToUndefined = (v: string | undefined): string | undefined => {
+  const valore: unknown = v
+  return valore == null || (typeof valore === 'string' && valore.trim() === '') ? undefined : v
+}
 
 const sedeSchema = z.object({
   nome:      z.string().min(2, 'Nome richiesto (min 2 caratteri)'),
@@ -149,7 +156,7 @@ function SedeAttivitaStrip({ a, onOpen }: { a?: SedeAnalyticsData; onOpen: () =>
           <div className="text-xs font-semibold tabular-nums">{a.n_lead}</div>
         </div>
         <div>
-          <div className="text-[10px] text-muted-foreground">Prev.</div>
+          <div className="truncate text-[10px] text-muted-foreground">Preventivi</div>
           <div className="text-xs font-semibold tabular-nums">{a.preventivi_vinti}/{a.n_preventivi}</div>
         </div>
       </div>
@@ -157,22 +164,31 @@ function SedeAttivitaStrip({ a, onOpen }: { a?: SedeAnalyticsData; onOpen: () =>
   )
 }
 
+/** Da quante sedi in su hanno senso contatori per tipo, ricerca e filtri. */
+const SEDI_PER_FILTRARE = 5
+
 const COLORI_PRESET = [
   '#1E3A5F', '#F97316', '#16A34A', '#7C3AED',
   '#DC2626', '#0891B2', '#CA8A04', '#9333EA',
 ]
 
+/**
+ * Il motivo di un errore della funzione `gestisci-sede`, in italiano: quello che scrive la funzione (di solito già
+ * in italiano: «Sede collegata a preventivi: disattivala invece di eliminarla») oppure, se la risposta non c'è o non
+ * si legge (rete, sessione scaduta), una frase tradotta. Prima usciva anche il testo inglese di supabase-js.
+ */
 async function parseFunctionError(error: unknown, fallback: string) {
-  const err = error as { context?: unknown; message?: string }
+  const err = error as { context?: unknown }
   try {
     if (err.context instanceof Response) {
       const body = await err.context.json()
-      return body?.error ?? body?.message ?? err.message ?? fallback
+      if (typeof body?.error === 'string' && body.error) return body.error
+      if (typeof body?.message === 'string' && body.message) return body.message
     }
   } catch {
-    return err.message ?? fallback
+    /* il corpo della risposta non si legge: si traduce l'errore */
   }
-  return err.message ?? fallback
+  return userErrorMessage(error, fallback)
 }
 
 // ── Componente principale ───────────────────────────────────
@@ -373,31 +389,28 @@ export default function SettingsSedi() {
 
   return (
     <div className="space-y-6 max-w-6xl">
-      {/* Header */}
+      {/* Niente titolo qui: il titolo della pagina (un solo h1) lo mette il layout delle impostazioni. */}
+      {!canEditSedi && (
+        <Alert>
+          <AlertDescription>
+            Stai consultando le sedi: puoi vederle ma non modificarle. Per cambiarle chiedi a un amministratore.
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-start gap-3 min-w-0">
-          {/* Da 768 icona e titolo li mostra già la testata delle Impostazioni
-              (erano due volte): resta la riga sotto, con numeri e azioni. */}
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 md:hidden">
-            <MapPin className="h-5 w-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight md:hidden">Sedi Aziendali</h1>
-            <p className="text-sm text-muted-foreground">
-              Showroom, magazzini, uffici. Usate per timbrature e geofencing HR,
-              analytics su lead/preventivi/costi e segmentazione del cruscotto.
-            </p>
-          </div>
-        </div>
+        <p className="min-w-0 text-sm text-muted-foreground">
+          Showroom, magazzini e uffici dell'azienda. Servono a dividere lead, preventivi e costi per sede e a scegliere il
+          luogo di timbratura. Il controllo GPS delle timbrature si imposta in{" "}
+          <Link to="/azienda/personale?tab=sedi" className="font-medium underline">Personale → Sedi</Link>.
+        </p>
         <Button onClick={openCreate} size="sm" className="shrink-0" disabled={!canEditSedi}>
           <Plus className="h-4 w-4 mr-1.5" />
-          Nuova Sede
+          Nuova sede
         </Button>
       </div>
 
-      {/* v8.6.41 — Stats overview: totale + breakdown per tipo. Clickable per
-          filtrare rapidamente. La card "Tutte" resetta il filtro tipo. */}
-      {sedi.length > 0 && (
+      {/* Contatori per tipo, ricerca e filtri servono da cinque sedi in su: un'azienda ne ha in media una (09/10/2026). */}
+      {sedi.length >= SEDI_PER_FILTRARE && (
         <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-6">
           <button
             type="button"
@@ -441,7 +454,7 @@ export default function SettingsSedi() {
       )}
 
       {/* Filtri + view mode */}
-      {sedi.length > 0 && (
+      {sedi.length >= SEDI_PER_FILTRARE && (
         <div className="flex flex-col gap-2 md:flex-row md:items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -449,6 +462,7 @@ export default function SettingsSedi() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Cerca per nome, città, responsabile, telefono o email..."
+              aria-label="Cerca una sede"
               className="pl-9"
             />
           </div>
@@ -459,7 +473,7 @@ export default function SettingsSedi() {
             <SelectContent>
               <SelectItem value="all">Tutti gli stati</SelectItem>
               <SelectItem value="attive">Solo attive</SelectItem>
-              <SelectItem value="disattive">Solo disattive</SelectItem>
+              <SelectItem value="disattive">Solo non attive</SelectItem>
             </SelectContent>
           </Select>
           {/* View mode toggle */}
@@ -504,7 +518,7 @@ export default function SettingsSedi() {
             <div>
               <p className="text-base font-semibold">Nessuna sede configurata</p>
               <p className="text-xs text-muted-foreground mt-1 max-w-md">
-                Aggiungi le sedi della tua azienda per disaggregare gli analytics in ogni dashboard.
+                Aggiungi le sedi della tua azienda per vedere lead, preventivi e costi divisi per sede.
                 Scegli il tipo per iniziare con i campi giusti precompilati.
               </p>
             </div>
@@ -587,7 +601,7 @@ export default function SettingsSedi() {
                           </Badge>
                         )}
                         {!sede.attiva && (
-                          <Badge variant="secondary" className="text-[10px] h-5">Disattiva</Badge>
+                          <Badge variant="secondary" className="text-[10px] h-5">Non attiva</Badge>
                         )}
                       </div>
                     </div>
@@ -636,12 +650,12 @@ export default function SettingsSedi() {
                       <div className="flex items-center gap-1.5">
                         <Switch
                           checked={Boolean(sede.attiva)}
-                          aria-label={`${sede.attiva ? 'Disattiva' : 'Attiva'} sede ${sede.nome}`}
+                          aria-label={`Sede ${sede.nome} attiva`}
                           onCheckedChange={(v) => toggleMutation.mutate({ id: sede.id, attiva: v })}
                           disabled={!canEditSedi || toggleMutation.isPending}
                         />
                         <span className="text-[11px] text-muted-foreground">
-                          {sede.attiva ? 'Attiva' : 'Disattiva'}
+                          {sede.attiva ? 'Attiva' : 'Non attiva'}
                         </span>
                       </div>
                       <div className="flex items-center gap-0.5">
@@ -655,7 +669,7 @@ export default function SettingsSedi() {
                             disabled={!canEditSedi || setPrincipaleMutation.isPending}
                           >
                             <Star className="h-3 w-3 mr-1" />
-                            Principale
+                            Rendi principale
                           </Button>
                         )}
                         <Button
@@ -703,7 +717,7 @@ export default function SettingsSedi() {
                           </Badge>
                         )}
                         {!sede.attiva && (
-                          <Badge variant="secondary" className="text-xs">Disattiva</Badge>
+                          <Badge variant="secondary" className="text-xs">Non attiva</Badge>
                         )}
                       </div>
                       {indirizzo && (
@@ -747,7 +761,7 @@ export default function SettingsSedi() {
                             <span className="text-muted-foreground">Ricavi <b className="text-foreground tabular-nums">{formatCurrencyCompact(a.ricavi)}</b></span>
                             <span className="text-muted-foreground">Margine <b className={`tabular-nums ${margineColor(a.margine_pct)}`}>{Math.round(a.margine_pct)}%</b></span>
                             <span className="text-muted-foreground">Lead <b className="text-foreground tabular-nums">{a.n_lead}</b></span>
-                            <span className="text-muted-foreground">Prev. <b className="text-foreground tabular-nums">{a.preventivi_vinti}/{a.n_preventivi}</b></span>
+                            <span className="text-muted-foreground">Preventivi <b className="text-foreground tabular-nums">{a.preventivi_vinti}/{a.n_preventivi}</b></span>
                             <ArrowRight className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
                           </button>
                         )
@@ -768,12 +782,12 @@ export default function SettingsSedi() {
                         disabled={!canEditSedi || setPrincipaleMutation.isPending}
                       >
                         <Star className="h-3 w-3 mr-1" />
-                        Principale
+                        Rendi principale
                       </Button>
                     )}
                     <Switch
                       checked={Boolean(sede.attiva)}
-                      aria-label={`${sede.attiva ? 'Disattiva' : 'Attiva'} sede ${sede.nome}`}
+                      aria-label={`Sede ${sede.nome} attiva`}
                       onCheckedChange={(v) => toggleMutation.mutate({ id: sede.id, attiva: v })}
                       disabled={!canEditSedi || toggleMutation.isPending}
                     />
@@ -815,8 +829,8 @@ export default function SettingsSedi() {
           <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="space-y-4">
             {/* Nome */}
             <div className="space-y-1.5">
-              <Label>Nome sede *</Label>
-              <Input placeholder="es. Showroom Milano Nord" {...form.register('nome')} />
+              <Label htmlFor="sede-nome">Nome sede *</Label>
+              <Input id="sede-nome" placeholder="es. Showroom Milano Nord" {...form.register('nome')} />
               {form.formState.errors.nome && (
                 <p className="text-xs text-destructive">{form.formState.errors.nome.message}</p>
               )}
@@ -824,12 +838,12 @@ export default function SettingsSedi() {
 
             {/* Tipo */}
             <div className="space-y-1.5">
-              <Label>Tipo *</Label>
+              <Label htmlFor="sede-tipo">Tipo *</Label>
               <Select
                 value={form.watch('tipo')}
                 onValueChange={(v) => form.setValue('tipo', v as SedeFormData['tipo'])}
               >
-                <SelectTrigger>
+                <SelectTrigger id="sede-tipo">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -842,26 +856,26 @@ export default function SettingsSedi() {
 
             {/* Indirizzo */}
             <div className="space-y-1.5">
-              <Label>Indirizzo</Label>
-              <Input placeholder="Via Roma 1" {...form.register('indirizzo')} />
+              <Label htmlFor="sede-indirizzo">Indirizzo</Label>
+              <Input id="sede-indirizzo" placeholder="Via Roma 1" {...form.register('indirizzo')} />
             </div>
 
             {/* Città + CAP + Provincia */}
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-3 sm:col-span-1 space-y-1.5">
-                <Label>Città</Label>
-                <Input placeholder="Milano" {...form.register('citta')} />
+                <Label htmlFor="sede-citta">Città</Label>
+                <Input id="sede-citta" placeholder="Milano" {...form.register('citta')} />
               </div>
               <div className="col-span-3 sm:col-span-1 space-y-1.5">
-                <Label>CAP</Label>
-                <Input placeholder="20100" maxLength={5} {...form.register('cap')} />
+                <Label htmlFor="sede-cap">CAP</Label>
+                <Input id="sede-cap" placeholder="20100" maxLength={5} {...form.register('cap')} />
                 {form.formState.errors.cap && (
                   <p className="text-xs text-destructive">{form.formState.errors.cap.message}</p>
                 )}
               </div>
               <div className="col-span-3 sm:col-span-1 space-y-1.5">
-                <Label>Prov.</Label>
-                <Input placeholder="MI" maxLength={2} {...form.register('provincia')} />
+                <Label htmlFor="sede-provincia">Provincia</Label>
+                <Input id="sede-provincia" placeholder="MI" maxLength={2} {...form.register('provincia')} />
                 {form.formState.errors.provincia && (
                   <p className="text-xs text-destructive">{form.formState.errors.provincia.message}</p>
                 )}
@@ -870,26 +884,26 @@ export default function SettingsSedi() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label>Regione</Label>
-                <Input placeholder="Lombardia" {...form.register('regione')} />
+                <Label htmlFor="sede-regione">Regione</Label>
+                <Input id="sede-regione" placeholder="Lombardia" {...form.register('regione')} />
               </div>
               <div className="space-y-1.5">
-                <Label>Nazione</Label>
-                <Input placeholder="Italia" {...form.register('nazione')} />
+                <Label htmlFor="sede-nazione">Nazione</Label>
+                <Input id="sede-nazione" placeholder="Italia" {...form.register('nazione')} />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label>Telefono sede</Label>
-                <Input placeholder="+39 02 123456" {...form.register('telefono')} />
+                <Label htmlFor="sede-telefono">Telefono sede</Label>
+                <Input id="sede-telefono" placeholder="+39 02 123456" {...form.register('telefono')} />
                 {form.formState.errors.telefono && (
                   <p className="text-xs text-destructive">{form.formState.errors.telefono.message}</p>
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label>Email sede</Label>
-                <Input placeholder="sede@azienda.it" {...form.register('email')} />
+                <Label htmlFor="sede-email">Email sede</Label>
+                <Input id="sede-email" placeholder="sede@azienda.it" {...form.register('email')} />
                 {form.formState.errors.email && (
                   <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
                 )}
@@ -898,35 +912,19 @@ export default function SettingsSedi() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label>Responsabile sede</Label>
-                <Input placeholder="Nome referente" {...form.register('responsabile_sede')} />
+                <Label htmlFor="sede-responsabile">Responsabile sede</Label>
+                <Input id="sede-responsabile" placeholder="Nome referente" {...form.register('responsabile_sede')} />
               </div>
               <div className="space-y-1.5">
-                <Label>Orari apertura</Label>
-                <Input placeholder="Lun-Ven 09:00-18:00" {...form.register('orari_apertura')} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div className="space-y-1.5">
-                <Label>Latitudine</Label>
-                <Input placeholder="45.4642" inputMode="decimal" {...form.register('lat')} />
-                {form.formState.errors.lat && (
-                  <p className="text-xs text-destructive">{form.formState.errors.lat.message}</p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <Label>Longitudine</Label>
-                <Input placeholder="9.1900" inputMode="decimal" {...form.register('lng')} />
-                {form.formState.errors.lng && (
-                  <p className="text-xs text-destructive">{form.formState.errors.lng.message}</p>
-                )}
+                <Label htmlFor="sede-orari">Orari apertura</Label>
+                <Input id="sede-orari" placeholder="Lun-Ven 09:00-18:00" {...form.register('orari_apertura')} />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label>Note interne</Label>
+              <Label htmlFor="sede-note">Note interne</Label>
               <Textarea
+                id="sede-note"
                 placeholder="Informazioni operative, riferimenti interni, note per appuntamenti o logistica..."
                 {...form.register('note_interne')}
               />
@@ -934,12 +932,14 @@ export default function SettingsSedi() {
 
             {/* Colore */}
             <div className="space-y-1.5">
-              <Label>Colore badge</Label>
-              <div className="flex items-center gap-2 flex-wrap">
+              <Label id="sede-colore-etichetta">Colore della sede</Label>
+              <div className="flex items-center gap-2 flex-wrap" role="group" aria-labelledby="sede-colore-etichetta">
                 {COLORI_PRESET.map((c) => (
                   <button
                     key={c}
                     type="button"
+                    aria-label={`Colore ${c}`}
+                    aria-pressed={form.watch('colore') === c}
                     className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${
                       form.watch('colore') === c ? 'border-gray-900 scale-110' : 'border-transparent'
                     }`}
@@ -952,7 +952,8 @@ export default function SettingsSedi() {
                   value={form.watch('colore')}
                   onChange={(e) => form.setValue('colore', e.target.value)}
                   className="w-7 h-7 rounded cursor-pointer border"
-                  title="Scegli colore personalizzato"
+                  title="Scegli un altro colore"
+                  aria-label="Scegli un altro colore"
                 />
               </div>
             </div>

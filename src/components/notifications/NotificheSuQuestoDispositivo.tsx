@@ -1,5 +1,5 @@
 /**
- * «Su questo telefono»: l'interruttore delle push per il dispositivo in mano.
+ * «Su questo dispositivo»: l'interruttore delle push per il telefono o il computer in mano.
  *
  * Le push vivono per dispositivo (un'iscrizione per browser), non per utente:
  * accese sul telefono non lo sono sul computer. Qui si accendono e spengono
@@ -36,7 +36,7 @@ export function NotificheSuQuestoDispositivo({ className }: { className?: string
     <div className={cn("flex items-center gap-3", className)}>
       <BellRing className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm">Su questo telefono</p>
+        <p className="text-sm">Su questo dispositivo</p>
         <p className="text-xs text-muted-foreground">
           {perche ?? (isSubscribed ? "Gli avvisi arrivano anche ad app chiusa." : "Spento: gli avvisi restano nell'app.")}
         </p>
@@ -45,7 +45,7 @@ export function NotificheSuQuestoDispositivo({ className }: { className?: string
         checked={isSubscribed}
         disabled={isLoading || !!perche}
         onCheckedChange={(acceso) => void (acceso ? subscribe() : unsubscribe())}
-        aria-label="Notifiche su questo telefono"
+        aria-label="Notifiche su questo dispositivo"
       />
     </div>
   );

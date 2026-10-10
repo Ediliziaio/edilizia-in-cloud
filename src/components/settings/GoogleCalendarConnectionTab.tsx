@@ -584,7 +584,7 @@ export default function GoogleCalendarConnectionTab() {
               onClick={() => setSyncPrefsOpen(true)}
             >
               <Settings2 className="h-3.5 w-3.5" />
-              Preferenze di sincronizzazione
+              Preferenze del calendario
             </Button>
           </div>
         </CardContent>
@@ -596,10 +596,7 @@ export default function GoogleCalendarConnectionTab() {
         syncMode={settings?.sync_mode || "one_way"}
         direzione={prefsUtente?.id ? (prefsUtente.sync_direction as DirezioneSync) : undefined}
         importGoogleEvents={settings?.import_google_events_to_crm || false}
-        createContactsFromGuests={settings?.create_contacts_from_guests || false}
-        eventPrivacy={(settings?.event_privacy === "busy_only" ? "busy_only" : "full") as "full" | "busy_only"}
         allowTwoWay={policies?.allowTwoWay || false}
-        allowGuestContactCreate={policies?.allowGuestContact || false}
         allowGoogleToImport={policies?.allowGoogleImport || false}
         onSave={(prefs) => {
           updateSettings.mutate(prefs);

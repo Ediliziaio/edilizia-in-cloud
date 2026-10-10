@@ -12,6 +12,13 @@
  *   - Eliminare definitivamente
  *
  * Filtri: persona, memory_type, search content.
+ *
+ * 09/10/2026 (revisione impostazioni): le parole sono quelle di chi legge («ricordo», «assistente», «Abitudine»,
+ * «Poco sicure»), non quelle del codice (memory, persona, pattern, confidence, hits, entries); un errore dice il
+ * motivo (prima `String(e)`: «[object Object]» o il testo del database); modificare, disattivare o eliminare un
+ * ricordo che le regole di accesso non lasciano toccare ora lo dice, invece di rispondere «eliminata» e non fare niente.
+ * Le cinque scritte fissate dai test (Memorie demo, Centro controllo memoria, Includi disabilitate, Completa personas,
+ * Vedi nel Cervello) sono rimaste com'erano.
  */
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -42,6 +49,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { MessaggioPerUtente, motivoDelRifiuto, righeToccate } from "@/lib/impostazioni/erroriPerUtente";
 import {
   Activity, AlertCircle, Brain, CheckCircle2, Clock3, Database, Edit2, EyeOff, Eye,
   FilterX, Link2, Plus, Search, ShieldAlert, Sparkles, Trash2,
@@ -73,7 +81,7 @@ const TYPE_LABEL: Record<MemoryRow["memory_type"], { label: string; color: strin
   fact:       { label: "Fatto",        color: "bg-blue-100 text-blue-700 border-blue-300" },
   preference: { label: "Preferenza",    color: "bg-violet-100 text-violet-700 border-violet-300" },
   decision:   { label: "Decisione",     color: "bg-emerald-100 text-emerald-700 border-emerald-300" },
-  pattern:    { label: "Pattern",       color: "bg-amber-100 text-amber-700 border-amber-300" },
+  pattern:    { label: "Abitudine",     color: "bg-amber-100 text-amber-700 border-amber-300" },
   avoid:      { label: "Da evitare",    color: "bg-rose-100 text-rose-700 border-rose-300" },
 };
 
@@ -426,7 +434,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
       if (!effectiveCompany?.id) throw new Error("no_company");
       if (data.id) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await (supabase as any)
+        const { data: toccati, error } = await (supabase as any)
           .from("ai_persona_memory")
           .update({
             persona_key: data.persona_key,
@@ -435,8 +443,11 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
             source: data.source,
             confidence: data.confidence,
           })
-          .eq("id", data.id);
+          .eq("id", data.id)
+          .select("id");
         if (error) throw error;
+        // Le regole di accesso possono lasciare zero righe senza dare errore: va detto.
+        if (righeToccate(toccati) === 0) throw new MessaggioPerUtente("Non hai il permesso di modificare questo ricordo.");
       } else {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any).rpc("record_persona_memory", {
@@ -452,43 +463,47 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
       }
     },
     onSuccess: () => {
-      toast.success("Memory salvata");
+      toast.success("Ricordo salvato");
       setEditOpen(false);
       setForm(EMPTY_FORM);
       void qc.invalidateQueries({ queryKey: ["ai-persona-memory"] });
     },
-    onError: (e) => toast.error("Errore", { description: String(e) }),
+    onError: (e) => toast.error("Non sono riuscito a salvare il ricordo", { description: motivoDelRifiuto(e, "Riprova tra poco.") }),
   });
 
   const toggleMut = useMutation({
     mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
+      const { data: toccati, error } = await (supabase as any)
         .from("ai_persona_memory")
         .update({ enabled })
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       if (error) throw error;
+      if (righeToccate(toccati) === 0) throw new MessaggioPerUtente("Non hai il permesso di modificare questo ricordo.");
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ai-persona-memory"] });
     },
-    onError: (e) => toast.error("Errore aggiornamento memory", { description: String(e) }),
+    onError: (e) => toast.error("Non sono riuscito ad aggiornare il ricordo", { description: motivoDelRifiuto(e, "Riprova tra poco.") }),
   });
 
   const deleteMut = useMutation({
     mutationFn: async (id: string) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
+      const { data: eliminati, error } = await (supabase as any)
         .from("ai_persona_memory")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       if (error) throw error;
+      if (righeToccate(eliminati) === 0) throw new MessaggioPerUtente("Non hai il permesso di eliminare questo ricordo.");
     },
     onSuccess: () => {
-      toast.success("Memory eliminata");
+      toast.success("Ricordo eliminato");
       void qc.invalidateQueries({ queryKey: ["ai-persona-memory"] });
     },
-    onError: (e) => toast.error("Errore eliminazione memory", { description: String(e) }),
+    onError: (e) => toast.error("Non sono riuscito a eliminare il ricordo", { description: motivoDelRifiuto(e, "Riprova tra poco.") }),
   });
 
   const openCreate = () => {
@@ -600,7 +615,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
             <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[360px]">
               <div className="rounded-lg border bg-white/80 p-2 dark:bg-background/60">
                 <p className="text-xl font-bold tabular-nums">{stats.personasWithMemories}/{personasForMemory.length}</p>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">personas</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">assistenti</p>
               </div>
               <div className="rounded-lg border bg-white/80 p-2 dark:bg-background/60">
                 <p className="text-xl font-bold tabular-nums">{stats.healthPct}%</p>
@@ -631,10 +646,10 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
           </div>
         </div>
         <div className="rounded-lg border bg-card p-3">
-          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">QA copertura</div>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Copertura</div>
           <div className="text-2xl font-bold tabular-nums mt-0.5">{stats.coveragePct}%</div>
           <div className="text-[11px] text-muted-foreground mt-0.5">
-            {stats.personasWithMemories}/{personasForMemory.length} personas coperte
+            {stats.personasWithMemories}/{personasForMemory.length} assistenti coperti
           </div>
         </div>
         <div className="rounded-lg border bg-card p-3">
@@ -648,7 +663,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Da verificare</div>
           <div className="text-2xl font-bold tabular-nums mt-0.5">{stats.lowConfidence + stats.neverUsed + stats.stale}</div>
           <div className="text-[11px] text-muted-foreground mt-0.5">
-            {stats.neverUsed} mai usate · {stats.lowConfidence} bassa fiducia
+            {stats.neverUsed} mai usate · {stats.lowConfidence} poco sicure
           </div>
         </div>
         <div className="rounded-lg border bg-card p-3">
@@ -671,7 +686,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
           </div>
           <div className="text-[11px] text-emerald-600 mt-0.5 flex items-center gap-1">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Aggiornamento live
+            Si aggiorna da solo
           </div>
         </div>
       </div>
@@ -679,20 +694,20 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
       <div className="rounded-xl border bg-card p-3">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="text-sm font-semibold">Copertura per persona</p>
+            <p className="text-sm font-semibold">Ricordi per assistente</p>
             <p className="text-xs text-muted-foreground">
-              Clicca una persona per filtrare le sue memorie e capire dove il cervello è più forte.
+              Tocca un assistente per vedere i suoi ricordi e capire dove l'AI sa di più.
             </p>
           </div>
           {stats.personasWithoutMemories.length > 0 ? (
             <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">
               <ShieldAlert className="h-3 w-3" />
-              {stats.personasWithoutMemories.length} personas senza memoria
+              {stats.personasWithoutMemories.length} {stats.personasWithoutMemories.length === 1 ? "assistente senza ricordi" : "assistenti senza ricordi"}
             </Badge>
           ) : (
             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
               <CheckCircle2 className="h-3 w-3" />
-              Tutte le personas hanno memoria
+              Tutti gli assistenti hanno dei ricordi
             </Badge>
           )}
         </div>
@@ -735,7 +750,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tutte le personas</SelectItem>
+            <SelectItem value="all">Tutti gli assistenti</SelectItem>
             {personasForMemory.map((p) => (
               <SelectItem key={p.persona_key} value={p.persona_key}>{p.display_name}</SelectItem>
             ))}
@@ -757,7 +772,8 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Cerca contenuto, persona o fonte..."
+            placeholder="Cerca nel contenuto, per assistente o per fonte…"
+            aria-label="Cerca tra i ricordi"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-9 pl-9"
@@ -775,7 +791,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
         </Button>
 
         <Badge variant="outline" className="ml-auto text-xs">
-          {filteredMemories.length} entries
+          {filteredMemories.length === 1 ? "1 ricordo" : `${filteredMemories.length} ricordi`}
         </Badge>
       </div>
 
@@ -784,7 +800,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
           { value: "all", label: "Tutte", icon: FilterX },
           { value: "needs_attention", label: "Da verificare", icon: ShieldAlert },
           { value: "never_used", label: "Mai usate", icon: Activity },
-          { value: "low_confidence", label: "Bassa fiducia", icon: AlertCircle },
+          { value: "low_confidence", label: "Poco sicure", icon: AlertCircle },
           { value: "recent", label: "Recenti", icon: Clock3 },
           { value: "demo", label: "Memorie demo", icon: Sparkles },
         ].map((item) => {
@@ -816,7 +832,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
             <Brain className="h-10 w-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm font-medium">Nessuna memoria per questi filtri</p>
             <p className="text-xs mt-1">
-              Le memory si auto-popolano usando le AI personas, oppure puoi aggiungerle manualmente.
+              I ricordi si formano da soli mentre usi gli assistenti, oppure puoi aggiungerli tu.
             </p>
             <Button onClick={openCreate} className="mt-4 gap-2" size="sm">
               <Plus className="h-3.5 w-3.5" />
@@ -882,13 +898,13 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
                       </Badge>
                     )}
                     <span className="text-[10px] text-muted-foreground ml-auto">
-                      {m.hits_count} hits · creata il {new Date(m.created_at).toLocaleDateString("it-IT")}
+                      {m.hits_count} usi · creata il {new Date(m.created_at).toLocaleDateString("it-IT")}
                     </span>
                   </div>
                   <p className="text-sm leading-snug">{m.content}</p>
                   {m.source && m.confidence != null && (
                     <p className="text-[10px] text-muted-foreground">
-                      Fonte: {m.source} · Confidence: {(m.confidence * 100).toFixed(0)}%
+                      Fonte: {m.source} · Sicurezza: {(m.confidence * 100).toFixed(0)}%
                       {demoPreview ? " · anteprima non salvata" : ""}
                     </p>
                   )}
@@ -952,15 +968,15 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
           <DialogHeader>
             <DialogTitle>{form.id ? "Modifica memoria" : "Aggiungi memoria"}</DialogTitle>
             <DialogDescription>
-              Una memory che la persona AI ricorderà nelle prossime conversazioni.
+              Un ricordo che l'assistente terrà presente nelle prossime conversazioni.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label className="text-xs">Persona</Label>
+              <Label className="text-xs" htmlFor="mem-assistente">Assistente</Label>
               <Select value={form.persona_key} onValueChange={(v) => setForm({ ...form, persona_key: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Scegli persona" />
+                <SelectTrigger id="mem-assistente">
+                  <SelectValue placeholder="Scegli l'assistente" />
                 </SelectTrigger>
                 <SelectContent>
                   {personasForMemory.map((p) => (
@@ -970,9 +986,9 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Tipo</Label>
+              <Label className="text-xs" htmlFor="mem-tipo">Tipo</Label>
               <Select value={form.memory_type} onValueChange={(v) => setForm({ ...form, memory_type: v as FormData["memory_type"] })}>
-                <SelectTrigger>
+                <SelectTrigger id="mem-tipo">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -983,8 +999,9 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Contenuto</Label>
+              <Label className="text-xs" htmlFor="mem-contenuto">Contenuto</Label>
               <Textarea
+                id="mem-contenuto"
                 value={form.content}
                 onChange={(e) => setForm({ ...form, content: e.target.value })}
                 placeholder="es. Florin preferisce vedere il P&L mensile vs settimanale"
@@ -992,12 +1009,13 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
                 className="text-sm"
               />
               <p className="text-[10px] text-muted-foreground mt-1">
-                Scrivi una frase chiara e breve. Verrà iniettata nel prompt della persona.
+                Scrivi una frase chiara e breve: l'assistente la leggerà prima di rispondere.
               </p>
             </div>
             <div>
-              <Label className="text-xs">Confidence ({(form.confidence * 100).toFixed(0)}%)</Label>
+              <Label className="text-xs" htmlFor="mem-sicurezza">Sicurezza ({(form.confidence * 100).toFixed(0)}%)</Label>
               <input
+                id="mem-sicurezza"
                 type="range"
                 min="0.1"
                 max="1.0"
@@ -1024,10 +1042,9 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
         <CardContent className="p-3 flex items-start gap-2">
           <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground leading-relaxed">
-            <strong>Privacy:</strong> le memory sono multi-tenant (visibili solo nella tua azienda).
-            Quelle con <code className="bg-muted px-1 rounded">user_id NULL</code> sono globali per
-            tutti gli utenti della company. Per memory user-specific (preferenze personali), usa la
-            chat con la persona — l'AI le creerà automaticamente quando rileva pattern stabili.
+            <strong>Privacy:</strong> i ricordi sono visibili solo nella tua azienda. Quelli scritti qui valgono
+            per tutte le persone dell'azienda. Per i ricordi personali (le preferenze di una sola persona) usa la
+            chat con l'assistente: li crea da solo quando nota un'abitudine stabile.
           </p>
         </CardContent>
       </Card>

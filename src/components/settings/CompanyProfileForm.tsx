@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import { Loader2, Save, Building2, FileText, Phone, MapPin, StickyNote } from "lucide-react";
+import { useId, useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { Loader2, Save, Building2, FileText, Phone, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { forwardGeocode } from "@/lib/geocoding";
@@ -8,11 +9,11 @@ import { logger } from "@/utils/logger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { campiMarginiModificati } from "@/lib/impostazioni/salvataggioMargini";
+import { MessaggioPerUtente, motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
+import { cn } from "@/lib/utils";
 
 const sectorLabels: Record<string, string> = {
   serramenti: "Serramenti",
@@ -25,9 +26,27 @@ const sectorLabels: Record<string, string> = {
   altro: "Altro",
 };
 
-export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {}) {
+const TITOLO_BLOCCO = "flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide";
+const BLOCCO = "space-y-4 px-4 py-4 max-sm:space-y-3 max-sm:px-3";
+
+/**
+ * I dati dell'azienda che compaiono su preventivi, fatture e documenti.
+ *
+ * `azioniSlot`: dove portare lo stato e «Salva dati aziendali». La pagina li mette nella barra che resta in vista
+ * mentre si scorre (come in «Prezzo e margini»); senza (`undefined`, per esempio quando il modulo si usa da solo) stanno in
+ * fondo al modulo. `null` = la barra c'è ma non è ancora nella pagina: per un attimo non si disegna niente.
+ *
+ * 09/10/2026: il campo «Note interne» non c'è più nel modulo: la colonna `companies.notes` è delle note della piattaforma
+ * (riquadro «Note interne» della console di EdiliziaInCloud). I dati restano dove sono; il modulo non li legge e non li scrive.
+ */
+export function CompanyProfileForm({
+  canEdit = true,
+  azioniSlot,
+  evidenziata = null,
+}: { canEdit?: boolean; azioniSlot?: HTMLElement | null; evidenziata?: string | null } = {}) {
   const { effectiveCompany, refreshAuth } = useAuth();
-  
+  const idModulo = useId();
+
   const company = effectiveCompany;
 
   const [isSaving, setIsSaving] = useState(false);
@@ -48,7 +67,6 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
   const [operationalCity, setOperationalCity] = useState("");
   const [operationalProvince, setOperationalProvince] = useState("");
   const [operationalPostalCode, setOperationalPostalCode] = useState("");
-  const [notes, setNotes] = useState("");
   const [orderCodePrefix, setOrderCodePrefix] = useState("O");
   const [prefixResult, setPrefixResult] = useState<{ companyId?: string; error?: boolean }>({});
   const prefixLoading = prefixResult.companyId !== company?.id;
@@ -63,7 +81,7 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
     legal_province: legalProvince.trim() || null, legal_postal_code: legalPostalCode.trim() || null,
     operational_address: operationalAddress.trim() || null, operational_city: operationalCity.trim() || null,
     operational_province: operationalProvince.trim() || null, operational_postal_code: operationalPostalCode.trim() || null,
-    notes: notes.trim() || null, order_code_prefix: orderCodePrefix.trim() || "O",
+    order_code_prefix: orderCodePrefix.trim() || "O",
   };
   const isDirty = baseline !== null && Object.keys(campiMarginiModificati(values, baseline)).length > 0;
   const dirtyRef = useRef(false);
@@ -114,7 +132,6 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
       setOperationalCity(company.operational_city || "");
       setOperationalProvince(company.operational_province || "");
       setOperationalPostalCode(company.operational_postal_code || "");
-      setNotes(company.notes || "");
 
       // Check if addresses are the same
       const legal = [company.legal_address, company.legal_city, company.legal_province, company.legal_postal_code].join("|");
@@ -169,15 +186,22 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
         .select("id")
         .single();
 
-      if (error) throw error;
+      // Nessuna riga toccata (PGRST116): la regola di accesso non lascia modificare l'azienda a chi ha solo il permesso
+      // «Profilo aziendale» senza quello generale delle impostazioni. Prima il messaggio era «impossibile aggiornare».
+      if (error) {
+        throw error.code === "PGRST116"
+          ? new MessaggioPerUtente("Il tuo utente non può modificare i dati dell'azienda: chiedi a un amministratore.")
+          : error;
+      }
 
       setBaseline({ ...values });
       dirtyRef.current = false;
       await refreshAuth();
-      toast.success("Profilo aggiornato", { description: "I dati aziendali sono stati salvati." });
+      toast.success("Dati aziendali salvati");
     } catch (error) {
       logger.error("Error updating company:", error);
-      toast.error("Errore", { description: "Impossibile aggiornare i dati aziendali." });
+      // Una partita IVA o un codice fiscale sbagliato li rifiuta il database, e dice già in italiano cosa non va.
+      toast.error("Dati non salvati", { description: motivoDelRifiuto(error, "Impossibile aggiornare i dati aziendali.") });
     } finally {
       setIsSaving(false);
     }
@@ -185,60 +209,71 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
 
   if (!company) return null;
 
+  const azioni = (
+    <>
+      <p
+        role="status"
+        className={cn("text-xs", isSaving || isDirty ? "text-muted-foreground" : "text-muted-foreground max-sm:sr-only", isDirty && !isSaving && "font-medium text-amber-700 dark:text-amber-400")}
+      >
+        {isSaving ? "Salvataggio…" : isDirty ? "Modifiche non salvate" : "Nessuna modifica da salvare"}
+      </p>
+      <Button size="sm" type="submit" form={idModulo} disabled={isSaving || !isDirty || prefixLoading || !canEdit}>
+        {isSaving ? (
+          <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvataggio...</>
+        ) : (
+          <><Save className="mr-2 h-4 w-4" />Salva dati aziendali</>
+        )}
+      </Button>
+    </>
+  );
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-sm:space-y-4">
+    <form id={idModulo} onSubmit={handleSubmit} className="divide-y">
       {/* canEdit=false → fieldset disabilita nativamente tutti i campi e il submit (permesso "Modifica" non attivo) */}
-      {/* Era className="contents": con display:contents lo space-y del form non
-          arrivava alle sezioni, e separatori e titoli stavano attaccati ai campi. */}
-      <fieldset disabled={!canEdit || isSaving || prefixLoading} className="min-w-0 space-y-6 max-sm:space-y-4">
-      {/* Dati Generali */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-          <Building2 className="h-4 w-4" /> Dati Generali
+      <fieldset disabled={!canEdit || isSaving || prefixLoading} className="m-0 min-w-0 divide-y border-0 p-0">
+      {/* Chi è l'account: nome, email e settore non si cambiano da qui. Su telefono non serve. */}
+      <p className="px-4 py-3 text-xs text-muted-foreground max-sm:hidden">
+        Account: <strong className="font-medium text-foreground">{company.name}</strong> · {company.email} · {sectorLabels[company.sector] || company.sector}.
+        Per cambiarli scrivi all'assistenza.
+      </p>
+
+      {/* Dati generali */}
+      <div className={BLOCCO}>
+        <h3 className={TITOLO_BLOCCO}>
+          <Building2 className="h-4 w-4" /> Dati generali
         </h3>
-        {/* Mobile: niente campi in sola lettura (nome, email, settore) e campi
-            brevi affiancati. */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-sm:grid-cols-2 max-sm:gap-3">
-          <div className="space-y-2 max-sm:hidden">
-            <Label>Nome Azienda</Label>
-            <Input value={company.name} disabled className="bg-muted" />
-          </div>
-          <div className="space-y-2 max-sm:hidden">
-            <Label>Email</Label>
-            <Input value={company.email} disabled className="bg-muted" />
-          </div>
+        {/* Mobile: campi brevi affiancati. */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-3">
           <div className="space-y-2 max-sm:col-span-2">
-            <Label htmlFor="businessName">Ragione Sociale</Label>
+            <Label htmlFor="businessName">Ragione sociale</Label>
             <Input id="businessName" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Rossi S.r.l." maxLength={100} />
           </div>
-          <div className="space-y-2 max-sm:hidden">
-            <Label>Settore</Label>
-            <Input value={sectorLabels[company.sector] || company.sector} disabled className="bg-muted" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="orderCodePrefix"><span className="max-sm:hidden">Prefisso Codice Commessa</span><span className="sm:hidden">Prefisso commesse</span></Label>
-            <Input id="orderCodePrefix" value={orderCodePrefix} onChange={(e) => setOrderCodePrefix(e.target.value)} placeholder="O" maxLength={16} disabled={prefixError} />
-            <p className="text-[11px] text-muted-foreground max-sm:hidden">
-              Usato per il codice commessa progressivo automatico: es. <strong>{(orderCodePrefix.trim() || "O")}-0001</strong>, {(orderCodePrefix.trim() || "O")}-0002…
+          {/* Il numero delle commesse (O-0001, O-0002…): l'àncora #prefisso-commessa porta qui dalla ricerca. */}
+          <div
+            id="prefisso-commessa"
+            className={cn("scroll-mt-28 space-y-2 rounded-md transition-shadow duration-500", evidenziata === "prefisso-commessa" && "ring-2 ring-primary/50 ring-offset-4 ring-offset-card")}
+          >
+            <Label htmlFor="orderCodePrefix"><span className="max-sm:hidden">Prefisso del codice commessa</span><span className="sm:hidden">Prefisso commesse</span></Label>
+            <Input id="orderCodePrefix" value={orderCodePrefix} onChange={(e) => setOrderCodePrefix(e.target.value)} placeholder="O" maxLength={16} disabled={prefixError} aria-describedby="orderCodePrefix-aiuto" />
+            <p id="orderCodePrefix-aiuto" className="text-[11px] text-muted-foreground max-sm:hidden">
+              Il numero delle commesse parte da qui: <strong>{(orderCodePrefix.trim() || "O")}-0001</strong>, {(orderCodePrefix.trim() || "O")}-0002…
             </p>
           </div>
         </div>
       </div>
 
-      <Separator />
-
-      {/* Dati Fiscali */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-          <FileText className="h-4 w-4" /> Dati Fiscali
+      {/* Dati fiscali */}
+      <div className={BLOCCO}>
+        <h3 className={TITOLO_BLOCCO}>
+          <FileText className="h-4 w-4" /> Dati fiscali
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-sm:grid-cols-2 max-sm:gap-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-3">
           <div className="space-y-2">
             <Label htmlFor="vatNumber">P.IVA</Label>
             <Input id="vatNumber" value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder="01234567890" maxLength={11} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="fiscalCode">Codice Fiscale</Label>
+            <Label htmlFor="fiscalCode">Codice fiscale</Label>
             <Input id="fiscalCode" value={fiscalCode} onChange={(e) => setFiscalCode(e.target.value)} placeholder="01234567890" maxLength={16} />
           </div>
           <div className="space-y-2 max-sm:col-span-2">
@@ -252,38 +287,35 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
         </div>
       </div>
 
-      <Separator />
-
       {/* Contatti */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+      <div className={BLOCCO}>
+        <h3 className={TITOLO_BLOCCO}>
           <Phone className="h-4 w-4" /> Contatti
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-sm:grid-cols-2 max-sm:gap-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 max-sm:grid-cols-2 max-sm:gap-3">
           <div className="space-y-2">
             <Label htmlFor="companyPhone">Telefono</Label>
             <Input id="companyPhone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 02 1234567" maxLength={20} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="companyWebsite">Sito Web</Label>
+            <Label htmlFor="companyWebsite">Sito web</Label>
             <Input id="companyWebsite" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://www.azienda.it" maxLength={100} />
           </div>
         </div>
       </div>
 
-      <Separator />
-
-      {/* Sede Legale */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-          <MapPin className="h-4 w-4" /> Sede Legale
+      {/* Sede legale */}
+      <div className={BLOCCO}>
+        <h3 className={TITOLO_BLOCCO}>
+          <MapPin className="h-4 w-4" /> Sede legale
         </h3>
         <div className="space-y-2">
           <Label htmlFor="legalAddress">Indirizzo</Label>
           <Input id="legalAddress" value={legalAddress} onChange={(e) => setLegalAddress(e.target.value)} placeholder="Via Roma 1" maxLength={200} />
         </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-2">
+        {/* Telefono: la città a tutta riga, provincia e CAP affiancati (tre colonne da 95 px non bastavano). */}
+        <div className="grid grid-cols-3 gap-4 max-sm:grid-cols-2 max-sm:gap-3">
+          <div className="space-y-2 max-sm:col-span-2">
             <Label htmlFor="legalCity">Città</Label>
             <Input id="legalCity" value={legalCity} onChange={(e) => setLegalCity(e.target.value)} placeholder="Milano" maxLength={100} />
           </div>
@@ -298,13 +330,11 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
         </div>
       </div>
 
-      <Separator />
-
-      {/* Sede Operativa */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-            <MapPin className="h-4 w-4" /> Sede Operativa
+      {/* Sede operativa */}
+      <div className={BLOCCO}>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <h3 className={TITOLO_BLOCCO}>
+            <MapPin className="h-4 w-4" /> Sede operativa
           </h3>
           <div className="flex items-center gap-2">
             <Checkbox id="sameAddress" checked={sameAddress} onCheckedChange={(v) => setSameAddress(!!v)} />
@@ -315,8 +345,8 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
           <Label htmlFor="operationalAddress">Indirizzo</Label>
           <Input id="operationalAddress" value={operationalAddress} onChange={(e) => setOperationalAddress(e.target.value)} placeholder="Via Roma 1" maxLength={200} disabled={sameAddress} className={sameAddress ? "bg-muted" : ""} />
         </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-2">
+        <div className="grid grid-cols-3 gap-4 max-sm:grid-cols-2 max-sm:gap-3">
+          <div className="space-y-2 max-sm:col-span-2">
             <Label htmlFor="operationalCity">Città</Label>
             <Input id="operationalCity" value={operationalCity} onChange={(e) => setOperationalCity(e.target.value)} placeholder="Milano" maxLength={100} disabled={sameAddress} className={sameAddress ? "bg-muted" : ""} />
           </div>
@@ -330,33 +360,14 @@ export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {
           </div>
         </div>
       </div>
-
-      <Separator />
-
-      {/* Note */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-          <StickyNote className="h-4 w-4" /> Note
-        </h3>
-        <div className="space-y-2">
-          <Label htmlFor="companyNotes">Note Interne</Label>
-          <Textarea id="companyNotes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Note interne sull'azienda..." maxLength={500} rows={3} />
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-4">
-        <p role="status" className="text-xs text-muted-foreground">{isSaving ? "Salvataggio…" : isDirty ? "Modifiche non salvate" : "Nessuna modifica da salvare"}</p>
-        {prefixError && <p className="w-full text-xs text-amber-700">Prefisso commessa non caricato: il valore esistente non verrà modificato.</p>}
-        <Button size="sm" type="submit" disabled={isSaving || !isDirty || prefixLoading}>
-          {isSaving ? (
-            <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvataggio...</>
-          ) : (
-            <><Save className="mr-2 h-4 w-4" />Salva Dati Aziendali</>
-          )}
-        </Button>
-      </div>
       </fieldset>
+
+      {prefixError && <p className="px-4 py-2 text-xs text-amber-700">Prefisso commessa non caricato: il valore esistente non verrà modificato.</p>}
+
+      {/* Stato e «Salva»: nella barra della pagina se c'è, altrimenti in fondo al modulo. */}
+      {azioniSlot === undefined ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">{azioni}</div>
+      ) : azioniSlot ? createPortal(azioni, azioniSlot) : null}
     </form>
   );
 }

@@ -4,6 +4,7 @@
  * render_catalog_assets + bucket privato render-catalogo (`<company>/<uuid>.<ext>`).
  */
 import { supabase } from "@/integrations/supabase/client";
+import { MessaggioPerUtente, righeToccate } from "@/lib/impostazioni/erroriPerUtente";
 
 export const RENDER_CATALOG_BUCKET = "render-catalogo";
 export const MAX_CATALOG_REFERENCES = 4;
@@ -175,15 +176,16 @@ export async function uploadRenderCatalogAsset(args: {
   descrizione?: string;
 }): Promise<RenderCatalogAsset> {
   const { file } = args;
-  if (!ACCEPTED_TYPES.includes(file.type)) throw new Error("Formato non supportato: usa JPG, PNG o WebP");
-  if (file.size > RENDER_CATALOG_MAX_BYTES) throw new Error("File troppo grande (max 10 MB)");
+  // Le tre frasi sono già per chi legge: la pagina le mostra così come sono (le altre le traduce).
+  if (!ACCEPTED_TYPES.includes(file.type)) throw new MessaggioPerUtente("Formato non supportato: usa JPG, PNG o WebP");
+  if (file.size > RENDER_CATALOG_MAX_BYTES) throw new MessaggioPerUtente("File troppo grande: al massimo 10 MB");
   const etichetta = args.etichetta.trim();
-  if (!etichetta) throw new Error("Inserisci un'etichetta per la foto");
+  if (!etichetta) throw new MessaggioPerUtente("Inserisci un'etichetta per la foto");
   const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
   const path = `${args.companyId}/${crypto.randomUUID()}.${ext}`;
   const size = await readImageSize(file);
   const up = await supabase.storage.from(RENDER_CATALOG_BUCKET).upload(path, file, { contentType: file.type, upsert: false });
-  if (up.error) throw new Error(`Upload fallito: ${up.error.message}`);
+  if (up.error) throw new Error(up.error.message);
   const { data, error } = await supabase
     .from("render_catalog_assets")
     .insert({
@@ -211,12 +213,16 @@ export async function updateRenderCatalogAsset(
   id: string,
   patch: Partial<Pick<RenderCatalogAsset, "etichetta" | "descrizione" | "categoria" | "verticale" | "attivo">>,
 ): Promise<void> {
-  const { error } = await supabase.from("render_catalog_assets").update(patch).eq("id", id);
+  const { data, error } = await supabase.from("render_catalog_assets").update(patch).eq("id", id).select("id");
   if (error) throw new Error(error.message);
+  // Le regole di accesso possono lasciare zero righe senza dare errore: va detto, non fatto finta.
+  if (righeToccate(data) === 0) throw new MessaggioPerUtente("Non hai il permesso di modificare questa foto.");
 }
 
 export async function deleteRenderCatalogAsset(asset: Pick<RenderCatalogAsset, "id" | "storage_path">): Promise<void> {
-  const { error } = await supabase.from("render_catalog_assets").delete().eq("id", asset.id);
+  const { data, error } = await supabase.from("render_catalog_assets").delete().eq("id", asset.id).select("id");
   if (error) throw new Error(error.message);
+  // Zero righe eliminate = le regole di accesso hanno detto no: il file NON va toccato (resterebbe una riga senza foto).
+  if (righeToccate(data) === 0) throw new MessaggioPerUtente("Non hai il permesso di eliminare questa foto.");
   await supabase.storage.from(RENDER_CATALOG_BUCKET).remove([asset.storage_path]);
 }

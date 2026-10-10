@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import SettingsBranding from "@/pages/azienda/settings/SettingsBranding";
 import type { BrandSettings } from "@/hooks/useBrandSettings";
 
@@ -35,7 +36,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => ({
 }) } }));
 function open() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={client}><SettingsBranding /></QueryClientProvider>);
+  return render(<MemoryRouter><QueryClientProvider client={client}><SettingsBranding /></QueryClientProvider></MemoryRouter>);
 }
 beforeEach(() => {
   state.readError = false; state.saveError = false; state.syncError = false; state.syncThrows = false;
@@ -48,7 +49,7 @@ afterEach(cleanup);
 describe("Branding: salvataggio e sincronizzazione", () => {
   it("non salva senza modifiche", () => {
     open();
-    expect(screen.getByRole("button", { name: "Salva brand" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salva marchio" })).toBeDisabled();
     expect(state.saves).toHaveLength(0);
   });
   it("aggiorna solo il nome, preservando colori cambiati altrove", async () => {
@@ -56,9 +57,9 @@ describe("Branding: salvataggio e sincronizzazione", () => {
     fireEvent.change(screen.getByLabelText("Nome della piattaforma"), { target: { value: "Nome nuovo" } });
     state.brand = { ...state.brand, brand_primary_color: "#0F766E" };
     // Un aggiornamento del contesto remoto non deve eliminare la bozza.
-    rerender(<QueryClientProvider client={new QueryClient()}><SettingsBranding /></QueryClientProvider>);
+    rerender(<MemoryRouter><QueryClientProvider client={new QueryClient()}><SettingsBranding /></QueryClientProvider></MemoryRouter>);
     expect(screen.getByLabelText("Nome della piattaforma")).toHaveValue("Nome nuovo");
-    fireEvent.click(screen.getByRole("button", { name: "Salva brand" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva marchio" }));
     await waitFor(() => expect(state.success).toHaveBeenCalledOnce());
     expect(state.saves).toEqual([{ brand_platform_name: "Nome nuovo", white_label_enabled: true }]);
     expect(state.syncs[0]).toMatchObject({ platform_name: "Nome nuovo", primary_color: "#0F766E" });
@@ -66,19 +67,19 @@ describe("Branding: salvataggio e sincronizzazione", () => {
   it("mostra il fallimento della sincronizzazione e permette di riprovare", async () => {
     state.syncError = true; open();
     fireEvent.change(screen.getByLabelText("Nome della piattaforma"), { target: { value: "Nome nuovo" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva brand" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva marchio" }));
     const retry = await screen.findByRole("button", { name: "Riprova sincronizzazione" });
     expect(state.warning).toHaveBeenCalledOnce();
     expect(state.success).not.toHaveBeenCalled();
     state.syncError = false;
     fireEvent.click(retry);
     await waitFor(() => expect(state.success).toHaveBeenCalledOnce());
-    expect(screen.getByRole("button", { name: "Salva brand" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salva marchio" })).toBeDisabled();
   });
   it("un errore del salvataggio principale mantiene la bozza", async () => {
     state.saveError = true; open();
     fireEvent.change(screen.getByLabelText("Nome della piattaforma"), { target: { value: "Nome nuovo" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva brand" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva marchio" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledOnce());
     expect(screen.getByLabelText("Nome della piattaforma")).toHaveValue("Nome nuovo");
     expect(state.syncs).toHaveLength(0);
@@ -87,7 +88,7 @@ describe("Branding: salvataggio e sincronizzazione", () => {
   it("distingue il salvataggio riuscito da una connessione interrotta al mirror", async () => {
     state.syncThrows = true; open();
     fireEvent.change(screen.getByLabelText("Nome della piattaforma"), { target: { value: "Nome nuovo" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva brand" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva marchio" }));
     expect(await screen.findByRole("button", { name: "Riprova sincronizzazione" })).toBeEnabled();
     expect(state.warning).toHaveBeenCalledOnce();
     expect(state.error).not.toHaveBeenCalled();
@@ -96,6 +97,6 @@ describe("Branding: salvataggio e sincronizzazione", () => {
   it("non permette di salvare valori predefiniti su un errore di lettura", () => {
     state.readError = true; open();
     expect(screen.getByRole("alert")).toHaveTextContent("Nessuna modifica verrà salvata");
-    expect(screen.queryByRole("button", { name: "Salva brand" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Salva marchio" })).toBeNull();
   });
 });

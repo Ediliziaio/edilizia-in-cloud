@@ -1,366 +1,273 @@
-import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+/**
+ * Regole di sicurezza dell'azienda (dentro «Il mio profilo» → Sicurezza, solo per gli amministratori).
+ *
+ * Restano le due che qualcuno applica davvero, entrambe lette da `check-login-security` alla schermata di
+ * accesso: il blocco dopo troppi tentativi sbagliati (con la sua durata) e l'elenco degli indirizzi da cui si
+ * può entrare. Prima c'erano tredici comandi: 2FA obbligatoria (per tutti e per ruolo), scadenza e regole della
+ * password e tre avvisi di sicurezza non li leggeva nessun codice, quindi promettevano protezioni che non
+ * c'erano. Le colonne restano nel database, la pagina non le mostra e non le scrive più.
+ */
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, Loader2, Plus, Save } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
-import { Shield, Save, Loader2 } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { useVaiASezione } from "@/hooks/useVaiASezione";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { AmbitoImpostazione, SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MessaggioPerUtente, motivoDelRifiuto, righeToccate } from "@/lib/impostazioni/erroriPerUtente";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
+  DURATE_BLOCCO,
+  TENTATIVI_MASSIMI,
+  TENTATIVI_MINIMI,
+  elencoIndirizzi,
+  etichettaDurata,
+  indirizzoNonValido,
+  indirizzoNellElenco,
+  indirizzoSenzaMaschera,
+  rischiaDiRestareFuori,
+} from "@/lib/impostazioni/regoleSicurezzaAzienda";
+
+interface RegoleAzienda {
+  allowed_ips: string[] | null;
+  max_failed_attempts: number | null;
+  lockout_duration_minutes: number | null;
+}
+
+const NUMERI_TENTATIVI = Array.from({ length: TENTATIVI_MASSIMI - TENTATIVI_MINIMI + 1 }, (_, i) => TENTATIVI_MINIMI + i);
 
 export function CompanySecuritySettings() {
-  const { effectiveCompany, role } = useAuth();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
+  const { effectiveCompany, role, user } = useAuth();
+  const companyId = effectiveCompany?.id;
   const isAdmin = role === "company_admin" || role === "super_admin";
 
-  const { data: company, isLoading } = useQuery({
-    queryKey: ["company-security", effectiveCompany?.id],
-    queryFn: async () => {
+  const { data: regole, isError, refetch } = useQuery({
+    queryKey: ["company-security", companyId],
+    enabled: !!companyId && isAdmin,
+    // Il modulo riparte dai dati salvati: una rilettura al ritorno sulla scheda non deve cancellare una bozza.
+    refetchOnWindowFocus: false,
+    queryFn: async (): Promise<RegoleAzienda> => {
       const { data, error } = await supabase
         .from("companies")
-        .select("enforce_2fa, allowed_ips, password_expiry_days, max_failed_attempts, lockout_duration_minutes, enforce_2fa_roles, security_notifications, password_min_length, password_require_uppercase, password_require_numbers, password_require_special")
-        .eq("id", effectiveCompany!.id)
+        .select("allowed_ips, max_failed_attempts, lockout_duration_minutes")
+        .eq("id", companyId!)
         .single();
       if (error) throw error;
-      return data as unknown as {
-        enforce_2fa: boolean | null;
-        allowed_ips: string[] | null;
-        password_expiry_days: number | null;
-        max_failed_attempts: number | null;
-        lockout_duration_minutes: number | null;
-        enforce_2fa_roles: string[] | null;
-        security_notifications: Record<string, boolean> | null;
-        password_min_length: number | null;
-        password_require_uppercase: boolean | null;
-        password_require_numbers: boolean | null;
-        password_require_special: boolean | null;
-      };
-    },
-    enabled: !!effectiveCompany?.id && isAdmin,
-  });
-
-  const [enforce2fa, setEnforce2fa] = useState(false);
-  const [enforce2faRoles, setEnforce2faRoles] = useState<string[]>([]);
-  const [maxFailedAttempts, setMaxFailedAttempts] = useState(5);
-  const [lockoutDuration, setLockoutDuration] = useState("30");
-  const [passwordExpiryDays, setPasswordExpiryDays] = useState(0);
-  const [allowedIps, setAllowedIps] = useState("");
-  const [passwordMinLength, setPasswordMinLength] = useState(8);
-  const [passwordRequireUppercase, setPasswordRequireUppercase] = useState(false);
-  const [passwordRequireNumbers, setPasswordRequireNumbers] = useState(false);
-  const [passwordRequireSpecial, setPasswordRequireSpecial] = useState(false);
-  const [notifications, setNotifications] = useState({
-    login_unknown_ip: false,
-    account_locked: false,
-    admin_permission_change: false,
-  });
-
-  useEffect(() => {
-    if (company) {
-      setEnforce2fa(company.enforce_2fa ?? false);
-      setEnforce2faRoles(company.enforce_2fa_roles ?? []);
-      setMaxFailedAttempts(company.max_failed_attempts ?? 5);
-      setLockoutDuration(String(company.lockout_duration_minutes ?? 30));
-      setPasswordExpiryDays(company.password_expiry_days ?? 0);
-      setAllowedIps((company.allowed_ips || []).join("\n"));
-      setPasswordMinLength(company.password_min_length ?? 8);
-      setPasswordRequireUppercase(company.password_require_uppercase ?? false);
-      setPasswordRequireNumbers(company.password_require_numbers ?? false);
-      setPasswordRequireSpecial(company.password_require_special ?? false);
-      setNotifications({
-        login_unknown_ip: company.security_notifications?.login_unknown_ip ?? false,
-        account_locked: company.security_notifications?.account_locked ?? false,
-        admin_permission_change: company.security_notifications?.admin_permission_change ?? false,
-      });
-    }
-  }, [company]);
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const ipList = allowedIps
-        .split("\n")
-        .map((ip) => ip.trim())
-        .filter((ip) => ip.length > 0);
-
-      const { error } = await supabase
-        .from("companies")
-        .update({
-          enforce_2fa: enforce2fa,
-          enforce_2fa_roles: enforce2faRoles.length > 0 ? enforce2faRoles : null,
-          max_failed_attempts: maxFailedAttempts,
-          lockout_duration_minutes: Number(lockoutDuration),
-          password_expiry_days: passwordExpiryDays,
-          allowed_ips: ipList.length > 0 ? ipList : null,
-          password_min_length: passwordMinLength,
-          password_require_uppercase: passwordRequireUppercase,
-          password_require_numbers: passwordRequireNumbers,
-          password_require_special: passwordRequireSpecial,
-          security_notifications: notifications,
-        } as never)
-        .eq("id", effectiveCompany!.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["company-security"] });
-      toast({ title: "Impostazioni salvate", description: "Le policy di sicurezza sono state aggiornate." });
-    },
-    onError: () => {
-      toast({ title: "Errore", description: "Impossibile salvare le impostazioni.", variant: "destructive" });
+      return data as RegoleAzienda;
     },
   });
 
-  if (!isAdmin) return null;
+  // L'indirizzo da cui è partito l'ultimo accesso di chi guarda: è quello che la schermata di accesso ha visto,
+  // lo stesso con cui confronterà l'elenco. Serve a non chiudere fuori sé stessi. Se non si legge, si va avanti senza.
+  const { data: mioIndirizzo = null } = useQuery({
+    queryKey: ["mio-ultimo-accesso", user?.id],
+    enabled: !!user?.id && isAdmin,
+    staleTime: 5 * 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+    queryFn: async (): Promise<string | null> => {
+      const { data, error } = await supabase
+        .from("login_attempts")
+        .select("ip_address")
+        .eq("user_id", user!.id)
+        .eq("success", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return indirizzoSenzaMaschera(data?.ip_address);
+    },
+  });
 
-  if (isLoading) {
+  if (!isAdmin || !companyId) return null;
+
+  if (isError) {
     return (
-      <div className="space-y-6 max-w-2xl">
-        <div>
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Shield className="h-5 w-5" /> Policy di Sicurezza Aziendale
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Configura le regole di sicurezza applicate a tutti gli utenti della tua azienda.
-          </p>
-        </div>
-        <Card>
-          <CardContent className="flex items-center justify-center gap-2 h-40 text-sm text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Caricamento policy...
-          </CardContent>
-        </Card>
-      </div>
+      <Alert variant="destructive" className="max-w-2xl">
+        <AlertDescription className="flex flex-wrap items-center gap-3">
+          Non riesco a leggere le regole di sicurezza. Nessuna modifica verrà salvata.
+          <Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button>
+        </AlertDescription>
+      </Alert>
     );
   }
 
-  const PASSWORD_EXPIRY_OPTIONS = [
-    { value: "0", label: "Mai" },
-    { value: "30", label: "30 giorni" },
-    { value: "60", label: "60 giorni" },
-    { value: "90", label: "90 giorni" },
-    { value: "180", label: "180 giorni" },
-  ];
+  if (!regole) {
+    return (
+      <SezioneImpostazione id="regole-azienda" titolo="Regole di sicurezza dell'azienda" descrizione="Valgono per tutte le persone dell'azienda quando entrano.">
+        <p className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Caricamento…
+        </p>
+      </SezioneImpostazione>
+    );
+  }
 
-  const LOCKOUT_DURATION_OPTIONS = [
-    { value: "15", label: "15 minuti" },
-    { value: "30", label: "30 minuti" },
-    { value: "60", label: "1 ora" },
-    { value: "1440", label: "24 ore" },
-    { value: "0", label: "Manuale (sblocco admin)" },
-  ];
+  // Il modulo riparte dai dati salvati ogni volta che cambiano (anche dopo un salvataggio).
+  return <FormRegole key={JSON.stringify(regole)} companyId={companyId} salvate={regole} mioIndirizzo={mioIndirizzo} />;
+}
 
-  const toggleNotification = (key: keyof typeof notifications) => {
-    setNotifications((prev) => ({ ...prev, [key]: !prev[key] }));
+function FormRegole({ companyId, salvate, mioIndirizzo }: { companyId: string; salvate: RegoleAzienda; mioIndirizzo: string | null }) {
+  const queryClient = useQueryClient();
+  const confirm = useConfirm();
+  const { evidenziata } = useVaiASezione(true);
+
+  const [tentativi, setTentativi] = useState(String(salvate.max_failed_attempts ?? 5));
+  const [durata, setDurata] = useState(String(salvate.lockout_duration_minutes ?? 30));
+  const [testoIndirizzi, setTestoIndirizzi] = useState((salvate.allowed_ips ?? []).join("\n"));
+
+  const elenco = useMemo(() => elencoIndirizzi(testoIndirizzi), [testoIndirizzi]);
+  const nonValidi = elenco.filter(indirizzoNonValido);
+
+  const modifiche: Record<string, unknown> = {};
+  if (Number(tentativi) !== (salvate.max_failed_attempts ?? 5)) modifiche.max_failed_attempts = Number(tentativi);
+  if (Number(durata) !== (salvate.lockout_duration_minutes ?? 30)) modifiche.lockout_duration_minutes = Number(durata);
+  if (elenco.join("|") !== (salvate.allowed_ips ?? []).join("|")) modifiche.allowed_ips = elenco.length > 0 ? elenco : null;
+  const dirty = Object.keys(modifiche).length > 0;
+
+  const salva = useMutation({
+    mutationFn: async () => {
+      // L'aggiornamento non dà errore quando le regole di accesso gli lasciano toccare zero righe.
+      const { data, error } = await supabase.from("companies").update(modifiche as never).eq("id", companyId).select("id");
+      if (error) throw error;
+      if (righeToccate(data) === 0) throw new MessaggioPerUtente("Il tuo utente non può modificare le regole di sicurezza dell'azienda.");
+    },
+    onSuccess: () => {
+      toast.success("Regole di sicurezza salvate");
+      // Subito nella copia in memoria: il modulo riparte da qui, senza aspettare la rilettura.
+      queryClient.setQueryData(["company-security", companyId], { ...salvate, ...modifiche });
+      void queryClient.invalidateQueries({ queryKey: ["company-security", companyId] });
+    },
+    onError: (errore) => toast.error("Regole non salvate", { description: motivoDelRifiuto(errore, "Riprova tra poco.") }),
+  });
+  useSettingsDraftGuard(dirty || salva.isPending);
+
+  const avviaSalvataggio = async () => {
+    if (!dirty || salva.isPending || nonValidi.length > 0) return;
+    if (modifiche.allowed_ips && rischiaDiRestareFuori(elenco, mioIndirizzo)) {
+      const ok = await confirm({
+        title: "Il tuo indirizzo potrebbe restare fuori",
+        description: mioIndirizzo && indirizzoNellElenco(mioIndirizzo, elenco) === false
+          ? `Dopo il salvataggio si entra solo dagli indirizzi scritti. Il tuo ultimo accesso è partito da ${mioIndirizzo}, che nell'elenco non c'è: rischi di non poter più entrare. Salvare lo stesso?`
+          : "Dopo il salvataggio si entra solo dagli indirizzi scritti. Se il tuo non c'è, non potrai più entrare. Salvare lo stesso?",
+        confirmLabel: "Salva lo stesso",
+        variant: "destructive",
+      });
+      if (!ok) return;
+    }
+    salva.mutate();
   };
 
-  const toggle2faRole = (role: string) => {
-    setEnforce2faRoles((prev) =>
-      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
-    );
+  const mioIndirizzoManca = mioIndirizzo !== null && !elenco.includes(mioIndirizzo);
+  const aggiungiMioIndirizzo = () => {
+    if (!mioIndirizzo) return;
+    setTestoIndirizzi((testo) => (testo.trim() ? `${testo.trimEnd()}\n${mioIndirizzo}` : mioIndirizzo));
   };
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <Shield className="h-5 w-5" /> Policy di Sicurezza Aziendale
-        </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Configura le regole di sicurezza applicate a tutti gli utenti della tua azienda.
-        </p>
-      </div>
-
-      {/* Brute Force Protection */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Protezione Brute Force</CardTitle>
-          <CardDescription>Configura il numero massimo di tentativi di login e la durata del blocco.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <SezioneImpostazione
+      id="regole-azienda"
+      titolo="Regole di sicurezza dell'azienda"
+      descrizione="Valgono per tutte le persone dell'azienda quando entrano."
+      ambito={<AmbitoImpostazione>Tutta l'azienda</AmbitoImpostazione>}
+      evidenziata={evidenziata === "regole-azienda"}
+    >
+      <fieldset disabled={salva.isPending} className="m-0 min-w-0 divide-y border-0 p-0">
+        <div className="space-y-3 px-4 py-4">
           <div>
-            <Label className="text-sm">Tentativi massimi login: {maxFailedAttempts}</Label>
-            <Slider
-              value={[maxFailedAttempts]}
-              onValueChange={([v]) => setMaxFailedAttempts(v)}
-              min={3}
-              max={10}
-              step={1}
-              className="mt-2"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Dopo {maxFailedAttempts} tentativi falliti, l'account verrà bloccato.
-            </p>
+            <h3 className="text-sm font-semibold">Troppi tentativi sbagliati</h3>
+            <p className="text-xs text-muted-foreground">Dopo troppe password sbagliate di fila l'account si ferma da solo, per un po'.</p>
           </div>
-          <div>
-            <Label className="text-sm">Durata blocco account</Label>
-            <Select value={lockoutDuration} onValueChange={setLockoutDuration}>
-              <SelectTrigger className="w-full mt-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LOCKOUT_DURATION_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1">
-              {lockoutDuration === "0"
-                ? "L'account resterà bloccato fino allo sblocco manuale da parte di un admin."
-                : `L'account verrà sbloccato automaticamente dopo ${LOCKOUT_DURATION_OPTIONS.find(o => o.value === lockoutDuration)?.label}.`}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Password Policy */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Policy Password</CardTitle>
-          <CardDescription>Definisci scadenza e complessità delle password.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label className="text-sm">Scadenza Password</Label>
-            <Select value={String(passwordExpiryDays)} onValueChange={(v) => setPasswordExpiryDays(Number(v))}>
-              <SelectTrigger className="w-full mt-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PASSWORD_EXPIRY_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1">
-              {passwordExpiryDays > 0
-                ? `Gli utenti dovranno cambiare la password ogni ${passwordExpiryDays} giorni.`
-                : "Le password non scadono mai."}
-            </p>
-          </div>
-          <Separator />
-          <div>
-            <Label className="text-sm">Lunghezza minima: {passwordMinLength} caratteri</Label>
-            <Slider
-              value={[passwordMinLength]}
-              onValueChange={([v]) => setPasswordMinLength(v)}
-              min={6}
-              max={20}
-              step={1}
-              className="mt-2"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={passwordRequireUppercase} onCheckedChange={(v) => setPasswordRequireUppercase(!!v)} />
-              Richiedi almeno una lettera maiuscola
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={passwordRequireNumbers} onCheckedChange={(v) => setPasswordRequireNumbers(!!v)} />
-              Richiedi almeno un numero
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={passwordRequireSpecial} onCheckedChange={(v) => setPasswordRequireSpecial(!!v)} />
-              Richiedi almeno un carattere speciale (!@#$%...)
-            </label>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 2FA */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Autenticazione a Due Fattori (2FA)</CardTitle>
-          <CardDescription>Obbliga gli utenti a configurare la 2FA.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label htmlFor="enforce-2fa">2FA obbligatoria per tutti</Label>
-              <p className="text-xs text-muted-foreground">Tutti gli utenti dovranno abilitare la 2FA al prossimo login.</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="sicurezza-tentativi">Blocca l'account dopo</Label>
+              <Select value={tentativi} onValueChange={setTentativi}>
+                <SelectTrigger id="sicurezza-tentativi"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {NUMERI_TENTATIVI.map((n) => (
+                    <SelectItem key={n} value={String(n)}>{n} password sbagliate</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Switch id="enforce-2fa" checked={enforce2fa} onCheckedChange={setEnforce2fa} />
+            <div className="space-y-1.5">
+              <Label htmlFor="sicurezza-durata">Quanto resta bloccato</Label>
+              <Select value={durata} onValueChange={setDurata}>
+                <SelectTrigger id="sicurezza-durata"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {DURATE_BLOCCO.map((d) => (
+                    <SelectItem key={d.valore} value={d.valore}>{d.etichetta}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          {!enforce2fa && (
-            <div className="border-t pt-3">
-              <Label className="text-sm font-medium">Obbligatoria per ruoli specifici</Label>
-              <p className="text-xs text-muted-foreground mb-2">Seleziona i ruoli per cui la 2FA è obbligatoria.</p>
-              <div className="space-y-2">
-                {[
-                  { key: "company_admin", label: "Amministratori" },
-                  { key: "company_staff", label: "Operatori" },
-                  { key: "salesperson", label: "Venditori" },
-                  { key: "call_center", label: "Call Center" },
-                ].map(({ key, label }) => (
-                  <label key={key} className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={enforce2faRoles.includes(key)}
-                      onCheckedChange={() => toggle2faRole(key)}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
+          <p className="text-xs text-muted-foreground">
+            {durata === "0"
+              ? "L'account resta bloccato finché non lo sblocca un amministratore."
+              : `L'account si sblocca da solo dopo ${etichettaDurata(durata)}.`}
+          </p>
+        </div>
+
+        <div className="space-y-3 px-4 py-4">
+          <div>
+            <h3 className="text-sm font-semibold">Indirizzi autorizzati</h3>
+            <p id="sicurezza-indirizzi-aiuto" className="text-xs text-muted-foreground">
+              Se scrivi degli indirizzi, si entra solo da quelli. Lascia vuoto per entrare da dove si vuole.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="sicurezza-indirizzi">Indirizzi da cui si può entrare, uno per riga</Label>
+            <Textarea
+              id="sicurezza-indirizzi"
+              value={testoIndirizzi}
+              onChange={(e) => setTestoIndirizzi(e.target.value)}
+              rows={4}
+              placeholder={"203.0.113.25\n198.51.100.7"}
+              className="font-mono text-sm"
+              aria-describedby="sicurezza-indirizzi-aiuto"
+              aria-invalid={nonValidi.length > 0}
+            />
+          </div>
+          {mioIndirizzo && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span>L'ultimo accesso con il tuo account è partito da <strong className="font-mono text-foreground">{mioIndirizzo}</strong>.</span>
+              {mioIndirizzoManca && (
+                <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={aggiungiMioIndirizzo}>
+                  <Plus className="h-3.5 w-3.5" /> Aggiungilo all'elenco
+                </Button>
+              )}
             </div>
           )}
-        </CardContent>
-      </Card>
+          {nonValidi.length > 0 && (
+            <p role="alert" className="text-xs text-destructive">
+              «{nonValidi[0]}» non sembra un indirizzo: scrivi per esempio 203.0.113.25.
+            </p>
+          )}
+          <Alert role="note" className="border-amber-300 bg-amber-50/60 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Attenzione: se sbagli, nessuno potrà entrare, nemmeno tu.
+            </AlertDescription>
+          </Alert>
+        </div>
 
-      {/* IP Allowlist */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">IP Allowlist</CardTitle>
-          <CardDescription>Limita l'accesso solo a specifici indirizzi IP. Lascia vuoto per permettere tutti gli IP.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            placeholder={"192.168.1.0/24\n10.0.0.1\n2001:db8::1"}
-            value={allowedIps}
-            onChange={(e) => setAllowedIps(e.target.value)}
-            rows={4}
-            className="font-mono text-sm"
-          />
-          <p className="text-xs text-muted-foreground mt-1">Inserisci un indirizzo IP o CIDR per riga.</p>
-        </CardContent>
-      </Card>
-
-      {/* Security Notifications */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Notifiche Sicurezza</CardTitle>
-          <CardDescription>Ricevi notifiche email per eventi di sicurezza critici.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {[
-            { key: "login_unknown_ip" as const, label: "Login da IP sconosciuto", desc: "Notifica quando un utente accede da un nuovo indirizzo IP." },
-            { key: "account_locked" as const, label: "Account bloccato", desc: "Notifica quando un account viene bloccato per troppi tentativi." },
-            { key: "admin_permission_change" as const, label: "Modifica permessi admin", desc: "Notifica quando i permessi di un amministratore vengono modificati." },
-          ].map(({ key, label, desc }) => (
-            <div key={key} className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm">{label}</Label>
-                <p className="text-xs text-muted-foreground">{desc}</p>
-              </div>
-              <Switch checked={notifications[key]} onCheckedChange={() => toggleNotification(key)} />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end">
-        <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-          {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-          Salva Impostazioni
-        </Button>
-      </div>
-    </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+          <p role="status" className={dirty && !salva.isPending ? "text-xs font-medium text-amber-700 dark:text-amber-400" : "text-xs text-muted-foreground"}>
+            {salva.isPending ? "Salvataggio…" : dirty ? "Modifiche non salvate" : "Nessuna modifica da salvare"}
+          </p>
+          <Button size="sm" onClick={avviaSalvataggio} disabled={!dirty || salva.isPending || nonValidi.length > 0}>
+            {salva.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Salva regole
+          </Button>
+        </div>
+      </fieldset>
+    </SezioneImpostazione>
   );
 }

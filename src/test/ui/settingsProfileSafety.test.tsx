@@ -27,19 +27,19 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 async function loaded() {
-  await waitFor(() => expect(screen.getByLabelText(/Prefisso Codice Commessa/)).toHaveValue("DEMO"));
+  await waitFor(() => expect(screen.getByLabelText(/Prefisso del codice commessa/)).toHaveValue("DEMO"));
 }
 
 describe("Profilo aziendale: bozza e aggiornamenti parziali", () => {
   it("al caricamento non segnala modifiche inesistenti", async () => {
     render(<CompanyProfileForm />); await loaded();
-    expect(screen.getByRole("button", { name: "Salva Dati Aziendali" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salva dati aziendali" })).toBeDisabled();
     expect(screen.getByRole("status")).toHaveTextContent("Nessuna modifica");
   });
   it("modificare il telefono non riscrive indirizzi o altri campi", async () => {
     render(<CompanyProfileForm />); await loaded();
     fireEvent.change(screen.getByLabelText("Telefono"), { target: { value: "456" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva Dati Aziendali" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva dati aziendali" }));
     await waitFor(() => expect(state.success).toHaveBeenCalledOnce());
     expect(state.updates).toEqual([{ phone: "456" }]);
     expect(state.geocode).not.toHaveBeenCalled();
@@ -55,16 +55,16 @@ describe("Profilo aziendale: bozza e aggiornamenti parziali", () => {
     state.prefixError = true;
     render(<CompanyProfileForm />);
     await screen.findByText(/Prefisso commessa non caricato/);
-    expect(screen.getByLabelText(/Prefisso Codice Commessa/)).toBeDisabled();
+    expect(screen.getByLabelText(/Prefisso del codice commessa/)).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Telefono"), { target: { value: "456" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva Dati Aziendali" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva dati aziendali" }));
     await waitFor(() => expect(state.success).toHaveBeenCalledOnce());
     expect(state.updates).toEqual([{ phone: "456" }]);
   });
   it("non conserva coordinate obsolete se cambia l'indirizzo e la geocodifica fallisce", async () => {
     render(<CompanyProfileForm />); await loaded();
     fireEvent.change(screen.getByLabelText("Indirizzo", { selector: "#operationalAddress" }), { target: { value: "Via Nuova 2" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva Dati Aziendali" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva dati aziendali" }));
     await waitFor(() => expect(state.success).toHaveBeenCalledOnce());
     expect(state.updates).toEqual([{ operational_address: "Via Nuova 2", operational_lat: null, operational_lng: null }]);
   });
@@ -72,7 +72,7 @@ describe("Profilo aziendale: bozza e aggiornamenti parziali", () => {
     state.writeError = true;
     render(<CompanyProfileForm />); await loaded();
     fireEvent.change(screen.getByLabelText("Telefono"), { target: { value: "456" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva Dati Aziendali" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva dati aziendali" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledOnce());
     expect(screen.getByLabelText("Telefono")).toHaveValue("456");
     expect(screen.getByRole("status")).toHaveTextContent("Modifiche non salvate");

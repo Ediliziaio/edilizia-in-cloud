@@ -1,5 +1,13 @@
 /**
- * SettingsBranding — v8.6.60
+ * SettingsBranding — il marchio dell'azienda: logo, colori, nome e indirizzo web della piattaforma.
+ *
+ * 09/10/2026: il pulsante «Contatta il Supporto per l'Upgrade» apriva /cliente/assistenza, che è l'area dei CLIENTI
+ * finali (solo ruolo `customer`): l'amministratore veniva rimandato alla sua home, in una scheda nuova che non
+ * mostrava niente. Ora «Chiedi l'attivazione» apre la finestra che l'app usa già per «sblocca questa funzione»
+ * (UnlockFeatureDialog: richiesta al consulente, telefono, email). «Salva marchio» sta in una barra che resta in vista
+ * (prima in fondo alla pagina, anche sotto «Indirizzo web» dove non serve), la scheda «Indirizzo web» ha il suo
+ * indirizzo (?tab=indirizzo), le parole inglesi (Subdomain, tier, brand, footer) sono in italiano.
+ * Non cambia chi vede la voce nel menu né il nome della pagina (decisione di Florin).
  *
  * Pagina di branding aziendale white-label.
  *
@@ -11,6 +19,7 @@
  * Sincronizzazione automatica con company_branding.* per il login page.
  */
 import { useState, useRef, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { useBranding } from "@/hooks/useBranding";
 import { useWhitelabelGate } from "@/hooks/useWhitelabelGate";
@@ -29,7 +38,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,11 +52,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Loader2, Upload, Palette, Lock, HeadphonesIcon, Globe, Copy,
-  CheckCircle2, RefreshCw, Image as ImageIcon, Wand2, Monitor, LogIn,
+  CheckCircle2, RefreshCw, Image as ImageIcon, Wand2, Monitor, LogIn, Save,
 } from "lucide-react";
 import { LogoUploader } from "@/components/settings/LogoUploader";
+import { UnlockFeatureDialog } from "@/components/feature-preview/UnlockFeatureDialog";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { cn } from "@/lib/utils";
 import { campiMarginiModificati } from "@/lib/impostazioni/salvataggioMargini";
+import { motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    UTILITY validazione
@@ -76,14 +88,21 @@ async function copyText(value: string) {
 /* ═══════════════════════════════════════════════════════════════════════════
    COMPONENTS
 ═══════════════════════════════════════════════════════════════════════════ */
+/** Titolo di un riquadro: di secondo livello (il primo lo mette il layout), con lo stile di prima. */
+function TitoloRiquadro({ className, children }: { className?: string; children: React.ReactNode }) {
+  return <h2 className={cn("font-semibold leading-none tracking-tight", className)}>{children}</h2>;
+}
+
 function FileUploadButton({
-  label, onUpload, isUploading, accept, disabled,
+  label, onUpload, isUploading, accept, disabled, nome,
 }: {
   label: string;
   onUpload: (file: File) => void;
   isUploading: boolean;
   accept?: string;
   disabled?: boolean;
+  /** Per cosa è il pulsante («il logo chiaro»): chi usa il lettore di schermo sente «Carica il logo chiaro», non solo «Carica». */
+  nome: string;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   return (
@@ -95,7 +114,7 @@ function FileUploadButton({
         className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) { onUpload(f); e.target.value = ""; } }}
       />
-      <Button variant="outline" size="sm" onClick={() => ref.current?.click()} disabled={isUploading || disabled}>
+      <Button variant="outline" size="sm" onClick={() => ref.current?.click()} disabled={isUploading || disabled} aria-label={`${label} ${nome}`}>
         {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
         {label}
       </Button>
@@ -104,8 +123,9 @@ function FileUploadButton({
 }
 
 function HexColorInput({
-  label, value, onChange, disabled, hint,
+  id, label, value, onChange, disabled, hint,
 }: {
+  id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
@@ -115,7 +135,7 @@ function HexColorInput({
   const valid = isValidHexColor(value);
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs">{label}</Label>
+      <Label className="text-xs" htmlFor={id}>{label}</Label>
       <div className="flex items-center gap-2">
         <input
           type="color"
@@ -126,6 +146,7 @@ function HexColorInput({
           aria-label={`Selettore ${label}`}
         />
         <Input
+          id={id}
           value={value}
           onChange={(e) => onChange(e.target.value.trim())}
           placeholder="#1E40AF"
@@ -135,7 +156,7 @@ function HexColorInput({
           className={`max-w-28 font-mono text-xs uppercase ${!valid ? "border-destructive" : ""}`}
         />
       </div>
-      {!valid && <p className="text-[10px] text-destructive">Formato HEX richiesto, es. #1E40AF</p>}
+      {!valid && <p className="text-[10px] text-destructive">Scrivi il colore così: #1E40AF</p>}
       {hint && valid && <p className="text-[10px] text-muted-foreground">{hint}</p>}
     </div>
   );
@@ -255,6 +276,47 @@ function AnteprimaPiattaforma({
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN
 ═══════════════════════════════════════════════════════════════════════════ */
+const NIENTE_PERMESSI = "Non hai i permessi per modificare il marchio: serve un amministratore.";
+
+/** Cosa si ottiene col White-Label: lo legge la finestra che parte da «Chiedi l'attivazione». */
+const COSA_SI_OTTIENE = [
+  "I colori del tuo marchio in tutta la piattaforma",
+  "Il nome della tua azienda al posto di «EdiliziaInCloud»",
+  "Un indirizzo web tuo, per esempio crm.tuaazienda.it",
+  "Lo sfondo della pagina di accesso e l'icona del browser",
+];
+
+/** Il rifiuto del salvataggio dei dati dell'azienda: nessuna riga toccata (PGRST116) vuol dire che le regole di accesso hanno detto no. */
+function motivoSalvataggio(err: unknown): string {
+  if ((err as { code?: unknown } | null)?.code === "PGRST116") {
+    return "Il tuo utente non può modificare il marchio dell'azienda.";
+  }
+  return motivoDelRifiuto(err, "Riprova tra poco.");
+}
+
+/** Un sottodominio è unico in tutta la piattaforma: se è già di un'altra azienda il database dice «duplicato». */
+function motivoSottodominio(err: unknown): string {
+  if ((err as { code?: unknown } | null)?.code === "23505") {
+    return "Questo sottodominio è già di un'altra azienda: provane un altro.";
+  }
+  return motivoDelRifiuto(err, "Riprova tra poco.");
+}
+
+/**
+ * Il motivo vero di un rifiuto del server. Le funzioni del dominio scrivono la frase in italiano nel corpo della
+ * risposta («Questo dominio è già associato a un'altra azienda»), mentre `error.message` dice solo
+ * «Edge Function returned a non-2xx status code»: prima si leggeva quello.
+ */
+async function motivoDelServer(err: unknown, fallback: string): Promise<string> {
+  try {
+    const corpo = await (err as { context?: { json?: () => Promise<{ error?: unknown }> } } | null)?.context?.json?.();
+    if (typeof corpo?.error === "string" && corpo.error.trim()) return corpo.error;
+  } catch {
+    /* il corpo non si legge: si traduce l'errore com'è */
+  }
+  return motivoDelRifiuto(err, fallback);
+}
+
 export default function SettingsBranding() {
   const { effectiveCompany, user, refreshAuth } = useAuth();
   const permissions = usePermissions();
@@ -263,6 +325,12 @@ export default function SettingsBranding() {
   const wlGate = useWhitelabelGate();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
+  // La scheda sta nell'indirizzo (?tab=indirizzo): si può mandare il link, e il tasto «indietro» la rispetta.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const scheda = searchParams.get("tab") === "indirizzo" ? "indirizzo" : "aspetto";
+  const cambiaScheda = (valore: string) => {
+    setSearchParams(valore === "indirizzo" ? { tab: "indirizzo" } : {}, { replace: true });
+  };
   const [saving, setSaving] = useState(false);
   const [syncNeeded, setSyncNeeded] = useState(false);
   const canEdit = permissions.isAdmin && !isLoading && !isError && !saving;
@@ -273,6 +341,7 @@ export default function SettingsBranding() {
   const [confirmResetSystem, setConfirmResetSystem] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [leggendoLogo, setLeggendoLogo] = useState(false);
+  const [apriAttivazione, setApriAttivazione] = useState(false);
 
   const saveSubdomainMut = useSaveSubdomain(companyId);
   const requestVerifMut = useRequestDomainVerification(companyId);
@@ -287,8 +356,7 @@ export default function SettingsBranding() {
       setCustomDomain("");
       toast.success("Dominio rimosso");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Errore";
-      toast.error("Impossibile rimuovere il dominio", { description: msg });
+      toast.error("Dominio non rimosso", { description: await motivoDelServer(err, "Riprova tra poco.") });
     }
   };
 
@@ -352,18 +420,19 @@ export default function SettingsBranding() {
 
   const handleSave = async () => {
     if (!canEdit) {
-      toast.error("Non hai i permessi per modificare il branding");
+      toast.error(NIENTE_PERMESSI);
       return;
     }
+    // I nomi sono quelli che si leggono sulla pagina (il colore «secondario» non ha un campo: lo ricava il colore del marchio).
     const hexFields: Array<[string, string]> = [
-      ["Colore primario", form.brand_primary_color],
-      ["Colore secondario", form.brand_secondary_color],
-      ["Colore evidenziazione", form.brand_accent_color],
-      ["Testo su primario", form.brand_text_on_primary],
+      ["Colore del marchio", form.brand_primary_color],
+      ["Colore del marchio", form.brand_secondary_color],
+      ["Sfondo delle voci attive", form.brand_accent_color],
+      ["Testo sui bottoni", form.brand_text_on_primary],
     ];
     const invalid = hexFields.find(([, v]) => !isValidHexColor(v));
     if (invalid) {
-      toast.error(`${invalid[0]}: formato HEX non valido (es. #1E40AF)`);
+      toast.error(`${invalid[0]}: scrivi il colore così, #1E40AF`);
       return;
     }
     setSaving(true);
@@ -431,11 +500,10 @@ export default function SettingsBranding() {
       dirtyRef.current = false;
       setForm(savedForm);
       setSyncNeeded(syncFailed);
-      if (syncFailed) toast.warning("Aspetto salvato, ma la pagina di accesso non è stata sincronizzata. Riprova più tardi.");
-      else toast.success("Brand aggiornato con successo");
+      if (syncFailed) toast.warning("Marchio salvato, ma la pagina di accesso non è stata aggiornata. Riprova.");
+      else toast.success("Marchio aggiornato");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
-      toast.error(msg);
+      toast.error("Marchio non salvato", { description: motivoSalvataggio(err) });
     } finally {
       setSaving(false);
     }
@@ -446,7 +514,7 @@ export default function SettingsBranding() {
       Logo, favicon, subdomain e dominio NON vengono toccati. */
   const handleResetToSystem = async () => {
     if (!canEdit) {
-      toast.error("Non hai i permessi per modificare il branding");
+      toast.error(NIENTE_PERMESSI);
       return;
     }
     setConfirmResetSystem(false);
@@ -488,10 +556,9 @@ export default function SettingsBranding() {
       setForm({ ...DEFAULTS, brand_platform_name: "" });
       queryClient.invalidateQueries({ queryKey: ["company-branding"] });
       queryClient.invalidateQueries({ queryKey: ["branding-by-domain"] });
-      toast.success("Aspetto di sistema ripristinato");
+      toast.success("Aspetto standard ripristinato");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
-      toast.error(msg);
+      toast.error("Aspetto non ripristinato", { description: motivoSalvataggio(err) });
     } finally {
       setResetting(false);
     }
@@ -506,7 +573,7 @@ export default function SettingsBranding() {
     brand_text_on_primary: p.textOnPrimary,
   });
 
-  /** Prende la tinta dominante del logo e ne ricava la palette (poi si salva col bottone in basso). */
+  /** Prende la tinta dominante del logo e ne ricava la palette (poi si salva col bottone «Salva marchio»). */
   const usaColoriDelLogo = async () => {
     const url = effectiveCompany?.logo_url;
     if (!url) return;
@@ -514,7 +581,7 @@ export default function SettingsBranding() {
     try {
       const colore = await coloreDelLogo(url);
       if (!colore) {
-        toast.error("Nel logo non trovo un colore del marchio (è tutto bianco, nero o grigio). Scegli il colore a mano.");
+        toast.error("Dal logo non riesco a ricavare un colore (è tutto bianco, nero o grigio, oppure non si legge). Scegli il colore a mano.");
         return;
       }
       setForm((f) => ({ ...f, ...coloriDaPalette(paletteDaColore(colore)) }));
@@ -526,12 +593,12 @@ export default function SettingsBranding() {
 
   const handleFileUpload = async (file: File, field: string, path: string) => {
     if (!canEdit) {
-      toast.error("Non hai i permessi per modificare il branding");
+      toast.error(NIENTE_PERMESSI);
       return;
     }
     const MAX_BYTES = 2 * 1024 * 1024;
     if (file.size > MAX_BYTES) {
-      toast.error("File troppo grande (max 2 MB)");
+      toast.error("File troppo grande: al massimo 2 MB.");
       return;
     }
     setUploading(field);
@@ -560,10 +627,9 @@ export default function SettingsBranding() {
       queryClient.invalidateQueries({ queryKey: ["effective-company"] });
       queryClient.invalidateQueries({ queryKey: ["company-branding"] });
       queryClient.invalidateQueries({ queryKey: ["branding-by-domain"] });
-      toast.success("File caricato con successo");
+      toast.success("Immagine caricata");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
-      toast.error(msg);
+      toast.error("Immagine non caricata", { description: motivoSalvataggio(err) });
     } finally {
       setUploading(null);
     }
@@ -571,7 +637,7 @@ export default function SettingsBranding() {
 
   const handleSaveSubdomain = async () => {
     if (!canEdit) {
-      toast.error("Non hai i permessi per modificare il branding");
+      toast.error(NIENTE_PERMESSI);
       return;
     }
     // Se l'utente sta SVUOTANDO un subdomain esistente → chiede conferma
@@ -581,25 +647,49 @@ export default function SettingsBranding() {
     }
     try {
       await saveSubdomainMut.mutateAsync(subdomain);
-      toast.success(subdomain ? "Subdomain salvato" : "Subdomain rimosso");
+      toast.success(subdomain ? "Sottodominio salvato" : "Sottodominio rimosso");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Errore";
-      toast.error(msg);
+      toast.error("Sottodominio non salvato", { description: motivoSottodominio(err) });
     }
   };
 
   const confirmRemoveSubdomain = async () => {
     if (!canEdit) {
-      toast.error("Non hai i permessi per modificare il branding");
+      toast.error(NIENTE_PERMESSI);
       return;
     }
     setConfirmRemoveSub(false);
     try {
       await saveSubdomainMut.mutateAsync("");
-      toast.success("Subdomain rimosso");
+      toast.success("Sottodominio rimosso");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Errore";
-      toast.error(msg);
+      toast.error("Sottodominio non rimosso", { description: motivoSottodominio(err) });
+    }
+  };
+
+  const normalizedCustomDomain = normalizeCustomDomainInput(customDomain);
+  const customDomainInvalid = customDomain.length > 0 && !isValidCustomDomain(customDomain);
+
+  const handleConfigureDomain = async () => {
+    try {
+      await requestVerifMut.mutateAsync(normalizedCustomDomain);
+      setCustomDomain(normalizedCustomDomain);
+      toast.success("Configurazione avviata: aggiungi il record CNAME qui sotto al tuo DNS.");
+    } catch (err) {
+      toast.error("Dominio non configurato", { description: await motivoDelServer(err, "Riprova tra poco.") });
+    }
+  };
+
+  const handleVerifyDomain = async () => {
+    try {
+      const result = await verifyMut.mutateAsync();
+      if (result.verified) {
+        toast.success("Dominio verificato");
+      } else {
+        toast.error(result.error || "Il record CNAME non risulta ancora attivo: può servire fino a 48 ore. Riprova più tardi.");
+      }
+    } catch (err) {
+      toast.error("Verifica non riuscita", { description: await motivoDelServer(err, "Riprova tra poco.") });
     }
   };
 
@@ -623,19 +713,19 @@ export default function SettingsBranding() {
   const canLoginPage = !wlGate.isWhiteLabel || wlGate.canChangeLoginPage !== false;
   const canCustomDomain = !wlGate.isWhiteLabel || wlGate.canCustomDomain !== false;
   const canHidePoweredBy = !wlGate.isWhiteLabel || wlGate.canHidePoweredBy !== false;
-  const normalizedCustomDomain = normalizeCustomDomainInput(customDomain);
-  const customDomainInvalid = customDomain.length > 0 && !isValidCustomDomain(customDomain);
+  // La barra «Salva marchio» da telefono compare solo quando c'è qualcosa da salvare: occupa uno schermo piccolo.
+  const barraInUso = isDirty || syncNeeded || saving;
 
   return (
     <div className="space-y-6 max-w-7xl">
       <p className="text-muted-foreground">
-        Personalizza colori, logo, dominio e l'aspetto della piattaforma per la tua azienda.
+        Logo, colori, nome e indirizzo web della piattaforma con il tuo marchio.
       </p>
       {!permissions.isAdmin && (
         <Alert>
           <Lock className="h-4 w-4" />
           <AlertDescription>
-            Puoi visualizzare il white-label, ma non modificarlo. Serve un account amministratore aziendale.
+            Stai guardando il marchio dell'azienda: lo cambia solo un amministratore.
           </AlertDescription>
         </Alert>
       )}
@@ -645,13 +735,14 @@ export default function SettingsBranding() {
           email, PDF preventivi, portale clienti, branding white-label, login page. */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ImageIcon className="h-4 w-4 text-muted-foreground" /> Logo aziendale
-          </CardTitle>
+          <TitoloRiquadro className="flex items-center gap-2 text-base">
+            <ImageIcon className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Logo aziendale
+          </TitoloRiquadro>
           <CardDescription>
-            Lo stesso logo viene mostrato in sidebar, navbar, email, preventivi PDF, portale
-            clienti e pagina di login. Dove metti un logo diverso (un modello PDF, le preferenze
-            email) vale quello. Modifica qui o in <a href="/azienda/impostazioni/profilo" className="underline">Profilo aziendale</a>.
+            È lo stesso logo della barra laterale, delle email, dei preventivi in PDF, del portale clienti e della
+            pagina di accesso: dove ne imposti uno diverso (un modello PDF, le preferenze email) vale quello. Lo cambi
+            qui o in{" "}
+            <Link to="/azienda/impostazioni/profilo#logo" className="underline">Profilo aziendale</Link>.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -687,24 +778,27 @@ export default function SettingsBranding() {
         </CardContent>
       </Card>
 
-      {/* Premium Gate */}
+      {/* Funzione a pagamento: «Chiedi l'attivazione» apre la richiesta al consulente (prima apriva /cliente/assistenza,
+          l'area dei clienti finali, e l'amministratore finiva sulla sua home). */}
       {!isWhiteLabel && (
         <Card className="border-dashed">
           <CardContent className="py-8 text-center space-y-4">
-            <Lock className="h-10 w-10 text-muted-foreground mx-auto" />
+            <Lock className="h-10 w-10 text-muted-foreground mx-auto" aria-hidden="true" />
             <div>
-              <h2 className="text-lg font-semibold">White Label — Funzione Premium</h2>
+              <h2 className="text-lg font-semibold">Personalizzazione completa: White-Label</h2>
               <p className="text-muted-foreground mt-1 max-w-md mx-auto">
-                Personalizza completamente il tuo brand: colori, nome piattaforma, favicon, dominio personalizzato e molto altro.
+                Colori, nome della piattaforma, icona del browser, sfondo della pagina di accesso e un indirizzo web
+                tuo, per esempio crm.tuaazienda.it. È una funzione a pagamento.
               </p>
-              {wlGate.tier && wlGate.tier !== "none" && (
-                <Badge variant="secondary" className="mt-2">Piano attuale: {wlGate.tier}</Badge>
-              )}
             </div>
-            <Button variant="outline" onClick={() => window.open("/cliente/assistenza", "_blank")}>
-              <HeadphonesIcon className="h-4 w-4 mr-2" />
-              Contatta il Supporto per l'Upgrade
-            </Button>
+            {permissions.isAdmin ? (
+              <Button variant="outline" onClick={() => setApriAttivazione(true)}>
+                <HeadphonesIcon className="h-4 w-4 mr-2" aria-hidden="true" />
+                Chiedi l'attivazione
+              </Button>
+            ) : (
+              <p className="text-sm text-muted-foreground">Per attivarla parlane con l'amministratore dell'azienda.</p>
+            )}
           </CardContent>
         </Card>
       )}
@@ -714,259 +808,296 @@ export default function SettingsBranding() {
         <>
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Palette className="h-5 w-5" /> Brand personalizzato
+              <Palette className="h-5 w-5" aria-hidden="true" /> Marchio personalizzato
             </h2>
             <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-200">Attivo</Badge>
           </div>
 
-          <Tabs defaultValue="aspetto" className="space-y-6">
+          <Tabs value={scheda} onValueChange={cambiaScheda} className="space-y-6">
             <TabsList>
               <TabsTrigger value="aspetto">Aspetto</TabsTrigger>
               <TabsTrigger value="indirizzo">Indirizzo web</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="aspetto" className="mt-0">
-            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-            <div className="space-y-6">
-              {/* 1 · COLORI — si sceglie UN colore (o si prende dal logo) e il resto si ricava da solo. */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Palette className="h-4 w-4 text-muted-foreground" /> Colori
-                  </CardTitle>
-                  <CardDescription>
-                    Scegli il colore del tuo marchio: bottoni, link e voci attive della piattaforma
-                    si adattano da soli, restando sempre leggibili.
-                  </CardDescription>
-                  {!canChangeColors && (
-                    <CardDescription className="text-amber-600">
-                      Il tuo tier ({wlGate.name}) non include la personalizzazione colori.
-                    </CardDescription>
+            <TabsContent value="aspetto" className="mt-0 space-y-4">
+              {/* «Salva marchio» resta in vista mentre si scorre (prima era in fondo alla pagina, anche sotto «Indirizzo web»
+                  dove non serve). In alto e non in basso: da telefono la barra di navigazione galleggia sul fondo. */}
+              <div
+                className={cn(
+                  "sticky top-2 z-20 flex flex-wrap items-center justify-end gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur",
+                  !barraInUso && "max-sm:hidden",
+                )}
+              >
+                <p role="status" className="mr-auto min-w-0 text-xs">
+                  {isDirty ? (
+                    <span className="text-amber-700">Modifiche non salvate</span>
+                  ) : syncNeeded ? (
+                    <span className="text-amber-700">Marchio salvato. La pagina di accesso non è ancora aggiornata: riprova.</span>
+                  ) : (
+                    <span className="text-muted-foreground">Colori, nome e «Powered by» si salvano qui; le immagini, appena le carichi.</span>
                   )}
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="flex flex-wrap items-end gap-4">
-                    <HexColorInput
-                      label="Colore del marchio"
-                      value={form.brand_primary_color}
-                      onChange={(v) => setForm((f) => (
-                        isValidHexColor(v)
-                          ? { ...f, ...coloriDaPalette(paletteDaColore(v)) }
-                          : { ...f, brand_primary_color: v }
-                      ))}
-                      disabled={!canEdit || !canChangeColors}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!canEdit || !canChangeColors || !effectiveCompany?.logo_url || leggendoLogo}
-                      onClick={usaColoriDelLogo}
-                    >
-                      {leggendoLogo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Wand2 className="h-4 w-4 mr-2" />}
-                      Usa i colori del logo
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={!canEdit || !canChangeColors}
-                      onClick={() => setForm((f) => ({ ...f, ...coloriDaPalette(paletteDaColore("#1E40AF")) }))}
-                    >
-                      Colori di EdiliziaInCloud
-                    </Button>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Oppure parti da uno di questi</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {COLORI_SUGGERITI.map((hex) => (
-                        <button
-                          key={hex}
-                          type="button"
-                          aria-label={`Usa il colore ${hex}`}
-                          title={hex}
-                          disabled={!canEdit || !canChangeColors}
-                          onClick={() => setForm((f) => ({ ...f, ...coloriDaPalette(paletteDaColore(hex)) }))}
-                          className={`h-7 w-7 rounded-full border-2 transition-transform hover:scale-110 disabled:cursor-not-allowed disabled:opacity-50 ${
-                            form.brand_primary_color.toUpperCase() === hex ? "border-foreground ring-2 ring-offset-2 ring-offset-background" : "border-white shadow"
-                          }`}
-                          style={{ backgroundColor: hex }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  <details className="rounded-lg border px-4 py-3 text-sm">
-                    <summary className="cursor-pointer select-none font-medium">Regola i dettagli</summary>
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                      <HexColorInput
-                        label="Sfondo delle voci attive"
-                        value={form.brand_accent_color}
-                        onChange={(v) => setForm((f) => ({ ...f, brand_accent_color: v }))}
-                        disabled={!canEdit || !canChangeColors}
-                        hint="Barra laterale e hover: un tono molto chiaro"
-                      />
-                      <HexColorInput
-                        label="Testo sui bottoni"
-                        value={form.brand_text_on_primary}
-                        onChange={(v) => setForm((f) => ({ ...f, brand_text_on_primary: v }))}
-                        disabled={!canEdit || !canChangeColors}
-                        hint="Bianco o quasi nero, secondo il colore"
-                      />
-                    </div>
-                  </details>
-                </CardContent>
-              </Card>
-
-              {/* 2 · NOME E IMMAGINI */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Nome e immagini</CardTitle>
-                  <CardDescription>
-                    Come si presenta la piattaforma ai tuoi utenti e ai tuoi clienti.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="bnd-name">Nome della piattaforma</Label>
-                    <Input
-                      id="bnd-name"
-                      value={form.brand_platform_name}
-                      onChange={(e) => setForm((f) => ({ ...f, brand_platform_name: e.target.value }))}
-                      placeholder="EdiliziaInCloud"
-                      maxLength={50}
-                      disabled={!canEdit}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Sostituisce «EdiliziaInCloud» nella barra e nel titolo del browser. Vuoto = nome standard.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-6 md:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label>Logo chiaro</Label>
-                      <p className="text-xs text-muted-foreground">Versione bianca, per le copertine scure dei preventivi.</p>
-                      <div className="h-16 w-full rounded border bg-slate-900 flex items-center justify-center p-2">
-                        {brand?.brand_logo_dark_url ? (
-                          <img loading="lazy" src={brand.brand_logo_dark_url} alt="Logo versione chiara" className="h-full w-full object-contain" />
-                        ) : (
-                          <span className="text-[10px] text-slate-400 text-center leading-tight px-1">Si usa il logo principale</span>
-                        )}
-                      </div>
-                      <FileUploadButton
-                        label={brand?.brand_logo_dark_url ? "Cambia" : "Carica"}
-                        isUploading={uploading === "brand_logo_dark_url"}
-                        onUpload={(f) => handleFileUpload(f, "brand_logo_dark_url", "logo-dark")}
-                        accept="image/png,image/svg+xml,image/webp"
-                        disabled={!canEdit}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Icona del browser</Label>
-                      <p className="text-xs text-muted-foreground">Quadrata, 64×64 px (PNG, ICO o SVG).</p>
-                      <div className="h-16 w-16 rounded border bg-muted/30 flex items-center justify-center p-1.5">
-                        {brand?.brand_favicon_url ? (
-                          <img loading="lazy" src={brand.brand_favicon_url} alt="Favicon" className="h-full w-full object-contain" />
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground">Vuota</span>
-                        )}
-                      </div>
-                      <FileUploadButton
-                        label={brand?.brand_favicon_url ? "Cambia" : "Carica"}
-                        isUploading={uploading === "brand_favicon_url"}
-                        onUpload={(f) => handleFileUpload(f, "brand_favicon_url", "favicon")}
-                        accept="image/png,image/x-icon,image/svg+xml"
-                        disabled={!canEdit}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Sfondo della pagina di accesso</Label>
-                      <p className="text-xs text-muted-foreground">Facoltativo, 1920×1080 px.</p>
-                      <div className="h-16 w-full rounded border bg-muted/30 overflow-hidden flex items-center justify-center">
-                        {brand?.brand_login_bg_url ? (
-                          <img loading="lazy" src={brand.brand_login_bg_url} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground">Nessuno sfondo</span>
-                        )}
-                      </div>
-                      <FileUploadButton
-                        label={brand?.brand_login_bg_url ? "Cambia" : "Carica"}
-                        isUploading={uploading === "brand_login_bg_url"}
-                        onUpload={(f) => handleFileUpload(f, "brand_login_bg_url", "login-bg")}
-                        disabled={!canEdit || !canLoginPage}
-                      />
-                      {!canLoginPage && <p className="text-[10px] text-amber-600">Non incluso nel tuo tier</p>}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-4 border-t pt-4">
-                    <div className="min-w-0">
-                      <Label htmlFor="bnd-hide-pby">Nascondi «Powered by EdiliziaInCloud»</Label>
-                      <p className="text-xs text-muted-foreground">Toglie il riferimento alla piattaforma dal footer e dalle email.</p>
-                      {!canHidePoweredBy && <p className="text-[10px] text-amber-600 mt-1">Non incluso nel tuo tier</p>}
-                    </div>
-                    <Switch
-                      id="bnd-hide-pby"
-                      checked={form.brand_hide_powered_by}
-                      onCheckedChange={(v) => setForm((f) => ({ ...f, brand_hide_powered_by: v }))}
-                      disabled={!canEdit || !canHidePoweredBy}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Ripristino */}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed px-4 py-3">
-                <p className="text-sm text-muted-foreground">
-                  Vuoi tornare all'aspetto originale? Cambiano colori, nome e «Powered by»; logo, icona e indirizzi restano.
                 </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!canEdit || resetting || saving}
-                  onClick={() => setConfirmResetSystem(true)}
-                >
-                  {resetting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                  Ripristina aspetto standard
+                <Button size="sm" variant="outline" onClick={resetForm} disabled={!canEdit || !isDirty || saving}>
+                  Annulla modifiche
+                </Button>
+                <Button onClick={handleSave} disabled={!canEdit || (!isDirty && !syncNeeded) || saving} size="sm">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" aria-hidden="true" />}
+                  {syncNeeded && !isDirty ? "Riprova sincronizzazione" : "Salva marchio"}
                 </Button>
               </div>
-            </div>
 
-            {/* Anteprima sempre in vista mentre si scorre */}
-            <div className="lg:sticky lg:top-4">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Anteprima</CardTitle>
-                  <CardDescription>Si aggiorna mentre scegli. Dopo «Salva brand» la vedono tutti gli utenti.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <AnteprimaPiattaforma
-                    primary={form.brand_primary_color}
-                    accent={form.brand_accent_color}
-                    textOnPrimary={form.brand_text_on_primary}
-                    logoUrl={effectiveCompany?.logo_url}
-                    nome={form.brand_platform_name || effectiveCompany?.name || ""}
-                    sfondoLogin={brand?.brand_login_bg_url}
-                  />
-                </CardContent>
-              </Card>
-            </div>
-            </div>
+              <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+              <div className="space-y-6">
+                {/* 1 · COLORI — si sceglie UN colore (o si prende dal logo) e il resto si ricava da solo. */}
+                <Card>
+                  <CardHeader>
+                    <TitoloRiquadro className="text-base flex items-center gap-2">
+                      <Palette className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Colori
+                    </TitoloRiquadro>
+                    <CardDescription>
+                      Scegli il colore del tuo marchio: bottoni, link e voci attive della piattaforma
+                      si adattano da soli, restando sempre leggibili.
+                    </CardDescription>
+                    {!canChangeColors && (
+                      <CardDescription className="text-amber-600">
+                        Il tuo piano ({wlGate.name}) non include i colori personalizzati.
+                      </CardDescription>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="flex flex-wrap items-end gap-4">
+                      <HexColorInput
+                        id="bnd-colore-marchio"
+                        label="Colore del marchio"
+                        value={form.brand_primary_color}
+                        onChange={(v) => setForm((f) => (
+                          isValidHexColor(v)
+                            ? { ...f, ...coloriDaPalette(paletteDaColore(v)) }
+                            : { ...f, brand_primary_color: v }
+                        ))}
+                        disabled={!canEdit || !canChangeColors}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!canEdit || !canChangeColors || !effectiveCompany?.logo_url || leggendoLogo}
+                        onClick={usaColoriDelLogo}
+                      >
+                        {leggendoLogo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Wand2 className="h-4 w-4 mr-2" aria-hidden="true" />}
+                        Usa i colori del logo
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={!canEdit || !canChangeColors}
+                        onClick={() => setForm((f) => ({ ...f, ...coloriDaPalette(paletteDaColore("#1E40AF")) }))}
+                      >
+                        Colori di EdiliziaInCloud
+                      </Button>
+                    </div>
+
+                    <div role="group" aria-labelledby="bnd-colori-pronti" className="space-y-1.5">
+                      <p id="bnd-colori-pronti" className="text-xs font-medium leading-none">Oppure parti da uno di questi</p>
+                      <div className="flex flex-wrap gap-2">
+                        {COLORI_SUGGERITI.map((hex) => {
+                          const scelto = form.brand_primary_color.toUpperCase() === hex;
+                          return (
+                            <button
+                              key={hex}
+                              type="button"
+                              aria-label={`Usa il colore ${hex}`}
+                              aria-pressed={scelto}
+                              title={hex}
+                              disabled={!canEdit || !canChangeColors}
+                              onClick={() => setForm((f) => ({ ...f, ...coloriDaPalette(paletteDaColore(hex)) }))}
+                              className={`h-7 w-7 rounded-full border-2 transition-transform hover:scale-110 disabled:cursor-not-allowed disabled:opacity-50 ${
+                                scelto ? "border-foreground ring-2 ring-offset-2 ring-offset-background" : "border-white shadow"
+                              }`}
+                              style={{ backgroundColor: hex }}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <details className="rounded-lg border px-4 py-3 text-sm">
+                      <summary className="cursor-pointer select-none font-medium">Regola i dettagli</summary>
+                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <HexColorInput
+                          id="bnd-sfondo-voci"
+                          label="Sfondo delle voci attive"
+                          value={form.brand_accent_color}
+                          onChange={(v) => setForm((f) => ({ ...f, brand_accent_color: v }))}
+                          disabled={!canEdit || !canChangeColors}
+                          hint="Barra laterale e hover: un tono molto chiaro"
+                        />
+                        <HexColorInput
+                          id="bnd-testo-bottoni"
+                          label="Testo sui bottoni"
+                          value={form.brand_text_on_primary}
+                          onChange={(v) => setForm((f) => ({ ...f, brand_text_on_primary: v }))}
+                          disabled={!canEdit || !canChangeColors}
+                          hint="Bianco o quasi nero, secondo il colore"
+                        />
+                      </div>
+                    </details>
+                  </CardContent>
+                </Card>
+
+                {/* 2 · NOME E IMMAGINI */}
+                <Card>
+                  <CardHeader>
+                    <TitoloRiquadro className="text-base">Nome e immagini</TitoloRiquadro>
+                    <CardDescription>
+                      Come si presenta la piattaforma ai tuoi utenti e ai tuoi clienti. Le immagini si salvano appena le
+                      carichi; il nome e «Powered by» con «Salva marchio».
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="bnd-name">Nome della piattaforma</Label>
+                      <Input
+                        id="bnd-name"
+                        value={form.brand_platform_name}
+                        onChange={(e) => setForm((f) => ({ ...f, brand_platform_name: e.target.value }))}
+                        placeholder="EdiliziaInCloud"
+                        maxLength={50}
+                        disabled={!canEdit}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Sostituisce «EdiliziaInCloud» nella barra e nel titolo del browser. Vuoto = nome standard.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-6 md:grid-cols-3">
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-medium leading-none">Logo chiaro</h3>
+                        <p className="text-xs text-muted-foreground">Versione bianca, per le copertine scure dei preventivi.</p>
+                        <div className="h-16 w-full rounded border bg-slate-900 flex items-center justify-center p-2">
+                          {brand?.brand_logo_dark_url ? (
+                            <img loading="lazy" src={brand.brand_logo_dark_url} alt="Logo versione chiara" className="h-full w-full object-contain" />
+                          ) : (
+                            <span className="text-[10px] text-slate-400 text-center leading-tight px-1">Si usa il logo principale</span>
+                          )}
+                        </div>
+                        <FileUploadButton
+                          label={brand?.brand_logo_dark_url ? "Cambia" : "Carica"}
+                          nome="il logo chiaro"
+                          isUploading={uploading === "brand_logo_dark_url"}
+                          onUpload={(f) => handleFileUpload(f, "brand_logo_dark_url", "logo-dark")}
+                          accept="image/png,image/svg+xml,image/webp"
+                          disabled={!canEdit}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-medium leading-none">Icona del browser</h3>
+                        <p className="text-xs text-muted-foreground">Quadrata, 64×64 px (PNG, ICO o SVG).</p>
+                        <div className="h-16 w-16 rounded border bg-muted/30 flex items-center justify-center p-1.5">
+                          {brand?.brand_favicon_url ? (
+                            <img loading="lazy" src={brand.brand_favicon_url} alt="Icona del browser" className="h-full w-full object-contain" />
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">Vuota</span>
+                          )}
+                        </div>
+                        <FileUploadButton
+                          label={brand?.brand_favicon_url ? "Cambia" : "Carica"}
+                          nome="l'icona del browser"
+                          isUploading={uploading === "brand_favicon_url"}
+                          onUpload={(f) => handleFileUpload(f, "brand_favicon_url", "favicon")}
+                          accept="image/png,image/x-icon,image/svg+xml"
+                          disabled={!canEdit}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-medium leading-none">Sfondo della pagina di accesso</h3>
+                        <p className="text-xs text-muted-foreground">Facoltativo, 1920×1080 px.</p>
+                        <div className="h-16 w-full rounded border bg-muted/30 overflow-hidden flex items-center justify-center">
+                          {brand?.brand_login_bg_url ? (
+                            <img loading="lazy" src={brand.brand_login_bg_url} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">Nessuno sfondo</span>
+                          )}
+                        </div>
+                        <FileUploadButton
+                          label={brand?.brand_login_bg_url ? "Cambia" : "Carica"}
+                          nome="lo sfondo della pagina di accesso"
+                          isUploading={uploading === "brand_login_bg_url"}
+                          onUpload={(f) => handleFileUpload(f, "brand_login_bg_url", "login-bg")}
+                          disabled={!canEdit || !canLoginPage}
+                        />
+                        {!canLoginPage && <p className="text-[10px] text-amber-600">Non incluso nel tuo piano</p>}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 border-t pt-4">
+                      <div className="min-w-0">
+                        <Label htmlFor="bnd-hide-pby">Nascondi «Powered by EdiliziaInCloud»</Label>
+                        <p className="text-xs text-muted-foreground">Toglie la scritta «Powered by EdiliziaInCloud» dalla piattaforma e dalle email.</p>
+                        {!canHidePoweredBy && <p className="text-[10px] text-amber-600 mt-1">Non incluso nel tuo piano</p>}
+                      </div>
+                      <Switch
+                        id="bnd-hide-pby"
+                        checked={form.brand_hide_powered_by}
+                        onCheckedChange={(v) => setForm((f) => ({ ...f, brand_hide_powered_by: v }))}
+                        disabled={!canEdit || !canHidePoweredBy}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Ripristino */}
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed px-4 py-3">
+                  <p className="text-sm text-muted-foreground">
+                    Vuoi tornare all'aspetto originale? Cambiano colori, nome e «Powered by»; logo, icona e indirizzi restano.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!canEdit || resetting || saving}
+                    onClick={() => setConfirmResetSystem(true)}
+                  >
+                    {resetting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />}
+                    Ripristina aspetto standard
+                  </Button>
+                </div>
+              </div>
+
+              {/* Anteprima sempre in vista mentre si scorre (sotto la barra «Salva marchio») */}
+              <div className="lg:sticky lg:top-20">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <TitoloRiquadro className="text-base">Anteprima</TitoloRiquadro>
+                    <CardDescription>Si aggiorna mentre scegli. Dopo «Salva marchio» la vedono tutti gli utenti.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <AnteprimaPiattaforma
+                      primary={form.brand_primary_color}
+                      accent={form.brand_accent_color}
+                      textOnPrimary={form.brand_text_on_primary}
+                      logoUrl={effectiveCompany?.logo_url}
+                      nome={form.brand_platform_name || effectiveCompany?.name || ""}
+                      sfondoLogin={brand?.brand_login_bg_url}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+              </div>
             </TabsContent>
 
             <TabsContent value="indirizzo" className="mt-0 space-y-6">
-              {/* Subdomain */}
+              {/* Sottodominio */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-muted-foreground" /> Subdomain
-                  </CardTitle>
-                  <CardDescription>Accedi alla piattaforma da un indirizzo personalizzato gratuito</CardDescription>
+                  <TitoloRiquadro className="text-base flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Sottodominio
+                  </TitoloRiquadro>
+                  <CardDescription>Accedi alla piattaforma da un indirizzo personalizzato gratuito.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="bnd-subdomain">Il tuo subdomain</Label>
+                    <Label htmlFor="bnd-subdomain">Il tuo sottodominio</Label>
                     <div className="flex items-center gap-2 flex-wrap">
                       <Input
                         id="bnd-subdomain"
@@ -981,10 +1112,10 @@ export default function SettingsBranding() {
                       <span className="text-sm text-muted-foreground">.ediliziaincloud.com</span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      3–63 caratteri, lettere minuscole/numeri/trattini, non può iniziare o finire con un trattino.
+                      Da 3 a 63 caratteri: lettere minuscole, numeri e trattini; non può cominciare né finire con un trattino.
                     </p>
                     {subdomain.length > 0 && !isValidSubdomain(subdomain) && (
-                      <p className="text-xs text-destructive">Formato subdomain non valido</p>
+                      <p className="text-xs text-destructive">Il sottodominio non è valido: guarda le regole qui sopra.</p>
                     )}
                   </div>
                   <Button
@@ -998,7 +1129,7 @@ export default function SettingsBranding() {
                     onClick={handleSaveSubdomain}
                   >
                     {saveSubdomainMut.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                    {!subdomain && companyBranding?.subdomain ? "Rimuovi subdomain" : "Salva subdomain"}
+                    {!subdomain && companyBranding?.subdomain ? "Rimuovi sottodominio" : "Salva sottodominio"}
                   </Button>
                 </CardContent>
               </Card>
@@ -1006,15 +1137,16 @@ export default function SettingsBranding() {
               {/* Custom Domain */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-muted-foreground" /> Dominio personalizzato
-                  </CardTitle>
+                  <TitoloRiquadro className="text-base flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Dominio personalizzato
+                  </TitoloRiquadro>
                   <CardDescription>
-                    Usa il tuo dominio (es. crm.tuaazienda.it). Richiede configurazione DNS e potrebbe richiedere assistenza tecnica.
+                    Usa un dominio tuo, per esempio crm.tuaazienda.it. Richiede una modifica al DNS del dominio e potrebbe
+                    servirti l'aiuto di chi lo gestisce.
                   </CardDescription>
                   {!canCustomDomain && (
                     <CardDescription className="text-amber-600">
-                      Il tuo tier ({wlGate.name}) non include domini personalizzati.
+                      Il tuo piano ({wlGate.name}) non include i domini personalizzati.
                     </CardDescription>
                   )}
                 </CardHeader>
@@ -1025,13 +1157,14 @@ export default function SettingsBranding() {
                       <AlertDescription className="flex items-center justify-between gap-2 flex-wrap">
                         <span><strong>{customDomain}</strong> è verificato e attivo.</span>
                         <span className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => window.open(`https://${customDomain}`, "_blank")}>
+                          <Button variant="ghost" size="sm" onClick={() => window.open(`https://${customDomain}`, "_blank", "noopener,noreferrer")}>
                             Apri ↗
                           </Button>
                           <Button
                             variant="ghost" size="sm"
                             className="text-destructive hover:text-destructive"
                             disabled={!canEdit || removeDomainMut.isPending}
+                            aria-label="Rimuovi il dominio"
                             onClick={() => setConfirmRemoveDomain(true)}
                           >
                             {removeDomainMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Rimuovi"}
@@ -1055,17 +1188,9 @@ export default function SettingsBranding() {
                           />
                           <Button
                             size="sm"
+                            aria-label="Configura il dominio"
                             disabled={requestVerifMut.isPending || !customDomain || customDomainInvalid || !canEdit || !canCustomDomain}
-                            onClick={async () => {
-                              try {
-                                await requestVerifMut.mutateAsync(normalizedCustomDomain);
-                                setCustomDomain(normalizedCustomDomain);
-                                toast.success("Configurazione avviata — segui le istruzioni DNS");
-                              } catch (err) {
-                                const msg = err instanceof Error ? err.message : "Errore";
-                                toast.error(msg);
-                              }
-                            }}
+                            onClick={handleConfigureDomain}
                           >
                             {requestVerifMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Configura"}
                           </Button>
@@ -1085,7 +1210,7 @@ export default function SettingsBranding() {
                        !(companyBranding as { custom_domain_verified?: boolean } | null)?.custom_domain_verified && (
                         <Alert>
                           <AlertDescription className="space-y-3">
-                            <p className="font-medium">Aggiungi questo record CNAME al tuo DNS:</p>
+                            <p className="font-medium">Aggiungi questo record CNAME al DNS del tuo dominio:</p>
                             <div className="space-y-2 text-sm">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-muted-foreground w-16 shrink-0">Tipo:</span>
@@ -1124,23 +1249,12 @@ export default function SettingsBranding() {
                               <Button
                                 size="sm" variant="outline"
                                 disabled={!canEdit || verifyMut.isPending}
-                                onClick={async () => {
-                                  try {
-                                    const result = await verifyMut.mutateAsync();
-                                    if (result.verified) {
-                                      toast.success("Dominio verificato! ✓");
-                                    } else {
-                                      toast.error(result.error || "CNAME non ancora propagato. Riprova più tardi.");
-                                    }
-                                  } catch {
-                                    toast.error("Errore durante la verifica");
-                                  }
-                                }}
+                                onClick={handleVerifyDomain}
                               >
                                 {verifyMut.isPending ? (
                                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                                 ) : (
-                                  <RefreshCw className="h-4 w-4 mr-2" />
+                                  <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />
                                 )}
                                 Verifica ora
                               </Button>
@@ -1162,21 +1276,6 @@ export default function SettingsBranding() {
               </Card>
             </TabsContent>
           </Tabs>
-
-          {/* Nel flusso della pagina: non copre contenuti o navigazione mobile. */}
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t py-3">
-            {isDirty && (
-              <span role="status" className="w-full text-xs text-amber-700 sm:mr-auto sm:w-auto">Modifiche non salvate</span>
-            )}
-            {syncNeeded && <p role="status" className="w-full text-xs text-amber-700">Aspetto salvato. Riprova la sincronizzazione della pagina di accesso.</p>}
-            <Button size="sm" variant="outline" onClick={resetForm} disabled={!canEdit || !isDirty || saving}>
-              Annulla modifiche
-            </Button>
-            <Button onClick={handleSave} disabled={!canEdit || (!isDirty && !syncNeeded) || saving} size="sm">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Palette className="h-4 w-4 mr-2" />}
-              {syncNeeded && !isDirty ? "Riprova sincronizzazione" : "Salva brand"}
-            </Button>
-          </div>
         </>
       )}
 
@@ -1186,9 +1285,9 @@ export default function SettingsBranding() {
           <AlertDialogHeader>
             <AlertDialogTitle>Rimuovere il dominio personalizzato?</AlertDialogTitle>
             <AlertDialogDescription>
-              <strong>{customDomain || companyBranding?.custom_domain}</strong> non sarà più
-              collegato alla piattaforma. Gli utenti che lo usavano dovranno accedere
-              dall'indirizzo standard. Potrai configurare un nuovo dominio in qualsiasi momento.
+              <strong>{customDomain || companyBranding?.custom_domain}</strong> non sarà più collegato alla
+              piattaforma: chi lo usava dovrà entrare dall'indirizzo standard. Potrai configurare un nuovo dominio
+              quando vuoi.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1204,12 +1303,11 @@ export default function SettingsBranding() {
       <AlertDialog open={confirmResetSystem} onOpenChange={setConfirmResetSystem}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Ripristinare l'aspetto di sistema?</AlertDialogTitle>
+            <AlertDialogTitle>Tornare all'aspetto standard?</AlertDialogTitle>
             <AlertDialogDescription>
-              Colori, nome piattaforma e "Powered by" torneranno ai valori originali di
-              EdiliziaInCloud per tutti gli utenti della tua azienda. Logo, favicon,
-              subdomain e dominio personalizzato restano invariati. Potrai riattivare
-              il tuo brand quando vuoi.
+              Colori, nome della piattaforma e «Powered by» tornano a quelli di EdiliziaInCloud, per tutti gli utenti
+              della tua azienda. Logo, icona del browser, sottodominio e dominio personalizzato restano come sono.
+              Potrai rimettere i tuoi colori quando vuoi.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1219,14 +1317,14 @@ export default function SettingsBranding() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Dialog conferma rimozione subdomain */}
+      {/* Dialog conferma rimozione sottodominio */}
       <AlertDialog open={confirmRemoveSub} onOpenChange={setConfirmRemoveSub}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Rimuovere il subdomain?</AlertDialogTitle>
+            <AlertDialogTitle>Rimuovere il sottodominio?</AlertDialogTitle>
             <AlertDialogDescription>
-              <strong>{companyBranding?.subdomain}.ediliziaincloud.com</strong> non sarà più
-              raggiungibile. Gli utenti che avevano salvato quel link riceveranno un 404.
+              <strong>{companyBranding?.subdomain}.ediliziaincloud.com</strong> non sarà più raggiungibile: chi aveva
+              salvato quel link vedrà una pagina non trovata.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1235,6 +1333,18 @@ export default function SettingsBranding() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* La richiesta d'attivazione: la stessa finestra di «sblocca questa funzione» (ticket al consulente, telefono, email). */}
+      <UnlockFeatureDialog
+        open={apriAttivazione}
+        onOpenChange={setApriAttivazione}
+        featureKey="white_label"
+        featureLabel="White-Label"
+        actionLabel="Personalizzare il marchio"
+        description="Colori, nome della piattaforma, icona, pagina di accesso e indirizzo web con il tuo marchio, al posto di quelli di EdiliziaInCloud."
+        benefits={COSA_SI_OTTIENE}
+        chiudiLabel="Non ora"
+      />
     </div>
   );
 }

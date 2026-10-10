@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { MessaggioPerUtente, motivoDelRifiuto, righeToccate } from "@/lib/impostazioni/erroriPerUtente";
 
 /**
  * Toggle "Area privata clienti".
@@ -69,12 +70,15 @@ export function CustomerPortalToggle() {
     setEnabled(next); // ottimistic update
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("companies")
         .update({ customer_portal_enabled: next } as never)
-        .eq("id", effectiveCompany.id);
+        .eq("id", effectiveCompany.id)
+        .select("id");
 
       if (error) throw error;
+      // Con regole di accesso che non bastano l'aggiornamento non dà errore: non tocca righe.
+      if (righeToccate(data) === 0) throw new MessaggioPerUtente("Il tuo utente non può modificare i dati dell'azienda: chiedi a un amministratore.");
 
       toast({
         title: next ? "Area privata attivata" : "Area privata disattivata",
@@ -87,8 +91,8 @@ export function CustomerPortalToggle() {
     } catch (e) {
       setEnabled(previous); // rollback
       toast({
-        title: "Errore",
-        description: e instanceof Error ? e.message : "Impossibile aggiornare l'impostazione.",
+        title: "Non salvato",
+        description: motivoDelRifiuto(e, "Impossibile aggiornare l'impostazione."),
         variant: "destructive",
       });
     } finally {

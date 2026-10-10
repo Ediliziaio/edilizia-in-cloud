@@ -165,7 +165,7 @@ export function CreditsHistory() {
         {/* Filtri toolbar */}
         <div className="flex flex-wrap items-end gap-2">
           <div>
-            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Wallet</label>
+            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Servizio</label>
             <Select value={wallet} onValueChange={(v) => setWallet(v as WalletFilter)}>
               <SelectTrigger className="h-8 w-[140px] text-xs">
                 <SelectValue />

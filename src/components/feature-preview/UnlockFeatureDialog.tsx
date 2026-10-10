@@ -26,6 +26,7 @@ import {
   Sparkles, MessageSquare, Loader2, CheckCircle2, Check, Phone, Mail, Clock,
 } from "lucide-react";
 import { AddonWhatsAppOfferta } from "@/components/billing/AddonWhatsAppOfferta";
+import { EMAIL_ASSISTENZA, TELEFONO_COMMERCIALE } from "@/lib/impostazioni/contattiEdiliziaInCloud";
 
 interface Props {
   open: boolean;
@@ -38,6 +39,8 @@ interface Props {
   description?: string;
   /** Lista bullet points dei benefici (3-5 punti consigliati). */
   benefits?: string[];
+  /** Testo del link che chiude la finestra. Di norma parla della demo; fuori dalla demo («Non ora») no. */
+  chiudiLabel?: string;
 }
 
 const DEFAULT_BENEFITS = [
@@ -48,11 +51,13 @@ const DEFAULT_BENEFITS = [
 ];
 
 const DEFAULT_DESCRIPTION = "Sbloccando questa funzione potrai usarla davvero, senza limiti demo.";
+const DEFAULT_CHIUDI = "Continua a esplorare la demo";
 
 export function UnlockFeatureDialog({
   open, onOpenChange, featureKey, featureLabel, actionLabel,
   description = DEFAULT_DESCRIPTION,
   benefits = DEFAULT_BENEFITS,
+  chiudiLabel = DEFAULT_CHIUDI,
 }: Props) {
   const { user, effectiveCompany } = useAuth();
   const [message, setMessage] = useState("");
@@ -223,14 +228,14 @@ export function UnlockFeatureDialog({
 
               <div className="grid grid-cols-2 gap-2">
                 <Button variant="outline" size="sm" asChild>
-                  <a href="tel:+393000000000" className="gap-1.5">
+                  <a href={`tel:${TELEFONO_COMMERCIALE}`} className="gap-1.5">
                     <Phone className="h-3.5 w-3.5" />
                     Chiama
                   </a>
                 </Button>
                 <Button variant="outline" size="sm" asChild>
                   <a
-                    href={`mailto:info@ediliziaincloud.com?subject=Sblocco%20${encodeURIComponent(etichetta)}&body=Ciao%2C%20vorrei%20attivare%20${encodeURIComponent(etichetta)}%20per%20la%20mia%20azienda.`}
+                    href={`mailto:${EMAIL_ASSISTENZA}?subject=Sblocco%20${encodeURIComponent(etichetta)}&body=Ciao%2C%20vorrei%20attivare%20${encodeURIComponent(etichetta)}%20per%20la%20mia%20azienda.`}
                     className="gap-1.5"
                   >
                     <Mail className="h-3.5 w-3.5" />
@@ -243,7 +248,7 @@ export function UnlockFeatureDialog({
                 onClick={() => handleClose(false)}
                 className="w-full text-xs text-muted-foreground hover:text-foreground py-1 transition-colors"
               >
-                Continua a esplorare la demo
+                {chiudiLabel}
               </button>
             </div>
           </>

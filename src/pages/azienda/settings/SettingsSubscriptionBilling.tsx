@@ -1,21 +1,21 @@
 /**
- * Dashboard di Fatturazione — v8.6.59
+ * Piano abbonamento — il piano di EdiliziaInCloud, i pagamenti, le sue fatture e i crediti.
  *
- * Layout a 4 tab ispirato a dashboard agency moderne:
- *   1. Abbonamenti — piano corrente + add-on + cross-sell
- *   2. Pagamenti — metodo di pagamento + info fiscali + dati fatturazione + cronologia
- *   3. Portafoglio — saldo crediti + auto-ricarica + spese
- *   4. Notifiche — alert spesa per agenzia / sub-account
+ * Tre schede (gli indirizzi `?tab=` non cambiano, solo i nomi che si leggono):
+ *   1. Piano (`abbonamenti`) — piano corrente, cambio e annullamento
+ *   2. Pagamenti (`pagamenti`) — metodo di pagamento, dati fiscali, fatture dell'abbonamento
+ *   3. Crediti (`portafoglio`) — saldo, ricarica anche automatica, consumi
  *
- * Mantiene 100% retro-compat: i sotto-componenti (CurrentPlanCard,
- * InvoiceHistoryCard, BillingDetailsCard) sono riusati invariati,
- * cambia solo l'organizzazione visiva.
+ * 09/10/2026: via la scheda «Notifiche» (un elenco fisso di cinque email, due delle quali con regole che il
+ * codice smentiva, un link che non apriva la scheda giusta e una promessa senza data) e via la
+ * sotto-scheda «Consumi crediti» dei Pagamenti, che conteneva solo un rimando. Un vecchio indirizzo
+ * `?tab=notifiche` apre il Piano.
  */
 import { lazy, Suspense, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ExternalLink, Download, AlertTriangle, CreditCard, Clock,
-  Sparkles, ArrowRight, Wallet, Bell, Receipt, ShieldCheck, Loader2, Gift,
+  Sparkles, ArrowRight, Wallet, Layers, Receipt, ShieldCheck, Loader2, Gift,
   ArrowUpRight, ArrowDownRight, XCircle,
 } from "lucide-react";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
@@ -38,6 +38,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { BillingDetailsCard } from "@/components/billing/BillingDetailsCard";
 import { PlanChangeDialog, CancelPlanDialog } from "@/components/billing/PlanChangeDialog";
+import { EMAIL_ASSISTENZA } from "@/lib/impostazioni/contattiEdiliziaInCloud";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AvvisoSoloDaComputer } from "@/components/mobile/SoloDaComputer";
@@ -45,7 +46,7 @@ import { SpazioArchiviazioneCard } from "@/components/billing/SpazioArchiviazion
 // Lazy-load contenuto Portafoglio (la pagina Crediti & Saldo ha già tutta la logica)
 const SettingsCrediti = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
 
-const VALID_TABS = new Set(["abbonamenti", "pagamenti", "portafoglio", "notifiche"]);
+const VALID_TABS = new Set(["abbonamenti", "pagamenti", "portafoglio"]);
 
 /** Aziende che pagano fuori da Stripe: qui non c'è una carta da aggiungere. */
 const PAGAMENTO_A_PARTE: Record<string, string> = {
@@ -88,6 +89,18 @@ function brandLabel(brand?: string): { label: string; className: string } {
     unionpay:   { label: "UnionPay",   className: "bg-red-600 text-white" },
   };
   return map[b] ?? { label: b.toUpperCase() || "CARD", className: "bg-slate-700 text-white" };
+}
+
+/** Lo stato di una fattura di Stripe, in parole: prima «aperta» diventava «In scadenza» e il resto usciva grezzo. */
+function StatoFattura({ stato }: { stato: string }) {
+  if (stato === "paid") return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px]">Pagata</Badge>;
+  const etichette: Record<string, string> = {
+    open: "Da pagare",
+    draft: "Bozza",
+    void: "Annullata",
+    uncollectible: "Non incassata",
+  };
+  return <Badge variant={stato === "open" ? "secondary" : "outline"} className="text-[10px]">{etichette[stato] ?? "In elaborazione"}</Badge>;
 }
 
 function companyStatusBadge(status: string) {
@@ -342,12 +355,12 @@ function TabAbbonamenti() {
               className="gap-1.5 w-full sm:w-auto justify-center sm:justify-start"
             >
               <CreditCard className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Vuoi modificare/annullare il tuo abbonamento?</span>
+              <span className="hidden sm:inline">Cambia o annulla il piano</span>
               <span className="sm:hidden">Gestisci abbonamento</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
             <p className="text-xs text-muted-foreground text-center sm:text-left">
-              Hai una domanda? <a href="mailto:info@ediliziaincloud.com" className="text-primary hover:underline">Contattaci</a>
+              Hai una domanda? <a href={`mailto:${EMAIL_ASSISTENZA}`} className="text-primary hover:underline">Scrivici</a>
             </p>
           </div>
         </CardContent>
@@ -382,7 +395,7 @@ function TabAbbonamenti() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Modifica abbonamento</DialogTitle>
-            <DialogDescription>Aspetta! Conoscevi le opzioni qui sotto?</DialogDescription>
+            <DialogDescription>Scegli cosa vuoi fare con il tuo piano.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             {/* Upgrade — evidenziato */}
@@ -391,11 +404,11 @@ function TabAbbonamenti() {
                 <ArrowUpRight className="h-5 w-5 text-emerald-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm">Aggiorna il tuo piano attuale</p>
-                <p className="text-xs text-muted-foreground">{priceLabel} / {isYearly ? "anno" : "mese"}</p>
+                <p className="font-semibold text-sm">Passa a un piano superiore</p>
+                <p className="text-xs text-muted-foreground">Più funzioni da subito. Ora paghi {priceLabel} / {isYearly ? "anno" : "mese"}.</p>
               </div>
               <Button size="sm" className="shrink-0" onClick={() => { setModifyOpen(false); setPlanDialog("upgrade"); }}>
-                Passa a un piano superiore
+                Scegli il piano
               </Button>
             </div>
             {/* Downgrade */}
@@ -408,8 +421,8 @@ function TabAbbonamenti() {
                 <ArrowDownRight className="h-5 w-5 text-amber-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm">Passa a un piano inferiore</p>
-                <p className="text-xs text-muted-foreground">Desidero passare a un piano più economico</p>
+                <p className="font-semibold text-sm">Passa a un piano più economico</p>
+                <p className="text-xs text-muted-foreground">Scegli un piano che costa meno</p>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
             </button>
@@ -423,8 +436,8 @@ function TabAbbonamenti() {
                 <XCircle className="h-5 w-5 text-rose-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm">Annulla piano</p>
-                <p className="text-xs text-muted-foreground">Voglio comunque annullare il mio abbonamento</p>
+                <p className="font-semibold text-sm">Annulla il piano</p>
+                <p className="text-xs text-muted-foreground">Interrompi l'abbonamento</p>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
             </button>
@@ -455,7 +468,6 @@ function TabPagamenti() {
   const { mutate: openPortal, isPending } = useOpenBillingPortal();
   const { mutate: aggiungiCarta, isPending: aggiuntaCartaInCorso } = useStartCardSetup();
   const { mutate: attivaAbbonamento, isPending: attivazioneInCorso } = useStartPlanCheckout();
-  const [cronTab, setCronTab] = useState<"costi" | "fatture">("fatture");
   const [searchParams, setSearchParams] = useSearchParams();
   // Dialog gestito da DialogTrigger asChild (focus restore automatico).
 
@@ -592,6 +604,7 @@ function TabPagamenti() {
                   <Pencil className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
                 </CardHeader>
                 <CardContent>
+                  {/* Nessun «Verificato» accanto alla P.IVA: nessun controllo la verifica (si chiede solo che non sia troppo corta). */}
                   {billingDetails?.legal_name || billingDetails?.vat_number ? (
                     <div className="space-y-2">
                       {billingDetails.legal_name && (
@@ -601,15 +614,9 @@ function TabPagamenti() {
                         </div>
                       )}
                       {billingDetails.vat_number && (
-                        <div className="flex items-center justify-between gap-2">
-                          <div>
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">P.IVA</p>
-                            <p className="text-sm font-medium font-mono">{billingDetails.vat_number}</p>
-                          </div>
-                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                            <ShieldCheck className="h-3 w-3 mr-1" />
-                            Verificato
-                          </Badge>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">P.IVA</p>
+                          <p className="text-sm font-medium font-mono">{billingDetails.vat_number}</p>
                         </div>
                       )}
                       {(billingDetails.address_line1 || billingDetails.city) && (
@@ -650,10 +657,7 @@ function TabPagamenti() {
         </Dialog>
       </div>
 
-      {/* Cronologia pagamenti con tab Costi/Fatture
-          • Fatture = subscription invoices da Stripe (subscription_invoices)
-          • Costi   = consumo crediti AI/email/whatsapp → deep-link al tab
-                     Portafoglio (sezione "Storico"). Non duplichiamo qui. */}
+      {/* Le fatture dell'abbonamento (Stripe). I consumi dei crediti non stanno qui: un rimando alla scheda Crediti. */}
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -662,33 +666,20 @@ function TabPagamenti() {
                 <Receipt className="h-4 w-4 text-muted-foreground" />
                 Cronologia dei pagamenti
               </CardTitle>
-              <CardDescription className="text-xs">Fatture dell'abbonamento e consumi crediti</CardDescription>
+              <CardDescription className="text-xs">Le fatture dell'abbonamento</CardDescription>
             </div>
-            <Tabs value={cronTab} onValueChange={(v) => setCronTab(v as "costi" | "fatture")}>
-              <TabsList className="h-8">
-                <TabsTrigger value="fatture" className="text-xs h-7">Fatture abbonamento</TabsTrigger>
-                <TabsTrigger value="costi" className="text-xs h-7">Consumi crediti</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto justify-start p-0 text-xs sm:justify-end"
+              onClick={() => setSearchParams({ tab: "portafoglio" }, { replace: true })}
+            >
+              Consumi dei crediti → Crediti
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
-          {cronTab === "costi" ? (
-            <div className="text-center py-10">
-              <Wallet className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="font-medium">I consumi crediti vivono nel tab Portafoglio</p>
-              <p className="text-sm text-muted-foreground mt-1 mb-4 max-w-md mx-auto">
-                Storico unificato dei consumi (email, AI, WhatsApp) con filtri per wallet e periodo.
-              </p>
-              <Button
-                variant="outline"
-                onClick={() => setSearchParams({ tab: "portafoglio" }, { replace: true })}
-              >
-                Vai al Portafoglio
-                <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
-              </Button>
-            </div>
-          ) : invoicesLoading ? (
+          {invoicesLoading ? (
             <div className="space-y-2">
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
@@ -711,13 +702,7 @@ function TabPagamenti() {
                         <span className="text-sm font-semibold">
                           {inv.periodStart ? format(new Date(inv.periodStart), "d MMM yyyy", { locale: it }) : "—"}
                         </span>
-                        {inv.status === "paid" ? (
-                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px]">Pagata</Badge>
-                        ) : inv.status === "open" ? (
-                          <Badge variant="secondary" className="text-[10px]">In scadenza</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px]">{inv.status}</Badge>
-                        )}
+                        <StatoFattura stato={inv.status} />
                       </div>
                       <p className="text-xs text-muted-foreground truncate">{formatPeriod(inv.periodStart, inv.periodEnd)}</p>
                       <p className="text-base font-semibold tabular-nums mt-1">
@@ -781,13 +766,7 @@ function TabPagamenti() {
                             : formatEurCents(inv.amountDue, inv.currency)}
                         </TableCell>
                         <TableCell>
-                          {inv.status === "paid" ? (
-                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px]">Pagata</Badge>
-                          ) : inv.status === "open" ? (
-                            <Badge variant="secondary" className="text-[10px]">In scadenza</Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-[10px]">{inv.status}</Badge>
-                          )}
+                          <StatoFattura stato={inv.status} />
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -846,7 +825,7 @@ function TabPagamenti() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   TAB 3 — PORTAFOGLIO (delega a SettingsCrediti esistente)
+   TAB 3 — CREDITI (delega a SettingsCrediti: stesso componente della pagina Crediti)
 ═══════════════════════════════════════════════════════════════════════════ */
 function TabPortafoglio() {
   // v8.6.60 — Niente intestazione doppia: SettingsCrediti (embedded) ha già
@@ -863,85 +842,6 @@ function TabPortafoglio() {
     >
       <SettingsCrediti embedded />
     </Suspense>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   TAB 4 — NOTIFICHE
-═══════════════════════════════════════════════════════════════════════════ */
-function TabNotifiche() {
-  // Eventi billing già notificati di default via email dal backend
-  // (stripe-webhook + check-due-dates + dunning service). Lista trasparente
-  // per dare all'utente visibilità su cosa riceve.
-  const events: Array<{ title: string; desc: string; channel: string }> = [
-    {
-      title: "Pagamento riuscito",
-      desc: "Conferma di addebito con link alla fattura PDF.",
-      channel: "Email",
-    },
-    {
-      title: "Pagamento fallito",
-      desc: "Avviso immediato + tentativo automatico di re-charge nei 14 gg.",
-      channel: "Email",
-    },
-    {
-      title: "Trial in scadenza",
-      desc: "Promemoria 3 giorni prima del termine del periodo di prova.",
-      channel: "Email",
-    },
-    {
-      title: "Rinnovo imminente",
-      desc: "Avviso 7 giorni prima del rinnovo (solo piani annuali).",
-      channel: "Email",
-    },
-    {
-      title: "Saldo crediti basso",
-      desc: "Quando un wallet (AI/Email/WhatsApp) scende sotto la soglia.",
-      channel: "Email",
-    },
-  ];
-
-  return (
-    <div className="space-y-5">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Bell className="h-4 w-4 text-muted-foreground" />
-            Notifiche fatturazione
-          </CardTitle>
-          <CardDescription>
-            Eventi billing già attivi via email. Per granularità (in-app/SMS, destinatari multipli)
-            usa <a href="/azienda/impostazioni/mio-profilo" className="text-primary hover:underline">
-            Profilo → Notifiche</a>.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-2">
-            {events.map((ev) => (
-              <li key={ev.title} className="flex items-start justify-between gap-3 rounded-lg border p-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{ev.title}</p>
-                  <p className="text-xs text-muted-foreground">{ev.desc}</p>
-                </div>
-                <Badge variant="outline" className="text-[10px] shrink-0">{ev.channel}</Badge>
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
-
-      {/* Roadmap: spending alerts soglia €, destinatari multipli, alert per agenzia */}
-      <Card className="border-dashed">
-        <CardContent className="py-8 text-center">
-          <Bell className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="font-medium">Avvisi di spesa avanzati</p>
-          <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-            Alert configurabili (soglie € personalizzate, destinatari multipli) per agenzie con
-            sub-account in arrivo nelle prossime release.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
   );
 }
 
@@ -1089,11 +989,10 @@ export default function SettingsSubscriptionBilling() {
       {/* Carta rifiutata sulla ricarica automatica: sopra ai tab, sempre visibile */}
       <AutoTopupFailureBanner />
       <Tabs value={activeTab} onValueChange={setTab} className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-4">
+        <TabsList className="grid w-full max-w-md grid-cols-3">
           <TabsTrigger value="abbonamenti" className="gap-1.5">
-            <Wallet className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Abbonamenti</span>
-            <span className="sm:hidden">Piano</span>
+            <Layers className="h-3.5 w-3.5" />
+            Piano
           </TabsTrigger>
           <TabsTrigger value="pagamenti" className="gap-1.5">
             <CreditCard className="h-3.5 w-3.5" />
@@ -1101,12 +1000,7 @@ export default function SettingsSubscriptionBilling() {
           </TabsTrigger>
           <TabsTrigger value="portafoglio" className="gap-1.5">
             <Wallet className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Portafoglio</span>
-            <span className="sm:hidden">Saldo</span>
-          </TabsTrigger>
-          <TabsTrigger value="notifiche" className="gap-1.5">
-            <Bell className="h-3.5 w-3.5" />
-            Notifiche
+            Crediti
           </TabsTrigger>
         </TabsList>
 
@@ -1118,9 +1012,6 @@ export default function SettingsSubscriptionBilling() {
         </TabsContent>
         <TabsContent value="portafoglio" className="mt-5">
           <TabPortafoglio />
-        </TabsContent>
-        <TabsContent value="notifiche" className="mt-5">
-          <TabNotifiche />
         </TabsContent>
       </Tabs>
     </div>

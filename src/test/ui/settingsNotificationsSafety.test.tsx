@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import SettingsNotifiche from "@/pages/azienda/impostazioni/SettingsNotifiche";
 
 const state = vi.hoisted(() => ({
@@ -27,7 +28,8 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
 } } }));
 function open() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  render(<QueryClientProvider client={client}><SettingsNotifiche /></QueryClientProvider>);
+  // La pagina ha link e àncore (09/10/2026): vuole un Router.
+  render(<QueryClientProvider client={client}><MemoryRouter><SettingsNotifiche /></MemoryRouter></QueryClientProvider>);
   return client;
 }
 beforeEach(() => { state.readError = false; state.writeError = false; state.phone = null; state.verified = null; state.writes.length = 0; state.error.mockClear(); state.success.mockClear(); });
@@ -44,25 +46,24 @@ describe("Notifiche: bozza, errori e verifica WhatsApp", () => {
     expect(screen.queryByRole("button", { name: "Salva preferenze" })).toBeNull();
     expect(state.writes).toHaveLength(0);
   });
-  it("salvare un numero nuovo non lo rende verificato", async () => {
+  it("WhatsApp è «Prossimamente»: spento e bloccato, e senza il campo del numero (nessun codice può verificarlo)", async () => {
     open();
-    fireEvent.click(await screen.findByRole("switch", { name: "Abilita WhatsApp" }));
-    fireEvent.change(screen.getByLabelText("Numero WhatsApp (con prefisso intl.)"), { target: { value: "+393331234567" } });
-    expect(state.writes).toHaveLength(0);
-    fireEvent.click(screen.getByRole("button", { name: "Salva preferenze" }));
-    await waitFor(() => expect(state.success).toHaveBeenCalledOnce());
-    expect(state.writes[0]).toMatchObject({ user_id: "user-1", company_id: "company-1", whatsapp_phone: "+393331234567", whatsapp_verified_at: null });
-    expect(screen.getByText(/Salvare il numero non lo verifica/)).toBeVisible();
+    const interruttore = await screen.findByRole("switch", { name: "Abilita WhatsApp" });
+    expect(interruttore).toBeDisabled();
+    expect(interruttore).not.toBeChecked();
+    expect(screen.queryByLabelText(/Numero WhatsApp/)).toBeNull();
+    expect(screen.queryByText(/Salvare il numero non lo verifica/)).toBeNull();
   });
-  it("cambiare un numero già verificato revoca il badge immediatamente", async () => {
+  it("salvare non tocca il numero WhatsApp né la sua verifica: i dati che ci sono restano com'erano", async () => {
     state.phone = "+393331234567"; state.verified = "2026-10-01T12:00:00Z";
     open();
-    expect(await screen.findByText("Numero verificato.")).toBeVisible();
-    fireEvent.change(screen.getByLabelText("Numero WhatsApp (con prefisso intl.)"), { target: { value: "+393331234568" } });
-    expect(screen.queryByText("Numero verificato.")).toBeNull();
+    fireEvent.change(await screen.findByLabelText("Email alternativa (opzionale)"), { target: { value: "bozza@esempio.it" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva preferenze" }));
     await waitFor(() => expect(state.success).toHaveBeenCalledOnce());
-    expect(state.writes[0].whatsapp_verified_at).toBeNull();
+    expect(state.writes[0]).toMatchObject({ user_id: "user-1", company_id: "company-1", email_override: "bozza@esempio.it" });
+    expect(state.writes[0]).not.toHaveProperty("whatsapp_phone");
+    expect(state.writes[0]).not.toHaveProperty("whatsapp_verified_at");
+    expect(state.writes[0]).not.toHaveProperty("telegram_chat_id");
   });
   it("un refetch non cancella un'email alternativa ancora da salvare", async () => {
     const client = open();

@@ -1,18 +1,15 @@
 /**
- * SettingsCredits — Pagina Crediti & Saldo (refactored).
+ * SettingsCredits — Crediti & saldo.
  *
- * Tab:
- *   1. Riepilogo: KPI globali + 4 wallet card + grafico consumo
- *   2. Auto Top-up: configurazione per wallet (email/AI/whatsapp)
- *   3. Storico: tabella unificata filtrata per wallet/tipo/data
+ * Il credito in euro è uno solo (company_credit_pool dal 07/09/2026): AI, email e WhatsApp attingono tutti da lì,
+ * i render si comprano a pacchetti a parte. La pagina mostra il saldo, la ricarica (anche automatica), come si
+ * usano i crediti, lo storico e il consumo dell'AI per persona.
  *
- * Sostituisce 952 righe duplicative con architettura pulita basata su:
- *   - useWallets() hook centralizzato
- *   - <WalletCard /> componente riusabile
- *   - <RechargeDialog /> dialog ricarica generico per i 4 wallet
- *   - <AutoTopupConfig /> form auto top-up generico
- *   - <CreditsHistory /> storico unificato con filtri
- *   - <ConsumoForecastChart /> grafico forecast con Recharts
+ * 09/10/2026: una testata sola (il titolo lo mette il layout delle impostazioni, il saldo sta nel riquadro) e una
+ * sola frase per i servizi bloccati, anche dentro Piano abbonamento → Crediti. Nel menu «Ricarica» restano due voci:
+ * «Agenti AI» e «WhatsApp» facevano pagare un prodotto Stripe che accredita lo specchio non più letto (vedi
+ * stripe-webhook, `ai_credits`/`whatsapp_credits`): chi pagasse da lì non riceverebbe credito. Il webhook non è
+ * cambiato; la correzione (far passare quei prodotti da `pool_ricarica`) è un lavoro a parte.
  */
 
 import { useEffect, useState } from "react";
@@ -38,7 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import {
-  Wallet, AlertTriangle, TrendingDown, Clock, Mail, Bot, Plus, MessageSquare, Sparkles,
+  Wallet, AlertTriangle, TrendingDown, Clock, Mail, Bot, Plus, Sparkles,
 } from "lucide-react";
 import { computeCreditForecast } from "@/lib/creditForecasting";
 import { useQuery } from "@tanstack/react-query";
@@ -50,8 +47,8 @@ import { subDays } from "date-fns";
 const LOW_BALANCE_THRESHOLD = 5;
 
 /**
- * @prop embedded — Se true, nasconde l'h1 header (la pagina è già montata
- *                  dentro un tab con titolo proprio, evita doppio h1 a11y/SEO).
+ * @prop embedded — Se true la pagina è dentro Piano abbonamento → Crediti: cambia solo l'elenco in fondo
+ *                  (voci chiuse invece di schede), la testata non c'è in nessuno dei due casi.
  */
 interface SettingsCreditsProps {
   embedded?: boolean;
@@ -127,48 +124,13 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
 
   return (
     <div className="space-y-5">
-      {/* ── Header ──────────────────────────────────────────────────── */}
-      {/* v8.6.59 — in modalità embedded (es. tab Portafoglio della dashboard
-          abbonamento) nascondiamo l'h1 per evitare doppio heading; saldo
-          totale mostrato comunque come riga compatta. */}
-      {embedded ? (
-        // v8.6.60 — Nessun header embedded: il saldo totale è già nella hero
-        // card sotto i tabs. Evitiamo la tripla esposizione del valore.
-        hasBlocked ? (
-          <p className="text-sm font-medium text-destructive">
-            ⚠ Uno o più servizi sono bloccati per saldo insufficiente.
-          </p>
-        ) : null
-      ) : (
-        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <Wallet className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Crediti & Saldo</h1>
-              <p className="text-sm text-muted-foreground">
-                Saldo totale:{" "}
-                <span className="font-semibold text-foreground">{formatEur(totalBalanceEur)}</span>
-                {hasBlocked && (
-                  <>
-                    {" · "}
-                    <span className="font-medium text-destructive">servizi bloccati</span>
-                  </>
-                )}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Alert globali ───────────────────────────────────────────── */}
+      {/* Niente testata: il titolo della pagina lo mette già il layout delle impostazioni (un solo h1) e il saldo
+          sta nel riquadro qui sotto. Una sola frase per i servizi bloccati, sia qui sia dentro Piano abbonamento. */}
       {hasBlocked && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            <strong>Uno o più servizi sono bloccati</strong> per saldo insufficiente. Ricarica i
-            crediti per ripristinare il servizio.
+            <strong>Uno o più servizi sono fermi</strong> per saldo insufficiente. Ricarica i crediti per farli ripartire.
           </AlertDescription>
         </Alert>
       )}
@@ -195,7 +157,7 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Saldo Totale
+                  Saldo totale
                 </p>
                 <p className="text-3xl font-bold tabular-nums text-primary">
                   {formatEur(totalBalanceEur)}
@@ -209,17 +171,12 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {/* Il credito è uno solo: AI, email e WhatsApp si ricaricano da qui. I render hanno i loro pacchetti. */}
                 <DropdownMenuItem onClick={() => setRechargeWallet("email")}>
-                  <Mail className="mr-2 h-4 w-4 text-violet-600" /> Email Marketing
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setRechargeWallet("ai")}>
-                  <Bot className="mr-2 h-4 w-4 text-amber-600" /> Agenti AI
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setRechargeWallet("whatsapp")}>
-                  <MessageSquare className="mr-2 h-4 w-4 text-emerald-600" /> WhatsApp
+                  <Wallet className="mr-2 h-4 w-4 text-violet-600" /> Crediti (AI, email, WhatsApp)
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setRechargeWallet("render")}>
-                  <Sparkles className="mr-2 h-4 w-4 text-pink-600" /> Render AI
+                  <Sparkles className="mr-2 h-4 w-4 text-pink-600" /> Render AI (pacchetti)
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -279,7 +236,7 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
                 <Clock className="h-4 w-4 text-muted-foreground" />
                 Storico transazioni
                 <span className="text-xs font-normal text-muted-foreground">
-                  Filtro per wallet, tipo e data
+                  Filtra per servizio, tipo e data
                 </span>
               </span>
             </AccordionTrigger>
@@ -292,9 +249,9 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
             <AccordionTrigger className="text-sm font-semibold hover:no-underline">
               <span className="flex items-center gap-2">
                 <Bot className="h-4 w-4 text-muted-foreground" />
-                Consumo AI per utente
+                Consumo AI per persona
                 <span className="text-xs font-normal text-muted-foreground">
-                  Top consumatori del team
+                  Chi usa di più
                 </span>
               </span>
             </AccordionTrigger>
@@ -310,7 +267,7 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
               <Clock className="h-4 w-4" /> Storico
             </TabsTrigger>
             <TabsTrigger value="team_ai" className="gap-1.5">
-              <Bot className="h-4 w-4" /> Consumo AI Team
+              <Bot className="h-4 w-4" /> Consumo AI per persona
             </TabsTrigger>
           </TabsList>
 

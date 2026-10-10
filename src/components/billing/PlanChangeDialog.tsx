@@ -22,6 +22,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useBillingInfo, useOpenBillingPortal } from "@/hooks/useBilling";
 import { formatCurrency } from "@/lib/formatters";
+import { EMAIL_ASSISTENZA } from "@/lib/impostazioni/contattiEdiliziaInCloud";
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 
@@ -168,7 +169,7 @@ export function PlanChangeDialog({
           </DialogTitle>
           <DialogDescription>
             {direction === "upgrade"
-              ? "Sblocca più funzionalità da subito. Confermi il cambio su Stripe: paghi solo la differenza pro-rata."
+              ? "Sblocchi più funzioni da subito. Confermi il cambio su Stripe e paghi solo la differenza per i giorni che restano."
               : "Il cambio è confermato su Stripe: l'eventuale credito residuo viene scalato dai prossimi addebiti."}
           </DialogDescription>
         </DialogHeader>
@@ -186,7 +187,7 @@ export function PlanChangeDialog({
             </p>
             <p className="text-xs text-muted-foreground">
               Hai esigenze particolari?{" "}
-              <a href="mailto:info@ediliziaincloud.com" className="text-primary hover:underline">Contattaci</a>
+              <a href={`mailto:${EMAIL_ASSISTENZA}`} className="text-primary hover:underline">Scrivici</a>
             </p>
           </div>
         ) : (

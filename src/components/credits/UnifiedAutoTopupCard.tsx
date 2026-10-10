@@ -5,13 +5,20 @@
  * il salvataggio scrive la stessa configurazione su company_auto_topup per
  * tutti i wallet ricaricabili. Il cron auto-topup-trigger controlla ogni
  * wallet e ricarica quello che scende sotto la soglia.
+ *
+ * 09/10/2026 (revisione impostazioni): SOLO accessibilità e bozza, nessuna regola cambiata (tetti, righe scritte,
+ * frasi e stato della carta sono come prima): il titolo è un titolo di secondo livello e non contiene più badge e
+ * interruttore; l'interruttore ha un nome; soglia e importo sono collegati alle loro etichette e i valori pronti
+ * dicono cosa sono e se sono scelti; le modifiche non salvate non si perdono uscendo (useSettingsDraftGuard); un
+ * errore dice il motivo invece di «Errore: » più il testo del database.
  */
 
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +28,7 @@ import { Loader2, Zap, AlertCircle, CreditCard, CheckCircle2, Clock } from "luci
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatEur } from "@/modules/ai-agents/lib/creditCalculator";
+import { MessaggioPerUtente, motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
 
 /** Wallet coperti dalla regola unica (render usa pacchetti, escluso). */
 // Dal 07/09/2026 il credito e' UNO SOLO (company_credit_pool): basta una riga
@@ -95,7 +103,7 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
     mutationFn: async () => {
       if (!companyId) throw new Error("Azienda non disponibile");
       if (enabled && !hasCard) {
-        throw new Error("Aggiungi prima una carta (con una ricarica o l'abbonamento): senza carta l'auto-ricarica non può partire.");
+        throw new MessaggioPerUtente("Aggiungi prima una carta (con una ricarica o l'abbonamento): senza carta l'auto-ricarica non può partire.");
       }
       const base = {
         company_id: companyId,
@@ -118,8 +126,11 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
       setDirty(false);
       queryClient.invalidateQueries({ queryKey: ["auto-topup-unified", companyId] });
     },
-    onError: (e: Error) => toast.error("Errore: " + e.message),
+    onError: (e: Error) => toast.error("Ricarica automatica non salvata", { description: motivoDelRifiuto(e, "Riprova tra poco.") }),
   });
+
+  // Soglia e importo scritti e non salvati non si perdono uscendo dalla pagina senza accorgersene.
+  useSettingsDraftGuard(dirty || save.isPending);
 
   const thr = Number(threshold) || 0;
   const amt = Number(amount) || 0;
@@ -132,18 +143,24 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
   return (
     <Card className={cn("border-l-4", enabled ? "border-l-emerald-500" : "border-l-amber-400")}>
       <CardHeader className="pb-2">
-        <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
-          <span className="flex items-center gap-2">
-            <Zap className={cn("h-5 w-5", enabled ? "text-emerald-600" : "text-muted-foreground")} />
+        {/* Badge e interruttore stanno accanto al titolo, non dentro: un titolo non deve contenere comandi. */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
+            <Zap className={cn("h-5 w-5", enabled ? "text-emerald-600" : "text-muted-foreground")} aria-hidden="true" />
             Ricarica automatica
-          </span>
+          </h2>
           <div className="flex items-center gap-2">
             <Badge variant={canonical?.enabled ? "default" : "outline"}>
               {canonical?.enabled ? "Attiva" : "Disattivata"}
             </Badge>
-            <Switch checked={enabled} onCheckedChange={(v) => { setEnabled(v); setDirty(true); }} disabled={isLoading} />
+            <Switch
+              aria-label="Ricarica automatica"
+              checked={enabled}
+              onCheckedChange={(v) => { setEnabled(v); setDirty(true); }}
+              disabled={isLoading}
+            />
           </div>
-        </CardTitle>
+        </div>
         <p className="text-xs text-muted-foreground">
           Una sola regola per tutti i servizi: Email, AI e WhatsApp. Niente più servizi
           bloccati per saldo esaurito.
@@ -164,9 +181,10 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {/* Soglia */}
               <div>
-                <Label className="text-xs">Ricarica quando il saldo è sotto (€)</Label>
+                <Label htmlFor="auto-topup-soglia" className="text-xs">Ricarica quando il saldo è sotto (€)</Label>
                 <div className="mt-1 flex items-center gap-2">
                   <Input
+                    id="auto-topup-soglia"
                     type="number"
                     inputMode="decimal"
                     min="1"
@@ -180,6 +198,8 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
                       <button
                         key={p}
                         type="button"
+                        aria-label={`€${p} di soglia`}
+                        aria-pressed={thr === p}
                         onClick={() => onField(setThreshold)(String(p))}
                         className={cn(
                           "rounded-md border px-2 py-1 text-xs transition-colors",
@@ -197,9 +217,10 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
 
               {/* Importo */}
               <div>
-                <Label className="text-xs">Importo da ricaricare (€)</Label>
+                <Label htmlFor="auto-topup-importo" className="text-xs">Importo da ricaricare (€)</Label>
                 <div className="mt-1 flex items-center gap-2">
                   <Input
+                    id="auto-topup-importo"
                     type="number"
                     inputMode="decimal"
                     min="5"
@@ -213,6 +234,8 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
                       <button
                         key={p}
                         type="button"
+                        aria-label={`€${p} da ricaricare`}
+                        aria-pressed={amt === p}
                         onClick={() => onField(setAmount)(String(p))}
                         className={cn(
                           "rounded-md border px-2 py-1 text-xs transition-colors",

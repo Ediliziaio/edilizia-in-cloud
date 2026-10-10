@@ -4,10 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { EyeOff, Lock } from "lucide-react";
+import { Eye, Lock } from "lucide-react";
 import { DIREZIONI_SYNC, direzioneDaModo, modoDaDirezione, type DirezioneSync } from "@/lib/calendar/direzioneSync";
 import { cn } from "@/lib/utils";
 
+/**
+ * Preferenze del collegamento con Google Calendar.
+ *
+ * 09/10/2026: due comandi sono usciti perché nessun codice li leggeva. «Crea contatti dagli invitati Google»
+ * (`create_contacts_from_guests`) non creava nessun contatto; «Mostra gli eventi Google come "Occupato"»
+ * (`event_privacy`) prometteva ai colleghi un "Occupato" che non c'è: `google-calendar-sync` salva il titolo vero
+ * di ogni evento e i colleghi lo leggono. Le colonne restano dov'erano, il salvataggio non le tocca più, e al
+ * posto dell'interruttore c'è la riga che dice come stanno le cose.
+ */
 interface SyncPrefsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -15,18 +24,12 @@ interface SyncPrefsDialogProps {
   /** Direzione salvata nelle preferenze utente: se manca si deduce da syncMode. */
   direzione?: DirezioneSync | null;
   importGoogleEvents: boolean;
-  createContactsFromGuests: boolean;
-  /** 2026-05-26: privacy events Google → mostra solo "Occupato" */
-  eventPrivacy: "full" | "busy_only";
   allowTwoWay: boolean;
-  allowGuestContactCreate: boolean;
   allowGoogleToImport: boolean;
   onSave: (prefs: {
     sync_mode: string;
     sync_direction: DirezioneSync;
     import_google_events_to_crm: boolean;
-    create_contacts_from_guests: boolean;
-    event_privacy: "full" | "busy_only";
   }) => void;
   isSaving: boolean;
 }
@@ -36,7 +39,7 @@ export default function GoogleCalendarSyncPrefsDialog(props: SyncPrefsDialogProp
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Preferenze di sincronizzazione</DialogTitle>
+          <DialogTitle>Preferenze del calendario</DialogTitle>
         </DialogHeader>
         {/* Il contenuto nasce all'apertura: cosi' parte dai valori salvati
             senza un effetto che ricopia i prop nello stato a ogni render. */}
@@ -51,18 +54,13 @@ function ContenutoPreferenze({
   syncMode,
   direzione,
   importGoogleEvents,
-  createContactsFromGuests,
-  eventPrivacy,
   allowTwoWay,
-  allowGuestContactCreate,
   allowGoogleToImport,
   onSave,
   isSaving,
 }: SyncPrefsDialogProps) {
   const [scelta, setScelta] = useState<DirezioneSync>(direzione || direzioneDaModo(syncMode));
   const [importEvents, setImportEvents] = useState(importGoogleEvents);
-  const [createContacts, setCreateContacts] = useState(createContactsFromGuests);
-  const [busyOnly, setBusyOnly] = useState(eventPrivacy === "busy_only");
 
   // La piattaforma può chiudere il ritorno Google → EiC: in quel caso restano
   // solo le direzioni che scrivono su Google.
@@ -116,47 +114,24 @@ function ContenutoPreferenze({
             })}
           </div>
 
-          {importaDaGoogle && (allowGoogleToImport || allowGuestContactCreate) && (
-            <div className="space-y-4 border-l-2 border-primary/20 pl-4">
-              {allowGoogleToImport && (
-                <div className="flex items-center justify-between gap-4">
-                  <Label htmlFor="import-events" className="cursor-pointer text-sm">
-                    Importa eventi Google come appuntamenti
-                    <p className="mt-0.5 text-xs font-normal text-muted-foreground">
-                      Solo eventi con prefisso [CRM] o crm_sync=true
-                    </p>
-                  </Label>
-                  <Switch id="import-events" checked={importEvents} onCheckedChange={setImportEvents} />
-                </div>
-              )}
-              {allowGuestContactCreate && (
-                <div className="flex items-center justify-between gap-4">
-                  <Label htmlFor="create-contacts" className="cursor-pointer text-sm">
-                    Crea contatti dagli invitati Google
-                  </Label>
-                  <Switch id="create-contacts" checked={createContacts} onCheckedChange={setCreateContacts} />
-                </div>
-              )}
+          {importaDaGoogle && allowGoogleToImport && (
+            <div className="flex items-start justify-between gap-4 border-l-2 border-primary/20 pl-4">
+              <Label htmlFor="import-events" className="cursor-pointer text-sm leading-snug">
+                Importa tutti gli eventi di Google come appuntamenti
+                <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                  Se è acceso, ogni evento del tuo Google Calendar diventa un appuntamento nel gestionale, anche quelli
+                  personali. Se è spento, entrano solo gli eventi che iniziano con [CRM].
+                </span>
+              </Label>
+              <Switch id="import-events" checked={importEvents} onCheckedChange={setImportEvents} className="mt-0.5" />
             </div>
           )}
 
-          {/* 2026-05-26: privacy eventi Google — vale in ogni direzione, perché
-              gli impegni personali entrano comunque come fasce occupate. */}
-          <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
-            <div className="flex items-start justify-between gap-3">
-              <Label htmlFor="busy-only" className="flex-1 cursor-pointer text-sm">
-                <span className="inline-flex items-center gap-1.5 font-semibold">
-                  <EyeOff className="h-3.5 w-3.5 text-amber-700" />
-                  Mostra gli eventi Google come "Occupato"
-                </span>
-                <p className="mt-1 text-xs font-normal text-muted-foreground">
-                  I tuoi appuntamenti personali ("Dentista", "Cena con Marco") appaiono nel gestionale
-                  solo come <strong>"Occupato"</strong>: i colleghi vedono che sei impegnato, non cosa fai.
-                </p>
-              </Label>
-              <Switch id="busy-only" checked={busyOnly} onCheckedChange={setBusyOnly} />
-            </div>
-          </div>
+          {/* Vale in ogni direzione: gli impegni personali entrano comunque come fasce occupate, col loro titolo. */}
+          <p className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+            <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            Per ora i colleghi dell'azienda vedono il titolo degli eventi di Google nel calendario.
+          </p>
         </div>
 
         <DialogFooter>
@@ -169,8 +144,6 @@ function ContenutoPreferenze({
                 sync_mode: modoDaDirezione(scelta),
                 sync_direction: scelta,
                 import_google_events_to_crm: importaDaGoogle ? importEvents : false,
-                create_contacts_from_guests: importaDaGoogle ? createContacts : false,
-                event_privacy: busyOnly ? "busy_only" : "full",
               })
             }
             disabled={isSaving}

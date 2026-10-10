@@ -32,6 +32,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import { RecensioniOnlineForm } from "@/components/settings/RecensioniOnlineForm";
+import { confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
 
 afterEach(() => {
   cleanup();
@@ -81,5 +82,37 @@ describe("Profilo azienda — Recensioni online", () => {
     fireEvent.click(screen.getByRole("button", { name: /^salva$/i }));
     await waitFor(() => expect(stato.scritto).not.toBeNull());
     expect((stato.scritto as Array<Record<string, unknown>>)[0]).toMatchObject({ voto: 4.6, aggiornato: "2026-09-01", link: "trustpilot.com/review/esempio.it" });
+  });
+});
+
+describe("Profilo azienda — Recensioni online: accessibilità e bozza (09/10/2026)", () => {
+  it("l'etichetta «Piattaforma» è collegata al suo menu", () => {
+    render(<RecensioniOnlineForm canEdit />);
+    fireEvent.click(screen.getByRole("button", { name: /aggiungi un voto/i }));
+    expect(screen.getByRole("combobox", { name: "Piattaforma" })).toBeInTheDocument();
+  });
+
+  it("un voto scritto e non salvato protegge dall'uscita; dopo averlo tolto no", () => {
+    const conferma = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      render(<RecensioniOnlineForm canEdit />);
+      expect(confermaNavigazioneImpostazioni()).toBe(true);
+      fireEvent.click(screen.getByRole("button", { name: /aggiungi un voto/i }));
+      expect(confermaNavigazioneImpostazioni()).toBe(false);
+      fireEvent.click(screen.getByRole("button", { name: /togli questo voto/i }));
+      conferma.mockClear();
+      expect(confermaNavigazioneImpostazioni()).toBe(true);
+      expect(conferma).not.toHaveBeenCalled();
+    } finally {
+      conferma.mockRestore();
+    }
+  });
+
+  it("chi può solo guardare non vede «Aggiungi un voto» né «Salva» e non ha nessuna bozza", () => {
+    stato.salvati = [{ piattaforma: "google", voto: 4.8, numero: 126, aggiornato: "2026-09-01" }];
+    render(<RecensioniOnlineForm canEdit={false} />);
+    expect(screen.queryByRole("button", { name: /aggiungi un voto/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^salva$/i })).toBeNull();
+    expect(confermaNavigazioneImpostazioni()).toBe(true);
   });
 });

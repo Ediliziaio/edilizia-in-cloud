@@ -1,138 +1,179 @@
 /**
- * Gli avvisi per evento che partono davvero (26/09/2026): messaggi ed email dei
- * contatti in Conversazioni, attività assegnate, in scadenza e in ritardo.
+ * Gli avvisi per evento che partono davvero: messaggi ed email dei contatti in Conversazioni, attività
+ * assegnate, in scadenza e in ritardo.
  *
- * Accendono o spengono la campanella: sono le colonne `*_in_app` di
- * user_notification_preferences, le stesse della scheda Notifiche del profilo.
- * Chi le legge: avvisa_messaggi_conversazioni() per i messaggi, il promemoria
- * giornaliero delle attività e l'assegnazione (migrazioni 20280903110000 e
- * 20280903320000). Le altre colonne della tabella non le legge nessuno, quindi
- * qui non compaiono.
+ * Un solo componente per tutti i posti in cui si regolano: la pagina Notifiche e, nel campo e nel team della
+ * piattaforma, la scheda Notifiche del profilo. Prima il profilo aveva una copia con ventitré interruttori, di
+ * cui quindici non comandavano niente, e da telefono le tre email delle attività non si raggiungevano più.
  *
- * Si salva subito. Il salvataggio scrive l'intera riga: finché le preferenze non
- * sono arrivate gli interruttori restano fermi, altrimenti si scriverebbero i
- * valori di serie sopra quelli della persona.
+ * Due colonne: «Nell'app» (la campanella: colonne `*_in_app` di user_notification_preferences; le leggono
+ * avvisa_messaggi_conversazioni(), il promemoria giornaliero delle attività e l'assegnazione, migrazioni
+ * 20280903110000 e 20280903320000) ed «Email» (solo le tre delle attività: `task-riepilogo-email` manda UNA
+ * email al mattino con quelle assegnate nelle ultime 24 ore, quelle che scadono oggi e quelle già scadute). Le
+ * altre colonne della tabella non le legge nessuno e qui non compaiono.
+ *
+ * Si salva subito, e sempre l'intera riga: finché le preferenze non sono arrivate gli interruttori restano
+ * fermi, altrimenti si scriverebbero i valori di serie sopra quelli della persona. «Disattiva tutto» scrive UNA
+ * volta sola: due scritture di fila partivano dalla stessa copia vecchia e la seconda rimetteva com'era la prima.
  */
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlarmClock, Bell, CheckSquare, Clock, Inbox, MessageSquare, type LucideIcon } from "lucide-react";
+import { AlarmClock, CheckSquare, Clock, Inbox, MessageSquare, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
+import { AmbitoImpostazione, SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
 import { NotificheSuQuestoDispositivo } from "@/components/notifications/NotificheSuQuestoDispositivo";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useSaveUserNotifPrefs,
   useUserNotifPrefs,
   type NotifPrefs,
 } from "@/hooks/useUserNotificationPrefs";
+import { motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
 
-type Chiave =
+type ChiaveApp =
   | "message_whatsapp_in_app"
   | "message_email_received_in_app"
   | "task_assigned_in_app"
   | "task_due_soon_in_app"
   | "task_overdue_in_app";
+type ChiaveEmail = "task_assigned_email" | "task_due_soon_email" | "task_overdue_email";
+type Chiave = ChiaveApp | ChiaveEmail;
 
-const AVVISI: { chiave: Chiave; icona: LucideIcon; etichetta: string; dettaglio: string }[] = [
+const AVVISI: { app: ChiaveApp; email?: ChiaveEmail; icona: LucideIcon; etichetta: string; dettaglio: string }[] = [
   {
-    chiave: "message_whatsapp_in_app",
+    app: "message_whatsapp_in_app",
     icona: MessageSquare,
     etichetta: "Messaggi dai contatti",
     dettaglio: "WhatsApp, SMS, Messenger e Instagram in Conversazioni",
   },
   {
-    chiave: "message_email_received_in_app",
+    app: "message_email_received_in_app",
     icona: Inbox,
     etichetta: "Email dai contatti",
     dettaglio: "Email di contatti e clienti in Conversazioni",
   },
   {
-    chiave: "task_assigned_in_app",
+    app: "task_assigned_in_app",
+    email: "task_assigned_email",
     icona: CheckSquare,
     etichetta: "Attività assegnate a te",
     dettaglio: "Quando qualcuno ti assegna un'attività o un sopralluogo",
   },
   {
-    chiave: "task_due_soon_in_app",
+    app: "task_due_soon_in_app",
+    email: "task_due_soon_email",
     icona: Clock,
     etichetta: "Attività in scadenza",
-    dettaglio: "Il promemoria del mattino per quelle che scadono oggi",
+    dettaglio: "Quelle che scadono oggi",
   },
   {
-    chiave: "task_overdue_in_app",
+    app: "task_overdue_in_app",
+    email: "task_overdue_email",
     icona: AlarmClock,
     etichetta: "Attività in ritardo",
-    dettaglio: "Il promemoria del mattino per quelle già scadute",
+    dettaglio: "Quelle già scadute",
   },
 ];
 
-export function AvvisiPerEvento() {
+/** Tutti i comandi di questa pagina: sono quelli che «Disattiva tutto» spegne. */
+const CHIAVI_AVVISI: Chiave[] = AVVISI.flatMap((a) => (a.email ? [a.app, a.email] : [a.app]));
+
+const RIGA = "grid grid-cols-[minmax(0,1fr)_3.5rem_3.5rem] items-center gap-x-2 px-4 max-sm:px-3";
+
+export function AvvisiPerEvento({ conDispositivo = true, evidenziata = false }: { conDispositivo?: boolean; evidenziata?: boolean } = {}) {
   const { user, effectiveCompany, profile } = useAuth();
   const companyId = effectiveCompany?.id ?? profile?.company_id ?? undefined;
   const { data: prefs } = useUserNotifPrefs(user?.id);
   const salva = useSaveUserNotifPrefs(user?.id, companyId);
   const queryClient = useQueryClient();
-  // Il valore appena toccato, finché il salvataggio non torna.
+  const chiavePrefs = ["user-notif-prefs", user?.id];
+  // I valori appena toccati, finché il salvataggio non torna.
   const [inCorso, setInCorso] = useState<Partial<Record<Chiave, boolean>>>({});
 
-  const cambia = async (chiave: Chiave, valore: boolean) => {
+  const valore = (chiave: Chiave) => inCorso[chiave] ?? Boolean(prefs?.[chiave]);
+
+  const scrivi = async (modifiche: Partial<Record<Chiave, boolean>>) => {
     if (!prefs) return;
-    setInCorso((prima) => ({ ...prima, [chiave]: valore }));
-    const prossime: NotifPrefs = { ...prefs, ...inCorso, [chiave]: valore };
+    setInCorso((prima) => ({ ...prima, ...modifiche }));
+    // Una scrittura sola, anche se le colonne sono più d'una; i tocchi ancora in volo (`inCorso`) ci sono già.
+    const prossime: NotifPrefs = { ...prefs, ...inCorso, ...modifiche };
     try {
       await salva.mutateAsync(prossime);
       // Subito in cache: finché la rilettura non torna, un secondo tocco
       // partirebbe dai valori vecchi e rimetterebbe indietro questo.
-      queryClient.setQueryData(["user-notif-prefs", user?.id], prossime);
+      queryClient.setQueryData(chiavePrefs, prossime);
     } catch (errore) {
-      toast.error("Non sono riuscito a salvare", {
-        description: errore instanceof Error ? errore.message : "Riprova tra qualche secondo.",
-      });
+      toast.error("Non sono riuscito a salvare", { description: motivoDelRifiuto(errore, "Riprova tra qualche secondo.") });
     } finally {
       setInCorso((prima) => {
-        const { [chiave]: _tolta, ...resto } = prima;
+        const resto = { ...prima };
+        for (const chiave of Object.keys(modifiche) as Chiave[]) delete resto[chiave];
         return resto;
       });
     }
   };
 
+  // Finché le preferenze non sono arrivate il pulsante dice «Disattiva tutto» (e sta fermo): non sappiamo ancora com'è.
+  const tuttoSpento = !!prefs && CHIAVI_AVVISI.every((chiave) => !valore(chiave));
+  const cambiaTutto = () => scrivi(Object.fromEntries(CHIAVI_AVVISI.map((chiave) => [chiave, tuttoSpento])));
+
   return (
-    <Card>
-      <CardHeader className="pb-2 max-sm:px-3 max-sm:pt-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Bell className="h-4 w-4 text-violet-600" /> Avvisi
-        </CardTitle>
-        <p className="text-xs text-muted-foreground max-sm:hidden">
-          Arrivano nella campanella in alto e, se lo accendi, anche sul telefono. Le modifiche si salvano da sole.
-        </p>
-      </CardHeader>
-      <CardContent className="p-0">
-        <ul className="divide-y border-t">
+    <SezioneImpostazione
+      id="avvisi"
+      titolo="Avvisi"
+      descrizione="Arrivano nella campanella in alto e, se vuoi, anche con l'app chiusa. Le email sono un riepilogo al mattino. Si salvano da soli."
+      ambito={<AmbitoImpostazione>Per te</AmbitoImpostazione>}
+      evidenziata={evidenziata}
+      azione={
+        <Button type="button" size="sm" variant="outline" className="h-8 px-3 text-xs" disabled={!prefs || salva.isPending} onClick={cambiaTutto}>
+          {tuttoSpento ? "Attiva tutto" : "Disattiva tutto"}
+        </Button>
+      }
+    >
+      {conDispositivo && (
+        <div className="px-4 py-3 max-sm:px-3">
           {/* Prima di tutto: arrivano anche ad app chiusa? (per questo dispositivo) */}
-          <li className="px-6 py-2.5 max-sm:px-3 max-sm:py-2">
-            <NotificheSuQuestoDispositivo />
-          </li>
-          {AVVISI.map(({ chiave, icona: Icona, etichetta, dettaglio }) => {
-            const acceso = inCorso[chiave] ?? Boolean(prefs?.[chiave]);
-            return (
-              <li key={chiave} className="flex items-center gap-3 px-6 py-2.5 max-sm:px-3 max-sm:py-2">
-                <Icona className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm">{etichetta}</p>
-                  <p className="text-xs text-muted-foreground max-sm:hidden">{dettaglio}</p>
-                </div>
-                <Switch
-                  checked={acceso}
-                  disabled={!prefs}
-                  onCheckedChange={(valore) => void cambia(chiave, valore)}
-                  aria-label={etichetta}
-                />
-              </li>
-            );
-          })}
-        </ul>
-      </CardContent>
-    </Card>
+          <NotificheSuQuestoDispositivo />
+        </div>
+      )}
+      <div className={`${RIGA} py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground`} aria-hidden="true">
+        <span />
+        <span className="text-center">Nell'app</span>
+        <span className="text-center">Email</span>
+      </div>
+      {AVVISI.map(({ app, email, icona: Icona, etichetta, dettaglio }) => (
+        <div key={app} className={`${RIGA} py-3 max-sm:py-2.5`}>
+          <div className="flex min-w-0 items-start gap-3">
+            <Icona className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium leading-snug">{etichetta}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{dettaglio}</p>
+            </div>
+          </div>
+          <div className="flex justify-center">
+            <Switch
+              checked={valore(app)}
+              disabled={!prefs}
+              onCheckedChange={(acceso) => void scrivi({ [app]: acceso })}
+              aria-label={`${etichetta}, nell'app`}
+            />
+          </div>
+          <div className="flex justify-center">
+            {email ? (
+              <Switch
+                checked={valore(email)}
+                disabled={!prefs}
+                onCheckedChange={(acceso) => void scrivi({ [email]: acceso })}
+                aria-label={`${etichetta}, per email`}
+              />
+            ) : (
+              <span className="text-muted-foreground/40" aria-hidden="true">—</span>
+            )}
+          </div>
+        </div>
+      ))}
+    </SezioneImpostazione>
   );
 }

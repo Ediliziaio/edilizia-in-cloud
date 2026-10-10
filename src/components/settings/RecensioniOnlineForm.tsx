@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAggiornaVotiOnline, useVotiOnline } from "@/hooks/useVotiOnline";
 import { useToast } from "@/hooks/use-toast";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { MessaggioPerUtente, motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -98,6 +100,8 @@ function ModuloVoti({ canEdit, salvati }: { canEdit: boolean; salvati: unknown[]
   );
   const [righe, setRighe] = useState<Riga[]>(iniziali);
   const [salvando, setSalvando] = useState(false);
+  // Voti scritti e non salvati: chi esce o ricarica deve poterci ripensare.
+  useSettingsDraftGuard((canEdit && JSON.stringify(righe) !== JSON.stringify(iniziali)) || salvando);
 
   const cambia = (i: number, patch: Partial<Riga>) => setRighe(righe.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const libere = PIATTAFORME_RECENSIONI.filter((p) => p.id === "altro" || !righe.some((r) => r.piattaforma === p.id));
@@ -127,12 +131,12 @@ function ModuloVoti({ canEdit, salvati }: { canEdit: boolean; salvati: unknown[]
         .eq("id", companyId)
         .select("id");
       if (error) throw error;
-      if (!data?.length) throw new Error("Il tuo utente non può modificare il profilo dell'azienda: chiedi a un amministratore.");
+      if (!data?.length) throw new MessaggioPerUtente("Il tuo utente non può modificare i dati dell'azienda: chiedi a un amministratore.");
       toast({ title: valore.length ? "Voto salvato: esce nei preventivi" : "Voto tolto dai preventivi" });
       // Rilette dal database, le righe ripartono da lì (il modulo ha per chiave i dati salvati).
       await aggiorna();
     } catch (e) {
-      toast({ title: "Non salvato", description: e instanceof Error ? e.message : "Riprova tra poco.", variant: "destructive" });
+      toast({ title: "Non salvato", description: motivoDelRifiuto(e, "Riprova tra poco."), variant: "destructive" });
     } finally {
       setSalvando(false);
     }
@@ -159,9 +163,9 @@ function ModuloVoti({ canEdit, salvati }: { canEdit: boolean; salvati: unknown[]
         <div key={i} className="rounded-lg border p-3 space-y-2">
           <div className="grid gap-2 sm:grid-cols-[150px_90px_120px_1fr_auto] items-end">
             <div className="space-y-1">
-              <Label className="text-xs">Piattaforma</Label>
+              <Label className="text-xs" htmlFor={`piattaforma-${i}`}>Piattaforma</Label>
               <Select value={r.piattaforma} onValueChange={(v) => cambia(i, { piattaforma: v as PiattaformaRecensioni })} disabled={!canEdit}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`piattaforma-${i}`} className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {PIATTAFORME_RECENSIONI.filter((p) => p.id === r.piattaforma || libere.some((l) => l.id === p.id)).map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
@@ -188,7 +192,7 @@ function ModuloVoti({ canEdit, salvati }: { canEdit: boolean; salvati: unknown[]
             ) : null}
           </div>
           {r.piattaforma === "altro" ? (
-            <Input className="h-9" placeholder="Nome della piattaforma, es. Houzz" value={r.nome} disabled={!canEdit} onChange={(e) => cambia(i, { nome: e.target.value })} />
+            <Input className="h-9" aria-label="Nome della piattaforma" placeholder="Nome della piattaforma, es. Houzz" value={r.nome} disabled={!canEdit} onChange={(e) => cambia(i, { nome: e.target.value })} />
           ) : null}
           {problemi[i] && (r.voto || r.numero) ? <p className="text-xs text-rose-600">{problemi[i]}</p> : null}
         </div>

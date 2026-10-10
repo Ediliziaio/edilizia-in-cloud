@@ -1,20 +1,27 @@
 /**
- * SettingsNotifiche — preferenze canale notifiche personali.
+ * SettingsNotifiche — quali avvisi ricevo e come arrivano i messaggi automatici.
  *
- * Pagina personale (non admin) dove ogni utente decide:
- *   - Quali canali è disposto a ricevere (Silvio chat, Telegram, WhatsApp, Email)
- *   - In che ordine il sistema prova i canali (fallback chain)
- *   - Quiet hours (orario in cui NON ricevere notifiche)
+ * Ordine (09/10/2026, dal più usato al meno usato):
+ *   1. Avvisi — la campanella e le email delle attività (si salvano da soli: vedi AvvisiPerEvento)
+ *   2. Orari di silenzio — valgono per i messaggi programmati e per le notifiche sul dispositivo
+ *   3. Messaggi automatici dell'amministratore — canali e ordine in cui arrivano (chiusa)
+ *   4. Messaggi programmati — solo per gli amministratori, in fondo (chiusa)
  *
  * Tabella: user_messaging_channels (1 riga per utente, upsert).
  * Auth: self-only via RLS (umc_self_read + umc_self_write).
+ *
+ * Canali: Chat Silvio ed Email funzionano. WhatsApp e Telegram sono «Prossimamente»: il runner dei messaggi
+ * programmati (automation-bulk-scheduler-runner) usa WhatsApp solo se `whatsapp_verified_at` è pieno e nessun
+ * codice lo scrive mai (la pagina diceva «Inserisci il tuo numero verificato» ma un numero non si poteva
+ * verificare); Telegram non ha nessun account collegato. Il salvataggio non scrive più né il numero né la
+ * verifica: i dati che ci fossero restano dove sono.
  */
 import { useState, useEffect, useMemo, useRef } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AvvisiPerEvento } from "@/components/notifications/AvvisiPerEvento";
 import { Switch } from "@/components/ui/switch";
@@ -25,13 +32,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  Bell, MessageSquare, Send, Mail, Smartphone, MoonStar, ArrowUp, ArrowDown, Save, Info,
-  CalendarClock, Plus, Pause, Play, Trash2,
+  MessageSquare, Send, Mail, Smartphone, ArrowUp, ArrowDown, Save, Plus, Pause, Play, Trash2,
 } from "lucide-react";
 import { BulkScheduleWizard } from "@/components/automazioni/BulkScheduleWizard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AmbitoImpostazione, SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
-import { verificaWhatsAppDaConservare } from "@/lib/impostazioni/verificaCanaleWhatsApp";
+import { useVaiASezione } from "@/hooks/useVaiASezione";
+import { MessaggioPerUtente, motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
 
 type ChannelKey = "silvio_chat" | "telegram" | "whatsapp" | "email";
 
@@ -41,14 +50,13 @@ interface ChannelMeta {
   description: string;
   icon: React.ComponentType<{ className?: string }>;
   color: string;
-  available: boolean;  // MVP: solo silvio_chat true
-  comingSoonNote?: string;
+  available: boolean;
 }
 
 const CHANNELS: ChannelMeta[] = [
   {
     key: "silvio_chat",
-    label: "Chat Silvio in-app",
+    label: "Chat Silvio nell'app",
     description: "Messaggi nella tua chat con Silvio. Sempre disponibili quando apri l'app.",
     icon: MessageSquare,
     color: "text-orange-600 bg-orange-50",
@@ -57,25 +65,23 @@ const CHANNELS: ChannelMeta[] = [
   {
     key: "telegram",
     label: "Telegram",
-    description: "Notifica push gratuita via bot Telegram. Richiede legare l'account al bot della tua azienda.",
+    description: "Messaggi su Telegram, dopo aver collegato il tuo account al bot dell'azienda.",
     icon: Send,
     color: "text-blue-600 bg-blue-50",
-    // Il 26/09/2026 l'interruttore non si salvava (l'upsert non ha i campi
-    // Telegram) e nessun codice lega l'account al bot: era un comando finto.
     available: false,
   },
   {
     key: "whatsapp",
     label: "WhatsApp",
-    description: "Messaggi su WhatsApp Business. Inserisci il tuo numero verificato.",
+    description: "Messaggi su WhatsApp Business. Arriverà con la verifica del tuo numero.",
     icon: Smartphone,
     color: "text-emerald-600 bg-emerald-50",
-    available: true,
+    available: false,
   },
   {
     key: "email",
     label: "Email",
-    description: "Email all'indirizzo del tuo profilo (puoi sovrascrivere con altro indirizzo).",
+    description: "Email all'indirizzo del tuo profilo (puoi scriverne un altro).",
     icon: Mail,
     color: "text-slate-600 bg-slate-50",
     available: true,
@@ -86,10 +92,6 @@ interface UMCRow {
   user_id: string;
   company_id: string | null;
   silvio_chat_enabled: boolean;
-  telegram_chat_id: string | null;
-  telegram_verified_at: string | null;
-  whatsapp_phone: string | null;
-  whatsapp_verified_at: string | null;
   email_enabled: boolean;
   email_override: string | null;
   preferred_order: ChannelKey[];
@@ -100,10 +102,15 @@ interface UMCRow {
 
 const DEFAULT_ORDER: ChannelKey[] = ["silvio_chat", "telegram", "whatsapp", "email"];
 
+const STATO_MESSAGGIO: Record<string, string> = { published: "attivo", draft: "in pausa", archived: "archiviato" };
+
 export default function SettingsNotifiche() {
   const { user, effectiveCompany } = useAuth();
   const { isAdmin } = usePermissions();
   const qc = useQueryClient();
+  const confirm = useConfirm();
+  // Con l'àncora (…/notifiche#messaggi-automatici) la sezione chiusa si apre già aperta.
+  const { hash } = useLocation();
 
   // Wizard "Nuovo messaggio programmato" — solo per admin azienda. Apre il
   // BulkScheduleWizard riutilizzato da /azienda/automazioni.
@@ -144,7 +151,7 @@ export default function SettingsNotifiche() {
   // Toggle status flow (pause/resume)
   const toggleFlowMut = useMutation({
     mutationFn: async ({ id, newStatus }: { id: string; newStatus: string }) => {
-      if (!isAdmin || !effectiveCompany?.id) throw new Error("Non hai i permessi per gestire le automazioni aziendali.");
+      if (!isAdmin || !effectiveCompany?.id) throw new MessaggioPerUtente("Non hai i permessi per gestire le automazioni aziendali.");
       const { error } = await supabase
         .from("automation_flows")
         .update({ status: newStatus })
@@ -156,21 +163,21 @@ export default function SettingsNotifiche() {
       toast.success("Stato aggiornato");
       void qc.invalidateQueries({ queryKey: ["settings-notifiche-bulk-flows"] });
     },
-    onError: (e: Error) => toast.error("Errore", { description: e.message }),
+    onError: (e: unknown) => toast.error("Non aggiornato", { description: motivoDelRifiuto(e, "Riprova tra poco.") }),
   });
 
   const deleteFlowMut = useMutation({
     mutationFn: async (id: string) => {
-      if (!isAdmin || !effectiveCompany?.id) throw new Error("Non hai i permessi per gestire le automazioni aziendali.");
+      if (!isAdmin || !effectiveCompany?.id) throw new MessaggioPerUtente("Non hai i permessi per gestire le automazioni aziendali.");
       // Nel cestino delle automazioni, come «Elimina» nella lista.
       const { error } = await supabase.from("automation_flows").update({ deleted_at: new Date().toISOString() }).eq("id", id).eq("company_id", effectiveCompany.id).select("id").single();
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Messaggio programmato spostato nel cestino", { description: "Si ripristina da Automazioni → Cestino." });
+      toast.success("Messaggio programmato spostato nel cestino", { description: "Lo ritrovi in Automazioni → Cestino." });
       void qc.invalidateQueries({ queryKey: ["settings-notifiche-bulk-flows"] });
     },
-    onError: (e: Error) => toast.error("Errore", { description: e.message }),
+    onError: (e: unknown) => toast.error("Non spostato nel cestino", { description: motivoDelRifiuto(e, "Riprova tra poco.") }),
   });
 
   // Carica preferenze esistenti (può essere null → defaults)
@@ -188,20 +195,18 @@ export default function SettingsNotifiche() {
       return (data as UMCRow | null) ?? null;
     },
   });
+  const { evidenziata } = useVaiASezione(!isLoading && !isError && !!user?.id);
 
   // Stato locale (controlla il form)
   const [silvioChatEnabled, setSilvioChatEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [emailOverride, setEmailOverride] = useState("");
-  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
-  const [whatsappPhone, setWhatsappPhone] = useState("");
-  const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [order, setOrder] = useState<ChannelKey[]>(DEFAULT_ORDER);
   const [quietFrom, setQuietFrom] = useState("");
   const [quietTo, setQuietTo] = useState("");
   const [baseline, setBaseline] = useState<string | null>(null);
   const dirtyRef = useRef(false);
-  const snapshot = JSON.stringify({ silvioChatEnabled, emailEnabled, emailOverride, whatsappEnabled, whatsappPhone, order, quietFrom, quietTo });
+  const snapshot = JSON.stringify({ silvioChatEnabled, emailEnabled, emailOverride, order, quietFrom, quietTo });
   const dirty = baseline != null && baseline !== snapshot;
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
 
@@ -211,36 +216,30 @@ export default function SettingsNotifiche() {
     if (prefs) {
       setBaseline(JSON.stringify({
         silvioChatEnabled: prefs.silvio_chat_enabled, emailEnabled: prefs.email_enabled,
-        emailOverride: prefs.email_override ?? "", whatsappEnabled: !!prefs.whatsapp_phone,
-        whatsappPhone: prefs.whatsapp_phone ?? "",
+        emailOverride: prefs.email_override ?? "",
         order: Array.isArray(prefs.preferred_order) && prefs.preferred_order.length ? prefs.preferred_order : DEFAULT_ORDER,
         quietFrom: prefs.quiet_from ?? "", quietTo: prefs.quiet_to ?? "",
       }));
       setSilvioChatEnabled(prefs.silvio_chat_enabled);
       setEmailEnabled(prefs.email_enabled);
       setEmailOverride(prefs.email_override ?? "");
-      setWhatsappPhone(prefs.whatsapp_phone ?? "");
-      // WhatsApp considerato "abilitato" se phone presente
-      setWhatsappEnabled(!!prefs.whatsapp_phone);
-      // Telegram considerato "abilitato" se verified
-      setTelegramEnabled(!!prefs.telegram_verified_at);
       setOrder(Array.isArray(prefs.preferred_order) && prefs.preferred_order.length > 0
         ? (prefs.preferred_order as ChannelKey[])
         : DEFAULT_ORDER);
       setQuietFrom(prefs.quiet_from ?? "");
       setQuietTo(prefs.quiet_to ?? "");
     } else if (!isLoading && !isError) {
-      setBaseline(JSON.stringify({ silvioChatEnabled: true, emailEnabled: true, emailOverride: "", whatsappEnabled: false, whatsappPhone: "", order: DEFAULT_ORDER, quietFrom: "", quietTo: "" }));
+      setBaseline(JSON.stringify({ silvioChatEnabled: true, emailEnabled: true, emailOverride: "", order: DEFAULT_ORDER, quietFrom: "", quietTo: "" }));
     }
   }, [prefs, isLoading, isError]);
 
   // Save
   const saveMut = useMutation({
     mutationFn: async () => {
-      if (!user?.id) throw new Error("Utente non autenticato");
-      if (isLoading || isError) throw new Error("Carica le preferenze prima di salvarle.");
-      if (whatsappEnabled && !/^\+?[0-9][0-9\s()-]{6,19}$/.test(whatsappPhone.trim())) throw new Error("Inserisci un numero WhatsApp valido, con prefisso internazionale.");
-      if (!!quietFrom !== !!quietTo) throw new Error("Indica sia l'inizio sia la fine dell'orario di silenzio.");
+      if (!user?.id) throw new MessaggioPerUtente("Utente non autenticato");
+      if (isLoading || isError) throw new MessaggioPerUtente("Carica le preferenze prima di salvarle.");
+      if (!!quietFrom !== !!quietTo) throw new MessaggioPerUtente("Indica sia l'inizio sia la fine dell'orario di silenzio.");
+      // WhatsApp e Telegram non si scrivono: sono «Prossimamente» e i dati che ci fossero restano come sono.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
         .from("user_messaging_channels")
@@ -250,9 +249,6 @@ export default function SettingsNotifiche() {
           silvio_chat_enabled: silvioChatEnabled,
           email_enabled: emailEnabled,
           email_override: emailOverride.trim() || null,
-          // Conserva una verifica già presente solo se il numero non cambia.
-          whatsapp_phone: whatsappEnabled ? whatsappPhone.trim() || null : null,
-          whatsapp_verified_at: verificaWhatsAppDaConservare(whatsappEnabled ? whatsappPhone.trim() : null, prefs?.whatsapp_phone, prefs?.whatsapp_verified_at),
           preferred_order: order,
           quiet_from: quietFrom || null,
           quiet_to: quietTo || null,
@@ -265,7 +261,7 @@ export default function SettingsNotifiche() {
       toast.success("Preferenze salvate");
       void qc.invalidateQueries({ queryKey: ["user-messaging-channels"] });
     },
-    onError: (e: Error) => toast.error("Errore", { description: e.message }),
+    onError: (e: unknown) => toast.error("Preferenze non salvate", { description: motivoDelRifiuto(e, "Riprova tra poco.") }),
   });
   useSettingsDraftGuard(dirty || saveMut.isPending);
 
@@ -288,7 +284,7 @@ export default function SettingsNotifiche() {
 
   if (isLoading) {
     return (
-      <div className="space-y-3 p-4 max-w-3xl mx-auto md:p-0 md:mx-0">
+      <div className="space-y-3 max-w-3xl">
         <Skeleton className="h-32" />
         <Skeleton className="h-48" />
       </div>
@@ -298,362 +294,268 @@ export default function SettingsNotifiche() {
     return <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-3">Non riesco a leggere le preferenze. Nessuna modifica verrà salvata.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription></Alert>;
   }
 
+  const stato = saveMut.isPending ? "Salvataggio…" : dirty ? "Modifiche non salvate" : "Nessuna modifica da salvare";
+
   return (
-    // Da 768 senza margine proprio né centratura: il margine lo dà la cornice
-    // delle impostazioni (prima si sommava) e le altre pagine partono a sinistra.
-    // Telefono: colonna con spazi fissi (il titolo nascosto non lascia un buco) e
-    // senza il margine proprio, che si sommava a quello della cornice.
-    <div className="space-y-4 p-4 md:p-0 max-w-3xl mx-auto md:mx-0 max-sm:flex max-sm:flex-col max-sm:gap-3 max-sm:space-y-0 max-sm:p-0">
-      {/* Header — da 768 c'è già la testata delle impostazioni con lo stesso
-          titolo e la stessa frase. */}
-      {/* Telefono: il titolo c'è già nella barra in alto. */}
-      <div className="flex items-start gap-3 md:hidden max-sm:hidden">
-        <div className="shrink-0 h-10 w-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-          <Bell className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight">Notifiche</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Gli avvisi nella campanella e i canali dei messaggi automatici (briefing, promemoria).
-            I messaggi programmati dall'amministratore rispettano queste preferenze.
-          </p>
-        </div>
-      </div>
-
-      {/* Gli avvisi che partono davvero: la campanella rimanda qui («Preferenze»). */}
+    // Niente titolo né riquadro informativo: il titolo lo mette il layout delle impostazioni (un solo h1).
+    // Da 768 senza margine proprio né centratura: il margine lo dà la cornice delle impostazioni.
+    <div className="max-w-3xl space-y-4 max-sm:space-y-3">
       {flowsError && isAdmin && <Alert variant="destructive"><AlertDescription>I messaggi programmati non sono disponibili. Non vengono mostrati come elenco vuoto.</AlertDescription></Alert>}
-      <AvvisiPerEvento />
 
-      {/* ── SEZIONE COMPANY_ADMIN: notifiche AZIENDALI ──────────────────
-          Solo visibile a chi è admin. Sopra alle preferenze personali
-          perché l'admin gestisce PRIMA le notifiche per gli altri,
-          POI le sue. Telefono no: i messaggi programmati sono automazioni,
-          che si creano da computer o tablet. */}
-      {isAdmin && (
-        <Card className="max-sm:hidden">
-          <CardHeader className="pb-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <CalendarClock className="h-4 w-4 text-violet-600" />
-                  Notifiche aziendali (admin)
-                </CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Messaggi automatici programmati che invii ai tuoi utenti — operai, staff, admin.
-                  Li trovi anche in Automazioni, con l'editor completo.
-                </p>
+      {/* 1 · Avvisi: la campanella e le email delle attività. Si salvano da soli. */}
+      <AvvisiPerEvento evidenziata={evidenziata === "avvisi"} />
+
+      {/* Orari di silenzio e canali si salvano insieme, col pulsante: la barra resta in vista mentre si scorre. */}
+      <fieldset disabled={saveMut.isPending} className="m-0 min-w-0 space-y-4 border-0 p-0 max-sm:space-y-3">
+        <div className="sticky top-2 z-20 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
+          <p className="text-xs text-muted-foreground max-sm:hidden">Orari di silenzio e canali si salvano con il pulsante.</p>
+          <div className="ml-auto flex items-center gap-3">
+            <p role="status" className={cn("text-xs", dirty && !saveMut.isPending ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>{stato}</p>
+            <Button size="sm" onClick={() => saveMut.mutate()} disabled={saveMut.isPending || !dirty} className="gap-2">
+              <Save className="h-4 w-4" />
+              {saveMut.isPending ? "Salvataggio..." : "Salva preferenze"}
+            </Button>
+          </div>
+        </div>
+
+        {/* 2 · Orari di silenzio */}
+        <SezioneImpostazione
+          id="orari-di-silenzio"
+          titolo="Orari di silenzio"
+          descrizione="In questi orari non arrivano avvisi sul telefono né messaggi automatici. Lascia vuoto per riceverli sempre."
+          ambito={<AmbitoImpostazione>Per te</AmbitoImpostazione>}
+          evidenziata={evidenziata === "orari-di-silenzio"}
+        >
+          <div className="grid grid-cols-2 gap-3 px-4 py-4 max-sm:px-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="silenzio-dalle" className="text-sm">Dalle</Label>
+              <Input id="silenzio-dalle" type="time" value={quietFrom} onChange={(e) => setQuietFrom(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="silenzio-alle" className="text-sm">Alle</Label>
+              <Input id="silenzio-alle" type="time" value={quietTo} onChange={(e) => setQuietTo(e.target.value)} />
+            </div>
+          </div>
+        </SezioneImpostazione>
+
+        {/* 3 · Messaggi automatici dell'amministratore: canali e ordine (chiusa) */}
+        <SezioneImpostazione
+          id="messaggi-automatici"
+          titolo="Messaggi automatici dell'amministratore"
+          descrizione="Se l'amministratore programma messaggi per te (briefing, promemoria), arrivano da questi canali, nell'ordine che scegli."
+          ambito={<AmbitoImpostazione>Per te</AmbitoImpostazione>}
+          evidenziata={evidenziata === "messaggi-automatici"}
+        >
+          <details key={hash === "#messaggi-automatici" ? "aperta" : "chiusa"} open={hash === "#messaggi-automatici"} className="group">
+            <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium max-sm:px-3">Scegli i canali e l'ordine</summary>
+            <div className="space-y-4 border-t px-4 py-4 max-sm:px-3">
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold">Canali</h3>
+                {CHANNELS.map((ch) => {
+                  const Icon = ch.icon;
+                  const acceso = ch.key === "silvio_chat" ? silvioChatEnabled : ch.key === "email" ? emailEnabled : false;
+                  return (
+                    <div
+                      key={ch.key}
+                      className={cn(
+                        "flex items-start gap-3 rounded-lg border p-3 max-sm:gap-2.5 max-sm:p-2.5",
+                        !ch.available && "bg-muted/40",
+                      )}
+                    >
+                      <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg max-sm:h-8 max-sm:w-8", ch.color)}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1 max-sm:pt-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className={cn("text-sm font-medium", !ch.available && "text-muted-foreground")}>{ch.label}</p>
+                          {!ch.available && <Badge variant="outline" className="text-[10px]">Prossimamente</Badge>}
+                        </div>
+                        {/* Telefono: il nome del canale basta. */}
+                        <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{ch.description}</p>
+                        {ch.key === "email" && emailEnabled && (
+                          // Telefono no: facoltativa, basta l'email del profilo.
+                          <div className="mt-2 max-w-xs max-sm:hidden">
+                            <Label htmlFor="notifications-email" className="text-[11px] text-muted-foreground">Email alternativa (opzionale)</Label>
+                            <Input
+                              id="notifications-email"
+                              type="email"
+                              value={emailOverride}
+                              onChange={(e) => setEmailOverride(e.target.value)}
+                              placeholder={user?.email ?? "io@esempio.it"}
+                              className="mt-0.5 h-8 text-sm"
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <Switch
+                        aria-label={`Abilita ${ch.label}`}
+                        className="max-sm:mt-1"
+                        checked={acceso}
+                        disabled={!ch.available}
+                        onCheckedChange={(v) => {
+                          if (ch.key === "silvio_chat") setSilvioChatEnabled(v);
+                          if (ch.key === "email") setEmailEnabled(v);
+                        }}
+                      />
+                    </div>
+                  );
+                })}
               </div>
-              <Button
-                size="sm"
-                onClick={() => setBulkWizardOpen(true)}
-                className="gap-1.5 shrink-0 bg-violet-600 hover:bg-violet-700"
-              >
+
+              {/* Ordine di preferenza (riordinabile): il sistema prova prima il canale in cima. */}
+              <div className="space-y-2">
+                <div>
+                  <h3 className="text-sm font-semibold">Ordine di preferenza</h3>
+                  <p className="text-xs text-muted-foreground max-sm:hidden">
+                    Il sistema prova prima il canale in cima. Se non è disponibile o è spento, passa al successivo.
+                  </p>
+                </div>
+                {order.map((key, idx) => {
+                  const ch = channelByKey.get(key);
+                  if (!ch) return null;
+                  const Icon = ch.icon;
+                  return (
+                    <div key={key} className="flex items-center gap-2 rounded-lg border bg-card p-2 max-sm:py-1">
+                      <span className="w-5 text-center text-[11px] font-bold tabular-nums text-muted-foreground">
+                        {idx + 1}
+                      </span>
+                      <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded", ch.color)}>
+                        <Icon className="h-3.5 w-3.5" />
+                      </div>
+                      <span className="flex-1 text-sm font-medium">{ch.label}</span>
+                      {!ch.available && <Badge variant="outline" className="text-[10px] max-sm:hidden">Prossimamente</Badge>}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => moveChannel(idx, "up")}
+                        disabled={idx === 0}
+                        aria-label={`Sposta ${ch.label} più in alto`}
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => moveChannel(idx, "down")}
+                        disabled={idx === order.length - 1}
+                        aria-label={`Sposta ${ch.label} più in basso`}
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </details>
+        </SezioneImpostazione>
+      </fieldset>
+
+      {/* 4 · Messaggi programmati — solo amministratori, in fondo. Telefono no: sono automazioni, che si creano da
+          computer o tablet. */}
+      {isAdmin && (
+        <div className="max-sm:hidden">
+          <SezioneImpostazione
+            id="messaggi-programmati"
+            titolo="Messaggi programmati"
+            descrizione={
+              <>
+                Messaggi automatici che invii ai tuoi utenti (operai, staff, amministratori): briefing, promemoria. Li trovi anche in{" "}
+                <Link to="/azienda/automazioni" className="font-medium underline">Automazioni</Link>, con l'editor completo.
+              </>
+            }
+            ambito={<AmbitoImpostazione>Tutta l'azienda</AmbitoImpostazione>}
+            azione={
+              <Button size="sm" onClick={() => setBulkWizardOpen(true)} className="gap-1.5">
                 <Plus className="h-3.5 w-3.5" />
                 Nuovo
               </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
+            }
+            evidenziata={evidenziata === "messaggi-programmati"}
+          >
             {companyFlows.length === 0 ? (
-              <div className="text-center py-6 text-sm text-muted-foreground">
-                <CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                <p>Nessun messaggio programmato.</p>
-                <p className="text-xs mt-1">Click su <strong>Nuovo</strong> per creare il primo.</p>
-              </div>
+              <p className="px-4 py-4 text-sm text-muted-foreground">
+                Nessun messaggio programmato. Premi «Nuovo» per crearne uno (per esempio il briefing del mattino agli operai).
+              </p>
             ) : (
-              companyFlows.map((f) => {
-                const cfg = f.bulk_trigger_config;
-                const isActive = f.status === "published";
-                return (
-                  <div key={f.id} className={cn(
-                    "flex items-start justify-between gap-2 rounded-lg border p-2.5",
-                    !isActive && "opacity-60 bg-slate-50/50",
-                  )}>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-medium text-sm">{f.name}</span>
-                        {isActive ? (
-                          <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border-emerald-300">attivo</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px]">{f.status}</Badge>
-                        )}
-                        {cfg.template.mode === "ai_generated" && (
-                          <Badge variant="outline" className="text-[10px] bg-violet-50 text-violet-700 border-violet-200">AI</Badge>
-                        )}
+              <details key={hash === "#messaggi-programmati" ? "aperta" : "chiusa"} open={hash === "#messaggi-programmati"}>
+                <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">
+                  {companyFlows.length === 1 ? "1 messaggio programmato" : `${companyFlows.length} messaggi programmati`}
+                </summary>
+                <div className="space-y-2 border-t px-4 py-4">
+                  {companyFlows.map((f) => {
+                    const cfg = f.bulk_trigger_config;
+                    const isActive = f.status === "published";
+                    return (
+                      <div key={f.id} className={cn(
+                        "flex items-start justify-between gap-2 rounded-lg border p-2.5",
+                        !isActive && "bg-muted/40 opacity-70",
+                      )}>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-sm font-medium">{f.name}</span>
+                            {isActive ? (
+                              <Badge className="border-emerald-300 bg-emerald-100 text-[10px] text-emerald-700">attivo</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px]">{STATO_MESSAGGIO[f.status] ?? "in pausa"}</Badge>
+                            )}
+                            {cfg.template.mode === "ai_generated" && (
+                              <Badge variant="outline" className="border-violet-200 bg-violet-50 text-[10px] text-violet-700">AI</Badge>
+                            )}
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                            <code className="font-mono text-[10px]">{cfg.cron}</code>
+                            <span>·</span>
+                            <span>{cfg.target.type === "role" ? `${cfg.target.value}` : cfg.target.type}</span>
+                            <span>·</span>
+                            <span>{cfg.channels.map((c) => c.type).join(", ") || "—"}</span>
+                          </div>
+                          {cfg.next_run_at && isActive && (
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">
+                              Prossimo invio: {new Date(cfg.next_run_at).toLocaleString("it-IT")}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          <Button
+                            size="icon" variant="ghost" className="h-9 w-9 md:h-7 md:w-7"
+                            aria-label={isActive ? `Metti in pausa «${f.name}»` : `Riattiva «${f.name}»`}
+                            title={isActive ? "Metti in pausa" : "Riattiva"}
+                            onClick={() => toggleFlowMut.mutate({ id: f.id, newStatus: isActive ? "draft" : "published" })}
+                          >
+                            {isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                          </Button>
+                          <Button
+                            size="icon" variant="ghost" className="h-9 w-9 text-rose-600 md:h-7 md:w-7"
+                            aria-label={`Sposta «${f.name}» nel cestino`}
+                            title="Sposta nel cestino"
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: `Spostare «${f.name}» nel cestino?`,
+                                description: "Lo ritrovi in Automazioni → Cestino.",
+                                confirmLabel: "Sposta nel cestino",
+                                variant: "destructive",
+                              });
+                              if (ok) deleteFlowMut.mutate(f.id);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap gap-2">
-                        <code className="font-mono text-[10px]">{cfg.cron}</code>
-                        <span>·</span>
-                        <span>{cfg.target.type === "role" ? `${cfg.target.value}` : cfg.target.type}</span>
-                        <span>·</span>
-                        <span>{cfg.channels.map((c) => c.type).join(", ") || "—"}</span>
-                      </div>
-                      {cfg.next_run_at && isActive && (
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          Prossima esecuzione: {new Date(cfg.next_run_at).toLocaleString("it-IT")}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      <Button
-                        size="icon" variant="ghost" className="h-9 w-9 md:h-7 md:w-7"
-                        title={isActive ? "Disabilita" : "Riabilita"}
-                        onClick={() => toggleFlowMut.mutate({ id: f.id, newStatus: isActive ? "draft" : "published" })}
-                      >
-                        {isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                      </Button>
-                      <Button
-                        size="icon" variant="ghost" className="h-9 w-9 md:h-7 md:w-7 text-rose-600"
-                        title="Elimina"
-                        onClick={() => {
-                          if (confirm(`Eliminare "${f.name}"? L'azione è irreversibile.`)) {
-                            deleteFlowMut.mutate(f.id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })
+                    );
+                  })}
+                </div>
+              </details>
             )}
-            <p className="text-[11px] text-slate-400 mt-2">
-              Esempi: briefing operai mattutino, reminder DURC mensile, riepilogo settimanale.
-              <a href="/azienda/automazioni" className="text-violet-600 hover:underline ml-1">
-                Apri builder avanzato →
-              </a>
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Separator per chiarezza tra sezione admin e personale */}
-      {isAdmin && (
-        <div className="flex items-center gap-3 my-1 max-sm:hidden">
-          <div className="flex-1 h-px bg-slate-200" />
-          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Le tue preferenze personali</span>
-          <div className="flex-1 h-px bg-slate-200" />
+          </SezioneImpostazione>
         </div>
       )}
 
-      {/* Info box */}
-      <Card className="bg-violet-50/40 border-violet-200 max-sm:hidden">
-        <CardContent className="p-3 flex items-start gap-2">
-          <Info className="h-4 w-4 text-violet-600 mt-0.5 shrink-0" />
-          <p className="text-xs text-slate-700 leading-relaxed">
-            Il sistema prova i canali nell'ordine che scegli sotto: se il primo non è disponibile
-            (es. Telegram non legato), passa al secondo. Solo i canali con il toggle ON vengono
-            usati.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Channels (toggles) */}
-      <fieldset disabled={saveMut.isPending} className="m-0 min-w-0 space-y-4 border-0 p-0">
-      <Card>
-        <CardHeader className="max-sm:px-3 max-sm:pb-2 max-sm:pt-3">
-          <CardTitle className="text-base">Canali dei messaggi automatici</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 max-sm:px-3 max-sm:pb-3">
-          {CHANNELS.map((ch) => {
-            const Icon = ch.icon;
-            const isEnabled = ch.key === "silvio_chat" ? silvioChatEnabled
-              : ch.key === "email" ? emailEnabled
-              : ch.key === "whatsapp" ? whatsappEnabled
-              : ch.key === "telegram" ? telegramEnabled
-              : false;
-            const isVerified = ch.key === "telegram" ? !!prefs?.telegram_verified_at
-              : ch.key === "whatsapp" ? !!verificaWhatsAppDaConservare(whatsappEnabled ? whatsappPhone.trim() : null, prefs?.whatsapp_phone, prefs?.whatsapp_verified_at)
-              : true;
-            return (
-              <div
-                key={ch.key}
-                className={cn(
-                  "flex items-start gap-3 rounded-lg border p-3 max-sm:gap-2.5 max-sm:p-2.5",
-                  !ch.available && "opacity-60 bg-slate-50/50",
-                )}
-              >
-                <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center shrink-0 max-sm:h-8 max-sm:w-8", ch.color)}>
-                  <Icon className="h-4 w-4" />
-                </div>
-                <div className="flex-1 min-w-0 max-sm:pt-1.5">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-sm">{ch.label}</p>
-                    {!ch.available && <Badge variant="outline" className="text-[10px]">Prossimamente</Badge>}
-                    {ch.available && !isVerified && ch.key !== "silvio_chat" && ch.key !== "email" && (
-                      <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-300">Non verificato</Badge>
-                    )}
-                  </div>
-                  {/* Telefono: il nome del canale basta. */}
-                  <p className="text-xs text-slate-500 mt-0.5 max-sm:hidden">{ch.description}</p>
-                  {ch.comingSoonNote && (
-                    <p className="text-[11px] text-violet-600 mt-1 italic max-sm:hidden">{ch.comingSoonNote}</p>
-                  )}
-                  {ch.key === "email" && emailEnabled && (
-                    // Telefono no: facoltativa, basta l'email del profilo.
-                    <div className="mt-2 max-w-xs max-sm:hidden">
-                      <Label htmlFor="notifications-email" className="text-[11px] text-slate-500">Email alternativa (opzionale)</Label>
-                      <Input
-                        id="notifications-email"
-                        type="email"
-                        value={emailOverride}
-                        onChange={(e) => setEmailOverride(e.target.value)}
-                        placeholder={user?.email ?? "io@esempio.it"}
-                        className="h-8 text-sm mt-0.5"
-                      />
-                    </div>
-                  )}
-                  {ch.key === "whatsapp" && whatsappEnabled && (
-                    <div className="mt-2 max-w-xs">
-                      <Label htmlFor="notifications-whatsapp" className="text-[11px] text-slate-500">Numero WhatsApp (con prefisso intl.)</Label>
-                      <Input
-                        id="notifications-whatsapp"
-                        type="tel"
-                        value={whatsappPhone}
-                        onChange={(e) => setWhatsappPhone(e.target.value)}
-                        placeholder="+393331234567"
-                        className="h-8 text-sm mt-0.5"
-                      />
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {isVerified ? "Numero verificato." : "Salvare il numero non lo verifica. Finché non è verificato, il sistema usa gli altri canali disponibili."}
-                      </p>
-                    </div>
-                  )}
-                  {ch.key === "telegram" && telegramEnabled && (
-                    <div className="mt-2 max-w-xs space-y-1">
-                      {prefs?.telegram_verified_at ? (
-                        <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-300">
-                          ✓ Account legato
-                        </Badge>
-                      ) : (
-                        <>
-                          <Label className="text-[11px] text-slate-500">Per ricevere su Telegram:</Label>
-                          <ol className="text-[11px] text-slate-600 list-decimal list-inside space-y-0.5">
-                            <li>Chiedi all'amministratore il bot Telegram dell'azienda</li>
-                            <li>Apri il bot e invia <code className="bg-slate-100 px-1 rounded">/start</code></li>
-                            <li>Segui le istruzioni di verifica</li>
-                          </ol>
-                          <p className="text-[10px] text-amber-700 mt-1">
-                            Stato: non legato. Una volta verificato, vedrai qui un check verde.
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <Switch
-                  aria-label={`Abilita ${ch.label}`}
-                  className="max-sm:mt-1"
-                  checked={isEnabled}
-                  disabled={!ch.available}
-                  onCheckedChange={(v) => {
-                    if (ch.key === "silvio_chat") setSilvioChatEnabled(v);
-                    if (ch.key === "email") setEmailEnabled(v);
-                    if (ch.key === "whatsapp") setWhatsappEnabled(v);
-                    if (ch.key === "telegram") setTelegramEnabled(v);
-                  }}
-                />
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      {/* Fallback chain (riordinabile) */}
-      <Card>
-        <CardHeader className="max-sm:px-3 max-sm:pb-2 max-sm:pt-3">
-          <CardTitle className="text-base">Ordine di preferenza</CardTitle>
-          <p className="text-xs text-slate-500 mt-0.5 max-sm:hidden">
-            Il sistema prova prima il canale in cima. Se non disponibile o disabilitato, passa al successivo.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-1.5 max-sm:px-3 max-sm:pb-3">
-          {order.map((key, idx) => {
-            const ch = channelByKey.get(key);
-            if (!ch) return null;
-            const Icon = ch.icon;
-            return (
-              <div key={key} className="flex items-center gap-2 rounded-lg border bg-card p-2 max-sm:py-1">
-                <span className="text-[11px] font-bold tabular-nums text-slate-400 w-5 text-center">
-                  {idx + 1}
-                </span>
-                <div className={cn("h-7 w-7 rounded flex items-center justify-center shrink-0", ch.color)}>
-                  <Icon className="h-3.5 w-3.5" />
-                </div>
-                <span className="text-sm font-medium flex-1">{ch.label}</span>
-                {!ch.available && <Badge variant="outline" className="text-[10px] max-sm:hidden">Prossimamente</Badge>}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="tap-compact h-6 w-6 max-md:h-8 max-md:w-8"
-                  onClick={() => moveChannel(idx, "up")}
-                  disabled={idx === 0}
-                  aria-label="Sposta su"
-                >
-                  <ArrowUp className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="tap-compact h-6 w-6 max-md:h-8 max-md:w-8"
-                  onClick={() => moveChannel(idx, "down")}
-                  disabled={idx === order.length - 1}
-                  aria-label="Sposta giù"
-                >
-                  <ArrowDown className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      {/* Quiet hours */}
-      <Card>
-        <CardHeader className="max-sm:px-3 max-sm:pb-2 max-sm:pt-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <MoonStar className="h-4 w-4 text-violet-600" />
-            Orari di silenzio
-          </CardTitle>
-          <p className="text-xs text-slate-500 mt-0.5 max-sm:hidden">
-            Tra questi orari il sistema non manda notifiche. Lascia vuoto per ricevere sempre.
-          </p>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3 max-sm:px-3 max-sm:pb-3">
-          <div>
-            <Label className="text-xs">Dalle</Label>
-            <Input
-              type="time"
-              value={quietFrom}
-              onChange={(e) => setQuietFrom(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label className="text-xs">Alle</Label>
-            <Input
-              type="time"
-              value={quietTo}
-              onChange={(e) => setQuietTo(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Save */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
-        <p role="status" className="text-xs text-muted-foreground">{saveMut.isPending ? "Salvataggio…" : dirty ? "Modifiche non salvate" : "Nessuna modifica da salvare"}</p>
-        <Button size="sm" onClick={() => saveMut.mutate()} disabled={saveMut.isPending || !dirty} className="gap-2">
-          <Save className="h-4 w-4" />
-          {saveMut.isPending ? "Salvataggio..." : "Salva preferenze"}
-        </Button>
-      </div>
-      </fieldset>
-
       {/* Wizard nuovo messaggio programmato — montato qui per riuso, gestito
-          via stato bulkWizardOpen + chiamato dal pulsante Nuovo in cima */}
+          via stato bulkWizardOpen + chiamato dal pulsante Nuovo */}
       <BulkScheduleWizard
         open={bulkWizardOpen}
         onClose={() => setBulkWizardOpen(false)}

@@ -1,13 +1,18 @@
 /**
  * MioProfilo — Pagina unica "Il mio profilo" nelle impostazioni
- * Include: Dati personali, Sicurezza, Calendari, Notifiche
+ * Include: Dati personali, Sicurezza, Calendari, Email e (fuori dall'ufficio) Notifiche
  * Accessibile a TUTTI i ruoli
+ *
+ * La usano anche il campo (operai e subappaltatori: /campo/impostazioni) e il team della piattaforma
+ * (/admin/impostazioni/mio-profilo): ogni modifica va provata nei tre posti.
  */
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { motivoPasswordRifiutata } from "@/lib/auth/cambioPassword";
+import { MessaggioPerUtente, motivoDelRifiuto } from "@/lib/impostazioni/erroriPerUtente";
+import { EMAIL_PRIVACY } from "@/lib/impostazioni/contattiEdiliziaInCloud";
 import { logger } from "@/utils/logger";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -16,9 +21,7 @@ import { it } from "date-fns/locale";
 import {
   Camera, User, Save, Loader2, Phone, Mail, Lock, Eye, EyeOff,
   Shield, Check, X, CalendarDays, RefreshCw, Unlink, Clock, Bell,
-  MessageSquare, FileText, Briefcase, Calendar, AlarmClock,
-  Inbox, UserPlus, BellOff, MailCheck, Settings2, EyeOff as EyeOffIcon,
-  AlertTriangle,
+  Settings2, AlertTriangle,
 } from "lucide-react";
 import GoogleCalendarSyncPrefsDialog from "@/components/settings/GoogleCalendarSyncPrefsDialog";
 import OutlookCalendarConnectionTab from "@/components/settings/OutlookCalendarConnectionTab";
@@ -31,21 +34,15 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
 import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
 import { TwoFactorSetup } from "@/components/auth/TwoFactorSetup";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { AvvisiPerEvento } from "@/components/notifications/AvvisiPerEvento";
 import { CompanySecuritySettings } from "@/components/settings/CompanySecuritySettings";
 import { useUserCalendarPrefs } from "@/hooks/useUserCalendarPrefs";
 import { useCalendariDiCasella } from "@/hooks/useCalendariEsterni";
 import { direzioneDaModo, etichettaDirezione, type DirezioneSync } from "@/lib/calendar/direzioneSync";
-// v8.6.39 H1 — hook persistenza preferenze notifiche (tabella user_notification_preferences)
-import {
-  useUserNotifPrefs,
-  useSaveUserNotifPrefs,
-  DEFAULT_NOTIF_PREFS,
-  type NotifPrefs,
-} from "@/hooks/useUserNotificationPrefs";
 // v8.6.36 — MySurveysTab rimosso dal profilo (non era semantica corretta:
 // è una LISTA OPERATIVA di sopralluoghi assegnati, non un'impostazione
 // personale). Il componente, mai più usato, è uscito dal codice il 25/09/2026:
@@ -78,38 +75,6 @@ function GoogleIcon({ className }: { className?: string }) {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-/**
- * Le preferenze che qualcuno legge davvero, oggi.
- *
- * La tabella `user_notification_preferences` ha 60 colonne e questa schermata
- * ne esponeva 21: ma cercando chi le rilegge, i lettori sono due soli —
- * l'invio email di riepilogo attività (`task-riepilogo-email`, che guarda
- * `task_assigned_email`, `task_due_soon_email`, `task_overdue_email`) e
- * l'assegnazione di un sopralluogo (che guarda `task_assigned_in_app`).
- * Tutte le altre si salvavano e non le consultava nessuno: diciotto
- * interruttori che si spostavano senza cambiare niente.
- *
- * Un interruttore inerte non è neutro: insegna a non fidarsi anche di quelli
- * che funzionano. Qui restano visibili — così si vede cosa arriverà — ma
- * spenti e dichiarati tali, invece di fingere di comandare qualcosa.
- * Quando chi manda le notifiche comincerà a leggerne un'altra, basta
- * aggiungere la sua chiave qui sotto.
- */
-const PREFERENZE_ONORATE: ReadonlySet<string> = new Set([
-  "email_new_task",      // task_assigned_email    → task-riepilogo-email
-  "push_new_task",       // task_assigned_in_app   → SurveyAssignDialog
-  "email_task_due",      // task_due_soon_email    → task-riepilogo-email
-  "email_task_overdue",  // task_overdue_email     → task-riepilogo-email
-  // Dal 26/09/2026. I promemoria giornalieri delle attività le leggevano già
-  // (migrazione 20280903110000) ma qui risultavano spente; i messaggi di
-  // Conversazioni le leggono da avvisa_messaggi_conversazioni().
-  "push_task_due",       // task_due_soon_in_app   → promemoria attività
-  "push_task_overdue",   // task_overdue_in_app    → promemoria attività
-  "push_new_message",    // message_whatsapp_in_app       → WhatsApp, SMS, Messenger, Instagram
-  "push_email_received", // message_email_received_in_app → email in Conversazioni
-]);
-
 export default function MioProfilo() {
   const { user, role, refreshAuth, effectiveCompany, profile: authProfile } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -121,18 +86,24 @@ export default function MioProfilo() {
   // computer (25/09/2026); un indirizzo che punta lì apre il profilo.
   const isMobile = useIsMobile();
   const schedaSoloDesktop = tabParam === "calendari" || tabParam === "email";
-  // Telefono: le notifiche stanno in Impostazioni → Notifiche, una pagina sola
-  // (26/09/2026); qui erano un doppione con le stesse preferenze. Solo
-  // nell'ufficio: il campo usa questa stessa pagina (CampoImpostazioni) e
-  // /azienda a operai e subappaltatori è chiusa.
-  const inUfficio = useLocation().pathname.startsWith("/azienda");
-  const notificheAltrove = isMobile && inUfficio && tabParam === "notifiche";
+  // Gli avvisi si regolano in un posto solo. Nell'ufficio è la pagina Impostazioni → Notifiche, a qualunque
+  // larghezza (prima il profilo ne aveva una copia con ventitré interruttori, quindici dei quali non facevano
+  // niente): la scheda qui non c'è e un vecchio indirizzo `?tab=notifiche` rimanda lì. Nel campo (operai e
+  // subappaltatori, /campo/impostazioni) e nel team della piattaforma (/admin) non c'è una pagina Notifiche:
+  // la scheda resta, con lo stesso componente della pagina.
+  const { pathname } = useLocation();
+  const inUfficio = pathname.startsWith("/azienda");
+  const nelCampo = pathname.startsWith("/campo");
+  const schedaNotifiche = !inUfficio;
+  const notificheAltrove = inUfficio && tabParam === "notifiche";
   const navigate = useNavigate();
   useEffect(() => {
     if (notificheAltrove) navigate("/azienda/impostazioni/notifiche", { replace: true });
   }, [notificheAltrove, navigate]);
   const activeTab: ProfileTab =
-    isProfileTab(tabParam) && !(isMobile && schedaSoloDesktop) && !notificheAltrove ? tabParam : "profilo";
+    isProfileTab(tabParam) && !(isMobile && schedaSoloDesktop) && !notificheAltrove && (schedaNotifiche || tabParam !== "notifiche")
+      ? tabParam
+      : "profilo";
   const handleTabChange = (tab: string) => {
     const next = new URLSearchParams(searchParams);
     next.set("tab", tab);
@@ -194,7 +165,7 @@ export default function MioProfilo() {
     const file = e.target.files?.[0];
     if (!file || !user?.id) return;
     if (!file.type.startsWith("image/")) { toast.error("Carica un file immagine valido"); return; }
-    if (file.size > 2 * 1024 * 1024) { toast.error("Max 2 MB"); return; }
+    if (file.size > 2 * 1024 * 1024) { toast.error("La foto può pesare al massimo 2 MB."); return; }
     const reader = new FileReader();
     reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -211,8 +182,8 @@ export default function MioProfilo() {
       queryClient.invalidateQueries({ queryKey: ["chat-profiles"] });
       refreshAuth();
       toast.success("Foto aggiornata!");
-    } catch (err: any) {
-      toast.error("Errore upload", { description: err.message });
+    } catch (err: unknown) {
+      toast.error("Foto non caricata", { description: motivoDelRifiuto(err, "Riprova tra qualche secondo.") });
       setAvatarPreview(null);
     } finally { setIsUploading(false); }
   };
@@ -232,8 +203,7 @@ export default function MioProfilo() {
       refreshAuth();
       toast.success("Foto rimossa");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Si è verificato un errore. Riprova tra qualche secondo.";
-      toast.error("Impossibile rimuovere la foto", { description: msg });
+      toast.error("Impossibile rimuovere la foto", { description: motivoDelRifiuto(err, "Riprova tra qualche secondo.") });
     } finally {
       setIsRemovingAvatar(false);
     }
@@ -242,7 +212,7 @@ export default function MioProfilo() {
   // ── Save profile ──
   const updateProfile = useMutation({
     mutationFn: async () => {
-      if (!firstName.trim() || !lastName.trim()) throw new Error("Nome e cognome obbligatori");
+      if (!firstName.trim() || !lastName.trim()) throw new MessaggioPerUtente("Scrivi nome e cognome.");
       const { error } = await supabase.from("profiles")
         .update({ first_name: firstName.trim(), last_name: lastName.trim(), phone: phone.trim() || null })
         .eq("id", user!.id);
@@ -252,10 +222,12 @@ export default function MioProfilo() {
       queryClient.invalidateQueries({ queryKey: ["my-profile"] });
       queryClient.invalidateQueries({ queryKey: ["chat-profiles"] });
       refreshAuth();
-      toast.success("Profilo salvato!");
+      toast.success("Profilo salvato");
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: unknown) => toast.error("Profilo non salvato", { description: motivoDelRifiuto(err, "Riprova tra qualche secondo.") }),
   });
+  // Nome, cognome e telefono scritti e non salvati: chi esce o ricarica deve poterci ripensare.
+  useSettingsDraftGuard(profileDirty || updateProfile.isPending);
 
   // ── Password ──
   const [newPw, setNewPw] = useState("");
@@ -278,8 +250,8 @@ export default function MioProfilo() {
   }, [newPw]);
 
   const handleChangePassword = async () => {
-    if (newPw.length < 8) { toast.error("Minimo 8 caratteri"); return; }
-    if (newPw !== confirmPw) { toast.error("Le password non coincidono"); return; }
+    if (newPw.length < 8) { toast.error("La password deve avere almeno 8 caratteri."); return; }
+    if (newPw !== confirmPw) { toast.error("Le due password non coincidono."); return; }
     setChangingPw(true);
     try {
       const { error } = await supabase.auth.updateUser({ password: newPw });
@@ -288,7 +260,7 @@ export default function MioProfilo() {
       const { error: erroreObbligo } = await supabase.rpc("staff_update_own_password_flag", { _must_change: false });
       if (erroreObbligo) logger.error("[password] obbligo di cambio non tolto:", erroreObbligo);
       setNewPw(""); setConfirmPw("");
-      toast.success("Password aggiornata!");
+      toast.success("Password aggiornata");
     } catch (err: any) {
       toast.error(motivoPasswordRifiutata(err), { duration: 10000 });
     } finally { setChangingPw(false); }
@@ -367,7 +339,7 @@ export default function MioProfilo() {
         setTimeout(() => { clearInterval(pollInterval); setConnectingGoogle(false); }, 300_000);
       }
     } catch (err: unknown) {
-      toast.error("Errore connessione Google", { description: err instanceof Error ? err.message : String(err) });
+      toast.error("Collegamento con Google non riuscito", { description: motivoDelRifiuto(err, "Riprova tra qualche secondo.") });
       setConnectingGoogle(false);
     }
   };
@@ -409,16 +381,16 @@ export default function MioProfilo() {
       body: { action: "disconnect", companyId },
     });
     if (res.error) {
-      toast.error("Scollegamento non riuscito", { description: res.error.message });
+      toast.error("Scollegamento non riuscito", { description: motivoDelRifiuto(res.error, "Riprova tra qualche secondo.") });
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] });
     queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
-    toast.success("Google Calendar disconnesso");
+    toast.success("Google Calendar scollegato");
   };
 
   const [syncing, setSyncing] = useState(false);
-  // 2026-05-26: dialog preferenze sync (bidirezionale + privacy busy_only)
+  // Finestra delle preferenze del calendario (verso degli appuntamenti, importazione degli eventi di Google).
   const [syncPrefsOpen, setSyncPrefsOpen] = useState(false);
   const updateGoogleSettings = useMutation({
     // La direzione vive nelle preferenze utente (e' quella che legge la sync);
@@ -426,7 +398,7 @@ export default function MioProfilo() {
     // continuano a mostrare. Prima si salvava solo il riflesso, e la direzione
     // scelta nella scheda utente non contava nulla.
     mutationFn: async (updates: Record<string, unknown>) => {
-      if (!effectiveCompany?.id || !user?.id) throw new Error("Missing context");
+      if (!effectiveCompany?.id || !user?.id) throw new MessaggioPerUtente("Non trovo l'azienda attiva: ricarica la pagina.");
       const { sync_direction: direzione, ...settings } = updates as { sync_direction?: DirezioneSync };
       const { error } = await (supabase as unknown as { from: (t: string) => { update: (p: unknown) => { eq: (k: string, v: string) => { eq: (k: string, v: string) => Promise<{ error: { message: string } | null }> } } } })
         .from("google_calendar_settings")
@@ -449,7 +421,7 @@ export default function MioProfilo() {
       queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
       queryClient.invalidateQueries({ queryKey: ["user-calendar-prefs", user?.id] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: unknown) => toast.error("Preferenze non salvate", { description: motivoDelRifiuto(e, "Riprova tra qualche secondo.") }),
   });
   // 2026-05-26 (audit fix P1): handling errori migliorato. Prima il catch
   // mostrava `err.message` anche se undefined → "Errore" generico senza
@@ -464,10 +436,10 @@ export default function MioProfilo() {
         body: { action: "full-sync", companyId },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (res.error) throw new Error(res.error.message || "Sync fallita");
+      if (res.error) throw new Error(res.error.message || "Aggiornamento non riuscito");
       const result = res.data as { synced?: number; skipped?: number } | null;
       const synced = result?.synced ?? 0;
-      toast.success("Sincronizzazione completata", {
+      toast.success("Calendario aggiornato", {
         description: synced > 0
           ? `${synced} appuntamenti dal tuo Google Calendar importati.`
           : "Nessun nuovo appuntamento trovato nelle prossime 4 settimane.",
@@ -476,159 +448,12 @@ export default function MioProfilo() {
       queryClient.invalidateQueries({ queryKey: ["gcal-busy-slots"] });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error("Sincronizzazione non riuscita", {
+      toast.error("Calendario non aggiornato", {
         description: msg.includes("token") || msg.includes("auth")
-          ? "Sembra che il collegamento sia scaduto. Riconnetti Google Calendar."
-          : msg,
+          ? "Sembra che il collegamento sia scaduto. Scollega e ricollega Google Calendar."
+          : motivoDelRifiuto(err, "Riprova tra qualche secondo."),
       });
     } finally { setSyncing(false); }
-  };
-
-  // ── Notification preferences (local state, will persist to DB when table exists) ──
-  // v8.6.39 H1 — Persistenza vera tramite tabella user_notification_preferences
-  // (esisteva già nel DB con 60+ colonne, hook useUserNotifPrefs già pronto).
-  // Prima era solo useState locale → al refresh tornava ai default = bug subdolo.
-  // Mapping form ↔ colonne DB:
-  //   email_new_order      → order_new_email
-  //   push_new_order       → order_new_in_app   (push = notifica in-app)
-  //   email_order_update   → order_status_changed_email
-  //   push_order_update    → order_status_changed_in_app
-  //   email_new_message    → message_whatsapp_email (più rappresentativo di "chat")
-  //   push_new_message     → message_whatsapp_in_app
-  //   email_new_task       → task_assigned_email
-  //   push_new_task        → task_assigned_in_app
-  //   email_weekly_report  → report_weekly_email
-  // email_marketing rimosso dalla UI: nessuna colonna corrispondente,
-  // l'utente può disiscriversi direttamente dalle newsletter via link in fondo.
-  const { data: dbPrefs } = useUserNotifPrefs(user?.id);
-  const savePrefs = useSaveUserNotifPrefs(user?.id, companyId);
-
-  // Mappa stato form ↔ chiavi DB (per coerenza UI esistente).
-  // v8.6.40 — Estesa con eventi appuntamenti, scadenze, lead, email/whatsapp
-  // ricevute, report giornaliero/mensile. Tutti già supportati dal DB
-  // (vedi NotifPrefs) ma prima non esposti nella UI.
-  type FormPrefKey =
-    | "email_new_order" | "push_new_order"
-    | "email_order_update" | "push_order_update"
-    | "email_new_message" | "push_new_message"
-    | "email_new_task" | "push_new_task"
-    | "email_task_due" | "push_task_due"
-    | "email_task_overdue" | "push_task_overdue"
-    | "email_new_appointment" | "push_new_appointment"
-    | "email_appointment_reminder" | "push_appointment_reminder"
-    | "email_new_lead" | "push_new_lead"
-    | "email_email_received" | "push_email_received"
-    | "email_daily_report" | "email_weekly_report" | "email_monthly_report";
-  const formToDbKey: Record<FormPrefKey, keyof NotifPrefs> = {
-    email_new_order: "order_new_email",
-    push_new_order: "order_new_in_app",
-    email_order_update: "order_status_changed_email",
-    push_order_update: "order_status_changed_in_app",
-    email_new_message: "message_whatsapp_email",
-    push_new_message: "message_whatsapp_in_app",
-    email_new_task: "task_assigned_email",
-    push_new_task: "task_assigned_in_app",
-    email_task_due: "task_due_soon_email",
-    push_task_due: "task_due_soon_in_app",
-    email_task_overdue: "task_overdue_email",
-    push_task_overdue: "task_overdue_in_app",
-    email_new_appointment: "appointment_new_email",
-    push_new_appointment: "appointment_new_in_app",
-    email_appointment_reminder: "appointment_reminder_email",
-    push_appointment_reminder: "appointment_reminder_in_app",
-    email_new_lead: "lead_new_email",
-    push_new_lead: "lead_new_in_app",
-    email_email_received: "message_email_received_email",
-    push_email_received: "message_email_received_in_app",
-    email_daily_report: "report_daily_email",
-    email_weekly_report: "report_weekly_email",
-    email_monthly_report: "report_monthly_email",
-  };
-  // notifPrefs è derivato dal DB tramite il mapping (read-only locale)
-  const notifPrefs = useMemo(() => {
-    const src = dbPrefs ?? DEFAULT_NOTIF_PREFS;
-    return {
-      email_new_order: src.order_new_email,
-      push_new_order: src.order_new_in_app,
-      email_order_update: src.order_status_changed_email,
-      push_order_update: src.order_status_changed_in_app,
-      email_new_message: src.message_whatsapp_email,
-      push_new_message: src.message_whatsapp_in_app,
-      email_new_task: src.task_assigned_email,
-      push_new_task: src.task_assigned_in_app,
-      email_task_due: src.task_due_soon_email,
-      push_task_due: src.task_due_soon_in_app,
-      email_task_overdue: src.task_overdue_email,
-      push_task_overdue: src.task_overdue_in_app,
-      email_new_appointment: src.appointment_new_email,
-      push_new_appointment: src.appointment_new_in_app,
-      email_appointment_reminder: src.appointment_reminder_email,
-      push_appointment_reminder: src.appointment_reminder_in_app,
-      email_new_lead: src.lead_new_email,
-      push_new_lead: src.lead_new_in_app,
-      email_email_received: src.message_email_received_email,
-      push_email_received: src.message_email_received_in_app,
-      email_daily_report: src.report_daily_email,
-      email_weekly_report: src.report_weekly_email,
-      email_monthly_report: src.report_monthly_email,
-    };
-  }, [dbPrefs]);
-
-  // v8.6.40 — Quick actions (bulk toggle): attiva/disattiva canale per
-  // tutti gli eventi operativi. Non tocca i report periodici (sotto).
-  const bulkSetChannel = async (channel: "email" | "in_app", enabled: boolean) => {
-    if (!user?.id || !companyId) {
-      toast.error("Sessione non valida");
-      return;
-    }
-    const current = dbPrefs ?? DEFAULT_NOTIF_PREFS;
-    const next: NotifPrefs = { ...current };
-    // Solo le preferenze che qualcuno rilegge: accendere in blocco anche le
-    // altre darebbe l'impressione di aver attivato notifiche che non partono.
-    const eventKeys = [...PREFERENZE_ONORATE].map((k) => formToDbKey[k as FormPrefKey]);
-    const suffix = channel === "email" ? "_email" : "_in_app";
-    for (const k of eventKeys) {
-      if (k.endsWith(suffix)) next[k] = enabled;
-    }
-    try {
-      await savePrefs.mutateAsync(next);
-      toast.success(enabled ? "Notifiche attivate" : "Notifiche disattivate");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Riprova tra qualche secondo.";
-      toast.error("Impossibile aggiornare", { description: msg });
-    }
-  };
-
-  // Contatori per il riepilogo header
-  // Il riepilogo conta solo le notifiche che partono davvero: un "9 email"
-  // che comprende sette eventi mai inviati sarebbe un numero falso.
-  const notifCounts = useMemo(() => {
-    let email = 0, push = 0, totaleEmail = 0, totalePush = 0;
-    for (const k of PREFERENZE_ONORATE) {
-      const accesa = Boolean(notifPrefs[k as FormPrefKey]);
-      if (k.startsWith("email_")) { totaleEmail++; if (accesa) email++; }
-      else { totalePush++; if (accesa) push++; }
-    }
-    return { email, push, totaleEmail, totalePush };
-  }, [notifPrefs]);
-
-  /** Toggle con persistenza ottimistica: aggiorna subito UI, fa upsert,
-   *  rollback + toast errore se l'upsert fallisce. */
-  const toggleNotif = async (key: FormPrefKey) => {
-    if (!user?.id || !companyId) {
-      toast.error("Sessione non valida", { description: "Ricarica la pagina e riprova." });
-      return;
-    }
-    const dbKey = formToDbKey[key];
-    const current = dbPrefs ?? DEFAULT_NOTIF_PREFS;
-    const next: NotifPrefs = { ...current, [dbKey]: !current[dbKey] };
-    // optimistic update via mutation
-    try {
-      await savePrefs.mutateAsync(next);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Riprova tra qualche secondo.";
-      toast.error("Impossibile salvare la preferenza", { description: msg });
-    }
   };
 
   const avatarUrl = avatarPreview ?? profile?.avatar_url ?? null;
@@ -665,10 +490,13 @@ export default function MioProfilo() {
               {initials || <User className="h-8 w-8" />}
             </AvatarFallback>
           </Avatar>
+          {/* Il cerchietto resta piccolo; l'area di tocco la allarga il ::after fino a 44 px. */}
           <button
+            type="button"
+            aria-label="Cambia foto"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="tap-compact absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-primary text-white flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors max-sm:h-6 max-sm:w-6"
+            className="tap-compact absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-primary text-white flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors after:absolute after:-inset-2 after:content-[''] max-sm:h-6 max-sm:w-6 max-sm:after:-inset-2.5"
           >
             {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
           </button>
@@ -704,25 +532,29 @@ export default function MioProfilo() {
         {/* v8.6.75 — Mobile-friendly scrolling tabs con fade gradient a destra
             che indica "scroll possibile". Padding ridotto px-2 sm:px-3 +
             gap-0.5 sm:gap-1 per far stare più tab a vista su 375px. */}
-        {/* Mobile: profilo, sicurezza e notifiche su tutta la larghezza. */}
+        {/* Mobile: le schede visibili riempiono la riga. Calendari ed Email si collegano dal computer (sotto i
+            768 px sono nascoste, come il contenuto); Notifiche c'è solo fuori dall'ufficio (campo e team della
+            piattaforma), dove non esiste la pagina Notifiche. */}
         <div className="relative mb-6 max-sm:mb-3">
           <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:mx-0 max-sm:px-0">
-            <TabsList className="inline-flex h-auto min-w-max w-max justify-start gap-0.5 sm:gap-1 bg-muted/50 p-1 max-sm:grid max-sm:w-full max-sm:min-w-0 max-sm:grid-cols-3">
+            <TabsList className={`inline-flex h-auto min-w-max w-max justify-start gap-0.5 sm:gap-1 bg-muted/50 p-1 max-sm:grid max-sm:w-full max-sm:min-w-0 ${schedaNotifiche ? "max-sm:grid-cols-3" : "max-sm:grid-cols-2"}`}>
               <TabsTrigger value="profilo" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
                 <User className="h-3.5 w-3.5" /> Profilo
               </TabsTrigger>
               <TabsTrigger value="sicurezza" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
                 <Shield className="h-3.5 w-3.5" /> Sicurezza
               </TabsTrigger>
-              <TabsTrigger value="calendari" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm max-sm:hidden">
+              <TabsTrigger value="calendari" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm max-md:hidden">
                 <CalendarDays className="h-3.5 w-3.5" /> Calendari
               </TabsTrigger>
-              <TabsTrigger value="email" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm max-sm:hidden">
+              <TabsTrigger value="email" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm max-md:hidden">
                 <Mail className="h-3.5 w-3.5" /> Email
               </TabsTrigger>
-              <TabsTrigger value="notifiche" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm max-md:hidden">
-                <Bell className="h-3.5 w-3.5" /> Notifiche
-              </TabsTrigger>
+              {schedaNotifiche && (
+                <TabsTrigger value="notifiche" className="h-9 shrink-0 gap-1 sm:gap-1.5 whitespace-nowrap px-2 sm:px-3 text-xs sm:text-sm">
+                  <Bell className="h-3.5 w-3.5" /> Notifiche
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -774,7 +606,7 @@ export default function MioProfilo() {
                   disabled={updateProfile.isPending || !profileDirty}
                 >
                   {updateProfile.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Salva Modifiche
+                  Salva modifiche
                 </Button>
               </div>
               {/* v8.6.39 M7 — nota separata in fondo: info su modifica email
@@ -830,13 +662,13 @@ export default function MioProfilo() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Lock className="h-4 w-4" /> Cambia Password
+                <Lock className="h-4 w-4" /> Cambia password
               </CardTitle>
               <CardDescription className="max-sm:hidden">Scegli una password sicura con almeno 8 caratteri.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="new-pw">Nuova Password</Label>
+                <Label htmlFor="new-pw">Nuova password</Label>
                 <div className="relative">
                   <Input id="new-pw" type={showPw ? "text" : "password"} value={newPw}
                     onChange={(e) => setNewPw(e.target.value)} placeholder="Minimo 8 caratteri" />
@@ -871,7 +703,7 @@ export default function MioProfilo() {
                 })()}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="confirm-pw">Conferma Password</Label>
+                <Label htmlFor="confirm-pw">Conferma password</Label>
                 <Input id="confirm-pw" type={showPw ? "text" : "password"} value={confirmPw}
                   onChange={(e) => setConfirmPw(e.target.value)} placeholder="Ripeti la password" />
                 {newPw && confirmPw && newPw !== confirmPw && (
@@ -892,7 +724,7 @@ export default function MioProfilo() {
                      soddisfatti (es. lunghezza + numero/maiuscole/simbolo). */
                   disabled={changingPw || !newPw || newPw !== confirmPw || newPw.length < 8 || pwStrength < 2}>
                   {changingPw ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Shield className="h-4 w-4 mr-2" />}
-                  Aggiorna Password
+                  Aggiorna password
                 </Button>
               </div>
             </CardContent>
@@ -906,7 +738,7 @@ export default function MioProfilo() {
           <Card className="max-sm:hidden">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Shield className="h-4 w-4" /> Privacy & dati personali
+                <Shield className="h-4 w-4" /> Privacy e dati personali
               </CardTitle>
               <CardDescription>Esercita i tuoi diritti GDPR sui dati conservati dalla piattaforma.</CardDescription>
             </CardHeader>
@@ -916,7 +748,7 @@ export default function MioProfilo() {
                 <p>
                   Per richiedere la <strong>cancellazione</strong> del tuo account o l'<strong>esportazione</strong> dei tuoi dati
                   personali (Regolamento UE 2016/679, art. 15-17), contatta l'amministratore della tua azienda
-                  o scrivi a <a href="mailto:privacy@ediliziaincloud.com" className="text-primary hover:underline">privacy@ediliziaincloud.com</a>.
+                  o scrivi a <a href={`mailto:${EMAIL_PRIVACY}`} className="text-primary hover:underline">{EMAIL_PRIVACY}</a>.
                 </p>
               </div>
             </CardContent>
@@ -1007,7 +839,7 @@ export default function MioProfilo() {
                           Account: <strong>{hasEmail ? email : "non rilevato"}</strong>
                           {!hasEmail && (
                             <span className="ml-1 italic text-amber-700/80">
-                              (l'email non era stata salvata correttamente — clicca "Disconnetti" e poi "Connetti" per fixare)
+                              (l'indirizzo email non è stato salvato bene: scollega e ricollega il calendario)
                             </span>
                           )}
                         </p>
@@ -1020,13 +852,13 @@ export default function MioProfilo() {
                           <p className={`text-xs mt-1 ${
                             isHealthy ? "text-green-600/70" : "text-amber-600/70"
                           }`}>
-                            Ultima sync: {format(new Date(googleConn.last_sync_at), "d MMM yyyy, HH:mm", { locale: it })}
+                            Ultimo aggiornamento: {format(new Date(googleConn.last_sync_at), "d MMM yyyy, HH:mm", { locale: it })}
                           </p>
                         ) : (
                           <p className={`text-xs mt-1 italic ${
                             isHealthy ? "text-green-600/70" : "text-amber-600/70"
                           }`}>
-                            Mai sincronizzato — clicca "Sincronizza ora" per il primo import.
+                            Mai aggiornato: premi «Aggiorna ora» per la prima importazione.
                           </p>
                         )}
                       </div>
@@ -1034,7 +866,7 @@ export default function MioProfilo() {
                   })()}
                   {googleSettings && (
                     <div className="text-sm space-y-1">
-                      <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Impostazioni sync</p>
+                      <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Come funziona il collegamento</p>
                       <div className="flex items-center gap-2">
                         <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
                         <span>Calendario: <strong>{nomeCalendarioScelto}</strong></span>
@@ -1043,25 +875,23 @@ export default function MioProfilo() {
                         <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
                         <span>Modalità: <strong>{etichettaDirezione(direzioneCalendario)}</strong></span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <EyeOffIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>Privacy eventi Google: <strong>
-                          {googleSettings.event_privacy === "busy_only" ? "Mostra solo \"Occupato\"" : "Titolo e dettagli visibili"}
-                        </strong></span>
+                      <div className="flex items-start gap-2">
+                        <Eye className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span>Per ora i colleghi dell'azienda vedono il titolo degli eventi di Google nel calendario.</span>
                       </div>
                     </div>
                   )}
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" onClick={syncGoogle} disabled={syncing} className="gap-2">
                       {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                      Sincronizza ora
+                      Aggiorna ora
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => setSyncPrefsOpen(true)} className="gap-2">
                       <Settings2 className="h-3.5 w-3.5" />
-                      Preferenze sync
+                      Preferenze del calendario
                     </Button>
                     <Button size="sm" variant="ghost" onClick={disconnectGoogle} className="gap-2 text-destructive hover:text-destructive">
-                      <Unlink className="h-3.5 w-3.5" /> Disconnetti
+                      <Unlink className="h-3.5 w-3.5" /> Scollega
                     </Button>
                   </div>
                 </div>
@@ -1097,17 +927,14 @@ export default function MioProfilo() {
           </div>
           </div>
 
-          {/* Dialog preferenze sync Google Calendar (bidirezionale + privacy) */}
+          {/* Preferenze del collegamento con Google Calendar: verso degli appuntamenti e importazione degli eventi. */}
           <GoogleCalendarSyncPrefsDialog
             open={syncPrefsOpen}
             onOpenChange={setSyncPrefsOpen}
             syncMode={googleSettings?.sync_mode || "one_way"}
             direzione={direzioneCalendario}
             importGoogleEvents={Boolean((googleSettings as { import_google_events_to_crm?: boolean } | null | undefined)?.import_google_events_to_crm)}
-            createContactsFromGuests={Boolean((googleSettings as { create_contacts_from_guests?: boolean } | null | undefined)?.create_contacts_from_guests)}
-            eventPrivacy={(googleSettings as { event_privacy?: "full" | "busy_only" } | null | undefined)?.event_privacy === "busy_only" ? "busy_only" : "full"}
             allowTwoWay={true}
-            allowGuestContactCreate={true}
             allowGoogleToImport={true}
             onSave={(prefs) => {
               updateGoogleSettings.mutate(prefs);
@@ -1140,367 +967,15 @@ export default function MioProfilo() {
             non un'impostazione personale). Per vedere i tuoi sopralluoghi
             assegnati vai a /azienda/sopralluoghi. */}
 
-        {/* ════════════ TAB NOTIFICHE ════════════ */}
-        {/* v8.6.40 — Sezione riprogettata:
-            - Header con riepilogo + quick actions bulk (Email tutto / Push
-              tutto / Disattiva tutto)
-            - Eventi raggruppati per categoria (Operativi, Comunicazione,
-              Calendario & attività, Lead)
-            - Più eventi esposti (appuntamenti, scadenze task, email/whatsapp
-              ricevuti, lead nuovi) tutti già nello schema DB
-            - Report periodici giornaliero / settimanale / mensile */}
-        <TabsContent value="notifiche" className="mt-0 space-y-5">
-          {/* Header — riepilogo + quick actions */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Bell className="h-4 w-4" /> Preferenze notifiche
-                  </CardTitle>
-                  <CardDescription className="max-sm:hidden">
-                    Oggi partono davvero gli avvisi dei messaggi in Conversazioni e
-                    delle attività. Gli altri eventi sono in elenco ma spenti: li vedi
-                    qui perché arriveranno, non perché siano già attivi. «App» è la
-                    campanella in alto.
-                  </CardDescription>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <Badge variant="secondary" className="gap-1 text-xs">
-                    <Mail className="h-3 w-3" /> {notifCounts.email} di {notifCounts.totaleEmail} email
-                  </Badge>
-                  <Badge variant="secondary" className="gap-1 text-xs">
-                    <Bell className="h-3 w-3" /> {notifCounts.push} di {notifCounts.totalePush} in app
-                  </Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {/* Su mobile i tre pulsanti riempiono la riga (due in griglia + uno
-                  a tutta larghezza): allineati a sinistra lasciavano metà riga
-                  vuota. Su schermo grande tornano in fila. */}
-              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => bulkSetChannel("in_app", true)}
-                  disabled={savePrefs.isPending}
-                  className="h-8 w-full gap-1.5 text-xs sm:w-auto"
-                >
-                  <Bell className="h-3 w-3 shrink-0" />
-                  <span className="truncate sm:hidden">Attiva in app</span>
-                  <span className="hidden sm:inline">Attiva gli avvisi in app</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => bulkSetChannel("email", true)}
-                  disabled={savePrefs.isPending}
-                  className="h-8 w-full gap-1.5 text-xs sm:w-auto"
-                >
-                  <MailCheck className="h-3 w-3 shrink-0" />
-                  <span className="truncate sm:hidden">Attiva email</span>
-                  <span className="hidden sm:inline">Attiva le email disponibili</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={async () => {
-                    await bulkSetChannel("in_app", false);
-                    await bulkSetChannel("email", false);
-                  }}
-                  disabled={savePrefs.isPending}
-                  className="col-span-2 h-8 w-full gap-1.5 text-xs text-muted-foreground sm:col-span-1 sm:w-auto"
-                >
-                  <BellOff className="h-3 w-3" /> Disattiva tutto
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Eventi raggruppati per categoria */}
-          <Card>
-            <CardContent className="p-0">
-              {/* Header colonne */}
-              {/* Anche su telefono: senza, ogni riga aveva due interruttori
-                  e non si capiva quale fosse l'email e quale il push. */}
-              <div className="grid grid-cols-[1fr_52px_52px] sm:grid-cols-[1fr_72px_72px] gap-2 px-3 sm:px-4 pt-3 pb-2 border-b text-xs font-medium text-muted-foreground uppercase tracking-wide max-sm:pt-2 max-sm:text-[10px]">
-                <div>Evento</div>
-                <div className="text-center flex items-center justify-center gap-1"><Mail className="h-3 w-3" /> Email</div>
-                {/* «App» è la campanella (le colonne *_in_app): le push sul telefono non ci sono ancora. */}
-                <div className="text-center flex items-center justify-center gap-1"><Bell className="h-3 w-3" /> App</div>
-              </div>
-
-              {/* Categoria: Ordini & cantieri */}
-              <NotifGroupHeader icon={Briefcase} label="Ordini & cantieri" />
-              <NotifMatrixRow
-                icon={Briefcase}
-                label="Nuovo ordine / cantiere"
-                desc="Quando viene creato un nuovo ordine assegnato a te"
-                emailChecked={notifPrefs.email_new_order}
-                pushChecked={notifPrefs.push_new_order}
-                onEmailToggle={() => toggleNotif("email_new_order")}
-                onPushToggle={() => toggleNotif("push_new_order")}
-                emailAttiva={false}
-                pushAttiva={false}
-              />
-              <NotifMatrixRow
-                icon={RefreshCw}
-                label="Aggiornamento ordine"
-                desc="Cambi di stato sugli ordini in cui sei coinvolto"
-                emailChecked={notifPrefs.email_order_update}
-                pushChecked={notifPrefs.push_order_update}
-                onEmailToggle={() => toggleNotif("email_order_update")}
-                onPushToggle={() => toggleNotif("push_order_update")}
-                emailAttiva={false}
-                pushAttiva={false}
-              />
-
-              {/* Categoria: Comunicazione */}
-              <NotifGroupHeader icon={MessageSquare} label="Comunicazione" />
-              <NotifMatrixRow
-                icon={MessageSquare}
-                label="Messaggio da un contatto"
-                desc="WhatsApp, SMS, Messenger o Instagram in Conversazioni: a chi ha la conversazione, se non è di nessuno agli amministratori"
-                emailChecked={notifPrefs.email_new_message}
-                pushChecked={notifPrefs.push_new_message}
-                onEmailToggle={() => toggleNotif("email_new_message")}
-                onPushToggle={() => toggleNotif("push_new_message")}
-                emailAttiva={false}
-              />
-              <NotifMatrixRow
-                icon={Inbox}
-                label="Email da un contatto"
-                desc="Email di un contatto o cliente in Conversazioni, con le stesse regole dei messaggi"
-                emailChecked={notifPrefs.email_email_received}
-                pushChecked={notifPrefs.push_email_received}
-                onEmailToggle={() => toggleNotif("email_email_received")}
-                onPushToggle={() => toggleNotif("push_email_received")}
-                emailAttiva={false}
-              />
-
-              {/* Categoria: Calendario & attività */}
-              <NotifGroupHeader icon={Calendar} label="Calendario & attività" />
-              <NotifMatrixRow
-                icon={Calendar}
-                label="Nuovo appuntamento"
-                desc="Quando ti viene creato un appuntamento in agenda"
-                emailChecked={notifPrefs.email_new_appointment}
-                pushChecked={notifPrefs.push_new_appointment}
-                onEmailToggle={() => toggleNotif("email_new_appointment")}
-                onPushToggle={() => toggleNotif("push_new_appointment")}
-                emailAttiva={false}
-                pushAttiva={false}
-              />
-              <NotifMatrixRow
-                icon={AlarmClock}
-                label="Promemoria appuntamento"
-                desc="Promemoria prima dell'inizio (15 min default)"
-                emailChecked={notifPrefs.email_appointment_reminder}
-                pushChecked={notifPrefs.push_appointment_reminder}
-                onEmailToggle={() => toggleNotif("email_appointment_reminder")}
-                onPushToggle={() => toggleNotif("push_appointment_reminder")}
-                emailAttiva={false}
-                pushAttiva={false}
-              />
-              <NotifMatrixRow
-                icon={FileText}
-                label="Nuova attività assegnata"
-                desc="Quando ti viene assegnata un'attività / to-do"
-                emailChecked={notifPrefs.email_new_task}
-                pushChecked={notifPrefs.push_new_task}
-                onEmailToggle={() => toggleNotif("email_new_task")}
-                onPushToggle={() => toggleNotif("push_new_task")}
-              />
-              <NotifMatrixRow
-                icon={Clock}
-                label="Attività in scadenza"
-                desc="Alert quando un'attività sta per scadere"
-                emailChecked={notifPrefs.email_task_due}
-                pushChecked={notifPrefs.push_task_due}
-                onEmailToggle={() => toggleNotif("email_task_due")}
-                onPushToggle={() => toggleNotif("push_task_due")}
-              />
-              {/* Questa email parte davvero (task-riepilogo-email la manda con
-                  default acceso) ma non era esposta da nessuna parte: si
-                  ricevevano avvisi che non si potevano spegnere. */}
-              <NotifMatrixRow
-                icon={AlarmClock}
-                label="Attività in ritardo"
-                desc="Riepilogo delle attività con la scadenza già passata"
-                emailChecked={notifPrefs.email_task_overdue}
-                pushChecked={notifPrefs.push_task_overdue}
-                onEmailToggle={() => toggleNotif("email_task_overdue")}
-                onPushToggle={() => toggleNotif("push_task_overdue")}
-              />
-
-              {/* Categoria: Lead & vendita */}
-              <NotifGroupHeader icon={UserPlus} label="Lead & vendita" />
-              <NotifMatrixRow
-                icon={UserPlus}
-                label="Nuovo lead in arrivo"
-                desc="Lead dai form, Facebook Ads, WhatsApp o chat sito"
-                emailChecked={notifPrefs.email_new_lead}
-                pushChecked={notifPrefs.push_new_lead}
-                onEmailToggle={() => toggleNotif("email_new_lead")}
-                onPushToggle={() => toggleNotif("push_new_lead")}
-                emailAttiva={false}
-                pushAttiva={false}
-                isLast
-              />
-            </CardContent>
-          </Card>
-
-          {/* Email periodiche: report giornaliero / settimanale / mensile */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Mail className="h-4 w-4" /> Email periodiche
-              </CardTitle>
-              <CardDescription>
-                Riepiloghi automatici dell'attività via email. Indipendenti dalle notifiche per evento.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              <NotifRow
-                icon={FileText}
-                label="Report giornaliero"
-                desc="Riepilogo della giornata, inviato ogni sera"
-                checked={notifPrefs.email_daily_report}
-                onChange={() => toggleNotif("email_daily_report")}
-                attiva={false}
-              />
-              <NotifRow
-                icon={FileText}
-                label="Report settimanale"
-                desc="Riepilogo della settimana, inviato il lunedì mattina"
-                checked={notifPrefs.email_weekly_report}
-                onChange={() => toggleNotif("email_weekly_report")}
-                attiva={false}
-              />
-              <NotifRow
-                icon={FileText}
-                label="Report mensile"
-                desc="Riepilogo del mese, inviato il 1° del mese"
-                checked={notifPrefs.email_monthly_report}
-                onChange={() => toggleNotif("email_monthly_report")}
-                attiva={false}
-              />
-            </CardContent>
-          </Card>
-
-          <p className="text-[11px] text-muted-foreground px-1 max-sm:hidden">
-            Le modifiche vengono salvate automaticamente.
-          </p>
-        </TabsContent>
+        {/* ════════════ TAB NOTIFICHE (campo e team della piattaforma) ════════════ */}
+        {/* Lo stesso componente della pagina Impostazioni → Notifiche. Nel campo la riga «Su questo dispositivo»
+            sta già in cima alla pagina (CampoImpostazioni): qui non si ripete. */}
+        {schedaNotifiche && (
+          <TabsContent value="notifiche" className="mt-0">
+            <AvvisiPerEvento conDispositivo={!nelCampo} />
+          </TabsContent>
+        )}
       </Tabs>
-    </div>
-  );
-}
-
-// v8.6.40 — Divider/header di gruppo dentro la matrice eventi.
-function NotifGroupHeader({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
-  return (
-    <div className="flex items-center gap-2 bg-muted/40 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground border-b">
-      <Icon className="h-3.5 w-3.5" />
-      {label}
-    </div>
-  );
-}
-
-// ── Notification row component (per Email periodiche, single-channel) ──
-function NotifRow({
-  icon: Icon, label, desc, checked, onChange, attiva = true,
-}: {
-  icon: React.ElementType; label: string; desc: string; checked: boolean;
-  onChange: () => void;
-  /** false = nessuno manda questa email: switch spento e bloccato. */
-  attiva?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between py-3 px-1 hover:bg-muted/30 rounded-lg transition-colors">
-      <div className="flex items-center gap-3">
-        <Icon className={`h-4 w-4 shrink-0 ${attiva ? "text-muted-foreground" : "text-muted-foreground/50"}`} />
-        <div className="min-w-0">
-          <p className={`text-sm font-medium ${attiva ? "" : "text-muted-foreground"}`}>{label}</p>
-          <p className="text-xs text-muted-foreground">
-            {!attiva && (
-              <span className="mr-1 whitespace-nowrap rounded bg-muted px-1.5 py-px text-[10px] font-medium">
-                non ancora
-              </span>
-            )}
-            {/* Mobile: basta il nome dell'evento (e «non ancora» se è spento). */}
-            <span className="max-sm:hidden">{desc}</span>
-          </p>
-        </div>
-      </div>
-      <Switch
-        checked={attiva && checked}
-        onCheckedChange={onChange}
-        disabled={!attiva}
-        aria-label={attiva ? label : `${label} (non ancora disponibile)`}
-      />
-    </div>
-  );
-}
-
-// v8.6.38 — Matrix row per "Notifiche per evento": una riga = un evento,
-// 2 colonne switch (Email + Push). Più compatto e scansionabile rispetto
-// alla vecchia struttura 3 card con eventi duplicati.
-function NotifMatrixRow({
-  icon: Icon, label, desc, emailChecked, pushChecked, onEmailToggle, onPushToggle, isLast,
-  emailAttiva = true, pushAttiva = true,
-}: {
-  icon: React.ElementType;
-  label: string;
-  desc: string;
-  emailChecked: boolean;
-  pushChecked: boolean;
-  onEmailToggle: () => void;
-  onPushToggle: () => void;
-  isLast?: boolean;
-  /** false = nessuno legge questa preferenza: lo switch si mostra spento e bloccato. */
-  emailAttiva?: boolean;
-  pushAttiva?: boolean;
-}) {
-  const inerte = !emailAttiva && !pushAttiva;
-  return (
-    <div className={`grid grid-cols-[1fr_52px_52px] items-center gap-2 px-3 py-3 sm:grid-cols-[1fr_72px_72px] sm:px-4 max-sm:py-2 ${!isLast ? "border-b" : ""} hover:bg-muted/30 transition-colors`}>
-      <div className="flex items-center gap-3 min-w-0">
-        <Icon className={`h-4 w-4 shrink-0 max-sm:hidden ${inerte ? "text-muted-foreground/50" : "text-muted-foreground"}`} />
-        <div className="min-w-0">
-          <p className={`truncate text-sm font-medium max-sm:text-[13px] ${inerte ? "text-muted-foreground" : ""}`}>{label}</p>
-          {/* Il marcatore sta nella riga della descrizione, non accanto al nome:
-              su schermo stretto accanto al nome lo riduceva a una lettera.
-              La descrizione dell'evento resta anche quando la riga è spenta:
-              serve a capire cosa arriverà, non solo che non arriva. */}
-          <p className="text-xs text-muted-foreground line-clamp-2">
-            {inerte && (
-              <span className="mr-1 whitespace-nowrap rounded bg-muted px-1.5 py-px text-[10px] font-medium">
-                non ancora
-              </span>
-            )}
-            {/* Mobile: basta il nome dell'evento (e «non ancora» se è spento). */}
-            <span className="max-sm:hidden">{desc}</span>
-          </p>
-        </div>
-      </div>
-      <div className="flex justify-center">
-        <Switch
-          checked={emailAttiva && emailChecked}
-          onCheckedChange={onEmailToggle}
-          disabled={!emailAttiva}
-          aria-label={`Email: ${label}${emailAttiva ? "" : " (non ancora disponibile)"}`}
-        />
-      </div>
-      <div className="flex justify-center">
-        <Switch
-          checked={pushAttiva && pushChecked}
-          onCheckedChange={onPushToggle}
-          disabled={!pushAttiva}
-          aria-label={`Push: ${label}${pushAttiva ? "" : " (non ancora disponibile)"}`}
-        />
-      </div>
     </div>
   );
 }
