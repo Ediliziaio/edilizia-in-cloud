@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import type { CashFlowManuale } from '@/hooks/controlloGestione/useCashFlow';
 const state = vi.hoisted(() => ({ forecast: vi.fn(), exported: vi.fn() }));
 vi.mock('@/hooks/controlloGestione/useCashFlow', () => ({
   useCashFlow: () => state.forecast(),
-  useCashFlowManuali: () => ({ data: [] }),
+  useCashFlowManuali: (): { data: CashFlowManuale[] } => ({ data: [] }),
   useUpsertCashFlowManuale: () => ({}),
   useDeleteCashFlowManuale: () => ({}),
 }));

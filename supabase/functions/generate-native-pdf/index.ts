@@ -79,6 +79,7 @@ interface Riepilogo {
 }
 
 function buildNativeHtml(doc: Record<string, any>, azienda: Record<string, any>, brandFooter?: string): string {
+  // Normalize legacy snapshot fields in memory, without rewriting issued documents.
   doc = nativePdfSnapshot(doc);
   const righe: Riga[] = doc.righe || [];
   const riepilogo: Riepilogo[] = doc.riepilogo_iva || [];

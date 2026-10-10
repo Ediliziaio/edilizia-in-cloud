@@ -7,7 +7,7 @@ const invoice: SupplierInvoice = { id: 'f1', purchase_order_id: 'po1', company_c
 const po = { id: 'po1', supplier_id: 's1', oda_number: 'ODA1', status: 'ricevuto', total: 122 };
 const entry = { id: 'p1', cost_id: 'c1', supplier_id: 's1', scadenza_id: 'd1', amount: 61, direction: 'uscita' };
 const due = { id: 'd1', cost_id: 'c1', supplier_id: 's1', amount: 122, paid_amount: 61, due_date: '2025-10-01', status: 'parziale' };
-const base = { orders: [po], invoices: [invoice], entries: [entry], dues: [due], items: [], names: { s1: 'Fornitore reale' } };
+const base: Parameters<typeof supplierPaymentSummary>[0] = { orders: [po], invoices: [invoice], entries: [entry], dues: [due], items: [], names: { s1: 'Fornitore reale' } };
 
 describe('Pagamenti fornitori da documenti e cassa', () => {
   it('mostra il fornitore dell’OdA anche senza articoli preventivati', () => {
@@ -58,7 +58,7 @@ describe('Pagamenti fornitori da documenti e cassa', () => {
       entries: [{ ...entry, cost_id: null }], dues: [] })[0].paid).toBe(61);
   });
   it('la stessa PN agganciata a due fatture indipendenti resta ambigua su entrambe', () => {
-    const invoices = [{ ...invoice, id: 'a', company_cost_id: null, prima_nota_id: 'p1' },
+    const invoices: SupplierInvoice[] = [{ ...invoice, id: 'a', company_cost_id: null, prima_nota_id: 'p1' },
       { ...invoice, id: 'b', company_cost_id: null, prima_nota_id: 'p1' }];
     const result = supplierPaymentSummary({ ...base, invoices, dues: [] })[0];
     expect(result).toMatchObject({ paid: 0, invoiced: 0, reviewCount: 2 });
