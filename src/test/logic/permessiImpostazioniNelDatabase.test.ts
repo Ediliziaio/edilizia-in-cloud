@@ -165,7 +165,10 @@ describe("4. companies: una regola per modificare, e le colonne di piattaforma p
     expect(t).toContain('drop policy if exists "Company admins can update their own company" on public.companies;');
     expect(regola).toMatch(/^for update to authenticated using/);
     expect(conta(regola, "public.aziende_con_permesso('can_edit_settings_profile')")).toBe(2);
-    expect(conta(regola, "'company_admin'::public.app_role")).toBe(2);
+    // amministratore dell'azienda della riga via e_amministratore_di(id) (gestisce anche i multi-azienda; il guardiano
+    // «di quale azienda» vieta has_role(…, 'company_admin') nudo nelle policy nuove)
+    expect(conta(regola, "public.e_amministratore_di(id)")).toBe(2);
+    expect(regola).not.toContain("'company_admin'");
     expect(regola).not.toContain("can_edit_settings'");
   });
 

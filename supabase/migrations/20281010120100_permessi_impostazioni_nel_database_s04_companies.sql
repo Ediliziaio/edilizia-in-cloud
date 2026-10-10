@@ -16,12 +16,10 @@ drop policy if exists "Company admins can update their own company" on public.co
 drop policy if exists companies_aggiorna_propria on public.companies;
 create policy companies_aggiorna_propria on public.companies
   for update to authenticated
-  using (id = (select public.get_user_company_id((select auth.uid())))
-         and ((select public.has_role((select auth.uid()), 'company_admin'::public.app_role))
-              or id in (select unnest(public.aziende_con_permesso('can_edit_settings_profile')))))
-  with check (id = (select public.get_user_company_id((select auth.uid())))
-         and ((select public.has_role((select auth.uid()), 'company_admin'::public.app_role))
-              or id in (select unnest(public.aziende_con_permesso('can_edit_settings_profile')))));
+  using ((select public.e_amministratore_di(id))
+         or id in (select unnest(public.aziende_con_permesso('can_edit_settings_profile'))))
+  with check ((select public.e_amministratore_di(id))
+         or id in (select unnest(public.aziende_con_permesso('can_edit_settings_profile'))));
 
 create or replace function public.companies_campi_protetti()
 returns trigger
