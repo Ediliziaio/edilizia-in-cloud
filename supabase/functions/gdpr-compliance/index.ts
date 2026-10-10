@@ -1,6 +1,35 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { conMetriche } from "../_shared/withMetrics.ts";
+import { amministraAzienda } from "../_shared/amministraAzienda.ts";
+import { verificaPermessoAzienda } from "../_shared/permessoAzienda.ts";
+
+/**
+ * Nel file «Scarica i miei dati» ci sono anche i dati DELL'AZIENDA (commesse,
+ * contatti, appuntamenti)? Solo se chi chiede è amministratore di QUESTA
+ * azienda (o super admin) E ha «Esporta Clienti» (can_export_clients): la
+ * regola con cui l'app consegna i contatti (registra_esportazione_crm).
+ *
+ * Nel dubbio (errore di lettura, azienda mancante) la risposta è no: restano
+ * i dati personali di chi chiede.
+ */
+async function puoEsportareDatiAzienda(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  userId: string,
+  companyId: string | null,
+  isSuperAdmin: boolean,
+): Promise<boolean> {
+  if (!companyId) return false;
+  try {
+    if (!isSuperAdmin && !(await amministraAzienda(admin, userId, companyId))) return false;
+    await verificaPermessoAzienda(admin, userId, companyId, ["can_export_clients"], "esportare i dati dei clienti");
+    return true;
+  } catch (e) {
+    console.warn("[gdpr-compliance] dati dell'azienda esclusi dall'export:", (e as Error)?.message);
+    return false;
+  }
+}
 
 Deno.serve(conMetriche("gdpr-compliance", async (req) => {
   if (req.method === "OPTIONS") {
@@ -47,6 +76,9 @@ Deno.serve(conMetriche("gdpr-compliance", async (req) => {
 
         if (existing) return errorResponse("Hai già una richiesta di export in corso", 400);
 
+        // I dati dell'azienda escono solo per chi li può già esportare dall'app.
+        const conDatiAzienda = await puoEsportareDatiAzienda(admin, user.id, companyId, !!isSuperAdmin);
+
         const { data: request, error } = await admin.from("gdpr_data_requests").insert({
           company_id: companyId,
           user_id: user.id,
@@ -56,24 +88,15 @@ Deno.serve(conMetriche("gdpr-compliance", async (req) => {
 
         if (error) throw error;
 
-        // Collect user data
+        // Collect user data: i dati PERSONALI di chi chiede, sempre.
         const exportData: Record<string, unknown> = {};
+        exportData.ambito = conDatiAzienda
+          ? "Dati personali e dati dell'azienda (commesse, contatti, appuntamenti)"
+          : "Dati personali. I dati dell'azienda (commesse, contatti, appuntamenti) non sono inclusi: li esporta l'amministratore con il permesso «Esporta Clienti».";
 
         // Profile
         const { data: profileData } = await admin.from("profiles").select("*").eq("id", user.id).single();
         exportData.profile = profileData;
-
-        // Orders
-        const { data: orders } = await admin.from("orders").select("id, order_code, description, total_amount, created_at, status").eq("company_id", companyId);
-        exportData.orders = orders;
-
-        // Contacts (if marketing)
-        const { data: contacts } = await admin.from("marketing_contacts").select("*").eq("company_id", companyId).limit(500);
-        exportData.contacts = contacts;
-
-        // Appointments
-        const { data: appointments } = await admin.from("appointments").select("id, title, appointment_date, status").eq("company_id", companyId).limit(500);
-        exportData.appointments = appointments;
 
         // Activity log
         const { data: activities } = await admin.from("company_activity_log").select("action, target_type, details, created_at").eq("company_id", companyId).eq("user_id", user.id).limit(500);
@@ -82,6 +105,53 @@ Deno.serve(conMetriche("gdpr-compliance", async (req) => {
         // Consents
         const { data: consents } = await admin.from("gdpr_consents").select("*").eq("user_id", user.id);
         exportData.consents = consents;
+
+        // I dati dell'azienda: solo amministratore (o super admin) con «Esporta Clienti».
+        let numeroContatti = 0;
+        let numeroCommesse = 0;
+        let numeroAppuntamenti = 0;
+        if (conDatiAzienda) {
+          // Orders
+          const { data: orders } = await admin.from("orders").select("id, order_code, description, total_amount, created_at, status").eq("company_id", companyId);
+          exportData.orders = orders;
+          numeroCommesse = orders?.length ?? 0;
+
+          // Contacts (if marketing)
+          const { data: contacts } = await admin.from("marketing_contacts").select("*").eq("company_id", companyId).limit(500);
+          exportData.contacts = contacts;
+          numeroContatti = contacts?.length ?? 0;
+
+          // Appointments
+          const { data: appointments } = await admin.from("appointments").select("id, title, appointment_date, status").eq("company_id", companyId).limit(500);
+          exportData.appointments = appointments;
+          numeroAppuntamenti = appointments?.length ?? 0;
+        }
+
+        // Il registro PRIMA di consegnare il file, come per le esportazioni
+        // del CRM (registra_esportazione_crm): se non si scrive, il file non
+        // parte. Con i dati dell'azienda è un'esportazione di contatti
+        // (crm_exported, che il titolare cerca nel registro); senza, è la
+        // copia dei dati personali.
+        const { error: registroError } = await admin.from("user_audit_log").insert({
+          company_id: companyId,
+          actor_id: user.id,
+          target_user_id: user.id,
+          action: conDatiAzienda ? "crm_exported" : "personal_data_exported",
+          details: conDatiAzienda
+            ? {
+              oggetto: "contatti",
+              formato: "json",
+              righe: numeroContatti,
+              filtri: {
+                origine: "Scarica i miei dati",
+                commesse: numeroCommesse,
+                appuntamenti: numeroAppuntamenti,
+              },
+              request_id: request.id,
+            }
+            : { origine: "Scarica i miei dati", dati_azienda_inclusi: false, request_id: request.id },
+        });
+        if (registroError) throw registroError;
 
         // Convert to JSON string
         const jsonContent = JSON.stringify(exportData, null, 2);
@@ -118,7 +188,7 @@ Deno.serve(conMetriche("gdpr-compliance", async (req) => {
           company_id: companyId,
           user_id: user.id,
           action: "data_export_completed",
-          details: { request_id: request.id, file_name: fileName },
+          details: { request_id: request.id, file_name: fileName, dati_azienda_inclusi: conDatiAzienda },
         });
 
         // Email "export pronto" al richiedente col link firmato (best-effort)
