@@ -16,6 +16,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
 import { formatCurrency } from "@/lib/formatters";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -82,11 +83,12 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
     enabled: !!companyId,
     staleTime: 60_000,
     queryFn: async () => {
-      const { data, error: err } = await supabase
+      const archivedIds = await loadArchivedOrderIds(companyId!);
+      const { data, error: err } = await excludeArchivedOrders(supabase
         .from("v_ordine_marginalita")
         .select("id, order_code, description, cliente_nome, margine, margine_perc, preventivo_totale, consuntivo, work_start_date, work_end_date")
         .eq("company_id", companyId!)
-        .limit(1000);
+        .limit(1000), archivedIds);
       if (err) throw err;
       return (data ?? []) as CantiereMargine[];
     },

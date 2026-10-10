@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   crew: [] as Array<{ key: string; employee_id: string; nome: string }>,
   weather: undefined as Map<string, { code: number }> | undefined,
   articles: [] as RapportinoArticle[], articlesError: false, articlesRefetch: vi.fn(),
+  deliveries: [] as RapportinoArticle[], deliveriesError: false,
   reportDate: null as string | null, existing: null as { id: string; created_at: string } | null,
   dayArgs: vi.fn(), setParams: vi.fn(),
 }));
@@ -30,13 +31,14 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: state.error, loadin
 vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: string[] }) => ({ data:
     queryKey[0] === "campo-articoli-commessa-rapportino" ? state.articles :
+    queryKey[0] === "campo-materiali-consegnati-rapportino" ? state.deliveries :
     queryKey[0] === "campo-rapportino-cantiere" ? { order_code: "C-123", description: "Ristrutturazione Via Roma" } :
     queryKey[0] === "campo-fasi-commessa" ? state.phases :
     queryKey[0] === "campo-ruolo" ? state.role :
     queryKey[0] === "campo-squadra" ? state.crew :
     queryKey[0] === "campo-rapportino-gia-oggi" ? state.existing :
     queryKey[0] === "campo-cantiere-coord" ? { lat: 45, lng: 9 } : undefined,
-    isError: queryKey[0] === "campo-articoli-commessa-rapportino" && state.articlesError, refetch: state.articlesRefetch }),
+    isError: (queryKey[0] === "campo-articoli-commessa-rapportino" && state.articlesError) || (queryKey[0] === "campo-materiali-consegnati-rapportino" && state.deliveriesError), refetch: state.articlesRefetch }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   useMutation: (config: { mutationFn: () => Promise<unknown>; onSuccess?: () => void; onError?: (e: unknown) => void }) => ({
     isPending: false,
@@ -54,8 +56,29 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
 } }));
 beforeEach(() => { vi.clearAllMocks(); state.allowed = true; state.role = { isCapocantiere: false, esisteCapo: false }; state.phases = []; state.punches = []; state.timeError = false; state.crew = []; state.orderId = "order"; state.weather = undefined; state.articles = [{ id: "article", name: "Malta", categoria: "Materiali" }]; state.articlesError = false; });
 beforeEach(() => { state.reportDate = null; state.existing = null; vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-09-24T15:00:00+02:00")); });
+beforeEach(() => { state.deliveries = []; state.deliveriesError = false; });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 const openMaterials = () => { render(<CampoRapportino />); fireEvent.change(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "0" } }); fireEvent.click(screen.getByRole("button", { name: "Avanti" })); fireEvent.click(screen.getByRole("button", { name: "Malta" })); };
+
+describe('Materiali consegnati: scelta esplicita senza nuovo scarico',()=>{
+  it('salva lo SKU scelto senza inventare il collegamento al computo',async()=>{
+    state.deliveries=[{id:'libero_stock_cement',name:'Cemento',stock_item_id:'cement',order_item_id:null,categoria:'Materiali'}];
+    openMaterials();fireEvent.click(screen.getByRole('button',{name:'Rimuovi materiale Malta'}));
+    fireEvent.click(screen.getByText('Dal magazzino al cantiere (1)'));
+    fireEvent.click(screen.getByRole('button',{name:'Cemento'}));
+    expect(screen.getByLabelText('Unità Cemento')).toHaveValue('');
+    fireEvent.change(screen.getByLabelText('Unità Cemento'),{target:{value:'kg'}});
+    fireEvent.change(screen.getByLabelText('Quantità Cemento'),{target:{value:'25'}});
+    fireEvent.click(screen.getByRole('button',{name:'Invia rapportino'}));
+    await waitFor(()=>expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({materiali_usati:[{nome:'Cemento',quantita:25,unita:'kg',da_furgone:false,stock_item_id:'cement'}]})));
+  });
+  it('un errore consegne non cancella le scelte del rapportino',()=>{
+    state.deliveriesError=true;openMaterials();
+    expect(screen.getByRole('alert')).toHaveTextContent('Materiali consegnati non disponibili');
+    fireEvent.click(screen.getByRole('button',{name:'Riprova consegne'}));
+    expect(state.articlesRefetch).toHaveBeenCalled();expect(screen.getByLabelText('Quantità Malta')).toHaveValue(1);
+  });
+});
 
 describe("Giornata e invio entro il giorno successivo", () => {
   it("recupera ieri e conserva quella data nel payload e nel riepilogo", async () => {
@@ -119,6 +142,15 @@ describe("Giornata e invio entro il giorno successivo", () => {
 });
 
 describe("Rapportino mobile, interazione con API simulate", () => {
+  it("conserva il prodotto di magazzino scelto senza registrare un secondo scarico", async () => {
+    state.articles[0].stock_item_id = 'stock-cement';
+    state.articles[0].template = { unit_of_measure: 'kg', category: null as null };
+    openMaterials();
+    fireEvent.click(screen.getByRole('button', { name: 'Invia rapportino' }));
+    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({
+      materiali_usati: [expect.objectContaining({ stock_item_id: 'stock-cement', order_item_id: 'article', unita: 'kg' })],
+    })));
+  });
   it("mantiene il cantiere identificabile in entrambi i passi", () => {
     render(<CampoRapportino />); expect(screen.getByLabelText("Cantiere del rapportino")).toHaveTextContent("C-123");
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));

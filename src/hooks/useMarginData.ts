@@ -9,6 +9,7 @@
 // ============================================================================
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useAuth } from "@/contexts/AuthContext";
 import { recurrenceMultiplier } from "@/lib/forecastTypes";
 import { queryKeys } from "@/lib/queryKeys";
@@ -85,13 +86,14 @@ export function useMarginData(): MarginData {
     queryFn: async (): Promise<MarginViewRow[]> => {
       const cutoff = new Date();
       cutoff.setMonth(cutoff.getMonth() - 24);
-      const { data, error } = await (supabase as any)
+      const archivedIds = await loadArchivedOrderIds(companyId!);
+      const { data, error } = await excludeArchivedOrders((supabase as any)
         .from("v_ordine_marginalita")
         .select("id, order_code, description, cliente_nome, created_at, preventivo_totale, consuntivo, costo_acquisti, costo_materiali_magazzino, costo_errori, costo_manodopera, costo_provvigioni, costo_diretto, margine, margine_perc")
         .eq("company_id", companyId!)
         .gte("created_at", cutoff.toISOString())
         .order("created_at", { ascending: false })
-        .limit(500);
+        .limit(500), archivedIds) as { data: MarginViewRow[] | null; error: Error | null };
       if (error) throw error;
       return (data || []) as MarginViewRow[];
     },

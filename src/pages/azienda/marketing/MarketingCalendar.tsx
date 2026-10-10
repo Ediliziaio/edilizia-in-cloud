@@ -46,6 +46,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -409,6 +410,7 @@ export default function MarketingCalendar() {
     queryKey: ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, showOperativi],
     queryFn: async () => {
       if (!companyId) return [];
+      const archivedIds = await loadArchivedOrderIds(companyId);
       let query = supabase
         .from("appointments")
         .select("*")
@@ -427,6 +429,7 @@ export default function MarketingCalendar() {
       if (permissions.onlyAssigned && user?.id) {
         query = query.eq("assigned_to", user.id);
       }
+      query = excludeArchivedOrders(query, archivedIds, "order_id");
       const { data, error } = await query;
       if (error) throw error;
       return (data || []) as any[];

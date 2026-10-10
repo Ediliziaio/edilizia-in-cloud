@@ -5,6 +5,7 @@ import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { logoDiRiserva } from "../_shared/logoAzienda.ts";
 import { RIFERIMENTO_NORMATIVO, naturaToXml } from "../_shared/generateXML.ts";
 import { iscrizioneRea } from "../_shared/datiSocietari.ts";
+import { nativePdfSnapshot } from "../_shared/nativePdfSnapshot.ts";
 
 /** Documenti che vanno allo SDI: il PDF ne è solo la copia di cortesia. */
 const TIPI_FISCALI = ["fattura", "fattura_pa", "nota_credito", "nota_debito", "autofattura", "fattura_riepilogativa"];
@@ -78,6 +79,7 @@ interface Riepilogo {
 }
 
 function buildNativeHtml(doc: Record<string, any>, azienda: Record<string, any>, brandFooter?: string): string {
+  doc = nativePdfSnapshot(doc);
   const righe: Riga[] = doc.righe || [];
   const riepilogo: Riepilogo[] = doc.riepilogo_iva || [];
   const snap = doc.cliente_snapshot || {};

@@ -25,7 +25,7 @@ export function OrderOriginBadge({ quoteId, quoteNumber }: OrderOriginBadgeProps
 
   return (
     <Link
-      to={`/azienda/documenti/${quoteId}`}
+      to={`/azienda/marketing/preventivi/${quoteId}`}
       className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-secondary-foreground hover:underline"
     >
       <GitBranch className="h-3.5 w-3.5" />

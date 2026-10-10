@@ -109,7 +109,7 @@ export function TabDashboard({ anno }: Props) {
   const bep = useBEP(anno);
   const bdg = useBudgetForecast(anno);
   const rt  = useRating(anno);
-  const [cfoQuestion, setCfoQuestion] = useState(CFO_QUICK_PROMPTS[0]);
+  const [cfoQuestion, setCfoQuestion] = useState<string>(CFO_QUICK_PROMPTS[0]);
   const [cfoAnswer, setCfoAnswer] = useState<CfoAnswer | null>(null);
 
   const isPreparingDashboard =
@@ -434,7 +434,7 @@ export function TabDashboard({ anno }: Props) {
         <PartialDataWarning
           onRetry={() => {
             void sp.refetch();
-            void cf.refetch();
+            if (anno >= new Date().getFullYear()) void cf.refetch();
             void pfn.refetch();
             void idx.refetch();
             void com.refetch();
@@ -473,9 +473,9 @@ export function TabDashboard({ anno }: Props) {
           href="/azienda/controllo-gestione/ce"
         />
         <KPIMacro
-          label="Cassa fine anno"
+          label="Cassa fine anno prevista"
           value={cf.data ? formatCurrency(cf.data.meta.saldo_chiusura) : "—"}
-          sub={cf.data ? `Da apertura ${formatCurrency(cf.data.meta.saldo_apertura)}` : "—"}
+          sub={cf.data ? `Da apertura ${formatCurrency(cf.data.meta.saldo_apertura)}` : anno < new Date().getFullYear() ? "Per lo storico usa Cash Flow · Registrato" : "—"}
           icon={<Banknote className="h-4 w-4" />}
           tone={!cf.data ? "neutral" : cf.data.meta.saldo_chiusura >= 0 ? "green" : "red"}
           href="/azienda/controllo-gestione/cash-flow"
@@ -559,6 +559,8 @@ export function TabDashboard({ anno }: Props) {
                 <div className="flex h-full items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
                   Dati cassa in aggiornamento...
                 </div>
+              ) : anno < new Date().getFullYear() ? (
+                <p className="text-sm text-muted-foreground">Per il {anno} consulta i movimenti registrati. Il previsionale parte dal mese corrente.</p>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData}>

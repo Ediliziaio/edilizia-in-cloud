@@ -6,7 +6,7 @@
  * dice chi sta anticipando i soldi — se è sotto zero, il cantiere lo stai
  * finanziando tu. Il grafico è il family chart mensile (entrate smeraldo,
  * uscite rosso, linea = saldo cumulato); il picco di esposizione è calcolato
- * evento per evento nell'hook, non sui mesi.
+ * a fine giornata nell'hook, non sui mesi: senza orari non si inventa un picco infragiornaliero.
  *
  * Con l'avanzamento fasi disponibile aggiunge il confronto del manuale:
  * % eseguita vs % incassata → "lavoro fatto non ancora incassato".
@@ -177,7 +177,7 @@ export function EsposizioneCommessa({
    *  mobile e desktop sono entrambi nel DOM, un id doppio punterebbe al nodo nascosto). */
   anchorId?: string;
 }) {
-  const { esposizione, isLoading } = useEsposizioneCommessa({
+  const { esposizione, isLoading, isError, recorded } = useEsposizioneCommessa({
     orderId,
     totalAmount,
     vatRate,
@@ -188,12 +188,13 @@ export function EsposizioneCommessa({
   const incassataPct = cashTotalGross > 0 ? Math.min(100, (esposizione.incassato / cashTotalGross) * 100) : 0;
   const maturatoNonIncassato = useMemo(() => {
     if (avanzamentoPct == null || avanzamentoPct <= 0 || cashTotalGross <= 0) return 0;
-    return Math.max(0, (avanzamentoPct / 100) * cashTotalGross - esposizione.incassato);
+    return Math.max(0, Math.round(((avanzamentoPct / 100) * cashTotalGross - esposizione.incassato) * 100) / 100);
   }, [avanzamentoPct, cashTotalGross, esposizione.incassato]);
 
   if (isLoading) {
     return <Skeleton className="h-40 w-full rounded-xl" />;
   }
+  if (isError) return <p role="alert" className="rounded-xl border p-4 text-sm text-amber-700">Non riesco a leggere i movimenti di cassa della commessa.</p>;
   if (!esposizione.hasMovimenti) return null;
 
   const { incassato, uscite, saldoOggi, picco, daPagare, serieMensile } = esposizione;
@@ -219,6 +220,7 @@ export function EsposizioneCommessa({
       </CardHeader>
       {/* Mobile: il segno nella testata e i quattro numeri; frase e grafico al computer. */}
       <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0">
+        <p className="text-xs text-muted-foreground">{recorded ? 'Movimenti di prima nota registrati. I costi della squadra non sono automaticamente pagamenti.' : 'Pagamenti manuali con data effettiva. Verifica i movimenti in prima nota.'}</p>
         <p className={`text-[13px] leading-snug max-sm:hidden ${clienteFinanzia ? "text-emerald-700" : "text-red-600"}`}>
           {clienteFinanzia ? (
             <>
@@ -262,7 +264,7 @@ export function EsposizioneCommessa({
                       boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
                     }}
                     formatter={(value, name) => [
-                      Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }),
+                      Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }),
                       name === "entrate" ? "Incassi" : name === "uscite" ? "Uscite" : "Saldo",
                     ]}
                     labelFormatter={(label) => `Mese: ${label}`}
@@ -290,7 +292,7 @@ export function EsposizioneCommessa({
           <Mini
             label="Picco esposizione"
             value={picco && picco.value < 0 ? `−${formatCurrencyCompact(Math.abs(picco.value))}` : "mai in rosso"}
-            hint={picco && picco.value < 0 ? `il ${fmtData(picco.date)}` : undefined}
+            hint={picco && picco.value < 0 ? `a fine giornata ${fmtData(picco.date)}` : undefined}
             valueClass={picco && picco.value < 0 ? "text-red-600" : "text-emerald-600"}
           />
           <Mini

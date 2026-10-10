@@ -3,6 +3,7 @@ import { ListChecks, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAccessiCommessa } from "@/hooks/useAccessiCommessa";
+import { useManodoperaPresenteCommessa } from "@/hooks/useManodoperaPresenteCommessa";
 import { useImpostazioniAvvio } from "@/hooks/useImpostazioniAvvio";
 import { cn } from "@/lib/utils";
 import { CONTROLLI_AVVIO, cosaManca, senzaControllo, testoMancano, type ControlloAvvio } from "@/lib/orders/nuovaCommessa";
@@ -32,11 +33,14 @@ interface Props {
 export function CantiereDaOrganizzare({ orderId, indirizzo, inizio, fine, fasi, rate, puoModificare, puoConfigurare, onVai }: Props) {
   const confirm = useConfirm();
   const { data: accessi, isLoading: accessiInLettura, isError: accessiNonLetti } = useAccessiCommessa(orderId);
+  const manodopera = useManodoperaPresenteCommessa(orderId);
   const { controlli, isLoading: impostazioniInLettura, salva } = useImpostazioniAvvio();
 
-  if (!puoModificare || impostazioniInLettura || accessiInLettura || fasi === null || rate === null) return null;
+  if (!puoModificare || impostazioniInLettura || accessiInLettura || manodopera.isLoading || fasi === null || rate === null) return null;
   // Se gli accessi non si leggono non si può dire che manchino: nessun falso allarme.
-  const persone = accessiNonLetti ? 1 : accessi?.length ?? 0;
+  // Workers without an app account and subcontracting companies still work here.
+  // Never create fictitious access rights merely to dismiss this reminder.
+  const persone = accessiNonLetti || manodopera.isError || manodopera.data ? 1 : accessi?.length ?? 0;
   const mancanze = cosaManca({ indirizzo, inizio, fine, fasi, persone, rate }, controlli);
   if (mancanze.length === 0) return null;
 

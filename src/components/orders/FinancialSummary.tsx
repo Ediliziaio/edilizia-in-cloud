@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ritenutaSuLordo, IVA_SCORPORO_BANCA } from "@/lib/orders/bonusFiscali";
 import { formatCurrency } from "@/lib/formatters";
+import { calculateCollectedGrossFromInstallments } from "@/lib/commissions";
 // 2026-05-27: parseDecimalIT al posto di parseFloat sui campi importo —
 // su iOS Safari il tasto virgola era bloccato da `type="number"` e
 // parseFloat tagliava il decimale italiano (es. "1.500,50" → 1.500).
@@ -895,9 +896,9 @@ export function FinancialSummaryReadOnly({
     .reduce((sum, i) => sum + i.amount, 0);
   const balanceAmount = Math.max(0, totalWithVat - sommaAltreRate - financingCostValue);
   const importoRata = (i: Installment) => (isSaldoFinale(i) ? balanceAmount : i.amount);
-  const collectedAmount = installments
-    .filter(i => i.is_paid)
-    .reduce((sum, i) => sum + importoRata(i), 0);
+  const collectedAmount = calculateCollectedGrossFromInstallments({
+    installments, totalAmount, vatRate, financingCost: financingCostValue, includeFinancing: true,
+  });
   const dueAmount = Math.max(0, totalWithVat - financingCostValue - collectedAmount);
 
   const formatPaymentDate = (dateStr?: string | null) => {
@@ -911,6 +912,8 @@ export function FinancialSummaryReadOnly({
   // incasso/prevista modificabile inline, evidenza rossa sulle scadute.
   const renderPaymentRow = (inst: Installment, displayAmount?: number) => {
     const amount = displayAmount ?? inst.amount;
+    const partialPaid = Number(inst.fattura?.importo_pagato ?? 0);
+    const isPartial = !inst.is_paid && partialPaid > 0 && partialPaid < amount;
     if (amount <= 0 && inst.type !== 'balance') return null;
 
     const oggi = new Date();
@@ -973,7 +976,7 @@ export function FinancialSummaryReadOnly({
                   )}
                 >
                   <Clock className="h-3 w-3" />
-                  Non pagato
+                  {isPartial ? 'Parziale' : 'Non pagato'}
                 </button>
                 <button
                   type="button"
@@ -999,7 +1002,13 @@ export function FinancialSummaryReadOnly({
             ) : (
               <span className="flex items-center gap-1 text-xs text-amber-600">
                 <Clock className="h-3 w-3" />
-                In attesa
+                {isPartial ? 'Incasso parziale' : 'In attesa'}
+              </span>
+            )}
+
+            {isPartial && (
+              <span className="text-xs text-muted-foreground">
+                Incassato {formatCurrency(partialPaid)} · Residuo {formatCurrency(Math.max(0, amount - partialPaid))}
               </span>
             )}
 

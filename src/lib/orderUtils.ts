@@ -31,7 +31,7 @@ export interface Installment {
    * insieme alla rata, per mostrarla.
    */
   documento_fiscale_id?: string | null;
-  fattura?: { id: string; numero: string | null; stato: string | null } | null;
+  fattura?: { id: string; numero: string | null; stato: string | null; importo_pagato?: number | string | null } | null;
 }
 
 /**

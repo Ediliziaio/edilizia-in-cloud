@@ -6,6 +6,10 @@ const state = vi.hoisted(() => ({
   accessi: [] as unknown[], accessiInLettura: false, accessiNonLetti: false,
   controlli: ["indirizzo", "date", "fasi", "chi", "pagamenti"] as string[], impostazioniInLettura: false,
   salva: vi.fn(), conferma: vi.fn(),
+  manodopera: false, manodoperaInLettura: false, manodoperaErrore: false,
+}));
+vi.mock("@/hooks/useManodoperaPresenteCommessa", () => ({
+  useManodoperaPresenteCommessa: () => ({ data: state.manodopera, isLoading: state.manodoperaInLettura, isError: state.manodoperaErrore }),
 }));
 vi.mock("@/hooks/useAccessiCommessa", () => ({
   useAccessiCommessa: () => ({ data: state.accessi, isLoading: state.accessiInLettura, isError: state.accessiNonLetti }),
@@ -28,6 +32,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   Object.assign(state, {
     accessi: [], accessiInLettura: false, accessiNonLetti: false,
+    manodopera: false, manodoperaInLettura: false, manodoperaErrore: false,
     controlli: ["indirizzo", "date", "fasi", "chi", "pagamenti"], impostazioniInLettura: false,
   });
   state.conferma.mockResolvedValue(true);
@@ -61,6 +66,23 @@ describe("Cantiere da organizzare", () => {
     render(<CantiereDaOrganizzare {...props} />);
     expect(screen.getByText(/Manca: l'indirizzo del cantiere/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Scegli le fasi" })).not.toBeInTheDocument();
+  });
+
+  it("operai o ditte senza account app non risultano mancanti", () => {
+    state.manodopera = true;
+    const { container } = render(<CantiereDaOrganizzare {...props} indirizzo="Via Roma 1" inizio="2025-01-03" fine="2025-02-28" fasi={6} rate={3} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("non inventa un'assenza durante lettura o errore della manodopera", () => {
+    state.manodoperaInLettura = true;
+    expect(render(<CantiereDaOrganizzare {...props} />).container).toBeEmptyDOMElement();
+    cleanup();
+    state.manodoperaInLettura = false;
+    state.manodoperaErrore = true;
+    render(<CantiereDaOrganizzare {...props} />);
+    expect(screen.queryByRole("button", { name: "Scegli chi lavora" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Scegli le fasi" })).toBeInTheDocument();
   });
 
   it("senza nessun controllo scelto non mostra niente", () => {

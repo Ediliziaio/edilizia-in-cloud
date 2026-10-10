@@ -32,8 +32,9 @@ import { useGPS } from "@/hooks/useGPS";
 import { FirmaPad } from "@/components/campo/FirmaPad";
 import { useWeatherForecast } from "@/hooks/useWeatherForecast";
 import { hasRapportinoAssignment } from "@/lib/campo/rapportinoAssignment";
-import { buildRapportinoMaterials, rapportinoArticleKind, rapportinoMaterialUnit, rapportinoUnitOptions, type RapportinoArticle, type RapportinoMaterialDraft } from "@/lib/campo/rapportinoMaterials";
+import { buildRapportinoMaterials, restoreRapportinoMaterials, rapportinoStockSelectionKey, rapportinoArticleKind, rapportinoMaterialUnit, rapportinoUnitOptions, type RapportinoArticle, type RapportinoMaterialDraft } from "@/lib/campo/rapportinoMaterials";
 import { loadRapportinoArticles } from "@/lib/campo/loadRapportinoArticles";
+import { loadRapportinoDeliveredStock } from "@/lib/campo/loadRapportinoDeliveredStock";
 import { costruisciFasiLavorate, faseDiAppartenenza } from "@/lib/campo/rapportinoFasi";
 import { RapportinoSiteContext } from "@/components/campo/RapportinoSiteContext";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
@@ -285,7 +286,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
     descrizione_lavori: string | null; ore_lavorate: number | null; ore_straordinario: number | null;
     foto_urls: string[] | null; fasi_lavorate: { phase_id: string; percentuale: number; foto?: string[] }[] | null;
     presenze: { employee_id?: string; subappaltatore_id?: string; ore?: number }[] | null;
-    materiali_usati: { nome: string; quantita: number; unita?: string; order_item_id?: string; fase_id?: string }[] | null;
+    materiali_usati: { nome: string; quantita: number; unita?: string; order_item_id?: string; stock_item_id?: string; fase_id?: string }[] | null;
     meteo: string | null; percentuale_avanzamento: number | null;
   };
   const { data: rapportinoGiaOggi } = useQuery({
@@ -358,10 +359,7 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
         setFotoFase(Object.fromEntries(r.fasi_lavorate.filter(f => f?.phase_id).flatMap(f => (Array.isArray(f.foto) ? f.foto : []).map((u): [string, string] => [u, f.phase_id]))));
       }
       if (Array.isArray(r.materiali_usati)) {
-        setMaterialiSel(Object.fromEntries(r.materiali_usati.map((m, i) => [
-          m.order_item_id ?? `libero_${i}`,
-          { nome: m.nome, quantita: Number(m.quantita) || 1, unita: m.unita, ...(m.fase_id ? { faseId: m.fase_id } : {}) },
-        ])));
+        setMaterialiSel(restoreRapportinoMaterials(r.materiali_usati));
       }
     });
     return () => { cancelled = true; };
@@ -451,25 +449,36 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
   const materialiCommessa = articoliCommessa.filter(item => rapportinoArticleKind(item) === "material");
   const articoliDaVerificare = articoliCommessa.filter(item => rapportinoArticleKind(item) === "unknown");
   const prestazioniCommessa = articoliCommessa.filter(item => rapportinoArticleKind(item) === "service");
+  const delivered = useQuery({
+    queryKey: ['campo-materiali-consegnati-rapportino', companyId, orderId, workDay],
+    enabled: !!companyId && !!orderId && validWorkDay(workDay), staleTime: 60_000,
+    queryFn: () => loadRapportinoDeliveredStock(orderId!, companyId!, workDay),
+  });
+  const materialiConsegnati = (delivered.data ?? []).filter(item =>
+    !materialiCommessa.some(article => article.stock_item_id === item.stock_item_id));
 
   const toggleMateriale = (item: RapportinoArticle) => {
     setMaterialiSel(prev => {
       const next = { ...prev };
-      if (item.id in next) delete next[item.id];
-      else next[item.id] = { nome: item.name, quantita: 1, unita: rapportinoMaterialUnit(item.template?.unit_of_measure) };
+      const key = item.stock_item_id ? rapportinoStockSelectionKey(item.stock_item_id) : item.id;
+      if (key in next) delete next[key];
+      else next[key] = { nome: item.name, quantita: 1, unita: rapportinoMaterialUnit(item.template?.unit_of_measure),
+        orderItemId: item.order_item_id === undefined ? item.id : item.order_item_id,
+        ...(item.stock_item_id ? { stockItemId: item.stock_item_id } : {}) };
       return next;
     });
   };
 
-  const renderMateriale = (item: RapportinoArticle) => (
-    <button key={item.id} type="button" aria-pressed={item.id in materialiSel}
+  const renderMateriale = (item: RapportinoArticle) => {
+    const key = item.stock_item_id ? rapportinoStockSelectionKey(item.stock_item_id) : item.id;
+    return <button key={key} type="button" aria-pressed={key in materialiSel}
       onClick={() => toggleMateriale(item)}
       className={`max-w-full min-h-11 rounded-xl border px-3 py-2 text-left text-sm break-words transition-colors ${
-        item.id in materialiSel ? "border-primary bg-primary/10 font-semibold text-primary" : "border-border bg-muted text-muted-foreground"
+        key in materialiSel ? "border-primary bg-primary/10 font-semibold text-primary" : "border-border bg-muted text-muted-foreground"
       }`}>
       {item.name}
-    </button>
-  );
+    </button>;
+  };
 
   const aggiungiMaterialeLibero = () => {
     const nome = materialeLibero.trim();
@@ -1188,6 +1197,15 @@ function CampoRapportinoEditor({ workDay }: { workDay: string }) {
                 <button type="button" className="block min-h-11 text-primary underline" onClick={() => refetchArticoli()}>Riprova materiali</button>
               </div>}
               {materialiCommessa.length > 0 && <div className="flex flex-wrap gap-2">{materialiCommessa.map(renderMateriale)}</div>}
+              {materialiConsegnati.length > 0 && <details className="mt-3 rounded-xl border p-3">
+                <summary className="min-h-11 cursor-pointer text-sm font-semibold">Dal magazzino al cantiere ({materialiConsegnati.length})</summary>
+                <p className="mb-3 text-xs text-muted-foreground">Materiali consegnati entro questa giornata. Scegli quelli usati e indica quantità e unità: il rapportino non crea un altro prelievo.</p>
+                <div className="flex flex-wrap gap-2">{materialiConsegnati.map(renderMateriale)}</div>
+              </details>}
+              {delivered.isError && <div role="alert" className="mt-3 rounded-xl border border-amber-200 p-3 text-sm">
+                Materiali consegnati non disponibili. Puoi usare gli articoli o aggiungere una voce libera; le scelte già fatte restano salvate nel modulo.
+                <button type="button" className="block min-h-11 text-primary underline" onClick={() => delivered.refetch()}>Riprova consegne</button>
+              </div>}
               {articoliDaVerificare.length > 0 && <details className="mt-3 rounded-xl border p-3">
                 <summary className="min-h-11 cursor-pointer text-sm font-semibold">Articoli da verificare ({articoliDaVerificare.length})</summary>
                 <p className="mb-3 text-xs text-muted-foreground">Queste voci non sono classificate. Seleziona solo materiali effettivamente usati; descrivi manodopera e servizi nelle lavorazioni.</p>

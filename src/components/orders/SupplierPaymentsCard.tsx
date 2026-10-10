@@ -1,345 +1,99 @@
-import { useMemo } from "react";
-import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { formatCurrency } from "@/lib/formatters";
-import { Truck, CheckCircle, Clock, AlertTriangle } from "lucide-react";
-import { differenceInDays, parseISO, startOfDay } from "date-fns";
-import { format } from "date-fns";
-import { PAYMENT_METHODS } from "@/components/orders/OrderItemsList";
-import { EmptyRow } from "./EmptyRow";
-
-interface SupplierPaymentItem {
-  id: string;
-  name: string;
-  supplier_id: string | null;
-  purchase_price: number | null;
-  quantity: number;
-  is_paid: boolean | null;
-  payment_method: string | null;
-  deposit_amount: number | null;
-  deposit_paid: boolean | null;
-  deposit_paid_date: string | null;
-  balance_amount: number | null;
-  balance_paid: boolean | null;
-  balance_paid_date: string | null;
-  balance_expected_date: string | null;
-}
+import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { formatCurrency } from '@/lib/formatters';
+import { Truck, AlertTriangle } from 'lucide-react';
+import { differenceInDays, format, isValid, parseISO, startOfDay } from 'date-fns';
+import { EmptyRow } from './EmptyRow';
+import { useSupplierPaymentNames, useSupplierPayments } from '@/hooks/useSupplierPayments';
+import { supplierPaymentSummary, type SupplierBudgetItem } from '@/lib/orders/supplierPaymentSummary';
 
 interface SupplierPaymentsCardProps {
-  items: SupplierPaymentItem[];
+  items: SupplierBudgetItem[];
   companyId: string;
   orderId?: string;
 }
 
-interface OdA {
-  id: string;
-  oda_number: string | number | null;
-  status: string;
-  total: number | null;
-  supplier_id: string | null;
-}
-
-interface SupplierGroup {
-  supplierId: string | null;
-  supplierName: string;
-  total: number;
-  paid: number;
-  unpaid: number;
-  nextDeadline: string | null;
-  paymentMethod: string | null;
-}
-
-const INSTALLMENT_METHODS = ["50_50", "30_70"];
-
-function isInstallmentMethod(method: string | null): boolean {
-  return !!method && INSTALLMENT_METHODS.includes(method);
-}
-
 export function SupplierPaymentsCard({ items, companyId, orderId }: SupplierPaymentsCardProps) {
-  // Fetch supplier names
-  const supplierIds = useMemo(
-    () => [...new Set(items.map((i) => i.supplier_id).filter(Boolean))] as string[],
-    [items]
-  );
+  const documents = useSupplierPayments(companyId, orderId);
+  const ids = useMemo(() => [...new Set([
+    ...items.map(i => i.supplier_id),
+    ...(documents.data?.orders ?? []).map(o => o.supplier_id),
+    ...(documents.data?.entries ?? []).map(e => e.supplier_id),
+  ].filter((id): id is string => !!id))].sort(), [items, documents.data]);
+  const names = useSupplierPaymentNames(companyId, ids);
+  const groups = useMemo(() => supplierPaymentSummary({ items, names: names.data ?? {},
+    orders: documents.data?.orders ?? [], invoices: documents.data?.invoices ?? [],
+    entries: documents.data?.entries ?? [], dues: documents.data?.dues ?? [],
+    ambiguousCostIds: documents.data?.ambiguousCostIds ?? [],
+  }), [items, documents.data, names.data]);
+  const loading = !!orderId && documents.isLoading;
+  const error = documents.isError || names.isError;
+  const invoiced = groups.reduce((s, g) => s + g.invoiced, 0);
+  const paid = groups.reduce((s, g) => s + g.paid, 0);
+  const unpaid = groups.reduce((s, g) => s + g.unpaid, 0);
 
-  const { data: suppliers = [] } = useQuery({
-    queryKey: ["suppliers-for-payments", companyId, supplierIds],
-    queryFn: async () => {
-      if (supplierIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("id, name")
-        .in("id", supplierIds);
-      if (error) throw error;
-      return data;
-    },
-    enabled: supplierIds.length > 0,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const supplierMap = useMemo(
-    () => new Map(suppliers.map((s) => [s.id, s.name])),
-    [suppliers]
-  );
-
-  // Fetch the commessa's actual OdA (purchase orders) when orderId is provided
-  const { data: oda = [] } = useQuery({
-    queryKey: ["order-oda-for-payments", orderId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchase_orders")
-        .select("id, oda_number, status, total, supplier_id")
-        .eq("order_id", orderId!);
-      if (error) throw error;
-      return (data ?? []) as OdA[];
-    },
-    enabled: !!orderId,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Group OdA by supplier_id (skip null supplier_id)
-  const odaBySupplier = useMemo(() => {
-    const map = new Map<string, OdA[]>();
-    oda.forEach((o) => {
-      if (!o.supplier_id) return;
-      if (!map.has(o.supplier_id)) map.set(o.supplier_id, []);
-      map.get(o.supplier_id)!.push(o);
-    });
-    return map;
-  }, [oda]);
-
-  // Group items by supplier and calculate totals
-  const groups = useMemo<SupplierGroup[]>(() => {
-    const itemsWithSupplier = items.filter((i) => i.supplier_id);
-    if (itemsWithSupplier.length === 0) return [];
-
-    const grouped = new Map<string, SupplierPaymentItem[]>();
-    itemsWithSupplier.forEach((item) => {
-      const key = item.supplier_id!;
-      if (!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key)!.push(item);
-    });
-
-    const result: SupplierGroup[] = [];
-    grouped.forEach((groupItems, supplierId) => {
-      let total = 0;
-      let paid = 0;
-      let nextDeadline: string | null = null;
-      let primaryMethod: string | null = null;
-
-      groupItems.forEach((item) => {
-        const cost = (item.purchase_price || 0) * (item.quantity || 1);
-        total += cost;
-
-        if (!primaryMethod && item.payment_method) {
-          primaryMethod = item.payment_method;
-        }
-
-        if (isInstallmentMethod(item.payment_method)) {
-          // Installment-based: check deposit + balance separately
-          if (item.deposit_paid && item.deposit_amount) {
-            paid += item.deposit_amount;
-          }
-          if (item.balance_paid && item.balance_amount) {
-            paid += item.balance_amount;
-          }
-          // Track next unpaid balance deadline
-          if (!item.balance_paid && item.balance_expected_date) {
-            if (!nextDeadline || item.balance_expected_date < nextDeadline) {
-              nextDeadline = item.balance_expected_date;
-            }
-          }
-        } else {
-          // Single payment: use is_paid
-          if (item.is_paid) {
-            paid += cost;
-          }
-        }
-      });
-
-      result.push({
-        supplierId,
-        supplierName: supplierMap.get(supplierId) || "Fornitore",
-        total,
-        paid,
-        unpaid: total - paid,
-        nextDeadline,
-        paymentMethod: primaryMethod,
-      });
-    });
-
-    return result.sort((a, b) => b.total - a.total);
-  }, [items, supplierMap]);
-
-  if (groups.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Truck className="h-5 w-5 text-primary" />
-            Pagamenti Fornitori
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* Riga compatta invece del riquadro alto: senza fornitori questa card
-              occupava 715px per non dire nulla, piu' di ogni altra della pagina. */}
-          <EmptyRow icon={Truck}>Nessun fornitore associato a questa commessa</EmptyRow>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const totalPaid = groups.reduce((s, g) => s + g.paid, 0);
-  const totalUnpaid = groups.reduce((s, g) => s + g.unpaid, 0);
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Truck className="h-5 w-5 text-primary" />
-          Pagamenti Fornitori
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Summary row */}
-        <div className="flex items-center justify-between text-sm pb-2 border-b">
-          <div className="flex items-center gap-1.5">
-            <CheckCircle className="h-3.5 w-3.5 text-green-600" />
-            <span>
-              Pagato:{" "}
-              <span className="font-semibold text-green-600">
-                {formatCurrency(totalPaid)}
-              </span>
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5 text-amber-600" />
-            <span>
-              Da pagare:{" "}
-              <span className="font-semibold text-amber-600">
-                {formatCurrency(totalUnpaid)}
-              </span>
-            </span>
-          </div>
-        </div>
-
-        {/* Per-supplier rows */}
-        <div className="space-y-3">
-          {groups.map((group) => {
-            const paidPercent =
-              group.total > 0
-                ? Math.round((group.paid / group.total) * 100)
-                : 0;
-
-            const deadlineInfo = getDeadlineInfo(group.nextDeadline);
-
-            return (
-              /* Riga compatta: nome, stato e importi sulla STESSA linea invece di
-                 quattro righe impilate. Con cinque fornitori si passa da ~107px
-                 a ~60px ciascuno, senza perdere un dato. */
-              <div key={group.supplierId} className="space-y-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-medium">{group.supplierName}</span>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {formatCurrency(group.paid)} / {formatCurrency(group.total)}
-                    </span>
-                    <StatusBadge paidPercent={paidPercent} />
-                  </div>
-                </div>
-                <Progress value={paidPercent} className="h-1.5" />
-                {(group.paymentMethod || deadlineInfo) && (
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className={deadlineInfo ? `flex items-center gap-1 ${deadlineInfo.colorClass}` : ""}>
-                      {deadlineInfo && <><AlertTriangle className="h-3 w-3" />{deadlineInfo.label}</>}
-                    </span>
-                    {group.paymentMethod && (
-                      <span className="shrink-0 text-muted-foreground">
-                        {PAYMENT_METHODS.find((m) => m.value === group.paymentMethod)?.label || group.paymentMethod}
-                      </span>
-                    )}
-                  </div>
-                )}
-                {orderId && (() => {
-                  const supplierOda = odaBySupplier.get(group.supplierId ?? "");
-                  return (
-                    <div className="pt-1">
-                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
-                        OdA
-                      </div>
-                      {supplierOda && supplierOda.length > 0 ? (
-                        <div className="space-y-0.5">
-                          {supplierOda.map((o) => (
-                            <Link
-                              key={o.id}
-                              to={`/azienda/ordini-acquisto/${o.id}`}
-                              className="flex items-center justify-between gap-2 text-xs text-foreground hover:underline"
-                            >
-                              <span className="flex items-center gap-1.5 truncate">
-                                <span>#{o.oda_number}</span>
-                                <Badge variant="outline" className="text-[10px]">
-                                  {o.status}
-                                </Badge>
-                              </span>
-                              <span>{formatCurrency(Number(o.total) || 0)}</span>
-                            </Link>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-[11px] text-muted-foreground">
-                          Nessun OdA emesso
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+  return <Card>
+    <CardHeader className="pb-3">
+      <CardTitle className="flex items-center gap-2 text-base">
+        <Truck className="h-5 w-5 text-primary" />Pagamenti fornitori
+      </CardTitle>
+    </CardHeader>
+    <CardContent className="space-y-4">
+      {loading ? <p role="status" className="text-sm text-muted-foreground">Leggo OdA, fatture e pagamenti…</p>
+        : error ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />Non riesco a verificare i pagamenti fornitori.
+          <Button size="sm" variant="outline" onClick={() => { void documents.refetch(); void names.refetch(); }}>Riprova</Button>
+        </div> : groups.length === 0 ? <EmptyRow icon={Truck}>Nessun fornitore associato a questa commessa</EmptyRow>
+        : <>
+          {invoiced > 0 && <div className="grid grid-cols-1 gap-2 border-b pb-3 text-sm min-[360px]:grid-cols-3">
+            <Money label="Fatturato" value={invoiced} />
+            <Money label="Pagato" value={paid} className="text-green-700" />
+            <Money label="Da pagare" value={unpaid} className="text-amber-700" />
+          </div>}
+          <p className="text-xs text-muted-foreground">Fatture IVA inclusa e pagamenti registrati. Il budget articoli non è un debito.</p>
+          <div className="divide-y">
+            {groups.map(group => <div key={group.key} className="space-y-2 py-3 first:pt-0 last:pb-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="min-w-0 break-words text-sm font-medium">{group.name}</span>
+                <Badge variant="outline" className={group.reviewCount ? 'text-amber-700' : group.invoiced > 0 && group.unpaid === 0 ? 'text-green-700' : ''}>
+                  {group.reviewCount ? 'Da verificare' : group.invoiced > 0 ? group.unpaid === 0 ? 'Pagato' : group.paid > 0 ? 'Parziale' : 'Da pagare'
+                    : group.ordered > 0 ? 'In attesa di fattura' : 'Solo budget'}
+                </Badge>
               </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
+              {group.invoiced > 0 && <>
+                <div className="flex flex-wrap justify-between gap-1 text-xs tabular-nums">
+                  <span>Pagato {formatCurrency(group.paid)} su {formatCurrency(group.invoiced)}</span>
+                  <span className="text-muted-foreground">Residuo {formatCurrency(group.unpaid)}</span>
+                </div>
+                <Progress value={100 * group.paid / group.invoiced} className="h-1.5" />
+              </>}
+              {group.nextDeadline && group.unpaid > 0 && <Deadline value={group.nextDeadline} />}
+              {group.reviewCount > 0 && <p className="text-xs text-amber-700">Collegamenti, note di credito o pagamenti da verificare: {formatCurrency(group.review)}. Esclusi dai totali verificati.</p>}
+              {group.ordered > 0 && <p className="text-xs text-muted-foreground">Ordinato {formatCurrency(group.ordered)} · {group.invoiceCount} fatture collegate</p>}
+              {group.estimated > 0 && group.invoiced === 0 && <p className="text-xs text-muted-foreground">Budget articoli: {formatCurrency(group.estimated)} (stima, non pagamento)</p>}
+              {group.orders.map(order => <Link key={order.id} to={`/azienda/ordini-acquisto/${order.id}`}
+                className="flex min-h-9 flex-wrap items-center justify-between gap-1 rounded px-1 text-xs text-primary hover:bg-muted focus-visible:outline focus-visible:outline-2">
+                <span>OdA #{order.oda_number} · {order.status}</span><span className="tabular-nums">{formatCurrency(Number(order.total) || 0)}</span>
+              </Link>)}
+            </div>)}
+          </div>
+        </>}
+    </CardContent>
+  </Card>;
 }
 
-function StatusBadge({ paidPercent }: { paidPercent: number }) {
-  if (paidPercent >= 100) {
-    return (
-      <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100 text-xs">
-        Pagato
-      </Badge>
-    );
-  }
-  if (paidPercent > 0) {
-    return (
-      <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-xs">
-        Parziale
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="secondary" className="bg-red-100 text-red-700 hover:bg-red-100 text-xs">
-      Da pagare
-    </Badge>
-  );
+function Money({ label, value, className = '' }: { label: string; value: number; className?: string }) {
+  return <div><div className="text-xs text-muted-foreground">{label}</div><div className={`font-semibold tabular-nums ${className}`}>{formatCurrency(value)}</div></div>;
 }
-
-function getDeadlineInfo(dateStr: string | null): { label: string; colorClass: string } | null {
-  if (!dateStr) return null;
-  const today = startOfDay(new Date());
-  const deadline = startOfDay(parseISO(dateStr));
-  const days = differenceInDays(deadline, today);
-  const formatted = format(deadline, "dd/MM/yyyy");
-
-  if (days < 0) {
-    return { label: `Scadenza saldo: ${formatted} (scaduto)`, colorClass: "text-red-600" };
-  }
-  if (days <= 7) {
-    return { label: `Scadenza saldo: ${formatted}`, colorClass: "text-amber-600" };
-  }
-  return { label: `Scadenza saldo: ${formatted}`, colorClass: "text-muted-foreground" };
+function Deadline({ value }: { value: string }) {
+  const date = parseISO(value);
+  if (!isValid(date)) return <p className="text-xs text-amber-700">Data scadenza da verificare</p>;
+  const expired = differenceInDays(startOfDay(date), startOfDay(new Date())) < 0;
+  return <p className={`text-xs ${expired ? 'text-red-600' : 'text-muted-foreground'}`}>
+    Scadenza: {format(date, 'dd/MM/yyyy')}{expired ? ' · scaduta' : ''}
+  </p>;
 }

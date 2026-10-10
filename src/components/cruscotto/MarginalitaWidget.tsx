@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency } from "@/lib/formatters";
 import {
@@ -41,14 +42,15 @@ export function MarginalitaWidget() {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["marginalita-widget", companyId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const archivedIds = await loadArchivedOrderIds(companyId!);
+      const { data, error } = await excludeArchivedOrders(supabase
         .from("v_ordine_marginalita")
         .select(
           "id, order_code, description, cliente_nome, preventivo_contratto, preventivo_totale, variazioni_approvate, costo_acquisti, costo_errori, consuntivo, margine, margine_perc",
         )
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
-        .limit(WIDGET_FETCH_LIMIT);
+        .limit(WIDGET_FETCH_LIMIT), archivedIds);
       if (error) throw error;
       return (data || []) as OrdineMarginalitaRow[];
     },

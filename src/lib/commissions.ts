@@ -21,9 +21,11 @@ export interface CommissionCalculationInput {
 }
 
 export interface InstallmentLike {
+  position?: number;
   type?: string | null;
   amount?: number | string | null;
   is_paid?: boolean | null;
+  fattura?: { id?: string; importo_pagato?: number | string | null; stato?: string | null } | null;
 }
 
 export interface VariableCompensationStatusInput {
@@ -214,7 +216,8 @@ export function grossToNetAmount(grossAmount: number | string | null | undefined
   return gross / (1 + vat / 100);
 }
 
-export function calculateCollectedGrossFromInstallments({
+/** One amount per row: shared by the total and the dated cash timeline. */
+export function calculateInstallmentCollections({
   installments,
   totalAmount,
   vatRate,
@@ -226,16 +229,31 @@ export function calculateCollectedGrossFromInstallments({
   vatRate: number | string | null | undefined;
   financingCost?: number | string | null;
   includeFinancing?: boolean;
-}): number {
+}): number[] {
   const totalGross = money(totalAmount) * (1 + money(vatRate) / 100);
-  const nonBalanceSum = installments
-    .filter((i) => i.type !== "balance")
+  // Intermediate SALs also use `balance`. Only the LAST balance is a residual.
+  const finalBalance = installments.reduce<number>((last, i, index) =>
+    i.type === "balance" && (last < 0 || (i.position ?? index) >= (installments[last].position ?? last)) ? index : last, -1);
+  const otherInstallments = installments
+    .filter((_, index) => index !== finalBalance)
     .reduce((sum, i) => sum + money(i.amount), 0);
-  const balanceAmount = Math.max(0, totalGross - nonBalanceSum - money(financingCost));
+  const balanceAmount = Math.max(0, totalGross - otherInstallments - money(financingCost));
+  const countedInvoices = new Set<string>();
+  return installments.map((i, index) => {
+    if (!includeFinancing && i.type === "financing") return 0;
+    // Partial invoice collections are actual cash even when is_paid is false.
+    // Explicit zero is authoritative; never replace it with a paid flag.
+    if (i.fattura?.importo_pagato != null) {
+      if (i.fattura.id && countedInvoices.has(i.fattura.id)) return 0;
+      if (i.fattura.id) countedInvoices.add(i.fattura.id);
+      return roundMoney(positiveMoney(i.fattura.importo_pagato));
+    }
+    return roundMoney(i.is_paid ? index === finalBalance ? balanceAmount : positiveMoney(i.amount) : 0);
+  });
+}
 
-  return installments
-    .filter((i) => i.is_paid && (includeFinancing || i.type !== "financing"))
-    .reduce((sum, i) => sum + (i.type === "balance" ? balanceAmount : money(i.amount)), 0);
+export function calculateCollectedGrossFromInstallments(args: Parameters<typeof calculateInstallmentCollections>[0]): number {
+  return roundMoney(calculateInstallmentCollections(args).reduce((sum, amount) => sum + amount, 0));
 }
 
 export function calculateCollectedNetFromInstallments(args: {

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { listSurveysByOrder } from "@/lib/api/surveys";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   ClipboardCheck, Plus, MapPin, Calendar, ChevronRight, Ruler, Loader2,
 } from "lucide-react";
@@ -24,6 +25,11 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   draft: { label: "Bozza", color: "bg-slate-100 text-slate-700 border-slate-300" },
   in_progress: { label: "In corso", color: "bg-amber-100 text-amber-700 border-amber-300" },
   completed: { label: "Completato", color: "bg-emerald-100 text-emerald-700 border-emerald-300" },
+  reviewed: { label: "Verificato", color: "bg-blue-100 text-blue-700 border-blue-300" },
+  signed: { label: "Firmato", color: "bg-emerald-100 text-emerald-700 border-emerald-300" },
+  converted: { label: "Convertito", color: "bg-blue-100 text-blue-700 border-blue-300" },
+  archived: { label: "Archiviato", color: "bg-slate-100 text-slate-700 border-slate-300" },
+  cancelled: { label: "Annullato", color: "bg-slate-100 text-slate-700 border-slate-300" },
 };
 
 interface OrderSurveysCardProps {
@@ -34,10 +40,11 @@ export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
   const navigate = useNavigate();
   // La rotta di creazione rimanda indietro chi è in sola lettura: meglio spegnere il bottone.
   const { solaLettura } = usePermissions();
+  const { effectiveCompany } = useAuth();
   const { data: surveys, isLoading, isError } = useQuery({
-    queryKey: ["order-surveys", orderId],
-    queryFn: () => listSurveysByOrder(orderId),
-    enabled: !!orderId,
+    queryKey: ["order-surveys", orderId, effectiveCompany?.id],
+    queryFn: () => listSurveysByOrder(orderId, effectiveCompany!.id),
+    enabled: !!orderId && !!effectiveCompany?.id,
     staleTime: 30_000,
   });
 

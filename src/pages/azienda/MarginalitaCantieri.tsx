@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import MargineVociDetail from "@/components/marginalita/MargineVociDetail";
 import { supabase } from "@/integrations/supabase/client";
+import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency } from "@/lib/formatters";
 import { escapeCsvCell } from "@/lib/csvExport";
@@ -267,24 +268,25 @@ export default function MarginalitaCantieri() {
     queryKey: ["marginalita-cantieri", companyId],
     queryFn: async () => {
       // Limit payload deterministically and expose the cap in UI instead of hiding truncated data.
-      const rich = await supabase
+      const archivedIds = await loadArchivedOrderIds(companyId!);
+      const rich = await excludeArchivedOrders(supabase
         .from("v_ordine_marginalita")
         .select("id, company_id, order_code, description, preventivo_contratto, variazioni_approvate, preventivo_totale, costo_acquisti, costo_materiali_magazzino, movimenti_magazzino_senza_costo, costo_errori, consuntivo, margine, margine_perc, cliente_nome, work_start_date, work_end_date, percentuale_avanzamento, created_at", { count: "exact" })
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
-        .limit(MARGINALITA_FETCH_LIMIT);
+        .limit(MARGINALITA_FETCH_LIMIT), archivedIds);
 
       if (rich.error) {
         const isOldView = /schema cache|column|costo_materiali_magazzino|movimenti_magazzino_senza_costo|percentuale_avanzamento/i
           .test(rich.error.message || "");
         if (!isOldView) throw rich.error;
 
-        const fallback = await supabase
+        const fallback = await excludeArchivedOrders(supabase
           .from("v_ordine_marginalita")
           .select("id, company_id, order_code, description, preventivo_contratto, variazioni_approvate, preventivo_totale, costo_acquisti, costo_errori, consuntivo, margine, margine_perc, cliente_nome, work_start_date, work_end_date, created_at", { count: "exact" })
           .eq("company_id", companyId!)
           .order("created_at", { ascending: false })
-          .limit(MARGINALITA_FETCH_LIMIT);
+          .limit(MARGINALITA_FETCH_LIMIT), archivedIds);
         if (fallback.error) throw fallback.error;
         return {
           rows: (fallback.data || []).map((row) => ({

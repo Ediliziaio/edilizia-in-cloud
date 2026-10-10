@@ -37,6 +37,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { RecordedCashFlow } from "./RecordedCashFlow";
 
 interface Props {
   anno: number;
@@ -49,6 +50,7 @@ const MESI_LABELS = [
 
 const RIGHE_ENTRATE = [
   { key: "scadenze",  label: "Incassi clienti (scadenze)" },
+  { key: "commesse",  label: "Rate commesse non già a scadenza" },
   { key: "fatture",   label: "Fatture aperte (extra)" },
   { key: "manuali",   label: "Voci manuali entrata" },
 ] as const;
@@ -62,6 +64,21 @@ const RIGHE_USCITE = [
 ] as const;
 
 export function TabCashFlow({ anno }: Props) {
+  const [mode, setMode] = useState<'registrato' | 'previsionale'>('registrato');
+  const historical = anno < new Date().getFullYear();
+  return <div className="space-y-4">
+    <div className="inline-flex rounded-lg border bg-white p-1" role="group" aria-label="Tipo di flusso di cassa">
+      <Button size="sm" variant={mode === 'registrato' ? 'default' : 'ghost'} aria-pressed={mode === 'registrato'} onClick={() => setMode('registrato')}>Registrato</Button>
+      <Button size="sm" variant={mode === 'previsionale' ? 'default' : 'ghost'} aria-pressed={mode === 'previsionale'} onClick={() => setMode('previsionale')}>Previsionale</Button>
+    </div>
+    {mode === 'registrato' ? <RecordedCashFlow anno={anno} /> : historical ? <p role="note" className="rounded-lg border p-3 text-sm">Il {anno} è uno storico: usa “Registrato”. Il previsionale parte dal mese corrente, mai dal saldo di oggi applicato al passato.</p> : <>
+      <p role="note" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Solo flussi ancora attesi: scadenze residue, rate collegate, costi da pagare e voci manuali extra. Stipendi e mutui non vengono aggiunti una seconda volta: inserisci le relative scadenze. Gli scaduti sono ipotizzati nel mese corrente, non incassi garantiti.</p>
+      <ProjectedCashFlow anno={anno} />
+    </>}
+  </div>;
+}
+
+function ProjectedCashFlow({ anno }: Props) {
   const cf = useCashFlow(anno, 1, 12);
   const [editorOpen, setEditorOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -86,6 +103,20 @@ export function TabCashFlow({ anno }: Props) {
   return (
     <div className="space-y-4">
       {/* KPI head */}
+      {!!meta.da_verificare && <p role="status" className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{meta.da_verificare} voci escluse: data o collegamento da verificare. La previsione non è completa finché non le sistemi.</p>}
+      {!!cf.data.verifiche?.length && <details className="rounded-lg border border-amber-200 bg-white p-3 text-sm">
+        <summary className="cursor-pointer font-medium text-amber-900">Cosa manca e dove correggerlo</summary>
+        <ul className="mt-2 max-h-64 divide-y overflow-y-auto">
+          {cf.data.verifiche.map(v => <li key={`${v.origine}:${v.id}`} className="py-2">
+            <p className="font-medium">{v.etichetta || 'Voce senza descrizione'}</p>
+            <p className="text-xs text-muted-foreground">{v.motivo}</p>
+            {v.origine === 'rata' && v.order_id ? <a className="text-xs font-medium text-blue-700 underline" href={`/azienda/ordini/${encodeURIComponent(v.order_id)}?tab=finanza&vista_economia=pagamenti`}>Apri pagamenti commessa</a>
+              : v.origine === 'costo' ? <a className="text-xs font-medium text-blue-700 underline" href="/azienda/costi">Apri costi</a>
+              : v.origine === 'scadenza' ? <a className="text-xs font-medium text-blue-700 underline" href="/azienda/scadenzario">Apri scadenzario</a>
+              : <Button variant="link" size="sm" className="h-auto px-0 py-1 text-xs" onClick={() => setEditorOpen(true)}>Apri voci manuali</Button>}
+          </li>)}
+        </ul>
+      </details>}
       <div className="grid grid-cols-2 gap-3 max-sm:gap-2 lg:grid-cols-4">
         <KPIBoxCF
           label="Saldo apertura"
@@ -117,8 +148,7 @@ export function TabCashFlow({ anno }: Props) {
             Cash Flow Mensile Prospettico · {anno}
           </p>
           <p className="text-xs text-muted-foreground">
-            Saldo iniziale = somma current_balance dei conti bancari attivi (oggi).
-            Voci stimate da scadenze/cedolini/mutui + voci manuali utente.
+            Saldi EUR registrati {meta.saldi_aggiornati_al ? `al ${new Date(meta.saldi_aggiornati_al).toLocaleDateString('it-IT')}` : '(data di aggiornamento da verificare)'}. Previsione dal mese corrente; non consuntivo.
           </p>
         </div>
         <div className="flex gap-2">
@@ -134,11 +164,13 @@ export function TabCashFlow({ anno }: Props) {
                       { header: "Mese", key: "mese", width: 8 },
                       { header: "Saldo apertura", key: "saldo_inizio", width: 16, type: "number" },
                       { header: "Entrate scadenze", key: "ent_sc", width: 16, type: "number" },
+                      { header: "Entrate rate commesse", key: "ent_commesse", width: 20, type: "number" },
                       { header: "Entrate manuali", key: "ent_man", width: 16, type: "number" },
                       { header: "Totale entrate", key: "entrate_totali", width: 16, type: "number" },
                       { header: "Uscite scadenze", key: "usc_sc", width: 16, type: "number" },
                       { header: "Uscite personale", key: "usc_pers", width: 16, type: "number" },
                       { header: "Uscite mutui", key: "usc_mut", width: 14, type: "number" },
+                      { header: "Uscite altri costi", key: "usc_costi", width: 18, type: "number" },
                       { header: "Uscite manuali", key: "usc_man", width: 16, type: "number" },
                       { header: "Totale uscite", key: "uscite_totali", width: 16, type: "number" },
                       { header: "Flusso netto", key: "flusso_netto", width: 16, type: "number" },
@@ -148,11 +180,13 @@ export function TabCashFlow({ anno }: Props) {
                       mese: MESI_LABELS[m.mese - 1],
                       saldo_inizio: m.saldo_inizio,
                       ent_sc: m.entrate.scadenze,
+                      ent_commesse: m.entrate.commesse ?? 0,
                       ent_man: m.entrate.manuali,
                       entrate_totali: m.entrate_totali,
                       usc_sc: m.uscite.scadenze,
                       usc_pers: m.uscite.personale,
                       usc_mut: m.uscite.mutui,
+                      usc_costi: m.uscite.costi,
                       usc_man: m.uscite.manuali,
                       uscite_totali: m.uscite_totali,
                       flusso_netto: m.flusso_netto,
@@ -172,7 +206,7 @@ export function TabCashFlow({ anno }: Props) {
       {isAllZero && meta.saldo_apertura === 0 && (
         <EmptyState
           title="Nessun dato di cash flow"
-          description="Non ho scadenze, cedolini o mutui per quest'anno. Inserisci almeno qualche voce manuale per iniziare a vedere la previsione."
+          description="Non risultano scadenze, rate di commessa o costi da pagare nel periodo. Puoi aggiungere una voce previsionale manuale."
         />
       )}
 
@@ -217,17 +251,16 @@ export function TabCashFlow({ anno }: Props) {
                   <th className="sticky left-0 z-10 min-w-[200px] bg-muted/40 px-3 py-2 text-left text-xs font-medium text-muted-foreground">
                     Voce
                   </th>
-                  {MESI_LABELS.map((m, i) => {
-                    const mese = mesi[i];
+                  {mesi.map((mese) => {
                     return (
                       <th
-                        key={m}
+                        key={mese.mese}
                         className={cn(
                           "min-w-[90px] px-2 py-2 text-right text-xs font-medium text-muted-foreground",
                           mese?.sotto_zero && "bg-rose-50 text-rose-700",
                         )}
                       >
-                        {m}
+                        {MESI_LABELS[mese.mese - 1]}
                         {mese?.sotto_zero && (
                           <AlertTriangle className="mx-auto h-3 w-3 text-rose-600" />
                         )}
@@ -263,7 +296,7 @@ export function TabCashFlow({ anno }: Props) {
                 {/* Sezione ENTRATE */}
                 <tr className="border-t bg-emerald-50/50">
                   <td
-                    colSpan={14}
+                    colSpan={mesi.length + 2}
                     className="sticky left-0 z-10 bg-emerald-50/50 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-emerald-700"
                   >
                     Entrate
@@ -313,7 +346,7 @@ export function TabCashFlow({ anno }: Props) {
                 {/* Sezione USCITE */}
                 <tr className="border-t bg-rose-50/50">
                   <td
-                    colSpan={14}
+                    colSpan={mesi.length + 2}
                     className="sticky left-0 z-10 bg-rose-50/50 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-rose-700"
                   >
                     Uscite

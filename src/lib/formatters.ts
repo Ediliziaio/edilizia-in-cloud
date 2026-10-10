@@ -19,7 +19,8 @@ export function formatCurrency(amount: number | string | null | undefined): stri
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: "EUR",
-    useGrouping: "always",
+    // Keep Intl v3 grouping at runtime; this project's older TS lib only types booleans.
+    useGrouping: "always" as unknown as boolean,
   }).format(Number.isFinite(n) ? n : 0);
 }
 

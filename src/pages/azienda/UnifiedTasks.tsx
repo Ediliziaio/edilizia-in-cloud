@@ -14,6 +14,7 @@ import { costruisciCsv, scaricaCsv } from "@/lib/csv";
 import { VistiSalvate, type FiltriVista } from "@/components/attivita/VistiSalvate";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
+import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -227,6 +228,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     queryKey: [...queryKeys.tasks.all, "unified", companyId, seesTeamTasks, user?.id],
     queryFn: async () => {
       if (!companyId) return [];
+      const archivedIds = await loadArchivedOrderIds(companyId);
       let q = supabase
         .from("tasks")
         .select(`
@@ -244,6 +246,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         .limit(5000);
       // Senza "Attività del team": scoping alle proprie (personal-first)
       if (!seesTeamTasks && user?.id) q = q.eq("assigned_to", user.id);
+      q = excludeArchivedOrders(q, archivedIds, "order_id");
       const { data, error } = await q;
       if (error) throw error;
       const rawTasks = data || [];

@@ -41,13 +41,15 @@ export function useCompanyStructure(enabled = true) {
           .eq("is_active", true),
         (supabase as any)
           .from("order_employees")
-          .select("employee_id, orders!inner(company_id)")
+          .select("employee_id, orders!inner(company_id, deleted_at)")
           .eq("orders.company_id", companyId!)
+          .is("orders.deleted_at", null)
           .limit(5000),
         supabase
           .from("orders")
           .select("status, percentuale_avanzamento, work_start_date, work_end_date")
           .eq("company_id", companyId!)
+          .is("deleted_at", null)
           .limit(5000),
       ]);
 

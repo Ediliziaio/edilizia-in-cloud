@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useMemo, useCallback } from "react";
 import { subDays, format, addDays } from "date-fns";
@@ -173,13 +174,14 @@ export function useCruscottoData() {
       const todayStr = format(now, "yyyy-MM-dd");
 
       let activeOrdersQuery = supabase.from("orders").select("id", { count: "exact", head: true })
-        .eq("company_id", companyId!);
+        .eq("company_id", companyId!).is("deleted_at", null);
       if (filters.statusId) activeOrdersQuery = activeOrdersQuery.eq("current_status_id", filters.statusId);
 
       const [activeOrdersRes, lateOrdersRes, openTicketsRes] = await Promise.all([
         activeOrdersQuery,
         supabase.from("orders").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!)
+          .is("deleted_at", null)
           .lt("expected_date", todayStr)
           .is("work_end_date", null),
         supabase.from("tickets").select("id", { count: "exact", head: true })
@@ -230,11 +232,13 @@ export function useCruscottoData() {
         supabase.from("orders")
           .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
           .eq("company_id", companyId!)
+          .is("deleted_at", null)
           .gte("created_at", dateFromStr).lte("created_at", dateToStr)
           .limit(5000),
         supabase.from("orders")
           .select("id, total_amount, order_items(purchase_price, quantity), order_employees(total_cost), order_external_teams(total_cost)")
           .eq("company_id", companyId!)
+          .is("deleted_at", null)
           .gte("created_at", prevFromStr).lte("created_at", prevToStr)
           .limit(5000),
         supabase.from("company_costs").select("amount, due_date, is_paid")
@@ -376,6 +380,7 @@ export function useCruscottoData() {
   const { data: rawWeeklyData, isLoading: weeklyLoading, error: weeklyError } = useQuery({
     queryKey: queryKeys.cruscotto.weekly(companyId),
     queryFn: async () => {
+      const archivedIds = await loadArchivedOrderIds(companyId!);
       const now = new Date();
       const todayStr = format(now, "yyyy-MM-dd");
       const weekEnd = addDays(now, 7);
@@ -387,12 +392,13 @@ export function useCruscottoData() {
           .gte("due_date", todayStr).lte("due_date", weekEndStr),
         supabase.from("orders").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!)
+          .is("deleted_at", null)
           .gte("expected_date", todayStr).lte("expected_date", weekEndStr)
           .is("work_end_date", null),
-        supabase.from("appointments").select("id", { count: "exact", head: true })
+        excludeArchivedOrders(supabase.from("appointments").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!)
           .eq("is_blocked_slot", false)
-          .gte("appointment_date", todayStr).lte("appointment_date", weekEndStr),
+          .gte("appointment_date", todayStr).lte("appointment_date", weekEndStr), archivedIds, "order_id"),
       ]);
       throwIfSupabaseError(costsRes.error, deliveriesRes.error, appointmentsRes.error);
 
@@ -445,6 +451,7 @@ export function useCruscottoData() {
     enabled: !!companyId,
     staleTime: 60_000,
     queryFn: async () => {
+      const archivedIds = await loadArchivedOrderIds(companyId!);
       const nowStr = format(new Date(), "yyyy-MM-dd");
       const in7Days = format(addDays(new Date(), 7), "yyyy-MM-dd");
 
@@ -453,11 +460,11 @@ export function useCruscottoData() {
           .eq("company_id", companyId!)
           .gte("created_at", `${todayDateFrom}T00:00:00`)
           .lte("created_at", `${todayDateTo}T23:59:59`),
-        supabase.from("appointments").select("id", { count: "exact", head: true })
+        excludeArchivedOrders(supabase.from("appointments").select("id", { count: "exact", head: true })
           .eq("company_id", companyId!)
           .gte("appointment_date", todayDateFrom)
           .lte("appointment_date", todayDateTo)
-          .eq("is_blocked_slot", false),
+          .eq("is_blocked_slot", false), archivedIds, "order_id"),
         supabase.from("order_installments")
           .select("id, amount, expected_date, order:orders!inner(company_id)")
           .eq("order.company_id", companyId!)
@@ -475,6 +482,7 @@ export function useCruscottoData() {
         supabase.from("orders")
           .select("total_amount")
           .eq("company_id", companyId!)
+          .is("deleted_at", null)
           .gte("created_at", `${todayDateFrom}T00:00:00`)
           .lte("created_at", `${todayDateTo}T23:59:59`),
         // Collected: installments paid in range
@@ -558,9 +566,9 @@ export function useCruscottoData() {
       throwIfSupabaseError(futureInstallmentsError);
 
       const [ytdOrdersRes, monthOrdersRes, qOrdersRes] = await Promise.all([
-        supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", yearStart).limit(5000),
-        supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", monthStart).limit(5000),
-        supabase.from("orders").select("total_amount").eq("company_id", companyId!).gte("created_at", quarterStart).limit(5000),
+        supabase.from("orders").select("total_amount").eq("company_id", companyId!).is("deleted_at", null).gte("created_at", yearStart).limit(5000),
+        supabase.from("orders").select("total_amount").eq("company_id", companyId!).is("deleted_at", null).gte("created_at", monthStart).limit(5000),
+        supabase.from("orders").select("total_amount").eq("company_id", companyId!).is("deleted_at", null).gte("created_at", quarterStart).limit(5000),
       ]);
       throwIfSupabaseError(ytdOrdersRes.error, monthOrdersRes.error, qOrdersRes.error);
 

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -266,6 +267,7 @@ function CalendarInner() {
             order_external_teams(external_team:external_teams(id, name, color))
           `)
           .eq("company_id", effectiveCompany.id)
+          .is("deleted_at", null)
           .or(`work_start_date.lte.${calendarRangeEnd},expected_date.lte.${calendarRangeEnd},warehouse_arrival_date.lte.${calendarRangeEnd}`)
           .or(`work_end_date.gte.${calendarRangeStart},work_start_date.gte.${calendarRangeStart},expected_date.gte.${calendarRangeStart},warehouse_arrival_date.gte.${calendarRangeStart}`)
           .order("work_start_date", { ascending: true })
@@ -393,6 +395,7 @@ function CalendarInner() {
     queryKey: ["appointments", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd, permissions.onlyAssigned, user?.id],
     queryFn: async ({ signal }) => {
       if (!effectiveCompany?.id) return [];
+      const archivedIds = await loadArchivedOrderIds(effectiveCompany.id);
       const timeout = createTimeoutSignal(10_000, signal);
       try {
         let query = supabase
@@ -408,6 +411,7 @@ function CalendarInner() {
           .lte("appointment_date", calendarRangeEnd);
         // Ruolo ristretto (only_assigned): vede SOLO i propri appuntamenti.
         if (permissions.onlyAssigned && user?.id) query = query.eq("assigned_to", user.id);
+        query = excludeArchivedOrders(query, archivedIds, "order_id");
         query = query
           .order("appointment_date", { ascending: true })
           .limit(1000)

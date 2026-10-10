@@ -237,12 +237,14 @@ export async function listMySurveys(opts?: { status?: string; limit?: number; co
 }
 
 /** Sopralluoghi collegati a una commessa (per la scheda "Sopralluoghi" in OrderDetail). */
-export async function listSurveysByOrder(orderId: string) {
+export async function listSurveysByOrder(orderId: string, companyId: string) {
+  if (!companyId || !orderId) return [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("surveys")
     .select("id, code, status, scheduled_at, completed_at, address, city, client_id, contact_id, opportunity_id, order_id, estimate_id, technician_id, template_id, created_at, updated_at")
     .eq("order_id", orderId)
+    .eq("company_id", companyId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (error) {

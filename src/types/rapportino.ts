@@ -14,6 +14,8 @@ export interface MaterialeUsato {
   scorta_id?: string;
   /** Articolo della commessa dichiarato; non implica scarico di magazzino. */
   order_item_id?: string;
+  /** Explicit SKU used; no stock movement or extra financial charge is implied. */
+  stock_item_id?: string;
   /** La fase (order_work_phases.id) su cui è stato usato; assente = materiale generale. */
   fase_id?: string;
 }

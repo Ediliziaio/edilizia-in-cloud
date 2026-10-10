@@ -101,6 +101,8 @@ export function useRegisterUscita() {
       qc.invalidateQueries({ queryKey: ["warehouse-uscite"] });
       qc.invalidateQueries({ queryKey: ["warehouse-stock"] });
       qc.invalidateQueries({ queryKey: ["warehouse-movements"] });
+      qc.invalidateQueries({ queryKey: ["order-material-usage"] });
+      qc.invalidateQueries({ queryKey: ["warehouse-uscite-order"] });
     },
   });
 }
@@ -149,14 +151,16 @@ export function useWarehouseUscite(warehouseFilter: string | null) {
 
 /** Uscite registrate per una specifica commessa/ordine (per il dettaglio commessa). */
 export function useUsciteByOrder(orderId: string | undefined) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["warehouse-uscite-order", orderId ?? "*"],
-    enabled: !!orderId,
+    queryKey: ["warehouse-uscite-order", orderId ?? "*", companyId],
+    enabled: !!orderId && !!companyId,
     queryFn: async () => {
       const { data, error } = await sb
         .from("warehouse_uscite")
         .select("id,numero,data,destinatario_tipo,customer_id,order_id,destinatario_libero,cliente_snapshot,vettore,righe,stato,documento_id,note,warehouse_id,created_at")
         .eq("order_id", orderId)
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as UscitaRow[];

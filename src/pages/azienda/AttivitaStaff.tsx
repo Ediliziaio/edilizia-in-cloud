@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -340,14 +341,15 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
   const { data: monthTasks = [] } = useQuery({
     queryKey: ["calendar-tasks", user?.id, companyId, monthStr],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const archivedIds = await loadArchivedOrderIds(companyId!);
+      const { data, error } = await excludeArchivedOrders(supabase
         .from("tasks")
         .select("id, title, due_date, priority, status, category")
         .eq("company_id", companyId!)
         .eq("assigned_to", user!.id)
         .gte("due_date", monthStartStr)
         .lte("due_date", monthEndStr)
-        .order("due_date", { ascending: true });
+        .order("due_date", { ascending: true }), archivedIds, "order_id");
       if (error) throw error;
       return data ?? [];
     },
@@ -359,7 +361,8 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
   const { data: nearestTaskDate } = useQuery({
     queryKey: ["nearest-task-date", user?.id, companyId],
     queryFn: async () => {
-      const { data } = await supabase
+      const archivedIds = await loadArchivedOrderIds(companyId!);
+      const { data } = await excludeArchivedOrders(supabase
         .from("tasks")
         .select("due_date")
         .eq("company_id", companyId!)
@@ -367,8 +370,7 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
         .not("due_date", "is", null)
         .neq("status", "completata")
         .order("due_date", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1), archivedIds, "order_id").maybeSingle();
       return (data as any)?.due_date as string | null ?? null;
     },
     enabled: !!user?.id && !!companyId,
@@ -384,6 +386,7 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
         .from("orders")
         .select("id, order_code, description, work_start_date, work_end_date, expected_date, warehouse_arrival_date")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .or(
           `and(work_start_date.lte.${monthEndStr},work_end_date.gte.${monthStartStr}),` +
           `and(work_start_date.gte.${monthStartStr},work_start_date.lte.${monthEndStr}),` +
@@ -419,6 +422,7 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
   const { data: monthAppuntamenti = [] } = useQuery({
     queryKey: ["calendar-appuntamenti", user?.id, companyId, monthStr, seesTeamCalendar],
     queryFn: async () => {
+      const archivedIds = await loadArchivedOrderIds(companyId!);
       let q = supabase
         .from("appointments")
         .select("id, title, appointment_date, appointment_time, status")
@@ -426,6 +430,7 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
         .gte("appointment_date", monthStartStr)
         .lte("appointment_date", monthEndStr);
       if (!seesTeamCalendar) q = q.eq("assigned_to", user!.id);
+      q = excludeArchivedOrders(q, archivedIds, "order_id");
       const { data } = await q;
       return (data ?? []) as any[];
     },
@@ -1168,6 +1173,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
   const { data: allTasks = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["my-tasks-all", user?.id, companyId, seesTeamTasks],
     queryFn: async () => {
+      const archivedIds = await loadArchivedOrderIds(companyId!);
       let q = supabase
         .from("tasks")
         .select(`id, title, notes, status, priority, due_date, category, assigned_to, created_by,
@@ -1181,6 +1187,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
         .order("created_at", { ascending: false })
         .limit(300);
       if (!seesTeamTasks) q = q.eq("assigned_to", user!.id);
+      q = excludeArchivedOrders(q, archivedIds, "order_id");
       const { data, error } = await q;
       if (error) { logger.error("MieAttivita — errore:", error); throw error; }
       return data ?? [];

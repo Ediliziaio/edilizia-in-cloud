@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useAuth } from "@/contexts/AuthContext";
 import { addDays, format, startOfDay } from "date-fns";
 import { withClientTimeout } from "@/lib/query-timeout";
@@ -16,6 +17,7 @@ export function useMyTaskCount(): { data: TaskCounts | null; isLoading: boolean 
     queryKey: ["my-task-count", userId, companyId],
     queryFn: async (): Promise<TaskCounts> => {
       if (!userId || !companyId) return { total: 0, overdue: 0, dueToday: 0 };
+      const archivedIds = await loadArchivedOrderIds(companyId);
 
       const now = new Date();
       const todayStart = format(startOfDay(now), "yyyy-MM-dd");
@@ -37,7 +39,7 @@ export function useMyTaskCount(): { data: TaskCounts | null; isLoading: boolean 
         .limit(LIMITE_RIGHE_ATTIVITA);
 
       // 2026-05-27: timeout 8 → 12s per maggior tolleranza mobile 4G.
-      const res = await withClientTimeout(query, "Conteggio attività", 12_000);
+      const res = await withClientTimeout(excludeArchivedOrders(query, archivedIds, "order_id"), "Conteggio attività", 12_000);
       if (res.error) throw res.error;
 
       return contaAttivita(res.data, res.count, todayStart, tomorrowStart);

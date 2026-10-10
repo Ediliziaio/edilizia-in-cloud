@@ -5,6 +5,7 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AlertTriangle, BellRing, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
+import { OrderMaterialUsageCard } from "@/components/orders/OrderMaterialUsageCard";
 import { MezziCommessaCard } from "@/components/mezzi/MezziCommessaCard";
 import { SquadreInBreve } from "@/components/manodopera/SquadreCommessa";
 import { OrderActivityFeed } from "@/components/orders/OrderActivityFeed";
@@ -390,7 +391,7 @@ function OrderDetailInner() {
       // Con la fattura interna della rata: numero e stato, per mostrarla.
       const { data, error } = await supabase
         .from("order_installments" as never)
-        .select("*, fattura:documenti_fiscali(id, numero, stato)")
+        .select("*, fattura:documenti_fiscali(id, numero, stato, importo_pagato)")
         .eq("order_id", id!)
         .order("position");
       if (error) throw error;
@@ -1730,6 +1731,7 @@ function OrderDetailInner() {
             </div>
             </>}
             {activeMaterialiView === "magazzino" && <div id="section-magazzino" className="space-y-4 scroll-mt-24">
+              <OrderMaterialUsageCard orderId={id!} showCosts={permissions.canViewCosts} />
               <OrderUsciteCard orderId={id!} />
               <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
             </div>}

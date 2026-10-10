@@ -1,6 +1,7 @@
 import { useMemo, useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useAuth } from "@/contexts/AuthContext";
 import { addDays, addMonths, differenceInCalendarDays, endOfDay, format, startOfMonth, startOfYear } from "date-fns";
 import type { CompanyDashboardFiltersState } from "@/components/dashboard/CompanyDashboardFilters";
@@ -378,6 +379,7 @@ export function useCompanyDashboardData() {
           financing_paid
         `)
         .eq("company_id", companyId)
+        .is("deleted_at", null)
         .gte("created_at", dateRange.from.toISOString())
         .lte("created_at", dateRange.to.toISOString())
         .abortSignal(signal);
@@ -494,6 +496,7 @@ export function useCompanyDashboardData() {
     queryKey: ["company-dashboard-operational-agenda", companyId, agendaRange.from, agendaRange.to],
     queryFn: async ({ signal }) => {
       if (!companyId) return [];
+      const archivedIds = await loadArchivedOrderIds(companyId);
 
       const [ordersResult, appointmentsResult, purchaseOrdersResult] = await Promise.all([
         supabase
@@ -509,12 +512,13 @@ export function useCompanyDashboardData() {
             customer:profiles!orders_customer_id_fkey(first_name, last_name)
           `)
           .eq("company_id", companyId)
+          .is("deleted_at", null)
           .or(`work_start_date.lte.${agendaRange.to},expected_date.lte.${agendaRange.to},warehouse_arrival_date.lte.${agendaRange.to}`)
           .or(`work_end_date.gte.${agendaRange.from},work_start_date.gte.${agendaRange.from},expected_date.gte.${agendaRange.from},warehouse_arrival_date.gte.${agendaRange.from}`)
           .order("work_start_date", { ascending: true })
           .limit(300)
           .abortSignal(signal),
-        supabase
+        excludeArchivedOrders(supabase
           .from("appointments")
           .select(`
             id,
@@ -532,7 +536,7 @@ export function useCompanyDashboardData() {
           .lte("appointment_date", agendaRange.to)
           .order("appointment_date", { ascending: true })
           .limit(300)
-          .abortSignal(signal),
+          .abortSignal(signal), archivedIds, "order_id"),
         supabase
           .from("purchase_orders")
           .select(`

@@ -294,7 +294,8 @@ function OrdersListInner() {
           customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
           status:order_statuses!orders_current_status_id_fkey(name, color)
         `, { count: "exact" })
-        .eq("company_id", effectiveCompany.id);
+        .eq("company_id", effectiveCompany.id)
+        .is("deleted_at", null);
 
       if (allowedOrderIds !== null) query = query.in("id", allowedOrderIds);
       // B1 — customerFilter e paymentFilter applicati server-side
@@ -391,7 +392,8 @@ function OrdersListInner() {
       let query = supabase
         .from("orders")
         .select("id, total_amount, vat_rate, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_paid, payment_type, current_status_id")
-        .eq("company_id", effectiveCompany.id);
+        .eq("company_id", effectiveCompany.id)
+        .is("deleted_at", null);
       if (isYearCorrente) {
         // Stesso perimetro della lista: anno corrente + non chiuse precedenti.
         const inizioAnno = new Date(currentYear, 0, 1).toISOString();
@@ -434,6 +436,7 @@ function OrdersListInner() {
         .from("orders")
         .select("created_at")
         .eq("company_id", effectiveCompany.id)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(5000);
       if (error) throw error;
@@ -479,6 +482,7 @@ function OrdersListInner() {
         `)
         .eq("company_id", effectiveCompany.id)
         .gte("created_at", from.toISOString());
+      query = query.is("deleted_at", null);
       if (to) query = query.lte("created_at", to.toISOString());
       const { data, error } = await query
         .order("created_at", { ascending: true });
@@ -517,6 +521,7 @@ function OrdersListInner() {
         `)
         .eq("company_id", effectiveCompany.id)
         .order("created_at", { ascending: false });
+      q = q.is("deleted_at", null);
       if (debouncedSearch) q = q.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
       if (statusFilter === "__da_completare__") {
         const excl = [supportStatusId, lastStatusId].filter(Boolean) as string[];
@@ -1041,6 +1046,7 @@ function OrdersListInner() {
         .from("orders")
         .select("customer_id, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany!.id)
+        .is("deleted_at", null)
         .not("customer_id", "is", null)
         .limit(2000);
       if (error) throw error;
@@ -1374,6 +1380,7 @@ function OrdersListInner() {
         status:order_statuses!orders_current_status_id_fkey(name)
       `)
       .eq("company_id", effectiveCompany.id)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
     if (allowedExportIds !== null) query = query.in("id", allowedExportIds);

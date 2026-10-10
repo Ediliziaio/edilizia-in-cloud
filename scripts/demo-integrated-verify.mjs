@@ -1,0 +1,47 @@
+/** Offline invariant audit of the tenant-scoped, private snapshots. No writes to DB. */
+import {readFileSync,writeFileSync} from 'node:fs';
+const DIR='tmp/demo-integrated',C='d2000000-0000-4000-a000-000000000002';
+const read=name=>JSON.parse(readFileSync(`${DIR}/${name}.json`));
+const before=read('before'),d=read('after'),operations=read('operations-plan'),completion=read('completion-plan');
+if(before.company!==C||d.company!==C)throw Error('Wrong tenant snapshot');
+const checks=[],warnings=[];
+const eq=(x,y)=>Math.abs(Number(x)-Number(y))<.025;
+const by=(t,k,id)=>d[t].filter(x=>x[k]===id);
+const check=(name,failures)=>checks.push({name,passed:failures.length===0,failures});
+const orders=d.orders.filter(o=>!o.deleted_at&&Number(o.total_amount)>0);
+const gross=o=>(Number(o.total_amount)+by('ordini_variazione','order_id',o.id).filter(v=>v.status==='approvato').reduce((s,v)=>s+Number(v.impatto_economico),0))*(1+Number(o.vat_rate)/100);
+check('contracts_preserved',orders.filter(o=>!eq(o.total_amount,before.orders.find(b=>b.id===o.id)?.total_amount)).map(o=>o.order_code));
+check('customers_connected',orders.filter(o=>!d.profiles.some(p=>p.id===o.customer_id&&p.company_id===C)).map(o=>o.order_code));
+check('workflow_status_present',orders.filter(o=>!d.order_statuses.some(s=>s.id===o.current_status_id&&s.company_id===C)).map(o=>o.order_code));
+check('phases_and_items_present',orders.filter(o=>!by('order_work_phases','order_id',o.id).length||!by('order_items','order_id',o.id).length).map(o=>o.order_code));
+check('phase_progress_matches_order',orders.filter(o=>{const p=by('order_work_phases','order_id',o.id);return Math.abs(p.reduce((s,p)=>s+Number(p.percentuale),0)/p.length-Number(o.percentuale_avanzamento))>.15;}).map(o=>o.order_code));
+check('crew_present',orders.filter(o=>!by('order_employees','order_id',o.id).length&&!by('order_external_teams','order_id',o.id).length).map(o=>o.order_code));
+check('executed_jobs_have_reports',orders.filter(o=>Number(o.percentuale_avanzamento)>0&&!by('campo_rapportini','order_id',o.id).length).map(o=>o.order_code));
+check('completed_jobs_have_acceptance',orders.filter(o=>Number(o.percentuale_avanzamento)===100&&!by('order_acceptance_reports','order_id',o.id).some(r=>['draft','finalized'].includes(r.status))).map(o=>o.order_code));
+check('acceptance_pdfs_present',d.order_acceptance_reports.filter(r=>!r.pdf_path||!r.pdf_path.startsWith(C+'/')).map(r=>r.id));
+check('operational_jobs_have_pdf_report',orders.filter(o=>Number(o.percentuale_avanzamento)>0&&!by('campo_rapportini','order_id',o.id).some(r=>r.pdf_url)).map(o=>o.order_code));
+check('purchase_chain_present',orders.filter(o=>!by('purchase_orders','order_id',o.id).some(p=>by('purchase_order_items','purchase_order_id',p.id).length&&by('ddt_ricezione','purchase_order_id',p.id).length)).map(o=>o.order_code));
+const received=d.purchase_orders.filter(p=>p.status==='ricevuto'&&orders.some(o=>o.id===p.order_id));
+check('received_purchases_have_supplier_invoice',received.filter(p=>!by('fatture_ricevute','purchase_order_id',p.id).length).map(p=>p.oda_number));
+check('supplier_invoice_cost_not_duplicated',d.fatture_ricevute.filter(f=>f.note?.includes('[DEMO INTEGRATA')).filter(f=>!d.company_costs.some(c=>c.id===f.company_cost_id&&c.purchase_order_id===f.purchase_order_id&&c.order_id===f.order_id_suggerito)).map(f=>f.id));
+check('installments_match_contract_gross',orders.filter(o=>!eq(by('order_installments','order_id',o.id).reduce((s,r)=>s+Number(r.amount),0),gross(o))).map(o=>o.order_code));
+const inv=d.invoices.filter(i=>!i.deleted_at&&i.status!=='cancelled'&&orders.some(o=>o.id===i.order_id));
+check('legacy_native_fiscal_mirrors',inv.filter(i=>!d.documenti_fiscali.some(f=>f.id===i.id&&f.company_id===C&&f.ordine_id===i.order_id&&eq(f.totale_documento,i.total)&&eq(f.importo_pagato,i.paid_amount))).map(i=>i.invoice_number));
+check('invoice_payments_reconcile',inv.filter(i=>!eq(by('invoice_payments','invoice_id',i.id).reduce((s,p)=>s+Number(p.amount),0),i.paid_amount)).map(i=>i.invoice_number));
+check('native_cash_reconciles',inv.filter(i=>!eq(by('movimenti_cassa_native','documento_id',i.id).filter(m=>m.tipo==='incasso').reduce((s,m)=>s+Number(m.importo),0),i.paid_amount)).map(i=>i.invoice_number));
+check('unique_native_installment_link',inv.filter(i=>by('order_installments','documento_fiscale_id',i.id).length!==1).map(i=>i.invoice_number));
+const deltas=Object.fromEntries(operations.batches.filter(b=>b.order).map(b=>[b.order,b.delta]));
+for(const [id,cost]of Object.entries(completion.costByOrder))deltas[id]=(deltas[id]||0)+cost;
+const costBase=read('operations-before');
+check('cost_changes_only_approved_reports',orders.filter(o=>{const a=d.v_ordine_marginalita.find(v=>v.id===o.id),b=costBase.v_ordine_marginalita.find(v=>v.id===o.id);return !eq(a.consuntivo,Number(b.consuntivo)+(deltas[o.id]||0));}).map(o=>o.order_code));
+check('original_stock_quantities_preserved',before.warehouse_stock.filter(s=>!eq(d.warehouse_stock.find(x=>x.id===s.id)?.quantity,s.quantity)).map(s=>s.id));
+const newPunches=d.hr_timbrature.filter(t=>!before.hr_timbrature.some(b=>b.id===t.id));
+const days=new Map();for(const t of newPunches){const key=t.profilo_id+'|'+t.data_evento;days.set(key,[...(days.get(key)||[]),t]);}
+check('new_punch_days_have_four_events_and_eight_hours',[...days.entries()].filter(([key,ts])=>{const day=d.hr_giornate.find(g=>g.profilo_id===ts[0].profilo_id&&g.data===ts[0].data_evento);return ts.length!==4||!day||!eq(day.ore_lavorate,8);}).map(([key])=>key));
+check('no_oversized_active_subcontract',d.contratti_subappalto.filter(c=>c.stato!=='annullato'&&orders.some(o=>o.id===c.order_id&&Number(c.importo_contrattuale)>Number(o.total_amount))).map(c=>c.numero_contratto));
+for(const o of orders){const invoices=inv.filter(i=>i.order_id===o.id),partial=invoices.filter(i=>Number(i.paid_amount)>0&&Number(i.paid_amount)<Number(i.total)-.01);if(partial.length)warnings.push({code:o.order_code,type:'partial_invoice_cash_not_supported_by_boolean_installment_summary',cash:invoices.reduce((s,i)=>s+Number(i.paid_amount),0),installmentsPaid:by('order_installments','order_id',o.id).filter(r=>r.is_paid).reduce((s,r)=>s+Number(r.amount),0)});}
+const mismatch=d.hr_profili.filter(h=>{const e=d.employees.find(e=>e.id===h.employee_id);return e&&(`${h.nome} ${h.cognome}`!==`${e.first_name} ${e.last_name}`);});
+for(const h of mismatch)warnings.push({type:'legacy_hr_identity_mismatch',profile:h.id});
+const result={company:C,at:new Date().toISOString(),ordersReviewed:orders.length,checks,warnings,coverage:{reports:d.campo_rapportini.length,phases:d.order_work_phases.length,purchaseOrders:d.purchase_orders.length,ddt:d.ddt_ricezione.length,receivedInvoices:d.fatture_ricevute.length,canonicalInvoiceMirrors:inv.length,newPunches:newPunches.length,newWorkerDays:days.size,acceptanceDrafts:d.order_acceptance_reports.length},complete:checks.every(c=>c.passed)&&warnings.length===0};
+writeFileSync(`${DIR}/verification.json`,JSON.stringify(result,null,2),{mode:0o600});
+console.log(JSON.stringify(result,null,2));if(checks.some(c=>!c.passed))process.exitCode=1;
