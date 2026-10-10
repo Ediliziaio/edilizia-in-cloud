@@ -1,15 +1,15 @@
 /**
- * MP-IMP-001 Fase 7 — Search nei settings con Cmd+K.
+ * MP-IMP-001 Fase 7 — Search nelle impostazioni con Cmd+K.
  *
- * 49 pagine in 10 gruppi: trovare "dove configuro le ritenute" e' un incubo.
- * Questo componente offre un search bar in alto al layout settings:
- *   - input testuale per filtrare voci per titolo + keyword + descrizione
- *   - Cmd/Ctrl+K apre il dialog ovunque sotto /azienda/impostazioni
- *   - Enter naviga alla prima voce
- *   - Risultati cliccabili
+ * Trovare "dove configuro i prezzi a mano" in 50 pagine è un incubo. Questo componente offre una ricerca in alto
+ * al layout delle impostazioni:
+ *   - Cmd/Ctrl+K la apre ovunque sotto /azienda/impostazioni
+ *   - ogni parola scritta deve comparire nella voce (titolo, parole chiave, gruppo, frase), senza badare ad
+ *     accenti e maiuscole: «ore lavorate», «iban», «attivita» trovano la pagina giusta
+ *   - Enter apre la prima voce; le voci aprono la sezione giusta della pagina (indirizzo con àncora)
  *
- * Le voci principali vengono dal menu condiviso; SETTINGS_INDEX aggiunge
- * sinonimi e collegamenti secondari, sempre filtrati per piano e permessi.
+ * La lista delle voci, i permessi e il motore stanno in lib/impostazioni/indiceImpostazioni.ts: sono gli stessi
+ * della palette dell'app e dell'elenco da telefono.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -23,117 +23,27 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
-import { useStatoPiano } from "@/hooks/useStatoPiano";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { impostazioneNelPiano } from "@/lib/impostazioni/pianoImpostazioni";
-import { usePermissions } from "@/hooks/usePermissions";
-import { buildSettingsGroups, impostazioneAccessibile } from "@/lib/impostazioni/navigazioneImpostazioni";
+import { useVociImpostazioni } from "@/hooks/useVociImpostazioni";
+import { PIU_CERCATE, cercaImpostazioni, type VoceRicercabile } from "@/lib/impostazioni/indiceImpostazioni";
 import { confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
-
-interface SettingsIndexEntry {
-  title: string;
-  url: string;
-  group: string;
-  description?: string;
-  keywords?: string[];
-  /** Solo tablet e computer: da telefono non compare nei risultati. */
-  desktopOnly?: boolean;
-}
-
-// Index delle 49 voci settings — keyword facilitano i sinonimi italiani.
-const SETTINGS_INDEX: SettingsIndexEntry[] = [
-  // ── Account / Azienda ──
-  { group: "Account", title: "Il mio profilo", url: "/azienda/impostazioni/mio-profilo", keywords: ["profilo", "personale", "account", "email", "calendari", "notifiche", "password", "2fa", "sicurezza"] },
-  { group: "Account", title: "Sicurezza profilo", url: "/azienda/impostazioni/mio-profilo?tab=sicurezza", keywords: ["password", "cambio password", "2fa", "autenticazione", "account"] },
-  { group: "Account", title: "Profilo aziendale", url: "/azienda/impostazioni/profilo", keywords: ["azienda", "ragione sociale", "p.iva", "partita iva", "sede legale"] },
-  { group: "Account", title: "Sedi operative", url: "/azienda/impostazioni/sedi", keywords: ["sede", "filiale", "negozio", "ufficio"] },
-  { group: "Account", title: "Piano abbonamento", url: "/azienda/impostazioni/abbonamento", keywords: ["piano", "abbonamento", "subscription", "fattura abbonamento", "pagamento"] },
-  { group: "Account", title: "Crediti & saldo", url: "/azienda/impostazioni/crediti", keywords: ["crediti", "saldo", "ricarica", "ai", "render", "sms"] },
-
-  // ── Catalogo & Listini ──
-  { group: "Catalogo", title: "Listino · Prodotti", url: "/azienda/impostazioni/listino", keywords: ["catalogo", "articoli", "sku", "prezzi", "famiglie"] },
-  { group: "Catalogo", title: "Import listini", url: "/azienda/impostazioni/listino/import", keywords: ["import", "excel", "csv", "pdf", "carica listino"] },
-  { group: "Catalogo", title: "Listino · Manodopera e servizi", url: "/azienda/impostazioni/tariffe", keywords: ["tariffe", "manodopera", "servizi", "posa", "orario", "ricarico"] },
-  { group: "Catalogo", title: "Listino Manutenzione", url: "/azienda/impostazioni/tariffe?tab=manutenzione", keywords: ["manutenzione", "abbonamenti", "contratti", "impianti", "interventi"] },
-  { group: "Catalogo", title: "Listino · Kit e pacchetti", url: "/azienda/impostazioni/bundle", keywords: ["bundle", "pacchetti", "chiavi in mano", "kit"] },
-  { group: "Render", title: "Catalogo render", url: "/azienda/impostazioni/catalogo-render", keywords: ["render", "foto prodotto", "riferimento", "mobile bagno", "sanitari", "piastrelle", "catalogo render"] },
-
-  // ── Preventivi & vendite ──
-  // 09/10/2026: prezzo e margini, sconti e approvazioni sono schede di «Modelli di preventivo». Le funzioni che si
-  // cercano di più hanno una voce a sé, che apre la pagina già scorsa alla sezione giusta (àncora nell'indirizzo).
-  { group: "Preventivi", title: "Modelli di preventivo", url: "/azienda/impostazioni/template-preventivi", keywords: ["template", "offerta", "pdf preventivo", "modello", "modelli", "serramenti", "fotovoltaico"] },
-  { group: "Preventivi", title: "Modelli di preventivo · Prezzo e margini", url: "/azienda/impostazioni/margini", description: "Prezzo a mano, margini, posa e trasporto, numero e PDF del preventivo", keywords: ["prezzo", "prezzi", "margini", "ricarico", "markup", "spese generali", "overhead"] },
-  { group: "Preventivi", title: "Prezzo scritto a mano", url: "/azienda/impostazioni/margini#prezzo", description: "Il prezzo del preventivo si scrive a mano, al posto della somma delle voci", keywords: ["prezzo a mano", "prezzo manuale", "prezzo scritto a mano", "scrivere il prezzo", "inserire il prezzo", "inserimento prezzo manuale", "prezzo finale", "prezzo a corpo", "senza listino", "non carico i prezzi", "prezzo preventivo"] },
-  { group: "Preventivi", title: "Margini e spese generali", url: "/azienda/impostazioni/margini#margini", description: "Margine minimo e target, spese generali, margine per categoria", keywords: ["margine minimo", "margine target", "semaforo", "spese generali", "overhead", "margine per categoria", "ricarico"] },
-  { group: "Preventivi", title: "Posa, trasporto e smaltimento", url: "/azienda/impostazioni/margini#posa-e-trasporto", description: "Cosa aggiunge o chiede da solo il preventivo generico", keywords: ["posa automatica", "aggiungi posa", "piano di installazione", "smaltimento", "trasporto", "distanza", "km", "tiro al piano"] },
-  { group: "Preventivi", title: "Numero del preventivo", url: "/azienda/impostazioni/margini#numerazione", description: "Prefisso e numerazione dei preventivi", keywords: ["numerazione", "prefisso", "numero preventivo", "progressivo", "off-2026"] },
-  { group: "Preventivi", title: "PDF e firma del preventivo", url: "/azienda/impostazioni/margini#pdf-e-firma", description: "Cosa mostra il PDF del preventivo generico e la firma elettronica del cliente", keywords: ["pdf", "prezzi per riga", "solo totale", "totale finale", "sconti nel pdf", "immagini", "schede tecniche", "firma digitale", "firma elettronica", "otp", "firma online", "accetta preventivo"] },
-  { group: "Preventivi", title: "Modelli di preventivo · Sconti", url: "/azienda/impostazioni/scontistica", description: "Limiti di sconto per venditore, importo e categoria cliente", keywords: ["sconto", "sconti", "sconto massimo", "limite sconto", "fasce sconto", "scontistica"] },
-  { group: "Preventivi", title: "Modelli di preventivo · Approvazioni", url: "/azienda/impostazioni/approvazioni", description: "Seconda firma oltre una soglia e avvisi su costi e margine", keywords: ["approvazione", "approvazioni", "doppia approvazione", "seconda firma", "soglia importo", "scostamento sal", "avvisi", "margine commesse", "governance"] },
-  { group: "Preventivi", title: "Firma e condizioni · Condizioni", url: "/azienda/impostazioni/condizioni-firma", keywords: ["clausole", "vessatorie", "recesso", "privacy", "firma", "condizioni contrattuali"] },
-  { group: "Preventivi", title: "Firma e condizioni · Firma elettronica", url: "/azienda/impostazioni/firma-elettronica", keywords: ["firma", "fea", "otp", "elettronica"] },
-  { group: "Preventivi", title: "Finanziamenti", url: "/azienda/impostazioni/finanziamenti", keywords: ["finanziamento", "rate", "finanziaria", "compass", "findomestic"] },
-
-  // ── Ordini / Cantieri ──
-  { group: "Ordini", title: "Cartelle documenti", url: "/azienda/impostazioni/cartelle-documenti", keywords: ["cartelle", "documenti", "allegati", "file commessa", "carica documenti", "pratica"] },
-  { group: "Ordini", title: "Stati ordine", url: "/azienda/impostazioni/stati-ordine", keywords: ["stato", "fasi", "kanban", "tracker"] },
-  { group: "Ordini", title: "Categorie costi", url: "/azienda/impostazioni/categorie-costi", keywords: ["costi", "categoria costo", "voci spesa"] },
-  { group: "Ordini", title: "Fornitori", url: "/azienda/impostazioni/fornitori", keywords: ["fornitore", "subappalto", "anagrafica fornitori"] },
-  { group: "Ordini", title: "Automazioni finanza", url: "/azienda/impostazioni/automazioni-finanza", keywords: ["automazione", "ritenute", "ritenuta garanzia", "trattenuta", "fideiussione"] },
-
-  // ── Fatturazione ──
-  { group: "Fatturazione", title: "Fatturazione", url: "/azienda/impostazioni/fatturazione", keywords: ["fatturazione", "iva", "documenti"] },
-  { group: "Fatturazione", title: "Fatturazione elettronica", url: "/azienda/impostazioni/fatturazione-nativa", keywords: ["fatturazione elettronica", "sdi", "aruba", "p7m", "xml"] },
-
-  // ── Marketing & CRM ──
-  { group: "Marketing", title: "Tag", url: "/azienda/impostazioni/tag", keywords: ["tag", "etichette", "categoria contatti"] },
-  { group: "Marketing", title: "Campi personalizzati", url: "/azienda/impostazioni/campi-personalizzati", keywords: ["campo", "custom field", "field"] },
-  { group: "Marketing", title: "Motivi di perdita", url: "/azienda/impostazioni/motivi-perdita", keywords: ["persa", "perdita", "motivo", "lost reason", "opportunita persa"] },
-  { group: "Marketing", title: "Sequenze (Pipeline)", url: "/azienda/impostazioni/sequenze", keywords: ["pipeline", "sequenza", "fase opportunita", "stage"] },
-  { group: "Marketing", title: "Form & UTM", url: "/azienda/impostazioni/form-builder", keywords: ["form", "utm", "lead form", "acquisizione"] },
-  { group: "Marketing", title: "Calendari marketing", url: "/azienda/impostazioni/calendari", keywords: ["calendario", "google calendar", "appuntamenti"] },
-  { group: "Ordini", title: "Calendari lavori", url: "/azienda/impostazioni/calendari-lavori", keywords: ["squadre", "posa", "google calendar", "calendario lavori", "cantieri"] },
-  { group: "Ordini", title: "Rapportini e presenze", url: "/azienda/impostazioni/rapportini-cantiere", keywords: ["rapportino", "ore", "timbrature", "capocantiere", "operai", "presenze", "squadra", "cantiere"] },
-  { group: "Ordini", title: "Fasi e avanzamento", url: "/azienda/impostazioni/modelli-fasi", keywords: ["fasi", "modello", "template", "sottofasi", "avanzamento", "commessa", "cantiere", "lavorazioni", "chi spunta", "capocantiere", "peso", "media"] },
-  { group: "Ordini", title: "Modelli di pagamento", url: "/azienda/impostazioni/modelli-pagamento", keywords: ["pagamento", "pagamenti", "rate", "acconto", "saldo", "SAL", "modello", "incassi", "come si paga", "commessa"] },
-  { group: "Marketing", title: "Lead Facebook", url: "/azienda/impostazioni/lead-forms", keywords: ["meta", "facebook", "instagram", "lead ads"] },
-
-  // ── People ──
-  { group: "Persone", title: "Persone & Accessi", url: "/azienda/impostazioni/persone", keywords: ["utenti", "venditori", "staff", "operai", "team", "ruoli", "permessi"] },
-  { group: "Persone", title: "Template permessi", url: "/azienda/impostazioni/persone?tab=template-permessi", keywords: ["template", "permessi", "ruoli", "accessi", "utenti"] },
-
-  // ── Sicurezza ──
-  { group: "Sicurezza", title: "Sicurezza & Privacy", url: "/azienda/impostazioni/sicurezza-privacy", keywords: ["privacy", "gdpr", "log", "registro attivita", "dashboard sicurezza", "sicurezza"] },
-  { group: "Sicurezza", title: "Esporta i dati", url: "/azienda/impostazioni/esporta-dati", keywords: ["esporta", "export", "backup", "csv", "zip", "portabilita", "migrazione", "commercialista"] },
-  { group: "Sicurezza", title: "Integrazioni", url: "/azienda/impostazioni/integrazioni", keywords: ["integrazione", "api esterna", "stripe", "gocardless", "google"], desktopOnly: true },
-  { group: "Sicurezza", title: "API Platform", url: "/azienda/impostazioni/api", keywords: ["api", "chiavi api", "token", "developer"] },
-  { group: "Sicurezza", title: "Webhook", url: "/azienda/impostazioni/webhook", keywords: ["webhook", "eventi", "callback"] },
-
-  // ── Branding & White-label ──
-  { group: "Branding", title: "White-Label", url: "/azienda/impostazioni/branding", keywords: ["brand", "logo", "colori", "personalizzazione"] },
-  { group: "Branding", title: "Dominio email", url: "/azienda/impostazioni/dominio-email", keywords: ["dominio", "smtp", "spf", "dkim", "email"] },
-  { group: "Comunicazione", title: "Telefonia", url: "/azienda/impostazioni/numeri-telefono", keywords: ["telefono", "numero", "telefonia", "sistema telefonico", "centralino", "voce", "telnyx", "chiamate"] },
-
-  // ── AI ──
-  { group: "AI", title: "Memoria AI Personas", url: "/azienda/impostazioni/ai-memoria", keywords: ["ai", "memoria", "personas", "silvio", "ricordo", "fact", "preferenza", "decisione"] },
-
-  // ── Notifiche ──
-  { group: "Notifiche", title: "Preferenze notifiche", url: "/azienda/impostazioni/notifiche", keywords: ["notifiche", "telegram", "whatsapp", "email", "silvio chat", "canale", "fallback", "quiet hours", "silenzio"] },
-];
 
 interface SettingsSearchProps {
   /** Se true, mostra solo il dialog senza pulsante (controllato dal parent). */
   hideTrigger?: boolean;
 }
 
+/** Il tasto che apre la ricerca: ⌘ sul Mac, Ctrl sugli altri computer. */
+function tastoRicerca(): string {
+  const piattaforma = typeof navigator === "undefined" ? "" : `${navigator.platform ?? ""} ${navigator.userAgent ?? ""}`;
+  return /mac|iphone|ipad/i.test(piattaforma) ? "⌘K" : "Ctrl K";
+}
+
 export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
-  // Le impostazioni fuori dal piano dell'azienda non si cercano (21/09/2026).
-  const { stato: piano } = useStatoPiano();
-  const isMobile = useIsMobile();
-  const permissions = usePermissions();
+  // Le impostazioni fuori dal piano, senza permesso o assenti da telefono non si cercano.
+  const { voci } = useVociImpostazioni(open);
 
   // Cmd/Ctrl+K shortcut
   useEffect(() => {
@@ -147,32 +57,16 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  // Filtro fuzzy semplice: title + keywords + group + description
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const principali: SettingsIndexEntry[] = buildSettingsGroups(permissions.isAdmin, permissions, piano, isMobile)
-      .flatMap(g => g.items.filter(i => i.visible).map(i => ({ title: i.label, url: i.to, group: g.label })));
-    const indice = [
-      ...principali.map(e => ({ ...e, keywords: SETTINGS_INDEX.find(x => x.url === e.url)?.keywords })),
-      ...SETTINGS_INDEX.filter(e => !principali.some(p => p.url === e.url)),
-    ];
-    const nelPiano = permissions.isLoading ? [] : indice.filter((e) => impostazioneNelPiano(e.url, piano) && !(e.desktopOnly && isMobile) && impostazioneAccessibile(e.url, permissions, piano, isMobile));
-    if (!q) return nelPiano;
-    return nelPiano.filter((e) => {
-      const haystack = [
-        e.title,
-        e.group,
-        e.description ?? "",
-        ...(e.keywords ?? []),
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [query, piano, isMobile, permissions]);
+  const results = useMemo(() => cercaImpostazioni(voci, query), [voci, query]);
+
+  // Casella vuota: prima le voci che si cercano di più, poi tutto il menu.
+  const piuCercate = useMemo(
+    () => (query.trim() ? [] : PIU_CERCATE.map((url) => voci.find((v) => v.url === url)).filter((v): v is VoceRicercabile => Boolean(v))),
+    [voci, query],
+  );
 
   const grouped = useMemo(() => {
-    const m = new Map<string, SettingsIndexEntry[]>();
+    const m = new Map<string, VoceRicercabile[]>();
     for (const r of results) {
       const arr = m.get(r.group) ?? [];
       arr.push(r);
@@ -191,6 +85,21 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
     [navigate],
   );
 
+  const riga = (entry: VoceRicercabile, prefisso: string) => (
+    <CommandItem
+      key={`${prefisso}${entry.url}`}
+      // Con il filtro di cmdk spento il valore serve solo a distinguere una voce dall'altra: l'indirizzo è unico.
+      value={`${prefisso}${entry.url}`}
+      onSelect={() => handleSelect(entry.url)}
+    >
+      <ArrowRight className="mr-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <span className="block truncate">{entry.title}</span>
+        {entry.description && <span className="block truncate text-xs text-muted-foreground">{entry.description}</span>}
+      </div>
+    </CommandItem>
+  );
+
   return (
     <>
       {!hideTrigger && (
@@ -204,31 +113,30 @@ export function SettingsSearch({ hideTrigger = false }: SettingsSearchProps) {
           <Search className="h-4 w-4" />
           <span className="hidden md:inline">Cerca...</span>
           <kbd className="hidden md:inline pointer-events-none ml-2 select-none rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
-            ⌘K
+            {tastoRicerca()}
           </kbd>
         </Button>
       )}
 
-      <CommandDialog open={open} onOpenChange={setOpen}>
+      {/* shouldFilter={false}: il filtro è quello dell'indice (cercaImpostazioni), non quello di cmdk. */}
+      <CommandDialog open={open} onOpenChange={setOpen} shouldFilter={false}>
         <CommandInput
-          placeholder="Cerca impostazioni... (es. ritenute, sconto, dominio)"
+          placeholder="Cerca impostazioni (es. prezzo a mano, logo, firma, IBAN)"
           value={query}
           onValueChange={setQuery}
         />
         <CommandList>
-          <CommandEmpty>Nessun risultato.</CommandEmpty>
+          {results.length === 0 && (
+            <CommandEmpty>
+              Nessun risultato. Prova con un&apos;altra parola, per esempio «prezzo», «logo», «firma» o «fattura».
+            </CommandEmpty>
+          )}
+          {piuCercate.length > 0 && (
+            <CommandGroup heading="Le più cercate">{piuCercate.map((entry) => riga(entry, "piu:"))}</CommandGroup>
+          )}
           {grouped.map(([group, items]) => (
             <CommandGroup key={group} heading={group}>
-              {items.map((entry) => (
-                <CommandItem
-                  key={entry.url}
-                  value={`${entry.title} ${entry.group} ${(entry.keywords ?? []).join(" ")}`}
-                  onSelect={() => handleSelect(entry.url)}
-                >
-                  <ArrowRight className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-                  <span>{entry.title}</span>
-                </CommandItem>
-              ))}
+              {items.map((entry) => riga(entry, ""))}
             </CommandGroup>
           ))}
         </CommandList>

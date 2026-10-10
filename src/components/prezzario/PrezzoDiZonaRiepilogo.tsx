@@ -33,7 +33,7 @@ export function PrezzoDiZonaRiepilogo({
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
             {indisponibile === "regione-mancante"
-              ? "Per confrontare i prezzi col mercato serve sapere in che regione lavori: compila la provincia della sede in Impostazioni → Profilo azienda."
+              ? "Per confrontare i prezzi col mercato serve sapere in che regione lavori: compila la provincia della sede in Impostazioni → Profilo aziendale."
               : `Non c'è un prezzario pubblicato per ${regione}. Non confronto con quello di un'altra regione: sarebbe peggio che non confrontare.`}
           </span>
         </CardContent>

@@ -106,7 +106,7 @@ export function QuoteAdvisorPanel({
         // Il gate pagamento risponde 402: messaggio onesto, non un errore generico.
         const msg = String(fnErr.message ?? "");
         if (msg.includes("402") || msg.toLowerCase().includes("payment")) {
-          setError("Funzione AI a consumo: serve un metodo di pagamento attivo in Impostazioni → AI.");
+          setError("Funzione AI a consumo: serve un metodo di pagamento attivo in Impostazioni → Piano abbonamento → Pagamenti.");
         } else {
           setError(msg || "Analisi non riuscita. Riprova tra qualche secondo.");
         }

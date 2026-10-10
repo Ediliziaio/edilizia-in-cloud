@@ -49,6 +49,7 @@ import {
   calcolaPrezzoObiettivo, calcolaProvvigione, calcolaMargineObiettivo, round2,
 } from "@/lib/simulatore/calcoli";
 import type { RigaTabellaFinanziamento, RisultatoCalcolo } from "@/lib/finanziamenti/types";
+import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
 import type {
   ScenariConfig, SimulazioneRisultato, FinanziamentoConfig,
   ProvvigioneSim, ProvvigioneBase,
@@ -847,12 +848,12 @@ export function SimScenariPanel({
                   <AlertTriangle className="h-4 w-4" style={{ color: "hsl(var(--chart-3))" }} />
                   <AlertDescription style={{ color: "hsl(var(--chart-3))" }}>
                     <strong>Nessuna tabella finanziamento configurata.</strong>{" "}
-                    <a
-                      href="/azienda/impostazioni/finanziamenti"
+                    <LinkImpostazione
+                      to="/azienda/impostazioni/finanziamenti"
                       className="underline underline-offset-2"
                     >
                       Vai a Impostazioni → Finanziamenti
-                    </a>{" "}
+                    </LinkImpostazione>{" "}
                     per aggiungerne una.
                   </AlertDescription>
                 </Alert>

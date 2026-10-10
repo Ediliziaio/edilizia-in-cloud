@@ -65,8 +65,15 @@ export function BillingModeProvider({ children }: { children: React.ReactNode })
   );
 }
 
-export function useBillingMode() {
+/**
+ * Il modo di fatturare dell'azienda. Con `{ facoltativo: true }` non lancia se manca il provider e restituisce
+ * null: serve a chi deve solo sapere «fattura in nativo?» e funziona anche dove il provider non c'è (la ricerca
+ * delle impostazioni, le prove).
+ */
+export function useBillingMode(): BillingModeContextValue;
+export function useBillingMode(opzioni: { facoltativo: true }): BillingModeContextValue | null;
+export function useBillingMode(opzioni?: { facoltativo?: boolean }): BillingModeContextValue | null {
   const ctx = useContext(BillingModeContext);
-  if (!ctx) throw new Error("useBillingMode must be used inside BillingModeProvider");
+  if (!ctx && !opzioni?.facoltativo) throw new Error("useBillingMode must be used inside BillingModeProvider");
   return ctx;
 }

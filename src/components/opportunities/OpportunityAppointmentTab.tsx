@@ -747,7 +747,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
           ) : (
             <p className="flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-              <span>{selectedCalendar ? `Il calendario «${selectedCalendar.name}» non ha un link di videochiamata. Aggiungilo in Impostazioni → Calendari.` : "Scegli un calendario: il link della videochiamata arriva da lì."}</span>
+              <span>{selectedCalendar ? `Il calendario «${selectedCalendar.name}» non ha un link di videochiamata. Aggiungilo in Impostazioni → Appuntamenti e prenotazioni.` : "Scegli un calendario: il link della videochiamata arriva da lì."}</span>
             </p>
           )}
           <p className="text-xs text-muted-foreground">Il link viene salvato nell'appuntamento e scritto nel messaggio di conferma al cliente.</p>
@@ -782,7 +782,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
                 <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
                 <span>
                   Il calendario «{selectedCalendar.name}» non ha un indirizzo base, quindi non si possono calcolare i km.
-                  Impostalo in Impostazioni → Calendari.
+                  Impostalo in Impostazioni → Appuntamenti e prenotazioni.
                 </span>
               </p>
             )}

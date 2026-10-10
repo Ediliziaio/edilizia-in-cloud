@@ -28,6 +28,7 @@ import {
   ANTICIPI_VELOCI, importoFinanziatoDa, type DurataConRata, type PianiManuali, type PianoManuale,
 } from "@/lib/serramenti/pianoFinanziamento";
 import type { SrPianoFinanziamento } from "@/types/serramenti";
+import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
 
 export type ModalitaFinanziamento = "tabella" | "manuale";
 
@@ -109,7 +110,7 @@ export function SimulazioneFinanziamento(p: Props) {
           ) : (
             <p className="text-[11px] text-muted-foreground">
               Nessuna tabella finanziaria configurata: si usa il piano manuale.{" "}
-              <a href="/azienda/impostazioni/finanziamenti" className="font-semibold underline">Impostazioni → Finanziamenti</a>
+              <LinkImpostazione to="/azienda/impostazioni/finanziamenti" className="font-semibold underline">Impostazioni → Finanziamenti</LinkImpostazione>
               <span className="max-sm:hidden"> per caricarla.</span>
             </p>
           )}

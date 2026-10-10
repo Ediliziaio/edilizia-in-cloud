@@ -237,9 +237,9 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
             tono={incassi.sottoRitmo === true ? "attenzione" : incassi.sottoRitmo === false ? "buono" : "neutro"}
             contesto={
               incassi.previsione == null ? (
-                <Link to="/azienda/impostazioni/margini" className="underline underline-offset-2">
-                  Nessuna previsione impostata
-                </Link>
+                // Nessuna pagina delle impostazioni scrive la previsione (companies.monthly_revenue_target): finché non
+                // c'è un posto dove metterla, qui è solo una constatazione, senza rimando.
+                "Nessuna previsione impostata"
               ) : (
                 <>
                   <Progress value={Math.min(100, incassi.percentuale ?? 0)} className="my-1 h-1.5" />
@@ -343,9 +343,9 @@ export default function ComeStiamoAndando({ comeSezione = false }: { comeSezione
       </div>
 
       {/* Qui stava un riquadro intero — titolo, spiegazione e un bottone — per
-          dire una cosa che il primo dei quattro numeri gia' dice, con lo stesso
-          collegamento: "Nessuna previsione impostata". Una riga di schermo per
-          ripetere un invito rende meno probabile che venga accolto, non piu'. */}
+          dire una cosa che il primo dei quattro numeri gia' dice: "Nessuna
+          previsione impostata". Una riga di schermo per ripetere un invito
+          rende meno probabile che venga accolto, non piu'. */}
     </div>
   );
 }

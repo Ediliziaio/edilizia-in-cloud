@@ -23,6 +23,7 @@ import { useCatalogItems } from "@/hooks/useCatalogItems";
 import { useCatalogCategories } from "@/hooks/useCatalogCategories";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { CatalogCategory, CatalogItem } from "@/types/catalogItem";
+import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
 
 interface ProductPickerProps {
   category?: CatalogCategory | null;
@@ -136,12 +137,12 @@ export function ProductPicker({ category, onBack, onSelectItem }: ProductPickerP
               : "Nessun prodotto in questa categoria."}
           </p>
           {!searchDebounced && (
-            <a
-              href="/azienda/impostazioni/listino"
+            <LinkImpostazione
+              to="/azienda/impostazioni/listino"
               className="mt-2 inline-block text-sm font-medium text-primary hover:underline max-sm:hidden"
             >
               Crea il primo prodotto
-            </a>
+            </LinkImpostazione>
           )}
         </div>
       ) : (

@@ -2288,7 +2288,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
                     ⚠️ Dati camerali non disponibili — {r.openapi_error}
                     {/Wrong Token|non configurato|401/i.test(r.openapi_error) && (
-                      <> Configura un token openapi.it valido in <b>Impostazioni → API</b> per visura, PEC e firmografici.</>
+                      <> Il servizio che fornisce visura, PEC e dati dell'azienda non è attivo: avvisa l'assistenza.</>
                     )}
                   </div>
                 )}
@@ -2395,7 +2395,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
               ⚠️ Visura non disponibile — {visuraResult.error}
               {/Wrong Token|non configurato|401/i.test(visuraResult.error || "") && (
-                <> Configura un token openapi.it valido in <b>Impostazioni → API</b> per visura, bilancio e PEC.</>
+                <> Il servizio che fornisce visura, bilancio e PEC non è attivo: avvisa l'assistenza.</>
               )}
             </div>
           ))}

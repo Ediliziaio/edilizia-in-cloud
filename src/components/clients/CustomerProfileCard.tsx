@@ -238,7 +238,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                   </SelectItem>
                   {agentiInTendina.length === 0 && (
                     <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                      Nessun agente: aggiungili in Impostazioni › Persone › Venditori
+                      Nessun agente: aggiungili in Impostazioni → Persone & Accessi → Venditori
                     </div>
                   )}
                   {agentiInTendina.map((s) => (

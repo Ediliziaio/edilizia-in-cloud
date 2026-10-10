@@ -167,7 +167,7 @@ export function CaricaDocumentiDialog({
     const stima = daFare.reduce((t, v) => t + (riduci && fotoDaRidurre(v.file) ? v.file.size * 0.3 : v.file.size), 0);
     if (liberi != null && stima > liberi) {
       toast.error("Spazio di archiviazione esaurito", {
-        description: `Servono circa ${fmtBytes(stima)}, ne restano ${fmtBytes(liberi) || "0 MB"}. Libera spazio o passa a un piano superiore (Impostazioni → Abbonamento).`,
+        description: `Servono circa ${fmtBytes(stima)}, ne restano ${fmtBytes(liberi) || "0 MB"}. Libera spazio o passa a un piano superiore (Impostazioni → Piano abbonamento).`,
       });
       return;
     }

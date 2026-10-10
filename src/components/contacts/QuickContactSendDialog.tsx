@@ -36,6 +36,7 @@ import { Smartphone, MessageSquare, Mail, Send, Loader2, Sparkles, PenLine, Pape
 import { EmailTemplatePicker } from "@/components/email/EmailTemplatePicker";
 import { OrderDocumentAttacher } from "@/components/email/OrderDocumentAttacher";
 import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
+import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
 
 export type QuickSendChannel = "sms" | "whatsapp" | "email" | "whatsapp_locale";
 
@@ -485,7 +486,7 @@ export function QuickContactSendDialog({
             ) : emailAccounts.length === 0 ? (
               <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-800">
                 Nessuna casella collegata.{" "}
-                <a href="/azienda/impostazioni/mio-profilo?tab=email" className="underline font-medium">Collega Gmail/Outlook/IMAP</a> per inviare email da qui.
+                <LinkImpostazione to="/azienda/impostazioni/mio-profilo?tab=email" className="underline font-medium">Collega Gmail/Outlook/IMAP</LinkImpostazione> per inviare email da qui.
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_300px]">

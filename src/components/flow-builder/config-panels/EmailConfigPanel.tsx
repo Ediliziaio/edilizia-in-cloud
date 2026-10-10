@@ -183,7 +183,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
         {caselleError && <p role="alert" className="text-[11px] text-destructive">Non riesco a verificare le caselle collegate. Riprova prima di cambiare mittente.</p>}
         {casella && casella.status !== "active" && (
           <p className="text-[11px] font-medium text-destructive">
-            {casella.email_address} è scollegata: finché non la ricolleghi da Impostazioni › Posta le email non partono.
+            {casella.email_address} è scollegata: finché non la ricolleghi da Impostazioni → Il mio profilo → Email le email non partono.
           </p>
         )}
         {casella?.status === "active" && (
@@ -191,7 +191,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
         )}
         {!caselleLoading && !caselleError && caselle.length === 0 && (
           <p className="text-[11px] text-muted-foreground">
-            Per inviare dalla casella dell'azienda collegala prima in Impostazioni › Posta.
+            Per inviare dalla casella dell'azienda collegala prima in Impostazioni → Il mio profilo → Email.
           </p>
         )}
       </div>

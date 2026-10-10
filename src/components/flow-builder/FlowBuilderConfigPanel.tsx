@@ -1221,7 +1221,7 @@ function ConfigField({
           </Select>
         ) : (
           <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
-            Nessun calendario trovato. Creane uno in Impostazioni → Calendari.
+            Nessun calendario trovato. Creane uno in Impostazioni → Appuntamenti e prenotazioni.
           </p>
         )
       )}
@@ -1276,7 +1276,7 @@ function ConfigField({
       {field.type === "order_status_select" && (
         fasiCommessa.length === 0 ? (
           <p className="rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
-            Nessuna fase commessa. Creale in Impostazioni › Fasi commessa.
+            Nessuna fase commessa. Creale in Impostazioni → Fasi e avanzamento.
           </p>
         ) : (
           <Select value={value || ""} onValueChange={onChange}>

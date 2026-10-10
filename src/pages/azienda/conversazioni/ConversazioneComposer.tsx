@@ -15,6 +15,7 @@ import type { EntitaTipo } from "@/hooks/useConversazioni";
 import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
 import { requireWhatsAppReceipt } from "../../../../supabase/functions/_shared/whatsappReceipt";
 import { readInvokeError } from "@/lib/readInvokeError";
+import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
 
 type Canale = "email" | "whatsapp" | "whatsapp_locale" | "sms" | "instagram" | "messenger";
 type PiattaformaSocial = "instagram" | "messenger";
@@ -160,7 +161,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
   // fisso a /azienda/... portava fuori contesto.
   const impostazioniEmailHref = window.location.pathname.startsWith("/admin")
     ? "/admin/impostazioni/email"
-    : "/azienda/impostazioni/email";
+    : "/azienda/impostazioni/mio-profilo?tab=email";
 
   const cleanPhone = (telefono ?? "").replace(/\D/g, "");
   const waHref = cleanPhone
@@ -339,7 +340,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
             <div className="rounded-md border border-sky-200 bg-sky-50 px-2.5 py-2 text-[11px] text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
               Nessuna casella personale collegata: l'email partirà dall'indirizzo della
               piattaforma. Per scrivere dal tuo,{" "}
-              <a href={impostazioniEmailHref} className="underline font-medium">collega Gmail o Outlook</a>.
+              <LinkImpostazione to={impostazioniEmailHref} className="underline font-medium">collega Gmail o Outlook</LinkImpostazione>.
             </div>
           ) : (
             <div className="flex items-center gap-2">

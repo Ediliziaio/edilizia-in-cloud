@@ -13,89 +13,14 @@ import {
   schedeVisibili,
   sezioneDaPercorso,
 } from "@/lib/impostazioni/gruppiImpostazioni";
+import { titoloDaPercorso } from "@/lib/impostazioni/titoliImpostazioni";
 
-// ─── Mappa URL → titolo + descrizione ───────────────────────────────────────
-interface SectionMeta {
-  title: string;
-  description: string;
-}
-
-const SECTION_MAP: Record<string, SectionMeta> = {
-  "mio-profilo":          { title: "Il mio profilo",           description: "Gestisci dati personali, password, 2FA, calendari e notifiche" },
-  profilo:                { title: "Profilo aziendale",        description: "Configura le informazioni della tua azienda" },
-  sedi:                   { title: "Sedi",                     description: "Gestisci le sedi operative della tua azienda" },
-  branding:               { title: "White-Label",              description: "Personalizza il brand e i colori della piattaforma" },
-  listino:                { title: "Listino prodotti",         description: "Gestisci il catalogo prodotti e servizi" },
-  tariffe:                { title: "Tariffe & Manutenzione",   description: "Listino operativo (posa, manodopera, servizi) e prezzi di manutenzione per impianto e intervento" },
-  "listino-manutenzione": { title: "Tariffe & Manutenzione",   description: "Listino operativo (posa, manodopera, servizi) e prezzi di manutenzione per impianto e intervento" },
-  finanziamenti:          { title: "Finanziamenti",             description: "Tabelle delle finanziarie convenzionate e calcolatore rate" },
-  "bundle-serramentista": { title: "Bundle & Pacchetti",         description: "Pacchetti chiavi-in-mano pre-configurati per preventivi serramentista" },
-  bundle:                 { title: "Bundle & Pacchetti",         description: "Pacchetti chiavi-in-mano pre-configurati per i preventivi" },
-  margini:                { title: "Prezzo e margini",         description: "Prezzo a mano, margini, posa e trasporto, numero e PDF dei preventivi" },
-  scontistica:            { title: "Sconti",                   description: "Limiti di sconto per commerciali, clienti e fasce di importo" },
-  approvazioni:           { title: "Approvazioni",             description: "Quando serve una seconda firma sul preventivo e quando una commessa segnala che costi o margine non tornano" },
-  "stati-ordine":         { title: "Stati commessa",           description: "Configura il percorso della commessa: gli stati non sono le fasi di lavoro" },
-  "calendari-lavori":     { title: "Calendari lavori",         description: "Squadre, calendari standard e collegamenti dei cantieri" },
-  "qr-codici":            { title: "QR & Codici",              description: "Collega codici e QR ad articoli e fornitori, controlla la copertura e verifica le scansioni" },
-  "motivi-perdita":       { title: "Motivi di perdita",        description: "Organizza i motivi delle opportunità perse mantenendo lo storico" },
-  "rapportini-cantiere":  { title: "Rapportini e presenze",    description: "Come lavorano i tuoi cantieri: chi scrive il rapportino e da dove vengono le ore" },
-  "modelli-fasi":         { title: "Fasi e avanzamento",       description: "I modelli di fasi con le sottofasi, chi le spunta e come si calcola l'avanzamento delle commesse" },
-  "modelli-pagamento":    { title: "Modelli di pagamento",     description: "Le rate con cui si incassa una commessa, e quando matura la rata di un SAL" },
-  "cartelle-documenti":   { title: "Cartelle documenti",       description: "Le cartelle in cui si dividono i documenti di ogni commessa" },
-  fornitori:              { title: "Fornitori",                description: "Gestisci l'anagrafica fornitori" },
-  "categorie-costi":      { title: "Categorie costi",          description: "Organizza le categorie di costo dei cantieri" },
-  "automazioni-finanza":  { title: "Automazioni finanza",      description: "Configura automazioni per la gestione finanziaria" },
-  tag:                    { title: "Tag",                      description: "Gestisci i tag per classificare contatti e cantieri" },
-  "campi-personalizzati": { title: "Campi personalizzati",     description: "Crea campi aggiuntivi per i tuoi record" },
-  sequenze:               { title: "Pipeline di vendita",      description: "Configura le fasi delle opportunità e i percorsi di vendita" },
-  "form-builder":         { title: "Form & UTM",               description: "Crea form di acquisizione lead e traccia le campagne" },
-  "template-preventivi":  { title: "Modelli di preventivo",    description: "Il modello del preventivo generico e quelli di ogni modulo: serramenti, fotovoltaico e gli altri" },
-  "catalogo-render":      { title: "Catalogo render",          description: "Foto dei tuoi prodotti da usare come riferimento nei render" },
-  "condizioni-firma":     { title: "Condizioni e firma",       description: "Clausole del contratto e testi che il cliente accetta firmando" },
-  "firma-elettronica":    { title: "Firma Elettronica",        description: "Configura FEA, OTP, consenso e flussi firma per preventivi e documenti operativi" },
-  sopralluoghi:           { title: "Sopralluoghi",             description: "Configura le impostazioni del modulo Sopralluoghi" },
-  calendari:              { title: "Appuntamenti e prenotazioni", description: "Calendari, disponibilità e collegamenti per gli appuntamenti" },
-  "lead-forms":           { title: "Lead Facebook",            description: "Connetti e gestisci i form di acquisizione Facebook" },
-  persone:               { title: "Persone & Accessi",         description: "Gestisci utenti, venditori, staff e team" },
-  utenti:                 { title: "Utenti",                   description: "Gestisci gli accessi e i ruoli degli utenti" },
-  venditori:              { title: "Venditori",                description: "Gestisci l'elenco dei venditori" },
-  staff:                  { title: "Staff / Operai",           description: "Gestisci lo staff operativo e gli operai" },
-  team:                   { title: "Team",                     description: "Organizza i team di lavoro" },
-  "sicurezza-privacy":    { title: "Sicurezza & Privacy",       description: "Privacy GDPR, dashboard sicurezza e registro attività" },
-  "esporta-dati":         { title: "Esporta i dati",           description: "Esporta i dati strutturati dell'azienda: non è un backup completo degli allegati" },
-  sicurezza:              { title: "Sicurezza profilo",         description: "Gestisci password e 2FA dal tuo profilo personale" },
-  privacy:                { title: "Privacy & GDPR",           description: "Gestisci le preferenze privacy e la conformità GDPR" },
-  "security-dashboard":   { title: "Security dashboard",      description: "Monitora gli accessi e gli eventi di sicurezza" },
-  attivita:               { title: "Registro attività",        description: "Visualizza il log completo delle attività" },
-  integrazioni:           { title: "Integrazioni",             description: "Connetti strumenti e servizi esterni" },
-  crediti:                { title: "Crediti & saldo",          description: "Gestisci i crediti e il saldo del tuo account" },
-  api:                    { title: "API platform",             description: "Gestisci le chiavi API per integrazioni avanzate" },
-  webhook:                { title: "Webhook",                  description: "Configura gli endpoint, controlla i test e i tentativi di consegna" },
-  "dominio-email":        { title: "Dominio email",            description: "Invia email dal tuo dominio aziendale per deliverability e branding" },
-  "numeri-telefono":      { title: "Telefonia",                description: "Sistema telefonico: numeri aziendali, numeri per gli agenti AI e Centralino" },
-  abbonamento:            { title: "Piano abbonamento",        description: "Gestisci il tuo piano e i dettagli dell'abbonamento" },
-  // v8.6.57 — Voce unica "Fatturazione" con 2 tab interni (esterna vs nativa)
-  fatturazione:           { title: "Fatturazione",             description: "Provider esterni (Fatture in Cloud, Aruba, ecc.) o configurazione SDI nativa" },
-  "fatturazione-nativa":  { title: "Fatturazione",             description: "Provider esterni o configurazione SDI nativa" },
-  "ai-memoria":           { title: "AI Personas — Chat & Memoria", description: "Parla con le 18 AI specializzate (CFO, PM, Compliance…) e gestisci ciò che ricordano della tua azienda" },
-  notifiche:              { title: "Notifiche",                description: "Scegli su quali canali ricevere i messaggi automatici (chat Silvio, Telegram, WhatsApp, email)" },
-};
-
-const DEFAULT_META: SectionMeta = {
-  title: "Impostazioni",
-  description: "Configura il tuo account e la tua azienda",
-};
+// Il titolo e la frase di ogni pagina stanno in titoliImpostazioni.ts (con un test che li controlla);
+// le pagine con le schede hanno il titolo del loro gruppo.
 
 // v8.6.69 — MOBILE_SETTINGS_GROUPS rimosso: il dropdown "Vai a una sezione"
 // che usava questa lista è stato eliminato. La navigazione mobile delle
 // impostazioni avviene ora via rotellina nell'header CompanyLayout.
-
-/** Estrae il segmento URL dopo /impostazioni/ — funzione pura, zero side effects */
-function getSectionMeta(pathname: string): SectionMeta {
-  const match = pathname.match(/\/impostazioni\/([^/]+)/);
-  if (!match) return DEFAULT_META;
-  return SECTION_MAP[match[1]] ?? DEFAULT_META;
-}
 
 // ─── Layout wrapper per tutte le route /azienda/impostazioni/* ───────────────
 export function SettingsLayout() {
@@ -114,9 +39,7 @@ export function SettingsLayout() {
   // comprende non si apre nemmeno dall'indirizzo. Vedi pianoImpostazioni.ts.
   const nelPiano = impostazioneNelPiano(pathname, piano);
   const schedaAttiva = gruppo ? schedaDellaSezione(gruppo, sezione) : null;
-  const meta = getSectionMeta(pathname);
-  const title = gruppo?.titolo ?? meta.title;
-  const description = gruppo?.descrizione ?? meta.description;
+  const { title, description } = titoloDaPercorso(pathname);
 
   // v8.6.71 — Sull'hub (/azienda/impostazioni senza sub-segmento) non mostriamo
   // il back arrow (è la pagina root). Su tutte le sotto-pagine sì.

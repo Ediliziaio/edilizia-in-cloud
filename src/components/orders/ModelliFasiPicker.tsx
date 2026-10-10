@@ -29,7 +29,7 @@ export function ModelliFasiPicker({ onApplica, inCorso }: ModelliFasiPickerProps
       <Label className={TITOLO}>Parti da un modello</Label>
       {elenco.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          Non hai modelli: preparali in Impostazioni → Modelli di fasi, oppure scrivi le fasi una alla volta qui sotto.
+          Non hai modelli: preparali in Impostazioni → Fasi e avanzamento, oppure scrivi le fasi una alla volta qui sotto.
         </p>
       ) : (
         <div className="flex flex-wrap gap-1.5">

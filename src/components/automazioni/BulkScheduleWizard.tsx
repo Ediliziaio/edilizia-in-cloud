@@ -379,11 +379,11 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
             <Label className="flex items-center gap-2 mb-2">
               <MessageSquare className="h-4 w-4" /> Su quali canali?
             </Label>
-            {/* Da tablet via: «fallback», «preferred chain» e un percorso /azienda/… */}
+            {/* Solo da telefono; da tablet in su la riga non c'è. In parole di tutti i giorni, senza il percorso scritto come indirizzo. */}
             <p className="text-xs text-slate-500 -mt-2 sm:hidden">
-              Se selezioni più canali, il sistema usa quello preferito dall'utente. Se non disponibile,
-              fa fallback sul successivo nella sua preferred chain (configurabile in
-              /azienda/impostazioni/notifiche).
+              Se scegli più canali, il messaggio parte da quello preferito dalla persona. Se quello non
+              è disponibile, prova il successivo nel suo ordine di preferenza: ognuno lo sceglie in
+              Impostazioni → Notifiche.
             </p>
             <div className="space-y-2">
               {([

@@ -26,7 +26,7 @@ export function SalvaFasiComeModello({ orderId, numeroFasi, className }: { order
       if (error) throw error;
     },
     onSuccess: (_dati, nomeModello) => {
-      toast.success(`Modello «${nomeModello}» salvato`, { description: "Lo trovi in Impostazioni → Modelli di fasi." });
+      toast.success(`Modello «${nomeModello}» salvato`, { description: "Lo trovi in Impostazioni → Fasi e avanzamento." });
       setNome("");
       void qc.invalidateQueries({ queryKey: chiaveModelliFasi(effectiveCompany?.id) });
     },

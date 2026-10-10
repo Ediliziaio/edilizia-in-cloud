@@ -43,7 +43,7 @@ export function PrezzoPreventivoAMano({ id, companyId, value, sommaVoci, onCommi
       <p className="mt-1 text-xs text-muted-foreground">
         {isLoading ? "Verifica delle impostazioni aziendali…" : isError
           ? "Impossibile verificare l'abilitazione. Riprova prima di impostare un prezzo manuale."
-          : "Disponibile quando l'azienda abilita «Prezzo del preventivo» in Impostazioni → Modelli di preventivo → Prezzo e margini. Per ora il totale segue i prezzi delle righe."}
+          : "Disponibile quando l'azienda abilita «Scrivi a mano il prezzo del preventivo» in Impostazioni → Modelli di preventivo → Prezzo e margini. Per ora il totale segue i prezzi delle righe."}
       </p>
       {!isLoading && !isError && <a href="/azienda/impostazioni/margini#prezzo" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs font-medium text-orange-700 underline">Apri impostazioni in nuova scheda</a>}
     </div>

@@ -13,9 +13,8 @@ import { useGlobalSearch, type SearchResult } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/contexts/AuthContext";
 import { macroAreas } from "@/lib/sidebarConfig";
 import { isDemoCompanyId } from "@/lib/constants/demoCompany";
-import { useStatoPiano } from "@/hooks/useStatoPiano";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { impostazioneNelPiano } from "@/lib/impostazioni/pianoImpostazioni";
+import { useVociImpostazioni } from "@/hooks/useVociImpostazioni";
+import { cercaImpostazioni } from "@/lib/impostazioni/indiceImpostazioni";
 
 // 🆕 GAP 1 (Discoverability): personas AI nel command palette
 interface AIPersonaLite {
@@ -64,64 +63,10 @@ const ENTITY_LABEL: Record<string, { label: string; route: (id: string) => strin
   supplier:      { label: "Fornitore",     route: (_id) => `/azienda/impostazioni/fornitori` },
 };
 
-// ─── Tutte le 34 voci impostazioni per la ricerca Command Palette ─────────────
-interface SettingsItem {
-  label: string;
-  path: string;
-  /** Solo tablet e computer: da telefono non compare. */
-  desktopOnly?: boolean;
-}
-
-const SETTINGS_ITEMS: SettingsItem[] = [
-  { label: "Il mio profilo",             path: "/azienda/impostazioni/mio-profilo" },
-  { label: "Sicurezza profilo",          path: "/azienda/impostazioni/mio-profilo?tab=sicurezza" },
-  { label: "Profilo aziendale",         path: "/azienda/impostazioni/profilo" },
-  { label: "Sedi",                       path: "/azienda/impostazioni/sedi" },
-  { label: "White-Label",                path: "/azienda/impostazioni/branding" },
-  { label: "Listino · Prodotti",         path: "/azienda/impostazioni/listino" },
-  { label: "Listino · Manodopera e servizi", path: "/azienda/impostazioni/tariffe" },
-  { label: "Listino Manutenzione",       path: "/azienda/impostazioni/tariffe?tab=manutenzione" },
-  { label: "Listino · Kit e pacchetti",  path: "/azienda/impostazioni/bundle" },
-  { label: "Modelli di preventivo · Prezzo e margini", path: "/azienda/impostazioni/margini" },
-  { label: "Prezzo a mano · prezzo manuale del preventivo", path: "/azienda/impostazioni/margini#prezzo" },
-  { label: "Modelli di preventivo · Sconti", path: "/azienda/impostazioni/scontistica" },
-  { label: "Modelli di preventivo · Approvazioni", path: "/azienda/impostazioni/approvazioni" },
-  { label: "Stati ordine",               path: "/azienda/impostazioni/stati-ordine" },
-  { label: "Cartelle documenti",         path: "/azienda/impostazioni/cartelle-documenti" },
-  { label: "Fornitori",                  path: "/azienda/impostazioni/fornitori" },
-  { label: "Categorie costi",            path: "/azienda/impostazioni/categorie-costi" },
-  { label: "Automazioni finanza",        path: "/azienda/impostazioni/automazioni-finanza" },
-  { label: "Tag",                        path: "/azienda/impostazioni/tag" },
-  { label: "Campi personalizzati",       path: "/azienda/impostazioni/campi-personalizzati" },
-  { label: "Sequenze",                   path: "/azienda/impostazioni/sequenze" },
-  { label: "Motivi di perdita",          path: "/azienda/impostazioni/motivi-perdita" },
-  { label: "Form & UTM",                 path: "/azienda/impostazioni/form-builder" },
-  { label: "Modelli di preventivo",      path: "/azienda/impostazioni/template-preventivi" },
-  { label: "Firma e condizioni · Condizioni", path: "/azienda/impostazioni/condizioni-firma" },
-  { label: "Firma e condizioni · Firma elettronica", path: "/azienda/impostazioni/firma-elettronica" },
-  { label: "Calendari marketing",        path: "/azienda/impostazioni/calendari" },
-  { label: "Lead Facebook",              path: "/azienda/impostazioni/lead-forms" },
-  { label: "Persone & Accessi",          path: "/azienda/impostazioni/persone" },
-  { label: "Utenti",                     path: "/azienda/impostazioni/persone?tab=utenti" },
-  { label: "Template permessi",          path: "/azienda/impostazioni/persone?tab=template-permessi" },
-  { label: "Venditori",                  path: "/azienda/impostazioni/persone?tab=venditori" },
-  { label: "Staff / Operai",             path: "/azienda/impostazioni/persone?tab=staff" },
-  { label: "Team",                       path: "/azienda/impostazioni/persone?tab=team" },
-  { label: "Sicurezza & Privacy",        path: "/azienda/impostazioni/sicurezza-privacy" },
-  { label: "Esporta i dati",             path: "/azienda/impostazioni/esporta-dati" },
-  { label: "Cambio password",            path: "/azienda/impostazioni/mio-profilo?tab=sicurezza" },
-  { label: "Privacy & GDPR",             path: "/azienda/impostazioni/sicurezza-privacy?tab=privacy" },
-  { label: "Security dashboard",         path: "/azienda/impostazioni/sicurezza-privacy?tab=dashboard" },
-  { label: "Registro attività",          path: "/azienda/impostazioni/sicurezza-privacy?tab=attivita" },
-  { label: "Integrazioni",               path: "/azienda/impostazioni/integrazioni", desktopOnly: true },
-  { label: "Crediti & saldo",            path: "/azienda/impostazioni/crediti" },
-  { label: "API platform",               path: "/azienda/impostazioni/api" },
-  { label: "Webhook",                    path: "/azienda/impostazioni/webhook" },
-  { label: "Telefonia",                  path: "/azienda/impostazioni/numeri-telefono" },
-  { label: "Piano abbonamento",          path: "/azienda/impostazioni/abbonamento" },
-  { label: "Fatturazione",               path: "/azienda/impostazioni/fatturazione" },
-  { label: "Fatturazione elettronica",   path: "/azienda/impostazioni/fatturazione-nativa" },
-];
+// Le impostazioni si cercano con lo stesso indice e lo stesso motore del ⌘K delle impostazioni
+// (lib/impostazioni/indiceImpostazioni.ts): stesse parole, stessi permessi, stesso piano. Qui, in mezzo a clienti
+// e commesse, ne bastano le prime.
+const MAX_IMPOSTAZIONI = 8;
 
 const RESULT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   Package, User, UserCircle, MessageSquare,
@@ -157,9 +102,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const isDemoBaseline = isDemoCompanyId(effectiveCompany?.id);
-  // Le impostazioni fuori dal piano dell'azienda non si cercano (21/09/2026).
-  const { stato: piano } = useStatoPiano();
-  const isMobile = useIsMobile();
+  // Le impostazioni fuori dal piano o senza permesso non si cercano (21/09/2026).
+  const { voci: vociImpostazioni } = useVociImpostazioni(open);
 
   const { data: results = [], isFetching } = useGlobalSearch(query, effectiveCompany?.id);
 
@@ -277,14 +221,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   const filteredSettingsItems = useMemo(() => {
     if (query.length < 2) return [];
-    const q = query.toLowerCase();
-    return SETTINGS_ITEMS.filter(
-      (item) =>
-        item.label.toLowerCase().includes(q) &&
-        impostazioneNelPiano(item.path, piano) &&
-        !(item.desktopOnly && isMobile),
-    );
-  }, [query, piano, isMobile]);
+    return cercaImpostazioni(vociImpostazioni, query).slice(0, MAX_IMPOSTAZIONI);
+  }, [query, vociImpostazioni]);
 
   return (
     // shouldFilter={false}: questa palette filtra già tutto da sé — le voci di
@@ -466,12 +404,14 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             <CommandGroup heading="Impostazioni">
               {filteredSettingsItems.map((item) => (
                 <CommandItem
-                  key={item.path}
-                  onSelect={() => handleSelect(item.path)}
+                  key={item.url}
+                  value={item.url}
+                  onSelect={() => handleSelect(item.url)}
                   className="flex items-center gap-3"
                 >
-                  <Settings className="h-4 w-4 text-muted-foreground" />
-                  <span>{item.label}</span>
+                  <Settings className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{item.group}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

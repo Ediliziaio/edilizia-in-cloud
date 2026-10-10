@@ -37,6 +37,7 @@ import {
   X as XIcon, Paperclip as PaperclipIcon,
 } from "lucide-react";
 import { friendlyPostgresError } from "@/lib/postgresErrors";
+import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
 
 type Channel = "email" | "whatsapp" | "sms" | "note";
 
@@ -581,9 +582,9 @@ export function CustomerComposeBar({
                       Firma applicata automaticamente
                     </span>
                   ) : (
-                    <a href="/azienda/impostazioni/integrazioni" className="text-blue-600 hover:underline">
+                    <LinkImpostazione to="/azienda/impostazioni/mio-profilo?tab=email" className="text-blue-600 hover:underline">
                       + Aggiungi firma email
-                    </a>
+                    </LinkImpostazione>
                   );
                 })()}
               </p>
@@ -631,9 +632,9 @@ export function CustomerComposeBar({
             {emailAccounts.length === 0 && (
               <div className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800">
                 Nessun account email collegato.{" "}
-                <a href="/azienda/impostazioni/email" className="underline font-medium">
+                <LinkImpostazione to="/azienda/impostazioni/mio-profilo?tab=email" className="underline font-medium">
                   Connetti la tua casella Gmail/Outlook
-                </a>{" "}
+                </LinkImpostazione>{" "}
                 per inviare email da qui.
               </div>
             )}

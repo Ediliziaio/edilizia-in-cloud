@@ -172,7 +172,7 @@ export function EmailLayout({
       // Nessuna casella processata (tutte disconnesse/revocate).
       if (checked === 0) {
         toast.warning("Nessuna casella da sincronizzare", {
-          description: "Le caselle potrebbero essere disconnesse: riconnettile in Impostazioni → Email.",
+          description: "Le caselle potrebbero essere disconnesse: riconnettile in Impostazioni → Il mio profilo → Email.",
           duration: 7000,
         });
         return;

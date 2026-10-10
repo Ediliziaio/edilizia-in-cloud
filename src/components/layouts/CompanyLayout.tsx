@@ -63,6 +63,8 @@ import {
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
 import { buildSettingsGroups, type SettingsNavGroup } from "@/lib/impostazioni/navigazioneImpostazioni";
+import { filtraGruppiDelMenu } from "@/lib/impostazioni/indiceImpostazioni";
+import { useVociImpostazioni } from "@/hooks/useVociImpostazioni";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Suspense, useMemo, useState, useEffect, useRef, useCallback, memo } from "react";
 import { SupportChatSheet } from "@/components/layouts/SupportChatSheet";
@@ -772,27 +774,19 @@ const SettingsSidebarContent = memo(function SettingsSidebarContent({
     [isAdmin, permissions, piano, isMobile]
   );
 
-  // Filtra gruppi per ricerca: se query vuota mostra tutto, altrimenti filtra per label
+  // Il campo cerca con lo stesso indice e lo stesso motore del ⌘K delle impostazioni: «prezzo» o «iban» accendono
+  // la voce del menu che contiene la funzione, non solo quelle che hanno la parola nel nome.
+  const { voci } = useVociImpostazioni(query.trim() !== "");
+
+  // Filtra gruppi per ricerca: se query vuota mostra tutto, altrimenti solo le voci che rispondono.
   const filteredGroups = useMemo<SettingsNavGroup[]>(() => {
     const visibleGroups = allGroups.map(g => ({
       ...g,
       items: g.items.filter(item => item.visible),
     })).filter(g => g.items.length > 0);
 
-    if (!query.trim()) return visibleGroups;
-
-    const q = query.trim().toLowerCase();
-    return visibleGroups
-      .map(g => ({
-        ...g,
-        items: g.items.filter(
-          item =>
-            item.label.toLowerCase().includes(q) ||
-            g.label.toLowerCase().includes(q)
-        ),
-      }))
-      .filter(g => g.items.length > 0);
-  }, [allGroups, query]);
+    return filtraGruppiDelMenu(visibleGroups, voci, query);
+  }, [allGroups, query, voci]);
 
   const navLinkClass =
     "flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent";

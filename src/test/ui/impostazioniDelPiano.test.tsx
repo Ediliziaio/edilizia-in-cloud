@@ -115,9 +115,22 @@ describe("tutte le porte d'ingresso guardano il piano", () => {
   it("menu, ricerca, griglia su telefono, Cmd+K, integrazioni", () => {
     expect(leggi("src/lib/impostazioni/navigazioneImpostazioni.tsx")).toMatch(/visible: voce\.visible && impostazioneNelPiano\(voce\.to, piano\)/);
     expect(leggi("src/components/layouts/CompanyLayout.tsx")).toContain("buildSettingsGroups");
-    expect(leggi("src/components/layouts/SettingsSearch.tsx")).toContain("impostazioneNelPiano(e.url, piano)");
     expect(leggi("src/pages/azienda/settings/SettingsMobileHub.tsx")).toContain("buildSettingsGroups");
-    expect(leggi("src/components/CommandPalette.tsx")).toContain("impostazioneNelPiano(item.path, piano)");
+    // Il ⌘K delle impostazioni, la palette dell'app, il campo del menu e l'elenco da telefono prendono le voci da un
+    // indice solo (useVociImpostazioni → vociRicercabili), che guarda piano e permessi: il piano si controlla lì, una
+    // volta sola per tutte e quattro. Lo provano anche i test di ricercaImpostazioni.
+    const indice = leggi("src/lib/impostazioni/indiceImpostazioni.ts");
+    expect(indice).toContain("impostazioneAccessibile(voce.url, permissions, piano, isMobile)");
+    expect(indice).toContain("buildSettingsGroups(permissions.isAdmin, permissions, piano, isMobile)");
+    expect(leggi("src/hooks/useVociImpostazioni.ts")).toContain("vociRicercabili(permissions, piano, isMobile");
+    for (const porta of [
+      "src/components/layouts/SettingsSearch.tsx",
+      "src/components/CommandPalette.tsx",
+      "src/pages/azienda/settings/SettingsMobileHub.tsx",
+      "src/components/layouts/CompanyLayout.tsx",
+    ]) {
+      expect(leggi(porta), porta).toContain("useVociImpostazioni");
+    }
     // Dal 05/10/2026 conti e incassi sono schede della griglia: senza piano la scheda non c'è (e con lei il popup).
     expect(leggi("src/pages/azienda/settings/SettingsIntegrations.tsx")).toContain("banca: mostraContiCorrenti && canViewTesoreria");
     expect(leggi("src/pages/azienda/settings/SettingsIntegrations.tsx")).toContain("stripe: mostraPagamentiCarta && canViewTesoreria");

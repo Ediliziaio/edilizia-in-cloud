@@ -5,7 +5,7 @@ import { MAX_VOTI_NEL_PDF, votoScritto } from "../../../supabase/functions/_shar
 
 /**
  * Accanto alle testimonianze dei modelli: il voto su Google o Trustpilot non si
- * scrive qui, sta nel Profilo azienda e vale per tutti i preventivi.
+ * scrive qui, sta nel Profilo aziendale e vale per tutti i preventivi.
  */
 export function VotoOnlineDelProfilo() {
   const { voti, caricato } = useVotiOnline();
@@ -19,7 +19,7 @@ export function VotoOnlineDelProfilo() {
           ? `Nella pagina «Dicono di noi» esce anche il tuo voto: ${inPdf.map((v) => `${v.nome} ${votoScritto(v.voto)}`).join(" · ")}. `
           : "Nella pagina «Dicono di noi» può uscire anche il tuo voto su Google o Trustpilot. "}
         <Link to="/azienda/impostazioni/profilo" className="font-medium underline">
-          {inPdf.length ? "Si cambia nel Profilo azienda" : "Si scrive nel Profilo azienda"}
+          {inPdf.length ? "Si cambia nel Profilo aziendale" : "Si scrive nel Profilo aziendale"}
         </Link>
         .
       </span>

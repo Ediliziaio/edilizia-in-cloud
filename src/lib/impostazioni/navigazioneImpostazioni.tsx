@@ -4,7 +4,62 @@ import type { Permissions } from "@/hooks/usePermissions";
 import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
 import { GRUPPI_IMPOSTAZIONI, percorsoNelGruppo, schedeVisibili, sezioneDaPercorso, type GruppoImpostazioni } from "./gruppiImpostazioni";
 import { impostazioneNelPiano, type StatoPiano } from "./pianoImpostazioni";
-import { Users, Building2, MapPin, Paintbrush, Wallet, Brain, Bell, ImagePlus, ListOrdered, FolderOpen, HardHat, ClipboardList, ListChecks, Banknote, Truck, QrCode, RefreshCw, Package, FileSignature, Tag, SlidersHorizontal, GitBranch, ThumbsDown, FileText, CalendarDays, FormInput, Shield, Plug, Key, Globe, AtSign, Phone } from "lucide-react";
+import { Users, Building2, MapPin, Paintbrush, Wallet, Coins, Brain, Bell, ImagePlus, ListOrdered, FolderOpen, HardHat, ClipboardList, ListChecks, Banknote, Truck, QrCode, RefreshCw, Package, FileSignature, Tag, SlidersHorizontal, GitBranch, ThumbsDown, FileText, CalendarDays, FormInput, Shield, Plug, Key, Globe, AtSign, Phone } from "lucide-react";
+
+/** I parametri dopo il «?» di un indirizzo («…/persone?tab=team#x» → tab=team). */
+function parametriDa(url: string): URLSearchParams {
+  const dopo = url.split("?")[1] ?? "";
+  return new URLSearchParams(dopo.split("#")[0]);
+}
+
+/**
+ * Le schede dentro una pagina hanno permessi loro, più stretti di quelli della pagina: chi apre «Persone &
+ * Accessi» solo per i dipendenti non vede «Commercialista». Gli stessi controlli che fa la pagina, detti qui
+ * perché la ricerca non porti a una scheda che poi non c'è.
+ */
+function schedaInternaAccessibile(url: string, sezione: string | null, permissions: Permissions): boolean {
+  const scheda = parametriDa(url).get("tab");
+  if (!scheda) return true;
+  const admin = permissions.isAdmin;
+  if (sezione === "persone") {
+    const vedeUtenti = admin || permissions.canViewUsers;
+    const vedePersone = admin || permissions.canViewSettingsPeople;
+    switch (scheda) {
+      case "utenti": case "accessi-azienda": case "commercialista": return vedeUtenti;
+      case "sicurezza-accessi": return vedeUtenti || permissions.canViewSettingsSecurity;
+      // I modelli di permessi li vede solo l'amministratore.
+      case "template-permessi": return admin;
+      case "dipendenti": case "subappaltatori": case "venditori": case "team": return vedePersone;
+      default: return true;
+    }
+  }
+  // Registro delle attività e accessi: la pagina li apre solo all'amministratore.
+  if (sezione === "sicurezza-privacy" && (scheda === "dashboard" || scheda === "attivita")) return admin;
+  return true;
+}
+
+/**
+ * Una sezione dentro una pagina (l'àncora dopo il «#») che la pagina mostra solo a qualcuno: la ricerca non porta
+ * a una sezione che poi non c'è. Profilo aziendale: logo, portale clienti e bonus si cambiano, quindi li vede chi può
+ * modificare il profilo. Il mio profilo → Sicurezza: le regole dell'azienda sono dell'amministratore. Notifiche: i
+ * messaggi programmati sono dell'amministratore.
+ */
+function ancoraInternaAccessibile(url: string, sezione: string | null, permissions: Permissions): boolean {
+  const ancora = url.split("#")[1];
+  if (!ancora) return true;
+  const admin = permissions.isAdmin;
+  if (sezione === "profilo" && ["logo", "portale-clienti", "bonus"].includes(ancora)) return admin || permissions.canEditSettingsProfile;
+  if (sezione === "mio-profilo" && ancora === "regole-azienda") return admin;
+  if (sezione === "notifiche" && ancora === "messaggi-programmati") return admin;
+  return true;
+}
+
+/** Una sottopagina con un permesso suo: caricare una tabella di finanziamento vuole la modifica, non basta vederle. */
+function sottopaginaAccessibile(url: string, sezione: string | null, permissions: Permissions): boolean {
+  const percorso = url.split(/[?#]/)[0];
+  if (sezione === "finanziamenti" && percorso.endsWith("/finanziamenti/nuova")) return permissions.isAdmin || permissions.canEditSettingsFinanziamenti;
+  return true;
+}
 
 /** Ricerca e link secondari rispettano gli stessi permessi della sidebar.
  * Le schede raggruppate controllano il proprio permesso, non quello di una scheda vicina. */
@@ -22,7 +77,7 @@ export function impostazioneAccessibile(url: string, permissions: Permissions, p
     "whatsapp-bot": permissions.isAdmin || permissions.canViewSettingsIntegrations,
   };
   if (sezione && sezione in secondarie) return Boolean(secondarie[sezione]);
-  if (sezione === "persone" && url.includes("tab=template-permessi") && !(permissions.isAdmin || permissions.canEditSettingsPeople)) return false;
+  if (!schedaInternaAccessibile(url, sezione, permissions) || !ancoraInternaAccessibile(url, sezione, permissions) || !sottopaginaAccessibile(url, sezione, permissions)) return false;
   return buildSettingsGroups(permissions.isAdmin, permissions, piano, isMobile)
     .flatMap(g => g.items)
     .some(i => i.visible && sezioneDaPercorso(i.to) === sezione);
@@ -37,6 +92,12 @@ export interface SettingsNavItem {
   attivoSu?: (pathname: string) => boolean;
   /** Solo tablet e computer: da telefono la voce sparisce (vedi useIsMobile). */
   desktopOnly?: boolean;
+  /**
+   * Tutti gli indirizzi che la voce può aprire. Una voce con le schede (Listino, Modelli di preventivo, Firma e
+   * condizioni) apre la prima scheda che l'utente può vedere: chi sceglie cosa nascondere da telefono deve
+   * guardarli tutti, non solo quello di oggi.
+   */
+  indirizzi?: string[];
 }
 export interface SettingsNavGroup {
   label: string;
@@ -57,6 +118,7 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
       icon,
       visible: schede.length > 0,
       attivoSu: (pathname) => percorsoNelGruppo(gruppo, pathname),
+      indirizzi: gruppo.schede.map((s) => s.to),
     };
   };
   const gruppi: SettingsNavGroup[] = [
@@ -76,6 +138,9 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
         // "Portafoglio" interno alla dashboard Abbonamento (no duplicazione).
         // Apple Guideline 3.1.1 — nascosto su iOS nativo (no link a Stripe checkout).
         { to: "/azienda/impostazioni/abbonamento",   label: "Piano abbonamento", icon: <Wallet className="h-4 w-4" />,       visible: isAdmin && !isIOSNativePlatform },
+        // Crediti e ricariche: il saldo, la ricarica e la ricarica automatica. Chi ha «Fatturazione» la vede anche senza
+        // essere amministratore, come la rotta (companyRoutes: crediti).
+        { to: "/azienda/impostazioni/crediti",       label: "Crediti e ricariche", icon: <Coins className="h-4 w-4" />,     visible: (isAdmin || permissions.canViewBilling) && !isIOSNativePlatform },
       ],
     },
     {
@@ -150,7 +215,7 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
     {
       label: "Sicurezza & Privacy",
       items: [
-        // IMP4: voce unica → pagina con 4 tab (password/privacy/dashboard/attivita)
+        // IMP4: voce unica → pagina con tre schede (Accessi · Registro attività · Privacy); la password è in «Il mio profilo → Sicurezza»
         { to: "/azienda/impostazioni/sicurezza-privacy", label: "Sicurezza & Privacy", icon: <Shield className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsSecurity },
         { to: "/azienda/impostazioni/esporta-dati", label: "Esporta i dati", icon: <Shield className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsSecurity },
       ],

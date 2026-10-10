@@ -13,17 +13,19 @@
  *   - Su tablet/desktop presenta la stessa navigazione in una griglia più ampia
  */
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStatoPiano } from "@/hooks/useStatoPiano";
-import { buildSettingsGroups } from "@/lib/impostazioni/navigazioneImpostazioni";
+import { buildSettingsGroups, type SettingsNavItem } from "@/lib/impostazioni/navigazioneImpostazioni";
+import { cercaImpostazioni } from "@/lib/impostazioni/indiceImpostazioni";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useVociImpostazioni } from "@/hooks/useVociImpostazioni";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { LogOut, ChevronRight, Loader2 } from "lucide-react";
+import { LogOut, ChevronRight, Loader2, Search } from "lucide-react";
 
 
 // Sezioni NASCOSTE nell'hub mobile: configurazioni avanzate/desktop che sul
@@ -59,23 +61,43 @@ const HIDDEN_ON_MOBILE = new Set<string>([
   "/azienda/impostazioni/calendari",          // Calendari marketing
 ]);
 
+/**
+ * Una voce è nascosta da telefono se lo è uno qualsiasi dei suoi indirizzi. Le voci con le schede (Listino,
+ * Modelli di preventivo, Firma e condizioni) aprono la prima scheda che l'utente può vedere: guardare solo quella
+ * lasciava sul telefono «Modelli di preventivo» a chi ha il solo permesso degli Sconti, e lo nascondeva
+ * all'amministratore.
+ */
+const nascostaDaTelefono = (voce: SettingsNavItem): boolean => (voce.indirizzi ?? [voce.to]).some((a) => HIDDEN_ON_MOBILE.has(a));
+
 export default function SettingsMobileHub() {
   const { signOut, user, profile } = useAuth();
   const permissions = usePermissions();
   const isMobile = useIsMobile();
   const [logoutOpen, setLogoutOpen] = useState(false);
-  // Filtro rapido: ~23 card senza ricerca obbligavano a scorrere tutto l'hub
-  // (su desktop esiste SettingsSearch, su mobile non c'era nulla).
+  // La ricerca: stesso indice e stesso motore del ⌘K delle impostazioni, che da telefono non c'è. «password»,
+  // «logo» o «iban» portano alla sezione giusta, non solo ai nomi delle voci.
   const [filtro, setFiltro] = useState("");
-  const q = filtro.trim().toLowerCase();
+  const q = filtro.trim();
   // Le impostazioni fuori dal piano dell'azienda non compaiono (21/09/2026).
   const { stato: piano } = useStatoPiano();
-  const sezioniFiltrate = buildSettingsGroups(permissions.isAdmin, permissions, piano, isMobile).map((section) => ({
-    ...section,
-    items: section.items
-      .filter((i) => i.visible && !(isMobile && HIDDEN_ON_MOBILE.has(i.to)))
-      .filter((i) => (q ? i.label.toLowerCase().includes(q) : true)),
-  })).filter((s) => s.items.length > 0);
+  const { voci, vociDaComputer } = useVociImpostazioni(q !== "");
+  const sezioni = useMemo(
+    () => buildSettingsGroups(permissions.isAdmin, permissions, piano, isMobile).map((section) => ({
+      ...section,
+      items: section.items.filter((i) => i.visible && !(isMobile && nascostaDaTelefono(i))),
+    })).filter((s) => s.items.length > 0),
+    [permissions, piano, isMobile],
+  );
+
+  // Cosa si vede nei risultati: le voci che il telefono mostra, con l'icona della loro voce del menu.
+  const risultati = useMemo(() => {
+    if (!q) return [];
+    const mostrate = new Set(sezioni.flatMap((s) => s.items.map((i) => i.to)));
+    return cercaImpostazioni(voci, q).filter((v) => !isMobile || v.madre === null || mostrate.has(v.madre));
+  }, [q, voci, isMobile, sezioni]);
+  // Niente da mostrare qui, ma da computer sì: meglio dirlo che far credere che l'impostazione non ci sia.
+  const soloDaComputer = Boolean(q) && risultati.length === 0 && cercaImpostazioni(vociDaComputer, q).length > 0;
+  const iconaDi = new Map<string, ReactNode>(sezioni.flatMap((s) => s.items.map((i) => [i.to, i.icon] as const)));
 
   if (permissions.isLoading) {
     return <div role="status" className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Caricamento impostazioni…</div>;
@@ -92,21 +114,50 @@ export default function SettingsMobileHub() {
         type="text"
         value={filtro}
         onChange={(e) => setFiltro(e.target.value)}
-        placeholder="Cerca un'impostazione…"
+        placeholder="Cerca un'impostazione (es. password, logo, firma)"
         aria-label="Cerca un'impostazione"
         className="w-full h-9 rounded-lg border border-border/60 bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary md:hidden"
       />
 
-      {q && sezioniFiltrate.length === 0 && (
-        <p className="px-1 text-sm text-muted-foreground">Nessuna impostazione trovata per «{filtro}».</p>
+      {q && risultati.length === 0 && (
+        <p className="px-1 text-sm text-muted-foreground">
+          {soloDaComputer
+            ? `Le impostazioni per «${q}» si cambiano da computer o tablet.`
+            : `Nessuna impostazione trovata per «${q}». Prova con un'altra parola, per esempio «password» o «logo».`}
+        </p>
       )}
 
+      {q && risultati.length > 0 && (
+        <section className="space-y-1.5" aria-label="Risultati della ricerca">
+          <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Risultati</h2>
+          <div className="divide-y overflow-hidden rounded-xl border bg-card">
+            {risultati.map((voce) => (
+              <Link
+                key={voce.url}
+                to={voce.url}
+                className="tap-compact flex min-h-[44px] items-center gap-3 px-3 py-2 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary active:bg-muted"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary" aria-hidden="true">
+                  {(voce.madre && iconaDi.get(voce.madre)) || <Search className="h-4 w-4" />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm">{voce.title}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{voce.description ?? voce.group}</span>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!q && (
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-      {sezioniFiltrate.map((section) => (
+      {sezioni.map((section) => (
         <section key={section.label} className="space-y-1.5">
-          <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
             {section.label}
-          </h3>
+          </h2>
           <div className="divide-y overflow-hidden rounded-xl border bg-card">
             {section.items.map((item) => {
               return (
@@ -127,13 +178,14 @@ export default function SettingsMobileHub() {
         </section>
       ))}
       </div>
+      )}
 
       {/* v8.6.76 — Account + logout in fondo all'hub. Su mobile è l'unico
           punto di accesso al logout (la sidebar con il menu utente è md+). */}
       <section className="space-y-1.5">
-        <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
           Account corrente
-        </h3>
+        </h2>
         <div className="divide-y overflow-hidden rounded-xl border bg-card">
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-xs font-semibold text-primary">

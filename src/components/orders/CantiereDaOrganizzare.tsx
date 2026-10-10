@@ -48,7 +48,7 @@ export function CantiereDaOrganizzare({ orderId, indirizzo, inizio, fine, fasi, 
     const voce = CONTROLLI_AVVIO.find((c) => c.chiave === chiave)?.etichetta.toLowerCase() ?? chiave;
     const ok = await confirm({
       title: `Non ricordarmi più «${voce}»?`,
-      description: "Vale per tutte le commesse dell'azienda. Si può riattivare in Impostazioni → Modelli di fasi.",
+      description: "Vale per tutte le commesse dell'azienda. Si può riattivare in Impostazioni → Fasi e avanzamento.",
       confirmLabel: "Non ricordarmelo più",
     });
     if (ok) salva.mutate({ controlli: senzaControllo(controlli, chiave) });

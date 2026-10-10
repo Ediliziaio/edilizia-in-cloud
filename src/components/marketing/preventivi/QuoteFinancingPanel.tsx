@@ -34,6 +34,7 @@ import { calcolaFinanziamento } from "@/lib/finanziamenti/calcolaFinanziamento";
 import type { RisultatoCalcolo } from "@/lib/finanziamenti/types";
 import { CreditCard, AlertTriangle, CheckCircle2, Calculator, Banknote, Calendar, Percent } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
 
 export interface FinancingProposal {
   /** id eic_tabelle_finanziamento */
@@ -164,12 +165,12 @@ export function QuoteFinancingPanel({ quoteTotal, value, onChange }: Props) {
               <AlertTriangle className="h-4 w-4 text-amber-700" />
               <AlertDescription className="text-amber-900">
                 <strong>Nessuna tabella finanziamento configurata.</strong>{" "}
-                <a
-                  href="/azienda/impostazioni/finanziamenti"
+                <LinkImpostazione
+                  to="/azienda/impostazioni/finanziamenti"
                   className="underline underline-offset-2"
                 >
                   Vai a Impostazioni → Finanziamenti
-                </a>{" "}
+                </LinkImpostazione>{" "}
                 per aggiungerne una.
               </AlertDescription>
             </Alert>
