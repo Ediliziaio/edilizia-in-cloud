@@ -83,10 +83,10 @@ describe("scrivendo", () => {
     expect(await screen.findByText("Registro attività")).toBeInTheDocument();
   });
 
-  it("«logo» porta al logo del Profilo aziendale e a White-Label, non a «Catalogo render»", async () => {
+  it("«logo» porta al logo del Profilo aziendale e a Marchio e colori, non a «Catalogo render»", async () => {
     await cerca("logo");
     expect(await screen.findByText("Logo aziendale")).toBeInTheDocument();
-    expect(screen.getByText("White-Label")).toBeInTheDocument();
+    expect(screen.getByText("Marchio e colori")).toBeInTheDocument();
     expect(screen.queryByText("Catalogo render")).toBeNull();
   });
 

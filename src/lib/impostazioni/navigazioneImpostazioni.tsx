@@ -133,7 +133,7 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
       items: [
         { to: "/azienda/impostazioni/profilo",      label: "Profilo aziendale", icon: <Building2 className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsProfile },
         { to: "/azienda/impostazioni/sedi",          label: "Sedi",              icon: <MapPin className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsPeople },
-        { to: "/azienda/impostazioni/branding",      label: "White-Label",       icon: <Paintbrush className="h-4 w-4" />,   visible: isAdmin },
+        { to: "/azienda/impostazioni/branding",      label: "Marchio e colori",    icon: <Paintbrush className="h-4 w-4" />,   visible: isAdmin },
         // v8.6.59 — Solo "Piano abbonamento": "Crediti & Saldo" è ora il tab
         // "Portafoglio" interno alla dashboard Abbonamento (no duplicazione).
         // Apple Guideline 3.1.1 — nascosto su iOS nativo (no link a Stripe checkout).
@@ -147,7 +147,7 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
       label: "Persone & Accessi",
       items: [
         // IMP3: voce unica → pagina con 4 tab (utenti/venditori/staff/team)
-        { to: "/azienda/impostazioni/persone", label: "Persone & Accessi", icon: <Users className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsPeople },
+        { to: "/azienda/impostazioni/persone", label: "Utenti e permessi", icon: <Users className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsPeople },
       ],
     },
     {
@@ -157,7 +157,7 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
       // tutti, AI Personas vuole Branding & Template.
       label: "AI & Notifiche",
       items: [
-        { to: "/azienda/impostazioni/ai-memoria", label: "AI Personas (chat + memoria)", icon: <Brain className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
+        { to: "/azienda/impostazioni/ai-memoria", label: "Assistente AI", icon: <Brain className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
         { to: "/azienda/impostazioni/notifiche",  label: "Notifiche",           icon: <Bell className="h-4 w-4" />,  visible: true },
         { to: "/azienda/impostazioni/catalogo-render", label: "Catalogo render", icon: <ImagePlus className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
       ],
@@ -167,13 +167,13 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
       items: [
         { to: "/azienda/impostazioni/stati-ordine",        label: "Stati commessa",        icon: <ListOrdered className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/cartelle-documenti",  label: "Cartelle documenti",  icon: <FolderOpen className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsOrders },
-        { to: "/azienda/impostazioni/calendari-lavori",   label: "Calendari lavori",    icon: <HardHat className="h-4 w-4" />,     visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/calendari-lavori",   label: "Squadre e calendari lavori", icon: <HardHat className="h-4 w-4" />,     visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/rapportini-cantiere", label: "Rapportini e presenze", icon: <ClipboardList className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/modelli-fasi", label: "Fasi e avanzamento", icon: <ListChecks className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/modelli-pagamento", label: "Modelli di pagamento", icon: <Banknote className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/categorie-costi",     label: "Categorie costi",     icon: <FolderOpen className="h-4 w-4" />, visible: isAdmin || permissions.canViewCosts },
         { to: "/azienda/impostazioni/fornitori",           label: "Fornitori",           icon: <Truck className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsSuppliers },
-        { to: "/azienda/impostazioni/sopralluoghi",        label: "Sopralluoghi",        icon: <ClipboardList className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
+        { to: "/azienda/impostazioni/sopralluoghi",        label: "Modelli di sopralluogo", icon: <ClipboardList className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
         { to: "/azienda/impostazioni/qr-codici",           label: "QR & Codici",         icon: <QrCode className="h-4 w-4" />,      visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/automazioni-finanza", label: "Automazioni finanza", icon: <RefreshCw className="h-4 w-4" />,  visible: isAdmin || permissions.canViewCosts },
       ],
@@ -202,14 +202,14 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
         { to: "/azienda/impostazioni/campi-personalizzati",label: "Campi personalizzati", icon: <SlidersHorizontal className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
         { to: "/azienda/impostazioni/sequenze",            label: "Pipeline di vendita",             icon: <GitBranch className="h-4 w-4" />,         visible: isAdmin || permissions.canViewSettingsCustomization },
         { to: "/azienda/impostazioni/motivi-perdita",      label: "Motivi di perdita",    icon: <ThumbsDown className="h-4 w-4" />,        visible: isAdmin || permissions.canViewSettingsCustomization },
-        { to: "/azienda/impostazioni/form-builder",        label: "Form & UTM",           icon: <FileText className="h-4 w-4" />,          visible: isAdmin || permissions.canViewSettingsCustomization },
+        { to: "/azienda/impostazioni/form-builder",        label: "Moduli contatto del sito", icon: <FileText className="h-4 w-4" />,          visible: isAdmin || permissions.canViewSettingsCustomization },
       ],
     },
     {
       label: "Marketing",
       items: [
         { to: "/azienda/impostazioni/calendari",  label: "Appuntamenti e prenotazioni", icon: <CalendarDays className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },
-        { to: "/azienda/impostazioni/lead-forms", label: "Lead Facebook",       icon: <FormInput className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsIntegrations },
+        { to: "/azienda/impostazioni/lead-forms", label: "Lead Facebook e Instagram", icon: <FormInput className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsIntegrations },
       ],
     },
     {
@@ -226,7 +226,7 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
         // v8.6.57 — "Crediti & Saldo" spostato in "La mia azienda" sopra
         // Integrazioni solo da tablet e computer (richiesta 05/10/2026).
         { to: "/azienda/impostazioni/integrazioni",   label: "Integrazioni",   icon: <Plug className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsIntegrations, desktopOnly: true },
-        { to: "/azienda/impostazioni/api",            label: "API Platform",   icon: <Key className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsIntegrations },
+        { to: "/azienda/impostazioni/api",            label: "Chiavi di accesso",   icon: <Key className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsIntegrations },
         { to: "/azienda/impostazioni/webhook",        label: "Webhook",        icon: <Globe className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsIntegrations },
         { to: "/azienda/impostazioni/dominio-email",  label: "Dominio Email",  icon: <AtSign className="h-4 w-4" />, visible: isAdmin || permissions.canViewMarketingEmail },
         { to: "/azienda/impostazioni/numeri-telefono",label: "Telefonia",icon: <Phone className="h-4 w-4" />,  visible: isAdmin || permissions.canViewSettingsIntegrations },

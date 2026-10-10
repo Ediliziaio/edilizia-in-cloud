@@ -222,7 +222,7 @@ describe("il motore", () => {
   it("una parola si cerca all'inizio delle parole, non dentro: «logo» non trova «catalogo», «iva» non trova «privacy»", () => {
     expect(cerca("logo")).not.toContain("Catalogo render");
     expect(cerca("logo")).not.toContain("Listino · Prodotti");
-    expect(cerca("logo")).toEqual(expect.arrayContaining(["Logo aziendale", "White-Label"]));
+    expect(cerca("logo")).toEqual(expect.arrayContaining(["Logo aziendale", "Marchio e colori"]));
     expect(cerca("iva").some((t) => /privacy/i.test(t))).toBe(false);
     expect(cerca("iva")).toContain("Fatturazione");
   });
@@ -277,7 +277,7 @@ describe("il campo di ricerca del menu a sinistra", () => {
   it("i gruppi senza voci spariscono, e il nome di un gruppo ne mostra le voci", () => {
     const gruppi = filtraGruppiDelMenu(menu(), tutte, "ore lavorate").map((g) => g.label);
     expect(gruppi).toEqual(["Cantieri & Costi"]);
-    expect(voceDi("persone")).toContain("Persone & Accessi");
+    expect(voceDi("persone")).toContain("Utenti e permessi");
   });
 
   it("casella vuota: il menu com'è; senza risposta: niente", () => {
@@ -335,7 +335,7 @@ describe("l'elenco delle voci", () => {
     for (const soloComputer of ["Commercialista", "Venditori e provvigioni", "Il mio profilo · Calendari", "Registro attività", "Integrazioni", "Fatturazione · Conto corrente e IBAN"]) {
       expect(nomi, soloComputer).not.toContain(soloComputer);
     }
-    expect(nomi).toEqual(expect.arrayContaining(["Il mio profilo", "Sicurezza profilo", "Persone & Accessi"]));
+    expect(nomi).toEqual(expect.arrayContaining(["Il mio profilo", "Sicurezza profilo", "Utenti e permessi"]));
   });
 });
 
@@ -344,7 +344,7 @@ describe("chi non può aprire una pagina non la trova", () => {
 
   it("le schede di Persone & Accessi hanno permessi loro", () => {
     const soloPersone = nomi(permessi({ canViewSettingsPeople: true }));
-    expect(soloPersone).toEqual(expect.arrayContaining(["Persone & Accessi", "Dipendenti e operai", "Subappaltatori e app cantiere", "Venditori e provvigioni", "Team e squadre"]));
+    expect(soloPersone).toEqual(expect.arrayContaining(["Utenti e permessi", "Dipendenti e operai", "Subappaltatori e app cantiere", "Venditori e provvigioni", "Team e squadre"]));
     for (const scheda of ["Commercialista", "Persone di altre aziende", "Controllo accessi", "Modelli di permessi"]) expect(soloPersone, scheda).not.toContain(scheda);
     const conUtenti = nomi(permessi({ canViewSettingsPeople: true, canViewUsers: true }));
     expect(conUtenti).toEqual(expect.arrayContaining(["Commercialista", "Persone di altre aziende", "Controllo accessi"]));
@@ -452,7 +452,7 @@ describe("le sezioni dentro le pagine hanno la loro voce, che le apre già scors
     ["commessa nuova", "Fasi e avanzamento · Quando apri una commessa", "/azienda/impostazioni/modelli-fasi#nuova-commessa"],
     ["chi spunta", "Fasi e avanzamento · Chi spunta e come si calcola", "/azienda/impostazioni/modelli-fasi#regole"],
     ["rata al sal", "Modelli di pagamento · Quando matura la rata di un SAL", "/azienda/impostazioni/modelli-pagamento#sal"],
-    ["account google", "Calendari lavori · Google Calendar", "/azienda/impostazioni/calendari-lavori?tab=google"],
+    ["account google", "Squadre e calendari lavori · Google Calendar", "/azienda/impostazioni/calendari-lavori?tab=google"],
     ["diritto di ripensamento", "Diritto di ripensamento", "/azienda/impostazioni/firma-elettronica#ripensamento"],
     ["firma dei preventivi", "Firma dei preventivi", "/azienda/impostazioni/firma-elettronica#firma-sul-preventivo"],
     ["calcolatore rate", "Finanziamenti · Calcolatore rate", "/azienda/impostazioni/finanziamenti/calcolatore"],
@@ -481,7 +481,7 @@ describe("le sezioni dentro le pagine hanno la loro voce, che le apre già scors
   it("ChatGPT non porta alle chiavi API (non le usa: si collega da Integrazioni)", () => {
     const trovate = titoli(cercaImpostazioni(tutte, "chatgpt"));
     expect(trovate).toContain("Integrazioni");
-    expect(trovate).not.toContain("API Platform");
+    expect(trovate).not.toContain("Chiavi di accesso");
   });
 });
 

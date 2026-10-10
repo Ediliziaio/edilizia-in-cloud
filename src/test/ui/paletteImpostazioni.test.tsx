@@ -58,12 +58,12 @@ describe("palette ⌘K: le impostazioni", () => {
     await waitFor(() => expect(impostazioni()[0]).toContain("Prezzo scritto a mano"));
   });
 
-  it("conosce anche Notifiche, Rapportini, Fasi e avanzamento, Sopralluoghi, QR & Codici", async () => {
+  it("conosce anche Notifiche, Rapportini, Fasi e avanzamento, Modelli di sopralluogo, QR & Codici", async () => {
     for (const [domanda, titolo] of [
       ["notifiche", "Notifiche"],
       ["rapportino", "Rapportini e presenze"],
       ["fasi", "Fasi e avanzamento"],
-      ["sopralluogo", "Sopralluoghi"],
+      ["sopralluogo", "Modelli di sopralluogo"],
       ["codice a barre", "QR & Codici"],
     ] as const) {
       cleanup();

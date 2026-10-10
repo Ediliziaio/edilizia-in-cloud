@@ -33,10 +33,10 @@ describe("hub da telefono: cosa si vede", () => {
   it("l'amministratore ha le voci da telefono e non quelle da computer", () => {
     apri();
     const nomi = voci();
-    for (const si of ["Il mio profilo", "Profilo aziendale", "Persone & Accessi", "Notifiche", "Sicurezza & Privacy", "Esporta i dati"]) {
+    for (const si of ["Il mio profilo", "Profilo aziendale", "Utenti e permessi", "Notifiche", "Sicurezza & Privacy", "Esporta i dati"]) {
       expect(nomi.some((n) => n.includes(si)), si).toBe(true);
     }
-    for (const no of ["Listino", "Modelli di preventivo", "Firma e condizioni", "Finanziamenti", "Integrazioni", "Piano abbonamento", "Stati commessa", "Sedi", "White-Label"]) {
+    for (const no of ["Listino", "Modelli di preventivo", "Firma e condizioni", "Finanziamenti", "Integrazioni", "Piano abbonamento", "Stati commessa", "Sedi", "Marchio e colori"]) {
       expect(nomi.some((n) => n.startsWith(no)), no).toBe(false);
     }
   });
@@ -88,11 +88,11 @@ describe("hub da telefono: la ricerca", () => {
     expect(screen.queryByText("La mia azienda")).toBeNull();
   });
 
-  it("«logo» trova il logo del Profilo aziendale; White-Label, nascosto da telefono, no", () => {
+  it("«logo» trova il logo del Profilo aziendale; Marchio e colori, nascosto da telefono, no", () => {
     apri();
     cerca("logo");
     expect(screen.getByRole("link", { name: /Logo aziendale/ })).toHaveAttribute("href", "/azienda/impostazioni/profilo#logo");
-    expect(screen.queryByRole("link", { name: /White-Label/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Marchio e colori/ })).toBeNull();
   });
 
   it("«prezzo a mano» non c'è da telefono ma da computer sì, e lo dice", () => {

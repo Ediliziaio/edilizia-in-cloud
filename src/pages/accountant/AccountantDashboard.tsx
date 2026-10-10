@@ -218,7 +218,7 @@ export default function AccountantDashboard() {
               <p className="font-medium text-blue-900">Come collegare la tua prima azienda</p>
               <p className="mt-1 text-blue-700">
                 Le aziende ti invitano dal loro pannello{" "}
-                <span className="font-mono text-xs">Impostazioni → Persone & Accessi → Commercialista</span>{" "}
+                <span className="font-mono text-xs">Impostazioni → Utenti e permessi → Commercialista</span>{" "}
                 inserendo la tua email. Riceverai notifica qui appena qualcuno ti invita.
               </p>
             </div>

@@ -21,7 +21,7 @@ describe("«Crediti e ricariche» nel menu", () => {
   it("sta in «La mia azienda», subito dopo «Piano abbonamento»", () => {
     const gruppo = voci(permessi({ isAdmin: true })).find((g) => g.label === "La mia azienda")!;
     expect(gruppo.items.filter((i) => i.visible).map((i) => i.label)).toEqual([
-      "Profilo aziendale", "Sedi", "White-Label", "Piano abbonamento", "Crediti e ricariche",
+      "Profilo aziendale", "Sedi", "Marchio e colori", "Piano abbonamento", "Crediti e ricariche",
     ]);
     expect(gruppo.items.find((i) => i.label === "Crediti e ricariche")!.to).toBe(url("crediti"));
   });

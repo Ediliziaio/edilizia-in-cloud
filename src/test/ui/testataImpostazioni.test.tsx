@@ -33,7 +33,7 @@ const frase = () => document.querySelector("p.text-muted-foreground")?.textConte
 
 describe("testata delle impostazioni", () => {
   it.each([
-    ["preferenze-email", "Mittente e aspetto delle email", "Nome del mittente, risposte, logo e colori delle email"],
+    ["preferenze-email", "Email dell'azienda", "Nome del mittente, risposte, logo e colori delle email aziendali"],
     ["ai-automazioni", "Cosa fa Silvio da solo", "Per ogni azione scegli se Silvio la propone, chiede conferma o la esegue"],
     ["ai-test-lab", "AI Test Lab", "Confronto di costo, velocità e qualità dei modelli AI. Solo azienda dimostrativa"],
     ["listini-serramenti", "Listini serramenti", "Fornitori di infissi, sconti di default e matrice dei prezzi"],

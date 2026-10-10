@@ -44,7 +44,7 @@ const menu = (p: Permissions) => buildSettingsGroups(p.isAdmin, p, piano, false)
  * togliere una riga da qui senza sistemare menu o rotta fa fallire il test.
  */
 const DIFFERENZE_NOTE: Record<string, string> = {
-  branding: "il menu mostra White-Label solo all'amministratore, la rotta lo apre a chi ha «Branding & Template» (decisione aperta)",
+  branding: "il menu mostra Marchio e colori solo all'amministratore, la rotta lo apre a chi ha «Branding & Template» (decisione aperta)",
   abbonamento: "la rotta vuole «Fatturazione» e l'amministratore insieme (regola composta): coincide con il menu, che è solo dell'amministratore",
 };
 
@@ -83,7 +83,7 @@ describe("menu e rotte", () => {
   });
 
   it("le differenze note sono ancora differenze (se si sistemano, si toglie la riga)", () => {
-    // White-Label: la rotta lo apre a chi ha il permesso, il menu no
+    // Marchio e colori: la rotta lo apre a chi ha il permesso, il menu no
     expect(PERMESSO_DELLA_ROTTA.get("branding")?.composto).toBe(false);
     const conPermesso = menu(solo(PERMESSO_DELLA_ROTTA.get("branding")!.chiave)).find((v) => v.to === "/azienda/impostazioni/branding")!;
     expect(Boolean(conPermesso.visible)).toBe(false);

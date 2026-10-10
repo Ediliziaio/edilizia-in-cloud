@@ -66,7 +66,7 @@ describe("titoli delle impostazioni", () => {
   });
 
   it("il titolo è il nome della voce nel menu: un nome solo per pagina", () => {
-    // «AI Personas (chat + memoria)» nel menu, «AI Personas — Chat & Memoria» nella testata: lo stesso nome.
+    // «Assistente AI» nel menu, «Assistente AI — chat e memoria» nella testata: lo stesso nome.
     const stessoNome = new Set(["ai-memoria"]);
     const voci = buildSettingsGroups(true, amministratore, piano, false).flatMap((g) => g.items);
     let controllate = 0;
