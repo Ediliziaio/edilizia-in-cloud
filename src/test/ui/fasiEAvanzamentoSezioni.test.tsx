@@ -172,6 +172,14 @@ describe("Fasi e avanzamento: sola lettura onesta", () => {
     expect(screen.queryByText(/Stai consultando queste impostazioni/)).toBeNull();
   });
 
+  it("chi non è amministratore ma ha «Configurazione Ordini» in modifica può scegliere", () => {
+    state.role = "staff"; state.modifica = true;
+    apri();
+    expect(screen.queryByText(/Stai consultando queste impostazioni/)).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /Solo il capocantiere/ }));
+    expect(state.salvaChi).toHaveBeenCalledWith("capi");
+  });
+
   it("chi modifica non vede la frase e può scegliere", () => {
     apri();
     expect(screen.queryByText(/Stai consultando queste impostazioni/)).toBeNull();

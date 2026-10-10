@@ -94,6 +94,13 @@ describe("Modelli di pagamento: sola lettura onesta", () => {
       expect(screen.queryByRole("button", { name: nome })).toBeNull();
     }
   });
+  it("chi non è amministratore ma ha «Configurazione Ordini» in modifica può cambiare", () => {
+    state.role = "staff"; state.modifica = true;
+    apri();
+    expect(screen.queryByText(/Stai consultando queste impostazioni/)).toBeNull();
+    for (const radio of screen.getAllByRole("radio")) expect(radio).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Nuovo modello" })).toBeInTheDocument();
+  });
   it("mentre i permessi si caricano non dice niente", () => {
     state.role = "staff"; state.caricamentoPermessi = true;
     apri();

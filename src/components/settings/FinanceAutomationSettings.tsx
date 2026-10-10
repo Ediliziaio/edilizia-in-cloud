@@ -13,7 +13,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { puoModificareCosti } from "@/lib/permessi/modificaSegueVisibilita";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { isValidEmail } from "@/lib/email/preferencesValidators";
-import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoSolaLetturaImpostazioni";
+import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 import { RigaImpostazione, RigaInterruttore, SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
 
 /**
@@ -127,7 +127,11 @@ export function FinanceAutomationSettings() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      {!canEdit && <AvvisoSolaLetturaImpostazioni permesso="Costi" />}
+      {!canEdit && (
+        <AvvisoSolaLettura>
+          Sola lettura: qui serve il permesso «Costi», e chi ce l&apos;ha in «Sola lettura» non può scrivere.
+        </AvvisoSolaLettura>
+      )}
       <fieldset disabled={!canEdit || saveMutation.isPending} className="m-0 min-w-0 border-0 p-0">
         <SezioneImpostazione
           id="avvisi-scadenze"

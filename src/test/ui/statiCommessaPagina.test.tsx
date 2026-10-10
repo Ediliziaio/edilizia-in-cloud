@@ -279,6 +279,13 @@ describe("Stati commessa: sola lettura onesta", () => {
     expect(screen.getByRole("button", { name: "Impianti" })).toBeDisabled();
   });
 
+  it("chi non è amministratore ma ha «Configurazione Ordini» in modifica può cambiare gli stati", async () => {
+    state.modifica = true;
+    apri();
+    expect(await screen.findByLabelText("Nome dello stato 2")).toBeEnabled();
+    expect(screen.queryByText(/Stai consultando queste impostazioni/)).toBeNull();
+  });
+
   it("e un tocco sul nome non cambia niente", async () => {
     apri();
     const campo = await screen.findByLabelText("Nome dello stato 2");

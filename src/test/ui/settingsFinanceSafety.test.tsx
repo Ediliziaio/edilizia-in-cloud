@@ -132,7 +132,7 @@ describe("Automazioni finanza: salvataggi controllati", () => {
     expect(await screen.findByLabelText("Email per avvisi")).toBeDisabled();
     expect(screen.getByRole("switch", { name: "Avvisi attivi" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Salva impostazioni" })).toBeDisabled();
-    expect(screen.getByRole("note")).toHaveTextContent("Stai consultando queste impostazioni: le cambia chi ha «Costi» in modifica.");
+    expect(screen.getByRole("note")).toHaveTextContent("Sola lettura: qui serve il permesso «Costi», e chi ce l'ha in «Sola lettura» non può scrivere.");
   });
   it("con il permesso non compare la frase di sola lettura", async () => {
     open();

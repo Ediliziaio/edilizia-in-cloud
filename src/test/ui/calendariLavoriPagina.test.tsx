@@ -167,6 +167,13 @@ describe("Calendari lavori: sola lettura onesta", () => {
     expect(screen.getByRole("button", { name: "Modifica Squadra Rossi" })).toBeDisabled();
   });
 
+  it("chi non è amministratore ma ha «Configurazione Ordini» in modifica può gestire le squadre", () => {
+    state.role = "staff"; state.modifica = true;
+    apri();
+    expect(screen.queryByText(/Stai consultando queste impostazioni/)).toBeNull();
+    expect(screen.getByRole("button", { name: /Nuova squadra/ })).toBeEnabled();
+  });
+
   it("chi modifica non vede la frase; mentre i permessi si caricano nemmeno", () => {
     apri();
     expect(screen.queryByText(/Stai consultando queste impostazioni/)).toBeNull();
