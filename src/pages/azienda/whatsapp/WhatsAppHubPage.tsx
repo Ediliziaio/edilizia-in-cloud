@@ -61,16 +61,14 @@ export default function WhatsAppHubPage() {
         <h1 className="mb-4 text-2xl font-bold">{isAdminContext ? "WhatsApp Marketing" : "WhatsApp"}</h1>
         {/* Schede larghe quanto il testo (erano colonne uguali su 768px). */}
         <TabsList className="mb-4">
-          <TabsTrigger value="numeri" aria-label="Tab Numeri">Numeri</TabsTrigger>
-          {!isAdminContext && (
-            <TabsTrigger value="regia" aria-label="Tab Regia operativa">Regia</TabsTrigger>
-          )}
-          {!isAdminContext && (
-            <TabsTrigger value="automazioni" aria-label="Tab Automazioni">Automazioni</TabsTrigger>
-          )}
-          <TabsTrigger value="template" aria-label="Tab Template">Template</TabsTrigger>
-          <TabsTrigger value="broadcast" aria-label="Tab Broadcast">Broadcast</TabsTrigger>
-          {!isAdminContext && <TabsTrigger value="notifiche" aria-label="Tab Notifiche">Notifiche</TabsTrigger>}
+          {/* Parole di tutti i giorni (09/10/2026): «Modelli» e «Invii di massa» al posto di «Template» e «Broadcast».
+              Gli indirizzi (?tab=template, ?tab=broadcast) non cambiano. */}
+          <TabsTrigger value="numeri">Numeri</TabsTrigger>
+          {!isAdminContext && <TabsTrigger value="regia" title="Regia operativa dei cantieri">Regia</TabsTrigger>}
+          {!isAdminContext && <TabsTrigger value="automazioni">Automazioni</TabsTrigger>}
+          <TabsTrigger value="template">Modelli</TabsTrigger>
+          <TabsTrigger value="broadcast">Invii di massa</TabsTrigger>
+          {!isAdminContext && <TabsTrigger value="notifiche">Notifiche</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="numeri" className="mt-0">

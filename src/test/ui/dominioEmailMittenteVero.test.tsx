@@ -19,6 +19,11 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { functions: { invoke } },
 }));
 
+// La pagina decide cosa si può cambiare dal permesso «Email Marketing»: qui conta cosa dice, non chi la apre.
+vi.mock("@/hooks/usePermissions", () => ({
+  usePermissions: () => ({ isAdmin: true, isLoading: false, canViewMarketingEmail: true, solaLettura: false }),
+}));
+
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
     effectiveCompany: { id: "azienda-1" },
@@ -97,7 +102,7 @@ describe("il mittente vero, canale per canale", () => {
       domains: [dominio("pending")],
       mittenti: { marketing: DAL_DOMINIO, transactional: TRANSAZIONALE_PIATTAFORMA },
     });
-    await waitFor(() => expect(container.textContent).toContain("Email Transazionali"));
+    await waitFor(() => expect(container.textContent).toContain("Messaggi di servizio"));
     const testo = container.textContent ?? "";
 
     expect(testo).toContain("Mittente: Rossi Costruzioni <no-reply@rossi.it>");
@@ -113,7 +118,7 @@ describe("il mittente vero, canale per canale", () => {
       domains: [dominio("verified")],
       mittenti: { marketing: DAL_DOMINIO, transactional: DAL_DOMINIO },
     });
-    await waitFor(() => expect(container.textContent).toContain("Dominio attivo: le email di marketing e le transazionali escono da"));
+    await waitFor(() => expect(container.textContent).toContain("Dominio attivo: le campagne e i messaggi di servizio escono da"));
     expect(container.textContent).toContain("no-reply@rossi.it");
   });
 
@@ -122,8 +127,8 @@ describe("il mittente vero, canale per canale", () => {
       domains: [dominio("verified")],
       mittenti: { marketing: DAL_DOMINIO, transactional: TRANSAZIONALE_PIATTAFORMA },
     });
-    await waitFor(() => expect(container.textContent).toContain("Il dominio è pronto: per usarlo sceglilo in Preferenze email."));
-    expect(container.textContent).not.toContain("Dominio attivo: le email di marketing e le transazionali");
+    await waitFor(() => expect(container.textContent).toContain("Il dominio è pronto: per usarlo sceglilo in Mittente e aspetto."));
+    expect(container.textContent).not.toContain("Dominio attivo: le campagne e i messaggi di servizio");
   });
 
   it("senza dominio: i mittenti veri e nessun campo che non salva niente", async () => {
@@ -144,7 +149,7 @@ describe("il mittente vero, canale per canale", () => {
 
   it("funzione non ancora aggiornata (senza mittenti): la pagina non inventa niente e non si rompe", async () => {
     const { container } = mostra({ domains: [dominio("pending")] });
-    await waitFor(() => expect(container.textContent).toContain("Email Transazionali"));
+    await waitFor(() => expect(container.textContent).toContain("Messaggi di servizio"));
     const testo = container.textContent ?? "";
     expect(testo).not.toContain("Mittente:");
     expect(testo).not.toContain("Da: ");

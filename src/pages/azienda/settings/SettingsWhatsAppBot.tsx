@@ -8,16 +8,40 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bot, Copy, CheckCircle2, AlertCircle, Send, Users, Settings2, ArrowUpRight, AlertTriangle } from "lucide-react";
+import { Copy, CheckCircle2, AlertCircle, Send, Users, Settings2, AlertTriangle, Info } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { userErrorMessage } from "@/lib/userErrorMessage";
+
+/**
+ * Questa pagina è la versione vecchia del bot (un solo numero, tabella `messaging_whatsapp_config`). Il 09/10/2026 la
+ * tabella ha 0 righe in tutto il database e il bot di cantiere non guarda le sue impostazioni: legge
+ * `ai_whatsapp_numbers.operational_settings`, che si cambia dalla pagina di ogni numero in WhatsApp → Numeri.
+ * La pagina resta (decisione di Florin) ma lo dice, per primo, in ogni suo stato.
+ */
+function AvvisoVersioneClassica() {
+  return (
+    <Alert>
+      <Info className="h-4 w-4" />
+      <AlertTitle>Questa pagina non è più in uso</AlertTitle>
+      <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+        <span>
+          È la versione vecchia del bot, con un solo numero: le sue impostazioni non comandano il bot di cantiere. Numeri e
+          bot di WhatsApp si gestiscono ora in <b>WhatsApp → Numeri</b>.
+        </span>
+        <Button asChild variant="outline" size="sm">
+          <Link to="/azienda/whatsapp">Apri WhatsApp</Link>
+        </Button>
+      </AlertDescription>
+    </Alert>
+  );
+}
 
 export default function SettingsWhatsAppBot() {
   const { effectiveCompany } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const [testNumber, setTestNumber] = useState("");
 
   const { data: config, isLoading, isError: isConfigError } = useQuery({
@@ -88,31 +112,31 @@ export default function SettingsWhatsAppBot() {
       queryClient.invalidateQueries({ queryKey: ["wa-bot-config", companyId] });
       toast.success("Configurazione salvata");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(userErrorMessage(err, "Non sono riuscito a salvare. Riprova.")),
   });
 
   const sendTestMessage = useMutation({
     mutationFn: async () => {
-      if (!testNumber.trim()) throw new Error("Inserisci un numero");
+      if (!testNumber.trim()) throw new Error("Scrivi un numero di telefono");
       const { data: session } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("whatsapp-send", {
         body: {
           company_id: companyId,
           to: testNumber.replace(/[^0-9]/g, ""),
           type: "text",
-          text: "Ciao! Test dal Bot WhatsApp di Edilizia in Cloud.",
+          text: "Ciao! Questo è un messaggio di prova da Edilizia in Cloud.",
         },
         headers: { Authorization: `Bearer ${session.data.session?.access_token}` },
       });
       if (res.error) {
         let errBody: any = null;
         try { const ctx = (res.error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
-        throw new Error(errBody?.error ?? res.error.message ?? "Errore invio messaggio");
+        throw new Error(errBody?.error ?? res.error.message ?? "Messaggio non inviato");
       }
       return res.data;
     },
-    onSuccess: () => toast.success("Messaggio di test inviato!"),
-    onError: (err: Error) => toast.error(err.message),
+    onSuccess: () => toast.success("Messaggio di prova inviato"),
+    onError: (err: Error) => toast.error(userErrorMessage(err, "Non sono riuscito a mandare il messaggio. Riprova.")),
   });
 
   const copyToClipboard = async (text: string) => {
@@ -120,28 +144,22 @@ export default function SettingsWhatsAppBot() {
       await navigator.clipboard.writeText(text);
       toast.success("Copiato!");
     } catch {
-      toast.error("Impossibile copiare negli appunti");
+      toast.error("Non sono riuscito a copiare. Selezionalo e copialo a mano.");
     }
   };
 
   if (isLoading) {
-    return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>;
+    return <div className="p-8 text-center text-muted-foreground">Caricamento…</div>;
   }
 
   if (isConfigError) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Bot className="h-6 w-6" /> WhatsApp Bot AI</h1>
-          <p className="text-muted-foreground mt-1">
-            Configura il bot AI per ricevere rapportini, DDT e foto dai tuoi operai via WhatsApp.
-          </p>
-        </div>
+        <AvvisoVersioneClassica />
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Errore di caricamento</AlertTitle>
-          <AlertDescription>Errore nel caricamento della configurazione.</AlertDescription>
+          <AlertTitle>Non riesco a leggere i dati</AlertTitle>
+          <AlertDescription>Ricarica la pagina tra poco.</AlertDescription>
         </Alert>
       </div>
     );
@@ -150,23 +168,16 @@ export default function SettingsWhatsAppBot() {
   if (!config?.is_connected) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Bot className="h-6 w-6" /> WhatsApp Bot AI</h1>
-            <p className="text-muted-foreground mt-1">
-            Configura il bot AI per ricevere rapportini, DDT e foto dai tuoi operai via WhatsApp.
-          </p>
-        </div>
+        <AvvisoVersioneClassica />
         <Card>
-          <CardContent className="py-12 text-center space-y-4">
-            <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground" />
-            <p className="text-lg font-medium">WhatsApp non connesso</p>
-            <p className="text-muted-foreground max-w-md mx-auto">
-              Prima di abilitare il bot AI, connetti WhatsApp Business dalla pagina
-              Integrazioni. Il bot utilizza la stessa connessione WhatsApp.
+          <CardContent className="py-10 text-center space-y-3">
+            <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground" />
+            <p className="text-lg font-medium">Nessun collegamento WhatsApp in questa pagina</p>
+            <p className="text-muted-foreground max-w-md mx-auto text-sm">
+              I numeri si collegano e si controllano da WhatsApp → Numeri; lo stato lo vedi anche in Integrazioni.
             </p>
-            <Button variant="outline" onClick={() => navigate("/azienda/impostazioni/integrazioni")}>
-              Vai a Integrazioni
+            <Button asChild variant="outline">
+              <Link to="/azienda/impostazioni/integrazioni">Vai a Integrazioni</Link>
             </Button>
           </CardContent>
         </Card>
@@ -178,29 +189,7 @@ export default function SettingsWhatsAppBot() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Bot className="h-6 w-6" /> WhatsApp Bot AI
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Configura il bot AI per ricevere rapportini, DDT e foto dai tuoi operai via WhatsApp.
-        </p>
-      </div>
-
-      {/* MP-FINAL: deprecation notice */}
-      <Alert>
-        <ArrowUpRight className="h-4 w-4" />
-        <AlertTitle>Versione classica (1 solo numero, solo bot operativo)</AlertTitle>
-        <AlertDescription className="flex items-center justify-between gap-3">
-          <span>
-            Ora puoi gestire fino a 5 numeri WhatsApp con scopi diversi (assistenza,
-            lead, marketing, notifiche) dal nuovo <b>Hub WhatsApp</b>.
-          </span>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/azienda/whatsapp">Vai al nuovo Hub</Link>
-          </Button>
-        </AlertDescription>
-      </Alert>
+      <AvvisoVersioneClassica />
 
       {/* Status overview */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -241,7 +230,7 @@ export default function SettingsWhatsAppBot() {
       {/* Main toggle */}
       <Card>
         <CardHeader>
-          <CardTitle>Abilitazione Bot</CardTitle>
+          <CardTitle>Attivazione del bot</CardTitle>
           <CardDescription>
             Quando attivo, i messaggi WhatsApp degli operai vengono processati dall'AI per estrarre
             rapportini, DDT, presenze e foto cantiere automaticamente.
@@ -257,7 +246,7 @@ export default function SettingsWhatsAppBot() {
             />
           </div>
           <div className="flex items-center justify-between">
-            <Label htmlFor="ai-auto">Processing AI automatico</Label>
+            <Label htmlFor="ai-auto">Elaborazione automatica con l'AI</Label>
             <Switch
               id="ai-auto"
               checked={config.ai_auto_process ?? true}
@@ -270,23 +259,24 @@ export default function SettingsWhatsAppBot() {
       {/* Webhook info */}
       <Card>
         <CardHeader>
-          <CardTitle>Informazioni Tecniche</CardTitle>
+          <CardTitle>Dati tecnici</CardTitle>
+          <CardDescription>Servono a chi collega il numero nel pannello di Meta.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
-            <Label className="text-xs text-muted-foreground">Webhook URL</Label>
+            <Label className="text-xs text-muted-foreground">Indirizzo che riceve i messaggi (webhook)</Label>
             <div className="flex items-center gap-2 mt-1">
-              <Input value={webhookUrl} readOnly className="font-mono text-xs" />
-              <Button size="icon" variant="ghost" onClick={() => copyToClipboard(webhookUrl)}>
+              <Input value={webhookUrl} readOnly aria-label="Indirizzo che riceve i messaggi" className="font-mono text-xs" />
+              <Button size="icon" variant="ghost" onClick={() => copyToClipboard(webhookUrl)} aria-label="Copia l'indirizzo">
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground">Phone Number ID</Label>
+            <Label className="text-xs text-muted-foreground">Codice del numero in Meta (Phone Number ID)</Label>
             <div className="flex items-center gap-2 mt-1">
-              <Input value={config.phone_number_id || "N/A"} readOnly className="font-mono text-xs" />
-              <Button size="icon" variant="ghost" onClick={() => copyToClipboard(config.phone_number_id || "")}>
+              <Input value={config.phone_number_id || "Non disponibile"} readOnly aria-label="Codice del numero in Meta" className="font-mono text-xs" />
+              <Button size="icon" variant="ghost" onClick={() => copyToClipboard(config.phone_number_id || "")} aria-label="Copia il codice del numero">
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
@@ -297,7 +287,7 @@ export default function SettingsWhatsAppBot() {
       {/* Linked employees */}
       <Card>
         <CardHeader>
-          <CardTitle>Operai Collegati</CardTitle>
+          <CardTitle>Operai collegati</CardTitle>
           <CardDescription>
             Operai con numero WhatsApp configurato. Per aggiungere un operaio, modifica la sua scheda
             in Personale e inserisci il numero WhatsApp.
@@ -327,13 +317,14 @@ export default function SettingsWhatsAppBot() {
       {/* Test message */}
       <Card>
         <CardHeader>
-          <CardTitle>Test Connessione</CardTitle>
-          <CardDescription>Invia un messaggio di test per verificare il funzionamento.</CardDescription>
+          <CardTitle>Messaggio di prova</CardTitle>
+          <CardDescription>Manda un messaggio a un numero per controllare che WhatsApp funzioni.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-2">
             <Input
               placeholder="+39 333 1234567"
+              aria-label="Numero a cui mandare la prova"
               value={testNumber}
               onChange={(e) => setTestNumber(e.target.value)}
               className="max-w-xs"
@@ -343,7 +334,7 @@ export default function SettingsWhatsAppBot() {
               disabled={sendTestMessage.isPending || !testNumber.trim()}
             >
               <Send className="h-4 w-4 mr-2" />
-              {sendTestMessage.isPending ? "Invio..." : "Invia Test"}
+              {sendTestMessage.isPending ? "Invio…" : "Invia la prova"}
             </Button>
           </div>
         </CardContent>

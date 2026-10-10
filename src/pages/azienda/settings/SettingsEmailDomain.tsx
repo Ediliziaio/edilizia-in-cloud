@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -21,6 +22,8 @@ import {
   DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
+import { puoModificareEmail } from "@/lib/permessi/modificaSegueVisibilita";
 
 import {
   Copy, CheckCircle2, XCircle, Loader2, RefreshCw, Trash2, Globe, Sparkles, AlertTriangle,
@@ -109,20 +112,30 @@ interface DomainResponse {
 }
 
 /** Perché un canale non esce dal dominio mostrato: la riga sotto il mittente. */
-const NOTA_PROVENIENZA: Record<ProvenienzaCanale, string | null> = {
-  dal_dominio: null,
-  altro_dominio: "Esce da un altro tuo dominio, scelto in Preferenze email.",
-  canale_non_verificato: "Passa al tuo dominio quando questo canale risulta verificato.",
-  dominio_non_attivo: "Passa al tuo dominio quando il dominio si attiva, cioè col marketing verificato.",
-  non_scelto: "Il dominio è pronto: per usarlo sceglilo in Preferenze email.",
-};
+function notaProvenienza(provenienza: ProvenienzaCanale, vaiAlMittente: string): ReactNode {
+  const link = <Link to={vaiAlMittente} className="text-primary underline">Mittente e aspetto</Link>;
+  switch (provenienza) {
+    case "dal_dominio":
+      return null;
+    case "altro_dominio":
+      return <>Esce da un altro tuo dominio, scelto in {link}.</>;
+    case "canale_non_verificato":
+      return "Passa al tuo dominio quando questo canale risulta verificato.";
+    case "dominio_non_attivo":
+      return "Passa al tuo dominio quando il dominio si attiva, cioè con le campagne verificate.";
+    case "non_scelto":
+      return <>Il dominio è pronto: per usarlo sceglilo in {link}.</>;
+    default:
+      return null;
+  }
+}
 
 /** Cosa è cambiato con la verifica, detto con i canali collegati davvero. */
 function avvisoCollegati(collegati: CanaleEmail[]): string {
-  if (collegati.length === 2) return "Da adesso le email di marketing e le transazionali escono dal tuo dominio.";
+  if (collegati.length === 2) return "Da adesso le campagne e i messaggi di servizio escono dal tuo dominio.";
   return collegati[0] === "marketing"
-    ? "Da adesso le email di marketing escono dal tuo dominio."
-    : "Da adesso le email transazionali escono dal tuo dominio.";
+    ? "Da adesso le campagne escono dal tuo dominio."
+    : "Da adesso i messaggi di servizio escono dal tuo dominio.";
 }
 
 /**
@@ -197,7 +210,7 @@ function DnsRow({ record, dominio }: { record: DnsRecord; dominio: string }) {
       setCopied(which);
       setTimeout(() => setCopied(null), 1500);
     } catch {
-      toast.error("Impossibile copiare negli appunti");
+      toast.error("Non sono riuscito a copiare: selezionalo e copialo a mano.");
     }
   }
 
@@ -225,21 +238,21 @@ function DnsRow({ record, dominio }: { record: DnsRecord; dominio: string }) {
       <div className="grid grid-cols-[80px_1fr_auto] items-center gap-2 text-xs">
         <span className="text-muted-foreground">Nome</span>
         <code className="font-mono break-all bg-background px-2 py-1 rounded border">{breve}</code>
-        <Button variant="ghost" size="sm" onClick={() => copyText(breve, "host")} className="h-7 w-7 p-0">
+        <Button variant="ghost" size="sm" onClick={() => copyText(breve, "host")} className="h-11 w-11 p-0 sm:h-7 sm:w-7" aria-label={`Copia il nome: ${titolo}`}>
           {copied === "host" ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
         </Button>
       </div>
       {mostraBreve && (
         <p className="text-[11px] text-muted-foreground pl-[88px] -mt-1">
-          Nome completo: <span className="font-mono">{record.host}</span> — nel pannello del registrar scrivi solo{" "}
-          <span className="font-mono">{breve}</span> (il dominio lo aggiunge lui).
+          Nome completo: <span className="font-mono">{record.host}</span> — nel pannello del dominio scrivi solo{" "}
+          <span className="font-mono">{breve}</span> (il resto lo aggiunge da solo).
         </p>
       )}
 
       <div className="grid grid-cols-[80px_1fr_auto] items-center gap-2 text-xs">
         <span className="text-muted-foreground">Valore</span>
         <code className="font-mono break-all bg-background px-2 py-1 rounded border">{record.value}</code>
-        <Button variant="ghost" size="sm" onClick={() => copyText(record.value, "value")} className="h-7 w-7 p-0">
+        <Button variant="ghost" size="sm" onClick={() => copyText(record.value, "value")} className="h-11 w-11 p-0 sm:h-7 sm:w-7" aria-label={`Copia il valore: ${titolo}`}>
           {copied === "value" ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
         </Button>
       </div>
@@ -268,15 +281,116 @@ function DnsRow({ record, dominio }: { record: DnsRecord; dominio: string }) {
   );
 }
 
+// ─── Finestra «Invia email di prova» (la stessa nei due passi della pagina) ───────
+function DialogProvaEmail({
+  open,
+  onOpenChange,
+  descrizione,
+  to,
+  onToChange,
+  stream,
+  onStreamChange,
+  mittenti,
+  inCorso,
+  onInvia,
+  conScorrimento,
+}: {
+  open: boolean;
+  onOpenChange: (aperto: boolean) => void;
+  descrizione: string;
+  to: string;
+  onToChange: (valore: string) => void;
+  stream: "transactional" | "marketing";
+  onStreamChange: (valore: "transactional" | "marketing") => void;
+  mittenti?: Mittenti;
+  inCorso: boolean;
+  onInvia: () => void;
+  conScorrimento?: boolean;
+}) {
+  const scelte: Array<{ valore: "transactional" | "marketing"; titolo: string; sotto: string }> = [
+    { valore: "transactional", titolo: "Messaggi di servizio", sotto: "Codici, firme, cambio password" },
+    { valore: "marketing", titolo: "Campagne e newsletter", sotto: "Email di marketing" },
+  ];
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className={conScorrimento ? "sm:max-w-md max-h-[90vh] overflow-y-auto" : "sm:max-w-md"}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5 text-primary" />
+            Invia email di prova
+          </DialogTitle>
+          <DialogDescription>{descrizione}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label htmlFor="prova-destinatario">Email destinatario *</Label>
+            <Input
+              id="prova-destinatario"
+              type="email"
+              value={to}
+              onChange={(e) => onToChange(e.target.value)}
+              placeholder="prova@esempio.it"
+            />
+          </div>
+          <div>
+            <Label id="prova-tipo">Tipo di email</Label>
+            <div role="radiogroup" aria-labelledby="prova-tipo" className="grid grid-cols-2 gap-2 mt-1">
+              {scelte.map((scelta) => (
+                <button
+                  key={scelta.valore}
+                  type="button"
+                  role="radio"
+                  aria-checked={stream === scelta.valore}
+                  onClick={() => onStreamChange(scelta.valore)}
+                  className={`border rounded-md p-2 text-left text-xs transition min-h-11 ${stream === scelta.valore ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
+                >
+                  <div className="font-medium">{scelta.titolo}</div>
+                  <div className="text-muted-foreground text-[10px]">{scelta.sotto}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+          {mittenti?.[stream] && (
+            <p className="text-xs text-muted-foreground">
+              Mittente:{" "}
+              <code className="text-[11px] break-all">{mittenti[stream]?.from}</code>
+            </p>
+          )}
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              Arriva al tuo indirizzo o a quello di un collega dell'azienda e non consuma crediti. Se non la trovi
+              entro un minuto, guarda anche nello spam.
+            </AlertDescription>
+          </Alert>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button onClick={onInvia} disabled={inCorso}>
+            {inCorso && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Invia prova
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────
 export default function SettingsEmailDomain() {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
+  const permissions = usePermissions();
+  // Registrare, controllare e togliere un dominio lo fa chi amministra l'azienda o chi ha «Email Marketing» e non è in
+  // «sola lettura»: la regola del database e di `manage-email-domain`. Prima i pulsanti erano attivi per tutti e il
+  // rifiuto («Non autorizzato») arrivava solo dopo il clic. Mandare un'email di prova a sé non cambia niente: resta per tutti.
+  const puoModificare = !permissions.isLoading && puoModificareEmail(permissions);
   // La stessa pagina vive in /azienda/impostazioni e in /admin/impostazioni:
   // Preferenze email è la pagina accanto.
   const { pathname } = useLocation();
   const percorsoPreferenze = pathname.replace(/dominio-email\/?$/, "preferenze-email");
+  const notaDelCanale = (p: ProvenienzaCanale) => notaProvenienza(p, percorsoPreferenze);
 
   const [inputDomain, setInputDomain] = useState("");
 
@@ -350,20 +464,19 @@ export default function SettingsEmailDomain() {
           subject: `[TEST] Email di verifica · ${data?.domain?.domain ?? "EdiliziaInCloud"}`,
           html: `<html><body style="font-family:system-ui,sans-serif;padding:24px;background:#f8fafc;">
             <div style="max-width:540px;margin:0 auto;background:white;padding:24px;border-radius:12px;border:1px solid #e2e8f0;">
-              <h2 style="color:#0f172a;margin:0 0 12px 0;">✅ Test email riuscito</h2>
+              <h2 style="color:#0f172a;margin:0 0 12px 0;">✅ Email di prova riuscita</h2>
               <p style="color:#334155;line-height:1.6;">
-                Questa è una email di test sulla pipeline
-                <strong>${input.stream === "transactional" ? "transazionale" : "marketing"}</strong>.
-                Il mittente che vedi è quello da cui partono le email
-                ${input.stream === "transactional" ? "transazionali" : "di marketing"} della tua azienda.
+                Questa è una email di prova
+                ${input.stream === "transactional" ? "dei messaggi di servizio" : "delle campagne"}.
+                Il mittente che vedi è quello da cui partono
+                ${input.stream === "transactional" ? "i messaggi di servizio" : "le campagne"} della tua azienda.
               </p>
               <p style="color:#334155;line-height:1.6;">
-                Se ricevi questa email significa che il sistema di invio è configurato
-                correttamente e le prossime email aziendali partiranno regolarmente.
+                Se ricevi questa email l'invio funziona e le prossime email dell'azienda partiranno regolarmente.
               </p>
-              ${!data?.domain ? `<p style="color:#64748b;font-size:13px;background:#f1f5f9;padding:12px;border-radius:8px;margin-top:16px;">💡 Per un branding completo e maggiore deliverability, puoi configurare il tuo dominio aziendale personalizzato in <strong>Impostazioni → Dominio email</strong>.</p>` : ""}
+              ${!data?.domain ? `<p style="color:#64748b;font-size:13px;background:#f1f5f9;padding:12px;border-radius:8px;margin-top:16px;">💡 Con un dominio tuo il mittente è il tuo e le email finiscono meno spesso in spam: lo registri in <strong>Impostazioni → Dominio email</strong>.</p>` : ""}
               <p style="color:#64748b;font-size:12px;margin-top:24px;">
-                Inviato il ${new Date().toLocaleString("it-IT")} · piattaforma EdiliziaInCloud
+                Inviata il ${new Date().toLocaleString("it-IT")} · EdiliziaInCloud
               </p>
             </div>
           </body></html>`,
@@ -374,7 +487,7 @@ export default function SettingsEmailDomain() {
       return resp;
     },
     onSuccess: () => {
-      toast.success(`Email di test inviata a ${testEmailTo}. Controlla la casella (anche spam).`);
+      toast.success(`Email di prova inviata a ${testEmailTo}. Controlla la casella (anche lo spam).`);
       setTestDialogOpen(false);
     },
     onError: (err: unknown) => {
@@ -394,7 +507,7 @@ export default function SettingsEmailDomain() {
       return normalizeDomainResponse(resp);
     },
     onSuccess: (resp) => {
-      toast.success("Dominio registrato. Ora configura i record DNS.");
+      toast.success("Dominio registrato. Ora copia le righe nel pannello del dominio.");
       setDominioScelto(resp.domain?.domain ?? null);
       setAggiungeUnAltro(false);
       setInputDomain("");
@@ -411,7 +524,7 @@ export default function SettingsEmailDomain() {
       // BUGFIX: l'azione verify_domain RICHIEDE il dominio nel body — prima
       // mancava e la verifica falliva sempre con "domain is required".
       const currentDomain = data?.domain?.domain;
-      if (!currentDomain) throw new Error("Nessun dominio registrato da verificare");
+      if (!currentDomain) throw new Error("Non c'è nessun dominio registrato da verificare");
       const { data: resp, error } = await supabase.functions.invoke("manage-email-domain", {
         body: { action: "verify_domain", company_id: companyId, domain: currentDomain },
       });
@@ -427,17 +540,17 @@ export default function SettingsEmailDomain() {
       if (collegati.length > 0) {
         toast.success(avvisoCollegati(collegati));
       } else if (d?.is_verified) {
-        toast.success("Dominio verificato: tutti i record sono a posto.");
+        toast.success("Dominio verificato: è tutto a posto.");
       } else if (marketingOk && d?.is_active) {
-        toast.success("Marketing verificato. Il canale transazionale si attiverà quando anche i suoi record saranno propagati.");
+        toast.success("Campagne verificate. I messaggi di servizio si attivano quando risultano verificate anche le loro righe.");
       } else if (resp.avvisoPiattaforma && !marketingOk) {
         toast.message(resp.avvisoPiattaforma);
       } else if (resp.providerErrors?.elastic_email) {
         // Non sono i record: è il canale marketing che non ha potuto controllare.
         // Prima finiva sotto «record non ancora propagati» e si aspettava per niente.
-        toast.error(`Il canale marketing non ha potuto verificare il dominio: ${resp.providerErrors.elastic_email}`);
+        toast.error(`Il controllo del dominio per le campagne non è riuscito: ${resp.providerErrors.elastic_email}`);
       } else {
-        toast.message("Verifica parziale — alcuni record DNS non sono ancora propagati");
+        toast.message("Verifica parziale: alcune righe non risultano ancora attive. Ci può volere fino a 48 ore.");
       }
       qc.invalidateQueries({ queryKey: ["company-email-domain", companyId] });
     },
@@ -451,11 +564,11 @@ export default function SettingsEmailDomain() {
     mutationFn: async () => {
       // BUGFIX: anche remove_domain richiede il dominio nel body.
       const currentDomain = data?.domain?.domain;
-      if (!currentDomain) throw new Error("Nessun dominio da rimuovere");
+      if (!currentDomain) throw new Error("Non c'è nessun dominio da rimuovere");
       const { data: resp, error } = await supabase.functions.invoke("manage-email-domain", {
         body: { action: "remove_domain", company_id: companyId, domain: currentDomain },
       });
-      if (error) throw error;
+      if (error) throw new Error(await edgeErrorMessage(error, "Errore durante la rimozione"));
       return resp;
     },
     onSuccess: () => {
@@ -473,7 +586,7 @@ export default function SettingsEmailDomain() {
     return (
       <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
-        <AlertDescription>Seleziona un'azienda per configurare il dominio email.</AlertDescription>
+        <AlertDescription>Seleziona un'azienda per registrare un dominio email.</AlertDescription>
       </Alert>
     );
   }
@@ -497,6 +610,11 @@ export default function SettingsEmailDomain() {
 
     return (
       <div className="max-w-3xl space-y-6">
+        {!puoModificare && (
+          <AvvisoSolaLettura>
+            Stai solo consultando: per registrare o cambiare il dominio serve il permesso «Email Marketing» (o essere amministratore).
+          </AvvisoSolaLettura>
+        )}
         {aggiungeUnAltro && tuttiIDomini.length > 0 && (
           <div className="flex items-center justify-between gap-2 flex-wrap rounded-lg border bg-muted/30 px-3 py-2">
             <p className="text-sm">
@@ -516,18 +634,18 @@ export default function SettingsEmailDomain() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm text-blue-900">
-                  Le email funzionano già ✅
+                  Le email funzionano già.
                 </p>
                 <p className="text-xs text-blue-800 mt-0.5">
-                  Stai usando il dominio della piattaforma. Le email transazionali (OTP firma,
-                  password reset, notifiche) partono come{" "}
+                  Stai usando il dominio della piattaforma. I messaggi di servizio (codici di firma,
+                  cambio password, notifiche) partono come{" "}
                   <code className="text-[11px] bg-white/60 px-1 rounded border border-blue-200 break-all">
                     {mittenti?.transactional?.from ?? "Tua Azienda via EdiliziaInCloud <no-reply@notifiche.ediliziaincloud.it>"}
                   </code>
                   .
                   {mittenti?.marketing && (
                     <>
-                      {" "}Quelle di marketing come{" "}
+                      {" "}Le campagne come{" "}
                       <code className="text-[11px] bg-white/60 px-1 rounded border border-blue-200 break-all">
                         {mittenti.marketing.from}
                       </code>
@@ -536,9 +654,8 @@ export default function SettingsEmailDomain() {
                   )}
                 </p>
                 <p className="text-xs text-blue-800 mt-2">
-                  <strong>Configurando il tuo dominio sotto</strong> otterrai mittente
-                  personalizzato <em>(senza "via EdiliziaInCloud")</em>, migliore deliverability
-                  e branding completo.
+                  <strong>Con un dominio tuo</strong> il mittente è il tuo, senza «via
+                  EdiliziaInCloud», e le email finiscono meno spesso in spam.
                 </p>
               </div>
               <Button
@@ -548,7 +665,7 @@ export default function SettingsEmailDomain() {
                 onClick={apriTest}
               >
                 <Send className="h-3.5 w-3.5 mr-1.5" />
-                Prova ora
+                Invia una prova
               </Button>
             </div>
           </CardContent>
@@ -558,30 +675,31 @@ export default function SettingsEmailDomain() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              <CardTitle>Dominio email personalizzato (opzionale)</CardTitle>
+              <CardTitle>Usa il tuo dominio (facoltativo)</CardTitle>
             </div>
             <CardDescription>
-              Invia email dal tuo dominio aziendale (es. <code className="text-xs">noreply@tuaazienda.it</code>)
-              invece che dal dominio della piattaforma. Consigliato per aziende
-              che vogliono massima deliverability e branding.
+              Le email partono da un indirizzo tuo, per esempio <code className="text-xs">info@tuaazienda.it</code>,
+              invece che dal dominio della piattaforma. Ti serve l'accesso al pannello del dominio (Aruba, Register.it,
+              Cloudflare, GoDaddy…): dovrai copiare alcune righe.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="domain">Dominio</Label>
+              <Label htmlFor="domain">Il tuo dominio</Label>
               <Input
                 id="domain"
                 placeholder="esempio: tuaazienda.it"
                 value={inputDomain}
                 onChange={(e) => setInputDomain(e.target.value.trim().toLowerCase())}
-                disabled={addMutation.isPending}
+                disabled={!puoModificare || addMutation.isPending}
+                aria-describedby="domain-aiuto"
               />
-              <p className="text-xs text-muted-foreground">
-                Senza <code>https://</code> o <code>www.</code>. Solo il dominio radice.
+              <p id="domain-aiuto" className="text-xs text-muted-foreground">
+                Solo il nome, senza <code>https://</code> né <code>www.</code>.
               </p>
               {inputDomain.trim() !== "" && !domainValid && (
                 <p className="text-xs text-destructive">
-                  Inserisci un dominio valido, es. azienda.it
+                  Scrivi un dominio valido, per esempio azienda.it
                 </p>
               )}
             </div>
@@ -592,105 +710,46 @@ export default function SettingsEmailDomain() {
               Verificato il dominio, le email partiranno da{" "}
               <code className="text-[11px]">{prefisso}@{inputDomain || "tuaazienda.it"}</code>.
               Il nome e la parte prima della @ si cambiano in{" "}
-              <Link to={percorsoPreferenze} className="underline">Preferenze email</Link>{" "}
+              <Link to={percorsoPreferenze} className="underline">Mittente e aspetto</Link>{" "}
               e valgono per tutti i tuoi domini.
             </p>
 
             <Button
-              disabled={!domainValid || addMutation.isPending}
+              disabled={!puoModificare || !domainValid || addMutation.isPending}
               onClick={() => addMutation.mutate({ domain: inputDomain.trim().toLowerCase() })}
               className="w-full sm:w-auto"
             >
               {addMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Registra dominio
+              Continua
             </Button>
 
             <div className="text-xs text-muted-foreground pt-2 border-t">
-              <strong>Richiesto:</strong> accesso al pannello DNS del dominio (Aruba,
-              Register.it, Cloudflare, GoDaddy…). Dovrai aggiungere alcuni record TXT/CNAME
-              seguendo la procedura guidata che appare dopo la registrazione.
-              La propagazione può richiedere da 10 minuti fino a 48h.
+              Dopo il clic ti mostriamo le righe da copiare nel pannello del dominio. Per attivarsi possono servire da
+              pochi minuti a 48 ore.
             </div>
           </CardContent>
         </Card>
 
-        {/* Dialog test email — attivo anche in step 1 (usa fallback platform) */}
-        <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
-          <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Mail className="h-5 w-5 text-primary" />
-                Invia email di test
-              </DialogTitle>
-              <DialogDescription>
-                Verifica che il sistema stia inviando email. Senza un dominio tuo, il test
-                parte dal dominio della piattaforma, come le email vere.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3">
-              <div>
-                <Label>Email destinatario *</Label>
-                <Input
-                  type="email"
-                  value={testEmailTo}
-                  onChange={(e) => setTestEmailTo(e.target.value)}
-                  placeholder="prova@esempio.it"
-                />
-              </div>
-              <div>
-                <Label>Tipo di email</Label>
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  <button
-                    type="button"
-                    onClick={() => setTestStream("transactional")}
-                    className={`border rounded-md p-2 text-left text-xs transition ${testStream === "transactional" ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
-                  >
-                    <div className="font-medium">Transazionale</div>
-                    <div className="text-muted-foreground text-[10px]">OTP, firme, password reset</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTestStream("marketing")}
-                    className={`border rounded-md p-2 text-left text-xs transition ${testStream === "marketing" ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
-                  >
-                    <div className="font-medium">Marketing</div>
-                    <div className="text-muted-foreground text-[10px]">Campagne e newsletter</div>
-                  </button>
-                </div>
-              </div>
-              {mittenti?.[testStream] && (
-                <p className="text-xs text-muted-foreground">
-                  Mittente:{" "}
-                  <code className="text-[11px] break-all">{mittenti[testStream]?.from}</code>
-                </p>
-              )}
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  Arriva al tuo indirizzo o a quello di un collega dell'azienda e non
-                  consuma crediti. Controlla anche la cartella spam se non arriva in
-                  inbox entro 1 minuto.
-                </AlertDescription>
-              </Alert>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setTestDialogOpen(false)}>Annulla</Button>
-              <Button
-                onClick={() => {
-                  if (!testEmailTo || !testEmailTo.includes("@")) {
-                    toast.error("Email non valida");
-                    return;
-                  }
-                  testEmailMutation.mutate({ to: testEmailTo, stream: testStream });
-                }}
-                disabled={testEmailMutation.isPending}
-              >
-                {testEmailMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Invia test
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {/* Finestra di prova: attiva anche nel passo 1 (parte dal dominio della piattaforma) */}
+        <DialogProvaEmail
+          open={testDialogOpen}
+          onOpenChange={setTestDialogOpen}
+          descrizione="Controlla che le email partano. Senza un dominio tuo la prova parte dal dominio della piattaforma, come le email vere."
+          to={testEmailTo}
+          onToChange={setTestEmailTo}
+          stream={testStream}
+          onStreamChange={setTestStream}
+          mittenti={mittenti}
+          inCorso={testEmailMutation.isPending}
+          onInvia={() => {
+          if (!testEmailTo || !testEmailTo.includes("@")) {
+            toast.error("L'indirizzo email non è valido");
+            return;
+          }
+          testEmailMutation.mutate({ to: testEmailTo, stream: testStream });
+        }}
+          conScorrimento
+        />
       </div>
     );
   }
@@ -711,6 +770,11 @@ export default function SettingsEmailDomain() {
 
   return (
     <div className="max-w-4xl space-y-6">
+      {!puoModificare && (
+        <AvvisoSolaLettura>
+          Stai solo consultando: per registrare o cambiare il dominio serve il permesso «Email Marketing» (o essere amministratore).
+        </AvvisoSolaLettura>
+      )}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 flex-wrap">
           {tuttiIDomini.length > 1 && tuttiIDomini.map((d) => (
@@ -724,7 +788,7 @@ export default function SettingsEmailDomain() {
             </Button>
           ))}
         </div>
-        <Button variant="outline" size="sm" onClick={() => setAggiungeUnAltro(true)}>
+        <Button variant="outline" size="sm" onClick={() => setAggiungeUnAltro(true)} disabled={!puoModificare}>
           <Globe className="h-4 w-4 mr-2" />
           Aggiungi un altro dominio
         </Button>
@@ -753,11 +817,11 @@ export default function SettingsEmailDomain() {
               ) : domain.is_active && domain.ee_spf_verified && domain.ee_dkim_verified ? (
                 // Marketing già operativo (EE SPF+DKIM ok) — transazionale in attesa
                 <Badge className="bg-emerald-500 hover:bg-emerald-600">
-                  <CheckCircle2 className="h-3 w-3 mr-1" /> Marketing attivo
+                  <CheckCircle2 className="h-3 w-3 mr-1" /> Campagne attive
                 </Badge>
               ) : (
                 <Badge variant="outline">
-                  {verifiedCount}/{totalCount} record verificati
+                  {verifiedCount}/{totalCount} righe verificate
                 </Badge>
               )}
               {(domain.is_verified || (domain.is_active && domain.ee_spf_verified && domain.ee_dkim_verified)) && (
@@ -767,12 +831,19 @@ export default function SettingsEmailDomain() {
                   onClick={apriTest}
                 >
                   <Send className="h-3.5 w-3.5 mr-1.5" />
-                  Invia test
+                  Invia una prova
                 </Button>
               )}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="sm" disabled={removeMutation.isPending}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-11 w-11 p-0 sm:h-9 sm:w-9"
+                    disabled={!puoModificare || removeMutation.isPending}
+                    aria-label={`Rimuovi il dominio ${domain.domain}`}
+                    title="Rimuovi il dominio"
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </AlertDialogTrigger>
@@ -780,8 +851,8 @@ export default function SettingsEmailDomain() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Rimuovere il dominio?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Le email torneranno ad uscire dal dominio predefinito della piattaforma.
-                      Potrai ri-registrarlo in qualsiasi momento.
+                      Le email torneranno a partire dal dominio della piattaforma.
+                      Potrai registrarlo di nuovo quando vuoi.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -797,23 +868,23 @@ export default function SettingsEmailDomain() {
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
             {/* White-label: canali, non provider. SendGrid (legacy) nascosto. */}
             <ProviderStatusCard
-              label="Email Marketing"
-              sublabel="Campagne e newsletter"
+              label="Campagne e newsletter"
+              sublabel="Email di marketing"
               // SPF+DKIM bastano per inviare; il tracking CNAME è opzionale
               verified={verificatoPer(domain, "marketing")}
               added={domain.ee_domain_added}
-              extra={verificatoPer(domain, "marketing") && !domain.ee_tracking_verified ? "Tracking opzionale non attivo" : undefined}
+              extra={verificatoPer(domain, "marketing") && !domain.ee_tracking_verified ? "Conteggio aperture e clic: facoltativo, non attivo" : undefined}
               mittente={mittenti?.marketing?.from}
-              nota={mittenti?.marketing ? NOTA_PROVENIENZA[provenienza.marketing] : null}
+              nota={mittenti?.marketing ? notaDelCanale(provenienza.marketing) : null}
             />
             <ProviderStatusCard
-              label="Email Transazionali"
-              sublabel="Notifiche, documenti, OTP"
+              label="Messaggi di servizio"
+              sublabel="Notifiche, documenti, codici di accesso"
               verified={verificatoPer(domain, "transactional")}
               added={!!domain.resend_domain_id}
               extra={domain.resend_status && domain.resend_status !== "verified" ? "In attesa di verifica" : undefined}
               mittente={mittenti?.transactional?.from}
-              nota={mittenti?.transactional ? NOTA_PROVENIENZA[provenienza.transactional] : null}
+              nota={mittenti?.transactional ? notaDelCanale(provenienza.transactional) : null}
             />
           </div>
         </CardHeader>
@@ -823,21 +894,32 @@ export default function SettingsEmailDomain() {
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            Aggiungi i record DNS qui sotto nel pannello del tuo registrar (Aruba, Register.it, GoDaddy, Cloudflare…).
-            Nel campo «Nome» scrivi solo la parte indicata (es. <code>api._domainkey</code>): il registrar aggiunge da solo il tuo dominio.
-            La propagazione può richiedere da pochi minuti fino a 48h. L'aggiornamento automatico della pagina legge soltanto lo stato già salvato: per far controllare i record ai provider clicca sempre "Verifica DNS".
+            <p>
+              Copia le righe qui sotto nel pannello del tuo dominio (Aruba, Register.it, GoDaddy, Cloudflare…). Nel
+              campo «Nome» scrivi solo la parte indicata (per esempio <code>api._domainkey</code>): il pannello aggiunge
+              da solo il tuo dominio.
+            </p>
+            <p className="mt-1">
+              Possono servire da pochi minuti a 48 ore. Quando hai finito, premi «Verifica DNS».
+            </p>
+            <details className="mt-1 text-xs text-muted-foreground">
+              <summary className="cursor-pointer">Perché devo premere «Verifica DNS»?</summary>
+              <p className="mt-1">
+                L'aggiornamento automatico della pagina legge soltanto quello che è già stato salvato: per far
+                controllare le righe davvero, premi sempre «Verifica DNS».
+              </p>
+            </details>
           </AlertDescription>
         </Alert>
       )}
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Record DNS da inserire</CardTitle>
+          <CardTitle className="text-base">Righe da copiare nel pannello del dominio</CardTitle>
           <CardDescription>
-            Aggiungi questi record nel pannello DNS del tuo registrar. L'<strong>email
-            marketing</strong> si attiva con SPF e DKIM verificati; il canale{" "}
-            <strong>transazionale</strong> (notifiche, documenti) si attiva quando anche i
-            suoi record risultano propagati.
+            Le <strong>campagne</strong> si attivano quando risultano verificate «Autorizzazione a spedire» e «Firma di
+            sicurezza»; i <strong>messaggi di servizio</strong> (notifiche, documenti) quando risultano verificate anche
+            le loro righe.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -853,7 +935,7 @@ export default function SettingsEmailDomain() {
                 className="text-muted-foreground -ml-2"
                 onClick={() => setMostraAltriRecord((v) => !v)}
               >
-                {mostraAltriRecord ? "Nascondi i record facoltativi" : "Mostra anche i record facoltativi"}
+                {mostraAltriRecord ? "Nascondi le righe facoltative" : "Mostra anche le righe facoltative"}
               </Button>
               {mostraAltriRecord && records.filter((r) => etichettaRecord(r.purpose).facoltativo).map((r, idx) => (
                 <DnsRow key={idx} record={r} dominio={domain.domain} />
@@ -864,17 +946,17 @@ export default function SettingsEmailDomain() {
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex flex-col gap-1">
               <p className="text-xs text-muted-foreground">
-                Hai già inserito i record? Clicca "Verifica DNS" per avviare il controllo su tutti i provider configurati.
+                Hai già copiato le righe? Premi «Verifica DNS»: controlliamo se risultano attive.
               </p>
               {!domain.is_verified && (
                 <label className="flex items-center gap-2 text-xs">
                   <Switch checked={autoPoll} onCheckedChange={setAutoPoll} className="scale-75" />
                   <span className="text-muted-foreground flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    Auto-refresh stato ogni 30s
+                    Controlla da solo ogni 30 secondi
                     {autoPoll && dataUpdatedAt && (
                       <span className="text-[10px] opacity-70">
-                        (aggiornato {new Date(dataUpdatedAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })})
+                        (aggiornato alle {new Date(dataUpdatedAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" })})
                       </span>
                     )}
                   </span>
@@ -888,7 +970,7 @@ export default function SettingsEmailDomain() {
               </Button>
               <Button
                 onClick={() => verifyMutation.mutate()}
-                disabled={verifyMutation.isPending}
+                disabled={!puoModificare || verifyMutation.isPending}
               >
                 {verifyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Verifica DNS
@@ -906,9 +988,9 @@ export default function SettingsEmailDomain() {
           >
             <div className="flex items-center justify-between gap-2">
               <div>
-                <CardTitle className="text-base">Come inserire i record DNS</CardTitle>
+                <CardTitle className="text-base">Come inserire le righe nel pannello</CardTitle>
                 <CardDescription>
-                  Scegli il tuo registrar per vedere istruzioni passo-passo.
+                  Scegli dove hai registrato il dominio per vedere le istruzioni passo passo.
                 </CardDescription>
               </div>
               <Button type="button" variant="ghost" size="sm">
@@ -929,7 +1011,7 @@ export default function SettingsEmailDomain() {
           <CheckCircle2 className="h-4 w-4 text-green-600" />
           <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
             <span>
-              Dominio attivo: le email di marketing e le transazionali escono da{" "}
+              Dominio attivo: le campagne e i messaggi di servizio escono da{" "}
               <code className="text-xs break-all">{mittenti?.marketing?.fromEmail}</code>.
             </span>
             <Button
@@ -938,89 +1020,31 @@ export default function SettingsEmailDomain() {
               onClick={apriTest}
             >
               <Send className="h-3.5 w-3.5 mr-1.5" />
-              Invia email di test
+              Invia una prova
             </Button>
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Dialog test email */}
-      <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5 text-primary" />
-              Invia email di test
-            </DialogTitle>
-            <DialogDescription>
-              Verifica che le email partano davvero: la prova usa il mittente vero del
-              canale che scegli qui sotto, come le email dell'azienda.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Email destinatario *</Label>
-              <Input
-                type="email"
-                value={testEmailTo}
-                onChange={(e) => setTestEmailTo(e.target.value)}
-                placeholder="prova@esempio.it"
-              />
-            </div>
-            <div>
-              <Label>Tipo di email</Label>
-              <div className="grid grid-cols-2 gap-2 mt-1">
-                <button
-                  type="button"
-                  onClick={() => setTestStream("transactional")}
-                  className={`border rounded-md p-2 text-left text-xs transition ${testStream === "transactional" ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
-                >
-                  <div className="font-medium">Transazionale</div>
-                  <div className="text-muted-foreground text-[10px]">OTP, firme, password reset</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTestStream("marketing")}
-                  className={`border rounded-md p-2 text-left text-xs transition ${testStream === "marketing" ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
-                >
-                  <div className="font-medium">Marketing</div>
-                  <div className="text-muted-foreground text-[10px]">Campagne e newsletter</div>
-                </button>
-              </div>
-            </div>
-            {mittenti?.[testStream] && (
-              <p className="text-xs text-muted-foreground">
-                Mittente:{" "}
-                <code className="text-[11px] break-all">{mittenti[testStream]?.from}</code>
-              </p>
-            )}
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription className="text-xs">
-                L'email di test arriva al tuo indirizzo o a quello di un collega
-                dell'azienda e non consuma crediti. Controlla anche la cartella spam
-                se non la trovi in inbox entro 1 minuto.
-              </AlertDescription>
-            </Alert>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTestDialogOpen(false)}>Annulla</Button>
-            <Button
-              onClick={() => {
-                if (!testEmailTo || !testEmailTo.includes("@")) {
-                  toast.error("Email non valida");
-                  return;
-                }
-                testEmailMutation.mutate({ to: testEmailTo, stream: testStream });
-              }}
-              disabled={testEmailMutation.isPending}
-            >
-              {testEmailMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Invia test
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Finestra di prova */}
+      <DialogProvaEmail
+        open={testDialogOpen}
+        onOpenChange={setTestDialogOpen}
+        descrizione="Controlla che le email partano davvero: la prova usa il mittente vero del tipo che scegli qui sotto, come le email dell'azienda."
+        to={testEmailTo}
+        onToChange={setTestEmailTo}
+        stream={testStream}
+        onStreamChange={setTestStream}
+        mittenti={mittenti}
+        inCorso={testEmailMutation.isPending}
+        onInvia={() => {
+          if (!testEmailTo || !testEmailTo.includes("@")) {
+            toast.error("L'indirizzo email non è valido");
+            return;
+          }
+          testEmailMutation.mutate({ to: testEmailTo, stream: testStream });
+        }}
+      />
     </div>
   );
 }
@@ -1035,8 +1059,8 @@ function ProviderStatusCard({
   extra?: string;
   /** Il mittente vero del canale (resolveSender), quando il server lo dice. */
   mittente?: string;
-  /** Perché il canale non esce da questo dominio. */
-  nota?: string | null;
+  /** Perché il canale non esce da questo dominio (può contenere un link a «Mittente e aspetto»). */
+  nota?: ReactNode;
 }) {
   return (
     <div className={`rounded-md border p-2 ${verified ? "border-green-200 bg-green-50/50" : added ? "border-yellow-200 bg-yellow-50/50" : "border-slate-200"}`}>

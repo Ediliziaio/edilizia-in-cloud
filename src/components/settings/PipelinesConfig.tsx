@@ -8,7 +8,7 @@ import { Plus, Loader2, MoreHorizontal, Trash2, Pencil, ArrowLeft, Copy, Chevron
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { PipelineStagesConfig } from "./PipelineStagesConfig";
@@ -43,12 +43,12 @@ type PipelineTemplate = {
   stages: { name: string; auto_status: string | null }[];
 };
 
-// Prefisso del value quando si sceglie "copia da una sequenza esistente"
+// Prefisso del value quando si sceglie "copia da una pipeline esistente"
 // invece di uno dei modelli fissi qui sotto: nel Select condividono lo stesso
 // campo, e questo distingue le due provenienze senza una select separata.
 const PREFISSO_SEQUENZA_ESISTENTE = "esistente:";
 
-// Modelli di partenza per la creazione di una sequenza. Il primo e' quello
+// Modelli di partenza per la creazione di una pipeline. Il primo e' quello
 // applicato all'apertura del dialog, quindi resta il comportamento storico.
 // Le fasi restano completamente modificabili dopo aver scelto il modello.
 //
@@ -141,8 +141,8 @@ class PipelineInUseError extends Error {
     // mandava in un vicolo cieco chi provava ad archiviare.
     super(
       count === 1
-        ? "Questa sequenza ha 1 opportunità collegata. Spostala in un'altra sequenza o eliminala: archiviarla non basta, resta collegata."
-        : `Questa sequenza ha ${count} opportunità collegate. Spostale in un'altra sequenza o eliminale: archiviarle non basta, restano collegate.`
+        ? "Questa pipeline ha 1 opportunità collegata. Spostala in un'altra pipeline o eliminala: archiviarla non basta, resta collegata."
+        : `Questa pipeline ha ${count} opportunità collegate. Spostale in un'altra pipeline o eliminale: archiviarle non basta, restano collegate.`
     );
     this.name = "PipelineInUseError";
   }
@@ -151,6 +151,9 @@ class PipelineInUseError extends Error {
 function normalizeName(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
+
+/** «1 fase», «2 fasi»: prima una pipeline con una sola fase diceva «1 fasi». */
+const fasi = (n: number) => `${n} ${n === 1 ? "fase" : "fasi"}`;
 
 function hasDuplicateNames(values: string[]) {
   const seen = new Set<string>();
@@ -290,13 +293,13 @@ export function PipelinesConfig() {
         .map((stage) => ({ ...stage, name: normalizeName(stage.name) }))
         .filter((stage) => stage.name);
 
-      if (!cleanName) throw new Error("Inserisci il nome della sequenza.");
+      if (!cleanName) throw new Error("Inserisci il nome della pipeline.");
       if (cleanStages.length === 0) throw new Error("Aggiungi almeno una fase valida.");
       if (hasDuplicateNames(cleanStages.map((stage) => stage.name))) {
         throw new Error("Le fasi non possono avere nomi duplicati.");
       }
       if (pipelines.some((pipeline) => normalizeName(pipeline.name).toLowerCase() === cleanName.toLowerCase())) {
-        throw new Error("Esiste gia una sequenza con questo nome.");
+        throw new Error("Esiste già una pipeline con questo nome.");
       }
 
       const { data: pipeline, error: pipelineError } = await supabase
@@ -323,7 +326,7 @@ export function PipelinesConfig() {
       setCreateOpen(false);
       setNewName("");
       setCreateStages([]);
-      toast.success("Sequenza creata con le fasi");
+      toast.success("Pipeline creata con le fasi");
     },
     onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
@@ -333,9 +336,9 @@ export function PipelinesConfig() {
       if (!puoModificare || isError) throw new Error("Modifica non consentita");
       if (!companyId) throw new Error("Azienda non disponibile. Ricarica la pagina e riprova.");
       const cleanName = normalizeName(name);
-      if (!cleanName) throw new Error("Inserisci il nome della sequenza.");
+      if (!cleanName) throw new Error("Inserisci il nome della pipeline.");
       if (pipelines.some((pipeline) => pipeline.id !== id && normalizeName(pipeline.name).toLowerCase() === cleanName.toLowerCase())) {
-        throw new Error("Esiste gia una sequenza con questo nome.");
+        throw new Error("Esiste già una pipeline con questo nome.");
       }
 
       const { error } = await supabase.from("marketing_pipelines").update({ name: cleanName }).eq("id", id).eq("company_id", companyId).select("id").single();
@@ -344,7 +347,7 @@ export function PipelinesConfig() {
     onSuccess: () => {
       invalidaPipeline();
       setEditOpen(false);
-      toast.success("Sequenza aggiornata");
+      toast.success("Pipeline aggiornata");
     },
     onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
@@ -368,7 +371,7 @@ export function PipelinesConfig() {
       invalidaPipeline();
       setDeleteOpen(false);
       setDeleteId(null);
-      toast.success("Sequenza eliminata");
+      toast.success("Pipeline eliminata");
     },
     onError: (e: unknown) => {
       toast.error(e instanceof PipelineInUseError ? e.message : getErrorMessage(e));
@@ -420,7 +423,7 @@ export function PipelinesConfig() {
         if (sErr) throw sErr;
       }
     },
-    onSuccess: () => { invalidaPipeline(); toast.success("Sequenza duplicata"); },
+    onSuccess: () => { invalidaPipeline(); toast.success("Pipeline duplicata"); },
     onError: (e: unknown) => toast.error(getErrorMessage(e)),
   });
 
@@ -466,11 +469,11 @@ export function PipelinesConfig() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Sequenze non disponibili</CardTitle>
+          <CardTitle>Pipeline non disponibili</CardTitle>
           <CardDescription>{getErrorMessage(error)}</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button variant="outline" onClick={() => refetch()}>
+          <Button variant="outline" onClick={() => refetch()} className="max-md:h-11">
             Riprova
           </Button>
         </CardContent>
@@ -482,8 +485,8 @@ export function PipelinesConfig() {
     const pipeline = pipelines.find((p) => p.id === selectedPipelineId);
     return (
       <div className="space-y-4">
-        <Button variant="ghost" size="sm" className="gap-2" onClick={() => { if (confermaNavigazioneImpostazioni()) setSelectedPipelineId(null); }}>
-          <ArrowLeft className="h-4 w-4" /> Torna alle sequenze
+        <Button variant="ghost" size="sm" className="gap-2 max-md:h-11" onClick={() => { if (confermaNavigazioneImpostazioni()) setSelectedPipelineId(null); }}>
+          <ArrowLeft className="h-4 w-4" /> Torna alle pipeline
         </Button>
         <PipelineStagesConfig pipelineId={selectedPipelineId} pipelineName={pipeline?.name || ""} />
       </div>
@@ -497,12 +500,13 @@ export function PipelinesConfig() {
           {/* v8.6.74 — flex-wrap mobile-safe */}
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <CardTitle>Sequenze (Pipeline)</CardTitle>
-              <CardDescription>Gestisci le pipeline di vendita e le relative fasi</CardDescription>
+              <CardTitle>Le tue pipeline</CardTitle>
+              {/* La prima per posizione è quella che si apre in Opportunità (marketingOpportunities.ts). */}
+              <CardDescription>La prima pipeline dell'elenco è quella che si apre in Opportunità.</CardDescription>
             </div>
             {puoModificare && (
-              <Button size="sm" disabled={busy} onClick={openCreateDialog} className="w-full sm:w-auto shrink-0">
-                <Plus className="mr-2 h-4 w-4" /> Crea Sequenza
+              <Button size="sm" disabled={busy} onClick={openCreateDialog} className="w-full sm:w-auto shrink-0 max-md:h-11">
+                <Plus className="mr-2 h-4 w-4" /> Nuova pipeline
               </Button>
             )}
           </div>
@@ -510,12 +514,12 @@ export function PipelinesConfig() {
         <CardContent className="space-y-3">
           {!puoModificare && (
             <AvvisoSolaLettura>
-              Sola lettura: per creare o modificare le sequenze serve il permesso «Modifica» su Personalizzazione.
+              Sola lettura: per creare o modificare le pipeline serve il permesso «Modifica» su Personalizzazione.
             </AvvisoSolaLettura>
           )}
           {pipelines.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <p className="text-sm">Nessuna sequenza creata</p>
+              <p className="text-sm">Nessuna pipeline creata</p>
               <p className="text-xs mt-1">Crea la tua prima pipeline di vendita</p>
             </div>
           ) : (
@@ -525,35 +529,35 @@ export function PipelinesConfig() {
                   key={p.id}
                   className="flex items-center justify-between gap-2 p-3 rounded-lg border transition-colors"
                 >
-                  <button type="button" disabled={busy} className="min-w-0 flex-1 text-left hover:text-primary focus-visible:outline focus-visible:outline-2" onClick={() => setSelectedPipelineId(p.id)} aria-label={`Apri fasi di ${p.name}`}>
+                  <button type="button" disabled={busy} className="min-h-9 min-w-0 flex-1 text-left hover:text-primary focus-visible:outline focus-visible:outline-2 max-md:min-h-11" onClick={() => setSelectedPipelineId(p.id)} aria-label={`Apri fasi di ${p.name}`}>
                     <p className="break-words font-medium text-sm">{p.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {p.marketing_pipeline_stages?.length || 0} fasi · Aggiornata {format(new Date(p.updated_at), "dd MMM yyyy", { locale: it })}
+                      {fasi(p.marketing_pipeline_stages?.length || 0)} · Aggiornata {format(new Date(p.updated_at), "dd MMM yyyy", { locale: it })}
                     </p>
                   </button>
                   {puoModificare && (
                   <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                     {pipelines.length > 1 && (
-                      <div className="flex flex-col">
+                      <div className="flex items-center">
                         <Button
-                          variant="ghost" size="icon" className="h-4 w-6" aria-label="Sposta su"
+                          variant="ghost" size="icon" className="h-9 w-9 max-md:h-11 max-md:w-11" aria-label={`Sposta «${p.name}» più in alto`}
                           disabled={idx === 0 || busy}
                           onClick={() => reorderPipeline.mutate({ id: p.id, direzione: -1 })}
                         >
-                          <ChevronUp className="h-3.5 w-3.5" />
+                          <ChevronUp className="h-4 w-4" />
                         </Button>
                         <Button
-                          variant="ghost" size="icon" className="h-4 w-6" aria-label="Sposta giù"
+                          variant="ghost" size="icon" className="h-9 w-9 max-md:h-11 max-md:w-11" aria-label={`Sposta «${p.name}» più in basso`}
                           disabled={idx === pipelines.length - 1 || busy}
                           onClick={() => reorderPipeline.mutate({ id: p.id, direzione: 1 })}
                         >
-                          <ChevronDown className="h-3.5 w-3.5" />
+                          <ChevronDown className="h-4 w-4" />
                         </Button>
                       </div>
                     )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" disabled={busy} aria-label={`Azioni ${p.name}`} className="h-9 w-9">
+                        <Button variant="ghost" size="icon" disabled={busy} aria-label={`Azioni ${p.name}`} className="h-9 w-9 max-md:h-11 max-md:w-11">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -581,12 +585,15 @@ export function PipelinesConfig() {
       {/* Create Dialog with default stages */}
       <Dialog open={createOpen} onOpenChange={chiudiCreate}>
         <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Nuova Sequenza</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Nuova pipeline</DialogTitle>
+            <DialogDescription>Scegli da dove partire, dai un nome alla pipeline e controlla le sue fasi.</DialogDescription>
+          </DialogHeader>
           <fieldset disabled={busy} className="m-0 min-w-0 space-y-4 border-0 p-0">
             <div>
-              <label className="text-sm font-medium">Parti da un modello</label>
+              <label htmlFor="pipeline-template" className="text-sm font-medium">Parti da un modello</label>
               <Select value={templateId} onValueChange={applyTemplate}>
-                <SelectTrigger className="mt-1">
+                <SelectTrigger id="pipeline-template" className="mt-1 max-md:h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -600,10 +607,10 @@ export function PipelinesConfig() {
                     <>
                       <SelectSeparator />
                       <SelectGroup>
-                        <SelectLabel>Copia una sequenza esistente</SelectLabel>
+                        <SelectLabel>Copia una pipeline esistente</SelectLabel>
                         {pipelineCopiabili.map((p) => (
                           <SelectItem key={p.id} value={`${PREFISSO_SEQUENZA_ESISTENTE}${p.id}`}>
-                            {p.name} ({p.marketing_pipeline_stages?.length ?? 0} fasi)
+                            {p.name} ({fasi(p.marketing_pipeline_stages?.length ?? 0)})
                           </SelectItem>
                         ))}
                       </SelectGroup>
@@ -613,27 +620,27 @@ export function PipelinesConfig() {
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
                 {copyingFromPipeline
-                  ? `Fasi copiate da «${copyingFromPipeline.name}»: stessi nomi e stesso esito (vinta/persa/archiviata), una sequenza nuova e indipendente.`
+                  ? `Fasi copiate da «${copyingFromPipeline.name}»: stessi nomi e stesso esito (vinta/persa/abbandonata), una pipeline nuova e indipendente.`
                   : activeTemplate?.description}{" "}
                 Puoi modificare, aggiungere o eliminare le fasi qui sotto.
               </p>
             </div>
             <div>
-              <label htmlFor="pipeline-name" className="text-sm font-medium">Nome della sequenza</label>
+              <label htmlFor="pipeline-name" className="text-sm font-medium">Nome della pipeline</label>
               <Input
                 id="pipeline-name"
                 placeholder="Es: Pipeline Vendita"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 autoFocus
-                className="mt-1"
+                className="mt-1 max-md:h-11"
                 maxLength={100}
               />
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium">Fasi della pipeline</label>
-                <Button variant="outline" size="sm" onClick={handleAddCreateStage} type="button">
+                <p className="text-sm font-medium">Fasi della pipeline</p>
+                <Button variant="outline" size="sm" onClick={handleAddCreateStage} type="button" className="max-md:h-11">
                   <Plus className="mr-1 h-3 w-3" /> Aggiungi
                 </Button>
               </div>
@@ -644,7 +651,7 @@ export function PipelinesConfig() {
                     <Input
                       value={stage.name}
                       onChange={(e) => handleUpdateCreateStage(stage.id, e.target.value)}
-                      aria-label={`Nome fase ${idx + 1}`} className="h-9 min-w-0 text-sm flex-1"
+                      aria-label={`Nome fase ${idx + 1}`} className="h-9 min-w-0 text-sm flex-1 max-md:h-11"
                       maxLength={100}
                     />
                     <Select
@@ -652,7 +659,7 @@ export function PipelinesConfig() {
                       onValueChange={(v) => setCreateStages((prev) => prev.map((s) => s.id === stage.id ? { ...s, auto_status: v === "none" ? null : v } : s))}
                     >
                       <SelectTrigger
-                        aria-label={`Esito fase ${idx + 1}`} className="col-start-2 row-start-2 h-9 text-xs sm:w-[120px]"
+                        aria-label={`Esito fase ${idx + 1}`} className="col-start-2 row-start-2 h-9 text-xs sm:w-[120px] max-md:h-11"
                         title={AUTO_STATUS_OPTIONS.find((o) => o.value === (stage.auto_status || "none"))?.hint}
                       >
                         <SelectValue placeholder="Stato" />
@@ -667,7 +674,7 @@ export function PipelinesConfig() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        aria-label={`Elimina fase ${idx + 1}`} className="col-start-3 row-start-1 h-8 w-8 text-destructive"
+                        aria-label={`Elimina fase ${idx + 1}`} className="col-start-3 row-start-1 h-8 w-8 text-destructive max-md:h-11 max-md:w-11"
                         onClick={() => handleRemoveCreateStage(stage.id)}
                         type="button"
                       >
@@ -681,7 +688,7 @@ export function PipelinesConfig() {
                 )}
                 {createHasDuplicateStages && (
                   <p className="text-xs text-destructive pt-1">
-                    Ci sono due fasi con lo stesso nome. Rinominane una per poter creare la sequenza.
+                    Ci sono due fasi con lo stesso nome. Rinominane una per poter creare la pipeline.
                   </p>
                 )}
               </div>
@@ -701,7 +708,7 @@ export function PipelinesConfig() {
             </div>
           </fieldset>
           <DialogFooter>
-            <Button variant="outline" disabled={busy} onClick={() => chiudiCreate(false)}>Annulla</Button>
+            <Button variant="outline" disabled={busy} onClick={() => chiudiCreate(false)} className="max-md:h-11">Annulla</Button>
             <Button
               onClick={() => createPipeline.mutate({
                 name: newName,
@@ -718,8 +725,11 @@ export function PipelinesConfig() {
       {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={chiudiEdit}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Rinomina Sequenza</DialogTitle></DialogHeader>
-          <Input aria-label="Nome della sequenza" disabled={busy} value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus maxLength={100} />
+          <DialogHeader>
+            <DialogTitle>Rinomina pipeline</DialogTitle>
+            <DialogDescription>Il nuovo nome compare anche nel selettore della pagina Opportunità.</DialogDescription>
+          </DialogHeader>
+          <Input aria-label="Nome della pipeline" disabled={busy} value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus maxLength={100} />
           <DialogFooter>
             <Button variant="outline" disabled={busy} onClick={() => chiudiEdit(false)}>Annulla</Button>
             <Button onClick={() => editId && updatePipeline.mutate({ id: editId, name: editName })} disabled={!editName.trim() || updatePipeline.isPending}>
@@ -733,9 +743,9 @@ export function PipelinesConfig() {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminare questa sequenza?</AlertDialogTitle>
+            <AlertDialogTitle>Eliminare questa pipeline?</AlertDialogTitle>
             <AlertDialogDescription>
-              L'eliminazione è consentita solo se non ci sono opportunità collegate, nemmeno archiviate. Le fasi verranno rimosse insieme alla sequenza.
+              L'eliminazione è consentita solo se non ci sono opportunità collegate, nemmeno archiviate. Le fasi verranno rimosse insieme alla pipeline.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

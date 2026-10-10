@@ -23,6 +23,17 @@ export function isValidLogoUrl(value: string | null | undefined): boolean {
   return /^https:\/\/.+/i.test(trimmed);
 }
 
+/**
+ * Piè di pagina di disiscrizione delle campagne: vuoto/null ammesso (si usa quello standard), altrimenti DEVE contenere
+ * il segnaposto `{{unsubscribe_url}}`, scritto proprio così (senza spazi): `send-email-campaign` e `send-crm-campaign`
+ * lo sostituiscono con il link vero solo in questa forma. Senza, la campagna parte senza il link per disiscriversi,
+ * che è obbligatorio per legge.
+ */
+export function isValidUnsubscribeFooter(value: string | null | undefined): boolean {
+  if (value == null || !value.trim()) return true;
+  return value.includes("{{unsubscribe_url}}");
+}
+
 export function isValidHexColor(value: string): boolean {
   return HEX_REGEX.test(value);
 }

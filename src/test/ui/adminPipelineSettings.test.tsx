@@ -115,10 +115,10 @@ describe("Superadmin: gestione pipeline interna", () => {
 
   it("crea pipeline e fasi esclusivamente nel CRM interno", async () => {
     mount();
-    fireEvent.click(await screen.findByRole("button", { name: "Crea Sequenza" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Nuova pipeline" }));
     fireEvent.change(screen.getByPlaceholderText("Es: Pipeline Vendita"), { target: { value: "Consulenze" } });
     fireEvent.click(screen.getByRole("button", { name: "Crea" }));
-    await waitFor(() => expect(state.success).toHaveBeenCalledWith("Sequenza creata con le fasi"));
+    await waitFor(() => expect(state.success).toHaveBeenCalledWith("Pipeline creata con le fasi"));
     const inserts = state.calls.filter(c => c.operation === "insert");
     expect(inserts.map(c => c.table)).toEqual(["marketing_pipelines", "marketing_pipeline_stages"]);
     expect(inserts[0].payload).toMatchObject({ name: "Consulenze", company_id: PLATFORM_ADMIN_COMPANY_ID });
@@ -132,7 +132,7 @@ describe("Superadmin: gestione pipeline interna", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Rinomina" }));
     fireEvent.change(screen.getByDisplayValue("Vendita SaaS"), { target: { value: "Vendite interne" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva" }));
-    await waitFor(() => expect(state.success).toHaveBeenCalledWith("Sequenza aggiornata"));
+    await waitFor(() => expect(state.success).toHaveBeenCalledWith("Pipeline aggiornata"));
     expect(state.calls.find(c => c.operation === "update")).toMatchObject({
       table: "marketing_pipelines", payload: { name: "Vendite interne" },
       filters: [["id", "p1"], ["company_id", PLATFORM_ADMIN_COMPANY_ID]],
@@ -146,9 +146,9 @@ describe("Superadmin: gestione pipeline interna", () => {
     qc.setQueryData(key, [{ id: "p1", name: "Vendita SaaS" }]);
     fireEvent.click(await screen.findByText("Vendita SaaS"));
     fireEvent.change(await screen.findByDisplayValue("Lead nuovo"), { target: { value: "Da contattare" } });
-    fireEvent.click(screen.getByRole("button", { name: "Aggiungi Fase" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi una fase" }));
     fireEvent.change(screen.getByDisplayValue("Nuova fase"), { target: { value: "Demo" } });
-    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva le fasi" }));
     await waitFor(() => expect(state.success).toHaveBeenCalledWith("Fasi salvate"));
     const update = state.calls.find(c => c.table === "marketing_pipeline_stages" && c.operation === "update");
     expect(update).toMatchObject({ payload: { name: "Da contattare" }, filters: [["id", "s1"], ["company_id", PLATFORM_ADMIN_COMPANY_ID]] });
@@ -162,11 +162,11 @@ describe("Superadmin: gestione pipeline interna", () => {
     fireEvent.click(await screen.findByText("Vendita SaaS"));
     fireEvent.change(await screen.findByDisplayValue("Lead nuovo"), { target: { value: "Da chiamare" } });
     state.denyWrite = true;
-    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva le fasi" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledWith("Scrittura negata"));
     expect(state.success).not.toHaveBeenCalled();
     expect(screen.getByDisplayValue("Da chiamare")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Salva" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva le fasi" })).toBeEnabled();
   });
 
   it.each(["company_admin", "platform_marketing"])("nega l'accesso diretto a %s prima di leggere i dati", async role => {

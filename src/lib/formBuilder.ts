@@ -115,8 +115,8 @@ export function validateLeadFormDraft(form: LeadFormDraft, options: { publishing
   const fields = form.fields ?? [];
   const settings = form.settings ?? {};
 
-  if (!name) errors.push("Inserisci un nome form.");
-  if (!slug) errors.push("Inserisci uno slug URL valido.");
+  if (!name) errors.push("Scrivi il nome del modulo.");
+  if (!slug) errors.push("Scrivi un indirizzo valido per il modulo: lettere, numeri e trattini.");
 
   const fieldNames = new Set<string>();
   let hasContactCaptureField = false;
@@ -128,12 +128,12 @@ export function validateLeadFormDraft(form: LeadFormDraft, options: { publishing
     const name = sanitizeLeadFormFieldName(field.name || label);
 
     if (type !== "divider" && !label) {
-      errors.push(`Il campo ${index + 1} deve avere una label.`);
+      errors.push(`Il campo ${index + 1} deve avere un testo.`);
     }
 
     if (!isDataless) {
-      if (!name) errors.push(`Il campo ${label || index + 1} deve avere un nome tecnico.`);
-      if (fieldNames.has(name)) errors.push(`Il nome campo "${name}" è duplicato.`);
+      if (!name) errors.push(`Il campo ${label || index + 1} deve avere un nome interno.`);
+      if (fieldNames.has(name)) errors.push(`Due campi hanno lo stesso nome interno («${name}»): cambialo in uno dei due.`);
       fieldNames.add(name);
     }
 
@@ -150,13 +150,13 @@ export function validateLeadFormDraft(form: LeadFormDraft, options: { publishing
   if (options.publishing) {
     if (fields.length === 0) errors.push("Aggiungi almeno un campo prima di pubblicare.");
     if (!hasContactCaptureField) {
-      errors.push("Per pubblicare serve almeno un campo email o telefono mappato al contatto.");
+      errors.push("Per pubblicare serve almeno un campo email o telefono salvato nel contatto.");
     }
   }
 
   const redirectUrl = String(settings.redirectUrl ?? "").trim();
   if (redirectUrl && !/^https?:\/\//i.test(redirectUrl)) {
-    errors.push("L'URL redirect deve iniziare con http:// o https://.");
+    errors.push("L'indirizzo di «Dopo l'invio vai a» deve iniziare con http:// o https://.");
   }
 
   const notificationEmail = String(settings.notification_email ?? "").trim();

@@ -51,11 +51,35 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Phone, Plus, Search, Trash2, MessageSquare, PhoneCall, Info, Loader2, Download, Bot, ArrowRight, Link2, Headphones, AlertTriangle } from "lucide-react";
+import { Phone, Plus, Search, Trash2, MessageSquare, PhoneCall, Loader2, Download, Bot, Link2, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { TelephonyComplianceCard } from "@/components/telephony/TelephonyComplianceCard";
 
 type PurchaseStep = "search" | "results" | "confirm";
+
+/** Importi in euro come si scrivono in Italia: «12,00 €». */
+const euro = (valore: number) => valore.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+/** L'importo di un fornitore nella sua valuta, scritto una volta sola: «12,00 USD al mese». */
+const alMese = (importo: string | number, valuta?: string) =>
+  `${Number(importo).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${valuta || "USD"} al mese`;
+/** Le funzionalità di un numero in parole di tutti i giorni (prima comparivano «sms» e «voice» crudi). */
+const FUNZIONALITA: Record<string, string> = { sms: "SMS", voice: "Voce", mms: "MMS", fax: "Fax" };
+const funzionalita = (f: string) => FUNZIONALITA[f] ?? f;
+
+/** I due badge «SMS» e «Voce» di un numero aziendale: stanno in una colonna a parte e, sul telefono, sotto il numero. */
+function funzionalitaDelNumero(num: { capabilities?: unknown }) {
+  const capacita = num.capabilities as { sms?: boolean; voice?: boolean } | null | undefined;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {capacita?.sms && (
+        <Badge variant="secondary" className="text-xs"><MessageSquare className="h-3 w-3 mr-1" />SMS</Badge>
+      )}
+      {capacita?.voice && (
+        <Badge variant="secondary" className="text-xs"><PhoneCall className="h-3 w-3 mr-1" />Voce</Badge>
+      )}
+    </div>
+  );
+}
 
 export default function SettingsPhoneNumbers() {
   const { effectiveCompany } = useAuth();
@@ -74,15 +98,16 @@ export default function SettingsPhoneNumbers() {
 
   // Numeri per le chiamate AI (voce) — pool ai_phone_numbers_v2. Gestiti qui in
   // Telefonia; l'assegnazione a un agente avviene in Agenti AI → Telefonia.
-  const { data: aiNumbers = [] } = useQuery({
+  const { data: aiNumbers = [], isError: erroreNumeriAi } = useQuery({
     queryKey: ["ai-phone-numbers-v2", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("ai_phone_numbers_v2" as never)
         .select("id, numero, nome_etichetta, agent_id, elevenlabs_phone_id, attivo")
         .eq("company_id", companyId!)
         .order("creato_il", { ascending: false });
+      if (error) throw error;
       return (data ?? []) as unknown as { id: string; numero: string; nome_etichetta: string | null; agent_id: string | null; elevenlabs_phone_id: string | null; attivo: boolean }[];
     },
   });
@@ -109,22 +134,23 @@ export default function SettingsPhoneNumbers() {
     },
     onSuccess: (r) => {
       queryClient.invalidateQueries({ queryKey: ["ai-phone-numbers-v2"] });
-      if (r.inserted > 0) toast.success(`${r.inserted} numero/i Telnyx importato/i`);
-      else toast.info("Nessun nuovo numero Telnyx da importare");
+      if (r.inserted > 0) toast.success(r.inserted === 1 ? "1 numero portato nelle chiamate AI" : `${r.inserted} numeri portati nelle chiamate AI`);
+      else toast.info("Nessun numero nuovo da portare qui");
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore import numeri Telnyx"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Non sono riuscito a portare qui i numeri. Riprova."),
   });
 
   // Stato normativo: l'acquisto di numeri IT è bloccato finché non è approvato.
-  const { data: complianceStato } = useQuery({
+  const { data: complianceStato, isLoading: caricaStatoNormativo, isError: erroreStatoNormativo } = useQuery({
     queryKey: ["telephony-compliance-stato", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("company_telephony_compliance" as never)
         .select("stato")
         .eq("company_id", companyId!)
         .maybeSingle();
+      if (error) throw error;
       return ((data as { stato?: string } | null)?.stato) ?? "da_compilare";
     },
   });
@@ -182,33 +208,34 @@ export default function SettingsPhoneNumbers() {
     resetPurchase();
   };
 
+  // Finché i dati normativi non sono approvati la scheda che li chiede sta in cima, sopra le tabelle: è quella che sblocca
+  // l'acquisto. Approvati, scende in fondo alla pagina. Si disegna solo a stato noto, per non vederla saltare da un posto all'altro.
+  const schedaNormativaInCima = !caricaStatoNormativo && !canBuyNumbers;
+  const schedaNormativaInFondo = !caricaStatoNormativo && canBuyNumbers;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Phone className="h-6 w-6 text-primary" /> Telefonia
-          </h2>
-          <p className="text-muted-foreground">
-            Sistema telefonico aziendale: gestisci qui i numeri per SMS, chiamate e agenti AI.
-          </p>
-        </div>
+      {/* Il titolo «Telefonia» c'è già nella testata delle Impostazioni: qui solo cosa si fa in questa pagina. */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="min-w-0 flex-1 text-muted-foreground">
+          Numeri per SMS, chiamate e agenti vocali. Per comprare un numero italiano servono prima i dati dell'azienda, approvati.
+        </p>
         {isAdmin && (
         <Dialog open={purchaseOpen} onOpenChange={(open) => { setPurchaseOpen(open); if (!open) resetPurchase(); }}>
           <DialogTrigger asChild>
-            <Button disabled={!canBuyNumbers} title={canBuyNumbers ? "Acquista un numero" : "Completa e fai approvare i Dati normativi per acquistare numeri italiani"}>
-              <Plus className="mr-2 h-4 w-4" />Acquista Numero
+            <Button disabled={!canBuyNumbers} className="max-md:h-11 max-md:w-full">
+              <Plus className="mr-2 h-4 w-4" />Acquista un numero
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {step === "search" && "Cerca Numeri Disponibili"}
-                {step === "results" && "Numeri Disponibili"}
-                {step === "confirm" && "Conferma Acquisto"}
+                {step === "search" && "Cerca numeri disponibili"}
+                {step === "results" && "Numeri disponibili"}
+                {step === "confirm" && "Conferma l'acquisto"}
               </DialogTitle>
               <DialogDescription>
-                {step === "search" && "Imposta i filtri per cercare numeri disponibili su Telnyx."}
+                {step === "search" && "Scegli il paese e, se vuoi, il prefisso: ti mostriamo i numeri che puoi acquistare."}
                 {step === "results" && `${results.length} numeri trovati. Seleziona quello desiderato.`}
                 {step === "confirm" && "Conferma l'acquisto del numero selezionato."}
               </DialogDescription>
@@ -217,9 +244,9 @@ export default function SettingsPhoneNumbers() {
             {step === "search" && (
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Paese</Label>
+                  <Label htmlFor="tel-paese">Paese</Label>
                   <Select value={searchCountry} onValueChange={setSearchCountry}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="tel-paese" className="max-md:h-11"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="IT">Italia (+39)</SelectItem>
                       <SelectItem value="US">Stati Uniti (+1)</SelectItem>
@@ -231,15 +258,17 @@ export default function SettingsPhoneNumbers() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Prefisso (opzionale)</Label>
+                  <Label htmlFor="tel-prefisso">Prefisso (facoltativo)</Label>
                   <Input
+                    id="tel-prefisso"
                     placeholder="es. 02, 06..."
                     value={searchPrefix}
                     onChange={(e) => setSearchPrefix(e.target.value)}
+                    className="max-md:h-11"
                   />
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleSearch} disabled={isSearching}>
+                  <Button onClick={handleSearch} disabled={isSearching} className="max-md:h-11">
                     {isSearching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                     Cerca
                   </Button>
@@ -259,7 +288,7 @@ export default function SettingsPhoneNumbers() {
                       <button
                         key={i}
                         onClick={() => { setSelectedNumber(num); setStep("confirm"); }}
-                        className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-muted ${
+                        className={`w-full text-left p-3 rounded-lg border transition-colors hover:bg-muted max-md:min-h-11 ${
                           selectedNumber?.phone_number === num.phone_number ? "border-primary bg-primary/5 shadow-sm" : "border-slate-300 bg-white shadow-sm hover:border-primary/60"
                         }`}
                       >
@@ -270,13 +299,13 @@ export default function SettingsPhoneNumbers() {
                               <Badge variant="secondary" className="text-xs"><MessageSquare className="h-3 w-3 mr-1" />SMS</Badge>
                             )}
                             {num.features?.includes("voice") && (
-                              <Badge variant="secondary" className="text-xs"><PhoneCall className="h-3 w-3 mr-1" />Voice</Badge>
+                              <Badge variant="secondary" className="text-xs"><PhoneCall className="h-3 w-3 mr-1" />Voce</Badge>
                             )}
                           </div>
                         </div>
                         {num.monthly_cost?.amount && (
                           <p className="text-xs text-muted-foreground mt-1">
-                            ${num.monthly_cost.amount}/{num.monthly_cost.currency || "USD"}/mese
+                            {alMese(num.monthly_cost.amount, num.monthly_cost.currency)}
                           </p>
                         )}
                       </button>
@@ -284,7 +313,7 @@ export default function SettingsPhoneNumbers() {
                   </div>
                 )}
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setStep("search")}>Indietro</Button>
+                  <Button variant="outline" onClick={() => setStep("search")} className="max-md:h-11">Indietro</Button>
                 </DialogFooter>
               </div>
             )}
@@ -299,33 +328,35 @@ export default function SettingsPhoneNumbers() {
                     </div>
                     {selectedNumber.monthly_cost?.amount && (
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Costo mensile</span>
-                        <span>${selectedNumber.monthly_cost.amount}</span>
+                        <span className="text-muted-foreground">Costo</span>
+                        <span>{alMese(selectedNumber.monthly_cost.amount, selectedNumber.monthly_cost.currency)}</span>
                       </div>
                     )}
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Funzionalità</span>
                       <div className="flex gap-1">
                         {selectedNumber.features?.map((f: string) => (
-                          <Badge key={f} variant="outline" className="text-xs">{f}</Badge>
+                          <Badge key={f} variant="outline" className="text-xs">{funzionalita(f)}</Badge>
                         ))}
                       </div>
                     </div>
                   </CardContent>
                 </Card>
                 <div className="space-y-2">
-                  <Label>Etichetta (opzionale)</Label>
+                  <Label htmlFor="tel-etichetta">Etichetta (facoltativa)</Label>
                   <Input
+                    id="tel-etichetta"
                     placeholder="es. Reception, Supporto..."
                     value={purchaseLabel}
                     onChange={(e) => setPurchaseLabel(e.target.value)}
+                    className="max-md:h-11"
                   />
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setStep("results")}>Indietro</Button>
-                  <Button onClick={handleConfirmPurchase} disabled={purchaseMutation.isPending}>
+                  <Button variant="outline" onClick={() => setStep("results")} className="max-md:h-11">Indietro</Button>
+                  <Button onClick={handleConfirmPurchase} disabled={purchaseMutation.isPending} className="max-md:h-11">
                     {purchaseMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Conferma Acquisto
+                    Conferma l'acquisto
                   </Button>
                 </DialogFooter>
               </div>
@@ -335,54 +366,41 @@ export default function SettingsPhoneNumbers() {
         )}
       </div>
 
-      {/* Scorciatoie: dove si usano i numeri (logica GHL — gestione qui, uso altrove) */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Link to="/azienda/centralino" className="group rounded-xl border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/30">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><Headphones className="h-5 w-5" /></div>
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold text-sm flex items-center gap-1.5">Centralino <ArrowRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" /></p>
-              <p className="text-xs text-muted-foreground">Chiama e parla dal browser col numero aziendale.</p>
-            </div>
-          </div>
-        </Link>
-        <Link to="/azienda/agenti-ai?tab=telefonia" className="group rounded-xl border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/30">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Bot className="h-5 w-5" /></div>
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold text-sm flex items-center gap-1.5">Agenti AI · Telefonia <ArrowRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" /></p>
-              <p className="text-xs text-muted-foreground">Assegna un numero a un agente vocale per le chiamate AI.</p>
-            </div>
-          </div>
-        </Link>
-      </div>
+      {/* Perché «Acquista un numero» è spento: lo dice una riga, con il collegamento alla scheda che lo sblocca (il title non si vede su tablet). */}
+      {isAdmin && !caricaStatoNormativo && !canBuyNumbers && (
+        <p className="text-sm text-amber-700 dark:text-amber-400">
+          {erroreStatoNormativo
+            ? "Non riesco a controllare i dati normativi dell'azienda: riprova tra poco."
+            : <>Prima compila e fai approvare «Dati normativi azienda»: <a href="#dati-normativi" className="font-medium underline">vai alla scheda</a>.</>}
+        </p>
+      )}
 
-      {/* Info box */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="flex items-start gap-3 pt-4">
-          <Info className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-          <div className="text-sm text-foreground/80">
-            <p>I numeri virtuali sono gestiti tramite Telnyx, configurato dalla piattaforma.</p>
-            <p className="mt-1">
-              Per gestire il credito SMS, vai alla sezione{" "}
-              <Link to="/azienda/impostazioni/crediti" className="underline font-medium">Crediti</Link>.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Dove si usano i numeri: gestione qui, uso altrove. Una riga sola al posto delle due scorciatoie e del riquadro. */}
+      <p className="text-sm text-muted-foreground">
+        Dove li usi:{" "}
+        <Link to="/azienda/centralino" className="font-medium text-foreground underline max-md:inline-block max-md:py-2.5">Centralino</Link>
+        {" · "}
+        <Link to="/azienda/agenti-ai?tab=telefonia" className="font-medium text-foreground underline max-md:inline-block max-md:py-2.5">Agenti AI → Telefonia</Link>.
+        {" "}I numeri sono gestiti da Telnyx per conto della piattaforma; il credito SMS è in{" "}
+        <Link to="/azienda/impostazioni/crediti" className="font-medium text-foreground underline max-md:inline-block max-md:py-2.5">Crediti</Link>.
+      </p>
 
-      {/* Dati normativi compilati dall'azienda (responsabilità sua) */}
-      <TelephonyComplianceCard />
+      {schedaNormativaInCima && (
+        <div id="dati-normativi" className="scroll-mt-28">
+          <TelephonyComplianceCard />
+        </div>
+      )}
+
 
       {/* Numbers table */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Phone className="h-5 w-5" />
-            Numeri aziendali (SMS & voce)
+            Numeri aziendali (SMS e voce)
           </CardTitle>
           <CardDescription>
-            {numbers?.length || 0} numeri attivi · acquisto, etichetta e rilascio
+            {numbers?.length === 1 ? "1 numero attivo" : `${numbers?.length || 0} numeri attivi`} · acquisto, etichetta e rilascio
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -403,52 +421,50 @@ export default function SettingsPhoneNumbers() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Numero</TableHead>
-                  <TableHead>Etichetta</TableHead>
-                  <TableHead>Funzionalità</TableHead>
-                  <TableHead className="text-right">Costo/mese</TableHead>
-                  {isAdmin && <TableHead />}
+                  <TableHead className="max-sm:px-2">Numero</TableHead>
+                  <TableHead className="hidden sm:table-cell">Etichetta</TableHead>
+                  <TableHead className="hidden sm:table-cell">Funzionalità</TableHead>
+                  <TableHead className="text-right max-sm:px-2">Costo al mese (€)</TableHead>
+                  {isAdmin && <TableHead className="max-sm:px-2" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {numbers.map((num: any) => (
                   <TableRow key={num.id}>
-                    <TableCell className="font-mono">{num.phone_number}</TableCell>
-                    <TableCell>{num.friendly_name || "—"}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        {(num.capabilities as { sms?: boolean; voice?: boolean })?.sms && (
-                          <Badge variant="secondary" className="text-xs"><MessageSquare className="h-3 w-3 mr-1" />SMS</Badge>
-                        )}
-                        {(num.capabilities as { sms?: boolean; voice?: boolean })?.voice && (
-                          <Badge variant="secondary" className="text-xs"><PhoneCall className="h-3 w-3 mr-1" />Voice</Badge>
-                        )}
+                    <TableCell className="max-sm:px-2">
+                      <span className="font-mono whitespace-nowrap">{num.phone_number}</span>
+                      {/* Sul telefono le colonne «Etichetta» e «Funzionalità» non entrano: stanno sotto il numero. */}
+                      <div className="mt-1 space-y-1 sm:hidden">
+                        <p className="text-sm text-muted-foreground">{num.friendly_name || "—"}</p>
+                        {funzionalitaDelNumero(num)}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">€{Number(num.monthly_cost_eur || 0).toFixed(2)}</TableCell>
+                    <TableCell className="hidden sm:table-cell">{num.friendly_name || "—"}</TableCell>
+                    <TableCell className="hidden sm:table-cell">{funzionalitaDelNumero(num)}</TableCell>
+                    <TableCell className="text-right max-sm:px-2">{Number(num.monthly_cost_eur || 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                     {isAdmin && (
-                      <TableCell>
+                      <TableCell className="max-sm:px-2">
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                            <Button variant="ghost" size="icon" aria-label={`Rilascia il numero ${num.phone_number}`} className="text-destructive hover:text-destructive max-md:h-11 max-md:w-11">
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Rilascia Numero</AlertDialogTitle>
+                              <AlertDialogTitle>Rilasciare il numero?</AlertDialogTitle>
                               <AlertDialogDescription>
                                 Stai per rilasciare il numero <strong>{num.phone_number}</strong>.
-                                Questa azione è irreversibile e il numero non sarà più disponibile.
+                                Non si può annullare: il numero non sarà più disponibile.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Annulla</AlertDialogCancel>
+                              <AlertDialogCancel className="max-md:h-11">Annulla</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => releaseMutation.mutate({ id: num.id, telnyx_phone_id: num.telnyx_phone_id })}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 max-md:h-11"
                               >
-                                Rilascia
+                                Rilascia il numero
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
@@ -465,7 +481,7 @@ export default function SettingsPhoneNumbers() {
 
       {/* Numeri per le chiamate AI (voce) — pool ai_phone_numbers_v2 */}
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <CardHeader className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
               <Bot className="h-5 w-5 text-primary" /> Numeri per chiamate AI (voce)
@@ -476,35 +492,43 @@ export default function SettingsPhoneNumbers() {
             </CardDescription>
           </div>
           {isAdmin && (
-            <Button variant="outline" size="sm" onClick={() => importTelnyx.mutate()} disabled={importTelnyx.isPending} className="shrink-0">
-              {importTelnyx.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Download className="h-4 w-4 mr-1.5" />}
-              Importa numeri Telnyx
+            <Button variant="outline" size="sm" onClick={() => importTelnyx.mutate()} disabled={importTelnyx.isPending} className="shrink-0 max-md:h-auto max-md:min-h-11 max-md:whitespace-normal max-md:text-left">
+              {importTelnyx.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Download className="h-4 w-4 mr-1.5 shrink-0" />}
+              Porta qui i numeri che usi già per gli SMS
             </Button>
           )}
         </CardHeader>
         <CardContent>
-          {aiNumbers.length === 0 ? (
+          {erroreNumeriAi ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>Non riesco a leggere i numeri per le chiamate AI. Riprova tra poco.</AlertDescription>
+            </Alert>
+          ) : aiNumbers.length === 0 ? (
             <p className="text-center text-muted-foreground py-8 text-sm">
               {isAdmin
-                ? <>Nessun numero per le chiamate AI. Usa <strong>Importa numeri Telnyx</strong> per portarli qui dai numeri che usi già per gli SMS.</>
+                ? <>Nessun numero per le chiamate AI. Premi <strong>Porta qui i numeri che usi già per gli SMS</strong> per aggiungere quelli che hai.</>
                 : "Nessun numero per le chiamate AI."}
             </p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Numero</TableHead>
-                  <TableHead>Etichetta</TableHead>
-                  <TableHead>Pronto per chiamate AI</TableHead>
-                  <TableHead>Stato</TableHead>
+                  <TableHead className="max-sm:px-2">Numero</TableHead>
+                  <TableHead className="hidden sm:table-cell">Etichetta</TableHead>
+                  <TableHead className="max-sm:px-2">Pronto per chiamate AI</TableHead>
+                  <TableHead className="max-sm:px-2">Stato</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {aiNumbers.map((n) => (
                   <TableRow key={n.id}>
-                    <TableCell className="font-mono text-sm">{n.numero}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{n.nome_etichetta || "—"}</TableCell>
-                    <TableCell>
+                    <TableCell className="max-sm:px-2">
+                      <span className="font-mono text-sm">{n.numero}</span>
+                      <p className="mt-1 text-sm text-muted-foreground sm:hidden">{n.nome_etichetta || "—"}</p>
+                    </TableCell>
+                    <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">{n.nome_etichetta || "—"}</TableCell>
+                    <TableCell className="max-sm:px-2">
                       {n.elevenlabs_phone_id ? (
                         <span className="inline-flex items-center gap-1 text-xs text-primary"><Link2 className="h-3.5 w-3.5" /> Collegato</span>
                       ) : n.agent_id ? (
@@ -513,7 +537,7 @@ export default function SettingsPhoneNumbers() {
                         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">Nessun agente assegnato</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="max-sm:px-2">
                       <Badge variant={n.attivo ? "secondary" : "outline"} className="text-xs">{n.attivo ? "Attivo" : "Disattivo"}</Badge>
                     </TableCell>
                   </TableRow>
@@ -551,7 +575,7 @@ export default function SettingsPhoneNumbers() {
                   <p className="text-xs text-muted-foreground">Minuti</p>
                 </div>
                 <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-                  <p className="text-2xl font-bold tabular-nums text-primary">€{Number(voiceConsuntivo.costo_cliente).toFixed(2)}</p>
+                  <p className="text-2xl font-bold tabular-nums text-primary">{euro(Number(voiceConsuntivo.costo_cliente))}</p>
                   <p className="text-xs text-muted-foreground">Costo chiamate</p>
                 </div>
               </div>
@@ -559,14 +583,21 @@ export default function SettingsPhoneNumbers() {
               {voiceConsuntivo.costo_wholesale != null && (
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs">
                   <span className="font-semibold text-muted-foreground">Vista piattaforma</span>
-                  <span>Costo Telnyx: <strong>€{Number(voiceConsuntivo.costo_wholesale).toFixed(2)}</strong></span>
-                  <span className="text-emerald-700">Margine: <strong>€{Number(voiceConsuntivo.margine ?? 0).toFixed(2)}</strong></span>
+                  <span>Costo Telnyx: <strong>{euro(Number(voiceConsuntivo.costo_wholesale))}</strong></span>
+                  <span className="text-emerald-700">Margine: <strong>{euro(Number(voiceConsuntivo.margine ?? 0))}</strong></span>
                 </div>
               )}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Dati normativi compilati dall'azienda (responsabilità sua): approvati, scendono in fondo. */}
+      {schedaNormativaInFondo && (
+        <div id="dati-normativi" className="scroll-mt-28">
+          <TelephonyComplianceCard />
+        </div>
+      )}
     </div>
   );
 }

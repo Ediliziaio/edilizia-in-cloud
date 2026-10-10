@@ -13,7 +13,7 @@ const INPUT_FIELDS: { type: FormFieldType; label: string; icon: React.ReactNode 
   { type: "textarea", label: "Testo lungo", icon: <AlignLeft className="h-4 w-4" /> },
   { type: "select", label: "Selezione", icon: <List className="h-4 w-4" /> },
   { type: "radio", label: "Scelta singola", icon: <CircleDot className="h-4 w-4" /> },
-  { type: "checkbox", label: "Checkbox", icon: <CheckSquare className="h-4 w-4" /> },
+  { type: "checkbox", label: "Spunta sì/no", icon: <CheckSquare className="h-4 w-4" /> },
   { type: "consent", label: "Consenso privacy", icon: <ShieldCheck className="h-4 w-4" /> },
   { type: "date", label: "Data", icon: <Calendar className="h-4 w-4" /> },
 ];
@@ -22,7 +22,7 @@ const STRUCTURE_FIELDS: { type: FormFieldType; label: string; icon: React.ReactN
   { type: "heading", label: "Titolo", icon: <Heading className="h-4 w-4" /> },
   { type: "paragraph", label: "Paragrafo", icon: <FileText className="h-4 w-4" /> },
   { type: "divider", label: "Separatore", icon: <Minus className="h-4 w-4" /> },
-  { type: "hidden", label: "Nascosto", icon: <EyeOff className="h-4 w-4" /> },
+  { type: "hidden", label: "Dato nascosto", icon: <EyeOff className="h-4 w-4" /> },
 ];
 
 interface Props {
@@ -40,9 +40,10 @@ export function FormFieldLibrary({ onAddField, disabled = false }: Props) {
             key={ft.type}
             variant="outline"
             size="sm"
-            className="w-full justify-start gap-2 text-xs"
+            className="w-full justify-start gap-2 text-xs max-md:h-11"
             onClick={() => onAddField(ft.type)}
             disabled={disabled}
+            aria-label={`Aggiungi un campo: ${ft.label}`}
           >
             <Plus className="h-3 w-3 text-muted-foreground" />
             {ft.icon}
@@ -57,9 +58,10 @@ export function FormFieldLibrary({ onAddField, disabled = false }: Props) {
             key={ft.type}
             variant="outline"
             size="sm"
-            className="w-full justify-start gap-2 text-xs"
+            className="w-full justify-start gap-2 text-xs max-md:h-11"
             onClick={() => onAddField(ft.type)}
             disabled={disabled}
+            aria-label={`Aggiungi un campo: ${ft.label}`}
           >
             <Plus className="h-3 w-3 text-muted-foreground" />
             {ft.icon}

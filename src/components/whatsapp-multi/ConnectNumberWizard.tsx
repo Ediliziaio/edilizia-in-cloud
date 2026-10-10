@@ -148,7 +148,7 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
                   className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${mode === "embedded" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   <Sparkles className="h-4 w-4" />
-                  Embedded Signup
+                  Collegamento guidato con Meta
                   <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
                     consigliato
                   </span>
@@ -159,16 +159,16 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
                   className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${mode === "manual" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   <KeyRound className="h-4 w-4" />
-                  Manuale
+                  Con i codici di Meta (avanzato)
                 </button>
               </div>
             ) : (
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  Su app mobile l'Embedded Signup non è disponibile. Procedi
-                  con l'inserimento manuale di Phone Number ID + Access Token,
-                  oppure completa l'onboarding dal browser desktop.
+                  Da questa app il collegamento guidato con Meta non è disponibile. Inserisci a mano i
+                  codici di Meta (Phone Number ID e Access Token), oppure completa il collegamento dal
+                  browser del computer.
                 </AlertDescription>
               </Alert>
             )}
@@ -179,11 +179,11 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
                   <Sparkles className="h-6 w-6 text-emerald-600" />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm font-medium">Onboarding rapido tramite Meta</p>
+                  <p className="text-sm font-medium">Collegamento rapido con Meta</p>
                   <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                    Aprirà una popup ufficiale Meta dove potrai selezionare l'account WABA, verificare
-                    il numero e completare l'onboarding senza copiare token o ID. Al termine il numero
-                    sarà registrato in stato <code>pending</code> in attesa della verifica webhook.
+                    Si apre una finestra ufficiale di Meta dove scegli l'account WhatsApp Business,
+                    verifichi il numero e completi il collegamento senza copiare codici. Alla fine il
+                    numero risulta «in attesa di verifica» finché Meta non conferma il collegamento.
                   </p>
                 </div>
                 <div className="space-y-2 text-left">
@@ -205,8 +205,7 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
                   className="w-full"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Richiede che il super_admin abbia configurato Meta App ID + Embedded Signup Config nelle
-                  impostazioni di piattaforma. Se non funziona usa la modalità Manuale.
+                  Se non funziona, scegli «Con i codici di Meta».
                 </p>
               </div>
             )}
@@ -216,13 +215,13 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Questi dati si trovano in <b>Meta Business Manager → WhatsApp → API setup</b>.
-                In produzione preferisci il flusso Embedded Signup (toggle sopra).
-                Il token viene salvato cifrato lato server. Inserimento manuale qui è pensato per staging/test.
+                Questi dati si trovano in <b>Meta Business Manager → WhatsApp → Configurazione API</b>.
+                Per un numero vero conviene il collegamento guidato (la scelta qui sopra).
+                Il token viene salvato cifrato sul server.
               </AlertDescription>
             </Alert>
             <div className="space-y-1">
-              <Label htmlFor="wz-phone">Numero (formato E.164)</Label>
+              <Label htmlFor="wz-phone">Numero (con il prefisso, per esempio +39…)</Label>
               <Input
                 id="wz-phone"
                 value={phoneNumber}
@@ -283,11 +282,10 @@ export function ConnectNumberWizard({ open, onClose, initialPurpose }: Props) {
                   <li>Numero: {phoneNumber || "—"}</li>
                   <li>Phone ID: <code>{phoneNumberId || "—"}</code></li>
                   <li>WABA: <code>{wabaId || "—"}</code></li>
-                  <li>Display: {displayName || "(vuoto)"}</li>
+                  <li>Nome: {displayName || "(vuoto)"}</li>
                 </ul>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Il numero viene registrato in stato <code>pending</code>.
-                  Dopo la verifica webhook da Meta passerà ad <code>active</code>.
+                  Il numero risulta «in attesa di verifica». Quando Meta conferma il collegamento diventa «attivo».
                 </p>
               </div>
             </AlertDescription>

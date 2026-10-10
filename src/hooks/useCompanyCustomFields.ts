@@ -43,6 +43,8 @@ export function useCompanyCustomFields(objectType: CatalogObjectType) {
         .select("*")
         .eq("company_id", companyId)
         .eq("object_type", objectType)
+        // Stessa chiave di cache di useEntityCustomFields: devono rispondere uguale, quindi anche qui niente campi eliminati.
+        .is("deleted_at", null)
         .order("position", { ascending: true, nullsFirst: false });
       if (error) throw error;
       return (data || []) as CompanyCustomFieldDef[];

@@ -60,7 +60,8 @@ describe("telefonia: solo l'amministratore, in ogni strato", () => {
     // I tre pulsanti che scrivono sono tutti dietro isAdmin: apri il dialogo
     // di acquisto, il rilascio nella tabella numeri, l'import da Telnyx.
     expect(pagina).toMatch(/\{isAdmin && \(\s*\n\s*<Dialog open=\{purchaseOpen\}/);
-    const rilascio = pagina.slice(0, pagina.indexOf("AlertDialogTitle>Rilascia Numero"));
+    // 10/10/2026: il titolo della finestra di rilascio è «Rilasciare il numero?» (prima «Rilascia Numero»).
+    const rilascio = pagina.slice(0, pagina.indexOf("AlertDialogTitle>Rilasciare il numero?"));
     expect(rilascio.slice(rilascio.lastIndexOf("isAdmin && ("))).not.toBe("");
     expect(rilascio.lastIndexOf("isAdmin && (")).toBeGreaterThan(rilascio.lastIndexOf("</TableRow>"));
     const importa = pagina.slice(pagina.indexOf("importTelnyx.mutate()") - 100, pagina.indexOf("importTelnyx.mutate()"));

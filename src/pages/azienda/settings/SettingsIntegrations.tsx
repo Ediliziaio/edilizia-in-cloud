@@ -26,7 +26,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { toast } from "sonner";
 import { useStatoPiano } from "@/hooks/useStatoPiano";
 import { REQUISITI_SEZIONI, requisitoSoddisfatto } from "@/lib/impostazioni/pianoImpostazioni";
 // Popup components per integrazioni in modalità "popup"
@@ -41,6 +40,11 @@ import {
 } from "@/components/integrations/PopupIntegrazioniTeam";
 import { useOAuthGrants } from "@/hooks/useOAuthGrants";
 import { statoCollegamentoAi } from "@/lib/aiConnector";
+import {
+  COLONNE_STATO_WHATSAPP,
+  statoWhatsAppDaiNumeri,
+  type NumeroPerStato,
+} from "@/lib/impostazioni/statoWhatsAppIntegrazione";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 import { MetaTroubleshootDialog } from "@/components/integrations/MetaTroubleshootDialog";
@@ -81,6 +85,7 @@ const TOKEN_STALE_DAYS = 60;
 // Array vuoti fissi: usati nei useMemo, uno nuovo a ogni render li ricalcolerebbe sempre.
 const NESSUNA_CASELLA: Array<{ id: string; email_address: string; provider: string | null; status: string | null }> = [];
 const NESSUN_CONTO: BankConnection[] = [];
+const NESSUN_NUMERO_WHATSAPP: NumeroPerStato[] = [];
 
 /** «1 casella da ricollegare», «3 caselle da ricollegare». */
 function quante(n: number, una: string, tante: string): string {
@@ -191,26 +196,23 @@ export default function SettingsIntegrations() {
     enabled: !!companyId,
   });
 
-  // ── Query: WhatsApp config (bot operativo) ────────────────────────────────
-  const { data: waConfig } = useQuery({
+  // ── Query: numeri WhatsApp dell'azienda (di qualunque scopo) ───────────────
+  // Prima la scheda guardava solo il numero «Operativo / Cantieri»: chi aveva numeri Marketing o Lead attivi
+  // vedeva «Non collegato». Sola lettura: legge soltanto, non cambia nessun collegamento.
+  const {
+    data: numeriWhatsApp = NESSUN_NUMERO_WHATSAPP,
+    isError: numeriWhatsAppInErrore,
+  } = useQuery({
     queryKey: ["whatsapp-config-status", companyId],
     queryFn: async () => {
-      if (!companyId) return null;
-      const { data } = await supabase
+      if (!companyId) return NESSUN_NUMERO_WHATSAPP;
+      const { data, error } = await supabase
         .from("ai_whatsapp_numbers")
-        .select("id, phone_number_id, waba_id, stato, numero")
+        .select(COLONNE_STATO_WHATSAPP)
         .eq("company_id", companyId)
-        .eq("purpose", "bot_operativo")
-        .is("deleted_at", null)
-        .maybeSingle();
-      if (!data) return null;
-      return {
-        id: data.id,
-        phone_number_id: data.phone_number_id,
-        waba_id: data.waba_id,
-        account_status: data.stato,
-        phone_number: data.numero,
-      };
+        .is("deleted_at", null);
+      if (error) throw error;
+      return (data ?? NESSUN_NUMERO_WHATSAPP) as NumeroPerStato[];
     },
     enabled: !!companyId,
   });
@@ -324,12 +326,11 @@ export default function SettingsIntegrations() {
   const statuses: IntegrationStatusMap = useMemo(() => {
     const result: IntegrationStatusMap = {};
 
-    // WhatsApp
-    const waConnected = !!waConfig?.phone_number_id;
-    result["whatsapp"] = {
-      status: waConnected ? "connected" : "disconnected",
-      detail: waConfig?.phone_number ? `Numero: ${waConfig.phone_number}` : null,
-    };
+    // WhatsApp: qualunque numero attivo dell'azienda, non solo quello dei cantieri. Se la lettura non riesce non si
+    // dice «Non collegato» (sarebbe falso): si dice che lo stato non si può verificare, come per Claude e ChatGPT.
+    result["whatsapp"] = numeriWhatsAppInErrore
+      ? { status: "warning", detail: "Stato non verificabile · riprova" }
+      : statoWhatsAppDaiNumeri(numeriWhatsApp);
 
     // Meta
     const metaStatus: IntegrationConnectionStatus =
@@ -442,7 +443,8 @@ export default function SettingsIntegrations() {
 
     return result;
   }, [
-    waConfig,
+    numeriWhatsApp,
+    numeriWhatsAppInErrore,
     metaIntegration,
     gbpConnection,
     googleAdsIntegration,
@@ -686,20 +688,13 @@ export default function SettingsIntegrations() {
   );
 
   // ── Disconnect handler ────────────────────────────────────────────────────
+  // «Disconnetti» nel menu c'è solo per Meta (vedi `senzaDisconnetti` nel catalogo): il suo wizard si apre già sulla
+  // conferma di disconnessione. Prima c'era anche per Claude, ChatGPT, WhatsApp e Google, ma lì mostrava solo un avviso
+  // («Apri la pagina dell'integrazione…») e portava altrove senza disconnettere niente.
   const handleDisconnect = (item: IntegrationItem) => {
-    // Meta gestisce la disconnessione nel proprio wizard: apriamolo già sulla
-    // conferma di disconnessione. Prima questo handler faceva navigate(pageHref)
-    // → per Meta finiva su Gestione Social senza disconnettere nulla.
-    if (item.id === "meta") {
-      setMetaOpenDisconnect(true);
-      setMetaWizardStep("pages");
-      return;
-    }
-    // Altre integrazioni: il disconnect è nel loro popup dedicato.
-    toast.info("Apri la pagina dell'integrazione per disconnetterla.", {
-      description: item.name,
-    });
-    if (item.pageHref) navigate(item.pageHref);
+    if (item.id !== "meta") return;
+    setMetaOpenDisconnect(true);
+    setMetaWizardStep("pages");
   };
 
   return (
@@ -728,10 +723,10 @@ export default function SettingsIntegrations() {
       {!canManageIntegrations && (
         <Alert>
           <ShieldCheck className="h-4 w-4" />
-          <AlertTitle className="text-sm">Permessi integrazioni in sola lettura</AlertTitle>
+          <AlertTitle className="text-sm">Stai solo consultando</AlertTitle>
           <AlertDescription className="text-xs">
-            Puoi vedere stato e salute delle integrazioni, ma connessione, test e
-            disconnessione sono riservati agli amministratori aziendali.
+            Vedi se ogni integrazione è collegata o ha un problema. Per collegarla, ricollegarla o scollegarla serve il
+            permesso «Integrazioni &amp; Canali» in modifica (o essere amministratore).
           </AlertDescription>
         </Alert>
       )}

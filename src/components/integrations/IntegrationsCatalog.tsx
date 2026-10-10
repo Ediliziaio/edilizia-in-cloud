@@ -44,7 +44,7 @@ export const CATEGORY_LABELS: Record<IntegrationCategory | "tutte", string> = {
   ai: "Assistenti AI",
   comunicazione: "Comunicazione",
   calendari: "Calendari",
-  marketing: "Marketing & Ads",
+  marketing: "Pubblicità e social",
   reputazione: "Reputazione",
   pagamenti: "Banca e incassi",
 };
@@ -95,7 +95,11 @@ export type IntegrationItem = {
   pageLabel?: string;
   /** Popup largo: per gli elenchi del team (persone, account, record DNS). */
   popupLargo?: boolean;
-  /** Niente «Disconnetti» nel menu: si scollega altrove (es. dal profilo di ognuno). */
+  /**
+   * Niente «Disconnetti» nel menu della scheda: la voce c'è SOLO dove disconnette davvero. Oggi è Meta, che apre il
+   * proprio wizard già sulla conferma. Per tutte le altre il collegamento si toglie altrove (nel popup della scheda,
+   * dal profilo di ognuno): una voce che si limita a portare in un'altra pagina non va chiamata «Disconnetti».
+   */
   senzaDisconnetti?: boolean;
   /** Nascondi dalla griglia il pulsante "Gestisci" se non è connesso (raro) */
   hideManageWhenDisconnected?: boolean;
@@ -150,6 +154,7 @@ export const INTEGRATIONS_CATALOG: IntegrationItem[] = [
     category: "ai",
     Logo: ClaudeLogo,
     gestisciMode: "popup",
+    senzaDisconnetti: true, // si scollega dal popup: «Revoca» su ogni collegamento
     pageHref: "/azienda/impostazioni/api",
     pageLabel: "Chiavi API",
     connectCtaLabel: "Collega",
@@ -163,6 +168,7 @@ export const INTEGRATIONS_CATALOG: IntegrationItem[] = [
     category: "ai",
     Logo: ChatGptLogo,
     gestisciMode: "popup",
+    senzaDisconnetti: true, // si scollega dal popup: «Revoca» su ogni collegamento
     pageHref: "/azienda/impostazioni/api",
     pageLabel: "Chiavi API",
     connectCtaLabel: "Collega",
@@ -194,6 +200,7 @@ export const INTEGRATIONS_CATALOG: IntegrationItem[] = [
     category: "comunicazione",
     Logo: WhatsAppLogo,
     gestisciMode: "navigate",
+    senzaDisconnetti: true, // i numeri si tolgono da WhatsApp: «Rimuovi numero»
     pageHref: "/azienda/whatsapp",
     pageLabel: "Apri WhatsApp",
     connectCtaLabel: "Configura",
@@ -218,7 +225,7 @@ export const INTEGRATIONS_CATALOG: IntegrationItem[] = [
     id: "meta",
     name: "Facebook e Instagram",
     description:
-      "Pagina Facebook, Instagram, recensioni e Lead Ads: un solo collegamento per i social e i moduli contatto.",
+      "Pagina Facebook, Instagram, recensioni e moduli dei tuoi annunci: un solo collegamento.",
     category: "marketing",
     Logo: MetaAssetLogo,
     gestisciMode: "external-wizard",
@@ -231,10 +238,11 @@ export const INTEGRATIONS_CATALOG: IntegrationItem[] = [
     id: "google-ads",
     name: "Google Ads",
     description:
-      "Campagne Search e Performance Max, con vendite e appuntamenti del CRM rimandati a Google come conversioni.",
+      "Le campagne su Google. Vendite e appuntamenti del CRM tornano a Google, così le campagne imparano cosa funziona.",
     category: "marketing",
     Logo: GoogleAdsLogo,
     gestisciMode: "popup",
+    senzaDisconnetti: true, // si scollega dal popup: «Scollega»
     pageHref: "/azienda/marketing/pubblicita",
     pageLabel: "Apri Pubblicità",
   },
@@ -246,6 +254,7 @@ export const INTEGRATIONS_CATALOG: IntegrationItem[] = [
     category: "reputazione",
     Logo: GoogleBusinessProfileLogo,
     gestisciMode: "popup",
+    senzaDisconnetti: true, // si scollega dal popup: «Scollega»
     pageHref: "/azienda/marketing/reputazione",
     pageLabel: "Apri Reputazione",
   },

@@ -1,17 +1,25 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { RotateCcw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { queryKeys } from "@/lib/queryKeys";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 import type { Integration } from "@/types/integrations";
 
 type Modo = "off" | "segnala" | "blocca";
+
+/** Come si legge la scelta già salvata, a scheda chiusa (diverso dai titoli delle tre scelte, per non ripeterli). */
+const STATO_SALVATO: Record<Modo, string> = {
+  off: "Nessuna regola",
+  segnala: "Fa entrare e segnala",
+  blocca: "Non li fa rientrare",
+};
 
 const SCELTE: { valore: Modo; titolo: string; testo: string }[] = [
   { valore: "off", titolo: "Come prima", testo: "Chi ricompila il modulo rientra sempre, anche se la sua richiesta era stata persa o abbandonata." },
@@ -23,6 +31,9 @@ const SCELTE: { valore: Modo; titolo: string; testo: string }[] = [
  * «Lead che rientrano» (01/10/2026): per i lead di Meta che ricompilano il modulo
  * dopo una richiesta persa o abbandonata. La regola vale per tutta l'azienda ed è
  * decisa qui; il lavoro lo fa meta-process-leads (_shared/rientroLead.ts).
+ *
+ * 09/10/2026: sta sotto l'elenco dei moduli, chiusa se la scelta è «Come prima» (nessuna azienda l'ha cambiata) e aperta
+ * da sola se è già attiva; chi la cambia e cerca di uscire senza salvare riceve l'avviso delle modifiche non salvate.
  */
 export function RientroLeadCard({ integration, canManage }: { integration: Integration; canManage: boolean }) {
   const queryClient = useQueryClient();
@@ -31,14 +42,12 @@ export function RientroLeadCard({ integration, canManage }: { integration: Integ
   const [modo, setModo] = useState<Modo>(salvato);
   const [giorni, setGiorni] = useState(String(giorniSalvati));
 
-  useEffect(() => {
-    setModo(salvato);
-    setGiorni(String(giorniSalvati));
-  }, [salvato, giorniSalvati]);
+  // Quando il valore salvato cambia (dopo «Salva») la scheda riparte da quello: lo fa la `key` che le dà la pagina.
 
   const giorniNum = Math.round(Number(giorni));
   const giorniValidi = Number.isFinite(giorniNum) && giorniNum >= 1 && giorniNum <= 3650;
   const modificato = modo !== salvato || (giorniValidi && giorniNum !== giorniSalvati);
+  useSettingsDraftGuard(canManage && (modo !== salvato || giorni !== String(giorniSalvati)));
 
   const salva = useMutation({
     mutationFn: async () => {
@@ -52,21 +61,23 @@ export function RientroLeadCard({ integration, canManage }: { integration: Integ
       toast.success("Impostazione salvata");
       queryClient.invalidateQueries({ queryKey: queryKeys.metaForms.integration(integration.company_id) });
     },
-    onError: (e: Error) => toast.error("Non salvata", { description: e.message }),
+    onError: (e: Error) => toast.error("Non salvata", { description: userErrorMessage(e, "Riprova tra poco.") }),
   });
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <RotateCcw className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          <CardTitle className="text-sm font-medium">Lead che rientrano</CardTitle>
-        </div>
-        <CardDescription>
+    <details
+      open={salvato !== "off"}
+      className="rounded-lg border bg-card text-card-foreground shadow-sm [&_summary::-webkit-details-marker]:hidden"
+    >
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 px-6 py-4">
+        <RotateCcw className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        <h2 className="text-sm font-medium">Lead che rientrano</h2>
+        <span className="ml-auto text-xs text-muted-foreground">{STATO_SALVATO[salvato]}</span>
+      </summary>
+      <div className="space-y-4 px-6 pb-6">
+        <p className="text-sm text-muted-foreground">
           Cosa fare quando chi ha la richiesta persa o abbandonata ricompila un modulo Meta, per non far perdere tempo al team.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 pt-0">
+        </p>
         <RadioGroup value={modo} onValueChange={(v) => setModo(v as Modo)} disabled={!canManage} className="space-y-2">
           {SCELTE.map((s) => (
             <label
@@ -114,7 +125,7 @@ export function RientroLeadCard({ integration, canManage }: { integration: Integ
         ) : (
           <p className="text-xs text-muted-foreground">Solo un amministratore dell'azienda può cambiare questa impostazione.</p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </details>
   );
 }

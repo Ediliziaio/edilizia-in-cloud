@@ -169,14 +169,14 @@ export function useFormBuilder() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-forms"] });
-      toast.success("Form creato");
+      toast.success("Modulo creato");
     },
     onError: (e: unknown) => {
       if (isDuplicateSlugError(e)) {
-        toast.error("Slug già esistente", { description: "Scegli un URL diverso per questo form." });
+        toast.error("Indirizzo già usato", { description: "Scegli un indirizzo diverso per questo modulo." });
         return;
       }
-      toast.error("Errore nella creazione del form", { description: getMutationErrorMessage(e) || "Riprova tra poco." });
+      toast.error("Non sono riuscito a creare il modulo", { description: getMutationErrorMessage(e) || "Riprova tra poco." });
     },
   });
 
@@ -212,18 +212,18 @@ export function useFormBuilder() {
         .select("id")
         .maybeSingle();
       if (error) throw error;
-      if (!data) throw new Error("Form non trovato o non modificabile");
+      if (!data) throw new Error("Modulo non trovato o non modificabile");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-forms"] });
-      toast.success("Form aggiornato");
+      toast.success("Modulo salvato");
     },
     onError: (e: unknown) => {
       if (isDuplicateSlugError(e)) {
-        toast.error("Slug già esistente", { description: "Scegli un URL diverso per questo form." });
+        toast.error("Indirizzo già usato", { description: "Scegli un indirizzo diverso per questo modulo." });
         return;
       }
-      toast.error("Errore nell'aggiornamento del form", { description: getMutationErrorMessage(e) || "Riprova tra poco." });
+      toast.error("Non sono riuscito a salvare il modulo", { description: getMutationErrorMessage(e) || "Riprova tra poco." });
     },
   });
 
@@ -235,9 +235,9 @@ export function useFormBuilder() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-forms"] });
-      toast.success("Form eliminato");
+      toast.success("Modulo eliminato");
     },
-    onError: (e: unknown) => toast.error("Errore nell'eliminazione del form", { description: getMutationErrorMessage(e) || "Riprova tra poco." }),
+    onError: (e: unknown) => toast.error("Non sono riuscito a eliminare il modulo", { description: getMutationErrorMessage(e) || "Riprova tra poco." }),
   });
 
   const togglePublish = useCallback(
@@ -245,7 +245,7 @@ export function useFormBuilder() {
       if (!form.is_published) {
         const validation = validateLeadFormDraft(form, { publishing: true });
         if (!validation.ok) {
-          toast.error("Form non pubblicabile", { description: validation.errors[0] });
+          toast.error("Modulo non pubblicabile", { description: validation.errors[0] });
           return;
         }
       }

@@ -1,12 +1,13 @@
 // Impostazioni → CRM & Vendite → Motivi di perdita.
 // Route protetta in companyRoutes.tsx con withCompanyPermission("canViewSettingsCustomization").
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -26,7 +27,9 @@ export default function SettingsMotiviPerdita() {
   const permissions = usePermissions();
   const { motivi, isLoading, isError, refetch } = useLossReasons();
   const { data: utilizzo, isError: usageError, isLoading: usageLoading, refetch: refetchUsage } = useLossReasonUsage();
-  const canEdit = !permissions.isLoading && !isLoading && !isError && (permissions.isAdmin || permissions.canEditSettingsCustomization);
+  // Chi può modificare per permesso (a prescindere dal caricamento): serve a dire, a chi non può, perché mancano i comandi.
+  const puoModificare = !permissions.isLoading && (permissions.isAdmin || permissions.canEditSettingsCustomization);
+  const canEdit = puoModificare && !isLoading && !isError;
   const aggiungi = useAddLossReason();
   const rinomina = useRenameLossReason();
   const elimina = useDeleteLossReason();
@@ -77,7 +80,7 @@ export default function SettingsMotiviPerdita() {
               if (e.key === "Enter") salvaNome();
               if (e.key === "Escape") setInModifica(null);
             }}
-            className="h-8 text-sm flex-1"
+            className="h-8 text-sm flex-1 max-md:h-11"
           />
         ) : (
           <span className="min-w-0 flex-1 break-words text-sm">{m.label}</span>
@@ -89,19 +92,19 @@ export default function SettingsMotiviPerdita() {
           <Lock className="h-3.5 w-3.5 text-muted-foreground" aria-label="Motivo standard" />
         ) : !canEdit ? null : modifica ? (
           <fieldset disabled={busy} className="m-0 min-w-0 border-0 p-0 flex gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={salvaNome} disabled={rinomina.isPending} aria-label="Salva nome">
+            <Button size="icon" variant="ghost" className="h-8 w-8 max-md:h-11 max-md:w-11" onClick={salvaNome} disabled={rinomina.isPending} aria-label="Salva nome">
               {rinomina.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setInModifica(null)} aria-label="Annulla">
+            <Button size="icon" variant="ghost" className="h-8 w-8 max-md:h-11 max-md:w-11" onClick={() => setInModifica(null)} aria-label="Annulla">
               <X className="h-4 w-4" />
             </Button>
           </fieldset>
         ) : (
           <fieldset disabled={busy} className="m-0 min-w-0 border-0 p-0 flex gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { if (confermaUscita()) setInModifica({ id: m.id!, label: m.label }); }} aria-label={`Rinomina ${m.label}`}>
+            <Button size="icon" variant="ghost" className="h-8 w-8 max-md:h-11 max-md:w-11" onClick={() => { if (confermaUscita()) setInModifica({ id: m.id!, label: m.label }); }} aria-label={`Rinomina ${m.label}`}>
               <Pencil className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => setDaEliminare(m)} aria-label={`Togli ${m.label}`}>
+            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive max-md:h-11 max-md:w-11" onClick={() => setDaEliminare(m)} aria-label={`Togli ${m.label}`}>
               <Trash2 className="h-4 w-4" />
             </Button>
           </fieldset>
@@ -114,28 +117,44 @@ export default function SettingsMotiviPerdita() {
     <div className="space-y-4 max-w-2xl">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Perché un'opportunità viene persa</CardTitle>
           <CardDescription>
-            Scegli un motivo quando perdi un'opportunità. Gli standard sono comuni a tutte le aziende;
-            puoi aggiungere quelli del tuo lavoro.
+            Compaiono nella finestra che si apre quando segni un'opportunità come persa. Quelli standard sono comuni
+            a tutte le aziende; puoi aggiungere quelli del tuo lavoro.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          {isError && <Alert variant="destructive"><AlertDescription>Motivi aziendali non disponibili. Restano visibili solo gli standard.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova motivi</Button></AlertDescription></Alert>}
-          {usageError && <Alert><AlertDescription>Conteggi non disponibili.<Button size="sm" variant="ghost" onClick={() => refetchUsage()}>Ricalcola utilizzi</Button></AlertDescription></Alert>}
-          <section>
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-sm font-semibold">Standard</h3>
-              <Badge variant="secondary" className="text-[10px]">{standard.length}</Badge>
-            </div>
-            <ul className="divide-y">{standard.map(riga)}</ul>
-          </section>
+          {!puoModificare && !permissions.isLoading && (
+            <AvvisoSolaLettura>
+              Sola lettura: per aggiungere, rinominare o togliere un motivo serve il permesso «Modifica» su Personalizzazione.
+            </AvvisoSolaLettura>
+          )}
+          {isError && <Alert variant="destructive"><AlertDescription>Motivi aziendali non disponibili. Restano visibili solo gli standard.<Button size="sm" variant="outline" onClick={() => refetch()} className="max-md:h-11">Riprova motivi</Button></AlertDescription></Alert>}
+          {usageError && <Alert><AlertDescription>Conteggi non disponibili.<Button size="sm" variant="ghost" onClick={() => refetchUsage()} className="max-md:h-11">Ricalcola utilizzi</Button></AlertDescription></Alert>}
 
-          <section>
+          <section aria-labelledby="motivi-azienda-titolo">
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-sm font-semibold">Della tua azienda</h3>
+              <h2 id="motivi-azienda-titolo" className="text-sm font-semibold">Della tua azienda</h2>
               <Badge variant="secondary" className="text-[10px]">{aziendali.length}</Badge>
             </div>
+            {/* Il campo per aggiungere sta subito sotto il titolo: prima si scorrevano sette righe fisse. */}
+            {canEdit && (
+              <div className="flex gap-2 mt-2 mb-1">
+                <Input
+                  id="nuovo-motivo-perdita"
+                  placeholder="Nuovo motivo…"
+                  aria-label="Nuovo motivo di perdita"
+                  disabled={busy}
+                  value={nuovo}
+                  onChange={(e) => setNuovo(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && nuovo.trim()) salvaNuovo(); }}
+                  className="h-9 max-md:h-11"
+                />
+                <Button size="sm" onClick={salvaNuovo} disabled={!nuovo.trim() || busy} className="h-9 shrink-0 max-md:h-11">
+                  {aggiungi.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+                  Aggiungi
+                </Button>
+              </div>
+            )}
             {isLoading ? (
               <Skeleton className="h-10 w-full" />
             ) : isError ? null : aziendali.length === 0 ? (
@@ -145,26 +164,21 @@ export default function SettingsMotiviPerdita() {
             ) : (
               <ul className="divide-y">{aziendali.map(riga)}</ul>
             )}
-
-            {canEdit && (
-              <div className="flex gap-2 mt-3">
-                <Input
-                  id="nuovo-motivo-perdita"
-                  placeholder="Nuovo motivo…"
-                  aria-label="Nuovo motivo di perdita"
-                  disabled={busy}
-                  value={nuovo}
-                  onChange={(e) => setNuovo(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && nuovo.trim()) salvaNuovo(); }}
-                  className="h-9"
-                />
-                <Button size="sm" onClick={salvaNuovo} disabled={!nuovo.trim() || busy} className="h-9 shrink-0">
-                  {aggiungi.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
-                  Aggiungi
-                </Button>
-              </div>
-            )}
           </section>
+
+          {/* I sette motivi standard non si cambiano: chiusi, per non far scorrere sette righe fisse prima di arrivare ai propri. */}
+          <details className="group rounded-md border">
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 max-md:min-h-11">
+              <h2 className="text-sm font-semibold">Motivi standard</h2>
+              <Badge variant="secondary" className="text-[10px]">{standard.length}</Badge>
+              <span className="ml-auto text-xs text-muted-foreground group-open:hidden">Mostra</span>
+              <span className="ml-auto hidden text-xs text-muted-foreground group-open:inline">Nascondi</span>
+            </summary>
+            <div className="border-t px-3 pb-2">
+              <p className="py-2 text-xs text-muted-foreground">Sono uguali per tutte le aziende e non si cambiano.</p>
+              <ul className="divide-y">{standard.map(riga)}</ul>
+            </div>
+          </details>
         </CardContent>
       </Card>
 

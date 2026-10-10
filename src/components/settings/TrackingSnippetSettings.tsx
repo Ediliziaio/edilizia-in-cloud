@@ -5,26 +5,22 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, ExternalLink, Code, Zap, BarChart3 } from "lucide-react";
+import { Copy, Check, Code } from "lucide-react";
 import { toast } from "sonner";
 import { copyTextToClipboard } from "@/lib/formBuilder";
 
+// I dati che il codice raccoglie: i cinque «utm» in parole di tutti i giorni; i codici dei clic delle piattaforme pubblicitarie
+// si mettono da soli e stanno in una riga.
 const UTM_PARAMS = [
-  { param: "utm_source", desc: "Sorgente traffico", example: "google, facebook, newsletter" },
-  { param: "utm_medium", desc: "Mezzo", example: "cpc, email, social" },
-  { param: "utm_campaign", desc: "Nome campagna", example: "spring_sale, brand" },
-  { param: "utm_content", desc: "Variante", example: "banner_a, link_top" },
-  { param: "utm_term", desc: "Keyword", example: "ristrutturazione casa" },
-  { param: "gclid", desc: "Google Click ID", example: "Automatico da Google Ads" },
-  { param: "wbraid", desc: "Google Ads iOS Web", example: "Automatico da Google Ads" },
-  { param: "gbraid", desc: "Google Ads iOS App", example: "Automatico da Google Ads" },
-  { param: "fbclid", desc: "Facebook Click ID", example: "Automatico da Meta Ads" },
-  { param: "ttclid", desc: "TikTok Click ID", example: "Automatico da TikTok Ads" },
-  { param: "msclkid", desc: "Microsoft Click ID", example: "Automatico da Microsoft Ads" },
-  { param: "li_fat_id", desc: "LinkedIn Click ID", example: "Automatico da LinkedIn Ads" },
+  { param: "utm_source", desc: "Sorgente: da dove arriva chi visita", example: "google, facebook, newsletter" },
+  { param: "utm_medium", desc: "Mezzo: il tipo di canale", example: "cpc, email, social" },
+  { param: "utm_campaign", desc: "Campagna", example: "spring_sale, brand" },
+  { param: "utm_content", desc: "Variante dell'annuncio o del link", example: "banner_a, link_top" },
+  { param: "utm_term", desc: "Parola chiave", example: "ristrutturazione casa" },
 ];
+const CLICK_ID_PARAMS = ["gclid", "wbraid", "gbraid", "fbclid", "ttclid", "msclkid", "li_fat_id"];
 
-const SUPPORTED_ATTRIBUTION_PARAMS = UTM_PARAMS.map((param) => param.param);
+const SUPPORTED_ATTRIBUTION_PARAMS = [...UTM_PARAMS.map((param) => param.param), ...CLICK_ID_PARAMS];
 
 export function TrackingSnippetSettings() {
   const { effectiveCompany } = useAuth();
@@ -39,10 +35,10 @@ export function TrackingSnippetSettings() {
     try {
       await copyTextToClipboard(snippet);
       setCopied(true);
-      toast.success("Snippet copiato!");
+      toast.success("Codice copiato");
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Copia non riuscita", { description: "Seleziona il codice e copialo manualmente." });
+      toast.error("Copia non riuscita", { description: "Seleziona il codice e copialo a mano." });
     }
   };
 
@@ -56,63 +52,27 @@ export function TrackingSnippetSettings() {
   })();
 
   return (
-    <div className="space-y-6">
-      {/* How it works */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Come funziona</CardTitle>
-          <CardDescription>Il tracking UTM cattura l'origine dei visitatori sul tuo sito</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex gap-3">
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <Code className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">1. Installa lo snippet</p>
-                <p className="text-xs text-muted-foreground">Copia il codice e incollalo nel tag &lt;head&gt; del tuo sito</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <Zap className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">2. Usa link con UTM</p>
-                <p className="text-xs text-muted-foreground">Aggiungi parametri UTM ai link delle tue campagne</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <BarChart3 className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">3. Analizza i risultati</p>
-                <p className="text-xs text-muted-foreground">Vedi le sorgenti di traffico nei report e nelle schede contatto</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Snippet */}
+    <div className="space-y-4">
+      {/* L'unica cosa da fare: incollare il codice. Il resto (cosa raccoglie, la prova) sta sotto, chiuso. */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <Code className="h-4 w-4" /> Snippet di tracking
+            <Code className="h-4 w-4" /> Il codice da incollare nel sito
           </CardTitle>
-          <CardDescription>Incolla questo codice nel tag &lt;head&gt; di ogni pagina del tuo sito</CardDescription>
+          <CardDescription>
+            Incolla questo codice nel sito: ogni contatto porta con sé l'annuncio o la campagna da cui è arrivato.
+            Va nel tag &lt;head&gt; di ogni pagina.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="relative">
-            <pre className="bg-muted rounded-lg p-4 text-xs overflow-x-auto max-h-[200px] font-mono">
+            <pre className="bg-muted rounded-lg p-4 pr-24 text-xs overflow-x-auto max-h-[200px] font-mono" tabIndex={0} aria-label="Codice da incollare nel sito">
               {snippet}
             </pre>
             <Button
               size="sm"
               variant="secondary"
-              className="absolute top-2 right-2 gap-1"
+              className="absolute top-2 right-2 gap-1 max-md:h-11"
               onClick={copySnippet}
             >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -122,39 +82,46 @@ export function TrackingSnippetSettings() {
         </CardContent>
       </Card>
 
-      {/* Supported params */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Parametri supportati</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {UTM_PARAMS.map((p) => (
-              <div key={p.param} className="flex items-start gap-3 py-1.5 border-b last:border-0">
-                <Badge variant="outline" className="font-mono text-[10px] shrink-0">{p.param}</Badge>
-                <div className="min-w-0">
-                  <p className="text-sm">{p.desc}</p>
-                  <p className="text-xs text-muted-foreground">Es: {p.example}</p>
-                </div>
+      <details className="group rounded-lg border bg-card">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium max-md:min-h-11">
+          <span>Quali dati raccoglie</span>
+          <span className="text-xs font-normal text-muted-foreground group-open:hidden">Mostra</span>
+          <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">Nascondi</span>
+        </summary>
+        <div className="space-y-2 border-t px-4 py-3">
+          <p className="text-xs text-muted-foreground">
+            Quello che scrivi nei link delle tue campagne (i parametri «utm»). Aggiungili in fondo al link, per esempio
+            <span className="font-mono"> ?utm_source=google&amp;utm_medium=cpc</span>.
+          </p>
+          {UTM_PARAMS.map((p) => (
+            <div key={p.param} className="flex items-start gap-3 py-1.5 border-b last:border-0">
+              <Badge variant="outline" className="font-mono text-[10px] shrink-0">{p.param}</Badge>
+              <div className="min-w-0">
+                <p className="text-sm">{p.desc}</p>
+                <p className="text-xs text-muted-foreground">Es: {p.example}</p>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+          ))}
+          <p className="text-xs text-muted-foreground">
+            In più il codice legge da solo i codici dei clic di Google, Facebook, TikTok, Microsoft e LinkedIn: non devi scrivere niente.
+          </p>
+        </div>
+      </details>
 
-      {/* URL tester */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <ExternalLink className="h-4 w-4" /> Test URL
-          </CardTitle>
-            <CardDescription>Incolla un URL con parametri UTM o click ID per verificare che vengano riconosciuti</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <details className="group rounded-lg border bg-card">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium max-md:min-h-11">
+          <span>Prova un indirizzo</span>
+          <span className="text-xs font-normal text-muted-foreground group-open:hidden">Mostra</span>
+          <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">Nascondi</span>
+        </summary>
+        <div className="space-y-3 border-t px-4 py-3">
+          <p className="text-xs text-muted-foreground">Incolla un indirizzo di una tua campagna per vedere cosa riconosce il codice.</p>
           <Input
             placeholder="https://tuosito.com/?utm_source=google&utm_medium=cpc"
+            aria-label="Indirizzo da provare"
             value={testUrl}
             onChange={(e) => setTestUrl(e.target.value)}
+            className="max-md:h-11"
           />
           {testUrl && parsedParams.length > 0 && (
             <div className="space-y-1">
@@ -162,16 +129,16 @@ export function TrackingSnippetSettings() {
                 <div key={k} className="flex items-center gap-2 text-sm">
                   <Badge variant="secondary" className="font-mono text-[10px]">{k}</Badge>
                   <span className="text-foreground">{v}</span>
-                  <Check className="h-3.5 w-3.5 text-green-600" />
+                  <Check className="h-3.5 w-3.5 text-green-600" aria-label="riconosciuto" />
                 </div>
               ))}
             </div>
           )}
           {testUrl && parsedParams.length === 0 && (
-            <p className="text-sm text-muted-foreground">Nessun parametro UTM o click ID supportato trovato nell'URL</p>
+            <p className="text-sm text-muted-foreground">In questo indirizzo non c'è nessun dato di campagna che il codice riconosca.</p>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </details>
     </div>
   );
 }

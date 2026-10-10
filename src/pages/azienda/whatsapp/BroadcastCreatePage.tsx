@@ -223,7 +223,7 @@ export default function BroadcastCreatePage() {
                   <SelectContent>
                     {eligibleNumbers.length === 0 && (
                       <div className="px-2 py-2 text-sm text-muted-foreground">
-                        Nessun numero Marketing & Broadcast. Collega prima il WhatsApp commerciale.
+                        Nessun numero per marketing e invii di massa. Collega prima il WhatsApp commerciale.
                       </div>
                     )}
                     {numbersError && (

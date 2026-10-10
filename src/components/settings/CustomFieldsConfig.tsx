@@ -11,9 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -26,17 +25,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, Search, Copy, FolderPlus, Lock, AlertCircle, Pencil, FolderOpen, Undo2, ShieldAlert } from "lucide-react";
-import {
-  useCustomFieldFolders,
-  useCreateCustomFieldFolder,
-  useUpdateCustomFieldFolder,
-  useDeleteCustomFieldFolder,
-  type CustomFieldFolder,
-} from "@/hooks/useCustomFieldFolders";
+import { Plus, Trash2, Search, Copy, Lock, AlertCircle, Pencil, Undo2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { userErrorMessage } from "@/lib/userErrorMessage";
+import { queryKeys } from "@/lib/queryKeys";
 
 /* ───── types ───── */
 export interface UnifiedField {
@@ -62,6 +56,7 @@ interface MarketingCustomFieldRow {
   created_at: string;
   field_type: string;
   options: string[] | null;
+  deleted_at: string | null;
 }
 
 type CustomFieldUsageCounts = {
@@ -104,11 +99,11 @@ class CustomFieldInUseError extends Error {
   }
 }
 
-function getErrorMessage(error: unknown) {
-  if (error && typeof error === "object" && "message" in error) {
-    return String(error.message);
-  }
-  return "";
+/** Un errore di convalida scritto qui, già in italiano: si mostra com'è (gli altri passano da userErrorMessage). */
+class ErroreCampo extends Error {}
+
+function erroreCampo(error: unknown, fallback: string) {
+  return error instanceof ErroreCampo ? error.message : userErrorMessage(error, fallback);
 }
 
 async function getCustomFieldUsageCounts(fieldId: string): Promise<CustomFieldUsageCounts> {
@@ -189,8 +184,8 @@ export const FOLDER_COLORS: Record<string, string> = {
 };
 export const FOLDER_LABELS: Record<string, string> = {
   contact: "Contatto",
-  general_info: "General Info",
-  additional_info: "Additional Info",
+  general_info: "Informazioni generali",
+  additional_info: "Informazioni aggiuntive",
   opportunity_details: "Opportunità",
   appointment: "Appuntamento",
   order: "Ordine",
@@ -247,22 +242,22 @@ export const BUILTIN_FIELDS: UnifiedField[] = [
   // ── Contatto ──
   // ══════════════════════════════════════
   sysField("sys_c_id", "ID Contatto", "Contatto", "contact", "{{ contact.id }}"),
-  sysField("sys_first_name", "First Name", "Contatto", "contact", "{{ contact.first_name }}"),
-  sysField("sys_last_name", "Last Name", "Contatto", "contact", "{{ contact.last_name }}"),
-  sysField("sys_full_name", "Full Name", "Contatto", "contact", "{{ contact.full_name }}"),
+  sysField("sys_first_name", "Nome", "Contatto", "contact", "{{ contact.first_name }}"),
+  sysField("sys_last_name", "Cognome", "Contatto", "contact", "{{ contact.last_name }}"),
+  sysField("sys_full_name", "Nome e Cognome", "Contatto", "contact", "{{ contact.full_name }}"),
   sysField("sys_email", "Email", "Contatto", "contact", "{{ contact.email }}"),
-  sysField("sys_phone", "Phone", "Contatto", "contact", "{{ contact.phone }}"),
-  sysField("sys_dob", "Date Of Birth", "Contatto", "contact", "{{ contact.date_of_birth }}"),
-  sysField("sys_source", "Contact Source", "Contatto", "contact", "{{ contact.source }}"),
+  sysField("sys_phone", "Telefono", "Contatto", "contact", "{{ contact.phone }}"),
+  sysField("sys_dob", "Data di Nascita", "Contatto", "contact", "{{ contact.date_of_birth }}"),
+  sysField("sys_source", "Origine del Contatto", "Contatto", "contact", "{{ contact.source }}"),
   sysField("sys_contact_type", "Tipo Contatto (B2B/B2C)", "Contatto", "contact", "{{ contact.contact_type }}"),
-  sysField("sys_assigned_to", "Assigned To", "Contatto", "contact", "{{ contact.assigned_to }}"),
+  sysField("sys_assigned_to", "Assegnato a", "Contatto", "contact", "{{ contact.assigned_to }}"),
   sysField("sys_c_fiscal_code", "Codice Fiscale", "Contatto", "contact", "{{ contact.fiscal_code }}"),
   sysField("sys_c_vat_number", "Partita IVA", "Contatto", "contact", "{{ contact.vat_number }}"),
-  sysField("sys_c_tags", "Tags", "Contatto", "contact", "{{ contact.tags }}"),
+  sysField("sys_c_tags", "Tag", "Contatto", "contact", "{{ contact.tags }}"),
   sysField("sys_c_notes", "Note", "Contatto", "contact", "{{ contact.notes }}"),
-  sysField("sys_c_lead_score", "Lead Score", "Contatto", "contact", "{{ contact.lead_score }}"),
-  sysField("sys_c_icp_tier", "ICP Tier", "Contatto", "contact", "{{ contact.icp_tier }}"),
-  sysField("sys_c_score", "Score", "Contatto", "contact", "{{ contact.score }}"),
+  sysField("sys_c_lead_score", "Punteggio Lead", "Contatto", "contact", "{{ contact.lead_score }}"),
+  sysField("sys_c_icp_tier", "Fascia Cliente Ideale", "Contatto", "contact", "{{ contact.icp_tier }}"),
+  sysField("sys_c_score", "Punteggio", "Contatto", "contact", "{{ contact.score }}"),
   sysField("sys_c_pref_lang", "Lingua Preferita", "Contatto", "contact", "{{ contact.preferred_language }}"),
   sysField("sys_c_pref_channel", "Canale Preferito", "Contatto", "contact", "{{ contact.preferred_channel }}"),
   sysField("sys_c_optout_email", "Opt-out Email", "Contatto", "contact", "{{ contact.optout_email }}"),
@@ -272,31 +267,31 @@ export const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_c_unsubscribed", "Disiscritto", "Contatto", "contact", "{{ contact.unsubscribed }}"),
   sysField("sys_c_last_activity", "Ultima Attività", "Contatto", "contact", "{{ contact.last_activity_at }}"),
   // General Info
-  sysField("sys_company_name", "Business Name", "Contatto", "general_info", "{{ contact.company_name }}"),
-  sysField("sys_address", "Street Address", "Contatto", "general_info", "{{ contact.address }}"),
-  sysField("sys_city", "City", "Contatto", "general_info", "{{ contact.city }}"),
-  sysField("sys_province", "State", "Contatto", "general_info", "{{ contact.province }}"),
-  sysField("sys_postal_code", "Postal Code", "Contatto", "general_info", "{{ contact.postal_code }}"),
-  sysField("sys_country", "Country", "Contatto", "general_info", "{{ contact.country }}"),
-  sysField("sys_website", "Website", "Contatto", "general_info", "{{ contact.website }}"),
+  sysField("sys_company_name", "Nome Azienda", "Contatto", "general_info", "{{ contact.company_name }}"),
+  sysField("sys_address", "Indirizzo", "Contatto", "general_info", "{{ contact.address }}"),
+  sysField("sys_city", "Città", "Contatto", "general_info", "{{ contact.city }}"),
+  sysField("sys_province", "Provincia", "Contatto", "general_info", "{{ contact.province }}"),
+  sysField("sys_postal_code", "CAP", "Contatto", "general_info", "{{ contact.postal_code }}"),
+  sysField("sys_country", "Paese", "Contatto", "general_info", "{{ contact.country }}"),
+  sysField("sys_website", "Sito Web", "Contatto", "general_info", "{{ contact.website }}"),
 
   // ══════════════════════════════════════
   // ── Opportunità ──
   // ══════════════════════════════════════
   sysField("sys_opp_id", "ID Opportunità", "Opportunità", "opportunity_details", "{{ opportunity.id }}"),
-  sysField("sys_opp_name", "Opportunity Name", "Opportunità", "opportunity_details", "{{ opportunity.name }}"),
+  sysField("sys_opp_name", "Nome Opportunità", "Opportunità", "opportunity_details", "{{ opportunity.name }}"),
   sysField("sys_opp_pipeline", "Pipeline", "Opportunità", "opportunity_details", "{{ opportunity.pipeline_id }}"),
-  sysField("sys_opp_stage", "Stage", "Opportunità", "opportunity_details", "{{ opportunity.stage_id }}"),
-  sysField("sys_opp_status", "Status", "Opportunità", "opportunity_details", "{{ opportunity.status }}"),
-  sysField("sys_opp_value", "Lead Value", "Opportunità", "opportunity_details", "{{ opportunity.value }}"),
-  sysField("sys_opp_owner", "Opportunity Owner", "Opportunità", "opportunity_details", "{{ opportunity.assigned_to }}"),
-  sysField("sys_opp_source", "Opportunity Source", "Opportunità", "opportunity_details", "{{ opportunity.source }}"),
-  sysField("sys_opp_lost_reason", "Lost Reason", "Opportunità", "opportunity_details", "{{ opportunity.loss_reason }}"),
-  sysField("sys_opp_expected_close", "Expected Close Date", "Opportunità", "opportunity_details", "{{ opportunity.expected_close_date }}"),
-  sysField("sys_opp_contact_id", "Contact ID", "Opportunità", "opportunity_details", "{{ opportunity.contact_id }}"),
+  sysField("sys_opp_stage", "Fase", "Opportunità", "opportunity_details", "{{ opportunity.stage_id }}"),
+  sysField("sys_opp_status", "Stato", "Opportunità", "opportunity_details", "{{ opportunity.status }}"),
+  sysField("sys_opp_value", "Valore", "Opportunità", "opportunity_details", "{{ opportunity.value }}"),
+  sysField("sys_opp_owner", "Responsabile", "Opportunità", "opportunity_details", "{{ opportunity.assigned_to }}"),
+  sysField("sys_opp_source", "Origine", "Opportunità", "opportunity_details", "{{ opportunity.source }}"),
+  sysField("sys_opp_lost_reason", "Motivo della Perdita", "Opportunità", "opportunity_details", "{{ opportunity.loss_reason }}"),
+  sysField("sys_opp_expected_close", "Data di Chiusura Prevista", "Opportunità", "opportunity_details", "{{ opportunity.expected_close_date }}"),
+  sysField("sys_opp_contact_id", "ID Contatto", "Opportunità", "opportunity_details", "{{ opportunity.contact_id }}"),
   sysField("sys_opp_company_name", "Nome Azienda", "Opportunità", "opportunity_details", "{{ opportunity.company_name }}"),
   sysField("sys_opp_notes", "Note", "Opportunità", "opportunity_details", "{{ opportunity.notes }}"),
-  sysField("sys_opp_tags", "Tags", "Opportunità", "opportunity_details", "{{ opportunity.tags }}"),
+  sysField("sys_opp_tags", "Tag", "Opportunità", "opportunity_details", "{{ opportunity.tags }}"),
   sysField("sys_opp_probability", "Probabilità", "Opportunità", "opportunity_details", "{{ opportunity.probability }}"),
   sysField("sys_opp_next_action", "Prossima Azione", "Opportunità", "opportunity_details", "{{ opportunity.next_action }}"),
   sysField("sys_opp_next_action_date", "Data Prossima Azione", "Opportunità", "opportunity_details", "{{ opportunity.next_action_date }}"),
@@ -576,7 +571,7 @@ export const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_sup_bank", "Banca", "Fornitore", "supplier", "{{ supplier.bank_name }}"),
   sysField("sys_sup_pay_method", "Metodo Pagamento", "Fornitore", "supplier", "{{ supplier.payment_method }}"),
   sysField("sys_sup_credit", "Fido", "Fornitore", "supplier", "{{ supplier.credit_limit }}"),
-  sysField("sys_sup_lead_time", "Lead Time (gg)", "Fornitore", "supplier", "{{ supplier.lead_time_days }}"),
+  sysField("sys_sup_lead_time", "Tempi di Consegna (gg)", "Fornitore", "supplier", "{{ supplier.lead_time_days }}"),
   sysField("sys_sup_min_order", "Ordine Minimo", "Fornitore", "supplier", "{{ supplier.min_order_amount }}"),
   sysField("sys_sup_category", "Categoria Prodotto", "Fornitore", "supplier", "{{ supplier.product_category }}"),
   sysField("sys_sup_rating", "Valutazione", "Fornitore", "supplier", "{{ supplier.rating }}"),
@@ -897,7 +892,7 @@ export const BUILTIN_FIELDS: UnifiedField[] = [
   sysField("sys_x_c_google_ad_group_id", "ID Gruppo Annunci Google", "Contatto", "contact", "{{ contact.google_ad_group_id }}"),
   sysField("sys_x_c_google_ad_id", "ID Annuncio Google", "Contatto", "contact", "{{ contact.google_ad_id }}"),
   sysField("sys_x_c_gclid", "Google Click ID", "Contatto", "contact", "{{ contact.gclid }}"),
-  sysField("sys_x_c_icp_score", "ICP Score", "Contatto", "contact", "{{ contact.icp_score }}"),
+  sysField("sys_x_c_icp_score", "Punteggio Cliente Ideale", "Contatto", "contact", "{{ contact.icp_score }}"),
   sysField("sys_x_c_is_decision_maker", "È Decisore", "Contatto", "contact", "{{ contact.is_decision_maker }}"),
   sysField("sys_x_c_ai_score", "Punteggio AI", "Contatto", "contact", "{{ contact.ai_score }}"),
   sysField("sys_x_c_ai_score_tier", "Fascia Punteggio AI", "Contatto", "contact", "{{ contact.ai_score_tier }}"),
@@ -1336,72 +1331,57 @@ export const FIELD_TYPES = [
   { value: "percent", label: "Percentuale" },
   { value: "date", label: "Data" },
   { value: "time", label: "Ora" },
-  { value: "select", label: "Selezione" },
-  { value: "multiselect", label: "Multi-selezione" },
-  { value: "radio", label: "Radio" },
-  { value: "checkbox", label: "Checkbox" },
+  { value: "select", label: "Una scelta da un elenco" },
+  { value: "multiselect", label: "Più scelte da un elenco" },
+  { value: "radio", label: "Una sola scelta" },
+  { value: "checkbox", label: "Spunta sì/no" },
   { value: "phone", label: "Telefono" },
   { value: "email", label: "Email" },
-  { value: "url", label: "URL" },
-  { value: "file", label: "File / Allegato" },
+  { value: "url", label: "Indirizzo web" },
+  { value: "file", label: "File" },
 ];
 
-const CONTACT_SECTIONS = [
-  { value: "contact", label: "Contatto" },
-  { value: "general_info", label: "Informazioni generali" },
-  { value: "additional_info", label: "Informazioni aggiuntive" },
-];
-const OPPORTUNITY_SECTIONS = [
-  { value: "opportunity_details", label: "Opportunità Details" },
-];
-// Cantieri: ogni entity type ha una sezione con lo stesso nome
-const CANTIERE_SECTIONS: Record<string, { value: string; label: string }[]> = {
-  ordini_variazione: [{ value: "ordini_variazione", label: "Ordine di Variazione" }],
-  giornale_lavori:   [{ value: "giornale_lavori",   label: "Giornale dei Lavori" }],
-  pos_document:      [{ value: "pos_document",      label: "POS – Sicurezza" }],
-  duvri_document:    [{ value: "duvri_document",    label: "DUVRI – Sicurezza" }],
-  // ── Assistenza ──
-  intervento:            [{ value: "intervento",            label: "Intervento / Assistenza" }],
-  rapportino:            [{ value: "rapportino",            label: "Rapportino Intervento" }],
-  // ── Manutenzione ──
-  impianto:              [{ value: "impianto",              label: "Impianto Cliente" }],
-  contratto_manutenzione:[{ value: "contratto_manutenzione",label: "Contratto Manutenzione" }],
-  piano_manutenzione:    [{ value: "piano_manutenzione",    label: "Piano Manutenzione" }],
-  // ── Subappaltatori ──
-  subappaltatore:        [{ value: "subappaltatore",        label: "Subappaltatore" }],
-  contratto_subappalto:  [{ value: "contratto_subappalto",  label: "Contratto Subappalto" }],
-  sal_subappaltatore:    [{ value: "sal_subappaltatore",    label: "SAL Subappaltatore" }],
-  // ── Acquisti ──
-  ordine_acquisto:       [{ value: "ordine_acquisto",       label: "Ordine Acquisto (OdA)" }],
-  ddt_ricezione:         [{ value: "ddt_ricezione",         label: "DDT Ricezione Merce" }],
-  // ── Finanza ──
-  costo_aziendale:       [{ value: "costo_aziendale",       label: "Costo Aziendale" }],
-  // ── Personale & HR: selezione ──
-  candidato:             [{ value: "candidato",             label: "Candidato (Selezione)" }],
-  colloquio:             [{ value: "colloquio",             label: "Colloquio Candidato" }],
-  // ── Azienda ──
-  company:               [{ value: "company",               label: "Azienda / Profilo" }],
-  // ── Catalogo Esteso (Sprint C) ──
-  product:               [{ value: "product",               label: "Prodotto (Articolo)" }],
-  family:                [{ value: "family",                label: "Famiglia Prodotto" }],
-  tariffa:               [{ value: "tariffa",               label: "Tariffa / Manodopera" }],
-  catalog_category:      [{ value: "catalog_category",      label: "Categoria Listino" }],
-};
+/**
+ * Gli oggetti che hanno una sezione con il loro stesso nome. La sezione non si sceglie più nel dialogo
+ * («Sezione» era un menu che nessun codice leggeva: serviva solo da etichetta in tabella): un campo nuovo
+ * parte dalla sezione del suo oggetto, come prima partiva dalla prima voce del menu.
+ */
+const OGGETTI_CON_SEZIONE_PROPRIA = new Set<string>([
+  "ordini_variazione", "giornale_lavori", "pos_document", "duvri_document",
+  "intervento", "rapportino",
+  "impianto", "contratto_manutenzione", "piano_manutenzione",
+  "subappaltatore", "contratto_subappalto", "sal_subappaltatore",
+  "ordine_acquisto", "ddt_ricezione",
+  "costo_aziendale",
+  "candidato", "colloquio",
+  "company",
+  "product", "family", "tariffa", "catalog_category",
+]);
 
-// v8.6.46 — C3 minimal: traccia gli oggetti che hanno un renderer reale
-// nei form dell'app. Gli altri salvano il valore in DB ma non sono
-// visualizzati in UI. Usato per warning nel dialog di create/edit campo.
+function sezioneDiPartenza(objectType: string): string {
+  if (objectType === "opportunity") return "opportunity_details";
+  if (OGGETTI_CON_SEZIONE_PROPRIA.has(objectType)) return objectType;
+  return "general_info";
+}
+
+/** I tipi che la scheda del contatto sa compilare davvero (testo, numero, data, scelta da un elenco): gli altri li mostra come testo. */
+const TIPI_DISTINTI_SU_CONTATTO = new Set(["text", "number", "date", "select"]);
+
+// Gli oggetti i cui campi personalizzati si vedono davvero in una scheda o in una finestra. Gli altri
+// salvano il valore nel database e lo mettono a disposizione di testi e automazioni, ma nessuna scheda lo
+// mostra: nel dialogo e in tabella lo dicono («Non compare nelle schede»).
+// Controllato sulle schermate il 09/10/2026: prima c'erano per sbaglio Prodotto, Famiglia, Tariffa, Categoria
+// listino e POS (nessun form li mostra), e mancavano Appuntamento, Attività, Dipendente e Magazzino.
 export const RENDERED_OBJECT_TYPES = new Set<string>([
-  "contact",                  // ContactFieldsSheet + ContactDialog
-  "opportunity",              // OpportunityDialog (fix v8.6.44)
+  "contact",                  // scheda del contatto + finestra del contatto
+  "opportunity",              // OpportunityDialog
+  "appointment",              // AppointmentDialog → EntityCustomFieldsSection
+  "task",                     // TaskDialog → EntityCustomFieldsSection
+  "employee",                 // EmployeeDialog → EntityCustomFieldsSection
+  "warehouse",                // StockItemDialog → EntityCustomFieldsSection
   "ordini_variazione",        // OdVSection
   "giornale_lavori",          // GiornaleLavori
-  "pos_document",             // SicurezzaCantiere
   "duvri_document",           // SicurezzaCantiere
-  "product",                  // CustomFieldValuesForm (articoli)
-  "family",                   // CustomFieldValuesForm (famiglie)
-  "tariffa",                  // CustomFieldValuesForm (tariffe)
-  "catalog_category",         // CustomFieldValuesForm
 ]);
 
 export function isObjectRendered(objectType: string): boolean {
@@ -1505,11 +1485,16 @@ export function toSnakeCase(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 }
 
+/** Il menu «Dove compare»: prima gli oggetti che mostrano il campo, poi quelli che ancora no. */
+const OGGETTI_SCELTA = GROUP_OPTIONS.filter((g) => g.value !== "all");
+const OGGETTI_CON_SCHEDA = OGGETTI_SCELTA.filter((g) => isObjectRendered(g.value));
+const OGGETTI_SENZA_SCHEDA = OGGETTI_SCELTA.filter((g) => !isObjectRendered(g.value));
+
 /* ───── component ───── */
 export function CustomFieldsConfig() {
   const { effectiveCompany } = useAuth();
-  // Campi e cartelle li cambia chi ha «Personalizzazione» in modifica: è la
-  // stessa regola del database (policy «Permesso personalizzazione»).
+  // I campi li cambia chi ha «Personalizzazione» in modifica: è la stessa regola
+  // del database (policy «Permesso personalizzazione»).
   const permissions = usePermissions();
   const puoModificare = !permissions.isLoading && permissions.canEditSettingsCustomization;
   const queryClient = useQueryClient();
@@ -1518,128 +1503,74 @@ export function CustomFieldsConfig() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
   const [fieldType, setFieldType] = useState("text");
-  const [section, setSection] = useState("general_info");
   const [objectType, setObjectType] = useState<string>("contact");
   const [optionsInput, setOptionsInput] = useState("");
-  // v8.6.46 — C5 minimal: validazione + UX
-  const [isRequired, setIsRequired] = useState(false);
-  const [helpText, setHelpText] = useState("");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [groupBy, setGroupBy] = useState("all");
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
+  // Il campo da eliminare resta in memoria anche a finestra chiusa: durante la dissolvenza il titolo ne porta ancora il nome.
   const [deleteTarget, setDeleteTarget] = useState<UnifiedField | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [purgeTarget, setPurgeTarget] = useState<MarketingCustomFieldRow | null>(null);
+  const [purgeOpen, setPurgeOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<UnifiedField | null>(null);
-  // v8.6.45 — Folders (tab Cartelle)
-  const [folderDialogOpen, setFolderDialogOpen] = useState(false);
-  const [folderEditId, setFolderEditId] = useState<string | null>(null);
-  const [folderName, setFolderName] = useState("");
-  const [folderColor, setFolderColor] = useState("#1E3A5F");
-  const [folderObjectType, setFolderObjectType] = useState<string>("contact");
-  const [folderDeleteId, setFolderDeleteId] = useState<string | null>(null);
   const [fieldBaseline, setFieldBaseline] = useState("");
-  const [folderBaseline, setFolderBaseline] = useState("");
   const conferma = useSettingsDraftGuard(
-    (dialogOpen && JSON.stringify([name, fieldType, section, objectType, optionsInput, isRequired, helpText]) !== fieldBaseline) ||
-    (folderDialogOpen && JSON.stringify([folderName, folderColor, folderObjectType]) !== folderBaseline),
+    dialogOpen && JSON.stringify([name, fieldType, objectType, optionsInput]) !== fieldBaseline,
   );
   const chiudiCampo = (open: boolean) => { if (!busy && (open || conferma())) { setDialogOpen(open); if (!open) resetForm(); } };
-  const chiudiCartella = (open: boolean) => { if (!busy && (open || conferma())) setFolderDialogOpen(open); };
 
-  // v8.6.45 — Resiliente alla migration `deleted_at` non ancora applicata.
-  // Se la colonna non esiste (migration 20270517130000 ancora pending),
-  // l'UI degrada graceful: tab Eliminati mostra banner, tab principale
-  // continua a funzionare (filtro client-side se la colonna esiste).
+  // I campi eliminati restano nel database con `deleted_at` (si possono ripristinare): qui si leggono
+  // solo quelli attivi, e nella scheda «Campi eliminati» solo gli altri.
   const { data: customFields = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["marketing_custom_fields", companyId],
-    queryFn: async () => {
+    queryFn: async (): Promise<MarketingCustomFieldRow[]> => {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("marketing_custom_fields")
         .select("*")
         .eq("company_id", companyId)
-        .order("section")
-        .order("position");
+        .is("deleted_at", null)
+        // Stesso ordine delle schede (che leggono per `position`): il campo nuovo è l'ultimo dei tuoi.
+        .order("position")
+        .order("created_at");
       if (error) throw error;
-      // Filtro client-side dei soft-deletati (compatibile pre-migration:
-      // se la colonna non esiste è semplicemente undefined e tutti passano).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []).filter((row: any) => !row.deleted_at);
+      return data ?? [];
     },
     enabled: !!companyId,
   });
 
-  // v8.6.45 — Tab "Campi eliminati": graceful fallback se la migration
-  // non è ancora applicata. Catturo l'errore PostgREST `column does not exist`
-  // e ritorno [] + flag per mostrare un banner informativo.
-  const [softDeleteSupported, setSoftDeleteSupported] = useState(true);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: deletedFields = [], isLoading: deletedLoading, isError: deletedError, refetch: refetchDeleted } = useQuery<any[]>({
+  const { data: deletedFields = [], isLoading: deletedLoading, isError: deletedError, refetch: refetchDeleted } = useQuery({
     queryKey: ["marketing_custom_fields_deleted", companyId],
-    queryFn: async () => {
+    queryFn: async (): Promise<MarketingCustomFieldRow[]> => {
       if (!companyId) return [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("marketing_custom_fields")
         .select("*")
         .eq("company_id", companyId)
         .not("deleted_at", "is", null)
         .order("deleted_at", { ascending: false });
-      if (error) {
-        // Migration pending: la colonna deleted_at non esiste ancora
-        if (/deleted_at.*does not exist/i.test(error.message ?? "")) {
-          setSoftDeleteSupported(false);
-          return [];
-        }
-        throw error;
-      }
-      setSoftDeleteSupported(true);
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!companyId,
     retry: false,
   });
 
-  // v8.6.45 — Tab Cartelle: hook CRUD
-  const { data: folders = [], isLoading: foldersLoading, isError: foldersError, refetch: refetchFolders } = useCustomFieldFolders();
-  const createFolder = useCreateCustomFieldFolder();
-  const updateFolder = useUpdateCustomFieldFolder();
-  const deleteFolder = useDeleteCustomFieldFolder();
-
-  const openCreateFolderDialog = () => {
-    setFolderEditId(null);
-    setFolderName("");
-    setFolderColor("#1E3A5F");
-    setFolderObjectType("contact");
-    setFolderBaseline(JSON.stringify(["", "#1E3A5F", "contact"]));
-    setFolderDialogOpen(true);
-  };
-  const openEditFolderDialog = (f: CustomFieldFolder) => {
-    setFolderEditId(f.id);
-    setFolderName(f.name);
-    setFolderColor(f.color ?? "#1E3A5F");
-    setFolderObjectType(f.object_type ?? "contact");
-    setFolderBaseline(JSON.stringify([f.name, f.color ?? "#1E3A5F", f.object_type ?? "contact"]));
-    setFolderDialogOpen(true);
-  };
-  const submitFolder = () => {
-    if (!puoModificare || foldersError || foldersLoading || busy || !companyId) return;
-    if (folderEditId) {
-      updateFolder.mutate(
-        { id: folderEditId, name: folderName, color: folderColor, object_type: folderObjectType },
-        { onSuccess: () => setFolderDialogOpen(false) },
-      );
-    } else {
-      createFolder.mutate(
-        { name: folderName, color: folderColor, object_type: folderObjectType },
-        { onSuccess: () => setFolderDialogOpen(false) },
-      );
-    }
-  };
+  // Quanti valori ha già scritto chi usa il campo che sta per essere eliminato: serve solo a dirlo nella conferma
+  // (eliminare non li cancella: il campo va tra gli eliminati e si può ripristinare).
+  const { data: usoCampo } = useQuery({
+    queryKey: ["marketing_custom_fields_usage", deleteTarget?.id],
+    queryFn: () => getCustomFieldUsageCounts(deleteTarget!.id),
+    enabled: deleteOpen && !!deleteTarget,
+    retry: false,
+  });
+  const valoriDelCampo = deleteOpen && usoCampo ? usoCampo.contacts + usoCampo.opportunities + usoCampo.entities : 0;
 
   const allFields = useMemo<UnifiedField[]>(() => {
-    const custom: UnifiedField[] = (customFields as MarketingCustomFieldRow[]).map((f) => {
+    const custom: UnifiedField[] = customFields.map((f) => {
       const objectName = OBJECT_NAME_MAP[f.object_type] ?? f.object_type;
       const templateNs = f.object_type; // es. 'ordini_variazione'
       return {
@@ -1657,7 +1588,8 @@ export function CustomFieldsConfig() {
         objectType: f.object_type,
       };
     });
-    return [...BUILTIN_FIELDS, ...custom];
+    // I campi dell'azienda per primi: in fondo a 905 voci di sistema, un campo appena creato finiva a pagina 19 di 19.
+    return [...custom, ...BUILTIN_FIELDS];
   }, [customFields]);
 
   const filtered = useMemo(() => {
@@ -1674,50 +1606,30 @@ export function CustomFieldsConfig() {
         (f) =>
           f.name.toLowerCase().includes(q) ||
           f.uniqueKey.toLowerCase().includes(q) ||
-          f.object.toLowerCase().includes(q) ||
-          (FOLDER_LABELS[f.folder] || f.folder).toLowerCase().includes(q)
+          f.object.toLowerCase().includes(q)
       );
     }
     return result;
   }, [allFields, search, groupBy]);
 
-  // Campi creati su oggetti "solo API": salvati in DB ma non ancora resi nei
-  // form della UI. Sorgente di verità: RENDERED_OBJECT_TYPES.
-  const apiOnlyCustomCount = useMemo(
-    () => (customFields as MarketingCustomFieldRow[]).filter(
-      (f) => !isObjectRendered(f.object_type),
-    ).length,
+  // Campi su schede che non li mostrano: il valore si salva e si usa nei testi e nelle automazioni,
+  // ma nessuna scheda lo compila. Sorgente di verità: RENDERED_OBJECT_TYPES.
+  const fuoriDalleSchedeCount = useMemo(
+    () => customFields.filter((f) => !isObjectRendered(f.object_type)).length,
     [customFields],
   );
-
-  const handleObjectTypeChange = (val: string) => {
-    setObjectType(val);
-    if (val === "opportunity") setSection("opportunity_details");
-    else if (CANTIERE_SECTIONS[val]) setSection(val);
-    else setSection("general_info");
-  };
-
-  const availableSections =
-    objectType === "opportunity"
-      ? OPPORTUNITY_SECTIONS
-      : CANTIERE_SECTIONS[objectType]
-      ? CANTIERE_SECTIONS[objectType]
-      : CONTACT_SECTIONS;
 
   const resetForm = () => {
     setName("");
     setFieldType("text");
-    setSection("general_info");
     setObjectType("contact");
     setOptionsInput("");
     setEditTarget(null);
-    setIsRequired(false);
-    setHelpText("");
   };
 
   const openCreateDialog = () => {
     resetForm();
-    setFieldBaseline(JSON.stringify(["", "text", "general_info", "contact", "", false, ""]));
+    setFieldBaseline(JSON.stringify(["", "text", "contact", ""]));
     setDialogOpen(true);
   };
 
@@ -1727,92 +1639,71 @@ export function CustomFieldsConfig() {
     setName(field.name);
     setFieldType(field.fieldType || "text");
     setObjectType(field.objectType);
-    setSection(field.section || field.objectType);
     setOptionsInput((field.options || []).join(", "));
-    // v8.6.46 — hydrate is_required + help_text (resiliente se colonne assenti)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = customFields.find((f: any) => f.id === field.id) as any;
-    setIsRequired(Boolean(raw?.is_required));
-    setHelpText(raw?.help_text ?? "");
-    setFieldBaseline(JSON.stringify([field.name, field.fieldType || "text", field.section || field.objectType, field.objectType, (field.options || []).join(", "), Boolean(raw?.is_required), raw?.help_text ?? ""]));
+    setFieldBaseline(JSON.stringify([field.name, field.fieldType || "text", field.objectType, (field.options || []).join(", ")]));
     setDialogOpen(true);
   };
 
-  const selectedType = FIELD_TYPES.find((t) => t.value === fieldType);
   const needsOptions = OPTION_FIELD_TYPES.has(fieldType);
   const normalizedOptions = needsOptions ? normalizeOptions(optionsInput) : [];
   const normalizedName = normalizeName(name);
   const previewKey = objectType ? `{{ ${objectType}.${toSnakeCase(normalizedName || "nome_campo")} }}` : "";
+  // La scheda del contatto distingue solo testo, numero, data e scelta da un elenco: gli altri tipi li compila come testo.
+  const tipoComeTesto = objectType === "contact" && !TIPI_DISTINTI_SU_CONTATTO.has(fieldType);
 
   const validateForm = () => {
-    if (!puoModificare || isLoading || isError) throw new Error("Modifica non consentita: verifica permessi e caricamento dei campi.");
-    if (!companyId) throw new Error("Azienda non disponibile");
-    if (!normalizedName) throw new Error("Inserisci il nome del campo");
-    if (normalizedName.length > 100) throw new Error("Il nome del campo deve restare sotto i 100 caratteri");
+    if (!puoModificare || isLoading || isError) throw new ErroreCampo("Modifica non consentita: controlla i permessi e riprova quando i campi sono caricati.");
+    if (!companyId) throw new ErroreCampo("Azienda non disponibile");
+    if (!normalizedName) throw new ErroreCampo("Inserisci il nome del campo");
+    if (normalizedName.length > 100) throw new ErroreCampo("Il nome del campo deve restare sotto i 100 caratteri");
     if (needsOptions && normalizedOptions.length === 0) {
-      throw new Error("Inserisci almeno un'opzione per questo tipo di campo");
+      throw new ErroreCampo("Inserisci almeno un'opzione per questo tipo di campo");
     }
-    const duplicate = (customFields as MarketingCustomFieldRow[]).some(
+    const duplicate = customFields.some(
       (field) =>
         field.id !== editTarget?.id &&
         field.object_type === objectType &&
         normalizeName(field.name).toLowerCase() === normalizedName.toLowerCase()
     );
     if (duplicate) {
-      throw new Error("Esiste già un campo con questo nome per l'oggetto selezionato");
+      throw new ErroreCampo(`Esiste già un campo «${normalizedName}» su «${OBJECT_NAME_MAP[objectType] ?? objectType}»: scegli un altro nome.`);
     }
+  };
+
+  const invalidaCampi = () => {
+    queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
+    queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields_deleted"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.customFields.all });
   };
 
   const addMutation = useMutation({
     mutationFn: async () => {
       validateForm();
-      // v8.6.46 — try-first con is_required + help_text. Se la migration
-      // C5 non è applicata, fallback su payload base.
-      const fullPayload = {
+      // «Obbligatorio» e «Testo di aiuto» non ci sono più: nessuna scheda li leggeva. Le colonne restano
+      // nel database con il loro valore di partenza (non obbligatorio, nessun testo).
+      const { error } = await supabase.from("marketing_custom_fields").insert({
         company_id: companyId!,
         name: normalizedName,
         field_type: fieldType,
         options: normalizedOptions,
-        section,
+        section: sezioneDiPartenza(objectType),
         position: customFields.length,
         object_type: objectType,
-        is_required: isRequired,
-        help_text: helpText.trim() || null,
-      };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).from("marketing_custom_fields").insert(fullPayload);
-      if (error) {
-        if (/is_required|help_text.*does not exist/i.test(error.message ?? "")) {
-          if (isRequired || helpText.trim()) throw new Error("Obbligatorietà e testo di aiuto non sono ancora disponibili. Nessun campo è stato salvato.");
-          // Migration C5 pending — retry senza i nuovi campi
-          const { error: retryErr } = await supabase.from("marketing_custom_fields").insert({
-            company_id: companyId!,
-            name: normalizedName,
-            field_type: fieldType,
-            options: normalizedOptions,
-            section,
-            position: customFields.length,
-            object_type: objectType,
-          });
-          if (retryErr) throw retryErr;
-        } else {
-          throw error;
-        }
-      }
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing-custom-fields"] });
-      toast.success("Campo personalizzato aggiunto");
+      invalidaCampi();
+      toast.success("Campo aggiunto");
       setDialogOpen(false);
       resetForm();
     },
-    onError: (e: unknown) => toast.error(getErrorMessage(e) || "Errore nel salvataggio"),
+    onError: (e: unknown) => toast.error(erroreCampo(e, "Non sono riuscito a salvare il campo. Riprova.")),
   });
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      if (!companyId || !editTarget) throw new Error("Campo non disponibile");
+      if (!companyId || !editTarget) throw new ErroreCampo("Campo non disponibile");
       validateForm();
 
       const usage = await getCustomFieldUsageCounts(editTarget.id);
@@ -1822,118 +1713,57 @@ export function CustomFieldsConfig() {
       const optionsChanged = JSON.stringify(normalizedOptions) !== JSON.stringify(editTarget.options || []);
 
       if (isUsed && (typeChanged || objectChanged || optionsChanged)) {
-        throw new Error("Il campo contiene valori salvati: puoi modificare nome e sezione, ma non tipo, oggetto o opzioni.");
+        throw new ErroreCampo("Il campo ha già dei valori scritti: puoi cambiare il nome, ma non il tipo, dove compare o le opzioni.");
       }
 
-      // v8.6.46 — try-first con is_required + help_text. Fallback se
-      // migration C5 pending.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("marketing_custom_fields")
         .update({
           name: normalizedName,
           field_type: fieldType,
           options: normalizedOptions,
-          section,
           object_type: objectType,
-          is_required: isRequired,
-          help_text: helpText.trim() || null,
+          // La sezione non si sceglie più: si riscrive solo se il campo cambia scheda, perché segua l'oggetto.
+          ...(objectChanged ? { section: sezioneDiPartenza(objectType) } : {}),
         })
         .eq("id", editTarget.id)
         .eq("company_id", companyId).select("id").single();
-      if (error) {
-        if (/is_required|help_text.*does not exist/i.test(error.message ?? "")) {
-          if (isRequired || helpText.trim()) throw new Error("Obbligatorietà e testo di aiuto non sono ancora disponibili. Le modifiche non sono state salvate.");
-          const { error: retryErr } = await supabase
-            .from("marketing_custom_fields")
-            .update({
-              name: normalizedName,
-              field_type: fieldType,
-              options: normalizedOptions,
-              section,
-              object_type: objectType,
-            })
-            .eq("id", editTarget.id)
-            .eq("company_id", companyId).select("id").single();
-          if (retryErr) throw retryErr;
-        } else {
-          throw error;
-        }
-      }
+      if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing-custom-fields"] });
-      toast.success("Campo personalizzato aggiornato");
+      invalidaCampi();
+      toast.success("Campo aggiornato");
       setDialogOpen(false);
       resetForm();
     },
-    onError: (e: unknown) => toast.error(getErrorMessage(e) || "Errore nell'aggiornamento"),
+    onError: (e: unknown) => toast.error(erroreCampo(e, "Non sono riuscito ad aggiornare il campo. Controlla di avere il permesso e riprova.")),
   });
 
-  // v8.6.45 — Soft-delete: marca deleted_at invece di DELETE hard.
-  // I valori storici nelle tabelle *_field_values restano referenziati,
-  // l'utente può ripristinare il campo dalla tab "Campi eliminati".
-  // Il blocco "usage > 0" non serve più come hard-block: con soft-delete
-  // il campo torna disponibile in 1 click. Lo manteniamo come WARNING.
+  // Eliminare un campo lo sposta tra gli eliminati (`deleted_at`): sparisce dalle schede, i valori già scritti restano e
+  // il campo si può ripristinare. Per questo non c'è nessun blocco «ha dei valori»: non si perde niente.
   const deleteMutation = useMutation({
-    mutationFn: async ({ id, force }: { id: string; force?: boolean }) => {
-      if (!puoModificare || isError || isLoading) throw new Error("Modifica non consentita");
-      if (!companyId) throw new Error("Azienda non disponibile");
-      const usage = await getCustomFieldUsageCounts(id);
-      if (!force && (usage.contacts > 0 || usage.opportunities > 0 || usage.entities > 0)) {
-        throw new CustomFieldInUseError(usage);
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
+    mutationFn: async (id: string) => {
+      if (!puoModificare || isError || isLoading) throw new ErroreCampo("Modifica non consentita: controlla i permessi e riprova.");
+      if (!companyId) throw new ErroreCampo("Azienda non disponibile");
+      const { error } = await supabase
         .from("marketing_custom_fields")
         .update({ deleted_at: new Date().toISOString() })
         .eq("id", id)
         .eq("company_id", companyId).select("id").single();
-      if (error) {
-        // Migration pending: fallback hard-delete (backward compat)
-        if (/deleted_at.*does not exist/i.test(error.message ?? "")) {
-          if (usage.contacts > 0 || usage.opportunities > 0 || usage.entities > 0) throw new CustomFieldInUseError(usage);
-          const { error: hardErr } = await supabase
-            .from("marketing_custom_fields")
-            .delete()
-            .eq("id", id)
-            .eq("company_id", companyId).select("id").single();
-          if (hardErr) throw hardErr;
-          return { hard: true };
-        }
-        throw error;
-      }
-      return { hard: false };
+      if (error) throw error;
     },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields_deleted"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing-custom-fields"] });
-      toast.success(
-        result?.hard
-          ? "Campo eliminato"
-          : "Campo spostato nei campi eliminati. Puoi ripristinarlo in qualsiasi momento."
-      );
+    onSuccess: () => {
+      invalidaCampi();
+      toast.success("Campo spostato in «Campi eliminati». Lo puoi ripristinare quando vuoi.");
     },
-    onError: (e: unknown) => {
-      if (e instanceof CustomFieldInUseError) {
-        const total = e.usage.contacts + e.usage.opportunities + e.usage.entities;
-        toast.error(`Campo già usato in ${total} valore/i. Riprova confermando l'eliminazione per proteggere i dati.`);
-        return;
-      }
-      toast.error(getErrorMessage(e) || "Errore nell'eliminazione");
-    },
+    onError: (e: unknown) => toast.error(erroreCampo(e, "Non sono riuscito a eliminare il campo. Controlla di avere il permesso e riprova.")),
   });
 
-  // v8.6.45 — Ripristina un campo soft-deleted (UPDATE deleted_at = null)
   const restoreMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!puoModificare || deletedError || deletedLoading) throw new Error("Modifica non consentita");
-      if (!companyId) throw new Error("Azienda non disponibile");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
+      if (!puoModificare || deletedError || deletedLoading) throw new ErroreCampo("Modifica non consentita: controlla i permessi e riprova.");
+      if (!companyId) throw new ErroreCampo("Azienda non disponibile");
+      const { error } = await supabase
         .from("marketing_custom_fields")
         .update({ deleted_at: null })
         .eq("id", id)
@@ -1941,19 +1771,18 @@ export function CustomFieldsConfig() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields"] });
-      queryClient.invalidateQueries({ queryKey: ["marketing_custom_fields_deleted"] });
+      invalidaCampi();
       toast.success("Campo ripristinato");
     },
-    onError: (e: unknown) => toast.error(getErrorMessage(e) || "Errore nel ripristino"),
+    onError: (e: unknown) => toast.error(erroreCampo(e, "Non sono riuscito a ripristinare il campo. Riprova.")),
   });
 
-  // v8.6.45 — Eliminazione DEFINITIVA (hard delete) dei campi già nella
-  // tab Eliminati. Solo se non hanno valori storici associati.
+  // Eliminazione DEFINITIVA dei campi già tra gli eliminati. Solo se nessuna scheda ha valori scritti: sennò il
+  // database rifiuta (i valori puntano al campo).
   const purgeMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!puoModificare || deletedError || deletedLoading) throw new Error("Modifica non consentita");
-      if (!companyId) throw new Error("Azienda non disponibile");
+      if (!puoModificare || deletedError || deletedLoading) throw new ErroreCampo("Modifica non consentita: controlla i permessi e riprova.");
+      if (!companyId) throw new ErroreCampo("Azienda non disponibile");
       const usage = await getCustomFieldUsageCounts(id);
       if (usage.contacts > 0 || usage.opportunities > 0 || usage.entities > 0) {
         throw new CustomFieldInUseError(usage);
@@ -1972,20 +1801,20 @@ export function CustomFieldsConfig() {
     onError: (e: unknown) => {
       if (e instanceof CustomFieldInUseError) {
         const total = e.usage.contacts + e.usage.opportunities + e.usage.entities;
-        toast.error(`Impossibile eliminare definitivamente: ${total} valore/i ancora referenziati. Cancellali manualmente prima di procedere.`);
+        toast.error(`Non si può eliminare definitivamente: ha ancora ${total} ${total === 1 ? "valore scritto" : "valori scritti"}. Resta tra i campi eliminati e non compare più nelle schede.`);
         return;
       }
-      toast.error(getErrorMessage(e) || "Errore nell'eliminazione definitiva");
+      toast.error(erroreCampo(e, "Non sono riuscito a eliminare il campo definitivamente. Riprova."));
     },
   });
 
-  const busy = addMutation.isPending || updateMutation.isPending || deleteMutation.isPending || restoreMutation.isPending || purgeMutation.isPending || createFolder.isPending || updateFolder.isPending || deleteFolder.isPending;
+  const busy = addMutation.isPending || updateMutation.isPending || deleteMutation.isPending || restoreMutation.isPending || purgeMutation.isPending;
   useSettingsDraftGuard(busy);
   const copyKey = (key: string) => {
     navigator.clipboard
       .writeText(key)
-      .then(() => toast.success("Chiave copiata"))
-      .catch(() => toast.error("Non è stato possibile copiare la chiave"));
+      .then(() => toast.success("Variabile copiata"))
+      .catch(() => toast.error("Non è stato possibile copiare la variabile"));
   };
 
   const total = filtered.length;
@@ -1995,22 +1824,15 @@ export function CustomFieldsConfig() {
 
   return (
     <div className="min-w-0 space-y-0 max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:grid max-md:[&_tr]:grid-cols-2 max-md:[&_tr]:gap-x-2 max-md:[&_tr]:p-2 max-md:[&_td]:block max-md:[&_td]:min-w-0 max-md:[&_td]:break-words max-md:[&_td]:p-1">
-      {/* ── Header tabs + buttons ──
-          v8.6.45 — 2 tab prima `disabled` ora attive:
-          - "Cartelle": CRUD folders custom
-          - "Campi eliminati": lista soft-deleted + restore/purge */}
-      {/* v8.6.74 — flex-wrap su mobile: prima i 3 tabs + button "Aggiungi
-          campo" andavano in overflow su 375px → button tagliato a destra. */}
+      {/* Due schede: i campi (i tuoi, poi le variabili di sistema) e i campi eliminati.
+          flex-wrap: a 375 px il pulsante «Aggiungi campo» andava in overflow. */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 mb-0">
-        <Tabs value={activeTab} onValueChange={(tab) => { if (!busy && conferma()) { setActiveTab(tab); setCurrentPage(1); } }} className="min-w-0 max-w-full">
+        <Tabs value={activeTab} onValueChange={(tab) => { if (!busy) { setActiveTab(tab); setCurrentPage(1); } }} className="min-w-0 max-w-full">
           <TabsList className="bg-transparent h-auto p-0 gap-0 overflow-x-auto max-w-full">
-            <TabsTrigger value="all" className="rounded-none border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-3 sm:px-4 pb-2.5 pt-1 shrink-0">
+            <TabsTrigger value="all" className="rounded-none border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-3 sm:px-4 pb-2.5 pt-1 shrink-0 max-md:min-h-11">
               Tutti i campi
             </TabsTrigger>
-            <TabsTrigger value="folders" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-3 sm:px-4 pb-2.5 pt-1 shrink-0">
-              Cartelle
-            </TabsTrigger>
-            <TabsTrigger value="deleted" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-3 sm:px-4 pb-2.5 pt-1 shrink-0">
+            <TabsTrigger value="deleted" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent px-3 sm:px-4 pb-2.5 pt-1 shrink-0 max-md:min-h-11">
               Campi eliminati
               {deletedFields.length > 0 && (
                 <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium">
@@ -2022,12 +1844,8 @@ export function CustomFieldsConfig() {
         </Tabs>
 
         <div className="flex items-center gap-2 pb-1 shrink-0 w-full sm:w-auto">
-          {!puoModificare ? null : activeTab === "folders" ? (
-            <Button size="sm" onClick={openCreateFolderDialog} disabled={!companyId || foldersLoading || foldersError || busy} className="w-full sm:w-auto">
-              <FolderPlus className="h-4 w-4 mr-1.5" /> Aggiungi cartella
-            </Button>
-          ) : (
-            <Button size="sm" onClick={openCreateDialog} disabled={!companyId || isLoading || isError || busy} className="w-full sm:w-auto">
+          {puoModificare && (
+            <Button size="sm" onClick={openCreateDialog} disabled={!companyId || isLoading || isError || busy} className="w-full sm:w-auto max-md:h-11">
               <Plus className="h-4 w-4 mr-1.5" /> Aggiungi campo
             </Button>
           )}
@@ -2037,12 +1855,18 @@ export function CustomFieldsConfig() {
       {!puoModificare && (
         <div className="pt-3">
           <AvvisoSolaLettura>
-            Sola lettura: per aggiungere o modificare campi e cartelle serve il permesso «Modifica» su Personalizzazione.
+            Sola lettura: per aggiungere o modificare campi serve il permesso «Modifica» su Personalizzazione.
           </AvvisoSolaLettura>
         </div>
       )}
 
-      {/* ── Search bar (solo su "all") ── */}
+      {/* ── Cosa c'è in questa tabella, la ricerca e il filtro per oggetto (solo su «Tutti i campi») ── */}
+      {activeTab === "all" && (
+        <p className="pt-3 text-sm text-muted-foreground">
+          In cima i campi che hai aggiunto tu; sotto, le variabili di sistema. Le variabili le scrivi dentro email, SMS e
+          messaggi: al loro posto compare il dato del contatto (per esempio <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{"{{ contact.first_name }}"}</code> diventa «Mario»).
+        </p>
+      )}
       {activeTab === "all" && (
       <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:flex-1 sm:max-w-sm">
@@ -2052,13 +1876,13 @@ export function CustomFieldsConfig() {
             aria-label="Cerca campi personalizzati"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-            className="pl-8 h-9"
+            className="pl-8 h-9 max-md:h-11"
           />
         </div>
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <span>Raggruppa per:</span>
+          <span>Oggetto:</span>
           <Select value={groupBy} onValueChange={(group) => { setGroupBy(group); setCurrentPage(1); }}>
-            <SelectTrigger className="h-8 w-[160px] text-sm">
+            <SelectTrigger className="h-8 w-[160px] text-sm max-md:h-11" aria-label="Mostra solo un oggetto">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -2071,26 +1895,34 @@ export function CustomFieldsConfig() {
       </div>
       )}
 
-      {/* ── Banner copertura: campi su oggetti "solo API" ── */}
-      {activeTab === "all" && apiOnlyCustomCount > 0 && (
+      {/* ── Nessun campo dell'azienda ancora ── */}
+      {activeTab === "all" && !isLoading && !isError && customFields.length === 0 && (
+        <p className="mb-3 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
+          Non hai ancora campi tuoi.{puoModificare ? " Aggiungine uno, per esempio «Tipo di caldaia» sul contatto." : ""}
+        </p>
+      )}
+
+      {/* ── Campi su schede che non li mostrano ── */}
+      {activeTab === "all" && fuoriDalleSchedeCount > 0 && (
         <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50/60 p-2.5 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
-            <strong>{apiOnlyCustomCount}</strong> camp{apiOnlyCustomCount === 1 ? "o" : "i"} su oggetti
-            “solo API”: i valori si salvano e sono utilizzabili via API, automazioni e variabili email,
-            ma non vengono ancora mostrati nei form della UI.
+            {fuoriDalleSchedeCount === 1
+              ? "1 campo è su una scheda che ancora non lo mostra"
+              : `${fuoriDalleSchedeCount} campi sono su schede che ancora non li mostrano`}
+            : i valori si salvano e si usano nei testi.
           </span>
         </div>
       )}
 
-      {/* ── Table (solo tab "all") ── */}
+      {/* ── Tabella (solo «Tutti i campi») ── */}
       {activeTab === "all" && (isError ? (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Campi personalizzati non disponibili</AlertTitle>
           <AlertDescription className="space-y-3">
-            <p>{getErrorMessage(error) || "Non è stato possibile caricare i campi personalizzati aziendali."}</p>
-            <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
+            <p>{userErrorMessage(error, "Non è stato possibile caricare i campi personalizzati dell'azienda.")}</p>
+            <Button type="button" variant="outline" size="sm" onClick={() => refetch()} className="max-md:h-11">
               Riprova
             </Button>
           </AlertDescription>
@@ -2102,20 +1934,19 @@ export function CustomFieldsConfig() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40">
-                <TableHead className="w-10 px-3"><Checkbox disabled /></TableHead>
-                <TableHead className="text-xs uppercase tracking-wider font-semibold">Nome Del Campo</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider font-semibold">Oggetto</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider font-semibold">Cartella</TableHead>
-                <TableHead className="text-xs uppercase tracking-wider font-semibold">Chiave Univoca</TableHead>
+                <TableHead className="w-10 px-3"><span className="sr-only">Campo di sistema</span></TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold">Nome del campo</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold">Dove compare</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider font-semibold">Si scrive così nei testi</TableHead>
                 {/* «Creato il» da 1280: a 1024 la tabella sbordava di 76px. */}
-                <TableHead className="text-xs uppercase tracking-wider font-semibold md:max-xl:hidden">Creato Il</TableHead>
-                <TableHead className="w-10" />
+                <TableHead className="text-xs uppercase tracking-wider font-semibold md:max-xl:hidden">Creato il</TableHead>
+                <TableHead className="w-10"><span className="sr-only">Azioni</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {visibleFields.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-12">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-12">
                     Nessun campo trovato.
                   </TableCell>
                 </TableRow>
@@ -2124,65 +1955,70 @@ export function CustomFieldsConfig() {
                   <TableRow key={f.id} className="group">
                     <TableCell className="max-md:!hidden px-3 md:table-cell">
                       {f.isSystem ? (
-                        <Lock className="h-3.5 w-3.5 text-muted-foreground/50" />
+                        <Lock className="h-3.5 w-3.5 text-muted-foreground/50" aria-label="Campo di sistema: non si modifica" />
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="col-span-2 font-medium text-sm">{f.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      <span className="inline-flex items-center gap-1.5">
+                    <TableCell className="col-span-2 font-medium text-sm">
+                      {f.name}
+                      {!f.isSystem && f.fieldType && (
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          {FIELD_TYPES.find((t) => t.value === f.fieldType)?.label ?? f.fieldType}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="max-md:col-span-2 text-sm text-muted-foreground">
+                      <span className="inline-flex flex-wrap items-center gap-1.5">
                         {f.object}
                         {f.objectType && !isObjectRendered(f.objectType) && (
                           <Badge
                             variant="outline"
+                            title="Il valore si salva e si usa nei testi e nelle automazioni, ma questa scheda ancora non lo mostra."
                             className="border-amber-300 px-1.5 py-0 text-[10px] font-normal text-amber-700 dark:border-amber-900/50 dark:text-amber-300"
                           >
-                            Solo API
+                            Non compare nelle schede
                           </Badge>
                         )}
                       </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className={`text-xs font-normal ${f.folderColor}`}>
-                        {FOLDER_LABELS[f.folder] || f.folder}
-                      </Badge>
                     </TableCell>
                     <TableCell className="col-span-2">
                       <div className="flex min-w-0 items-center gap-1.5">
                         <code className="min-w-0 break-all text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{f.uniqueKey}</code>
                         <button
+                          type="button"
                           onClick={() => copyKey(f.uniqueKey)}
-                          aria-label="Copia chiave campo"
-                          className="shrink-0 p-2 text-muted-foreground hover:text-foreground"
+                          aria-label={`Copia la variabile di ${f.name}`}
+                          className="inline-flex shrink-0 items-center justify-center p-2 text-muted-foreground hover:text-foreground max-md:h-11 max-md:w-11"
                         >
                           <Copy className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </TableCell>
                     <TableCell className="max-md:!hidden text-sm text-muted-foreground md:max-xl:hidden">
-                      {formatSafeDate(f.createdAt)}
+                      {/* Le variabili di sistema hanno una data finta (1/1/2024): meglio un trattino. */}
+                      {f.isSystem ? "—" : formatSafeDate(f.createdAt)}
                     </TableCell>
                     <TableCell className={f.isSystem ? "max-md:!hidden" : "col-span-2"}>
-                      {!f.isSystem && (
-                        <div className={puoModificare ? "flex items-center justify-end gap-1" : "hidden"}>
+                      {!f.isSystem && puoModificare && (
+                        <div className="flex items-center justify-end gap-1">
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7"
+                            className="h-8 w-8 max-md:h-11 max-md:w-11"
                             onClick={() => openEditDialog(f)}
                             disabled={updateMutation.isPending}
-                            aria-label="Modifica campo"
+                            aria-label={`Modifica il campo «${f.name}»`}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 text-destructive"
-                            onClick={() => setDeleteTarget(f)}
+                            className="h-8 w-8 text-destructive max-md:h-11 max-md:w-11"
+                            onClick={() => { setDeleteTarget(f); setDeleteOpen(true); }}
                             disabled={deleteMutation.isPending}
-                            aria-label="Elimina campo"
+                            aria-label={`Elimina il campo «${f.name}»`}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -2197,7 +2033,7 @@ export function CustomFieldsConfig() {
         </div>
       ))}
 
-      {/* ── Footer pagination (solo tab "all") ── */}
+      {/* ── Paginazione (solo «Tutti i campi») ── */}
       {activeTab === "all" && !isLoading && !isError && (
         <TablePagination
           currentPage={safePage}
@@ -2210,116 +2046,15 @@ export function CustomFieldsConfig() {
         />
       )}
 
-      {/* ── Tab CARTELLE ── v8.6.45 — */}
-      {activeTab === "folders" && (
-        <div className="space-y-3 pt-3">
-          {!softDeleteSupported && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Funzione in attivazione</AlertTitle>
-              <AlertDescription className="text-xs">
-                Le cartelle dei campi personalizzati richiedono una migration DB
-                non ancora applicata (<code className="text-[10px]">20270517130000</code>).
-                Contatta il super_admin per attivarla.
-              </AlertDescription>
-            </Alert>
-          )}
-          {foldersError ? <div role="alert" className="space-y-2 rounded-lg border p-4 text-sm"><p>Impossibile leggere le cartelle.</p><Button variant="outline" size="sm" onClick={() => void refetchFolders()}>Riprova</Button></div> : foldersLoading ? <p role="status">Caricamento cartelle…</p> : folders.length === 0 ? (
-            <div className="rounded-lg border-2 border-dashed p-10 text-center">
-              <FolderOpen className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
-              <p className="text-sm font-medium">Nessuna cartella creata</p>
-              <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-                Crea cartelle per raggruppare campi custom dello stesso oggetto in sezioni logiche.
-              </p>
-              {puoModificare && (
-                <Button size="sm" className="mt-4" onClick={openCreateFolderDialog} disabled={!companyId}>
-                  <FolderPlus className="h-4 w-4 mr-1.5" /> Crea la prima cartella
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="border rounded-md">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/40">
-                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Nome</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Oggetto</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Colore</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Creata</TableHead>
-                    <TableHead className="w-10" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {folders.map((f) => (
-                    <TableRow key={f.id} className="group">
-                      <TableCell className="font-medium text-sm">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="h-3 w-3 rounded-sm border"
-                            style={{ backgroundColor: f.color ?? "#1E3A5F" }}
-                          />
-                          {f.name}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {f.object_type ? (OBJECT_NAME_MAP[f.object_type] ?? f.object_type) : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <code className="text-[11px] font-mono text-muted-foreground">{f.color ?? "—"}</code>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatSafeDate(f.created_at)}
-                      </TableCell>
-                      <TableCell>
-                        <div className={puoModificare ? "flex items-center justify-end gap-1" : "hidden"}>
-                          <Button
-                            size="icon" aria-label="Modifica cartella"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={() => openEditFolderDialog(f)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="icon" aria-label="Elimina cartella"
-                            variant="ghost"
-                            className="h-7 w-7 text-destructive"
-                            onClick={() => setFolderDeleteId(f.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Tab CAMPI ELIMINATI ── v8.6.45 — */}
+      {/* ── Scheda «Campi eliminati» ── */}
       {activeTab === "deleted" && (
         <div className="space-y-3 pt-3">
-          {!softDeleteSupported && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Funzione in attivazione</AlertTitle>
-              <AlertDescription className="text-xs">
-                Il soft-delete dei campi personalizzati richiede una migration DB
-                non ancora applicata (<code className="text-[10px]">20270517130000</code>).
-                Contatta il super_admin per attivarla. Nel frattempo l'eliminazione
-                resta definitiva.
-              </AlertDescription>
-            </Alert>
-          )}
-          {deletedError ? <div role="alert" className="space-y-2 rounded-lg border p-4 text-sm"><p>Impossibile leggere i campi eliminati.</p><Button variant="outline" size="sm" onClick={() => void refetchDeleted()}>Riprova</Button></div> : deletedLoading ? <p role="status">Caricamento campi eliminati…</p> : deletedFields.length === 0 ? (
+          {deletedError ? <div role="alert" className="space-y-2 rounded-lg border p-4 text-sm"><p>Impossibile leggere i campi eliminati.</p><Button variant="outline" size="sm" className="max-md:h-11" onClick={() => void refetchDeleted()}>Riprova</Button></div> : deletedLoading ? <p role="status">Caricamento campi eliminati…</p> : deletedFields.length === 0 ? (
             <div className="rounded-lg border-2 border-dashed p-10 text-center">
               <Trash2 className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
               <p className="text-sm font-medium">Nessun campo eliminato</p>
               <p className="text-xs text-muted-foreground mt-1">
-                I campi che elimini finiscono qui. Puoi ripristinarli in qualsiasi momento o eliminarli definitivamente.
+                I campi che elimini finiscono qui. Da qui li puoi ripristinare oppure eliminare definitivamente.
               </p>
             </div>
           ) : (
@@ -2327,51 +2062,53 @@ export function CustomFieldsConfig() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40">
-                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Nome Del Campo</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Oggetto</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Nome del campo</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Dove compare</TableHead>
                     <TableHead className="text-xs uppercase tracking-wider font-semibold">Tipo</TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Eliminato Il</TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold">Eliminato il</TableHead>
                     <TableHead className="text-right text-xs uppercase tracking-wider font-semibold">Azioni</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(deletedFields as MarketingCustomFieldRow[]).map((f) => (
+                  {deletedFields.map((f) => (
                     <TableRow key={f.id} className="group">
                       <TableCell className="font-medium text-sm">{f.name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {OBJECT_NAME_MAP[f.object_type] ?? f.object_type}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground capitalize">{f.field_type}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {(f as { deleted_at?: string }).deleted_at ? formatSafeDate((f as { deleted_at?: string }).deleted_at!) : "—"}
+                        {FIELD_TYPES.find((t) => t.value === f.field_type)?.label ?? f.field_type}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {f.deleted_at ? formatSafeDate(f.deleted_at) : "—"}
                       </TableCell>
                       <TableCell className="col-span-2">
-                        <div className={puoModificare ? "flex items-center justify-end gap-1" : "hidden"}>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs gap-1.5"
-                            onClick={() => restoreMutation.mutate(f.id)}
-                            disabled={restoreMutation.isPending}
-                          >
-                            <Undo2 className="h-3 w-3" />
-                            Ripristina
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 text-xs gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              if (window.confirm("Eliminazione DEFINITIVA: il campo e tutti i suoi metadati saranno rimossi. Operazione irreversibile. Procedere?")) {
-                                purgeMutation.mutate(f.id);
-                              }
-                            }}
-                            disabled={purgeMutation.isPending}
-                          >
-                            <ShieldAlert className="h-3 w-3" />
-                            Elimina definitivamente
-                          </Button>
-                        </div>
+                        {puoModificare && (
+                          <div className="flex flex-wrap items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs gap-1.5 max-md:h-11"
+                              onClick={() => restoreMutation.mutate(f.id)}
+                              disabled={restoreMutation.isPending}
+                              aria-label={`Ripristina il campo «${f.name}»`}
+                            >
+                              <Undo2 className="h-3 w-3" />
+                              Ripristina
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 text-xs gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 max-md:h-11"
+                              onClick={() => { setPurgeTarget(f); setPurgeOpen(true); }}
+                              disabled={purgeMutation.isPending}
+                              aria-label={`Elimina definitivamente il campo «${f.name}»`}
+                            >
+                              <ShieldAlert className="h-3 w-3" />
+                              Elimina definitivamente
+                            </Button>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -2382,101 +2119,20 @@ export function CustomFieldsConfig() {
         </div>
       )}
 
-      {/* Dialog Cartelle */}
-      <Dialog open={folderDialogOpen} onOpenChange={chiudiCartella}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{folderEditId ? "Modifica cartella" : "Nuova cartella"}</DialogTitle>
-          </DialogHeader>
-          <fieldset disabled={busy} className="m-0 min-w-0 space-y-4 border-0 p-0 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="folder-name">Nome cartella *</Label>
-              <Input
-                id="folder-name"
-                value={folderName}
-                onChange={(e) => setFolderName(e.target.value)}
-                placeholder="es. Anagrafica fiscale"
-                maxLength={80}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="folder-object">Oggetto</Label>
-              <Select value={folderObjectType} onValueChange={setFolderObjectType}>
-                <SelectTrigger id="folder-object">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(OBJECT_NAME_MAP).map(([key, label]) => (
-                    <SelectItem key={key} value={key}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="folder-color">Colore</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="folder-color"
-                  type="color"
-                  value={folderColor}
-                  onChange={(e) => setFolderColor(e.target.value)}
-                  className="h-9 w-16 p-1"
-                />
-                <code className="text-xs text-muted-foreground font-mono">{folderColor}</code>
-              </div>
-            </div>
-          </fieldset>
-          <DialogFooter>
-            <Button variant="outline" disabled={busy} onClick={() => chiudiCartella(false)}>Annulla</Button>
-            <Button
-              onClick={submitFolder}
-              disabled={!folderName.trim() || createFolder.isPending || updateFolder.isPending}
-            >
-              {folderEditId ? "Salva" : "Crea"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* AlertDialog Elimina Cartella */}
-      <AlertDialog open={!!folderDeleteId} onOpenChange={(o) => !o && setFolderDeleteId(null)}>
+      {/* Eliminare un campo: va tra gli eliminati, i valori restano */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina cartella</AlertDialogTitle>
+            <AlertDialogTitle>Eliminare il campo «{deleteTarget?.name}»?</AlertDialogTitle>
             <AlertDialogDescription>
-              I campi che appartenevano a questa cartella resteranno disponibili (senza cartella). Vuoi procedere?
+              Il campo sparisce dalle schede e va in «Campi eliminati», da dove lo puoi ripristinare. I valori già scritti non si perdono.
+              {valoriDelCampo > 0 && ` Ha ${valoriDelCampo} ${valoriDelCampo === 1 ? "valore scritto" : "valori scritti"}.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                if (folderDeleteId) deleteFolder.mutate(folderDeleteId);
-                setFolderDeleteId(null);
-              }}
-              disabled={deleteFolder.isPending}
-            >
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Elimina campo personalizzato</AlertDialogTitle>
-            <AlertDialogDescription>
-              L'eliminazione e' consentita solo se il campo non contiene valori salvati su contatti, opportunita' o altre entita'. Questo evita perdita dati.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (deleteTarget) deleteMutation.mutate({ id: deleteTarget.id });
-                setDeleteTarget(null);
-              }}
+              onClick={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id); }}
               disabled={deleteMutation.isPending}
             >
               Elimina
@@ -2485,45 +2141,67 @@ export function CustomFieldsConfig() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── Add field dialog ── */}
+      {/* Eliminare per sempre un campo già tra gli eliminati */}
+      <AlertDialog open={purgeOpen} onOpenChange={setPurgeOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare definitivamente il campo «{purgeTarget?.name}»?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Il campo sparisce per sempre e non si può ripristinare. Se ha ancora dei valori scritti non si elimina: resta tra i campi eliminati.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (purgeTarget) purgeMutation.mutate(purgeTarget.id); }}
+              disabled={purgeMutation.isPending}
+            >
+              Elimina definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Nuovo campo / Modifica campo ── */}
       <Dialog
         open={dialogOpen}
         onOpenChange={chiudiCampo}
       >
         <DialogContent className="max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editTarget ? "Modifica Campo Personalizzato" : "Nuovo Campo Personalizzato"}</DialogTitle>
+            <DialogTitle>{editTarget ? "Modifica campo" : "Nuovo campo"}</DialogTitle>
             <DialogDescription>
-              Configura il campo e verifica l'anteprima prima di salvarlo. I dati esistenti vengono protetti da modifiche distruttive.
+              Scegli dove compare il campo, come si chiama e che tipo di dato contiene.
             </DialogDescription>
           </DialogHeader>
           <fieldset disabled={busy} className="m-0 min-w-0 space-y-4 border-0 p-0">
             <div className="space-y-1.5">
-              <Label htmlFor="cf-object">Oggetto *</Label>
-              <Select value={objectType} onValueChange={handleObjectTypeChange}>
-                <SelectTrigger id="cf-object"><SelectValue /></SelectTrigger>
+              <Label htmlFor="cf-object">Dove compare *</Label>
+              <Select value={objectType} onValueChange={setObjectType}>
+                <SelectTrigger id="cf-object" className="max-md:h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {GROUP_OPTIONS.filter((g) => g.value !== "all").map((g) => (
-                    <SelectItem key={g.value} value={g.value}>
-                      <span className="inline-flex items-center gap-1.5">
-                        {g.label}
-                        {!isObjectRendered(g.value) && (
-                          <span className="text-[10px] text-amber-600">(API only)</span>
-                        )}
-                      </span>
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    <SelectLabel>Compare nelle schede</SelectLabel>
+                    {OGGETTI_CON_SCHEDA.map((g) => (
+                      <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                  <SelectGroup>
+                    <SelectLabel>Non compare ancora nelle schede</SelectLabel>
+                    {OGGETTI_SENZA_SCHEDA.map((g) => (
+                      <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
-              {/* v8.6.46 — Warning UX onestà: avverte l'utente quando crea
-                  un campo su un oggetto senza renderer integrato nei form. */}
+              {/* Onestà: un campo su un oggetto che nessuna scheda mostra si salva, ma non lo vede nessuno. */}
               {!isObjectRendered(objectType) && (
                 <Alert className="mt-2">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription className="text-xs">
-                    <strong>Oggetto API-only:</strong> il campo verrà salvato in DB e sarà
-                    accessibile via API/integrazioni/automazioni, ma non viene ancora visualizzato
-                    nei form della UI. Roadmap render universale in corso.
+                    <strong>Non compare nelle schede.</strong> Il valore si salva e si usa nei testi e nelle
+                    automazioni, ma questa scheda ancora non lo mostra.
                   </AlertDescription>
                 </Alert>
               )}
@@ -2536,95 +2214,61 @@ export function CustomFieldsConfig() {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="es. Tipo di caldaia"
                 maxLength={100}
+                className="max-md:h-11"
               />
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Tipo</Label>
-                <Select value={fieldType} onValueChange={setFieldType}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {FIELD_TYPES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Sezione</Label>
-                <Select value={section} onValueChange={setSection}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {availableSections.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cf-type">Tipo</Label>
+              <Select value={fieldType} onValueChange={setFieldType}>
+                <SelectTrigger id="cf-type" className="max-md:h-11"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {FIELD_TYPES.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {tipoComeTesto && (
+                <p className="text-xs text-muted-foreground">
+                  Sulla scheda del contatto questo tipo si compila come testo semplice.
+                </p>
+              )}
             </div>
             {needsOptions && (
               <div className="space-y-1.5">
-                <Label>Opzioni</Label>
+                <Label htmlFor="cf-options">Opzioni</Label>
                 <Input
+                  id="cf-options"
                   value={optionsInput}
                   onChange={(e) => setOptionsInput(e.target.value)}
                   placeholder="es. Condensazione, Tradizionale, Ibrida"
                   maxLength={500}
+                  className="max-md:h-11"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Puoi separare le opzioni con virgole, punto e virgola o invio. I duplicati vengono rimossi.
+                  Separale con la virgola: Condensazione, Tradizionale, Ibrida. Se ne scrivi due uguali ne resta una.
                 </p>
+                {normalizedOptions.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Opzioni valide: {normalizedOptions.join(", ")}
+                  </p>
+                )}
               </div>
             )}
-            {/* v8.6.46 — C5: validazione + UX (is_required + help_text) */}
-            <div className="space-y-3 pt-2 border-t">
-              <div className="flex flex-wrap items-center gap-2">
-                <Checkbox
-                  id="cf-required"
-                  checked={isRequired}
-                  onCheckedChange={(c) => setIsRequired(c === true)}
-                />
-                <Label htmlFor="cf-required" className="text-sm font-medium cursor-pointer">
-                  Campo obbligatorio
-                </Label>
-                <span className="text-xs text-muted-foreground">
-                  l'utente deve compilarlo prima di salvare
-                </span>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="cf-help">Testo di aiuto (opzionale)</Label>
-                <Input
-                  id="cf-help"
-                  value={helpText}
-                  onChange={(e) => setHelpText(e.target.value)}
-                  placeholder="es. Indica la potenza nominale in kW"
-                  maxLength={200}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Mostrato come hint sotto al campo nel form.
-                </p>
-              </div>
-            </div>
-            <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
-              <p className="font-medium text-foreground">Anteprima campo</p>
-              <p><span className="text-muted-foreground">Oggetto:</span> {OBJECT_NAME_MAP[objectType] || objectType}</p>
-              <p><span className="text-muted-foreground">Tipo:</span> {selectedType?.label || fieldType}</p>
-              <p><span className="text-muted-foreground">Chiave:</span> <code>{previewKey}</code></p>
-              {needsOptions && (
-                <p><span className="text-muted-foreground">Opzioni valide:</span> {normalizedOptions.length ? normalizedOptions.join(", ") : "nessuna"}</p>
-              )}
-              {editTarget && (
-                <p className="text-amber-700">
-                  Se il campo contiene valori salvati, tipo, oggetto e opzioni non verranno modificati per evitare perdita dati.
-                </p>
-              )}
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Nei testi si scrive: <code className="rounded bg-muted px-1 py-0.5 font-mono">{previewKey}</code>
+            </p>
+            {editTarget && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Se il campo ha già dei valori scritti, il tipo, dove compare e le opzioni non si possono cambiare.
+              </p>
+            )}
           </fieldset>
-          <DialogFooter>
-            <Button variant="outline" disabled={busy} onClick={() => chiudiCampo(false)}>Annulla</Button>
+          <DialogFooter className="max-sm:gap-2">
+            <Button variant="outline" disabled={busy} onClick={() => chiudiCampo(false)} className="max-md:h-11">Annulla</Button>
             <Button
               onClick={() => editTarget ? updateMutation.mutate() : addMutation.mutate()}
               disabled={!companyId || !normalizedName || (needsOptions && normalizedOptions.length === 0) || addMutation.isPending || updateMutation.isPending}
+              className="max-md:h-11"
             >
               {addMutation.isPending || updateMutation.isPending
                 ? "Salvataggio..."

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useApiKeys, useCreateApiKey, useRevokeApiKey, useRotateApiKey } from "@/hooks/useApiKeys";
@@ -26,13 +27,23 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Plus, Key, Copy, CheckCircle2, Trash2, Clock, Loader2, AlertTriangle, Activity, Book, ShieldAlert,
-  Search, RotateCcw, ShieldCheck,
+  Search, RotateCcw, Info,
 } from "lucide-react";
 import { formatRelativeTime, formatDate } from "@/lib/formatters";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 import { ApiDocsTab } from "@/components/api/ApiDocsTab";
 import { ApiUsageChart } from "@/components/api/ApiUsageChart";
+
+/** Nome in italiano di un permesso (`contacts:read` → «Leggi contatti»); se non lo conosciamo resta com'è. */
+const ETICHETTE_PERMESSI = new Map<string, string>(
+  API_SCOPE_GROUPS.flatMap((g) => g.scopes.map((sc) => [sc.id, sc.label] as [string, string])),
+);
+const etichettaPermesso = (id: string) => ETICHETTE_PERMESSI.get(id) ?? id;
+
+/** «1 chiave attiva», «3 chiavi attive»: una, tante. */
+const quante = (n: number, una: string, tante: string) => `${n} ${n === 1 ? una : tante}`;
 
 const EXPIRY_OPTIONS: { value: ExpiryOption; label: string }[] = [
   { value: "never", label: "Non scade mai" },
@@ -90,7 +101,7 @@ function CreateApiKeyDialog({
     const trimmedName = name.trim();
     const normalizedScopes = Array.from(new Set(selectedScopes)).filter((scope) => ALL_SCOPE_IDS.includes(scope));
     if (!trimmedName || normalizedScopes.length === 0) {
-      toast.error("Inserisci nome e seleziona almeno uno scope.");
+      toast.error("Scrivi il nome della chiave e scegli almeno una cosa che può fare.");
       return;
     }
     if (trimmedName.length < 3 || trimmedName.length > 80) {
@@ -102,7 +113,7 @@ function CreateApiKeyDialog({
       setGeneratedKey(key);
       setStep(2);
     } catch (e) {
-      toast.error("Impossibile creare la chiave API: " + (e as Error).message);
+      toast.error(userErrorMessage(e, "Non sono riuscito a creare la chiave. Riprova."));
     }
   };
 
@@ -118,25 +129,25 @@ function CreateApiKeyDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{step === 1 ? "Crea API Key" : "Chiave API creata"}</DialogTitle>
+          <DialogTitle>{step === 1 ? "Nuova chiave di accesso" : "Chiave creata"}</DialogTitle>
           <DialogDescription>
             {step === 1
-              ? "Configura nome, permessi e scadenza della nuova chiave."
-              : "Copia la chiave ora — non sarà più visibile."}
+              ? "Scegli il nome, cosa può fare e fino a quando vale."
+              : "Copiala ora: dopo non si vede più."}
           </DialogDescription>
         </DialogHeader>
 
         {step === 1 ? (
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Nome chiave *</Label>
-              <Input placeholder="Es. Integrazione ERP" value={name} onChange={(e) => setName(e.target.value)} />
+              <Label htmlFor="chiave-nome">Nome della chiave *</Label>
+              <Input id="chiave-nome" placeholder="Es. Claude Code di Marco" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
 
             <div className="space-y-2">
-              <Label>Scadenza</Label>
+              <Label htmlFor="chiave-scadenza">Scadenza</Label>
               <Select value={expiry} onValueChange={(v) => setExpiry(v as ExpiryOption)}>
-                <SelectTrigger>
+                <SelectTrigger id="chiave-scadenza">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -151,7 +162,7 @@ function CreateApiKeyDialog({
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label>Permessi (scopes) *</Label>
+                <Label id="chiave-permessi">Cosa può fare la chiave *</Label>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -175,6 +186,7 @@ function CreateApiKeyDialog({
                       <Checkbox
                         checked={allGroupSelected}
                         onCheckedChange={(v) => toggleGroup(groupIds, !!v)}
+                        aria-label={`${group.label}: tutto`}
                       />
                       <div className="flex-1">
                         <span className="text-sm font-medium">{group.label}</span>
@@ -193,6 +205,7 @@ function CreateApiKeyDialog({
                             checked={selectedScopes.includes(scope.id)}
                             onCheckedChange={() => toggleScope(scope.id)}
                             className="mt-0.5"
+                            aria-label={`${group.label}: ${scope.label}`}
                           />
                           <div>
                             <span className="text-sm">{scope.label}</span>
@@ -211,18 +224,18 @@ function CreateApiKeyDialog({
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                Salva questa chiave adesso. Per sicurezza non viene mai memorizzata
-                in chiaro — non potrai più vederla dopo aver chiuso questa finestra.
+                Copia questa chiave adesso. Per sicurezza non la conserviamo in chiaro:
+                dopo aver chiuso questa finestra non potrai più vederla.
               </AlertDescription>
             </Alert>
 
             <div className="space-y-2">
-              <Label>Chiave API</Label>
+              <Label>Chiave</Label>
               <div className="flex items-center gap-2">
                 <code className="flex-1 text-xs bg-muted p-3 rounded-lg font-mono break-all select-all">
                   {generatedKey}
                 </code>
-                <Button size="icon" variant="outline" onClick={copyKey}>
+                <Button size="icon" variant="outline" onClick={copyKey} aria-label="Copia la chiave">
                   {copied ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
@@ -240,10 +253,10 @@ function CreateApiKeyDialog({
                   <span>{expiry === "never" ? "Mai" : EXPIRY_OPTIONS.find((o) => o.value === expiry)?.label}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Permessi:</span>
+                  <span className="text-muted-foreground">Cosa può fare:</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {selectedScopes.map((s) => (
-                      <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
+                      <Badge key={s} variant="secondary" className="text-xs">{etichettaPermesso(s)}</Badge>
                     ))}
                   </div>
                 </div>
@@ -277,46 +290,12 @@ function ScopeBadges({ scopes }: { scopes: string[] }) {
   return (
     <div className="flex flex-wrap gap-1">
       {scopes.slice(0, 4).map((s) => (
-        <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
+        <Badge key={s} variant="secondary" className="text-xs" title={s}>{etichettaPermesso(s)}</Badge>
       ))}
       {scopes.length > 4 && (
         <Badge variant="outline" className="text-xs">+{scopes.length - 4}</Badge>
       )}
     </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  description,
-  icon: Icon,
-  tone = "default",
-}: {
-  label: string;
-  value: number | string;
-  description: string;
-  icon: typeof Key;
-  tone?: "default" | "success" | "warning" | "danger";
-}) {
-  const toneClass = {
-    default: "border-l-primary text-primary",
-    success: "border-l-emerald-500 text-emerald-600",
-    warning: "border-l-amber-500 text-amber-600",
-    danger: "border-l-destructive text-destructive",
-  }[tone];
-
-  return (
-    <Card className={cn("border-l-4", toneClass)}>
-      <CardContent className="p-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-          <p className="text-2xl font-bold tabular-nums">{value}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-        <Icon className={cn("h-5 w-5", toneClass.split(" ").at(-1))} />
-      </CardContent>
-    </Card>
   );
 }
 
@@ -344,7 +323,7 @@ export default function SettingsApiKeys() {
     key.expires_at ? new Date(key.expires_at) < new Date() : false;
 
   const filteredActiveKeys = activeKeys.filter((key) => {
-    const matchesSearch = [key.name, key.key_prefix, ...(key.scopes ?? [])]
+    const matchesSearch = [key.name, key.key_prefix, ...(key.scopes ?? []), ...(key.scopes ?? []).map(etichettaPermesso)]
       .join(" ")
       .toLowerCase()
       .includes(searchTerm.trim().toLowerCase());
@@ -363,29 +342,29 @@ export default function SettingsApiKeys() {
 
   const handleRevoke = async (keyId: string) => {
     if (!canManageApiKeys) {
-      toast.error("Non hai i permessi per revocare chiavi API.");
+      toast.error("Per revocare una chiave serve il permesso «Integrazioni & Canali» in modifica.");
       return;
     }
     try {
       await revokeMutation.mutateAsync(keyId);
       toast.success("Chiave revocata");
     } catch (e) {
-      toast.error("Impossibile revocare: " + (e as Error).message);
+      toast.error(userErrorMessage(e, "Non sono riuscito a revocare la chiave. Riprova."));
     }
   };
 
   const handleRotate = async (key: ApiKey) => {
     if (!canManageApiKeys) {
-      toast.error("Non hai i permessi per ruotare chiavi API.");
+      toast.error("Per sostituire una chiave serve il permesso «Integrazioni & Canali» in modifica.");
       return;
     }
     try {
       const result = await rotateMutation.mutateAsync(key);
       setRotatedKey(result);
       setRotatedCopied(false);
-      toast.success("Chiave ruotata. Copia subito il nuovo secret.");
+      toast.success("Chiave sostituita. Copia subito quella nuova.");
     } catch (e) {
-      toast.error("Impossibile ruotare: " + (e as Error).message);
+      toast.error(userErrorMessage(e, "Non sono riuscito a sostituire la chiave. Riprova."));
     }
   };
 
@@ -399,62 +378,59 @@ export default function SettingsApiKeys() {
 
   return (
     <div className="space-y-5">
-      {/* Header standardizzato */}
+      {/* Il titolo della pagina lo mette già la testata delle Impostazioni (un solo h1): qui una riga con i numeri e l'azione. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          {/* Da 768 icona e titolo li mostra già la testata delle Impostazioni
-              (erano due volte): resta la riga sotto, con numeri e azioni. */}
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 md:hidden">
-            <Key className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight md:hidden">API Platform</h1>
-            <p className="text-sm text-muted-foreground">
-              {activeKeys.length} chiav{activeKeys.length === 1 ? "e attiva" : "i attive"}
-              {revokedKeys.length > 0 && (
-                <> · <span className="text-muted-foreground/60">{revokedKeys.length} revocat{revokedKeys.length === 1 ? "a" : "e"}</span></>
-              )}
-            </p>
-          </div>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          {quante(activeKeys.length, "chiave attiva", "chiavi attive")}
+          {unusedCount > 0 && (
+            <> · <span className="text-amber-700 dark:text-amber-400">{quante(unusedCount, "mai usata", "mai usate")}</span></>
+          )}
+          {expiredCount > 0 && (
+            <> · <span className="text-destructive">{quante(expiredCount, "scaduta", "scadute")}</span></>
+          )}
+          {revokedKeys.length > 0 && (
+            <> · <span className="text-muted-foreground/60">{quante(revokedKeys.length, "revocata", "revocate")}</span></>
+          )}
+        </p>
         <Button onClick={() => setFormOpen(true)} className="gap-2 h-9" size="sm" disabled={!canManageApiKeys}>
-          <Plus className="h-4 w-4" /> Nuova API Key
+          <Plus className="h-4 w-4" /> Nuova chiave
         </Button>
       </div>
 
       <Tabs defaultValue="keys" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="keys" className="gap-2"><Key className="h-4 w-4" /> Chiavi API</TabsTrigger>
+          <TabsTrigger value="keys" className="gap-2"><Key className="h-4 w-4" /> Chiavi</TabsTrigger>
           <TabsTrigger value="usage" className="gap-2"><Activity className="h-4 w-4" /> Utilizzo</TabsTrigger>
           <TabsTrigger value="docs" className="gap-2"><Book className="h-4 w-4" /> Documentazione</TabsTrigger>
         </TabsList>
 
         <TabsContent value="keys" className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Attive" value={activeKeys.length} description="key utilizzabili ora" icon={Key} tone="success" />
-            <StatCard label="Mai usate" value={unusedCount} description="da verificare o revocare" icon={Clock} tone={unusedCount > 0 ? "warning" : "default"} />
-            <StatCard label="Scadute" value={expiredCount} description="da ruotare o revocare" icon={AlertTriangle} tone={expiredCount > 0 ? "danger" : "default"} />
-            <StatCard label="Revocate" value={revokedKeys.length} description="storico accessi chiusi" icon={ShieldCheck} />
-          </div>
-
-          {/* Security info */}
-          <Alert>
-            <ShieldAlert className="h-4 w-4" />
-            <AlertDescription>
-              <p className="font-medium">Le chiavi API danno accesso ai dati della tua azienda.</p>
-              <ul className="text-xs text-muted-foreground mt-1 list-disc list-inside space-y-0.5">
-                <li>Non condividere mai una chiave in pubblico o inserirla nel codice sorgente.</li>
-                <li>Usa variabili d'ambiente o un secret manager.</li>
-                <li>Limite: 100 richieste/minuto per chiave.</li>
+          <div className="rounded-lg border bg-card px-4 py-3">
+            <p className="text-sm">
+              Una chiave permette a Claude Code, Claude Desktop o a un programma di accedere ai dati dell'azienda al
+              posto tuo: scegli tu cosa può leggere e cosa può modificare. Creane una per ogni uso e revocala quando non
+              serve più.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Claude sul sito e ChatGPT non usano le chiavi: si collegano da{" "}
+              <Link to="/azienda/impostazioni/integrazioni" className="text-primary underline">Integrazioni</Link>.
+            </p>
+            <details className="mt-2 text-xs text-muted-foreground">
+              <summary className="cursor-pointer py-1 font-medium text-foreground">Come tenerla al sicuro</summary>
+              <ul className="mt-1 list-disc list-inside space-y-0.5">
+                <li>Non scriverla in un file condiviso, in un messaggio o in un documento.</li>
+                <li>Se pensi che l'abbiano vista altri, revocala e creane una nuova.</li>
+                <li>Ogni chiave ha un limite di richieste al minuto e al giorno: lo vedi su ciascuna.</li>
               </ul>
-            </AlertDescription>
-          </Alert>
+            </details>
+          </div>
 
           {!canManageApiKeys && (
             <Alert>
               <ShieldAlert className="h-4 w-4" />
               <AlertDescription>
-                Puoi consultare le API key, ma solo un amministratore aziendale può crearle o revocarle.
+                Stai solo consultando: per creare, sostituire o revocare una chiave serve il permesso «Integrazioni &amp;
+                Canali» in modifica (o essere amministratore).
               </AlertDescription>
             </Alert>
           )}
@@ -471,12 +447,13 @@ export default function SettingsApiKeys() {
                   <Input
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Cerca per nome, prefisso o scope..."
+                    placeholder="Cerca per nome o per cosa può fare…"
+                    aria-label="Cerca una chiave"
                     className="pl-9"
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
-                  <SelectTrigger className="w-full sm:w-48">
+                  <SelectTrigger className="w-full sm:w-48" aria-label="Filtra per stato">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -498,10 +475,10 @@ export default function SettingsApiKeys() {
                       </div>
                       <div>
                         <p className="font-medium">Nessuna chiave attiva</p>
-                        <p className="text-sm text-muted-foreground">Crea la tua prima API key per iniziare ad integrare.</p>
+                        <p className="text-sm text-muted-foreground">Creane una per collegare Claude Code, Claude Desktop o un programma ai dati dell'azienda.</p>
                       </div>
                       <Button onClick={() => setFormOpen(true)} className="gap-2" disabled={!canManageApiKeys}>
-                        <Plus className="h-4 w-4" /> Crea API Key
+                        <Plus className="h-4 w-4" /> Nuova chiave
                       </Button>
                     </div>
                   </CardContent>
@@ -511,7 +488,7 @@ export default function SettingsApiKeys() {
                   <CardContent className="py-10 text-center">
                     <Search className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
                     <p className="font-medium">Nessuna chiave corrisponde ai filtri</p>
-                    <p className="text-sm text-muted-foreground">Riduci ricerca o cambia stato selezionato.</p>
+                    <p className="text-sm text-muted-foreground">Cambia la ricerca o il filtro per stato.</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -568,6 +545,10 @@ export default function SettingsApiKeys() {
                                   </span>
                                 )}
                                 <span>Creata {formatRelativeTime(key.created_at)}</span>
+                                <span>
+                                  Limite: {key.rate_limit_per_minute.toLocaleString("it-IT")} richieste al minuto,{" "}
+                                  {key.rate_limit_per_day.toLocaleString("it-IT")} al giorno
+                                </span>
                               </div>
                             </div>
 
@@ -585,21 +566,21 @@ export default function SettingsApiKeys() {
                                   ) : (
                                     <RotateCcw className="h-3.5 w-3.5" />
                                   )}
-                                  Ruota
+                                  Sostituisci
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Ruotare la chiave API?</AlertDialogTitle>
+                                  <AlertDialogTitle>Sostituire la chiave?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Verrà creata una nuova chiave con gli stessi scope e la chiave attuale <strong>{key.name}</strong> verrà revocata.
-                                    Copia subito il nuovo secret dopo la conferma.
+                                    Creo una chiave nuova con gli stessi permessi e revoco <strong>{key.name}</strong>.
+                                    Copia subito la nuova: dopo non si vede più.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Annulla</AlertDialogCancel>
                                   <AlertDialogAction onClick={() => handleRotate(key)} disabled={rotateMutation.isPending}>
-                                    {rotateMutation.isPending ? "Rotazione..." : "Ruota chiave"}
+                                    {rotateMutation.isPending ? "Sostituzione…" : "Sostituisci la chiave"}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
@@ -625,8 +606,8 @@ export default function SettingsApiKeys() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Revocare la chiave?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    La chiave <strong>{key.name}</strong> ({key.key_prefix}...) cesserà immediatamente di funzionare.
-                                    Questa azione è irreversibile.
+                                    La chiave <strong>{key.name}</strong> ({key.key_prefix}…) smette subito di funzionare.
+                                    Non si può annullare.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -639,7 +620,7 @@ export default function SettingsApiKeys() {
                                     {revokeMutation.isPending ? (
                                       <>
                                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        Revoca in corso...
+                                        Revoca in corso…
                                       </>
                                     ) : (
                                       "Sì, revoca"
@@ -696,7 +677,18 @@ export default function SettingsApiKeys() {
           )}
         </TabsContent>
 
-        <TabsContent value="usage">
+        <TabsContent value="usage" className="space-y-4">
+          {/* Il grafico legge un conteggio che nessuno compila: resta vuoto anche se le chiavi lavorano. */}
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              <p className="font-medium">Questo grafico non è ancora collegato.</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Resta vuoto anche quando le chiavi vengono usate. Per sapere se una chiave lavora guarda «Usata…»
+                nell'elenco delle chiavi.
+              </p>
+            </AlertDescription>
+          </Alert>
           <ApiUsageChart keys={apiKeys} />
         </TabsContent>
 
@@ -709,14 +701,14 @@ export default function SettingsApiKeys() {
       <Dialog open={!!rotatedKey} onOpenChange={(open) => !open && setRotatedKey(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Nuova API key generata</DialogTitle>
+            <DialogTitle>Nuova chiave pronta</DialogTitle>
             <DialogDescription>
-              Copia questa chiave ora. Dopo la chiusura non sarà più visibile.
+              Copiala ora: dopo aver chiuso questa finestra non si vede più.
             </DialogDescription>
           </DialogHeader>
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>La vecchia chiave è stata revocata. Aggiorna subito l'integrazione esterna.</AlertDescription>
+            <AlertDescription>La chiave vecchia è stata revocata: aggiorna subito dove la usavi.</AlertDescription>
           </Alert>
           <div className="space-y-2">
             <Label>{rotatedKey?.name}</Label>
@@ -724,7 +716,7 @@ export default function SettingsApiKeys() {
               <code className="flex-1 text-xs bg-muted p-3 rounded-lg font-mono break-all select-all">
                 {rotatedKey?.rawKey}
               </code>
-              <Button size="icon" variant="outline" onClick={copyRotatedKey}>
+              <Button size="icon" variant="outline" onClick={copyRotatedKey} aria-label="Copia la nuova chiave">
                 {rotatedCopied ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>

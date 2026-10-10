@@ -29,6 +29,8 @@ export function useEntityCustomFields(objectType: string) {
         .select("*")
         .eq("company_id", companyId!)
         .eq("object_type", objectType)
+        // Un campo eliminato sparisce dalle schede: i valori restano e il campo si può ripristinare.
+        .is("deleted_at", null)
         .order("position");
       if (error) throw error;
       return data || [];

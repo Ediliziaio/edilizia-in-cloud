@@ -33,7 +33,7 @@ describe("copiare le fasi di una sequenza esistente", () => {
   });
 
   it("il selettore mostra un gruppo a parte, solo se c'è qualcosa da copiare", () => {
-    expect(sorgente).toContain("Copia una sequenza esistente");
+    expect(sorgente).toContain("Copia una pipeline esistente");
     expect(sorgente).toContain("{pipelineCopiabili.length > 0 && (");
   });
 

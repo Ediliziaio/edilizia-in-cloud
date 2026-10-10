@@ -27,7 +27,8 @@ const COPPIE = [
   { tabella: "marketing_pipelines", db: "can_edit_settings_customization", app: "canEditSettingsCustomization", file: ["src/components/settings/PipelinesConfig.tsx"] },
   { tabella: "marketing_pipeline_stages", db: "can_edit_settings_customization", app: "canEditSettingsCustomization", file: ["src/components/settings/PipelineStagesConfig.tsx"] },
   { tabella: "marketing_custom_fields", db: "can_edit_settings_customization", app: "canEditSettingsCustomization", file: ["src/components/settings/CustomFieldsConfig.tsx"] },
-  { tabella: "marketing_custom_field_folders", db: "can_edit_settings_customization", app: "canEditSettingsCustomization", file: ["src/components/settings/CustomFieldsConfig.tsx"] },
+  // marketing_custom_field_folders non c'è più: la scheda «Cartelle» è stata tolta il 10/10/2026 (nessun codice leggeva le
+  // cartelle) e nessuna pagina scrive più quella tabella, quindi non c'è una pagina che debba chiedere lo stesso permesso.
   { tabella: "company_task_statuses", db: "can_edit_settings_customization", app: "canEditSettingsCustomization", file: ["src/pages/azienda/UnifiedTasks.tsx"] },
   { tabella: "suppliers", db: "can_edit_settings_suppliers", app: "canEditSettingsSuppliers", file: ["src/pages/azienda/settings/SettingsSuppliers.tsx"] },
 ] as const;
@@ -151,33 +152,36 @@ function monta() {
 beforeEach(() => { puoModificare = true; });
 afterEach(cleanup);
 
-describe("Impostazioni → Sequenze", () => {
+describe("Impostazioni → Pipeline di vendita", () => {
   it("con «Modifica» su Personalizzazione: crea, rinomina, aggiunge fasi e salva", async () => {
     monta();
     expect(await screen.findByText("Vendite")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Crea Sequenza/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Nuova pipeline/ })).toBeTruthy();
     expect(screen.queryByRole("note")).toBeNull();
 
     fireEvent.click(screen.getByText("Vendite"));
     expect(await screen.findByDisplayValue("Nuovo")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Aggiungi Fase/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Salva/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Aggiungi una fase/ })).toBeTruthy();
     expect((screen.getByDisplayValue("Nuovo") as HTMLInputElement).matches(":disabled")).toBe(false);
+    // «Salva le fasi» sta in una barra che compare con la prima modifica (10/10/2026): prima era sempre in cima, spento.
+    expect(screen.queryByRole("button", { name: /Salva/ })).toBeNull();
+    fireEvent.change(screen.getByDisplayValue("Nuovo"), { target: { value: "Nuovo contatto" } });
+    expect(screen.getByRole("button", { name: /Salva le fasi/ })).toBeTruthy();
   });
 
   it("solo «Vedi»: niente pulsanti di modifica, e una riga dice perché", async () => {
     puoModificare = false;
     monta();
     expect(await screen.findByText("Vendite")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Crea Sequenza/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Nuova pipeline/ })).toBeNull();
     expect(screen.getByRole("note").textContent).toMatch(/Sola lettura.*Personalizzazione/);
 
     // Le fasi si consultano ma non si toccano.
     fireEvent.click(screen.getByText("Vendite"));
     const campo = (await screen.findByDisplayValue("Nuovo")) as HTMLInputElement;
     expect(campo.matches(":disabled")).toBe(true);
-    expect(screen.queryByRole("button", { name: /Aggiungi Fase/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Salva$/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Aggiungi una fase/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Salva/ })).toBeNull();
     expect(screen.getByRole("note").textContent).toMatch(/Sola lettura/);
   });
 });

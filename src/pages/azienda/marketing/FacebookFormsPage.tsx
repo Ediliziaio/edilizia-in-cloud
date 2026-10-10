@@ -2,7 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,15 +14,25 @@ import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { queryKeys } from "@/lib/queryKeys";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
 import { RientroLeadCard } from "@/components/integrations/RientroLeadCard";
 import type { Integration } from "@/types/integrations";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-export default function FacebookFormsPage() {
+/**
+ * Impostazioni → Lead Facebook e Instagram: i moduli dei tuoi annunci, quanti contatti sono arrivati, importare quelli
+ * passati. La pagina LEGGE da Meta e scrive solo nel CRM: gli annunci e i moduli contatto di Meta non si toccano mai.
+ *
+ * `comeAdmin`: la stessa pagina è montata nel pannello super admin (`AdminFacebookForms`), dove non c'è la testata
+ * delle Impostazioni: lì tiene il suo titolo e la lista di controllo per la revisione dell'app Meta, che serve a chi
+ * sviluppa l'app e non al cliente.
+ */
+export default function FacebookFormsPage({ comeAdmin = false }: { comeAdmin?: boolean }) {
   const { effectiveCompany, role } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
   const queryClient = useQueryClient();
@@ -36,7 +46,7 @@ export default function FacebookFormsPage() {
   const [metaConfigMissing, setMetaConfigMissing] = useState(false);
   const [backfillingFormId, setBackfillingFormId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  // M10 — App Review checklist
+  // M10 — App Review checklist (solo pannello admin)
   const [reviewDismissed, setReviewDismissed] = useState(false);
   const [reviewChecked, setReviewChecked] = useState<Record<string, boolean>>({});
 
@@ -67,7 +77,7 @@ export default function FacebookFormsPage() {
 
   const handleMetaConnect = async () => {
     if (!canManageMeta) {
-      toast.error("Solo un amministratore aziendale può gestire Meta Lead Ads.");
+      toast.error("Per collegare Meta serve il permesso «Integrazioni & Canali» in modifica (o essere amministratore).");
       return;
     }
     const ok = await checkMetaCredentials();
@@ -112,32 +122,41 @@ export default function FacebookFormsPage() {
     enabled: !!companyId && !!integration?.id,
   });
 
-  // Get lead counts per form from webhook events
-  const { data: leadCounts = {} } = useQuery({
-    queryKey: queryKeys.metaForms.leadCounts(companyId),
+  // Quanti contatti ha portato ogni modulo, e quando è arrivato l'ultimo. Una richiesta piccola per modulo (un
+  // conteggio esatto e la data più recente) invece di scaricare tutti gli eventi con il loro contenuto: una risposta si
+  // ferma a 1.000 righe e un'azienda ne ha 1.726, quindi i totali erano troppo bassi e la pagina pesante.
+  const formIds = useMemo(() => forms.map((f: any) => String(f.form_id)), [forms]);
+  const { data: leadCounts = {}, isError: leadCountsError } = useQuery({
+    queryKey: [...queryKeys.metaForms.leadCounts(companyId), "per-modulo", formIds],
     queryFn: async () => {
-      if (!companyId) return {};
-      const { data } = await supabase
-        .from("integration_webhook_events")
-        .select("id, payload, received_at")
-        .eq("company_id", companyId)
-        .eq("provider", "meta")
-        .eq("event_type", "leadgen")
-        .eq("status", "processed");
-
-      const counts: Record<string, { total: number; lastAt: string | null }> = {};
-      for (const ev of data || []) {
-        const formId = (ev.payload as any)?.form_id;
-        if (!formId) continue;
-        if (!counts[formId]) counts[formId] = { total: 0, lastAt: null };
-        counts[formId].total++;
-        if (!counts[formId].lastAt || ev.received_at > counts[formId].lastAt!) {
-          counts[formId].lastAt = ev.received_at;
-        }
-      }
-      return counts;
+      const coppie = await Promise.all(
+        formIds.map(async (formId) => {
+          const totale = await supabase
+            .from("integration_webhook_events")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", companyId)
+            .eq("provider", "meta")
+            .eq("event_type", "leadgen")
+            .eq("status", "processed")
+            .eq("payload->>form_id", formId);
+          const ultimo = await supabase
+            .from("integration_webhook_events")
+            .select("received_at")
+            .eq("company_id", companyId)
+            .eq("provider", "meta")
+            .eq("event_type", "leadgen")
+            .eq("status", "processed")
+            .eq("payload->>form_id", formId)
+            .order("received_at", { ascending: false })
+            .limit(1);
+          if (totale.error) throw totale.error;
+          if (ultimo.error) throw ultimo.error;
+          return [formId, { total: totale.count ?? 0, lastAt: (ultimo.data?.[0]?.received_at as string | undefined) ?? null }] as const;
+        }),
+      );
+      return Object.fromEntries(coppie) as Record<string, { total: number; lastAt: string | null }>;
     },
-    enabled: !!companyId,
+    enabled: !!companyId && formIds.length > 0,
   });
 
   // Get pages for name lookup
@@ -156,7 +175,8 @@ export default function FacebookFormsPage() {
     enabled: !!companyId && !!integration?.id,
   });
 
-  // Webhook health: last event + count in last 7 days
+  // Ricezione dei contatti: l'ultimo contatto arrivato da Meta e quanti negli ultimi 7 giorni (solo contatti già
+  // entrati nel CRM, gli stessi che si contano per modulo).
   const { data: webhookHealth } = useQuery({
     queryKey: [...queryKeys.metaForms.leadCounts(companyId), "health"],
     queryFn: async () => {
@@ -167,6 +187,8 @@ export default function FacebookFormsPage() {
         .select("id, received_at, status", { count: "exact" })
         .eq("company_id", companyId)
         .eq("provider", "meta")
+        .eq("event_type", "leadgen")
+        .eq("status", "processed")
         .gte("received_at", sevenDaysAgo)
         .order("received_at", { ascending: false })
         .limit(1);
@@ -192,6 +214,11 @@ export default function FacebookFormsPage() {
   };
 
   const handleBackfill = async (formId: string) => {
+    // Importare i contatti passati scrive nel CRM: lo fa chi gestisce le integrazioni (il pulsante è spento per gli altri).
+    if (!canManageMeta) {
+      toast.error("Per importare i contatti passati serve il permesso «Integrazioni & Canali» in modifica (o essere amministratore).");
+      return;
+    }
     setBackfillingFormId(formId);
     try {
       const { data: session } = await supabase.auth.getSession();
@@ -212,19 +239,19 @@ export default function FacebookFormsPage() {
         }),
       });
       if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
+        let msg = `Meta non ha risposto (errore ${res.status})`;
         try {
           const body = await res.json();
           if (body?.error) msg = body.error;
         } catch { /* no-op */ }
         throw new Error(msg);
       }
-      toast.success("Backfill avviato", {
-        description: "I lead storici verranno importati a breve. Ricarica la pagina tra 1-2 minuti per vedere i conteggi aggiornati.",
+      toast.success("Importazione avviata", {
+        description: "I contatti passati arrivano nei prossimi minuti: ricarica la pagina tra un paio di minuti.",
       });
     } catch (err) {
-      toast.error("Errore durante il backfill", {
-        description: (err as Error).message || "Errore sconosciuto",
+      toast.error("Importazione non riuscita", {
+        description: userErrorMessage(err, "Riprova tra poco."),
       });
     } finally {
       setBackfillingFormId(null);
@@ -234,31 +261,36 @@ export default function FacebookFormsPage() {
   if (!integration) {
     return (
       <div className="space-y-5">
-        {/* Header standardizzato */}
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
-            <Facebook className="h-5 w-5 text-blue-600" />
+        {comeAdmin && (
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
+              <Facebook className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Moduli Lead Ads</h1>
+              <p className="text-sm text-muted-foreground">
+                Gestione lead generation Facebook/Instagram
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Moduli Lead Ads</h1>
-            <p className="text-sm text-muted-foreground">
-              Gestione lead generation Facebook/Instagram
-            </p>
-          </div>
-        </div>
+        )}
         <Card className="border-dashed">
           <CardContent className="py-14 text-center">
             <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="h-7 w-7 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold mb-1">Integrazione Meta non connessa</h3>
+            <h2 className="text-lg font-semibold mb-1">Facebook e Instagram non sono collegati</h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
-              Per iniziare a ricevere lead dai moduli Facebook/Instagram devi prima
-              collegare il tuo account Meta da questa pagina.
+              Per ricevere i contatti dai moduli dei tuoi annunci devi prima collegare il tuo account Meta da questa pagina.
             </p>
-            <Button onClick={handleMetaConnect}>
+            <Button onClick={handleMetaConnect} disabled={!canManageMeta}>
               Configura Meta
             </Button>
+            {!canManageMeta && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Per collegare Meta serve il permesso «Integrazioni &amp; Canali» in modifica (o essere amministratore).
+              </p>
+            )}
           </CardContent>
         </Card>
         {metaConfigMissing && (
@@ -284,22 +316,25 @@ export default function FacebookFormsPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header standardizzato */}
+      {/* Riepilogo. Il titolo della pagina lo mette già la testata delle Impostazioni (un solo h1): lo scrive da sé
+          solo il pannello admin, che non ha la testata. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
-            <Facebook className="h-5 w-5 text-blue-600" />
-          </div>
+          {comeAdmin && (
+            <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center shrink-0">
+              <Facebook className="h-5 w-5 text-blue-600" />
+            </div>
+          )}
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Moduli Lead Ads</h1>
+            {comeAdmin && <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Moduli Lead Ads</h1>}
             <p className="text-sm text-muted-foreground">
               {forms.length === 0
                 ? "Nessun modulo collegato"
                 : <>
                   <span className="font-medium text-foreground">{activeFormsCount}</span> attivi
-                  <span className="text-muted-foreground">/{forms.length} totali</span>
+                  <span className="text-muted-foreground"> su {forms.length}</span>
                   {webhookHealth && (
-                    <> · <span className="font-medium text-foreground">{webhookHealth.recentCount}</span> lead (7gg)</>
+                    <> · <span className="font-medium text-foreground">{webhookHealth.recentCount}</span> contatti negli ultimi 7 giorni</>
                   )}
                 </>
               }
@@ -308,7 +343,7 @@ export default function FacebookFormsPage() {
         </div>
       </div>
 
-      {/* Webhook health status — border-l-4 dinamico per stato */}
+      {/* Ricezione dei contatti — border-l-4 dinamico per stato */}
       {webhookHealth && (
         <Card className={cn(
           "overflow-hidden border-l-4 transition-colors",
@@ -317,22 +352,22 @@ export default function FacebookFormsPage() {
           : "border-l-slate-300"
         )}>
           <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-sm font-medium">Stato Webhook Meta</CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <h2 className="text-sm font-medium">Ricezione dei contatti</h2>
               {webhookHealth.health === "healthy" && (
                 <Badge className="ml-auto bg-emerald-600 hover:bg-emerald-600 gap-1">
-                  <CheckCircle2 className="h-3 w-3" /> Attivo
+                  <CheckCircle2 className="h-3 w-3" /> Attiva
                 </Badge>
               )}
               {webhookHealth.health === "warn" && (
                 <Badge variant="outline" className="ml-auto gap-1 border-amber-400 text-amber-700 bg-amber-50 dark:bg-amber-950/30">
-                  <Clock className="h-3 w-3" /> Nessun evento recente
+                  <Clock className="h-3 w-3" /> Nessun contatto da più di 48 ore
                 </Badge>
               )}
               {webhookHealth.health === "unknown" && (
                 <Badge variant="outline" className="ml-auto gap-1 text-muted-foreground">
-                  <XCircle className="h-3 w-3" /> Nessun evento
+                  <XCircle className="h-3 w-3" /> Nessun contatto ricevuto
                 </Badge>
               )}
             </div>
@@ -341,10 +376,10 @@ export default function FacebookFormsPage() {
             <div className="flex gap-6 text-sm flex-wrap">
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Ultimi 7 giorni</p>
-                <p className="text-lg font-bold tabular-nums">{webhookHealth.recentCount} <span className="text-xs font-normal text-muted-foreground">event{webhookHealth.recentCount === 1 ? "o" : "i"}</span></p>
+                <p className="text-lg font-bold tabular-nums">{webhookHealth.recentCount} <span className="text-xs font-normal text-muted-foreground">contatt{webhookHealth.recentCount === 1 ? "o" : "i"}</span></p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Ultimo evento</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Ultimo contatto</p>
                 <p className="text-sm font-semibold tabular-nums">
                   {webhookHealth.lastEvent
                     ? format(parseISO(webhookHealth.lastEvent.received_at), "dd MMM HH:mm", { locale: it })
@@ -358,14 +393,18 @@ export default function FacebookFormsPage() {
                   </p>
                 )}
               </div>
-              {webhookHealth.health === "warn" && (
-                <div className="flex-1 text-amber-700 text-xs self-center bg-amber-50 dark:bg-amber-950/20 rounded px-3 py-2 border border-amber-200 dark:border-amber-900/50">
-                  ⚠️ Verifica che il webhook sia correttamente configurato in Meta Business Manager (Impostazioni → Webhook).
-                </div>
-              )}
-              {webhookHealth.health === "unknown" && (
-                <div className="flex-1 text-muted-foreground text-xs self-center bg-muted/40 rounded px-3 py-2">
-                  Nessun lead ricevuto negli ultimi 7 giorni. Controlla la connessione del webhook in Meta.
+              {(webhookHealth.health === "warn" || webhookHealth.health === "unknown") && (
+                <div className="flex-1 text-xs self-center rounded px-3 py-2 border bg-muted/40 text-muted-foreground">
+                  {comeAdmin ? (
+                    "Se ti aspettavi dei contatti, controlla il collegamento con Meta."
+                  ) : (
+                    <>
+                      Se ti aspettavi dei contatti, apri{" "}
+                      <Link to="/azienda/impostazioni/integrazioni" className="text-primary underline">
+                        Integrazioni → Facebook e Instagram → Risolvi problemi
+                      </Link>.
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -373,11 +412,133 @@ export default function FacebookFormsPage() {
         </Card>
       )}
 
-      {/* Lead che rientrano dopo una chiusura: impostazione dell'integrazione Meta */}
-      <RientroLeadCard integration={integration} canManage={canManageMeta} />
+      <Card>
+        <CardHeader>
+          <h2 className="text-lg font-semibold leading-none tracking-tight">Moduli collegati</h2>
+          <p className="text-sm text-muted-foreground">
+            {forms.length} modul{forms.length === 1 ? "o" : "i"} collegat{forms.length === 1 ? "o" : "i"}
+          </p>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : forms.length === 0 ? (
+            <div className="text-center py-10">
+              <Inbox className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+              <p className="font-medium">Nessun modulo dei tuoi annunci è collegato</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                Completa il collegamento con Meta scegliendo almeno una pagina:
+                i moduli arrivano poi da soli.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onClick={handleMetaConnect}
+                disabled={!canManageMeta}
+              >
+                Configura integrazione Meta
+              </Button>
+            </div>
+          ) : (
+            // Da telefono ogni modulo è una scheda (la tabella con sei colonne usciva dallo schermo e il numero dei
+            // contatti e il pulsante restavano fuori); da 768 px in su è la tabella di sempre.
+            <Table className="block md:table">
+              <TableHeader className="hidden md:table-header-group">
+                <TableRow>
+                  <TableHead>Modulo</TableHead>
+                  <TableHead>Pagina</TableHead>
+                  <TableHead className="text-center">Stato</TableHead>
+                  <TableHead className="text-right">Contatti ricevuti</TableHead>
+                  <TableHead>Ultimo contatto</TableHead>
+                  <TableHead className="text-right">Azioni</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="block md:table-row-group">
+                {forms.map((form: any) => {
+                  const counts = leadCounts[String(form.form_id)];
+                  return (
+                    <TableRow key={form.id} className="grid grid-cols-2 items-center gap-x-3 gap-y-2 p-3 md:table-row md:p-0">
+                      <TableCell className="col-span-2 min-w-0 p-0 font-medium md:max-w-[240px] md:p-4">
+                        <p className="truncate" title={form.form_name}>{form.form_name}</p>
+                        {/* Il codice che Meta dà al modulo serve a chi lo cerca in Meta: sta chiuso. */}
+                        <details className="mt-0.5 text-xs font-normal text-muted-foreground">
+                          <summary className="cursor-pointer">Codice del modulo in Meta</summary>
+                          <div className="mt-1 flex items-center gap-1">
+                            <span className="font-mono">{form.form_id}</span>
+                            <button
+                              type="button"
+                              className="flex h-8 w-8 items-center justify-center rounded hover:bg-muted transition-colors"
+                              onClick={() => handleCopyId(form.form_id)}
+                              aria-label={`Copia il codice del modulo ${form.form_name}`}
+                              title="Copia il codice"
+                            >
+                              {copiedId === form.form_id
+                                ? <Check className="h-3 w-3 text-emerald-500" />
+                                : <Copy className="h-3 w-3 text-muted-foreground" />}
+                            </button>
+                          </div>
+                        </details>
+                      </TableCell>
+                      <TableCell className="p-0 text-sm text-muted-foreground md:p-4">
+                        {getPageName(form.page_asset_id)}
+                      </TableCell>
+                      <TableCell className="p-0 text-right md:p-4 md:text-center">
+                        <Badge variant={form.status === "active" ? "default" : "secondary"}>
+                          {form.status === "active" ? "Attivo" : "Inattivo"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="p-0 font-semibold md:p-4 md:text-right">
+                        <span className="mr-1 text-xs font-normal text-muted-foreground md:hidden">Contatti ricevuti:</span>{leadCountsError ? "–" : counts?.total || 0}
+                      </TableCell>
+                      <TableCell className="p-0 text-right text-sm text-muted-foreground md:p-4 md:text-left">
+                        <span className="mr-1 text-xs md:hidden">Ultimo:</span>{counts?.lastAt
+                          ? format(parseISO(counts.lastAt), "dd/MM/yyyy HH:mm", { locale: it })
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="col-span-2 p-0 md:p-4 md:text-right">
+                        <div className="flex items-center gap-1 md:justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-11 w-full text-xs md:h-9 md:w-auto"
+                            onClick={() => handleBackfill(form.form_id)}
+                            disabled={!canManageMeta || !!backfillingFormId}
+                            title={canManageMeta ? "Porta nel CRM i contatti che questo modulo ha già raccolto" : "Serve il permesso «Integrazioni & Canali» in modifica"}
+                          >
+                            {backfillingFormId === form.form_id ? (
+                              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                            )}
+                            Importa i contatti passati
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+          {leadCountsError && (
+            <p className="mt-2 text-xs text-muted-foreground">Non riesco a contare i contatti di ogni modulo: ricarica la pagina tra poco.</p>
+          )}
+        </CardContent>
+      </Card>
 
-      {/* M10 — Meta App Review Banner */}
-      {!reviewDismissed && (() => {
+      {/* Lead che rientrano dopo una chiusura: impostazione dell'integrazione Meta. Sta sotto l'elenco dei moduli
+          (è la cosa che si guarda di più) e si apre da sola solo se è già attiva. */}
+      <RientroLeadCard
+        key={`${integration.rientro_lead_modo ?? "off"}:${integration.rientro_lead_giorni ?? 90}`}
+        integration={integration}
+        canManage={canManageMeta}
+      />
+
+      {/* Lista di controllo per la revisione dell'app Meta: serve a chi sviluppa l'app, non al cliente. Solo admin. */}
+      {comeAdmin && !reviewDismissed && (() => {
         const CHECKLIST = [
           { id: "privacy_policy", label: "Privacy Policy pubblica raggiungibile da URL", required: true },
           { id: "lead_ads_tos", label: "Accettazione Lead Ads Terms of Service in Business Manager", required: true },
@@ -444,114 +605,6 @@ export default function FacebookFormsPage() {
         );
       })()}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Moduli attivi</CardTitle>
-          <CardDescription>
-            {forms.length} modul{forms.length === 1 ? "o" : "i"} collegat{forms.length === 1 ? "o" : "i"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
-            </div>
-          ) : forms.length === 0 ? (
-            <div className="text-center py-10">
-              <Inbox className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
-              <p className="font-medium">Nessun modulo Lead Ads collegato</p>
-              <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-                Completa la configurazione dell'integrazione Meta selezionando almeno una pagina,
-                poi i moduli lead verranno sincronizzati automaticamente.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-4"
-                onClick={handleMetaConnect}
-              >
-                Configura integrazione Meta
-              </Button>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome modulo</TableHead>
-                  <TableHead>Form ID</TableHead>
-                  <TableHead>Pagina</TableHead>
-                  <TableHead className="text-center">Stato</TableHead>
-                  <TableHead className="text-right">Lead totali</TableHead>
-                  <TableHead>Ultimo lead</TableHead>
-                  <TableHead className="text-right">Azioni</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {forms.map((form: any) => {
-                  const counts = leadCounts[form.form_id];
-                  return (
-                    <TableRow key={form.id}>
-                      <TableCell className="font-medium max-w-[200px] truncate" title={form.form_name}>
-                        {form.form_name}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <span className="font-mono text-xs text-muted-foreground">{form.form_id}</span>
-                          <button
-                            type="button"
-                            className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted transition-colors"
-                            onClick={() => handleCopyId(form.form_id)}
-                            title="Copia Form ID"
-                          >
-                            {copiedId === form.form_id
-                              ? <Check className="h-3 w-3 text-emerald-500" />
-                              : <Copy className="h-3 w-3 text-muted-foreground" />}
-                          </button>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {getPageName(form.page_asset_id)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={form.status === "active" ? "default" : "secondary"}>
-                          {form.status === "active" ? "Attivo" : "Inattivo"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {counts?.total || 0}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {counts?.lastAt
-                          ? format(parseISO(counts.lastAt), "dd/MM/yyyy HH:mm", { locale: it })
-                          : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center gap-1 justify-end">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => handleBackfill(form.form_id)}
-                            disabled={!!backfillingFormId}
-                            title="Importa lead storici per questo form"
-                          >
-                            {backfillingFormId === form.form_id ? (
-                              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                            )}
-                            Backfill
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
       {metaConfigMissing && (
         <Alert variant="destructive" className="max-w-xl">
           <AlertTriangle className="h-4 w-4" />

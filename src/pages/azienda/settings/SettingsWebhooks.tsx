@@ -27,9 +27,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
@@ -42,9 +39,10 @@ import {
 import {
   Plus, Globe, Pencil, Trash2, Activity, CheckCircle2,
   XCircle, Clock, RotateCcw, RefreshCw, Zap, Loader2,
-  AlertTriangle, Webhook as WebhookIcon, ShieldCheck, Search,
+  AlertTriangle, Webhook as WebhookIcon, ShieldCheck, Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 
 type ValidatedWebhookUrl = { ok: true; url: string } | { ok: false; message: string };
 
@@ -59,82 +57,37 @@ const PRIVATE_HOST_PATTERNS = [
 
 function validateWebhookUrl(rawUrl: string): ValidatedWebhookUrl {
   const trimmed = rawUrl.trim();
-  if (!trimmed) return { ok: false, message: "URL endpoint obbligatorio." };
+  if (!trimmed) return { ok: false, message: "Scrivi l'indirizzo a cui mandare l'avviso." };
 
   let parsed: URL;
   try {
     parsed = new URL(trimmed);
   } catch {
-    return { ok: false, message: "Inserisci un URL valido." };
+    return { ok: false, message: "L'indirizzo non è valido: deve cominciare con https://" };
   }
 
   const hostname = parsed.hostname.toLowerCase();
   const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
   if (parsed.username || parsed.password) {
-    return { ok: false, message: "L'URL non può contenere credenziali." };
+    return { ok: false, message: "L'indirizzo non può contenere nome utente o password." };
   }
   if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && isLocalhost)) {
-    return { ok: false, message: "I webhook devono usare HTTPS, salvo localhost per test locale." };
+    return { ok: false, message: "L'indirizzo deve cominciare con https:// (http:// va bene solo per provare sul tuo computer)." };
   }
   if (!isLocalhost && (hostname === "localhost" || PRIVATE_HOST_PATTERNS.some((pattern) => pattern.test(hostname)))) {
-    return { ok: false, message: "Endpoint su reti private/locali non consentiti per sicurezza." };
+    return { ok: false, message: "Gli indirizzi di reti private o locali non sono consentiti, per sicurezza." };
   }
   if (hostname.endsWith(".local") || hostname === "metadata.google.internal") {
-    return { ok: false, message: "Endpoint locali o metadata non consentiti." };
+    return { ok: false, message: "Questo indirizzo non è consentito, per sicurezza." };
   }
 
   return { ok: true, url: parsed.toString() };
-}
-
-function parseAllowedIps(raw: string): { ok: true; ips: string[] } | { ok: false; message: string } {
-  const ips = raw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith("#"));
-  const ipOrCidr = /^(\d{1,3}\.){3}\d{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$/;
-  const invalid = ips.find((ip) => !ipOrCidr.test(ip) || ip.split("/")[0].split(".").some((part) => Number(part) > 255));
-  if (invalid) return { ok: false, message: `IP/CIDR non valido: ${invalid}` };
-  return { ok: true, ips: Array.from(new Set(ips)) };
 }
 
 function sanitizeLogBody(body: string): string {
   return body
     .replace(/(authorization|api[_-]?key|token|secret|password)("?\s*[:=]\s*"?)[^",\s}]+/gi, "$1$2[redacted]")
     .slice(0, 1200);
-}
-
-function WebhookStatCard({
-  label,
-  value,
-  description,
-  icon: Icon,
-  tone = "default",
-}: {
-  label: string;
-  value: number | string;
-  description: string;
-  icon: typeof WebhookIcon;
-  tone?: "default" | "success" | "warning" | "danger";
-}) {
-  const toneClass = {
-    default: "border-l-primary text-primary",
-    success: "border-l-emerald-500 text-emerald-600",
-    warning: "border-l-amber-500 text-amber-600",
-    danger: "border-l-destructive text-destructive",
-  }[tone];
-
-  return (
-    <Card className={cn("border-l-4", toneClass)}>
-      <CardContent className="p-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-          <p className="text-2xl font-bold tabular-nums">{value}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-        <Icon className={cn("h-5 w-5", toneClass.split(" ").at(-1))} />
-      </CardContent>
-    </Card>
-  );
 }
 
 // ===== WebhookFormDialog =====
@@ -159,14 +112,11 @@ function WebhookFormDialog({
   const [url, setUrl] = useState(webhook?.url || "");
   const [secret, setSecret] = useState("");
   const [selectedEvents, setSelectedEvents] = useState<string[]>(webhook?.events || []);
-  const [timeoutSec, setTimeoutSec] = useState<number>(webhook?.timeout_seconds ?? 15);
-  const [allowedIpsText, setAllowedIpsText] = useState<string>((webhook?.allowed_ips ?? []).join("\n"));
   const [testResult, setTestResult] = useState<{ status: string; http_status: number | null } | null>(null);
   const [testing, setTesting] = useState(false);
 
   const busy = testing || createMutation.isPending || updateMutation.isPending;
   const dirty = name !== (webhook?.name || "") || url !== (webhook?.url || "") || !!secret ||
-    timeoutSec !== (webhook?.timeout_seconds ?? 15) || allowedIpsText !== (webhook?.allowed_ips ?? []).join("\n") ||
     JSON.stringify([...selectedEvents].sort()) !== JSON.stringify([...(webhook?.events || [])].sort());
   const confermaUscita = useSettingsDraftGuard(dirty || busy);
 
@@ -195,12 +145,12 @@ function WebhookFormDialog({
   const handleTest = async () => {
     if (busy) return;
     if (!canManage) {
-      toast({ title: "Permessi insufficienti", description: "Solo gli amministratori possono testare webhook.", variant: "destructive" });
+      toast({ title: "Non puoi farlo", description: "Per mandare una prova serve il permesso «Integrazioni & Canali» in modifica.", variant: "destructive" });
       return;
     }
     const validatedUrl = validateWebhookUrl(url);
     if (!validatedUrl.ok) {
-      toast({ title: "URL non valido", description: validatedUrl.message, variant: "destructive" });
+      toast({ title: "Indirizzo non valido", description: validatedUrl.message, variant: "destructive" });
       return;
     }
     setTesting(true);
@@ -210,13 +160,13 @@ function WebhookFormDialog({
         body: {
           webhook_id: webhook?.id ?? null,
           event_type: "test.ping",
-          payload: { message: "Test da Sales OS", timestamp: new Date().toISOString() },
+          payload: { message: "Prova dal gestionale", timestamp: new Date().toISOString() },
           is_test: true,
           test_url: webhook ? undefined : validatedUrl.url,
         },
       });
       if (error) {
-        let message = error.message || "Errore invio webhook";
+        let message = error.message || "Invio non riuscito";
         try {
           const context: unknown = error.context;
           if (context instanceof Response) {
@@ -236,38 +186,31 @@ function WebhookFormDialog({
   const handleSave = async () => {
     if (busy) return;
     if (!canManage) {
-      toast({ title: "Permessi insufficienti", description: "Solo gli amministratori possono salvare webhook.", variant: "destructive" });
+      toast({ title: "Non puoi farlo", description: "Per salvare un webhook serve il permesso «Integrazioni & Canali» in modifica.", variant: "destructive" });
       return;
     }
     const trimmedName = name.trim();
     const normalizedEvents = Array.from(new Set(selectedEvents)).filter((event) => allEvents.includes(event));
     if (!trimmedName || !url || normalizedEvents.length === 0) {
-      toast({ title: "Campi obbligatori", description: "Inserisci nome, URL e seleziona almeno un evento.", variant: "destructive" });
+      toast({ title: "Manca qualcosa", description: "Scrivi il nome e l'indirizzo e scegli almeno un evento.", variant: "destructive" });
       return;
     }
     if (trimmedName.length < 3 || trimmedName.length > 100) {
-      toast({ title: "Nome non valido", description: "Il nome deve contenere tra 3 e 100 caratteri.", variant: "destructive" });
+      toast({ title: "Nome non valido", description: "Il nome deve avere da 3 a 100 caratteri.", variant: "destructive" });
       return;
     }
     const validatedUrl = validateWebhookUrl(url);
     if (!validatedUrl.ok) {
-      toast({ title: "URL non valido", description: validatedUrl.message, variant: "destructive" });
-      return;
-    }
-    const allowedIps = parseAllowedIps(allowedIpsText);
-    if (!allowedIps.ok) {
-      toast({ title: "Whitelist IP non valida", description: allowedIps.message, variant: "destructive" });
+      toast({ title: "Indirizzo non valido", description: validatedUrl.message, variant: "destructive" });
       return;
     }
 
     try {
-      // Payload esteso con campi security (migration 20261024110000)
+      // Attesa massima e IP consentiti non si scrivono più da qui (non sono comandi di questa pagina). Le colonne restano com'erano.
       const basePayload = {
         name: trimmedName,
         url: validatedUrl.url,
         events: normalizedEvents,
-        timeout_seconds: timeoutSec,
-        allowed_ips: allowedIps.ips,
       };
 
       if (webhook) {
@@ -283,8 +226,8 @@ function WebhookFormDialog({
       onOpenChange(false);
     } catch (e) {
       toast({
-        title: "Errore salvataggio webhook",
-        description: (e as Error).message || "Impossibile salvare il webhook.",
+        title: "Non sono riuscito a salvare",
+        description: userErrorMessage(e, "Non sono riuscito a salvare il webhook. Riprova."),
         variant: "destructive",
       });
     }
@@ -294,25 +237,27 @@ function WebhookFormDialog({
     <Dialog open={open} onOpenChange={(next) => { if (next || (!busy && confermaUscita())) onOpenChange(next); }}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{webhook ? "Modifica Webhook" : "Crea Webhook"}</DialogTitle>
-          <DialogDescription>Configura l'endpoint che riceverà le notifiche degli eventi.</DialogDescription>
+          <DialogTitle>{webhook ? "Modifica webhook" : "Nuovo webhook"}</DialogTitle>
+          <DialogDescription>
+            Scrivi l'indirizzo dell'altro programma che deve ricevere l'avviso e scegli per quali eventi.
+          </DialogDescription>
         </DialogHeader>
 
         <fieldset disabled={busy || !canManage} className="min-w-0 space-y-5 py-2">
           {/* Name */}
           <div className="space-y-2">
-            <Label htmlFor="webhook-name">Nome webhook *</Label>
+            <Label htmlFor="webhook-name">Nome *</Label>
             <Input id="webhook-name" placeholder="Es. Notifica CRM" value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} />
           </div>
 
           {/* URL */}
           <div className="space-y-2">
-            <Label htmlFor="webhook-url">URL endpoint *</Label>
+            <Label htmlFor="webhook-url">Indirizzo a cui mandare l'avviso *</Label>
             <div className="flex gap-2">
-              <Input id="webhook-url" placeholder="https://api.example.com/webhook" value={url} onChange={(e) => setUrl(e.target.value)} className="min-w-0 flex-1" disabled={!canManage} />
+              <Input id="webhook-url" placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} className="min-w-0 flex-1" disabled={!canManage} />
               <Button variant="outline" size="sm" onClick={handleTest} disabled={!url || testing || !canManage}>
                 {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-                <span className="ml-1">Test</span>
+                <span className="ml-1">Prova</span>
               </Button>
             </div>
             {testResult && (
@@ -327,11 +272,11 @@ function WebhookFormDialog({
 
           {/* Secret */}
           <div className="space-y-2">
-            <Label htmlFor="webhook-secret">Secret HMAC (opzionale)</Label>
+            <Label htmlFor="webhook-secret">Chiave di firma (facoltativa)</Label>
             <div className="flex gap-2">
               <Input
                 id="webhook-secret"
-                placeholder={webhook ? "Lascia vuoto per mantenere il secret esistente" : "Signing secret"}
+                placeholder={webhook ? "Lascia vuoto per tenere la chiave di prima" : "Chiave di firma"}
                 value={secret}
                 onChange={(e) => setSecret(e.target.value)}
                 className="flex-1 font-mono text-sm"
@@ -342,52 +287,11 @@ function WebhookFormDialog({
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Se impostato, ogni richiesta includerà l'header X-Webhook-Signature: sha256=…
-              {webhook ? " Il secret salvato non viene mostrato di nuovo." : ""}
+              Se la imposti, ogni avviso porta una firma (intestazione X-Webhook-Signature) con cui l'altro programma
+              controlla che arriva da noi.
+              {webhook ? " La chiave salvata non si vede più." : ""}
             </p>
           </div>
-
-          <Separator />
-
-          {/* Advanced security */}
-          <details className="rounded-lg border bg-muted/20 overflow-hidden group">
-            <summary className="cursor-pointer px-3 py-2 text-sm font-medium flex items-center gap-2 hover:bg-muted/40">
-              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-              Sicurezza avanzata
-              <span className="ml-auto text-xs text-muted-foreground group-open:hidden">Espandi</span>
-            </summary>
-            <div className="p-3 pt-2 space-y-4 border-t">
-              <div className="space-y-2">
-                <Label className="text-xs">Timeout richiesta (secondi)</Label>
-                <Input
-                  type="number"
-                  min={3}
-                  max={60}
-                  value={timeoutSec}
-                  onChange={(e) => setTimeoutSec(Math.max(3, Math.min(60, Number(e.target.value) || 15)))}
-                  className="w-28"
-                  disabled={!canManage}
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Tempo massimo di attesa risposta dal tuo endpoint. Default 15s, min 3s, max 60s.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">IP/CIDR whitelist (opzionale)</Label>
-                <textarea
-                  value={allowedIpsText}
-                  onChange={(e) => setAllowedIpsText(e.target.value)}
-                  placeholder={"# Una riga per IP o range CIDR\n203.0.113.42\n10.0.0.0/24"}
-                  className="w-full min-h-[90px] font-mono text-xs rounded-md border border-input bg-background p-2"
-                  disabled={!canManage}
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Se compilata, il tuo endpoint rifiuterà richieste da IP non autorizzati
-                  (controllo lato server nell'edge function). Lascia vuoto per nessuna restrizione.
-                </p>
-              </div>
-            </div>
-          </details>
 
           <Separator />
 
@@ -400,9 +304,8 @@ function WebhookFormDialog({
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              La scelta viene salvata, ma oggi nessuno di questi eventi fa
-              partire una chiamata: l'unica che parte è quella del pulsante
-              «Test» qui sopra.
+              La scelta si salva, ma oggi nessuno di questi eventi manda un avviso da solo: l'unico che parte è quello
+              del pulsante «Prova» qui sopra.
             </p>
             {Object.entries(WEBHOOK_EVENTS).map(([group, events]) => {
               const groupSelected = events.filter((e) => selectedEvents.includes(e)).length;
@@ -471,11 +374,11 @@ function WebhookHealthIndicator({
         <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
         <div className="flex-1 text-xs">
           <p className="font-medium text-destructive">
-            Endpoint apparentemente down — {recent.length} fallimenti consecutivi
+            L'indirizzo sembra non rispondere: {recent.length} invii falliti di fila
           </p>
           <p className="text-destructive/80 mt-0.5">
-            Verifica l'endpoint prima di riprovare gli invii. Puoi disabilitare
-            temporaneamente il webhook; gli eventi automatici non sono ancora collegati.
+            Controlla l'indirizzo prima di ripetere gli invii. Puoi mettere in pausa il webhook; gli avvisi
+            automatici, comunque, non sono ancora collegati.
           </p>
           <Button
             variant="outline"
@@ -484,7 +387,7 @@ function WebhookHealthIndicator({
             onClick={onDisable}
             disabled={!canManage}
           >
-            Disabilita ora
+            Metti in pausa
           </Button>
         </div>
       </div>
@@ -525,7 +428,7 @@ function DeliveriesSheet({
     success:  { label: "Successo",  className: "text-green-600 bg-green-100 dark:bg-green-950/30 dark:text-green-400",  icon: CheckCircle2 },
     failed:   { label: "Fallito",   className: "text-destructive bg-red-100 dark:bg-red-950/30 dark:text-red-400",  icon: XCircle },
     pending:  { label: "In attesa", className: "text-yellow-600 bg-yellow-100 dark:bg-yellow-950/30 dark:text-yellow-400", icon: Clock },
-    retrying: { label: "Retry",     className: "text-blue-600 bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400",    icon: RotateCcw },
+    retrying: { label: "Nuovo tentativo", className: "text-blue-600 bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400",    icon: RotateCcw },
   };
 
   return (
@@ -534,9 +437,9 @@ function DeliveriesSheet({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
-            Log Delivery — {webhook?.name}
+            Invii — {webhook?.name}
           </SheetTitle>
-          <SheetDescription>Ultimi 100 invii per questo webhook.</SheetDescription>
+          <SheetDescription>Gli ultimi 100 invii di questo webhook.</SheetDescription>
         </SheetHeader>
 
         {/* KPI statistiche */}
@@ -551,7 +454,7 @@ function DeliveriesSheet({
               <p className="text-lg font-bold tabular-nums text-emerald-600">{stats.success}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Success rate</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Riusciti</p>
               <p className={cn(
                 "text-lg font-bold tabular-nums",
                 stats.successRate != null && stats.successRate >= 95 ? "text-emerald-600"
@@ -570,8 +473,8 @@ function DeliveriesSheet({
           ) : deliveries.length === 0 ? (
             <div className="text-center py-12">
               <Activity className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
-              <p className="font-medium">Nessun delivery ancora</p>
-              <p className="text-xs text-muted-foreground mt-1">I log appariranno qui dopo il primo evento inviato.</p>
+              <p className="font-medium">Nessun invio ancora</p>
+              <p className="text-xs text-muted-foreground mt-1">Gli invii compaiono qui dopo la prima prova o il primo avviso mandato.</p>
             </div>
           ) : (
             visibleDeliveries.map((d) => {
@@ -600,8 +503,8 @@ function DeliveriesSheet({
                               toast({ title: "Nuovo invio riuscito" });
                             } catch (e) {
                               toast({
-                                title: "Errore retry",
-                                description: (e as Error).message,
+                                title: "Non sono riuscito a ripetere l'invio",
+                                description: userErrorMessage(e, "Riprova tra poco."),
                                 variant: "destructive",
                               });
                             }
@@ -659,9 +562,6 @@ export default function SettingsWebhooks() {
   const [editingWebhook, setEditingWebhook] = useState<Webhook | null>(null);
   const [logsWebhook, setLogsWebhook] = useState<Webhook | null>(null);
   const [logsOpen, setLogsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused" | "signed" | "failing">("all");
-  const [eventFilter, setEventFilter] = useState("all");
 
   const { data: webhooks = [], isLoading, isError, refetch } = useWebhooks(companyId ?? "");
   const deleteMutation = useDeleteWebhook(companyId ?? "");
@@ -675,7 +575,7 @@ export default function SettingsWebhooks() {
 
   const handleDelete = async (id: string) => {
     if (!canManageWebhooks) {
-      toast({ title: "Permessi insufficienti", description: "Solo gli amministratori possono eliminare webhook.", variant: "destructive" });
+      toast({ title: "Non puoi farlo", description: "Per eliminare un webhook serve il permesso «Integrazioni & Canali» in modifica.", variant: "destructive" });
       return;
     }
     try {
@@ -683,8 +583,8 @@ export default function SettingsWebhooks() {
       toast({ title: "Webhook eliminato" });
     } catch (e) {
       toast({
-        title: "Errore eliminazione",
-        description: (e as Error).message,
+        title: "Non sono riuscito a eliminarlo",
+        description: userErrorMessage(e, "Riprova tra poco."),
         variant: "destructive",
       });
     }
@@ -692,56 +592,46 @@ export default function SettingsWebhooks() {
 
   const handleToggleActive = async (w: Webhook) => {
     if (!canManageWebhooks) {
-      toast({ title: "Permessi insufficienti", description: "Solo gli amministratori possono modificare webhook.", variant: "destructive" });
+      toast({ title: "Non puoi farlo", description: "Per modificare un webhook serve il permesso «Integrazioni & Canali» in modifica.", variant: "destructive" });
       return;
     }
     try {
       await updateMutation.mutateAsync({ id: w.id, is_active: !w.is_active });
     } catch (e) {
       toast({
-        title: "Errore",
-        description: "Impossibile aggiornare lo stato: " + (e as Error).message,
+        title: "Non sono riuscito ad aggiornarlo",
+        description: userErrorMessage(e, "Riprova tra poco."),
         variant: "destructive",
       });
     }
   };
 
   const activeCount = webhooks.filter((w) => w.is_active).length;
-  const signedCount = webhooks.filter((w) => !!w.secret).length;
-  // La query non espone i segreti: l'assenza del campo non significa "senza firma".
-  const signatureKnown = webhooks.length > 0 && webhooks.every((w) => w.secret !== undefined);
-  const failingCount = webhooks.filter((w) => (w.consecutive_failures ?? 0) > 0).length;
-  const totalEvents = webhooks.reduce((sum, webhook) => sum + (webhook.events?.length ?? 0), 0);
-  const allEvents = Object.values(WEBHOOK_EVENTS).flat() as string[];
-  const filteredWebhooks = webhooks.filter((webhook) => {
-    const query = searchTerm.trim().toLowerCase();
-    const matchesSearch = !query || [webhook.name, webhook.url, ...(webhook.events ?? [])].join(" ").toLowerCase().includes(query);
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "active" && webhook.is_active) ||
-      (statusFilter === "paused" && !webhook.is_active) ||
-      (statusFilter === "signed" && !!webhook.secret) ||
-      (statusFilter === "failing" && (webhook.consecutive_failures ?? 0) > 0);
-    const matchesEvent = eventFilter === "all" || webhook.events?.includes(eventFilter);
-    return matchesSearch && matchesStatus && matchesEvent;
-  });
 
   return (
     <div className="space-y-5">
-      {/* Header standardizzato */}
+      {/* La verità su cosa fa questa pagina, per prima. `send-webhook` è invocata da due soli posti: il pulsante «Prova»
+          qui sotto e il rinvio manuale di un invio. Nessun evento del prodotto — ordine creato, opportunità vinta,
+          pagamento ricevuto — la chiama. Chi costruisse un'integrazione sugli eventi sottoscritti resterebbe in
+          attesa per sempre, e lo scoprirebbe solo dopo averla scritta. */}
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription>
+          <p className="font-medium">Oggi gli avvisi non partono da soli.</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Un webhook è l'indirizzo di un altro programma a cui il gestionale può mandare un avviso quando succede
+            qualcosa (un nuovo contatto, un pagamento…). Per ora puoi salvare l'indirizzo, mandare una «Prova» e
+            ripetere un invio dal registro: gli avvisi automatici non sono ancora collegati.
+          </p>
+        </AlertDescription>
+      </Alert>
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          {/* Da 768 icona e titolo li mostra già la testata delle Impostazioni
-              (erano due volte): resta la riga sotto, con numeri e azioni. */}
-          <div>
-            <p className="text-sm text-muted-foreground">
-              Endpoint esterni a cui mandare gli eventi del CRM
-              {webhooks.length > 0 && (
-                <> · <span className="font-medium text-foreground">{activeCount}</span> attivi / {webhooks.length} totali</>
-              )}
-            </p>
-          </div>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          {webhooks.length > 0
+            ? <><span className="font-medium text-foreground">{activeCount}</span> attivi su {webhooks.length}</>
+            : "Nessun webhook"}
+        </p>
         <Button onClick={openCreate} className="h-9 self-start" size="sm" disabled={!canManageWebhooks || isLoading || isError}>
           <Plus className="h-4 w-4 mr-2" />Crea Webhook
         </Button>
@@ -751,32 +641,11 @@ export default function SettingsWebhooks() {
         <Alert>
           <ShieldCheck className="h-4 w-4" />
           <AlertDescription>
-            Puoi consultare webhook e log. Per modificarli o inviare test serve il permesso di modifica delle integrazioni.
+            Stai solo consultando: per modificare, mandare prove o ripetere invii serve il permesso «Integrazioni &amp;
+            Canali» in modifica (o essere amministratore).
           </AlertDescription>
         </Alert>
       )}
-
-      {/* La verità su cosa parte davvero. `send-webhook` è invocata da due soli
-          posti: il pulsante «Prova» qui sotto e il rinvio manuale di una
-          consegna. Nessun evento del prodotto — ordine creato, opportunità
-          vinta, pagamento ricevuto — la chiama. Chi costruisse un'integrazione
-          sugli eventi sottoscritti resterebbe in attesa per sempre, e lo
-          scoprirebbe solo dopo averla scritta. */}
-      <Alert>
-        <AlertTriangle className="h-4 w-4" />
-        <AlertDescription>
-          <span className="font-medium">Gli eventi non partono ancora da soli.</span>{" "}
-          Puoi configurare un endpoint, inviare un «Test» e riprovare gli invii dai log.
-          Gli eventi del gestionale non sono ancora collegati all'invio automatico.
-        </AlertDescription>
-      </Alert>
-
-      {!isLoading && !isError && webhooks.length > 0 && <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <WebhookStatCard label="Attivi" value={activeCount} description="endpoint configurati" icon={WebhookIcon} tone="success" />
-        <WebhookStatCard label="Firmati" value={signatureKnown ? signedCount : "–"} description={signatureKnown ? "con HMAC configurato" : "stato firma non esposto"} icon={ShieldCheck} />
-        <WebhookStatCard label="Eventi" value={totalEvents} description="sottoscrizioni totali" icon={Zap} />
-        <WebhookStatCard label="Con errori" value={failingCount} description="fallimenti consecutivi" icon={AlertTriangle} tone={failingCount > 0 ? "warning" : "default"} />
-      </div>}
 
       {isError ? <Alert variant="destructive"><AlertDescription className="flex flex-wrap items-center gap-2">Impossibile caricare i webhook. L'elenco non è vuoto: non è disponibile.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription></Alert> : isLoading ? (
         <div className="space-y-2">
@@ -790,62 +659,15 @@ export default function SettingsWebhooks() {
             </div>
             <h3 className="text-lg font-semibold">Nessun webhook configurato</h3>
             <p className="text-muted-foreground text-sm mb-4 text-center max-w-md">
-              Un webhook è l'indirizzo a cui il gestionale manderà gli eventi:
-              contatti creati, opportunità chiuse, pagamenti. Configurarlo e
-              provarlo funziona già; l'invio automatico degli eventi non è
-              ancora collegato.
+              Puoi salvare un indirizzo e provarlo; l'invio automatico degli avvisi non è ancora collegato.
             </p>
             <Button onClick={openCreate} disabled={!canManageWebhooks}><Plus className="h-4 w-4 mr-2" />Crea il primo webhook</Button>
           </CardContent>
         </Card>
       ) : (
         <>
-        <div className="flex flex-col gap-2 xl:flex-row">
-          <div className="relative flex-1">
-            <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-            <Input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Cerca per nome, endpoint o evento..."
-              className="pl-9"
-            />
-          </div>
-          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
-            <SelectTrigger className="w-full xl:w-52">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti gli stati</SelectItem>
-              <SelectItem value="active">Attivi</SelectItem>
-              <SelectItem value="paused">In pausa</SelectItem>
-              <SelectItem value="signed" disabled={!signatureKnown}>Firmati HMAC{!signatureKnown ? " · dato non disponibile" : ""}</SelectItem>
-              <SelectItem value="failing">Con errori</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={eventFilter} onValueChange={setEventFilter}>
-            <SelectTrigger className="w-full xl:w-64">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti gli eventi</SelectItem>
-              {allEvents.map((eventName) => (
-                <SelectItem key={eventName} value={eventName}>{eventName}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {filteredWebhooks.length === 0 ? (
-          <Card>
-            <CardContent className="py-10 text-center">
-              <Search className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-              <p className="font-medium">Nessun webhook corrisponde ai filtri</p>
-              <p className="text-sm text-muted-foreground">Riduci ricerca, stato o filtro evento.</p>
-            </CardContent>
-          </Card>
-        ) : (
           <div className="space-y-3">
-            {filteredWebhooks.map((w) => {
+            {webhooks.map((w) => {
               // Colore border-l: verde se attivo, grigio se spento
               const borderColor = w.is_active ? "border-l-emerald-500" : "border-l-slate-300";
               const hasFailures = (w.consecutive_failures ?? 0) > 0;
@@ -886,12 +708,7 @@ export default function SettingsWebhooks() {
                           </Badge>
                           {w.secret && (
                             <Badge variant="outline" className="text-[10px] gap-1 text-emerald-700 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30">
-                              <ShieldCheck className="h-2.5 w-2.5" /> Firmato HMAC
-                            </Badge>
-                          )}
-                          {w.allowed_ips && w.allowed_ips.length > 0 && (
-                            <Badge variant="outline" className="text-[10px] gap-1">
-                              IP allowlist
+                              <ShieldCheck className="h-2.5 w-2.5" /> Con firma
                             </Badge>
                           )}
                           <span className="text-[10px] text-muted-foreground">Creato {formatRelativeTime(w.created_at)}</span>
@@ -902,28 +719,28 @@ export default function SettingsWebhooks() {
                     <div className="flex items-center justify-end gap-1 shrink-0">
                       <Switch
                         checked={w.is_active}
-                        aria-label={`Attiva webhook ${w.name}`}
+                        aria-label={`Attiva il webhook ${w.name}`}
                         onCheckedChange={() => handleToggleActive(w)}
                         disabled={!canManageWebhooks || updateMutation.isPending}
                       />
-                      <Button variant="ghost" size="icon" onClick={() => openLogs(w)} title="Log delivery" className="h-8 w-8">
+                      <Button variant="ghost" size="icon" onClick={() => openLogs(w)} title="Invii" aria-label={`Invii di ${w.name}`} className="h-11 w-11 sm:h-8 sm:w-8">
                         <Activity className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(w)} title="Modifica" className="h-8 w-8" disabled={!canManageWebhooks}>
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(w)} title="Modifica" aria-label={`Modifica ${w.name}`} className="h-11 w-11 sm:h-8 sm:w-8" disabled={!canManageWebhooks}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" title="Elimina" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" disabled={!canManageWebhooks}>
+                          <Button variant="ghost" size="icon" title="Elimina" aria-label={`Elimina ${w.name}`} className="h-11 w-11 sm:h-8 sm:w-8 text-destructive hover:text-destructive hover:bg-destructive/10" disabled={!canManageWebhooks}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Elimina il webhook "{w.name}"?</AlertDialogTitle>
+                            <AlertDialogTitle>Eliminare il webhook «{w.name}»?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Verranno eliminati anche tutti i log di delivery. Gli eventi futuri non
-                              verranno più inviati a <code className="text-xs bg-muted px-1 py-0.5 rounded">{w.url}</code>. Azione irreversibile.
+                              Sparisce anche il registro dei suoi invii. Non verrà più mandato nessun avviso a{" "}
+                              <code className="text-xs bg-muted px-1 py-0.5 rounded">{w.url}</code>. Non si può annullare.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
@@ -934,7 +751,7 @@ export default function SettingsWebhooks() {
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
                               {deleteMutation.isPending ? (
-                                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Elimino...</>
+                                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Elimino…</>
                               ) : "Elimina"}
                             </AlertDialogAction>
                           </AlertDialogFooter>
@@ -946,7 +763,6 @@ export default function SettingsWebhooks() {
               );
             })}
           </div>
-        )}
         </>
       )}
 

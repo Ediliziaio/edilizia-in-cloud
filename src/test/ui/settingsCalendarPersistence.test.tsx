@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useEliminaSquadra, useSalvaSquadra, useCollegaCalendarioSquadra, useSalvaCalendarLink } from "@/hooks/useCalendariLavori";
 import { useModelliFasi } from "@/hooks/useModelliFasi";
-import { useCustomFieldFolders, useUpdateCustomFieldFolder, useDeleteCustomFieldFolder } from "@/hooks/useCustomFieldFolders";
 
 const db = vi.hoisted(() => ({ companyId: "c1" as string | null, from: vi.fn(), eq: vi.fn(), single: vi.fn(), update: vi.fn(), remove: vi.fn(), upsert: vi.fn(), rpc: vi.fn(), error: null as { message: string } | null }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: db.companyId ? { id: db.companyId } : null }) }));
@@ -66,19 +65,6 @@ describe("Calendari e modelli: persistenza protetta", () => {
     });
     expect(db.rpc).not.toHaveBeenCalled();
   });
-  it("una cartella personalizzata si aggiorna solo nell'azienda corrente", async () => {
-    const { result } = open(useUpdateCustomFieldFolder);
-    await act(async () => { await result.current.mutateAsync({ id: "f1", name: "Impianti" }); });
-    expect(db.eq).toHaveBeenCalledWith("company_id", "c1"); expect(db.single).toHaveBeenCalledOnce();
-  });
-  it("una cartella eliminata logicamente richiede conferma della riga", async () => {
-    const { result } = open(useDeleteCustomFieldFolder);
-    await act(async () => { await result.current.mutateAsync("f1"); });
-    expect(db.eq).toHaveBeenCalledWith("company_id", "c1"); expect(db.single).toHaveBeenCalledOnce();
-  });
-  it("tabella cartelle assente: errore, non catalogo vuoto", async () => {
-    db.error = { message: "relation marketing_custom_field_folders does not exist" };
-    const { result } = open(useCustomFieldFolders);
-    await waitFor(() => expect(result.current.isError).toBe(true));
-  });
+  // Le tre prove sulle «cartelle dei campi» (aggiornare e togliere solo nell'azienda corrente, tabella assente = errore)
+  // sono state tolte il 10/10/2026 insieme alla scheda «Cartelle» e al suo hook: nessuna schermata le usava più.
 });

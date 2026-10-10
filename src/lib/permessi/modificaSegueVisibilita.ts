@@ -22,3 +22,12 @@ export function puoModificareCosti(p: Pick<Permissions, "isAdmin" | "canViewCost
 export function puoModificareTesoreria(p: Pick<Permissions, "isAdmin" | "canViewTesoreria" | "solaLettura">): boolean {
   return p.isAdmin || (p.canViewTesoreria && !p.solaLettura);
 }
+
+/**
+ * Email dell'azienda: dominio, mittente e aspetto. Segue `can_view_marketing_email` («Email Marketing» nei permessi):
+ * la stessa regola del database (policy «Permesso email: dominio …» e «Permesso email: preferenze …», più
+ * l'amministratore) e della funzione `manage-email-domain`.
+ */
+export function puoModificareEmail(p: Pick<Permissions, "isAdmin" | "canViewMarketingEmail" | "solaLettura">): boolean {
+  return p.isAdmin || (p.canViewMarketingEmail && !p.solaLettura);
+}

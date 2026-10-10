@@ -39,11 +39,8 @@ import {
 } from "lucide-react";
 import {
   PURPOSE_AUTONOMY,
-  PURPOSE_DESCRIPTIONS,
-  PURPOSE_EXAMPLES,
-  PURPOSE_GROUP_BY_PURPOSE,
-  PURPOSE_GROUPS,
   PURPOSE_LABELS,
+  etichettaStatoNumero,
   useConnectWANumber,
   useDeleteWANumber,
   type WANumber,
@@ -51,6 +48,14 @@ import {
 } from "@/hooks/whatsapp/useWhatsAppNumbers";
 import { usePermissions } from "@/hooks/usePermissions";
 import { WhatsAppProfiloDialog } from "./WhatsAppProfiloDialog";
+
+/** «10,00 €»; per cifre piccolissime (la spesa AI di un giorno) qualche decimale in più, così non sembra zero. */
+const euro = (valore: number) =>
+  valore.toLocaleString("it-IT", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: valore > 0 && valore < 0.01 ? 4 : 2,
+  });
 
 interface Props {
   number: WANumber;
@@ -61,7 +66,6 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
   const del = useDeleteWANumber();
   const connect = useConnectWANumber();
   const purpose = number.purpose as WAPurpose;
-  const group = PURPOSE_GROUPS[PURPOSE_GROUP_BY_PURPOSE[purpose]];
   const active = number.stato === "active" && number.webhook_verified;
 
   // Aggiorna token: i token Meta (specie numeri di test) scadono. Il wizard
@@ -119,10 +123,8 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
                 <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-300">
                   <AlertTriangle className="mr-1 h-3 w-3" />
                   {/* prima: stato grezzo ("active" dentro un badge d'allarme se
-                      mancava solo il webhook) — ora label parlante */}
-                  {number.stato === "active" && !number.webhook_verified
-                    ? "Webhook da verificare"
-                    : ({ pending_verification: "In verifica", suspended: "Sospeso", removed: "Rimosso", pending: "In attesa" } as Record<string, string>)[number.stato ?? "pending"] ?? number.stato ?? "In attesa"}
+                      mancava solo il webhook) — ora label parlante, la stessa di Integrazioni */}
+                  {etichettaStatoNumero(number.stato, number.webhook_verified)}
                 </Badge>
               )}
               {/* Health Meta: quality rating early-warning (prima invisibile:
@@ -138,7 +140,7 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {group.label}
+              {PURPOSE_LABELS[purpose]}
             </p>
           </div>
         </div>
@@ -152,27 +154,14 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
 
         {number.daily_budget_eur != null && (
           <div className="text-xs text-muted-foreground">
-            Budget giornaliero: €{Number(number.daily_budget_eur).toFixed(2)} — speso oggi €{Number(number.current_day_spend_eur ?? 0).toFixed(4)}
+            Spesa massima AI al giorno: {euro(Number(number.daily_budget_eur))} · speso oggi: {euro(Number(number.current_day_spend_eur ?? 0))}
           </div>
         )}
 
+        {/* Una frase sola: come lavora Silvio su questo numero. Descrizione ed esempi stanno nella pagina del numero. */}
         <p className="text-xs text-muted-foreground">
-          {PURPOSE_DESCRIPTIONS[purpose]}
+          {PURPOSE_AUTONOMY[purpose]}
         </p>
-
-        <div className="rounded-lg bg-muted/50 p-2 text-xs text-muted-foreground">
-          <span className="font-semibold text-foreground">{PURPOSE_LABELS[purpose]}</span>
-          <span className="block">{PURPOSE_AUTONOMY[purpose]}</span>
-        </div>
-
-        <ul className="space-y-1 text-xs text-muted-foreground">
-          {PURPOSE_EXAMPLES[purpose].slice(0, 2).map((example) => (
-            <li key={example} className="flex gap-1.5">
-              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
-              <span>{example}</span>
-            </li>
-          ))}
-        </ul>
 
         <div className="flex flex-wrap items-center gap-2 pt-2">
           {onOpenSettings && (
@@ -228,8 +217,8 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Rimuovere questo numero?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Il numero {number.numero} verrà disattivato (soft delete).
-                    Lo storico messaggi resta consultabile. Puoi riconnetterlo in futuro.
+                    Il numero {number.numero} viene disattivato. Lo storico dei messaggi resta consultabile
+                    e lo puoi ricollegare in futuro.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

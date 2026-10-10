@@ -1,10 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { registraCanaleCalendario } from "@/hooks/useCalendariLavori";
 import CompanyCalendarsOverview from "@/components/integrations/CompanyCalendarsOverview";
 import { PROVIDER_LABEL as PROVIDER_NOME, useCaselleCalendario } from "@/hooks/useCalendariEsterni";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -17,12 +19,12 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, Pencil, Trash2, CalendarDays, Link2, Clock, Settings2, Copy, AlertTriangle, ExternalLink, Code2, Share2, Video } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, CalendarDays, Link2, Clock, Route, Copy, AlertTriangle, ExternalLink, Code2, Share2, Video, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import CalendarDialog, { type CalendarFormData } from "./CalendarDialog";
@@ -110,6 +112,21 @@ type CalendarAppointmentRef = {
   status: string | null;
 };
 
+/** Una fascia oraria della settimana, com'è nella bozza degli orari. */
+type FasciaOraria = { rid: string; day_of_week: number; start_time: string; end_time: string; is_enabled: boolean };
+
+/**
+ * I tre numeri di «Spostamenti e durata»: gli unici di quella scheda che qualcuno legge (suggest-calendars). Le altre sei
+ * impostazioni che c'erano (inizio settimana, lingua, formato ora, menu dei servizi, stanze, attrezzature) non le leggeva
+ * nessun codice e sono state tolte il 10/10/2026: le colonne restano nel database, con il loro valore di partenza.
+ */
+const PREFERENZE_SPOSTAMENTI = [
+  { chiave: "default_max_daily_km", etichetta: "Km massimi giornalieri A/R (default)", aiuto: "Limite km per commerciale se non specificato sul calendario", predefinito: 250, errore: "Scrivi i km massimi giornalieri: un numero intero maggiore di zero." },
+  { chiave: "max_travel_minutes", etichetta: "Tempo max spostamento tra appuntamenti (min)", aiuto: "Oltre questo tempo il calendario viene marcato come bloccato", predefinito: 60, errore: "Scrivi il tempo massimo di spostamento: minuti, un numero intero maggiore di zero." },
+  { chiave: "default_appointment_duration_minutes", etichetta: "Durata appuntamento di default (min)", aiuto: "Usata quando il calendario non ha una durata specifica", predefinito: 90, errore: "Scrivi la durata di default: minuti, tra 1 e 1440." },
+] as const;
+type ChiavePreferenza = typeof PREFERENZE_SPOSTAMENTI[number]["chiave"];
+
 const DAYS = [
   { value: 1, label: "Lunedì" },
   { value: 2, label: "Martedì" },
@@ -162,17 +179,12 @@ export default function MarketingCalendarsConfig() {
   const [sharingCalendar, setSharingCalendar] = useState<MarketingCalendar | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [selectedCalendarId, setSelectedCalendarId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState(normalizeSettingsTab(urlSearchParams.get("tab")));
+  // La scheda aperta è quella dell'indirizzo (?tab=…): una sola fonte, senza copiarla in uno stato.
+  const activeTab = normalizeSettingsTab(urlSearchParams.get("tab"));
   const { data: staffUsers = [] } = useCompanyStaffUsers(effectiveCompanyId);
-
-  useEffect(() => {
-    const nextTab = normalizeSettingsTab(urlSearchParams.get("tab"));
-    setActiveTab((current) => (current === nextTab ? current : nextTab));
-  }, [urlSearchParams]);
 
   const handleTabChange = (value: string) => {
     const nextTab = normalizeSettingsTab(value);
-    setActiveTab(nextTab);
     const nextParams = new URLSearchParams(urlSearchParams);
     if (nextTab === "calendars") nextParams.delete("tab");
     else nextParams.set("tab", nextTab);
@@ -188,7 +200,7 @@ export default function MarketingCalendarsConfig() {
     const meetingProvider = data.default_meeting_provider === "google_meet" ? "google_meet" : "none";
 
     if (!name) throw new Error("Inserisci un nome calendario.");
-    if (!bookingSlug) throw new Error("Genera o inserisci uno slug per il link pubblico.");
+    if (!bookingSlug) throw new Error("Scrivi la parte finale del link, per esempio sopralluogo-milano.");
     if (!Number.isFinite(duration) || duration <= 0 || duration > 24 * 60) {
       throw new Error("La durata appuntamento deve essere tra 1 minuto e 24 ore.");
     }
@@ -233,7 +245,7 @@ export default function MarketingCalendarsConfig() {
       if (!(await isBookingSlugTaken(candidate, excludeId))) return candidate;
       candidate = `${base}-${Math.random().toString(36).slice(2, 6)}`;
     }
-    throw new Error("Non riesco a generare un link pubblico univoco. Riprova con uno slug diverso.");
+    throw new Error("Non riesco a generare un link univoco. Riprova scrivendo una parte finale diversa.");
   };
 
   const copyText = async (value: string, label: string) => {
@@ -269,14 +281,11 @@ export default function MarketingCalendarsConfig() {
     }
   };
 
-  const validatePreferencesPayload = (data: Partial<CalendarPreferences>) => {
-    const defaultMaxKm = Number(data.default_max_daily_km);
-    const travelMinutes = Number(data.max_travel_minutes);
-    const durationMinutes = Number(data.default_appointment_duration_minutes);
-    if (!Number.isFinite(defaultMaxKm) || defaultMaxKm <= 0) throw new Error("Km massimi giornalieri non validi.");
-    if (!Number.isFinite(travelMinutes) || travelMinutes <= 0) throw new Error("Tempo massimo spostamento non valido.");
-    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0 || durationMinutes > 24 * 60) {
-      throw new Error("Durata appuntamento di default non valida.");
+  const validatePreferencesPayload = (data: Record<ChiavePreferenza, number>) => {
+    for (const p of PREFERENZE_SPOSTAMENTI) {
+      const valore = data[p.chiave];
+      const massimo = p.chiave === "default_appointment_duration_minutes" ? 24 * 60 : Number.MAX_SAFE_INTEGER;
+      if (!Number.isInteger(valore) || valore <= 0 || valore > massimo) throw new Error(p.errore);
     }
   };
 
@@ -340,7 +349,7 @@ export default function MarketingCalendarsConfig() {
     gcTime: 10 * 60 * 1000,
   });
 
-  const { data: preferences } = useQuery({
+  const { data: preferences, isLoading: loadingPrefs } = useQuery({
     queryKey: ["marketing-calendar-preferences", effectiveCompanyId],
     queryFn: async () => {
       if (!effectiveCompanyId) return null;
@@ -355,20 +364,25 @@ export default function MarketingCalendarsConfig() {
     enabled: !!effectiveCompanyId,
   });
 
+  // Il primo calendario è già scelto: chi ne ha uno solo (o apre «Orari» per la prima volta) non deve scegliere niente.
+  const calendarioOrariId = selectedCalendarId && calendars.some((c) => c.id === selectedCalendarId)
+    ? selectedCalendarId
+    : (calendars[0]?.id ?? null);
+
   const { data: availability = [], isLoading: loadingAvail } = useQuery({
-    queryKey: ["marketing-calendar-availability", selectedCalendarId],
+    queryKey: ["marketing-calendar-availability", calendarioOrariId],
     queryFn: async () => {
-      if (!selectedCalendarId || !effectiveCompanyId) return [];
+      if (!calendarioOrariId || !effectiveCompanyId) return [];
       const { data, error } = await supabase
         .from("marketing_calendar_availability")
         .select("*")
-        .eq("calendar_id", selectedCalendarId)
+        .eq("calendar_id", calendarioOrariId)
         .eq("company_id", effectiveCompanyId)
         .order("day_of_week");
       if (error) throw error;
       return data as CalendarAvailability[];
     },
-    enabled: !!selectedCalendarId && !!effectiveCompanyId,
+    enabled: !!calendarioOrariId && !!effectiveCompanyId,
   });
 
   // ---- MUTATIONS ----
@@ -442,10 +456,10 @@ export default function MarketingCalendarsConfig() {
         const { error: errFasce } = await supabase.from("marketing_calendar_availability").insert(fasce);
         if (errFasce) {
           console.warn("[calendari] orari di partenza non creati:", errFasce.message);
-          return { orariCreati: false };
+          return { orariCreati: false, id: creato.id as string };
         }
       }
-      return { orariCreati: true };
+      return { orariCreati: true, id: creato?.id as string | undefined };
     },
     onSuccess: (esito, data) => {
       // Un canale webhook sul calendario Google agganciato: cosi' uno
@@ -454,10 +468,14 @@ export default function MarketingCalendarsConfig() {
       if (data.external_provider === "google") void registraCanaleCalendario(data.external_connection_id ?? null, data.external_calendar_id ?? null);
       // Prima il messaggio prometteva gli orari anche quando non erano stati
       // salvati: il link di prenotazione restava senza fasce libere.
+      // Il pulsante nel messaggio porta direttamente agli orari del calendario appena creato.
+      const vaiAgliOrari = esito?.id
+        ? { label: "Cambia gli orari", onClick: () => { setSelectedCalendarId(esito.id!); handleTabChange("availability"); } }
+        : undefined;
       if (esito?.orariCreati === false) {
-        toast.warning("Calendario creato, orari non salvati", { description: "Imposta gli orari dalla sezione Disponibilità, altrimenti nessuno potrà prenotare." });
+        toast.warning("Calendario creato, orari non salvati", { description: "Imposta gli orari dalla scheda «Orari», altrimenti nessuno potrà prenotare.", action: vaiAgliOrari });
       } else {
-        toast.success("Calendario creato", { description: "Orari di partenza: lunedì-venerdì 9-18. Cambiali dalla sezione Disponibilità." });
+        toast.success("Calendario creato", { description: "Orari di partenza: lunedì-venerdì 9-18. Puoi cambiarli dalla scheda «Orari».", action: vaiAgliOrari });
       }
       invalidaCalendari();
       setDialogOpen(false);
@@ -472,7 +490,7 @@ export default function MarketingCalendarsConfig() {
       const { name, duration, maxDailyKm, bookingSlug, calendarType, meetingProvider } = validateCalendarPayload(data);
       await assertNoDuplicateCalendarName(name, id);
       if (await isBookingSlugTaken(bookingSlug, id)) {
-        throw new Error("Questo link pubblico e gia usato da un altro calendario.");
+        throw new Error("Questo link è già usato da un altro calendario: scrivine un altro.");
       }
       const { error } = await supabase.from("marketing_calendars").update({
         name,
@@ -590,38 +608,40 @@ export default function MarketingCalendarsConfig() {
   });
 
   const upsertPreferences = useMutation({
-    mutationFn: async (data: Partial<CalendarPreferences>) => {
+    mutationFn: async (data: Record<ChiavePreferenza, number>) => {
       if (!effectiveCompanyId) throw new Error("Dati mancanti");
-      if (!canManageCalendars) throw new Error("Non hai i permessi per modificare le preferenze calendario.");
+      if (!canManageCalendars) throw new Error("Non hai i permessi per modificare gli spostamenti.");
       validatePreferencesPayload(data);
+      // Solo i tre numeri vivi: le altre colonne restano come sono (o, alla prima volta, con il loro valore di partenza).
       const { error } = await supabase.from("marketing_calendar_preferences").upsert(
         { company_id: effectiveCompanyId, ...data },
         { onConflict: "company_id" }
       );
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("Preferenze salvate");
-      queryClient.invalidateQueries({ queryKey: ["marketing-calendar-preferences"] });
+    onSuccess: async () => {
+      toast.success("Spostamenti salvati");
+      await queryClient.refetchQueries({ queryKey: ["marketing-calendar-preferences"] });
+      setBozzaPrefs({});
     },
-    onError: (e: Error) => toast.error(e.message || "Impossibile salvare le preferenze"),
+    onError: (e: Error) => toast.error(e.message || "Impossibile salvare gli spostamenti"),
   });
 
   const saveAvailability = useMutation({
     mutationFn: async (rows: { day_of_week: number; start_time: string; end_time: string; is_enabled: boolean }[]) => {
-      if (!selectedCalendarId || !effectiveCompanyId) throw new Error("Dati mancanti");
-      if (!canManageCalendars) throw new Error("Non hai i permessi per modificare la disponibilità.");
+      if (!calendarioOrariId || !effectiveCompanyId) throw new Error("Dati mancanti");
+      if (!canManageCalendars) throw new Error("Non hai i permessi per modificare gli orari.");
       validateAvailabilityRows(rows);
       // Delete existing weekly rows, then insert new
       const { error: deleteError } = await supabase.from("marketing_calendar_availability")
         .delete()
-        .eq("calendar_id", selectedCalendarId)
+        .eq("calendar_id", calendarioOrariId)
         .eq("company_id", effectiveCompanyId)
         .is("specific_date", null);
       if (deleteError) throw deleteError;
       const inserts = rows.map(r => ({
         company_id: effectiveCompanyId,
-        calendar_id: selectedCalendarId,
+        calendar_id: calendarioOrariId,
         day_of_week: r.day_of_week,
         start_time: r.start_time,
         end_time: r.end_time,
@@ -633,12 +653,14 @@ export default function MarketingCalendarsConfig() {
         if (error) throw error;
       }
     },
-    onSuccess: () => {
-      toast.success("Disponibilità salvata");
-      queryClient.invalidateQueries({ queryKey: ["marketing-calendar-availability"] });
+    onSuccess: async () => {
+      toast.success("Orari salvati");
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars-con-orari"] });
+      // Si rilegge prima di togliere la bozza: nessun lampo con gli orari di prima.
+      await queryClient.refetchQueries({ queryKey: ["marketing-calendar-availability"] });
+      setBozzaOrari(null);
     },
-    onError: (e: Error) => toast.error(e.message || "Impossibile salvare la disponibilità"),
+    onError: (e: Error) => toast.error(e.message || "Impossibile salvare gli orari"),
   });
 
   // ---- FILTERS ----
@@ -671,10 +693,6 @@ export default function MarketingCalendarsConfig() {
   const calendarStats = {
     total: calendars.length,
     active: calendars.filter(c => c.is_active).length,
-    assigned: calendars.filter(c => !!c.owner_id).length,
-    withAddress: calendars.filter(c => !!c.base_formatted_address || !!c.base_address_city).length,
-    withMeet: calendars.filter(c => c.default_meeting_provider === "google_meet").length,
-    appointments: Object.values(appointmentCountsByCalendar).reduce((sum, count) => sum + count, 0),
   };
 
   // 2026-05-26: la sede NON è più richiesta come warning. Molti calendari
@@ -682,7 +700,7 @@ export default function MarketingCalendarsConfig() {
   // base — chiederlo come "da completare" creava rumore inutile.
   const getConfigWarnings = (cal: MarketingCalendar) => {
     const warnings: string[] = [];
-    if (!cal.owner_id) warnings.push("utente");
+    if (!cal.owner_id) warnings.push("responsabile");
     if (!cal.booking_slug) warnings.push("link");
     if (!cal.duration_minutes || cal.duration_minutes <= 0) warnings.push("durata");
     // Senza fasce attive il link pubblico non propone alcun orario.
@@ -698,126 +716,62 @@ export default function MarketingCalendarsConfig() {
   const sharePopupCode = buildBookingPopupCode(shareUrl, shareSlug, `Prenota — ${sharingCalendar?.name ?? "appuntamento"}`);
   const shareBadgeCode = buildBookingBadgeCode(shareUrl, shareSlug, `Prenota — ${sharingCalendar?.name ?? "appuntamento"}`);
 
-  // ---- AVAILABILITY LOCAL STATE ----
-  const [localAvail, setLocalAvail] = useState<{ rid: string; day_of_week: number; start_time: string; end_time: string; is_enabled: boolean }[]>([]);
-
-  // Sync availability from query data
-  useEffect(() => {
-    if (availability.length > 0) {
-      setLocalAvail(
-        availability
-          .filter(a => a.specific_date === null)
-          .map((a, i) => ({
-            rid: a.id ?? `r${i}`,
-            day_of_week: a.day_of_week!,
-            start_time: a.start_time,
-            end_time: a.end_time,
-            is_enabled: a.is_enabled,
-          }))
-      );
-    } else if (selectedCalendarId) {
-      setLocalAvail(
-        DAYS.map(d => ({
-          rid: `d${d.value}`,
-          day_of_week: d.value,
-          start_time: "09:00",
-          end_time: "18:00",
-          is_enabled: d.value >= 1 && d.value <= 5,
+  // ---- ORARI: la bozza (`null` = nessuna modifica) sostituisce gli orari salvati finché non si salva ----
+  const orariSalvati: FasciaOraria[] = availability.length > 0
+    ? availability
+        .filter(a => a.specific_date === null)
+        .map((a, i) => ({
+          rid: a.id ?? `r${i}`,
+          day_of_week: a.day_of_week!,
+          start_time: a.start_time,
+          end_time: a.end_time,
+          is_enabled: a.is_enabled,
         }))
-      );
-    }
-  }, [availability, selectedCalendarId]);
+    : DAYS.map(d => ({
+        rid: `d${d.value}`,
+        day_of_week: d.value,
+        start_time: "09:00",
+        end_time: "18:00",
+        is_enabled: d.value >= 1 && d.value <= 5,
+      }));
+  const [bozzaOrari, setBozzaOrari] = useState<FasciaOraria[] | null>(null);
+  const localAvail = bozzaOrari ?? orariSalvati;
+  const modificaOrari = (cambia: (fasce: FasciaOraria[]) => FasciaOraria[]) => setBozzaOrari((corrente) => cambia(corrente ?? orariSalvati));
 
-  // ---- PREFERENCES LOCAL STATE ----
-  const [localPrefs, setLocalPrefs] = useState({
-    week_start_day: "monday",
-    time_format: "24h",
-    language: "it",
-    show_services_menu: true,
-    show_rooms: true,
-    show_equipment: true,
-    default_max_daily_km: 250,
-    max_travel_minutes: 60,
-    default_appointment_duration_minutes: 90,
-  });
+  // ---- SPOSTAMENTI: stesso schema, con i numeri scritti come testo finché si digita ----
+  const [bozzaPrefs, setBozzaPrefs] = useState<Partial<Record<ChiavePreferenza, string>>>({});
+  const valorePreferenza = (chiave: ChiavePreferenza, predefinito: number) =>
+    bozzaPrefs[chiave] ?? String(preferences?.[chiave] ?? predefinito);
 
-  // Sync preferences from query data
-  useEffect(() => {
-    if (preferences) {
-      setLocalPrefs({
-        week_start_day: preferences.week_start_day,
-        time_format: preferences.time_format,
-        language: preferences.language,
-        show_services_menu: preferences.show_services_menu,
-        show_rooms: preferences.show_rooms,
-        show_equipment: preferences.show_equipment,
-        default_max_daily_km: preferences.default_max_daily_km ?? 250,
-        max_travel_minutes: preferences.max_travel_minutes ?? 60,
-        default_appointment_duration_minutes: preferences.default_appointment_duration_minutes ?? 90,
-      });
-    }
-  }, [preferences]);
+  const conferma = useSettingsDraftGuard(bozzaOrari !== null || Object.keys(bozzaPrefs).length > 0 || saveAvailability.isPending || upsertPreferences.isPending);
+  const cambiaCalendarioOrari = (id: string) => {
+    if (id === calendarioOrariId) return;
+    if (bozzaOrari !== null && !conferma()) return;
+    setBozzaOrari(null);
+    setSelectedCalendarId(id);
+  };
+  const salvaSpostamenti = () => {
+    upsertPreferences.mutate(Object.fromEntries(
+      PREFERENZE_SPOSTAMENTI.map((p) => [p.chiave, Number(valorePreferenza(p.chiave, p.predefinito).trim() || Number.NaN)]),
+    ) as Record<ChiavePreferenza, number>);
+  };
 
   return (
-    // flex+gap invece di space-y: il titolo nascosto da 768 non lascia spazio.
-    <div className="flex flex-col gap-6">
-      {/* Da 768 il titolo è già nella testata delle Impostazioni. */}
-      <div className="md:hidden">
-        <h1 className="text-2xl font-bold tracking-tight">Calendari Marketing</h1>
-        <p className="text-muted-foreground">Gestisci i calendari del modulo Marketing e Vendita</p>
-      </div>
-
-      {/* Quattro in riga da 1024 (erano 2×2, alti). */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-primary">
-          <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase text-muted-foreground">Calendari</p>
-            <p className="mt-1 text-2xl font-semibold">{calendarStats.total}</p>
-            <p className="text-xs text-muted-foreground">{calendarStats.active} attivi</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-emerald-500">
-          <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase text-muted-foreground">Assegnati</p>
-            <p className="mt-1 text-2xl font-semibold">{calendarStats.assigned}</p>
-            <p className="text-xs text-muted-foreground">con responsabile</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-cyan-500">
-          <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase text-muted-foreground">Sedi base</p>
-            <p className="mt-1 text-2xl font-semibold">{calendarStats.withAddress}</p>
-            <p className="text-xs text-muted-foreground">utili per scheduling e percorrenze</p>
-          </CardContent>
-        </Card>
-        <Card className="border-l-4 border-l-amber-500">
-          <CardContent className="p-4">
-            <p className="text-xs font-medium uppercase text-muted-foreground">Appuntamenti</p>
-            <p className="mt-1 text-2xl font-semibold">{calendarStats.appointments}</p>
-            <p className="text-xs text-muted-foreground">collegati ai calendari</p>
-          </CardContent>
-        </Card>
-      </div>
-
+    <div className="flex flex-col gap-4">
       {!canManageCalendars && (
-        <Card className="border-amber-200 bg-amber-50/70">
-          <CardContent className="flex gap-3 py-4 text-sm text-amber-900">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <div>
-              <p className="font-medium">Accesso in sola lettura</p>
-              <p className="text-amber-800/80">Puoi consultare calendari e collegamenti, ma per creare, modificare, disattivare o sincronizzare serve un amministratore o il permesso di modifica su «Personalizzazione».</p>
-            </div>
-          </CardContent>
-        </Card>
+        <AvvisoSolaLettura>
+          Sola lettura: per creare, modificare, disattivare o sincronizzare un calendario serve un amministratore o il permesso «Modifica» su Personalizzazione.
+        </AvvisoSolaLettura>
       )}
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        {/* v8.6.74 — overflow-x-auto: 4 tab con icona+label si sovrapponevano su 375px */}
+        {/* Schede nell'ordine in cui si usano. I valori nell'indirizzo (?tab=availability, ?tab=preferences) non cambiano: ricerca e
+            collegamenti già in giro continuano ad aprire la scheda giusta. */}
         <TabsList className="w-full sm:w-auto max-w-full h-auto flex-wrap justify-start gap-1 sm:flex-nowrap overflow-x-auto">
-          <TabsTrigger value="calendars" className="gap-2 shrink-0"><CalendarDays className="h-4 w-4" />Calendari</TabsTrigger>
-          <TabsTrigger value="preferences" className="gap-2 shrink-0"><Settings2 className="h-4 w-4" />Preferenze</TabsTrigger>
-          <TabsTrigger value="availability" className="gap-2 shrink-0"><Clock className="h-4 w-4" />Disponibilità</TabsTrigger>
-          <TabsTrigger value="connections" className="gap-2 shrink-0"><Link2 className="h-4 w-4" />Collegamenti</TabsTrigger>
+          <TabsTrigger value="calendars" className="gap-2 shrink-0 max-md:min-h-11"><CalendarDays className="h-4 w-4" />Calendari</TabsTrigger>
+          <TabsTrigger value="availability" className="gap-2 shrink-0 max-md:min-h-11"><Clock className="h-4 w-4" />Orari</TabsTrigger>
+          <TabsTrigger value="preferences" className="gap-2 shrink-0 max-md:min-h-11"><Route className="h-4 w-4" />Spostamenti</TabsTrigger>
+          <TabsTrigger value="connections" className="gap-2 shrink-0 max-md:min-h-11"><Link2 className="h-4 w-4" />Collegamenti</TabsTrigger>
         </TabsList>
 
         {/* TAB: CALENDARI */}
@@ -826,14 +780,19 @@ export default function MarketingCalendarsConfig() {
             o "Disponibilita'" non cambiava niente — restava sempre in cima
             l'elenco dei calendari, e il resto stava in fondo alla pagina. */}
         <TabsContent value="calendars" className="space-y-4">
+          {!loadingCalendars && !calendarsError && (
+            <p className="text-sm text-muted-foreground">
+              {calendarStats.total === 1 ? "1 calendario" : `${calendarStats.total} calendari`} · {calendarStats.active === 1 ? "1 attivo" : `${calendarStats.active} attivi`}
+            </p>
+          )}
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             <div className="flex gap-2 flex-wrap items-center">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Cerca calendario..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 w-56" />
+              <div className="relative max-md:w-full">
+                <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input placeholder="Cerca calendario…" aria-label="Cerca un calendario" value={search} onChange={e => setSearch(e.target.value)} className="pl-9 w-56 max-md:h-11 max-md:w-full" />
               </div>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-32"><SelectValue placeholder="Stato" /></SelectTrigger>
+                <SelectTrigger className="w-32 max-md:h-11" aria-label="Filtra per stato"><SelectValue placeholder="Stato" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti</SelectItem>
                   <SelectItem value="active">Attivi</SelectItem>
@@ -841,7 +800,7 @@ export default function MarketingCalendarsConfig() {
                 </SelectContent>
               </Select>
               <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-32"><SelectValue placeholder="Tipo" /></SelectTrigger>
+                <SelectTrigger className="w-32 max-md:h-11" aria-label="Filtra per tipo"><SelectValue placeholder="Tipo" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti</SelectItem>
                   <SelectItem value="personal">Commerciale</SelectItem>
@@ -850,7 +809,7 @@ export default function MarketingCalendarsConfig() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={() => { setEditingCalendar(null); setDialogOpen(true); }} disabled={!canManageCalendars} className="gap-2">
+            <Button onClick={() => { setEditingCalendar(null); setDialogOpen(true); }} disabled={!canManageCalendars} className="gap-2 max-md:h-11 max-md:w-full">
               <Plus className="h-4 w-4" /> Nuovo calendario
             </Button>
           </div>
@@ -873,9 +832,9 @@ export default function MarketingCalendarsConfig() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <CalendarDays className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-1">Nessun calendario</h3>
-                <p className="text-muted-foreground mb-4">Crea il tuo primo calendario marketing per iniziare</p>
-                <Button onClick={() => { setEditingCalendar(null); setDialogOpen(true); }} disabled={!canManageCalendars} className="gap-2">
+                <h2 className="text-lg font-medium mb-1">Nessun calendario</h2>
+                <p className="text-muted-foreground mb-4">Crea il tuo primo calendario per iniziare</p>
+                <Button onClick={() => { setEditingCalendar(null); setDialogOpen(true); }} disabled={!canManageCalendars} className="gap-2 max-md:h-11">
                   <Plus className="h-4 w-4" /> Nuovo calendario
                 </Button>
               </CardContent>
@@ -885,27 +844,28 @@ export default function MarketingCalendarsConfig() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nome</TableHead>
+                    <TableHead className="max-sm:px-2">Nome</TableHead>
                     <TableHead className="hidden sm:table-cell">Responsabile</TableHead>
                     {/* Colonne spostate più in là: nelle Impostazioni a 1024 lo
                         spazio è 686px e la tabella ne chiedeva 1157. */}
                     <TableHead className="hidden 2xl:table-cell">Sede base</TableHead>
-                    <TableHead>Durata</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead className="hidden 2xl:table-cell">Link booking</TableHead>
+                    <TableHead className="hidden sm:table-cell">Durata</TableHead>
+                    <TableHead className="hidden sm:table-cell">Tipo</TableHead>
+                    <TableHead className="hidden 2xl:table-cell">Link di prenotazione</TableHead>
                     <TableHead className="hidden xl:table-cell">Calendario esterno</TableHead>
-                    <TableHead className="hidden xl:table-cell">App.</TableHead>
-                    <TableHead>Stato</TableHead>
+                    <TableHead className="hidden xl:table-cell">Appuntamenti</TableHead>
+                    <TableHead className="max-sm:px-2">Stato</TableHead>
                     <TableHead className="hidden min-[1700px]:table-cell">Aggiornato</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
+                    <TableHead className="text-right max-sm:px-2">Azioni</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.map(cal => (
                     <TableRow key={cal.id}>
-                      <TableCell>
+                      <TableCell className="max-sm:px-2">
                         <div className="space-y-1">
                           <p className="font-medium">{cal.name}</p>
+                          <p className="text-xs text-muted-foreground sm:hidden">{cal.duration_minutes} min · {calendarTypeMeta(cal.calendar_type).label}</p>
                           {cal.default_meeting_provider === "google_meet" && (
                             <Badge variant="outline" className="gap-1 border-sky-200 bg-sky-50 text-sky-700">
                               <Video className="h-3 w-3" />
@@ -923,8 +883,8 @@ export default function MarketingCalendarsConfig() {
                       <TableCell className="hidden 2xl:table-cell text-muted-foreground">
                         {cal.base_formatted_address || [cal.base_address_city, cal.base_address_province].filter(Boolean).join(", ") || "—"}
                       </TableCell>
-                      <TableCell>{cal.duration_minutes} min</TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">{cal.duration_minutes} min</TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         {(() => {
                           const meta = calendarTypeMeta(cal.calendar_type);
                           return <Badge variant={meta.variant}>{meta.label}</Badge>;
@@ -974,8 +934,8 @@ export default function MarketingCalendarsConfig() {
                         )}
                       </TableCell>
                       <TableCell className="hidden xl:table-cell">{appointmentCountsByCalendar[cal.id] || 0}</TableCell>
-                      <TableCell>
-                        <Switch checked={cal.is_active} disabled={!canManageCalendars || toggleActive.isPending} onCheckedChange={(v) => toggleActive.mutate({ id: cal.id, is_active: v })} />
+                      <TableCell className="max-sm:px-2">
+                        <Switch checked={cal.is_active} aria-label={`Attivo: ${cal.name}`} disabled={!canManageCalendars || toggleActive.isPending} onCheckedChange={(v) => toggleActive.mutate({ id: cal.id, is_active: v })} className="max-md:relative max-md:before:absolute max-md:before:-inset-x-1 max-md:before:-inset-y-2.5 max-md:before:content-['']" />
                       </TableCell>
                       <TableCell className="hidden min-[1700px]:table-cell text-muted-foreground text-sm">
                         {/* 2026-05-27: guard contro updated_at null/invalid che
@@ -988,15 +948,15 @@ export default function MarketingCalendarsConfig() {
                           return format(d, "dd MMM yyyy", { locale: it });
                         })()}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right max-sm:px-2">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => setSharingCalendar(cal)} title="Condividi link prenotazione">
+                          <Button variant="ghost" size="icon" onClick={() => setSharingCalendar(cal)} title="Condividi il link di prenotazione" aria-label={`Condividi il link di «${cal.name}»`} className="max-md:h-11 max-md:w-11">
                             <Share2 className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" disabled={!canManageCalendars} onClick={() => { setEditingCalendar(cal); setDialogOpen(true); }}>
+                          <Button variant="ghost" size="icon" disabled={!canManageCalendars} onClick={() => { setEditingCalendar(cal); setDialogOpen(true); }} aria-label={`Modifica «${cal.name}»`} className="max-md:h-11 max-md:w-11">
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" disabled={!canManageCalendars} onClick={() => setDeleteId(cal.id)} className="text-destructive hover:text-destructive">
+                          <Button variant="ghost" size="icon" disabled={!canManageCalendars} onClick={() => setDeleteId(cal.id)} aria-label={`Elimina «${cal.name}»`} className="text-destructive hover:text-destructive max-md:h-11 max-md:w-11">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -1009,282 +969,224 @@ export default function MarketingCalendarsConfig() {
           )}
         </TabsContent>
 
-        {/* TAB: PREFERENZE */}
-        <TabsContent value="preferences" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Preferenze dell'app</CardTitle>
-              <CardDescription>Configura le preferenze generali del calendario</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Giorno di inizio settimana</Label>
-                  <Select value={localPrefs.week_start_day} onValueChange={v => setLocalPrefs(p => ({ ...p, week_start_day: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="monday">Lunedì</SelectItem>
-                      <SelectItem value="sunday">Domenica</SelectItem>
-                      <SelectItem value="saturday">Sabato</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Servizi</CardTitle>
-              <CardDescription>Attiva o disattiva le funzionalità aggiuntive</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div><Label>Menu dei servizi</Label><p className="text-sm text-muted-foreground">Mostra il menu dei servizi nel calendario</p></div>
-                <Switch checked={localPrefs.show_services_menu} onCheckedChange={v => setLocalPrefs(p => ({ ...p, show_services_menu: v }))} />
-              </div>
-              <div className="flex items-center justify-between">
-                <div><Label>Stanze</Label><p className="text-sm text-muted-foreground">Gestisci le stanze per gli appuntamenti</p></div>
-                <Switch checked={localPrefs.show_rooms} onCheckedChange={v => setLocalPrefs(p => ({ ...p, show_rooms: v }))} />
-              </div>
-              <div className="flex items-center justify-between">
-                <div><Label>Attrezzature</Label><p className="text-sm text-muted-foreground">Gestisci le attrezzature disponibili</p></div>
-                <Switch checked={localPrefs.show_equipment} onCheckedChange={v => setLocalPrefs(p => ({ ...p, show_equipment: v }))} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Preferenze widget</CardTitle>
-              <CardDescription>Configura la visualizzazione del widget calendario</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Lingua</Label>
-                  <Select value={localPrefs.language} onValueChange={v => setLocalPrefs(p => ({ ...p, language: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="it">Italiano</SelectItem>
-                      <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="es">Español</SelectItem>
-                      <SelectItem value="de">Deutsch</SelectItem>
-                      <SelectItem value="fr">Français</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Formato ora</Label>
-                  <Select value={localPrefs.time_format} onValueChange={v => setLocalPrefs(p => ({ ...p, time_format: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="24h">24 ore</SelectItem>
-                      <SelectItem value="12h">12 ore (AM/PM)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Inizio settimana</Label>
-                  <Select value={localPrefs.week_start_day} onValueChange={v => setLocalPrefs(p => ({ ...p, week_start_day: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="monday">Lunedì</SelectItem>
-                      <SelectItem value="sunday">Domenica</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Spostamenti e percorrenza</CardTitle>
-              <CardDescription>Configura i limiti per il suggerimento automatico dei calendari negli appuntamenti</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Km massimi giornalieri A/R (default)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={localPrefs.default_max_daily_km}
-                    onChange={(e) => setLocalPrefs(p => ({ ...p, default_max_daily_km: parseInt(e.target.value) || 250 }))}
-                  />
-                  <p className="text-xs text-muted-foreground">Limite km per commerciale se non specificato sul calendario</p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Tempo max spostamento tra appuntamenti (min)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={localPrefs.max_travel_minutes}
-                    onChange={(e) => setLocalPrefs(p => ({ ...p, max_travel_minutes: parseInt(e.target.value) || 60 }))}
-                  />
-                  <p className="text-xs text-muted-foreground">Oltre questo tempo il calendario viene marcato come bloccato</p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Durata appuntamento di default (min)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={localPrefs.default_appointment_duration_minutes}
-                    onChange={(e) => setLocalPrefs(p => ({ ...p, default_appointment_duration_minutes: parseInt(e.target.value) || 90 }))}
-                  />
-                  <p className="text-xs text-muted-foreground">Usata quando il calendario non ha una durata specifica</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-end">
-            <Button onClick={() => upsertPreferences.mutate(localPrefs)} disabled={!canManageCalendars || upsertPreferences.isPending}>
-              {upsertPreferences.isPending ? "Salvataggio..." : "Salva preferenze"}
-            </Button>
-          </div>
-        </TabsContent>
-
-        {/* TAB: DISPONIBILITÀ */}
+        {/* TAB: ORARI — gli orari in cui i clienti possono prenotare con il link.
+            Il primo calendario è già scelto; chi ne ha uno solo non sceglie niente. */}
         <TabsContent value="availability" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Disponibilità settimanale</CardTitle>
-              <CardDescription>Seleziona un calendario e configura gli orari di lavoro</CardDescription>
+              <h2 className="text-base font-semibold leading-none tracking-tight">Orari di prenotazione</h2>
+              <CardDescription>Sono gli orari in cui i clienti possono prenotare con il link.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Calendario</Label>
-                <Select value={selectedCalendarId || ""} onValueChange={setSelectedCalendarId}>
-                  <SelectTrigger className="w-full sm:w-72"><SelectValue placeholder="Seleziona un calendario" /></SelectTrigger>
-                  <SelectContent>
-                    {calendars.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {!selectedCalendarId ? (
-                <p className="text-muted-foreground text-sm py-4">Seleziona un calendario per configurare la disponibilità</p>
-              ) : loadingAvail ? (
-                <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+              {calendars.length === 0 ? (
+                <p className="text-muted-foreground text-sm py-4">Crea prima un calendario: gli orari si impostano calendario per calendario.</p>
               ) : (
                 <>
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
-                      <div>
-                        <p className="font-medium">Copertura settimanale</p>
-                        <p className="text-muted-foreground">
-                          {localAvail.filter(a => a.is_enabled).length} giorni attivi su 7
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={!canManageCalendars}
-                          onClick={() => setLocalAvail(prev => prev.map(a => ({
-                            ...a,
-                            is_enabled: a.day_of_week >= 1 && a.day_of_week <= 5,
-                            start_time: "09:00",
-                            end_time: "18:00",
-                          })))}
-                        >
-                          Lun-Ven 09-18
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={!canManageCalendars}
-                          onClick={() => setLocalAvail(prev => prev.map(a => ({ ...a, is_enabled: false })))}
-                        >
-                          Chiudi tutti
-                        </Button>
-                      </div>
+                  {calendars.length > 1 ? (
+                    <div className="space-y-2">
+                      <Label htmlFor="orari-calendario">Calendario</Label>
+                      <Select value={calendarioOrariId ?? ""} onValueChange={cambiaCalendarioOrari}>
+                        <SelectTrigger id="orari-calendario" className="w-full sm:w-72 max-md:h-11"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {calendars.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                    {DAYS.map(day => {
-                      const fasce = localAvail.filter(a => a.day_of_week === day.value);
-                      if (fasce.length === 0) return null;
-                      const attivo = fasce.some(f => f.is_enabled);
-                      return (
-                        <div key={day.value} className="border-b py-2 last:border-0">
-                          {fasce.map((row, idx) => {
-                            const invalid = row.is_enabled && row.start_time >= row.end_time;
-                            return (
-                              <div key={row.rid} className={`flex flex-wrap items-center gap-3 py-1 ${invalid ? "rounded-md bg-destructive/5 px-2" : ""}`}>
-                                {idx === 0 ? (
-                                  <Checkbox
-                                    checked={attivo}
-                                    disabled={!canManageCalendars}
-                                    onCheckedChange={(v) => setLocalAvail(prev => prev.map(a => a.day_of_week === day.value ? { ...a, is_enabled: !!v } : a))}
-                                  />
-                                ) : <span className="w-4" />}
-                                <span className="w-24 text-sm font-medium">{idx === 0 ? day.label : ""}</span>
-                                <Input
-                                  type="time"
-                                  value={row.start_time}
-                                  onChange={e => setLocalAvail(prev => prev.map(a => a.rid === row.rid ? { ...a, start_time: e.target.value } : a))}
-                                  className="w-28"
-                                  disabled={!row.is_enabled || !canManageCalendars}
-                                />
-                                <span className="text-muted-foreground">–</span>
-                                <Input
-                                  type="time"
-                                  value={row.end_time}
-                                  onChange={e => setLocalAvail(prev => prev.map(a => a.rid === row.rid ? { ...a, end_time: e.target.value } : a))}
-                                  className="w-28"
-                                  disabled={!row.is_enabled || !canManageCalendars}
-                                />
-                                {idx === 0 ? (
-                                  <Button variant="ghost" size="icon" title="Copia questa fascia a tutti i giorni attivi" disabled={!canManageCalendars} onClick={() => {
-                                    setLocalAvail(prev => prev.map(a => a.is_enabled ? { ...a, start_time: row.start_time, end_time: row.end_time } : a));
-                                  }}>
-                                    <Copy className="h-4 w-4" />
-                                  </Button>
-                                ) : (
-                                  <Button variant="ghost" size="icon" title="Togli questa fascia" disabled={!canManageCalendars}
-                                    onClick={() => setLocalAvail(prev => prev.filter(a => a.rid !== row.rid))}>
-                                    <Trash2 className="h-4 w-4 text-muted-foreground" />
-                                  </Button>
-                                )}
-                                {invalid && <span className="text-xs text-destructive">Fine prima dell'inizio</span>}
-                              </div>
-                            );
-                          })}
-                          {attivo && canManageCalendars && (
-                            <button
+                  ) : (
+                    <p className="text-sm font-medium">Calendario: {calendars[0].name}</p>
+                  )}
+
+                  {loadingAvail ? (
+                    <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-3 text-sm">
+                          <div>
+                            <p className="font-medium">Copertura settimanale</p>
+                            <p className="text-muted-foreground">
+                              {new Set(localAvail.filter(a => a.is_enabled).map(a => a.day_of_week)).size} giorni attivi su 7
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
                               type="button"
-                              className="ml-32 mt-0.5 text-xs text-muted-foreground hover:text-foreground"
-                              title="Una seconda fascia serve per la pausa pranzo (es. 9-13 e 14:30-18)"
-                              onClick={() => setLocalAvail(prev => {
-                                const ultime = prev.filter(a => a.day_of_week === day.value);
-                                const ultima = ultime[ultime.length - 1];
-                                return [...prev, {
-                                  rid: `n${day.value}-${Date.now()}`,
-                                  day_of_week: day.value,
-                                  start_time: ultima ? ultima.end_time : "14:30",
-                                  end_time: "18:00",
-                                  is_enabled: true,
-                                }];
-                              })}
+                              variant="outline"
+                              size="sm"
+                              disabled={!canManageCalendars}
+                              className="max-md:h-11"
+                              onClick={() => modificaOrari(prev => prev.map(a => ({
+                                ...a,
+                                is_enabled: a.day_of_week >= 1 && a.day_of_week <= 5,
+                                start_time: "09:00",
+                                end_time: "18:00",
+                              })))}
                             >
-                              + aggiungi fascia (pausa pranzo)
-                            </button>
-                          )}
+                              Lunedì-venerdì 9-18
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={!canManageCalendars}
+                              className="max-md:h-11"
+                              onClick={() => modificaOrari(prev => prev.map(a => ({ ...a, is_enabled: false })))}
+                            >
+                              Chiudi tutti i giorni
+                            </Button>
+                          </div>
                         </div>
-                      );
-                    })}
+                        {DAYS.map(day => {
+                          const fasce = localAvail.filter(a => a.day_of_week === day.value);
+                          if (fasce.length === 0) return null;
+                          const attivo = fasce.some(f => f.is_enabled);
+                          return (
+                            <div key={day.value} className="border-b py-2 last:border-0">
+                              {fasce.map((row, idx) => {
+                                const invalid = row.is_enabled && row.start_time >= row.end_time;
+                                const nomeFascia = idx === 0 ? day.label : `${day.label}, seconda fascia`;
+                                return (
+                                  <div key={row.rid} className={`flex flex-wrap items-center gap-3 py-1 ${invalid ? "rounded-md bg-destructive/5 px-2" : ""}`}>
+                                    {/* L'etichetta con il giorno fa da bersaglio grande per la casella (44 px sul telefono). */}
+                                    {idx === 0 ? (
+                                      <label className="flex w-36 items-center gap-3 text-sm font-medium max-sm:w-full max-md:min-h-11">
+                                        <Checkbox
+                                          checked={attivo}
+                                          disabled={!canManageCalendars}
+                                          aria-label={`${day.label}: aperto`}
+                                          onCheckedChange={(v) => modificaOrari(prev => prev.map(a => a.day_of_week === day.value ? { ...a, is_enabled: !!v } : a))}
+                                        />
+                                        {day.label}
+                                      </label>
+                                    ) : <span className="w-36 max-sm:hidden" />}
+                                    <Input
+                                      type="time"
+                                      aria-label={`${nomeFascia}: dalle`}
+                                      value={row.start_time}
+                                      onChange={e => modificaOrari(prev => prev.map(a => a.rid === row.rid ? { ...a, start_time: e.target.value } : a))}
+                                      className="w-28 max-md:h-11"
+                                      disabled={!row.is_enabled || !canManageCalendars}
+                                    />
+                                    <span className="text-muted-foreground">–</span>
+                                    <Input
+                                      type="time"
+                                      aria-label={`${nomeFascia}: alle`}
+                                      value={row.end_time}
+                                      onChange={e => modificaOrari(prev => prev.map(a => a.rid === row.rid ? { ...a, end_time: e.target.value } : a))}
+                                      className="w-28 max-md:h-11"
+                                      disabled={!row.is_enabled || !canManageCalendars}
+                                    />
+                                    {idx === 0 ? (
+                                      <Button variant="ghost" size="icon" title="Copia questa fascia a tutti i giorni attivi" aria-label={`Copia gli orari di ${day.label} a tutti i giorni aperti`} disabled={!canManageCalendars} className="max-md:h-11 max-md:w-11" onClick={() => {
+                                        modificaOrari(prev => prev.map(a => a.is_enabled ? { ...a, start_time: row.start_time, end_time: row.end_time } : a));
+                                      }}>
+                                        <Copy className="h-4 w-4" />
+                                      </Button>
+                                    ) : (
+                                      <Button variant="ghost" size="icon" title="Togli questa fascia" aria-label={`Togli la seconda fascia di ${day.label}`} disabled={!canManageCalendars} className="max-md:h-11 max-md:w-11"
+                                        onClick={() => modificaOrari(prev => prev.filter(a => a.rid !== row.rid))}>
+                                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                      </Button>
+                                    )}
+                                    {invalid && <span className="text-xs text-destructive">La fine deve essere dopo l'inizio</span>}
+                                  </div>
+                                );
+                              })}
+                              {attivo && canManageCalendars && (
+                                <button
+                                  type="button"
+                                  className="mt-0.5 text-xs text-muted-foreground hover:text-foreground sm:ml-40 max-md:min-h-11"
+                                  title="Una seconda fascia serve per la pausa pranzo (es. 9-13 e 14:30-18)"
+                                  onClick={() => modificaOrari(prev => {
+                                    const ultime = prev.filter(a => a.day_of_week === day.value);
+                                    const ultima = ultime[ultime.length - 1];
+                                    // Con una fascia che arriva a fine giornata (9-18) la seconda non avrebbe posto: si divide il giorno,
+                                    // prima fascia fino alle 13 e seconda dalle 14:30 (la pausa pranzo del pulsante). Altrimenti la seconda
+                                    // parte da dove finisce l'ultima.
+                                    const dividi = !!ultima && ultima.end_time >= "17:00" && ultima.start_time < "13:00";
+                                    const nuovaInizio = dividi ? "14:30" : (ultima ? ultima.end_time : "14:30");
+                                    const nuovaFine = dividi ? ultima.end_time : "18:00";
+                                    return [
+                                      ...prev.map(a => (dividi && ultima && a.rid === ultima.rid ? { ...a, end_time: "13:00" } : a)),
+                                      {
+                                        rid: `n${day.value}-${Date.now()}`,
+                                        day_of_week: day.value,
+                                        start_time: nuovaInizio,
+                                        end_time: nuovaFine,
+                                        is_enabled: true,
+                                      },
+                                    ];
+                                  })}
+                                >
+                                  + Aggiungi una seconda fascia (per la pausa pranzo)
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* La barra resta in vista: con sette giorni il pulsante in fondo usciva dallo schermo. */}
+                      {canManageCalendars && bozzaOrari !== null && (
+                        <div className="sticky bottom-0 z-10 -mx-6 -mb-6 flex flex-wrap items-center justify-between gap-2 rounded-b-lg border-t bg-card px-6 py-3">
+                          <span role="status" className="text-sm text-muted-foreground">Modifiche non salvate</span>
+                          <div className="flex flex-wrap gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => setBozzaOrari(null)} disabled={saveAvailability.isPending} className="max-md:h-11">
+                              Annulla le modifiche
+                            </Button>
+                            <Button size="sm" onClick={() => saveAvailability.mutate(localAvail)} disabled={saveAvailability.isPending} className="max-md:h-11">
+                              {saveAvailability.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvataggio…</> : "Salva gli orari"}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB: SPOSTAMENTI — i tre numeri che il suggerimento dei calendari legge davvero. */}
+        <TabsContent value="preferences" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <h2 className="text-base font-semibold leading-none tracking-tight">Spostamenti e durata</h2>
+              <CardDescription>Valori che si usano quando il calendario non ne ha di suoi, per proporre il calendario giusto a un nuovo appuntamento.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {PREFERENZE_SPOSTAMENTI.map((p) => (
+                  <div key={p.chiave} className="space-y-2">
+                    <Label htmlFor={`pref-${p.chiave}`}>{p.etichetta}</Label>
+                    <Input
+                      id={`pref-${p.chiave}`}
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      disabled={!canManageCalendars || loadingPrefs}
+                      value={valorePreferenza(p.chiave, p.predefinito)}
+                      onChange={(e) => setBozzaPrefs((b) => ({ ...b, [p.chiave]: e.target.value }))}
+                      className="max-md:h-11"
+                    />
+                    <p className="text-xs text-muted-foreground">{p.aiuto}</p>
                   </div>
-                  <div className="flex justify-end pt-2">
-                    <Button onClick={() => saveAvailability.mutate(localAvail)} disabled={!canManageCalendars || saveAvailability.isPending}>
-                      {saveAvailability.isPending ? "Salvataggio..." : "Salva disponibilità"}
+                ))}
+              </div>
+              {canManageCalendars && Object.keys(bozzaPrefs).length > 0 && (
+                <div className="sticky bottom-0 z-10 -mx-6 -mb-6 flex flex-wrap items-center justify-between gap-2 rounded-b-lg border-t bg-card px-6 py-3">
+                  <span role="status" className="text-sm text-muted-foreground">Modifiche non salvate</span>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setBozzaPrefs({})} disabled={upsertPreferences.isPending} className="max-md:h-11">
+                      Annulla le modifiche
+                    </Button>
+                    <Button size="sm" onClick={salvaSpostamenti} disabled={upsertPreferences.isPending} className="max-md:h-11">
+                      {upsertPreferences.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvataggio…</> : "Salva gli spostamenti"}
                     </Button>
                   </div>
-                </>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -1298,7 +1200,7 @@ export default function MarketingCalendarsConfig() {
         <TabsContent value="connections" className="space-y-8">
           <section className="space-y-3">
             <div>
-              <h3 className="text-sm font-semibold">Il tuo account</h3>
+              <h2 className="text-sm font-semibold">Il tuo account</h2>
               <p className="text-xs text-muted-foreground">
                 Vale solo per te: collega qui il calendario dove vuoi ricevere i tuoi appuntamenti.
                 Ogni persona del team collega il proprio dal suo profilo.
@@ -1311,7 +1213,7 @@ export default function MarketingCalendarsConfig() {
 
           <section className="space-y-3">
             <div>
-              <h3 className="text-sm font-semibold">Tutta l'azienda</h3>
+              <h2 className="text-sm font-semibold">Tutta l'azienda</h2>
               <p className="text-xs text-muted-foreground">
                 Chi ha collegato un account, con quale indirizzo, quando ha sincronizzato
                 l'ultima volta e quali calendari del gestionale ci scrivono dentro.
@@ -1338,9 +1240,11 @@ export default function MarketingCalendarsConfig() {
           }
         }}
         onAdvancedSettings={() => {
+          if (editingCalendar) setSelectedCalendarId(editingCalendar.id);
           setDialogOpen(false);
           handleTabChange("availability");
         }}
+        haOrari={editingCalendar ? calendariConOrari.has(editingCalendar.id) : true}
         initialData={editingCalendar}
         isLoading={createCalendar.isPending || updateCalendar.isPending}
       />
@@ -1350,7 +1254,7 @@ export default function MarketingCalendarsConfig() {
           <DialogHeader>
             <DialogTitle>Condividi calendario</DialogTitle>
             <DialogDescription>
-              Copia il link per inviarlo al cliente oppure usa il codice embed per inserirlo nel sito.
+              Copia il link da mandare al cliente, oppure incolla uno dei codici nel tuo sito.
             </DialogDescription>
           </DialogHeader>
 
@@ -1372,7 +1276,7 @@ export default function MarketingCalendarsConfig() {
                 {!sharingCalendar.booking_slug ? (
                   <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                     <p className="font-medium">Questo calendario non ha ancora un link pubblico.</p>
-                    <p className="mt-1 text-xs text-amber-800/80">Generalo per ottenere una pagina di prenotazione tipo Calendly.</p>
+                    <p className="mt-1 text-xs text-amber-800/80">Generalo per avere una pagina dove i clienti prenotano da soli.</p>
                     <Button
                       className="mt-3 gap-2"
                       size="sm"
@@ -1386,15 +1290,15 @@ export default function MarketingCalendarsConfig() {
                 ) : (
                   <div className="mt-4 space-y-4">
                     <div className="space-y-2">
-                      <Label>Link diretto</Label>
+                      <Label htmlFor="condividi-link">Link diretto</Label>
                       <div className="flex gap-2">
-                        <Input value={shareUrl} readOnly className="font-mono text-xs" />
-                        <Button type="button" variant="outline" className="gap-2" onClick={() => copyText(shareUrl, "Link")}>
+                        <Input id="condividi-link" value={shareUrl} readOnly className="font-mono text-xs" />
+                        <Button type="button" variant="outline" className="gap-2 max-md:h-11" onClick={() => copyText(shareUrl, "Link")}>
                           <Copy className="h-4 w-4" />
                           Copia
                         </Button>
                         <Button type="button" variant="outline" size="icon" asChild>
-                          <a href={shareUrl} target="_blank" rel="noopener noreferrer" aria-label="Apri anteprima booking">
+                          <a href={shareUrl} target="_blank" rel="noopener noreferrer" aria-label="Apri la pagina di prenotazione in una nuova scheda">
                             <ExternalLink className="h-4 w-4" />
                           </a>
                         </Button>
@@ -1406,27 +1310,27 @@ export default function MarketingCalendarsConfig() {
                         <div className="flex items-center justify-between gap-2">
                           <Label className="inline-flex items-center gap-1.5">
                             <Code2 className="h-3.5 w-3.5" />
-                            Embed inline
+                            Codice da incollare nel sito
                           </Label>
-                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1" onClick={() => copyText(shareEmbedCode, "Codice embed")}>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(shareEmbedCode, "Codice")}>
                             <Copy className="h-3.5 w-3.5" />
                             Copia
                           </Button>
                         </div>
-                        <Textarea value={shareEmbedCode} readOnly rows={5} className="font-mono text-xs" />
+                        <Textarea value={shareEmbedCode} readOnly rows={5} aria-label="Codice da incollare nel sito" className="font-mono text-xs" />
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <Label className="inline-flex items-center gap-1.5">
                             <Link2 className="h-3.5 w-3.5" />
-                            Bottone sito
+                            Pulsante per il sito
                           </Label>
-                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1" onClick={() => copyText(shareButtonCode, "Codice bottone")}>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(shareButtonCode, "Codice del pulsante")}>
                             <Copy className="h-3.5 w-3.5" />
                             Copia
                           </Button>
                         </div>
-                        <Textarea value={shareButtonCode} readOnly rows={5} className="font-mono text-xs" />
+                        <Textarea value={shareButtonCode} readOnly rows={5} aria-label="Codice del pulsante per il sito" className="font-mono text-xs" />
                       </div>
                       {/* Widget: come Calendly — riquadro che si adatta, finestra
                           al clic e bottone fisso. Servono lo script prenota.js. */}
@@ -1436,11 +1340,11 @@ export default function MarketingCalendarsConfig() {
                             <Code2 className="h-3.5 w-3.5" />
                             Riquadro che si adatta
                           </Label>
-                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1" onClick={() => copyText(shareInlineCode, "Codice riquadro")}>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(shareInlineCode, "Codice del riquadro")}>
                             <Copy className="h-3.5 w-3.5" /> Copia
                           </Button>
                         </div>
-                        <Textarea value={shareInlineCode} readOnly rows={3} className="font-mono text-xs" />
+                        <Textarea value={shareInlineCode} readOnly rows={3} aria-label="Codice del riquadro che si adatta" className="font-mono text-xs" />
                         <p className="text-[11px] text-muted-foreground">Cresce e si accorcia da solo con il contenuto.</p>
                       </div>
                       <div className="space-y-2">
@@ -1449,11 +1353,11 @@ export default function MarketingCalendarsConfig() {
                             <Link2 className="h-3.5 w-3.5" />
                             Finestra al clic
                           </Label>
-                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1" onClick={() => copyText(sharePopupCode, "Codice finestra")}>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(sharePopupCode, "Codice della finestra")}>
                             <Copy className="h-3.5 w-3.5" /> Copia
                           </Button>
                         </div>
-                        <Textarea value={sharePopupCode} readOnly rows={3} className="font-mono text-xs" />
+                        <Textarea value={sharePopupCode} readOnly rows={3} aria-label="Codice della finestra al clic" className="font-mono text-xs" />
                         <p className="text-[11px] text-muted-foreground">
                           Si apre sopra il sito, senza lasciare la pagina. Funziona su qualsiasi bottone con <code>data-prenota</code>.
                         </p>
@@ -1462,13 +1366,13 @@ export default function MarketingCalendarsConfig() {
                         <div className="flex items-center justify-between gap-2">
                           <Label className="inline-flex items-center gap-1.5">
                             <Link2 className="h-3.5 w-3.5" />
-                            Bottone fisso in basso
+                            Pulsante fisso in basso
                           </Label>
-                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1" onClick={() => copyText(shareBadgeCode, "Codice bottone fisso")}>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 max-md:h-11" onClick={() => copyText(shareBadgeCode, "Codice del pulsante fisso")}>
                             <Copy className="h-3.5 w-3.5" /> Copia
                           </Button>
                         </div>
-                        <Textarea value={shareBadgeCode} readOnly rows={3} className="font-mono text-xs" />
+                        <Textarea value={shareBadgeCode} readOnly rows={3} aria-label="Codice del pulsante fisso in basso" className="font-mono text-xs" />
                         <p className="text-[11px] text-muted-foreground">
                           Una riga nel tema del sito: il bottone compare su tutte le pagine. A prenotazione fatta il sito riceve l'evento <code>eic:appuntamento-prenotato</code> per Analytics.
                         </p>
@@ -1493,7 +1397,7 @@ export default function MarketingCalendarsConfig() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare il calendario?</AlertDialogTitle>
-            <AlertDialogDescription>Questa azione è irreversibile. Il calendario e tutte le relative disponibilità verranno eliminati.</AlertDialogDescription>
+            <AlertDialogDescription>Il calendario e i suoi orari vengono eliminati e non si possono recuperare. Se ha appuntamenti attivi non si elimina: disattivalo.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>

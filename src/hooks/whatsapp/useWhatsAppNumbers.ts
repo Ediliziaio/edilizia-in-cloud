@@ -26,6 +26,24 @@ export const WA_NUMBER_COLUMNS =
 export const SOLO_AMMINISTRATORI_WA =
   "Solo gli amministratori dell'azienda possono modificare i numeri WhatsApp.";
 
+/**
+ * Come si chiama lo stato di un numero, per chi non è tecnico. «Attivo» solo se il numero è attivo E Meta ha
+ * verificato il collegamento: la scheda del numero e la scheda WhatsApp in Integrazioni usano le stesse parole.
+ */
+export function etichettaStatoNumero(
+  stato: string | null | undefined,
+  webhookVerificato: boolean | null | undefined,
+): string {
+  if (stato === "active") return webhookVerificato ? "Attivo" : "Webhook da verificare";
+  const nomi: Record<string, string> = {
+    pending_verification: "In verifica",
+    suspended: "Sospeso",
+    removed: "Rimosso",
+    pending: "In attesa",
+  };
+  return nomi[stato ?? "pending"] ?? stato ?? "In attesa";
+}
+
 export type WAPurpose =
   | "bot_operativo"
   | "assistenza"
@@ -41,17 +59,17 @@ export type WAPurposeGroup =
 export const PURPOSE_LABELS: Record<WAPurpose, string> = {
   bot_operativo: "Operativo / Cantieri",
   assistenza: "Assistenza / Amministrazione",
-  lead: "Lead WhatsApp",
-  marketing: "Marketing & Broadcast",
+  lead: "Contatti da annunci e sito",
+  marketing: "Marketing e invii di massa",
   notifiche: "Notifiche automatiche",
 };
 
 export const PURPOSE_DESCRIPTIONS: Record<WAPurpose, string> = {
   bot_operativo: "Silvio legge audio, foto, DDT e documenti; aggiorna commesse, rapportini, diario e materiali.",
   assistenza: "Clienti e amministrazione aprono richieste, chiedono documenti, pagamenti, stato lavori o supporto.",
-  lead: "Numero per Click-to-WhatsApp e primo contatto da campagne ads o sito.",
-  marketing: "Inbox commerciale e campagne broadcast con template approvati, follow-up e recensioni.",
-  notifiche: "Alert automatici su scadenze, SAL, fatture, pagamenti e promemoria operativi.",
+  lead: "Numero a cui scrivono i contatti che toccano «Scrivi su WhatsApp» in un annuncio o dal sito, per il primo contatto.",
+  marketing: "Posta in arrivo dell'ufficio commerciale e campagne di invii di massa con modelli approvati, richiami e richieste di recensione.",
+  notifiche: "Avvisi automatici su scadenze, SAL, fatture, pagamenti e promemoria di cantiere.",
 };
 
 export const PURPOSE_ORDER: WAPurpose[] = [
@@ -84,9 +102,9 @@ export const PURPOSE_GROUPS: Record<
   commerciale_marketing: {
     label: "WhatsApp Commerciale / Marketing",
     shortLabel: "Marketing",
-    description: "Lead, campagne, follow-up, recensioni e risposte gestite dall'ufficio commerciale.",
+    description: "Contatti, campagne, richiami, recensioni e risposte gestite dall'ufficio commerciale.",
     recommendedNumber: "Numero commerciale",
-    mode: "AI assistita + operatore umano",
+    mode: "Silvio aiuta, risponde una persona",
     purposes: ["marketing", "lead"],
   },
   operativo_cantieri: {
@@ -100,19 +118,19 @@ export const PURPOSE_GROUPS: Record<
   amministrazione_assistenza: {
     label: "WhatsApp Amministrazione / Assistenza",
     shortLabel: "Amm. / Assistenza",
-    description: "Documenti, pagamenti, scadenze, ticket cliente e notifiche transazionali.",
+    description: "Documenti, pagamenti, scadenze, richieste dei clienti e avvisi automatici.",
     recommendedNumber: "Numero amministrazione",
-    mode: "Workflow automatici + handoff",
+    mode: "Risposte automatiche, poi passa a una persona",
     purposes: ["assistenza", "notifiche"],
   },
 };
 
 export const PURPOSE_AUTONOMY: Record<WAPurpose, string> = {
   bot_operativo: "Silvio lavora in autonomia e chiede conferma prima di scrivere dati critici.",
-  marketing: "L'ufficio vede le risposte e Silvio prepara bozze, follow-up e priorita.",
-  lead: "Silvio qualifica il lead e passa al commerciale quando serve un umano.",
+  marketing: "L'ufficio vede le risposte e Silvio prepara bozze, richiami e priorità.",
+  lead: "Silvio capisce di cosa ha bisogno il contatto e passa al commerciale quando serve una persona.",
   assistenza: "Silvio apre ticket, riconosce cliente/cantiere e propone risposta.",
-  notifiche: "Invio automatico controllato da regole, template e opt-in.",
+  notifiche: "Invio automatico, secondo le regole e solo a chi ha dato il consenso.",
 };
 
 export const PURPOSE_EXAMPLES: Record<WAPurpose, string[]> = {
@@ -122,24 +140,24 @@ export const PURPOSE_EXAMPLES: Record<WAPurpose, string[]> = {
     "Subappaltatore manda foto -> allegati su commessa",
   ],
   marketing: [
-    "Lead risponde a campagna -> inbox commerciale",
-    "Follow-up preventivo e richiesta recensione",
+    "Un contatto risponde a una campagna -> arriva all'ufficio commerciale",
+    "Richiamo sul preventivo e richiesta di recensione",
     "Operatore risponde dalla chat WhatsApp",
   ],
   lead: [
-    "Click-to-WhatsApp da Meta Ads",
+    "Chi tocca «Scrivi su WhatsApp» in un annuncio",
     "Qualifica bisogno, zona e budget",
-    "Crea contatto e opportunita nel CRM",
+    "Crea contatto e opportunità nel CRM",
   ],
   assistenza: [
     "Cliente chiede stato cantiere o documento",
     "Apre ticket e collega ordine/contatto",
-    "Escalation a ufficio quando serve",
+    "Passa all'ufficio quando serve",
   ],
   notifiche: [
     "Promemoria pagamento o appuntamento",
-    "Alert SAL, fattura o scadenza",
-    "Messaggi transazionali con template",
+    "Avviso su SAL, fattura o scadenza",
+    "Messaggi di servizio con modelli approvati",
   ],
 };
 
@@ -229,6 +247,22 @@ export function normalizeWAOperationalSettings(value: Json | null | undefined): 
       ? raw.handoff_note
       : DEFAULT_OPERATIONAL_SETTINGS.handoff_note,
   };
+}
+
+/**
+ * Unisce quello che la pagina del numero mostra a quello che nel database c'è già.
+ *
+ * Nello stesso JSON stanno anche chiavi che la pagina non conosce e che il bot legge (`bot_enabled`,
+ * `ai_auto_process`, `classifica_risposte`…). Salvando solo le dodici chiavi della pagina quelle sparirebbero in
+ * silenzio: un bot spento a mano nel database si riaccenderebbe al primo «Salva impostazioni». Le chiavi della
+ * pagina vincono (sono quelle appena modificate), tutte le altre restano come sono.
+ */
+export function unisciImpostazioniOperative(
+  esistenti: Json | null | undefined,
+  dellaPagina: WAOperationalSettings,
+): Json {
+  const rimaste = isRecord(esistenti) ? esistenti : {};
+  return { ...rimaste, ...dellaPagina };
 }
 
 export const WA_NUMBERS_KEY = ["whatsapp", "numbers"] as const;

@@ -25,6 +25,8 @@ export function useContactCustomFields() {
         .select("*")
         .eq("company_id", companyId!)
         .eq("object_type", "contact")
+        // Un campo eliminato (Impostazioni → Campi personalizzati) sparisce dalle schede: i valori restano, il campo si può ripristinare.
+        .is("deleted_at", null)
         .order("position");
       if (error) throw error;
       return data;
@@ -45,6 +47,7 @@ export function useOpportunityCustomFields() {
         .select("*")
         .eq("company_id", companyId!)
         .eq("object_type", "opportunity")
+        .is("deleted_at", null)
         .order("position");
       if (error) throw error;
       return data;
