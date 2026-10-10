@@ -164,7 +164,7 @@ export default function DataDeletion() {
         Se hai un account utente attivo nella piattaforma Edilizia in Cloud (e
         non solo dati raccolti via Meta), puoi richiedere la cancellazione
         completa dal pannello{" "}
-        <strong>Impostazioni → Mio Profilo → Elimina account</strong>, oppure
+        <strong>Impostazioni → Sicurezza &amp; Privacy → Privacy → «Chiedi la cancellazione»</strong>, oppure
         scrivendo a privacy@ediliziaincloud.com.
       </p>
 
