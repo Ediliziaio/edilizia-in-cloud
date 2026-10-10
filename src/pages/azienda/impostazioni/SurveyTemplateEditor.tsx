@@ -86,12 +86,12 @@ interface SurveyTemplateEditorProps {
   initialAreaLabelPlural: string;
   initialElementLabel: string;
   initialSchema: TemplateSchema;
-  /** Chi ha «Branding & Template» in modifica. Senza, il modello non si salva. */
+  /** Chi ha «Personalizzazione» in modifica. Senza, il modello non si salva. */
   puoModificare: boolean;
   onClose: () => void;
 }
 
-const MSG_SOLA_LETTURA = "Non puoi modificare i modelli: serve «Branding & Template» in modifica.";
+const MSG_SOLA_LETTURA = "Non puoi modificare i modelli: serve «Personalizzazione» in modifica.";
 
 export function SurveyTemplateEditor({
   templateId, initialName, initialDescription, initialCategory,

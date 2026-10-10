@@ -44,7 +44,7 @@ const menu = (p: Permissions) => buildSettingsGroups(p.isAdmin, p, piano, false)
  * togliere una riga da qui senza sistemare menu o rotta fa fallire il test.
  */
 const DIFFERENZE_NOTE: Record<string, string> = {
-  branding: "il menu mostra Marchio e colori solo all'amministratore, la rotta lo apre a chi ha «Branding & Template» (decisione aperta)",
+  branding: "il menu mostra Marchio e colori solo all'amministratore, la rotta lo apre a chi ha «Personalizzazione» (decisione aperta)",
   abbonamento: "la rotta vuole «Fatturazione» e l'amministratore insieme (regola composta): coincide con il menu, che è solo dell'amministratore",
 };
 

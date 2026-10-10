@@ -5,7 +5,7 @@
  * - Eliminare partiva dal pulsante, per sempre (riga e file). Ora chiede conferma e, se le regole di accesso non
  *   eliminano niente, lo dice e NON tocca il file (altrimenti restava una riga senza foto, con «Foto eliminata» a schermo).
  * - Per un refuso nell'etichetta si cancellava e si ricaricava: ora si corregge dalla foto.
- * - Chi non ha il permesso «Branding & Template» in modifica vede il catalogo ma non lo cambia, e la pagina dice perché.
+ * - Chi non ha il permesso «Personalizzazione» in modifica vede il catalogo ma non lo cambia, e la pagina dice perché.
  * - I pulsanti della foto non dipendono più dal mouse (prima: `md:opacity-0 md:group-hover:opacity-100`).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -91,7 +91,7 @@ describe("Catalogo render: sola lettura", () => {
   it("senza il permesso in modifica si vede il catalogo e il perché non si cambia", () => {
     stato.modifica = false;
     render(<SettingsCatalogoRender />);
-    expect(screen.getByText(/Stai consultando il catalogo: lo cambia chi ha il permesso «Branding & Template» in modifica\./)).toBeInTheDocument();
+    expect(screen.getByText(/Stai consultando il catalogo: lo cambia chi ha il permesso «Personalizzazione» in modifica\./)).toBeInTheDocument();
     expect(screen.getByText("Lavabo rovere")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Carica foto/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Modifica «/ })).toBeNull();

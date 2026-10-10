@@ -11,7 +11,7 @@ import SettingsSopralluoghi, { TemplateDetailDialog } from "@/pages/azienda/impo
  *
  * - Una sola testata (quella del layout), niente colori e margini propri.
  * - «template» non si dice più: si dice «modello», «Copia», «Di serie», «Tuo».
- * - Sola lettura onesta: chi ha «Branding & Template» solo in vista consulta; chi lo ha in modifica cambia.
+ * - Sola lettura onesta: chi ha «Personalizzazione» solo in vista consulta; chi lo ha in modifica cambia.
  * - Le finestre non perdono ciò che si è scritto senza chiedere; gli errori sono in italiano.
  */
 
@@ -165,7 +165,7 @@ describe("Sopralluoghi: chi può solo consultare", () => {
   it("gli interruttori sono spenti, non ci sono i comandi di scrittura e la frase dice cosa serve", async () => {
     apri();
     await screen.findByText("Rilievo Infissi");
-    expect(screen.getByRole("note")).toHaveTextContent("Stai consultando queste impostazioni: le cambia chi ha «Branding & Template» in modifica.");
+    expect(screen.getByRole("note")).toHaveTextContent("Stai consultando queste impostazioni: le cambia chi ha «Personalizzazione» in modifica.");
     for (const interruttore of screen.getAllByRole("switch")) expect(interruttore).toBeDisabled();
     for (const nome of ["Nuovo modello", "Copia", "Modifica", "Elimina"]) {
       expect(screen.queryByRole("button", { name: nome }), nome).toBeNull();
@@ -260,7 +260,7 @@ describe("Sopralluoghi: una funzione di scrittura senza permesso non parte", () 
   const togliPermesso = () => { state.edit = false; ricarica(); };
   const rifiuto = () => {
     expect(state.toastErr).toHaveBeenCalledWith("Modello non modificato", {
-      description: "Non puoi modificare i modelli: serve «Branding & Template» in modifica.",
+      description: "Non puoi modificare i modelli: serve «Personalizzazione» in modifica.",
     });
   };
 
@@ -490,7 +490,7 @@ describe("Sopralluoghi: titolo, riepilogo e parole", () => {
   });
 
   it("il dettaglio di un modello di serie dice «Di serie: si può solo copiare» e usa «Sezioni iniziali»", async () => {
-    // Con la modifica non c'è la frase di sola lettura, che nomina il permesso «Branding & Template».
+    // Con la modifica non c'è la frase di sola lettura, che nomina il permesso «Personalizzazione».
     state.edit = true;
     apri();
     await screen.findByText("Rilievo Infissi");

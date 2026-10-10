@@ -348,7 +348,7 @@ export function TagsConfig() {
     <div className="space-y-6">
       {!canEdit && (
         <p role="status" className="text-sm text-muted-foreground">
-          Stai solo consultando: per cambiare i tag serve il permesso «Branding &amp; Template» in modifica (o essere amministratore).
+          Stai solo consultando: per cambiare i tag serve il permesso «Personalizzazione» in modifica (o essere amministratore).
         </p>
       )}
 

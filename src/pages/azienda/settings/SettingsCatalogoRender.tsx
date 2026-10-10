@@ -47,7 +47,7 @@ function nomeDaFile(name: string): string {
  *
  * 09/10/2026: eliminare chiede conferma (prima partiva dal pulsante, per sempre: riga e file) e non finge se le
  * regole di accesso non eliminano niente; etichetta e categoria si correggono dalla foto (prima, per un refuso,
- * si cancellava e si ricaricava); chi non ha il permesso «Branding & Template» in modifica vede il catalogo in sola
+ * si cancellava e si ricaricava); chi non ha il permesso «Personalizzazione» in modifica vede il catalogo in sola
  * lettura e il perché; i pulsanti della foto restano sempre visibili (prima comparivano solo passando il mouse:
  * invisibili da tastiera, e da telefono coprivano la miniatura); gli errori dicono il motivo.
  */
@@ -182,7 +182,7 @@ export default function SettingsCatalogoRender() {
         <Alert>
           <Lock className="h-4 w-4" />
           <AlertDescription>
-            Stai consultando il catalogo: lo cambia chi ha il permesso «Branding &amp; Template» in modifica.
+            Stai consultando il catalogo: lo cambia chi ha il permesso «Personalizzazione» in modifica.
           </AlertDescription>
         </Alert>
       )}

@@ -154,7 +154,7 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
       // v8.6.72 — Nuovo gruppo "AI & Notifiche" — voci precedentemente
       // raggiungibili solo da Cmd+K o dall'hub mobile (/azienda/impostazioni).
       // Stesso permesso delle rotte (companyRoutes.tsx): le Notifiche sono di
-      // tutti, AI Personas vuole Branding & Template.
+      // tutti, AI Personas vuole Personalizzazione.
       label: "AI & Notifiche",
       items: [
         { to: "/azienda/impostazioni/ai-memoria", label: "Assistente AI", icon: <Brain className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsCustomization },

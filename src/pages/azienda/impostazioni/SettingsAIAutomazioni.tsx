@@ -31,7 +31,7 @@
  * «Chiede di scrivere CONFERMO»), senza «super_admin» né «auto-execute»; «Salva tutte» dà UN messaggio; le scelte
  * non salvate non si perdono uscendo dalla pagina; chi non può cambiare vede la pagina in sola lettura e il perché.
  * Si modifica solo da amministratore azienda: è ciò che pretende l'RPC (prima la pagina si apriva in modifica anche
- * a chi aveva solo il permesso «Branding & Template» e il salvataggio finiva in «company admin access required»).
+ * a chi aveva solo il permesso «Personalizzazione» e il salvataggio finiva in «company admin access required»).
  * La logica delle «scelte pronte» NON è cambiata: solo le parole.
  */
 import { useMemo, useState } from "react";
@@ -243,7 +243,7 @@ export default function SettingsAIAutomazioni() {
   const companyId = effectiveCompany?.id ?? null;
 
   const isSuperAdmin = role === "super_admin";
-  // L'RPC che scrive le scelte vuole il ruolo di amministratore: il permesso «Branding & Template» da solo non basta.
+  // L'RPC che scrive le scelte vuole il ruolo di amministratore: il permesso «Personalizzazione» da solo non basta.
   const canEdit = permissions.isAdmin && permissions.canEditSettingsCustomization;
 
   const [drafts, setDrafts] = useState<Record<string, PermissionDraft>>({});

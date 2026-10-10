@@ -9,7 +9,7 @@
  *  - Modifica avanzata (schema JSON) per i modelli dell'azienda
  *  - Elimina un modello dell'azienda (quelli di serie sono protetti)
  *
- * Permessi: la pagina si apre con «Branding & Template» in vista. Chi lo ha solo in vista consulta
+ * Permessi: la pagina si apre con «Personalizzazione» in vista. Chi lo ha solo in vista consulta
  * (elenco, anteprima, campi); chi lo ha in modifica attiva, copia, crea, modifica ed elimina.
  */
 import { useMemo, useState } from "react";
@@ -84,7 +84,7 @@ const FIELD_TYPE_LABEL: Record<string, string> = {
   currency: "Valuta (€)",
 };
 
-const MSG_SOLA_LETTURA = "Non puoi modificare i modelli: serve «Branding & Template» in modifica.";
+const MSG_SOLA_LETTURA = "Non puoi modificare i modelli: serve «Personalizzazione» in modifica.";
 
 /** Un rifiuto deciso dalla pagina (permesso, dato mancante): il messaggio è già in italiano e si mostra com'è. */
 class ErroreControllo extends Error {}
@@ -115,7 +115,7 @@ export default function SettingsSopralluoghi() {
   const qc = useQueryClient();
   const { isFeatureEnabled } = useFeatureFlags();
   const enabled = isFeatureEnabled("surveys_module");
-  // La pagina si apre con «Branding & Template» in vista: per cambiare qualcosa serve averlo in modifica.
+  // La pagina si apre con «Personalizzazione» in vista: per cambiare qualcosa serve averlo in modifica.
   const permissions = usePermissions();
   const puoModificare = Boolean(permissions.isAdmin || permissions.canEditSettingsCustomization);
 
@@ -176,7 +176,7 @@ export default function SettingsSopralluoghi() {
 
   return (
     <div className="space-y-4">
-      {!puoModificare && <AvvisoSolaLetturaImpostazioni permesso="Branding & Template" />}
+      {!puoModificare && <AvvisoSolaLetturaImpostazioni permesso="Personalizzazione" />}
 
       {/* Strumenti: il riepilogo a sinistra, «Nuovo modello» a destra */}
       <div className="flex flex-wrap items-center gap-3">

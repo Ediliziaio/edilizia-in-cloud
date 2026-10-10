@@ -6,7 +6,7 @@
  *   «Aggressivo» c'è solo per EdiliziaInCloud (per un'azienda caricava in silenzio un'altra cosa).
  * - «Salva tutte» dà UN messaggio («3 scelte salvate»), non uno per azione; un rifiuto dice quale e perché, senza perdere la bozza.
  * - Le scelte non salvate non si perdono uscendo; chi non è amministratore vede le scelte in sola lettura e il perché
- *   (l'RPC che scrive vuole il ruolo di amministratore: il permesso «Branding & Template» non basta).
+ *   (l'RPC che scrive vuole il ruolo di amministratore: il permesso «Personalizzazione» non basta).
  * - Se le scelte salvate non si leggono la pagina non mostra quelle di partenza spacciandole per salvate.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
