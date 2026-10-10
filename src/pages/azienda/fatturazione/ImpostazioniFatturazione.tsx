@@ -11,16 +11,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Loader2, Save, AlertTriangle, Upload, Trash2,
-  Plus, Building2, Receipt, Palette, CreditCard, Percent,
+  Building2, Receipt, Palette, CreditCard,
   Settings2, FileText, Globe, Download
 } from "lucide-react";
 import { toast } from "sonner";
-import { REGIMI_FISCALI, METODI_PAGAMENTO_SDI, CAUSALI_RITENUTA, TIPI_CASSA_PREVIDENZIALE } from "@/types/fatturazione";
+import { REGIMI_FISCALI, METODI_PAGAMENTO_SDI } from "@/types/fatturazione";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import {
+  campiMancantiPerCreare, campiProvvisori, datiBastanoPerAttivare, messaggioErroreSalvataggio,
+  schedaDaMostrare, schedaDalProfilo, type ProfiloAzienda,
+} from "@/lib/fatturazione/schedaAzienda";
 import { FatturaElettronicaPassi } from "@/components/fatturazione/FatturaElettronicaPassi";
 import { CANALE_SDI, CODICE_DESTINATARIO_EIC } from "@/lib/fatturazione/canaleSdi";
 import { isDemoCompanyId } from "@/lib/constants/demoCompany";
@@ -28,90 +33,40 @@ import { datiReaMancanti, eSocieta, eSocietaDiCapitali } from "../../../../supab
 
 import { useSearchParams } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
-// ─── Aliquote IVA predefinite italiane ────────────────────────
-const NATURE_IVA = {
-  N1: "Escluse ex art.15",
-  N2: "Non soggette",
-  "N2.1": "Non soggette - artt. da 7 a 7-septies",
-  "N2.2": "Non soggette - altri casi",
-  N3: "Non imponibili",
-  "N3.1": "Non imponibili - esportazioni",
-  "N3.2": "Non imponibili - cessioni intracomunitarie",
-  "N3.3": "Non imponibili - cessioni San Marino",
-  "N3.4": "Non imponibili - trattati/accordi internazionali",
-  "N3.5": "Non imponibili - dichiarazioni intento",
-  "N3.6": "Non imponibili - altri servizi non soggetti",
-  N4: "Esenti",
-  N5: "Regime del margine / IVA non esposta",
-  N6: "Inversione contabile (reverse charge)",
-  "N6.1": "Reverse charge - cessione rottami",
-  "N6.2": "Reverse charge - oro e argento",
-  "N6.3": "Reverse charge - subappalto edilizia",
-  "N6.4": "Reverse charge - cessione fabbricati",
-  "N6.5": "Reverse charge - cellulari",
-  "N6.6": "Reverse charge - componenti elettronici",
-  "N6.7": "Reverse charge - prestazioni comparto edile",
-  "N6.8": "Reverse charge - operazioni settore energetico",
-  "N6.9": "Reverse charge - altri casi",
-  N7: "IVA assolta in altro stato UE",
-} as const;
+/** Le schede della pagina: l'indirizzo («?sezione=pdf») ne apre una, anche a pagina già aperta. */
+const SEZIONI = ["azienda", "fiscale", "elettronica", "pdf", "pagamenti", "numeratori", "avanzate", "export-contabile"];
+const sezioneValida = (s: string | null): string => (s && SEZIONI.includes(s) ? s : "azienda");
 
-interface AliquotaIva {
-  id: string;
-  aliquota: number;
-  natura?: string;
-  descrizione: string;
-  predefinita?: boolean;
-}
-
-interface ContoCorrente {
-  id: string;
-  iban: string;
-  bic_swift?: string;
-  nome_banca: string;
-  intestatario: string;
-  predefinito: boolean;
-}
-
-const DEFAULT_ALIQUOTE: AliquotaIva[] = [
-  { id: "1", aliquota: 22, descrizione: "IVA ordinaria 22%", predefinita: true },
-  { id: "2", aliquota: 10, descrizione: "IVA ridotta 10%" },
-  { id: "3", aliquota: 4, descrizione: "IVA super-ridotta 4%" },
-  { id: "4", aliquota: 5, descrizione: "IVA ridotta 5%" },
-  { id: "5", aliquota: 0, natura: "N4", descrizione: "Esente art. 10" },
-  { id: "6", aliquota: 0, natura: "N2.2", descrizione: "Non soggetta" },
-  { id: "7", aliquota: 0, natura: "N3.5", descrizione: "Non imponibile - lett. intento" },
-  { id: "8", aliquota: 0, natura: "N6.3", descrizione: "Reverse charge - subappalto edilizia" },
-];
+/** Il logo delle fatture pesa al massimo questo. */
+const LOGO_MAX_BYTE = 2 * 1024 * 1024;
 
 export default function ImpostazioniFatturazione() {
   const isMobile = useIsMobile();
-  const { data: azienda, isLoading } = useAnagraficaAzienda();
+  const { data: azienda, isLoading, isError } = useAnagraficaAzienda();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Record<string, any>>({});
-  // ?sezione=pdf apre direttamente una scheda (es. «Personalizza lo stile delle tue fatture»).
-  const [paramsUrl] = useSearchParams();
-  const [activeTab, setActiveTab] = useState(() => paramsUrl.get("sezione") || "azienda");
+  // La scheda aperta sta nell'indirizzo («?sezione=pdf»): la ricerca delle impostazioni e i rimandi dagli altri
+  // schermi ci portano anche a pagina già aperta, e ricaricando si resta dove si era.
+  const [paramsUrl, setParamsUrl] = useSearchParams();
+  const activeTab = sezioneValida(paramsUrl.get("sezione"));
+  const setActiveTab = (valore: string) => {
+    const prossimi = new URLSearchParams(paramsUrl);
+    prossimi.set("sezione", valore);
+    setParamsUrl(prossimi, { replace: true });
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  // Modifiche non salvate: chiede conferma uscendo dalla pagina (come Prezzo e margini).
+  const isDirty = Object.keys(form).length > 0;
+  useSettingsDraftGuard(isDirty);
 
   // M8 — Export Contabile
   const [isExportingContabile, setIsExportingContabile] = useState(false);
   const [exportDateFrom, setExportDateFrom] = useState("");
   const [exportDateTo, setExportDateTo] = useState("");
   const [exportFormat, setExportFormat] = useState("csv");
-
-  // Local state for managed lists
-  const [aliquote, setAliquote] = useState<AliquotaIva[]>(DEFAULT_ALIQUOTE);
-  const [showNewAliquota, setShowNewAliquota] = useState(false);
-  const [newAliquota, setNewAliquota] = useState<Partial<AliquotaIva>>({ aliquota: 0, descrizione: "" });
-
-  // Conti correnti
-  const [conti, setConti] = useState<ContoCorrente[]>([]);
-  const [showNewConto, setShowNewConto] = useState(false);
-  const [newConto, setNewConto] = useState<Partial<ContoCorrente>>({});
 
   // ─── Onboarding Fatturazione Elettronica (registrazione cedente openapi) ──
   const companyId = effectiveCompany?.id;
@@ -196,7 +151,13 @@ export default function ImpostazioniFatturazione() {
     return <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
 
-  const current: Record<string, any> = { ...azienda, ...form };
+  // Senza la scheda dell'azienda (si crea con la prima fattura o con il primo «Salva» qui) la pagina parte dai dati
+  // del Profilo aziendale. I segnaposto che la prima fattura scrive dove il database vuole qualcosa («Da configurare»,
+  // 00000000000) si mostrano come campi vuoti da compilare: non sono dati dell'azienda.
+  const senzaScheda = !isError && !azienda?.id;
+  const profilo = (effectiveCompany ?? null) as ProfiloAzienda | null;
+  const provvisori = campiProvvisori(azienda as unknown as Record<string, unknown> | null | undefined);
+  const current: Record<string, any> = { ...(azienda?.id ? schedaDaMostrare(azienda as unknown as Record<string, unknown>) : schedaDalProfilo(profilo)), ...form };
   const updateField = (key: string, value: any) => setForm((p) => ({ ...p, [key]: value }));
   // Rende il numero come il backend (formatta_numero_documento): stesso template nella scheda.
   const renderNumero = (formato: string | null | undefined, prefisso: string, n: number, anno: number): string => {
@@ -204,20 +165,16 @@ export default function ImpostazioniFatturazione() {
     return tpl.replaceAll("{prefisso}", prefisso).replaceAll("{yyyy}", String(anno)).replaceAll("{yy}", String(anno).slice(-2)).replaceAll("{nnnn}", String(n).padStart(4, "0")).replaceAll("{n}", String(n));
   };
 
-  // Initialize conti from azienda data
-  if (conti.length === 0 && azienda?.iban_principale) {
-    setConti([{
-      id: "main",
-      iban: azienda.iban_principale ?? "",
-      bic_swift: azienda.bic_swift ?? "",
-      nome_banca: azienda.nome_banca ?? "",
-      intestatario: azienda.intestatario_conto ?? "",
-      predefinito: true,
-    }]);
-  }
+  // Il numero dell'anteprima è quello vero: prefisso, formato e prossimo numero della Numerazione.
+  const numeroDiProva = renderNumero(
+    current.formato_numero,
+    current.prefisso_fattura ?? "FT",
+    (current.ultimo_numero_fattura ?? 0) + 1,
+    current.anno_corrente_fattura ?? new Date().getFullYear(),
+  );
 
   const handleSave = async () => {
-    if (!azienda?.id) return;
+    if (isError) return;
     // Testo pulito: l'IBAN incollato dall'home banking porta spazi e tabulazioni, e il nome
     // della banca uno spazio in fondo (Renova: «IT39…6098<tab>», «BANCA DELLA MARCA »).
     const pulito: Record<string, unknown> = { ...form };
@@ -230,22 +187,64 @@ export default function ImpostazioniFatturazione() {
       toast.error("IBAN non valido", { description: "Un IBAN italiano ha 27 caratteri: IT, 2 cifre, una lettera e 22 tra cifre e lettere." });
       return;
     }
+
+    // Senza la scheda si crea qui, mai in silenzio: se manca qualcosa che il database vuole si dice cosa e non si
+    // crea niente.
+    if (senzaScheda) {
+      const dati: Record<string, unknown> = { ...schedaDalProfilo(profilo), ...pulito };
+      const mancanti = campiMancantiPerCreare(dati);
+      if (mancanti.length > 0) {
+        toast.error("La scheda dell'azienda non si può ancora creare", {
+          description: `Mancano: ${mancanti.join(", ")}. Completali e premi «Crea la scheda e salva».`,
+        });
+        return;
+      }
+      setSaving(true);
+      try {
+        const { error } = await supabase
+          .from("anagrafica_azienda" as never)
+          .insert({ company_id: companyId, ...dati } as never);
+        if (error) throw error;
+        queryClient.invalidateQueries({ queryKey: queryKeys.anagraficaAzienda.all });
+        setForm({});
+        toast.success("Scheda dell'azienda creata e salvata");
+      } catch (err) {
+        toast.error("Salvataggio non riuscito", { description: messaggioErroreSalvataggio(err) });
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     setSaving(true);
     try {
-      const { error } = await supabase
+      // `.select()` restituisce le righe aggiornate: se non ce n'è nessuna la modifica non è stata salvata e lo si dice.
+      const { data, error } = await supabase
         .from("anagrafica_azienda" as never)
         .update({ ...pulito, updated_at: new Date().toISOString() } as never)
-        .eq("id", azienda.id);
+        .eq("id", azienda!.id)
+        .select("id");
       if (error) throw error;
+      if (!(data as unknown[] | null)?.length) {
+        toast.error("Non ho salvato niente", { description: "Il database non ha accettato la modifica. Riprova; se continua, scrivi all'assistenza." });
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: queryKeys.anagraficaAzienda.all });
       setForm({});
       toast.success("Impostazioni salvate");
-    } catch (err: any) { toast.error("Salvataggio non riuscito", { description: err.message }); }
-    finally { setSaving(false); }
+    } catch (err) {
+      toast.error("Salvataggio non riuscito", { description: messaggioErroreSalvataggio(err) });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleLogoUpload = async (file: File) => {
     if (!effectiveCompany?.id) return;
+    if (file.size > LOGO_MAX_BYTE) {
+      toast.error("Il logo supera i 2 MB: scegline uno più leggero.");
+      return;
+    }
     setUploadingLogo(true);
     try {
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "png";
@@ -265,29 +264,48 @@ export default function ImpostazioniFatturazione() {
       const logoUrl = urlData.publicUrl + "?t=" + Date.now();
       updateField("logo_url", logoUrl);
       toast.success("Logo caricato");
-    } catch (err: any) {
-      toast.error("Errore upload logo: " + err.message);
+    } catch {
+      toast.error("Non sono riuscito a caricare il logo. Riprova.");
     } finally {
       setUploadingLogo(false);
     }
   };
 
-  const isDirty = Object.keys(form).length > 0;
-
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Impostazioni Fatturazione</h1>
-          <p className="text-muted-foreground text-sm">Configura il modulo di fatturazione nativa — dati aziendali, personalizzazione, pagamenti e aliquote.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={handleSave} disabled={saving || !isDirty} className="gap-1.5">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salva modifiche
-          </Button>
-        </div>
+      {/* Il titolo lo mette la pagina (Fatturazione): qui solo il pulsante, a destra, e gli avvisi sullo stato della scheda. */}
+      {isError && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Non riesco a leggere i dati dell'azienda</AlertTitle>
+          <AlertDescription>Ricarica la pagina. Se continua, scrivi all'assistenza: finché non si leggono non si può salvare niente.</AlertDescription>
+        </Alert>
+      )}
+      {senzaScheda && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>La scheda dell'azienda non è ancora stata creata</AlertTitle>
+          <AlertDescription>
+            Ho messo i dati che hai nel Profilo aziendale: controllali, completa quello che manca e premi «Crea la scheda e salva».
+            Senza la scheda le fatture non hanno i tuoi dati fiscali.
+          </AlertDescription>
+        </Alert>
+      )}
+      {!senzaScheda && provvisori.length > 0 && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Alcuni dati sono ancora provvisori</AlertTitle>
+          <AlertDescription>
+            La scheda è nata con la prima fattura, con valori provvisori al posto di: {provvisori.join(", ")}. Compila i campi vuoti e salva:
+            finché non lo fai, l'invio allo SDI non si può attivare.
+          </AlertDescription>
+        </Alert>
+      )}
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={saving || isError || (!isDirty && !senzaScheda)} className="gap-1.5">
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {senzaScheda ? "Crea la scheda e salva" : "Salva modifiche"}
+        </Button>
       </div>
 
       {/* Modifiche non salvate: si vedono da qualunque scheda, con il pulsante accanto.
@@ -306,17 +324,16 @@ export default function ImpostazioniFatturazione() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start bg-muted/50">
           <TabsTrigger value="azienda" className="gap-1.5 text-xs"><Building2 className="h-3.5 w-3.5" />Azienda</TabsTrigger>
-          <TabsTrigger value="fiscale" className="gap-1.5 text-xs"><Receipt className="h-3.5 w-3.5" />Dati Fiscali</TabsTrigger>
-          <TabsTrigger value="elettronica" className="gap-1.5 text-xs"><Globe className="h-3.5 w-3.5" />Fatt. Elettronica</TabsTrigger>
-          <TabsTrigger value="pdf" className="gap-1.5 text-xs"><Palette className="h-3.5 w-3.5" />Template PDF</TabsTrigger>
-          <TabsTrigger value="pagamenti" className="gap-1.5 text-xs"><CreditCard className="h-3.5 w-3.5" />Pagamenti</TabsTrigger>
-          <TabsTrigger value="aliquote" className="gap-1.5 text-xs"><Percent className="h-3.5 w-3.5" />Aliquote IVA</TabsTrigger>
-          <TabsTrigger value="numeratori" className="gap-1.5 text-xs"><FileText className="h-3.5 w-3.5" />Numeratori</TabsTrigger>
-          <TabsTrigger value="avanzate" className="gap-1.5 text-xs"><Settings2 className="h-3.5 w-3.5" />Avanzate</TabsTrigger>
+          <TabsTrigger value="fiscale" className="gap-1.5 text-xs"><Receipt className="h-3.5 w-3.5" />Dati fiscali</TabsTrigger>
+          <TabsTrigger value="elettronica" className="gap-1.5 text-xs"><Globe className="h-3.5 w-3.5" />Fattura elettronica</TabsTrigger>
+          <TabsTrigger value="pdf" className="gap-1.5 text-xs"><Palette className="h-3.5 w-3.5" />Aspetto</TabsTrigger>
+          <TabsTrigger value="pagamenti" className="gap-1.5 text-xs"><CreditCard className="h-3.5 w-3.5" />Conto e pagamenti</TabsTrigger>
+          <TabsTrigger value="numeratori" className="gap-1.5 text-xs"><FileText className="h-3.5 w-3.5" />Numerazione</TabsTrigger>
+          <TabsTrigger value="avanzate" className="gap-1.5 text-xs"><Settings2 className="h-3.5 w-3.5" />IVA e bollo</TabsTrigger>
           {/* Niente export su telefono: qui si tirano fuori i documenti
               fiscali per il commercialista, è lavoro da scrivania. */}
           {!isMobile && (
-            <TabsTrigger value="export-contabile" className="gap-1.5 text-xs"><Download className="h-3.5 w-3.5" />Export</TabsTrigger>
+            <TabsTrigger value="export-contabile" className="gap-1.5 text-xs"><Download className="h-3.5 w-3.5" />Per il commercialista</TabsTrigger>
           )}
         </TabsList>
 
@@ -324,11 +341,15 @@ export default function ImpostazioniFatturazione() {
         {/* TAB: AZIENDA                                          */}
         {/* ═══════════════════════════════════════════════════════ */}
         <TabsContent value="azienda" className="space-y-4 mt-4">
-          {/* Logo & Identity */}
+          <p className="text-sm text-muted-foreground">
+            Questi dati escono sulle fatture che fai ai tuoi clienti. Il Profilo aziendale ha i suoi (preventivi, email, portale
+            clienti): cambiare uno non cambia l'altro.
+          </p>
+          {/* Logo */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Logo e Identità</CardTitle>
-              <CardDescription>Il logo apparirà nelle fatture, preventivi, DDT e altri documenti.</CardDescription>
+              <CardTitle className="text-base">Logo</CardTitle>
+              <CardDescription>Il logo delle fatture: se non ne metti uno, si usa quello del Profilo aziendale.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-start gap-6">
@@ -364,7 +385,7 @@ export default function ImpostazioniFatturazione() {
                       Rimuovi
                     </Button>
                   )}
-                  <p className="text-xs text-muted-foreground">PNG, JPG o SVG. Max 2 MB.</p>
+                  <p className="text-xs text-muted-foreground">PNG, JPG o SVG, al massimo 2 MB.</p>
                 </div>
               </div>
             </CardContent>
@@ -377,12 +398,12 @@ export default function ImpostazioniFatturazione() {
               <CardDescription>Informazioni anagrafiche utilizzate nei documenti fiscali e nella fatturazione elettronica.</CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2 sm:col-span-2"><Label>Ragione Sociale / Denominazione</Label><Input value={current.ragione_sociale ?? ""} onChange={(e) => updateField("ragione_sociale", e.target.value)} placeholder="Es. Edilizia Rossi S.r.l." /></div>
-              <div className="space-y-2"><Label>Partita IVA</Label><Input value={current.partita_iva ?? ""} onChange={(e) => updateField("partita_iva", e.target.value)} className="font-mono" placeholder="12345678901" maxLength={11} /></div>
-              <div className="space-y-2"><Label>Codice Fiscale</Label><Input value={current.codice_fiscale ?? ""} onChange={(e) => updateField("codice_fiscale", e.target.value)} className="font-mono uppercase" placeholder="RSSMRA80A01H501U" /></div>
-              <div className="space-y-2"><Label>Forma Giuridica</Label>
+              <div className="space-y-2 sm:col-span-2"><Label htmlFor="az-ragione-sociale">Ragione Sociale / Denominazione</Label><Input id="az-ragione-sociale" value={current.ragione_sociale ?? ""} onChange={(e) => updateField("ragione_sociale", e.target.value)} placeholder="Es. Edilizia Rossi S.r.l." /></div>
+              <div className="space-y-2"><Label htmlFor="az-partita-iva">Partita IVA</Label><Input id="az-partita-iva" value={current.partita_iva ?? ""} onChange={(e) => updateField("partita_iva", e.target.value)} className="font-mono" placeholder="12345678901" maxLength={11} /></div>
+              <div className="space-y-2"><Label htmlFor="az-codice-fiscale">Codice Fiscale</Label><Input id="az-codice-fiscale" value={current.codice_fiscale ?? ""} onChange={(e) => updateField("codice_fiscale", e.target.value)} className="font-mono uppercase" placeholder="RSSMRA80A01H501U" /></div>
+              <div className="space-y-2"><Label htmlFor="az-forma-giuridica">Forma Giuridica</Label>
                 <Select value={current.forma_giuridica ?? ""} onValueChange={(v) => updateField("forma_giuridica", v)}>
-                  <SelectTrigger><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                  <SelectTrigger id="az-forma-giuridica"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
                   <SelectContent>
                     {["SRL", "SRLS", "SPA", "SAS", "SNC", "SS", "Ditta Individuale", "Libero Professionista", "Cooperativa", "Associazione", "Altro"].map((fg) => (
                       <SelectItem key={fg} value={fg}>{fg}</SelectItem>
@@ -390,10 +411,10 @@ export default function ImpostazioniFatturazione() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2"><Label>PEC</Label><Input value={current.pec ?? ""} onChange={(e) => updateField("pec", e.target.value)} type="email" placeholder="azienda@pec.it" /></div>
-              <div className="space-y-2"><Label>Email</Label><Input value={current.email ?? ""} onChange={(e) => updateField("email", e.target.value)} type="email" placeholder="info@azienda.it" /></div>
-              <div className="space-y-2"><Label>Telefono</Label><Input value={current.telefono ?? ""} onChange={(e) => updateField("telefono", e.target.value)} placeholder="+39 02 1234567" /></div>
-              <div className="space-y-2"><Label>Sito Web</Label><Input value={current.sito_web ?? ""} onChange={(e) => updateField("sito_web", e.target.value)} placeholder="https://www.azienda.it" /></div>
+              <div className="space-y-2"><Label htmlFor="az-pec">PEC</Label><Input id="az-pec" value={current.pec ?? ""} onChange={(e) => updateField("pec", e.target.value)} type="email" placeholder="azienda@pec.it" /></div>
+              <div className="space-y-2"><Label htmlFor="az-email">Email</Label><Input id="az-email" value={current.email ?? ""} onChange={(e) => updateField("email", e.target.value)} type="email" placeholder="info@azienda.it" /></div>
+              <div className="space-y-2"><Label htmlFor="az-telefono">Telefono</Label><Input id="az-telefono" value={current.telefono ?? ""} onChange={(e) => updateField("telefono", e.target.value)} placeholder="+39 02 1234567" /></div>
+              <div className="space-y-2"><Label htmlFor="az-sito-web">Sito Web</Label><Input id="az-sito-web" value={current.sito_web ?? ""} onChange={(e) => updateField("sito_web", e.target.value)} placeholder="https://www.azienda.it" /></div>
             </CardContent>
           </Card>
 
@@ -401,12 +422,12 @@ export default function ImpostazioniFatturazione() {
           <Card>
             <CardHeader><CardTitle className="text-base">Sede Legale</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2 sm:col-span-2"><Label>Indirizzo</Label><Input value={current.indirizzo_via ?? ""} onChange={(e) => updateField("indirizzo_via", e.target.value)} placeholder="Via Roma" /></div>
-              <div className="space-y-2"><Label>N. Civico</Label><Input value={current.indirizzo_numero_civico ?? ""} onChange={(e) => updateField("indirizzo_numero_civico", e.target.value)} placeholder="1" /></div>
-              <div className="space-y-2"><Label>CAP</Label><Input value={current.indirizzo_cap ?? ""} onChange={(e) => updateField("indirizzo_cap", e.target.value)} placeholder="00100" maxLength={5} /></div>
-              <div className="space-y-2"><Label>Comune</Label><Input value={current.indirizzo_comune ?? ""} onChange={(e) => updateField("indirizzo_comune", e.target.value)} placeholder="Roma" /></div>
-              <div className="space-y-2"><Label>Provincia</Label><Input value={current.indirizzo_provincia ?? ""} onChange={(e) => updateField("indirizzo_provincia", e.target.value)} maxLength={2} className="uppercase" placeholder="RM" /></div>
-              <div className="space-y-2"><Label>Nazione</Label><Input value={current.indirizzo_nazione ?? "IT"} onChange={(e) => updateField("indirizzo_nazione", e.target.value)} maxLength={2} className="uppercase" placeholder="IT" /></div>
+              <div className="space-y-2 sm:col-span-2"><Label htmlFor="az-indirizzo">Indirizzo</Label><Input id="az-indirizzo" value={current.indirizzo_via ?? ""} onChange={(e) => updateField("indirizzo_via", e.target.value)} placeholder="Via Roma" /></div>
+              <div className="space-y-2"><Label htmlFor="az-civico">N. Civico</Label><Input id="az-civico" value={current.indirizzo_numero_civico ?? ""} onChange={(e) => updateField("indirizzo_numero_civico", e.target.value)} placeholder="1" /></div>
+              <div className="space-y-2"><Label htmlFor="az-cap">CAP</Label><Input id="az-cap" value={current.indirizzo_cap ?? ""} onChange={(e) => updateField("indirizzo_cap", e.target.value)} placeholder="00100" maxLength={5} /></div>
+              <div className="space-y-2"><Label htmlFor="az-comune">Comune</Label><Input id="az-comune" value={current.indirizzo_comune ?? ""} onChange={(e) => updateField("indirizzo_comune", e.target.value)} placeholder="Roma" /></div>
+              <div className="space-y-2"><Label htmlFor="az-provincia">Provincia</Label><Input id="az-provincia" value={current.indirizzo_provincia ?? ""} onChange={(e) => updateField("indirizzo_provincia", e.target.value)} maxLength={2} className="uppercase" placeholder="RM" /></div>
+              <div className="space-y-2"><Label htmlFor="az-nazione">Nazione</Label><Input id="az-nazione" value={current.indirizzo_nazione ?? "IT"} onChange={(e) => updateField("indirizzo_nazione", e.target.value)} maxLength={2} className="uppercase" placeholder="IT" /></div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -422,9 +443,9 @@ export default function ImpostazioniFatturazione() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Regime Fiscale</Label>
+                <Label htmlFor="fisc-regime">Regime Fiscale</Label>
                 <Select value={current.regime_fiscale ?? "RF01"} onValueChange={(v) => updateField("regime_fiscale", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="fisc-regime"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(REGIMI_FISCALI).map(([k, v]) => (
                       <SelectItem key={k} value={k}>{k} — {v}</SelectItem>
@@ -455,8 +476,9 @@ export default function ImpostazioniFatturazione() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Ufficio REA (provincia)</Label>
+                  <Label htmlFor="fisc-rea-ufficio">Ufficio REA (provincia)</Label>
                   <Input
+                    id="fisc-rea-ufficio"
                     value={current.rea_ufficio ?? ""}
                     onChange={(e) => updateField("rea_ufficio", e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2) || null)}
                     placeholder={current.indirizzo_provincia || "PN"}
@@ -465,8 +487,9 @@ export default function ImpostazioniFatturazione() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Numero REA</Label>
+                  <Label htmlFor="fisc-rea-numero">Numero REA</Label>
                   <Input
+                    id="fisc-rea-numero"
                     value={current.codice_rea ?? ""}
                     onChange={(e) => updateField("codice_rea", e.target.value.trim() || null)}
                     placeholder="123456"
@@ -475,8 +498,9 @@ export default function ImpostazioniFatturazione() {
                 </div>
                 {eSocietaDiCapitali(current.forma_giuridica) && (
                   <div className="space-y-2">
-                    <Label>Capitale sociale versato (€)</Label>
+                    <Label htmlFor="fisc-capitale">Capitale sociale versato (€)</Label>
                     <Input
+                      id="fisc-capitale"
                       type="number"
                       min={0}
                       step="0.01"
@@ -490,10 +514,11 @@ export default function ImpostazioniFatturazione() {
               {eSocieta(current.forma_giuridica) && (
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label>Società in liquidazione</Label>
+                    <Label htmlFor="fisc-liquidazione">Società in liquidazione</Label>
                     <p className="text-xs text-muted-foreground mt-0.5">In fattura esce «in liquidazione» (LS) invece di «non in liquidazione» (LN).</p>
                   </div>
                   <Switch
+                    id="fisc-liquidazione"
                     checked={current.stato_liquidazione === "LS"}
                     onCheckedChange={(v) => updateField("stato_liquidazione", v ? "LS" : "LN")}
                   />
@@ -508,107 +533,21 @@ export default function ImpostazioniFatturazione() {
             </CardContent>
           </Card>
 
+          {/* DURC: la data si segna qui; nessun avviso parte da solo. */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Ritenuta d'Acconto</CardTitle>
-              <CardDescription>Per professionisti e agenti di commercio. Verrà applicata automaticamente in fattura se attivata.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Applica ritenuta d'acconto</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">Attiva per liberi professionisti e agenti</p>
-                </div>
-                <Switch checked={current.ritenuta_acconto_default ?? false} onCheckedChange={(v) => updateField("ritenuta_acconto_default", v)} />
-              </div>
-              {current.ritenuta_acconto_default && (
-                <div className="grid grid-cols-2 gap-4 pt-2">
-                  <div className="space-y-2">
-                    <Label>Tipo Ritenuta</Label>
-                    <Select value={current.ritenuta_tipo_default ?? "RT01"} onValueChange={(v) => updateField("ritenuta_tipo_default", v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="RT01">RT01 — Persone fisiche</SelectItem>
-                        <SelectItem value="RT02">RT02 — Persone giuridiche</SelectItem>
-                        <SelectItem value="RT03">RT03 — Contributo INPS</SelectItem>
-                        <SelectItem value="RT04">RT04 — Contributo ENASARCO</SelectItem>
-                        <SelectItem value="RT05">RT05 — Contributo ENPAM</SelectItem>
-                        <SelectItem value="RT06">RT06 — Altro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Aliquota Ritenuta (%)</Label>
-                    <Input type="number" min={0} max={100} value={current.ritenuta_aliquota_default ?? 20} onChange={(e) => updateField("ritenuta_aliquota_default", parseFloat(e.target.value))} />
-                  </div>
-                  <div className="space-y-2 col-span-2">
-                    <Label>Causale Pagamento</Label>
-                    <Select value={current.ritenuta_causale_default ?? "A"} onValueChange={(v) => updateField("ritenuta_causale_default", v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(CAUSALI_RITENUTA).map(([k, v]) => (
-                          <SelectItem key={k} value={k}>{k} — {v}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Cassa Previdenziale</CardTitle>
-              <CardDescription>Per professionisti iscritti ad albi (ingegneri, architetti, geometri, avvocati, ecc.)</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Applica contributo cassa</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">Es. INARCASSA, Cassa Forense</p>
-                </div>
-                <Switch checked={current.cassa_previdenziale_default ?? false} onCheckedChange={(v) => updateField("cassa_previdenziale_default", v)} />
-              </div>
-              {current.cassa_previdenziale_default && (
-                <div className="grid grid-cols-2 gap-4 pt-2">
-                  <div className="space-y-2">
-                    <Label>Tipo Cassa</Label>
-                    <Select value={current.cassa_tipo_default ?? "TC01"} onValueChange={(v) => updateField("cassa_tipo_default", v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(TIPI_CASSA_PREVIDENZIALE).map(([k, v]) => (
-                          <SelectItem key={k} value={k}>{k} — {v}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Aliquota (%)</Label>
-                    <Input type="number" min={0} max={100} value={current.cassa_aliquota_default ?? 4} onChange={(e) => updateField("cassa_aliquota_default", parseFloat(e.target.value))} />
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* DURC */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Regolarità Contributiva (DURC)</CardTitle>
-              <CardDescription>Il sistema notifica automaticamente 30 giorni prima della scadenza.</CardDescription>
+              <CardTitle className="text-base">DURC</CardTitle>
+              <CardDescription>Segna la data di scadenza.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2 max-w-xs">
-                <Label>Scadenza DURC</Label>
+                <Label htmlFor="durc-scadenza">Scadenza DURC</Label>
                 <Input
+                  id="durc-scadenza"
                   type="date"
                   value={current.durc_expiry_date ?? ""}
                   onChange={(e) => updateField("durc_expiry_date", e.target.value || null)}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Inserisci la data di scadenza del DURC per ricevere alert automatici.
-                </p>
               </div>
             </CardContent>
           </Card>
@@ -620,11 +559,7 @@ export default function ImpostazioniFatturazione() {
         <TabsContent value="elettronica" className="space-y-4 mt-4">
           <FatturaElettronicaPassi
             demo={isDemoCompanyId(companyId)}
-            datiPerAttivare={
-              String(azienda?.partita_iva ?? "").replace(/\D/g, "").length === 11
-              && !!azienda?.ragione_sociale
-              && !!(azienda?.pec || azienda?.email)
-            }
+            datiPerAttivare={datiBastanoPerAttivare(azienda as unknown as Record<string, unknown> | null | undefined)}
             anagraficaDaSalvare={["partita_iva", "ragione_sociale", "pec", "email"].some((k) => k in form)}
             canale={feConfig}
             caricamento={feLoading}
@@ -637,25 +572,6 @@ export default function ImpostazioniFatturazione() {
             onConservazioneAderitoIl={(valore) => updateField("conservazione_ade_aderito_il", valore)}
           />
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Tipologia Documento Predefinita</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Tipo documento di default per nuove fatture</Label>
-                <Select value={current.tipo_documento_default ?? "fattura"} onValueChange={(v) => updateField("tipo_documento_default", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fattura">Fattura (TD01)</SelectItem>
-                    <SelectItem value="fattura_pa">Fattura PA (FPA12)</SelectItem>
-                    <SelectItem value="proforma">Proforma</SelectItem>
-                    <SelectItem value="preventivo">Preventivo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {/* ═══════════════════════════════════════════════════════ */}
@@ -664,60 +580,22 @@ export default function ImpostazioniFatturazione() {
         <TabsContent value="pdf" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Colori e Stile</CardTitle>
-              <CardDescription>Personalizza l'aspetto grafico dei documenti PDF generati.</CardDescription>
+              <CardTitle className="text-base">Colore delle fatture</CardTitle>
+              <CardDescription>Il colore dei titoli e delle righe nei PDF delle fatture.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="space-y-2">
-                <Label>Colore Primario</Label>
+                <Label htmlFor="colore-fattura">Colore</Label>
                 <div className="flex items-center gap-3">
-                  <input type="color" value={current.colore_primario ?? "#0ea5e9"} onChange={(e) => updateField("colore_primario", e.target.value)} className="w-10 h-10 rounded border cursor-pointer" />
+                  <input id="colore-fattura" type="color" value={current.colore_primario ?? "#0ea5e9"} onChange={(e) => updateField("colore_primario", e.target.value)} className="w-10 h-10 rounded border cursor-pointer" />
                   <div className="flex gap-2">
                     {["#0ea5e9", "#10b981", "#8b5cf6", "#ef4444", "#f59e0b", "#64748b", "#0f172a", "#dc2626"].map((c) => (
-                      <button key={c} className={`w-8 h-8 rounded-full border-2 transition-all ${current.colore_primario === c ? "border-foreground scale-110" : "border-transparent hover:border-muted-foreground/30"}`}
+                      <button key={c} type="button" aria-label={`Colore ${c}`} aria-pressed={current.colore_primario === c} className={`w-8 h-8 rounded-full border-2 transition-all ${current.colore_primario === c ? "border-foreground scale-110" : "border-transparent hover:border-muted-foreground/30"}`}
                         style={{ backgroundColor: c }}
                         onClick={() => updateField("colore_primario", c)} />
                     ))}
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Font</Label>
-                <Select value={current.font_fattura ?? "helvetica"} onValueChange={(v) => updateField("font_fattura", v)}>
-                  <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="helvetica">Helvetica</SelectItem>
-                    <SelectItem value="times">Times New Roman</SelectItem>
-                    <SelectItem value="courier">Courier</SelectItem>
-                    <SelectItem value="inter">Inter</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Testi Predefiniti</CardTitle>
-              <CardDescription>Note e condizioni che verranno inserite automaticamente nei nuovi documenti.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Note predefinite in fattura</Label>
-                <Textarea value={current.note_fattura_default ?? ""} onChange={(e) => updateField("note_fattura_default", e.target.value)} rows={3} placeholder="Es. Operazione soggetta a ritenuta d'acconto..." />
-              </div>
-              <div className="space-y-2">
-                <Label>Condizioni di pagamento predefinite</Label>
-                <Input value={current.condizioni_pagamento_default ?? ""} onChange={(e) => updateField("condizioni_pagamento_default", e.target.value)} placeholder="Es. Pagamento a 30 giorni data fattura" />
-              </div>
-              <div className="space-y-2">
-                <Label>Testo introduttivo (intestazione documento)</Label>
-                <Textarea value={current.testo_intro_default ?? ""} onChange={(e) => updateField("testo_intro_default", e.target.value)} rows={2} placeholder="Es. Spett.le Cliente, come da accordi le inviamo..." />
-              </div>
-              <div className="space-y-2">
-                <Label>Testo conclusivo (piè di pagina)</Label>
-                <Textarea value={current.testo_conclusivo_default ?? ""} onChange={(e) => updateField("testo_conclusivo_default", e.target.value)} rows={2} placeholder="Es. Vi ringraziamo per la fiducia..." />
               </div>
             </CardContent>
           </Card>
@@ -725,6 +603,7 @@ export default function ImpostazioniFatturazione() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Anteprima</CardTitle>
+              <CardDescription>Un esempio con i tuoi dati: il numero è il prossimo che uscirà.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="border rounded-lg p-6 bg-white dark:bg-gray-950 min-h-[200px]">
@@ -732,14 +611,14 @@ export default function ImpostazioniFatturazione() {
                   <div className="flex items-center gap-3">
                     {current.logo_url && <img loading="lazy" src={current.logo_url} alt="Logo" className="h-10 object-contain" />}
                     <div>
-                      <div className="font-bold text-sm" style={{ color: current.colore_primario ?? "#0ea5e9" }}>{current.ragione_sociale ?? "Nome Azienda"}</div>
-                      <div className="text-[10px] text-muted-foreground">P.IVA {current.partita_iva ?? "00000000000"}</div>
+                      <div className="font-bold text-sm" style={{ color: current.colore_primario ?? "#0ea5e9" }}>{current.ragione_sociale || "Nome azienda"}</div>
+                      <div className="text-[10px] text-muted-foreground">P.IVA {current.partita_iva || "—"}</div>
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-lg font-bold" style={{ color: current.colore_primario ?? "#0ea5e9" }}>FATTURA</div>
-                    <div className="text-xs text-muted-foreground">N° FT-2026-0001</div>
-                    <div className="text-xs text-muted-foreground">del 29/03/2026</div>
+                    <div className="text-xs text-muted-foreground">N° {numeroDiProva}</div>
+                    <div className="text-xs text-muted-foreground">del {new Date().toLocaleDateString("it-IT")}</div>
                   </div>
                 </div>
                 <div className="mt-4 h-1 rounded" style={{ backgroundColor: current.colore_primario ?? "#0ea5e9" }} />
@@ -765,14 +644,14 @@ export default function ImpostazioniFatturazione() {
         <TabsContent value="pagamenti" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Metodo di Pagamento Predefinito</CardTitle>
-              <CardDescription>Il metodo di pagamento che verrà selezionato automaticamente nei nuovi documenti.</CardDescription>
+              <CardTitle className="text-base">Metodo di pagamento</CardTitle>
+              <CardDescription>Quello che si seleziona da solo nelle fatture nuove.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <Label>Metodo Pagamento SDI</Label>
+                <Label htmlFor="pag-metodo">Metodo di pagamento (codice SDI)</Label>
                 <Select value={current.metodo_pagamento_default ?? "MP05"} onValueChange={(v) => updateField("metodo_pagamento_default", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="pag-metodo"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(METODI_PAGAMENTO_SDI).map(([k, v]) => (
                       <SelectItem key={k} value={k}>{k} — {v}</SelectItem>
@@ -785,176 +664,28 @@ export default function ImpostazioniFatturazione() {
 
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">Conti Correnti</CardTitle>
-                  <CardDescription>Gestisci i conti correnti da utilizzare nelle fatture. L'IBAN verrà inserito nel documento.</CardDescription>
-                </div>
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowNewConto(true)}>
-                  <Plus className="h-3.5 w-3.5" />
-                  Nuovo conto
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {/* Existing main account */}
-              <div className="border rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium text-sm">Conto Principale</span>
-                  </div>
-                  <Badge variant="secondary" className="text-[10px]">Predefinito</Badge>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">IBAN</Label>
-                    <Input value={current.iban_principale ?? ""} onChange={(e) => updateField("iban_principale", e.target.value.replace(/\s+/g, "").toUpperCase())} className="font-mono uppercase text-xs" placeholder="IT60X0542811101000000123456" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">BIC/SWIFT</Label>
-                    <Input value={current.bic_swift ?? ""} onChange={(e) => updateField("bic_swift", e.target.value.toUpperCase())} className="font-mono uppercase text-xs" placeholder="BPMOIT22XXX" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Nome Banca</Label>
-                    <Input value={current.nome_banca ?? ""} onChange={(e) => updateField("nome_banca", e.target.value)} className="text-xs" placeholder="Banca Popolare di Milano" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Intestatario</Label>
-                    <Input value={current.intestatario_conto ?? ""} onChange={(e) => updateField("intestatario_conto", e.target.value)} className="text-xs" placeholder="Mario Rossi S.r.l." />
-                  </div>
-                </div>
-              </div>
-
-              {/* Add new conto form */}
-              {showNewConto && (
-                <div className="border rounded-lg p-4 space-y-3 bg-muted/30 animate-in fade-in-50">
-                  <div className="font-medium text-sm">Nuovo conto corrente</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">IBAN</Label>
-                      <Input value={newConto.iban ?? ""} onChange={(e) => setNewConto({ ...newConto, iban: e.target.value.toUpperCase() })} className="font-mono uppercase text-xs" placeholder="IT60X..." />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">BIC/SWIFT</Label>
-                      <Input value={newConto.bic_swift ?? ""} onChange={(e) => setNewConto({ ...newConto, bic_swift: e.target.value.toUpperCase() })} className="font-mono uppercase text-xs" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Nome Banca</Label>
-                      <Input value={newConto.nome_banca ?? ""} onChange={(e) => setNewConto({ ...newConto, nome_banca: e.target.value })} className="text-xs" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Intestatario</Label>
-                      <Input value={newConto.intestatario ?? ""} onChange={(e) => setNewConto({ ...newConto, intestatario: e.target.value })} className="text-xs" />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" className="text-xs" onClick={() => {
-                      if (!newConto.iban) return;
-                      setConti([...conti, { ...newConto as ContoCorrente, id: crypto.randomUUID(), predefinito: false }]);
-                      setNewConto({});
-                      setShowNewConto(false);
-                      toast.success("Conto aggiunto");
-                    }}>Aggiungi</Button>
-                    <Button size="sm" variant="outline" className="text-xs" onClick={() => { setShowNewConto(false); setNewConto({}); }}>Annulla</Button>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label className="text-xs">Termini di pagamento predefiniti</Label>
-                <Select value={current.termini_pagamento_default ?? "30"} onValueChange={(v) => updateField("termini_pagamento_default", v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">Pagamento immediato</SelectItem>
-                    <SelectItem value="15">15 giorni</SelectItem>
-                    <SelectItem value="30">30 giorni data fattura</SelectItem>
-                    <SelectItem value="60">60 giorni data fattura</SelectItem>
-                    <SelectItem value="90">90 giorni data fattura</SelectItem>
-                    <SelectItem value="30fm">30 giorni fine mese</SelectItem>
-                    <SelectItem value="60fm">60 giorni fine mese</SelectItem>
-                    <SelectItem value="custom">Personalizzato</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ═══════════════════════════════════════════════════════ */}
-        {/* TAB: ALIQUOTE IVA                                     */}
-        {/* ═══════════════════════════════════════════════════════ */}
-        <TabsContent value="aliquote" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">Aliquote IVA</CardTitle>
-                  <CardDescription>Gestisci le aliquote IVA disponibili nei documenti. Ogni aliquota allo 0% richiede un codice Natura.</CardDescription>
-                </div>
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowNewAliquota(true)}>
-                  <Plus className="h-3.5 w-3.5" />
-                  Nuova aliquota
-                </Button>
-              </div>
+              <CardTitle className="text-base">Conto corrente</CardTitle>
+              <CardDescription>L'IBAN esce sulle fatture, dove si dice come pagare.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {aliquote.map((a) => (
-                  <div key={a.id} className="flex items-center gap-3 border rounded-lg px-3 py-2.5 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center justify-center h-8 w-12 rounded bg-primary/10 text-primary font-bold text-sm">
-                      {a.aliquota}%
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium">{a.descrizione}</div>
-                      {a.natura && <div className="text-xs text-muted-foreground">{a.natura} — {NATURE_IVA[a.natura as keyof typeof NATURE_IVA] ?? a.natura}</div>}
-                    </div>
-                    {a.predefinita && <Badge variant="secondary" className="text-[10px]">Default</Badge>}
-                    {!a.predefinita && (
-                      <Button variant="ghost" size="icon" aria-label="Rimuovi aliquota" className="h-9 w-9 md:h-7 md:w-7 text-destructive hover:text-destructive" onClick={() => setAliquote(aliquote.filter((x) => x.id !== a.id))}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* New aliquota form */}
-              {showNewAliquota && (
-                <div className="mt-4 border rounded-lg p-4 space-y-3 bg-muted/30 animate-in fade-in-50">
-                  <div className="font-medium text-sm">Nuova aliquota IVA</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Aliquota (%)</Label>
-                      <Input type="number" min={0} max={100} value={newAliquota.aliquota ?? 0} onChange={(e) => setNewAliquota({ ...newAliquota, aliquota: parseFloat(e.target.value) })} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Natura (se 0%)</Label>
-                      <Select value={newAliquota.natura ?? ""} onValueChange={(v) => setNewAliquota({ ...newAliquota, natura: v })}>
-                        <SelectTrigger><SelectValue placeholder="Seleziona natura..." /></SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(NATURE_IVA).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{k} — {v}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Descrizione</Label>
-                      <Input value={newAliquota.descrizione ?? ""} onChange={(e) => setNewAliquota({ ...newAliquota, descrizione: e.target.value })} placeholder="Es. Esente art. 10" />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" className="text-xs" onClick={() => {
-                      if (!newAliquota.descrizione) return;
-                      setAliquote([...aliquote, { ...newAliquota as AliquotaIva, id: crypto.randomUUID() }]);
-                      setNewAliquota({ aliquota: 0, descrizione: "" });
-                      setShowNewAliquota(false);
-                    }}>Aggiungi</Button>
-                    <Button size="sm" variant="outline" className="text-xs" onClick={() => { setShowNewAliquota(false); setNewAliquota({ aliquota: 0, descrizione: "" }); }}>Annulla</Button>
-                  </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="conto-iban" className="text-xs">IBAN</Label>
+                  <Input id="conto-iban" value={current.iban_principale ?? ""} onChange={(e) => updateField("iban_principale", e.target.value.replace(/\s+/g, "").toUpperCase())} className="font-mono uppercase text-xs" placeholder="IT60X0542811101000000123456" />
                 </div>
-              )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="conto-bic" className="text-xs">BIC/SWIFT</Label>
+                  <Input id="conto-bic" value={current.bic_swift ?? ""} onChange={(e) => updateField("bic_swift", e.target.value.toUpperCase())} className="font-mono uppercase text-xs" placeholder="BPMOIT22XXX" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="conto-banca" className="text-xs">Nome della banca</Label>
+                  <Input id="conto-banca" value={current.nome_banca ?? ""} onChange={(e) => updateField("nome_banca", e.target.value)} className="text-xs" placeholder="Banca Popolare di Milano" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="conto-intestatario" className="text-xs">Intestatario</Label>
+                  <Input id="conto-intestatario" value={current.intestatario_conto ?? ""} onChange={(e) => updateField("intestatario_conto", e.target.value)} className="text-xs" placeholder="Mario Rossi S.r.l." />
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1025,15 +756,6 @@ export default function ImpostazioniFatturazione() {
             </Card>
             );
           })}
-          <Card>
-            <CardContent className="pt-6 flex items-center justify-between">
-              <div>
-                <Label>Reset numeratore annuale</Label>
-                <p className="text-sm text-muted-foreground">Riparti da 1 ogni anno</p>
-              </div>
-              <Switch checked={current.reset_numeratore_annuale ?? true} onCheckedChange={(v) => updateField("reset_numeratore_annuale", v)} />
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {/* ═══════════════════════════════════════════════════════ */}
@@ -1042,16 +764,16 @@ export default function ImpostazioniFatturazione() {
         <TabsContent value="avanzate" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Opzioni Fiscali Avanzate</CardTitle>
-              <CardDescription>Configurazioni avanzate per la gestione IVA e bollo.</CardDescription>
+              <CardTitle className="text-base">IVA, bollo e split payment</CardTitle>
+              <CardDescription>Come escono sulle fatture l'IVA e il bollo.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>IVA per cassa</Label>
+                  <Label htmlFor="iva-per-cassa">IVA per cassa</Label>
                   <p className="text-xs text-muted-foreground mt-0.5">Esigibilità IVA differita al momento del pagamento (art. 32-bis DL 83/2012)</p>
                 </div>
-                <Switch checked={current.iva_per_cassa ?? false} onCheckedChange={(v) => updateField("iva_per_cassa", v)} />
+                <Switch id="iva-per-cassa" checked={current.iva_per_cassa ?? false} onCheckedChange={(v) => updateField("iva_per_cassa", v)} />
               </div>
               {/* Le fatture escono giuste (esigibilità D e dicitura), ma registro e
                   liquidazione non seguono incassi e pagamenti: meglio dirlo qui
@@ -1069,62 +791,27 @@ export default function ImpostazioniFatturazione() {
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Split payment PA</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">Applicazione automatica per fatture verso enti pubblici (art. 17-ter DPR 633/72)</p>
+                  <Label htmlFor="split-payment">Split payment (fatture alla pubblica amministrazione)</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Si applica da solo alle fatture verso enti pubblici (art. 17-ter DPR 633/72)</p>
                 </div>
-                <Switch checked={current.split_payment_pa ?? true} onCheckedChange={(v) => updateField("split_payment_pa", v)} />
+                <Switch id="split-payment" checked={current.split_payment_pa ?? true} onCheckedChange={(v) => updateField("split_payment_pa", v)} />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Società con unico socio</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">Attiva se sei una S.r.l. unipersonale — genera <strong>SU</strong> invece di <strong>SM</strong> nel campo XML &lt;SocioUnico&gt;</p>
+                  <Label htmlFor="socio-unico">Società con unico socio</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Spunta se sei una S.r.l. con un solo socio.</p>
                 </div>
-                <Switch checked={current.socio_unico ?? false} onCheckedChange={(v) => updateField("socio_unico", v)} />
+                <Switch id="socio-unico" checked={current.socio_unico ?? false} onCheckedChange={(v) => updateField("socio_unico", v)} />
               </div>
               <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Bollo virtuale automatico</Label>
+                  <Label htmlFor="bollo-automatico">Bollo da 2 € automatico</Label>
                   <p className="text-xs text-muted-foreground mt-0.5">Applica da solo il bollo di € 2,00 quando la parte della fattura senza IVA (esente, esclusa, non soggetta, forfettario, lettera d'intento) supera € 77,47</p>
                 </div>
-                <Switch checked={current.bollo_virtuale_auto ?? true} onCheckedChange={(v) => updateField("bollo_virtuale_auto", v)} />
+                <Switch id="bollo-automatico" checked={current.bollo_virtuale_auto ?? true} onCheckedChange={(v) => updateField("bollo_virtuale_auto", v)} />
               </div>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Rivalsa INPS 4%</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">Addebita il contributo INPS del 4% al cliente (regime forfettario/gestione separata)</p>
-                </div>
-                <Switch checked={current.rivalsa_inps ?? false} onCheckedChange={(v) => updateField("rivalsa_inps", v)} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Moduli Attivi</CardTitle>
-              <CardDescription>Attiva o disattiva le sezioni del modulo fatturazione.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {[
-                { key: "modulo_fatture", label: "Fatture", desc: "Emissione fatture attive", default: true },
-                { key: "modulo_preventivi", label: "Preventivi", desc: "Preventivi con pipeline", default: true },
-                { key: "modulo_proforma", label: "Proforma", desc: "Fatture proforma", default: true },
-                { key: "modulo_ddt", label: "DDT", desc: "Documenti di trasporto", default: true },
-                { key: "modulo_note_credito", label: "Note di Credito", desc: "Emissione note di credito", default: true },
-                { key: "modulo_fatture_estere", label: "Fatture Estere", desc: "TD17, TD18, TD19 — autofatture di integrazione", default: false },
-                { key: "modulo_cassetto_sdi", label: "Cassetto SDI", desc: "Monitoraggio stato invii SDI", default: true },
-                { key: "modulo_scadenzario", label: "Scadenzario", desc: "Gestione scadenze pagamenti", default: true },
-              ].map((mod) => (
-                <div key={mod.key} className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-sm">{mod.label}</Label>
-                    <p className="text-xs text-muted-foreground">{mod.desc}</p>
-                  </div>
-                  <Switch checked={current[mod.key] ?? mod.default} onCheckedChange={(v) => updateField(mod.key, v)} />
-                </div>
-              ))}
             </CardContent>
           </Card>
         </TabsContent>

@@ -1,5 +1,5 @@
 /**
- * Impostazioni → Fatturazione → Fatt. Elettronica, in tre passi (01/10/2026).
+ * Impostazioni → Fatturazione → Fattura elettronica, in tre passi (01/10/2026).
  *
  * Con Edilizia in Cloud le fatture passano dallo SDI solo tramite openapi: niente
  * scelta del provider, niente codice destinatario da inventare. Prima c'erano un
@@ -135,7 +135,7 @@ export function FatturaElettronicaPassi({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm text-muted-foreground">
                 Attivo{canale?.registered_at ? ` dal ${dataLunga(canale.registered_at)}` : ""}. Una fattura emessa parte con
-                «Invia a SDI»: la firma e la trasmette openapi.
+                «Invia allo SDI»: la firma e la trasmette openapi.
               </p>
               <Button variant="ghost" size="sm" onClick={onAttiva} disabled={attivando} className="gap-1.5 text-xs">
                 {attivando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
@@ -154,7 +154,7 @@ export function FatturaElettronicaPassi({
               </p>
               {!datiPerAttivare && (
                 <p className="text-sm text-muted-foreground">
-                  Prima completa <b>Partita IVA</b>, <b>Ragione sociale</b> e <b>PEC</b> nella scheda Azienda e salva.
+                  Prima completa e salva <b>Partita IVA</b>, <b>Ragione sociale</b> e <b>PEC</b> (o email) nella scheda Azienda.
                 </p>
               )}
               <Button onClick={onAttiva} disabled={attivando || !datiPerAttivare || anagraficaDaSalvare} className="gap-1.5">
@@ -270,7 +270,7 @@ export function FatturaElettronicaPassi({
               {conservazione.stato === "attiva"
                 ? `Si rinnova da sola: il prossimo rinnovo è il ${dataLunga(conservazione.prossimoRinnovo)}.`
                 : conservazione.stato === "da_segnare"
-                  ? "Quando hai aderito, segna qui la data: ti ricorderemo di controllare i rinnovi."
+                  ? "Quando hai aderito, segna qui la data: vedrai quando controllare i rinnovi."
                   : null}
             </p>
           </div>
