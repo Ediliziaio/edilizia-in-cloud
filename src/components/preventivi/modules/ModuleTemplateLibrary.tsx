@@ -11,9 +11,11 @@ import {
   Copy,
   Settings2,
 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { ID_AVVISO_SOLA_LETTURA_MODULI, TESTO_SOLA_LETTURA } from "@/pages/azienda/settings/SettingsQuoteTemplates/constants";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useCompanyAnagraficaForTemplate } from "@/hooks/useCompanyAnagraficaForTemplate";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -26,7 +28,7 @@ import {
 } from "@/lib/moduli-vendita/areas";
 import {
   AREA_DESIGN,
-  areaImage,
+  documentImage,
   DOCUMENT_MODULE_COUNT,
 } from "@/lib/moduli-vendita/moduleDocuments";
 import { loadModuleDocument } from "@/lib/moduli-vendita/localModuleDocuments";
@@ -193,14 +195,22 @@ export default function ModuleTemplateLibrary({
   const [copiaSorgente, setCopiaSorgente] = useState<{ areaId: string; moduleId: string; titolo: string; areaTitolo: string } | null>(null);
   const companyId = useEffectiveCompanyId();
   const company = useCompanyAnagraficaForTemplate();
-  const { canEditSettingsPricing: canEdit } = usePermissions();
+  const permessi = usePermissions();
+  const canEdit = permessi.canEditSettingsPricing;
+  // L'avviso di sola lettura (e il perché dei pulsanti spenti) non compare mentre i permessi si caricano.
+  const mostraAvvisoSolaLettura = !canEdit && !permessi.isLoading;
+  const spiegaSolaLettura = !canEdit ? ID_AVVISO_SOLA_LETTURA_MODULI : undefined;
   const { isModuloVisibile, setModuloVisibile, isSaving, isLoading } =
     useModuliVisibilita();
   // I modelli sono dell'azienda (modelli_libreria_azienda): all'apertura le copie
   // online più recenti tornano nel browser e quelle rimaste qui vanno online.
   const sincronia = useSincroniaModelli(companyId);
   const daMandareOnline = companyId && !sincronia.inCorso ? modelliDaMandareOnline(companyId) : [];
-  const area = findSalesArea(params.get("modulo"));
+  // Alcune aree hanno lo stesso preventivatore: «ristrutturazione» (Ristrutturazioni, Pareti e soffitti, Pergole e tende,
+  // Facciate) e «pavimenti» (Pavimenti, Giardini). `modulo` dice il preventivatore; per le aree che non sono la prima di quel
+  // preventivatore l'indirizzo porta anche `area=<id>`. Conta solo se è coerente con `modulo`: un `area` rimasto da prima si ignora.
+  const areaScelta = findSalesArea(params.get("area"));
+  const area = areaScelta && areaScelta.sourceModule === params.get("modulo") ? areaScelta : findSalesArea(params.get("modulo"));
   const selected = params.get("modello");
   const module = area?.interventions.find((m) => m.id === selected);
   const navigate = (a?: SalesArea, m?: string) => {
@@ -208,8 +218,14 @@ export default function ModuleTemplateLibrary({
     next.set("tab", "moduli-vendita");
     next.delete("section");
     next.delete("edizione");
-    if (a) next.set("modulo", a.sourceModule);
-    else next.delete("modulo");
+    if (a) {
+      next.set("modulo", a.sourceModule);
+      if (findSalesArea(a.sourceModule)?.id !== a.id) next.set("area", a.id);
+      else next.delete("area");
+    } else {
+      next.delete("modulo");
+      next.delete("area");
+    }
     if (m) {
       next.set("modello", m);
       if (a && m !== "generale" && fullModuleCover(a.id, m)) next.set("section", "page_cover");
@@ -218,7 +234,17 @@ export default function ModuleTemplateLibrary({
     setParams(next);
     setQuery("");
   };
-  if (selected === "generale" && area && area.id !== "facciate")
+  if (selected === "generale" && area && area.id !== "facciate") {
+    // Anche scrivendo l'indirizzo a mano: chi non può modificare non apre l'editor del modello dell'area.
+    if (!canEdit)
+      return (
+        <div role="alert" className="rounded-xl border p-5">
+          Non hai i permessi per modificare i modelli.
+          <Button variant="link" onClick={() => navigate(area)}>
+            Torna ai moduli
+          </Button>
+        </div>
+      );
     return (
       <>
         <Button variant="ghost" className="mb-4" onClick={() => navigate(area)}>
@@ -228,6 +254,7 @@ export default function ModuleTemplateLibrary({
         {renderLegacy()}
       </>
     );
+  }
   if (module && area) {
     if (!canEdit)
       return (
@@ -339,6 +366,7 @@ export default function ModuleTemplateLibrary({
               className="w-full justify-between"
               onClick={() => navigate(a, m.id)}
               disabled={!canEdit || !companyId}
+              aria-describedby={spiegaSolaLettura}
             >
               Personalizza PDF
               <ArrowRight className="h-4 w-4" />
@@ -361,10 +389,16 @@ export default function ModuleTemplateLibrary({
   };
   return (
     <div className="space-y-6">
+      {/* Chi non può modificare lo legge per primo; i pulsanti spenti qui sotto rimandano a questa frase. */}
+      {mostraAvvisoSolaLettura && (
+        <Alert id={ID_AVVISO_SOLA_LETTURA_MODULI}>
+          <AlertDescription>{TESTO_SOLA_LETTURA}</AlertDescription>
+        </Alert>
+      )}
       <header>
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <button className="hover:underline" onClick={() => navigate()}>
-            Libreria moduli
+            Moduli
           </button>
           {area && (
             <>
@@ -375,14 +409,20 @@ export default function ModuleTemplateLibrary({
         </div>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
+            {/* Il titolo della pagina è nel layout (h1): quello di questa scheda è un h2. */}
+            <h2 className="text-lg font-semibold tracking-tight">
               {area ? `Moduli ${area.title}` : "Un modello per ogni intervento"}
-            </h1>
+            </h2>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
               {area
                 ? "Scegli l’intervento: ogni modello ha testi, immagini e pagine dedicati. Personalizza i contenuti e controlla l’anteprima PDF."
                 : `${DOCUMENT_MODULE_COUNT} modelli in ${SALES_AREAS.length} aree. Trova l’intervento, adatta i contenuti alla tua azienda e verifica l’anteprima.`}
             </p>
+            {!area && (
+              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                Gli interruttori «Area nel menu Nuovo preventivo» decidono quali preventivi compaiono ai tuoi colleghi.
+              </p>
+            )}
           </div>
           {area && (
             <Button variant="outline" onClick={() => navigate()}>
@@ -398,7 +438,7 @@ export default function ModuleTemplateLibrary({
           <strong>Modelli dell&apos;azienda.</strong> Le personalizzazioni si
           salvano online e le vedono tutti i colleghi. Quando crei un preventivo
           da un intervento, il PDF usa il suo modello. Fanno eccezione solo le
-          Facciate, che non hanno ancora un preventivatore. Il template aziendale
+          Facciate, che non hanno ancora un preventivatore. Il modello dell&apos;area
           resta invariato.
         </p>
       </div>
@@ -432,16 +472,16 @@ export default function ModuleTemplateLibrary({
             >
               {area.interventions.length} modelli · {area.interventions.filter(m => fullModuleCover(area.id, m.id)).length} PDF con pagine dedicate
             </p>
-            <h2 className="mt-2 text-xl font-semibold">
+            <h3 className="mt-2 text-xl font-semibold">
               {AREA_DESIGN[area.id].intro}
-            </h2>
+            </h3>
             <p className="mt-2 text-sm text-muted-foreground">{area.summary}</p>
             <p className="mt-2 text-xs text-muted-foreground">
               Immagine illustrativa dell'area, generata con AI.
             </p>
           </div>
           <img
-            src={areaImage(area.id)}
+            src={documentImage(area.id, "")}
             alt={`Illustrazione dell'area ${area.title}`}
             className="h-36 w-full object-cover md:h-full md:max-h-44"
           />
@@ -490,7 +530,7 @@ export default function ModuleTemplateLibrary({
                 />
                 <div className="p-5">
                   <div className="flex items-center justify-between gap-2">
-                    <h2 className="text-lg font-semibold">{a.title}</h2>
+                    <h3 className="text-lg font-semibold">{a.title}</h3>
                     <span className="rounded-full bg-slate-100 px-2 py-1 text-xs">
                       {a.interventions.length} modelli
                     </span>
@@ -508,10 +548,11 @@ export default function ModuleTemplateLibrary({
                 </div>
               </button>
               {a.id !== "facciate" && (
-                <div className="flex items-center justify-between gap-2 border-t px-5 py-3">
+                <div className="flex items-center justify-between gap-2 border-t px-5 py-1">
+                  {/* L'etichetta è alta quanto un dito: l'interruttore da solo è alto 24 px. */}
                   <label
                     htmlFor={`area-active-${a.id}`}
-                    className="text-xs text-muted-foreground"
+                    className="flex min-h-11 flex-1 cursor-pointer items-center text-xs text-muted-foreground"
                   >
                     Area nel menu Nuovo preventivo
                   </label>
@@ -519,6 +560,7 @@ export default function ModuleTemplateLibrary({
                     id={`area-active-${a.id}`}
                     checked={isModuloVisibile(a.sourceModule)}
                     disabled={!canEdit || !companyId || isLoading || isSaving}
+                    aria-describedby={spiegaSolaLettura}
                     onCheckedChange={(v) =>
                       setModuloVisibile(a.sourceModule, v)
                     }
@@ -544,8 +586,8 @@ export default function ModuleTemplateLibrary({
       {area && area.id !== "facciate" && (
         <details className="rounded-xl border bg-slate-50 p-4">
           <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium">
-            <Settings2 className="h-4 w-4" />
-            Template aziendale e visibilità
+            <Settings2 className="h-4 w-4" aria-hidden="true" />
+            Modello dell&apos;area e visibilità
           </summary>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -553,6 +595,7 @@ export default function ModuleTemplateLibrary({
                 id="area-active-detail"
                 checked={isModuloVisibile(area.sourceModule)}
                 disabled={!canEdit || !companyId || isLoading || isSaving}
+                aria-describedby={spiegaSolaLettura}
                 onCheckedChange={(v) => setModuloVisibile(area.sourceModule, v)}
               />
               <label htmlFor="area-active-detail" className="text-xs">
@@ -562,15 +605,16 @@ export default function ModuleTemplateLibrary({
             <Button
               variant="outline"
               disabled={!canEdit}
+              aria-describedby={spiegaSolaLettura}
               onClick={() => navigate(area, "generale")}
             >
-              <FileText className="mr-2 h-4 w-4" />
-              Apri template aziendale online
+              <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
+              Apri il modello dell&apos;area
             </Button>
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Il template online è quello usato dal preventivatore attuale. Non
-            viene sostituito dai modelli locali qui sopra.
+            Il modello dell&apos;area è quello usato dal preventivatore attuale. Non
+            viene sostituito dai modelli degli interventi qui sopra.
           </p>
         </details>
       )}

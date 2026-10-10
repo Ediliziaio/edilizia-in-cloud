@@ -18,10 +18,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, Trophy, TrendingDown } from "lucide-react";
 import { calcolaFinanziamento } from "@/lib/finanziamenti/calcolaFinanziamento";
 import type { RigaTabellaFinanziamento } from "@/lib/finanziamenti/types";
+import { formattaPercentuale } from "./comuni";
+import { TitoloAvviso } from "./pezzi";
 
 interface Props {
   /** Importo finanziato richiesto (€). */
@@ -69,7 +71,7 @@ export function SimulatoreMultiDurata({
     return (
       <Alert>
         <Info className="h-4 w-4" />
-        <AlertTitle>Inserisci un importo</AlertTitle>
+        <TitoloAvviso>Inserisci un importo</TitoloAvviso>
         <AlertDescription>
           Il simulatore confronta tutte le durate disponibili in tabella per
           l&apos;importo che inserisci.
@@ -82,7 +84,7 @@ export function SimulatoreMultiDurata({
     return (
       <Alert variant="destructive">
         <Info className="h-4 w-4" />
-        <AlertTitle>Nessuna durata disponibile</AlertTitle>
+        <TitoloAvviso>Nessuna durata disponibile</TitoloAvviso>
         <AlertDescription>
           La tabella selezionata non ha righe caricate.
         </AlertDescription>
@@ -99,13 +101,13 @@ export function SimulatoreMultiDurata({
               <TableRow>
                 <TableHead>Durata</TableHead>
                 <TableHead className="text-right">Rata mensile</TableHead>
-                <TableHead className="text-right">Sp. incasso</TableHead>
+                <TableHead className="text-right">Spese incasso</TableHead>
                 <TableHead className="text-right">Rata totale</TableHead>
                 <TableHead className="text-right">Totale dovuto</TableHead>
                 <TableHead className="text-right">Interessi</TableHead>
                 <TableHead className="text-right">TAN</TableHead>
                 <TableHead className="text-right">TAEG</TableHead>
-                <TableHead className="text-right">Provv. dealer</TableHead>
+                <TableHead className="text-right">Provvigione</TableHead>
                 <TableHead>Note</TableHead>
               </TableRow>
             </TableHeader>
@@ -157,10 +159,10 @@ export function SimulatoreMultiDurata({
                           € {fmt(calc.interessi_cliente ?? 0, 2)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {(calc.tan ?? 0).toFixed(2)}%
+                          {formattaPercentuale(calc.tan ?? 0)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {(calc.taeg ?? 0).toFixed(2)}%
+                          {formattaPercentuale(calc.taeg ?? 0)}
                           {isTaegMin && (
                             <TrendingDown className="h-3 w-3 inline ml-1 text-emerald-600" />
                           )}
@@ -174,7 +176,7 @@ export function SimulatoreMultiDurata({
                               variant="outline"
                               className="bg-amber-50 text-amber-800 border-amber-200 text-xs"
                             >
-                              interpolato
+                              calcolato tra due righe
                             </Badge>
                           )}
                         </TableCell>

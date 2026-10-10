@@ -1,11 +1,13 @@
 /**
  * ListinoManutenzione — barra filtri condivisa.
  *
- * Replica il pattern UX della pagina "Manodopera e Servizi" (SettingsTariffe),
+ * Replica il pattern UX della pagina "Manodopera e servizi" (SettingsTariffe),
  * redesign incluso: niente Card attorno ai filtri (solo ~40px in più prima
- * della tabella), controlli h-9 su una riga, e chip + conteggio + "Azzera"
- * fusi in un'unica riga che compare SOLO a filtri attivi (i totali stanno già
- * nei badge dei sub-tab). Usata dai 3 sub-tab (Impianti / Interventi / Tariffe)
+ * della tabella), controlli h-9 su una riga (h-11 da telefono: bersaglio da
+ * dito), e chip + conteggio + "Azzera" fusi in un'unica riga che compare SOLO
+ * a filtri attivi. Il totale (quanti impianti, quanti interventi…) sta a destra
+ * dei filtri, sempre: prima stava nei badge delle schede interne, che non ci sono più.
+ * Usata dalle 3 schede (Impianti / Interventi / Prezzi di manutenzione)
  * così che l'esperienza resti identica a quella del listino manodopera.
  */
 import type { ReactNode } from "react";
@@ -26,8 +28,10 @@ interface Props {
   searchPlaceholder?: string;
   /** Select di filtro (renderizzati dopo la ricerca). */
   filters?: ReactNode;
-  /** Azione primaria, es. il pulsante "Nuovo …" (allineata a destra). */
+  /** Azione primaria, es. il pulsante "Nuovo …" (allineata a destra). Assente per chi può solo consultare. */
   actions?: ReactNode;
+  /** Nome della ricerca per il lettore di schermo («Cerca tra gli impianti»). */
+  searchLabel?: string;
   chips: FilterChip[];
   shownCount: number;
   totalCount: number;
@@ -41,6 +45,7 @@ export function ListinoFilterBar({
   search,
   onSearchChange,
   searchPlaceholder = "Cerca…",
+  searchLabel,
   filters,
   actions,
   chips,
@@ -54,16 +59,22 @@ export function ListinoFilterBar({
     <div className="space-y-2">
       <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
         <div className="relative flex-1 min-w-[180px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden />
           <Input
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={searchPlaceholder}
-            className="h-9 pl-9"
+            aria-label={searchLabel ?? searchPlaceholder}
+            className="h-9 pl-9 max-md:h-11"
           />
         </div>
         {filters}
-        {actions && <div className="md:ml-auto shrink-0">{actions}</div>}
+        {totalCount > 0 && (
+          <span className="hidden text-xs text-muted-foreground md:ml-auto md:inline">
+            {totalCount} {totalCount === 1 ? unit[0] : unit[1]}
+          </span>
+        )}
+        {actions && <div className={`shrink-0 ${totalCount > 0 ? "" : "md:ml-auto"}`}>{actions}</div>}
       </div>
 
       {hasActiveFilters && totalCount > 0 && (

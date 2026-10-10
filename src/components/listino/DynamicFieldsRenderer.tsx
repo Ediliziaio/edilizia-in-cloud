@@ -68,7 +68,7 @@ export function DynamicFieldsRenderer({
   if (!macroId) {
     return (
       <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground text-center">
-        Seleziona prima una macrocategoria per vedere la scheda tecnica.
+        Seleziona prima una tipologia per vedere la scheda tecnica.
       </div>
     );
   }
@@ -86,10 +86,10 @@ export function DynamicFieldsRenderer({
     return (
       <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground text-center space-y-1">
         <Settings2 className="h-5 w-5 mx-auto opacity-60" />
-        <p>Nessuna scheda tecnica configurata per questa macrocategoria.</p>
+        <p>Nessuna scheda tecnica configurata per questa tipologia.</p>
         <p className="text-xs">
-          Vai in <em>Impostazioni → Listino → Macrocategorie</em>, clicca sull'icona{" "}
-          <Settings2 className="h-3 w-3 inline" /> accanto alla macrocategoria
+          Vai in <em>Impostazioni → Listino → Tipologie</em>, clicca sull'icona{" "}
+          <Settings2 className="h-3 w-3 inline" /> accanto alla tipologia
           per definire i campi (es. vetro, Uw, potenza…).
         </p>
       </div>

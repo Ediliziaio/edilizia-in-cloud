@@ -28,6 +28,7 @@ import { problemaCondizione, prezzoOpzioneValido } from "@/lib/listino/opzioniPr
 import { BulkOpzioniDialog } from "./BulkOpzioniDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { messaggioErroreListino } from "@/lib/listinoErrors";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -263,7 +264,7 @@ export function FamilyAxesEditor({ family }: Props) {
       await updateAxisValue.mutateAsync({ id: valueId, familyId: family.id, patch: { immagine_url: url } });
       toast.success("Immagine variante aggiornata");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore caricamento immagine");
+      toast.error("Immagine non caricata", { description: messaggioErroreListino(err) });
     } finally {
       setUploadingImgId(null);
     }
@@ -352,8 +353,8 @@ export function FamilyAxesEditor({ family }: Props) {
           ),
       );
     } catch (err) {
-      toast.error("Errore nel riordino delle variabili", {
-        description: err instanceof Error ? err.message : String(err),
+      toast.error("Opzioni non riordinate", {
+        description: messaggioErroreListino(err),
       });
     }
   };
@@ -384,8 +385,8 @@ export function FamilyAxesEditor({ family }: Props) {
           ),
       );
     } catch (err) {
-      toast.error("Errore nel riordino dei valori", {
-        description: err instanceof Error ? err.message : String(err),
+      toast.error("Scelte non riordinate", {
+        description: messaggioErroreListino(err),
       });
     }
   };
@@ -409,7 +410,7 @@ export function FamilyAxesEditor({ family }: Props) {
       toast.success(`${selectedValueIds.size} scelte ${attivo ? "attivate" : "disattivate"}`);
       clearSelection();
     } catch (err) {
-      toast.error("Modifica non salvata", { description: err instanceof Error ? err.message : String(err) });
+      toast.error("Modifica non salvata", { description: messaggioErroreListino(err) });
     }
   };
   const bulkDeactivate = () => bulkActivity(false);
@@ -424,7 +425,7 @@ export function FamilyAxesEditor({ family }: Props) {
       toast.success("Supplementi aggiornati");
       setBulkType(null); clearSelection();
     } catch (err) {
-      toast.error("Modifica non salvata", { description: err instanceof Error ? err.message : String(err) });
+      toast.error("Modifica non salvata", { description: messaggioErroreListino(err) });
     }
   };
 
@@ -464,8 +465,8 @@ export function FamilyAxesEditor({ family }: Props) {
       );
       setPresetsOpen(false);
     } catch (err) {
-      toast.error("Errore applicazione preset", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      toast.error("Modello non applicato", {
+        description: messaggioErroreListino(err),
       });
     }
   };
@@ -516,8 +517,8 @@ export function FamilyAxesEditor({ family }: Props) {
       });
       toast.success(`Valore "${v.label}" duplicato`);
     } catch (err) {
-      toast.error("Errore duplicazione", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      toast.error("Scelta non duplicata", {
+        description: messaggioErroreListino(err),
       });
     }
   };
@@ -920,8 +921,8 @@ export function FamilyAxesEditor({ family }: Props) {
             setNewAxisOpen(false);
             setEditingAxis(null);
           } catch (err) {
-            toast.error("Errore salvataggio variabile", {
-              description: err instanceof Error ? err.message : "Errore sconosciuto",
+            toast.error("Opzione non salvata", {
+              description: messaggioErroreListino(err),
             });
           }
         }}
@@ -977,7 +978,7 @@ export function FamilyAxesEditor({ family }: Props) {
             toast.success(editingValue ? "Scelta aggiornata" : "Scelta creata");
             setNewValueAxisId(null); setEditingValue(null);
           } catch (err) {
-            toast.error("Scelta non salvata", { description: err instanceof Error ? err.message : String(err) });
+            toast.error("Scelta non salvata", { description: messaggioErroreListino(err) });
           }
         }}
         saving={saveOptions.isPending}
@@ -1011,8 +1012,8 @@ export function FamilyAxesEditor({ family }: Props) {
                   toast.success("Variabile eliminata");
                   setAxisToDelete(null);
                 } catch (err) {
-                  toast.error("Errore eliminazione", {
-                    description: err instanceof Error ? err.message : "Errore sconosciuto",
+                  toast.error("Non eliminato", {
+                    description: messaggioErroreListino(err),
                   });
                 }
               }}
@@ -1054,8 +1055,8 @@ export function FamilyAxesEditor({ family }: Props) {
                   toast.success("Valore eliminato");
                   setValueToDelete(null);
                 } catch (err) {
-                  toast.error("Errore eliminazione", {
-                    description: err instanceof Error ? err.message : "Errore sconosciuto",
+                  toast.error("Non eliminato", {
+                    description: messaggioErroreListino(err),
                   });
                 }
               }}

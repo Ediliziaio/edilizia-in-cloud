@@ -195,7 +195,7 @@ export function MatchTariffaPickerDialog({
               <Wrench className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
               <p className="text-sm font-medium">Nessuna tariffa trovata</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Aggiungila da Impostazioni → Tariffe, poi torna qui per abbinarla.
+                Aggiungila da Impostazioni → Listino → Manodopera e servizi, poi torna qui per abbinarla.
               </p>
             </div>
           ) : (

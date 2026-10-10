@@ -59,6 +59,7 @@ import {
   type TipoTariffa,
 } from "@/lib/tariffe/prezziarioImport";
 import type { PrezzarioFonte, PrezzarioVoce } from "@/lib/prezzario/tipi";
+import { testoErrore } from "@/lib/impostazioni/testoErrore";
 
 // prezzario_* non rigenerati nei tipi Supabase: cast unico (come queries.ts).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -262,7 +263,7 @@ export function ImportaPrezzarioRegionaleDialog({
       for (let i = 0; i < payloads.length; i += CHUNK_SIZE) {
         const chunk = payloads.slice(i, i + CHUNK_SIZE);
         const { error } = await sb().from("tariffe_aziendali").insert(chunk);
-        if (error) throw new Error(error.message);
+        if (error) throw error;
       }
       const n = payloads.length;
       toast.success("Voci importate nel listino", {
@@ -272,7 +273,7 @@ export function ImportaPrezzarioRegionaleDialog({
       handleOpenChange(false);
     } catch (e) {
       toast.error("Importazione non riuscita", {
-        description: e instanceof Error ? e.message : "Errore durante l'import.",
+        description: testoErrore(e),
       });
     } finally {
       setImporting(false);
@@ -293,7 +294,7 @@ export function ImportaPrezzarioRegionaleDialog({
           </DialogTitle>
           <DialogDescription>
             Adotta voci da un prezzario regionale ufficiale: vengono copiate nel
-            tuo listino Manodopera e Servizi con il ricarico scelto
+            tuo listino «Manodopera e servizi» con il ricarico scelto
             {isAdmin ? " e il costo base come costo interno" : ""}.
           </DialogDescription>
         </DialogHeader>
@@ -333,15 +334,15 @@ export function ImportaPrezzarioRegionaleDialog({
               {/* Filtri: capitolo + ricerca */}
               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
                 <div className="space-y-1.5">
-                  <Label className="flex items-center gap-1.5 text-xs font-medium">
-                    <FolderTree className="h-3.5 w-3.5" /> Capitolo
+                  <Label htmlFor="prezzario-reg-capitolo" className="flex items-center gap-1.5 text-xs font-medium">
+                    <FolderTree className="h-3.5 w-3.5" aria-hidden /> Capitolo
                   </Label>
                   <Select
                     value={capitoloFiltro}
                     onValueChange={setCapitoloFiltro}
                     disabled={isCercando || capitoliRows.length === 0}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="prezzario-reg-capitolo">
                       <SelectValue placeholder="Tutti i capitoli" />
                     </SelectTrigger>
                     <SelectContent>
@@ -477,14 +478,14 @@ export function ImportaPrezzarioRegionaleDialog({
               inputMode="decimal"
               value={ricarico}
               onChange={(e) => setRicarico(e.target.value)}
-              className="h-9 w-28 text-right tabular-nums"
+              className="h-9 w-28 text-right tabular-nums max-md:h-11"
               disabled={!fonteId}
             />
           </div>
           <div className="flex items-center gap-3">
             {selezionate.length > 0 && (
               <span className="text-xs text-muted-foreground">
-                {selezionate.length} {selezionate.length === 1 ? "voce" : "voci"} selez.
+                {selezionate.length} {selezionate.length === 1 ? "voce selezionata" : "voci selezionate"}
               </span>
             )}
             <Button

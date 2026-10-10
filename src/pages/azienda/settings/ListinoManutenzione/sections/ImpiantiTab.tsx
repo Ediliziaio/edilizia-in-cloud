@@ -1,9 +1,10 @@
 /**
- * ListinoManutenzione — Tab "Tipi Impianto"
+ * ListinoManutenzione — scheda «Impianti» (i tipi di impianto)
  * Estratto da ListinoManutenzione.tsx (MP-IMP-001 Fase 5).
- * Redesign allineato a "Manodopera e Servizi": tabella table-fixed compatta
+ * Redesign allineato a "Manodopera e servizi": tabella table-fixed compatta
  * (l'icona sta accanto al nome, non in una colonna da 68px), tutta la riga
  * apre Modifica, azioni nel menu ⋮, CTA arancione come il resto della pagina.
+ * Chi può solo consultare non vede «Nuovo impianto», il menu ⋮ né la riga che apre la modifica.
  */
 import { useMemo, useState } from "react";
 import { Plus, Pencil, Trash2, MoreVertical } from "lucide-react";
@@ -24,12 +25,16 @@ type StatoFilter = "all" | "attivi" | "disattivi";
 interface Props {
   tipiImpianto: TipoImpianto[];
   loadingImpianti: boolean;
+  /** Chi può cambiare i tipi di impianto: solo l'amministratore (il database rifiuta gli altri). */
+  puoModificare: boolean;
+  /** «Importa un catalogo pronto» è a disposizione: lo dice il messaggio di elenco vuoto. */
+  puoImportare: boolean;
   onAdd: () => void;
   onEdit: (t: TipoImpianto) => void;
   onDelete: (id: string) => void;
 }
 
-export function ImpiantiTab({ tipiImpianto, loadingImpianti, onAdd, onEdit, onDelete }: Props) {
+export function ImpiantiTab({ tipiImpianto, loadingImpianti, puoModificare, puoImportare, onAdd, onEdit, onDelete }: Props) {
   const [search, setSearch] = useState("");
   const [stato, setStato] = useState<StatoFilter>("all");
 
@@ -52,20 +57,24 @@ export function ImpiantiTab({ tipiImpianto, loadingImpianti, onAdd, onEdit, onDe
 
   /** Tutta la riga apre Modifica — tranne i controlli veri (menu, checkbox…). */
   const rowClick = (t: TipoImpianto) => (e: React.MouseEvent) => {
+    if (!puoModificare) return;
     const el = e.target as HTMLElement;
     if (el.closest('button, a, input, [role="checkbox"], [role="switch"], [role="menu"], [role="menuitem"]')) return;
     onEdit(t);
   };
+
+  const colonne = puoModificare ? 4 : 3;
 
   return (
     <div className="space-y-3">
       <ListinoFilterBar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Cerca tipo impianto…"
+        searchPlaceholder="Cerca tipo di impianto…"
+        searchLabel="Cerca tra i tipi di impianto"
         filters={
           <Select value={stato} onValueChange={(v) => setStato(v as StatoFilter)}>
-            <SelectTrigger className="h-9 w-full md:w-[150px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label="Filtra per stato" className="h-9 w-full md:w-[150px] max-md:h-11"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti gli stati</SelectItem>
               <SelectItem value="attivi">Solo attivi</SelectItem>
@@ -73,15 +82,15 @@ export function ImpiantiTab({ tipiImpianto, loadingImpianti, onAdd, onEdit, onDe
             </SelectContent>
           </Select>
         }
-        actions={
+        actions={puoModificare ? (
           <Button
             size="sm"
             onClick={onAdd}
             className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
           >
-            <Plus className="h-4 w-4 mr-1" />Nuovo impianto
+            <Plus className="h-4 w-4 mr-1" aria-hidden />Nuovo impianto
           </Button>
-        }
+        ) : undefined}
         chips={chips}
         shownCount={filtered.length}
         totalCount={tipiImpianto.length}
@@ -96,30 +105,32 @@ export function ImpiantiTab({ tipiImpianto, loadingImpianti, onAdd, onEdit, onDe
               <TableHead>Nome</TableHead>
               <TableHead className="w-[72px]">Ordine</TableHead>
               <TableHead className="w-[96px]">Attivo</TableHead>
-              <TableHead className="w-[48px]"><span className="sr-only">Azioni</span></TableHead>
+              {puoModificare && <TableHead className="w-[48px]"><span className="sr-only">Azioni</span></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loadingImpianti ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
                   Caricamento...
                 </TableCell>
               </TableRow>
             ) : tipiImpianto.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                  Nessun tipo impianto. Aggiungine uno o clicca &quot;Importa da template&quot;.
+                <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
+                  {puoModificare
+                    ? `Nessun tipo di impianto. Aggiungine uno${puoImportare ? " o usa «Importa un catalogo pronto»" : ""}.`
+                    : "Nessun tipo di impianto."}
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                  Nessun tipo impianto corrisponde ai filtri.
+                <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
+                  Nessun tipo di impianto corrisponde ai filtri.
                 </TableCell>
               </TableRow>
             ) : filtered.map((t) => (
-              <TableRow key={t.id} onClick={rowClick(t)} className="cursor-pointer">
+              <TableRow key={t.id} onClick={rowClick(t)} className={puoModificare ? "cursor-pointer" : undefined}>
                 <TableCell>
                   <div className="flex min-w-0 items-center gap-2 font-medium">
                     <span className="shrink-0 text-base leading-none" aria-hidden>{t.icona ?? "🔧"}</span>
@@ -132,27 +143,29 @@ export function ImpiantiTab({ tipiImpianto, loadingImpianti, onAdd, onEdit, onDe
                     {t.attivo ? "Attivo" : "Disattivo"}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Azioni per ${t.nome}`}>
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onEdit(t)}>
-                        <Pencil className="h-4 w-4 mr-2" />Modifica
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => onDelete(t.id)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />Elimina
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+                {puoModificare && (
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Azioni per ${t.nome}`}>
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onEdit(t)}>
+                          <Pencil className="h-4 w-4 mr-2" />Modifica
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => onDelete(t.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />Elimina
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>

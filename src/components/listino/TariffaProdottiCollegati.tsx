@@ -158,7 +158,7 @@ export function TariffaProdottiCollegati({ tariffaId, tariffaName }: Props) {
             Nessun prodotto usa questa tariffa come manodopera automatica.
           </p>
           <p className="text-[11px] text-muted-foreground mt-1">
-            Vai in <strong>Listino prodotti → modifica un prodotto → sezione Manodopera</strong> per collegarlo.
+            Vai in <strong>Listino → modifica un prodotto → sezione Manodopera</strong> per collegarlo.
           </p>
         </Card>
       ) : (
@@ -200,7 +200,7 @@ export function TariffaProdottiCollegati({ tariffaId, tariffaName }: Props) {
             href="/azienda/impostazioni/listino"
             className="text-[11px] text-emerald-700 hover:underline flex items-center gap-1 mt-2"
           >
-            <ExternalLink className="h-3 w-3" /> Vai al listino prodotti per collegarne altri
+            <ExternalLink className="h-3 w-3" /> Vai al listino per collegarne altri
           </a>
         </div>
       )}

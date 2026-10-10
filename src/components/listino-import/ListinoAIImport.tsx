@@ -7,6 +7,9 @@
  *  2. Chiama Edge Function "ai-listino-extract" → ritorna righe estratte
  *  3. Mostra tabella editabile per revisione manuale
  *  4. Conferma → catalog-import-batch (come il wizard)
+ *
+ * Da PDF si importa solo il catalogo articoli o la manodopera e i servizi: i prodotti del Listino (`family`) si
+ * importano da foglio Excel o CSV. Il tipo preselezionato resta «Catalogo articoli» (decisione D1 ancora aperta).
  */
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -20,6 +23,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
+import { testoErrore } from "@/lib/impostazioni/testoErrore";
+import { DESTINAZIONI_IMPORT, contaElementi, fraseConferma } from "@/lib/catalogo/destinazioniImport";
 import { useAuth } from "@/contexts/AuthContext";
 import { Upload, Sparkles, AlertTriangle, CheckCircle2, Loader2, Trash2 } from "lucide-react";
 import type { CatalogObjectType } from "@/hooks/useCompanyCustomFields";
@@ -70,19 +75,20 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
   const [progress, setProgress] = useState(0);
 
   const totalCostEur = useMemo(() => (result ? (result.cost_cents / 100).toFixed(4) : "0.00"), [result]);
+  const destinazione = DESTINAZIONI_IMPORT[objectType];
 
   /* ────────────────── Upload + Extract ────────────────── */
   const handleStart = useCallback(async () => {
     if (!file || !userId) {
-      toast.error("File mancante o non autenticato");
+      toast.error("Scegli un file PDF per continuare");
       return;
     }
     if (!file.name.toLowerCase().endsWith(".pdf")) {
-      toast.error("Solo file PDF sono supportati");
+      toast.error("Il file deve essere un PDF");
       return;
     }
     if (file.size > 50 * 1024 * 1024) {
-      toast.error("File troppo grande (max 50MB)");
+      toast.error("Il file è troppo grande: il massimo è 50 MB");
       return;
     }
 
@@ -124,9 +130,9 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
       setResult(res);
       setRows(res.rows ?? []);
       setProgress(100);
-      toast.success(`${res.rows.length} righe estratte (conf. ${(res.confidence * 100).toFixed(0)}%)`);
-    } catch (e: any) {
-      toast.error(`Errore AI: ${e.message ?? e}`);
+      toast.success(`${res.rows.length} righe lette dal PDF (affidabilità ${(res.confidence * 100).toFixed(0)}%)`);
+    } catch (e: unknown) {
+      toast.error("Non sono riuscito a leggere il PDF", { description: testoErrore(e) });
     } finally {
       // M-K (audit): il PDF temporaneo restava per sempre in listini-tmp.
       // L'edge lo ha già letto durante l'invoke: pulizia best-effort.
@@ -161,7 +167,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
     }
     const validRows = rows.filter((r) => (r.name ?? r.nome ?? "").trim() !== "");
     if (!validRows.length) {
-      toast.error("Nessuna riga valida");
+      toast.error("Nessuna riga valida: ogni riga deve avere un nome");
       return;
     }
     setImporting(true);
@@ -201,15 +207,15 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
       setProgress(100);
       toast.success(
         updated > 0
-          ? `Importati ${inserted} nuovi record dal listino AI · ${updated} aggiornati`
-          : `Importati ${inserted} record dal listino AI`,
+          ? `Importati ${contaElementi(objectType, inserted)} nuovi dal PDF · ${updated} aggiornati`
+          : `Importati ${contaElementi(objectType, inserted)} dal PDF`,
       );
       onComplete?.(inserted + updated);
       setResult(null);
       setRows([]);
       setFile(null);
-    } catch (e: any) {
-      toast.error(`Errore import: ${e.message ?? e}`);
+    } catch (e: unknown) {
+      toast.error("Importazione non riuscita", { description: testoErrore(e) });
     } finally {
       setImporting(false);
       setTimeout(() => setProgress(0), 1500);
@@ -222,10 +228,10 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
-          Import Listino con AI
+          Importa da un PDF
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Carica un PDF di listino: l'AI estrae automaticamente le righe. Rivedi prima di confermare.
+          Carica il PDF di un listino: l'AI legge le righe e te le mostra. Le controlli e le correggi prima di importare.
         </p>
       </CardHeader>
 
@@ -233,19 +239,19 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
         {/* Controls */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="space-y-1.5">
-            <Label>Tipo</Label>
+            <Label htmlFor="ai-tipo">Cosa stai importando?</Label>
             <Select value={objectType} onValueChange={(v) => setObjectType(v as CatalogObjectType)}>
-              <SelectTrigger>
+              <SelectTrigger id="ai-tipo" aria-describedby="ai-tipo-dove">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="product">Prodotti / Articoli</SelectItem>
-                <SelectItem value="tariffa">Tariffe / Manodopera</SelectItem>
+                <SelectItem value="product">{DESTINAZIONI_IMPORT.product.nome}</SelectItem>
+                <SelectItem value="tariffa">{DESTINAZIONI_IMPORT.tariffa.nome}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5 md:col-span-2">
-            <Label htmlFor="ai-pdf-file">PDF Listino (max 50MB)</Label>
+            <Label htmlFor="ai-pdf-file">PDF del listino (massimo 50 MB)</Label>
             <Input
               id="ai-pdf-file"
               type="file"
@@ -254,6 +260,13 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
               disabled={uploading || extracting}
             />
           </div>
+        </div>
+
+        {/* Dove finiscono i dati dipende dalla scelta: si dice sempre, e si dice cosa il PDF non può riempire. */}
+        <div id="ai-tipo-dove" className="space-y-1.5 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">{destinazione.dove}</p>
+          <p>{destinazione.seEsiste}</p>
+          <p>Da PDF non si importano i prodotti del Listino: per quelli serve un foglio Excel o CSV.</p>
         </div>
 
         <div className="flex gap-2">
@@ -269,12 +282,12 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
             ) : extracting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Estrazione AI…
+                Lettura del PDF…
               </>
             ) : (
               <>
                 <Sparkles className="h-4 w-4 mr-2" />
-                Estrai con AI
+                Leggi il PDF con l'AI
               </>
             )}
           </Button>
@@ -287,17 +300,15 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
           <Alert>
             <CheckCircle2 className="h-4 w-4" />
             <AlertTitle>
-              Estrazione completata — {result.rows.length} righe · confidence{" "}
+              Lettura completata — {result.rows.length} righe · affidabilità{" "}
               {(result.confidence * 100).toFixed(0)}%
             </AlertTitle>
             <AlertDescription className="text-xs space-y-1">
               {result.detected_supplier && <div>Fornitore rilevato: {result.detected_supplier}</div>}
-              <div>
-                Token: {result.tokens.input.toLocaleString()} in / {result.tokens.output.toLocaleString()} out · Costo stimato: €{totalCostEur}
-              </div>
+              <div>Costo stimato della lettura: €{totalCostEur}</div>
               {result.confidence < 0.6 && (
                 <div className="text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" /> Confidence bassa: rivedi attentamente prima di importare.
+                  <AlertTriangle className="h-3 w-3" /> Affidabilità bassa: controlla le righe con attenzione prima di importare.
                 </div>
               )}
             </AlertDescription>
@@ -342,6 +353,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
                         <td className="p-1">
                           <Input
                             className="h-7 text-xs"
+                            aria-label={`Codice, riga ${idx + 1}`}
                             value={r.code ?? ""}
                             onChange={(e) => updateRow(idx, { code: e.target.value })}
                           />
@@ -349,6 +361,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
                         <td className="p-1">
                           <Input
                             className="h-7 text-xs"
+                            aria-label={`Descrizione, riga ${idx + 1}`}
                             value={r.name ?? ""}
                             onChange={(e) => updateRow(idx, { name: e.target.value })}
                           />
@@ -356,6 +369,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
                         <td className="p-1">
                           <Input
                             className="h-7 text-xs"
+                            aria-label={`Categoria, riga ${idx + 1}`}
                             value={r.category ?? ""}
                             onChange={(e) => updateRow(idx, { category: e.target.value })}
                           />
@@ -363,6 +377,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
                         <td className="p-1">
                           <Input
                             className="h-7 text-xs w-14"
+                            aria-label={`Unità di misura, riga ${idx + 1}`}
                             value={r.unit ?? ""}
                             onChange={(e) => updateRow(idx, { unit: e.target.value })}
                           />
@@ -372,6 +387,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
                             className="h-7 text-xs text-right w-20"
                             type="number"
                             step="0.01"
+                            aria-label={`Prezzo base, riga ${idx + 1}`}
                             value={r.base_price ?? ""}
                             onChange={(e) =>
                               updateRow(idx, { base_price: e.target.value === "" ? null : Number(e.target.value) })
@@ -383,6 +399,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
                             className="h-7 text-xs text-right w-20"
                             type="number"
                             step="0.01"
+                            aria-label={`Prezzo di listino, riga ${idx + 1}`}
                             value={r.list_price ?? ""}
                             onChange={(e) =>
                               updateRow(idx, { list_price: e.target.value === "" ? null : Number(e.target.value) })
@@ -394,6 +411,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
                             className="h-7 text-xs text-right w-20"
                             type="number"
                             step="0.01"
+                            aria-label={`Costo, riga ${idx + 1}`}
                             value={r.cost ?? ""}
                             onChange={(e) =>
                               updateRow(idx, { cost: e.target.value === "" ? null : Number(e.target.value) })
@@ -405,6 +423,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
                             className="h-7 text-xs text-right w-16"
                             type="number"
                             step="0.01"
+                            aria-label={`IVA %, riga ${idx + 1}`}
                             value={r.vat_rate ?? ""}
                             onChange={(e) =>
                               updateRow(idx, { vat_rate: e.target.value === "" ? null : Number(e.target.value) })
@@ -417,6 +436,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
                         <td className="p-1">
                           <Input
                             className="h-7 text-xs"
+                            aria-label={`Nome, riga ${idx + 1}`}
                             value={r.nome ?? r.name ?? ""}
                             onChange={(e) => updateRow(idx, { nome: e.target.value, name: e.target.value })}
                           />
@@ -424,6 +444,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
                         <td className="p-1">
                           <Input
                             className="h-7 text-xs"
+                            aria-label={`Categoria, riga ${idx + 1}`}
                             value={r.categoria ?? r.category ?? ""}
                             onChange={(e) => updateRow(idx, { categoria: e.target.value, category: e.target.value })}
                           />
@@ -433,6 +454,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
                             className="h-7 text-xs text-right w-20"
                             type="number"
                             step="0.01"
+                            aria-label={`Costo orario, riga ${idx + 1}`}
                             value={r.costo_orario ?? r.cost ?? ""}
                             onChange={(e) =>
                               updateRow(idx, {
@@ -446,6 +468,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
                             className="h-7 text-xs text-right w-20"
                             type="number"
                             step="0.01"
+                            aria-label={`Prezzo orario, riga ${idx + 1}`}
                             value={r.prezzo_orario ?? r.list_price ?? ""}
                             onChange={(e) =>
                               updateRow(idx, {
@@ -460,9 +483,10 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7"
+                        className="h-7 w-7 max-sm:h-10 max-sm:w-10"
                         onClick={() => removeRow(idx)}
                         title="Rimuovi riga"
+                        aria-label={`Rimuovi la riga ${idx + 1}`}
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -476,8 +500,11 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
 
         {rows.length > 0 && (
           <div className="flex items-center justify-between pt-2 border-t">
-            <div className="text-xs text-muted-foreground">
+            <div className="space-y-1 text-xs text-muted-foreground">
               <Badge variant="outline">{rows.length} righe</Badge>
+              <p>
+                {fraseConferma(objectType, rows.length)} {destinazione.annullare}
+              </p>
             </div>
             <Button onClick={handleImport} disabled={importing}>
               {importing ? (
@@ -488,7 +515,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
               ) : (
                 <>
                   <Upload className="h-4 w-4 mr-2" />
-                  Importa {rows.length} record
+                  Importa {contaElementi(objectType, rows.length)}
                 </>
               )}
             </Button>

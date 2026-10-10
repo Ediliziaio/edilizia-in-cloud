@@ -13,11 +13,15 @@
  *  - edit: carica via useFamily(id)
  *
  * Preview prezzo live (FamilyPricePreview) affiancata dallo Step 3 in poi.
+ *
+ * Sola lettura (`soloLettura`): chi può solo consultare il listino apre il prodotto e lo guarda: i campi sono spenti
+ * (un `fieldset disabled` per scheda), i pulsanti di salvataggio non ci sono e «Prodotto attivo» / «Proposto nei
+ * preventivi» non si cambiano. Il database comunque rifiuta le modifiche di chi non ha il permesso.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseDecimalField, assertFiniteRange } from "@/lib/listino/numeriEditor";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -52,6 +56,8 @@ import { useArticleImageUpload } from "@/hooks/useArticleImageUpload";
 import { useAuth } from "@/contexts/AuthContext";
 import { useListinoMacrocategorie } from "@/hooks/useListinoMacrocategorie";
 import { useListinoCategorie } from "@/hooks/useListinoCategorie";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { messaggioErroreListino } from "@/lib/listinoErrors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -114,6 +120,15 @@ interface Tariffa {
   tipo: string;
 }
 
+/**
+ * I colori del margine in questa schermata (manodopera e riepilogo): verde da 20% in su, giallo sotto, avviso sotto il
+ * 10%. Sono soglie FISSE di questa pagina: non sono il «Margine minimo» di Prezzo e margini né quella del Listino (15%).
+ * Oggi sono tre numeri diversi (decisione D4 di Florin ancora aperta); qui sono scritti una volta sola.
+ */
+const SOGLIA_MARGINE_VERDE = 20;
+const SOGLIA_MARGINE_AVVISO = 10;
+const NOTA_SOGLIE_MARGINE = `Verde da ${SOGLIA_MARGINE_VERDE}% in su, giallo sotto, avviso sotto il ${SOGLIA_MARGINE_AVVISO}%. Sono soglie fisse di questa pagina, non il «Margine minimo» di Prezzo e margini.`;
+
 const MODALITA_CARDS: Array<{
   value: ModalitaPrezzoBase;
   label: string;
@@ -122,7 +137,7 @@ const MODALITA_CARDS: Array<{
   { value: "pz", label: "A pezzo", descrizione: "Un prezzo per ogni pezzo. Es. portoncini, porte, accessori." },
   { value: "mq", label: "Al mq", descrizione: "Prezzo al metro quadro, moltiplicato per la superficie. Es. finestre." },
   { value: "griglia", label: "Griglia L×H", descrizione: "Un prezzo per ogni misura: tabella larghezza × altezza da compilare." },
-  { value: "misura_libera", label: "Misura libera", descrizione: "Il prezzo si scrive nel preventivo." },
+  { value: "misura_libera", label: "Misura libera", descrizione: "Il prezzo è quello a corpo; la misura la scrivi nel preventivo solo per descriverla." },
 ];
 
 const UM_OPTIONS = ["pz", "mq", "ml", "mc", "kg", "a_corpo"];
@@ -144,23 +159,23 @@ const MANODOPERA_MODALITA_CARDS: Array<{
 }> = [
   {
     value: "tariffa",
-    label: "Tariffa aziendale",
+    label: "Voce di Manodopera e servizi",
     descrizione:
-      "Usa una tariffa dal listino manodopera (uomo/giorno, ponteggio...). Ideale se i costi sono standard per tipo di intervento.",
+      "Usa una voce di Listino → Manodopera e servizi (uomo/giorno, ponteggio…). Ideale se i costi sono standard per tipo di intervento.",
     icon: Wrench,
   },
   {
     value: "manuale",
     label: "Importo manuale",
     descrizione:
-      "Fisso io costo di montaggio (pagato al subappaltatore) e prezzo di vendita. Ideale per tariffa a corpo specifica di questo articolo.",
+      "Scrivo io il costo di montaggio (pagato al subappaltatore) e il prezzo di vendita. Ideale per un prezzo a corpo specifico di questo prodotto.",
     icon: Banknote,
   },
   {
     value: "nessuna",
     label: "Nessuna manodopera",
     descrizione:
-      "L'articolo non prevede montaggio automatico. Il cliente riceve solo il prodotto.",
+      "Il prodotto non prevede montaggio automatico. Il cliente riceve solo il prodotto.",
     icon: Ban,
   },
 ];
@@ -174,7 +189,7 @@ const MANODOPERA_UNITA_OPTIONS: Array<{
   { value: "ml", label: "al metro lineare", hint: "€ × ml di serramento" },
   { value: "mq", label: "al mq", hint: "€ × superficie serramento" },
   { value: "h", label: "all'ora", hint: "€ × ore di installazione" },
-  { value: "a_corpo", label: "a corpo", hint: "forfait per l'intero articolo" },
+  { value: "a_corpo", label: "a corpo", hint: "forfait per l'intero prodotto" },
 ];
 
 const PREZZO_MODE_CARDS: Array<{
@@ -186,20 +201,27 @@ const PREZZO_MODE_CARDS: Array<{
     value: "vendita",
     label: "Prezzo di vendita",
     descrizione:
-      "Carico direttamente il prezzo finale al cliente. Se scrivo anche il costo, il margine si calcola da solo.",
+      "Scrivo il prezzo finale al cliente. Se scrivo anche il costo, il margine si calcola da solo.",
   },
   {
     value: "acquisto_markup",
-    label: "Prezzo di acquisto + markup",
+    label: "Costo + ricarico",
     descrizione:
-      "Carico il prezzo del fornitore. Il prezzo di vendita viene calcolato automaticamente.",
+      "Scrivo il costo del fornitore e il ricarico: il prezzo si calcola da solo.",
   },
 ];
 
-export function FamilyEditor() {
+export function FamilyEditor({ soloLettura = false }: { soloLettura?: boolean } = {}) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { effectiveCompany } = useAuth();
+  const location = useLocation();
+  const { effectiveCompany, role } = useAuth();
+  // Le tipologie le crea e le cambia solo l'amministratore (è la regola del database): il pulsante «Gestisci» è suo.
+  const gestoreTipologie = role === "company_admin" || role === "super_admin";
+  const puoModificare = !soloLettura;
+  // Il listino ci manda con l'indirizzo di partenza (area, tipologia, linea): «Torna al listino» ci riporta lì.
+  const ritornoAlListino = (location.state as { ritorno?: string } | null)?.ritorno ?? "";
+  const indirizzoListino = `/azienda/impostazioni/listino${ritornoAlListino ? `?${ritornoAlListino}` : ""}`;
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   const { createFamily, updateFamily, duplicateFamily } = useFamilyMutations();
@@ -321,6 +343,23 @@ export function FamilyEditor() {
   const isDirty =
     initialSnapshotRef.current !== null &&
     initialSnapshotRef.current !== currentSnapshot;
+
+  // «Prodotto attivo» e «Proposto nei preventivi» si cambiano dal prodotto e valgono subito, come nell'elenco.
+  // Mentre una modifica viaggia i due interruttori sono spenti (`disabled`): un secondo clic non può partire.
+  const [interruttoreInCorso, setInterruttoreInCorso] = useState(false);
+  const cambiaInterruttore = async (patch: { attivo: boolean } | { mostra_preventivo: boolean }) => {
+    if (!family || !puoModificare) return;
+    setInterruttoreInCorso(true);
+    try {
+      await updateFamily.mutateAsync({ id: family.id, patch });
+      if ("attivo" in patch) toast.success(patch.attivo ? "Prodotto riattivato" : "Prodotto disattivato");
+      else toast.success(patch.mostra_preventivo ? "Proposto nei preventivi" : "Nascosto dai preventivi");
+    } catch (err) {
+      toast.error("Modifica non riuscita", { description: messaggioErroreListino(err) });
+    } finally {
+      setInterruttoreInCorso(false);
+    }
+  };
 
   // ── Query: macrocategorie + categorie + tariffe ────────────────────────
   const { macrocategorie } = useListinoMacrocategorie();
@@ -456,20 +495,9 @@ export function FamilyEditor() {
     }
   }, [isNew, family, currentSnapshot, loadingCategorie]);
 
-  // beforeunload guard: avvisa l'utente se sta chiudendo/refreshando con
-  // modifiche non salvate (Step 1). Non blocca navigazioni dentro l'app
-  // (gestite con conferma esplicita sui bottoni "Annulla").
-  useEffect(() => {
-    if (!isDirty) return;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      // Stringa moderna: Chrome ignora il messaggio custom, ma il dialog appare.
-      e.returnValue = "";
-      return "";
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [isDirty]);
+  // Ricaricamento e link interni (menu, schede) chiedono conferma se ci sono modifiche non salvate; «Torna al
+  // listino» la chiede da sé. Prima la guardia copriva solo il ricaricamento della pagina.
+  useSettingsDraftGuard(isDirty);
 
   const { data: tariffe = [] } = useQuery({
     queryKey: ["tariffe-for-editor", companyId],
@@ -557,7 +585,7 @@ export function FamilyEditor() {
     if (!familyId) {
       if (!nome.trim()) {
         toast.error("Serve un nome", {
-          description: "Inserisci il nome dell'articolo prima di caricare un'immagine.",
+          description: "Scrivi il nome del prodotto prima di caricare la foto.",
         });
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
@@ -573,7 +601,7 @@ export function FamilyEditor() {
 
     const result = await uploadImage(familyId, file);
     if (!result.ok) {
-      toast.error("Errore upload immagine", { description: result.error });
+      toast.error("Foto non caricata", { description: result.error });
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -587,10 +615,10 @@ export function FamilyEditor() {
         id: familyId,
         patch: { immagine_url: result.url },
       });
-      toast.success("Immagine caricata");
+      toast.success("Foto caricata");
     } catch (err) {
-      toast.error("Errore salvataggio URL immagine", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      toast.error("Foto caricata ma non salvata", {
+        description: messaggioErroreListino(err),
       });
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -605,7 +633,7 @@ export function FamilyEditor() {
     }
     const result = await removeImage(family.id);
     if (!result.ok) {
-      toast.error("Errore rimozione immagine", { description: result.error });
+      toast.error("Foto non rimossa", { description: result.error });
       return;
     }
     setImmagineUrl(null);
@@ -614,10 +642,10 @@ export function FamilyEditor() {
         id: family.id,
         patch: { immagine_url: null },
       });
-      toast.success("Immagine rimossa");
+      toast.success("Foto rimossa");
     } catch (err) {
-      toast.error("Errore aggiornamento", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      toast.error("Modifica non riuscita", {
+        description: messaggioErroreListino(err),
       });
     }
   };
@@ -640,7 +668,7 @@ export function FamilyEditor() {
       // Articolo nuovo: salviamo per ottenere un id, poi persistiamo l'URL.
       const savedId = await saveBase();
       if (!savedId) {
-        toast.error("Salva prima l'articolo (Step 1) per assegnare la foto");
+        toast.error("Salva prima i dati base del prodotto per assegnare la foto");
         return;
       }
       try {
@@ -651,8 +679,8 @@ export function FamilyEditor() {
         setImmagineUrl(photo.image_url);
         toast.success(`Foto "${photo.nome}" applicata`);
       } catch (err) {
-        toast.error("Errore salvataggio foto", {
-          description: err instanceof Error ? err.message : "Errore sconosciuto",
+        toast.error("Foto non salvata", {
+          description: messaggioErroreListino(err),
         });
       }
       return;
@@ -665,8 +693,8 @@ export function FamilyEditor() {
       setImmagineUrl(photo.image_url);
       toast.success(`Foto "${photo.nome}" applicata`);
     } catch (err) {
-      toast.error("Errore salvataggio foto", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      toast.error("Foto non salvata", {
+        description: messaggioErroreListino(err),
       });
     }
   };
@@ -675,7 +703,7 @@ export function FamilyEditor() {
   const saveBase = async (): Promise<string | null> => {
     if (!nome.trim()) {
       toast.error("Serve un nome", {
-        description: "Inserisci il nome dell'articolo prima di salvare.",
+        description: "Scrivi il nome del prodotto prima di salvare.",
       });
       return null;
     }
@@ -714,7 +742,7 @@ export function FamilyEditor() {
       assertFiniteRange(prezzoVenditaInput, "Prezzo di vendita", { min: 0 });
 
       markupValoreNum = parseDecimalField(markupValore, 0);
-      assertFiniteRange(markupValoreNum, "Markup", { min: 0 });
+      assertFiniteRange(markupValoreNum, "Ricarico", { min: 0 });
 
       scontoFornitore1Num = parseDecimalField(scontoFornitore1, 0);
       scontoFornitore2Num = parseDecimalField(scontoFornitore2, 0);
@@ -854,23 +882,24 @@ export function FamilyEditor() {
           attivo: true,
           sort_order: 0,
         });
-        toast.success("Articolo creato");
+        toast.success("Prodotto creato");
         // Snapshot post-save: niente beforeunload finché l'utente non modifica di nuovo.
         initialSnapshotRef.current = currentSnapshot;
-        // Redirect a /:id per continuare editing
+        // Redirect a /:id per continuare editing (l'indirizzo del listino di partenza resta)
         navigate(`/azienda/impostazioni/listino/famiglie/${created.id}`, {
           replace: true,
+          state: location.state,
         });
         return created.id;
       } else if (family) {
         await updateFamily.mutateAsync({ id: family.id, patch: payload });
-        toast.success("Articolo aggiornato");
+        toast.success("Prodotto aggiornato");
         initialSnapshotRef.current = currentSnapshot;
         return family.id;
       }
     } catch (err) {
-      toast.error("Errore salvataggio", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      toast.error("Prodotto non salvato", {
+        description: messaggioErroreListino(err),
       });
     }
     return null;
@@ -880,8 +909,9 @@ export function FamilyEditor() {
   const saving = createFamily.isPending || updateFamily.isPending;
 
   // M-31 (audit): il beforeunload copre solo l'unload del browser, non la
-  // navigazione SPA — il ritorno al catalogo usciva senza conferma anche con
-  // modifiche non salvate.
+  // navigazione SPA — il ritorno al listino usciva senza conferma anche con
+  // modifiche non salvate. Si torna alla stessa area, tipologia e linea da cui si era partiti (prima si
+  // ripartiva dalla prima area del listino).
   const handleBackToCatalog = () => {
     if (
       isDirty &&
@@ -889,19 +919,19 @@ export function FamilyEditor() {
     ) {
       return;
     }
-    navigate("/azienda/impostazioni/listino/famiglie");
+    navigate(indirizzoListino);
   };
 
   // Duplica
   const handleDuplicate = async () => {
-    if (!family) return;
+    if (!family || !puoModificare) return;
     try {
-      // M-Y (audit): il bottone promette "Salva e crea copia" ma duplicava lo
+      // M-Y (audit): il bottone promette "Salva e duplica" ma duplicava lo
       // stato DB, perdendo le modifiche del form non ancora salvate. Salviamo
       // prima, così la copia parte dai dati che l'utente vede.
       if (isDirty) {
         if (!canSaveBase) {
-          toast.error("Inserisci il nome dell'articolo prima di duplicare");
+          toast.error("Scrivi il nome del prodotto prima di duplicare");
           return;
         }
         const savedId = await saveBase();
@@ -911,11 +941,11 @@ export function FamilyEditor() {
         sourceId: family.id,
         newName: `${family.nome} (copia)`,
       });
-      toast.success("Articolo duplicato");
-      navigate(`/azienda/impostazioni/listino/famiglie/${newId}`);
+      toast.success("Prodotto duplicato");
+      navigate(`/azienda/impostazioni/listino/famiglie/${newId}`, { state: location.state });
     } catch (err) {
-      toast.error("Errore duplicazione", {
-        description: err instanceof Error ? err.message : "Errore sconosciuto",
+      toast.error("Prodotto non duplicato", {
+        description: messaggioErroreListino(err),
       });
     }
   };
@@ -924,7 +954,7 @@ export function FamilyEditor() {
     return (
       <div className="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin mr-2" aria-hidden="true" />
-        Caricamento articolo…
+        Caricamento del prodotto…
       </div>
     );
   }
@@ -933,13 +963,13 @@ export function FamilyEditor() {
     return (
       <Card>
         <CardContent className="py-12 text-center">
-          <p className="font-medium">Articolo non trovato</p>
+          <p className="font-medium">Prodotto non trovato</p>
           <Button
             className="mt-4"
             variant="outline"
-            onClick={() => navigate("/azienda/impostazioni/listino/famiglie")}
+            onClick={() => navigate(indirizzoListino)}
           >
-            Torna al catalogo
+            Torna al listino
           </Button>
         </CardContent>
       </Card>
@@ -948,15 +978,21 @@ export function FamilyEditor() {
 
   return (
     <div className="space-y-4">
-      <header className="flex items-center justify-between gap-3">
+      {soloLettura && (
+        <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground" role="note">
+          Stai consultando il prodotto: lo modifica chi ha il permesso «Listino &amp; Prezzi» in modifica.
+        </p>
+      )}
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <Button variant="ghost" size="sm" onClick={handleBackToCatalog}>
             <ArrowLeft className="h-4 w-4 mr-1" aria-hidden="true" />
-            Articoli
+            Listino
           </Button>
           <div className="min-w-0">
-            <h1 className="text-xl font-semibold truncate flex items-center gap-2">
-              {isNew ? "Nuovo articolo" : family?.nome}
+            {/* Il titolo della pagina («Listino») lo mette il layout: il nome del prodotto è un titolo di sezione. */}
+            <h2 className="text-xl font-semibold truncate flex items-center gap-2">
+              {isNew ? "Nuovo prodotto" : family?.nome}
               {isDirty && (
                 <span
                   className="inline-flex items-center gap-1 text-[11px] font-normal text-amber-700 dark:text-amber-400"
@@ -966,7 +1002,7 @@ export function FamilyEditor() {
                   Non salvato
                 </span>
               )}
-            </h1>
+            </h2>
             {!isNew && family ? (
               <p className="text-xs text-muted-foreground">
                 Aggiornata{" "}
@@ -979,19 +1015,46 @@ export function FamilyEditor() {
           </div>
         </div>
         {!isNew && family ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDuplicate}
-            disabled={duplicateFamily.isPending}
-          >
-            {duplicateFamily.isPending ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-            ) : (
-              <CopyPlus className="h-4 w-4 mr-2" aria-hidden="true" />
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            {/* Le due scelte che si fanno più spesso: valgono subito, senza «Salva». Stessi nomi dell'elenco. */}
+            <div className="flex min-h-[44px] items-center gap-2">
+              <Switch
+                id="f-attivo"
+                checked={family.attivo}
+                onCheckedChange={(valore) => void cambiaInterruttore({ attivo: valore })}
+                disabled={!puoModificare || interruttoreInCorso}
+              />
+              <Label htmlFor="f-attivo" className="cursor-pointer text-sm font-normal">
+                Prodotto attivo
+              </Label>
+            </div>
+            <div className="flex min-h-[44px] items-center gap-2">
+              <Switch
+                id="f-nei-preventivi"
+                checked={family.mostra_preventivo !== false}
+                onCheckedChange={(valore) => void cambiaInterruttore({ mostra_preventivo: valore })}
+                disabled={!puoModificare || interruttoreInCorso}
+              />
+              <Label htmlFor="f-nei-preventivi" className="cursor-pointer text-sm font-normal">
+                Proposto nei preventivi
+              </Label>
+            </div>
+            {puoModificare && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDuplicate}
+                disabled={duplicateFamily.isPending}
+              >
+                {duplicateFamily.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
+                ) : (
+                  <CopyPlus className="h-4 w-4 mr-2" aria-hidden="true" />
+                )}
+                Duplica
+              </Button>
             )}
-            Duplica
-          </Button>
+          </div>
         ) : null}
       </header>
 
@@ -999,16 +1062,18 @@ export function FamilyEditor() {
         {/* Colonna principale: step */}
         <div className="lg:col-span-2">
           <Tabs value={activeStep} onValueChange={setActiveStep}>
+            {/* Da telefono i cinque passi scorrono di lato: senza `shrink-0` si stringevano fino a sovrapporsi. */}
             <TabsList className="flex justify-start gap-1 w-full max-w-full overflow-x-auto sm:grid sm:grid-cols-5 sm:gap-0">
-              <TabsTrigger value="1">1. Dati base</TabsTrigger>
-              <TabsTrigger value="2" disabled={isNew}>2. Prezzo</TabsTrigger>
-              <TabsTrigger value="3" disabled={isNew}>3. Opzioni</TabsTrigger>
-              <TabsTrigger value="4" disabled={isNew}>4. Manodopera</TabsTrigger>
-              <TabsTrigger value="5" disabled={isNew}>5. Riepilogo</TabsTrigger>
+              <TabsTrigger value="1" className="shrink-0">1. Dati base</TabsTrigger>
+              <TabsTrigger value="2" className="shrink-0" disabled={isNew}>2. Prezzo</TabsTrigger>
+              <TabsTrigger value="3" className="shrink-0" disabled={isNew}>3. Opzioni</TabsTrigger>
+              <TabsTrigger value="4" className="shrink-0" disabled={isNew}>4. Manodopera</TabsTrigger>
+              <TabsTrigger value="5" className="shrink-0" disabled={isNew}>5. Riepilogo</TabsTrigger>
             </TabsList>
 
             {/* STEP 1 — Dati base */}
-            <TabsContent value="1" className="space-y-4 mt-4">
+            <TabsContent value="1" className="mt-4">
+              <fieldset disabled={soloLettura} className="m-0 min-w-0 space-y-4 border-0 p-0">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">Come si vende questo prodotto?</CardTitle>
@@ -1089,7 +1154,7 @@ export function FamilyEditor() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div>
-                    <Label htmlFor="f-nome">Nome articolo *</Label>
+                    <Label htmlFor="f-nome">Nome del prodotto *</Label>
                     <Input
                       id="f-nome"
                       value={nome}
@@ -1099,7 +1164,7 @@ export function FamilyEditor() {
                   </div>
 
                   <div>
-                    <Label htmlFor="f-codice">Codice articolo (SKU)</Label>
+                    <Label htmlFor="f-codice">Codice del prodotto (SKU)</Label>
                     <Input
                       id="f-codice"
                       value={codice}
@@ -1126,24 +1191,26 @@ export function FamilyEditor() {
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Da chi acquisti questo prodotto. Lo ritrovi nel fornitore tra i
-                      prodotti collegati e nel preventivo/commessa.
+                      Da chi acquisti questo prodotto. Lo ritrovi nel fornitore, tra i
+                      prodotti collegati.
                     </p>
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between gap-2">
                       <Label htmlFor="f-macrocategoria">Tipologia</Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-auto p-1 text-xs"
-                        onClick={() => setShowCategorieManager(true)}
-                      >
-                        <FolderTree className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
-                        Gestisci
-                      </Button>
+                      {gestoreTipologie && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-1 text-xs"
+                          onClick={() => setShowCategorieManager(true)}
+                        >
+                          <FolderTree className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+                          Gestisci
+                        </Button>
+                      )}
                     </div>
                     <Select
                       value={macrocategoriaId}
@@ -1222,13 +1289,13 @@ export function FamilyEditor() {
                       riconoscimento visivo nell'elenco e in preventivo. */}
                   {!disegno.tipologia && (
                   <div>
-                    <Label>Immagine articolo (opzionale)</Label>
+                    <Label id="f-foto-etichetta">Foto del prodotto (facoltativa)</Label>
                     <p className="text-xs text-muted-foreground mt-1 mb-2">
-                      Carica una foto rappresentativa — es. cassonetto, finestra
-                      2 ante, controtelaio, ecc. Apparirà nell&apos;elenco articoli
-                      e nel preventivo. Max 3 MB, formati PNG/JPG/WEBP.
+                      Carica una foto rappresentativa: un cassonetto, una finestra
+                      a 2 ante, un controtelaio… Si vede nel listino e nel preventivo.
+                      Massimo 3 MB, formati PNG, JPG o WEBP.
                     </p>
-                    <div className="flex items-start gap-4">
+                    <div className="flex items-start gap-4" role="group" aria-labelledby="f-foto-etichetta">
                       {/* Preview */}
                       <div className="h-28 w-28 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center overflow-hidden bg-muted/50 shrink-0">
                         {immagineUrl ? (
@@ -1236,12 +1303,12 @@ export function FamilyEditor() {
                             type="button"
                             onClick={() => setImageZoomOpen(true)}
                             className="group relative h-full w-full cursor-zoom-in"
-                            title="Ingrandisci immagine"
-                            aria-label="Ingrandisci immagine articolo"
+                            title="Ingrandisci la foto"
+                            aria-label="Ingrandisci la foto del prodotto"
                           >
                             <img loading="lazy"
                               src={immagineUrl}
-                              alt={`Preview ${nome || "articolo"}`}
+                              alt={`Anteprima di ${nome || "prodotto"}`}
                               className="h-full w-full object-cover"
                             />
                             <span className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100">
@@ -1266,8 +1333,8 @@ export function FamilyEditor() {
                           onClick={() => fileInputRef.current?.click()}
                           aria-label={
                             immagineUrl
-                              ? "Cambia immagine articolo"
-                              : "Carica immagine articolo"
+                              ? "Cambia la foto del prodotto"
+                              : "Carica la foto del prodotto"
                           }
                         >
                           {isUploading ? (
@@ -1296,7 +1363,7 @@ export function FamilyEditor() {
                             className="h-9 text-destructive hover:text-destructive"
                             disabled={isUploading || isRemoving}
                             onClick={() => void handleImageRemove()}
-                            aria-label="Rimuovi immagine articolo"
+                            aria-label="Rimuovi la foto del prodotto"
                           >
                             {isRemoving ? (
                               <>
@@ -1327,7 +1394,7 @@ export function FamilyEditor() {
                           className="h-9 border-orange-300 text-orange-700 hover:bg-orange-50"
                           disabled={isUploading || isRemoving}
                           onClick={() => setPhotoTemplatePickerOpen(true)}
-                          aria-label="Scegli foto dalla galleria template"
+                          aria-label="Scegli una foto dalla galleria"
                         >
                           <ImageIcon className="h-4 w-4 mr-2" aria-hidden="true" />
                           Scegli da galleria
@@ -1425,6 +1492,7 @@ export function FamilyEditor() {
               )}
 
 
+              {puoModificare && (
               <div className="flex justify-end">
                 <Button
                   onClick={async () => {
@@ -1445,17 +1513,20 @@ export function FamilyEditor() {
                   ) : (
                     <>
                       <Save className="h-4 w-4 mr-2" aria-hidden="true" />
-                      {isNew ? "Crea articolo" : "Salva dati base"}
+                      {isNew ? "Crea il prodotto" : "Salva"}
                     </>
                   )}
                 </Button>
               </div>
+              )}
                 </>
               ) : null}
+              </fieldset>
             </TabsContent>
 
             {/* STEP 2 — Prezzo */}
-            <TabsContent value="2" className="space-y-4 mt-4">
+            <TabsContent value="2" className="mt-4">
+              <fieldset disabled={soloLettura} className="m-0 min-w-0 space-y-4 border-0 p-0">
               {modalita === "griglia" && family ? (
                 <>
                   {/* Parametri prezzo famiglia: sconti fornitore + markup.
@@ -1466,12 +1537,13 @@ export function FamilyEditor() {
                   <Card className="border-primary/30 bg-primary/5">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        Parametri prezzo famiglia
+                        Costo, sconti e ricarico di tutta la griglia
                       </CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Sconti fornitore e markup applicati su <strong>tutte</strong>{" "}
-                        le celle della matrice. Il prezzo di vendita di ogni cella
-                        si ricalcola quando salvi la griglia qui sotto.
+                        Gli sconti del fornitore e il ricarico valgono per{" "}
+                        <strong>tutte</strong> le celle della tabella. Il prezzo di
+                        vendita di ogni cella si ricalcola quando salvi la griglia
+                        qui sotto.
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -1480,8 +1552,9 @@ export function FamilyEditor() {
                       <AvvisoCelleGriglia family={family} parametriDaSalvare={isDirty} />
                       {/* Modalità prezzo */}
                       <div>
-                        <Label>Modalità gestione prezzo</Label>
+                        <Label id="grid-prezzo-mode-etichetta">Come ottieni il prezzo di vendita</Label>
                         <RadioGroup
+                          aria-labelledby="grid-prezzo-mode-etichetta"
                           value={prezzoBaseMode}
                           onValueChange={(v) =>
                             setPrezzoBaseMode(v as PrezzoBaseMode)
@@ -1515,15 +1588,15 @@ export function FamilyEditor() {
                       {/* Sconti + markup visibili solo in acquisto_markup */}
                       {prezzoBaseMode === "acquisto_markup" ? (
                         <>
-                          <div className="rounded-md border bg-background p-3 space-y-2">
-                            <Label className="text-sm font-medium">
-                              Sconti fornitore in cascata
+                          <div className="rounded-md border bg-background p-3 space-y-2" role="group" aria-labelledby="grid-sconti-etichetta">
+                            <Label id="grid-sconti-etichetta" className="text-sm font-medium">
+                              Sconti del fornitore, uno dopo l'altro
                             </Label>
                             <p className="text-xs text-muted-foreground">
-                              Se i prezzi nelle celle della griglia sono il{" "}
-                              <strong>lordo listino fornitore</strong>, inserisci
-                              qui la scontistica. Es. "55% + 3%". Lascia 0/0 se
-                              hai già inserito l'acquisto netto.
+                              Se i prezzi nelle celle della griglia sono quelli di{" "}
+                              <strong>listino del fornitore, prima degli sconti</strong>,
+                              scrivi qui gli sconti. Per esempio «55% + 3%». Lascia
+                              0 e 0 se hai già scritto il costo netto.
                             </p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                               <div>
@@ -1551,7 +1624,7 @@ export function FamilyEditor() {
                                   htmlFor="grid-sconto-fornitore-2"
                                   className="text-xs"
                                 >
-                                  Sconto 2 cascata (%)
+                                  Secondo sconto (%), dopo il primo
                                 </Label>
                                 <Input
                                   id="grid-sconto-fornitore-2"
@@ -1571,7 +1644,7 @@ export function FamilyEditor() {
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                              <Label htmlFor="grid-markup-tipo">Tipo markup</Label>
+                              <Label htmlFor="grid-markup-tipo">Come applichi il ricarico</Label>
                               <Select
                                 value={markupTipo}
                                 onValueChange={(v) =>
@@ -1598,8 +1671,8 @@ export function FamilyEditor() {
                               <div>
                                 <Label htmlFor="grid-markup-valore">
                                   {markupTipo === "percentuale"
-                                    ? "Markup (%)"
-                                    : "Markup (€/pz)"}
+                                    ? "Ricarico (%)"
+                                    : "Ricarico (€ a pezzo)"}
                                 </Label>
                                 <Input
                                   id="grid-markup-valore"
@@ -1627,7 +1700,7 @@ export function FamilyEditor() {
                             <span className="font-medium text-foreground">
                               Formula:
                             </span>{" "}
-                            lordo ×{" "}
+                            prezzo di listino ×{" "}
                             {(parseDecimalField(scontoFornitore1) || 0) > 0
                               ? `(1 − ${parseDecimalField(scontoFornitore1)}%)`
                               : "1"}{" "}
@@ -1640,18 +1713,19 @@ export function FamilyEditor() {
                               ? `(1 + ${parseDecimalField(markupValore) || 0}%)`
                               : markupTipo === "fisso_pz"
                                 ? `(+ ${formatCurrency(parseDecimalField(markupValore) || 0)} fissi/pz)`
-                                : "1 (no markup)"}{" "}
+                                : "1 (nessun ricarico)"}{" "}
                             = vendita
                           </div>
                         </>
                       ) : (
                         <div className="rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">
-                          In modalità <strong>vendita diretta</strong> il prezzo
-                          di ogni cella è quello finale al cliente: nessuno
-                          sconto o markup applicato dal sistema.
+                          Con il <strong>prezzo di vendita</strong> scritto a mano il
+                          prezzo di ogni cella è quello finale al cliente: il
+                          sistema non applica nessuno sconto né ricarico.
                         </div>
                       )}
 
+                      {puoModificare && (
                       <div className="flex justify-end pt-2">
                         <Button
                           onClick={saveBase}
@@ -1669,11 +1743,12 @@ export function FamilyEditor() {
                           ) : (
                             <>
                               <Save className="h-4 w-4 mr-2" aria-hidden="true" />
-                              Salva parametri
+                              Salva
                             </>
                           )}
                         </Button>
                       </div>
+                      )}
                     </CardContent>
                   </Card>
 
@@ -1693,7 +1768,7 @@ export function FamilyEditor() {
                       if (!isDirty) return true;
                       if (!canSaveBase) {
                         toast.error(
-                          "Inserisci il nome dell'articolo prima di salvare la griglia",
+                          "Scrivi il nome del prodotto prima di salvare la griglia",
                         );
                         return false;
                       }
@@ -1706,15 +1781,16 @@ export function FamilyEditor() {
                   <CardHeader>
                     <CardTitle className="text-base">Prezzo base</CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      Scegli come gestire il prezzo: direttamente quello di
-                      vendita o quello di acquisto con un markup.
+                      Scegli come ottenere il prezzo: scrivi quello di vendita,
+                      oppure il costo del fornitore con un ricarico.
                     </p>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Selettore modalità prezzo */}
                     <div>
-                      <Label>Modalità gestione prezzo</Label>
+                      <Label id="f-prezzo-mode-etichetta">Come ottieni il prezzo di vendita</Label>
                       <RadioGroup
+                        aria-labelledby="f-prezzo-mode-etichetta"
                         value={prezzoBaseMode}
                         onValueChange={(v) =>
                           setPrezzoBaseMode(v as PrezzoBaseMode)
@@ -1804,14 +1880,14 @@ export function FamilyEditor() {
                         })()}
                       </div>
                     ) : (
-                      /* Branch: acquisto + markup → vendita derivata */
+                      /* Branch: costo + ricarico → vendita derivata */
                       <div className="space-y-3">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <Label htmlFor="f-prezzo-acquisto">
                               {scontiAttivi
-                                ? "Prezzo LORDO di listino fornitore (€)"
-                                : "Prezzo di acquisto (€, netto)"}
+                                ? "Prezzo di listino del fornitore, prima degli sconti (€)"
+                                : "Costo di acquisto (€, netto)"}
                             </Label>
                             <Input
                               id="f-prezzo-acquisto"
@@ -1825,7 +1901,7 @@ export function FamilyEditor() {
                             />
                             <p className="text-xs text-muted-foreground mt-1">
                               {scontiAttivi
-                                ? `Listino fornitore NON scontato. Netto calcolato: ${formatCurrency(acquistoNetto)}.`
+                                ? `Prezzo di listino senza sconti. Costo netto calcolato: ${formatCurrency(acquistoNetto)}.`
                                 : "Costo dal fornitore al netto di IVA."}
                             </p>
                           </div>
@@ -1862,18 +1938,18 @@ export function FamilyEditor() {
                         </div>
 
                         {/* Sconti fornitore in cascata — opzionali, 0/0 = disattivi */}
-                        <div className="rounded-md border bg-muted/10 p-3 space-y-2">
+                        <div className="rounded-md border bg-muted/10 p-3 space-y-2" role="group" aria-labelledby="f-sconti-etichetta">
                           <div className="flex items-baseline justify-between gap-2">
                             <div>
-                              <Label className="text-sm font-medium">
-                                Sconti fornitore in cascata
+                              <Label id="f-sconti-etichetta" className="text-sm font-medium">
+                                Sconti del fornitore, uno dopo l'altro
                               </Label>
                               <p className="text-xs text-muted-foreground mt-0.5">
-                                Se il prezzo sopra è il{" "}
-                                <strong>lordo di listino</strong> (es. Finestra a
-                                Wasistas), inserisci qui la scontistica
-                                commerciale del fornitore. Es. &quot;55% + 3%&quot;.
-                                Lascia 0/0 se hai già inserito l'acquisto netto.
+                                Se il prezzo sopra è quello di{" "}
+                                <strong>listino, prima degli sconti</strong> (per
+                                esempio una finestra a wasistas), scrivi qui gli
+                                sconti del fornitore. Per esempio &quot;55% + 3%&quot;.
+                                Lascia 0 e 0 se hai già scritto il costo netto.
                               </p>
                             </div>
                           </div>
@@ -1897,7 +1973,7 @@ export function FamilyEditor() {
                             </div>
                             <div>
                               <Label htmlFor="f-sconto-fornitore-2" className="text-xs">
-                                Sconto 2 in cascata (%)
+                                Secondo sconto (%), dopo il primo
                               </Label>
                               <Input
                                 id="f-sconto-fornitore-2"
@@ -1915,7 +1991,7 @@ export function FamilyEditor() {
                           </div>
                           {scontiAttivi ? (
                             <div className="text-xs text-muted-foreground pt-1 border-t">
-                              <span className="font-medium">Acquisto netto calcolato:</span>{" "}
+                              <span className="font-medium">Costo netto calcolato:</span>{" "}
                               <span className="font-semibold text-foreground">
                                 {formatCurrency(acquistoNetto)}
                               </span>{" "}
@@ -1934,7 +2010,7 @@ export function FamilyEditor() {
                         </div>
 
                         <div>
-                          <Label htmlFor="f-markup-tipo">Tipo markup</Label>
+                          <Label htmlFor="f-markup-tipo">Come applichi il ricarico</Label>
                           <Select
                             value={markupTipo}
                             onValueChange={(v) =>
@@ -1965,8 +2041,8 @@ export function FamilyEditor() {
                           <div className="max-w-xs">
                             <Label htmlFor="f-markup-valore">
                               {markupTipo === "percentuale"
-                                ? "Markup (%)"
-                                : "Markup (€/pz)"}
+                                ? "Ricarico (%)"
+                                : "Ricarico (€ a pezzo)"}
                             </Label>
                             <Input
                               id="f-markup-valore"
@@ -1987,7 +2063,7 @@ export function FamilyEditor() {
                             />
                             <p className="text-xs text-muted-foreground mt-1">
                               {markupTipo === "percentuale"
-                                ? "Ricarico in percentuale sul prezzo di acquisto."
+                                ? "Ricarico in percentuale sul costo di acquisto."
                                 : "Ricarico fisso in euro per ogni pezzo."}
                             </p>
                           </div>
@@ -2029,6 +2105,7 @@ export function FamilyEditor() {
                       </div>
                     )}
 
+                    {puoModificare && (
                     <div className="flex justify-end pt-2">
                       <Button
                         onClick={saveBase}
@@ -2045,23 +2122,28 @@ export function FamilyEditor() {
                         ) : (
                           <>
                             <Save className="h-4 w-4 mr-2" aria-hidden="true" />
-                            Salva prezzo
+                            Salva
                           </>
                         )}
                       </Button>
                     </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
+              </fieldset>
             </TabsContent>
 
             {/* STEP 3 — Assi */}
             <TabsContent value="3" className="mt-4">
-              {family ? <FamilyAxesEditor family={family} /> : null}
+              <fieldset disabled={soloLettura} className="m-0 min-w-0 border-0 p-0">
+                {family ? <FamilyAxesEditor family={family} /> : null}
+              </fieldset>
             </TabsContent>
 
             {/* STEP 4 — Manodopera (ex "Posa") */}
-            <TabsContent value="4" className="space-y-4 mt-4">
+            <TabsContent value="4" className="mt-4">
+              <fieldset disabled={soloLettura} className="m-0 min-w-0 space-y-4 border-0 p-0">
               <ManodoperaSection
                 modalita={manodoperaModalita}
                 onModalitaChange={setManodoperaModalita}
@@ -2084,7 +2166,9 @@ export function FamilyEditor() {
                 onTariffeRefresh={() =>
                   queryClient.invalidateQueries({ queryKey: ["tariffe-for-editor", companyId] })
                 }
+                puoModificare={puoModificare}
               />
+              </fieldset>
             </TabsContent>
 
             {/* STEP 5 — Riepilogo */}
@@ -2116,6 +2200,7 @@ export function FamilyEditor() {
                   onBackToCatalog={handleBackToCatalog}
                   onDuplicate={handleDuplicate}
                   duplicating={duplicateFamily.isPending}
+                  soloLettura={soloLettura}
                 />
               ) : null}
             </TabsContent>
@@ -2131,7 +2216,7 @@ export function FamilyEditor() {
           ) : (
             <Card>
               <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                Salva i dati base per iniziare a configurare variabili, griglia prezzi e vedere la preview live.
+                Salva i dati base: poi potrai impostare le opzioni, la griglia dei prezzi e vedere il prezzo di prova.
               </CardContent>
             </Card>
           )}
@@ -2142,26 +2227,26 @@ export function FamilyEditor() {
       <Dialog open={imageZoomOpen} onOpenChange={setImageZoomOpen}>
         <DialogContent className="max-w-3xl p-2 sm:p-4">
           <DialogHeader className="sr-only">
-            <DialogTitle>Immagine articolo</DialogTitle>
-            <DialogDescription>{nome || "Anteprima immagine articolo"}</DialogDescription>
+            <DialogTitle>Foto del prodotto</DialogTitle>
+            <DialogDescription>{nome || "Anteprima della foto del prodotto"}</DialogDescription>
           </DialogHeader>
           {immagineUrl && (
             <img
               src={immagineUrl}
-              alt={`Immagine ${nome || "articolo"}`}
+              alt={`Foto di ${nome || "prodotto"}`}
               className="w-full max-h-[80vh] rounded-md object-contain"
             />
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Dialog gestione macrocategorie/categorie (aperto da sezione Step 1) */}
+      {/* Dialog gestione tipologie e linee: lo apre solo «Gestisci» nel passo 1, che vede solo l'amministratore */}
       <Dialog open={showCategorieManager} onOpenChange={setShowCategorieManager}>
         <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Gestione categorie</DialogTitle>
+            <DialogTitle>Tipologie e linee</DialogTitle>
             <DialogDescription>
-              Crea macrocategorie e categorie. Saranno immediatamente disponibili
+              Crea e cambia le tipologie e le linee del listino. Compaiono subito
               nel menu a tendina.
             </DialogDescription>
           </DialogHeader>
@@ -2213,6 +2298,8 @@ interface ManodoperaSectionProps {
   companyId: string | null | undefined;
   /** Callback per ricaricare la lista tariffe dopo inline-create. */
   onTariffeRefresh: () => void;
+  /** Chi può solo consultare non vede «Salva». */
+  puoModificare: boolean;
 }
 
 function ManodoperaSection(props: ManodoperaSectionProps) {
@@ -2236,6 +2323,7 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
     saving,
     companyId,
     onTariffeRefresh,
+    puoModificare,
   } = props;
   const [inlineCreateOpen, setInlineCreateOpen] = useState(false);
 
@@ -2243,14 +2331,14 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
   const costoNum = parseDecimalField(costoAcquisto) || 0;
   const venditaNum = parseDecimalField(prezzoVendita) || 0;
   const margineEuro = venditaNum - costoNum;
-  // Margine % calcolato sulla vendita (standard CFO italiano), non sul costo.
+  // Margine % calcolato sulla vendita, non sul costo.
   const marginePct = venditaNum > 0 ? (margineEuro / venditaNum) * 100 : 0;
   const margineColor =
     margineEuro < 0
       ? "text-red-600"
       : margineEuro === 0
         ? "text-muted-foreground"
-        : marginePct < 20
+        : marginePct < SOGLIA_MARGINE_VERDE
           ? "text-amber-600"
           : "text-emerald-600";
   const MargineIcon =
@@ -2271,10 +2359,9 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
           <div className="flex-1 min-w-0">
             <CardTitle className="text-base">Manodopera</CardTitle>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Montaggio/posa automatico quando un cliente aggiunge questo
-              articolo al preventivo. Puoi scegliere una tariffa aziendale
-              standard, impostare costi a corpo specifici per l'articolo, o
-              nessuna manodopera.
+              Montaggio e posa automatici quando aggiungi questo prodotto a un
+              preventivo. Puoi scegliere una voce di Manodopera e servizi, fissare
+              costi a corpo specifici per il prodotto, oppure nessuna manodopera.
             </p>
           </div>
         </div>
@@ -2282,8 +2369,8 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
       <CardContent className="space-y-5">
         {/* 1. Modalità: 3 card cliccabili ─────────────────────────────── */}
         <div>
-          <Label className="mb-2 block">Modalità</Label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <Label id="f-mo-modalita-etichetta" className="mb-2 block">Modalità</Label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2" role="group" aria-labelledby="f-mo-modalita-etichetta">
             {MANODOPERA_MODALITA_CARDS.map((m) => {
               const Icon = m.icon;
               const selected = modalita === m.value;
@@ -2322,7 +2409,7 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
           <div className="space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <Label htmlFor="f-posa-tariffa">Tariffa manodopera</Label>
+                <Label htmlFor="f-posa-tariffa">Voce di manodopera</Label>
                 {/* Bottone inline per creare al volo una nuova tariffa
                     aziendale senza uscire dal flusso editor. Apre Dialog,
                     salva su tariffe_aziendali, auto-selezione del nuovo id.
@@ -2335,16 +2422,16 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                     className="h-7 text-[11px] gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                     onClick={() => setInlineCreateOpen(true)}
                   >
-                    <Plus className="h-3 w-3" /> Nuova tariffa
+                    <Plus className="h-3 w-3" aria-hidden="true" /> Nuova voce
                   </Button>
                 )}
               </div>
               <Select value={tariffaId} onValueChange={onTariffaChange}>
                 <SelectTrigger id="f-posa-tariffa">
-                  <SelectValue placeholder="Seleziona tariffa" />
+                  <SelectValue placeholder="Scegli una voce" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">— Seleziona tariffa —</SelectItem>
+                  <SelectItem value="none">— Scegli una voce —</SelectItem>
                   {tariffe.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
                       {t.nome}
@@ -2358,17 +2445,17 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
               {tariffe.length === 0 ? (
                 <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                  Nessuna tariffa configurata. Click su <strong>"Nuova tariffa"</strong> sopra per crearne una, o usa "Importo manuale".
+                  Nessuna voce di manodopera. Clicca su <strong>«Nuova voce»</strong> per crearne una, oppure usa «Importo manuale».
                 </p>
               ) : tariffaId === "none" ? (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Nessuna tariffa selezionata. L'articolo non avrà manodopera
+                  Nessuna voce scelta: il prodotto non avrà manodopera
                   automatica.
                 </p>
               ) : tariffaSelezionata ? (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Tariffa "{tariffaSelezionata.nome}" selezionata. I costi sono
-                  definiti nella tariffa stessa.
+                  Voce «{tariffaSelezionata.nome}» scelta. I costi sono quelli
+                  della voce stessa.
                 </p>
               ) : null}
               {/* Dialog inline-create — salva direttamente in tariffe_aziendali
@@ -2429,8 +2516,8 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                   onChange={(e) => onCostoAcquistoChange(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Quanto paghi al montatore/subappaltatore. Solo CFO/admin
-                  vedono questo costo, mai il cliente.
+                  Quanto paghi al montatore o al subappaltatore. Lo vede chi ha il
+                  permesso sui costi, mai il cliente.
                 </p>
               </div>
               <div>
@@ -2460,7 +2547,7 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                 className={`rounded-md border p-3 ${
                   margineEuro < 0
                     ? "bg-red-50 border-red-200"
-                    : marginePct >= 20
+                    : marginePct >= SOGLIA_MARGINE_VERDE
                       ? "bg-emerald-50 border-emerald-200"
                       : "bg-muted/30"
                 }`}
@@ -2498,16 +2585,17 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
                 {margineEuro < 0 ? (
                   <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                    Stai vendendo SOTTO COSTO. Controlla i numeri prima di
+                    Stai vendendo sotto costo. Controlla i numeri prima di
                     salvare.
                   </p>
-                ) : marginePct < 10 && venditaNum > 0 ? (
+                ) : marginePct < SOGLIA_MARGINE_AVVISO && venditaNum > 0 ? (
                   <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                    Margine molto basso (&lt; 10%). Verifica che copra davvero i
+                    Margine molto basso (&lt; {SOGLIA_MARGINE_AVVISO}%). Verifica che copra davvero i
                     costi accessori (trasferte, attrezzi, imprevisti).
                   </p>
                 ) : null}
+                <p className="mt-2 text-[11px] text-muted-foreground">{NOTA_SOGLIE_MARGINE}</p>
               </div>
             )}
 
@@ -2563,18 +2651,19 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
             <div className="text-sm">
               <p className="font-medium">Nessuna manodopera automatica</p>
               <p className="text-muted-foreground mt-1">
-                Quando il cliente aggiunge questo articolo al preventivo,{" "}
+                Quando aggiungi questo prodotto a un preventivo,{" "}
                 <span className="font-medium">
-                  non verrà creata nessuna riga di montaggio
+                  non si crea nessuna riga di montaggio
                 </span>
-                . Puoi sempre aggiungere una voce manodopera manualmente dal
-                preventivatore se serve.
+                . Puoi sempre aggiungere una voce di manodopera a mano dal
+                preventivo se serve.
               </p>
             </div>
           </div>
         )}
 
         {/* 5. Salva ─────────────────────────────────────────────────── */}
+        {puoModificare && (
         <div className="flex justify-end pt-2 border-t">
           <Button onClick={onSave} disabled={saving}>
             {saving ? (
@@ -2588,11 +2677,12 @@ function ManodoperaSection(props: ManodoperaSectionProps) {
             ) : (
               <>
                 <Save className="h-4 w-4 mr-2" aria-hidden="true" />
-                Salva manodopera
+                Salva
               </>
             )}
           </Button>
         </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -2631,6 +2721,8 @@ interface RiepilogoSectionProps {
   onBackToCatalog: () => void;
   onDuplicate: () => void;
   duplicating: boolean;
+  /** Chi può solo consultare non ha «Salva e duplica»; «Modifica» diventa «Vedi». */
+  soloLettura: boolean;
 }
 
 function RiepilogoSection(props: RiepilogoSectionProps) {
@@ -2660,6 +2752,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
     onBackToCatalog,
     onDuplicate,
     duplicating,
+    soloLettura,
   } = props;
 
   // Refactor 20270513200000: usa direttamente macrocategoria_id, con fallback
@@ -2710,7 +2803,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
   const completezza: Array<{ testo: string; step: string; grave: boolean }> = [];
   if (!macroId) {
     completezza.push({
-      testo: "Senza macrocategoria: non compare nella scelta prodotti del preventivo.",
+      testo: "Senza tipologia: non compare nella scelta prodotti del preventivo.",
       step: "1",
       grave: true,
     });
@@ -2720,21 +2813,21 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
     prodottoVendita <= 0
   ) {
     completezza.push({
-      testo: "Prezzo di vendita a zero: in preventivo l'articolo esce gratis.",
+      testo: "Prezzo di vendita a zero: nel preventivo il prodotto esce gratis.",
       step: "2",
       grave: true,
     });
   }
   if (!immagineUrl) {
     completezza.push({
-      testo: "Senza immagine: nel preventivo e nel catalogo appare un riquadro grigio.",
+      testo: "Senza foto: nel preventivo e nel listino compare un riquadro grigio.",
       step: "1",
       grave: false,
     });
   }
   if (manodoperaModalita === "nessuna") {
     completezza.push({
-      testo: "Nessuna manodopera collegata: la posa andrà aggiunta a mano in ogni preventivo.",
+      testo: "Nessuna manodopera collegata: la posa va aggiunta a mano in ogni preventivo.",
       step: "4",
       grave: false,
     });
@@ -2760,7 +2853,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
                   className="h-auto p-0 text-xs shrink-0"
                   onClick={() => onGotoStep(c.step)}
                 >
-                  Sistema
+                  {soloLettura ? "Vedi" : "Sistema"}
                 </Button>
               </li>
             ))}
@@ -2773,6 +2866,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
         icon={Package}
         title="Anagrafica"
         onEdit={() => onGotoStep("1")}
+        soloLettura={soloLettura}
       >
         <div className="flex gap-4 items-start">
           {immagineUrl ? (
@@ -2812,15 +2906,16 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
         icon={Banknote}
         title="Prezzo"
         onEdit={() => onGotoStep("2")}
+        soloLettura={soloLettura}
       >
         <div className="space-y-2">
           <div className="text-xs text-muted-foreground uppercase tracking-wide">
-            Modalità: <span className="font-medium">{modalitaPrezzoLabel}</span>
+            Come si vende: <span className="font-medium">{modalitaPrezzoLabel}</span>
             {" · "}
             <span className="font-medium">
               {prezzoBaseMode === "vendita"
-                ? "Vendita diretta"
-                : "Acquisto + markup"}
+                ? "Prezzo di vendita"
+                : "Costo + ricarico"}
             </span>
           </div>
           {prezzoBaseMode === "acquisto_markup" ? (
@@ -2851,7 +2946,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
               ) : null}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
-                  Markup{" "}
+                  Ricarico{" "}
                   {markupTipo === "percentuale"
                     ? `+${parseDecimalField(markupValore) || 0}%`
                     : markupTipo === "fisso_pz"
@@ -2873,7 +2968,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
                   </span>
                   <span
                     className={
-                      prodottoMarginePct < 20
+                      prodottoMarginePct < SOGLIA_MARGINE_VERDE
                         ? "text-amber-600 font-medium"
                         : "text-emerald-600 font-medium"
                     }
@@ -2890,7 +2985,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
           ) : (
             <div className="space-y-1.5 bg-muted/30 rounded-md p-3 text-sm">
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Prezzo vendita diretto</span>
+                <span className="text-muted-foreground">Prezzo di vendita</span>
                 <span className="text-lg font-bold text-primary">
                   {formatCurrency(parseDecimalField(prezzoVendita) || 0)}
                 </span>
@@ -2922,6 +3017,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
         icon={Wrench}
         title="Manodopera"
         onEdit={() => onGotoStep("4")}
+        soloLettura={soloLettura}
       >
         {manodoperaModalita === "nessuna" ? (
           <div className="flex gap-2 items-center text-sm text-muted-foreground">
@@ -2932,7 +3028,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
           <div className="space-y-1.5 text-sm">
             <div className="flex items-center gap-2">
               <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-                Tariffa aziendale
+                Voce di Manodopera e servizi
               </Badge>
               <span className="font-medium">{tariffaNome ?? "—"}</span>
             </div>
@@ -2980,7 +3076,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
                   className={`font-bold ${
                     moMargine < 0
                       ? "text-red-600"
-                      : moMarginePct < 20
+                      : moMarginePct < SOGLIA_MARGINE_VERDE
                         ? "text-amber-600"
                         : "text-emerald-600"
                   }`}
@@ -3013,10 +3109,11 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
         icon={ListChecks}
         title={`Opzioni prodotto (${family.axes.length})`}
         onEdit={() => onGotoStep("3")}
+        soloLettura={soloLettura}
       >
         {family.axes.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Nessuna variabile configurata. L'articolo ha un prezzo fisso.
+            Nessuna opzione configurata. Il prodotto ha un prezzo fisso.
           </p>
         ) : (
           <div className="space-y-2">
@@ -3052,12 +3149,15 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
         )}
       </RiepilogoCard>
 
+      <p className="text-[11px] text-muted-foreground">{NOTA_SOGLIE_MARGINE}</p>
+
       {/* Azioni finali */}
       <div className="flex flex-wrap gap-2 pt-3 border-t">
         <Button onClick={onBackToCatalog} variant="outline">
           <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
-          Torna al catalogo
+          Torna al listino
         </Button>
+        {!soloLettura && (
         <Button onClick={onDuplicate} disabled={duplicating}>
           {duplicating ? (
             <>
@@ -3070,10 +3170,11 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
           ) : (
             <>
               <CopyPlus className="h-4 w-4 mr-2" aria-hidden="true" />
-              Salva e crea copia
+              Salva e duplica
             </>
           )}
         </Button>
+        )}
       </div>
     </div>
   );
@@ -3083,11 +3184,13 @@ function RiepilogoCard({
   icon: Icon,
   title,
   onEdit,
+  soloLettura,
   children,
 }: {
   icon: typeof Wrench;
   title: string;
   onEdit: () => void;
+  soloLettura: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -3101,7 +3204,7 @@ function RiepilogoCard({
             <CardTitle className="text-sm">{title}</CardTitle>
           </div>
           <Button size="sm" variant="ghost" onClick={onEdit}>
-            Modifica
+            {soloLettura ? "Vedi" : "Modifica"}
           </Button>
         </div>
       </CardHeader>
@@ -3156,9 +3259,9 @@ function LinkedToggle({
 
 // ─── Dialog inline-create tariffa aziendale ─────────────────────────────────
 //
-// Permette al commerciale di creare una nuova tariffa aziendale (es. "Posa
+// Permette di creare una nuova voce di Manodopera e servizi (es. "Posa
 // porta blindata 1 anta") direttamente dallo Step 4 Manodopera del FamilyEditor,
-// senza dover navigare a Impostazioni → Tariffe → torna qui.
+// senza dover navigare a Impostazioni → Listino → Manodopera e servizi e tornare qui.
 //
 // Salva su `tariffe_aziendali` con i campi minimi richiesti. Sufficiente per
 // l'uso "lookup posa": l'utente puo' arricchire la tariffa con descrizione,
@@ -3195,21 +3298,21 @@ function InlineCreateTariffaDialog({
 
   const handleSubmit = async () => {
     if (!nome.trim()) {
-      toast.error("Inserisci un nome per la tariffa");
+      toast.error("Scrivi un nome per la voce");
       return;
     }
     // parseDecimalField, non parseFloat: "10,50" deve salvare 10.5, non 10
     // (venditaNum/costoNum finiscono nell'INSERT su tariffe_aziendali).
     const venditaNum = parseDecimalField(prezzoVendita);
     if (!Number.isFinite(venditaNum) || venditaNum <= 0) {
-      toast.error("Inserisci un prezzo di vendita valido (> 0)");
+      toast.error("Scrivi un prezzo di vendita valido (maggiore di 0)");
       return;
     }
     const costoNum = parseDecimalField(costoInterno);
     // M-28 (audit): anche il costo interno va validato — un negativo passava
     // dritto nell'INSERT su tariffe_aziendali falsando i margini.
     if (costoInterno.trim() !== "" && (!Number.isFinite(costoNum) || costoNum < 0)) {
-      toast.error("Inserisci un costo interno valido (numero ≥ 0)");
+      toast.error("Scrivi un costo interno valido (zero o più)");
       return;
     }
     setSaving(true);
@@ -3240,12 +3343,12 @@ function InlineCreateTariffaDialog({
       if (error) throw error;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const newId = (data as any)?.id as string | undefined;
-      if (!newId) throw new Error("ID nuova tariffa mancante");
-      toast.success(`Tariffa "${nome.trim()}" creata`);
+      if (!newId) throw new Error("Voce creata ma non trovata: riprova.");
+      toast.success(`Voce «${nome.trim()}» creata`);
       onCreated(newId);
       onOpenChange(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore creazione tariffa");
+      toast.error("Voce non creata", { description: messaggioErroreListino(e) });
     } finally {
       setSaving(false);
     }
@@ -3255,16 +3358,17 @@ function InlineCreateTariffaDialog({
     <Dialog open={open} onOpenChange={(o) => { if (!saving) onOpenChange(o); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Nuova tariffa aziendale</DialogTitle>
+          <DialogTitle>Nuova voce di manodopera</DialogTitle>
           <DialogDescription>
-            Crea al volo una tariffa per la manodopera di questo articolo.
-            Sarà disponibile in <strong>Impostazioni → Tariffe aziendali</strong>{" "}
-            per ulteriori personalizzazioni.
+            Crea al volo una voce per la manodopera di questo prodotto. La
+            ritrovi in{" "}
+            <strong>Impostazioni → Listino → Manodopera e servizi</strong> per
+            completarla.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-2">
           <div>
-            <Label htmlFor="ict-nome" className="text-xs">Nome tariffa *</Label>
+            <Label htmlFor="ict-nome" className="text-xs">Nome della voce *</Label>
             <Input
               id="ict-nome"
               value={nome}
@@ -3348,7 +3452,7 @@ function InlineCreateTariffaDialog({
             disabled={saving}
             className="bg-orange-500 hover:bg-orange-600"
           >
-            {saving ? "Creazione…" : "Crea tariffa"}
+            {saving ? "Creazione…" : "Crea la voce"}
           </Button>
         </DialogFooter>
       </DialogContent>

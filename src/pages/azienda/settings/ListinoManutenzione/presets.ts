@@ -17,7 +17,7 @@ import type {
 
 /**
  * Mappa il `vertical` dell'azienda ai preset di listino manutenzione che
- * saranno pre-selezionati nel dialog "Importa da template".
+ * saranno pre-selezionati nella finestra «Importa un catalogo pronto».
  */
 export function getDefaultPresetsForVertical(vertical: Vertical): PresetListinoId[] {
   switch (vertical) {
@@ -203,12 +203,12 @@ export const PRESET_LISTINO_CARDS: Array<{
   iconClass: string;
 }> = [
   { id: "termoidraulica", nome: "Termoidraulica", descrizione: "Caldaie, condizionatori, pompe di calore e impianto idraulico — set classico assistenza termoidraulica.", icon: Flame, iconClass: "bg-orange-100 text-orange-700" },
-  { id: "elettrico", nome: "Elettrico & sicurezza", descrizione: "Impianti elettrici, quadri, allarmi e videosorveglianza con tariffe di manutenzione e installazione.", icon: ZapIcon, iconClass: "bg-yellow-100 text-yellow-700" },
+  { id: "elettrico", nome: "Elettrico & sicurezza", descrizione: "Impianti elettrici, quadri, allarmi e videosorveglianza, con i prezzi di manutenzione e installazione.", icon: ZapIcon, iconClass: "bg-yellow-100 text-yellow-700" },
   { id: "bagno", nome: "Ristrutturazione bagno", descrizione: "Sanitari, box doccia, rubinetterie + impermeabilizzazioni — il pacchetto completo per un bagno nuovo.", icon: Bath, iconClass: "bg-cyan-100 text-cyan-700" },
   { id: "fotovoltaico", nome: "Fotovoltaico", descrizione: "Installazione + manutenzione pannelli, pulizia, controllo producibilità, sostituzione inverter, accumulo.", icon: Sun, iconClass: "bg-amber-100 text-amber-700" },
-  { id: "pittura", nome: "Pittura e decorazioni", descrizione: "Tinteggiature interne/esterne, rasature, stucchi, verniciatura infissi — tariffe al mq e a corpo.", icon: PaintBucket, iconClass: "bg-fuchsia-100 text-fuchsia-700" },
+  { id: "pittura", nome: "Pittura e decorazioni", descrizione: "Tinteggiature interne/esterne, rasature, stucchi, verniciatura infissi — prezzi al mq e a corpo.", icon: PaintBucket, iconClass: "bg-fuchsia-100 text-fuchsia-700" },
   { id: "tetti_ripasso", nome: "Ripasso tetti", descrizione: "Manutenzione coperture: ripasso coppi, pulizia canali, antimuschio, sostituzioni puntuali.", icon: Cloud, iconClass: "bg-sky-100 text-sky-700" },
   { id: "tetti_rifacimento", nome: "Rifacimento tetti", descrizione: "Rimozione manto, posa nuovo manto, impermeabilizzazione, lucernari, comignoli, canali.", icon: Construction, iconClass: "bg-stone-200 text-stone-700" },
-  { id: "scavi", nome: "Scavi a terra", descrizione: "Sbancamento, scavo fondazione, reinterro, sottoservizi — tariffe al mq e al metro lineare.", icon: Shovel, iconClass: "bg-amber-100 text-amber-800" },
+  { id: "scavi", nome: "Scavi a terra", descrizione: "Sbancamento, scavo fondazione, reinterro, sottoservizi — prezzi al mq e al metro lineare.", icon: Shovel, iconClass: "bg-amber-100 text-amber-800" },
   { id: "piscine", nome: "Realizzazione piscine", descrizione: "Costruzione vasca + impermeabilizzazione + apertura/chiusura stagionale + impianto filtraggio.", icon: Waves, iconClass: "bg-teal-100 text-teal-700" },
 ];

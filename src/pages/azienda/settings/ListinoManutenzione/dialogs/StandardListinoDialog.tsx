@@ -1,13 +1,13 @@
 /**
- * ListinoManutenzione — StandardListinoDialog (template picker)
+ * ListinoManutenzione — StandardListinoDialog (cataloghi pronti)
  * Estratto da ListinoManutenzione.tsx (MP-IMP-001 Fase 5).
  *
- * Dialog "Importa da template" speculare a StandardTariffeDialog di
+ * Finestra «Importa un catalogo pronto» speculare a StandardTariffeDialog di
  * SettingsTariffe. Permette all'admin di:
- *  - scegliere uno o più preset professionali (card cliccabili) → importa in
- *    blocco tutte le tariffe coerenti con quel preset.
- *  - oppure accedere alla lista fine di tutte le ~70 tariffe standard e
- *    selezionare con checkbox quelle di interesse.
+ *  - scegliere uno o più cataloghi (card cliccabili) → importa in blocco tutti
+ *    i prezzi coerenti con quel catalogo.
+ *  - oppure accedere alla lista fine di tutti i ~70 prezzi standard e
+ *    selezionare con checkbox quelli di interesse.
  *
  * La funzione di import è idempotente: voci già presenti vengono saltate.
  */
@@ -94,7 +94,7 @@ export function StandardListinoDialog({
   const handleImport = () => {
     if (importing) return;
     if (countTotal === 0) {
-      toast.info("Seleziona almeno un template o una tariffa");
+      toast.info("Scegli almeno un catalogo o un prezzo");
       return;
     }
     onImport({
@@ -118,27 +118,27 @@ export function StandardListinoDialog({
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Importa da template
+            <Sparkles className="h-5 w-5 text-primary" aria-hidden />
+            Importa un catalogo pronto
           </DialogTitle>
           <DialogDescription>
-            Scegli uno o più pacchetti professionali per popolare il listino in
-            blocco, oppure seleziona singole tariffe dalla lista. Voci già
-            esistenti non verranno duplicate.
+            Scegli uno o più cataloghi per riempire il listino in un colpo solo,
+            oppure scegli i singoli prezzi dalla lista. Quello che c'è già non
+            viene duplicato.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-5 pr-1">
-          {/* ── Card preset ── */}
+          {/* ── Cataloghi pronti ── */}
           <div>
-            <div className="text-sm font-semibold mb-2">
-              Pacchetti professionali
+            <h3 className="text-sm font-semibold mb-2">
+              Cataloghi pronti
               {existingCount === 0 && (
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
                   (consigliato se parti da zero)
                 </span>
               )}
-            </div>
+            </h3>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {PRESET_LISTINO_CARDS.map((p) => {
                 const active = selectedPresets.has(p.id);
@@ -150,6 +150,7 @@ export function StandardListinoDialog({
                     key={p.id}
                     type="button"
                     onClick={() => togglePreset(p.id)}
+                    aria-pressed={active}
                     className={`text-left rounded-lg border p-3 transition-colors ${
                       active
                         ? "border-primary bg-primary/5"
@@ -171,7 +172,7 @@ export function StandardListinoDialog({
                           {p.descrizione}
                         </div>
                         <div className="text-[11px] text-muted-foreground mt-1">
-                          {countPreset} tariffe
+                          {countPreset} {countPreset === 1 ? "prezzo" : "prezzi"}
                         </div>
                       </div>
                     </div>
@@ -181,22 +182,23 @@ export function StandardListinoDialog({
             </div>
           </div>
 
-          {/* ── Lista fine tariffe ── */}
+          {/* ── Lista fine dei prezzi ── */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-sm font-semibold">
-                Seleziona singole tariffe
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <h3 className="text-sm font-semibold">
+                Scegli i singoli prezzi
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  (opzionale — sovrascrive la selezione dei pacchetti)
+                  (facoltativo — vale al posto dei cataloghi scelti sopra)
                 </span>
-              </div>
-              <div className="relative w-60">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              </h3>
+              <div className="relative w-full sm:w-60">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden />
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Cerca impianto o intervento..."
-                  className="pl-8 h-8 text-xs"
+                  aria-label="Cerca impianto o intervento"
+                  className="pl-8 h-8 text-xs max-md:h-11"
                 />
               </div>
             </div>
@@ -205,7 +207,7 @@ export function StandardListinoDialog({
                 <Table>
                   <TableHeader className="sticky top-0 bg-background z-10">
                     <TableRow>
-                      <TableHead className="w-10"></TableHead>
+                      <TableHead className="w-10"><span className="sr-only">Scelta</span></TableHead>
                       <TableHead>Impianto</TableHead>
                       <TableHead>Intervento</TableHead>
                       <TableHead className="w-24 text-right">Prezzo</TableHead>
@@ -217,7 +219,7 @@ export function StandardListinoDialog({
                     {rows.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">
-                          Nessuna tariffa trovata con i filtri correnti
+                          Nessun prezzo trovato con la ricerca
                         </TableCell>
                       </TableRow>
                     ) : rows.map((t) => {
@@ -228,6 +230,7 @@ export function StandardListinoDialog({
                             <Checkbox
                               checked={selectedKeys.has(key)}
                               onCheckedChange={() => toggleTariffa(key)}
+                              aria-label={`Scegli ${t.impianto} · ${t.intervento}`}
                             />
                           </TableCell>
                           <TableCell className="font-medium text-sm">{t.impianto}</TableCell>
@@ -248,8 +251,8 @@ export function StandardListinoDialog({
         <DialogFooter className="flex items-center justify-between gap-3 border-t pt-3">
           <div className="text-xs text-muted-foreground">
             {countTotal > 0
-              ? `${countTotal} tariffe da importare${existingCount > 0 ? " (duplicati ignorati)" : ""}`
-              : "Nessuna tariffa selezionata"}
+              ? `${countTotal} ${countTotal === 1 ? "prezzo da importare" : "prezzi da importare"}${existingCount > 0 ? " (quelli già presenti vengono saltati)" : ""}`
+              : "Nessun prezzo scelto"}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose}>Annulla</Button>

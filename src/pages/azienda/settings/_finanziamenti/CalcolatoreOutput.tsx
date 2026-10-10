@@ -3,7 +3,7 @@
  * Riusato sia nella pagina dettaglio tabella sia nella pagina calcolatore globale.
  */
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertCircle,
@@ -12,6 +12,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import type { RisultatoCalcolo } from "@/lib/finanziamenti/types";
+import { formattaPercentuale } from "./comuni";
+import { TitoloAvviso } from "./pezzi";
 
 export function CalcolatoreOutput({
   risultato,
@@ -22,7 +24,7 @@ export function CalcolatoreOutput({
     return (
       <Alert>
         <Info className="h-4 w-4" />
-        <AlertTitle>Inserisci importo e durata</AlertTitle>
+        <TitoloAvviso>Inserisci importo e durata</TitoloAvviso>
         <AlertDescription>
           Compila i due campi sopra per vedere il calcolo della rata e dei
           tassi.
@@ -35,7 +37,7 @@ export function CalcolatoreOutput({
     return (
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
-        <AlertTitle>{risultato.messaggio}</AlertTitle>
+        <TitoloAvviso>{risultato.messaggio}</TitoloAvviso>
         <AlertDescription>
           {risultato.errore === "durata_non_disponibile" &&
             risultato.durate_disponibili && (
@@ -63,7 +65,7 @@ export function CalcolatoreOutput({
       {/* Highlight: rata + totale */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Highlight
-          label="Rata mensile (con incasso)"
+          label="Rata mensile (spese di incasso comprese)"
           value={`€ ${formatEur(risultato.rata_completa ?? 0, 2)}`}
           accent
         />
@@ -73,7 +75,7 @@ export function CalcolatoreOutput({
         />
         <Highlight
           label="TAEG"
-          value={`${(risultato.taeg ?? 0).toFixed(2)} %`}
+          value={formattaPercentuale(risultato.taeg ?? 0)}
         />
       </div>
 
@@ -82,12 +84,12 @@ export function CalcolatoreOutput({
         {risultato.modalita === "esatto" ? (
           <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
             <CheckCircle2 className="h-3 w-3 mr-1" />
-            Lookup esatto
+            Importo presente in tabella
           </Badge>
         ) : (
           <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">
             <TrendingUp className="h-3 w-3 mr-1" />
-            Interpolato tra €{" "}
+            Calcolato tra le righe di €{" "}
             {formatEur(risultato.righe_interpolazione?.sotto.importo_erogato ?? 0)}
             {" e € "}
             {formatEur(risultato.righe_interpolazione?.sopra.importo_erogato ?? 0)}
@@ -106,15 +108,15 @@ export function CalcolatoreOutput({
           value={`€ ${formatEur(risultato.importo_richiesto, 2)}`}
         />
         <DetailRow
-          label="Importo rata (esclusi spese incasso)"
+          label="Importo della rata (senza spese di incasso)"
           value={`€ ${formatEur(risultato.importo_rata ?? 0, 2)}`}
         />
         <DetailRow
-          label="Spese incasso rata"
+          label="Spese di incasso della rata"
           value={`€ ${formatEur(risultato.spese_incasso_rata ?? 0, 2)}`}
         />
         <DetailRow
-          label="Spese istruttoria una tantum"
+          label="Spese di istruttoria (una sola volta)"
           value={`€ ${formatEur(risultato.spese_istruttoria ?? 0, 2)}`}
         />
         <DetailRow
@@ -122,7 +124,7 @@ export function CalcolatoreOutput({
           value={`€ ${formatEur(risultato.importo_totale_credito ?? 0, 2)}`}
         />
         <DetailRow
-          label="Costo totale credito"
+          label="Costo totale del credito"
           value={`€ ${formatEur(Math.max(0, (risultato.importo_totale_dovuto ?? 0) - risultato.importo_richiesto), 2)}`}
         />
         <DetailRow
@@ -131,18 +133,18 @@ export function CalcolatoreOutput({
         />
         <DetailRow
           label="TAN"
-          value={`${(risultato.tan ?? 0).toFixed(2)} %`}
+          value={formattaPercentuale(risultato.tan ?? 0)}
         />
         <DetailRow
           label="ICC (Indicatore Costo Credito)"
           value={
             risultato.icc != null
-              ? `${risultato.icc.toFixed(2)} %`
+              ? formattaPercentuale(risultato.icc)
               : "—"
           }
         />
         <DetailRow
-          label="Provvigione dealer"
+          label="Provvigione"
           value={`€ ${formatEur(risultato.provvigione_dealer ?? 0, 2)}`}
           muted
         />
@@ -153,7 +155,7 @@ export function CalcolatoreOutput({
         finale al cliente è di € {formatEur(risultato.rata_completa ?? 0, 2)}{" "}
         per {risultato.numero_rate} mesi (€{" "}
         {formatEur(risultato.importo_rata ?? 0, 2)} di quota +{" € "}
-        {formatEur(risultato.spese_incasso_rata ?? 0, 2)} di spese incasso).
+        {formatEur(risultato.spese_incasso_rata ?? 0, 2)} di spese di incasso).
         Simulazione indicativa: prima di presentare l&apos;offerta verifica
         documenti, validità condizioni e approvazione dell&apos;istituto.
       </p>

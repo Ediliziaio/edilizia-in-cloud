@@ -1,9 +1,12 @@
 /**
  * Calcolatore generico: l'utente sceglie tabella + importo + n° rate e vede
- * la rata calcolata, TAN, TAEG, ICC, provvigione dealer.
+ * la rata calcolata, TAN, TAEG, ICC, provvigione.
  *
  * Pensato per quando il venditore deve simulare al volo "quanto paga il
  * cliente per X mila euro a Y rate?" su una qualsiasi delle tabelle caricate.
+ *
+ * Non salva niente. L'unico comando che scrive è, a elenco vuoto, il rimando a «Carica una tabella»:
+ * per chi può solo consultare è spento, con la frase che spiega perché.
  */
 
 import { useState, useMemo } from "react";
@@ -24,25 +27,19 @@ import {
   ArrowLeft,
   Calculator,
   Plus,
-  ShieldAlert,
   Banknote,
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { usePermissions } from "@/hooks/usePermissions";
 import { useTabelle, useRighe } from "@/lib/finanziamenti/queries";
 import { calcolaFinanziamento } from "@/lib/finanziamenti/calcolaFinanziamento";
 import type { RisultatoCalcolo } from "@/lib/finanziamenti/types";
 import { CalcolatoreOutput } from "./_finanziamenti/CalcolatoreOutput";
 import { SimulatoreMultiDurata } from "./_finanziamenti/SimulatoreMultiDurata";
+import { erroreComprensibile, formattaEuro, proprietaComandoSpento, useAccessoFinanziamenti } from "./_finanziamenti/comuni";
+import { AccessoNegato, AvvisoSolaLettura } from "./_finanziamenti/pezzi";
 
 export default function SettingsFinanziamentiCalcolatore() {
-  const { role } = useAuth();
-  const permissions = usePermissions();
-  // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
-  // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
-  const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsFinanziamenti;
-  const canView = isAdmin || permissions.canViewSettingsFinanziamenti;
-  const { data: tabelle = [], isLoading: isLoadingTabelle, isError: isErrorTabelle } = useTabelle();
+  const { puoVedere, puoModificare } = useAccessoFinanziamenti();
+  const { data: tabelle = [], isLoading: isLoadingTabelle, isError: isErrorTabelle, error: erroreTabelle, refetch } = useTabelle();
   const tabelleAttive = useMemo(
     () => tabelle.filter((t) => t.attiva),
     [tabelle]
@@ -74,23 +71,14 @@ export default function SettingsFinanziamentiCalcolatore() {
     });
   }, [tabellaId, importo, rate, righe]);
 
-  if (!canView) {
-    return (
-      <Card className="max-w-xl mx-auto mt-8">
-        <CardContent className="py-10 flex flex-col items-center gap-4 text-center">
-          <ShieldAlert className="h-12 w-12 text-amber-500" />
-          <p className="font-medium">Accesso riservato</p>
-        </CardContent>
-      </Card>
-    );
-  }
+  if (!puoVedere) return <AccessoNegato />;
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
       <div>
         <Button asChild variant="ghost" size="sm">
           <Link to="/azienda/impostazioni/finanziamenti">
-            <ArrowLeft className="h-4 w-4 mr-1" />
+            <ArrowLeft className="h-4 w-4 mr-1" aria-hidden="true" />
             Torna alle tabelle
           </Link>
         </Button>
@@ -99,7 +87,7 @@ export default function SettingsFinanziamentiCalcolatore() {
       <Card>
         <CardContent className="py-5 space-y-4">
           <div className="flex items-center gap-2">
-            <Calculator className="h-5 w-5 text-primary" />
+            <Calculator className="h-5 w-5 text-primary" aria-hidden="true" />
             <h2 className="font-semibold">Calcolatore finanziamento</h2>
           </div>
 
@@ -111,25 +99,43 @@ export default function SettingsFinanziamentiCalcolatore() {
 
           {!isLoadingTabelle && isErrorTabelle && (
             <Alert variant="destructive">
-              <AlertDescription>
-                Errore nel caricamento delle tabelle. Ricarica la pagina.
+              <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  <strong className="block font-medium">Non riesco a leggere le tabelle.</strong>
+                  {erroreComprensibile(erroreTabelle, "Riprova tra poco.")}
+                </span>
+                <Button size="sm" variant="outline" onClick={() => void refetch()}>
+                  Riprova
+                </Button>
               </AlertDescription>
             </Alert>
           )}
 
           {!isLoadingTabelle && !isErrorTabelle && tabelleAttive.length === 0 && (
             <div className="rounded-md border bg-muted/30 p-6 text-center space-y-3">
-              <Banknote className="h-10 w-10 mx-auto text-muted-foreground" />
+              <Banknote className="h-10 w-10 mx-auto text-muted-foreground" aria-hidden="true" />
               <p className="text-sm">
                 Non hai ancora caricato nessuna tabella attiva. Carica almeno
                 una tabella per usare il calcolatore.
               </p>
-              <Button asChild>
-                <Link to="/azienda/impostazioni/finanziamenti/nuova">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Carica una tabella
-                </Link>
-              </Button>
+              {puoModificare ? (
+                <Button asChild>
+                  <Link to="/azienda/impostazioni/finanziamenti/nuova">
+                    <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
+                    Carica una tabella
+                  </Link>
+                </Button>
+              ) : (
+                <>
+                  <Button disabled {...proprietaComandoSpento(false)}>
+                    <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
+                    Carica una tabella
+                  </Button>
+                  <div className="text-left">
+                    <AvvisoSolaLettura />
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -167,10 +173,8 @@ export default function SettingsFinanziamentiCalcolatore() {
                   {tabellaCorrente?.importo_min != null &&
                     tabellaCorrente?.importo_max != null && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        Range:{" "}
-                        € {tabellaCorrente.importo_min.toLocaleString("it-IT")}
-                        {" – €"}
-                        {tabellaCorrente.importo_max.toLocaleString("it-IT")}
+                        Importi in tabella: da € {formattaEuro(tabellaCorrente.importo_min)} a €{" "}
+                        {formattaEuro(tabellaCorrente.importo_max)}
                       </p>
                     )}
                 </div>

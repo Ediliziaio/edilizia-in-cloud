@@ -6,8 +6,8 @@ import { TemplateCoverStylePicker, TemplateCoverTextFields, coverStyleOnly } fro
 /**
  * FotovoltaicoTemplateEditor — editor del template PDF del modulo Fotovoltaico.
  *
- * Usato dentro la tab "Template Moduli Vendita" della pagina
- * Impostazioni → Libreria Template Preventivi.
+ * Usato dentro la scheda «Moduli» di Impostazioni → Modelli di preventivo
+ * (Moduli → Fotovoltaico).
  *
  * Configura `fv_template_pdf` per la company corrente:
  *  - Branding (logo, colori, font)
@@ -2211,7 +2211,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
             <Button variant="outline" size="sm" className="h-8 gap-1" asChild>
               <a href="/azienda/impostazioni/listino">
                 <ExternalLink className="h-3.5 w-3.5" />
-                Apri listino prodotti
+                Apri il listino
               </a>
             </Button>
           </div>

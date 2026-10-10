@@ -425,7 +425,7 @@ export default function ApplyBundleDialog({
               <AlertCircle className="h-10 w-10 mx-auto mb-2 opacity-30" />
               <p>Nessun bundle attivo disponibile.</p>
               <p className="text-xs mt-2">
-                Creane uno in Impostazioni → Bundle &amp; Pacchetti, oppure installa i template.
+                Creane uno in Impostazioni → Listino → Kit e pacchetti. Se sei un serramentista, installa i pacchetti di esempio.
               </p>
             </div>
           )}

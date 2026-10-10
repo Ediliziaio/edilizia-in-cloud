@@ -11,6 +11,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { testoErrore } from "@/lib/impostazioni/testoErrore";
 import type {
   TipoImpianto, TipoIntervento, ListinoPrezzo, PresetListinoId,
 } from "../types";
@@ -82,23 +83,26 @@ export function useListinoData(companyId: string | undefined) {
     return (count as number | null) ?? 0;
   };
   const messaggioInUso = (cosa: string, n: number) =>
-    `${cosa} è usato in ${n} voc${n === 1 ? "e" : "i"} di listino: elimina prima quelle voci o cambia loro tipo.`;
+    `${cosa} è usato in ${n} prezz${n === 1 ? "o" : "i"} di manutenzione: elimina prima ${n === 1 ? "quel prezzo" : "quei prezzi"} (scheda «Prezzi di manutenzione»).`;
+  // Una DELETE che il database filtra (permesso mancante) non dà errore: risponde con zero righe. Non è un «eliminato».
+  const nessunaRigaEliminata = () => new Error("Non eliminato: verifica i permessi e riprova.");
 
   const deleteImpiantoMutation = useMutation({
     mutationFn: async (id: string) => {
       const n = await vociCheUsano("tipo_impianto_id", id);
       if (n > 0) throw new Error(messaggioInUso("Questo tipo di impianto", n));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from("tipi_impianto") as any)
-        .delete().eq("id", id).eq("company_id", companyId);
+      const { data, error } = await (supabase.from("tipi_impianto") as any)
+        .delete().eq("id", id).eq("company_id", companyId).select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw nessunaRigaEliminata();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tipi-impianto", companyId] });
-      toast.success("Tipo impianto eliminato");
+      toast.success("Tipo di impianto eliminato");
     },
     onError: (err: unknown) =>
-      toast.error(err instanceof Error ? err.message : "Errore eliminazione"),
+      toast.error(testoErrore(err, "Tipo di impianto non eliminato.")),
   });
 
   const deleteInterventoMutation = useMutation({
@@ -106,35 +110,37 @@ export function useListinoData(companyId: string | undefined) {
       const n = await vociCheUsano("tipo_intervento_id", id);
       if (n > 0) throw new Error(messaggioInUso("Questo tipo di intervento", n));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from("tipi_intervento") as any)
-        .delete().eq("id", id).eq("company_id", companyId);
+      const { data, error } = await (supabase.from("tipi_intervento") as any)
+        .delete().eq("id", id).eq("company_id", companyId).select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw nessunaRigaEliminata();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tipi-intervento", companyId] });
-      toast.success("Tipo intervento eliminato");
+      toast.success("Tipo di intervento eliminato");
     },
     onError: (err: unknown) =>
-      toast.error(err instanceof Error ? err.message : "Errore eliminazione"),
+      toast.error(testoErrore(err, "Tipo di intervento non eliminato.")),
   });
 
   const deleteListinoMutation = useMutation({
     mutationFn: async (id: string) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from("listino_prezzi") as any)
-        .delete().eq("id", id).eq("company_id", companyId);
+      const { data, error } = await (supabase.from("listino_prezzi") as any)
+        .delete().eq("id", id).eq("company_id", companyId).select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw nessunaRigaEliminata();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["listino-prezzi", companyId] });
-      toast.success("Tariffa eliminata");
+      toast.success("Prezzo eliminato");
     },
     onError: (err: unknown) =>
-      toast.error(err instanceof Error ? err.message : "Errore eliminazione"),
+      toast.error(testoErrore(err, "Prezzo non eliminato.")),
   });
 
   /**
-   * Importa un sottoinsieme del catalogo standard filtrato per preset
+   * Importa un sottoinsieme del catalogo standard filtrato per catalogo pronto
    * e/o selezione fine. Idempotente: voci già presenti sono saltate.
    */
   const seedFromTemplate = async (params: {
@@ -156,7 +162,7 @@ export function useListinoData(companyId: string | undefined) {
           t.presets.some((p) => selectedPresets.includes(p)));
 
     if (tariffeTarget.length === 0) {
-      toast.info("Nessuna tariffa selezionata");
+      toast.info("Nessun prezzo scelto");
       return false;
     }
 
@@ -250,15 +256,15 @@ export function useListinoData(companyId: string | undefined) {
 
       const totale = impiantiToInsert.length + interventiToInsert.length + listinoToInsert.length;
       if (totale === 0) {
-        toast.info("Tutti gli elementi del template sono già presenti");
+        toast.info("Tutto quello che c'è nel catalogo è già presente");
       } else {
         toast.success(
-          `Template importato: ${impiantiToInsert.length} impianti, ${interventiToInsert.length} interventi, ${listinoToInsert.length} tariffe`,
+          `Catalogo importato: ${impiantiToInsert.length} impianti, ${interventiToInsert.length} interventi, ${listinoToInsert.length} prezzi`,
         );
       }
       return true;
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Errore import template");
+      toast.error(testoErrore(err, "Catalogo non importato."));
       return false;
     } finally {
       setCreatingDemo(false);

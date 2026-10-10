@@ -3,16 +3,19 @@
  * linea della riga, non quello base: una tipologia può avere margine giusto
  * in una linea e basso in un'altra.
  */
-import type { ModalitaPrezzoBase } from "@/types/articleFamily";
+import type { FamilyWithAxes, ModalitaPrezzoBase } from "@/types/articleFamily";
+import { haDisegno } from "@/lib/serramenti/disegnoDaFamiglia";
 import { economiaRiga, type RigaListino } from "./lineeListino";
 
 export type FiltroMargine = "all" | "ok" | "low" | "missing";
+export type FiltroFoto = "all" | "senza" | "con";
 
 export interface FiltriListino {
   modalita: "all" | ModalitaPrezzoBase;
   margine: FiltroMargine;
   stato: "all" | "attivi" | "disattivi";
   preventivo: "all" | "mostrati" | "nascosti";
+  foto: FiltroFoto;
 }
 
 export const FILTRI_LISTINO_VUOTI: FiltriListino = {
@@ -20,6 +23,7 @@ export const FILTRI_LISTINO_VUOTI: FiltriListino = {
   margine: "all",
   stato: "all",
   preventivo: "all",
+  foto: "all",
 };
 
 /** Il lavoro quotidiano parte dagli attivi; «Tutti» e «Solo disattivati» restano nei filtri. */
@@ -32,10 +36,21 @@ export const MODALITA_PREZZO: Record<ModalitaPrezzoBase, string> = {
   misura_libera: "Misura libera",
 };
 
-/** Sotto il 15% il margine è basso: la stessa soglia del listino di sempre. */
+/**
+ * Sotto il 15% il margine è basso nel Listino: una soglia FISSA di questa pagina, non quella di «Prezzo e margini»
+ * (che ha il suo «Margine minimo»). Le soglie sono tre (Listino, editor del prodotto, Manodopera e servizi) e oggi
+ * coincidono solo perché nessuno le ha cambiate: decisione D4 di Florin, ancora aperta.
+ */
+export const SOGLIA_MARGINE_LISTINO = 15;
+
 export function statoMargine(marginePct: number | null): Exclude<FiltroMargine, "all"> {
   if (marginePct == null) return "missing";
-  return marginePct >= 15 ? "ok" : "low";
+  return marginePct >= SOGLIA_MARGINE_LISTINO ? "ok" : "low";
+}
+
+/** Il prodotto ha una foto da mostrare? Una foto caricata, oppure un disegno che si fa da solo (serramenti). */
+export function haFoto(famiglia: FamilyWithAxes): boolean {
+  return Boolean(famiglia.immagine_url) || haDisegno(famiglia);
 }
 
 export function filtriAttivi(filtri: FiltriListino): number {
@@ -56,5 +71,7 @@ export function rigaPassa(riga: RigaListino, cerca: string, filtri: FiltriListin
   if (filtri.preventivo === "mostrati" && !neiPreventivi) return false;
   if (filtri.preventivo === "nascosti" && neiPreventivi) return false;
   if (filtri.margine !== "all" && statoMargine(economiaRiga(riga).marginePct) !== filtri.margine) return false;
+  if (filtri.foto === "con" && !haFoto(f)) return false;
+  if (filtri.foto === "senza" && haFoto(f)) return false;
   return true;
 }

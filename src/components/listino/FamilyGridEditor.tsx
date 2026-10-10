@@ -21,6 +21,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2, Save, Loader2, Upload, Download, FileUp, History } from "lucide-react";
 import { toast } from "sonner";
+import { messaggioErroreListino } from "@/lib/listinoErrors";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -373,8 +374,8 @@ export function FamilyGridEditor({
           description: note.length > 0 ? note.join(" ") : undefined,
         });
       } catch (err) {
-        toast.error("Errore parsing CSV", {
-          description: err instanceof Error ? err.message : String(err),
+        toast.error("Non riesco a leggere il CSV", {
+          description: messaggioErroreListino(err),
         });
       }
     };
@@ -474,7 +475,7 @@ export function FamilyGridEditor({
     const v = parseAxisValue(newX);
     const problema = problemaMisuraGriglia(v);
     if (problema) {
-      toast.error("Valore X non valido", { description: problema });
+      toast.error(`${asseXLabel} non valida`, { description: problema });
       return;
     }
     if (xAxis.includes(v)) {
@@ -490,7 +491,7 @@ export function FamilyGridEditor({
     const v = parseAxisValue(newY);
     const problema = problemaMisuraGriglia(v);
     if (problema) {
-      toast.error("Valore Y non valido", { description: problema });
+      toast.error(`${asseYLabel} non valida`, { description: problema });
       return;
     }
     if (yAxis.includes(v)) {
@@ -828,7 +829,7 @@ export function FamilyGridEditor({
     },
     onError: (err: Error) => {
       captureVelocityError("family.grid.save", err, { companyId, familyId });
-      toast.error("Errore salvataggio griglia", { description: err.message });
+      toast.error("Griglia non salvata", { description: messaggioErroreListino(err) });
     },
   });
 

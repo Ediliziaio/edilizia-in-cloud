@@ -5,27 +5,30 @@
  *   - hooks/useListinoData.ts
  *   - dialogs/{Impianto,Intervento,Listino,StandardListino}Dialog.tsx
  *   - sections/{Impianti,Interventi,Tariffe}Tab.tsx
- *   - index.tsx (questo file, ~200 righe)
+ *   - index.tsx (questo file)
  *
- * Montaggio: accorpato come tab "Manutenzione" nella pagina Tariffe
- * (/azienda/impostazioni/tariffe?tab=manutenzione) tramite la prop `embedded`.
- * La vecchia route /azienda/impostazioni/listino-manutenzione ora reindirizza lì.
- * Permission: canViewSettingsCustomization. Il guard isAdmin interno resta per UX semantica.
+ * Montaggio: le tre parti (tipi di impianto, tipi di intervento, prezzi) sono schede della pagina «Manodopera e servizi»,
+ * nella stessa fila della manodopera: /azienda/impostazioni/tariffe?tab=impianti | interventi | prezzi. Prima erano una
+ * seconda fila di schede dentro la scheda «Manutenzione». `?tab=manutenzione` (l'indirizzo di prima) apre gli impianti;
+ * la vecchia route /azienda/impostazioni/listino-manutenzione reindirizza lì. La fila di schede è della pagina
+ * (SettingsTariffe): questo componente mostra la parte scelta (`scheda`) e non ha titoli suoi (il layout mette l'h1).
+ * Permission: canViewSettingsPricing. Chi scrive: i prezzi li cambia l'amministratore o chi ha «Listino & Prezzi» in
+ * modifica; i tipi di impianto e di intervento solo l'amministratore (policy del database).
  */
 import { useState } from "react";
-import { Sparkles, ShieldAlert, ClipboardList } from "lucide-react";
+import { Sparkles, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useVertical } from "@/hooks/useVertical";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+import type { SchedaManutenzione } from "../SettingsTariffe/schede";
 import type { TipoImpianto, TipoIntervento, ListinoPrezzo } from "./types";
 import { useListinoData } from "./hooks/useListinoData";
 import { ImpiantoDialog } from "./dialogs/ImpiantoDialog";
@@ -36,20 +39,28 @@ import { ImpiantiTab } from "./sections/ImpiantiTab";
 import { InterventiTab } from "./sections/InterventiTab";
 import { TariffeTab } from "./sections/TariffeTab";
 
-export default function ListinoManutenzione({ embedded = false }: { embedded?: boolean } = {}) {
+/** Il titolo della parte aperta, per chi usa il lettore di schermo (la fila di schede non è un titolo). */
+const TITOLO_SCHEDA: Record<SchedaManutenzione, string> = {
+  impianti: "Manutenzione: tipi di impianto",
+  interventi: "Manutenzione: tipi di intervento",
+  prezzi: "Manutenzione: prezzi",
+};
+
+export default function ListinoManutenzione({ scheda }: { scheda: SchedaManutenzione }) {
   const { effectiveCompany, role } = useAuth();
   const { vertical } = useVertical();
   const companyId = effectiveCompany?.id as string | undefined;
-  // Solo admin azienda (e super admin) possono editare prezzi/tariffe. Un
-  // commerciale non ha mai titolo per modificare il listino: vedrebbe UI ma
-  // tutti i write fallirebbero via RLS generando solo toast di errore.
+  // I prezzi (listino_prezzi) li scrive chi ha «Listino & Prezzi» in modifica o l'amministratore; i tipi di impianto e di
+  // intervento solo l'amministratore (policy `tipi_*_admin_write`). Chi non può vede l'elenco e basta: con i pulsanti
+  // accesi riceveva un rifiuto, o peggio un «aggiornato» a vuoto.
   const permissions = usePermissions();
   // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
   // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
-  const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsPricing;
-  const canView = isAdmin || permissions.canViewSettingsPricing;
-
-  const [activeTab, setActiveTab] = useState("impianti");
+  const eAmministratore = role === "company_admin" || role === "super_admin" || permissions.isAdmin;
+  const puoModificarePrezzi = eAmministratore || permissions.canEditSettingsPricing;
+  const puoModificareTipi = eAmministratore;
+  const canView = puoModificarePrezzi || permissions.canViewSettingsPricing;
+  const puoModificare = scheda === "prezzi" ? puoModificarePrezzi : puoModificareTipi;
 
   // Impianti state
   const [impiantoDialogOpen, setImpiantoDialogOpen] = useState(false);
@@ -66,7 +77,7 @@ export default function ListinoManutenzione({ embedded = false }: { embedded?: b
   const [editingListino, setEditingListino] = useState<ListinoPrezzo | null>(null);
   const [deleteListinoId, setDeleteListinoId] = useState<string | null>(null);
 
-  // Template seed state
+  // Catalogo pronto (seed) state
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
 
   const {
@@ -91,9 +102,8 @@ export default function ListinoManutenzione({ embedded = false }: { embedded?: b
           <div>
             <p className="font-medium">Accesso riservato</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Solo l&apos;amministratore dell&apos;azienda può modificare il
-              listino manutenzione. Se devi aggiornare un prezzo, chiedi al
-              titolare di farlo da questa pagina.
+              Non hai il permesso di vedere il listino di manutenzione. Chiedilo
+              all&apos;amministratore dell&apos;azienda.
             </p>
           </div>
         </CardContent>
@@ -104,15 +114,14 @@ export default function ListinoManutenzione({ embedded = false }: { embedded?: b
   // ─── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
-      {embedded ? (
-        /* Embedded nella pagina Tariffe: header snello, niente titolo grande
-           (il contesto è già dato dal tab "Manutenzione"). Manteniamo il
-           pulsante "Importa da template". */
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            Tipi di impianto, tipi di intervento e listino prezzi. Usati dal modulo Manutenzione
-            per calcolare automaticamente i preventivi di intervento.
-          </p>
+      <h2 className="sr-only">{TITOLO_SCHEDA[scheda]}</h2>
+
+      {/* Una riga: a cosa serve e, per chi può, il catalogo pronto. Niente titolo grande: lo dice la scheda aperta. */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Impianti, interventi e prezzi che il modulo Manutenzione usa per calcolare i preventivi di intervento.
+        </p>
+        {puoModificareTipi && (
           <Button
             variant="outline"
             size="sm"
@@ -120,92 +129,59 @@ export default function ListinoManutenzione({ embedded = false }: { embedded?: b
             disabled={creatingDemo}
             className="shrink-0"
           >
-            <Sparkles className="h-4 w-4 mr-1.5" />
-            {creatingDemo ? "Importazione..." : "Importa da template"}
+            <Sparkles className="h-4 w-4 mr-1.5" aria-hidden />
+            {creatingDemo ? "Importazione..." : "Importa un catalogo pronto"}
           </Button>
-        </div>
-      ) : (
-        /* Header pattern h-10 w-10 bg-primary/10 */
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div className="flex items-start gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <ClipboardList className="h-5 w-5 text-primary" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold leading-tight">Listino Prezzi Manutenzione</h1>
-              <p className="text-sm text-muted-foreground">
-                Tipi di impianto, tipi di intervento e listino prezzi. Usati dal modulo Manutenzione
-                per calcolare automaticamente i preventivi di intervento.
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setTemplateDialogOpen(true)}
-            disabled={creatingDemo}
-            className="shrink-0"
-          >
-            <Sparkles className="h-4 w-4 mr-1.5" />
-            {creatingDemo ? "Importazione..." : "Importa da template"}
-          </Button>
-        </div>
+        )}
+      </div>
+
+      {!puoModificare && (
+        <Alert>
+          <AlertDescription>
+            {scheda === "prezzi"
+              ? "Stai consultando i prezzi di manutenzione: li cambia chi ha il permesso «Listino & Prezzi» in modifica."
+              : `Stai consultando ${scheda === "impianti" ? "i tipi di impianto" : "i tipi di intervento"}: li cambia l'amministratore dell'azienda.`}
+          </AlertDescription>
+        </Alert>
       )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="impianti">
-            Tipi Impianto
-            {tipiImpianto.length > 0 && (
-              <Badge variant="secondary" className="ml-1.5 text-xs">{tipiImpianto.length}</Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="interventi">
-            Tipi Intervento
-            {tipiIntervento.length > 0 && (
-              <Badge variant="secondary" className="ml-1.5 text-xs">{tipiIntervento.length}</Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="tariffe">
-            Tariffe
-            {listino.length > 0 && (
-              <Badge variant="secondary" className="ml-1.5 text-xs">{listino.length}</Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
+      {scheda === "impianti" && (
+        <ImpiantiTab
+          tipiImpianto={tipiImpianto}
+          loadingImpianti={loadingImpianti}
+          puoModificare={puoModificareTipi}
+          puoImportare={puoModificareTipi}
+          onAdd={() => { setEditingImpianto(null); setImpiantoDialogOpen(true); }}
+          onEdit={(t) => { setEditingImpianto(t); setImpiantoDialogOpen(true); }}
+          onDelete={setDeleteImpiantoId}
+        />
+      )}
 
-        <TabsContent value="impianti" className="mt-4">
-          <ImpiantiTab
-            tipiImpianto={tipiImpianto}
-            loadingImpianti={loadingImpianti}
-            onAdd={() => { setEditingImpianto(null); setImpiantoDialogOpen(true); }}
-            onEdit={(t) => { setEditingImpianto(t); setImpiantoDialogOpen(true); }}
-            onDelete={setDeleteImpiantoId}
-          />
-        </TabsContent>
+      {scheda === "interventi" && (
+        <InterventiTab
+          tipiIntervento={tipiIntervento}
+          loadingInterventi={loadingInterventi}
+          puoModificare={puoModificareTipi}
+          puoImportare={puoModificareTipi}
+          onAdd={() => { setEditingIntervento(null); setInterventoDialogOpen(true); }}
+          onEdit={(t) => { setEditingIntervento(t); setInterventoDialogOpen(true); }}
+          onDelete={setDeleteInterventoId}
+        />
+      )}
 
-        <TabsContent value="interventi" className="mt-4">
-          <InterventiTab
-            tipiIntervento={tipiIntervento}
-            loadingInterventi={loadingInterventi}
-            onAdd={() => { setEditingIntervento(null); setInterventoDialogOpen(true); }}
-            onEdit={(t) => { setEditingIntervento(t); setInterventoDialogOpen(true); }}
-            onDelete={setDeleteInterventoId}
-          />
-        </TabsContent>
-
-        <TabsContent value="tariffe" className="mt-4">
-          <TariffeTab
-            listino={listino}
-            loadingListino={loadingListino}
-            tipiImpianto={tipiImpianto}
-            tipiIntervento={tipiIntervento}
-            onAdd={() => { setEditingListino(null); setListinoDialogOpen(true); }}
-            onEdit={(l) => { setEditingListino(l); setListinoDialogOpen(true); }}
-            onDelete={setDeleteListinoId}
-          />
-        </TabsContent>
-      </Tabs>
+      {scheda === "prezzi" && (
+        <TariffeTab
+          listino={listino}
+          loadingListino={loadingListino}
+          tipiImpianto={tipiImpianto}
+          tipiIntervento={tipiIntervento}
+          puoModificare={puoModificarePrezzi}
+          puoImportare={puoModificareTipi}
+          onAdd={() => { setEditingListino(null); setListinoDialogOpen(true); }}
+          onEdit={(l) => { setEditingListino(l); setListinoDialogOpen(true); }}
+          onDelete={setDeleteListinoId}
+        />
+      )}
 
       {/* ── Dialogs ── */}
       {impiantoDialogOpen && (
@@ -253,19 +229,19 @@ export default function ListinoManutenzione({ embedded = false }: { embedded?: b
             return (
               <>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Elimina tipo impianto</AlertDialogTitle>
+                  <AlertDialogTitle>Elimina tipo di impianto</AlertDialogTitle>
                   <AlertDialogDescription>
                     {blocked ? (
                       <>
                         <span className="text-rose-700 font-medium">Impossibile eliminare.</span>{" "}
-                        Ci sono <strong>{impiantoInUso}</strong>{" "}
-                        {impiantoInUso === 1 ? "tariffa di listino associata" : "tariffe di listino associate"} a
+                        {impiantoInUso === 1 ? "C'è " : "Ci sono "}<strong>{impiantoInUso}</strong>{" "}
+                        {impiantoInUso === 1 ? "prezzo di manutenzione collegato" : "prezzi di manutenzione collegati"} a
                         {" "}<em>{impiantoNome}</em>.
-                        Rimuovi prima le tariffe, oppure <strong>disattiva</strong> il tipo dall&apos;interruttore in lista
-                        (il tipo non compare più nel preventivatore ma preserva lo storico).
+                        Elimina prima {impiantoInUso === 1 ? "quel prezzo" : "quei prezzi"}, oppure <strong>disattiva</strong> il tipo
+                        (apri «Modifica» e spegni «Attivo»): non si potrà più scegliere nei nuovi interventi, ma resta nello storico.
                       </>
                     ) : (
-                      <>Questa azione è irreversibile. Nessuna tariffa è attualmente collegata a <em>{impiantoNome}</em>.</>
+                      <>Questa azione è irreversibile. Nessun prezzo è collegato a <em>{impiantoNome}</em>.</>
                     )}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
@@ -299,18 +275,19 @@ export default function ListinoManutenzione({ embedded = false }: { embedded?: b
             return (
               <>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Elimina tipo intervento</AlertDialogTitle>
+                  <AlertDialogTitle>Elimina tipo di intervento</AlertDialogTitle>
                   <AlertDialogDescription>
                     {blocked ? (
                       <>
                         <span className="text-rose-700 font-medium">Impossibile eliminare.</span>{" "}
-                        Ci sono <strong>{interventoInUso}</strong>{" "}
-                        {interventoInUso === 1 ? "tariffa di listino associata" : "tariffe di listino associate"} a
+                        {interventoInUso === 1 ? "C'è " : "Ci sono "}<strong>{interventoInUso}</strong>{" "}
+                        {interventoInUso === 1 ? "prezzo di manutenzione collegato" : "prezzi di manutenzione collegati"} a
                         {" "}<em>{interventoNome}</em>.
-                        Rimuovi prima le tariffe, oppure <strong>disattiva</strong> il tipo.
+                        Elimina prima {interventoInUso === 1 ? "quel prezzo" : "quei prezzi"}, oppure <strong>disattiva</strong> il tipo
+                        (apri «Modifica» e spegni «Attivo»): non si potrà più scegliere nei nuovi interventi, ma resta nello storico.
                       </>
                     ) : (
-                      <>Questa azione è irreversibile. Nessuna tariffa è attualmente collegata a <em>{interventoNome}</em>.</>
+                      <>Questa azione è irreversibile. Nessun prezzo è collegato a <em>{interventoNome}</em>.</>
                     )}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
@@ -338,9 +315,9 @@ export default function ListinoManutenzione({ embedded = false }: { embedded?: b
       <AlertDialog open={!!deleteListinoId} onOpenChange={(v) => !v && setDeleteListinoId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina tariffa</AlertDialogTitle>
+            <AlertDialogTitle>Elimina prezzo di manutenzione</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione è irreversibile. La tariffa verrà rimossa definitivamente.
+              Questa azione è irreversibile. Il prezzo verrà rimosso definitivamente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -360,7 +337,7 @@ export default function ListinoManutenzione({ embedded = false }: { embedded?: b
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── Template picker ── */}
+      {/* ── Catalogo pronto ── */}
       {templateDialogOpen && (
         <StandardListinoDialog
           open={templateDialogOpen}

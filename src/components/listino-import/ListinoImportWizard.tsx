@@ -2,10 +2,13 @@
  * Sprint C — Catalogo Esteso
  * Wizard di import listini da Excel/CSV in 4 step.
  *
- *  1. Scegli tipo (prodotti / famiglie / tariffe) e scarica template
- *  2. Carica file → parser → preview + errori/warn
- *  3. Risoluzione categorie/fornitori/famiglie (fuzzy match)
+ *  1. Scegli cosa importi (catalogo articoli / prodotti del Listino / manodopera e servizi) e scarica il modello
+ *  2. Carica il file → lettura → anteprima, errori e avvisi
+ *  3. Controllo delle righe
  *  4. Conferma → chiamata Edge Function catalog-import-batch
+ *
+ * Il tipo che parte preselezionato è «Catalogo articoli» (decisione D1 di Florin ancora aperta): in ogni passo si
+ * dice dove vanno i dati davvero (vedi `destinazioniImport.ts`).
  */
 import { useMemo, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -28,7 +31,15 @@ import {
 import {
   downloadListinoTemplateXlsx,
   downloadListinoTemplateCsv,
+  FIXED_COLUMNS,
 } from "@/lib/catalogo/listinoTemplate";
+import {
+  DESTINAZIONI_IMPORT,
+  contaElementi,
+  fraseConferma,
+  nomiColonneNonLette,
+} from "@/lib/catalogo/destinazioniImport";
+import { testoErrore } from "@/lib/impostazioni/testoErrore";
 import {
   parseListinoFile,
   summarizeParsedRows,
@@ -56,23 +67,26 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
   const { data: customFields = [] } = useCompanyCustomFields(objectType);
 
   const summary = useMemo(() => summarizeParsedRows(rows), [rows]);
+  const destinazione = DESTINAZIONI_IMPORT[objectType];
+  // Nell'anteprima i campi hanno il nome della colonna del modello, non la chiave interna («Prezzo Listino», non list_price).
+  const nomiCampi = useMemo(() => new Map(FIXED_COLUMNS[objectType].map((c) => [c.key, c.label] as const)), [objectType]);
 
   /* ────────────────── Step 1 — scelta tipo + template ────────────────── */
   const handleDownloadXlsx = useCallback(async () => {
     try {
       await downloadListinoTemplateXlsx({ objectType, customFields });
-      toast.success("Template scaricato");
-    } catch (e: any) {
-      toast.error(`Errore download: ${e.message ?? e}`);
+      toast.success("Modello scaricato");
+    } catch (e: unknown) {
+      toast.error("Non sono riuscito a scaricare il modello", { description: testoErrore(e) });
     }
   }, [objectType, customFields]);
 
   const handleDownloadCsv = useCallback(() => {
     try {
       downloadListinoTemplateCsv({ objectType, customFields });
-      toast.success("Template CSV scaricato");
-    } catch (e: any) {
-      toast.error(`Errore download: ${e.message ?? e}`);
+      toast.success("Modello CSV scaricato");
+    } catch (e: unknown) {
+      toast.error("Non sono riuscito a scaricare il modello", { description: testoErrore(e) });
     }
   }, [objectType, customFields]);
 
@@ -91,8 +105,8 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
         } else {
           toast.success(`${parsed.length} righe lette`);
         }
-      } catch (e: any) {
-        toast.error(`Errore parsing: ${e.message ?? e}`);
+      } catch (e: unknown) {
+        toast.error("Non riesco a leggere il file", { description: testoErrore(e) });
       } finally {
         setParsing(false);
       }
@@ -146,13 +160,13 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
       const serverErrors = result?.errors ?? [];
       const okLabel =
         updated > 0
-          ? `Importati ${inserted} nuovi record · ${updated} aggiornati`
-          : `Importati ${inserted} record`;
+          ? `Importati ${contaElementi(objectType, inserted)} nuovi · ${updated} aggiornati`
+          : `Importati ${contaElementi(objectType, inserted)}`;
       if (skipped > 0 || serverErrors.length > 0) {
         toast.warning(`${okLabel} · ${skipped} scartati`, {
           description: serverErrors
             .slice(0, 3)
-            .map((e) => `Riga ${e.row}: ${e.error}`)
+            .map((e) => `Riga ${e.row}: ${testoErrore(e.error)}`)
             .join(" — ")
             .concat(serverErrors.length > 3 ? ` (+${serverErrors.length - 3} altri)` : ""),
           duration: 10000,
@@ -165,8 +179,8 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
       setStep(1);
       setFile(null);
       setRows([]);
-    } catch (e: any) {
-      toast.error(`Errore import: ${e.message ?? e}`);
+    } catch (e: unknown) {
+      toast.error("Importazione non riuscita", { description: testoErrore(e) });
     } finally {
       setSubmitting(false);
       setTimeout(() => setProgress(0), 1500);
@@ -181,22 +195,22 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
 
   const stepLabel =
     step === 1
-      ? "1 · Scelta tipo e template"
+      ? "1 · Cosa importi e modello da compilare"
       : step === 2
-      ? "2 · Caricamento file"
+      ? "2 · Caricamento del file"
       : step === 3
-      ? "3 · Anteprima e validazione"
-      : "4 · Conferma import";
+      ? "3 · Controllo delle righe"
+      : "4 · Conferma";
 
   /* ────────────────── render ────────────────── */
   return (
     <Card className="max-w-5xl">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div>
-          <CardTitle className="text-lg">Import Listini</CardTitle>
+          <CardTitle className="text-lg">Importa da un foglio Excel o CSV</CardTitle>
           <p className="text-xs text-muted-foreground">{stepLabel}</p>
         </div>
-        <Badge variant="outline">Step {step}/4</Badge>
+        <Badge variant="outline" className="shrink-0 whitespace-nowrap">Passo {step} di 4</Badge>
       </CardHeader>
 
       <CardContent className="space-y-6">
@@ -204,31 +218,49 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
         {step === 1 && (
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Tipo di dati da importare</Label>
+              <Label htmlFor="listino-tipo">Cosa stai importando?</Label>
               <Select value={objectType} onValueChange={(v) => setObjectType(v as CatalogObjectType)}>
-                <SelectTrigger>
+                <SelectTrigger id="listino-tipo" aria-describedby="listino-tipo-dove">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="product">Prodotti / Articoli</SelectItem>
-                  <SelectItem value="family">Famiglie Prodotto</SelectItem>
-                  <SelectItem value="tariffa">Tariffe / Manodopera</SelectItem>
+                  <SelectItem value="product">{DESTINAZIONI_IMPORT.product.nome}</SelectItem>
+                  <SelectItem value="family">{DESTINAZIONI_IMPORT.family.nome}</SelectItem>
+                  <SelectItem value="tariffa">{DESTINAZIONI_IMPORT.tariffa.nome}</SelectItem>
                 </SelectContent>
               </Select>
+              {/* Dove finiscono i dati dipende da questa scelta: si dice sempre, sotto il menu. */}
+              <div id="listino-tipo-dove" className="space-y-1.5 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">{destinazione.dove}</p>
+                {destinazione.attenzione.map((frase) => (
+                  <p key={frase}>{frase}</p>
+                ))}
+                <details>
+                  <summary className="cursor-pointer py-0.5">Altri dettagli: se c'è già, colonne ignorate</summary>
+                  <div className="mt-1 space-y-1">
+                    <p>{destinazione.seEsiste}</p>
+                    {nomiColonneNonLette(objectType).length > 0 && (
+                      <p>
+                        Le colonne del modello che l'importazione non legge: {nomiColonneNonLette(objectType).join(", ")}.
+                      </p>
+                    )}
+                  </div>
+                </details>
+              </div>
               <p className="text-xs text-muted-foreground">
-                Il template include le colonne fisse + i campi personalizzati configurati per questo tipo
-                ({customFields.length} custom field{customFields.length === 1 ? "" : "s"}).
+                Il modello ha le colonne fisse e i campi personalizzati configurati per questo tipo (
+                {customFields.length} {customFields.length === 1 ? "campo personalizzato" : "campi personalizzati"}).
               </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
               <Button onClick={handleDownloadXlsx}>
                 <Download className="h-4 w-4 mr-2" />
-                Scarica template Excel
+                Scarica il modello Excel
               </Button>
               <Button variant="outline" onClick={handleDownloadCsv}>
                 <Download className="h-4 w-4 mr-2" />
-                Template CSV
+                Modello CSV
               </Button>
             </div>
 
@@ -236,8 +268,8 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
               <FileSpreadsheet className="h-4 w-4" />
               <AlertTitle>Come compilare</AlertTitle>
               <AlertDescription className="text-xs">
-                Le colonne con <code>*</code> sono obbligatorie. Le date devono essere in formato
-                AAAA-MM-GG. Per i campi select usa uno dei valori ammessi (vedi foglio "Istruzioni").
+                Le colonne con <code>*</code> sono obbligatorie. Le date si scrivono AAAA-MM-GG (per esempio
+                2026-10-31). Nei campi a scelta usa uno dei valori ammessi: li trovi nel foglio «Istruzioni».
               </AlertDescription>
             </Alert>
           </div>
@@ -260,7 +292,7 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
             {parsing && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Parsing in corso…
+                Leggo il file…
               </div>
             )}
 
@@ -271,7 +303,7 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
                   {file.name} — {rows.length} righe lette
                 </AlertTitle>
                 <AlertDescription className="text-xs">
-                  Valide: {summary.valid} · Con errori: {summary.withErrors} · Con warning: {summary.withWarnings}
+                  Valide: {summary.valid} · Con errori: {summary.withErrors} · Con avvisi: {summary.withWarnings}
                 </AlertDescription>
               </Alert>
             )}
@@ -285,7 +317,7 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
               <StatCard label="Righe totali" value={summary.total} />
               <StatCard label="Valide" value={summary.valid} tone="success" />
               <StatCard label="Con errori" value={summary.withErrors} tone="danger" />
-              <StatCard label="Con warning" value={summary.withWarnings} tone="warn" />
+              <StatCard label="Con avvisi" value={summary.withWarnings} tone="warn" />
             </div>
 
             <div className="max-h-96 overflow-auto border rounded-md">
@@ -306,7 +338,7 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
                         {r.errors.length > 0 ? (
                           <Badge variant="destructive">Errore</Badge>
                         ) : r.warnings.length > 0 ? (
-                          <Badge className="bg-amber-500 text-white">Warning</Badge>
+                          <Badge className="bg-amber-500 text-white">Avviso</Badge>
                         ) : (
                           <Badge className="bg-emerald-500 text-white">OK</Badge>
                         )}
@@ -316,7 +348,7 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
                           {truncate(
                             Object.entries(r.normalized)
                               .filter(([, v]) => v !== null && v !== "")
-                              .map(([k, v]) => `${k}: ${String(v)}`)
+                              .map(([k, v]) => `${nomiCampi.get(k) ?? k}: ${String(v)}`)
                               .join(" · "),
                             140,
                           )}
@@ -350,7 +382,7 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Attenzione</AlertTitle>
                 <AlertDescription>
-                  Le righe con errori verranno escluse dall'import. Torna indietro per correggere il file.
+                  Le righe con errori non verranno importate. Torna indietro per correggere il file.
                 </AlertDescription>
               </Alert>
             )}
@@ -362,18 +394,16 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
           <div className="space-y-4">
             <Alert>
               <CheckCircle2 className="h-4 w-4" />
-              <AlertTitle>Conferma import</AlertTitle>
+              <AlertTitle>Conferma</AlertTitle>
               <AlertDescription>
-                Stai per importare <strong>{summary.valid}</strong> record di tipo{" "}
-                <strong>{objectType}</strong>. L'operazione è reversibile solo eliminando i record
-                manualmente.
+                <strong>{fraseConferma(objectType, summary.valid)}</strong> {destinazione.annullare}
               </AlertDescription>
             </Alert>
 
             {submitting && (
               <div className="space-y-2">
                 <Progress value={progress} />
-                <p className="text-xs text-muted-foreground">Import in corso…</p>
+                <p className="text-xs text-muted-foreground">Importazione in corso…</p>
               </div>
             )}
           </div>
@@ -402,7 +432,7 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
               ) : (
                 <>
                   <Upload className="h-4 w-4 mr-2" />
-                  Importa {summary.valid} record
+                  Importa {contaElementi(objectType, summary.valid)}
                 </>
               )}
             </Button>

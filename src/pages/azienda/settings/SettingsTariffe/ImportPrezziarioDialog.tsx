@@ -40,6 +40,7 @@ import {
   type ParsedPrezziarioRow,
 } from "@/lib/tariffe/prezziarioImport";
 import type { Tariffa } from "./types";
+import { testoErrore } from "@/lib/impostazioni/testoErrore";
 
 const INSERT_CHUNK = 100;
 const MAX_PREVIEW_ROWS = 400;
@@ -112,7 +113,7 @@ export function ImportPrezziarioDialog({
       }
       setSelected(pre);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore lettura file");
+      toast.error(testoErrore(err, "Non riesco a leggere il file."));
       setResult(null);
     } finally {
       setParsing(false);
@@ -169,7 +170,7 @@ export function ImportPrezziarioDialog({
       onImported();
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore import tariffe");
+      toast.error(testoErrore(err, "Voci non importate."));
     } finally {
       setImporting(false);
     }
@@ -366,10 +367,10 @@ export function ImportPrezziarioDialog({
             <Info className="h-4 w-4 mt-0.5 shrink-0" />
             <div>
               <strong>Come funziona:</strong> dopo l'import le voci finiscono nel
-              listino "Manodopera e Servizi". Quando carichi un <strong>computo metrico</strong>,
-              le lavorazioni vengono abbinate a queste tariffe per valorizzare
+              listino «Manodopera e servizi». Quando carichi un <strong>computo metrico</strong>,
+              le lavorazioni vengono abbinate a queste voci per valorizzare
               automaticamente il preventivo. Non hai un file? Usa il
-              {" "}<strong>Catalogo standard</strong> dalla schermata principale.
+              {" "}<strong>Catalogo standard</strong> dal menu «Importa / Esporta».
             </div>
           </div>
         )}

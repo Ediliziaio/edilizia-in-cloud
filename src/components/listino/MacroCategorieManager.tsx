@@ -567,11 +567,12 @@ export function MacroCategorieManager() {
                 Decide DOVE appare nel preventivatore:
                   • principale  → ListinoPickerDialog principale (serramenti veri)
                   • accessorio  → sezione "Accessori e complementi" del progetto */}
-            <div className="space-y-2 pt-1 border-t">
-              <Label className="text-sm font-medium">Come compare nel preventivo</Label>
+            <div className="space-y-2 pt-1 border-t" role="group" aria-labelledby="mc-tipo-etichetta">
+              <Label id="mc-tipo-etichetta" className="text-sm font-medium">Come compare nel preventivo</Label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
+                  aria-pressed={formCategoriaTipo === "principale"}
                   onClick={() => setFormCategoriaTipo("principale")}
                   className={`text-left rounded-md border-2 p-2.5 transition-colors ${
                     formCategoriaTipo === "principale"
@@ -586,6 +587,7 @@ export function MacroCategorieManager() {
                 </button>
                 <button
                   type="button"
+                  aria-pressed={formCategoriaTipo === "accessorio"}
                   onClick={() => setFormCategoriaTipo("accessorio")}
                   className={`text-left rounded-md border-2 p-2.5 transition-colors ${
                     formCategoriaTipo === "accessorio"
@@ -606,7 +608,7 @@ export function MacroCategorieManager() {
                 prodotti della macro vengono sincronizzati automaticamente nel
                 catalogo Componenti FV (trigger fv_sync_listino_macro). */}
             <div className="space-y-2 pt-1 border-t">
-              <Label className="text-sm font-medium">Tipologia listino (per i preventivatori)</Label>
+              <Label htmlFor="mc-tipologia" className="text-sm font-medium">Tipologia listino (per i preventivatori)</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Select
                   value={formTipologia ?? "__none__"}
@@ -616,7 +618,7 @@ export function MacroCategorieManager() {
                     if (next !== "fotovoltaico") setFormFvCategoria(null);
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="mc-tipologia">
                     <SelectValue placeholder="Nessuna tipologia" />
                   </SelectTrigger>
                   <SelectContent>
@@ -633,7 +635,7 @@ export function MacroCategorieManager() {
                       setFormFvCategoria(v === "__none__" ? null : (v as CategoriaFvListino))
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Componente fotovoltaico">
                       <SelectValue placeholder="Componente FV" />
                     </SelectTrigger>
                     <SelectContent>
@@ -657,7 +659,7 @@ export function MacroCategorieManager() {
               <div className="space-y-2 pt-1 border-t">
                 <div className="flex items-center gap-2">
                   <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                  <Label className="text-sm font-medium">Foto della tipologia (facoltativa)</Label>
+                  <Label id="mc-foto-etichetta" className="text-sm font-medium">Foto della tipologia (facoltativa)</Label>
                 </div>
                 {editMode.kind === "macro-new" ? (
                   <p className="text-xs text-muted-foreground italic">
@@ -694,7 +696,7 @@ export function MacroCategorieManager() {
                           e.currentTarget.value = "";
                         }}
                       />
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2" role="group" aria-labelledby="mc-foto-etichetta">
                         <Button
                           type="button"
                           variant="outline"
@@ -745,14 +747,14 @@ export function MacroCategorieManager() {
                 <div className="pt-2 border-t mt-2" />
                 <div className="flex items-center gap-2">
                   <Tag className="h-4 w-4 text-muted-foreground" />
-                  <Label className="text-sm font-medium">Verticali abilitati</Label>
+                  <Label id="mc-verticali-etichetta" className="text-sm font-medium">Verticali abilitati</Label>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Scegli in quali moduli preventivo (Serramenti, Bagno, Fotovoltaico…)
                   questa tipologia dovrà essere visibile. Lascia <em>tutto deselezionato</em>{" "}
                   per renderla visibile in tutti i moduli.
                 </p>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1 max-h-48 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1 max-h-48 overflow-y-auto" role="group" aria-labelledby="mc-verticali-etichetta">
                   {VERTICALI_OPTIONS.map((v) => (
                     <label
                       key={v.value}
@@ -779,8 +781,8 @@ export function MacroCategorieManager() {
                 usato sia come riepilogo negli elenchi/picker (troncato), sia
                 come contenuto della pagina dedicata nel PDF preventivo.
                 L'attivazione "pagina dedicata SI/NO" si fa in:
-                  Impostazioni → Preventivi Serramenti (o altri verticali) →
-                  pannello "Pagine dedicate".
+                  Impostazioni → Modelli di preventivo → Moduli → Serramenti (o Fotovoltaico) →
+                  card "Pagine dedicate macrocategoria".
                 Qui sotto è solo un hint informativo. */}
             {(
 
@@ -1062,6 +1064,7 @@ function MacroRow({
             size="icon"
             onClick={onEditSchedaTecnica}
             title="Scheda tecnica — campi del prodotto"
+            aria-label={`Scheda tecnica di ${macro.nome}`}
             className="h-9 w-9"
           >
             <Settings2 className="h-4 w-4" aria-hidden="true" />
@@ -1071,6 +1074,7 @@ function MacroRow({
             size="icon"
             onClick={onImportTemplates}
             title="Importa articoli template del verticale"
+            aria-label={`Importa i modelli pronti in ${macro.nome}`}
             className="h-9 w-9 text-orange-700 hover:text-orange-800 hover:bg-orange-50"
           >
             <Sparkles className="h-4 w-4" aria-hidden="true" />
@@ -1080,6 +1084,7 @@ function MacroRow({
             size="icon"
             onClick={onEditMacro}
             title="Modifica tipologia"
+            aria-label={`Modifica ${macro.nome}`}
             className="h-9 w-9"
           >
             <Edit2 className="h-4 w-4" aria-hidden="true" />
@@ -1090,6 +1095,7 @@ function MacroRow({
             onClick={onDeleteMacro}
             className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10"
             title="Elimina"
+            aria-label={`Elimina ${macro.nome}`}
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />
           </Button>
@@ -1100,7 +1106,7 @@ function MacroRow({
         <div className="border-t bg-muted/20">
           <div className="px-6 py-5 text-sm text-muted-foreground text-center">
             I prodotti di questa tipologia si gestiscono dal{" "}
-            <strong>Listino prodotti</strong>. Usa il pulsante{" "}
+            <strong>Listino</strong>. Usa il pulsante{" "}
             <Sparkles className="inline h-3.5 w-3.5 text-orange-600" /> qui sopra per
             importare i modelli pronti.
           </div>

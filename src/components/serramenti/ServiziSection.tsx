@@ -52,7 +52,7 @@ interface Props {
  * che è l'enum DB di `tariffe_aziendali.tipo` — al click cerchiamo la tariffa
  * configurata dall'azienda con quel tipo e creiamo la riga con prezzo + unità
  * ereditati. Se nessuna tariffa trovata, fallback a voce free-form + toast
- * guida che indirizza in Impostazioni → Tariffe aziendali.
+ * guida che indirizza in Impostazioni → Listino → Manodopera e servizi.
  *
  * tariffaTipo deve coincidere con l'enum CHECK di tariffe_aziendali:
  *   posa, trasporto, smaltimento, nolo, tiro_piano, pratica, manodopera,
@@ -155,7 +155,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
       position: righe.length,
     });
     toast.info(`${servizio.label} aggiunto (manuale)`, {
-      description: "Configura una tariffa in Impostazioni → Tariffe aziendali per pre-popolare il prezzo al prossimo click.",
+      description: "Configura una tariffa in Impostazioni → Listino → Manodopera e servizi per pre-popolare il prezzo al prossimo click.",
     });
   };
 
@@ -243,7 +243,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
                       : `${count} varianti in listino — al click ti chiederò quale usare`
                     : s.tariffaTipo === null
                       ? `Servizio personalizzato — voce manuale. Aggiungi prezzo dopo aver creato la riga.`
-                      : `Nessuna tariffa "${s.label}" in Impostazioni → Tariffe aziendali: verrà creata voce manuale`
+                      : `Nessuna tariffa "${s.label}" in Impostazioni → Listino → Manodopera e servizi: verrà creata voce manuale`
                 }
               >
                 <span
@@ -319,7 +319,7 @@ export function ServiziSection({ progettoId, detail }: Props) {
                             <Badge
                               variant="outline"
                               className="text-[9px] h-4 px-1 border-orange-300 text-orange-700 bg-white"
-                              title="Voce collegata al listino tariffe aziendali. Prezzo e unità sono gestiti dal listino — usa il menu per sganciare."
+                              title="Voce collegata a «Manodopera e servizi» del listino. Prezzo e unità sono gestiti dal listino — usa il menu per sganciare."
                             >
                               <Sparkles className="h-2.5 w-2.5 mr-0.5" />
                               da listino
@@ -501,7 +501,7 @@ function TariffaPickerDialog({
         <DialogHeader>
           <DialogTitle>Seleziona dal listino tariffe</DialogTitle>
           <DialogDescription>
-            Tariffe configurate in Impostazioni → Tariffe aziendali. Filtra per cercare servizi (trasporto, ENEA, ecc.).
+            Tariffe configurate in Impostazioni → Listino → Manodopera e servizi. Filtra per cercare servizi (trasporto, ENEA, ecc.).
           </DialogDescription>
         </DialogHeader>
 
@@ -526,7 +526,7 @@ function TariffaPickerDialog({
             <div className="py-8 text-center">
               <Truck className="h-10 w-10 mx-auto text-muted-foreground/30 mb-2" />
               <p className="text-sm text-muted-foreground">
-                Nessuna tariffa trovata. Configurale in Impostazioni → Tariffe aziendali.
+                Nessuna tariffa trovata. Configurale in Impostazioni → Listino → Manodopera e servizi.
               </p>
             </div>
           ) : (

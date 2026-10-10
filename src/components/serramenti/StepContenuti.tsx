@@ -2,7 +2,7 @@
  * StepContenuti — Step 3 wizard: scegli i contenuti del PDF cliente.
  *
  * L'azienda mantiene una "libreria" di esigenze/soluzioni/USP/incluso/passi
- * nelle Impostazioni Template (più voci possibili). Qui il commerciale
+ * nel modello del preventivo Serramenti, in Impostazioni → Modelli di preventivo → Moduli (più voci possibili). Qui il commerciale
  * sceglie per il preventivo specifico quali voci usare, ne aggiunge di
  * custom, può modificare i testi inline.
  *
@@ -124,7 +124,7 @@ function ObjectItemsPicker({
         <div className="space-y-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <p className="text-[11px] text-muted-foreground">
-              Dalla tua <strong>libreria template</strong> ({templateItems.length} voci disponibili)
+              Dalla tua <strong>libreria dei modelli</strong> ({templateItems.length} voci disponibili)
             </p>
             <div className="flex gap-1">
               <Button size="sm" variant="ghost" onClick={selectAllTemplate} className="tap-compact h-7 text-[11px]">
@@ -173,7 +173,7 @@ function ObjectItemsPicker({
         </div>
       ) : (
         <SrCallout variant="info">
-          La tua libreria template non ha ancora {label.toLowerCase()}. Vai in <strong>Impostazioni → Template Moduli Vendita → Serramenti</strong> per aggiungerne.
+          La tua libreria dei modelli non ha ancora {label.toLowerCase()}. Vai in <strong>Impostazioni → Modelli di preventivo → Moduli → Serramenti</strong> per aggiungerne.
         </SrCallout>
       )}
 
@@ -292,7 +292,7 @@ function StringItemsPicker({
         <div className="space-y-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <p className="text-[11px] text-muted-foreground">
-              Dalla tua <strong>libreria template</strong> ({templateItems.length} voci disponibili)
+              Dalla tua <strong>libreria dei modelli</strong> ({templateItems.length} voci disponibili)
             </p>
             <div className="flex gap-1">
               <Button size="sm" variant="ghost" onClick={selectAllTemplate} className="tap-compact h-7 text-[11px]">
@@ -330,7 +330,7 @@ function StringItemsPicker({
         </div>
       ) : (
         <SrCallout variant="info">
-          La tua libreria template non ha ancora <strong>{label.toLowerCase()}</strong>. Vai in <strong>Impostazioni → Template Moduli Vendita → Serramenti</strong> per aggiungerne.
+          La tua libreria dei modelli non ha ancora <strong>{label.toLowerCase()}</strong>. Vai in <strong>Impostazioni → Modelli di preventivo → Moduli → Serramenti</strong> per aggiungerne.
         </SrCallout>
       )}
 
@@ -528,7 +528,7 @@ export function StepContenuti({ form, onChange, senzaEsigenze = false }: Props) 
               <span className="text-sm font-semibold text-slate-900">Contenuti del preventivo</span>
             </div>
             <p className="text-[11px] text-muted-foreground mb-1.5 leading-snug max-md:hidden">
-              Scegli quali voci della tua libreria template includere per questo cliente.
+              Scegli quali voci della tua libreria dei modelli includere per questo cliente.
               Puoi anche aggiungerne di personalizzate solo per questo preventivo.
             </p>
             <p className="text-[11px] text-slate-700 leading-snug max-md:hidden">
@@ -551,7 +551,7 @@ export function StepContenuti({ form, onChange, senzaEsigenze = false }: Props) 
 
       {!hasAnyTemplate && (
         <SrCallout variant="warning" className="max-md:hidden">
-          La libreria template è vuota. Configurala in <strong>Impostazioni → Template Moduli Vendita → Serramenti</strong> per accelerare la compilazione dei preventivi.
+          La libreria dei modelli è vuota. Configurala in <strong>Impostazioni → Modelli di preventivo → Moduli → Serramenti</strong> per accelerare la compilazione dei preventivi.
         </SrCallout>
       )}
 

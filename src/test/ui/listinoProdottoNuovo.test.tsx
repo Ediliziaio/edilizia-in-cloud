@@ -99,7 +99,7 @@ describe("listino: prodotto nuovo, prima la modalità", () => {
       // la prima scelta è la più semplice
       expect([...document.querySelectorAll('[id^="mod-"]')].map((n) => n.id)).toEqual(MODALITA.map((m) => `mod-${m}`));
       expect(document.getElementById("f-nome")).toBeNull();
-      expect(testo()).not.toContain("Crea articolo");
+      expect(testo()).not.toContain("Crea il prodotto");
       expect(testo()).not.toContain("Default serramenti");
     } finally {
       chiudi();
@@ -114,7 +114,7 @@ describe("listino: prodotto nuovo, prima la modalità", () => {
       expect(document.getElementById("f-nome")).not.toBeNull();
       expect(document.getElementById("f-griglia-x")).toBeNull();
       expect(testo()).not.toContain("Scegli prima questo");
-      expect(testo()).toContain("Crea articolo");
+      expect(testo()).toContain("Crea il prodotto");
     } finally {
       chiudi();
     }
@@ -162,7 +162,8 @@ describe("listino: prodotto nuovo, prima la modalità", () => {
       expect(MODALITA.filter(selezionata)).toEqual(["mq"]);
       expect((document.getElementById("f-nome") as HTMLInputElement | null)?.value).toBe("Finestra 2 ante");
       expect(testo()).not.toContain("Scegli prima questo");
-      expect(testo()).toContain("Salva dati base");
+      expect(testo()).not.toContain("Salva dati base");
+      expect([...document.querySelectorAll("button")].some((b) => b.textContent?.trim() === "Salva")).toBe(true);
     } finally {
       chiudi();
     }

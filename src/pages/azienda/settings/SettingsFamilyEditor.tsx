@@ -5,14 +5,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 /**
- * Editor famiglia articoli — pagina admin-only.
+ * Editor del prodotto del listino.
  *
- * Crea/modifica famiglie con assi, valori e griglia prezzi. Solo
- * company_admin / super_admin può accedervi. Altri ruoli vedono un
- * access-denied card e vengono rimandati al catalogo in sola lettura.
+ * Crea e modifica i prodotti con le loro opzioni e la griglia dei prezzi. Lo apre chi ha «Listino & Prezzi»
+ * in visualizzazione e lo cambia chi ce l'ha in modifica (gli amministratori hanno tutto). Chi può solo vedere apre il
+ * prodotto in sola lettura: campi spenti, nessun pulsante di salvataggio (`soloLettura`).
  */
 export default function SettingsFamilyEditor() {
   const { role } = useAuth();
@@ -37,15 +36,14 @@ export default function SettingsFamilyEditor() {
           <div>
             <p className="font-medium">Accesso riservato</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Solo l&apos;amministratore dell&apos;azienda può creare o
-              modificare le famiglie articoli. Contatta il tuo amministratore
-              per richiedere l&apos;accesso.
+              Per aprire i prodotti serve il permesso «Listino &amp; Prezzi».
+              Chiedilo al titolare.
             </p>
           </div>
           <Button asChild variant="outline">
-            <Link to="/azienda/impostazioni/listino?tab=famiglie">
+            <Link to="/azienda/impostazioni/listino">
               <ArrowLeft className="h-4 w-4 mr-2" aria-hidden="true" />
-              Torna al catalogo
+              Torna al listino
             </Link>
           </Button>
         </CardContent>
@@ -53,23 +51,7 @@ export default function SettingsFamilyEditor() {
     );
   }
 
-  // Chi vede il listino senza poterlo modificare apre il prodotto per
-  // consultarlo: dal 26/09/2026 il database non gli salva nessuna modifica,
-  // quindi lo diciamo prima, invece di lasciargli credere di aver salvato.
-  if (!isAdmin) {
-    return (
-      <div className="space-y-3">
-        <Alert>
-          <ShieldAlert className="h-4 w-4" aria-hidden="true" />
-          <AlertDescription>
-            Stai consultando il prodotto. Per modificarlo serve il permesso
-            «Listino &amp; Prezzi» in modifica: chiedilo al tuo amministratore.
-          </AlertDescription>
-        </Alert>
-        <FamilyEditor />
-      </div>
-    );
-  }
-
-  return <FamilyEditor />;
+  // Chi vede il listino senza poterlo modificare apre il prodotto per consultarlo: dal 26/09/2026 il database non gli
+  // salva nessuna modifica. L'editor lo dice in testa e spegne i campi, invece di lasciargli credere di aver salvato.
+  return <FamilyEditor soloLettura={!isAdmin} />;
 }

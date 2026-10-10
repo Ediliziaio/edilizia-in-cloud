@@ -1,11 +1,15 @@
 /**
- * Vista dettaglio di una tabella finanziaria.
+ * Impostazioni → Finanziamenti → una tabella.
  *
- * Tab interni:
- *   1. Righe — tabella sortable con tutte le 14 colonne (importo, rata, TAN, ecc.)
- *           filtri per durata e range importi.
- *   2. Calcolatore — calcolatore in-place su questa specifica tabella.
- *   3. Allegati — link al PDF originale (se presente) e al CSV importato.
+ * Schede interne:
+ *   1. Righe — tabella ordinabile con tutte le colonne (importo, rata, TAN, ecc.),
+ *           filtro per durata.
+ *   2. Calcolatore — calcolatore sulla singola tabella.
+ *   3. Simulatore multi-durata — lo stesso importo su tutte le durate.
+ *   4. Allegati — il PDF originale (se c'è) e il CSV importato.
+ *
+ * Duplica, Disattiva/Attiva ed Elimina li fa chi ha «Finanziamenti» in modifica: per gli altri i tre
+ * pulsanti sono spenti, con la frase che spiega perché.
  */
 
 import { useMemo, useState } from "react";
@@ -15,7 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -43,6 +47,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowUp,
   ArrowDown,
@@ -57,8 +62,6 @@ import {
   CalendarClock,
   Copy,
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useTabella,
@@ -73,21 +76,27 @@ import type { RisultatoCalcolo } from "@/lib/finanziamenti/types";
 import { toast } from "sonner";
 import { CalcolatoreOutput } from "./_finanziamenti/CalcolatoreOutput";
 import { SimulatoreMultiDurata } from "./_finanziamenti/SimulatoreMultiDurata";
+import {
+  dataItaliana,
+  erroreComprensibile,
+  formattaEuro,
+  formattaPercentuale,
+  oggiLocale,
+  proprietaComandoSpento,
+  statoValidita,
+  useAccessoFinanziamenti,
+} from "./_finanziamenti/comuni";
+import { AccessoNegato, AvvisoSolaLettura, TitoloAvviso } from "./_finanziamenti/pezzi";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 export default function SettingsFinanziamentiDetail() {
   const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
-  const { role } = useAuth();
-  const permissions = usePermissions();
-  // 13/7/2026: la pagina rispetta il permesso Impostazioni dedicato (prima solo ruolo admin,
-  // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
-  const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsFinanziamenti;
-  const canView = isAdmin || permissions.canViewSettingsFinanziamenti;
+  const { puoVedere, puoModificare } = useAccessoFinanziamenti();
   const navigate = useNavigate();
 
-  const { data: tabella, isLoading } = useTabella(id);
-  const { data: righe = [] } = useRighe(id);
+  const { data: tabella, isLoading, isError: tabellaInErrore, error: erroreTabella, refetch: rileggiTabella } = useTabella(id);
+  const { data: righe = [], isLoading: righeInCaricamento, isError: righeInErrore, refetch: rileggiRighe } = useRighe(id);
   const deleteTabella = useDeleteTabella();
   const toggleAttiva = useToggleTabellaAttiva();
   const createTabella = useCreateTabella();
@@ -141,25 +150,33 @@ export default function SettingsFinanziamentiDetail() {
 
   const economicSummary = useMemo(() => summarizeRows(righe), [righe]);
 
-  if (!canView) {
-    return (
-      <Card className="max-w-xl mx-auto mt-8">
-        <CardContent className="py-10 flex flex-col items-center gap-4 text-center">
-          <ShieldAlert className="h-12 w-12 text-amber-500" />
-          <p className="font-medium">Accesso riservato</p>
-        </CardContent>
-      </Card>
-    );
-  }
+  if (!puoVedere) return <AccessoNegato />;
 
   if (isLoading) {
     return (
       <Card>
         <CardContent className="py-10 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           Caricamento tabella…
         </CardContent>
       </Card>
+    );
+  }
+
+  if (tabellaInErrore) {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+        <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            <strong className="block font-medium">Non riesco a leggere la tabella.</strong>
+            {erroreComprensibile(erroreTabella, "Riprova tra poco.")}
+          </span>
+          <Button size="sm" variant="outline" onClick={() => void rileggiTabella()}>
+            Riprova
+          </Button>
+        </AlertDescription>
+      </Alert>
     );
   }
 
@@ -167,7 +184,7 @@ export default function SettingsFinanziamentiDetail() {
     return (
       <Card>
         <CardContent className="py-10 text-center space-y-3">
-          <Banknote className="h-12 w-12 mx-auto text-muted-foreground" />
+          <Banknote className="h-12 w-12 mx-auto text-muted-foreground" aria-hidden="true" />
           <p className="font-medium">Tabella non trovata</p>
           <Button asChild variant="outline">
             <Link to="/azienda/impostazioni/finanziamenti">
@@ -193,11 +210,13 @@ export default function SettingsFinanziamentiDetail() {
       .from("finanziamenti-tabelle")
       .createSignedUrl(path, 60);
     if (error) {
-      toast.error("Errore download", { description: error.message });
+      toast.error("Non sono riuscito a scaricare il file", {
+        description: erroreComprensibile(error, "Riprova tra poco."),
+      });
       return;
     }
     if (!data?.signedUrl) {
-      toast.error("Impossibile scaricare il file");
+      toast.error("Non sono riuscito a scaricare il file");
       return;
     }
     const a = document.createElement("a");
@@ -208,18 +227,20 @@ export default function SettingsFinanziamentiDetail() {
   };
 
   const handleDelete = async () => {
+    if (!puoModificare) return;
     try {
       await deleteTabella.mutateAsync(tabella.id);
       toast.success("Tabella eliminata.");
       navigate("/azienda/impostazioni/finanziamenti");
     } catch (e) {
-      toast.error("Errore eliminazione", {
-        description: e instanceof Error ? e.message : String(e),
+      toast.error("Non sono riuscito a eliminare la tabella", {
+        description: erroreComprensibile(e, "Riprova tra poco."),
       });
     }
   };
 
   const handleToggleAttiva = async () => {
+    if (!puoModificare) return;
     try {
       await toggleAttiva.mutateAsync({
         id: tabella.id,
@@ -227,13 +248,14 @@ export default function SettingsFinanziamentiDetail() {
       });
       toast.success(tabella.attiva ? "Tabella disattivata." : "Tabella attivata.");
     } catch (e) {
-      toast.error("Errore", {
-        description: e instanceof Error ? e.message : String(e),
+      toast.error("Non sono riuscito a cambiare lo stato della tabella", {
+        description: erroreComprensibile(e, "Riprova tra poco."),
       });
     }
   };
 
   const handleDuplicate = async () => {
+    if (!puoModificare) return;
     try {
       const copia = await createTabella.mutateAsync({
         finanziaria_id: tabella.finanziaria_id,
@@ -266,29 +288,25 @@ export default function SettingsFinanziamentiDetail() {
       });
       navigate(`/azienda/impostazioni/finanziamenti/${copia.id}`);
     } catch (e) {
-      toast.error("Errore duplicazione", {
-        description: e instanceof Error ? e.message : String(e),
+      toast.error("Non sono riuscito a duplicare la tabella", {
+        description: erroreComprensibile(e, "Riprova tra poco."),
       });
     }
   };
 
-  const sortIcon = (key: keyof RowData) => {
-    if (sortKey !== key) return null;
-    return sortDir === "asc" ? (
-      <ArrowUp className="h-3 w-3 inline ml-1" />
-    ) : (
-      <ArrowDown className="h-3 w-3 inline ml-1" />
-    );
-  };
+  const oggi = oggiLocale();
+  const sommario = descriviNumeri(tabella, economicSummary);
 
   return (
     <div className="space-y-4">
+      {!puoModificare && <AvvisoSolaLettura />}
+
       {/* Header */}
       <div className="flex items-start justify-between gap-2 flex-wrap">
         <div className="flex items-start gap-2">
           <Button asChild variant="ghost" size="sm">
             <Link to="/azienda/impostazioni/finanziamenti">
-              <ArrowLeft className="h-4 w-4 mr-1" />
+              <ArrowLeft className="h-4 w-4 mr-1" aria-hidden="true" />
               Tabelle
             </Link>
           </Button>
@@ -304,84 +322,67 @@ export default function SettingsFinanziamentiDetail() {
             <p className="text-sm text-muted-foreground">
               {tabella.finanziaria?.nome ?? "—"}
               {tabella.codice_condizione &&
-                ` • Cond. ${tabella.codice_condizione}`}
+                ` · Condizione ${tabella.codice_condizione}`}
               {tabella.subtariffa_default &&
-                ` • ${tabella.subtariffa_default}`}
-              {tabella.tan_base != null && ` • TAN base ${tabella.tan_base}%`}
+                ` · Subtariffa ${tabella.subtariffa_default}`}
+              {tabella.tan_base != null && ` · TAN base ${formattaPercentuale(tabella.tan_base)}`}
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={handleDuplicate}
-            disabled={createTabella.isPending || insertRighe.isPending || righe.length === 0}
+            disabled={!puoModificare || createTabella.isPending || insertRighe.isPending || righe.length === 0}
+            {...proprietaComandoSpento(puoModificare)}
           >
-            <Copy className="h-4 w-4 mr-1" />
+            <Copy className="h-4 w-4 mr-1" aria-hidden="true" />
             Duplica
           </Button>
-          <Button variant="outline" size="sm" onClick={handleToggleAttiva}>
-            <Power className="h-4 w-4 mr-1" />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleToggleAttiva}
+            disabled={!puoModificare || toggleAttiva.isPending}
+            {...proprietaComandoSpento(puoModificare)}
+          >
+            <Power className="h-4 w-4 mr-1" aria-hidden="true" />
             {tabella.attiva ? "Disattiva" : "Attiva"}
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setConfermaDelete(true)}
+            disabled={!puoModificare}
+            {...proprietaComandoSpento(puoModificare)}
           >
-            <Trash2 className="h-4 w-4 mr-1 text-destructive" />
+            <Trash2 className="h-4 w-4 mr-1 text-destructive" aria-hidden="true" />
             Elimina
           </Button>
         </div>
       </div>
 
-      <ValidityAlert decorrenza={tabella.data_decorrenza} scadenza={tabella.data_scadenza} attiva={tabella.attiva} />
+      {/* I numeri della tabella, in una riga (prima erano otto riquadri) */}
+      <p className="text-sm text-muted-foreground">{sommario}</p>
+
+      <ValidityAlert
+        decorrenza={tabella.data_decorrenza}
+        scadenza={tabella.data_scadenza}
+        attiva={tabella.attiva}
+        oggi={oggi}
+      />
       <Alert>
-        <ShieldAlert className="h-4 w-4" />
-        <AlertTitle>Condizioni finanziarie versionate</AlertTitle>
+        <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+        <TitoloAvviso>Le condizioni non si cambiano</TitoloAvviso>
         <AlertDescription>
-          Se questa tabella e' gia' stata usata in preventivi, ordini o progetti, non modificarla in modo distruttivo:
-          duplica la tabella o disattivala per preservare lo storico delle condizioni applicate.
+          Se questa tabella è già stata usata in preventivi, ordini o progetti, non modificarla: duplicala o
+          disattivala, così lo storico resta com&apos;era.
         </AlertDescription>
       </Alert>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Righe" value={`${tabella.righe_count}`} />
-        <KpiCard
-          label="Importi"
-          value={
-            tabella.importo_min != null && tabella.importo_max != null
-              ? `€ ${formatEur(tabella.importo_min)} – ${formatEur(tabella.importo_max)}`
-              : "—"
-          }
-        />
-        <KpiCard
-          label="Durate"
-          value={
-            tabella.durate_disponibili.length > 0
-              ? tabella.durate_disponibili.join(", ") + " mesi"
-              : "—"
-          }
-        />
-        <KpiCard
-          label="Decorrenza"
-          value={tabella.data_decorrenza ?? "—"}
-        />
-      </div>
-
-      {economicSummary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KpiCard label="Rata completa" value={`€ ${formatEur(economicSummary.rataMin, 2)} - € ${formatEur(economicSummary.rataMax, 2)}`} />
-          <KpiCard label="TAN" value={`${economicSummary.tanMin.toFixed(2)}% - ${economicSummary.tanMax.toFixed(2)}%`} />
-          <KpiCard label="TAEG" value={`${economicSummary.taegMin.toFixed(2)}% - ${economicSummary.taegMax.toFixed(2)}%`} />
-          <KpiCard label="Provvigione media" value={`€ ${formatEur(economicSummary.provvigioneMedia, 2)}`} />
-        </div>
-      )}
-
       <Tabs defaultValue="righe">
-        <TabsList>
+        <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="righe">Righe ({righe.length})</TabsTrigger>
           <TabsTrigger value="calcolatore">Calcolatore</TabsTrigger>
           <TabsTrigger value="simulatore">Simulatore multi-durata</TabsTrigger>
@@ -414,56 +415,47 @@ export default function SettingsFinanziamentiDetail() {
             </span>
           </div>
 
+          {righeInErrore && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+              <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <span>Non riesco a leggere le righe della tabella.</span>
+                <Button size="sm" variant="outline" onClick={() => void rileggiRighe()}>
+                  Riprova
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Card>
             <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead
-                      onClick={() => handleSort("importo_erogato")}
-                      className="cursor-pointer"
-                    >
-                      Importo {sortIcon("importo_erogato")}
-                    </TableHead>
-                    <TableHead
-                      onClick={() => handleSort("numero_rate")}
-                      className="cursor-pointer"
-                    >
-                      Rate {sortIcon("numero_rate")}
-                    </TableHead>
-                    <TableHead
-                      onClick={() => handleSort("importo_rata")}
-                      className="cursor-pointer text-right"
-                    >
-                      Rata {sortIcon("importo_rata")}
-                    </TableHead>
-                    <TableHead className="text-right">Sp. incasso</TableHead>
-                    <TableHead
-                      onClick={() => handleSort("interessi_cliente")}
-                      className="cursor-pointer text-right"
-                    >
-                      Interessi {sortIcon("interessi_cliente")}
-                    </TableHead>
-                    <TableHead
-                      onClick={() => handleSort("importo_totale_dovuto")}
-                      className="cursor-pointer text-right"
-                    >
-                      Tot. dovuto {sortIcon("importo_totale_dovuto")}
-                    </TableHead>
-                    <TableHead
-                      onClick={() => handleSort("tan")}
-                      className="cursor-pointer text-right"
-                    >
-                      TAN {sortIcon("tan")}
-                    </TableHead>
-                    <TableHead
-                      onClick={() => handleSort("taeg")}
-                      className="cursor-pointer text-right"
-                    >
-                      TAEG {sortIcon("taeg")}
-                    </TableHead>
+                    <IntestazioneOrdinabile chiave="importo_erogato" ordine={sortKey} direzione={sortDir} onOrdina={handleSort}>
+                      Importo
+                    </IntestazioneOrdinabile>
+                    <IntestazioneOrdinabile chiave="numero_rate" ordine={sortKey} direzione={sortDir} onOrdina={handleSort}>
+                      Rate
+                    </IntestazioneOrdinabile>
+                    <IntestazioneOrdinabile chiave="importo_rata" ordine={sortKey} direzione={sortDir} onOrdina={handleSort} className="text-right">
+                      Rata
+                    </IntestazioneOrdinabile>
+                    <TableHead className="text-right">Spese incasso</TableHead>
+                    <IntestazioneOrdinabile chiave="interessi_cliente" ordine={sortKey} direzione={sortDir} onOrdina={handleSort} className="text-right">
+                      Interessi
+                    </IntestazioneOrdinabile>
+                    <IntestazioneOrdinabile chiave="importo_totale_dovuto" ordine={sortKey} direzione={sortDir} onOrdina={handleSort} className="text-right">
+                      Totale dovuto
+                    </IntestazioneOrdinabile>
+                    <IntestazioneOrdinabile chiave="tan" ordine={sortKey} direzione={sortDir} onOrdina={handleSort} className="text-right">
+                      TAN
+                    </IntestazioneOrdinabile>
+                    <IntestazioneOrdinabile chiave="taeg" ordine={sortKey} direzione={sortDir} onOrdina={handleSort} className="text-right">
+                      TAEG
+                    </IntestazioneOrdinabile>
                     <TableHead className="text-right">ICC</TableHead>
-                    <TableHead className="text-right">Provv.</TableHead>
+                    <TableHead className="text-right">Provvigione</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -473,41 +465,41 @@ export default function SettingsFinanziamentiDetail() {
                         colSpan={10}
                         className="text-center py-8 text-muted-foreground"
                       >
-                        Nessuna riga.
+                        {righeInCaricamento ? "Caricamento righe…" : "Nessuna riga."}
                       </TableCell>
                     </TableRow>
                   )}
                   {righeFiltrate.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="tabular-nums whitespace-nowrap">
-                        € {formatEur(r.importo_erogato)}
+                        € {formattaEuro(r.importo_erogato)}
                       </TableCell>
                       <TableCell className="tabular-nums">
                         {r.numero_rate}
                       </TableCell>
                       <TableCell className="text-right tabular-nums whitespace-nowrap">
-                        € {formatEur(r.importo_rata, 2)}
+                        € {formattaEuro(r.importo_rata, 2)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        € {formatEur(r.spese_incasso_rata, 2)}
+                        € {formattaEuro(r.spese_incasso_rata, 2)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums whitespace-nowrap">
-                        € {formatEur(r.interessi_cliente, 2)}
+                        € {formattaEuro(r.interessi_cliente, 2)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums whitespace-nowrap">
-                        € {formatEur(r.importo_totale_dovuto, 2)}
+                        € {formattaEuro(r.importo_totale_dovuto, 2)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {r.tan.toFixed(2)}%
+                        {formattaPercentuale(r.tan)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {r.taeg.toFixed(2)}%
+                        {formattaPercentuale(r.taeg)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {r.icc != null ? `${r.icc.toFixed(2)}%` : "—"}
+                        {r.icc != null ? formattaPercentuale(r.icc) : "—"}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        € {formatEur(r.provvigione_dealer, 2)}
+                        € {formattaEuro(r.provvigione_dealer, 2)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -522,7 +514,7 @@ export default function SettingsFinanziamentiDetail() {
           <Card>
             <CardContent className="py-5 space-y-4">
               <div className="flex items-center gap-2">
-                <Calculator className="h-5 w-5 text-primary" />
+                <Calculator className="h-5 w-5 text-primary" aria-hidden="true" />
                 <h3 className="font-medium">
                   Calcolatore — {tabella.nome_prodotto}
                 </h3>
@@ -540,8 +532,8 @@ export default function SettingsFinanziamentiDetail() {
                   />
                   {tabella.importo_min != null && tabella.importo_max != null && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      Range tabella: € {formatEur(tabella.importo_min)} – €{" "}
-                      {formatEur(tabella.importo_max)}
+                      Importi in tabella: da € {formattaEuro(tabella.importo_min)} a €{" "}
+                      {formattaEuro(tabella.importo_max)}
                     </p>
                   )}
                 </div>
@@ -571,7 +563,7 @@ export default function SettingsFinanziamentiDetail() {
           <Card>
             <CardContent className="py-5 space-y-4">
               <div className="flex items-center gap-2">
-                <Calculator className="h-5 w-5 text-primary" />
+                <Calculator className="h-5 w-5 text-primary" aria-hidden="true" />
                 <div>
                   <h3 className="font-medium">Confronto durate per stesso importo</h3>
                   <p className="text-xs text-muted-foreground">
@@ -617,6 +609,11 @@ export default function SettingsFinanziamentiDetail() {
                   Nessun allegato caricato per questa tabella.
                 </p>
               )}
+              {isMobile && (tabella.pdf_url || tabella.csv_url) && (
+                <p className="text-sm text-muted-foreground">
+                  Gli allegati si scaricano dal computer.
+                </p>
+              )}
               {!isMobile && tabella.pdf_url && (
                 <Button
                   variant="outline"
@@ -625,8 +622,8 @@ export default function SettingsFinanziamentiDetail() {
                   }
                   className="w-full sm:w-auto"
                 >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Scarica PDF originale
+                  <FileText className="h-4 w-4 mr-2" aria-hidden="true" />
+                  Scarica il PDF originale
                   {tabella.pdf_filename && (
                     <span className="ml-1 text-xs text-muted-foreground">
                       ({tabella.pdf_filename})
@@ -642,13 +639,13 @@ export default function SettingsFinanziamentiDetail() {
                   }
                   className="w-full sm:w-auto"
                 >
-                  <Download className="h-4 w-4 mr-2" />
-                  Scarica CSV importato
+                  <Download className="h-4 w-4 mr-2" aria-hidden="true" />
+                  Scarica il file CSV caricato
                 </Button>
               )}
               {tabella.note && (
                 <div>
-                  <Label className="text-xs">Note interne</Label>
+                  <p className="text-xs font-medium leading-none">Note interne</p>
                   <p className="text-sm whitespace-pre-wrap mt-1">
                     {tabella.note}
                   </p>
@@ -667,10 +664,11 @@ export default function SettingsFinanziamentiDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminare la tabella?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tutte le {righe.length} righe verranno eliminate. Se la tabella è
-              già usata in progetti o preventivi, l&apos;eliminazione verrà
-              bloccata: disattivala per impedire nuovi utilizzi senza perdere lo
-              storico.
+              Stai per eliminare «{tabella.nome_prodotto}» con le sue {righe.length} righe, e
+              non si torna indietro. Se l&apos;hai già usata in un preventivo o in un
+              progetto, disattivala invece di eliminarla: non viene più proposta e lo
+              storico resta com&apos;era. Una tabella usata da un progetto fotovoltaico
+              non si può eliminare.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -688,17 +686,6 @@ export default function SettingsFinanziamentiDetail() {
   );
 }
 
-function KpiCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="py-3">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="font-semibold tabular-nums mt-0.5">{value}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
 type FinanceRow = ReturnType<typeof useRighe> extends { data: infer T } ? NonNullable<T> extends Array<infer R> ? R : never : never;
 
 function summarizeRows(rows: FinanceRow[]) {
@@ -706,75 +693,135 @@ function summarizeRows(rows: FinanceRow[]) {
   return {
     rataMin: Math.min(...rows.map((r) => r.importo_rata + r.spese_incasso_rata)),
     rataMax: Math.max(...rows.map((r) => r.importo_rata + r.spese_incasso_rata)),
-    tanMin: Math.min(...rows.map((r) => r.tan)),
-    tanMax: Math.max(...rows.map((r) => r.tan)),
     taegMin: Math.min(...rows.map((r) => r.taeg)),
     taegMax: Math.max(...rows.map((r) => r.taeg)),
-    provvigioneMedia: rows.reduce((sum, r) => sum + r.provvigione_dealer, 0) / rows.length,
   };
 }
 
-function formatEur(n: number, frac = 0): string {
-  return n.toLocaleString("it-IT", {
-    minimumFractionDigits: frac,
-    maximumFractionDigits: frac,
-  });
+/**
+ * «120 righe · importi da € 5000 a € 30.000 · 24, 36, 48 mesi · rata da € 140,00 a € 900,00 · TAEG 8,50%–12,10%»
+ * e, se la tabella ha delle date, «valida dal 01/10/2026 al 15/11/2026». Le parti che mancano si saltano.
+ */
+function descriviNumeri(
+  tabella: {
+    righe_count: number;
+    importo_min: number | null;
+    importo_max: number | null;
+    durate_disponibili: number[];
+    data_decorrenza: string | null;
+    data_scadenza: string | null;
+  },
+  riepilogo: ReturnType<typeof summarizeRows>,
+): string {
+  const parti: string[] = [`${tabella.righe_count} ${tabella.righe_count === 1 ? "riga" : "righe"}`];
+  if (tabella.importo_min != null && tabella.importo_max != null) {
+    parti.push(`importi da € ${formattaEuro(tabella.importo_min)} a € ${formattaEuro(tabella.importo_max)}`);
+  }
+  if (tabella.durate_disponibili.length > 0) {
+    parti.push(`${tabella.durate_disponibili.join(", ")} mesi`);
+  }
+  if (riepilogo) {
+    parti.push(`rata da € ${formattaEuro(riepilogo.rataMin, 2)} a € ${formattaEuro(riepilogo.rataMax, 2)}`);
+    parti.push(`TAEG ${formattaPercentuale(riepilogo.taegMin)}–${formattaPercentuale(riepilogo.taegMax)}`);
+  }
+  if (tabella.data_decorrenza && tabella.data_scadenza) {
+    parti.push(`valida dal ${dataItaliana(tabella.data_decorrenza)} al ${dataItaliana(tabella.data_scadenza)}`);
+  } else if (tabella.data_decorrenza) {
+    parti.push(`valida dal ${dataItaliana(tabella.data_decorrenza)}`);
+  } else if (tabella.data_scadenza) {
+    parti.push(`valida fino al ${dataItaliana(tabella.data_scadenza)}`);
+  }
+  return parti.join(" · ");
 }
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+/** Intestazione di una colonna che si può ordinare: un pulsante vero, così si usa anche da tastiera. */
+function IntestazioneOrdinabile<K extends string>({
+  chiave,
+  ordine,
+  direzione,
+  onOrdina,
+  className,
+  children,
+}: {
+  chiave: K;
+  ordine: string;
+  direzione: "asc" | "desc";
+  onOrdina: (chiave: K) => void;
+  className?: string;
+  children: string;
+}) {
+  const attiva = ordine === chiave;
+  return (
+    <TableHead
+      className={className}
+      aria-sort={attiva ? (direzione === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button
+        type="button"
+        onClick={() => onOrdina(chiave)}
+        className="inline-flex items-center gap-1 rounded-sm font-medium hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {children}
+        {attiva &&
+          (direzione === "asc" ? (
+            <ArrowUp className="h-3 w-3" aria-hidden="true" />
+          ) : (
+            <ArrowDown className="h-3 w-3" aria-hidden="true" />
+          ))}
+      </button>
+    </TableHead>
+  );
 }
 
-function getValidityState(
-  decorrenza: string | null,
-  scadenza: string | null,
-): "valid" | "expired" | "future" | "open" {
-  const today = todayIso();
-  if (decorrenza && decorrenza > today) return "future";
-  if (scadenza && scadenza < today) return "expired";
-  if (decorrenza || scadenza) return "valid";
-  return "open";
-}
-
+/**
+ * Cosa dice la pagina sulla validità. Le date non cambiano cosa si propone nei preventivi: conta solo
+ * «attiva» (useTabelleFinanziamento.ts, QuoteFinancingPanel.tsx, fotovoltaico/queries.ts). Una tabella
+ * scaduta (o non ancora iniziata) ma attiva viene proposta lo stesso, e qui lo si scrive. Le date di una
+ * tabella non si possono cambiare da qui: le vie sono disattivarla o caricarne una nuova.
+ */
 function ValidityAlert({
   decorrenza,
   scadenza,
   attiva,
+  oggi,
 }: {
   decorrenza: string | null;
   scadenza: string | null;
   attiva: boolean;
+  oggi: string;
 }) {
-  const state = getValidityState(decorrenza, scadenza);
+  const stato = statoValidita(decorrenza, scadenza, oggi);
   if (!attiva) {
     return (
       <Alert>
-        <CalendarClock className="h-4 w-4" />
-        <AlertTitle>Tabella disattivata</AlertTitle>
+        <CalendarClock className="h-4 w-4" aria-hidden="true" />
+        <TitoloAvviso>Tabella disattivata</TitoloAvviso>
         <AlertDescription>
-          Resta consultabile per lo storico, ma non dovrebbe essere proposta nei nuovi preventivi o progetti.
+          Non viene proposta nei nuovi preventivi. Resta qui per lo storico.
         </AlertDescription>
       </Alert>
     );
   }
-  if (state === "expired") {
+  if (stato === "scaduta") {
     return (
       <Alert variant="destructive">
-        <CalendarClock className="h-4 w-4" />
-        <AlertTitle>Offerta scaduta</AlertTitle>
+        <CalendarClock className="h-4 w-4" aria-hidden="true" />
+        <TitoloAvviso>Offerta scaduta</TitoloAvviso>
         <AlertDescription>
-          La data di scadenza è {scadenza}. Verifica le condizioni prima di usarla in nuove proposte commerciali.
+          Scaduta il {dataItaliana(scadenza)}. Finché la tabella è attiva viene ancora proposta nei preventivi:
+          disattivala, oppure carica la tabella nuova.
         </AlertDescription>
       </Alert>
     );
   }
-  if (state === "future") {
+  if (stato === "futura") {
     return (
       <Alert>
-        <CalendarClock className="h-4 w-4" />
-        <AlertTitle>Offerta non ancora decorso</AlertTitle>
+        <CalendarClock className="h-4 w-4" aria-hidden="true" />
+        <TitoloAvviso>Offerta non ancora iniziata</TitoloAvviso>
         <AlertDescription>
-          La tabella decorre dal {decorrenza}. Fino ad allora usala solo per simulazioni interne.
+          Vale dal {dataItaliana(decorrenza)}. Finché la tabella è attiva viene già proposta nei preventivi:
+          se non vuoi, disattivala e riattivala da quel giorno.
         </AlertDescription>
       </Alert>
     );

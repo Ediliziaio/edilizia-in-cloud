@@ -49,7 +49,12 @@ export interface RigaFinanziamento {
   icc: number | null;
 }
 
-/** Solo tabelle attive (escluse archiviate/scadute). Cached 5 min. */
+/**
+ * Solo tabelle con `attiva = true` (le disattivate restano fuori). Le date di validità NON filtrano niente:
+ * una tabella con la scadenza passata (o la decorrenza futura) ma ancora attiva viene proposta lo stesso.
+ * Lo stesso vale per `QuoteFinancingPanel.tsx` e `fotovoltaico/queries.ts`. Decisione D12 aperta con
+ * Florin: «una tabella scaduta sparisce dai preventivi, o resta con la scritta "scaduta"?». Cached 5 min.
+ */
 export function useTabelleFinanziamentoAttive() {
   const companyId = useEffectiveCompanyId();
 

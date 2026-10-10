@@ -1,10 +1,12 @@
 /**
- * SettingsQuoteTemplates — Pannello "Template Moduli Vendita"
+ * SettingsQuoteTemplates — Pannello «Modello dell'area»
  * Estratto da SettingsQuoteTemplates.tsx (MP-IMP-001 Fase 3).
  *
- * Tab "Moduli Vendita" della pagina /azienda/impostazioni/template-preventivi.
- * Mostra una landing card-grid per scegliere il modulo (serramenti, fotovoltaico,
- * tetti...) e poi mostra l'editor del modulo selezionato (lazy).
+ * Scheda «Moduli» della pagina /azienda/impostazioni/template-preventivi.
+ * La libreria (ModuleTemplateLibrary) mostra le aree e i modelli di ogni intervento; questo pannello
+ * serve solo quando dalla libreria si apre il «Modello dell'area» (`modello=generale`): l'editor
+ * online dell'area scelta (lazy). La griglia di scelta dell'area, più sotto, a quanto risulta dal codice
+ * non si raggiunge più: la libreria chiama `renderLegacy` solo con un'area già scelta (e valida).
  */
 import React, { lazy, Suspense, useState } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -68,7 +70,7 @@ const MODULI_VENDITA: ModuloVendita[] = [
     slug: "serramenti",
     nome: "Serramenti",
     icon: RectangleVertical,
-    description: "Sette modelli PDF locali: finestre, persiane, avvolgibili, zanzariere, porte d'ingresso, porte interne e interventi combinati.",
+    description: "Sette modelli PDF: finestre, persiane, avvolgibili, zanzariere, porte d'ingresso, porte interne e interventi combinati.",
     coverPreview: "/cover-stock/serramenti/1-thumb.jpg",
     designNote: "Proposta commerciale + allegato tecnico",
     available: true,
@@ -82,7 +84,7 @@ const MODULI_VENDITA: ModuloVendita[] = [
     slug: "fotovoltaico",
     nome: "Fotovoltaico",
     icon: Sun,
-    description: "Template del PDF Fotovoltaico: branding, presentazione impresa, risparmio, certificazioni e contatti.",
+    description: "Modello del PDF Fotovoltaico: marchio, presentazione dell'impresa, risparmio, certificazioni e contatti.",
     coverPreview: "/cover-stock/fotovoltaico/1-thumb.jpg",
     designNote: "Dati, risparmio e ritorno dell'investimento",
     available: true,
@@ -96,7 +98,7 @@ const MODULI_VENDITA: ModuloVendita[] = [
     slug: "ristrutturazione",
     nome: "Ristrutturazione",
     icon: Hammer,
-    description: "Template del PDF Preventivatore Ristrutturazione: branding, copertina, chi siamo, esigenze, USP, testimonianze, cronoprogramma, condizioni.",
+    description: "Modello del PDF Ristrutturazione: marchio, copertina, chi siamo, esigenze, punti di forza, testimonianze, cronoprogramma, condizioni.",
     coverPreview: "/cover-stock/ristrutturazione/2-thumb.jpg",
     designNote: "Piano lavori + computo leggibile",
     available: true,
@@ -110,7 +112,7 @@ const MODULI_VENDITA: ModuloVendita[] = [
     slug: "bagni",
     nome: "Bagni",
     icon: Bath,
-    description: "Template del PDF Preventivatore Bagni: branding, copertina, chi siamo, esigenze, USP, testimonianze, cronoprogramma, condizioni.",
+    description: "Modello del PDF Bagni: marchio, copertina, chi siamo, esigenze, punti di forza, testimonianze, cronoprogramma, condizioni.",
     coverPreview: "/cover-stock/bagni/2-thumb.jpg",
     designNote: "Progetto bagno + percorso chiavi in mano",
     available: true,
@@ -124,7 +126,7 @@ const MODULI_VENDITA: ModuloVendita[] = [
     slug: "tetti",
     nome: "Tetti",
     icon: Home,
-    description: "Sei modelli PDF locali: rifacimento, ripasso, riparazioni, isolamento, terrazzi e lattoneria. Template generale aziendale sempre disponibile.",
+    description: "Sei modelli PDF: rifacimento, ripasso, riparazioni, isolamento, terrazzi e lattoneria. Il modello generale dell'area c'è sempre.",
     coverPreview: "/cover-stock/tetti/1-thumb.jpg",
     designNote: "Un modello indipendente per ogni intervento",
     available: true,
@@ -138,7 +140,7 @@ const MODULI_VENDITA: ModuloVendita[] = [
     slug: "climatizzazione",
     nome: "Climatizzazione",
     icon: Wind,
-    description: "Template del PDF Preventivatore Climatizzazione: comfort, consumi, impianto, garanzie, controlli e assistenza.",
+    description: "Modello del PDF Climatizzazione: comfort, consumi, impianto, garanzie, controlli e assistenza.",
     coverPreview: "/cover-stock/climatizzazione/1-thumb.jpg",
     designNote: "Comfort, efficienza e benessere",
     available: true,
@@ -152,7 +154,7 @@ const MODULI_VENDITA: ModuloVendita[] = [
     slug: "elettrico",
     nome: "Elettrico / Domotica",
     icon: Zap,
-    description: "Template del PDF Preventivatore Elettrico: sicurezza, impianto, domotica, controlli, documenti e garanzie.",
+    description: "Modello del PDF Elettrico: sicurezza, impianto, domotica, controlli, documenti e garanzie.",
     coverPreview: "/cover-stock/elettrico/1-thumb.jpg",
     designNote: "Sicurezza, impianto e domotica",
     available: true,
@@ -166,7 +168,7 @@ const MODULI_VENDITA: ModuloVendita[] = [
     slug: "termoidraulico",
     nome: "Termoidraulico",
     icon: Flame,
-    description: "Template del PDF Preventivatore Termoidraulico: riscaldamento, acqua, impianti, controlli, manutenzione e garanzie.",
+    description: "Modello del PDF Termoidraulico: riscaldamento, acqua, impianti, controlli, manutenzione e garanzie.",
     coverPreview: "/cover-stock/termoidraulico/1-thumb.jpg",
     designNote: "Impianti, calore e manutenzione",
     available: true,
@@ -180,7 +182,7 @@ const MODULI_VENDITA: ModuloVendita[] = [
     slug: "pavimenti",
     nome: "Pavimenti & Resine",
     icon: LayoutGrid,
-    description: "Template del PDF Preventivatore Pavimenti: materiali, posa, finiture, lavorazioni, manutenzione e condizioni.",
+    description: "Modello del PDF Pavimenti: materiali, posa, finiture, lavorazioni, manutenzione e condizioni.",
     coverPreview: "/cover-stock/pavimenti/1-thumb.jpg",
     designNote: "Materiali, posa e resa finale",
     available: true,
@@ -194,7 +196,7 @@ const MODULI_VENDITA: ModuloVendita[] = [
     slug: "piscine",
     nome: "Piscine",
     icon: Waves,
-    description: "Template del PDF Preventivatore Piscine: progetto, terreno, impianto, posa, manutenzione, garanzie e prossimi passi.",
+    description: "Modello del PDF Piscine: progetto, terreno, impianto, posa, manutenzione, garanzie e prossimi passi.",
     coverPreview: "/cover-stock/piscine/1-thumb.jpg",
     designNote: "Progetto outdoor + impianto",
     available: true,
@@ -213,7 +215,7 @@ const MODULI_VENDITA: ModuloVendita[] = [
 const ModuleTemplateLibrary = lazy(() => import("@/components/preventivi/modules/ModuleTemplateLibrary"));
 
 export function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
-  return <Suspense fallback={<p role="status">Caricamento libreria moduli…</p>}><ModuleTemplateLibrary renderLegacy={() => <LegacyModuliVenditaPanel initialModulo={initialModulo} />} /></Suspense>;
+  return <Suspense fallback={<p role="status">Caricamento dei modelli…</p>}><ModuleTemplateLibrary renderLegacy={() => <LegacyModuliVenditaPanel initialModulo={initialModulo} />} /></Suspense>;
 }
 
 function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
@@ -242,19 +244,19 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
     setSearchParams((prev) => buildQuoteTemplatesModuleParams(prev, slug), { replace: true });
   };
 
-  // Header comune
+  // Header comune. Il titolo della pagina è nel layout (h1): quello di questo pannello è un h2.
   const header = (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <div className="flex items-start gap-3 min-w-0">
-        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber flex items-center justify-center shrink-0 shadow-sm">
+        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber flex items-center justify-center shrink-0 shadow-sm" aria-hidden="true">
           <ShoppingBag className="h-5 w-5 text-white" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold leading-tight">Template Moduli Vendita</h1>
+          <h2 className="text-lg font-semibold leading-tight">Modello dell&apos;area</h2>
           <p className="text-sm text-muted-foreground">
-            {active && ["tetti", "serramenti"].includes(active.slug) ? `Configura i moduli PDF dell'area ${active.nome}, uno per ogni intervento.` : active
-              ? <>Stai configurando il template del modulo <strong>{active.nome}</strong>.</>
-              : "Scegli quale modulo vuoi configurare. Le impostazioni si applicano a tutti i preventivi futuri di quel modulo."}
+            {active && ["tetti", "serramenti"].includes(active.slug) ? `Configura i modelli PDF dell'area ${active.nome}, uno per ogni intervento.` : active
+              ? <>Stai configurando il modello dell&apos;area <strong>{active.nome}</strong>.</>
+              : "Scegli quale area vuoi configurare. Le impostazioni valgono per tutti i nuovi preventivi di quell'area."}
           </p>
         </div>
       </div>
@@ -265,8 +267,8 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
           onClick={() => handleSelectModulo(null)}
           className="gap-1"
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Scegli altro modulo
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+          Scegli un&apos;altra area
         </Button>
       )}
     </div>
@@ -278,13 +280,13 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
       <div className="space-y-4">
         {header}
 
-        {/* Moduli: attiva/disattiva (toggle per-card) + apri l'editor del PDF */}
+        {/* Aree: accendi/spegni (interruttore su ogni scheda) + apri l'editor del PDF */}
         <div className="pt-1">
-          <h2 className="text-base font-bold leading-tight">Moduli preventivo</h2>
+          <h2 className="text-base font-bold leading-tight">Aree dei preventivi</h2>
           <p className="text-xs text-muted-foreground">
-            Attiva/disattiva ogni modulo per la tua squadra con l'interruttore, e clicca <strong>Apri</strong>{" "}
-            per configurarne il PDF (logo, copertina, recensioni, USP, cronoprogramma). I moduli disattivati
-            spariscono dal menu “Nuovo preventivo”; il “Classico” è sempre disponibile.
+            Accendi o spegni ogni area per la tua squadra con l'interruttore, e clicca <strong>Apri</strong>{" "}
+            per configurarne il PDF (logo, copertina, recensioni, punti di forza, cronoprogramma). Le aree spente
+            spariscono dal menu «Nuovo preventivo»; il «Classico» c'è sempre.
           </p>
         </div>
         <Card className="border-orange-200 bg-gradient-to-r from-orange-50 via-white to-amber-50/60">
@@ -292,18 +294,18 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
             <div className="mb-3 flex items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 text-xs font-bold text-white">3</div>
               <div>
-                <p className="text-sm font-bold text-slate-900">Imposta il primo PDF in tre passaggi</p>
+                <p className="text-sm font-bold text-slate-900">Il primo PDF in tre passi</p>
                 <p className="text-xs text-slate-600">Le impostazioni diventano il punto di partenza per tutti i nuovi preventivi.</p>
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg border border-orange-100 bg-white/80 p-3">
                 <p className="text-xs font-semibold text-orange-700">01 · Scegli</p>
-                <p className="mt-1 text-xs text-slate-600">Apri il verticale che vendi più spesso.</p>
+                <p className="mt-1 text-xs text-slate-600">Apri l'area che vendi più spesso.</p>
               </div>
               <div className="rounded-lg border border-orange-100 bg-white/80 p-3">
                 <p className="text-xs font-semibold text-orange-700">02 · Applica</p>
-                <p className="mt-1 text-xs text-slate-600">In Copertina scegli un preset pronto e una foto locale.</p>
+                <p className="mt-1 text-xs text-slate-600">In Copertina scegli uno stile pronto e una foto.</p>
               </div>
               <div className="rounded-lg border border-orange-100 bg-white/80 p-3">
                 <p className="text-xs font-semibold text-orange-700">03 · Verifica</p>
@@ -366,7 +368,7 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
                         checked={visibile}
                         disabled={isDisabled || isSaving}
                         onCheckedChange={(v) => setModuloVisibile(m.slug, v)}
-                        aria-label={`${visibile ? "Disattiva" : "Attiva"} il modulo ${m.nome}`}
+                        aria-label={`${visibile ? "Spegni" : "Accendi"} l'area ${m.nome} nel menu Nuovo preventivo`}
                       />
                     </div>
                     <p className="text-xs leading-snug text-slate-600">{m.description}</p>
@@ -381,7 +383,7 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
                     onClick={() => handleSelectModulo(m.slug)}
                     className="mt-auto pt-3 border-t w-full flex items-center justify-between text-xs group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 rounded"
                   >
-                    <span className="text-slate-500">Configura logo, recensioni, USP…</span>
+                    <span className="text-slate-500">Configura logo, recensioni…</span>
                     <span className="font-semibold text-orange-700 group-hover:translate-x-0.5 transition-transform">Apri →</span>
                   </button>
                 )}
@@ -391,7 +393,7 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
         </div>
         <Card className="bg-slate-50 border-slate-200">
           <CardContent className="p-3 text-xs text-slate-600">
-            💡 I template aziendali sono il punto di partenza dei nuovi preventivi. I modelli della libreria si salvano per l'azienda e li usano i preventivi creati da un intervento (tutte le aree tranne Facciate, che non ha ancora un preventivatore).
+            Il modello dell'area è il punto di partenza dei nuovi preventivi. I modelli di ogni intervento li usano i preventivi creati da quell'intervento.
           </CardContent>
         </Card>
       </div>

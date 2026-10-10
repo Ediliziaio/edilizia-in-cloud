@@ -5,9 +5,10 @@
  * intera sopra i prodotti (la pagina deve far vedere il listino, non le sue
  * intestazioni).
  */
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import { ChevronDown, FolderTree, Layers, Wand2, LayoutGrid, Plus, Rows3, Search, SlidersHorizontal, Trash, Upload, X } from "lucide-react";
+import { ChevronDown, FolderTree, Layers, Wand2, LayoutGrid, Plus, Rows3, Search, Settings2, SlidersHorizontal, Trash, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 import {
   FILTRI_LISTINO_INIZIALI,
   MODALITA_PREZZO,
+  SOGLIA_MARGINE_LISTINO,
   filtriAttivi,
   type FiltriListino,
 } from "@/lib/listino/filtriListino";
@@ -52,8 +54,13 @@ export interface ListinoBarraProps {
   onDisegni?: () => void;
   /** Apre «Modelli di infissi»: scrivi i modelli e nascono tutte le tipologie col disegno. */
   onModelli?: () => void;
+  /** Quello che porta dati nel listino: foglio Excel, PDF del fornitore. */
   azioniImporta?: AzioneImporta[];
+  /** Quello che organizza il listino senza importare niente: modelli pronti, serie di profilo, prezzi delle linee. */
+  azioniImposta?: AzioneImporta[];
   onNuovoProdotto?: () => void;
+  /** «Come funziona», in fondo a destra: lo vede anche chi può solo consultare. */
+  guida?: ReactNode;
 }
 
 export function ListinoBarra({
@@ -70,7 +77,9 @@ export function ListinoBarra({
   onDisegni,
   onModelli,
   azioniImporta,
+  azioniImposta,
   onNuovoProdotto,
+  guida,
 }: ListinoBarraProps) {
   const quantiFiltri = filtriAttivi(filtri);
 
@@ -124,10 +133,23 @@ export function ListinoBarra({
             onValore={(v) => onFiltri({ ...filtri, margine: v as FiltriListino["margine"] })}
             opzioni={[
               ["all", "Tutti"],
-              ["ok", "Margine sopra il 15%"],
+              ["ok", `Margine sopra il ${SOGLIA_MARGINE_LISTINO}%`],
               ["low", "Margine basso o negativo"],
               ["missing", "Costo mancante"],
             ]}
+            nota={`La soglia del ${SOGLIA_MARGINE_LISTINO}% è fissa in questa pagina: non è il «Margine minimo» di Prezzo e margini.`}
+          />
+          <FiltroSelect
+            id="filtro-foto"
+            etichetta="Foto"
+            valore={filtri.foto}
+            onValore={(v) => onFiltri({ ...filtri, foto: v as FiltriListino["foto"] })}
+            opzioni={[
+              ["all", "Tutte"],
+              ["senza", "Senza foto"],
+              ["con", "Con foto"],
+            ]}
+            nota="Un disegno fatto dal sistema (serramenti) conta come foto."
           />
           <FiltroSelect
             id="filtro-stato"
@@ -189,91 +211,104 @@ export function ListinoBarra({
         ))}
       </div>
 
-      {isAdmin && (
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {onTipologie && (
-            <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onTipologie} aria-label="Tipologie e linee">
-              <FolderTree className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Tipologie</span>
-            </Button>
-          )}
-          {onModelli && (
-            <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onModelli} aria-label="Modelli di infissi">
-              <Layers className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Modelli</span>
-            </Button>
-          )}
-          {onDisegni && (
-            <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onDisegni} aria-label="Assegna i disegni">
-              <Wand2 className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Disegni</span>
-            </Button>
-          )}
-          {azioniImporta && azioniImporta.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 gap-1.5" aria-label="Importa">
-                  <Upload className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Importa</span>
-                  <ChevronDown className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                {azioniImporta.map(({ etichetta, descrizione, icona: Icona, onClick, href }) => {
-                  const contenuto = (
-                    <>
-                      <Icona className="mr-2 h-4 w-4 shrink-0" aria-hidden="true" />
-                      <span className="flex flex-col">
-                        <span>{etichetta}</span>
-                        {descrizione && <span className="text-[11px] text-muted-foreground">{descrizione}</span>}
-                      </span>
-                    </>
-                  );
-                  return href ? (
-                    <DropdownMenuItem key={etichetta} asChild>
-                      <Link to={href} className="cursor-pointer">
-                        {contenuto}
-                      </Link>
-                    </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem key={etichetta} onClick={onClick}>
-                      {contenuto}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          {onCestino && (
-            <Button
-              variant="outline"
-              size="icon"
-              className="relative h-9 w-9"
-              onClick={onCestino}
-              aria-label={`Cestino (${cestino} articoli)`}
-              title={cestino > 0 ? `Cestino (${cestino})` : "Cestino"}
-            >
-              <Trash className="h-4 w-4" aria-hidden="true" />
-              {cestino > 0 && (
-                <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-destructive px-1 text-[9px] font-bold leading-4 text-destructive-foreground">
-                  {cestino}
-                </span>
-              )}
-            </Button>
-          )}
-          {onNuovoProdotto && (
-            <Button
-              size="sm"
-              className="h-9 gap-1.5 bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-sm hover:from-orange-600 hover:to-amber-500"
-              onClick={onNuovoProdotto}
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Nuovo<span className="hidden sm:inline"> prodotto</span>
-            </Button>
-          )}
-        </div>
-      )}
+      <div className="ml-auto flex flex-wrap items-center gap-2">
+        {isAdmin && (
+          <>
+            {onTipologie && (
+              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onTipologie} aria-label="Tipologie e linee">
+                <FolderTree className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Tipologie</span>
+              </Button>
+            )}
+            {onModelli && (
+              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onModelli} aria-label="Modelli di infissi">
+                <Layers className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Modelli</span>
+              </Button>
+            )}
+            {onDisegni && (
+              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onDisegni} aria-label="Assegna i disegni">
+                <Wand2 className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Disegni</span>
+              </Button>
+            )}
+            {azioniImporta && azioniImporta.length > 0 && (
+              <MenuAzioni etichetta="Importa" icona={Upload} azioni={azioniImporta} />
+            )}
+            {azioniImposta && azioniImposta.length > 0 && (
+              <MenuAzioni etichetta="Imposta" icona={Settings2} azioni={azioniImposta} />
+            )}
+            {onCestino && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="relative h-9 w-9"
+                onClick={onCestino}
+                aria-label={`Cestino (${cestino} ${cestino === 1 ? "prodotto" : "prodotti"})`}
+                title={cestino > 0 ? `Cestino (${cestino})` : "Cestino"}
+              >
+                <Trash className="h-4 w-4" aria-hidden="true" />
+                {cestino > 0 && (
+                  <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-destructive px-1 text-[9px] font-bold leading-4 text-destructive-foreground">
+                    {cestino}
+                  </span>
+                )}
+              </Button>
+            )}
+            {onNuovoProdotto && (
+              <Button
+                size="sm"
+                className="h-9 gap-1.5 bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-sm hover:from-orange-600 hover:to-amber-500"
+                onClick={onNuovoProdotto}
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Nuovo<span className="hidden sm:inline"> prodotto</span>
+              </Button>
+            )}
+          </>
+        )}
+        {guida}
+      </div>
     </div>
+  );
+}
+
+/** Un menu di azioni della barra: ogni voce è un link o un comando, con la sua riga di spiegazione. */
+function MenuAzioni({ etichetta, icona: Icona, azioni }: { etichetta: string; icona: LucideIcon; azioni: AzioneImporta[] }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-9 gap-1.5" aria-label={etichetta}>
+          <Icona className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden sm:inline">{etichetta}</span>
+          <ChevronDown className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        {azioni.map(({ etichetta: voce, descrizione, icona: IconaVoce, onClick, href }) => {
+          const contenuto = (
+            <>
+              <IconaVoce className="mr-2 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="flex flex-col">
+                <span>{voce}</span>
+                {descrizione && <span className="text-[11px] text-muted-foreground">{descrizione}</span>}
+              </span>
+            </>
+          );
+          return href ? (
+            <DropdownMenuItem key={voce} asChild>
+              <Link to={href} className="cursor-pointer">
+                {contenuto}
+              </Link>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem key={voce} onClick={onClick}>
+              {contenuto}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -283,12 +318,15 @@ function FiltroSelect({
   valore,
   onValore,
   opzioni,
+  nota,
 }: {
   id: string;
   etichetta: string;
   valore: string;
   onValore: (valore: string) => void;
   opzioni: Array<[string, string]>;
+  /** Una riga sotto il menu: cosa conta davvero (la soglia, il disegno). */
+  nota?: string;
 }) {
   return (
     <div className="space-y-1">
@@ -296,7 +334,7 @@ function FiltroSelect({
         {etichetta}
       </Label>
       <Select value={valore} onValueChange={onValore}>
-        <SelectTrigger id={id} className={cn("h-9", valore !== "all" && "border-primary/60")}>
+        <SelectTrigger id={id} aria-describedby={nota ? `${id}-nota` : undefined} className={cn("h-9", valore !== "all" && "border-primary/60")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -307,6 +345,11 @@ function FiltroSelect({
           ))}
         </SelectContent>
       </Select>
+      {nota && (
+        <p id={`${id}-nota`} className="text-[11px] leading-snug text-muted-foreground">
+          {nota}
+        </p>
+      )}
     </div>
   );
 }

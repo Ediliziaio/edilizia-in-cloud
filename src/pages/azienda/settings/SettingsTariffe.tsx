@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useVertical, type Vertical } from "@/hooks/useVertical";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
@@ -14,8 +15,8 @@ import { lavorazioneStandardDaCompletare } from "@/lib/listino/statoCatalogoStan
 import {
   Plus, Pencil, Trash2, Zap, Search, Copy, MoreVertical, Calculator,
   Percent, Package, Activity, Archive, RotateCcw, Info,
-  Building2, Layers3, Wallet, CheckCircle2, Wrench, Paintbrush, AlertTriangle,
-  FileSpreadsheet, ChevronDown, Download, FilterX, X, ClipboardList, Link2,
+  Building2, Layers3, Wallet, CheckCircle2, Paintbrush, AlertTriangle,
+  FileSpreadsheet, ChevronDown, Download, FilterX, X, Link2,
   Library,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
@@ -73,7 +74,9 @@ import ListinoManutenzione from "@/pages/azienda/settings/ListinoManutenzione";
 import { CostoLavorazioneEditor, type DipendenteCostoLavorazione } from "@/components/settings/CostoLavorazioneEditor";
 import { calcolaCostoLavorazione, campiConCostoLavorazione, costoLavorazioneModificato, GRUPPI_LAVORAZIONE, gruppoLavorazione, leggiCostoLavorazione, MODALITA_COSTO_LABEL, numeroCosto, oggettoCampi, type GruppoLavorazione } from "@/lib/tariffe/costoLavorazione";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
-import { AreeManodopera } from "@/components/settings/AreeManodopera";
+import { testoErrore } from "@/lib/impostazioni/testoErrore";
+import { parametroDaScheda, schedaDaParametro } from "./SettingsTariffe/schede";
+import { NotaMargine } from "./SettingsTariffe/NotaMargine";
 
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -189,9 +192,9 @@ function tipoHint(tipo: string): string {
  */
 
 /**
- * Definizione dei preset cataloghi. Ogni preset raggruppa tariffe coerenti
- * con un mestiere/profilo aziendale tipico. L'admin può importare uno o più
- * preset (con un click) oppure pickare le singole voci manualmente.
+ * Definizione dei cataloghi pronti (`PRESET_CATALOGHI`). Ogni catalogo raggruppa
+ * tariffe coerenti con un mestiere/profilo aziendale tipico. L'admin può
+ * importare uno o più cataloghi (con un click) oppure scegliere le singole voci.
  */
 
 function tipoBadgeClass(tipo: string) {
@@ -232,9 +235,11 @@ function margineLabel(margine: number, hasCost: boolean): string {
 }
 
 /**
- * Semaforo margine ancorato alla soglia minima di governance (#40), così la
- * pagina riflette la policy aziendale invece di una soglia fissa. Restituisce
- * le classi per il pallino e per il testo, più una label accessibile.
+ * Semaforo margine della TABELLA: usa il «Margine minimo delle commesse» di
+ * Approvazioni (#40), non una soglia fissa. (Il dialogo della voce e la riga dei
+ * numeri usano ancora 15/25 fissi: vedi `margineColor`; la scelta di una soglia
+ * sola è una decisione aperta.) Restituisce le classi per il pallino e per il
+ * testo, più una label accessibile.
  * - margine non calcolabile (manca costo o vendita) → neutro
  * - < 0 → rosso (in perdita / sottocosto)
  * - < soglia → giallo (sotto la soglia minima)
@@ -280,19 +285,28 @@ function TariffaVariantiSection({
   );
 }
 
-// ─── KPI Header ───────────────────────────────────────────────────────────────
-function KpiHeader({
-  tariffe, isAdmin, soglia, onShowSottoSoglia,
-}: { tariffe: Tariffa[]; isAdmin: boolean; soglia: number; onShowSottoSoglia?: () => void }) {
+// ─── Riga dei numeri ──────────────────────────────────────────────────────────
+/**
+ * Una riga sola: quante voci ci sono, il margine medio, quante stanno sotto soglia e, se ce n'è, le basi standard da
+ * completare con il pulsante per arrivarci. Prima erano due blocchi uno sopra l'altro (la striscia dei numeri e un avviso
+ * blu a parte): la prima voce dell'elenco partiva più in basso per niente.
+ */
+function RigaNumeri({
+  tariffe, isAdmin, soglia, onShowSottoSoglia, onCompletaBasi,
+}: {
+  tariffe: Tariffa[]; isAdmin: boolean; soglia: number;
+  onShowSottoSoglia?: () => void; onCompletaBasi?: () => void;
+}) {
+  const idSpiegazioneBasi = useId();
   const kpi = useMemo(() => {
     const totali = tariffe.length;
     const attive = tariffe.filter((t) => t.attivo !== false).length;
     const basi = tariffe.filter(lavorazioneStandardDaCompletare).length;
     const archiviate = totali - attive - basi;
-    // Margine medio pesato per prezzo_vendita (solo tariffe con entrambi i valori)
+    // Media semplice dei margini delle voci che hanno sia prezzo sia costo.
     let sumMarg = 0;
     let countMarg = 0;
-    let sottoSoglia = 0; // #49 — voci con margine calcolabile sotto la soglia governance
+    let sottoSoglia = 0; // #49 — voci con margine calcolabile sotto la soglia di Approvazioni
     for (const t of tariffe) {
       const pv = t.prezzo_vendita ?? 0;
       const pc = costoTariffa(t) ?? 0;
@@ -307,17 +321,18 @@ function KpiHeader({
     return { totali, attive, archiviate, basi, margineMedio, countMarg, sottoSoglia };
   }, [tariffe, soglia]);
 
+  const spiegazioneBasi = "Apri una voce, controlla cosa comprende e imposta i tuoi prezzi. Le basi non sono attive nei preventivi.";
+
   // Striscia unica al posto di 4 card da 130px: stessi numeri, un decimo dello
   // spazio. Il "tipo più usato" (vanity) è uscito; il conteggio per tipo vive
-  // già nei tab gruppo. Il bottone sotto-soglia resta: è l'unico KPI azionabile.
+  // già nei tab gruppo. I bottoni (sotto soglia, completa le basi) sono i soli KPI azionabili.
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border bg-card px-4 py-2.5 text-sm">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card px-4 py-2.5 text-sm">
       <div className="flex items-baseline gap-1.5">
         <span className="text-lg font-bold leading-none tabular-nums">{kpi.totali}</span>
         <span className="text-muted-foreground">voci</span>
         <span className="text-xs text-muted-foreground">
           · {kpi.attive} attive{kpi.archiviate > 0 ? ` · ${kpi.archiviate} archiviate` : ""}
-          {kpi.basi > 0 ? ` · ${kpi.basi} basi da completare` : ""}
         </span>
       </div>
       {isAdmin && (
@@ -341,15 +356,35 @@ function KpiHeader({
           title={`Filtra le voci con margine sotto la soglia minima del ${soglia}%`}
           className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/70"
         >
-          <AlertTriangle className="h-3 w-3" />
+          <AlertTriangle className="h-3 w-3" aria-hidden />
           {kpi.sottoSoglia} sotto soglia ({soglia}%)
         </button>
+      )}
+      {kpi.basi > 0 && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-blue-200 bg-blue-50/60 py-1 pl-2.5 pr-1 dark:border-blue-900/50 dark:bg-blue-950/30" title={spiegazioneBasi}>
+          <span className="text-xs">
+            Hai {kpi.basi} {kpi.basi === 1 ? "lavorazione standard" : "lavorazioni standard"} da personalizzare
+          </span>
+          <span id={idSpiegazioneBasi} className="sr-only">{spiegazioneBasi}</span>
+          <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" aria-describedby={idSpiegazioneBasi} onClick={onCompletaBasi}>
+            Completa le basi
+          </Button>
+        </div>
       )}
     </div>
   );
 }
 
 // ─── Tariffa Dialog ───────────────────────────────────────────────────────────
+/** Da telefono i campi sono alti 44 px (bersaglio da dito); dal tablet in su restano compatti. */
+const CAMPO_DA_DITO = "max-md:h-11";
+
+/**
+ * La finestra di una voce. L'ordine è quello in cui si ragiona: prima le due scelte che decidono (il tipo di lavoro e
+ * l'unità), poi il nome, il prezzo di vendita e il costo, con il margine che ne viene. Tutto il resto (codice,
+ * descrizione, listino di, area, gruppo, stato, incidenza della manodopera, fonte) sta in «Altri dati», chiuso.
+ * Tipo e unità partono come sempre da «Posa» e «pz».
+ */
 export function TariffaDialog({
   open, onClose, editing, companyId, isAdmin, currentVertical, onSaved, squadre = [], dipendenti = [], erroreDipendenti = false, gruppoIniziale = "posa",
 }: {
@@ -363,6 +398,9 @@ export function TariffaDialog({
   erroreDipendenti?: boolean;
   gruppoIniziale?: GruppoLavorazione;
 }) {
+  // Un id per campo, perché l'etichetta lo nomini per chi usa il lettore di schermo.
+  const idBase = useId();
+  const idDi = (campo: string) => `${idBase}-${campo}`;
   const [nome, setNome] = useState(editing?.nome ?? "");
   const [codice, setCodice] = useState(editing?.codice ?? "");
   const [descrizione, setDescrizione] = useState(editing?.descrizione ?? "");
@@ -400,11 +438,24 @@ export function TariffaDialog({
   /** "" = listino aziendale generico; altrimenti id squadra. */
   const [externalTeamId, setExternalTeamId] = useState<string>(editing?.external_team_id ?? "");
   const [saving, setSaving] = useState(false);
+  // Sul computo la tastiera non copre niente: chi crea una voce scrive subito il nome. Su telefono no (salirebbe da sola).
+  const [focusSulNome] = useState(() => !editing && typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches);
   const costoSalvato = leggiCostoLavorazione(editing?.custom_field_values);
   const costoModificato = costoLavorazioneModificato(costoSalvato, costoTariffa(editing) ?? 0);
   const [configCosto, setConfigCosto] = useState(() => ({ ...costoSalvato, modalita: costoModificato ? "manuale" as const : costoSalvato.modalita }));
   const [gruppo, setGruppo] = useState<GruppoLavorazione>(() => editing ? gruppoLavorazione(editing) : gruppoIniziale);
   const calcoloCosto = calcolaCostoLavorazione(configCosto, numeroCosto(costoInterno) ?? (configCosto.modalita === "manuale" ? 0 : null));
+  // «Altri dati» si apre a mano. Da solo si apre solo quando lì c'è da correggere qualcosa: il listino di una squadra
+  // non va d'accordo con la squadra interna (vedi sotto).
+  const [altriAperti, setAltriAperti] = useState(false);
+  const squadraConSquadraInterna = isAdmin && configCosto.modalita === "interna" && !!externalTeamId;
+  const mostraAltri = altriAperti || squadraConSquadraInterna;
+  const areaDellaVoce = areaDiVerticale(verticalAssociato);
+  const riepilogoAltri = [
+    `Area: ${areaDellaVoce ? nomeArea(areaDellaVoce) : "comune"}`,
+    `Gruppo: ${GRUPPI_LAVORAZIONE.find((g) => g.id === gruppo)?.nome ?? gruppo}`,
+    ...(attivo ? [] : ["archiviata"]),
+  ].join(" · ");
 
   // Semaforo margine live
   const pvNum = numeroCosto(prezzoVendita) ?? 0;
@@ -414,23 +465,23 @@ export function TariffaDialog({
 
   // Validazioni soft (non bloccanti — warning in UI)
   const warnings: string[] = [];
-  if (isAdmin && pvNum > 0 && ciNum > 0 && ciNum >= pvNum) warnings.push("Il costo è ≥ del prezzo di vendita: margine negativo.");
-  if (pvNum === 0 && editing) warnings.push("Prezzo di vendita a zero — la tariffa non genererà importo in preventivo.");
+  if (isAdmin && pvNum > 0 && ciNum > 0 && ciNum >= pvNum) warnings.push("Il costo è uguale o più alto del prezzo di vendita: il margine è zero o negativo.");
+  if (pvNum === 0 && editing) warnings.push("Prezzo di vendita a zero — la voce non genererà importo in preventivo.");
 
   // Validazioni HARD — bloccano il submit
   // M1 (audit): evitare di persistere margini negativi o tariffe nuove senza prezzo.
   //   - Per tariffe esistenti lasciamo passare prezzo=0 (archive di fatto)
   //   - Per nuove tariffe forziamo prezzo>0 (non ha senso creare una tariffa a zero)
-  //   - Per admin, margine negativo blocca (uso il `>=` perché = non ha senso commerciale)
+  //   - Per admin, costo uguale o maggiore del prezzo blocca (margine zero o negativo: = non ha senso commerciale)
   const blockReason: string | null = (() => {
     if (isAdmin && configCosto.modalita === "manuale" && costoInterno.trim() && numeroCosto(costoInterno) == null) return "Inserisci un costo diretto valido, maggiore o uguale a zero.";
     if (isAdmin && calcoloCosto.applicato == null) return "Completa il costo della modalità scelta: ore, operatori e costo orario oppure importo del subappalto.";
-    if (isAdmin && configCosto.modalita === "interna" && externalTeamId) return "Una squadra interna non può usare un listino riservato al subappaltatore: scegli Listino aziendale (generico).";
+    if (squadraConSquadraInterna) return "Una squadra interna non può usare un listino riservato al subappaltatore: in «Altri dati» scegli Listino aziendale (generico).";
     if (isAdmin && pvNum > 0 && ciNum > 0 && ciNum >= pvNum) {
-      return "Il costo è ≥ del prezzo di vendita. Correggi prima di salvare.";
+      return "Il costo è uguale o più alto del prezzo di vendita. Correggi prima di salvare.";
     }
     if (!editing && pvNum <= 0) {
-      return "Il prezzo di vendita deve essere maggiore di 0 per una nuova tariffa.";
+      return "Il prezzo di vendita deve essere maggiore di 0 per una nuova voce.";
     }
     return null;
   })();
@@ -460,10 +511,10 @@ export function TariffaDialog({
         return parsed;
       };
 
-      const prezzoVenditaValue = parseNonNegative(prezzoVendita, "Prezzo vendita");
+      const prezzoVenditaValue = parseNonNegative(prezzoVendita, "Il prezzo di vendita");
       const costoInternoValue = isAdmin ? calcoloCosto.applicato! : (costoTariffa(editing) ?? 0);
-      const prezzoPianoAggValue = parseNonNegative(prezzoPianoAgg, "Prezzo piano aggiuntivo");
-      const pianoBaseValue = parseNonNegativeInt(pianoBase, "Piano base", 1);
+      const prezzoPianoAggValue = parseNonNegative(prezzoPianoAgg, "Il prezzo del piano aggiuntivo");
+      const pianoBaseValue = parseNonNegativeInt(pianoBase, "Il piano base", 1);
 
       // Incidenza manodopera: input in % (0..100) → frazione 0..1 in DB. null se vuoto/non valido.
       const incidenzaMdo = (() => {
@@ -516,7 +567,7 @@ export function TariffaDialog({
       toast.success(editing ? "Voce aggiornata" : "Voce creata");
       onSaved(); onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore salvataggio");
+      toast.error(testoErrore(err, "Voce non salvata."));
     } finally {
       setSaving(false);
     }
@@ -532,49 +583,15 @@ export function TariffaDialog({
           <DialogDescription>
             {editing
               ? "Modifica i dati della voce. L'unità di misura è fissa per le voci già usate in preventivo."
-              : "Compila i campi per creare una nuova voce di manodopera, posa o servizio."}
+              : "Scegli che lavoro è e come si misura, poi scrivi il nome, il prezzo e il costo."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Anagrafica */}
-          <div className="grid gap-3">
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-              <div>
-                <Label>Nome *</Label>
-                <Input
-                  value={nome}
-                  onChange={(e) => setNome(e.target.value)}
-                  placeholder="Es. Posa finestra media (100×120)"
-                />
-              </div>
-              <div>
-                <Label>Codice</Label>
-                <Input
-                  value={codice}
-                  onChange={(e) => setCodice(e.target.value)}
-                  placeholder="Es. LOM241.1C.00.010"
-                  className="font-mono"
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Codice articolo/voce. Opzionale.
-                </p>
-              </div>
-            </div>
+          {/* Le due scelte che decidono: tipo di lavoro e unità. Partono da «Posa» e «pz». */}
+          <div className="grid items-start gap-3 sm:grid-cols-2">
             <div>
-              <Label>Descrizione</Label>
-              <Input
-                value={descrizione}
-                onChange={(e) => setDescrizione(e.target.value)}
-                placeholder="Dettagli visibili ai colleghi (es. include smontaggio)"
-              />
-            </div>
-          </div>
-
-          {/* Tipo + Unità */}
-          <div className="grid gap-3 sm:grid-cols-2 items-start">
-            <div>
-              <Label>Tipo</Label>
+              <Label htmlFor={idDi("tipo")}>Tipo</Label>
               <Select value={tipo} onValueChange={(v) => {
                 setTipo(v as TipoTariffa);
                 // Suggerisci UM di default per il tipo, ma solo se stiamo creando
@@ -582,20 +599,20 @@ export function TariffaDialog({
                   setUnitaFatturazione(UM_DEFAULT_BY_TIPO[v] ?? "pz");
                 }
               }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={idDi("tipo")} aria-describedby={idDi("tipo-aiuto")} className={`mt-1.5 ${CAMPO_DA_DITO}`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {TIPO_DEFS.map((t) => (
                     <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="mt-1 text-xs text-muted-foreground">
-                <Info className="inline h-3 w-3 mr-1" />{tipoHint(tipo)}
+              <p id={idDi("tipo-aiuto")} className="mt-1 text-xs text-muted-foreground">
+                <Info className="inline h-3 w-3 mr-1" aria-hidden />{tipoHint(tipo)}
               </p>
             </div>
 
             <div>
-              <Label>
+              <Label htmlFor={idDi("unita")}>
                 Unità di fatturazione
                 {editing && (
                   <span className="ml-1 text-xs text-muted-foreground">
@@ -608,7 +625,7 @@ export function TariffaDialog({
                 disabled={!!editing}
                 onValueChange={(v) => setUnitaFatturazione(v as UnitaFatturazione)}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={idDi("unita")} className={`mt-1.5 ${CAMPO_DA_DITO}`}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {UM_FATTURAZIONE.map((u) => (
                     <SelectItem key={u.value} value={u.value}>
@@ -619,118 +636,44 @@ export function TariffaDialog({
                 </SelectContent>
               </Select>
             </div>
-          {/* Di chi e' questo listino: aziendale (generico) o di una squadra.
-              La voce di una squadra compare nel dialog manodopera SOLO quando
-              si sceglie quella squadra. */}
-          {squadre.length > 0 && (
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>Listino di</Label>
-              <Select value={externalTeamId || "generico"} onValueChange={(v) => setExternalTeamId(v === "generico" ? "" : v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Listino aziendale (generico)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="generico">Listino aziendale (generico)</SelectItem>
-                  {squadre.map((sq) => (
-                    <SelectItem key={sq.id} value={sq.id}>{sq.name ?? "Squadra"}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
           </div>
 
-          {/* Vertical + Attivo */}
-          <div className="grid gap-3 sm:grid-cols-2">
+          {/* Nome e prezzo di vendita */}
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             <div>
-              <Label>Area di lavoro</Label>
-              <Select
-                value={verticalAssociato || "__none__"}
-                onValueChange={(v) => setVerticalAssociato(v === "__none__" ? "" : v)}
-              >
-                <SelectTrigger aria-label="Area di lavoro della voce"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Comune / nessuna area</SelectItem>
-                  {AREE_STANDARD.map((area) => <SelectItem key={area.chiave} value={area.verticale}>{area.nome}</SelectItem>)}
-                  {[...new Set(["generico", "edile", "impiantistica", verticalAssociato])]
-                    .filter((v) => v && !AREE_STANDARD.some((a) => a.verticale === v))
-                    .map((v) => <SelectItem key={v} value={v}>{nomeArea(areaDiVerticale(v) ?? "generale")} ({v})</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <p className="mt-1 text-xs text-muted-foreground">Organizza la voce nel listino. Le voci comuni restano senza un&apos;area specifica.</p>
-            </div>
-            <div className="flex items-end gap-3">
-              <div className="flex-1">
-                <Label>Stato</Label>
-                <div className="mt-1.5 flex items-center gap-2 rounded-md border px-3 py-2">
-                  <Switch checked={attivo} onCheckedChange={setAttivo} />
-                  <span className="text-sm">
-                    {attivo ? "Attiva (selezionabile in preventivo)" : "Archiviata"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <label className="block space-y-1 text-sm">Gruppo di lavorazioni
-            <select aria-label="Gruppo di lavorazioni della voce" value={gruppo} onChange={e => setGruppo(e.target.value as GruppoLavorazione)} className="h-10 w-full rounded-md border bg-background px-3">
-              {GRUPPI_LAVORAZIONE.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
-            </select>
-            <span className="block text-xs text-muted-foreground">All'interno dell'area, organizza la voce per fase o tipo di lavoro.</span>
-          </label>
-
-          {isAdmin && <CostoLavorazioneEditor value={configCosto} onChange={setConfigCosto} costoManuale={costoInterno} onCostoManuale={setCostoInterno} unita={umLabel} dipendenti={dipendenti} erroreDipendenti={erroreDipendenti} costoModificato={costoModificato} />}
-
-          {/* Prezzi */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <Label>Prezzo vendita (€ per {umLabel})</Label>
+              <Label htmlFor={idDi("nome")}>Nome *</Label>
               <Input
+                id={idDi("nome")}
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Es. Posa finestra media (100×120)"
+                aria-required="true"
+                autoFocus={focusSulNome}
+                className={`mt-1.5 ${CAMPO_DA_DITO}`}
+              />
+            </div>
+            <div>
+              <Label htmlFor={idDi("prezzo")}>Prezzo di vendita (€ per {umLabel})</Label>
+              <Input
+                id={idDi("prezzo")}
                 type="number"
                 min="0"
                 step="0.01"
                 value={prezzoVendita}
                 onChange={(e) => setPrezzoVendita(e.target.value)}
                 placeholder="0.00"
+                className={`mt-1.5 ${CAMPO_DA_DITO}`}
               />
             </div>
           </div>
 
-          {/* Incidenza manodopera + Fonte */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <Label>Incidenza manodopera %</Label>
-              <Input
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                value={incidenzaMdoPct}
-                onChange={(e) => setIncidenzaMdoPct(e.target.value)}
-                placeholder="Es. 35"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Quota di manodopera sul prezzo (obbligo base d'asta nei lavori pubblici). Opzionale.
-              </p>
-            </div>
-            <div>
-              <Label>Fonte</Label>
-              <Input
-                value={fonte}
-                onChange={(e) => setFonte(e.target.value)}
-                placeholder="Es. Prezzario Regione Lombardia 2024"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Prezzario di provenienza (se importata).
-              </p>
-            </div>
-          </div>
+          {isAdmin && <CostoLavorazioneEditor value={configCosto} onChange={setConfigCosto} costoManuale={costoInterno} onCostoManuale={setCostoInterno} unita={umLabel} dipendenti={dipendenti} erroreDipendenti={erroreDipendenti} costoModificato={costoModificato} />}
 
           {/* Live example + margine */}
           {(pvNum > 0 || (isAdmin && ciNum > 0)) && (
             <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold">
-                <Calculator className="h-4 w-4" />
+                <Calculator className="h-4 w-4" aria-hidden />
                 Anteprima economica — 1 {umLabel}
               </div>
               <div className="grid gap-2 text-sm sm:grid-cols-3">
@@ -775,7 +718,7 @@ export function TariffaDialog({
           {tipo === "tiro_piano" && (
             <div className="rounded-lg bg-purple-50 border border-purple-200 p-4 space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-purple-800">
-                <Info className="h-4 w-4" />
+                <Info className="h-4 w-4" aria-hidden />
                 Formula "Tiro al piano"
               </div>
               <p className="text-xs text-purple-700">
@@ -785,24 +728,28 @@ export function TariffaDialog({
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <Label>Piano base (soglia)</Label>
+                  <Label htmlFor={idDi("piano-base")}>Piano base (soglia)</Label>
                   <Input
+                    id={idDi("piano-base")}
                     type="number"
                     min="0"
                     value={pianoBase}
                     onChange={(e) => setPianoBase(e.target.value)}
                     placeholder="1"
+                    className={`mt-1.5 ${CAMPO_DA_DITO}`}
                   />
                 </div>
                 <div>
-                  <Label>Prezzo piano aggiuntivo €</Label>
+                  <Label htmlFor={idDi("piano-extra")}>Prezzo piano aggiuntivo €</Label>
                   <Input
+                    id={idDi("piano-extra")}
                     type="number"
                     min="0"
                     step="0.01"
                     value={prezzoPianoAgg}
                     onChange={(e) => setPrezzoPianoAgg(e.target.value)}
                     placeholder="0.00"
+                    className={`mt-1.5 ${CAMPO_DA_DITO}`}
                   />
                 </div>
               </div>
@@ -830,10 +777,153 @@ export function TariffaDialog({
           {warnings.length > 0 && (
             <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
               <ul className="space-y-1 text-xs text-amber-800">
-                {warnings.map((w, i) => <li key={i}>⚠ {w}</li>)}
+                {warnings.map((w, i) => (
+                  <li key={i} className="flex items-start gap-1.5">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                    <span>{w}</span>
+                  </li>
+                ))}
               </ul>
             </div>
           )}
+
+          {/* Tutto il resto, chiuso: codice, descrizione, listino, area, gruppo, stato, incidenza, fonte. */}
+          <details
+            open={mostraAltri}
+            onToggle={(e) => setAltriAperti(e.currentTarget.open)}
+            className="group rounded-lg border"
+          >
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+              <span className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                <span>Altri dati</span>
+                <span className="truncate text-xs font-normal text-muted-foreground">{riepilogoAltri}</span>
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="grid gap-3 border-t p-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor={idDi("codice")}>Codice</Label>
+                <Input
+                  id={idDi("codice")}
+                  value={codice}
+                  onChange={(e) => setCodice(e.target.value)}
+                  placeholder="Es. LOM241.1C.00.010"
+                  aria-describedby={idDi("codice-aiuto")}
+                  className={`mt-1.5 font-mono ${CAMPO_DA_DITO}`}
+                />
+                <p id={idDi("codice-aiuto")} className="mt-1 text-xs text-muted-foreground">
+                  Codice articolo/voce. Opzionale.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor={idDi("descrizione")}>Descrizione</Label>
+                <Input
+                  id={idDi("descrizione")}
+                  value={descrizione}
+                  onChange={(e) => setDescrizione(e.target.value)}
+                  placeholder="Dettagli visibili ai colleghi (es. include smontaggio)"
+                  className={`mt-1.5 ${CAMPO_DA_DITO}`}
+                />
+              </div>
+
+              {/* Di chi e' questo listino: aziendale (generico) o di una squadra.
+                  La voce di una squadra compare nel dialog manodopera SOLO quando
+                  si sceglie quella squadra. */}
+              {squadre.length > 0 && (
+                <div className="sm:col-span-2">
+                  <Label htmlFor={idDi("listino-di")}>Listino di</Label>
+                  <Select value={externalTeamId || "generico"} onValueChange={(v) => setExternalTeamId(v === "generico" ? "" : v)}>
+                    <SelectTrigger id={idDi("listino-di")} aria-describedby={idDi("listino-di-aiuto")} className={`mt-1.5 ${CAMPO_DA_DITO}`}>
+                      <SelectValue placeholder="Listino aziendale (generico)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="generico">Listino aziendale (generico)</SelectItem>
+                      {squadre.map((sq) => (
+                        <SelectItem key={sq.id} value={sq.id}>{sq.name ?? "Squadra"}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p id={idDi("listino-di-aiuto")} className="mt-1 text-xs text-muted-foreground">
+                    Lascia il listino aziendale se la voce vale per tutti. Scegli una squadra se è riservata a lei.
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor={idDi("area")}>Area di lavoro</Label>
+                <Select
+                  value={verticalAssociato || "__none__"}
+                  onValueChange={(v) => setVerticalAssociato(v === "__none__" ? "" : v)}
+                >
+                  <SelectTrigger id={idDi("area")} aria-describedby={idDi("area-aiuto")} className={`mt-1.5 ${CAMPO_DA_DITO}`}><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Comune / nessuna area</SelectItem>
+                    {AREE_STANDARD.map((area) => <SelectItem key={area.chiave} value={area.verticale}>{area.nome}</SelectItem>)}
+                    {[...new Set(["generico", "edile", "impiantistica", verticalAssociato])]
+                      .filter((v) => v && !AREE_STANDARD.some((a) => a.verticale === v))
+                      .map((v) => <SelectItem key={v} value={v}>{nomeArea(areaDiVerticale(v) ?? "generale")} ({v})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p id={idDi("area-aiuto")} className="mt-1 text-xs text-muted-foreground">Organizza la voce nel listino. Le voci comuni restano senza un&apos;area specifica.</p>
+              </div>
+              <div>
+                <Label htmlFor={idDi("gruppo")}>Gruppo di lavorazioni</Label>
+                <select
+                  id={idDi("gruppo")}
+                  aria-describedby={idDi("gruppo-aiuto")}
+                  value={gruppo}
+                  onChange={e => setGruppo(e.target.value as GruppoLavorazione)}
+                  className={`mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm ${CAMPO_DA_DITO}`}
+                >
+                  {GRUPPI_LAVORAZIONE.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+                </select>
+                <p id={idDi("gruppo-aiuto")} className="mt-1 text-xs text-muted-foreground">All'interno dell'area, organizza la voce per fase o tipo di lavoro.</p>
+              </div>
+
+              <div>
+                <Label htmlFor={idDi("stato")}>Stato</Label>
+                <div className="mt-1.5 flex items-center gap-2 rounded-md border px-3 py-2">
+                  <Switch id={idDi("stato")} aria-describedby={idDi("stato-testo")} checked={attivo} onCheckedChange={setAttivo} />
+                  <span id={idDi("stato-testo")} className="text-sm">
+                    {attivo ? "Attiva (selezionabile in preventivo)" : "Archiviata"}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor={idDi("incidenza")}>Incidenza manodopera %</Label>
+                <Input
+                  id={idDi("incidenza")}
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={incidenzaMdoPct}
+                  onChange={(e) => setIncidenzaMdoPct(e.target.value)}
+                  placeholder="Es. 35"
+                  aria-describedby={idDi("incidenza-aiuto")}
+                  className={`mt-1.5 ${CAMPO_DA_DITO}`}
+                />
+                <p id={idDi("incidenza-aiuto")} className="mt-1 text-xs text-muted-foreground">
+                  Quota di manodopera sul prezzo (obbligo base d'asta nei lavori pubblici). Opzionale.
+                </p>
+              </div>
+
+              <div className="sm:col-span-2">
+                <Label htmlFor={idDi("fonte")}>Fonte</Label>
+                <Input
+                  id={idDi("fonte")}
+                  value={fonte}
+                  onChange={(e) => setFonte(e.target.value)}
+                  placeholder="Es. Prezzario Regione Lombardia 2024"
+                  aria-describedby={idDi("fonte-aiuto")}
+                  className={`mt-1.5 ${CAMPO_DA_DITO}`}
+                />
+                <p id={idDi("fonte-aiuto")} className="mt-1 text-xs text-muted-foreground">
+                  Prezzario di provenienza (se importata).
+                </p>
+              </div>
+            </div>
+          </details>
 
           {/* Sprint B — Varianti Costo Manodopera: visibile solo su tariffe esistenti e solo admin */}
           {isAdmin && editing && (
@@ -851,10 +941,9 @@ export function TariffaDialog({
           {/* Reverse panel: prodotti del listino che usano questa tariffa */}
           {editing && (
             <div className="mt-4 pt-4 border-t">
-              <h4 className="text-sm font-semibold mb-2 flex items-center gap-1">
-                <span className="text-emerald-700">🔗</span>
-                Prodotti collegati a questa tariffa
-              </h4>
+              <h3 className="text-sm font-semibold mb-2">
+                Prodotti collegati a questa voce
+              </h3>
               <TariffaProdottiCollegati
                 tariffaId={editing.id}
                 tariffaName={editing.nome}
@@ -864,12 +953,13 @@ export function TariffaDialog({
         </div>
         <DialogFooter>
           {blockReason && (
-            <div className="mr-auto text-xs text-rose-600 self-center">
-              ⚠ {blockReason}
+            <div id={idDi("blocco")} className="mr-auto flex items-start gap-1.5 self-center text-xs text-rose-600">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>{blockReason}</span>
             </div>
           )}
           <Button variant="outline" onClick={onClose}>Annulla</Button>
-          <Button onClick={handleSave} disabled={saving || !!blockReason}>
+          <Button onClick={handleSave} disabled={saving || !!blockReason} aria-describedby={blockReason ? idDi("blocco") : undefined}>
             {saving ? "Salvataggio..." : "Salva"}
           </Button>
         </DialogFooter>
@@ -959,7 +1049,7 @@ function StandardTariffeDialog({
 
   const handleCreate = async () => {
     if (toCreate.length === 0) {
-      toast.info("Nessuna tariffa selezionata");
+      toast.info("Nessuna voce selezionata");
       return;
     }
     if (!companyId) {
@@ -989,7 +1079,7 @@ function StandardTariffeDialog({
       onCreated();
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Errore creazione tariffe");
+      toast.error(testoErrore(err, "Voci non create."));
     } finally {
       setCreating(false);
     }
@@ -1019,7 +1109,7 @@ function StandardTariffeDialog({
         <DialogHeader>
           <DialogTitle>Catalogo manodopera e servizi standard</DialogTitle>
           <DialogDescription>
-            Scegli un preset adatto al tuo mestiere per importare in blocco, oppure pick le singole voci.
+            Scegli un catalogo adatto al tuo mestiere per importare in blocco, oppure scegli le singole voci.
             Le voci già presenti (stesso nome) sono disabilitate.
             {giaPresentiCount > 0 && (
               <span className="ml-1 text-muted-foreground">
@@ -1029,11 +1119,11 @@ function StandardTariffeDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* ─── PRESET PICKER ─────────────────────────────────────────────── */}
+        {/* ─── CATALOGHI PRONTI ──────────────────────────────────────────── */}
         <div className="space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Preset cataloghi
-          </div>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Cataloghi pronti
+          </h3>
           <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
             {PRESET_CATALOGHI.map((preset) => {
               const stats = presetStats(preset.id);
@@ -1045,6 +1135,7 @@ function StandardTariffeDialog({
                   key={preset.id}
                   type="button"
                   onClick={() => togglePreset(preset.id)}
+                  aria-pressed={fullySelected}
                   disabled={stats.importabili === 0}
                   className={`text-left rounded-lg border p-3 transition-colors ${
                     fullySelected
@@ -1107,9 +1198,9 @@ function StandardTariffeDialog({
 
         {/* ─── LISTA FINE PER TIPO ───────────────────────────────────────── */}
         <div className="space-y-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Tutte le voci
-          </div>
+          </h3>
           {groups.map(([tipo, items]) => (
             <div key={tipo}>
               <div className="flex items-center gap-2 mb-2">
@@ -1180,6 +1271,208 @@ function StandardTariffeDialog({
   );
 }
 
+// ─── Filtri che si ripiegano da telefono ──────────────────────────────────────
+/**
+ * I filtri oltre alla ricerca. Sul computo stanno in riga con la ricerca (nessun cambiamento); da telefono, chiusi sotto
+ * «Filtri»: cinque campi uno sopra l'altro portavano la prima voce oltre metà schermo. Quanti ne sono attivi lo dice la
+ * scritta, e ogni filtro attivo ha comunque il suo cartellino sotto la barra.
+ */
+function FiltriRipiegabili({ daTelefono, attivi, children }: { daTelefono: boolean; attivi: number; children: ReactNode }) {
+  if (!daTelefono) return <>{children}</>;
+  return (
+    <details className="group rounded-md border bg-background">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+        <span>Filtri{attivi > 0 ? ` (${attivi})` : ""}</span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+      </summary>
+      <div className="flex flex-col gap-2 border-t p-2">{children}</div>
+    </details>
+  );
+}
+
+// ─── Pezzi di una voce: gli stessi nella tabella e nella scheda da telefono ───
+/**
+ * L'interruttore «attiva / archiviata». Ha un nome per chi usa il lettore di schermo: «Archivia Posa finestra».
+ * `aDito`: nella scheda da telefono l'area che si tocca arriva a 44 px d'altezza (l'interruttore ne è alto 24).
+ */
+function InterruttoreStato({
+  t, isAdmin, onToggleAttivo, aDito = false,
+}: { t: Tariffa; isAdmin: boolean; onToggleAttivo: (t: Tariffa) => void; aDito?: boolean }) {
+  const isAttivo = t.attivo !== false;
+  const nomeInterruttore = isAdmin
+    ? (isAttivo ? `Archivia ${t.nome}` : `Riattiva ${t.nome}`)
+    : `${t.nome}: ${isAttivo ? "attiva" : "archiviata"}`;
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex items-center">
+            <Switch
+              checked={isAttivo}
+              disabled={!isAdmin}
+              aria-label={nomeInterruttore}
+              onCheckedChange={() => onToggleAttivo(t)}
+              className={aDito ? "relative before:absolute before:inset-x-0 before:-inset-y-2.5 before:content-['']" : undefined}
+            />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          {!isAdmin ? (isAttivo ? "Attiva" : "Archiviata") : isAttivo ? "Archivia voce" : "Riattiva voce"}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+/** Il menu ⋮ di una voce. Chi può solo consultare ha soltanto «Dove è usata». */
+function AzioniVoce({
+  t, isAdmin, onEdit, onDelete, onToggleAttivo, onDuplica, onShowUsage, onAnalisi,
+}: {
+  t: Tariffa; isAdmin: boolean;
+  onEdit: (t: Tariffa) => void; onDelete: (id: string) => void; onToggleAttivo: (t: Tariffa) => void;
+  onDuplica: (t: Tariffa) => void; onShowUsage: (t: Tariffa) => void; onAnalisi: (t: Tariffa) => void;
+}) {
+  const isAttivo = t.attivo !== false;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Azioni per ${t.nome}`}>
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {isAdmin && (
+          <>
+            <DropdownMenuItem onClick={() => onEdit(t)}>
+              <Pencil className="h-4 w-4 mr-2" />Modifica
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onDuplica(t)}>
+              <Copy className="h-4 w-4 mr-2" />Duplica
+            </DropdownMenuItem>
+          </>
+        )}
+        <DropdownMenuItem onClick={() => onShowUsage(t)}>
+          <Link2 className="h-4 w-4 mr-2" />Dove è usata
+        </DropdownMenuItem>
+        {isAdmin && (
+          <>
+            <DropdownMenuItem onClick={() => onAnalisi(t)}>
+              <Calculator className="h-4 w-4 mr-2" />Analisi prezzo
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onToggleAttivo(t)}>
+              {isAttivo ? (
+                <><Archive className="h-4 w-4 mr-2" />Archivia</>
+              ) : (
+                <><RotateCcw className="h-4 w-4 mr-2" />Riattiva</>
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => onDelete(t.id)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />Elimina
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/**
+ * Nome, codice e cartellini di una voce. Nella tabella una riga sola per il nome e una per i cartellini (tagliati se
+ * lunghi); nella scheda da telefono vanno a capo.
+ */
+function NomeVoce({
+  t, squadraName, aCapo = false,
+}: { t: Tariffa; squadraName?: Record<string, string>; aCapo?: boolean }) {
+  return (
+    <>
+      <div className={`flex min-w-0 gap-1.5 font-medium ${aCapo ? "flex-wrap items-center gap-y-0.5" : "items-center"}`}>
+        {t.codice && (
+          <Badge variant="outline" title={t.codice} className="h-4 max-w-32 shrink-0 truncate px-1.5 font-mono text-[10px] font-normal">
+            {t.codice}
+          </Badge>
+        )}
+        <span className={aCapo ? "min-w-0 break-words" : "truncate"} title={t.nome}>{t.nome}</span>
+        {lavorazioneStandardDaCompletare(t) && (
+          <Badge variant="secondary" title="Base standard senza prezzo: non è attiva nei preventivi." className="shrink-0 text-[10px]">Da completare</Badge>
+        )}
+      </div>
+      <div className={`mt-0.5 flex min-w-0 gap-1.5 ${aCapo ? "flex-wrap items-center" : "items-center"}`}>
+        <span className={`inline-flex h-4 shrink-0 items-center rounded px-1.5 text-[10px] font-medium ${tipoBadgeClass(t.tipo)}`}>
+          {tipoLabel(t.tipo)}
+        </span>
+        {t.external_team_id && (
+          <Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">
+            {squadraName?.[t.external_team_id] ?? "Squadra"}
+          </Badge>
+        )}
+        {t.vertical_associato && (
+          <Badge variant="outline" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">
+            {t.vertical_associato}
+          </Badge>
+        )}
+        <Badge variant="outline" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">{GRUPPI_LAVORAZIONE.find(g => g.id === gruppoLavorazione(t))?.nome}</Badge>
+        {t.tipo === "tiro_piano" && t.prezzo_piano_aggiuntivo != null && (
+          <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
+            +{formatCurrency(t.prezzo_piano_aggiuntivo)}/piano oltre il {t.piano_base ?? 1}°
+          </span>
+        )}
+        {t.descrizione && (
+          <span className={`min-w-0 text-xs text-muted-foreground ${aCapo ? "break-words" : "truncate"}`} title={t.descrizione}>
+            {t.descrizione}
+          </span>
+        )}
+      </div>
+    </>
+  );
+}
+
+/** L'unità di una voce come si legge nella scheda da telefono, dove c'è posto: «a corpo», non «a_corpo». */
+function unitaDellaVoce(t: Tariffa): string {
+  const unita = unitaTariffa(t, "");
+  if (!unita) return "—";
+  return UM_FATTURAZIONE.find((u) => u.value === unita)?.label ?? unita;
+}
+
+/** Come è stato calcolato il costo di una voce («Costo diretto», «Squadra interna», «Subappalto»). */
+function modalitaCostoVoce(t: Tariffa, costo: number): string {
+  const config = leggiCostoLavorazione(t.custom_field_values);
+  return MODALITA_COSTO_LABEL[costoLavorazioneModificato(config, costo) ? "manuale" : config.modalita];
+}
+
+/** Il margine con il suo pallino: il colore dice poco a chi non vede, quindi c'è anche la parola (per il lettore di schermo). */
+function MargineConSemaforo({ margine, sem }: { margine: number; sem: ReturnType<typeof margineSemaforo> }) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex items-center justify-end gap-1.5">
+            <span className={`h-2 w-2 rounded-full shrink-0 ${sem.dot}`} aria-hidden />
+            <span className={`text-sm font-semibold tabular-nums ${sem.text}`}>
+              {margine.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+            </span>
+            <span className="sr-only">{sem.label}</span>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{sem.label}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function NessunaVoceTrovata({ isAdmin }: { isAdmin: boolean }) {
+  return (
+    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+      <Layers3 className="h-8 w-8 opacity-40" aria-hidden />
+      <p className="text-sm">Nessuna voce trovata.</p>
+      <p className="text-xs">{isAdmin ? "Prova a cambiare filtro o crea una nuova voce." : "Prova a cambiare filtro."}</p>
+    </div>
+  );
+}
+
 // ─── TariffeTable ────────────────────────────────────────────────────────────
 function TariffeTable({
   items, isAdmin, soglia, selectedIds, onToggleSelect, onToggleSelectAll,
@@ -1192,7 +1485,7 @@ function TariffeTable({
    *  e modifica le voci. Chi ha solo il permesso di vederlo le consulta: il
    *  database gli rifiuterebbe ogni modifica (dal 26/09/2026). */
   isAdmin: boolean;
-  /** Soglia minima di margine (% governance) per il semaforo. */
+  /** Margine minimo delle commesse (Approvazioni) per il semaforo. */
   soglia: number;
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
@@ -1204,6 +1497,7 @@ function TariffeTable({
   onShowUsage: (t: Tariffa) => void;
   onAnalisi: (t: Tariffa) => void;
 }) {
+  const isMobile = useIsMobile();
   // Accessori per il sort ("tipo" è ordinabile dai tab gruppo, non serve qui)
   const accessors = useMemo(() => ({
     nome: (t: Tariffa) => t.nome.toLowerCase(),
@@ -1235,6 +1529,88 @@ function TariffeTable({
     onEdit(t);
   };
 
+  const azioni = { onEdit, onDelete, onToggleAttivo, onDuplica, onShowUsage, onAnalisi };
+
+  // Da telefono (sotto i 768 px) una tabella da 820 px obbligava a scorrere di lato per leggere il prezzo: ogni voce
+  // diventa una scheda, con nome, prezzo, costo e margine uno sotto l'altro. Le colonne si ordinano dal computer.
+  if (isMobile) {
+    return (
+      <div className="space-y-2">
+        {isAdmin && sortedItems.length > 0 && (
+          <label className="flex min-h-11 items-center gap-3 px-1 text-sm text-muted-foreground">
+            <Checkbox
+              checked={headerChecked}
+              onCheckedChange={(v) => onToggleSelectAll(visibleIds, v === true)}
+            />
+            Seleziona tutte le voci visibili
+          </label>
+        )}
+        <ul className="divide-y rounded-md border" aria-label="Elenco delle voci">
+          {sortedItems.length === 0 ? (
+            <li className="px-3 py-10 text-center"><NessunaVoceTrovata isAdmin={isAdmin} /></li>
+          ) : sortedItems.map((t) => {
+            const pv = t.prezzo_vendita ?? 0;
+            const pc = costoTariffa(t) ?? 0;
+            const hasBoth = pv > 0 && pc > 0;
+            const margine = calcMargine(pv, pc);
+            const sem = margineSemaforo(hasBoth ? margine : null, soglia);
+            const isAttivo = t.attivo !== false;
+            const isSelected = selectedIds.has(t.id);
+            return (
+              <li
+                key={t.id}
+                data-state={isSelected ? "selected" : undefined}
+                onClick={rowClick(t)}
+                className={`flex items-start gap-2 p-3 data-[state=selected]:bg-muted ${isAdmin ? "cursor-pointer" : ""} ${!isAttivo ? "opacity-60" : ""}`}
+              >
+                {isAdmin && (
+                  // la casella è alta 16 px: l'area che si tocca arriva a 44
+                  <Checkbox
+                    className="relative mt-1 shrink-0 before:absolute before:-inset-3.5 before:content-['']"
+                    checked={isSelected}
+                    onCheckedChange={() => onToggleSelect(t.id)}
+                    aria-label={`Seleziona ${t.nome}`}
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <NomeVoce t={t} squadraName={squadraName} aCapo />
+                  <dl className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+                    <div className="flex items-baseline gap-1">
+                      <dt className="text-xs text-muted-foreground">Vendita</dt>
+                      <dd className="font-medium tabular-nums">
+                        {pv ? formatCurrency(pv) : <span className="text-muted-foreground">—</span>}
+                        <span className="text-xs font-normal text-muted-foreground"> / {unitaDellaVoce(t)}</span>
+                      </dd>
+                    </div>
+                    {isAdmin && (
+                      <div className="flex items-baseline gap-1">
+                        <dt className="text-xs text-muted-foreground">Costo</dt>
+                        <dd className="tabular-nums">
+                          {pc ? formatCurrency(pc) : <span className="text-muted-foreground">—</span>}
+                          {pc > 0 && <span className="text-xs text-muted-foreground"> · {modalitaCostoVoce(t, pc)}</span>}
+                        </dd>
+                      </div>
+                    )}
+                    {isAdmin && (
+                      <div className="flex items-baseline gap-1">
+                        <dt className="text-xs text-muted-foreground">Margine</dt>
+                        <dd>{hasBoth ? <MargineConSemaforo margine={margine} sem={sem} /> : <span className="text-muted-foreground">—</span>}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <InterruttoreStato t={t} isAdmin={isAdmin} onToggleAttivo={onToggleAttivo} aDito />
+                  <AzioniVoce t={t} isAdmin={isAdmin} {...azioni} />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-md border overflow-x-auto">
       {/* table-fixed: i numeri hanno larghezze fisse e TUTTO il resto va al Nome.
@@ -1265,11 +1641,7 @@ function TariffeTable({
           {sortedItems.length === 0 ? (
             <TableRow>
               <TableCell colSpan={colCount} className="text-center py-10">
-                <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                  <Layers3 className="h-8 w-8 opacity-40" />
-                  <p className="text-sm">Nessuna tariffa trovata.</p>
-                  <p className="text-xs">Prova a cambiare filtro o crea una nuova tariffa.</p>
-                </div>
+                <NessunaVoceTrovata isAdmin={isAdmin} />
               </TableCell>
             </TableRow>
           ) : sortedItems.map((t) => {
@@ -1297,65 +1669,16 @@ function TariffeTable({
                   )}
                 </TableCell>
                 <TableCell>
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="flex items-center">
-                          <Switch
-                            checked={isAttivo}
-                            disabled={!isAdmin}
-                            onCheckedChange={() => onToggleAttivo(t)}
-                          />
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {!isAdmin ? (isAttivo ? "Attiva" : "Archiviata") : isAttivo ? "Archivia tariffa" : "Riattiva tariffa"}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <InterruttoreStato t={t} isAdmin={isAdmin} onToggleAttivo={onToggleAttivo} />
                 </TableCell>
                 {/* Nome: riga 1 = codice + nome (una riga, troncato); riga 2 =
                     tipo, squadra, vertical e descrizione. Il tipo era una
                     colonna da 130px: qui dice lo stesso senza rubare spazio. */}
                 <TableCell>
-                  <div className="flex min-w-0 items-center gap-1.5 font-medium">
-                    {t.codice && (
-                      <Badge variant="outline" title={t.codice} className="h-4 max-w-32 shrink-0 truncate px-1.5 font-mono text-[10px] font-normal">
-                        {t.codice}
-                      </Badge>
-                    )}
-                    <span className="truncate" title={t.nome}>{t.nome}</span>
-                    {lavorazioneStandardDaCompletare(t) && <Badge variant="secondary" className="shrink-0 text-[10px]">Da completare</Badge>}
-                  </div>
-                  <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
-                    <span className={`inline-flex h-4 shrink-0 items-center rounded px-1.5 text-[10px] font-medium ${tipoBadgeClass(t.tipo)}`}>
-                      {tipoLabel(t.tipo)}
-                    </span>
-                    {t.external_team_id && (
-                      <Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">
-                        {squadraName?.[t.external_team_id] ?? "Squadra"}
-                      </Badge>
-                    )}
-                    {t.vertical_associato && (
-                      <Badge variant="outline" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">
-                        {t.vertical_associato}
-                      </Badge>
-                    )}
-                    <Badge variant="outline" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">{GRUPPI_LAVORAZIONE.find(g => g.id === gruppoLavorazione(t))?.nome}</Badge>
-                    {t.tipo === "tiro_piano" && t.prezzo_piano_aggiuntivo != null && (
-                      <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
-                        +{formatCurrency(t.prezzo_piano_aggiuntivo)}/piano oltre il {t.piano_base ?? 1}°
-                      </span>
-                    )}
-                    {t.descrizione && (
-                      <span className="min-w-0 truncate text-xs text-muted-foreground" title={t.descrizione}>
-                        {t.descrizione}
-                      </span>
-                    )}
-                  </div>
+                  <NomeVoce t={t} squadraName={squadraName} />
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
-                  {unitaTariffa(t, "—")}
+                  {unitaDellaVoce(t)}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
                   {pv ? formatCurrency(pv) : <span className="text-muted-foreground">—</span>}
@@ -1363,77 +1686,20 @@ function TariffeTable({
                 {isAdmin && (
                   <TableCell className="whitespace-nowrap text-right tabular-nums">
                     {pc ? formatCurrency(pc) : <span className="text-muted-foreground">—</span>}
-                    <span className="block text-[10px] text-muted-foreground">{(() => {
-                      const config = leggiCostoLavorazione(t.custom_field_values);
-                      return MODALITA_COSTO_LABEL[costoLavorazioneModificato(config, pc) ? "manuale" : config.modalita];
-                    })()}</span>
+                    <span className="block text-[10px] text-muted-foreground">{modalitaCostoVoce(t, pc)}</span>
                   </TableCell>
                 )}
                 {isAdmin && (
                   <TableCell className="whitespace-nowrap text-right">
                     {hasBoth ? (
-                      <TooltipProvider delayDuration={200}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex items-center justify-end gap-1.5">
-                              <span className={`h-2 w-2 rounded-full shrink-0 ${sem.dot}`} aria-hidden />
-                              <span className={`text-sm font-semibold tabular-nums ${sem.text}`}>
-                                {margine.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
-                              </span>
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>{sem.label}</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <MargineConSemaforo margine={margine} sem={sem} />
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
                 )}
                 <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {isAdmin && (
-                        <>
-                          <DropdownMenuItem onClick={() => onEdit(t)}>
-                            <Pencil className="h-4 w-4 mr-2" />Modifica
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onDuplica(t)}>
-                            <Copy className="h-4 w-4 mr-2" />Duplica
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                      <DropdownMenuItem onClick={() => onShowUsage(t)}>
-                        <Link2 className="h-4 w-4 mr-2" />Dove è usata
-                      </DropdownMenuItem>
-                      {isAdmin && (
-                        <>
-                          <DropdownMenuItem onClick={() => onAnalisi(t)}>
-                            <Calculator className="h-4 w-4 mr-2" />Analisi prezzo
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onToggleAttivo(t)}>
-                            {isAttivo ? (
-                              <><Archive className="h-4 w-4 mr-2" />Archivia</>
-                            ) : (
-                              <><RotateCcw className="h-4 w-4 mr-2" />Riattiva</>
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => onDelete(t.id)}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />Elimina
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <AzioniVoce t={t} isAdmin={isAdmin} {...azioni} />
                 </TableCell>
               </TableRow>
             );
@@ -1461,7 +1727,8 @@ export default function SettingsTariffe() {
   const companyId = effectiveCompany?.id as string | undefined;
   const queryClient = useQueryClient();
 
-  // Soglia minima di margine (governance #40) — guida semaforo e filtro redditività.
+  // «Margine minimo delle commesse» di Approvazioni (#40) — guida il semaforo della tabella e il filtro redditività.
+  // Il dialogo della voce e la riga dei numeri usano ancora 15/25 fissi (decisione aperta: una soglia sola).
   // Fallback sicuro ai default anche se la tabella non è ancora applicata.
   const { data: governance } = useGovernanceThresholds(companyId);
   const soglia = governance?.marginalita?.sogliaMinimaPerc ?? 15;
@@ -1486,20 +1753,24 @@ export default function SettingsTariffe() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [priceAdjustOpen, setPriceAdjustOpen] = useState(false);
+  const daTelefono = useIsMobile();
 
-  // Sezione di primo livello (Manodopera e Servizi | Manutenzione), sincronizzata su ?tab.
-  // La pagina "Listino Manutenzione" è stata accorpata qui: ?tab=manutenzione apre il modulo.
+  // Una sola fila di schede (Manodopera e servizi | Impianti | Interventi | Prezzi di manutenzione), sincronizzata su ?tab.
+  // La pagina "Listino Manutenzione" è stata accorpata qui: ?tab=manutenzione (l'indirizzo di prima) apre gli impianti.
   const [urlParams, setUrlParams] = useSearchParams();
-  const section: "manodopera" | "manutenzione" =
-    urlParams.get("tab") === "manutenzione" ? "manutenzione" : "manodopera";
-  const setSection = (v: string) => {
+  const scheda = schedaDaParametro(urlParams.get("tab"));
+  const setScheda = (v: string) => {
+    const nuova = schedaDaParametro(v);
     const next = new URLSearchParams(urlParams);
-    if (v === "manutenzione") next.set("tab", "manutenzione");
+    const parametro = parametroDaScheda(nuova);
+    if (parametro) next.set("tab", parametro);
     else next.delete("tab");
     setUrlParams(next, { replace: true });
   };
 
-  const { data: tariffe = [], isLoading, isError, error, refetch } = useQuery({
+  // `= EMPTY_TARIFFE` e non `= []`: un array nuovo a ogni render faceva ripartire a vuoto la selezione (l'effect qui sotto)
+  // di continuo finché il listino si caricava: la pagina girava a vuoto, e in prova non finiva mai di disegnarsi.
+  const { data: tariffe = EMPTY_TARIFFE, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["tariffe-aziendali-full", companyId],
     enabled: !!companyId,
     queryFn: async () => {
@@ -1588,11 +1859,11 @@ export default function SettingsTariffe() {
     },
     onSuccess: () => {
       invalidateAllTariffe(queryClient);
-      toast.success("Tariffa eliminata");
+      toast.success("Voce eliminata");
       setDeleteId(null);
     },
     onError: (err: unknown) => {
-      toast.error(err instanceof Error ? err.message : "Errore eliminazione tariffa");
+      toast.error(testoErrore(err, "Voce non eliminata."));
     },
   });
 
@@ -1610,10 +1881,10 @@ export default function SettingsTariffe() {
     },
     onSuccess: (next) => {
       invalidateAllTariffe(queryClient);
-      toast.success(next ? "Tariffa riattivata" : "Tariffa archiviata");
+      toast.success(next ? "Voce riattivata" : "Voce archiviata");
     },
     onError: (err: unknown) => {
-      toast.error(err instanceof Error ? err.message : "Errore aggiornamento stato");
+      toast.error(testoErrore(err, "Stato della voce non cambiato."));
     },
   });
 
@@ -1649,10 +1920,10 @@ export default function SettingsTariffe() {
     },
     onSuccess: () => {
       invalidateAllTariffe(queryClient);
-      toast.success("Tariffa duplicata");
+      toast.success("Voce duplicata");
     },
     onError: (err: unknown) => {
-      toast.error(err instanceof Error ? err.message : "Errore duplicazione");
+      toast.error(testoErrore(err, "Voce non duplicata."));
     },
   });
 
@@ -1679,7 +1950,7 @@ export default function SettingsTariffe() {
       );
     },
     onError: (err: unknown) => {
-      toast.error(err instanceof Error ? err.message : "Errore aggiornamento stato");
+      toast.error(testoErrore(err, "Stato delle voci non cambiato."));
     },
   });
 
@@ -1702,7 +1973,7 @@ export default function SettingsTariffe() {
       toast.success(`${count} ${count === 1 ? "voce eliminata" : "voci eliminate"}`);
     },
     onError: (err: unknown) => {
-      toast.error(err instanceof Error ? err.message : "Errore eliminazione");
+      toast.error(testoErrore(err, "Voci non eliminate."));
     },
   });
 
@@ -1725,7 +1996,7 @@ export default function SettingsTariffe() {
       if (lavorazioneFilter !== "all" && gruppoLavorazione(t) !== lavorazioneFilter) return false;
       // search — nome, descrizione, tipo, unità di fatturazione e vertical
       if (q) {
-        const haystack = `${t.nome} ${t.descrizione ?? ""} ${tipoLabel(t.tipo)} ${unitaTariffa(t, "")} ${t.vertical_associato ?? ""}`.toLowerCase();
+        const haystack = `${t.nome} ${t.descrizione ?? ""} ${tipoLabel(t.tipo)} ${unitaTariffa(t, "")} ${unitaDellaVoce(t)} ${t.vertical_associato ?? ""}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       // margine (redditività) — solo per voci con margine calcolabile
@@ -1875,117 +2146,117 @@ export default function SettingsTariffe() {
   if (!companyId) return null;
 
   return (
-    <div className="space-y-6">
-      <Tabs value={section} onValueChange={setSection}>
-        <TabsList className="h-auto flex-wrap gap-1">
-          <TabsTrigger value="manodopera" className="gap-1.5">
-            <Wrench className="h-3.5 w-3.5" />
-            Manodopera e Servizi
-          </TabsTrigger>
-          <TabsTrigger value="manutenzione" className="gap-1.5">
-            <ClipboardList className="h-3.5 w-3.5" />
-            Manutenzione
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="manodopera" className="mt-4 space-y-4">
-      {/* Header — palette arancione coerente con Listino Prodotti & Template.
-          Compatto: prima di questo blocco + KPI + filtri la prima voce vera
-          stava sotto la piega (~870px di testate). */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber flex items-center justify-center shrink-0 shadow-sm">
-            <Wrench className="h-5 w-5 text-white" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold leading-tight">Manodopera e Servizi</h1>
-            <p className="hidden text-sm text-muted-foreground sm:block">
-              Scegli l'area e la lavorazione. Prezzo al cliente e costo di esecuzione restano separati.
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-2 items-center shrink-0">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 dark:border-orange-900/50 dark:hover:bg-orange-950/40"
-              >
-                <Layers3 className="h-4 w-4 mr-1.5" />
-                {isAdmin ? "Importa / Esporta" : "Esporta"}
-                <ChevronDown className="h-4 w-4 ml-1 opacity-60" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              {/* Aggiungere voci è modificare il listino: chi lo vede e basta esporta soltanto. */}
+    <div className="space-y-4">
+      {/* Una sola testata: il titolo «Listino» e le sue schede le mette già il layout. Qui una fila sola di schede
+          (la manodopera e, accanto, le tre parti di Manutenzione) e, a destra, i pulsanti della manodopera. */}
+      <Tabs value={scheda} onValueChange={setScheda}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <TabsList
+            aria-label="Manodopera e servizi, impianti, interventi e prezzi di manutenzione"
+            className="h-auto w-full justify-start gap-1 overflow-x-auto sm:w-auto"
+          >
+            <TabsTrigger value="manodopera" className="shrink-0">Manodopera e servizi</TabsTrigger>
+            <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />
+            <TabsTrigger value="impianti" className="shrink-0">Impianti</TabsTrigger>
+            <TabsTrigger value="interventi" className="shrink-0">Interventi</TabsTrigger>
+            <TabsTrigger value="prezzi" className="shrink-0">Prezzi di manutenzione</TabsTrigger>
+          </TabsList>
+          {scheda === "manodopera" && (
+            <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto [&>*]:max-sm:flex-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 dark:border-orange-900/50 dark:hover:bg-orange-950/40"
+                  >
+                    <Layers3 className="h-4 w-4 mr-1.5" aria-hidden />
+                    {isAdmin ? "Importa / Esporta" : "Esporta"}
+                    <ChevronDown className="h-4 w-4 ml-1 opacity-60" aria-hidden />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  {/* Aggiungere voci è modificare il listino: chi lo vede e basta esporta soltanto. */}
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuLabel>Aggiungi in blocco</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => setStandardOpen(true)} className="gap-2 cursor-pointer">
+                        <Zap className="h-4 w-4 text-orange-500 shrink-0" />
+                        <div className="flex flex-col">
+                          <span>Catalogo standard</span>
+                          <span className="text-xs text-muted-foreground">Voci tipiche del tuo settore</span>
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setImportOpen(true)} className="gap-2 cursor-pointer">
+                        <FileSpreadsheet className="h-4 w-4 text-orange-500 shrink-0" />
+                        <div className="flex flex-col">
+                          <span>Importa prezziario</span>
+                          <span className="text-xs text-muted-foreground">Carica un CSV o Excel</span>
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setImportRegionaleOpen(true)} className="gap-2 cursor-pointer">
+                        <Library className="h-4 w-4 text-orange-500 shrink-0" />
+                        <div className="flex flex-col">
+                          <span>Importa da prezzario regionale</span>
+                          <span className="text-xs text-muted-foreground">Voci dai prezzari ufficiali regionali</span>
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  <DropdownMenuLabel>Esporta</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onClick={exportCsv}
+                    disabled={tariffe.length === 0}
+                    className="gap-2 cursor-pointer"
+                  >
+                    <Download className="h-4 w-4 text-orange-500 shrink-0" />
+                    <div className="flex flex-col">
+                      <span>Esporta in CSV</span>
+                      <span className="text-xs text-muted-foreground">Scarica il listino filtrato</span>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               {isAdmin && (
-                <>
-                  <DropdownMenuLabel>Aggiungi in blocco</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => setStandardOpen(true)} className="gap-2 cursor-pointer">
-                    <Zap className="h-4 w-4 text-orange-500 shrink-0" />
-                    <div className="flex flex-col">
-                      <span>Catalogo standard</span>
-                      <span className="text-xs text-muted-foreground">Voci tipiche del tuo settore</span>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setImportOpen(true)} className="gap-2 cursor-pointer">
-                    <FileSpreadsheet className="h-4 w-4 text-orange-500 shrink-0" />
-                    <div className="flex flex-col">
-                      <span>Importa prezziario</span>
-                      <span className="text-xs text-muted-foreground">Carica un CSV o Excel</span>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setImportRegionaleOpen(true)} className="gap-2 cursor-pointer">
-                    <Library className="h-4 w-4 text-orange-500 shrink-0" />
-                    <div className="flex flex-col">
-                      <span>Importa da prezzario regionale</span>
-                      <span className="text-xs text-muted-foreground">Voci dai prezzari ufficiali regionali</span>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
+                <Button
+                  size="sm"
+                  onClick={openNew}
+                  className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
+                >
+                  <Plus className="h-4 w-4 mr-1.5" aria-hidden />Nuova voce
+                </Button>
               )}
-              <DropdownMenuLabel>Esporta</DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={exportCsv}
-                disabled={tariffe.length === 0}
-                className="gap-2 cursor-pointer"
-              >
-                <Download className="h-4 w-4 text-orange-500 shrink-0" />
-                <div className="flex flex-col">
-                  <span>Esporta in CSV</span>
-                  <span className="text-xs text-muted-foreground">Scarica il listino filtrato</span>
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {isAdmin && (
-            <Button
-              size="sm"
-              onClick={openNew}
-              className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
-            >
-              <Plus className="h-4 w-4 mr-1.5" />Nuova voce
-            </Button>
+            </div>
           )}
         </div>
-      </div>
 
-      {/* KPI */}
+        <TabsContent value="manodopera" className="mt-4 space-y-4">
+      <h2 className="sr-only">Manodopera e servizi</h2>
+
+      {!isAdmin && (
+        <Alert>
+          <AlertDescription>
+            Stai consultando il listino: le voci le modifica chi ha il permesso «Listino &amp; Prezzi» in modifica.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {isError && (
         <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Manodopera e servizi non caricati</AlertTitle>
+          <AlertTriangle className="h-4 w-4" aria-hidden />
+          <h2 className="mb-1 font-medium leading-none tracking-tight">Manodopera e servizi non caricati</h2>
           <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span>{error instanceof Error ? error.message : "Errore durante il caricamento delle tariffe."}</span>
+            <span>{testoErrore(error, "Non riesco a leggere le voci.")}</span>
             <Button size="sm" variant="outline" onClick={() => void refetch()}>
               Riprova
             </Button>
           </AlertDescription>
         </Alert>
       )}
-      <KpiHeader
+
+      {/* I numeri e l'avviso delle basi da completare, in una riga sola. */}
+      <RigaNumeri
         tariffe={tariffe}
         isAdmin={isAdmin}
         soglia={soglia}
@@ -1993,41 +2264,34 @@ export default function SettingsTariffe() {
           setMargineFilter("sotto-soglia");
           setActiveGroup("all");
         }}
+        onCompletaBasi={() => {
+          setStatoFilter("standard"); setActiveGroup("all"); setSearch("");
+          setVerticalFilter("all"); setSquadraFilter("tutte"); setMargineFilter("all"); setLavorazioneFilter("all");
+        }}
       />
 
-      {tariffe.some(lavorazioneStandardDaCompletare) && (
-        <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50/50 p-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm">
-            Hai {tariffe.filter(lavorazioneStandardDaCompletare).length} lavorazioni standard da personalizzare.
-            <span className="block text-xs text-muted-foreground">Apri una voce, controlla cosa comprende e imposta i tuoi prezzi. Le basi non sono attive nei preventivi.</span>
-          </p>
-          <Button variant="outline" size="sm" onClick={() => {
-            setStatoFilter("standard"); setActiveGroup("all"); setSearch("");
-            setVerticalFilter("all"); setSquadraFilter("tutte"); setMargineFilter("all"); setLavorazioneFilter("all");
-          }}>Completa le basi</Button>
-        </div>
-      )}
-
-      <AreeManodopera tariffe={tariffe} value={verticalFilter} onChange={(area) => {
-        setVerticalFilter(area); setLavorazioneFilter("all"); setActiveGroup("all");
-        setSearch(""); setSquadraFilter("tutte"); setMargineFilter("all"); setStatoFilter("all");
-      }} />
-
       {/* Filter bar — senza Card: bordo e padding non aggiungevano niente,
-          solo ~40px in più prima della tabella. Una riga sola su desktop. */}
+          solo ~40px in più prima della tabella. Una riga sola su desktop.
+          L'area di lavoro si sceglie qui, una volta sola (prima c'era anche una griglia di 13 pulsanti
+          che cambiava lo stesso filtro). */}
       <div className="space-y-2">
         <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
           <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Cerca per nome, tipo, unità o area…"
-              className="h-9 pl-9"
+              aria-label="Cerca tra le voci"
+              className="h-9 pl-9 max-md:h-11"
             />
           </div>
+          <FiltriRipiegabili
+            daTelefono={daTelefono}
+            attivi={[statoFilter !== "attive", verticalFilter !== "all", lavorazioneFilter !== "all", squadraFilter !== "tutte", margineFilter !== "all"].filter(Boolean).length}
+          >
           <Select value={statoFilter} onValueChange={(v) => setStatoFilter(v as StatoFilter)}>
-            <SelectTrigger aria-label="Filtra per stato della voce" className="h-9 w-full md:w-[180px]">
+            <SelectTrigger aria-label="Filtra per stato della voce" className="h-9 w-full md:w-[180px] max-md:h-11">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -2038,7 +2302,7 @@ export default function SettingsTariffe() {
             </SelectContent>
           </Select>
           <Select value={verticalFilter} onValueChange={(v) => setVerticalFilter(v as VerticalFilter)}>
-            <SelectTrigger aria-label="Filtra per area di lavoro" className="h-9 w-full md:w-[220px]">
+            <SelectTrigger aria-label="Filtra per area di lavoro" className="h-9 w-full md:w-[220px] max-md:h-11">
               <SelectValue placeholder="Filtra per area" />
             </SelectTrigger>
             <SelectContent>
@@ -2049,13 +2313,13 @@ export default function SettingsTariffe() {
               ))}
             </SelectContent>
           </Select>
-          <select aria-label="Filtra per gruppo di lavorazioni" value={lavorazioneFilter} onChange={e => { setLavorazioneFilter(e.target.value as GruppoLavorazione | "all"); setActiveGroup("all"); }} className="h-9 w-full rounded-md border bg-background px-3 text-sm md:w-[230px]">
+          <select aria-label="Filtra per gruppo di lavorazioni" value={lavorazioneFilter} onChange={e => { setLavorazioneFilter(e.target.value as GruppoLavorazione | "all"); setActiveGroup("all"); }} className="h-9 w-full rounded-md border bg-background px-3 text-sm md:w-[230px] max-md:h-11">
             <option value="all">Tutte le lavorazioni</option>
             {GRUPPI_LAVORAZIONE.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
           </select>
           {squadre.length > 0 && (
             <Select value={squadraFilter} onValueChange={setSquadraFilter}>
-              <SelectTrigger className="h-9 w-full md:w-[180px]">
+              <SelectTrigger aria-label="Filtra per listino" className="h-9 w-full md:w-[180px] max-md:h-11">
                 <SelectValue placeholder="Listino" />
               </SelectTrigger>
               <SelectContent>
@@ -2069,7 +2333,7 @@ export default function SettingsTariffe() {
           )}
           {isAdmin && (
             <Select value={margineFilter} onValueChange={(v) => setMargineFilter(v as MargineFilter)}>
-              <SelectTrigger className="h-9 w-full md:w-[160px]">
+              <SelectTrigger aria-label="Filtra per redditività" className="h-9 w-full md:w-[160px] max-md:h-11">
                 <SelectValue placeholder="Redditività" />
               </SelectTrigger>
               <SelectContent>
@@ -2079,6 +2343,7 @@ export default function SettingsTariffe() {
               </SelectContent>
             </Select>
           )}
+          </FiltriRipiegabili>
         </div>
         {(activeFilterChips.length > 0 || (tariffe.length > 0 && hasActiveFilters)) && (
           <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
@@ -2125,7 +2390,7 @@ export default function SettingsTariffe() {
             const Icon = g.icon;
             return (
               <TabsTrigger key={g.value} value={g.value} className="shrink-0 gap-1.5">
-                <Icon className="h-3.5 w-3.5" />
+                <Icon className="h-3.5 w-3.5" aria-hidden />
                 {g.label}
                 {count > 0 && (
                   <Badge variant="secondary" className="ml-1 text-xs">
@@ -2148,10 +2413,10 @@ export default function SettingsTariffe() {
             <Card>
               <CardContent className="py-12 text-center space-y-3">
                 <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-                  <Layers3 className="h-6 w-6" />
+                  <Layers3 className="h-6 w-6" aria-hidden />
                 </div>
                 <div>
-                  <h3 className="font-semibold">Nessuna voce ancora</h3>
+                  <h2 className="font-semibold">Nessuna voce ancora</h2>
                   <p className="text-sm text-muted-foreground mt-1">
                     {isAdmin
                       ? "Inizia creando le voci standard del tuo settore o aggiungine una nuova."
@@ -2177,10 +2442,10 @@ export default function SettingsTariffe() {
             <Card>
               <CardContent className="py-12 text-center space-y-3">
                 <div className="mx-auto h-12 w-12 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
-                  <Search className="h-6 w-6" />
+                  <Search className="h-6 w-6" aria-hidden />
                 </div>
                 <div>
-                  <h3 className="font-semibold">Nessun risultato</h3>
+                  <h2 className="font-semibold">Nessun risultato</h2>
                   <p className="text-sm text-muted-foreground mt-1">
                     Nessuna voce corrisponde ai filtri o alla ricerca attuali.
                   </p>
@@ -2277,31 +2542,19 @@ export default function SettingsTariffe() {
         </TabsContent>
       </Tabs>
 
-      {/* Hint margine — m2 (audit): visibile anche al first-run, non solo
-          quando l'utente ha già creato tariffe. Serve a educare l'admin sulla
-          semantica del margine PRIMA che popoli il catalogo. */}
-      {isAdmin && (
-        <div className="flex items-start gap-2 rounded-lg border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
-          <Info className="h-4 w-4 mt-0.5 shrink-0" />
-          <div>
-            <strong>Come si usa il margine:</strong> è calcolato sul prezzo di
-            vendita (standard CFO: <code>margine% = (vendita − costo) / vendita × 100</code>).
-            Il semaforo segue la <strong>soglia minima di redditività</strong> definita nelle
-            soglie di governance (attuale: <span className="font-medium text-foreground">{soglia}%</span>):{" "}
-            <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />sano (≥ {soglia}%)</span>,{" "}
-            <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-500" />sotto soglia (0–{soglia}%)</span>,{" "}
-            <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-rose-500" />in perdita (&lt; 0%, salvataggio bloccato)</span>.
-            Usa il filtro <em>Redditività</em> per isolare le voci da rivedere. Le tariffe
-            archiviate non compaiono nel preventivatore ma restano riattivabili.
-          </div>
-        </div>
+      {/* Come si legge il margine — m2 (audit): visibile anche al first-run, non solo quando l'utente ha già
+          creato voci. Serve a spiegare il margine PRIMA che popoli il listino. */}
+      {isAdmin && governance && (
+        <NotaMargine soglia={soglia} puoCambiare={permissions.isAdmin || permissions.canViewCosts} />
       )}
 
         </TabsContent>
 
-        <TabsContent value="manutenzione" className="mt-4">
-          <ListinoManutenzione embedded />
-        </TabsContent>
+        {scheda !== "manodopera" && (
+          <TabsContent value={scheda} className="mt-4">
+            <ListinoManutenzione scheda={scheda} />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Dialogs */}
@@ -2358,10 +2611,10 @@ export default function SettingsTariffe() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Elimina {deleteTariffa ? `«${deleteTariffa.nome}»` : "tariffa"}
+              Elimina {deleteTariffa ? `«${deleteTariffa.nome}»` : "voce"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione è irreversibile. Se preferisci puoi archiviare la tariffa:
+              Questa azione è irreversibile. Se preferisci puoi archiviare la voce:
               non sarà più selezionabile nei nuovi preventivi ma potrai riattivarla in qualsiasi momento.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -2378,7 +2631,7 @@ export default function SettingsTariffe() {
                     Questa voce è collegata in {deleteUsageTotal}{" "}
                     {deleteUsageTotal === 1 ? "punto" : "punti"}.
                   </span>{" "}
-                  Eliminandola resteranno riferimenti vuoti (preventivi, bundle, listini…).
+                  Eliminandola resteranno riferimenti vuoti (preventivi, kit e pacchetti, listini…).
                   Ti consigliamo di <span className="font-medium">archiviarla</span> invece di eliminarla.
                 </div>
               </div>
@@ -2457,7 +2710,7 @@ export default function SettingsTariffe() {
                     Le voci selezionate sono collegate complessivamente in {bulkUsageTotal}{" "}
                     {bulkUsageTotal === 1 ? "punto" : "punti"}.
                   </span>{" "}
-                  Eliminarle lascerà riferimenti vuoti (preventivi, bundle, listini…).
+                  Eliminarle lascerà riferimenti vuoti (preventivi, kit e pacchetti, listini…).
                   Ti consigliamo di <span className="font-medium">archiviarle</span> invece di eliminarle.
                 </div>
               </div>

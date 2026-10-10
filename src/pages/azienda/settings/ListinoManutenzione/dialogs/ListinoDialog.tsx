@@ -1,8 +1,9 @@
 /**
- * ListinoManutenzione — ListinoDialog (tariffa CRUD)
+ * ListinoManutenzione — ListinoDialog (un prezzo di manutenzione: impianto + intervento)
  * Estratto da ListinoManutenzione.tsx (MP-IMP-001 Fase 5).
+ * Etichette collegate ai campi; una modifica che il database ignora senza errore non si annuncia più come «aggiornata».
  */
-import { useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,11 +11,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { testoErrore } from "@/lib/impostazioni/testoErrore";
 import { UNITA_OPTIONS, IVA_OPTIONS, UNITA_LABEL } from "../constants";
 import type { ListinoPrezzo, TipoImpianto, TipoIntervento } from "../types";
 
@@ -27,6 +29,7 @@ export function ListinoDialog({
   tipiIntervento: TipoIntervento[];
   onSaved: () => void;
 }) {
+  const idBase = useId();
   const [impiantoId, setImpiantoId] = useState(editing?.tipo_impianto_id ?? "");
   const [interventoId, setInterventoId] = useState(editing?.tipo_intervento_id ?? "");
   const [prezzo, setPrezzo] = useState(String(editing?.prezzo_base ?? ""));
@@ -37,8 +40,8 @@ export function ListinoDialog({
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!impiantoId) { toast.error("Seleziona un tipo impianto"); return; }
-    if (!interventoId) { toast.error("Seleziona un tipo intervento"); return; }
+    if (!impiantoId) { toast.error("Scegli un tipo di impianto"); return; }
+    if (!interventoId) { toast.error("Scegli un tipo di intervento"); return; }
     if (!prezzo.trim() || isNaN(parseFloat(prezzo))) { toast.error("Inserisci un prezzo valido"); return; }
     setSaving(true);
     try {
@@ -53,19 +56,21 @@ export function ListinoDialog({
         note: note.trim() || null,
       };
       if (editing) {
+        // .select("id"): un UPDATE che il database filtra (permesso mancante) non dà errore, risponde con zero righe.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await (supabase.from("listino_prezzi") as any)
-          .update(payload).eq("id", editing.id);
+        const { data, error } = await (supabase.from("listino_prezzi") as any)
+          .update(payload).eq("id", editing.id).eq("company_id", companyId).select("id");
         if (error) throw error;
+        if (!data || data.length === 0) throw new Error("Modifica non salvata: verifica i permessi e riprova.");
       } else {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase.from("listino_prezzi") as any).insert(payload);
         if (error) throw error;
       }
-      toast.success(editing ? "Tariffa aggiornata" : "Tariffa creata");
+      toast.success(editing ? "Prezzo aggiornato" : "Prezzo creato");
       onSaved(); onClose();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Errore salvataggio");
+      toast.error(testoErrore(err, "Prezzo non salvato."));
     } finally {
       setSaving(false);
     }
@@ -75,15 +80,18 @@ export function ListinoDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editing ? "Modifica tariffa" : "Nuova tariffa"}</DialogTitle>
+          <DialogTitle>{editing ? "Modifica prezzo di manutenzione" : "Nuovo prezzo di manutenzione"}</DialogTitle>
+          <DialogDescription>
+            Il prezzo di un intervento su un impianto (per esempio Manutenzione ordinaria su una Caldaia).
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <Label>Tipo impianto *</Label>
+            <Label htmlFor={`${idBase}-impianto`}>Tipo di impianto *</Label>
             <Select value={impiantoId} onValueChange={setImpiantoId} disabled={!!editing}>
-              <SelectTrigger><SelectValue placeholder="Seleziona impianto..." /></SelectTrigger>
+              <SelectTrigger id={`${idBase}-impianto`} className="mt-1.5 max-md:h-11"><SelectValue placeholder="Scegli l'impianto…" /></SelectTrigger>
               <SelectContent>
-                {tipiImpianto.filter((t) => t.attivo).map((t) => (
+                {tipiImpianto.filter((t) => t.attivo || t.id === impiantoId).map((t) => (
                   <SelectItem key={t.id} value={t.id}>
                     {t.icona ? `${t.icona} ` : ""}{t.nome}
                   </SelectItem>
@@ -92,11 +100,11 @@ export function ListinoDialog({
             </Select>
           </div>
           <div>
-            <Label>Tipo intervento *</Label>
+            <Label htmlFor={`${idBase}-intervento`}>Tipo di intervento *</Label>
             <Select value={interventoId} onValueChange={setInterventoId} disabled={!!editing}>
-              <SelectTrigger><SelectValue placeholder="Seleziona intervento..." /></SelectTrigger>
+              <SelectTrigger id={`${idBase}-intervento`} className="mt-1.5 max-md:h-11"><SelectValue placeholder="Scegli l'intervento…" /></SelectTrigger>
               <SelectContent>
-                {tipiIntervento.filter((t) => t.attivo).map((t) => (
+                {tipiIntervento.filter((t) => t.attivo || t.id === interventoId).map((t) => (
                   <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>
                 ))}
               </SelectContent>
@@ -104,18 +112,20 @@ export function ListinoDialog({
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <Label>Prezzo €</Label>
+              <Label htmlFor={`${idBase}-prezzo`}>Prezzo €</Label>
               <Input
+                id={`${idBase}-prezzo`}
                 type="number" min="0" step="0.01"
                 value={prezzo}
                 onChange={(e) => setPrezzo(e.target.value)}
                 placeholder="0.00"
+                className="mt-1.5 max-md:h-11"
               />
             </div>
             <div>
-              <Label>IVA %</Label>
+              <Label htmlFor={`${idBase}-iva`}>IVA %</Label>
               <Select value={iva} onValueChange={setIva}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${idBase}-iva`} className="mt-1.5 max-md:h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {IVA_OPTIONS.map((v) => (
                     <SelectItem key={v} value={String(v)}>{v}%</SelectItem>
@@ -124,9 +134,9 @@ export function ListinoDialog({
               </Select>
             </div>
             <div>
-              <Label>Unità</Label>
+              <Label htmlFor={`${idBase}-unita`}>Unità</Label>
               <Select value={unita} onValueChange={setUnita}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id={`${idBase}-unita`} className="mt-1.5 max-md:h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {UNITA_OPTIONS.map((u) => (
                     <SelectItem key={u} value={u}>{UNITA_LABEL[u]}</SelectItem>
@@ -136,18 +146,20 @@ export function ListinoDialog({
             </div>
           </div>
           <div>
-            <Label>Note (opzionale)</Label>
+            <Label htmlFor={`${idBase}-note`}>Note (opzionale)</Label>
             <Input
+              id={`${idBase}-note`}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Es. tariffa valida solo fuori orario"
+              placeholder="Es. prezzo valido solo fuori orario"
+              className="mt-1.5 max-md:h-11"
             />
           </div>
           <div className="flex items-center gap-3">
-            <Label>Tariffa attiva</Label>
-            <Switch checked={attivo} onCheckedChange={setAttivo} />
-            <span className="text-xs text-muted-foreground">
-              {attivo ? "Visibile in preventivi e interventi" : "Nascosta (bozza)"}
+            <Label htmlFor={`${idBase}-attivo`}>Prezzo attivo</Label>
+            <Switch id={`${idBase}-attivo`} aria-describedby={`${idBase}-attivo-testo`} checked={attivo} onCheckedChange={setAttivo} />
+            <span id={`${idBase}-attivo-testo`} className="text-xs text-muted-foreground">
+              {attivo ? "Visibile in preventivi e interventi" : "Nascosto (bozza)"}
             </span>
           </div>
         </div>

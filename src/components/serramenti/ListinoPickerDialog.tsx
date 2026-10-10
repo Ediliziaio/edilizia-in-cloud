@@ -607,8 +607,8 @@ export function ListinoPickerDialog({
       .filter(Boolean)
       .join(" › ");
   const testoVuoto = area
-    ? `Le tipologie dell'area ${nomeArea} non sono collegate al preventivatore: cerca il prodotto per nome, oppure collegale da Impostazioni → Listino prodotti.`
-    : "Nel listino non c'è ancora niente da proporre nei preventivi serramenti: servono prodotti dell'area Serramenti accesi e proposti nei preventivi (Impostazioni → Listino prodotti).";
+    ? `Le tipologie dell'area ${nomeArea} non sono collegate al preventivatore: cerca il prodotto per nome, oppure collegale da Impostazioni → Listino.`
+    : "Nel listino non c'è ancora niente da proporre nei preventivi serramenti: servono prodotti dell'area Serramenti accesi e proposti nei preventivi (Impostazioni → Listino).";
   const macroScheda = familyWithAxes?.macrocategoria_id ?? tipologia?.macrocategoriaId ?? null;
 
   return (

@@ -3,6 +3,7 @@
  * Estratto da SettingsQuoteTemplates.tsx (MP-IMP-001 Fase 3).
  */
 import type { QuoteTemplate, QuoteTemplateLayout, FontFamily } from "@/types/quoteTemplate";
+import type { VoceIndice } from "@/components/impostazioni/SezioneImpostazione";
 
 export interface CompleteOfferBlueprint {
   key: string;
@@ -230,3 +231,28 @@ export const COMPLETE_OFFER_BLUEPRINTS: CompleteOfferBlueprint[] = [
 
 export const TEMPLATE_ASSET_BUCKET = "quote-template-assets";
 export const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg"]);
+
+/**
+ * L'indice in cima all'editor del preventivo generico, nell'ordine in cui i riquadri stanno nella pagina.
+ * Ogni voce porta al riquadro con quell'id; subito sotto c'è il riquadro vicino (Componi l'offerta,
+ * Palette colori, Margini del foglio, Condizioni contrattuali). Gli id sono messi in SettingsQuoteTemplates.tsx.
+ */
+export const SEZIONI_EDITOR_OFFERTA: VoceIndice[] = [
+  { id: "modello-informazioni", etichetta: "Informazioni" },
+  { id: "modello-logo-e-colori", etichetta: "Logo e colori" },
+  { id: "modello-tabella", etichetta: "Tabella" },
+  { id: "modello-cosa-mostrare", etichetta: "Cosa mostrare" },
+  { id: "modello-copertina", etichetta: "Copertina" },
+  { id: "modello-testi", etichetta: "Testi" },
+  { id: "modello-condizioni", etichetta: "Condizioni" },
+];
+
+/**
+ * Per chi può solo consultare i modelli (vale per tutte e due le schede della pagina).
+ * La regola è quella del database: scrive nei modelli chi ha il permesso «Listino & Prezzi» in modifica
+ * (`quote_templates_scrittura`, 26/09/2026). Lo stesso testo di «Prezzo e margini».
+ */
+export const TESTO_SOLA_LETTURA = "Stai consultando i modelli: li modifica chi ha il permesso «Listino & Prezzi» in modifica.";
+/** L'avviso della scheda «Preventivo generico» e quello della scheda «Moduli»: i pulsanti spenti rimandano a lui (aria-describedby). */
+export const ID_AVVISO_SOLA_LETTURA = "modelli-sola-lettura";
+export const ID_AVVISO_SOLA_LETTURA_MODULI = "modelli-moduli-sola-lettura";

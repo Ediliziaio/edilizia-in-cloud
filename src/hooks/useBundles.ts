@@ -239,6 +239,9 @@ export function useUpsertBundle() {
       qc.invalidateQueries({ queryKey: queryKeys.bundles.all });
       qc.invalidateQueries({ queryKey: ["bundle-prodotti"] });
     },
+    // La pagina «Kit e pacchetti» mostra il suo avviso, con la frase giusta: senza questo se ne aggiungeva un secondo
+    // (quello generico di App.tsx per ogni mutation che fallisce).
+    meta: { silent: true },
   });
 }
 
@@ -257,6 +260,9 @@ export function useDeleteBundle() {
       qc.invalidateQueries({ queryKey: queryKeys.bundles.all });
       qc.invalidateQueries({ queryKey: ["bundle-prodotti"] });
     },
+    // La pagina «Kit e pacchetti» mostra il suo avviso, con la frase giusta: senza questo se ne aggiungeva un secondo
+    // (quello generico di App.tsx per ogni mutation che fallisce).
+    meta: { silent: true },
   });
 }
 
@@ -274,5 +280,8 @@ export function useToggleBundleAttivo() {
       qc.invalidateQueries({ queryKey: queryKeys.bundles.all });
       qc.invalidateQueries({ queryKey: ["bundle-prodotti"] });
     },
+    // La pagina «Kit e pacchetti» mostra il suo avviso, con la frase giusta: senza questo se ne aggiungeva un secondo
+    // (quello generico di App.tsx per ogni mutation che fallisce).
+    meta: { silent: true },
   });
 }

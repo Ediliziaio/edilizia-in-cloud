@@ -1,8 +1,9 @@
 /**
- * ListinoManutenzione — Tab "Tipi Intervento"
+ * ListinoManutenzione — scheda «Interventi» (i tipi di intervento)
  * Estratto da ListinoManutenzione.tsx (MP-IMP-001 Fase 5).
- * Redesign allineato a "Manodopera e Servizi": tabella table-fixed compatta,
+ * Redesign allineato a "Manodopera e servizi": tabella table-fixed compatta,
  * tutta la riga apre Modifica, azioni nel menu ⋮, CTA arancione.
+ * Chi può solo consultare non vede «Nuovo intervento», il menu ⋮ né la riga che apre la modifica.
  */
 import { useMemo, useState } from "react";
 import { Plus, Pencil, Trash2, MoreVertical } from "lucide-react";
@@ -25,12 +26,16 @@ type CategoriaFilter = "all" | CategoriaIntervento;
 interface Props {
   tipiIntervento: TipoIntervento[];
   loadingInterventi: boolean;
+  /** Chi può cambiare i tipi di intervento: solo l'amministratore (il database rifiuta gli altri). */
+  puoModificare: boolean;
+  /** «Importa un catalogo pronto» è a disposizione: lo dice il messaggio di elenco vuoto. */
+  puoImportare: boolean;
   onAdd: () => void;
   onEdit: (t: TipoIntervento) => void;
   onDelete: (id: string) => void;
 }
 
-export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit, onDelete }: Props) {
+export function InterventiTab({ tipiIntervento, loadingInterventi, puoModificare, puoImportare, onAdd, onEdit, onDelete }: Props) {
   const [search, setSearch] = useState("");
   const [categoria, setCategoria] = useState<CategoriaFilter>("all");
   const [stato, setStato] = useState<StatoFilter>("all");
@@ -56,21 +61,25 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit
 
   /** Tutta la riga apre Modifica — tranne i controlli veri (menu, checkbox…). */
   const rowClick = (t: TipoIntervento) => (e: React.MouseEvent) => {
+    if (!puoModificare) return;
     const el = e.target as HTMLElement;
     if (el.closest('button, a, input, [role="checkbox"], [role="switch"], [role="menu"], [role="menuitem"]')) return;
     onEdit(t);
   };
+
+  const colonne = puoModificare ? 5 : 4;
 
   return (
     <div className="space-y-3">
       <ListinoFilterBar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Cerca tipo intervento…"
+        searchPlaceholder="Cerca tipo di intervento…"
+        searchLabel="Cerca tra i tipi di intervento"
         filters={
           <>
             <Select value={categoria} onValueChange={(v) => setCategoria(v as CategoriaFilter)}>
-              <SelectTrigger className="h-9 w-full md:w-[180px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
+              <SelectTrigger aria-label="Filtra per categoria" className="h-9 w-full md:w-[180px] max-md:h-11"><SelectValue placeholder="Categoria" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutte le categorie</SelectItem>
                 {CATEGORIE_INTERVENTO.map((c) => (
@@ -79,7 +88,7 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit
               </SelectContent>
             </Select>
             <Select value={stato} onValueChange={(v) => setStato(v as StatoFilter)}>
-              <SelectTrigger className="h-9 w-full md:w-[150px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label="Filtra per stato" className="h-9 w-full md:w-[150px] max-md:h-11"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti gli stati</SelectItem>
                 <SelectItem value="attivi">Solo attivi</SelectItem>
@@ -88,15 +97,15 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit
             </Select>
           </>
         }
-        actions={
+        actions={puoModificare ? (
           <Button
             size="sm"
             onClick={onAdd}
             className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
           >
-            <Plus className="h-4 w-4 mr-1" />Nuovo intervento
+            <Plus className="h-4 w-4 mr-1" aria-hidden />Nuovo intervento
           </Button>
-        }
+        ) : undefined}
         chips={chips}
         shownCount={filtered.length}
         totalCount={tipiIntervento.length}
@@ -112,32 +121,34 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit
               <TableHead className="w-[136px]">Categoria</TableHead>
               <TableHead className="w-[110px] text-right">Durata stimata</TableHead>
               <TableHead className="w-[96px]">Attivo</TableHead>
-              <TableHead className="w-[48px]"><span className="sr-only">Azioni</span></TableHead>
+              {puoModificare && <TableHead className="w-[48px]"><span className="sr-only">Azioni</span></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loadingInterventi ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
                   Caricamento...
                 </TableCell>
               </TableRow>
             ) : tipiIntervento.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                  Nessun tipo intervento. Aggiungine uno o clicca &quot;Importa da template&quot;.
+                <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
+                  {puoModificare
+                    ? `Nessun tipo di intervento. Aggiungine uno${puoImportare ? " o usa «Importa un catalogo pronto»" : ""}.`
+                    : "Nessun tipo di intervento."}
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                  Nessun tipo intervento corrisponde ai filtri.
+                <TableCell colSpan={colonne} className="text-center py-8 text-muted-foreground">
+                  Nessun tipo di intervento corrisponde ai filtri.
                 </TableCell>
               </TableRow>
             ) : filtered.map((t) => {
               const cat = categoriaBadge(t.categoria);
               return (
-                <TableRow key={t.id} onClick={rowClick(t)} className="cursor-pointer">
+                <TableRow key={t.id} onClick={rowClick(t)} className={puoModificare ? "cursor-pointer" : undefined}>
                   <TableCell className="font-medium">
                     <span className="block truncate" title={t.nome}>{t.nome}</span>
                   </TableCell>
@@ -154,27 +165,29 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit
                       {t.attivo ? "Attivo" : "Disattivo"}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Azioni per ${t.nome}`}>
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onEdit(t)}>
-                          <Pencil className="h-4 w-4 mr-2" />Modifica
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => onDelete(t.id)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />Elimina
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+                  {puoModificare && (
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Azioni per ${t.nome}`}>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onEdit(t)}>
+                            <Pencil className="h-4 w-4 mr-2" />Modifica
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => onDelete(t.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />Elimina
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })}

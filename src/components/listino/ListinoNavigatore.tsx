@@ -13,7 +13,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle,
   AppWindow,
   Bath,
   ChevronLeft,
@@ -798,8 +797,7 @@ function SchedaProdotto({ riga, isAdmin, azioni }: { riga: RigaListino; isAdmin:
   return (
     <article
       className={cn(
-        "group relative flex h-full flex-col overflow-hidden rounded-lg border bg-card transition-shadow focus-within:ring-2 focus-within:ring-ring",
-        isAdmin && "hover:border-primary/50 hover:shadow-sm",
+        "group relative flex h-full flex-col overflow-hidden rounded-lg border bg-card transition-shadow focus-within:ring-2 focus-within:ring-ring hover:border-primary/50 hover:shadow-sm",
         !f.attivo && "border-dashed opacity-60",
       )}
     >
@@ -816,28 +814,25 @@ function SchedaProdotto({ riga, isAdmin, azioni }: { riga: RigaListino; isAdmin:
         )}
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-2.5">
-        {isAdmin ? (
-          <button
-            type="button"
-            onClick={() => azioni.onApri(f)}
-            className="text-left text-sm font-medium leading-snug after:absolute after:inset-0 focus-visible:outline-none"
-            title={f.nome}
-          >
-            <span className="line-clamp-2">{f.nome}</span>
-          </button>
-        ) : (
-          <p className="line-clamp-2 text-sm font-medium leading-snug" title={f.nome}>
-            {f.nome}
-          </p>
-        )}
+        {/* Si apre anche per chi può solo consultare: l'editor, per lui, è in sola lettura. */}
+        <button
+          type="button"
+          onClick={() => azioni.onApri(f)}
+          className="text-left text-sm font-medium leading-snug after:absolute after:inset-0 focus-visible:outline-none"
+          title={f.nome}
+        >
+          <span className="line-clamp-2">{f.nome}</span>
+        </button>
         <Segnali famiglia={f} />
         <div className="mt-auto flex items-end justify-between gap-2 pt-1">
           <Prezzo economia={economia} />
           <Margine economia={economia} />
         </div>
       </div>
+      {/* Sempre visibile, anche da computer: prima compariva solo al passaggio del mouse, e «Attivo» e «Proposto nei
+          preventivi» si cambiano da qui. */}
       {isAdmin && (
-        <div className="absolute right-1.5 top-1.5 z-10 md:opacity-0 md:transition-opacity md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+        <div className="absolute right-1.5 top-1.5 z-10">
           <MenuProdotto famiglia={f} azioni={azioni} className="bg-background/90 shadow-sm ring-1 ring-border" />
         </div>
       )}
@@ -880,8 +875,8 @@ function TabellaProdotti({
             return (
               <TableRow
                 key={r.chiave}
-                className={cn(isAdmin && "cursor-pointer", !f.attivo && "opacity-60")}
-                onClick={isAdmin ? () => azioni.onApri(f) : undefined}
+                className={cn("cursor-pointer", !f.attivo && "opacity-60")}
+                onClick={() => azioni.onApri(f)}
               >
                 <TableCell>
                   <div className="flex min-w-0 items-center gap-2.5">
@@ -899,6 +894,31 @@ function TabellaProdotti({
                         {f.nome}
                       </p>
                       <Segnali famiglia={f} />
+                      {/* Sotto i 640 px le due colonne «Attivo» e «Preventivi» spariscono: qui restano a un tocco. */}
+                      <div
+                        className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 sm:hidden"
+                        onClick={(e) => e.stopPropagation()}
+                        title={nota}
+                      >
+                        <label className="flex min-h-[44px] items-center gap-2 text-xs text-muted-foreground">
+                          <Switch
+                            checked={f.attivo}
+                            onCheckedChange={() => azioni.onAttivo?.(f)}
+                            disabled={!isAdmin || !azioni.onAttivo || bloccato}
+                            aria-label={`Prodotto attivo: ${f.nome}`}
+                          />
+                          Attivo
+                        </label>
+                        <label className="flex min-h-[44px] items-center gap-2 text-xs text-muted-foreground">
+                          <Switch
+                            checked={f.mostra_preventivo !== false}
+                            onCheckedChange={() => azioni.onPreventivo?.(f)}
+                            disabled={!isAdmin || !azioni.onPreventivo || bloccato}
+                            aria-label={`Proposto nei preventivi: ${f.nome}`}
+                          />
+                          Nei preventivi
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </TableCell>
@@ -984,9 +1004,6 @@ function Segnali({ famiglia }: { famiglia: FamilyWithAxes }) {
   if (!famiglia.attivo) segnali.push({ testo: baseStandard ? "Base standard · da completare" : "Disattivato", icona: PowerOff, classe: "text-amber-700 dark:text-amber-400" });
   if (famiglia.mostra_preventivo === false) {
     segnali.push({ testo: "Fuori dai preventivi", icona: EyeOff, classe: "text-muted-foreground" });
-  }
-  if (famiglia.manodopera_modalita == null) {
-    segnali.push({ testo: "Posa da impostare", icona: AlertTriangle, classe: "text-amber-700 dark:text-amber-400" });
   }
   if (segnali.length === 0) return null;
   return (

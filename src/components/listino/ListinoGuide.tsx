@@ -1,5 +1,5 @@
 /**
- * «Come funziona» del listino: un bottone nell'intestazione che apre la
+ * «Come funziona» del listino: un bottone in fondo a destra della barra che apre la
  * spiegazione. Prima era un riquadro sempre presente sopra i prodotti, che
  * spingeva il listino più in basso a ogni visita per una cosa che si legge
  * una volta.
@@ -29,7 +29,7 @@ const LIVELLI: Array<{ nome: string; testo: string }> = [
   {
     nome: "Linea",
     testo:
-      "Come si divide una tipologia. Le serie di profilo (Salamander, Aluplast) hanno gli stessi modelli con un prezzo diverso e si aggiungono da «Importa → Serie di profilo». Le linee di prodotti (tapparelle in PVC o in alluminio, linea vasca tipo 1 e tipo 2) raccolgono prodotti diversi e si creano con «+ Linea».",
+      "Come si divide una tipologia. Le serie di profilo (Salamander, Aluplast) hanno gli stessi modelli con un prezzo diverso e si aggiungono da «Imposta → Serie di profilo». Le linee di prodotti (tapparelle in PVC o in alluminio, linea vasca tipo 1 e tipo 2) raccolgono prodotti diversi e si creano con «+ Linea».",
   },
   {
     nome: "Prodotti",
@@ -42,9 +42,10 @@ export function ListinoGuide() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground">
+        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" title="Come funziona">
           <HelpCircle className="h-4 w-4" aria-hidden="true" />
-          Come funziona
+          {/* Da telefono resta l'icona: la barra del listino ha già tre file di comandi. */}
+          <span className="max-sm:sr-only">Come funziona</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useId, useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -16,7 +16,7 @@ import type {
 } from "@/types/quoteTemplate";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useBeforeUnload } from "@/hooks/useBeforeUnload";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,12 +25,15 @@ import { RichTextEditorSafe as RichTextEditor } from "@/components/ui/rich-text-
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
+import { IndiceSezioni } from "@/components/impostazioni/SezioneImpostazione";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
-  Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy, FileText, Eye,
+  Plus, Trash2, Pencil, Star, Loader2, Upload, ImageIcon, Download, Copy, FileText,
   CheckCircle2, Palette, Wand2, FileImage, ScrollText, ArrowLeft, Save, ArrowRight,
-  Blocks, CircleCheck, Lightbulb, Layers3,
+  Blocks, CircleCheck,
 } from "lucide-react";
 import { MergeTagInserter } from "@/components/quotes/MergeTagInserter";
 import { CanvaColorPicker } from "@/components/quotes/CanvaColorPicker";
@@ -38,11 +41,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShoppingBag } from "lucide-react";
 // MP-IMP-001 Fase 3 — sezioni estratte in cartella dedicata
 import {
-  LAYOUTS, FONTS, DESIGN_PRESETS, COMPLETE_OFFER_BLUEPRINTS, ALLOWED_LOGO_TYPES,
+  LAYOUTS, FONTS, DESIGN_PRESETS, COMPLETE_OFFER_BLUEPRINTS, ALLOWED_LOGO_TYPES, SEZIONI_EDITOR_OFFERTA,
+  TESTO_SOLA_LETTURA, ID_AVVISO_SOLA_LETTURA,
 } from "./SettingsQuoteTemplates/constants";
 import {
   getLogoPublicUrl, kindColorHint, kindColorLabels, cnTab, getReferencingOffers,
+  erroreInItaliano, descrizioneTipo, titoloVuoto, pulsanteVuoto, nomeNuovoBlocco,
 } from "./SettingsQuoteTemplates/helpers";
+import { useVaiAlRiquadro } from "./SettingsQuoteTemplates/useVaiAlRiquadro";
 import type {
   TemplateFormPayload, TemplateVisibilityKey,
 } from "./SettingsQuoteTemplates/helpers";
@@ -171,9 +177,12 @@ interface ProductTemplateEditorProps {
   productImageInputRef: React.RefObject<HTMLInputElement>;
   productImageUploading: boolean;
   onProductImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  /** Chi può solo consultare: il testo ricco non si scrive (il resto lo spegne il fieldset). */
+  readOnly?: boolean;
 }
 
-function ProductTemplateEditor({ form, updateForm, productImageInputRef, productImageUploading, onProductImageUpload }: ProductTemplateEditorProps) {
+function ProductTemplateEditor({ form, updateForm, productImageInputRef, productImageUploading, onProductImageUpload, readOnly = false }: ProductTemplateEditorProps) {
+  const idBase = useId();
   const specs: ProductSpec[] = (form.product_specs as ProductSpec[] | undefined) ?? [];
   const updateSpec = (idx: number, patch: Partial<ProductSpec>) => {
     const next = specs.map((s, i) => (i === idx ? { ...s, ...patch } : s));
@@ -219,31 +228,33 @@ function ProductTemplateEditor({ form, updateForm, productImageInputRef, product
         </div>
 
         <div>
-          <Label>Descrizione breve</Label>
-          <Input value={form.product_short_description ?? ''} onChange={e => updateForm({ product_short_description: e.target.value })} placeholder="1 riga sintetica per la tabella" />
+          <Label htmlFor={`${idBase}-breve`}>Descrizione breve</Label>
+          <Input id={`${idBase}-breve`} value={form.product_short_description ?? ''} onChange={e => updateForm({ product_short_description: e.target.value })} placeholder="1 riga sintetica per la tabella" />
         </div>
 
-        <div>
-          <Label>Descrizione estesa</Label>
+        <div role="group" aria-labelledby={`${idBase}-estesa`}>
+          <Label id={`${idBase}-estesa`}>Descrizione estesa</Label>
           <RichTextEditor
             value={form.product_long_description ?? ''}
             onChange={(html) => updateForm({ product_long_description: html })}
             placeholder="Dettagli, materiali, finitura, vantaggi…"
             minHeight={120}
+            readOnly={readOnly}
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <Label>Prezzo indicativo (€)</Label>
+            <Label htmlFor={`${idBase}-prezzo`}>Prezzo indicativo (€)</Label>
             <Input
+              id={`${idBase}-prezzo`}
               type="number"
               step="0.01"
               value={form.product_indicative_price ?? ''}
               onChange={e => updateForm({ product_indicative_price: e.target.value === '' ? null : Number(e.target.value) })}
               placeholder="0.00"
             />
-            <p className="text-[10px] text-muted-foreground mt-0.5">Solo orientativo, NON usato come prezzo del preventivo</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Solo orientativo: non è il prezzo del preventivo</p>
           </div>
           <div className="self-end text-[11px] text-muted-foreground pb-2.5">
             {form.product_indicative_price !== null && form.product_indicative_price !== undefined && form.product_unit
@@ -254,20 +265,20 @@ function ProductTemplateEditor({ form, updateForm, productImageInputRef, product
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <Label>Specifiche tecniche</Label>
+            <Label id={`${idBase}-specifiche`}>Specifiche tecniche</Label>
             <Button type="button" variant="outline" size="sm" onClick={addSpec} className="gap-1 h-7 text-[11px]">
-              <Plus className="h-3 w-3" />Aggiungi spec
+              <Plus className="h-3 w-3" />Aggiungi specifica
             </Button>
           </div>
           {specs.length === 0 ? (
-            <p className="text-xs text-muted-foreground italic px-3 py-2 border border-dashed rounded">Nessuna specifica. Aggiungi (es. Spessore: 3 cm)</p>
+            <p className="text-xs text-muted-foreground italic px-3 py-2 border border-dashed rounded">Nessuna specifica. Aggiungine una (es. Spessore: 3 cm).</p>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5" role="group" aria-labelledby={`${idBase}-specifiche`}>
               {specs.map((spec, idx) => (
                 <div key={idx} className="flex gap-2 items-center">
-                  <Input value={spec.label} onChange={e => updateSpec(idx, { label: e.target.value })} placeholder="Etichetta (es. Spessore)" className="flex-1" />
-                  <Input value={spec.value} onChange={e => updateSpec(idx, { value: e.target.value })} placeholder="Valore (es. 3 cm)" className="flex-1" />
-                  <Button type="button" variant="ghost" size="icon" onClick={() => removeSpec(idx)} className="h-9 w-9 text-red-600 hover:text-red-700">
+                  <Input value={spec.label} onChange={e => updateSpec(idx, { label: e.target.value })} placeholder="Etichetta (es. Spessore)" aria-label={`Specifica ${idx + 1}: etichetta`} className="min-w-0 flex-1" />
+                  <Input value={spec.value} onChange={e => updateSpec(idx, { value: e.target.value })} placeholder="Valore (es. 3 cm)" aria-label={`Specifica ${idx + 1}: valore`} className="min-w-0 flex-1" />
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeSpec(idx)} aria-label={`Togli la specifica ${idx + 1}`} className="h-9 w-9 shrink-0 text-red-600 hover:text-red-700">
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -289,6 +300,10 @@ interface TemplateCardProps {
   /** Il colore del marchio dell'azienda: nelle anteprime vale come nel PDF. */
   brandColor?: string | null;
   templates: QuoteTemplate[];
+  /** false = chi può solo consultare: il modello si apre ma non si cambia, non si copia, non si elimina. */
+  puoModificare: boolean;
+  /** id dell'avviso «Stai consultando i modelli»: spiega i pulsanti spenti. */
+  idAvvisoSolaLettura?: string;
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -309,7 +324,7 @@ function AnteprimaTimbro({ percorso }: { percorso: string }) {
   return <img src={link} alt="Timbro e firma dell'impresa" className="h-16 max-w-[200px] rounded-md border bg-white object-contain p-1" />;
 }
 
-function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, brandColor, templates, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
+function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, brandColor, templates, puoModificare, idAvvisoSolaLettura, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
   const kind = (tmpl.kind as QuoteTemplateKind | undefined) ?? 'offerta';
 
   // Anteprima specifica per kind
@@ -397,7 +412,7 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, brandC
             </div>
           </div>
           {tmpl.is_default && kind === 'offerta' && (
-            <Badge variant="secondary" className="shrink-0"><Star className="h-3 w-3 mr-1" />Default</Badge>
+            <Badge variant="secondary" className="shrink-0"><Star className="h-3 w-3 mr-1" />Predefinito</Badge>
           )}
           {usedByCount > 0 && (
             <Badge variant="outline" className="shrink-0 text-[10px]">{usedByCount} offerte</Badge>
@@ -420,14 +435,21 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, brandC
           </div>
         )}
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="flex-1" onClick={onEdit}>
-            <Pencil className="h-3 w-3 mr-1" />Modifica
+          <Button variant="outline" size="sm" className="flex-1" onClick={onEdit} aria-label={`${puoModificare ? "Modifica" : "Apri"} ${tmpl.name}`}>
+            <Pencil className="h-3 w-3 mr-1" aria-hidden="true" />{puoModificare ? "Modifica" : "Apri"}
           </Button>
-          <Button variant="ghost" size="sm" onClick={onDuplicate} title="Duplica">
-            <Copy className="h-3 w-3" />
+          <Button
+            variant="ghost" size="sm" onClick={onDuplicate} title="Duplica il modello" aria-label={`Duplica ${tmpl.name}`}
+            disabled={!puoModificare} aria-describedby={!puoModificare ? idAvvisoSolaLettura : undefined}
+          >
+            <Copy className="h-3 w-3" aria-hidden="true" />
           </Button>
           {!(tmpl.is_default && kind === 'offerta') && (
-            <Button variant="ghost" size="sm" onClick={onDelete} aria-label="Elimina template" className="text-red-600 hover:text-red-700 hover:bg-red-50">
+            <Button
+              variant="ghost" size="sm" onClick={onDelete} aria-label={`Elimina il modello ${tmpl.name}`}
+              disabled={!puoModificare} aria-describedby={!puoModificare ? idAvvisoSolaLettura : undefined}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
               <Trash2 className="h-3 w-3" aria-hidden="true" />
             </Button>
           )}
@@ -446,25 +468,26 @@ interface BlockLinkSelectorProps {
 }
 
 function BlockLinkSelector({ label, value, options, onChange, onCreate }: BlockLinkSelectorProps) {
+  const id = useId();
   return (
     <div className="rounded-xl border border-orange-200/80 bg-white/80 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <Label className="text-xs font-semibold text-slate-800">{label}</Label>
+        <Label htmlFor={id} className="text-xs font-semibold text-slate-800">{label}</Label>
         {value && <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700"><CircleCheck className="h-3 w-3" /> Collegato</span>}
       </div>
       <div className="flex items-center gap-2">
         <select
+          id={id}
           value={value ?? ""}
           onChange={(event) => onChange(event.target.value || null)}
-          className="h-9 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-800 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
-          aria-label={label}
+          className="h-9 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-800 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100 max-sm:h-11 max-sm:text-sm"
         >
           <option value="">Nessun blocco collegato</option>
           {options.map((option) => (
             <option key={option.id} value={option.id}>{option.name}</option>
           ))}
         </select>
-        <Button type="button" variant="outline" size="sm" className="h-9 shrink-0 px-2.5 text-xs" onClick={onCreate}>
+        <Button type="button" variant="outline" size="sm" className="h-9 shrink-0 px-2.5 text-xs" onClick={onCreate} aria-label={`Crea: ${label}`}>
           <Plus className="mr-1 h-3.5 w-3.5" /> Crea
         </Button>
       </div>
@@ -481,24 +504,25 @@ interface MultiBlockSelectorProps {
 }
 
 function MultiBlockSelector({ label, values, options, onChange }: MultiBlockSelectorProps) {
+  const idEtichetta = useId();
   const toggle = (id: string) => {
     onChange(values.includes(id) ? values.filter((value) => value !== id) : [...values, id]);
   };
 
   return (
-    <div className="rounded-xl border border-orange-200/80 bg-white/80 p-3">
+    <div className="rounded-xl border border-orange-200/80 bg-white/80 p-3" role="group" aria-labelledby={idEtichetta}>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <Label className="text-xs font-semibold text-slate-800">{label}</Label>
+        <Label id={idEtichetta} className="text-xs font-semibold text-slate-800">{label}</Label>
         <span className="text-[10px] font-medium text-slate-500">{values.length} selezionate</span>
       </div>
       {options.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-[10px] text-muted-foreground">Nessun blocco disponibile: crealo nella tab dedicata e poi torna qui.</p>
+        <p className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-[10px] text-muted-foreground">Nessun blocco disponibile: crealo da «Altri blocchi» e poi torna qui.</p>
       ) : (
         <div className="grid gap-1.5 sm:grid-cols-2">
           {options.map((option) => {
             const checked = values.includes(option.id);
             return (
-              <label key={option.id} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 text-xs transition-colors ${checked ? "border-orange-300 bg-orange-50 text-orange-900" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}>
+              <label key={option.id} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 text-xs transition-colors max-sm:min-h-11 ${checked ? "border-orange-300 bg-orange-50 text-orange-900" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}>
                 <input type="checkbox" checked={checked} onChange={() => toggle(option.id)} className="accent-orange-500" />
                 <span className="min-w-0 truncate">{option.name}</span>
               </label>
@@ -510,101 +534,43 @@ function MultiBlockSelector({ label, values, options, onChange }: MultiBlockSele
   );
 }
 
-function TemplateLibraryGuide({
-  activeKind,
-  countsByKind,
-  templates,
-  isAdmin,
-  onNew,
-  onSelectKind,
-}: {
-  activeKind: QuoteTemplateKind;
-  countsByKind: Record<QuoteTemplateKind, number>;
-  templates: QuoteTemplate[];
-  isAdmin: boolean;
-  onNew: (kind: QuoteTemplateKind) => void;
-  onSelectKind: (kind: QuoteTemplateKind) => void;
-}) {
-  const blockCount = KIND_ORDER.filter((kind) => kind !== "offerta").reduce((sum, kind) => sum + (countsByKind[kind] ?? 0), 0);
-  const defaultTemplate = templates.find((template) => template.is_default && ((template.kind as QuoteTemplateKind | undefined) ?? "offerta") === "offerta");
-
+/**
+ * Un riquadro dell'editor a cui porta l'indice in cima: ha il suo id e, quando ci si arriva dall'indice,
+ * si evidenzia per un attimo. `scroll-mt-16` lascia libero il posto sotto la barra e l'indice, che restano in vista.
+ */
+function RiquadroEditor({ id, evidenziato, children }: { id: string; evidenziato: string | null; children: ReactNode }) {
+  const acceso = evidenziato === id;
   return (
-    <Card className="overflow-hidden border-slate-200 bg-gradient-to-b from-white to-slate-50/80 shadow-sm">
-      <CardHeader className="border-b border-slate-100 bg-white/80 pb-4">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 text-orange-600">
-            <Layers3 className="h-4 w-4" />
-          </div>
-          Il flusso delle offerte
-        </CardTitle>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Parti da un&apos;offerta completa, personalizzala e ritrovala direttamente nel preventivatore standard.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-5 p-4">
-        <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-lg border bg-white p-2.5 text-center">
-            <p className="text-lg font-bold text-slate-900">{templates.length}</p>
-            <p className="text-[10px] uppercase tracking-wide text-slate-500">Totali</p>
-          </div>
-          <div className="rounded-lg border bg-white p-2.5 text-center">
-            <p className="text-lg font-bold text-orange-600">{countsByKind.offerta ?? 0}</p>
-            <p className="text-[10px] uppercase tracking-wide text-slate-500">Offerte</p>
-          </div>
-          <div className="rounded-lg border bg-white p-2.5 text-center">
-            <p className="text-lg font-bold text-emerald-600">{blockCount}</p>
-            <p className="text-[10px] uppercase tracking-wide text-slate-500">Componenti</p>
-          </div>
-        </div>
+    <div
+      id={id}
+      data-evidenziata={acceso ? "true" : undefined}
+      className={cn("scroll-mt-16 rounded-lg transition-shadow duration-500", acceso && "ring-2 ring-primary/50")}
+    >
+      {children}
+    </div>
+  );
+}
 
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Come funziona</p>
-          {[
-            { icon: "01", title: "Scegli un modello completo", text: "Copertina, testi, investimento e condizioni sono già nello stesso documento." },
-            { icon: "02", title: "Personalizza il messaggio", text: "Adatta palette, claim, termini, logo e struttura al tuo modo di vendere." },
-            { icon: "03", title: "Usalo nel preventivatore", text: "Salva l'offerta e selezionala quando prepari il prossimo preventivo standard." },
-          ].map((step) => (
-            <div key={step.icon} className="flex items-start gap-2.5">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">{step.icon}</span>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-slate-800">{step.title}</p>
-                <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{step.text}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="rounded-xl border border-orange-200 bg-orange-50/70 p-3">
-          <div className="flex items-start gap-2">
-            <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
-            <div>
-              <p className="text-xs font-semibold text-orange-900">Suggerimento</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-orange-900/75">
-                {defaultTemplate
-                  ? `Il default attuale è “${defaultTemplate.name}”. Puoi aggiornarlo senza perdere i blocchi già collegati.`
-                  : "Crea una delle offerte complete qui a sinistra: sarà pronta per essere selezionata nel preventivatore standard."}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {isAdmin && (
-          <div className="space-y-2 border-t border-slate-200 pt-4">
-            <p className="text-xs font-semibold text-slate-700">Azione rapida</p>
-            <Button type="button" variant="outline" size="sm" className="w-full justify-between" onClick={() => onNew(activeKind)}>
-              {activeKind === "offerta" ? "Crea un'offerta completa" : `Crea ${KIND_META[activeKind].label.toLowerCase()}`}
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-            {activeKind === "offerta" && (countsByKind.copertina ?? 0) === 0 && (
-              <Button type="button" variant="ghost" size="sm" className="w-full justify-between text-xs text-pink-700 hover:bg-pink-50 hover:text-pink-800" onClick={() => onSelectKind("copertina")}>
-                Inizia dalla copertina
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+/**
+ * Un interruttore con il suo nome: toccando il testo si accende, e la riga è alta quanto un dito (44 px),
+ * perché l'interruttore da solo è alto 24 px e su telefono si sbaglia.
+ */
+function RigaInterruttoreModello({
+  id,
+  etichetta,
+  checked,
+  onCheckedChange,
+}: {
+  id: string;
+  etichetta: string;
+  checked: boolean;
+  onCheckedChange: (valore: boolean) => void;
+}) {
+  return (
+    <div className="flex min-h-11 items-center gap-3">
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+      <Label htmlFor={id} className="flex-1 cursor-pointer py-2.5 leading-snug">{etichetta}</Label>
+    </div>
   );
 }
 
@@ -616,6 +582,10 @@ export default function SettingsQuoteTemplates() {
   // e il toggle dato dall'admin non apriva nulla). Modifica ⇒ tutte le azioni; Visualizza ⇒ accesso.
   const isAdmin = role === "company_admin" || role === "super_admin" || permissions.canEditSettingsPricing;
   const canView = isAdmin || permissions.canViewSettingsPricing;
+  // Chi può solo consultare: i modelli si aprono ma non si cambiano (la regola del database è la stessa,
+  // `quote_templates_scrittura`). L'avviso lo dice, e i pulsanti spenti rimandano a lui con aria-describedby.
+  const puoModificare = isAdmin;
+  const mostraAvvisoSolaLettura = !puoModificare && !permissions.isLoading;
   const { templates, isLoading, fetchError, upsertTemplate, deleteTemplate } = useQuoteTemplates();
 
   // Deeplink: ?tab=moduli-vendita | documenti, ?modulo=serramenti
@@ -697,7 +667,10 @@ export default function SettingsQuoteTemplates() {
     setIsDirty(true);
   }, []);
 
-  useBeforeUnload(editing && (isDirty || upsertTemplate.isPending));
+  // Ricaricamento, link interni (le schede del gruppo, il menu) e ricerca ⌘K chiedono conferma se c'è
+  // una modifica non salvata. «Indietro» e gli altri pulsanti della pagina usano confirmDiscardChanges.
+  useSettingsDraftGuard(editing && (isDirty || upsertTemplate.isPending));
+  const { evidenziato, vai: vaiAlRiquadro } = useVaiAlRiquadro();
 
   const confirmDiscardChanges = useCallback(() => {
     if (!editing || !isDirty) return true;
@@ -735,7 +708,7 @@ export default function SettingsQuoteTemplates() {
 
   const applyDesignPreset = (patch: Partial<QuoteTemplate>) => {
     updateForm(patch);
-    toast.success("Preset applicato", {
+    toast.success("Stile applicato", {
       description: "Controlla l'anteprima e salva quando il layout ti convince.",
     });
   };
@@ -762,7 +735,7 @@ export default function SettingsQuoteTemplates() {
 
   const openNewTemplate = useCallback((kind: QuoteTemplateKind) => {
     setEditId(null);
-    setForm(blankTemplateForKind(kind));
+    setForm({ ...blankTemplateForKind(kind), name: nomeNuovoBlocco(kind) });
     setIsDirty(false);
     setEditing(true);
   }, []);
@@ -798,15 +771,16 @@ export default function SettingsQuoteTemplates() {
   };
 
   /**
-   * Salva il template.
-   * - asDefault=true: imposta come default e chiude (azione "Salva e usa default")
+   * Salva il modello.
+   * - asDefault=true: lo usano i nuovi preventivi e chiude (azione "Salva e usa per i nuovi preventivi")
    * - asDefault=false (Salva bozza): salva senza chiudere, l'utente può continuare a modificare.
    *   Dopo il primo insert, editId viene aggiornato così i salvataggi successivi sono UPDATE.
    */
   const handleSave = async (asDefault = false): Promise<boolean> => {
+    if (!puoModificare) return false; // sola lettura: nessun pulsante arriva qui, ma il database direbbe di no
     const templateName = form.name?.trim();
     if (!templateName) {
-      toast.error("Inserisci un nome template");
+      toast.error("Scrivi il nome del modello");
       return false;
     }
     const payload: TemplateFormPayload = { ...form };
@@ -818,12 +792,12 @@ export default function SettingsQuoteTemplates() {
     try {
       const result = await upsertTemplate.mutateAsync(payload);
       if (asDefault) {
-        toast.success(editId ? "Template salvato come default" : "Template creato e impostato come default");
+        toast.success(editId ? "Modello salvato: lo useranno i nuovi preventivi" : "Modello creato: lo useranno i nuovi preventivi");
         setEditing(false);
         setEditId(null);
         setIsDirty(false);
       } else {
-        // Salva bozza: resta in editor. Se era un nuovo template, ora abbiamo un id.
+        // Salva bozza: resta in editor. Se era un nuovo modello, ora abbiamo un id.
         toast.success(editId ? "Bozza salvata" : "Bozza creata");
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const newId = (result as any)?.id ?? (result as any)?.[0]?.id ?? null;
@@ -835,7 +809,7 @@ export default function SettingsQuoteTemplates() {
       }
       return true;
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Errore salvataggio");
+      toast.error("Modello non salvato", { description: erroreInItaliano(err, "Non sono riuscito a salvarlo. Riprova tra poco.") });
       return false;
     }
   };
@@ -843,10 +817,10 @@ export default function SettingsQuoteTemplates() {
   const handleDelete = async (id: string) => {
     try {
       await deleteTemplate.mutateAsync(id);
-      toast.success("Template eliminato");
+      toast.success("Modello eliminato");
       if (editId === id) handleCancel();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Errore nell'eliminazione");
+      toast.error("Modello non eliminato", { description: erroreInItaliano(err, "Non sono riuscito a eliminarlo. Riprova tra poco.") });
     } finally {
       setDeleteConfirmId(null);
     }
@@ -870,7 +844,7 @@ export default function SettingsQuoteTemplates() {
       updateForm({ logo_url: path });
       toast.success("Logo caricato");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Errore caricamento logo");
+      toast.error("Logo non caricato", { description: erroreInItaliano(err, "Non sono riuscito a caricarlo. Riprova tra poco.") });
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -896,7 +870,7 @@ export default function SettingsQuoteTemplates() {
       updateForm({ cover_image_url: path, show_cover_image: true });
       toast.success("Copertina caricata");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Errore caricamento copertina");
+      toast.error("Copertina non caricata", { description: erroreInItaliano(err, "Non sono riuscito a caricarla. Riprova tra poco.") });
     } finally {
       setCoverUploading(false);
       e.target.value = "";
@@ -925,7 +899,7 @@ export default function SettingsQuoteTemplates() {
       updateForm({ timbro_firma_url: path });
       toast.success("Timbro caricato: salva il modello per usarlo nei preventivi");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Errore caricamento timbro");
+      toast.error("Timbro non caricato", { description: erroreInItaliano(err, "Non sono riuscito a caricarlo. Riprova tra poco.") });
     } finally {
       setTimbroUploading(false);
       e.target.value = "";
@@ -963,7 +937,7 @@ export default function SettingsQuoteTemplates() {
       updateForm({ product_image_url: path });
       toast.success("Immagine prodotto caricata");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Errore caricamento immagine");
+      toast.error("Immagine non caricata", { description: erroreInItaliano(err, "Non sono riuscito a caricarla. Riprova tra poco.") });
     } finally {
       setProductImageUploading(false);
       e.target.value = "";
@@ -981,8 +955,8 @@ export default function SettingsQuoteTemplates() {
 
   if (isLoading && topTab !== "moduli-vendita") {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div role="status" aria-label="Caricamento dei modelli" className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
       </div>
     );
   }
@@ -1002,7 +976,8 @@ export default function SettingsQuoteTemplates() {
         </TabsTrigger>
         <TabsTrigger value="moduli-vendita" className="gap-1.5">
           <ShoppingBag className="h-3.5 w-3.5" />
-          Moduli (serramenti, fotovoltaico…)
+          {/* Da telefono le due linguette non stanno in 375 px: resta «Moduli». */}
+          Moduli<span className="max-sm:hidden"> (serramenti, fotovoltaico…)</span>
         </TabsTrigger>
       </TabsList>
 
@@ -1011,26 +986,28 @@ export default function SettingsQuoteTemplates() {
       </TabsContent>
 
       <TabsContent value="documenti" className="space-y-6 mt-0">
+      {mostraAvvisoSolaLettura && (
+        <Alert id={ID_AVVISO_SOLA_LETTURA}>
+          <AlertDescription>{TESTO_SOLA_LETTURA}</AlertDescription>
+        </Alert>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber flex items-center justify-center shrink-0 shadow-sm">
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber flex items-center justify-center shrink-0 shadow-sm" aria-hidden="true">
             <FileText className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Offerte complete</h1>
-            <p className="text-sm text-muted-foreground">
-              Scegli un modello già completo di copertina, contenuti, investimento e condizioni.
-              Il preventivatore standard userà direttamente queste offerte.
-            </p>
+            {/* Il titolo della pagina è nel layout (h1): qui il titolo di questa scheda è un h2. */}
+            <h2 className="text-lg font-semibold leading-tight">Offerte complete</h2>
+            {!editing && (
+              <p className="text-sm text-muted-foreground">
+                Scegli un modello già completo di copertina, contenuti, investimento e condizioni.
+                Il preventivatore standard userà direttamente queste offerte.
+              </p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {!editing && templates.length > 0 && (
-            <Badge variant="outline" className="gap-1 text-[11px] h-6">
-              <Eye className="h-3 w-3" />
-              {countsByKind.offerta ?? 0} offerte
-            </Badge>
-          )}
           {editing && formKind === 'offerta' && (
             <Badge variant={designScore >= 80 ? "secondary" : "outline"} className="gap-1 text-[11px] h-6">
               <CheckCircle2 className="h-3 w-3" />
@@ -1040,7 +1017,7 @@ export default function SettingsQuoteTemplates() {
           {isAdmin && !editing && (
             <Button onClick={() => setCreateDialogOpen(true)} size="sm" className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500">
               <Plus className="h-4 w-4 mr-1.5" />
-              Nuovo template
+              Nuovo modello
             </Button>
           )}
         </div>
@@ -1054,9 +1031,9 @@ export default function SettingsQuoteTemplates() {
             <button
               type="button"
               onClick={() => setActiveKind('offerta')}
+              aria-pressed={activeKind === 'offerta'}
               className={cnTab(activeKind === 'offerta', KIND_META.offerta.color, KIND_META.offerta.borderColor, KIND_META.offerta.bgColor)}
             >
-              <span className="text-base">📄</span>
               <span>Offerte complete</span>
               <span className="ml-1 rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] text-slate-700">{countsByKind.offerta ?? 0}</span>
             </button>
@@ -1072,7 +1049,7 @@ export default function SettingsQuoteTemplates() {
               }}
             >
               <Blocks className="h-3.5 w-3.5" />
-              {showAdvancedLibrary ? 'Nascondi componenti avanzati' : 'Componenti avanzati'}
+              {showAdvancedLibrary ? 'Nascondi gli altri blocchi' : 'Altri blocchi'}
               <Badge variant="secondary" className="ml-0.5 h-5 px-1.5 text-[10px]">
                 {KIND_ORDER.filter((kind) => kind !== 'offerta').reduce((total, kind) => total + (countsByKind[kind] ?? 0), 0)}
               </Badge>
@@ -1089,9 +1066,9 @@ export default function SettingsQuoteTemplates() {
                     key={k}
                     type="button"
                     onClick={() => setActiveKind(k)}
+                    aria-pressed={isActive}
                     className={cnTab(isActive, meta.color, meta.borderColor, meta.bgColor)}
                   >
-                    <span className="text-base">{meta.emoji}</span>
                     <span>{meta.label}</span>
                     <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] ${isActive ? "bg-white/80 text-slate-700" : "bg-slate-200 text-slate-600"}`}>
                       {count}
@@ -1104,24 +1081,9 @@ export default function SettingsQuoteTemplates() {
         </div>
       )}
 
-      {!editing && (
-        <div className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{KIND_META[activeKind].emoji}</span>
-            <div>
-              <p className={`text-sm font-semibold ${KIND_META[activeKind].color}`}>{KIND_META[activeKind].label}</p>
-              <p className="text-xs text-muted-foreground">{KIND_META[activeKind].description}</p>
-            </div>
-          </div>
-          <Badge variant="outline" className="w-fit text-[11px]">
-            {filteredTemplates.length} {filteredTemplates.length === 1 ? "template disponibile" : "template disponibili"}
-          </Badge>
-        </div>
-      )}
-
       {!editing ? (
-        /* Template list filtrata per kind attivo */
-        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        /* Modelli filtrati per il tipo attivo. Senza il riquadro-guida l'elenco ha tutta la larghezza. */
+        <div className="grid grid-cols-1 items-start gap-5">
           <div className="min-w-0">
             {isLoading ? (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1136,24 +1098,24 @@ export default function SettingsQuoteTemplates() {
                 ))}
               </div>
             ) : fetchError ? (
-              <Card className="p-8 text-center">
-                <p className="font-medium text-destructive">Errore nel caricamento dei template</p>
-                <p className="mt-1 text-sm text-muted-foreground">{(fetchError as Error).message}</p>
+              <Card role="alert" className="p-8 text-center">
+                <p className="font-medium text-destructive">Non riesco a leggere i modelli</p>
+                <p className="mt-1 text-sm text-muted-foreground">{erroreInItaliano(fetchError, "Riprova tra poco o ricarica la pagina.")}</p>
               </Card>
             ) : filteredTemplates.length === 0 ? (
               <Card className={`space-y-3 p-8 text-center ${KIND_META[activeKind].borderColor} ${KIND_META[activeKind].bgColor}/30`}>
                 <div className="text-4xl">{KIND_META[activeKind].emoji}</div>
                 <div>
                   <p className={`font-semibold ${KIND_META[activeKind].color}`}>
-                    Nessun {KIND_META[activeKind].label.toLowerCase()} ancora
+                    {titoloVuoto(activeKind)}
                   </p>
                   <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-                    {KIND_META[activeKind].description}
+                    {descrizioneTipo(activeKind)}
                   </p>
                 </div>
                 {isAdmin && (
                   <Button onClick={() => activeKind === 'offerta' ? setCreateDialogOpen(true) : handleNew(activeKind)} className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500">
-                    <Plus className="mr-2 h-4 w-4" />{activeKind === 'offerta' ? "Scegli un'offerta completa" : "Crea il primo"}
+                    <Plus className="mr-2 h-4 w-4" />{pulsanteVuoto(activeKind)}
                   </Button>
                 )}
                 {isAdmin && activeKind === 'condizioni' && (
@@ -1180,7 +1142,7 @@ export default function SettingsQuoteTemplates() {
                 )}
               </Card>
             ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {filteredTemplates.map(tmpl => (
                   <TemplateCard
                     key={tmpl.id}
@@ -1190,6 +1152,8 @@ export default function SettingsQuoteTemplates() {
                     effectiveCompanyName={effectiveCompany?.name}
                     brandColor={effectiveCompany?.brand_primary_color}
                     templates={templates}
+                    puoModificare={puoModificare}
+                    idAvvisoSolaLettura={ID_AVVISO_SOLA_LETTURA}
                     onEdit={() => handleEdit(tmpl)}
                     onDuplicate={() => handleDuplicate(tmpl)}
                     onDelete={() => setDeleteConfirmId(tmpl.id)}
@@ -1198,21 +1162,14 @@ export default function SettingsQuoteTemplates() {
               </div>
             )}
           </div>
-          <TemplateLibraryGuide
-            activeKind={activeKind}
-            countsByKind={countsByKind}
-            templates={templates}
-            isAdmin={isAdmin}
-            onNew={(kind) => kind === "offerta" ? setCreateDialogOpen(true) : handleNew(kind)}
-            onSelectKind={setActiveKind}
-          />
         </div>
       ) : (
         /* Editor with preview */
         <div className="space-y-3">
-          {/* Sticky toolbar: ← Indietro · breadcrumb · Salva bozza · Salva e usa */}
-          <div className="sticky top-0 z-30 -mx-2 px-2 py-2 bg-white/95 backdrop-blur-md border-b border-slate-200 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 min-w-0">
+          {/* Barra in alto: ← Indietro · tipo e nome · Salva bozza · Salva e usa per i nuovi preventivi.
+              Da telefono va a capo (prima le due file di pulsanti uscivano dallo schermo). */}
+          <div className="sticky top-0 z-30 -mx-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-slate-200 bg-white/95 px-2 py-2 backdrop-blur-md">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 max-sm:w-full">
               <Button
                 type="button"
                 variant="ghost"
@@ -1220,20 +1177,23 @@ export default function SettingsQuoteTemplates() {
                 onClick={handleCancel}
                 className="gap-1.5 shrink-0"
               >
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 Indietro
               </Button>
-              <span className="text-slate-300 text-sm shrink-0">/</span>
-              <span className={`text-sm font-medium ${KIND_META[formKind].color} flex items-center gap-1 shrink-0`}>
-                <span>{KIND_META[formKind].emoji}</span>
+              <span className="hidden shrink-0 text-sm text-slate-300 sm:inline" aria-hidden="true">/</span>
+              <span className={`hidden shrink-0 items-center gap-1 text-sm font-medium sm:flex ${KIND_META[formKind].color}`}>
+                <span aria-hidden="true">{KIND_META[formKind].emoji}</span>
                 {KIND_META[formKind].label}
               </span>
-              <span className="text-slate-300 text-sm shrink-0">·</span>
-              <span className="text-sm font-semibold text-slate-900 truncate">{form.name || "Senza nome"}</span>
-              {editId && (
+              <span className="hidden shrink-0 text-sm text-slate-300 sm:inline" aria-hidden="true">·</span>
+              <span className="min-w-[7rem] flex-1 truncate text-sm font-semibold text-slate-900">{form.name || "Senza nome"}</span>
+              {!puoModificare && (
+                <Badge variant="outline" className="text-[10px] h-5 shrink-0">Sola lettura</Badge>
+              )}
+              {puoModificare && editId && (
                 <Badge variant="outline" className="text-[10px] h-5 shrink-0">Modifica</Badge>
               )}
-              {!editId && (
+              {puoModificare && !editId && (
                 <Badge variant="outline" className="text-[10px] h-5 shrink-0 bg-orange-50 text-orange-700 border-orange-200">Bozza</Badge>
               )}
               {isDirty && (
@@ -1242,16 +1202,18 @@ export default function SettingsQuoteTemplates() {
                 </Badge>
               )}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Da telefono i due salvataggi stanno uno sopra l'altro: «Salva e usa per i nuovi preventivi» non entra in mezza riga e usciva tagliato. */}
+            <div className="flex flex-wrap items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => handleSave(false)}
-                disabled={upsertTemplate.isPending}
+                disabled={!puoModificare || upsertTemplate.isPending}
+                aria-describedby={!puoModificare ? ID_AVVISO_SOLA_LETTURA : undefined}
                 title="Salva senza chiudere"
               >
-                {upsertTemplate.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {upsertTemplate.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Save className="h-3.5 w-3.5" aria-hidden="true" />}
                 Salva bozza
               </Button>
               {formKind === 'offerta' && (
@@ -1260,25 +1222,34 @@ export default function SettingsQuoteTemplates() {
                   variant="default"
                   size="sm"
                   onClick={() => handleSave(true)}
-                  disabled={upsertTemplate.isPending}
+                  disabled={!puoModificare || upsertTemplate.isPending}
+                  aria-describedby={!puoModificare ? ID_AVVISO_SOLA_LETTURA : undefined}
                   className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500 gap-1.5"
                 >
-                  <Star className="h-3.5 w-3.5" />
-                  Salva e usa default
+                  <Star className="h-3.5 w-3.5" aria-hidden="true" />
+                  Salva e usa per i nuovi preventivi
                 </Button>
               )}
             </div>
           </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Left: form */}
-          <div className="lg:col-span-3 space-y-6 overflow-auto max-h-[calc(100vh-200px)] pr-2">
+          {/* Left: form. Da telefono scorre con la pagina; da computer ha la sua altezza e l'anteprima gli sta accanto. */}
+          <div className="min-w-0 space-y-6 lg:col-span-3 lg:max-h-[calc(100vh-200px)] lg:overflow-auto lg:pr-2">
+            {/* Indice dei riquadri: resta in vista mentre si scorre (solo il preventivo ha 14 riquadri). */}
+            {formKind === 'offerta' && (
+              <div className="z-10 bg-background/95 py-1.5 backdrop-blur lg:sticky lg:top-0">
+                <IndiceSezioni voci={SEZIONI_EDITOR_OFFERTA} onVai={vaiAlRiquadro} />
+              </div>
+            )}
+            {/* disabled su un fieldset spegne ogni campo e pulsante che contiene: chi può solo consultare vede tutto e non cambia niente. */}
+            <fieldset disabled={!puoModificare} className="m-0 min-w-0 space-y-6 border-0 p-0">
             {formKind === 'offerta' && (
             <Card className="border-primary/15 bg-gradient-to-br from-primary/5 via-background to-orange-50/50">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Wand2 className="h-4 w-4 text-primary" />
-                  Design assistant
+                  <Wand2 className="h-4 w-4 text-primary" aria-hidden="true" />
+                  Stili pronti
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -1317,43 +1288,44 @@ export default function SettingsQuoteTemplates() {
             )}
 
             {/* A: Info base — comune a tutti i kind */}
+            <RiquadroEditor id="modello-informazioni" evidenziato={evidenziato}>
             <Card className={`border ${KIND_META[formKind].borderColor}`}>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <span className="text-base">{KIND_META[formKind].emoji}</span>
-                  Informazioni Base — {KIND_META[formKind].label}
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">{KIND_META[formKind].description}</p>
+                <CardTitle className="text-base">Nome e descrizione</CardTitle>
+                <p className="text-xs text-muted-foreground">{descrizioneTipo(formKind)}</p>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label>Nome *</Label>
-                  <Input value={form.name || ''} onChange={e => updateForm({ name: e.target.value })} placeholder={`Es. ${KIND_META[formKind].label} aziendale`} />
+                  <Label htmlFor="modello-nome">Nome *</Label>
+                  <Input id="modello-nome" value={form.name || ''} onChange={e => updateForm({ name: e.target.value })} placeholder={`Es. ${KIND_META[formKind].label} aziendale`} />
                 </div>
                 <div>
-                  <Label>Descrizione (interna)</Label>
-                  <Input value={form.description ?? ''} onChange={e => updateForm({ description: e.target.value })} placeholder="A cosa serve questo template (es. ritrutturazioni, serramenti…)" />
+                  <Label htmlFor="modello-descrizione">Descrizione (interna)</Label>
+                  <Input id="modello-descrizione" value={form.description ?? ''} onChange={e => updateForm({ description: e.target.value })} placeholder="A cosa serve questo modello (es. ristrutturazioni, serramenti…)" />
                 </div>
                 {formKind === 'offerta' && (
-                  <div className="flex items-center gap-3">
-                    <Switch checked={form.is_default ?? false} onCheckedChange={v => updateForm({ is_default: v })} />
-                    <Label>Imposta come template di default per nuovi preventivi</Label>
-                  </div>
+                  <RigaInterruttoreModello
+                    id="modello-predefinito"
+                    etichetta="Usa questo modello per i nuovi preventivi"
+                    checked={form.is_default ?? false}
+                    onCheckedChange={v => updateForm({ is_default: v })}
+                  />
                 )}
                 {formKind === 'prodotto' && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
-                      <Label>Categoria</Label>
-                      <Input value={form.product_category ?? ''} onChange={e => updateForm({ product_category: e.target.value })} placeholder="Es. Serramenti, Pavimenti…" />
+                      <Label htmlFor="modello-categoria">Categoria</Label>
+                      <Input id="modello-categoria" value={form.product_category ?? ''} onChange={e => updateForm({ product_category: e.target.value })} placeholder="Es. Serramenti, Pavimenti…" />
                     </div>
                     <div>
-                      <Label>Unità di misura</Label>
-                      <Input value={form.product_unit ?? ''} onChange={e => updateForm({ product_unit: e.target.value })} placeholder="mq, pz, ml, h…" />
+                      <Label htmlFor="modello-unita">Unità di misura</Label>
+                      <Input id="modello-unita" value={form.product_unit ?? ''} onChange={e => updateForm({ product_unit: e.target.value })} placeholder="mq, pz, ml, h…" />
                     </div>
                   </div>
                 )}
               </CardContent>
             </Card>
+            </RiquadroEditor>
 
             {/* COMPOSITORE OFFERTA: solo per kind=offerta — selettori dei blocchi linkati */}
             {formKind === 'offerta' && (
@@ -1364,7 +1336,7 @@ export default function SettingsQuoteTemplates() {
                     Componi l'offerta
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    Scegli quali blocchi della libreria includere nel PDF. Vai nelle altre tab per crearli.
+                    Scegli quali blocchi della libreria includere nel PDF. Per crearne uno nuovo vai in «Altri blocchi».
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -1416,14 +1388,14 @@ export default function SettingsQuoteTemplates() {
               <Card className="border-pink-200 bg-pink-50/30">
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
-                    <ImageIcon className="h-4 w-4 text-pink-600" />
+                    <ImageIcon className="h-4 w-4 text-pink-600" aria-hidden="true" />
                     Contenuto copertina
                   </CardTitle>
-                  <p className="text-xs text-muted-foreground">Apparirà come prima pagina del PDF dell'offerta. Supporta merge tag.</p>
+                  <p className="text-xs text-muted-foreground">È la prima pagina del PDF dell'offerta. Puoi inserire campi automatici (cliente, cantiere, data…).</p>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Immagine copertina</Label>
+                  <div role="group" aria-labelledby="modello-copertina-immagine">
+                    <p id="modello-copertina-immagine" className="text-xs font-medium text-muted-foreground">Immagine copertina</p>
                     <div className="mt-1 flex items-start gap-3">
                       <div className="h-24 w-24 shrink-0 rounded-lg border-2 border-dashed border-pink-300 bg-white overflow-hidden flex items-center justify-center">
                         {form.cover_image_url ? (
@@ -1449,17 +1421,17 @@ export default function SettingsQuoteTemplates() {
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <Label className="text-xs text-muted-foreground">Titolo copertina</Label>
+                      <Label htmlFor="modello-copertina-titolo" className="text-xs text-muted-foreground">Titolo copertina</Label>
                       <MergeTagInserter targetRef={coverTitleRef} currentValue={form.cover_title ?? ""} onInsert={(v) => updateForm({ cover_title: v })} />
                     </div>
-                    <Input ref={coverTitleRef} value={form.cover_title ?? ''} onChange={e => updateForm({ cover_title: e.target.value })} placeholder="Es. Offerta personalizzata per {{cliente.nome_completo}}" />
+                    <Input id="modello-copertina-titolo" ref={coverTitleRef} value={form.cover_title ?? ''} onChange={e => updateForm({ cover_title: e.target.value })} placeholder="Es. Offerta personalizzata per {{cliente.nome_completo}}" />
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <Label className="text-xs text-muted-foreground">Sottotitolo / claim</Label>
+                      <Label htmlFor="modello-copertina-sottotitolo" className="text-xs text-muted-foreground">Sottotitolo / claim</Label>
                       <MergeTagInserter targetRef={coverSubtitleRef} currentValue={form.cover_subtitle ?? ""} onInsert={(v) => updateForm({ cover_subtitle: v })} />
                     </div>
-                    <Input ref={coverSubtitleRef} value={form.cover_subtitle ?? ''} onChange={e => updateForm({ cover_subtitle: e.target.value })} placeholder="Es. Cantiere {{cantiere.indirizzo}} — {{data.oggi}}" />
+                    <Input id="modello-copertina-sottotitolo" ref={coverSubtitleRef} value={form.cover_subtitle ?? ''} onChange={e => updateForm({ cover_subtitle: e.target.value })} placeholder="Es. Cantiere {{cantiere.indirizzo}} — {{data.oggi}}" />
                   </div>
                 </CardContent>
               </Card>
@@ -1470,17 +1442,17 @@ export default function SettingsQuoteTemplates() {
               <Card className={`border ${KIND_META[formKind].borderColor}`}>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
-                    <span>{KIND_META[formKind].emoji}</span>
+                    <span aria-hidden="true">{KIND_META[formKind].emoji}</span>
                     Contenuto {KIND_META[formKind].label.toLowerCase()}
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    Testo multi-pagina (markdown). Supporta merge tag come <code className="text-[10px] bg-white border px-1 rounded">{`{{cliente.nome}}`}</code>.
-                    Il PDF inserirà page break automatici.
+                    Testo su più pagine. Puoi inserire campi automatici come <code className="text-[10px] bg-white border px-1 rounded">{`{{cliente.nome}}`}</code>.
+                    Il PDF va a capo pagina da solo.
                   </p>
                   {(formKind === 'condizioni' || formKind === 'legali') && (
                     <div className="mt-3 rounded-md border border-orange-200 bg-orange-50/50 px-3 py-2 text-xs text-orange-950">
-                      Questo blocco è condiviso: dopo il salvataggio potrai inserirlo anche nei template serramenti dalla sezione
-                      <span className="font-semibold"> Condizioni e disclaimer</span>. Lo stesso testo creato nei serramenti può essere salvato qui e riusato nei preventivi standard.
+                      Questo blocco è condiviso: dopo il salvataggio potrai inserirlo anche nei modelli di Serramenti, dalla sezione
+                      <span className="font-semibold"> Condizioni e disclaimer</span>. Lo stesso testo creato nei Serramenti può essere salvato qui e riusato nei preventivi standard.
                     </div>
                   )}
                 </CardHeader>
@@ -1493,13 +1465,14 @@ export default function SettingsQuoteTemplates() {
                     />
                   )}
                   {/* Carattere del blocco: nel PDF vale per questa sezione (default: quello del master) */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Label className="text-xs text-muted-foreground">Carattere</Label>
+                  <div className="flex flex-wrap items-center gap-2" role="group" aria-labelledby="modello-blocco-carattere">
+                    <span id="modello-blocco-carattere" className="text-xs font-medium text-muted-foreground">Carattere</span>
                     {FONTS.map(f => (
                       <Button
                         key={f.key}
                         type="button"
                         variant={(form.font_family ?? 'helvetica') === f.key ? 'default' : 'outline'}
+                        aria-pressed={(form.font_family ?? 'helvetica') === f.key}
                         size="sm"
                         className="h-7 text-xs"
                         onClick={() => updateForm({ font_family: f.key })}
@@ -1508,12 +1481,13 @@ export default function SettingsQuoteTemplates() {
                       </Button>
                     ))}
                   </div>
-                  <div>
+                  <div role="group" aria-labelledby="modello-blocco-testo">
                     <div className="flex items-center justify-between mb-1">
-                      <Label className="text-xs text-muted-foreground">Testo (titoli, grassetto, elenchi come negli altri template)</Label>
+                      <Label id="modello-blocco-testo" className="text-xs text-muted-foreground">Testo (titoli, grassetto, elenchi come negli altri modelli)</Label>
                       <MergeTagInserter targetRef={bodyHtmlRef} currentValue={form.body_html ?? ""} onInsert={(v) => updateForm({ body_html: v, body_format: 'html' })} />
                     </div>
                     <RichTextEditor
+                      readOnly={!puoModificare}
                       value={sembraMarkdown(form.body_html ?? "") ? markdownSempliceToHtml(form.body_html ?? "") : (form.body_html ?? "")}
                       onChange={(html) => updateForm({ body_html: html, body_format: 'html' })}
                       placeholder={
@@ -1536,6 +1510,7 @@ export default function SettingsQuoteTemplates() {
                 productImageInputRef={productImageInputRef}
                 productImageUploading={productImageUploading}
                 onProductImageUpload={handleProductImageUpload}
+                readOnly={!puoModificare}
               />
             )}
 
@@ -1553,6 +1528,8 @@ export default function SettingsQuoteTemplates() {
                   {LAYOUTS.map(l => (
                     <button
                       key={l.key}
+                      type="button"
+                      aria-pressed={form.layout === l.key}
                       onClick={() => updateForm({ layout: l.key })}
                       className={`border rounded-lg p-3 text-center text-sm transition-all hover:border-primary ${
                         form.layout === l.key ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'border-border'
@@ -1576,20 +1553,23 @@ export default function SettingsQuoteTemplates() {
                 il "logo" viene usato come watermark/header se attivato. */}
 
             {/* C: Logo */}
+            <RiquadroEditor id="modello-logo-e-colori" evidenziato={evidenziato}>
             <Card>
               <CardHeader><CardTitle className="text-base">Logo</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Switch checked={form.show_logo ?? true} onCheckedChange={v => updateForm({ show_logo: v })} />
-                  <Label>Mostra logo nel PDF</Label>
-                </div>
+                <RigaInterruttoreModello
+                  id="modello-mostra-logo"
+                  etichetta="Mostra logo nel PDF"
+                  checked={form.show_logo ?? true}
+                  onCheckedChange={v => updateForm({ show_logo: v })}
+                />
                 {form.show_logo && (
                   <>
-                    <div>
-                      <Label className="text-sm text-muted-foreground mb-2 block">Carica logo specifico (PNG/JPG, max 2MB)</Label>
+                    <div role="group" aria-labelledby="modello-logo-carica">
+                      <p id="modello-logo-carica" className="text-sm text-muted-foreground mb-2">Carica logo specifico (PNG/JPG, max 2MB)</p>
                       <div className="flex items-center gap-3">
-                        <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border rounded-md text-sm hover:bg-muted transition-colors">
-                          <Upload className="h-4 w-4" />
+                        <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border rounded-md text-sm hover:bg-muted transition-colors max-sm:min-h-11">
+                          <Upload className="h-4 w-4" aria-hidden="true" />
                           {uploading ? "Caricamento..." : "Scegli file"}
                           <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleLogoUpload} disabled={uploading} />
                         </label>
@@ -1603,29 +1583,29 @@ export default function SettingsQuoteTemplates() {
                         <div className="mt-3 flex items-center gap-3">
                           <img width={80} height={80} loading="lazy"
                             src={getLogoPublicUrl(form.logo_url)}
-                            alt="Logo template"
+                            alt="Logo del modello"
                             className="h-20 w-20 rounded-lg border border-border object-contain bg-muted/50 p-1"
                           />
                           <span className="text-xs text-muted-foreground truncate max-w-[200px]">{form.logo_url.split('/').pop()}</span>
                         </div>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label className="text-sm">Posizione</Label>
-                        <div className="flex gap-2 mt-1">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div role="group" aria-labelledby="modello-logo-posizione">
+                        <p id="modello-logo-posizione" className="text-sm font-medium">Posizione</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
                           {(['left', 'center', 'right'] as LogoPosition[]).map(pos => (
-                            <Button key={pos} variant={form.logo_position === pos ? 'default' : 'outline'} size="sm" onClick={() => updateForm({ logo_position: pos })}>
+                            <Button key={pos} type="button" variant={form.logo_position === pos ? 'default' : 'outline'} aria-pressed={form.logo_position === pos} size="sm" onClick={() => updateForm({ logo_position: pos })}>
                               {pos === 'left' ? 'Sinistra' : pos === 'center' ? 'Centro' : 'Destra'}
                             </Button>
                           ))}
                         </div>
                       </div>
-                      <div>
-                        <Label className="text-sm">Dimensione</Label>
-                        <div className="flex gap-2 mt-1">
+                      <div role="group" aria-labelledby="modello-logo-dimensione">
+                        <p id="modello-logo-dimensione" className="text-sm font-medium">Dimensione</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
                           {(['small', 'medium', 'large'] as LogoSize[]).map(sz => (
-                            <Button key={sz} variant={form.logo_size === sz ? 'default' : 'outline'} size="sm" onClick={() => updateForm({ logo_size: sz })}>
+                            <Button key={sz} type="button" variant={form.logo_size === sz ? 'default' : 'outline'} aria-pressed={form.logo_size === sz} size="sm" onClick={() => updateForm({ logo_size: sz })}>
                               {sz === 'small' ? 'Piccola' : sz === 'medium' ? 'Media' : 'Grande'}
                             </Button>
                           ))}
@@ -1636,12 +1616,13 @@ export default function SettingsQuoteTemplates() {
                 )}
               </CardContent>
             </Card>
+            </RiquadroEditor>
 
             {/* D: Palette colori — Canva style con preset + custom HEX + recenti */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Palette className="h-4 w-4 text-orange-500" />
+                  <Palette className="h-4 w-4 text-orange-500" aria-hidden="true" />
                   Palette colori
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
@@ -1650,8 +1631,8 @@ export default function SettingsQuoteTemplates() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Quick palette: applica tutti i 4 colori in un click */}
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Palette pronte</Label>
+                <div role="group" aria-labelledby="modello-palette-pronte">
+                  <p id="modello-palette-pronte" className="text-xs text-muted-foreground mb-1.5">Palette pronte</p>
                   <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
                     {COLOR_PALETTES.map(p => {
                       const isActive = form.primary_color === p.primary && form.accent_color === p.accent;
@@ -1660,6 +1641,7 @@ export default function SettingsQuoteTemplates() {
                           key={p.name}
                           type="button"
                           onClick={() => applyPalette(p)}
+                          aria-pressed={isActive}
                           className={`group relative rounded-lg p-2 transition-all hover:scale-[1.03] hover:shadow-md ${
                             isActive ? 'ring-2 ring-orange-500 shadow-md' : 'border border-slate-200 hover:border-slate-300'
                           }`}
@@ -1681,17 +1663,18 @@ export default function SettingsQuoteTemplates() {
                 </div>
 
                 {/* Custom colors: 5 picker Canva-style con label kind-aware */}
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Personalizza ogni colore</Label>
+                <div role="group" aria-labelledby="modello-palette-singoli">
+                  <p id="modello-palette-singoli" className="text-xs text-muted-foreground mb-1.5">Personalizza ogni colore</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                     {kindColorLabels(formKind).map((c) => (
-                      <CanvaColorPicker
-                        key={c.key}
-                        label={c.label}
-                        hint={c.hint}
-                        value={(form[c.key] as string) || '#000000'}
-                        onChange={(hex) => updateForm({ [c.key]: hex })}
-                      />
+                      <div key={c.key} role="group" aria-label={c.label}>
+                        <CanvaColorPicker
+                          label={c.label}
+                          hint={c.hint}
+                          value={(form[c.key] as string) || '#000000'}
+                          onChange={(hex) => updateForm({ [c.key]: hex })}
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -1706,13 +1689,15 @@ export default function SettingsQuoteTemplates() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Font family */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Famiglia font</Label>
+                <div className="space-y-1.5" role="group" aria-labelledby="modello-tipo-famiglia">
+                  <p id="modello-tipo-famiglia" className="text-xs font-medium text-muted-foreground">Carattere</p>
                   <div className="flex gap-2 flex-wrap">
                     {FONTS.map(f => (
                       <Button
                         key={f.key}
+                        type="button"
                         variant={form.font_family === f.key ? 'default' : 'outline'}
+                        aria-pressed={form.font_family === f.key}
                         size="sm"
                         onClick={() => updateForm({ font_family: f.key })}
                       >
@@ -1726,23 +1711,26 @@ export default function SettingsQuoteTemplates() {
                 {/* Font size base */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground">Dimensione testo corpo</Label>
+                    <Label htmlFor="modello-tipo-dimensione" className="text-xs text-muted-foreground">Dimensione del testo</Label>
                     <span className="text-xs font-mono font-semibold">{form.font_size_base ?? 10} pt</span>
                   </div>
                   <input
+                    id="modello-tipo-dimensione"
                     type="range"
                     min={7}
                     max={16}
                     step={1}
                     value={form.font_size_base ?? 10}
                     onChange={(e) => updateForm({ font_size_base: Number(e.target.value) })}
-                    className="w-full accent-primary"
+                    className="w-full accent-primary max-sm:h-11"
                   />
                   <div className="flex gap-1 flex-wrap">
                     {FONT_SIZE_PRESETS.map((p) => (
                       <Button
                         key={p.value}
+                        type="button"
                         variant={(form.font_size_base ?? 10) === p.value ? "default" : "outline"}
+                        aria-pressed={(form.font_size_base ?? 10) === p.value}
                         size="sm"
                         className="h-7 px-2 text-[11px]"
                         onClick={() => updateForm({ font_size_base: p.value })}
@@ -1756,7 +1744,7 @@ export default function SettingsQuoteTemplates() {
                 {/* Heading scale */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground">Scala titoli</Label>
+                    <Label htmlFor="modello-tipo-scala" className="text-xs text-muted-foreground">Scala titoli</Label>
                     <span className="text-xs font-mono font-semibold">
                       ×{(form.heading_size_scale ?? 1.6).toFixed(2)}
                       <span className="opacity-60 ml-1">
@@ -1765,27 +1753,30 @@ export default function SettingsQuoteTemplates() {
                     </span>
                   </div>
                   <input
+                    id="modello-tipo-scala"
                     type="range"
                     min={1.0}
                     max={3.0}
                     step={0.1}
                     value={form.heading_size_scale ?? 1.6}
                     onChange={(e) => updateForm({ heading_size_scale: Number(e.target.value) })}
-                    className="w-full accent-primary"
+                    className="w-full accent-primary max-sm:h-11"
                   />
                 </div>
 
                 {/* Line height */}
-                <div className="space-y-1.5">
+                <div className="space-y-1.5" role="group" aria-labelledby="modello-tipo-riga">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground">Altezza riga</Label>
+                    <p id="modello-tipo-riga" className="text-xs font-medium text-muted-foreground">Altezza riga</p>
                     <span className="text-xs font-mono font-semibold">{(form.line_height ?? 1.4).toFixed(2)}</span>
                   </div>
                   <div className="flex gap-1 flex-wrap">
                     {LINE_HEIGHT_PRESETS.map((p) => (
                       <Button
                         key={p.value}
+                        type="button"
                         variant={(form.line_height ?? 1.4) === p.value ? "default" : "outline"}
+                        aria-pressed={(form.line_height ?? 1.4) === p.value}
                         size="sm"
                         className="h-7 px-2 text-[11px]"
                         onClick={() => updateForm({ line_height: p.value })}
@@ -1797,13 +1788,15 @@ export default function SettingsQuoteTemplates() {
                 </div>
 
                 {/* Header alignment */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Allineamento testo header/titoli</Label>
-                  <div className="flex gap-2">
+                <div className="space-y-1.5" role="group" aria-labelledby="modello-tipo-allineamento">
+                  <p id="modello-tipo-allineamento" className="text-xs font-medium text-muted-foreground">Allineamento di intestazione e titoli</p>
+                  <div className="flex flex-wrap gap-2">
                     {(['left', 'center', 'right'] as TextAlignment[]).map((a) => (
                       <Button
                         key={a}
+                        type="button"
                         variant={(form.header_alignment ?? 'center') === a ? 'default' : 'outline'}
+                        aria-pressed={(form.header_alignment ?? 'center') === a}
                         size="sm"
                         onClick={() => updateForm({ header_alignment: a })}
                       >
@@ -1820,14 +1813,15 @@ export default function SettingsQuoteTemplates() {
             {formKind === 'offerta' && (
             <>
             {/* E-bis: Layout tabella */}
+            <RiquadroEditor id="modello-tabella" evidenziato={evidenziato}>
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Tabella voci</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Row density */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Densità righe</Label>
+                <div className="space-y-1.5" role="group" aria-labelledby="modello-tabella-densita">
+                  <p id="modello-tabella-densita" className="text-xs font-medium text-muted-foreground">Densità righe</p>
                   <div className="grid grid-cols-3 gap-2">
                     {(Object.keys(ROW_DENSITY_LABELS) as RowDensity[]).map((d) => {
                       const cfg = ROW_DENSITY_LABELS[d];
@@ -1836,6 +1830,7 @@ export default function SettingsQuoteTemplates() {
                         <button
                           key={d}
                           type="button"
+                          aria-pressed={active}
                           onClick={() => updateForm({ row_density: d })}
                           className={`border rounded-lg p-3 text-center transition-all hover:border-primary ${
                             active ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'border-border'
@@ -1850,13 +1845,15 @@ export default function SettingsQuoteTemplates() {
                 </div>
 
                 {/* Table borders */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Bordi tabella</Label>
+                <div className="space-y-1.5" role="group" aria-labelledby="modello-tabella-bordi">
+                  <p id="modello-tabella-bordi" className="text-xs font-medium text-muted-foreground">Bordi tabella</p>
                   <div className="grid grid-cols-3 gap-2">
                     {(['none', 'horizontal', 'all'] as TableBorders[]).map((b) => (
                       <Button
                         key={b}
+                        type="button"
                         variant={(form.table_borders ?? 'horizontal') === b ? 'default' : 'outline'}
+                        aria-pressed={(form.table_borders ?? 'horizontal') === b}
                         size="sm"
                         onClick={() => updateForm({ table_borders: b })}
                       >
@@ -1867,40 +1864,44 @@ export default function SettingsQuoteTemplates() {
                 </div>
 
                 {/* Zebra */}
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <Label className="text-sm">Righe alternate (zebra)</Label>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <div className="min-w-0">
+                    <Label htmlFor="modello-tabella-zebra" className="text-sm">Righe alternate (zebra)</Label>
+                    <p id="modello-tabella-zebra-descrizione" className="text-[11px] text-muted-foreground mt-0.5">
                       Righe pari con sfondo grigio chiaro, più facile da leggere su tabelle lunghe.
                     </p>
                   </div>
                   <Switch
+                    id="modello-tabella-zebra"
+                    aria-describedby="modello-tabella-zebra-descrizione"
                     checked={form.table_zebra ?? true}
                     onCheckedChange={(v) => updateForm({ table_zebra: v })}
                   />
                 </div>
               </CardContent>
             </Card>
+            </RiquadroEditor>
 
-            {/* E-ter: Pagina */}
+            {/* E-ter: Pagina (il margine del foglio, non quello di guadagno) */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Margini pagina</CardTitle>
+                <CardTitle className="text-base">Margini del foglio</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground">Margine laterale</Label>
+                    <Label htmlFor="modello-margine-foglio" className="text-xs text-muted-foreground">Margine laterale</Label>
                     <span className="text-xs font-mono font-semibold">{form.page_margin_mm ?? 18} mm</span>
                   </div>
                   <input
+                    id="modello-margine-foglio"
                     type="range"
                     min={8}
                     max={30}
                     step={1}
                     value={form.page_margin_mm ?? 18}
                     onChange={(e) => updateForm({ page_margin_mm: Number(e.target.value) })}
-                    className="w-full accent-primary"
+                    className="w-full accent-primary max-sm:h-11"
                   />
                   <p className="text-[10px] text-muted-foreground">
                     Margini minori → più contenuto per pagina. Margini maggiori → PDF più elegante e arieggiato.
@@ -1910,8 +1911,9 @@ export default function SettingsQuoteTemplates() {
             </Card>
 
             {/* F: Elements */}
+            <RiquadroEditor id="modello-cosa-mostrare" evidenziato={evidenziato}>
             <Card>
-              <CardHeader><CardTitle className="text-base">Elementi da Mostrare</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base">Cosa mostrare nel PDF</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 {[
                   { key: 'show_quote_number' as const, label: 'Numero offerta' },
@@ -1923,16 +1925,19 @@ export default function SettingsQuoteTemplates() {
                   { key: 'show_notes' as const, label: 'Note per il cliente' },
                   { key: 'show_page_numbers' as const, label: 'Numerazione pagine' },
                 ].map((el: { key: TemplateVisibilityKey; label: string }) => (
-                  <div key={el.key} className="flex items-center gap-3">
-                    <Switch checked={form[el.key] ?? true} onCheckedChange={v => updateForm({ [el.key]: v })} />
-                    <Label>{el.label}</Label>
-                  </div>
+                  <RigaInterruttoreModello
+                    key={el.key}
+                    id={`modello-${el.key}`}
+                    etichetta={el.label}
+                    checked={form[el.key] ?? true}
+                    onCheckedChange={v => updateForm({ [el.key]: v })}
+                  />
                 ))}
                 {/* Contatti dell'impresa stampati nel preventivo (25/09/2026): prima usciva
                     sempre la mail del profilo aziendale, che può essere di una persona. */}
                 {form.show_company_details !== false && (
-                  <div className="border-t pt-3 space-y-2">
-                    <Label className="text-sm font-medium">Contatti dell'impresa nel preventivo</Label>
+                  <div className="border-t pt-3 space-y-2" role="group" aria-labelledby="modello-contatti-titolo">
+                    <p id="modello-contatti-titolo" className="text-sm font-medium">Contatti dell'impresa nel preventivo</p>
                     <div className="grid gap-2 sm:grid-cols-2">
                       <div className="space-y-1">
                         <Label htmlFor="email_impresa" className="text-xs text-muted-foreground">Email</Label>
@@ -1962,12 +1967,12 @@ export default function SettingsQuoteTemplates() {
                 )}
                 {/* Timbro e firma dell'impresa (25/09/2026): caricati una volta, escono già
                     firmati nel riquadro «Per l'impresa» di ogni preventivo di questo modello. */}
-                <div className="border-t pt-3 space-y-2">
-                  <Label className="text-sm font-medium">Timbro e firma dell'impresa</Label>
+                <div className="border-t pt-3 space-y-2" role="group" aria-labelledby="modello-timbro-titolo">
+                  <p id="modello-timbro-titolo" className="text-sm font-medium">Timbro e firma dell'impresa</p>
                   <div className="flex flex-wrap items-center gap-3">
                     {form.timbro_firma_url && <AnteprimaTimbro percorso={form.timbro_firma_url} />}
-                    <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 border rounded-md text-sm hover:bg-muted transition-colors">
-                      <Upload className="h-4 w-4" />
+                    <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 border rounded-md text-sm hover:bg-muted transition-colors max-sm:min-h-11">
+                      <Upload className="h-4 w-4" aria-hidden="true" />
                       {timbroUploading ? "Caricamento..." : form.timbro_firma_url ? "Cambia immagine" : "Carica immagine"}
                       <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleTimbroUpload} disabled={timbroUploading} />
                     </label>
@@ -1991,41 +1996,45 @@ export default function SettingsQuoteTemplates() {
                   </p>
                 </div>
                 <div className="border-t pt-3 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Switch checked={form.show_watermark ?? false} onCheckedChange={v => updateForm({ show_watermark: v })} />
-                    <Label>Watermark</Label>
-                  </div>
+                  <RigaInterruttoreModello
+                    id="modello-filigrana"
+                    etichetta="Scritta in filigrana"
+                    checked={form.show_watermark ?? false}
+                    onCheckedChange={v => updateForm({ show_watermark: v })}
+                  />
                   {form.show_watermark && (
-                    <Input value={form.watermark_text || ''} onChange={e => updateForm({ watermark_text: e.target.value })} placeholder="OFFERTA RISERVATA" />
+                    <Input aria-label="Testo della filigrana" value={form.watermark_text || ''} onChange={e => updateForm({ watermark_text: e.target.value })} placeholder="OFFERTA RISERVATA" />
                   )}
                 </div>
               </CardContent>
             </Card>
+            </RiquadroEditor>
 
             {/* COVER: Copertina personalizzata */}
+            <RiquadroEditor id="modello-copertina" evidenziato={evidenziato}>
             <Card className="border-orange-200 bg-gradient-to-br from-orange-50/40 via-background to-amber-50/30">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <FileImage className="h-4 w-4 text-orange-600" />
+                  <FileImage className="h-4 w-4 text-orange-600" aria-hidden="true" />
                   Copertina personalizzata
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Immagine + titolo che appaiono come prima pagina del PDF. Supporta merge tag come <code className="text-[10px] bg-white px-1 rounded border">{`{{cliente.nome}}`}</code>.
+                  Immagine e titolo che appaiono come prima pagina del PDF. Puoi inserire campi automatici come <code className="text-[10px] bg-white px-1 rounded border">{`{{cliente.nome}}`}</code>.
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between rounded-lg border border-orange-200 bg-white px-3 py-2">
-                  <div className="space-y-0.5">
-                    <Label className="text-sm font-medium">Mostra copertina</Label>
-                    <p className="text-[11px] text-muted-foreground">Aggiunge una pagina cover prima del preventivo</p>
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-200 bg-white px-3 py-2">
+                  <div className="min-w-0 space-y-0.5">
+                    <Label htmlFor="modello-mostra-copertina" className="text-sm font-medium">Mostra copertina</Label>
+                    <p id="modello-mostra-copertina-descrizione" className="text-[11px] text-muted-foreground">Aggiunge una pagina di copertina prima del preventivo</p>
                   </div>
-                  <Switch checked={!!form.show_cover_image} onCheckedChange={(v) => updateForm({ show_cover_image: v })} />
+                  <Switch id="modello-mostra-copertina" aria-describedby="modello-mostra-copertina-descrizione" checked={!!form.show_cover_image} onCheckedChange={(v) => updateForm({ show_cover_image: v })} />
                 </div>
 
                 {form.show_cover_image && (
                   <>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Immagine di copertina</Label>
+                    <div role="group" aria-labelledby="modello-offerta-copertina-immagine">
+                      <p id="modello-offerta-copertina-immagine" className="text-xs font-medium text-muted-foreground">Immagine di copertina</p>
                       <div className="mt-1 flex items-start gap-3">
                         <div className="h-24 w-24 shrink-0 rounded-lg border-2 border-dashed border-orange-300 bg-white overflow-hidden flex items-center justify-center">
                           {form.cover_image_url ? (
@@ -2071,7 +2080,7 @@ export default function SettingsQuoteTemplates() {
 
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <Label className="text-xs text-muted-foreground">Titolo copertina</Label>
+                        <Label htmlFor="modello-offerta-copertina-titolo" className="text-xs text-muted-foreground">Titolo copertina</Label>
                         <MergeTagInserter
                           targetRef={coverTitleRef}
                           currentValue={form.cover_title ?? ""}
@@ -2079,6 +2088,7 @@ export default function SettingsQuoteTemplates() {
                         />
                       </div>
                       <Input
+                        id="modello-offerta-copertina-titolo"
                         ref={coverTitleRef}
                         value={form.cover_title ?? ''}
                         onChange={e => updateForm({ cover_title: e.target.value })}
@@ -2088,7 +2098,7 @@ export default function SettingsQuoteTemplates() {
 
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <Label className="text-xs text-muted-foreground">Sottotitolo / claim</Label>
+                        <Label htmlFor="modello-offerta-copertina-sottotitolo" className="text-xs text-muted-foreground">Sottotitolo / claim</Label>
                         <MergeTagInserter
                           targetRef={coverSubtitleRef}
                           currentValue={form.cover_subtitle ?? ""}
@@ -2096,6 +2106,7 @@ export default function SettingsQuoteTemplates() {
                         />
                       </div>
                       <Input
+                        id="modello-offerta-copertina-sottotitolo"
                         ref={coverSubtitleRef}
                         value={form.cover_subtitle ?? ''}
                         onChange={e => updateForm({ cover_subtitle: e.target.value })}
@@ -2106,44 +2117,48 @@ export default function SettingsQuoteTemplates() {
                 )}
               </CardContent>
             </Card>
+            </RiquadroEditor>
 
             {/* G: Texts (cover tagline + footer) */}
+            <RiquadroEditor id="modello-testi" evidenziato={evidenziato}>
             <Card>
-              <CardHeader><CardTitle className="text-base">Testi Personalizzabili</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-base">Testi</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label>Tagline (sotto titolo offerta)</Label>
-                  <Input value={form.cover_tagline || ''} onChange={e => updateForm({ cover_tagline: e.target.value })} placeholder="Es: La qualità che fa la differenza." />
-                  <p className="text-xs text-muted-foreground mt-1">Apparirà sotto il titolo dell'offerta nelle pagine interne</p>
+                  <Label htmlFor="modello-tagline">Tagline (sotto titolo offerta)</Label>
+                  <Input id="modello-tagline" aria-describedby="modello-tagline-descrizione" value={form.cover_tagline || ''} onChange={e => updateForm({ cover_tagline: e.target.value })} placeholder="Es: La qualità che fa la differenza." />
+                  <p id="modello-tagline-descrizione" className="text-xs text-muted-foreground mt-1">Apparirà sotto il titolo dell'offerta nelle pagine interne</p>
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <Label>Testo footer pagine</Label>
+                    <Label htmlFor="modello-piedepagina">Testo a piè di pagina</Label>
                     <MergeTagInserter
                       targetRef={footerRef}
                       currentValue={form.footer_text ?? ""}
                       onInsert={(v) => updateForm({ footer_text: v })}
                     />
                   </div>
-                  <Textarea ref={footerRef} value={form.footer_text || ''} onChange={e => updateForm({ footer_text: e.target.value })} placeholder="Es: Per informazioni: info@azienda.it | 02 123456" rows={2} />
-                  <p className="text-xs text-muted-foreground mt-1">Apparirà in fondo a ogni pagina</p>
+                  <Textarea id="modello-piedepagina" aria-describedby="modello-piedepagina-descrizione" ref={footerRef} value={form.footer_text || ''} onChange={e => updateForm({ footer_text: e.target.value })} placeholder="Es: Per informazioni: info@azienda.it | 02 123456" rows={2} />
+                  <p id="modello-piedepagina-descrizione" className="text-xs text-muted-foreground mt-1">Apparirà in fondo a ogni pagina</p>
                 </div>
               </CardContent>
             </Card>
+            </RiquadroEditor>
 
             {/* T3: Condizioni pagamento + consegna + bancarie */}
+            <RiquadroEditor id="modello-condizioni" evidenziato={evidenziato}>
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <ScrollText className="h-4 w-4 text-slate-600" />
+                  <ScrollText className="h-4 w-4 text-slate-600" aria-hidden="true" />
                   Condizioni standard
                 </CardTitle>
-                <p className="text-xs text-muted-foreground">Pagamento, consegna, IBAN. Supportano merge tag.</p>
+                <p className="text-xs text-muted-foreground">Pagamento, consegna, IBAN. Puoi inserire campi automatici.</p>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
+                <div role="group" aria-labelledby="modello-cond-pagamento">
                   <div className="flex items-center justify-between mb-1">
-                    <Label className="text-xs text-muted-foreground">Condizioni di pagamento</Label>
+                    <Label id="modello-cond-pagamento" className="text-xs text-muted-foreground">Condizioni di pagamento</Label>
                     <MergeTagInserter
                       targetRef={paymentRef}
                       currentValue={form.payment_terms_text ?? ""}
@@ -2155,11 +2170,12 @@ export default function SettingsQuoteTemplates() {
                     onChange={(html) => updateForm({ payment_terms_text: html })}
                     placeholder="Es. Acconto 30% alla firma, 40% a inizio lavori, saldo {{cliente.nome}} a consegna chiavi in mano."
                     minHeight={90}
+                    readOnly={!puoModificare}
                   />
                 </div>
-                <div>
+                <div role="group" aria-labelledby="modello-cond-consegna">
                   <div className="flex items-center justify-between mb-1">
-                    <Label className="text-xs text-muted-foreground">Condizioni di consegna</Label>
+                    <Label id="modello-cond-consegna" className="text-xs text-muted-foreground">Condizioni di consegna</Label>
                     <MergeTagInserter
                       targetRef={deliveryRef}
                       currentValue={form.delivery_terms_text ?? ""}
@@ -2171,11 +2187,13 @@ export default function SettingsQuoteTemplates() {
                     onChange={(html) => updateForm({ delivery_terms_text: html })}
                     placeholder="3-4 settimane dalla conferma. Cantiere: {{cantiere.indirizzo}}"
                     minHeight={70}
+                    readOnly={!puoModificare}
                   />
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground">Coordinate bancarie (footer)</Label>
+                  <Label htmlFor="modello-coordinate-bancarie" className="text-xs text-muted-foreground">Coordinate bancarie (piè di pagina)</Label>
                   <Textarea
+                    id="modello-coordinate-bancarie"
                     value={form.bank_details || ''}
                     onChange={e => updateForm({ bank_details: e.target.value })}
                     rows={2}
@@ -2184,15 +2202,16 @@ export default function SettingsQuoteTemplates() {
                 </div>
               </CardContent>
             </Card>
+            </RiquadroEditor>
 
             {/* T4: Condizioni contrattuali e termini legali — un solo blocco,
                 perché per chi firma sono la stessa cosa: le clausole in coda al PDF.
-                Se il template ha ancora il vecchio campo "termini legali" separato,
+                Se il modello ha ancora il vecchio campo "termini legali" separato,
                 lo si vede qui e lo si unisce con un click. */}
             <Card className="border-blue-200">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <ScrollText className="h-4 w-4 text-blue-600" />
+                  <ScrollText className="h-4 w-4 text-blue-600" aria-hidden="true" />
                   Condizioni contrattuali e termini legali
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
@@ -2201,17 +2220,18 @@ export default function SettingsQuoteTemplates() {
                 </p>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50/40 px-3 py-2">
-                  <Label className="text-sm font-medium">Mostra in PDF</Label>
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50/40 px-3 py-2 max-sm:min-h-11">
+                  <Label htmlFor="modello-mostra-condizioni" className="text-sm font-medium">Mostra in PDF</Label>
                   <Switch
+                    id="modello-mostra-condizioni"
                     checked={!!form.show_contractual_terms}
                     onCheckedChange={(v) => updateForm({ show_contractual_terms: v, show_legal_terms: v && !!form.legal_terms_text })}
                   />
                 </div>
                 {form.show_contractual_terms && (
-                  <div>
+                  <div role="group" aria-labelledby="modello-cond-testo">
                     <div className="flex items-center justify-between mb-1">
-                      <Label className="text-xs text-muted-foreground">Testo (clausole + termini legali)</Label>
+                      <Label id="modello-cond-testo" className="text-xs text-muted-foreground">Testo (clausole + termini legali)</Label>
                       <MergeTagInserter
                         targetRef={contractualRef}
                         currentValue={form.contractual_terms_text ?? ""}
@@ -2223,18 +2243,21 @@ export default function SettingsQuoteTemplates() {
                       onChange={(html) => updateForm({ contractual_terms_text: html })}
                       placeholder="1. OGGETTO — {{azienda.ragione_sociale}} si impegna a eseguire i lavori presso {{cantiere.indirizzo}}…&#10;2. GARANZIA — 24 mesi dalla consegna…&#10;3. VARIANTI — concordate per iscritto…&#10;PRIVACY (GDPR Reg. UE 2016/679) — i dati di {{cliente.nome_completo}} sono trattati per…&#10;DIRITTO DI RECESSO — entro 14 giorni (art. 52 D.lgs 206/2005)…&#10;FORO COMPETENTE — Foro di [città azienda]."
                       minHeight={220}
+                      readOnly={!puoModificare}
                     />
                     {/* Il modulo di recesso è una scelta dell'azienda, spenta di serie (21/09/2026). */}
                     <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border px-3 py-2">
                       <div className="min-w-0">
-                        <Label className="text-sm font-medium">Allega il modulo di recesso</Label>
-                        <p className="text-xs text-muted-foreground">
+                        <Label htmlFor="modello-modulo-recesso" className="text-sm font-medium">Allega il modulo di recesso</Label>
+                        <p id="modello-modulo-recesso-descrizione" className="text-xs text-muted-foreground">
                           Serve quando firmi con un privato a casa sua o a distanza (online, al telefono): senza, il cliente
                           può arrivare a recedere fino a 12 mesi dopo, anche a lavori finiti. A chi vende ad aziende o fa
                           firmare in sede non serve.
                         </p>
                       </div>
                       <Switch
+                        id="modello-modulo-recesso"
+                        aria-describedby="modello-modulo-recesso-descrizione"
                         checked={form.modulo_recesso_attivo === true}
                         onCheckedChange={(v) => updateForm({ modulo_recesso_attivo: v })}
                         aria-label="Allega il modulo di recesso"
@@ -2245,7 +2268,7 @@ export default function SettingsQuoteTemplates() {
                 {!!form.legal_terms_text && (
                   <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-xs space-y-2">
                     <p className="text-amber-900">
-                      Questo template ha ancora un testo "Termini legali" separato (vecchia impostazione). Nel PDF viene già stampato di seguito alle condizioni.
+                      Questo modello ha ancora un testo "Termini legali" separato (vecchia impostazione). Nel PDF viene già stampato di seguito alle condizioni.
                       Unendolo qui potrai modificarlo in un unico posto.
                     </p>
                     <div className="max-h-24 overflow-y-auto rounded border bg-white/70 p-2 text-[11px] text-slate-700 whitespace-pre-wrap">
@@ -2270,11 +2293,12 @@ export default function SettingsQuoteTemplates() {
             </Card>
             </>
             )}
+            </fieldset>
 
             {/* Footer actions: solo "Salva e chiudi" come backup, le azioni
                 principali sono nella sticky toolbar in alto. */}
-            <div className="flex gap-3 pb-8 pt-4 border-t border-slate-100">
-              <Button variant="outline" onClick={handleCancel}>Annulla e torna alla libreria</Button>
+            <div className="flex flex-wrap gap-3 pb-8 pt-4 border-t border-slate-100">
+              <Button variant="outline" onClick={handleCancel}>{puoModificare ? "Annulla e torna ai modelli" : "Torna ai modelli"}</Button>
               <Button
                 onClick={async () => {
                   const saved = await handleSave(false);
@@ -2282,11 +2306,12 @@ export default function SettingsQuoteTemplates() {
                   setEditing(false);
                   setEditId(null);
                 }}
-                disabled={upsertTemplate.isPending}
+                disabled={!puoModificare || upsertTemplate.isPending}
+                aria-describedby={!puoModificare ? ID_AVVISO_SOLA_LETTURA : undefined}
                 className="bg-gradient-to-br from-orange-500 to-eic-amber hover:from-orange-600 hover:to-amber-500"
               >
-                {upsertTemplate.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                Salva e torna alla libreria
+                {upsertTemplate.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4 mr-2" aria-hidden="true" />}
+                Salva e torna ai modelli
               </Button>
             </div>
           </div>
@@ -2297,14 +2322,14 @@ export default function SettingsQuoteTemplates() {
               <CardHeader className="pb-3 bg-slate-950 text-white">
                 <CardTitle className="text-base flex items-center justify-between gap-3">
                   <span>Anteprima {KIND_META[formKind].label}</span>
-                  <Badge variant="secondary" className="bg-white/10 text-white border-white/20">
+                  <Badge variant="secondary" className="bg-white/10 text-white border-white/20" aria-hidden="true">
                     {KIND_META[formKind].emoji}
                   </Badge>
                 </CardTitle>
                 <p className="text-xs text-white/65">
                   {formKind === 'offerta'
                     ? "Esempio di stile. Controlla il PDF generato prima dell'invio."
-                    : `Blocco riusabile linkabile dalle offerte. Apparirà nel PDF finale come ${KIND_META[formKind].label.toLowerCase()}.`}
+                    : `Blocco da riusare: si collega alle offerte. Nel PDF finale compare come ${KIND_META[formKind].label.toLowerCase()}.`}
                 </p>
               </CardHeader>
               <CardContent className="flex flex-col items-center gap-3 bg-slate-100 p-4">
@@ -2326,10 +2351,10 @@ export default function SettingsQuoteTemplates() {
                 </div>
                 {formKind === 'offerta' && (
                   <div className="flex gap-2">
-                    <Button variant={previewPage === 'cover' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewPage('cover')}>
+                    <Button variant={previewPage === 'cover' ? 'default' : 'outline'} aria-pressed={previewPage === 'cover'} size="sm" onClick={() => setPreviewPage('cover')}>
                       Pagina 1
                     </Button>
-                    <Button variant={previewPage === 'detail' ? 'default' : 'outline'} size="sm" onClick={() => setPreviewPage('detail')}>
+                    <Button variant={previewPage === 'detail' ? 'default' : 'outline'} aria-pressed={previewPage === 'detail'} size="sm" onClick={() => setPreviewPage('detail')}>
                       Pagina 2
                     </Button>
                   </div>
@@ -2373,18 +2398,18 @@ export default function SettingsQuoteTemplates() {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement("a");
                         a.href = url;
-                        a.download = `anteprima-${(form.name || "template").replace(/\s+/g, "-").toLowerCase()}.pdf`;
+                        a.download = `anteprima-${(form.name || "modello").replace(/\s+/g, "-").toLowerCase()}.pdf`;
                         a.click();
                         URL.revokeObjectURL(url);
                         toast.success("PDF scaricato");
                       } catch (err: unknown) {
-                        toast.error(err instanceof Error ? err.message : "Errore generazione PDF");
+                        toast.error("Anteprima PDF non riuscita", { description: erroreInItaliano(err, "Non sono riuscito a preparare il PDF. Riprova tra poco.") });
                       } finally {
                         setDownloadingPdf(false);
                       }
                     }}
                   >
-                    {downloadingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                    {downloadingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4 mr-2" aria-hidden="true" />}
                     Scarica PDF Anteprima
                   </Button>
                 )}
@@ -2406,7 +2431,7 @@ export default function SettingsQuoteTemplates() {
       >
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{showAdvancedCreateTypes ? "Aggiungi un componente avanzato" : "Crea un'offerta completa"}</DialogTitle>
+            <DialogTitle>{showAdvancedCreateTypes ? "Aggiungi un blocco" : "Crea un'offerta completa"}</DialogTitle>
             <p className="text-sm text-muted-foreground">
               {showAdvancedCreateTypes
                 ? "Copertine, condizioni, schede prodotto e sezioni sono opzionali: usali solo quando vuoi riutilizzare un contenuto in più offerte."
@@ -2445,9 +2470,9 @@ export default function SettingsQuoteTemplates() {
                 })}
               </div>
               <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-3">
-                <p className="text-xs text-muted-foreground">I componenti separati servono solo per contenuti condivisi tra più offerte.</p>
+                <p className="text-xs text-muted-foreground">I blocchi separati servono solo per contenuti condivisi tra più offerte.</p>
                 <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={() => setShowAdvancedCreateTypes(true)}>
-                  <Blocks className="h-3.5 w-3.5" /> Componente avanzato
+                  <Blocks className="h-3.5 w-3.5" aria-hidden="true" /> Altri blocchi
                 </Button>
               </div>
             </>
@@ -2498,29 +2523,29 @@ export default function SettingsQuoteTemplates() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete template confirmation */}
+      {/* Conferma di eliminazione del modello */}
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina template</AlertDialogTitle>
+            <AlertDialogTitle>Elimina il modello</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget ? (
                 <span className="space-y-2 block">
                   <span className="block">
-                    Stai eliminando <strong>{deleteTarget.name}</strong>. Il template verrà disattivato e non sarà più disponibile per nuove offerte.
+                    Stai eliminando <strong>{deleteTarget.name}</strong>. Il modello verrà disattivato e non sarà più disponibile per nuove offerte.
                   </span>
                   {deleteImpactOffers.length > 0 ? (
                     <span className="block rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
-                      Questo blocco è usato da {deleteImpactOffers.length} offerte template:{" "}
+                      Questo blocco è usato da {deleteImpactOffers.length} {deleteImpactOffers.length === 1 ? "offerta" : "offerte"}:{" "}
                       {deleteImpactOffers.slice(0, 3).map((offer) => offer.name).join(", ")}
                       {deleteImpactOffers.length > 3 ? ` e altre ${deleteImpactOffers.length - 3}` : ""}. Dopo l'eliminazione verrà scollegato automaticamente.
                     </span>
                   ) : (
-                    <span className="block text-muted-foreground">Non risulta collegato ad altri template attivi.</span>
+                    <span className="block text-muted-foreground">Non risulta collegato ad altri modelli attivi.</span>
                   )}
                 </span>
               ) : (
-                "Sei sicuro di voler eliminare questo template? L'azione non è reversibile."
+                "Vuoi eliminare questo modello? L'azione non è reversibile."
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>

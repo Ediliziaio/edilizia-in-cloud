@@ -9,7 +9,7 @@
  * tipologie standard e le linee, collega una tipologia al preventivatore
  * della sua area.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -85,7 +85,7 @@ import {
   type AsseVariantiDati,
 } from "@/lib/listino/organizzaListino";
 import { CODICE_ASSE, VALORE_COLORE, VALORE_VETRO } from "@/lib/listino/standardSerramenti";
-import { translateListinoError } from "@/lib/listinoErrors";
+import { messaggioErroreListino, translateListinoError } from "@/lib/listinoErrors";
 import { parseDecimalField } from "@/lib/listino/numeriEditor";
 
 /** Valore dei select per «nessuna tipologia» e «nessuna linea». */
@@ -102,16 +102,17 @@ export function leggiPrezzoScritto(testo: string): number {
   return parseDecimalField(s, Number.NaN);
 }
 
-function messaggioErrore(err: unknown): string {
-  return err instanceof Error ? err.message : "Errore sconosciuto";
-}
+// Gli errori si leggono in italiano: nome già in uso, permessi, rete. Il testo del database non si mostra.
+const messaggioErrore = messaggioErroreListino;
 
 interface FamilyCatalogProps {
   /** Apre la gestione delle tipologie, che vive nella pagina che ospita il listino. */
   onGestisciTipologie?: () => void;
+  /** «Come funziona»: sta in fondo a destra della barra, accanto a «Nuovo prodotto». */
+  guida?: ReactNode;
 }
 
-export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) {
+export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps = {}) {
   const navigate = useNavigate();
   const [parametri, setParametri] = useSearchParams();
   const { role, effectiveCompany } = useAuth();
@@ -170,7 +171,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
     () => costruisciListino(families, macrocategorie, categorie),
     [families, macrocategorie, categorie],
   );
-  const cercando = cerca.trim() !== "" || filtri.modalita !== "all" || filtri.margine !== "all" || filtri.preventivo !== "all" || filtri.stato === "disattivi";
+  const cercando = cerca.trim() !== "" || filtri.modalita !== "all" || filtri.margine !== "all" || filtri.preventivo !== "all" || filtri.foto !== "all" || filtri.stato === "disattivi";
   const visibili = useMemo(
     () => filtraListino(aree, (r) => rigaPassa(r, cerca, filtri), !cercando),
     [aree, cercando, cerca, filtri],
@@ -198,6 +199,11 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
       { replace: true },
     );
   };
+
+  // Chi apre un prodotto dal listino, finito torna alla stessa area, tipologia e linea: l'editor riceve
+  // l'indirizzo di partenza e lo riusa per «Torna al listino».
+  const apriProdotto = (id: string, suffisso = "") =>
+    navigate(`/azienda/impostazioni/listino/famiglie/${id}${suffisso}`, { state: { ritorno: parametri.toString() } });
 
   const haSerramenti = useMemo(
     () => families.some((f) => areaDiVerticale(f.vertical) === "serramenti"),
@@ -317,7 +323,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
       await updateFamily.mutateAsync({ id: f.id, patch: { attivo: !f.attivo } });
       toast.success(f.attivo ? "Prodotto disattivato" : "Prodotto riattivato");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore nell'aggiornamento");
+      toast.error("Modifica non riuscita", { description: messaggioErrore(e) });
     } finally {
       markTogglePending(f.id, false);
     }
@@ -331,7 +337,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
       await updateFamily.mutateAsync({ id: f.id, patch: { mostra_preventivo: !eraVisibile } });
       toast.success(eraVisibile ? "Nascosto dai preventivi" : "Proposto nei preventivi");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore nell'aggiornamento");
+      toast.error("Modifica non riuscita", { description: messaggioErrore(e) });
     } finally {
       markTogglePending(f.id, false);
     }
@@ -362,7 +368,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
       });
       toast.success("Prodotto duplicato");
       chiudiDuplica();
-      navigate(`/azienda/impostazioni/listino/famiglie/${newId}`);
+      apriProdotto(newId);
     } catch (err) {
       toast.error("Duplicazione non riuscita", { description: messaggioErrore(err) });
     }
@@ -373,7 +379,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
     try {
       await deleteFamily.mutateAsync(toDelete.id);
       toast.success("Prodotto eliminato", {
-        description: "Spostato nel cestino. Verrà rimosso definitivamente fra 15 giorni.",
+        description: "Spostato nel cestino. Verrà cancellato per sempre fra 15 giorni.",
       });
       setToDelete(null);
     } catch (err) {
@@ -409,11 +415,12 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
       await restoreFamily.mutateAsync(id);
       toast.success("Prodotto ripristinato");
     } catch (err) {
-      const testo = messaggioErrore(err);
+      // Il caso del nome doppio si riconosce dal testo del database, prima di tradurlo.
+      const grezzo = err instanceof Error ? err.message : String((err as { message?: unknown } | null)?.message ?? "");
       toast.error("Ripristino non riuscito", {
-        description: /duplicate key|23505/i.test(testo)
+        description: /duplicate key|23505/i.test(grezzo)
           ? "C'è già un prodotto attivo con lo stesso nome: rinominalo o disattivalo, poi ripristina questo."
-          : testo,
+          : messaggioErrore(err),
       });
     }
   };
@@ -754,22 +761,24 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
     // ci va dentro, invece di finire in «Senza tipologia».
     else if (tipologia?.fonte === "categoria" && tipologia.categoriaId) q.set("linea", tipologia.categoriaId);
     const suffisso = q.toString();
-    navigate(`/azienda/impostazioni/listino/famiglie/nuova${suffisso ? `?${suffisso}` : ""}`);
+    apriProdotto("nuova", suffisso ? `?${suffisso}` : "");
   };
 
+  // «Importa» porta dati nel listino. Gli altri tre non importano niente: organizzano il listino (modelli pronti,
+  // serie di profilo, prezzi delle linee), quindi stanno in «Imposta».
   const azioniImporta: AzioneImporta[] = [
     { etichetta: "Excel o CSV", descrizione: "Da un foglio di calcolo", icona: FileSpreadsheet, href: "/azienda/impostazioni/listino/import" },
     { etichetta: "Listino fornitore in PDF", descrizione: "Letto dall'intelligenza artificiale", icona: Sparkles, href: "/azienda/impostazioni/listino/import?tab=ai" },
-    ...(companyId
-      ? [
-          { etichetta: "Modelli pronti", descrizione: "Tipologie con disegno e variabili", icona: Package, onClick: () => setTemplatePickerOpen(true) },
-          { etichetta: "Serie di profilo", descrizione: "Marca e serie diventano una linea", icona: Layers, onClick: () => setSerieOpen(true) },
-          ...(haSerramenti
-            ? [{ etichetta: "Prezzi delle linee infissi", descrizione: "Prezzo al metro quadro e scostamenti", icona: Wand2, onClick: () => setStandardSerramentiOpen(true) }]
-            : []),
-        ]
-      : []),
   ];
+  const azioniImposta: AzioneImporta[] = companyId
+    ? [
+        { etichetta: "Modelli pronti", descrizione: "Tipologie con disegno e variabili", icona: Package, onClick: () => setTemplatePickerOpen(true) },
+        { etichetta: "Serie di profilo", descrizione: "Marca e serie diventano una linea", icona: Layers, onClick: () => setSerieOpen(true) },
+        ...(haSerramenti
+          ? [{ etichetta: "Prezzi delle linee infissi", descrizione: "Prezzo al metro quadro e scostamenti", icona: Wand2, onClick: () => setStandardSerramentiOpen(true) }]
+          : []),
+      ]
+    : [];
 
   const lineaContenitore = scelta.linea?.fonte === "categoria" ? scelta.linea : null;
   const prezziMancanti = lineaContenitore?.righe.filter(({ famiglia: f }) => f.attivo && f.mostra_preventivo && !f.deleted_at && f.modalita_prezzo_base === "mq" && f.prezzo_base_mode === "vendita" && Number(f.prezzo_base_vendita || 0) === 0 && TIPOLOGIE_DISEGNO.some((t) => t.id === f.disegno_tipologia)).length ?? 0;
@@ -811,7 +820,9 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
         onDisegni={gestore && haSerramenti ? () => setDisegniAperto(true) : undefined}
         onModelli={gestore && haSerramenti ? () => setModelliAperto(true) : undefined}
         azioniImporta={azioniImporta}
+        azioniImposta={azioniImposta}
         onNuovoProdotto={() => nuovoProdotto(scelta.area, scelta.tipologia, lineaContenitore)}
+        guida={guida}
       />
 
       <ModelliInfissiDialog
@@ -831,7 +842,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
       {!isAdmin && (
         <p className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground" role="note">
           <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
-          Sola lettura: il listino lo modifica l&apos;amministratore dell&apos;azienda.
+          Stai consultando il listino: lo modifica chi ha il permesso «Listino &amp; Prezzi» in modifica.
         </p>
       )}
 
@@ -868,7 +879,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
             setFiltri(FILTRI_LISTINO_INIZIALI);
           }}
           azioni={{
-            onApri: (f) => navigate(`/azienda/impostazioni/listino/famiglie/${f.id}`),
+            onApri: (f) => apriProdotto(f.id),
             onDuplica: (f) => {
               setToDuplicate(f);
               setDupName(`${f.nome} (copia)`);
@@ -1097,10 +1108,9 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
               Eliminare &quot;{toDelete?.nome}&quot;?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              L&apos;articolo verrà spostato nel <strong>cestino per 15 giorni</strong>,
-              poi eliminato definitivamente dal database. Potrai ripristinarlo
-              in qualunque momento prima della scadenza. I preventivi storici
-              che lo usano restano invariati.
+              Il prodotto va nel <strong>cestino per 15 giorni</strong>, poi viene
+              cancellato per sempre. Fino ad allora lo puoi ripristinare. I
+              preventivi già fatti non cambiano.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
@@ -1131,7 +1141,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Dialog Cestino: lista articoli soft-deleted + restore + hard-delete */}
+      {/* Dialog Cestino: lista prodotti soft-deleted + restore + hard-delete */}
       <Dialog
         open={cestinoOpen}
         onOpenChange={(open) => {
@@ -1143,13 +1153,12 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Trash className="h-5 w-5" aria-hidden="true" />
-              Cestino articoli
+              Cestino
             </DialogTitle>
             <DialogDescription>
-              Gli articoli eliminati vengono conservati per{" "}
-              <strong>15 giorni</strong>, poi rimossi definitivamente dal
-              database. Ripristinali in un click o eliminali subito senza
-              aspettare.
+              I prodotti eliminati restano <strong>15 giorni</strong> nel
+              cestino, poi vengono cancellati per sempre. Puoi ripristinarli con
+              un clic o cancellarli subito.
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto -mx-6 px-6 py-2">
@@ -1164,7 +1173,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
               // già stati purgati. Stato errore esplicito con riprova.
               <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
                 <AlertTriangle className="h-10 w-10 mb-3 text-destructive/70" aria-hidden="true" />
-                <p className="text-sm font-medium">Errore nel caricamento del cestino</p>
+                <p className="text-sm font-medium">Il cestino non si è caricato</p>
                 <Button
                   variant="outline"
                   size="sm"
@@ -1179,11 +1188,11 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
                 <ImageOff className="h-10 w-10 mb-3 opacity-40" aria-hidden="true" />
                 <p className="text-sm font-medium">Il cestino è vuoto</p>
                 <p className="text-xs mt-1">
-                  Gli articoli eliminati appariranno qui per 15 giorni.
+                  I prodotti eliminati compaiono qui per 15 giorni.
                 </p>
               </div>
             ) : (
-              <ul className="divide-y" aria-label="Articoli nel cestino">
+              <ul className="divide-y" aria-label="Prodotti nel cestino">
                 {cestino.map((f) => (
                   <li
                     key={f.id}
@@ -1289,11 +1298,9 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
               Eliminare definitivamente &quot;{toHardDelete?.nome}&quot;?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione è <strong>irreversibile</strong>. L&apos;articolo e
-              tutte le sue variabili/valori verranno rimossi subito dal database
-              invece di attendere la scadenza dei 15 giorni. I preventivi
-              storici che lo usano restano invariati (i dati sono già stati
-              snapshottati).
+              Non si può tornare indietro. Il prodotto e le sue opzioni vengono
+              cancellati subito, senza aspettare i 15 giorni. I preventivi già
+              fatti non cambiano.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-2">
@@ -1468,7 +1475,7 @@ export function FamilyCatalog({ onGestisciTipologie }: FamilyCatalogProps = {}) 
           initialVertical={toGallerySlug(scelta.area?.standard?.verticale ?? null)}
           targetMacrocategoriaId={macroScelta}
           onImported={(familyId) => {
-            navigate(`/azienda/impostazioni/listino/famiglie/${familyId}`);
+            apriProdotto(familyId);
           }}
         />
       )}

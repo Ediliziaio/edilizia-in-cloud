@@ -1,15 +1,22 @@
 /**
- * SettingsCondizioniFirma — cosa il cliente deve accettare quando firma un preventivo.
+ * SettingsCondizioniFirma — cosa il cliente deve accettare quando firma un preventivo dal link.
  *
  * Ogni impresa ha il suo contratto: qui decide con parole sue le clausole che
  * il cliente approva a parte (vessatorie, art. 1341 c.c. c.2) e può riscrivere
  * i testi informativi che mostriamo al momento della firma.
  *
+ * VALE per i preventivi che il cliente firma dal link del preventivo (`quote-sign`): il preventivo generico e i
+ * preventivatori (serramenti, bagni, tetti, ristrutturazioni…). NON vale per il preventivo fotovoltaico, gli ordini e i
+ * documenti di cantiere: si firmano con il codice (`fea-documento-pubblico`) e leggono altro
+ * (`fea_configurazione`, condizioni standard del settore: `_shared/clausoleFirma.ts`).
+ *
  * REGOLA: se non configura nulla, al cliente non viene fatta approvare nessuna
  * clausola vessatoria e restano i testi di sistema. Le clausole tipo qui sotto
  * sono una PROPOSTA da adattare, non un default che scatta da solo.
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ETICHETTA_CATEGORIA,
   CATEGORIE_CLAUSOLA,
@@ -19,7 +26,10 @@ import {
   type TipoLegale,
 } from "@/hooks/useQuoteClauses";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { queryKeys } from "@/lib/queryKeys";
+import { userErrorMessage } from "@/lib/userErrorMessage";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +37,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -81,8 +92,16 @@ export default function SettingsCondizioniFirma() {
   // salvataggio veniva rifiutato dal database (21/09/2026).
   const puoModificare = permissions.isAdmin || permissions.canEditSettingsPricing;
   const { vessatorie, testiLegali, isLoading, error, salva, elimina } = useQuoteClauses();
+  const queryClient = useQueryClient();
 
   const [bozza, setBozza] = useState<Record<string, Partial<QuoteClause>>>({});
+  // Quale dei quattro testi informativi ha una modifica non salvata (lo dice ciascun editor).
+  const [testiModificati, setTestiModificati] = useState<Partial<Record<TipoLegale, boolean>>>({});
+  const segnaTestoModificato = useCallback((tipo: TipoLegale, modificato: boolean) => {
+    setTestiModificati((prev) => (!!prev[tipo] === modificato ? prev : { ...prev, [tipo]: modificato }));
+  }, []);
+  // Ricaricamento e link interni chiedono conferma se c'è del testo scritto e non salvato.
+  useSettingsDraftGuard(Object.keys(bozza).length > 0 || Object.values(testiModificati).some(Boolean));
   const patch = useCallback((id: string, campi: Partial<QuoteClause>) => {
     setBozza((prev) => ({ ...prev, [id]: { ...prev[id], ...campi } }));
   }, []);
@@ -104,9 +123,7 @@ export default function SettingsCondizioniFirma() {
         });
         toast.success("Clausola salvata");
       } catch (e) {
-        toast.error("Non sono riuscito a salvare la clausola", {
-          description: e instanceof Error ? e.message : undefined,
-        });
+        toast.error("Non sono riuscito a salvare la clausola", { description: userErrorMessage(e) });
       }
     },
     [bozza, salva],
@@ -124,9 +141,7 @@ export default function SettingsCondizioniFirma() {
       });
       toast.success("Clausola aggiunta", { description: "Scrivi il testo e salvala." });
     } catch (e) {
-      toast.error("Non sono riuscito ad aggiungere la clausola", {
-        description: e instanceof Error ? e.message : undefined,
-      });
+      toast.error("Non sono riuscito ad aggiungere la clausola", { description: userErrorMessage(e) });
     }
   }, [salva, vessatorie.length]);
 
@@ -155,9 +170,7 @@ export default function SettingsCondizioniFirma() {
         description: "Sono disattive: rileggile, adattale al tuo contratto e attivale.",
       });
     } catch (e) {
-      toast.error("Non sono riuscito a creare le clausole proposte", {
-        description: e instanceof Error ? e.message : undefined,
-      });
+      toast.error("Non sono riuscito a creare le clausole proposte", { description: userErrorMessage(e) });
     }
   }, [salva, vessatorie]);
 
@@ -167,9 +180,7 @@ export default function SettingsCondizioniFirma() {
         await elimina.mutateAsync(c.id);
         toast.success("Clausola eliminata");
       } catch (e) {
-        toast.error("Non sono riuscito a eliminare la clausola", {
-          description: e instanceof Error ? e.message : undefined,
-        });
+        toast.error("Non sono riuscito a eliminare la clausola", { description: userErrorMessage(e) });
       }
     },
     [elimina],
@@ -206,9 +217,7 @@ export default function SettingsCondizioniFirma() {
         });
         toast.success("Testo salvato");
       } catch (e) {
-        toast.error("Non sono riuscito a salvare il testo", {
-          description: e instanceof Error ? e.message : undefined,
-        });
+        toast.error("Non sono riuscito a salvare il testo", { description: userErrorMessage(e) });
       }
     },
     [elimina, salva, testoPersonalizzato],
@@ -231,20 +240,38 @@ export default function SettingsCondizioniFirma() {
           <p className="text-sm text-muted-foreground">
             Non sono riuscito a caricare le clausole contrattuali.
           </p>
-          <Button variant="outline" onClick={() => window.location.reload()}>Riprova</Button>
+          <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.quoteClauses.all })}>
+            Riprova
+          </Button>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl space-y-6">
+      {!puoModificare && (
+        <Alert>
+          <AlertDescription>
+            Stai consultando le condizioni: le cambia chi ha il permesso «Listino &amp; Prezzi» in modifica.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex items-start gap-3">
-        <Gavel className="mt-0.5 h-5 w-5 text-amber-600" />
-        <div>
-          <h1 className="text-lg font-semibold">Condizioni e firma dei preventivi</h1>
-          <p className="text-sm text-muted-foreground">
-            Decidi cosa il cliente accetta quando firma online. Vale per tutti i preventivi della tua azienda.
+        <Gavel className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+        <div className="space-y-1 text-sm text-muted-foreground">
+          <p>
+            Decidi cosa accetta il cliente quando firma un preventivo dal link che riceve. Vale per il preventivo
+            generico e per i preventivatori (serramenti, bagni, tetti, ristrutturazioni…).
+          </p>
+          <p>
+            Il preventivo fotovoltaico, gli ordini e i documenti di cantiere si firmano con il codice e non leggono queste
+            clausole: il loro testo sul diritto di ripensamento si scrive in{" "}
+            <Link to="/azienda/impostazioni/firma-elettronica#ripensamento" className="text-primary underline">
+              Firma elettronica
+            </Link>
+            .
           </p>
         </div>
       </div>
@@ -254,10 +281,10 @@ export default function SettingsCondizioniFirma() {
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ShieldAlert className="h-4 w-4 text-amber-600" />
+              <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
+                <ShieldAlert className="h-4 w-4 text-amber-600" aria-hidden="true" />
                 Clausole da approvare a parte
-              </CardTitle>
+              </h2>
               <CardDescription>
                 Penali, limiti di responsabilità, decadenze e foro competente valgono solo se il cliente
                 le approva con una spunta dedicata (art. 1341 c.c.). Quelle attive qui compaiono nella
@@ -303,23 +330,9 @@ export default function SettingsCondizioniFirma() {
                       value={String(valore(c, "title") ?? "")}
                       onChange={(e) => patch(c.id, { title: e.target.value })}
                       disabled={!puoModificare}
-                      className="h-9 max-w-sm flex-1 font-medium"
+                      className="h-9 min-w-[14rem] max-w-sm flex-1 font-medium"
                       aria-label="Titolo della clausola"
                     />
-                    <Select
-                      value={String(valore(c, "category") ?? "custom")}
-                      onValueChange={(v) => patch(c.id, { category: v as CategoriaClausola })}
-                      disabled={!puoModificare}
-                    >
-                      <SelectTrigger className="h-9 w-[230px]" aria-label="Tipo di clausola">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CATEGORIE_CLAUSOLA.map((cat) => (
-                          <SelectItem key={cat} value={cat}>{ETICHETTA_CATEGORIA[cat]}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                     <div className="flex items-center gap-2">
                       <Switch
                         id={`attiva-${c.id}`}
@@ -345,6 +358,27 @@ export default function SettingsCondizioniFirma() {
                       Senza testo la clausola non viene mostrata al cliente.
                     </p>
                   )}
+                  <details className="text-xs text-muted-foreground">
+                    <summary className="cursor-pointer py-1">Altre opzioni</summary>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Label htmlFor={`tipo-${c.id}`} className="text-xs">Tipo di clausola</Label>
+                      <Select
+                        value={String(valore(c, "category") ?? "custom")}
+                        onValueChange={(v) => patch(c.id, { category: v as CategoriaClausola })}
+                        disabled={!puoModificare}
+                      >
+                        <SelectTrigger id={`tipo-${c.id}`} className="h-9 w-[230px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CATEGORIE_CLAUSOLA.map((cat) => (
+                            <SelectItem key={cat} value={cat}>{ETICHETTA_CATEGORIA[cat]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="basis-full">Un'etichetta per tenere in ordine le clausole: il cliente non la vede.</p>
+                    </div>
+                  </details>
                   {puoModificare && (
                     <div className="flex items-center justify-between gap-2">
                       <Button
@@ -372,12 +406,13 @@ export default function SettingsCondizioniFirma() {
       {/* ── Testi mostrati al momento della firma ─────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileSignature className="h-4 w-4 text-blue-600" />
+          <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
+            <FileSignature className="h-4 w-4 text-blue-600" aria-hidden="true" />
             Testi mostrati al momento della firma
-          </CardTitle>
+          </h2>
           <CardDescription>
-            Puoi riscriverli con parole tue. Se lasci il campo vuoto usiamo il testo di sistema.
+            Puoi riscriverli con parole tue. Se lasci il campo vuoto usiamo il testo di sistema. Valgono per i preventivi
+            firmati dal link.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -388,6 +423,7 @@ export default function SettingsCondizioniFirma() {
               personalizzato={testoPersonalizzato.get(tipo)?.content ?? ""}
               disabilitato={!puoModificare || salva.isPending}
               onSalva={(testo) => salvaTesto(tipo, testo)}
+              onModificato={segnaTestoModificato}
             />
           ))}
         </CardContent>
@@ -408,11 +444,14 @@ function TestoLegaleEditor({
   personalizzato,
   disabilitato,
   onSalva,
+  onModificato,
 }: {
   tipo: TipoLegale;
   personalizzato: string;
   disabilitato: boolean;
   onSalva: (testo: string) => void;
+  /** Dice alla pagina se c'è testo scritto e non salvato (per avvisare prima di uscire). Deve essere stabile. */
+  onModificato: (tipo: TipoLegale, modificato: boolean) => void;
 }) {
   const meta = TESTI_DI_SISTEMA[tipo];
   const [testo, setTesto] = useState(personalizzato);
@@ -425,23 +464,25 @@ function TestoLegaleEditor({
 
   const modificato = testo.trim() !== personalizzato.trim();
   const usaSistema = !personalizzato.trim();
+  useEffect(() => { onModificato(tipo, modificato); }, [tipo, modificato, onModificato]);
+  useEffect(() => () => onModificato(tipo, false), [tipo, onModificato]);
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Label className="text-sm font-medium">{meta.titolo}</Label>
+        <Label htmlFor={`testo-${tipo}`} className="text-sm font-medium">{meta.titolo}</Label>
         <Badge variant={usaSistema ? "secondary" : "default"} className="text-[10px] font-normal">
           {usaSistema ? "testo di sistema" : "testo tuo"}
         </Badge>
       </div>
       <p className="text-xs text-muted-foreground">{meta.aiuto}</p>
       <Textarea
+        id={`testo-${tipo}`}
         value={testo}
         onChange={(e) => setTesto(e.target.value)}
         disabled={disabilitato}
         rows={3}
         placeholder={meta.testo}
-        aria-label={meta.titolo}
       />
       {!disabilitato && (
         <div className="flex flex-wrap items-center gap-2">

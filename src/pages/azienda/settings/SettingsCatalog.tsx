@@ -2,12 +2,13 @@
  * Preventivatore Verticalizzato Serramentisti — Catalogo listino.
  *
  * Area → tipologia → linea → prodotti (vedi FamilyCatalog e
- * lib/listino/lineeListino). Qui solo l'intestazione, la guida e il dialog
+ * lib/listino/lineeListino). Qui solo la guida (che sta nella barra del catalogo) e il dialog
  * delle tipologie; barra, navigazione e azioni stanno nel catalogo.
  *
- * Permission gating: solo `company_admin` / `super_admin` possono accedere
- * (stesso pattern di WarehouseManager). Un commerciale non deve poter
- * modificare il listino prezzi dell'azienda.
+ * Il titolo della pagina («Listino») lo mette il layout: qui non c'è un secondo titolo.
+ *
+ * Permessi: lo vede chi ha «Listino & Prezzi» in visualizzazione, lo modifica chi ce l'ha in modifica
+ * (gli amministratori hanno tutto). Aree e tipologie le gestisce solo l'amministratore.
  */
 
 import { useState } from "react";
@@ -23,7 +24,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { FolderTree, ShieldAlert, Package } from "lucide-react";
+import { FolderTree, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -51,9 +52,8 @@ export default function SettingsCatalog() {
           <div>
             <p className="font-medium">Accesso riservato</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Solo l&apos;amministratore dell&apos;azienda può modificare il
-              catalogo articoli e le categorie. Contatta il titolare se hai
-              bisogno di aggiungere nuove voci.
+              Il listino lo vede chi ha il permesso «Listino &amp; Prezzi».
+              Chiedilo al titolare.
             </p>
           </div>
         </CardContent>
@@ -63,23 +63,11 @@ export default function SettingsCatalog() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-eic-amber shadow-sm">
-          <Package className="h-5 w-5 text-white" aria-hidden="true" />
-        </div>
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold leading-tight sm:text-2xl">Listino prodotti</h1>
-          <p className="hidden text-sm text-muted-foreground sm:block">
-            Area, tipologia, linea: i prodotti con il prezzo di ogni linea.
-          </p>
-        </div>
-        <div className="ml-auto">
-          <ListinoGuide />
-        </div>
-      </div>
-
       <ErrorBoundary title="Errore nel listino">
-        <FamilyCatalog onGestisciTipologie={gestoreTipologie ? () => setShowCategorieDialog(true) : undefined} />
+        <FamilyCatalog
+          onGestisciTipologie={gestoreTipologie ? () => setShowCategorieDialog(true) : undefined}
+          guida={<ListinoGuide />}
+        />
       </ErrorBoundary>
 
       <Dialog open={showCategorieDialog} onOpenChange={setShowCategorieDialog}>

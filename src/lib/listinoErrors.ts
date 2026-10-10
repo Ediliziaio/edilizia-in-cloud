@@ -15,6 +15,8 @@
  * fallback generico).
  */
 
+import { testoErrore } from "@/lib/impostazioni/testoErrore";
+
 export interface TranslatedError {
   message: string;
   /** True se è un errore transitorio e il caller può suggerire un retry. */
@@ -116,4 +118,27 @@ export function translateListinoError(err: unknown): TranslatedError {
     message: raw.length > 160 ? `${raw.slice(0, 157)}…` : raw,
     isTransient: false,
   };
+}
+
+/**
+ * La frase da mostrare quando un'azione del listino non riesce. Due casi sono del listino e hanno le loro parole: il
+ * nome già in uso («Esiste già una tipologia con questo nome», «Nome già in uso») e lo schema appena aggiornato. Tutto il
+ * resto (rete, permessi, vincoli) è `testoErrore`, come nelle altre impostazioni: un messaggio scritto da noi si legge
+ * com'è, il testo di una libreria o del database no.
+ *
+ * `translateListinoError` da sola rimanda il testo del database com'è quando non riconosce niente, e non legge gli
+ * errori di Supabase che non sono `Error` («Errore sconosciuto»).
+ */
+const CASI_DEL_LISTINO = [
+  /Could not find the .* column .* in the schema cache/i,
+  /duplicate key value violates unique constraint/i,
+];
+
+export function messaggioErroreListino(err: unknown): string {
+  const grezzo = typeof err === "string" ? err : String((err as { message?: unknown } | null)?.message ?? "");
+  const codice = String((err as { code?: unknown } | null)?.code ?? "");
+  if (CASI_DEL_LISTINO.some((re) => re.test(grezzo)) || codice === "23505") {
+    return translateListinoError(new Error(grezzo || "duplicate key value violates unique constraint")).message;
+  }
+  return testoErrore(err);
 }
