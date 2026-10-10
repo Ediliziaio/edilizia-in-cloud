@@ -129,6 +129,7 @@ export function evaluateAutomationFilters(filters: FilterGroup | null | undefine
   try { return evaluate(filters); } catch { return false; }
 }
 export function matchesAutomationTriggerConfig(tcfg: Record<string, any>, payload: Record<string, any>, timeZone = "Europe/Rome"): boolean {
+    if (automationTriggerConfigErrors(tcfg).length) return false;
     // Check if trigger filters match (basic evaluation).
     // Il flow-builder salva i filtri in `trigger_filters`; supportiamo anche `filters`.
     const filters = tcfg.trigger_filters ?? tcfg.filters;
@@ -139,6 +140,25 @@ export function matchesAutomationTriggerConfig(tcfg: Record<string, any>, payloa
     // Filtri RAPIDI del trigger (configSchema del catalogo): prima erano
     // IGNORATI → es. il template "Alert Costo > €500" scattava su OGNI costo.
     const ep = payload as Record<string, unknown>;
+    const trigger = tcfg.trigger_type ?? tcfg.item_id ?? tcfg.itemId ?? tcfg.trigger_event;
+    if (tcfg.tipo_cambio) {
+      if (ep["piano.tipo_cambio"] !== tcfg.tipo_cambio) return false;
+    }
+    // Only the platform trial trigger owns this quick filter. Company deadline
+    // triggers use the same config key with different event contracts.
+    if (["trial_in_scadenza", "PLATFORM_TRIAL_EXPIRING"].includes(trigger) || (!trigger && tcfg.giorni_prima != null && Object.hasOwn(ep, "trial.giorni_rimasti"))) {
+      const days = numeric(ep["trial.giorni_rimasti"]);
+      const window = numeric(tcfg.giorni_prima ?? 3);
+      if (!Number.isFinite(days) || days < 0 || days > window) return false;
+    }
+    if (["crediti_ai_bassi", "PLATFORM_AI_CREDITS_LOW"].includes(trigger) || tcfg.soglia_eur != null) {
+      const balance = numeric(ep["crediti.saldo"]);
+      if (!Number.isFinite(balance) || !(balance < numeric(tcfg.soglia_eur ?? 5))) return false;
+    }
+    if (["fattura_piattaforma_scaduta", "PLATFORM_INVOICE_OVERDUE"].includes(trigger) || tcfg.giorni_ritardo_min != null) {
+      const days = numeric(ep["fattura.giorni_ritardo"]);
+      if (!Number.isFinite(days) || days < numeric(tcfg.giorni_ritardo_min ?? 1)) return false;
+    }
     // Soglia importo: chiavi payload diverse per emettitore (costo=importo,
     // ordine=total_amount, opportunità=value) — prima leggeva solo `importo`
     // e su ordine_creato/opportunita_creata il filtro spegneva il trigger.
@@ -162,7 +182,9 @@ export function matchesAutomationTriggerConfig(tcfg: Record<string, any>, payloa
     }
     // Priorità (ticket_creato / task_creato): prima ignorata.
     if (typeof tcfg.priorita_filtro === "string" && tcfg.priorita_filtro !== "") {
-      if (String(ep?.priority ?? "").toLowerCase() !== tcfg.priorita_filtro.toLowerCase()) return false;
+      const priorities: Record<string, string> = { urgente: "urgent", alta: "high", media: "medium", normale: "medium", normal: "medium", bassa: "low" };
+      const normalize = (v: unknown) => priorities[String(v ?? "").toLowerCase()] ?? String(v ?? "").toLowerCase();
+      if (normalize(ep["ticket.priorita"] ?? ep.priority) !== normalize(tcfg.priorita_filtro)) return false;
     }
     // Campagna (email_aperta): prima ignorata.
     if (tcfg.campagna_id && String(ep?.campaign_id ?? "") !== String(tcfg.campagna_id)) return false;
@@ -234,4 +256,20 @@ export function matchesAutomationTriggerConfig(tcfg: Record<string, any>, payloa
     if (tcfg.categoria_documento && tcfg.categoria_documento !== "tutte"
         && String((payload as Record<string, unknown>)?.categoria ?? "") !== String(tcfg.categoria_documento)) return false;
   return true;
+}
+
+/** Shared quick-filter validation: the editor and execution must agree. */
+export function automationTriggerConfigErrors(config: Record<string, any>): string[] {
+  const errors: string[] = [];
+  const trigger = config.trigger_type ?? config.item_id ?? config.itemId ?? config.trigger_event;
+  const number = (key: string, min: number, max: number, integer = true) => {
+    if (config[key] == null || config[key] === "") return;
+    const value = numeric(config[key]);
+    if (!Number.isFinite(value) || (integer && !Number.isInteger(value)) || value < min || value > max) errors.push(`${key}: inserisci ${integer ? "un intero" : "un numero"} tra ${min} e ${max}.`);
+  };
+  if (["trial_in_scadenza", "PLATFORM_TRIAL_EXPIRING"].includes(trigger)) number("giorni_prima", 1, 30);
+  number("soglia_eur", 0, Number.MAX_SAFE_INTEGER, false);
+  number("giorni_ritardo_min", 1, 90);
+  if (config.tipo_cambio && !["upgrade", "downgrade"].includes(config.tipo_cambio)) errors.push("Scegli upgrade, downgrade oppure qualsiasi cambio piano.");
+  return errors;
 }

@@ -177,7 +177,7 @@ export function FlowBuilderHeader({
           <TooltipTrigger asChild>
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={onTest}>
               <FlaskConical className="h-3.5 w-3.5" />
-              Verifica filtri
+              Verifica flusso
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs">Anteprima senza invii o modifiche ai dati</TooltipContent>
@@ -201,7 +201,7 @@ export function FlowBuilderHeader({
           {isPublished ? (
             <>
               <Pause className="h-3.5 w-3.5" />
-              Bozza
+              Metti in bozza
             </>
           ) : (
             <>

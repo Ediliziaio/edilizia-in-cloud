@@ -312,7 +312,7 @@ export function FlowBuilderConfigPanel({
 
           {/* Specialized panels */}
           {itemId === "attendi" && (
-            <DelayConfigPanel config={nodeData} onChange={handleChange} />
+            <DelayConfigPanel config={nodeData} onChange={handleChange} onPatch={handlePatch} />
           )}
           {(itemId === "condition_se" || itemId === "condition_multi") && (
             <ConditionConfigPanel config={nodeData} onChange={handleChange} />
@@ -630,6 +630,28 @@ function ConfigField({
   const { data: companyUsers = [] } = useCompanyStaffUsers(
     field.type === "user_select" || field.type === "user_multi_select" ? companyId : undefined,
   );
+  const { data: onboardingTemplates = [], isError: onboardingUnavailable } = useQuery({
+    queryKey: ["automation-onboarding-templates"],
+    enabled: field.type === "onboarding_template_select",
+    queryFn: async () => {
+      const { data, error } = await supabase.from("onboarding_templates").select("id, name, is_default").order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const { data: platformUsers = [], isError: platformUsersUnavailable } = useQuery({
+    queryKey: ["automation-platform-users"],
+    enabled: field.type === "platform_user_select",
+    queryFn: async () => {
+      const { data: roles, error } = await supabase.from("user_roles").select("user_id").in("role", ["super_admin", "platform_support", "platform_sales"]);
+      if (error) throw error;
+      const ids = [...new Set((roles ?? []).map(r => r.user_id))];
+      if (!ids.length) return [];
+      const { data, error: profileError } = await supabase.from("profiles").select("id, first_name, last_name").in("id", ids).order("first_name");
+      if (profileError) throw profileError;
+      return data ?? [];
+    },
+  });
 
   // Automazioni pubblicate per il picker "flow_select" (azioni cross-flusso).
   const { data: flussiPubblicati = [] } = useQuery({
@@ -749,6 +771,18 @@ function ConfigField({
   });
 
   // Calendari di prenotazione (trigger degli appuntamenti): con più marchi
+  const { data: automationAgents = [], isError: agentsUnavailable } = useQuery({
+    queryKey: ["flow-ai-agents", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("ai_agents").select("id, name")
+        .eq("company_id", companyId!).order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!companyId && ["agent_id", "ai_agent_id"].includes(field.id),
+    staleTime: 60_000,
+  });
+
   // nella stessa azienda, ogni calendario è un marchio diverso.
   const { data: calendariPrenotazione = [] } = useQuery({
     queryKey: ["flow-calendars", companyId],
@@ -964,6 +998,32 @@ function ConfigField({
           />
         )
       )}
+      {field.type === "onboarding_template_select" && (
+        <div className="space-y-1">
+          <Select value={value || "standard"} onValueChange={onChange}>
+            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Scegli un percorso reale" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="standard">Percorso predefinito</SelectItem>
+              {value && value !== "standard" && !onboardingTemplates.some(t => t.id === value) && <SelectItem value={value}>Percorso salvato non disponibile</SelectItem>}
+              {onboardingTemplates.map(t => <SelectItem key={t.id} value={t.id}>{t.name}{t.is_default ? " (predefinito)" : ""}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {onboardingUnavailable && <p role="alert" className="text-xs text-destructive">Impossibile leggere i percorsi onboarding.</p>}
+        </div>
+      )}
+      {field.type === "platform_user_select" && (
+        <div className="space-y-1">
+          <Select value={value || "__none__"} onValueChange={v => onChange(v === "__none__" ? null : v)}>
+            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Team piattaforma" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Nessuna assegnazione</SelectItem>
+              {value && !platformUsers.some(u => u.id === value) && <SelectItem value={value}>Utente salvato non disponibile</SelectItem>}
+              {platformUsers.map(u => <SelectItem key={u.id} value={u.id}>{[u.first_name, u.last_name].filter(Boolean).join(" ") || u.id}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {platformUsersUnavailable && <p role="alert" className="text-xs text-destructive">Impossibile leggere il team piattaforma.</p>}
+        </div>
+      )}
 
       {field.type === "user_multi_select" && (
         companyUsers.length > 0 ? (
@@ -997,7 +1057,20 @@ function ConfigField({
         )
       )}
 
-      {field.type === "entity_select" && (
+      {field.type === "entity_select" && ["agent_id", "ai_agent_id"].includes(field.id) && (
+        <div className="space-y-1">
+          <Select value={value || undefined} onValueChange={onChange}>
+            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Scegli un agente dell’azienda" /></SelectTrigger>
+            <SelectContent>
+              {value && !automationAgents.some(a => a.id === value) && <SelectItem value={value}>Agente salvato non disponibile</SelectItem>}
+              {automationAgents.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {agentsUnavailable && <p role="status" className="text-xs text-destructive">Impossibile caricare gli agenti. Riprova prima di pubblicare.</p>}
+          {!agentsUnavailable && automationAgents.length === 0 && <p className="text-xs text-muted-foreground">Nessun agente disponibile nell’azienda.</p>}
+        </div>
+      )}
+      {field.type === "entity_select" && !["agent_id", "ai_agent_id"].includes(field.id) && (
         <Input
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}

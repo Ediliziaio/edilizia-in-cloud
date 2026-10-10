@@ -97,7 +97,8 @@ describe("il motore usa davvero il mittente scelto", () => {
   });
 
   it("anche l'email scritta dall'AI prende il mittente dell'automazione", () => {
-    expect(motore).toContain("entityId, companyId, undefined, queueItem?.flow_id);");
+    const ai = motore.slice(motore.indexOf('case "send_ai_message":'), motore.indexOf('case "remove_from_automation":'));
+    expect(ai).toContain("entityId, companyId, queueItem, queueItem?.flow_id);");
   });
 });
 

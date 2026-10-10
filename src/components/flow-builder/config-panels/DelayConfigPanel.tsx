@@ -9,11 +9,15 @@ const GIORNI = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
 interface DelayConfigPanelProps {
   config: Record<string, any>;
   onChange: (field: string, value: any) => void;
+  onPatch: (patch: Record<string, any>) => void;
 }
 
-export function DelayConfigPanel({ config, onChange }: DelayConfigPanelProps) {
+export function DelayConfigPanel({ config, onChange, onPatch }: DelayConfigPanelProps) {
   const tipo = config.delay_tipo || "attendi";
-  const giorniAttivi: number[] = config.delay_giorni_settimana || [1, 2, 3, 4, 5];
+  const giorniAttivi: number[] = config.delay_giorni_settimana?.length ? config.delay_giorni_settimana : [0, 1, 2, 3, 4, 5, 6];
+  const legacyMinutes = (Number(config.giorni) || 0) * 1440 + (Number(config.ore) || 0) * 60 + (Number(config.minuti) || 0);
+  const displayedDuration = config.delay_durata ?? config.delay_value ?? (legacyMinutes || 1);
+  const displayedUnit = config.delay_unita ?? ({ days: "giorni", hours: "ore", minutes: "minuti" }[config.delay_unit as string]) ?? (legacyMinutes ? "minuti" : config.delay_durata != null ? "giorni" : "ore");
   // Attesa ancorata all'appuntamento: il motore la conosce da tempo
   // (delay_tipo "prima_appuntamento" + delay_ore), ma il pannello non la
   // mostrava — chi apriva un promemoria "24 ore prima" vedeva un riquadro
@@ -39,7 +43,10 @@ export function DelayConfigPanel({ config, onChange }: DelayConfigPanelProps) {
             return (
               <button
                 key={opt.val}
-                onClick={() => onChange("delay_tipo", opt.val)}
+                onClick={() => onPatch({ delay_tipo: opt.val,
+                  ...(opt.val === "fino_a" && !config.delay_orario ? { delay_orario: "09:00" } : {}),
+                  ...(opt.val === "prima_appuntamento" && config.delay_ore == null ? { delay_ore: 24 } : {}),
+                })}
                 className={cn(
                   "flex items-center justify-center gap-1.5 p-2 rounded-lg border text-center text-xs font-medium transition-all",
                   opt.val === "prima_appuntamento" && "col-span-2",
@@ -63,11 +70,11 @@ export function DelayConfigPanel({ config, onChange }: DelayConfigPanelProps) {
             <Input
               type="number"
               min={1}
-              value={config.delay_durata || 1}
-              onChange={e => onChange("delay_durata", parseInt(e.target.value) || 1)}
+              value={displayedDuration}
+              onChange={e => onPatch({ delay_durata: e.target.value === "" ? "" : Number(e.target.value), delay_unita: displayedUnit })}
               className="h-8 text-xs w-20"
             />
-            <Select value={config.delay_unita || "giorni"} onValueChange={v => onChange("delay_unita", v)}>
+            <Select value={displayedUnit} onValueChange={v => onPatch({ delay_unita: v, delay_durata: displayedDuration })}>
               <SelectTrigger className="h-8 text-xs flex-1">
                 <SelectValue />
               </SelectTrigger>
@@ -137,7 +144,10 @@ export function DelayConfigPanel({ config, onChange }: DelayConfigPanelProps) {
             return (
               <button
                 key={i}
+                aria-pressed={attivo}
+                disabled={attivo && giorniAttivi.length === 1}
                 onClick={() => {
+                  if (attivo && giorniAttivi.length === 1) return;
                   const next = attivo
                     ? giorniAttivi.filter(d => d !== i)
                     : [...giorniAttivi, i];

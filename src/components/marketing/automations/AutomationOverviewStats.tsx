@@ -34,18 +34,20 @@ export function AutomationOverviewStats({ companyId }: Props) {
         logs7d,
         logs7dSuccess,
         errors24h,
+        unresolvedErrors,
       ] = await Promise.all([
         supabase.from("automation_enrollments").select("id", { count: "exact", head: true }).eq("company_id", companyId).in("status", ["active", "waiting"]),
         // «skipped» = passo rinviato (WhatsApp fuori fascia, numeri occupati):
         // non è un passaggio eseguito, e non deve abbassare le riuscite.
         supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day1Iso).neq("status", "skipped"),
         supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day7Iso).neq("status", "skipped"),
-        supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day7Iso).eq("status", "success"),
+        supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day7Iso).in("status", ["success", "ok"]),
         // Il motore scrive status 'error' (CHECK: ok|success|error|skipped):
         // con "failed" la card Errori 24h restava a 0 anche con errori reali.
         supabase.from("automation_execution_log").select("id", { count: "exact", head: true }).eq("company_id", companyId).gte("created_at", day1Iso).eq("status", "error"),
+        supabase.from("automation_dead_letter").select("id", { count: "exact", head: true }).eq("company_id", companyId).is("resolved_at", null),
       ]);
-      for (const result of [enrollmentsActive, logs24h, logs7d, logs7dSuccess, errors24h]) if (result.error) throw result.error;
+      for (const result of [enrollmentsActive, logs24h, logs7d, logs7dSuccess, errors24h, unresolvedErrors]) if (result.error) throw result.error;
 
       return {
         enrollmentsActive: enrollmentsActive.count ?? 0,
@@ -53,6 +55,7 @@ export function AutomationOverviewStats({ companyId }: Props) {
         runs7d: logs7d.count ?? 0,
         runs7dSuccess: logs7dSuccess.count ?? 0,
         errors24h: errors24h.count ?? 0,
+        unresolvedErrors: unresolvedErrors.count ?? 0,
       };
     },
     enabled: !!companyId,
@@ -89,9 +92,14 @@ export function AutomationOverviewStats({ companyId }: Props) {
     {
       testo: data.errors24h > 0
         ? `${n(data.errors24h)} error${data.errors24h === 1 ? "e" : "i"} nelle ultime 24 ore`
-        : "nessun errore",
+        : "nessun errore nelle ultime 24 ore",
       allarme: data.errors24h > 0,
     },
+    ...(data.unresolvedErrors > 0 ? [{
+      testo: `${n(data.unresolvedErrors)} passagg${data.unresolvedErrors === 1 ? "io fallito da verificare" : "i falliti da verificare"}`,
+      titolo: "Errori definitivi ancora aperti, anche precedenti agli ultimi 7 giorni. Nessun reinvio automatico.",
+      allarme: true,
+    }] : []),
   ];
 
   return (

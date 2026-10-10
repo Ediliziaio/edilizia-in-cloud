@@ -3,6 +3,7 @@ import Stripe from "npm:stripe@14";
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { emitPlatformEvent, PLATFORM_EVENTS } from "../_shared/platformAutomation.ts";
+import { stripeInvoiceDeadline } from "../_shared/platformLifecycle.ts";
 import { sendPlatformCapiEvent } from "../_shared/capiPlatform.ts";
 import { sendSystemEmail, getCompanyAdminContact, formatEur, formatDateIt } from "../_shared/systemEmail.ts";
 import { notificaInterna } from "../_shared/notificaInterna.ts";
@@ -74,7 +75,7 @@ async function upsertSubscriptionInvoice(
   invoice: any,
   stripeCustomerId: string
 ) {
-  await supabase.from("subscription_invoices").upsert(
+  const { error } = await supabase.from("subscription_invoices").upsert(
     {
       company_id: companyId,
       stripe_invoice_id: invoice.id,
@@ -85,6 +86,7 @@ async function upsertSubscriptionInvoice(
       status: invoice.status ?? "draft",
       invoice_url: invoice.hosted_invoice_url ?? null,
       invoice_pdf: invoice.invoice_pdf ?? null,
+      due_date: stripeInvoiceDeadline(invoice),
       period_start: invoice.period_start
         ? new Date(invoice.period_start * 1000).toISOString()
         : null,
@@ -98,6 +100,7 @@ async function upsertSubscriptionInvoice(
     },
     { onConflict: "stripe_invoice_id" }
   );
+  if (error) throw new Error(`Registrazione fattura Stripe fallita: ${error.message}`);
 }
 
 async function handleInvoiceCreated(

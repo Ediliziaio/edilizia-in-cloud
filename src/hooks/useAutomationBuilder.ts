@@ -6,7 +6,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { emailSenzaOggettoOTesto } from "@/lib/flow-node-catalog";
-import { filterErrors } from "../../supabase/functions/_shared/automationFilters";
+import { filterErrors, automationTriggerConfigErrors } from "../../supabase/functions/_shared/automationFilters";
+import { actionConfigErrors, conditionConfigErrors, delayConfigErrors, graphHasCycle } from "../../supabase/functions/_shared/automationValidation";
 import type { AutomationFlow, AutomationNode, AutomationConnection, RestoredAutomationGraph } from "@/types/automationBuilder";
 
 interface BuilderState {
@@ -25,24 +26,6 @@ function getNodeConfig(node: AutomationNode): AutomationConfig {
 
 function isPersistableNode(node: AutomationNode): boolean {
   return node.node_type !== ("end" as AutomationNode["node_type"]);
-}
-
-function hasDelayDuration(config: AutomationConfig): boolean {
-  const c = (config ?? {}) as Record<string, unknown>;
-  // "Fino alle HH:MM": la durata non serve.
-  if (c.delay_tipo === "fino_a" && typeof c.delay_orario === "string" && /^\d{1,2}:\d{2}$/.test(c.delay_orario)) {
-    return true;
-  }
-  // Invalida SOLO una durata esplicitamente non valida; assente = ok
-  // (il motore applica il default sicuro di 1h, e i template usano lo
-  // schema giorni/ore/minuti che PRIMA veniva bocciato qui).
-  const value = c.delay_durata ?? c.delay_value;
-  if (value != null && value !== "") {
-    const numericValue = Number(value);
-    return Number.isFinite(numericValue) && numericValue > 0;
-  }
-  const totalMin = (Number(c.giorni) || 0) * 1440 + (Number(c.ore) || 0) * 60 + (Number(c.minuti) || 0);
-  return totalMin >= 0;
 }
 
 export function useAutomationBuilder(flowId: string | undefined) {
@@ -272,10 +255,15 @@ export function useAutomationBuilder(flowId: string | undefined) {
     let emailIncompleta = false;
     let smsIncompleto = false;
     for (const n of persistableNodes) {
+      const config = getNodeConfig(n);
+      if (n.node_type === "condition") errors.push(...conditionConfigErrors(config));
+      if (n.node_type === "goal") errors.push(...conditionConfigErrors(config));
+      if (n.node_type === "delay") errors.push(...delayConfigErrors(config));
+      if (n.node_type === "trigger") errors.push(...automationTriggerConfigErrors(config));
       const filters = getNodeConfig(n).trigger_filters ?? getNodeConfig(n).filters;
       for (const message of filterErrors(filters as any)) errors.push(`${n.label || "Trigger"}: ${message}`);
       if (n.node_type !== "action") continue;
-      const config = getNodeConfig(n);
+      errors.push(...actionConfigErrors(config));
       const actionId = String(config.action_type ?? config.itemId ?? config.item_id ?? "");
       if (emailSenzaOggettoOTesto(actionId, config)) emailIncompleta = true;
       if (actionId.includes("sms")) {
@@ -286,11 +274,12 @@ export function useAutomationBuilder(flowId: string | undefined) {
     if (emailIncompleta) errors.push("Un'azione email non ha oggetto o testo.");
     if (smsIncompleto) errors.push("Un'azione SMS non ha il testo del messaggio.");
 
-    const incompleteDelay = persistableNodes.find(n => n.node_type === "delay" && !hasDelayDuration(getNodeConfig(n)));
-    if (incompleteDelay) errors.push("Imposta una durata valida per tutte le attese.");
+    if (graphHasCycle(connections.map(c => ({ source: c.from_node_id, target: c.to_node_id })))) {
+      errors.push("Il flusso contiene connessioni circolari: rimuovi il collegamento che torna a un passo precedente.");
+    }
 
     return errors;
-  }, [nodes]);
+  }, [nodes, connections]);
 
   // Save all nodes + connections — Bug 4 fix: invalidate flows list after save.
   // Ritorna true se il salvataggio è andato a buon fine (usato da togglePublish

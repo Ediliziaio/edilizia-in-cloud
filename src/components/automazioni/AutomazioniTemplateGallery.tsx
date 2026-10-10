@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
+import { automationTemplateInScope } from "@/lib/automationTemplateScope";
 import {
   FLOW_TEMPLATES,
   TEMPLATE_CATEGORIES,
@@ -38,6 +40,7 @@ export function AutomazioniTemplateGallery({ categoriaFiltro, cerca = "", livell
     : FLOW_TEMPLATES;
 
   const filtered = baseList.filter(t => {
+    if (!automationTemplateInScope(t, companyId === PLATFORM_ADMIN_COMPANY_ID)) return false;
     if (difficoltaFiltro && t.difficolta !== difficoltaFiltro) return false;
     if (!cerca) return true;
     const q = cerca.toLowerCase();
@@ -63,6 +66,10 @@ export function AutomazioniTemplateGallery({ categoriaFiltro, cerca = "", livell
       toast.error("Devi essere autenticato per usare un template");
       return;
     }
+    if (!automationTemplateInScope(template, companyId === PLATFORM_ADMIN_COMPANY_ID)) {
+      toast.error("Questo template non appartiene a quest’area.");
+      return;
+    }
 
     setActivatingId(template.id);
     // Tracciato fuori dal try: se gli insert di nodi/connessioni falliscono
@@ -76,7 +83,7 @@ export function AutomazioniTemplateGallery({ categoriaFiltro, cerca = "", livell
         .insert({
           name: template.nome,
           company_id: companyId,
-          status: publish ? "published" : "draft",
+          status: "draft", // Never expose a published half-built graph to the worker.
           description: template.descrizione,
           created_by: user.id,
           // Prima la categoria del template non veniva salvata → tutti i
@@ -132,6 +139,12 @@ export function AutomazioniTemplateGallery({ categoriaFiltro, cerca = "", livell
         if (connErr) throw connErr;
       }
 
+      if (publish) {
+        if (!template.prontoAllUso) throw new Error("Questo template richiede configurazione prima della pubblicazione");
+        const { data: published, error: publishError } = await supabase.from("automation_flows")
+          .update({ status: "published" }).eq("id", flowId).eq("company_id", companyId).eq("status", "draft").select("id").single();
+        if (publishError || !published) throw publishError ?? new Error("Pubblicazione template non completata");
+      }
       // Senza invalidation, tornando alla lista il nuovo flusso non appariva
       // per tutto lo staleTime (5 min) e i KPI restavano al conteggio vecchio.
       void queryClient.invalidateQueries({ queryKey: ["automation-flows"] });

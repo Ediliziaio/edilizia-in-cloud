@@ -27,6 +27,9 @@ import { conLinkCliccabili, fusoDelFlusso, invioEmailDaRimandare, MINUTI_RINVIO_
 import { mittenteDelPasso, dominiAmmessi, soloDominiDellAzienda } from "../_shared/mittenteAutomazione.ts";
 import { calendarioDelGiorno, giornoAmmesso, leggiSettimane } from "../_shared/attesaCalendario.ts";
 import { confrontoConOggi } from "../_shared/condizioniData.ts";
+import { actionConfigErrors, conditionConfigErrors, delayConfigErrors } from "../_shared/automationValidation.ts";
+import { automationWebhookUrl } from "../_shared/automationWebhook.ts";
+import { automationNextContext } from "../_shared/automationNextContext.ts";
 import { romaVersoUtc, urlGestione } from "../_shared/appuntamentiPubblici.ts";
 import { fissaChiamataDaFascia } from "../_shared/chiamataDaFascia.ts";
 import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
@@ -38,14 +41,20 @@ import {
   PLATFORM_ACTION_IDS,
   PLATFORM_ADMIN_COMPANY_ID,
   PLATFORM_TRIGGER_EVENT_MAP,
+  emitPlatformEvent,
+  PLATFORM_EVENTS,
 } from "../_shared/platformAutomation.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { changeCompanyPlan } from "../_shared/changeCompanyPlan.ts";
+import { creaFasiCommessa } from "../_shared/fasiCommessa.ts";
+import { platformCompanyAdmin } from "../_shared/platformCompanyAdmin.ts";
+import { platformSubscriptionPlan } from "../_shared/platformSubscriptionPlan.ts";
 import { brandEmailBody } from "../_shared/brandEmailBody.ts";
 import { loadContactCustomFieldResolver, applyContactCustomFields } from "../_shared/contactCustomFields.ts";
 import { nomeAzienda, nomeSaluto } from "../_shared/outreach-template.ts";
 import { costruisciVariabiliCommessa, scegliFatturaDaAllegare, sostituisciVariabiliCommessa } from "../_shared/variabiliCommessa.ts";
 
-import { serveConMetriche } from "../_shared/withMetrics.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { prendiInCarico } from "../_shared/presaInCarico.ts";
 import { evaluateAutomationFilters, matchesAutomationTriggerConfig } from "../_shared/automationFilters.ts";
 import { resolveAutomationRecord, loadAutomationCustomFields, automationEntityType, automationEventEntity, automationEventPayload } from "../_shared/automationContext.ts";
@@ -67,7 +76,7 @@ interface AutomationConnection {
   label: string | null;
 }
 
-serveConMetriche("process-automation", async (req) => {
+serveConMetricheRapida("process-automation", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
@@ -151,7 +160,8 @@ async function handleTrigger(supabase: any, body: any) {
     .from("automation_flows")
     .select("id, version, config_json, allow_reentry, timezone")
     .eq("company_id", company_id)
-    .eq("status", "published");
+    .eq("status", "published")
+    .is("deleted_at", null);
 
   if (flowErr) throw flowErr;
   if (!flows || flows.length === 0) {
@@ -782,8 +792,9 @@ async function processQueue(supabase: any) {
       // È una scelta del flusso, mai un comportamento imposto a tutti.
       const continuaComunque = node.config_json?.continua_se_fallisce === true;
       const proseguiDopoFallimento = async (errore: string) => {
-        await markQueueItem(supabase, item.id, "failed", errore);
         await queueNextNodes(supabase, item, node, { success: true, output: { saltato_per_errore: errore } });
+        await markQueueItem(supabase, item.id, "failed", errore);
+        await completeEnrollmentIfIdle(supabase, item);
       };
 
       if (!result.success && result.fermaIscrizione && continuaComunque) {
@@ -877,9 +888,6 @@ async function processQueue(supabase: any) {
         continue;
       }
 
-      // Mark current item as done
-      await markQueueItem(supabase, item.id, "completed");
-
       // If node type is "goal" or "end_automation", complete enrollment.
       // item_id incluso: il builder salva l'id catalogo lì, non in action_type.
       if (
@@ -887,6 +895,7 @@ async function processQueue(supabase: any) {
         node.config_json?.action_type === "end_automation" ||
         node.config_json?.item_id === "end_automation"
       ) {
+        await markQueueItem(supabase, item.id, "completed");
         // In test mode 'canceled': 'completed' bloccherebbe il futuro
         // arruolamento reale del contatto (blockedStatuses).
         const doneStatus = item.context_json?.payload?.test_mode || item.context_json?.payload?.dry_run
@@ -900,13 +909,21 @@ async function processQueue(supabase: any) {
         continue;
       }
 
-      // Queue next nodes
+      // Mark current item as done only after queuing next nodes.
+      // Keep the current step processing until its successors exist. Otherwise
+      // a parallel leaf can close the enrollment in the gap before insertion.
       await queueNextNodes(supabase, item, node, result);
+      await markQueueItem(supabase, item.id, "completed");
+      await completeEnrollmentIfIdle(supabase, item);
 
       processed++;
     } catch (err: any) {
       console.error(`Queue item ${item.id} error:`, err);
       await markQueueItem(supabase, item.id, "failed", err.message);
+      await supabase.from("automation_enrollments")
+        .update({ status: "failed", updated_at: now })
+        .eq("id", item.enrollment_id).eq("company_id", item.company_id)
+        .in("status", ["active", "waiting"]);
       await completeExecutionRun(supabase, item.enrollment_id, "error", err.message);
       // Write uncaught exception to dead letter queue
       await supabase.from("automation_dead_letter").insert({
@@ -960,8 +977,13 @@ async function executeNode(supabase: any, node: AutomationNode, queueItem: any) 
       return { success: result.success, output: { ...result.output, reached: result.branch === "yes" } };
     }
 
+    case "trigger":
+    case "note":
+    case "end":
+      return { success: true, output: { passthrough: true } };
+
     default:
-      return { success: true, output: { skipped: true, reason: `Unknown node_type: ${node.node_type}` } };
+      return { success: false, error: `Tipo di nodo non supportato: ${node.node_type}` };
   }
 }
 
@@ -1001,6 +1023,8 @@ async function executeDelay(
   entityId?: string,
   companyId?: string,
 ) {
+  const invalidDelay = delayConfigErrors(cfg);
+  if (invalidDelay.length) return { success: false, error: invalidDelay.join(" ") };
   // ── Attesa ANCORATA all'appuntamento ────────────────────────────────────
   // "24 ore prima della chiamata" non era esprimibile: le attese erano tutte
   // relative al passo precedente, quindi un promemoria finiva a caso rispetto
@@ -1060,15 +1084,24 @@ async function executeDelay(
   let delayMs = 0;
   let minutiBersaglio: number | null = null;
 
-  if (cfg.delay_tipo === "fino_a" && typeof cfg.delay_orario === "string" && /^\d{1,2}:\d{2}$/.test(cfg.delay_orario)) {
+  if (cfg.delay_tipo === "fino_a") {
+    if (typeof cfg.delay_orario !== "string" || !/^([01]?\d|2[0-3]):[0-5]\d$/.test(cfg.delay_orario)) {
+      return { success: false, error: "L’orario dell’attesa deve essere valido (00:00–23:59)" };
+    }
     // Prossima occorrenza dell'orario (ora italiana): oggi se futuro, sennò domani.
     const [th, tm] = cfg.delay_orario.split(":").map((n: string) => parseInt(n, 10));
-    const targetMin = (th % 24) * 60 + tm;
+    const targetMin = th * 60 + tm;
     minutiBersaglio = targetMin;
-    const { minutesOfDay } = romeNowParts(new Date());
-    let deltaMin = targetMin - minutesOfDay;
-    if (deltaMin <= 0) deltaMin += 24 * 60;
-    delayMs = deltaMin * 60_000;
+    const now = new Date();
+    const day = now.toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
+    const clock = `${String(th).padStart(2, "0")}:${String(tm).padStart(2, "0")}`;
+    let target = romaVersoUtc(day, clock);
+    if (target.getTime() <= now.getTime()) {
+      const tomorrow = new Date(`${day}T12:00:00Z`);
+      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+      target = romaVersoUtc(tomorrow.toISOString().slice(0, 10), clock);
+    }
+    delayMs = target.getTime() - now.getTime();
   } else if (cfg.delay_durata != null || cfg.delay_unita) {
     const durata = Math.max(1, parseInt(cfg.delay_durata) || 1);
     const MS: Record<string, number> = { secondi: 1_000, minuti: 60_000, ore: 3_600_000, giorni: 86_400_000, settimane: 604_800_000 };
@@ -1120,6 +1153,9 @@ async function executeDelay(
       const scarto = minutiBersaglio - romeNowParts(new Date(Date.now() + delayMs)).minutesOfDay;
       if (Math.abs(scarto) === 60) delayMs += scarto * 60_000;
     }
+    if (!giornoAmmesso(romeGiorno(new Date(Date.now() + delayMs)), regole)) {
+      return { success: false, error: "Nessun giorno consentito trovato nei prossimi 372 giorni" };
+    }
   }
 
   return {
@@ -1132,6 +1168,8 @@ async function executeDelay(
 
 // ── Condition (If/Else) ──
 async function executeCondition(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string, queueItem?: any) {
+  const invalidCondition = conditionConfigErrors(cfg);
+  if (invalidCondition.length) return { success: false, error: invalidCondition.join(" ") };
   // Il BUILDER (ConditionConfigPanel) salva: `condizioni` = array di
   // {campo:"contatto.email", operatore:"uguale", valore} + `operatore_logico`
   // AND|OR. PRIMA il motore leggeva SOLO condition_field/operator/value →
@@ -1174,7 +1212,7 @@ async function executeCondition(supabase: any, cfg: Record<string, any>, entityI
     const operator = String(r.operatore ?? "uguale");
     if (operator === "da_oggi" || operator === "prima_di_oggi") return confrontoConOggi(actual, operator);
     const aliases: Record<string, string> = { uguale: "equals", diverso: "not_equals", contiene: "contains",
-      non_contiene: "not_contains", inizia_con: "starts_with", vuoto: "is_empty", non_vuoto: "is_not_empty",
+      non_contiene: "not_contains", inizia_con: "starts_with", finisce_con: "ends_with", vuoto: "is_empty", non_vuoto: "is_not_empty",
       maggiore: "gt", minore: "lt", maggiore_uguale: "gte", minore_uguale: "lte" };
     return evaluateAutomationFilters({ conditions: [{ field, operator: aliases[operator] ?? operator, value: r.valore }] }, { [field]: actual });
   };
@@ -1385,12 +1423,16 @@ function generateTempPassword(): string {
  */
 async function flowAuthorIsAllowedSuperAdmin(supabase: any, flowId: string | undefined): Promise<boolean> {
   if (!flowId) return false;
-  const { data: flow } = await supabase
+  const { data: flow, error: flowError } = await supabase
     .from("automation_flows")
     .select("created_by")
     .eq("id", flowId)
+    .eq("company_id", PLATFORM_ADMIN_COMPANY_ID)
     .maybeSingle();
-  if (!flow?.created_by) return false;
+  if (flowError || !flow?.created_by) return false;
+  const { data: role, error: roleError } = await supabase.from("user_roles")
+    .select("user_id").eq("user_id", flow.created_by).eq("role", "super_admin").maybeSingle();
+  if (roleError || !role) return false;
   const email = await resolveUserEmail(supabase, flow.created_by);
   return isSuperAdminEmailAllowed(email);
 }
@@ -1476,6 +1518,8 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
   if (testMode) {
     return { success: true, output: { action: actionType, simulated: true, test_mode: true } };
   }
+  const invalidAction = actionConfigErrors(cfg);
+  if (invalidAction.length) return { success: false, error: invalidAction.join(" ") };
 
   // ── LEAD RECUPERATO DALLO STORICO ──
   // Un modulo compilato settimane fa e importato solo ora entra in pipeline
@@ -1541,18 +1585,45 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     if (m) setFullName(`${m[1]}.first_name`, `${m[1]}.last_name`, `${m[1]}.full_name`);
   }
   setFullName("nome", "cognome", "nome_completo");
-  const rv = (s: any): any =>
+  setFullName("first_name", "last_name", "full_name");
+  const rv = (s: any, html = false): any =>
     typeof s === "string"
       ? s.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m: string, k: string) => {
           // Chiave esatta, poi fallback sull'ultimo segmento: i template usano
           // {{costo.importo}} ma gli emettitori DB mettono chiavi PIATTE
           // (importo, descrizione…) nel payload.
           // Never replace an unresolved qualified ID with the ID of a different entity.
-          const v = pPayload[k] ?? (k.endsWith(".id") ? undefined : pPayload[k.split(".").pop() as string]);
-          return v == null ? "" : String(v);
+          const platformKey = isPlatformCtx && /^(azienda|piano|trial|crediti|pausa|abbonamento|nuovo_account|cs_task|fattura)\./.test(k);
+          const v = pPayload[k] ?? (k.endsWith(".id") || platformKey ? undefined : pPayload[k.split(".").pop() as string]);
+          return v == null ? "" : html ? escapeEmailValue(v) : String(v);
         })
       : s;
-  const subjectCompanyId: string = (pPayload["azienda.id"] as string) || entityId;
+  const subjectCompanyId: string = (pPayload["azienda.id"] as string) || (sourceType === "company" ? entityId : "");
+  let platformActor: string | null = null;
+  if (PLATFORM_ACTION_IDS.has(rawActionType) && ["crea_cs_task", "aggiungi_nota_azienda"].includes(rawActionType)) {
+    const { data: author, error } = await supabase.from("automation_flows").select("created_by").eq("id", queueItem?.flow_id).eq("company_id", PLATFORM_ADMIN_COMPANY_ID).maybeSingle();
+    if (error || !author?.created_by) return { success: false, error: "Autore del flusso non determinabile" };
+    platformActor = author.created_by;
+  }
+  if (PLATFORM_ACTION_IDS.has(rawActionType) && (cfg.assegnato_a || cfg.assegna_cs)) {
+    const assignedId = cfg.assegnato_a || cfg.assegna_cs;
+    if (!UUID_RE.test(String(assignedId))) return { success: false, error: "Assegnatario piattaforma non valido" };
+    const { data: staff, error } = await supabase.from("user_roles").select("user_id").eq("user_id", assignedId).in("role", ["super_admin", "platform_support", "platform_sales"]).limit(1).maybeSingle();
+    if (error || !staff) return { success: false, error: "Assegnatario non appartenente al team piattaforma" };
+  }
+  if (PLATFORM_ACTION_IDS.has(rawActionType) && !["crea_account_azienda", "invia_notifica_team_admin", "invia_whatsapp_locale"].includes(rawActionType)) {
+    if (!UUID_RE.test(subjectCompanyId) || subjectCompanyId === PLATFORM_ADMIN_COMPANY_ID) return { success: false, error: "Azienda destinataria mancante o non valida: collega prima l’account al flusso." };
+    const { data: target, error: targetError } = await supabase.from("companies").select("id, name, email, status").eq("id", subjectCompanyId).maybeSingle();
+    if (targetError || !target) return { success: false, error: targetError?.message || "Azienda destinataria non trovata" };
+    for (const field of ["name", "email", "status"]) pPayload[`azienda.${field}`] ??= target[field];
+  }
+  if (PLATFORM_ACTION_IDS.has(rawActionType) && rawActionType !== "invia_whatsapp_locale") {
+    for (const value of Object.values(cfg)) if (typeof value === "string") {
+      for (const token of value.matchAll(/\{\{\s*([\w.]+)\s*\}\}/g)) if (rv(token[0]) === "") {
+        return { success: false, error: `Variabile non disponibile per questa azione: ${token[1]}` };
+      }
+    }
+  }
   const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
   async function selectedCustomer() {
     const explicit = typeof ncfg.cliente_id === "string" && ncfg.cliente_id.trim() !== "";
@@ -1813,23 +1884,49 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       // gestisce {{contatto.X}}/{{contact.X}} + campi personalizzati), POI il
       // payload del trigger (rv). L'ordine conta: rv() azzera i token che non
       // conosce, quindi se girasse per primo cancellerebbe {{contatto.full_name}}.
-      const { data: oppContact } = await supabase
-        .from("marketing_contacts")
-        .select("*")
-        .eq("id", entityId)
-        .eq("company_id", companyId)
-        .maybeSingle();
+      const oppContact = await selectedCustomer();
+      if (!oppContact?.id) return { success: false, error: "Contatto collegato non trovato per questa azienda" };
       const resolveOppText = async (s: unknown): Promise<string> => {
-        if (typeof s !== "string" || s === "") return "";
-        const withContact = oppContact ? await resolveContactText(supabase, s, oppContact, companyId) : s;
+        if (s == null || s === "") return "";
+        const withContact = await resolveContactText(supabase, String(s), oppContact, companyId, { queueItem, entityId, strict: true });
         return rv(withContact);
       };
       const name = nomeOpportunitaPulito(await resolveOppText(ncfg.opportunity_name));
-      const value = Number((await resolveOppText(ncfg.opportunity_value)).replace(",", ".")) || 0;
-      const pipelineId = ncfg.pipeline_id;
-      const stageId = ncfg.stage_id || ncfg.stage;
+      if (!name.trim()) return { success: false, error: "Nome dell’opportunità mancante o variabile non disponibile" };
+      const rawValue = ncfg.opportunity_value == null || ncfg.opportunity_value === "" ? "0" : await resolveOppText(ncfg.opportunity_value);
+      const value = Number(rawValue.replace(",", "."));
+      if (rawValue.trim() === "" || !Number.isFinite(value) || value < 0) return { success: false, error: "Valore dell’opportunità non valido o variabile non disponibile" };
+      const pipelineId = rv(ncfg.pipeline_id);
+      const stageId = rv(ncfg.stage_id || ncfg.stage);
+      if (!UUID_RE.test(String(pipelineId ?? ""))) return { success: false, error: "Seleziona una pipeline valida" };
+      const { data: pipeline, error: pipelineError } = await supabase.from("marketing_pipelines")
+        .select("id").eq("id", pipelineId).eq("company_id", companyId).maybeSingle();
+      if (pipelineError) return { success: false, error: pipelineError.message };
+      if (!pipeline) return { success: false, error: "Pipeline non trovata per questa azienda" };
+      if (stageId) {
+        const { data: stage, error: stageError } = await supabase.from("marketing_pipeline_stages")
+          .select("id").eq("id", stageId).eq("company_id", companyId).eq("pipeline_id", pipelineId).maybeSingle();
+        if (stageError) return { success: false, error: stageError.message };
+        if (!stage) return { success: false, error: "Fase non trovata nella pipeline selezionata" };
+      }
 
       const fonte = await resolveOppText(ncfg.fonte);
+      if (queueItem?.flow_id) {
+        const { data: settings, error: settingsError } = await supabase.from("automation_flows")
+          .select("allow_multiple_opportunities").eq("id", queueItem.flow_id).eq("company_id", companyId).maybeSingle();
+        if (settingsError) return { success: false, error: settingsError.message };
+        if (!settings) return { success: false, error: "Impostazioni del flusso non disponibili" };
+        if (settings.allow_multiple_opportunities === false) {
+          const { data: open, error: openError } = await supabase.from("marketing_opportunities")
+            .select("id, pipeline_id").eq("company_id", companyId).eq("contact_id", oppContact.id)
+            .eq("status", "open").is("deleted_at", null).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+          if (openError) return { success: false, error: openError.message };
+          if (open && open.pipeline_id !== pipelineId) return { success: true, output: {
+            action: "create_opportunity", opportunity_id: open.id, skipped: true,
+            reason: "Il contatto ha già un’opportunità aperta in un’altra pipeline; più opportunità non consentite",
+          } };
+        }
+      }
 
       // ── CREA O AGGIORNA ──
       // Il contatto ha già un'opportunità aperta in questa pipeline (ha fatto
@@ -1837,18 +1934,19 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       // dov'è, di chi la sta seguendo. Fino al 18/09/2026 tornava invece nella
       // fase del flusso e cambiava di mano a ogni nuova compilazione: in BeMade
       // i contatti classificati «Non risponde» si ritrovavano in «Da Chiamare».
-      if (pipelineId && UUID_RE.test(String(entityId))) {
-        const { data: esistente } = await supabase
+      if (pipelineId && UUID_RE.test(String(oppContact.id))) {
+        const { data: esistente, error: existingError } = await supabase
           .from("marketing_opportunities")
           .select("id, name, stage_id, assigned_to, call_center_id, tags")
           .eq("company_id", companyId)
-          .eq("contact_id", entityId)
+          .eq("contact_id", oppContact.id)
           .eq("pipeline_id", pipelineId)
           .eq("status", "open")
           .is("deleted_at", null)
           .order("updated_at", { ascending: false })
           .limit(1)
           .maybeSingle();
+        if (existingError) return { success: false, error: existingError.message };
 
         if (esistente) {
           const adesso = new Date().toISOString();
@@ -1889,7 +1987,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
           // Nota sulla scheda: chi apre l'opportunità capisce perché è tornata qui.
           await supabase.from("marketing_contact_notes").insert({
             company_id: companyId,
-            contact_id: entityId,
+            contact_id: oppContact.id,
             opportunity_id: esistente.id,
             content: testoNotaAggiornamento({
               flusso: (flussoRes.data as { name?: string } | null)?.name ?? null,
@@ -1940,7 +2038,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       const insertData: any = {
         name,
         value,
-        contact_id: entityId,
+        contact_id: oppContact.id,
         company_id: companyId,
         status: "open",
       };
@@ -2499,12 +2597,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
 
     case "send_sms": {
       // Get contact (telefono + dati per la personalizzazione)
-      const { data: smsContact } = await supabase
-        .from("marketing_contacts")
-        .select("id, phone, first_name, last_name, email, city, province, company_name, source, optout_sms, opt_out")
-        .eq("id", entityId)
-        .eq("company_id", companyId)
-        .maybeSingle();
+      const smsContact = await resolveAutomationRecord(supabase, "contact", entityId, companyId, queueItem);
 
       // Numero esplicito dal builder (campo "numero"): prima era IGNORATO e
       // si inviava sempre al telefono del contatto.
@@ -2525,6 +2618,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         ncfg.sms_body || ncfg.message || "Messaggio automatico",
         smsContact,
         companyId,
+        { queueItem, entityId, strict: true },
       );
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const cronKey = Deno.env.get("INTERNAL_CRON_SECRET") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -2558,21 +2652,27 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
 
     case "send_ai_message": {
       try {
-        // 1. Load contact data for context
-        const { data: aiContact } = await supabase
-          .from("marketing_contacts")
-          .select("first_name, last_name, email, phone, company_name, tags, score")
-          .eq("id", entityId)
-          .eq("company_id", companyId)
-          .maybeSingle();
+        const aiContact = await resolveAutomationRecord(supabase, "contact", entityId, companyId, queueItem);
 
         if (!aiContact) return { success: false, error: "Contatto non trovato" };
 
-        const aiPrompt = ncfg.ai_prompt || ncfg.prompt || "Scrivi un messaggio di follow-up.";
+        let agentPrompt = "";
+        if (ncfg.agent_id) {
+          const agentId = rv(String(ncfg.agent_id));
+          if (!UUID_RE.test(agentId)) return { success: false, error: "ID dell’agente AI non valido" };
+          const { data: agent, error: agentError } = await supabase.from("ai_agents")
+            .select("id, system_prompt").eq("id", agentId).eq("company_id", companyId).maybeSingle();
+          if (agentError) return { success: false, error: agentError.message };
+          if (!agent) return { success: false, error: "Agente AI non trovato per questa azienda" };
+          agentPrompt = String(agent.system_prompt ?? "").trim();
+          if (!agentPrompt) return { success: false, error: "L’agente AI non ha istruzioni configurate" };
+        }
+        const aiPrompt = await resolveContactText(supabase, ncfg.ai_prompt || ncfg.prompt || "Scrivi un messaggio di follow-up.", aiContact, companyId, { queueItem, entityId, strict: true });
         const aiTone = ncfg.ai_tone || "professional";
         const aiLanguage = ncfg.ai_language || "it";
         const aiMaxLength = parseInt(ncfg.ai_max_length) || 500;
         const aiChannel = ncfg.ai_channel || "email";
+        if (!["email", "whatsapp", "sms"].includes(aiChannel)) return { success: false, error: "Canale AI non supportato" };
 
         const toneMap: Record<string, string> = {
           professional: "professionale e cortese",
@@ -2581,7 +2681,8 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         };
         const langMap: Record<string, string> = { it: "italiano", en: "inglese" };
 
-        const systemPrompt = `Sei un assistente marketing. Genera un messaggio per il canale "${aiChannel}".
+        const systemPrompt = `${agentPrompt || "Sei un assistente marketing."}
+Genera un messaggio per il canale "${aiChannel}". Questa azione genera solo testo: non dichiarare di aver prenotato o modificato dati.
 Tono: ${toneMap[aiTone] || aiTone}. Lingua: ${langMap[aiLanguage] || aiLanguage}.
 Lunghezza massima: ${aiMaxLength} caratteri.
 ${aiChannel === "email" ? "Genera subject (max 60 char) e body separati. Formato:\nSUBJECT: ...\nBODY: ..." : "Genera solo il testo del messaggio."}
@@ -2611,8 +2712,6 @@ Istruzione: ${aiPrompt}`;
         if (!generatedText) return { success: false, error: "AI non ha generato testo" };
 
         // 3. Dispatch to channel
-        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-
         if (aiChannel === "email") {
           let subject = "Messaggio automatico";
           let body = generatedText;
@@ -2621,23 +2720,12 @@ Istruzione: ${aiPrompt}`;
           if (subjectMatch) subject = subjectMatch[1].trim();
           if (bodyMatch) body = bodyMatch[1].trim();
 
-          return await executeSendEmail(supabase, { ...ncfg, email_subject: subject, email_body: body }, entityId, companyId, undefined, queueItem?.flow_id);
+          return await executeSendEmail(supabase, { ...ncfg, oggetto: subject, corpo: body, email_subject: subject, email_body: body }, entityId, companyId, queueItem, queueItem?.flow_id);
         } else if (aiChannel === "whatsapp") {
-          return await executeSendWhatsApp(supabase, { ...ncfg, whatsapp_body: generatedText }, entityId, companyId);
+          return await executeSendWhatsApp(supabase, { ...ncfg, messaggio: generatedText, whatsapp_body: generatedText }, entityId, companyId, queueItem);
         } else if (aiChannel === "sms") {
-          if (!aiContact.phone) return { success: false, error: "Contatto senza telefono" };
-          const aiSmsCronKey = Deno.env.get("INTERNAL_CRON_SECRET") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-          const smsRes = await fetch(`${supabaseUrl}/functions/v1/telnyx-proxy`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-cron-secret": aiSmsCronKey },
-            body: JSON.stringify({
-              action: "send_sms", company_id: companyId,
-              payload: { to: aiContact.phone, body: generatedText, contact_id: entityId },
-            }),
-          });
-          const smsResult = await smsRes.json();
-          if (!smsRes.ok || smsResult?.error) return { success: false, error: smsResult?.error || `HTTP ${smsRes.status}` };
-          return { success: true, output: { action: "send_ai_message", channel: "sms", message_id: smsResult?.message_id } };
+          // Same consent and recipient checks as a normal SMS; never a bypass.
+          return await executeAction(supabase, { ...ncfg, action_type: "send_sms", testo: generatedText, sms_body: generatedText, message: generatedText }, entityId, companyId, queueItem);
         }
 
         return { success: true, output: { action: "send_ai_message", channel: aiChannel, generated: true } };
@@ -2674,36 +2762,29 @@ Istruzione: ${aiPrompt}`;
     }
 
     case "wait_for_event": {
+      const timeoutDays = ncfg.timeout_days == null || ncfg.timeout_days === "" ? 7 : Number(ncfg.timeout_days);
+      if (!ncfg.await_event || !Number.isInteger(timeoutDays) || timeoutDays < 1 || timeoutDays > 365) return { success: false, error: "Scegli l’evento e un timeout intero tra 1 e 365 giorni" };
       // This action puts the enrollment in a "waiting" state
       // The actual waiting is handled by setting a delayed queue item
       // When the awaited event fires, processTriggerEvents will check for waiting enrollments
       return {
         success: true,
-        output: { action: "wait_for_event", waiting: true, await_event: ncfg.await_event, timeout_days: ncfg.timeout_days || 7 },
+        output: { action: "wait_for_event", waiting: true, await_event: ncfg.await_event, timeout_days: timeoutDays },
         isWaiting: true,
         awaitEvent: ncfg.await_event,
-        timeoutDays: parseInt(ncfg.timeout_days) || 7,
+        timeoutDays,
       };
     }
 
     case "webhook_out": {
-      const url = ncfg.webhook_url;
+      const url = rv(ncfg.webhook_url);
       if (!url) return { success: false, error: "No webhook_url configured" };
 
       // SSRF protection
       try {
-        const parsed = new URL(url);
-        const BLOCKED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0", "169.254.169.254", "[::1]"];
-        const BLOCKED_PREFIXES = ["10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31.", "192.168."];
-        if (
-          BLOCKED_HOSTS.includes(parsed.hostname) ||
-          BLOCKED_PREFIXES.some(p => parsed.hostname.startsWith(p)) ||
-          parsed.protocol === "file:"
-        ) {
-          return { success: false, error: `Webhook verso indirizzo non permesso: ${parsed.hostname}` };
-        }
-      } catch {
-        return { success: false, error: `URL non valido: ${url}` };
+        automationWebhookUrl(url);
+      } catch (urlError: any) {
+        return { success: false, error: urlError.message || "URL webhook non valido" };
       }
 
       // Il catalogo espone `metodo` (POST/PUT/PATCH/GET) e `headers` (JSON):
@@ -2719,22 +2800,24 @@ Istruzione: ${aiPrompt}`;
             if (typeof v === "string" && k.length <= 100 && v.length <= 500) extraHeaders[k] = v;
           }
         }
-      } catch { /* headers malformati: ignora, si usa solo Content-Type */ }
+      } catch { return { success: false, error: "Gli header del webhook devono essere un oggetto JSON valido" }; }
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10_000);
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10_000);
         const resp = await fetch(url, {
           method,
+          redirect: "error",
           headers: { "Content-Type": "application/json", ...extraHeaders },
           body: method === "GET" ? undefined : JSON.stringify({ entity_id: entityId, company_id: companyId, config: ncfg }),
           signal: controller.signal,
         });
-        clearTimeout(timeoutId);
         const text = await resp.text();
         return { success: resp.ok, output: { action: "webhook_out", method, status: resp.status, body: text.slice(0, 500) }, error: resp.ok ? undefined : `HTTP ${resp.status}` };
       } catch (e: any) {
         return { success: false, error: e.message };
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
@@ -2745,7 +2828,8 @@ Istruzione: ${aiPrompt}`;
       // errore Postgres a ogni esecuzione). Dati cliente denormalizzati dal
       // contatto del flusso, come fa crea_cantiere.
       const title = rv(ncfg.titolo || ncfg.task_title || "Nuovo ordine automatico");
-      const importo = parseFloat(String(ncfg.importo || 0)) || 0;
+      const importo = Number(String(rv(ncfg.importo ?? 0)).replace(",", "."));
+      if (!Number.isFinite(importo) || importo < 0 || (ncfg.importo && String(rv(ncfg.importo)).trim() === "")) return { success: false, error: "Importo non valido o variabile non disponibile" };
       const ordContact = await selectedCustomer();
       if (!ordContact) return { success: false, error: "Cliente non trovato per questa azienda" };
       const ordClientName = ordContact
@@ -2798,8 +2882,9 @@ Istruzione: ${aiPrompt}`;
       // Rispecchia il path ufficiale preventivo→cantiere (migration converti_preventivo_cantiere
       // + RPC sr_converti_in_ordine): customer_id nullable, dati cliente denormalizzati nei
       // campi client_*, status testuale 'confermato'.
-      const nome = ncfg.nome || "Cantiere automatico";
-      const importo = parseFloat(String(ncfg.importo ?? 0)) || 0;
+      const nome = rv(ncfg.nome || "Cantiere automatico");
+      const importo = Number(String(rv(ncfg.importo ?? 0)).replace(",", "."));
+      if (!Number.isFinite(importo) || importo < 0 || (ncfg.importo && String(rv(ncfg.importo)).trim() === "")) return { success: false, error: "Importo non valido o variabile non disponibile" };
 
       // Arricchisci dai dati del contatto marketing (entity del flow), se disponibile.
       const cantiereContact = await selectedCustomer();
@@ -2849,14 +2934,31 @@ Istruzione: ${aiPrompt}`;
     }
 
     case "crea_appuntamento": {
+      const configuredContact = ncfg.contact_id ? rv(String(ncfg.contact_id)) : null;
+      if (ncfg.contact_id && (!configuredContact || !UUID_RE.test(configuredContact))) {
+        return { success: false, error: "Il contatto dell’appuntamento non contiene un ID valido" };
+      }
+      const appointmentContact = await resolveAutomationRecord(supabase, "contact",
+        configuredContact || entityId, companyId, configuredContact ? { entity_type: "contact" } : queueItem);
+      if (!appointmentContact?.id) return { success: false, error: "Contatto non trovato per questa azienda" };
+      const calendarId = ncfg.calendario_id ? rv(String(ncfg.calendario_id)) : null;
+      if (ncfg.calendario_id && (!calendarId || !UUID_RE.test(calendarId))) {
+        return { success: false, error: "Il calendario non contiene un ID valido" };
+      }
+      if (calendarId) {
+        const { data: calendar, error: calendarError } = await supabase.from("marketing_calendars")
+          .select("id, is_active").eq("id", calendarId).eq("company_id", companyId).maybeSingle();
+        if (calendarError) return { success: false, error: calendarError.message };
+        if (!calendar || calendar.is_active === false) return { success: false, error: "Calendario non disponibile per questa azienda" };
+      }
       // Fascia scelta sul WhatsApp («15-16»): l'appuntamento nasce direttamente
       // nel calendario scelto, nel primo slot libero della fascia. Giorno e ora
       // restano nel payload per la conferma al cliente ({{giorno_chiamata}}).
       if (ncfg.modo === "da_fascia_messaggio") {
-        if (!ncfg.calendario_id || !UUID_RE.test(String(ncfg.calendario_id))) return { success: false, error: "Scegli il calendario in cui fissare la chiamata" };
+        if (!calendarId) return { success: false, error: "Scegli il calendario in cui fissare la chiamata" };
         try {
           const c = await fissaChiamataDaFascia(supabase, {
-            companyId, calendarId: String(ncfg.calendario_id), contactId: String(ncfg.contact_id || entityId),
+            companyId, calendarId, contactId: appointmentContact.id,
             messaggio: String(pPayload.message ?? ""), titolo: ncfg.titolo ? rv(String(ncfg.titolo)) : undefined,
           });
           pPayload.giorno_chiamata = c.giornoEsteso;
@@ -2866,7 +2968,9 @@ Istruzione: ${aiPrompt}`;
           return { success: false, error: e instanceof Error ? e.message : String((e as any)?.message ?? e) };
         }
       }
-      const title = ncfg.titolo || "Appuntamento automatico";
+      const title = rv(ncfg.titolo || "Appuntamento automatico");
+      const appointmentTime = ncfg.orario || "10:00";
+      if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(String(appointmentTime))) return { success: false, error: "Orario dell’appuntamento non valido" };
       const giorniDaOggi = ncfg.giorni_da_oggi == null || ncfg.giorni_da_oggi === "" ? 1 : Number(ncfg.giorni_da_oggi);
       if (!Number.isInteger(giorniDaOggi) || giorniDaOggi < 0) return { success: false, error: "I giorni devono essere un intero da zero in su" };
       // Giorno ITALIANO, non UTC (convenzione anti UTC-drift).
@@ -2875,9 +2979,10 @@ Istruzione: ${aiPrompt}`;
       const { data, error } = await supabase.from("appointments").insert({
         company_id: companyId,
         title,
-        contact_id: ncfg.contact_id || entityId,
+        contact_id: appointmentContact.id,
+        calendar_id: calendarId,
         appointment_date: appointmentDateStr,
-        appointment_time: ncfg.orario || "10:00",
+        appointment_time: appointmentTime,
         appointment_type: ncfg.tipo || "in_sede",
         assigned_to: ncfg.assegnato_a || null,
         status: "confermato",
@@ -2909,7 +3014,8 @@ Istruzione: ${aiPrompt}`;
     }
 
     case "crea_fattura": {
-      const importo = parseFloat(String(ncfg.importo || 0)) || 0;
+      const importo = Number(String(rv(ncfg.importo ?? 0)).replace(",", "."));
+      if (!Number.isFinite(importo) || importo < 0 || (ncfg.importo && String(rv(ncfg.importo)).trim() === "")) return { success: false, error: "Importo non valido o variabile non disponibile" };
       const scadenzaGiorni = ncfg.scadenza_giorni == null || String(ncfg.scadenza_giorni).trim() === "" ? 30 : Number(ncfg.scadenza_giorni);
       if (!Number.isInteger(scadenzaGiorni) || scadenzaGiorni < 0) return { success: false, error: "La scadenza deve essere un numero intero di giorni, maggiore o uguale a zero" };
       // Giorno ITALIANO, non UTC (convenzione anti UTC-drift).
@@ -2924,6 +3030,7 @@ Istruzione: ${aiPrompt}`;
         : "";
       const { data, error } = await supabase.from("invoices").insert({
         company_id: companyId,
+        client_id: invContact.id,
         client_company_name: invContact?.company_name || invClientName || "Cliente",
         client_email: invContact?.email || null,
         subtotal: importo,
@@ -2993,8 +3100,11 @@ Istruzione: ${aiPrompt}`;
     case "drip_sequenza": {
       // Sequenza a goccia: accoda i nodi successori N volte a intervalli crescenti.
       // L'accodamento temporizzato è gestito da queueNextNodes (result.isDrip).
-      const intervalHours = parseInt(String(ncfg.intervallo_ore)) || 24;
-      const count = Math.min(Math.max(parseInt(String(ncfg.num_messaggi)) || 1, 1), 20);
+      const intervalHours = ncfg.intervallo_ore == null || ncfg.intervallo_ore === "" ? 24 : Number(ncfg.intervallo_ore);
+      const count = ncfg.num_messaggi == null || ncfg.num_messaggi === "" ? 1 : Number(ncfg.num_messaggi);
+      if (!Number.isFinite(intervalHours) || intervalHours <= 0 || !Number.isInteger(count) || count < 1 || count > 20) {
+        return { success: false, error: "La sequenza richiede un intervallo positivo e da 1 a 20 messaggi" };
+      }
       return {
         success: true,
         output: { action: "drip_sequenza", num_messaggi: count, intervallo_ore: intervalHours, label: ncfg.label || null },
@@ -3010,17 +3120,20 @@ Istruzione: ${aiPrompt}`;
     // Le 3 più sensibili richiedono in più l'autore super_admin in allowlist.
     // ═══════════════════════════════════════════════════════════════════
     case "invia_email_admin_azienda": {
-      let to = String(rv(ncfg.email_to) || rv(cfg.destinatario) || pPayload["azienda.email"] || "").trim();
+      let to = String(rv(ncfg.email_to) || rv(cfg.destinatario) || "").trim();
       if (!to) {
-        const { data: comp } = await supabase.from("companies").select("email").eq("id", subjectCompanyId).maybeSingle();
-        to = String(comp?.email || "").trim();
+        const admin = await platformCompanyAdmin(supabase, subjectCompanyId);
+        to = admin?.email || "";
       }
       if (!to) return { success: false, error: "Email admin azienda non determinabile" };
-      const subject = rv(cfg.oggetto) || "Comunicazione dalla piattaforma";
-      const branded = await brandEmailBody(supabase, subjectCompanyId, rv(cfg.corpo) || "", subject);
+      const subject = rv(cfg.oggetto), body = rv(cfg.corpo, true);
+      if (!subject?.trim() || emailContentEmpty(body)) return { success: false, error: "Completa oggetto e corpo dell’email piattaforma" };
+      const branded = await brandEmailBody(supabase, PLATFORM_ADMIN_COMPANY_ID, body, subject);
       const res = await sendEmailUnified({
         companyId: subjectCompanyId,
         stream: "transactional",
+        platformSender: true,
+        skipCredits: true,
         to,
         subject,
         html: branded.html,
@@ -3033,9 +3146,10 @@ Istruzione: ${aiPrompt}`;
     }
 
     case "crea_cs_task": {
+      if (!rv(cfg.titolo)?.trim()) return { success: false, error: "Titolo CS task mancante" };
       const PRIO: Record<string, string> = { urgente: "urgent", alta: "high", media: "medium", bassa: "low" };
       let dueDate: string | null = null;
-      const dueDays = cfg.scadenza_giorni != null ? parseInt(String(cfg.scadenza_giorni)) : NaN;
+      const dueDays = cfg.scadenza_giorni != null && cfg.scadenza_giorni !== "" ? Number(cfg.scadenza_giorni) : NaN;
       if (!Number.isNaN(dueDays)) {
         // Giorno ITALIANO, non UTC (convenzione anti UTC-drift).
         dueDate = new Date(Date.now() + dueDays * 86_400_000)
@@ -3050,9 +3164,10 @@ Istruzione: ${aiPrompt}`;
         task_type: "automation",
         due_date: dueDate,
         assigned_to: UUID_RE.test(String(cfg.assegnato_a || "")) ? cfg.assegnato_a : null,
-        created_by: SYSTEM_USER_ID,
+        created_by: platformActor,
       }).select("id").maybeSingle();
       if (error) return { success: false, error: error.message };
+      if (!data?.id) return { success: false, error: "CS task non registrato: nessun ID restituito" };
       return { success: true, output: { action: "crea_cs_task", "cs_task.id": data?.id } };
     }
 
@@ -3060,18 +3175,16 @@ Istruzione: ${aiPrompt}`;
       if (!(await flowAuthorIsAllowedSuperAdmin(supabase, queueItem?.flow_id))) {
         return { success: false, error: "Autorizzazione super_admin (allowlist) richiesta per cambiare piano" };
       }
-      const planRef = String(rv(cfg.nuovo_piano) || "").trim().toLowerCase().replace(/[^\w \-]/g, "");
+      const planRef = String(rv(cfg.nuovo_piano) || "").trim();
       if (!planRef) return { success: false, error: "Piano non specificato" };
-      const { data: plan } = await supabase
-        .from("subscription_plans")
-        .select("id, name, slug")
-        .or(`slug.eq.${planRef},name.ilike.${planRef}`)
-        .limit(1)
-        .maybeSingle();
+      const plan = await platformSubscriptionPlan(supabase, planRef);
       if (!plan?.id) return { success: false, error: `Piano "${planRef}" non trovato` };
-      const { error } = await supabase.from("companies").update({ subscription_plan_id: plan.id }).eq("id", subjectCompanyId);
-      if (error) return { success: false, error: error.message };
-      return { success: true, output: { action: "cambia_piano_azienda", plan: plan.slug } };
+      const { data: author, error: authorError } = await supabase.from("automation_flows").select("created_by").eq("id", queueItem?.flow_id).eq("company_id", PLATFORM_ADMIN_COMPANY_ID).maybeSingle();
+      if (authorError || !author?.created_by) return { success: false, error: "Autore del cambio piano non determinabile" };
+      const response = await changeCompanyPlan(supabase, author.created_by, { company_id: subjectCompanyId, new_plan_id: plan.id, ...(cfg.motivo ? { motivo: rv(cfg.motivo) } : {}) });
+      const result = await response.json();
+      if (!response.ok || !result.success) return { success: false, error: result.error || "Cambio piano fallito" };
+      return { success: true, output: { action: "cambia_piano_azienda", plan: plan.slug, ...result } };
     }
 
     case "aggiungi_nota_azienda": {
@@ -3079,7 +3192,7 @@ Istruzione: ${aiPrompt}`;
       if (!content) return { success: false, error: "Nota vuota" };
       const { error } = await supabase.from("company_notes").insert({
         company_id: subjectCompanyId,
-        author_id: SYSTEM_USER_ID,
+        author_id: platformActor,
         content,
       });
       if (error) return { success: false, error: error.message };
@@ -3087,11 +3200,25 @@ Istruzione: ${aiPrompt}`;
     }
 
     case "invia_notifica_team_admin": {
-      const message = rv(cfg.messaggio) || "Notifica piattaforma";
-      const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "super_admin");
+      const message = rv(cfg.messaggio);
+      if (!message?.trim()) return { success: false, error: "Messaggio notifica piattaforma mancante" };
+      const { data: admins, error: adminsError } = await supabase.from("user_roles").select("user_id").eq("role", "super_admin");
+      if (adminsError) return { success: false, error: adminsError.message };
       const ids: string[] = Array.from(new Set((admins || []).map((r: any) => r.user_id).filter(Boolean)));
       if (ids.length === 0) {
-        return { success: true, output: { action: "invia_notifica_team_admin", notified: 0, note: "Nessun super_admin trovato" } };
+        return { success: false, error: "Nessun super_admin destinatario trovato" };
+      }
+      if (cfg.canale === "email") {
+        let notified = 0;
+        for (const uid of ids) {
+          const email = await resolveUserEmail(supabase, uid);
+          if (!email) return { success: false, error: "Email di un destinatario superadmin mancante", output: { notified } };
+          const branded = await brandEmailBody(supabase, PLATFORM_ADMIN_COMPANY_ID, escapeEmailValue(message), "Notifica piattaforma");
+          const sent = await sendEmailUnified({ companyId: PLATFORM_ADMIN_COMPANY_ID, stream: "transactional", platformSender: true, skipCredits: true, to: email, subject: "Notifica piattaforma", html: branded.html, text: branded.text, adminClient: supabase, metadata: { source: "platform_automation", action: "invia_notifica_team_admin" } });
+          if (!sent?.ok) return { success: false, error: "Invio notifica email fallito", output: { notified } };
+          notified++;
+        }
+        return { success: true, output: { action: "invia_notifica_team_admin", notified, channel: "email" } };
       }
       const rows = ids.map((uid) => ({
         company_id: PLATFORM_ADMIN_COMPANY_ID,
@@ -3114,13 +3241,18 @@ Istruzione: ${aiPrompt}`;
       const email = String(rv(cfg.email) || pPayload["contatto.email"] || pPayload["azienda.email"] || "").trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { success: false, error: "Email admin non valida per il provisioning" };
       const name = String(rv(cfg.nome) || pPayload["azienda.name"] || pPayload["contatto.company_name"] || `Azienda ${email.split("@")[0]}`).slice(0, 120);
-      const planRef = String(rv(cfg.piano) || "").trim().toLowerCase().replace(/[^\w \-]/g, "");
+      const planRef = String(rv(cfg.piano) || "").trim();
       let planId: string | null = null;
-      let trialDays = parseInt(String(cfg.trial_giorni ?? 0)) || 0;
+      let trialDays = cfg.trial_giorni == null || cfg.trial_giorni === "" ? null : Number(cfg.trial_giorni);
       if (planRef) {
-        const { data: plan } = await supabase.from("subscription_plans").select("id, trial_days").or(`slug.eq.${planRef},name.ilike.${planRef}`).limit(1).maybeSingle();
-        if (plan?.id) { planId = plan.id; if (!cfg.trial_giorni && plan.trial_days) trialDays = plan.trial_days; }
+        const plan = await platformSubscriptionPlan(supabase, planRef);
+        if (!plan?.id) return { success: false, error: "Piano per il nuovo account non trovato" };
+        planId = plan.id;
+        trialDays ??= Number(plan.trial_days ?? 0);
       }
+      if (!planId) return { success: false, error: "Seleziona un piano valido prima di creare l’account" };
+      trialDays ??= 0;
+      if (!Number.isInteger(trialDays) || trialDays < 0 || trialDays > 90) return { success: false, error: "Durata del trial non valida" };
       const trialEndsAt = trialDays > 0 ? new Date(Date.now() + trialDays * 86400000).toISOString() : null;
       const password = generateTempPassword();
       const { data: authData, error: authErr } = await supabase.auth.admin.createUser({ email, password, email_confirm: true });
@@ -3137,6 +3269,12 @@ Istruzione: ${aiPrompt}`;
         return { success: false, error: `Creazione azienda fallita: ${compErr?.message || "unknown"}` };
       }
       const newCompanyId = companyRow.id;
+      const phases = await creaFasiCommessa(supabase, newCompanyId, "altro");
+      if (phases.errore) {
+        await swallow(supabase.from("companies").delete().eq("id", newCompanyId));
+        await swallow(supabase.auth.admin.deleteUser(newUserId));
+        return { success: false, error: `Configurazione fasi commessa fallita: ${phases.errore}` };
+      }
       const { error: profErr } = await supabase.from("profiles").insert({
         id: newUserId, email, first_name: "Admin", last_name: name, company_id: newCompanyId,
       });
@@ -3145,14 +3283,24 @@ Istruzione: ${aiPrompt}`;
         await swallow(supabase.auth.admin.deleteUser(newUserId));
         return { success: false, error: `Creazione profilo fallita: ${profErr.message}` };
       }
-      await swallow(supabase.from("user_roles").insert({ user_id: newUserId, role: "company_admin" }));
+      const { error: roleError } = await supabase.from("user_roles").insert({ user_id: newUserId, role: "company_admin" });
+      if (roleError) {
+        await swallow(supabase.from("companies").delete().eq("id", newCompanyId));
+        await swallow(supabase.auth.admin.deleteUser(newUserId));
+        return { success: false, error: `Assegnazione ruolo fallita: ${roleError.message}` };
+      }
+      await emitPlatformEvent(supabase, PLATFORM_EVENTS.COMPANY_CREATED, { entityId: newCompanyId, entityType: "company", payload: { "azienda.id": newCompanyId, "azienda.name": name, "azienda.email": email, "azienda.piano": planRef, "azienda.created_at": new Date().toISOString() } });
       if (cfg.invia_credenziali !== "no") {
-        await swallow(sendEmailUnified({
+        const { data: link, error: linkError } = await supabase.auth.admin.generateLink({ type: "recovery", email, options: { redirectTo: "https://app.ediliziaincloud.com/reset-password" } });
+        if (linkError || !link?.properties?.action_link) return { success: false, error: "Account creato, ma generazione link di accesso fallita: reinvia l’accesso dalla gestione azienda.", output: { "nuovo_account.id": newCompanyId, "nuovo_account.email_admin": email } };
+        const sent = await sendEmailUnified({
           companyId: newCompanyId, stream: "transactional", to: email,
+          platformSender: true, skipCredits: true,
           subject: "Il tuo account EdiliziaInCloud è pronto",
-          html: `<p>Benvenuto, ${name}.</p><p>Accedi con:<br/>Email: <b>${email}</b><br/>Password temporanea: <b>${password}</b></p><p>Cambia la password al primo accesso.</p>`,
+          html: `<p>Benvenuto, ${escapeEmailValue(name)}.</p><p>Il tuo account è pronto. <a href="${escapeEmailValue(link.properties.action_link)}">Imposta la password e accedi</a>.</p><p>Il link è personale: non condividerlo.</p>`,
           adminClient: supabase, metadata: { source: "platform_automation", action: "crea_account_azienda" },
-        }));
+        });
+        if (!sent?.ok) return { success: false, error: "Account creato, ma invio email fallito: non ricreare l’account, reinvia l’accesso dalla gestione azienda.", output: { "nuovo_account.id": newCompanyId, "nuovo_account.email_admin": email } };
       }
       return { success: true, output: { action: "crea_account_azienda", "nuovo_account.id": newCompanyId, "nuovo_account.email_admin": email } };
     }
@@ -3161,13 +3309,17 @@ Istruzione: ${aiPrompt}`;
       if (!(await flowAuthorIsAllowedSuperAdmin(supabase, queueItem?.flow_id))) {
         return { success: false, error: "Autorizzazione super_admin (allowlist) richiesta per fatturare" };
       }
-      const importo = Number(cfg.importo);
-      if (!Number.isFinite(importo) || importo < 0) return { success: false, error: "Importo fattura non valido" };
-      const scadenzaGiorni = parseInt(String(cfg.scadenza_giorni ?? 30)) || 30;
+      const importo = Number(String(rv(cfg.importo) ?? "").replace(",", "."));
+      if (cfg.importo == null || cfg.importo === "" || !Number.isFinite(importo) || importo < 0) return { success: false, error: "Importo fattura non valido" };
+      const scadenzaGiorni = cfg.scadenza_giorni == null || cfg.scadenza_giorni === "" ? 30 : Number(cfg.scadenza_giorni);
       const now = new Date();
       const periodEnd = new Date(now.getTime() + scadenzaGiorni * 86400000);
-      const synthId = `manual_${crypto.randomUUID()}`;
-      const { data, error } = await supabase.from("subscription_invoices").insert({
+      if (!queueItem?.id) return { success: false, error: "Identificativo esecuzione mancante: impossibile registrare un addebito senza duplicati" };
+      const synthId = `manual_automation_${queueItem.id}`;
+      const { data: existing, error: readError } = await supabase.from("subscription_invoices").select("id, company_id, amount_due, status").eq("stripe_invoice_id", synthId).maybeSingle();
+      if (readError) return { success: false, error: readError.message };
+      if (existing && (existing.company_id !== subjectCompanyId || Number(existing.amount_due) !== Math.round(importo * 100))) return { success: false, error: "Addebito già presente con azienda o importo differente: verifica manualmente" };
+      const { data, error } = existing ? { data: existing, error: null } : await supabase.from("subscription_invoices").insert({
         company_id: subjectCompanyId,
         stripe_invoice_id: synthId,
         amount_due: Math.round(importo * 100),
@@ -3176,46 +3328,63 @@ Istruzione: ${aiPrompt}`;
         status: "open",
         period_start: now.toISOString(),
         period_end: periodEnd.toISOString(),
+        due_date: periodEnd.toISOString(),
       }).select("id").maybeSingle();
       if (error) return { success: false, error: error.message };
+      if (!data?.id) return { success: false, error: "Addebito non registrato: nessun ID restituito" };
+      if (existing?.status === "paid") return { success: true, output: { action: "invia_fattura", "fattura.id": data.id, "fattura.numero": synthId, already_paid: true } };
       if (cfg.invia_email !== "no") {
-        const { data: comp } = await supabase.from("companies").select("email").eq("id", subjectCompanyId).maybeSingle();
+        const { data: comp, error: emailError } = await supabase.from("companies").select("email").eq("id", subjectCompanyId).maybeSingle();
+        if (emailError) return { success: false, error: "Addebito registrato, ma lettura destinatario fallita", output: { "fattura.id": data.id } };
         const to = String(pPayload["azienda.email"] || comp?.email || "").trim();
+        if (!to) return { success: false, error: "Addebito registrato, ma email destinataria mancante", output: { "fattura.id": data?.id } };
         if (to) {
-          await swallow(sendEmailUnified({
+          const sent = await sendEmailUnified({
             companyId: subjectCompanyId, stream: "transactional", to,
-            subject: "Nuova fattura EdiliziaInCloud",
-            html: `<p>${rv(cfg.descrizione) || "Fattura"}</p><p>Importo: € ${importo.toFixed(2)}</p>`,
+            platformSender: true, skipCredits: true,
+            subject: "Nuovo addebito EdiliziaInCloud",
+            html: `<p>${escapeEmailValue(rv(cfg.descrizione) || "Addebito abbonamento")}</p><p>Importo: € ${importo.toFixed(2)}</p><p>Questa comunicazione non è una fattura fiscale.</p>`,
             adminClient: supabase, metadata: { source: "platform_automation", action: "invia_fattura" },
-          }));
+          });
+          if (!sent?.ok) return { success: false, error: "Addebito registrato, ma invio email fallito", output: { "fattura.id": data?.id } };
         }
       }
       return { success: true, output: { action: "invia_fattura", "fattura.id": data?.id, "fattura.numero": synthId } };
     }
 
     case "attiva_onboarding": {
-      const { data: tpl } = await supabase
-        .from("onboarding_templates")
-        .select("id")
-        .order("is_default", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const selected = String(cfg.sequenza ?? "standard");
+      let templates = supabase.from("onboarding_templates").select("id");
+      if (UUID_RE.test(selected)) templates = templates.eq("id", selected);
+      else if (selected === "standard" || selected === "") templates = templates.eq("is_default", true);
+      else templates = templates.eq("name", selected); // Legacy names must match a real template.
+      const { data: tpl, error: templateError } = await templates.order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (templateError) return { success: false, error: templateError.message };
       if (!tpl?.id) {
-        return { success: true, output: { action: "attiva_onboarding", skipped: true, reason: "Nessun onboarding_template disponibile" } };
+        return { success: false, error: "La sequenza onboarding selezionata non esiste: scegli un template reale" };
       }
-      const { error } = await supabase.from("company_onboarding").insert({
+      const { data: existing, error: existingError } = await supabase.from("company_onboarding").select("id, template_id, status").eq("company_id", subjectCompanyId).maybeSingle();
+      if (existingError) return { success: false, error: existingError.message };
+      if (existing) {
+        if (existing.template_id !== tpl.id) return { success: false, error: "L’azienda ha già una sequenza onboarding diversa: modifica il percorso dalla scheda azienda, senza perdere i progressi" };
+        if (cfg.assegna_cs) {
+          const { error } = await supabase.from("company_onboarding").update({ assigned_cs: cfg.assegna_cs }).eq("id", existing.id).eq("company_id", subjectCompanyId);
+          if (error) return { success: false, error: error.message };
+        }
+        return { success: true, output: { action: "attiva_onboarding", already_active: true, template_id: tpl.id, "onboarding.id": existing.id, status: existing.status } };
+      }
+      const { data: created, error } = await supabase.from("company_onboarding").insert({
         company_id: subjectCompanyId,
         template_id: tpl.id,
         assigned_cs: UUID_RE.test(String(cfg.assegna_cs || "")) ? cfg.assegna_cs : null,
         status: "in_progress",
-      });
+      }).select("id").single();
       if (error) {
-        if (String(error.code) === "23505" || /duplicate|unique/i.test(error.message || "")) {
-          return { success: true, output: { action: "attiva_onboarding", already_active: true } };
-        }
+        // A race must be retried and re-read, not reported as a matching sequence.
         return { success: false, error: error.message };
       }
-      return { success: true, output: { action: "attiva_onboarding", template_id: tpl.id } };
+      if (!created?.id) return { success: false, error: "Onboarding non registrato: nessun ID restituito" };
+      return { success: true, output: { action: "attiva_onboarding", template_id: tpl.id, "onboarding.id": created.id } };
     }
 
     default:
@@ -3317,11 +3486,31 @@ function dentroLaFinestra(quando: Date, flusso: Record<string, any> | null): Dat
   throw new Error("Nessuna finestra oraria valida nei prossimi otto giorni");
 }
 
-async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNode, result: any) {
-  // In test mode le iscrizioni si chiudono come 'canceled': 'completed'
-  // bloccherebbe il futuro arruolamento REALE del contatto (blockedStatuses).
+async function completeEnrollmentIfIdle(supabase: any, queueItem: any) {
+  // A leaf ends one branch, not every scheduled drip or parallel branch.
+  // Call only AFTER the current step is final and its successors are queued.
+  const { data: outstanding, error } = await supabase.from("automation_queue")
+    .select("id").eq("enrollment_id", queueItem.enrollment_id)
+    .eq("company_id", queueItem.company_id).eq("flow_id", queueItem.flow_id)
+    .in("status", ["pending", "processing", "waiting"]).limit(1);
+  if (error) throw error;
+  if (outstanding?.length) return;
   const doneStatus = queueItem?.context_json?.payload?.test_mode || queueItem?.context_json?.payload?.dry_run
     ? "canceled" : "completed";
+  const { data: closed, error: closeError } = await supabase.from("automation_enrollments")
+    .update({ status: doneStatus, updated_at: new Date().toISOString() })
+    .eq("id", queueItem.enrollment_id).eq("company_id", queueItem.company_id)
+    .eq("flow_id", queueItem.flow_id).in("status", ["active", "waiting"]).select("id");
+  if (closeError) throw closeError;
+  if (closed?.length) await completeExecutionRun(supabase, queueItem.enrollment_id, "completed");
+}
+
+async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNode, result: any) {
+  const nextContext = automationNextContext(queueItem.context_json, result.output);
+  const enqueue = async (row: Record<string, unknown>) => {
+    const { error } = await supabase.from("automation_queue").insert(row);
+    if (error) throw error;
+  };
   // ── vai_a (Go To): salta a un nodo specifico ignorando gli archi del grafo ──
   // Va prima del controllo "nessuna connessione": un nodo vai_a può non avere archi uscenti.
   if (result.isJump && result.jumpToNodeId) {
@@ -3353,7 +3542,7 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
       return;
     }
 
-    await supabase.from("automation_queue").insert({
+    await enqueue({
       enrollment_id: queueItem.enrollment_id,
       flow_id: queueItem.flow_id,
       company_id: queueItem.company_id,
@@ -3362,25 +3551,21 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
       entity_type: queueItem.entity_type,
       status: "pending",
       execute_at: new Date().toISOString(),
-      context_json: { ...queueItem.context_json, _jump_count: jumpCount, jumped_from: node.id, prev_result: result.output },
+      context_json: { ...nextContext, _jump_count: jumpCount, jumped_from: node.id },
     });
     return;
   }
 
   // Get all connections from this node
-  const { data: connections } = await supabase
+  const { data: connections, error: connectionError } = await supabase
     .from("automation_connections")
     .select("*")
     .eq("flow_id", queueItem.flow_id)
     .eq("from_node_id", node.id);
+  if (connectionError) throw connectionError;
 
   if (!connections || connections.length === 0) {
-    // No next node — complete enrollment
-    await supabase
-      .from("automation_enrollments")
-      .update({ status: doneStatus, updated_at: new Date().toISOString() })
-      .eq("id", queueItem.enrollment_id);
-    await completeExecutionRun(supabase, queueItem.enrollment_id, "completed");
+    // The worker checks ALL remaining branches after marking this step final.
     return;
   }
 
@@ -3415,14 +3600,7 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
       if (!anyLabeled) {
         nextConns = connections;
       } else {
-        await supabase
-          .from("automation_enrollments")
-          .update({ status: doneStatus, updated_at: new Date().toISOString() })
-          .eq("id", queueItem.enrollment_id);
-        // Anche l'esecuzione va chiusa (20/09/2026): l'iscrizione finiva, ma
-        // nell'elenco restava «in corso» per sempre ogni flusso che termina su
-        // un ramo senza uscite («non è un mio contatto» → fine).
-        await completeExecutionRun(supabase, queueItem.enrollment_id, "completed");
+        // No output for this branch. Other branches may still be running.
         return;
       }
     }
@@ -3450,7 +3628,7 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
 
     if (waitConns.length === 0) {
       // Nessuna uscita: attesa "terminale" — su timeout l'iscrizione si chiude.
-      await supabase.from("automation_queue").insert({
+      await enqueue({
         enrollment_id: queueItem.enrollment_id,
         flow_id: queueItem.flow_id,
         company_id: queueItem.company_id,
@@ -3459,11 +3637,11 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
         entity_type: queueItem.entity_type,
         status: "waiting",
         execute_at: timeoutAt,
-        context_json: { ...queueItem.context_json, branch: "timeout", terminal_wait: true, await_event: result.awaitEvent, waiting_for: result.awaitEvent, wait_node_id: node.id },
+        context_json: { ...nextContext, branch: "timeout", terminal_wait: true, await_event: result.awaitEvent, waiting_for: result.awaitEvent, wait_node_id: node.id },
       });
     } else {
       for (const conn of waitConns) {
-        await supabase.from("automation_queue").insert({
+        await enqueue({
           enrollment_id: queueItem.enrollment_id,
           flow_id: queueItem.flow_id,
           company_id: queueItem.company_id,
@@ -3472,7 +3650,7 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
           entity_type: queueItem.entity_type,
           status: "waiting",
           execute_at: timeoutAt,
-          context_json: { ...queueItem.context_json, branch: conn.label || "timeout", await_event: result.awaitEvent, waiting_for: result.awaitEvent, wait_node_id: node.id },
+          context_json: { ...nextContext, branch: conn.label || "timeout", await_event: result.awaitEvent, waiting_for: result.awaitEvent, wait_node_id: node.id },
         });
       }
     }
@@ -3486,7 +3664,7 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
     for (const conn of nextConns) {
       for (let step = 0; step < count; step++) {
         const executeAt = new Date(Date.now() + step * intervalMs).toISOString();
-        await supabase.from("automation_queue").insert({
+        await enqueue({
           enrollment_id: queueItem.enrollment_id,
           flow_id: queueItem.flow_id,
           company_id: queueItem.company_id,
@@ -3495,7 +3673,7 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
           entity_type: queueItem.entity_type,
           status: "pending",
           execute_at: executeAt,
-          context_json: { ...queueItem.context_json, branch: conn.label, drip_step: step + 1, drip_total: count, prev_result: result.output },
+          context_json: { ...nextContext, branch: conn.label, drip_step: step + 1, drip_total: count },
         });
       }
     }
@@ -3504,11 +3682,14 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
 
   // Impostazioni del flusso: servono per la finestra oraria. Una sola lettura
   // per accodamento, non una per collegamento.
-  const { data: flussoImp } = await supabase
+  const { data: flussoImp, error: windowError } = await supabase
     .from("automation_flows")
     .select("time_window_active, time_window_from, time_window_to, time_window_sabato, time_window_domenica, timezone")
     .eq("id", queueItem.flow_id)
+    .eq("company_id", queueItem.company_id)
     .maybeSingle();
+  if (windowError) throw windowError;
+  if (!flussoImp) throw new Error("Impostazioni del flusso non disponibili per accodare il passo successivo");
 
   for (const conn of nextConns) {
     const grezzo = result.isDelay
@@ -3516,7 +3697,7 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
       : new Date();
     const executeAt = dentroLaFinestra(grezzo, flussoImp).toISOString();
 
-    await supabase.from("automation_queue").insert({
+    await enqueue({
       enrollment_id: queueItem.enrollment_id,
       flow_id: queueItem.flow_id,
       company_id: queueItem.company_id,
@@ -3525,7 +3706,7 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
       entity_type: queueItem.entity_type,
       status: "pending",
       execute_at: executeAt,
-      context_json: { ...queueItem.context_json, branch: conn.label, prev_result: result.output },
+      context_json: { ...nextContext, branch: conn.label },
     });
   }
 }
@@ -3601,13 +3782,14 @@ async function canResumeAutomationEnrollment(supabase: any, item: any): Promise<
 
 async function resolveWaitingEnrollments(supabase: any, evt: any) {
   // Find waiting queue items for this entity and event
-  const { data: waitingItems } = await supabase
+  const { data: waitingItems, error: waitingError } = await supabase
     .from("automation_queue")
     .select("*")
     .eq("entity_id", evt.entity_id)
     .eq("company_id", evt.company_id)
     .eq("status", "waiting")
     .limit(50);
+  if (waitingError) throw waitingError;
 
   if (!waitingItems || waitingItems.length === 0) return;
 
@@ -3617,34 +3799,43 @@ async function resolveWaitingEnrollments(supabase: any, evt: any) {
     if (!await canResumeAutomationEnrollment(supabase, item)) continue;
 
     // Event matched! Get the connections from the wait_for_event node's "event" branch
-    const { data: connections } = await supabase
+    const { data: connections, error: connectionError } = await supabase
       .from("automation_connections")
       .select("*")
       .eq("flow_id", item.flow_id);
+    if (connectionError) throw connectionError;
 
     // Presa in carico ATOMICA (19/09/2026): l'evento e la scadenza dell'attesa
     // possono scattare nello stesso minuto su due giri diversi. Riprende il
     // flusso solo chi riesce a chiudere questa attesa.
     const ripresa = await prendiInCarico(supabase, "automation_queue", item.id, "status", "waiting",
-      { status: "cancelled", updated_at: new Date().toISOString() });
+      { status: "processing", updated_at: new Date().toISOString() });
     if (!ripresa.presa) continue;
 
+    try {
     // Find the node that produced this waiting item - look for connections with label "event" or default
     // Cancel the timeout queue item
-    await supabase
+    const { error: cancelError } = await supabase
       .from("automation_queue")
       .update({ status: "cancelled", updated_at: new Date().toISOString() })
       .eq("enrollment_id", item.enrollment_id)
+      .eq("company_id", item.company_id).eq("flow_id", item.flow_id)
+      .eq("context_json->>wait_node_id", item.context_json?.wait_node_id ?? item.current_node_id)
       .eq("status", "waiting");
+    if (cancelError) throw cancelError;
 
     // Reactivate enrollment
     const { data: resumed, error: resumeError } = await supabase
       .from("automation_enrollments")
       .update({ status: "active", updated_at: new Date().toISOString() })
       .eq("id", item.enrollment_id).eq("company_id", item.company_id)
+      .eq("flow_id", item.flow_id)
       .in("status", ["active", "waiting"]).select("id");
     if (resumeError) throw resumeError;
-    if (!resumed?.length) continue; // Pause/removal won the race: never reactivate it.
+    if (!resumed?.length) {
+      await markQueueItem(supabase, item.id, "cancelled");
+      continue; // Pause/removal won the race: never reactivate it.
+    }
 
     // Find the "event" branch connections
     if (connections) {
@@ -3659,7 +3850,7 @@ async function resolveWaitingEnrollments(supabase: any, evt: any) {
           eventConns = connections.filter((c: any) => c.from_node_id === parentNodeId && !c.label);
         }
         for (const conn of eventConns) {
-          await supabase.from("automation_queue").insert({
+          const { error: enqueueError } = await supabase.from("automation_queue").insert({
             enrollment_id: item.enrollment_id,
             flow_id: item.flow_id,
             company_id: item.company_id,
@@ -3670,10 +3861,37 @@ async function resolveWaitingEnrollments(supabase: any, evt: any) {
             execute_at: new Date().toISOString(),
             context_json: { ...item.context_json, branch: "event", resolved_event: evt.trigger_event },
           });
+          if (enqueueError) throw enqueueError;
         }
       }
     }
+    await markQueueItem(supabase, item.id, "cancelled");
+    await completeEnrollmentIfIdle(supabase, item);
+    } catch (error) {
+      await failWaitingTransition(supabase, item, error);
+    }
   }
+}
+
+async function failWaitingTransition(supabase: any, item: any, error: unknown) {
+  // A partially-enqueued branch must not be retried blindly (duplicate sends).
+  console.error("[automation wait transition]", item.id, error);
+  const message = error && typeof error === "object" && "message" in error ? String(error.message) : String(error);
+  await markQueueItem(supabase, item.id, "failed", message);
+  const { data, error: writeError } = await supabase.from("automation_enrollments")
+    .update({ status: "failed", updated_at: new Date().toISOString() })
+    .eq("id", item.enrollment_id).eq("company_id", item.company_id).eq("flow_id", item.flow_id)
+    .in("status", ["active", "waiting"]).select("id");
+  if (writeError) throw writeError;
+  if (data?.length) await completeExecutionRun(supabase, item.enrollment_id, "error", message);
+  const now = new Date().toISOString();
+  const { error: deadLetterError } = await supabase.from("automation_dead_letter").insert({
+    flow_id: item.flow_id, company_id: item.company_id, enrollment_id: item.enrollment_id,
+    node_id: item.current_node_id, node_type: "action", entity_id: item.entity_id, entity_type: item.entity_type,
+    context_json: item.context_json ?? {}, error_message: `Attesa non ripresa: ${message}`,
+    attempts: (item.attempts ?? 0) + 1, first_failed_at: item.created_at ?? now, last_failed_at: now,
+  });
+  if (deadLetterError) console.error("Unable to record waiting transition error:", deadLetterError.message);
 }
 
 // ────────────────────────────────────────────────────
@@ -3683,12 +3901,13 @@ async function processWaitingTimeouts(supabase: any) {
   const now = new Date().toISOString();
 
   // Find waiting items whose execute_at has passed (timeout)
-  const { data: timedOut } = await supabase
+  const { data: timedOut, error: timeoutReadError } = await supabase
     .from("automation_queue")
     .select("*")
     .eq("status", "waiting")
     .lte("execute_at", now)
     .limit(50);
+  if (timeoutReadError) throw timeoutReadError;
 
   if (!timedOut || timedOut.length === 0) return;
 
@@ -3697,20 +3916,15 @@ async function processWaitingTimeouts(supabase: any) {
     // Presa in carico ATOMICA (19/09/2026): due giri sovrapposti trovavano la
     // stessa attesa scaduta e riprendevano il flusso due volte.
     const scaduta = await prendiInCarico(supabase, "automation_queue", item.id, "status", "waiting",
-      { status: "completed", updated_at: now });
+      { status: "processing", updated_at: now });
     if (!scaduta.presa) continue;
 
+    try {
     // Attesa "terminale" (nodo wait senza uscite): il timeout chiude
     // l'iscrizione, senza ri-eseguire il nodo di attesa (loop infinito).
     if (item.context_json?.terminal_wait) {
-      const { data: closed, error: closeError } = await supabase
-        .from("automation_enrollments")
-        .update({ status: "completed", updated_at: now })
-        .eq("id", item.enrollment_id).eq("company_id", item.company_id)
-        .in("status", ["active", "waiting"]).select("id");
-      if (closeError) throw closeError;
-      if (!closed?.length) continue;
-      await completeExecutionRun(supabase, item.enrollment_id, "completed");
+      await markQueueItem(supabase, item.id, "completed");
+      await completeEnrollmentIfIdle(supabase, item);
       continue;
     }
 
@@ -3719,13 +3933,17 @@ async function processWaitingTimeouts(supabase: any) {
       .from("automation_enrollments")
       .update({ status: "active", updated_at: now })
       .eq("id", item.enrollment_id).eq("company_id", item.company_id)
+      .eq("flow_id", item.flow_id)
       .in("status", ["active", "waiting"]).select("id");
     if (resumeError) throw resumeError;
-    if (!resumed?.length) continue;
+    if (!resumed?.length) {
+      await markQueueItem(supabase, item.id, "cancelled");
+      continue;
+    }
 
     // The timeout branch node is already set as current_node_id, so execute it
     // Re-insert as pending for immediate processing
-    await supabase.from("automation_queue").insert({
+    const { error: enqueueError } = await supabase.from("automation_queue").insert({
       enrollment_id: item.enrollment_id,
       flow_id: item.flow_id,
       company_id: item.company_id,
@@ -3736,6 +3954,12 @@ async function processWaitingTimeouts(supabase: any) {
       execute_at: now,
       context_json: { ...item.context_json, timeout_fired: true },
     });
+    if (enqueueError) throw enqueueError;
+    await markQueueItem(supabase, item.id, "completed");
+    await completeEnrollmentIfIdle(supabase, item);
+    } catch (error) {
+      await failWaitingTransition(supabase, item, error);
+    }
   }
 }
 
@@ -4367,11 +4591,14 @@ async function executeSendWhatsAppLocale(supabase: any, cfg: Record<string, any>
   if (companyId !== OPENWA_PLATFORM_COMPANY_ID) {
     return { success: false, error: "WhatsApp Locale è disponibile solo per le automazioni della piattaforma." };
   }
-  const { data: contact } = await supabase
+  const { data: contact, error: contactError } = await supabase
     .from("marketing_contacts")
     .select("id, phone, first_name, last_name, tags, optout_whatsapp")
     .eq("id", entityId)
+    .eq("company_id", companyId)
+    .is("deleted_at", null)
     .single();
+  if (contactError) return { success: false, error: "Contatto WhatsApp Locale non disponibile nell’area piattaforma" };
   if (!contact?.phone) return { success: false, error: "Contatto senza numero di telefono" };
   if (contact.optout_whatsapp) return { success: false, error: "Contatto in opt-out WhatsApp" };
 
@@ -4883,10 +5110,11 @@ async function completeExecutionRun(supabase: any, enrollmentId: string, status:
 }
 
 async function markQueueItem(supabase: any, id: string, status: string, error?: string) {
-  await supabase
+  const { error: writeError } = await supabase
     .from("automation_queue")
     .update({ status, last_error: error || null, updated_at: new Date().toISOString() })
     .eq("id", id);
+  if (writeError) throw writeError;
 }
 
 function jsonResponse(data: any, status = 200) {

@@ -1,6 +1,8 @@
+import { PLATFORM_ADMIN_COMPANY_ID } from "./platformAutomation.ts";
+
 const TABLES: Record<string, string> = {
   contact: "marketing_contacts", opportunity: "marketing_opportunities", appointment: "appointments",
-  order: "orders", invoice: "invoices", quote: "quotes", ticket: "tickets", task: "tasks", employee: "employees",
+  order: "orders", invoice: "invoices", payment: "invoice_payments", quote: "quotes", ticket: "tickets", task: "tasks", employee: "employees",
   // Gli altri oggetti del dizionario «Campi di sistema» (cantieri, acquisti, sicurezza, assistenza…).
   supplier: "suppliers", ordine_acquisto: "purchase_orders", ddt_ricezione: "ddt_ricezione",
   ordini_variazione: "ordini_variazione", giornale_lavori: "giornale_lavori", pos_document: "pos_documents",
@@ -78,7 +80,7 @@ async function completaDipendente(db: any, record: Record<string, any> | null, c
 const TYPES: Record<string, string> = {
   contatto: "contact", contacts: "contact", opportunita: "opportunity", opportunities: "opportunity",
   appuntamento: "appointment", ordine: "order", orders: "order", tickets: "ticket", tasks: "task",
-  fattura: "invoice", invoices: "invoice", preventivo: "quote",
+  fattura: "invoice", invoices: "invoice", pagamento: "payment", preventivo: "quote",
 };
 export function automationEntityType(value: string): string { return TYPES[value] ?? value; }
 
@@ -89,7 +91,7 @@ export function automationEventEntity(event: string, entityType: string, entityI
 }
 
 /** Complete filter data using the triggering object, not a different object sharing its contact. */
-export async function automationEventPayload(db: any, event: string, entityType: string, entityId: string, companyId: string, payload: Record<string, any>) {
+export async function automationEventPayload(db: any, event: string, entityType: string, entityId: string, companyId: string, payload: Record<string, any>): Promise<Record<string, any>> {
   const source = automationEventEntity(event, entityType, entityId, payload);
   let record: Record<string, any> = {};
   if (TABLES[source.type]) {
@@ -97,8 +99,20 @@ export async function automationEventPayload(db: any, event: string, entityType:
     if (error) throw error;
     record = data ?? {};
   }
+  const platformContact: Record<string, unknown> = {};
+  // A won platform deal is still a CRM opportunity, not a provisioned company.
+  // Supply only the contact genuinely linked to that scoped opportunity.
+  if (companyId === PLATFORM_ADMIN_COMPANY_ID && source.type === "opportunity" && record.contact_id) {
+    const { data: contact, error } = await db.from("marketing_contacts")
+      .select("id, email, first_name, last_name, company_name")
+      .eq("id", record.contact_id).eq("company_id", companyId).is("deleted_at", null).maybeSingle();
+    if (error) throw error;
+    if (contact) for (const key of ["id", "email", "first_name", "last_name", "company_name"]) platformContact[`contatto.${key}`] = contact[key];
+    platformContact["opportunita.id"] = source.id;
+    platformContact["opportunita.value"] = payload.value ?? record.value;
+  }
   // Event values take precedence over later edits. ID remains the enrollment entity.
-  return { ...record, ...payload, id: entityId, _automation_record_type: source.type };
+  return { ...record, ...platformContact, ...payload, id: entityId, _automation_record_type: source.type };
 }
 
 /** Resolve the actual trigger record first. Never treat an invoice/opportunity UUID as a contact UUID. */
@@ -120,10 +134,16 @@ export async function resolveAutomationRecord(db: any, target: string, entityId:
   if (source === target) return byId(target, entityId);
   const sourceRecord = await byId(source, entityId);
   if (!sourceRecord) return null;
+  if (source === "payment" && sourceRecord.invoice_id) {
+    // Follow the stored FK, not an unverified invoice_id in the event payload.
+    if (target === "invoice") return byId("invoice", sourceRecord.invoice_id);
+    return resolveAutomationRecord(db, target, sourceRecord.invoice_id, companyId, { entity_type: "invoice" });
+  }
   const eventLinkedId = queue?.context_json?.payload?.[`${target}_id`];
   if (eventLinkedId && target !== "contact") return byId(target, eventLinkedId);
   if (target === "contact") {
     if (sourceRecord.contact_id) return byId("contact", sourceRecord.contact_id);
+    if (source === "invoice" && sourceRecord.client_id) return byId("contact", sourceRecord.client_id);
     if (sourceRecord.customer_id) {
       const { data, error } = await db.from("marketing_contacts").select("*")
         .eq("company_id", companyId).eq("customer_profile_id", sourceRecord.customer_id).is("deleted_at", null).limit(1).maybeSingle();

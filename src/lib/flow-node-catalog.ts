@@ -23,6 +23,8 @@ export type ConfigFieldType =
   | 'time'
   | 'user_select'
   | 'user_multi_select'
+  | 'onboarding_template_select'
+  | 'platform_user_select'
   | 'entity_select'
   // Picker con dati reali (stile GHL) renderizzati da FlowBuilderConfigPanel:
   | 'meta_page_select'       // pagina Facebook collegata (meta_assets selected)
@@ -69,6 +71,7 @@ export interface TriggerDefinition {
   dbTable?: string;
   dbEvent?:
     | 'INSERT' | 'UPDATE' | 'DELETE' | 'SCHEDULED'
+    | 'opportunity_won' // CRM deal event in the platform tenant, not a second event.
     // ── Eventi di PIATTAFORMA (solo area superadmin) ──
     // Nomi canonici emessi in `automation_trigger_events.trigger_event` dagli
     // emettitori lato server (create-company, admin-change-plan, stripe-webhook,
@@ -1462,7 +1465,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
   {
     id: 'trial_in_scadenza',
     label: 'Trial in scadenza',
-    description: 'Si attiva X giorni prima della scadenza del periodo di prova',
+    description: 'Si attiva quando il trial entra nella finestra di preavviso scelta. Una nuova iscrizione dipende dalle impostazioni di rientro del flusso.',
     icon: 'Clock',
     categoria: 'piattaforma',
     dbEvent: 'PLATFORM_TRIAL_EXPIRING',
@@ -1532,18 +1535,15 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
   {
     id: 'cliente_contrattualizzato',
     label: 'Cliente contrattualizzato (deal vinto)',
-    description: 'Si attiva quando un\'opportunità CRM viene marcata come vinta — ideale per onboarding automatico',
+    description: 'Si attiva quando un\'opportunità CRM viene marcata come vinta. L\'account azienda esiste solo dopo l\'azione di creazione: il deal non lo crea da solo.',
     icon: 'FileCheck',
     categoria: 'piattaforma',
-    dbEvent: 'PLATFORM_DEAL_WON',
+    dbEvent: 'opportunity_won',
     outputVariables: [
-      { id: 'azienda.id', label: 'ID Azienda creata', type: 'uuid' },
-      { id: 'azienda.name', label: 'Nome azienda', type: 'string' },
       { id: 'contatto.email', label: 'Email contatto', type: 'string' },
       { id: 'contatto.first_name', label: 'Nome contatto', type: 'string' },
       { id: 'opportunita.id', label: 'ID Opportunità', type: 'uuid' },
       { id: 'opportunita.value', label: 'Valore contratto (€)', type: 'number' },
-      { id: 'opportunita.piano', label: 'Piano scelto', type: 'string' },
     ],
     configSchema: [],
   },
@@ -1568,7 +1568,7 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     // di categoria 'fatturazione' (TRIGGER_MAP avrebbe sovrascritto l'uno con l'altro).
     id: 'fattura_piattaforma_scaduta',
     label: 'Fattura scaduta / non pagata',
-    description: 'Si attiva quando una fattura supera la data di scadenza senza pagamento',
+    description: 'Si attiva per un addebito aperto con una scadenza di pagamento conosciuta. Le vecchie fatture Stripe senza scadenza importata non vengono considerate scadute.',
     icon: 'AlertCircle',
     categoria: 'piattaforma',
     dbEvent: 'PLATFORM_INVOICE_OVERDUE',
@@ -1763,15 +1763,13 @@ export const ACTION_CATALOG: ActionDefinition[] = [
   {
     id: 'crea_opportunita',
     label: 'Crea o aggiorna opportunità',
-    // Un contatto che torna (nuova richiesta) ha già un'opportunità aperta:
-    // si aggiorna quella, con fase e assegnazione del flusso di oggi.
-    description: "Crea l'opportunità; se il contatto ne ha già una aperta in questa pipeline la aggiorna: la sposta nella fase scelta e la assegna a venditore e call center indicati qui",
+    // Repeated enquiries preserve the classification and the current owner.
+    description: "Crea l’opportunità per il cliente collegato. Se è già aperta nella stessa pipeline, registra la nuova richiesta senza cambiare fase o chi la segue.",
     icon: 'DollarSign',
     categoria: 'crm',
     outputVariables: [{ id: 'opportunita.id', label: 'ID Opportunità creata', type: 'uuid' }],
     configSchema: [
-      // NB: niente campo "ID Contatto" — l'opportunità viene creata SEMPRE sul
-      // contatto iscritto al flusso (il motore usa l'entityId dell'enrollment).
+      // The worker resolves the contact from the original event record.
       { id: 'nome', label: 'Nome opportunità', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: {{contatto.full_name}} - Facebook' },
       { id: 'valore', label: 'Valore (€)', type: 'text', required: false, supportsVariables: true, placeholder: '{{preventivo.total}}' },
       // Pipeline/fase REALI dell'azienda (prima c'era uno stage hardcoded che
@@ -1780,8 +1778,8 @@ export const ACTION_CATALOG: ActionDefinition[] = [
       { id: 'pipeline_id', label: 'Pipeline', type: 'pipeline_select', required: true },
       { id: 'stage_id', label: 'Fase pipeline', type: 'pipeline_stage_select', required: true },
       { id: 'fonte', label: 'Fonte opportunità', type: 'text', required: false, supportsVariables: true, placeholder: 'Es: facebook', helpText: 'Comparirà come Fonte sulla scheda opportunità.' },
-      { id: 'assegnato_a', label: 'Venditore', type: 'user_select', required: false, helpText: 'Vale anche per un\'opportunità già aperta: prende il posto di quello di prima.' },
-      { id: 'call_center_id', label: 'Call center (opzionale)', type: 'user_select', required: false, helpText: 'Vale anche per un\'opportunità già aperta: prende il posto di quello di prima.' },
+      { id: 'assegnato_a', label: 'Venditore', type: 'user_select', required: false, helpText: 'Assegna le nuove opportunità o quelle senza venditore. Non sostituisce chi le sta già seguendo.' },
+      { id: 'call_center_id', label: 'Call center (opzionale)', type: 'user_select', required: false, helpText: 'Assegna le nuove opportunità o quelle senza call center. Mantiene l’assegnazione esistente.' },
     ],
   },
   {
@@ -1959,12 +1957,12 @@ export const ACTION_CATALOG: ActionDefinition[] = [
   // ═══ AI & WEBHOOK ═══
   {
     id: 'esegui_agente_ai',
-    label: 'Esegui agente AI',
-    description: 'Esegue un agente AI con contesto del trigger per analisi/risposta',
+    label: 'Genera e invia con agente AI',
+    description: 'Genera un messaggio con le istruzioni dell’agente scelto e lo invia sul canale configurato. Non esegue prenotazioni o strumenti dell’agente.',
     icon: 'Zap',
     categoria: 'generale',
     configSchema: [
-      { id: 'agent_id', label: 'Agente AI', type: 'entity_select', required: true, helpText: "Seleziona l'agente AI da eseguire" },
+      { id: 'agent_id', label: 'Agente AI', type: 'entity_select', required: true, helpText: "Usa le istruzioni dell’agente dell’azienda per scrivere il messaggio; non avvia una conversazione né i suoi strumenti." },
       { id: 'prompt', label: 'Prompt aggiuntivo (opzionale)', type: 'textarea', required: false, supportsVariables: true, placeholder: 'Analizza il lead {{contatto.first_name}} {{contatto.last_name}} e suggerisci la strategia migliore' },
       // Il motore leggeva già questi campi ma la UI non li esponeva.
       { id: 'ai_tone', label: 'Tono', type: 'select', required: false, options: [
@@ -2073,7 +2071,6 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     configSchema: [
       { id: 'oggetto', label: 'Oggetto email', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Aggiornamento sul tuo account {{azienda.name}}' },
       { id: 'corpo', label: 'Corpo email', type: 'richhtml', required: true, supportsVariables: true },
-      { id: 'mittente_nome', label: 'Nome mittente (opzionale)', type: 'text', required: false, placeholder: 'Es: Team EdiliziaInCloud' },
     ],
   },
   {
@@ -2093,6 +2090,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
         { value: 'media', label: 'Media' }, { value: 'bassa', label: 'Bassa' },
       ]},
       { id: 'scadenza_giorni', label: 'Scadenza (giorni dalla creazione)', type: 'number', required: false, min: 0, max: 365 },
+      { id: 'assegnato_a', label: 'Assegna al team piattaforma', type: 'platform_user_select', required: false },
     ],
   },
   {
@@ -2133,7 +2131,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
   {
     id: 'crea_account_azienda',
     label: 'Crea account azienda nel software',
-    description: 'Provisioning automatico: crea l\'account azienda, imposta il piano e invia le credenziali di accesso',
+    description: 'Crea l\'account azienda, imposta il piano e invia un link personale per scegliere la password',
     icon: 'Building',
     categoria: 'piattaforma',
     outputVariables: [
@@ -2141,9 +2139,11 @@ export const ACTION_CATALOG: ActionDefinition[] = [
       { id: 'nuovo_account.email_admin', label: 'Email admin account', type: 'string' },
     ],
     configSchema: [
-      { id: 'piano', label: 'Piano da attivare', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: starter, pro — oppure usa {{opportunita.piano}}' },
+      { id: 'email', label: 'Email amministratore', type: 'text', required: false, supportsVariables: true, helpText: 'Se vuota, usa l’email del contatto nell’evento.' },
+      { id: 'nome', label: 'Nome nuova azienda', type: 'text', required: false, supportsVariables: true },
+      { id: 'piano', label: 'Piano da attivare', type: 'text', required: true, supportsVariables: true, placeholder: 'Nome o slug esatto di un piano esistente' },
       { id: 'trial_giorni', label: 'Giorni di trial iniziale (0 = nessuno)', type: 'number', required: false, defaultValue: 0, min: 0, max: 90 },
-      { id: 'invia_credenziali', label: 'Invia email con credenziali di accesso', type: 'select', required: true, defaultValue: 'si', options: [
+      { id: 'invia_credenziali', label: 'Invia link per impostare la password', type: 'select', required: true, defaultValue: 'si', options: [
         { value: 'si', label: 'Sì — invia email automatica' },
         { value: 'no', label: 'No — gestisco manualmente' },
       ]},
@@ -2151,19 +2151,19 @@ export const ACTION_CATALOG: ActionDefinition[] = [
   },
   {
     id: 'invia_fattura',
-    label: 'Genera e invia fattura',
-    description: 'Crea una fattura per l\'azienda e la invia via email',
+    label: 'Registra addebito abbonamento',
+    description: 'Registra un addebito e invia un avviso. Non genera una fattura fiscale, un PDF o un XML.',
     icon: 'FileText',
     categoria: 'piattaforma',
     outputVariables: [
-      { id: 'fattura.id', label: 'ID Fattura', type: 'uuid' },
-      { id: 'fattura.numero', label: 'Numero fattura', type: 'string' },
+      { id: 'fattura.id', label: 'ID addebito', type: 'uuid' },
+      { id: 'fattura.numero', label: 'Riferimento addebito (non numero fiscale)', type: 'string' },
     ],
     configSchema: [
-      { id: 'descrizione', label: 'Descrizione voce', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Abbonamento {{opportunita.piano}} — {{azienda.name}}' },
+      { id: 'descrizione', label: 'Descrizione voce', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Abbonamento — {{azienda.name}}' },
       { id: 'importo', label: 'Importo (€)', type: 'number', required: true, supportsVariables: false, min: 0 },
       { id: 'scadenza_giorni', label: 'Scadenza pagamento (giorni)', type: 'number', required: true, defaultValue: 30, min: 0, max: 365 },
-      { id: 'invia_email', label: 'Invia fattura via email al cliente', type: 'select', required: true, defaultValue: 'si', options: [
+      { id: 'invia_email', label: 'Invia avviso addebito via email', type: 'select', required: true, defaultValue: 'si', options: [
         { value: 'si', label: 'Sì' }, { value: 'no', label: 'No (solo genera)' },
       ]},
     ],
@@ -2171,16 +2171,13 @@ export const ACTION_CATALOG: ActionDefinition[] = [
   {
     id: 'attiva_onboarding',
     label: 'Avvia sequenza di onboarding',
-    description: 'Iscrive il nuovo cliente a una sequenza di onboarding (email + task)',
+    description: 'Assegna un percorso onboarding reale e il responsabile CS, senza cancellare i progressi esistenti',
     icon: 'Rocket',
     categoria: 'piattaforma',
+    outputVariables: [{ id: 'onboarding.id', label: 'ID percorso azienda', type: 'uuid' }],
     configSchema: [
-      { id: 'sequenza', label: 'Sequenza onboarding', type: 'select', required: true, defaultValue: 'standard', options: [
-        { value: 'standard', label: 'Onboarding standard (7 giorni)' },
-        { value: 'rapido', label: 'Onboarding rapido (3 giorni)' },
-        { value: 'enterprise', label: 'Onboarding enterprise (30 giorni)' },
-      ]},
-      { id: 'assegna_cs', label: 'Assegna Customer Success', type: 'user_select', required: false, helpText: 'Il CS sarà responsabile del follow-up' },
+      { id: 'sequenza', label: 'Percorso onboarding', type: 'onboarding_template_select', required: true, defaultValue: 'standard', helpText: 'I percorsi sono quelli configurati nel pannello onboarding, non sequenze email fittizie.' },
+      { id: 'assegna_cs', label: 'Assegna Customer Success', type: 'platform_user_select', required: false, helpText: 'Il CS sarà responsabile del follow-up' },
     ],
   },
   {

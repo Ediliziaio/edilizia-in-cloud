@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { filterErrors } from "../../../supabase/functions/_shared/automationFilters";
+import { filterErrors, automationTriggerConfigErrors } from "../../../supabase/functions/_shared/automationFilters";
+import { actionConfigErrors, conditionConfigErrors, delayConfigErrors, connectionCreatesCycle, graphHasCycle } from "../../../supabase/functions/_shared/automationValidation";
 import type { WorkflowError } from "./panels/WorkflowErrorsPanel";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -294,6 +295,10 @@ export function FlowBuilderPage() {
         uiToast({ title: "Connessione non valida", description: "Il trigger non può avere connessioni in ingresso.", variant: "destructive" });
         return;
       }
+      if (connectionCreatesCycle(rfEdges, params.source, params.target)) {
+        uiToast({ title: "Connessione circolare", description: "Questo collegamento tornerebbe a un passo precedente e ripeterebbe le azioni.", variant: "destructive" });
+        return;
+      }
 
       const newEdge: Edge = {
         id: crypto.randomUUID(),
@@ -324,7 +329,7 @@ export function FlowBuilderPage() {
         });
       }
     },
-    [flowId, effectiveCompany, setRfEdges, addConnection, rfNodes, uiToast]
+    [flowId, effectiveCompany, setRfEdges, addConnection, rfNodes, rfEdges, uiToast]
   );
 
   const onNodesDelete = useCallback(
@@ -967,17 +972,18 @@ export function FlowBuilderPage() {
 
     // No trigger at all
     if (nonNoteNodes.length > 1 && !nonNoteNodes.some(n => n.type === "trigger")) {
-      errs.push({ nodeId: "", nodeLabel: "Flusso", tipo: "errore", messaggio: "Il flusso non ha un trigger di avvio." });
+      errs.push({ nodeId: "", nodeLabel: "Flusso", tipo: "avviso", messaggio: "Flusso ricevente: parte solo quando un'altra automazione iscrive un contatto." });
     }
+    if (graphHasCycle(rfEdges)) errs.push({ nodeId: "", nodeLabel: "Flusso", tipo: "errore", messaggio: "Il flusso contiene connessioni circolari." });
 
     if (configuredTriggers.length > 1) {
       errs.push({ nodeId: "", nodeLabel: "Flusso", tipo: "avviso", messaggio: "Sono presenti più trigger: verifica che non attivino lo stesso contatto due volte." });
     }
 
-    const hasContactUpdateLoop = triggerIds.some(id => id.includes("contact") && id.includes("updated"))
-      && actionIds.some(id => id.includes("update_contact"));
-    const hasOpportunityUpdateLoop = triggerIds.some(id => id.includes("opportunity") && (id.includes("updated") || id.includes("stage")))
-      && actionIds.some(id => id.includes("opportunity") && (id.includes("update") || id.includes("stage") || id.includes("move")));
+    const hasContactUpdateLoop = triggerIds.some(id => ["contatto_aggiornato", "contact_updated", "tag_aggiunto", "tag_rimosso"].includes(id))
+      && actionIds.some(id => ["aggiorna_campo", "update_field", "update_contact", "aggiungi_tag", "rimuovi_tag", "add_tag", "remove_tag"].includes(id));
+    const hasOpportunityUpdateLoop = triggerIds.some(id => ["opportunita_stage_cambiato", "pipeline_stage_change", "opportunity_updated", "opportunita_aggiornata"].includes(id))
+      && actionIds.some(id => ["sposta_opportunita", "move_opportunity", "aggiorna_campo", "update_field"].includes(id));
     if (hasContactUpdateLoop || hasOpportunityUpdateLoop) {
       errs.push({
         nodeId: "",
@@ -989,6 +995,9 @@ export function FlowBuilderPage() {
 
     for (const n of nonNoteNodes) {
       if (n.type === "end") continue;
+      if (n.type === "trigger") for (const message of automationTriggerConfigErrors(n.data ?? {})) {
+        errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Trigger", tipo: "errore", messaggio: message });
+      }
       for (const message of filterErrors(n.data?.trigger_filters ?? n.data?.filters)) {
         errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Trigger", tipo: "errore", messaggio: message });
       }
@@ -1034,11 +1043,11 @@ export function FlowBuilderPage() {
       }
 
       // Condition without field
-      if (n.type === "condition") {
-        const hasField = n.data?.condition_field || n.data?.conditions?.length > 0;
-        if (!hasField) {
-          errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Condizione", tipo: "avviso", messaggio: "Condizione senza criterio configurato." });
-        }
+      if (n.type === "action") {
+        for (const message of actionConfigErrors(n.data)) errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Azione", tipo: "errore", messaggio: message });
+      }
+      if (n.type === "condition" || n.type === "goal") {
+        for (const message of conditionConfigErrors(n.data)) errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Condizione", tipo: "errore", messaggio: message });
       }
 
       // Attesa senza durata. Le tre forme si misurano su campi diversi:
@@ -1046,15 +1055,7 @@ export function FlowBuilderPage() {
       // "prima dell'appuntamento" su delay_ore — prima le ultime due erano
       // sempre segnalate come non impostate, pur essendo complete.
       if (n.type === "delay") {
-        const tipo = String(n.data?.delay_tipo ?? "attendi");
-        const impostata = tipo === "fino_a"
-          ? /^\d{1,2}:\d{2}$/.test(String(n.data?.delay_orario ?? ""))
-          : tipo === "prima_appuntamento"
-            ? Number(n.data?.delay_ore) > 0
-            : Number(n.data?.delay_durata ?? n.data?.delay_value) > 0;
-        if (!impostata) {
-          errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Attesa", tipo: "avviso", messaggio: "Durata dell'attesa non impostata." });
-        }
+        for (const message of delayConfigErrors(n.data)) errs.push({ nodeId: n.id, nodeLabel: n.data?.label || "Attesa", tipo: "errore", messaggio: message });
       }
 
       // Disconnected node (no incoming edge, except trigger)
@@ -1379,6 +1380,7 @@ export function FlowBuilderPage() {
         flow={flow}
         companyId={effectiveCompany?.id}
         nodes={rfNodes}
+        edges={rfEdges}
       />
 
       {/* Body */}

@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 let erroriUltimoGiorno = 0;
 let erroreLettura = false;
+let erroriAperti = 0;
 const tabelleLette: string[] = [];
 
 // Il registro delle esecuzioni: 82 passaggi riusciti nell'ultima ora, 8 tre
@@ -37,6 +38,7 @@ function conteggio(tabella: string, uguali: Record<string, string>, diversi: Rec
   if (tabella !== "automation_execution_log") return 0;
   return registro().filter((r) =>
     (uguali.status === undefined || r.status === uguali.status)
+    && (!inclusi.status || inclusi.status.includes(r.status))
     && (diversi.status === undefined || r.status !== diversi.status)
     && (daQuando === null || r.created_at >= daQuando),
   ).length;
@@ -56,7 +58,7 @@ function builder(tabella: string) {
   b.in = (colonna: string, valori: string[]) => { inclusi[colonna] = valori; return b; };
   b.gte = (_colonna: string, valore: string) => { daQuando = valore; return b; };
   b.then = (ok: (v: unknown) => unknown) =>
-    Promise.resolve({ data: null as unknown, error: erroreLettura ? new Error("DB non disponibile") : null, count: conteggio(tabella, uguali, diversi, daQuando, inclusi) }).then(ok);
+    Promise.resolve({ data: null as unknown, error: erroreLettura ? new Error("DB non disponibile") : null, count: tabella === "automation_dead_letter" ? erroriAperti : conteggio(tabella, uguali, diversi, daQuando, inclusi) }).then(ok);
   return b;
 }
 
@@ -73,6 +75,7 @@ afterEach(() => {
   contenitore?.remove();
   erroriUltimoGiorno = 0;
   erroreLettura = false;
+  erroriAperti = 0;
   tabelleLette.length = 0;
 });
 
@@ -98,7 +101,7 @@ describe("numeri delle automazioni sotto il titolo", () => {
     await monta();
     expect(contenitore.querySelectorAll("p")).toHaveLength(1);
     expect(contenitore.textContent).toBe(
-      "3 iscrizioni in corso · 82 passaggi eseguiti nelle ultime 24 ore · 100% riusciti in 7 giorni · nessun errore",
+      "3 iscrizioni in corso · 82 passaggi eseguiti nelle ultime 24 ore · 100% riusciti in 7 giorni · nessun errore nelle ultime 24 ore",
     );
     expect(contenitore.textContent).not.toContain("Flussi");
     expect(contenitore.textContent).not.toContain("Attivi");
@@ -121,5 +124,12 @@ describe("numeri delle automazioni sotto il titolo", () => {
     await monta();
     expect(contenitore.textContent).toContain("Statistiche non disponibili");
     expect(contenitore.textContent).not.toContain("nessun errore");
+  });
+  it("mostra anche i fallimenti storici irrisolti senza reinviarli", async () => {
+    erroriAperti = 2;
+    await monta();
+    expect(contenitore.textContent).toContain("100% riusciti in 7 giorni");
+    expect(contenitore.textContent).toContain("2 passaggi falliti da verificare");
+    expect(contenitore.querySelector('[title*="Nessun reinvio automatico"]')).not.toBeNull();
   });
 });

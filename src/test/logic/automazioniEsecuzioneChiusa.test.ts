@@ -32,7 +32,7 @@ describe("motore delle automazioni: iscrizione finita, esecuzione chiusa", () =>
     .filter(({ testo }) => !SENZA_ESECUZIONE.some((e) => testo.includes(e)));
 
   it("il motore chiude le iscrizioni in più punti (la regola ha qualcosa da guardare)", () => {
-    expect(punti.length).toBeGreaterThanOrEqual(10);
+    expect(punti.length).toBeGreaterThanOrEqual(9);
   });
 
   it("dopo ogni chiusura dell'iscrizione c'è completeExecutionRun", () => {
@@ -42,9 +42,10 @@ describe("motore delle automazioni: iscrizione finita, esecuzione chiusa", () =>
     expect(scoperti).toEqual([]);
   });
 
-  it("il ramo senza uscite di una condizione chiude l'esecuzione", () => {
+  it("il ramo senza uscite non chiude gli altri rami: il worker verifica la coda dopo il passo", () => {
     const dopo = MOTORE.slice(MOTORE.indexOf("const anyLabeled = connections.some"));
     const blocco = dopo.slice(0, dopo.indexOf("// Handle wait_for_event"));
-    expect(blocco).toContain('await completeExecutionRun(supabase, queueItem.enrollment_id, "completed");');
+    expect(blocco).not.toContain('status: doneStatus');
+    expect(MOTORE).toContain('await completeEnrollmentIfIdle(supabase, item);');
   });
 });

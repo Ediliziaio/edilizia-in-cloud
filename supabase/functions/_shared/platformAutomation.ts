@@ -58,10 +58,11 @@ export const PLATFORM_TRIGGER_EVENT_MAP: Record<string, string> = {
 };
 
 /**
- * Id-catalogo (italiani) delle 8 AZIONI di piattaforma. Eseguibili SOLO quando
+ * Id-catalogo (italiani) delle AZIONI di piattaforma. Eseguibili SOLO quando
  * il flusso appartiene alla platform-admin company.
  */
 export const PLATFORM_ACTION_IDS: ReadonlySet<string> = new Set([
+  "invia_whatsapp_locale",
   "invia_email_admin_azienda",
   "crea_cs_task",
   "cambia_piano_azienda",

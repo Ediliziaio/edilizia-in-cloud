@@ -115,7 +115,7 @@ export function WorkflowImpostazioni({ flowId }: Props) {
           />
           <ToggleSetting
             titolo="Consenti più opportunità"
-            descrizione="Un contatto può essere associato a più opportunità contemporaneamente."
+            descrizione="Consente opportunità aperte in pipeline diverse. Nella stessa pipeline una nuova richiesta aggiorna la scheda esistente, senza spostarla né cambiare chi la segue."
             valore={get("allow_multiple_opportunities", true)}
             onChange={(v) => handleChange("allow_multiple_opportunities", v)}
           />

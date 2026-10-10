@@ -75,7 +75,7 @@ describe("automation filters: usable, read-only UI", () => {
     memory.rows.marketing_contacts = [{ id: "contact", first_name: "Test", last_name: "Locale", email: "test@example.invalid", city: "Roma" }];
     wrap(<TestFlowDialog open onClose={() => {}} flow={null} companyId="company" nodes={[{ id: "trigger", type: "trigger", data: { itemId: "contatto_creato", trigger_filters: { conditions: [{ field: "city", operator: "equals", value: "Roma" }] } } }]} />);
     fireEvent.click(await screen.findByRole("button", { name: /Test Locale/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Verifica filtri" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verifica percorso e testi" }));
     expect(screen.getByText("Il contatto soddisfa i filtri di questo trigger.")).toBeInTheDocument();
     expect(memory.calls.every(c => c.table === "marketing_contacts")).toBe(true);
   });
@@ -83,7 +83,7 @@ describe("automation filters: usable, read-only UI", () => {
     memory.rows.marketing_contacts = [{ id: "contact", first_name: "Test", last_name: "Locale" }];
     wrap(<TestFlowDialog open onClose={() => {}} flow={null} companyId="company" nodes={[{ id: "trigger", type: "trigger", data: { itemId: "fattura_scaduta" } }]} />);
     fireEvent.click(await screen.findByRole("button", { name: /Test Locale/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Verifica filtri" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verifica percorso e testi" }));
     expect(screen.getByText(/Serve il record e il contesto/)).toBeInTheDocument();
   });
 });
