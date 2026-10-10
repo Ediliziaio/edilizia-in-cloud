@@ -42,18 +42,23 @@ import {
 import { CreateUserWizard, type WizardUserFormData } from "@/components/users/CreateUserWizard";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import {
-  syncLegacyMarketingFlags, syncLegacySettingsFlags, DEFAULT_PERMISSIONS, ROLE_PRESETS, type StaffRoleType,
+  syncLegacyMarketingFlags, syncLegacySettingsFlags, DEFAULT_PERMISSIONS, ROLE_PRESETS,
 } from "@/components/users/permissionsDefaults";
 import { usePermissions } from "@/hooks/usePermissions";
 import { withClientTimeout } from "@/lib/query-timeout";
 import { isNetworkError, sembraErrorePostgresGrezzo, userErrorMessage } from "@/lib/userErrorMessage";
 import { salvaPermessiUtente } from "@/lib/permessi/salvaPermessiUtente";
-import { aggiuntiviDisponibili, ruoliAggiuntivi, ruoloPrincipale, TESTI_RUOLO_AGGIUNTIVO, type RuoloAggiuntivo } from "@/lib/permessi/ruoliUtente";
+import { aggiuntiviDisponibili, NOME_RUOLO, ruoliAggiuntivi, ruoloPrincipale, TESTI_RUOLO_AGGIUNTIVO, type RuoloAggiuntivo } from "@/lib/permessi/ruoliUtente";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
+import { messaggioErrorePersone } from "@/lib/users/erroriPersone";
+import { personeCollegate, ultimoSegnoDiVita } from "@/lib/users/collegamento";
+import { chiaveStato, etichettaBloccoTemporaneo, ETICHETTE_STATO, type ChiaveStato } from "@/lib/users/statoPersona";
+import { COLONNE_DEL_FILE, leggiCsvUtenti } from "@/lib/users/importaUtentiCsv";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, PannelloFiltri, PilloleFiltro, RigaMobile } from "@/components/mobile/FiltriMobile";
 type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
-type StatusFilter = "all" | "online" | "blocked" | "locked" | "never" | "inactive";
+type StatusFilter = "all" | ChiaveStato;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const COMPANY_ADMIN_ROLE = "company_admin";
@@ -75,7 +80,10 @@ interface CompanyUser {
   last_login_at: string | null;
   locked_until: string | null;
   failed_login_count: number;
-  active_sessions: number;
+  /** Ha una sessione con un segno di vita negli ultimi 10 minuti (non una sessione dimenticata aperta). */
+  collegato_adesso: boolean;
+  /** L'ultima volta che l'app l'ha vista: la più recente fra l'ultimo accesso e l'attività delle sue sessioni. */
+  ultimo_segno_di_vita: string | null;
   is_blocked: boolean;
 }
 
@@ -108,19 +116,21 @@ type CompanyUsersQueryResult = {
 
 // ─── Role Config ──────────────────────────────────────────────────────
 const ROLE_CONFIG: Record<EffectiveRole, { label: string; icon: React.ElementType; color: string }> = {
-  company_admin: { label: "Admin", icon: ShieldCheck, color: "bg-primary/10 text-primary border-primary/20" },
-  company_staff: { label: "Operatore", icon: UserCheck, color: "bg-slate-100 text-slate-700 border-slate-200" },
-  salesperson: { label: "Venditore", icon: TrendingUp, color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  call_center: { label: "Call Center", icon: Phone, color: "bg-blue-50 text-blue-700 border-blue-200" },
-  employee: { label: "Operaio", icon: HardHat, color: "bg-amber-50 text-amber-700 border-amber-200" },
-  subcontractor: { label: "Subappaltatore", icon: Building2, color: "bg-purple-50 text-purple-700 border-purple-200" },
+  // I nomi vengono dal dizionario unico (@/lib/permessi/ruoliUtente): lo stesso
+  // ruolo si chiama allo stesso modo in tutte le schermate delle persone.
+  company_admin: { label: NOME_RUOLO.company_admin, icon: ShieldCheck, color: "bg-primary/10 text-primary border-primary/20" },
+  company_staff: { label: NOME_RUOLO.company_staff, icon: UserCheck, color: "bg-slate-100 text-slate-700 border-slate-200" },
+  salesperson: { label: NOME_RUOLO.salesperson, icon: TrendingUp, color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  call_center: { label: NOME_RUOLO.call_center, icon: Phone, color: "bg-blue-50 text-blue-700 border-blue-200" },
+  employee: { label: NOME_RUOLO.employee, icon: HardHat, color: "bg-amber-50 text-amber-700 border-amber-200" },
+  subcontractor: { label: NOME_RUOLO.subcontractor, icon: Building2, color: "bg-purple-50 text-purple-700 border-purple-200" },
 };
 
 function RoleBadge({ role }: { role: EffectiveRole }) {
   const { label, icon: Icon, color } = ROLE_CONFIG[role];
   return (
-    <Badge className={`${color} font-normal gap-1`}>
-      <Icon className="h-3 w-3" />
+    <Badge className={`${color} font-normal gap-1 whitespace-nowrap`}>
+      <Icon className="h-3 w-3" aria-hidden="true" />
       {label}
     </Badge>
   );
@@ -149,7 +159,7 @@ function RolesBadgeGroup({ roles }: { roles: string[] | null | undefined }) {
                 className={`${cfg.color} font-normal gap-1 opacity-90 border-dashed`}
                 variant="outline"
               >
-                <Icon className="h-3 w-3" />
+                <Icon className="h-3 w-3" aria-hidden="true" />
                 {cfg.label}
               </Badge>
             </TooltipTrigger>
@@ -163,49 +173,50 @@ function RolesBadgeGroup({ roles }: { roles: string[] | null | undefined }) {
   );
 }
 
-function UserStatus({ u }: { u: CompanyUser }) {
-  const isLocked = !!u.locked_until && new Date(u.locked_until) > new Date();
-  const isOnline = u.active_sessions > 0;
+function UserStatus({ u, breve = false }: { u: CompanyUser; breve?: boolean }) {
+  const stato = chiaveStato(u);
 
-  if (u.is_blocked) {
+  if (stato === "blocked") {
     return (
-      <Badge variant="destructive" className="text-[10px] gap-1 font-normal">
-        <Shield className="h-2.5 w-2.5" /> Accesso bloccato
+      <Badge variant="destructive" className="text-[10px] gap-1 font-normal whitespace-nowrap">
+        <Shield className="h-2.5 w-2.5" aria-hidden="true" /> Accesso bloccato
       </Badge>
     );
   }
-  if (isLocked) {
+  if (stato === "locked") {
     return (
-      <Badge variant="outline" className="text-[10px] gap-1 font-normal text-amber-600 border-amber-300 bg-amber-50">
-        <Lock className="h-2.5 w-2.5" /> Bloccato temporaneo
+      // Una frase lunga («Bloccato fino alle 14:30 (password sbagliate)»): va a capo
+      // in un riquadro, non in una pillola che si gonfia.
+      <Badge
+        variant="outline"
+        className={`items-start gap-1 text-[10px] font-normal leading-tight text-amber-600 border-amber-300 bg-amber-50 ${
+          breve ? "whitespace-nowrap" : "rounded-md px-2 py-1 text-left whitespace-normal"
+        }`}
+      >
+        <Lock className="mt-px h-2.5 w-2.5 shrink-0" aria-hidden="true" /> {etichettaBloccoTemporaneo(u.locked_until!, new Date(), breve)}
       </Badge>
     );
   }
-  if (isOnline) {
+  if (stato === "online") {
     return (
       <span className="flex items-center gap-1.5 text-xs text-emerald-600">
-        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-        Online
+        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
+        Collegato adesso
       </span>
     );
   }
-  if (u.last_login_at) {
+  if (u.ultimo_segno_di_vita) {
     return (
       <span className="text-xs text-muted-foreground">
-        {formatDistanceToNow(new Date(u.last_login_at), { addSuffix: true, locale: it })}
+        Visto {formatDistanceToNow(new Date(u.ultimo_segno_di_vita), { addSuffix: true, locale: it })}
       </span>
     );
   }
   return <span className="text-xs text-muted-foreground italic">Mai connesso</span>;
 }
 
-function getUserStatusKey(u: CompanyUser): Exclude<StatusFilter, "all"> {
-  const isLocked = u.locked_until && new Date(u.locked_until) > new Date();
-  if (u.is_blocked) return "blocked";
-  if (isLocked) return "locked";
-  if (u.active_sessions > 0) return "online";
-  if (!u.last_login_at) return "never";
-  return "inactive";
+function getUserStatusKey(u: CompanyUser): ChiaveStato {
+  return chiaveStato(u);
 }
 
 /** Il ruolo principale con la classifica della scheda utente e del database
@@ -285,7 +296,7 @@ function DeleteUserDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
-            <Trash2 className="h-5 w-5" />
+            <Trash2 className="h-5 w-5" aria-hidden="true" />
             Elimina utente
           </DialogTitle>
           <DialogDescription>
@@ -308,12 +319,12 @@ function DeleteUserDialog({
 
           {eligibleUsers.length > 0 && (
             <div className="space-y-2">
-              <Label className="flex items-center gap-1.5 text-sm">
-                <ArrowRightLeft className="h-3.5 w-3.5" />
-                Riassegna i dati a un altro utente (opzionale)
+              <Label htmlFor="riassegna-a" className="flex items-center gap-1.5 text-sm">
+                <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                Riassegna i dati a un altro utente (facoltativo)
               </Label>
               <Select value={reassignTo} onValueChange={setReassignTo}>
-                <SelectTrigger>
+                <SelectTrigger id="riassegna-a">
                   <SelectValue placeholder="Non riassegnare" />
                 </SelectTrigger>
                 <SelectContent>
@@ -341,9 +352,9 @@ function DeleteUserDialog({
             }}
           >
             {isDeleting ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Eliminazione...</>
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />Eliminazione…</>
             ) : (
-              <><Trash2 className="h-4 w-4 mr-2" />Elimina definitivamente</>
+              <><Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />Elimina definitivamente</>
             )}
           </Button>
         </DialogFooter>
@@ -357,7 +368,14 @@ export function UsersConfig() {
   const isMobile = useIsMobile();
   const { user, effectiveCompany, profile, role } = useAuth();
   const permissions = usePermissions();
-  const canManageUsers = permissions.isAdmin || permissions.canEditSettingsPeople;
+  // Creare, importare, bloccare, cambiare i ruoli ed eliminare le persone lo fa
+  // solo un amministratore (lo impone il server). «Team & Utenti — Modifica»
+  // serve ai team e alle notifiche dei colleghi, non a questo elenco: prima qui
+  // accendeva tutti i pulsanti e chi li toccava prendeva un rifiuto.
+  const canManageUsers = permissions.isAdmin;
+  // La scheda di una persona si apre anche a chi può solo guardare: la mostra in
+  // sola lettura. Serve il permesso della rotta (Persone & Accessi — Vedi).
+  const canOpenCard = permissions.isAdmin || permissions.canViewSettingsPeople;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const effectiveCompanyId = effectiveCompany?.id;
@@ -535,9 +553,9 @@ export function UsersConfig() {
             .in("user_id", userIds)
             .limit(5000), "Ruoli utenti", 15_000)
           : Promise.resolve({ rows: [] as { user_id: string; role: string }[] }),
-        readUsersOptionalRows<{ user_id: string }>(supabase
+        readUsersOptionalRows<{ user_id: string; last_active_at: string | null }>(supabase
           .from("user_sessions")
-          .select("user_id")
+          .select("user_id, last_active_at")
           .eq("company_id", effectiveCompanyId!)
           .eq("is_active", true)
           .limit(2000), "Sessioni utenti", 10_000),
@@ -567,9 +585,13 @@ export function UsersConfig() {
         if (accessRole) accessRoleByUser[row.user_id] = accessRole;
       });
 
-      const sessionsByUser: Record<string, number> = {};
+      // «Collegato adesso» = una sessione aperta con un segno di vita negli ultimi
+      // 10 minuti. Contare le sessioni «attive» dava 76 persone online quando
+      // nessuno lo era: una sessione resta aperta finché non la chiude qualcuno.
+      const collegati = personeCollegate(sessionsResult.rows);
+      const sessioniByUser: Record<string, { last_active_at: string | null }[]> = {};
       sessionsResult.rows.forEach((s) => {
-        sessionsByUser[s.user_id] = (sessionsByUser[s.user_id] || 0) + 1;
+        (sessioniByUser[s.user_id] ||= []).push({ last_active_at: s.last_active_at });
       });
 
       const blockedByUser: Record<string, boolean> = {};
@@ -602,7 +624,8 @@ export function UsersConfig() {
           effectiveRole: determineEffectiveRole(safeRoles),
           allRoles: safeRoles,
           permissions: null,
-          active_sessions: sessionsByUser[uid] || 0,
+          collegato_adesso: collegati.has(uid),
+          ultimo_segno_di_vita: ultimoSegnoDiVita(profile?.last_login_at ?? null, sessioniByUser[uid] ?? []),
           is_blocked: blockedByUser[uid] ?? false,
           hasKnownStaffRole: knownRoles.some((r) => r !== "customer"),
         }];
@@ -645,7 +668,8 @@ export function UsersConfig() {
       last_login_at: profile?.last_login_at ?? null,
       locked_until: profile?.locked_until ?? null,
       failed_login_count: profile?.failed_login_count ?? 0,
-      active_sessions: 0,
+      collegato_adesso: false,
+      ultimo_segno_di_vita: profile?.last_login_at ?? null,
       is_blocked: false,
     }];
   }, [profile, role, user]);
@@ -670,7 +694,7 @@ export function UsersConfig() {
     const status = getUserStatusKey(u);
     acc[status] = (acc[status] || 0) + 1;
     return acc;
-  }, {} as Partial<Record<Exclude<StatusFilter, "all">, number>>);
+  }, {} as Partial<Record<ChiaveStato, number>>);
 
   const writeAuditLog = async (
     action: string,
@@ -692,10 +716,10 @@ export function UsersConfig() {
   const handleCreateUser = async (data: WizardUserFormData): Promise<{ temporaryPassword?: string }> => {
     setIsCreating(true);
     try {
-      if (!effectiveCompanyId) throw new Error("Azienda non selezionata");
+      if (!effectiveCompanyId) throw new Error("Scegli prima un'azienda");
       const normalizedEmail = data.email.trim().toLowerCase();
       if (!EMAIL_RE.test(normalizedEmail)) {
-        throw new Error("Inserisci un indirizzo email valido");
+        throw new Error("Scrivi un indirizzo email valido");
       }
 
       const { data: existingProfile, error: existingError } = await supabase
@@ -723,7 +747,7 @@ export function UsersConfig() {
       });
 
       if (response.error) {
-        let errorMessage = "Errore durante la creazione dell'utente";
+        let errorMessage = "Non sono riuscito a creare la persona. Riprova tra un attimo.";
         try {
           const errorBody = await response.error.context?.json?.();
           if (errorBody?.error) errorMessage = errorBody.error;
@@ -746,7 +770,7 @@ export function UsersConfig() {
           });
         } catch (permUpdateError) {
           logger.error("Failed to update permissions:", permUpdateError);
-          toast.warning("Utente creato, ma i permessi non sono stati salvati");
+          toast.warning("Utente creato, ma i permessi non sono stati salvati: aprilo e impostali dalla sua scheda");
         }
       }
 
@@ -838,19 +862,13 @@ export function UsersConfig() {
       queryClient.invalidateQueries({ queryKey: ["salespeople"] });
       queryClient.invalidateQueries({ queryKey: ["sub-campo-list"] });
 
-      const roleLabels: Record<string, string> = {
-        company_admin: "Amministratore", company_staff: "Operatore",
-        salesperson: "Venditore", call_center: "Call Center",
-        employee: "Operaio", subcontractor: "Subappaltatore",
-      };
       toast.success("Utente creato", {
-        description: `${data.first_name} ${data.last_name} — ${roleLabels[data.role_type] || "Operatore"}`,
+        description: `${data.first_name} ${data.last_name} — ${NOME_RUOLO[data.role_type as keyof typeof NOME_RUOLO] || NOME_RUOLO.company_staff}`,
       });
 
       return { temporaryPassword: response.data.temporary_password };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Errore durante la creazione";
-      toast.error(message);
+      toast.error(messaggioErrorePersone(error, "Non sono riuscito a creare la persona. Riprova tra un attimo."));
       throw error;
     } finally {
       setIsCreating(false);
@@ -863,7 +881,9 @@ export function UsersConfig() {
       const { data, error: fnError } = await supabase.functions.invoke("delete-company-user", {
         body: { userId, reassignToUserId, company_id: effectiveCompanyId },
       });
-      if (fnError) throw fnError;
+      // Il motivo vero sta nel corpo della risposta: error.message dice solo
+      // «Edge Function returned a non-2xx status code».
+      if (fnError) throw new Error(await edgeErrorMessage(fnError, ""));
       if (data?.error) throw new Error(data.error);
       return data;
     },
@@ -871,12 +891,12 @@ export function UsersConfig() {
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
       queryClient.invalidateQueries({ queryKey: ["salespeople"] });
       queryClient.invalidateQueries({ queryKey: ["sub-campo-list"] });
-      toast.success("Utente eliminato con successo");
+      toast.success("Utente eliminato");
       setDeleteTarget(null);
       setSelectedUsers(new Set());
     },
     onError: (e: Error) => {
-      toast.error(e.message || "Errore durante l'eliminazione");
+      toast.error(messaggioErrorePersone(e, "Non sono riuscito a eliminare la persona. Riprova tra un attimo."));
     },
   });
 
@@ -893,7 +913,7 @@ export function UsersConfig() {
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
       toast.success("Account sbloccato");
     },
-    onError: () => toast.error("Errore nello sblocco"),
+    onError: () => toast.error("Non sono riuscito a sbloccare l'account. Riprova tra un attimo."),
   });
 
   const blockAccessMutation = useMutation({
@@ -917,7 +937,7 @@ export function UsersConfig() {
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
       toast.success(block ? "Accesso bloccato" : "Accesso ripristinato");
     },
-    onError: () => toast.error("Errore nel cambio stato accesso"),
+    onError: () => toast.error("Non sono riuscito a cambiare lo stato dell'accesso. Riprova tra un attimo."),
   });
 
   // ── Ruoli aggiuntivi (Venditore, Call Center, Operaio) ──────────────
@@ -938,7 +958,7 @@ export function UsersConfig() {
       role: RuoloAggiuntivo;
       add: boolean;
     }) => {
-      if (!effectiveCompanyId) throw new Error("Azienda non selezionata");
+      if (!effectiveCompanyId) throw new Error("Scegli prima un'azienda");
       const { error } = await supabase.rpc("imposta_ruolo_aggiuntivo" as never, {
         p_user_id: userId,
         p_company_id: effectiveCompanyId,
@@ -963,7 +983,7 @@ export function UsersConfig() {
       toast.error(
         typeof msg === "string" && msg && !sembraErrorePostgresGrezzo(msg) && !isNetworkError(e)
           ? msg
-          : userErrorMessage(e, "Non è stato possibile aggiornare il ruolo."),
+          : userErrorMessage(e, "Non sono riuscito ad aggiornare il ruolo. Riprova tra un attimo."),
       );
     },
   });
@@ -1013,7 +1033,7 @@ export function UsersConfig() {
     });
     const deletable = selected.filter((uid) => !blocked.includes(uid));
     if (deletable.length === 0) {
-      toast.error("Nessun utente eliminabile selezionato");
+      toast.error("Fra quelli scelti non c'è nessuno che si possa eliminare");
       setSelectedUsers(new Set());
       return;
     }
@@ -1028,16 +1048,16 @@ export function UsersConfig() {
           const { data, error } = await supabase.functions.invoke("delete-company-user", {
             body: { userId: uid, company_id: effectiveCompanyId },
           });
-          const errMsg = error?.message || (data?.error as string | undefined);
+          const errMsg = error ? await edgeErrorMessage(error, "") : (data?.error as string | undefined);
           if (errMsg) {
             failed++;
-            if (!firstError) firstError = errMsg;
+            if (!firstError) firstError = messaggioErrorePersone(errMsg, "");
           } else {
             deleted++;
           }
         } catch (e) {
           failed++;
-          if (!firstError) firstError = e instanceof Error ? e.message : "Errore sconosciuto";
+          if (!firstError) firstError = messaggioErrorePersone(e, "");
         }
       }
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
@@ -1050,15 +1070,21 @@ export function UsersConfig() {
         blocked: blocked.length,
         user_ids: deletable,
       });
-      if (deleted > 0) toast.success(`${deleted} utente/i eliminato/i`);
+      if (deleted > 0) toast.success(deleted === 1 ? "1 persona eliminata" : `${deleted} persone eliminate`);
       // Surface partial failures invece di nasconderle: l'admin deve sapere
       // quanti utenti NON sono stati eliminati e perché.
       if (failed > 0) {
         toast.error(
-          `${failed} utente/i non eliminato/i${firstError ? `: ${firstError}` : ""}`,
+          `${failed === 1 ? "1 persona non eliminata" : `${failed} persone non eliminate`}${firstError ? `: ${firstError}` : ""}`,
         );
       }
-      if (blocked.length > 0) toast.warning(`${blocked.length} admin/utente corrente non eliminato per sicurezza`);
+      if (blocked.length > 0) {
+        toast.warning(
+          blocked.length === 1
+            ? "1 persona non eliminata per sicurezza (un amministratore, o tu)"
+            : `${blocked.length} persone non eliminate per sicurezza (amministratori, o tu)`,
+        );
+      }
       setSelectedUsers(new Set());
     } finally {
       setBulkActionLoading(false);
@@ -1067,7 +1093,7 @@ export function UsersConfig() {
 
   // ── CSV Export ──────────────────────────────────────────────────────
   const handleExportCSV = () => {
-    const headers = ["Nome", "Cognome", "Email", "Telefono", "Ruolo", "Ultimo Accesso"];
+    const headers = ["Nome", "Cognome", "Email", "Telefono", "Ruolo", "Ultimo accesso"];
     const rows = filteredUsers.map((u) => [
       u.first_name, u.last_name, u.email, u.phone || "",
       ROLE_CONFIG[u.effectiveRole]?.label || u.effectiveRole,
@@ -1085,83 +1111,76 @@ export function UsersConfig() {
       rows: rows.length,
       filters: { search: searchQuery || null, role: roleFilter, status: statusFilter, team: teamFilter },
     });
-    toast.success("Export completato", {
-      description: `${rows.length} utente/i esportati in base ai filtri correnti.`,
+    toast.success("Elenco esportato", {
+      description: rows.length === 1
+        ? "1 persona, in base ai filtri che hai scelto."
+        : `${rows.length} persone, in base ai filtri che hai scelto.`,
     });
   };
 
   // ── CSV Import ─────────────────────────────────────────────────────
+  // Il file ha le colonne di quello che si esporta (COLONNE_DEL_FILE); come si
+  // legge sta in @/lib/users/importaUtentiCsv (provato a parte).
   const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file) return;
     if (!effectiveCompanyId) {
-      toast.error("Azienda non selezionata");
-      e.target.value = "";
+      toast.error("Scegli prima un'azienda");
+      input.value = "";
       return;
     }
 
-    const text = await file.text();
-    const lines = text.split("\n").filter((l) => l.trim());
-    if (lines.length < 2) { toast.error("File CSV vuoto o non valido"); return; }
+    const esito = leggiCsvUtenti(await file.text());
+    if (esito.vuoto) {
+      toast.error(`Il file è vuoto o non ha le colonne giuste. Servono: ${COLONNE_DEL_FILE}.`);
+      input.value = "";
+      return;
+    }
 
-    const dataRows = lines.slice(1);
     let imported = 0;
-    const failedRows: { row: number; email: string; reason: string }[] = [];
-    const seenEmails = new Set<string>();
-    const roleMap: Record<string, StaffRoleType> = {
-      operatore: "company_staff",
-      venditore: "salesperson", "call center": "call_center",
-      operaio: "employee", subappaltatore: "subcontractor",
-    };
+    const failedRows: { row: number; email: string; reason: string }[] = esito.scartate.map((r) => ({
+      row: r.riga,
+      email: r.email,
+      reason: r.motivo,
+    }));
 
-    for (let i = 0; i < dataRows.length; i++) {
-      const cols = dataRows[i].split(",").map((c) => c.replace(/^"|"$/g, "").trim());
-      const [firstName, lastName, rawEmail, , roleLabel] = cols;
-      const email = (rawEmail || "").trim().toLowerCase();
-      const normalizedRoleLabel = (roleLabel || "").toLowerCase();
-      if (!firstName || !lastName || !email) {
-        failedRows.push({ row: i + 2, email: email || "—", reason: "Campi obbligatori mancanti" });
-        continue;
-      }
-      if (!EMAIL_RE.test(email)) {
-        failedRows.push({ row: i + 2, email, reason: "Email non valida" });
-        continue;
-      }
-      if (seenEmails.has(email)) {
-        failedRows.push({ row: i + 2, email, reason: "Email duplicata nel CSV" });
-        continue;
-      }
-      seenEmails.add(email);
-      if (normalizedRoleLabel === "amministratore" || normalizedRoleLabel === "admin" || normalizedRoleLabel === "company_admin") {
-        failedRows.push({ row: i + 2, email, reason: "Gli admin vanno creati manualmente con conferma esplicita" });
-        continue;
-      }
-
-      const roleType = roleMap[normalizedRoleLabel] || "company_staff";
+    for (const riga of esito.daImportare) {
       // Come il wizard: il preset del ruolo viaggia con la creazione. Senza,
       // chi arrivava dall'import nasceva coi soli default e non vedeva nulla.
       const permissions = syncLegacySettingsFlags(
-        syncLegacyMarketingFlags({ ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS[roleType] }),
+        syncLegacyMarketingFlags({ ...DEFAULT_PERMISSIONS, ...ROLE_PRESETS[riga.roleType] }),
       );
       try {
         const { data: fnData, error: fnError } = await supabase.functions.invoke("create-company-staff", {
-          body: { first_name: firstName, last_name: lastName, email, company_id: effectiveCompanyId, role_type: roleType, permissions },
+          body: {
+            first_name: riga.firstName, last_name: riga.lastName, email: riga.email,
+            company_id: effectiveCompanyId, role_type: riga.roleType, permissions,
+          },
         });
-        if (fnError) throw fnError;
+        if (fnError) throw new Error(await edgeErrorMessage(fnError, ""));
         if (fnData?.error) throw new Error(fnData.error);
         imported++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : undefined;
-        failedRows.push({ row: i + 2, email, reason: msg?.includes("esiste già") ? "Email già in uso" : msg || "Errore" });
+        failedRows.push({
+          row: riga.riga,
+          email: riga.email,
+          reason: msg?.includes("esiste già") ? "Email già in uso" : messaggioErrorePersone(err, "Non sono riuscito a crearla"),
+        });
       }
     }
     queryClient.invalidateQueries({ queryKey: ["company-users"] });
-    if (imported > 0) toast.success(`${imported} utente/i importato/i`);
+    if (imported > 0) toast.success(imported === 1 ? "1 persona importata" : `${imported} persone importate`);
     if (failedRows.length > 0) {
+      failedRows.sort((a, b) => a.row - b.row);
       const detail = failedRows.slice(0, 5).map((r) => `Riga ${r.row}: ${r.email} — ${r.reason}`).join("\n");
-      toast.error(`${failedRows.length} riga/e non importata/e`, { description: detail, duration: 8000 });
+      toast.error(failedRows.length === 1 ? "1 riga non importata" : `${failedRows.length} righe non importate`, {
+        description: detail,
+        duration: 8000,
+      });
     }
-    e.target.value = "";
+    input.value = "";
   };
 
   // ─── RENDER ─────────────────────────────────────────────────────────
@@ -1178,7 +1197,7 @@ export function UsersConfig() {
         />
         {canManageUsers && (
           <Button size="icon" className="tap-compact h-9 w-9 shrink-0" onClick={() => setCreateDialogOpen(true)} aria-label="Nuovo utente">
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4" aria-hidden="true" />
           </Button>
         )}
       </div>
@@ -1186,7 +1205,7 @@ export function UsersConfig() {
       {/* ── Summary Bar ───────────────────────────────────────────── */}
       <div className="flex items-center gap-3 flex-wrap max-sm:hidden">
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-sm font-medium">
-          <Users className="h-4 w-4" />
+          <Users className="h-4 w-4" aria-hidden="true" />
           {visibleCompanyUsers.length} utenti
         </div>
         {Object.entries(ROLE_CONFIG).map(([key, cfg]) => {
@@ -1196,48 +1215,53 @@ export function UsersConfig() {
           return (
             <button
               key={key}
+              type="button"
+              aria-pressed={roleFilter === key}
               onClick={() => setRoleFilter(roleFilter === key ? "all" : key)}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ${
                 roleFilter === key ? cfg.color + " ring-1 ring-offset-1" : "bg-card hover:bg-muted"
               }`}
             >
-              <Icon className="h-3 w-3" />
+              <Icon className="h-3 w-3" aria-hidden="true" />
               {count} {cfg.label}
             </button>
           );
         })}
         {statusCounts.blocked ? (
           <button
+            type="button"
+            aria-pressed={statusFilter === "blocked"}
             onClick={() => setStatusFilter(statusFilter === "blocked" ? "all" : "blocked")}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
               statusFilter === "blocked" ? "bg-destructive/10 text-destructive border-destructive/30 ring-1 ring-offset-1" : "bg-card hover:bg-muted"
             }`}
           >
-            <ShieldOff className="h-3 w-3" />
+            <ShieldOff className="h-3 w-3" aria-hidden="true" />
             {statusCounts.blocked} bloccati
           </button>
         ) : null}
         {statusCounts.online ? (
           <button
+            type="button"
+            aria-pressed={statusFilter === "online"}
             onClick={() => setStatusFilter(statusFilter === "online" ? "all" : "online")}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
               statusFilter === "online" ? "bg-emerald-50 text-emerald-700 border-emerald-200 ring-1 ring-offset-1" : "bg-card hover:bg-muted"
             }`}
           >
-            <Wifi className="h-3 w-3" />
-            {statusCounts.online} online
+            <Wifi className="h-3 w-3" aria-hidden="true" />
+            {statusCounts.online} {statusCounts.online === 1 ? "collegato adesso" : "collegati adesso"}
           </button>
         ) : null}
       </div>
 
       {companyUsersWarnings.length > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-sm text-amber-800">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div role="status" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <div>
-            <p className="font-medium">Lista accessi caricata parzialmente</p>
+            <p className="font-medium">L'elenco potrebbe essere incompleto</p>
             <p className="mt-0.5 text-xs text-amber-700">
-              Alcune fonti non hanno risposto: {companyUsersWarnings.slice(0, 2).join(" · ")}
-              {companyUsersWarnings.length > 2 ? ` · +${companyUsersWarnings.length - 2}` : ""}
+              Alcune informazioni non sono arrivate. Ricarica la pagina; se il problema resta, scrivi all'assistenza.
             </p>
           </div>
         </div>
@@ -1252,9 +1276,10 @@ export function UsersConfig() {
           <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
             {/* Search */}
             <div className="relative flex-1 max-w-sm lg:order-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
               <Input
-                placeholder="Cerca per nome o email..."
+                placeholder="Cerca per nome o email…"
+                aria-label="Cerca per nome o email"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 h-9"
@@ -1263,7 +1288,7 @@ export function UsersConfig() {
 
             <div className="flex flex-wrap items-center gap-2 lg:order-3 lg:basis-full">
               <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger className="h-9 w-[150px]">
+                <SelectTrigger className="h-9 w-[150px]" aria-label="Filtra per ruolo">
                   <SelectValue placeholder="Ruolo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1275,21 +1300,19 @@ export function UsersConfig() {
               </Select>
 
               <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-                <SelectTrigger className="h-9 w-[165px]">
+                <SelectTrigger className="h-9 w-[165px]" aria-label="Filtra per stato">
                   <SelectValue placeholder="Stato" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti gli stati</SelectItem>
-                  <SelectItem value="online">Online</SelectItem>
-                  <SelectItem value="blocked">Accesso bloccato</SelectItem>
-                  <SelectItem value="locked">Blocco temporaneo</SelectItem>
-                  <SelectItem value="never">Mai connesso</SelectItem>
-                  <SelectItem value="inactive">Non online</SelectItem>
+                  {(["online", "blocked", "locked", "never", "inactive"] as const).map((chiave) => (
+                    <SelectItem key={chiave} value={chiave}>{ETICHETTE_STATO[chiave]}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
               <Select value={teamFilter} onValueChange={setTeamFilter} disabled={teams.length === 0}>
-                <SelectTrigger className="h-9 w-[160px]">
+                <SelectTrigger className="h-9 w-[160px]" aria-label="Filtra per team">
                   <SelectValue placeholder="Team" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1311,7 +1334,7 @@ export function UsersConfig() {
                     setTeamFilter("all");
                   }}
                 >
-                  Pulisci filtri
+                  Azzera i filtri
                 </Button>
               )}
             </div>
@@ -1319,43 +1342,52 @@ export function UsersConfig() {
             <div className="flex items-center gap-2 ml-auto lg:order-2">
               {canManageUsers && (
                 <Button onClick={() => setCreateDialogOpen(true)} size="sm">
-                  <Plus className="h-4 w-4 mr-1.5" />
-                  Nuovo Utente
+                  <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                  Nuovo utente
                 </Button>
               )}
               {/* Niente export su telefono. */}
               {!isMobile && (
-                <Button variant="outline" size="sm" onClick={handleExportCSV} title="Esporta CSV">
-                  <Download className="h-4 w-4" />
+                <Button variant="outline" size="sm" onClick={handleExportCSV} title="Scarica l'elenco in un file CSV">
+                  <Download className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                  Esporta (CSV)
                 </Button>
               )}
               {canManageUsers && (
                 <div className="relative">
                   <input type="file" accept=".csv"
+                    aria-label={`Importa persone da un file CSV (colonne: ${COLONNE_DEL_FILE})`}
                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                     onChange={handleImportCSV} />
-                  <Button variant="outline" size="sm" title="Importa CSV">
-                    <Upload className="h-4 w-4" />
+                  <Button variant="outline" size="sm" tabIndex={-1} aria-hidden="true">
+                    <Upload className="h-4 w-4 mr-1.5" aria-hidden="true" />
+                    Importa (CSV)
                   </Button>
                 </div>
               )}
             </div>
           </div>
 
+          {canManageUsers && !isMobile && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Per importare: un file CSV con le colonne {COLONNE_DEL_FILE} (le stesse del file che esporti).
+            </p>
+          )}
+
           {/* Bulk action toolbar */}
           {selectedUsers.size > 0 && (
             <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg">
-              <CheckSquare className="h-4 w-4 text-primary" />
+              <CheckSquare className="h-4 w-4 text-primary" aria-hidden="true" />
               <div className="text-sm">
-                <span className="font-medium">{selectedUsers.size} selezionato/i</span>
+                <span className="font-medium">{selectedUsers.size === 1 ? "1 selezionato" : `${selectedUsers.size} selezionati`}</span>
                 <span className="ml-2 text-xs text-muted-foreground">
-                  Admin e utente corrente sono esclusi dalle eliminazioni massive.
+                  Gli amministratori e tu non si eliminano da qui.
                 </span>
               </div>
               <div className="flex items-center gap-1.5 ml-auto">
                 {canManageUsers && (
                   <Button size="sm" variant="destructive" disabled={bulkActionLoading} onClick={() => setBulkDeleteOpen(true)}>
-                    {bulkActionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
+                    {bulkActionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" aria-hidden="true" /> : <Trash2 className="h-3.5 w-3.5 mr-1" aria-hidden="true" />}
                     Elimina
                   </Button>
                 )}
@@ -1369,23 +1401,24 @@ export function UsersConfig() {
 
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="flex items-center justify-center p-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div role="status" className="flex items-center justify-center p-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
+              <span className="sr-only">Caricamento delle persone…</span>
             </div>
           ) : filteredUsers.length === 0 ? (
             <div className="p-12 text-center text-muted-foreground max-sm:p-5">
-              <Users className="h-10 w-10 mx-auto mb-3 opacity-30 max-sm:hidden" />
+              <Users className="h-10 w-10 mx-auto mb-3 opacity-30 max-sm:hidden" aria-hidden="true" />
               <p className="font-medium">
                 {visibleCompanyUsers.length === 0 ? "Nessun utente" : "Nessun risultato"}
               </p>
               <p className="text-sm mt-1 max-sm:hidden">
                 {visibleCompanyUsers.length === 0
-                  ? "Crea il primo utente per iniziare."
-                  : "Prova a modificare i filtri."}
+                  ? "Crea il primo utente per cominciare."
+                  : "Prova a cambiare i filtri."}
               </p>
               {canManageUsers && visibleCompanyUsers.length === 0 && (
                 <Button variant="outline" size="sm" className="mt-3" onClick={() => setCreateDialogOpen(true)}>
-                  <Plus className="h-4 w-4 mr-1.5" /> Crea utente
+                  <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" /> Crea utente
                 </Button>
               )}
             </div>
@@ -1395,7 +1428,7 @@ export function UsersConfig() {
             <div className="divide-y">
               {filteredUsers.map((u) => {
                 const aggiuntivi = ruoliAggiuntivi(u.allRoles, u.effectiveRole).length;
-                const gestibile = canManageUsers && !isCurrentUser(u.id);
+                const gestibile = canOpenCard && !isCurrentUser(u.id);
                 return (
                   <RigaMobile
                     key={u.id}
@@ -1409,7 +1442,7 @@ export function UsersConfig() {
                     }
                     titolo={`${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() + (isCurrentUser(u.id) ? " · tu" : "")}
                     sottotitolo={ROLE_CONFIG[u.effectiveRole]?.label + (aggiuntivi > 0 ? ` +${aggiuntivi}` : "")}
-                    stato={<UserStatus u={u} />}
+                    stato={<UserStatus u={u} breve />}
                   />
                 );
               })}
@@ -1421,6 +1454,7 @@ export function UsersConfig() {
                   <TableHead className="w-10 pl-4">
                     {canManageUsers && (
                       <Checkbox
+                        aria-label="Seleziona tutte le persone dell'elenco"
                         checked={selectableFilteredUsers.length > 0 &&
                           selectedUsers.size === selectableFilteredUsers.length}
                         onCheckedChange={toggleSelectAll}
@@ -1429,21 +1463,22 @@ export function UsersConfig() {
                     )}
                   </TableHead>
                   <TableHead className="min-w-[200px]">Utente</TableHead>
-                  <TableHead className="w-[140px]">Ruolo</TableHead>
-                  <TableHead className="w-[140px]">Stato</TableHead>
-                  <TableHead className="w-12 text-right pr-4"></TableHead>
+                  <TableHead className="w-[190px]">Ruolo</TableHead>
+                  <TableHead className="w-[210px]">Stato</TableHead>
+                  <TableHead className="w-12 text-right pr-4"><span className="sr-only">Azioni</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredUsers.map((u) => (
                   <TableRow
                     key={u.id}
-                    className={canManageUsers && !isCurrentUser(u.id) ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}
-                    onClick={() => canManageUsers && !isCurrentUser(u.id) && navigate(`/azienda/impostazioni/utenti/${u.id}`)}
+                    className={canOpenCard && !isCurrentUser(u.id) ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}
+                    onClick={() => canOpenCard && !isCurrentUser(u.id) && navigate(`/azienda/impostazioni/utenti/${u.id}`)}
                   >
                     <TableCell className="pl-4" onClick={e => e.stopPropagation()}>
                       {canManageUsers && !isCurrentUser(u.id) && u.effectiveRole !== COMPANY_ADMIN_ROLE && (
                         <Checkbox
+                          aria-label={`Seleziona ${u.first_name} ${u.last_name}`}
                           checked={selectedUsers.has(u.id)}
                           onCheckedChange={() => toggleSelectUser(u.id)}
                         />
@@ -1476,20 +1511,20 @@ export function UsersConfig() {
                       <UserStatus u={u} />
                     </TableCell>
                     <TableCell className="text-right pr-4" onClick={(e) => e.stopPropagation()}>
-                      {canManageUsers && !isCurrentUser(u.id) && (
+                      {canOpenCard && !isCurrentUser(u.id) && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Azioni per ${u.first_name} ${u.last_name}`}>
+                              <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => navigate(`/azienda/impostazioni/utenti/${u.id}`)}>
-                              <Shield className="h-4 w-4 mr-2" /> Gestisci
+                              <Shield className="h-4 w-4 mr-2" aria-hidden="true" /> {canManageUsers ? "Gestisci" : "Apri la scheda"}
                             </DropdownMenuItem>
                             {u.effectiveRole !== "company_admin" && (
                               <DropdownMenuItem onClick={() => navigate(`/azienda/impostazioni/utenti/${u.id}?tab=permissions`)}>
-                                <Shield className="h-4 w-4 mr-2" /> Permessi
+                                <Shield className="h-4 w-4 mr-2" aria-hidden="true" /> Permessi
                               </DropdownMenuItem>
                             )}
                             {/* Ruoli aggiuntivi: per tutti tranne il Subappaltatore */}
@@ -1512,9 +1547,9 @@ export function UsersConfig() {
                                 })}
                               </>
                             )}
-                            {((u.locked_until && new Date(u.locked_until) > new Date()) || u.failed_login_count > 0) && (
+                            {canManageUsers && ((u.locked_until && new Date(u.locked_until) > new Date()) || u.failed_login_count > 0) && (
                               <DropdownMenuItem onClick={() => unlockAccountMutation.mutate(u.id)}>
-                                <LockOpen className="h-4 w-4 mr-2" /> Sblocca account
+                                <LockOpen className="h-4 w-4 mr-2" aria-hidden="true" /> Sblocca account
                               </DropdownMenuItem>
                             )}
                             {canManageUsers && u.effectiveRole !== "company_admin" && (
@@ -1573,8 +1608,8 @@ export function UsersConfig() {
             onScegli={(v) => setStatusFilter(v as StatusFilter)}
             scelte={[
               { value: "all", label: "Tutti" },
-              { value: "online", label: "Online" },
-              { value: "never", label: "Mai connesso" },
+              { value: "online", label: ETICHETTE_STATO.online },
+              { value: "never", label: ETICHETTE_STATO.never },
               { value: "blocked", label: "Bloccati" },
             ]}
           />
@@ -1612,12 +1647,12 @@ export function UsersConfig() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="h-5 w-5" />
-              Eliminare {selectedUsers.size} utente/i?
+              <Trash2 className="h-5 w-5" aria-hidden="true" />
+              {selectedUsers.size === 1 ? "Eliminare 1 persona?" : `Eliminare ${selectedUsers.size} persone?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              L'eliminazione massiva revoca gli accessi selezionati e scollega eventuali record collegati.
-              Admin e utente corrente restano esclusi. Questa azione viene registrata nel log audit.
+              Le persone scelte non potranno più entrare, e i dati che le riguardano restano ma senza il loro nome.
+              Gli amministratori e tu restate fuori. L'azione si registra nel registro attività.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1631,11 +1666,11 @@ export function UsersConfig() {
               }}
             >
               {bulkActionLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
-                <Trash2 className="mr-2 h-4 w-4" />
+                <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
               )}
-              Elimina selezionati
+              Elimina i selezionati
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

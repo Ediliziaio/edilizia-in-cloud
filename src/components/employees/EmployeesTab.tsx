@@ -1,5 +1,6 @@
 import { Plus, Pencil, Trash2, Phone, Mail, FileText, UserPlus } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { costoOrarioDipendente } from "@/lib/costoOrarioDipendente";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,8 @@ interface EmployeesTabProps {
   onViewAttachments: (employee: Employee) => void;
   onCreateUser: (employee: Employee) => void;
   roleType?: 'operaio' | 'staff_interno';
+  /** Chi guarda e basta: niente «Nuovo», «Modifica», «Elimina», «Crea l'accesso». */
+  soloLettura?: boolean;
 }
 
 export function EmployeesTab({
@@ -46,13 +49,16 @@ export function EmployeesTab({
   onViewAttachments,
   onCreateUser,
   roleType = 'operaio',
+  soloLettura = false,
 }: EmployeesTabProps) {
   const activeEmployees = employees.filter((e) => e.is_active);
   const inactiveEmployees = employees.filter((e) => !e.is_active);
 
-  const calculateHourlyCost = (grossSalary: number, monthlyHours: number) => {
-    return monthlyHours > 0 ? grossSalary / monthlyHours : 0;
-  };
+  // Lo stesso costo orario che finisce nelle commesse (tariffa scritta a mano, se
+  // c'è; altrimenti lordo più contributi diviso le ore del mese). Prima qui si
+  // mostrava il lordo diviso le ore, senza contributi: circa un quarto in meno di
+  // quello che il sistema usa davvero.
+  const calculateHourlyCost = (employee: Employee) => costoOrarioDipendente(employee);
 
   return (
     <div className="space-y-4">
@@ -60,16 +66,16 @@ export function EmployeesTab({
         <div className="text-sm text-muted-foreground">
           {activeEmployees.length} attivi, {inactiveEmployees.length} inattivi
         </div>
-        <Button onClick={onNew}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuovo Dipendente
+        <Button onClick={onNew} disabled={soloLettura}>
+          <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+          Nuovo dipendente
         </Button>
       </div>
 
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 space-y-3">
+            <div className="p-6 space-y-3" role="status" aria-busy="true" aria-label="Caricamento dei dipendenti">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="flex items-center gap-4">
                   <Skeleton className="h-5 w-[150px]" />
@@ -83,8 +89,8 @@ export function EmployeesTab({
           ) : employees.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               {roleType === 'staff_interno'
-                ? "Nessun membro dello staff interno registrato. Aggiungi il primo per iniziare."
-                : "Nessun operaio registrato. Aggiungi il primo operaio per iniziare."}
+                ? "Nessun membro dello staff interno ancora. Aggiungi il primo per cominciare."
+                : "Nessun operaio ancora. Aggiungi il primo per cominciare."}
             </div>
           ) : (
             <Table>
@@ -93,12 +99,17 @@ export function EmployeesTab({
                   <TableHead>Nome</TableHead>
                   <TableHead>Area</TableHead>
                   <TableHead>Contatti</TableHead>
-                  <TableHead className="text-right">Stipendio Lordo</TableHead>
-                  <TableHead className="text-right">Stipendio Netto</TableHead>
-                  <TableHead className="text-right">Ore/Mese</TableHead>
-                  <TableHead className="text-right">Costo Orario</TableHead>
+                  <TableHead className="text-right">Stipendio lordo</TableHead>
+                  <TableHead className="text-right">Stipendio netto</TableHead>
+                  <TableHead className="text-right">Ore al mese</TableHead>
+                  <TableHead
+                    className="text-right"
+                    title="Tariffa scritta a mano nella scheda; altrimenti lordo più contributi diviso le ore del mese. È il costo che finisce nelle commesse."
+                  >
+                    Costo orario
+                  </TableHead>
                   <TableHead>Stato</TableHead>
-                  <TableHead className="text-right">Azioni</TableHead>
+                  <TableHead className="text-right"><span className="sr-only">Azioni</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -159,7 +170,7 @@ export function EmployeesTab({
                       {employee.monthly_hours}h
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {formatCurrency(calculateHourlyCost(employee.gross_salary, employee.monthly_hours))}/h
+                      {formatCurrency(calculateHourlyCost(employee))}/h
                     </TableCell>
                     <TableCell>
                       <Badge variant={employee.is_active ? "default" : "secondary"}>
@@ -173,9 +184,11 @@ export function EmployeesTab({
                             variant="ghost"
                             size="icon"
                             onClick={() => onCreateUser(employee)}
-                            title="Crea account"
+                            disabled={soloLettura}
+                            title="Crea l'accesso"
+                            aria-label={`Crea l'accesso per ${employee.first_name} ${employee.last_name}`}
                           >
-                            <UserPlus className="h-4 w-4 text-primary" />
+                            <UserPlus className="h-4 w-4 text-primary" aria-hidden="true" />
                           </Button>
                         )}
                         <Button
@@ -183,29 +196,37 @@ export function EmployeesTab({
                           size="icon"
                           onClick={() => onViewAttachments(employee)}
                           title="Documenti"
+                          aria-label={`Documenti di ${employee.first_name} ${employee.last_name}`}
                         >
-                          <FileText className="h-4 w-4" />
+                          <FileText className="h-4 w-4" aria-hidden="true" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => onEdit(employee)}
+                          disabled={soloLettura}
                           title="Modifica"
+                          aria-label={`Modifica ${employee.first_name} ${employee.last_name}`}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="h-4 w-4" aria-hidden="true" />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" title="Elimina">
-                              <Trash2 className="h-4 w-4 text-destructive" />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={soloLettura}
+                              title="Elimina"
+                              aria-label={`Elimina ${employee.first_name} ${employee.last_name}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Eliminare il dipendente?</AlertDialogTitle>
+                              <AlertDialogTitle>Eliminare {employee.first_name} {employee.last_name}?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Questa azione è irreversibile. Se il dipendente è assegnato a ordini,
-                                considera invece di impostarlo come "Inattivo".
+                                Non si può annullare. Se è assegnato a delle commesse, meglio impostarlo come «Inattivo».
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

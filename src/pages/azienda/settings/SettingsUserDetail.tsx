@@ -10,6 +10,7 @@ import { ArrowLeft, User, Shield, Clock, Calendar, Bell, Wifi, FileText, Lock, H
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -29,6 +30,8 @@ import { salvaPermessiUtente } from "@/lib/permessi/salvaPermessiUtente";
 import { ruoloPrincipale, ruoliAggiuntivi, TESTI_RUOLO_AGGIUNTIVO, type RuoloAggiuntivo } from "@/lib/permessi/ruoliUtente";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { messaggioErrorePersone } from "@/lib/users/erroriPersone";
 import { normalizeCompanyAccessRole } from "@/lib/auth/multiCompany";
 import { isNetworkError, isTransientTimeoutError, sembraErrorePostgresGrezzo, userErrorMessage } from "@/lib/userErrorMessage";
 import type { Database } from "@/integrations/supabase/types";
@@ -70,12 +73,15 @@ interface UserDetail {
 const SCHEDE_MOBILE = new Set<string>(["profile", "permissions", "security"]);
 const ETICHETTA_MOBILE: Record<string, string> = { profile: "Dati", permissions: "Permessi", security: "Sicurezza" };
 
+// Prima: Informazioni Utente · Ruoli & Autorizzazioni · Sessioni · Log Attività · Sicurezza…
+// Chi cerca «chiudere l'accesso a chi se ne va» deve arrivare a Sicurezza: ora è la terza.
+// Gli identificativi (profile, permissions, security…) non cambiano: i rimandi (?tab=permissions) li usano.
 const SIDEBAR_TABS = [
-  { id: "profile", label: "Informazioni Utente", icon: User },
-  { id: "permissions", label: "Ruoli & Autorizzazioni", icon: Shield },
-  { id: "sessions", label: "Sessioni", icon: Wifi },
-  { id: "activity", label: "Log Attività", icon: FileText },
+  { id: "profile", label: "Dati", icon: User },
+  { id: "permissions", label: "Ruolo e permessi", icon: Shield },
   { id: "security", label: "Sicurezza", icon: Lock },
+  { id: "sessions", label: "Sessioni", icon: Wifi },
+  { id: "activity", label: "Attività", icon: FileText },
   { id: "availability", label: "Disponibilità", icon: Clock },
   { id: "calendar", label: "Calendario", icon: Calendar },
   { id: "notifications", label: "Notifiche", icon: Bell },
@@ -107,39 +113,53 @@ function writeUserAuditLog(payload: UserAuditInsert) {
 export default function SettingsUserDetail() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { isLoading: authLoading, user: currentUser, isImpersonating, effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
 
-  const canManagePeople = permissions.isAdmin || permissions.canEditSettingsPeople;
+  // Aprire la scheda: l'amministratore, o chi ha «Modifica» su Persone & Accessi
+  // (gestisce i team e le notifiche dei colleghi). Cambiare dati, ruolo, permessi,
+  // password e accessi: solo l'amministratore, lo rifiuta il server a chiunque
+  // altro. Gli altri guardano, con l'avviso, senza pulsanti che finirebbero in un errore.
+  const puoAprireScheda = permissions.isAdmin || permissions.canEditSettingsPeople;
+  const puoGestirePersone = permissions.isAdmin;
 
   // Wait for auth to resolve before checking permissions — prevents "Accesso negato"
   // flash on first render when role is still null (loading state).
   useEffect(() => {
     if (authLoading || permissions.isLoading) return;
-    if (!canManagePeople) {
+    if (!puoAprireScheda) {
       toast({
-        title: "Accesso negato",
-        description: "Non hai i permessi per gestire gli utenti.",
+        title: "Pagina riservata",
+        description: "Le schede delle persone le apre solo l'amministratore.",
         variant: "destructive",
       });
-      navigate("/azienda/impostazioni/profilo", { replace: true });
+      // All'elenco delle persone (che chi arriva qui può aprire), non a un'altra pagina che potrebbe negarsi.
+      navigate("/azienda/impostazioni/persone", { replace: true });
     }
-  }, [authLoading, permissions.isLoading, canManagePeople, navigate, toast]);
+  }, [authLoading, permissions.isLoading, puoAprireScheda, navigate, toast]);
 
   const isMobile = useIsMobile();
-  const [activeTab, setActiveTab] = useState<TabId>(() => {
-    const tabParam = searchParams.get("tab");
-    if (tabParam && SIDEBAR_TABS.some(t => t.id === tabParam)) {
-      // Su telefono un indirizzo verso una scheda da computer apre i dati.
-      if (window.innerWidth < 768 && !SCHEDE_MOBILE.has(tabParam)) return "profile";
-      return tabParam as TabId;
-    }
-    return "profile";
-  });
+  // La scheda scelta sta nell'indirizzo (?tab=…): si può mandare il link e ricaricare la pagina.
+  const tabParam = searchParams.get("tab");
+  const activeTab: TabId = tabParam && SIDEBAR_TABS.some((t) => t.id === tabParam) ? (tabParam as TabId) : "profile";
   const schedaVisibile: TabId = isMobile && !SCHEDE_MOBILE.has(activeTab) ? "profile" : activeTab;
+
+  // Modifiche non salvate nelle schede Dati e Ruolo e permessi: cambiando scheda si smontano e andrebbero perse.
+  const [profiloDirty, setProfiloDirty] = useState(false);
+  const [permessiDirty, setPermessiDirty] = useState(false);
+  const confermaUscita = useSettingsDraftGuard(profiloDirty || permessiDirty);
+  const setActiveTab = (id: TabId) => {
+    if (id === activeTab) return;
+    if (!confermaUscita()) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", id);
+      return next;
+    }, { replace: true });
+  };
 
   const { data: userData, isLoading } = useQuery<UserDetail>({
     queryKey: [...queryKeys.users.detail(userId), effectiveCompany?.id],
@@ -312,7 +332,7 @@ export default function SettingsUserDetail() {
     onError: (e: Error) => {
       toast({
         title: "Errore salvataggio profilo",
-        description: e.message || "Impossibile salvare il profilo.",
+        description: messaggioErrorePersone(e, "Impossibile salvare il profilo. Riprova tra un attimo."),
         variant: "destructive",
       });
     },
@@ -362,7 +382,7 @@ export default function SettingsUserDetail() {
     onError: (e: Error) => {
       toast({
         title: "Errore salvataggio permessi",
-        description: e.message || "Errore durante il salvataggio dei permessi.",
+        description: messaggioErrorePersone(e, "Errore durante il salvataggio dei permessi. Riprova tra un attimo."),
         variant: "destructive",
       });
     },
@@ -430,7 +450,7 @@ export default function SettingsUserDetail() {
     );
   }
 
-  if (!canManagePeople) return null;
+  if (!puoAprireScheda) return null;
 
   if (isLoading) {
     return (
@@ -454,8 +474,8 @@ export default function SettingsUserDetail() {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Utente non trovato.</p>
-        <Button variant="outline" className="mt-4" onClick={() => navigate("/azienda/impostazioni/utenti")}>
-          Torna alla lista
+        <Button variant="outline" className="mt-4" onClick={() => navigate("/azienda/impostazioni/persone")}>
+          Torna all'elenco
         </Button>
       </div>
     );
@@ -464,8 +484,12 @@ export default function SettingsUserDetail() {
   return (
     <div className="space-y-4 max-md:space-y-3">
       <div className="flex items-center gap-3 max-md:gap-1.5">
-        <Button variant="ghost" size="icon" className="max-md:-ml-2 max-md:h-8 max-md:w-8" onClick={() => navigate("/azienda/impostazioni/utenti")} aria-label="Torna agli utenti">
-          <ArrowLeft className="h-4 w-4" />
+        <Button
+          variant="ghost" size="icon" className="max-md:-ml-2 max-md:h-8 max-md:w-8"
+          onClick={() => { if (confermaUscita()) navigate("/azienda/impostazioni/persone?tab=utenti"); }}
+          aria-label="Torna all'elenco delle persone"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         </Button>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -484,6 +508,14 @@ export default function SettingsUserDetail() {
           <p className="truncate text-sm text-muted-foreground max-md:text-xs">{userData.email}</p>
         </div>
       </div>
+
+      {!puoGestirePersone && (
+        <Alert>
+          <AlertDescription>
+            Stai guardando. I dati, il ruolo, i permessi e gli accessi di questa persona li cambia solo l'amministratore.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {userData.e_il_titolare && (
         <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
@@ -523,7 +555,9 @@ export default function SettingsUserDetail() {
           return (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveTab(tab.id)}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
                 "tap-compact rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
                 isActive ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
@@ -538,20 +572,22 @@ export default function SettingsUserDetail() {
       <div className="flex gap-6 min-h-[600px] max-md:min-h-0">
         {/* Desktop: vertical sidebar */}
         <div className="hidden md:block w-64 shrink-0">
-          <nav className="space-y-1 sticky top-4">
+          <nav aria-label="Schede della persona" className="space-y-1 sticky top-4">
             {SIDEBAR_TABS.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
+                  type="button"
                   onClick={() => setActiveTab(tab.id)}
+                  aria-current={isActive ? "page" : undefined}
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left",
                     isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
-                  <Icon className="h-4 w-4 shrink-0" />
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                   {tab.label}
                 </button>
               );
@@ -568,6 +604,8 @@ export default function SettingsUserDetail() {
               isBlocked={userData.is_blocked}
               onSave={handleProfileSave}
               isLoading={saveProfileMutation.isPending}
+              readOnly={!puoGestirePersone}
+              onDirtyChange={setProfiloDirty}
             />
           )}
           {schedaVisibile === "permissions" && (
@@ -579,7 +617,7 @@ export default function SettingsUserDetail() {
               isBlocked={userData.is_blocked}
               blockedAt={userData.blocked_at}
               blockReason={userData.block_reason}
-              puoBloccare={canManagePeople && userId !== currentUser?.id && userData.role !== "company_admin"}
+              puoBloccare={puoGestirePersone && userId !== currentUser?.id && userData.role !== "company_admin"}
             />}
             <UserRolesPermissionsTab
               key={`perms-${userData.id}-${userData.role}-${userData.additionalRoles.join(",")}`}
@@ -603,10 +641,12 @@ export default function SettingsUserDetail() {
                 changeRoleMutation.isPending || toggleAdditionalRoleMutation.isPending
               }
               isCurrentUser={userId === currentUser?.id}
+              readOnly={!puoGestirePersone}
+              onDirtyChange={setPermessiDirty}
             />
             </div>
           )}
-          {schedaVisibile === "sessions" && <UserSessionsTab userId={userId!} />}
+          {schedaVisibile === "sessions" && <UserSessionsTab userId={userId!} puoChiudere={puoGestirePersone} />}
           {schedaVisibile === "activity" && <UserActivityLogTab userId={userId!} />}
           {schedaVisibile === "security" && (
             <UserSecurityTab
@@ -622,7 +662,7 @@ export default function SettingsUserDetail() {
                 blocked_at: userData.blocked_at,
                 block_reason: userData.block_reason,
               }}
-              isAdmin={canManagePeople}
+              isAdmin={puoGestirePersone}
               isCurrentUser={userId === currentUser?.id}
               isTargetAdmin={userData.role === "company_admin"}
             />

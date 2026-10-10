@@ -8,6 +8,13 @@ export type AccessRole =
 
 export type AccessRiskLevel = "low" | "medium" | "high";
 
+// I testi che questo modulo produce arrivano a un titolare in «Controllo accessi»:
+// niente sigle da tecnico («2FA», «multi-azienda», «presidio»). Il punteggio e le
+// soglie NON sono cambiati dal 10/10/2026, solo le parole. Quanto pesa un
+// amministratore senza l'app di verifica (+45) è ancora una scelta da confermare:
+// oggi ogni accesso chiede già un codice per email, e il punteggio conta solo
+// l'app (profiles.require_2fa).
+
 export type AccessRiskInput = {
   id?: string;
   roles: string[];
@@ -100,15 +107,15 @@ export function evaluateAccessRisk(input: AccessRiskInput, now = new Date()): Ac
   }
 
   if (isLocked(input.lockedUntil, now)) {
-    reasons.push("Blocco temporaneo attivo");
+    reasons.push("Bloccato per password sbagliate");
     score += 20;
   }
 
   if (isAdmin && !input.require2fa) {
-    reasons.push("Admin senza 2FA");
+    reasons.push("Amministratore senza app di verifica");
     score += 45;
   } else if (input.hasCriticalPermissions && !input.require2fa) {
-    reasons.push("Permessi critici senza 2FA");
+    reasons.push("Permessi importanti senza app di verifica");
     score += 30;
   }
 
@@ -124,7 +131,7 @@ export function evaluateAccessRisk(input: AccessRiskInput, now = new Date()): Ac
   }
 
   if (input.hasCrossCompanyAccess) {
-    reasons.push("Accesso multi-azienda");
+    reasons.push("Entra da un'altra azienda");
     score += isAdmin ? 18 : 12;
   }
 
@@ -134,21 +141,21 @@ export function evaluateAccessRisk(input: AccessRiskInput, now = new Date()): Ac
   }
 
   if (input.activeSessions > 3) {
-    reasons.push(`${input.activeSessions} sessioni attive`);
+    reasons.push(`${input.activeSessions} sessioni aperte`);
     score += 12;
   }
 
   const level: AccessRiskLevel = score >= 55 ? "high" : score >= 25 ? "medium" : "low";
   const nextAction = level === "high"
-    ? "Intervento richiesto"
+    ? "Da sistemare"
     : level === "medium"
-      ? "Da rivedere"
-      : "Presidio ok";
+      ? "Da guardare"
+      : "A posto";
 
   return {
     level,
     score,
-    reasons: reasons.length ? reasons : ["Nessuna criticita evidente"],
+    reasons: reasons.length ? reasons : ["Niente da segnalare"],
     nextAction,
   };
 }

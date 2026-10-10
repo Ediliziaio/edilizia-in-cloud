@@ -30,6 +30,27 @@ export const ORDINE_RUOLO_PRINCIPALE = [
 ] as const;
 export type RuoloAzienda = (typeof ORDINE_RUOLO_PRINCIPALE)[number];
 
+/**
+ * Come si chiama ogni ruolo, in tutte le schermate delle persone. Prima lo
+ * stesso ruolo era «Operatore», «Utente» o «Staff» a seconda della pagina, e
+ * l'operaio «Operaio», «Dipendente» o «Operaio / Tecnico». Una parola sola:
+ * se un nome cambia, cambia qui.
+ */
+export const NOME_RUOLO: Record<RuoloAzienda, string> = {
+  company_admin: "Amministratore",
+  company_staff: "Operatore",
+  salesperson: "Venditore",
+  call_center: "Call Center",
+  employee: "Operaio / Tecnico",
+  subcontractor: "Subappaltatore",
+};
+
+/** Il nome del ruolo per chi legge; un ruolo che non conosce lo lascia com'è. */
+export function nomeRuolo(ruolo: string | null | undefined): string {
+  if (!ruolo) return "";
+  return (NOME_RUOLO as Record<string, string>)[normalizza(ruolo)] ?? ruolo;
+}
+
 /** I ruoli che una persona può avere «anche», oltre al principale. */
 export const RUOLI_AGGIUNTIVI = ["salesperson", "call_center", "employee"] as const;
 export type RuoloAggiuntivo = (typeof RUOLI_AGGIUNTIVI)[number];
@@ -67,17 +88,17 @@ export function aggiuntiviDisponibili(principale: string | null | undefined): Ru
 /** Come si chiama ogni ruolo aggiuntivo e cosa cambia per chi lo riceve. */
 export const TESTI_RUOLO_AGGIUNTIVO: Record<RuoloAggiuntivo, { nome: string; cosaFa: string; tolto: string }> = {
   salesperson: {
-    nome: "Venditore",
+    nome: NOME_RUOLO.salesperson,
     cosaFa: "Compare nel calendario CRM, nell'elenco dei venditori e nelle provvigioni.",
     tolto: "Non compare più fra i venditori: lo storico resta.",
   },
   call_center: {
-    nome: "Call Center",
+    nome: NOME_RUOLO.call_center,
     cosaFa: "Compare negli elenchi e negli appuntamenti del call center.",
     tolto: "Non compare più nel call center: lo storico resta.",
   },
   employee: {
-    nome: "Operaio / Tecnico",
+    nome: NOME_RUOLO.employee,
     cosaFa: "Entra anche nell'Area Campo: rapportini, timbrature e cantieri assegnati.",
     tolto: "Non entra più nell'Area Campo.",
   },

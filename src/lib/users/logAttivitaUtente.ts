@@ -79,29 +79,217 @@ export function vocedaAttivitaRegistro(tipo: string | null | undefined): { categ
   return { categoria: "altro", titolo: leggibile ? leggibile.charAt(0).toUpperCase() + leggibile.slice(1) : "Attività" };
 }
 
+// ── Registro attività dell'azienda (company_activity_log) ───────────────────
+//
+// Le azioni di oggi sono «contact.updated», «order.status_updated»,
+// «task_completed»…, e ogni riga ha già `description` e `target_label`. Il
+// registro mostrava il codice inglese come badge e, nel «Dettaglio», quasi
+// sempre un identificativo: negli ultimi 30 giorni 9.696 righe su 10.676
+// avevano al posto del nome un UUID. Qui il traduttore: cosa è successo, su
+// cosa, cosa è cambiato. Mai un identificativo.
+
+interface OggettoLog { categoria: CategoriaLog; nome: string; f?: boolean }
+
+const OGGETTI_LOG_AZIENDA: Record<string, OggettoLog> = {
+  contact: { categoria: "contatti", nome: "Contatto" },
+  customer: { categoria: "contatti", nome: "Cliente" },
+  quote: { categoria: "preventivi", nome: "Preventivo" },
+  order: { categoria: "commesse", nome: "Commessa", f: true },
+  task: { categoria: "attivita", nome: "Attività", f: true },
+  employee: { categoria: "personale", nome: "Dipendente" },
+  supplier: { categoria: "acquisti", nome: "Fornitore" },
+};
+
+/** Verbi che concordano col nome («creato / creata») o frasi che stanno dopo i due punti. */
+const VERBI_LOG_AZIENDA: Record<string, { m: string; f: string } | { frase: string }> = {
+  created: { m: "creato", f: "creata" },
+  updated: { m: "modificato", f: "modificata" },
+  deleted: { m: "eliminato", f: "eliminata" },
+  hired: { m: "assunto", f: "assunta" },
+  completed: { m: "completato", f: "completata" },
+  status_updated: { frase: "stato cambiato" },
+  status_changed: { frase: "stato cambiato" },
+  review_requested: { frase: "revisione richiesta" },
+  comment_added: { frase: "commento aggiunto" },
+  checklist_item_added: { frase: "voce aggiunta alla lista" },
+};
+
 /** Azioni del log aziendale (company_activity_log): «contact.updated», «task_created»… */
 export function vocedaLogAzienda(azione: string | null | undefined): { categoria: CategoriaLog; titolo: string } {
   const a = (azione ?? "").trim();
-  const [oggetto, verbo] = a.includes(".") ? a.split(".") : [a.split("_")[0], a.split("_").slice(1).join("_")];
-  const VERBI: Record<string, string> = {
-    created: "creato", updated: "modificato", deleted: "eliminato", status_updated: "stato cambiato",
-    hired: "assunto", completed: "completato", status_changed: "stato cambiato",
-  };
-  const OGGETTI: Record<string, { categoria: CategoriaLog; nome: string }> = {
-    contact: { categoria: "contatti", nome: "Contatto" },
-    customer: { categoria: "contatti", nome: "Cliente" },
-    quote: { categoria: "preventivi", nome: "Preventivo" },
-    order: { categoria: "altro", nome: "Ordine" },
-    task: { categoria: "attivita", nome: "Task" },
-    employee: { categoria: "altro", nome: "Dipendente" },
-  };
-  const o = OGGETTI[oggetto];
+  if (a === "hr.request.status_changed") return { categoria: "personale", titolo: "Richiesta HR: stato cambiato" };
+  const punto = a.indexOf(".");
+  const [oggetto, verbo] = punto >= 0
+    ? [a.slice(0, punto), a.slice(punto + 1)]
+    : [a.split("_")[0], a.split("_").slice(1).join("_")];
+  const o = OGGETTI_LOG_AZIENDA[oggetto];
   if (o) {
-    const v = VERBI[verbo] ?? verbo.replace(/_/g, " ");
-    return { categoria: o.categoria, titolo: `${o.nome} ${v}`.trim() };
+    const v = VERBI_LOG_AZIENDA[verbo];
+    if (v) {
+      if ("frase" in v) return { categoria: o.categoria, titolo: `${o.nome}: ${v.frase}` };
+      return { categoria: o.categoria, titolo: `${o.nome} ${o.f ? v.f : v.m}` };
+    }
+    return { categoria: o.categoria, titolo: `${o.nome} ${verbo.replace(/[_.]+/g, " ")}`.trim() };
   }
   const leggibile = a.replace(/[_.-]+/g, " ");
   return { categoria: "altro", titolo: leggibile ? leggibile.charAt(0).toUpperCase() + leggibile.slice(1) : "Azione" };
+}
+
+/**
+ * Per filtrare il registro per «cosa»: l'oggetto e il modo in cui il suo nome
+ * comincia nella colonna `action` (la ricerca è un `like`, nessuna migrazione).
+ */
+export const OGGETTI_FILTRO_LOG_AZIENDA: { chiave: string; etichetta: string; modelloAzione: string }[] = [
+  { chiave: "contatti", etichetta: "Contatti", modelloAzione: "contact.%" },
+  { chiave: "clienti", etichetta: "Clienti", modelloAzione: "customer.%" },
+  { chiave: "commesse", etichetta: "Commesse", modelloAzione: "order.%" },
+  { chiave: "preventivi", etichetta: "Preventivi", modelloAzione: "quote.%" },
+  { chiave: "fornitori", etichetta: "Fornitori", modelloAzione: "supplier.%" },
+  { chiave: "attivita", etichetta: "Attività", modelloAzione: "task\\_%" },
+  { chiave: "dipendenti", etichetta: "Dipendenti", modelloAzione: "employee.%" },
+  { chiave: "richieste-hr", etichetta: "Richieste HR", modelloAzione: "hr.%" },
+];
+
+const UUID_QUALSIASI = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const UUID_GLOBALE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+/**
+ * Il testo da cercare dentro un filtro `or` di PostgREST: virgole, parentesi e
+ * caratteri jolly del filtro sono sintassi, non parole. Via anche gli apici, la
+ * barra e il percento, che il `like` leggerebbe come jolly.
+ */
+export function paroleDaCercare(testo: string): string {
+  return testo.replace(/[,()*%\\"']/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+}
+
+/**
+ * Le persone dell'azienda che si chiamano così: «Mario» è un nome o un
+ * cognome, «Mario Rossi» è nome e cognome in uno dei due ordini. Il filtro è
+ * già pulito da paroleDaCercare.
+ */
+export function filtroNomePersona(ricerca: string): string {
+  const parole = ricerca.split(" ").filter(Boolean);
+  if (parole.length === 2) {
+    const [a, b] = parole;
+    return `and(first_name.ilike.*${a}*,last_name.ilike.*${b}*),and(first_name.ilike.*${b}*,last_name.ilike.*${a}*)`;
+  }
+  return `first_name.ilike.*${ricerca}*,last_name.ilike.*${ricerca}*`;
+}
+
+/** Un identificativo non dice niente a chi legge: nessun testo che lo contenga va mostrato. */
+export function contieneIdentificativo(testo: string | null | undefined): boolean {
+  return !!testo && UUID_QUALSIASI.test(testo);
+}
+
+const testoPulito = (v: unknown): string | null => {
+  if (typeof v !== "string") return null;
+  const t = v.replace(/\s+/g, " ").trim();
+  return t || null;
+};
+
+/** Come si leggono i campi che il registro elenca dopo «Campi:». `null` = dettaglio tecnico, non si mostra. */
+const CAMPI_LOG_AZIENDA: Record<string, string | null> = {
+  // contatti e clienti
+  tags: "etichette", first_name: "nome", last_name: "cognome", company_name: "azienda", name: "nome",
+  email: "email", phone: "telefono", address: "indirizzo", city: "città", province: "provincia",
+  region: "regione", postal_code: "CAP", country: "paese", notes: "note", source: "fonte",
+  assigned_to: "assegnatario", qualificazione_json: "qualificazione",
+  marketing_consent: "consenso marketing", marketing_consent_at: "consenso marketing", marketing_consent_source: "consenso marketing",
+  optout_email: "disiscrizione", optout_at: "disiscrizione", optout_reason: "disiscrizione", optout_whatsapp: "disiscrizione",
+  // dati che arrivano dalle campagne (Meta, Google)
+  source_campaign_id: "dati della campagna", gclid: "dati della campagna", gbraid: "dati della campagna", wbraid: "dati della campagna",
+  // commesse
+  status: "stato", current_status_id: "stato", fulfillment_status: "stato", percentuale_avanzamento: "avanzamento",
+  quote_id: "preventivo collegato", quote_number: "preventivo collegato", customer_id: "cliente",
+  order_code: "numero", destination_warehouse_id: "magazzino", next_action: "prossima azione",
+  next_action_date: "prossima azione", internal_notes: "note interne", indirizzo_lavori: "indirizzo dei lavori",
+  work_start_date: "date dei lavori", work_end_date: "date dei lavori", expected_date: "data prevista",
+  // preventivi
+  subtotal: "importi", total: "importi", vat_amount: "importi", discount_amount: "sconto", expires_at: "scadenza",
+  // dipendenti
+  costo_orario: "costo orario", gross_salary: "retribuzione", net_salary: "retribuzione",
+  retribuzione_lorda_annua: "retribuzione", data_assunzione: "date di lavoro", data_inizio_lavoro: "date di lavoro",
+  // tecnici
+  version: null, updated_at: null, last_activity_at: null, work_geocoded_at: null,
+  giornale_auto_enabled: null, weekly_report_enabled: null,
+};
+
+function etichettaCampoLog(campo: string): string | null {
+  const c = campo.trim();
+  if (!c) return null;
+  if (c in CAMPI_LOG_AZIENDA) return CAMPI_LOG_AZIENDA[c];
+  if (/^(meta_|attr_|utm_)/.test(c)) return "dati della campagna";
+  if (/^(deposit|balance|financing)_/.test(c)) return "acconti e saldo";
+  if (/^distanza_sede/.test(c)) return null;
+  return null; // un campo che non conosciamo non si mostra col nome del database
+}
+
+/** «Campi: tags, province, meta_lead_id» → «etichette, provincia, dati della campagna». */
+export function campiModificatiLeggibili(descrizione: string | null | undefined): string | null {
+  const m = /Campi:\s*(.+)$/.exec(descrizione ?? "");
+  if (!m) return null;
+  const visti: string[] = [];
+  for (const campo of m[1].split(",")) {
+    const e = etichettaCampoLog(campo);
+    if (e && !visti.includes(e)) visti.push(e);
+  }
+  return visti.length ? visti.join(", ") : null;
+}
+
+export interface RigaLogAzienda {
+  action?: string | null;
+  description?: string | null;
+  target_label?: string | null;
+  target_id?: string | null;
+  details?: unknown;
+}
+
+/** «Customer.created su customers Giovanna Serra» → «Giovanna Serra»: il codice e la tabella non servono. */
+function senzaFormaMacchina(descrizione: string): string {
+  const m = /^[a-z_]+(?:\.[a-z_]+)+ su [a-z_]+ (.+)$/i.exec(descrizione);
+  return m ? m[1] : descrizione;
+}
+
+/**
+ * Su cosa è successa l'azione: il nome di quello che è cambiato (un contatto, un
+ * preventivo, una commessa). `nomiPerId` dà il nome di quello che nel registro ha
+ * solo l'identificativo (le commesse: la riga scrive l'UUID al posto del
+ * numero). Se non c'è un nome, `null`: mai l'identificativo.
+ */
+export function suCosaDelLogAzienda(riga: RigaLogAzienda, nomiPerId?: Record<string, string>): string | null {
+  const etichetta = testoPulito(riga.target_label);
+  if (etichetta && !contieneIdentificativo(etichetta)) return etichetta;
+  const daId = riga.target_id ? testoPulito(nomiPerId?.[riga.target_id]) : null;
+  if (daId) return daId;
+  const d = riga.details && typeof riga.details === "object" ? (riga.details as Record<string, unknown>) : {};
+  for (const candidato of [d.name, d.order_code, d.description]) {
+    const t = testoPulito(candidato);
+    if (t && !contieneIdentificativo(t)) return t;
+  }
+  return null;
+}
+
+/**
+ * Cosa si aggiunge sotto il nome dell'azione: i campi cambiati («Cambiato:
+ * etichette, provincia») oppure, per le attività, la frase del registro («ha
+ * spostato l'attività da Da fare a In corso»). Senza identificativi.
+ */
+export function cosaDelLogAzienda(riga: RigaLogAzienda): string | null {
+  const descrizione = testoPulito(riga.description);
+  if (!descrizione) return null;
+  const campi = campiModificatiLeggibili(descrizione);
+  if (campi) return `Cambiato: ${campi}`;
+  if (/Campi:/.test(descrizione)) return null; // solo dettagli tecnici
+  if ((riga.action ?? "").startsWith("task_")) {
+    const frase = senzaFormaMacchina(descrizione).replace(UUID_GLOBALE, "").replace(/\s+/g, " ").trim();
+    return frase && !contieneIdentificativo(frase) ? frase.charAt(0).toUpperCase() + frase.slice(1) : null;
+  }
+  return null;
+}
+
+/** Il «dettaglio» di una riga del registro in una riga sola, per le liste che non hanno colonne (scheda utente). */
+export function dettaglioLogAzienda(riga: RigaLogAzienda, nomiPerId?: Record<string, string>): string | null {
+  return [suCosaDelLogAzienda(riga, nomiPerId), cosaDelLogAzienda(riga)].filter(Boolean).join(" — ") || null;
 }
 
 // ── Date ────────────────────────────────────────────────────────────────────

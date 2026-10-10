@@ -416,9 +416,9 @@ export function StaffUserDialog({
                     <div className="flex items-center space-x-2">
                       <Checkbox id="create-only_assigned" checked={permissions.only_assigned || false}
                         onCheckedChange={(checked) => setPermissions((prev) => ({ ...prev, only_assigned: checked as boolean }))} disabled={isLoading} />
-                      <Label htmlFor="create-only_assigned" className="font-medium text-sm">Solo elementi assegnati</Label>
+                      <Label htmlFor="create-only_assigned" className="font-medium text-sm">Solo i dati assegnati a lui</Label>
                     </div>
-                    <p className="text-xs text-muted-foreground ml-6">Se attivo, l'utente vedrà solo ordini, attività e appuntamenti assegnati a lui</p>
+                    <p className="text-xs text-muted-foreground ml-6">Vede solo commesse, attività e appuntamenti assegnati a lui.</p>
                   </div>
                 </div>
               </div>

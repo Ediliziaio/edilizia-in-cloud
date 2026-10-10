@@ -167,24 +167,21 @@ export function applyEditFollowsView(perms: StaffPermissions): StaffPermissions 
 
 export const CRUSCOTTO_SECTIONS: PermissionSectionDef[] = [
   { label: "Cruscotto Aziendale",    viewKey: "can_view_cruscotto",            editKey: null, description: "Centro di controllo executive unificato" },
-  { label: "Controllo di Gestione",  viewKey: "can_view_controllo_gestione",   editKey: null, description: "Direzione & bilancio: conto economico, KPI, tesoreria (CFO)" },
+  { label: "Controllo di Gestione",  viewKey: "can_view_controllo_gestione",   editKey: null, description: "Conto economico, KPI e tesoreria. Si apre anche a chi ha Cruscotto, Fatturazione o Costi: spegnere solo questo non basta." },
 ];
 
 export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
   { label: "Dashboard",              viewKey: "can_view_dashboard",          editKey: null, description: "Visualizza la dashboard principale" },
   { label: "Ordini e Commesse",      viewKey: "can_view_orders",             editKey: null, description: "Vede, crea e modifica le commesse (e registra il cliente da intestare), salvo «Sola lettura»" },
   { label: "Importi di vendita",     viewKey: "can_view_order_amounts",      editKey: null, description: "Vede importi e prezzi di vendita in commesse e preventivi" },
-  { label: "Approva Ordini",         viewKey: "can_approve_orders",          editKey: null, description: "Può approvare ordini e commesse" },
   { label: "Elimina Ordini",         viewKey: "can_delete_orders",           editKey: null, description: "Può eliminare ordini e commesse" },
   { label: "Magazzino",              viewKey: "can_view_warehouse",          editKey: null, description: "Inventario e movimenti: chi lo vede li registra, salvo «Sola lettura»" },
-  { label: "Gestione Articoli",      viewKey: "can_manage_warehouse_items",  editKey: null, description: "Gestisci articoli e listino magazzino" },
   { label: "Operai",                 viewKey: "can_view_operai",             editKey: null, description: "Operai di cantiere: chi è al lavoro oggi, elenco, scheda e costo orario. Chi li vede li gestisce, salvo «Sola lettura»" },
   { label: "Mezzi e attrezzature",   viewKey: "can_view_mezzi",              editKey: null, description: "Furgoni, mezzi e attrezzi con scadenze, tagliandi e foto: chi li vede li gestisce, salvo «Sola lettura»" },
   { label: "Calendario lavori",      viewKey: "can_view_calendar",           editKey: null, description: "Pose, cantieri e lavori pianificati (il calendario CRM è «Appuntamenti», in Marketing & Vendita)" },
   { label: "Clienti",                viewKey: "can_view_customers",          editKey: null, description: "Anagrafica clienti: chi la vede crea e modifica, salvo «Sola lettura»" },
-  { label: "Esporta Clienti",        viewKey: "can_export_clients",          editKey: null, description: "Scarica in CSV/Excel clienti, contatti, opportunità e preventivi (anche l'archivio completo): ogni esportazione resta nel registro" },
+  { label: "Esporta Clienti",        viewKey: "can_export_clients",          editKey: null, description: "Scarica in CSV/Excel clienti, contatti, opportunità e preventivi. L'archivio completo (Esporta i dati) chiede anche «Sicurezza & Privacy». Ogni esportazione resta nel registro." },
   { label: "Ticket Assistenza",      viewKey: "can_view_tickets",            editKey: null, description: "Ticket di supporto: chi li vede li apre e li gestisce, salvo «Sola lettura»" },
-  { label: "Interventi",             viewKey: "can_view_interventi",         editKey: null, description: "Gestisci interventi tecnici pianificati" },
   { label: "Manutenzione",           viewKey: "can_view_manutenzione",       editKey: null, description: "Gestisci piani di manutenzione programmata" },
   { label: "Sicurezza Cantiere",     viewKey: "can_view_sicurezza_cantiere", editKey: null, description: "Accesso al modulo sicurezza e PSC" },
   { label: "Subappaltatori",          viewKey: "can_view_subappaltatori",     editKey: null, description: "Visualizza e gestisci subappaltatori" },
@@ -196,9 +193,9 @@ export const FINANZA_SECTIONS: PermissionSectionDef[] = [
   { label: "Scadenzario",                viewKey: "can_view_scadenzario",       editKey: null, description: "Scadenze attive e passive" },
   { label: "Tesoreria",                  viewKey: "can_view_tesoreria",         editKey: null, description: "Conti bancari, saldi e riconciliazione" },
   { label: "Prima Nota e Contabilità",   viewKey: "can_view_prima_nota",        editKey: null, description: "Registrazioni di prima nota" },
-  { label: "Costi",                      viewKey: "can_view_costs",             editKey: null, description: "Costi aziendali e per commessa" },
+  { label: "Costi",                      viewKey: "can_view_costs",             editKey: null, description: "Costi aziendali e per commessa. In Impostazioni apre anche Prezzo e margini, Approvazioni, Categorie costi e Automazioni finanza." },
   { label: "Previsionale",               viewKey: "can_view_forecast",          editKey: null, description: "Proiezioni di cassa e previsionale" },
-  { label: "Report Finanziari",          viewKey: "can_view_financial_reports", editKey: null, description: "Report e analisi finanziarie" },
+  { label: "Report Finanziari",          viewKey: "can_view_financial_reports", editKey: null, description: "Non apre pagine da solo: si somma agli altri permessi di finanza per leggere scadenze, fatture e metriche." },
   { label: "Visualizza Margini",         viewKey: "can_view_margins",           editKey: null, description: "Margini per commessa, lista e PDF" },
   { label: "Gestione Pagamenti",         viewKey: "can_manage_payments",        editKey: null, description: "Registra incassi e pagamenti" },
   { label: "Gestione Fornitori",         viewKey: "can_manage_suppliers",       editKey: null, description: "Anagrafica e rapporti fornitori" },
@@ -206,8 +203,8 @@ export const FINANZA_SECTIONS: PermissionSectionDef[] = [
 
 export const PERSONE_SECTIONS: PermissionSectionDef[] = [
   { label: "Personale & HR",                  viewKey: "can_view_persone",          editKey: null, description: "Schede del personale, presenze e timbrature (la chat del team è di tutti)" },
-  { label: "Gestione Dipendenti",             viewKey: "can_view_employees",         editKey: null, description: "Schede dipendenti e presenze" },
-  { label: "Utenti & Team",                   viewKey: "can_view_users",             editKey: null, description: "Elenco utenti e ruoli del team" },
+  { label: "Schede dei dipendenti",           viewKey: "can_view_employees",         editKey: null, description: "Legge le schede dei dipendenti, con stipendio lordo e netto e costo orario. Le modifica solo l'amministratore (Persone & Accessi → Dipendenti)." },
+  { label: "Elenco utenti",                   viewKey: "can_view_users",             editKey: null, description: "Mostra l'elenco degli utenti dentro Persone & Accessi. Serve anche «Persone & Accessi» più sotto, in Impostazioni." },
   { label: "Giornale Lavori",                 viewKey: "can_view_giornale_lavori",   editKey: null, description: "Rapportini e giornale lavori: chi li vede li compila, salvo «Sola lettura»" },
   { label: "Formazione (fruizione corsi)",    viewKey: "can_view_formazione",        editKey: null, description: "Accede ai corsi assegnati" },
   { label: "Portale corsi (gestione)",        viewKey: "can_manage_portal",          editKey: null, description: "Crea e gestisce corsi e portali formativi" },
@@ -220,7 +217,6 @@ export const MARKETING_SECTIONS: PermissionSectionDef[] = [
   { label: "Preventivi",              viewKey: "can_view_preventivi",               editKey: null, description: "Preventivi CRM e invio in firma: chi li vede li crea e li modifica, salvo «Sola lettura»" },
   { label: "Approva Sconti",          viewKey: "can_approve_discounts",             editKey: null, description: "Può approvare/impostare sconti oltre soglia" },
   { label: "Sopralluoghi",            viewKey: "can_view_sopralluoghi",             editKey: null, description: "Sopralluoghi tecnici pre-vendita" },
-  { label: "Attività",                viewKey: "can_view_marketing_activities",     editKey: null, description: "Attività e task commerciali" },
   { label: "Appuntamenti",            viewKey: "can_view_marketing_appointments",   editKey: null, description: "Appuntamenti e calendario CRM" },
   { label: "Email Marketing",         viewKey: "can_view_marketing_email",          editKey: null, description: "Campagne e caselle email" },
   { label: "SMS Marketing",           viewKey: "can_view_sms_marketing",            editKey: null, description: "Campagne SMS" },
@@ -238,16 +234,16 @@ export const AUTOMAZIONI_SECTIONS: PermissionSectionDef[] = [
 
 export const IMPOSTAZIONI_SECTIONS: PermissionSectionDef[] = [
   { label: "Profilo Aziendale",      viewKey: "can_view_settings_profile",        editKey: "can_edit_settings_profile", description: "Anagrafica, logo, dati fiscali e portale clienti" },
-  { label: "Listino & Prezzi (tutto)", viewKey: "can_view_settings_pricing",      editKey: "can_edit_settings_pricing", description: "Master: listino prodotti, tariffe, template offerte E le tre voci sotto" },
-  { label: "Modelli di preventivo · Sconti", viewKey: "can_view_settings_scontistica",    editKey: "can_edit_settings_scontistica", description: "Solo fasce sconto e limiti venditori, senza toccare il listino" },
+  { label: "Listino & Prezzi (tutto)", viewKey: "can_view_settings_pricing",      editKey: "can_edit_settings_pricing", description: "Listino, tariffe, modelli di preventivo e le tre voci sotto (Sconti, Finanziamenti, Kit e pacchetti). Per «Prezzo e margini» serve anche «Costi»." },
+  { label: "Modelli di preventivo · Sconti", viewKey: "can_view_settings_scontistica",    editKey: null, description: "Solo fasce sconto e limiti dei venditori, senza toccare il listino. Chi lo vede può anche modificarli." },
   { label: "Finanziamenti",          viewKey: "can_view_settings_finanziamenti",  editKey: "can_edit_settings_finanziamenti", description: "Solo finanziarie, tassi e rate" },
   { label: "Listino · Kit e pacchetti", viewKey: "can_view_settings_bundle",         editKey: "can_edit_settings_bundle", description: "Solo kit e pacchetti chiavi in mano" },
   { label: "Branding & Template",    viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization", description: "Branding, tag, campi personalizzati, sequenze, calendari, form builder e AI" },
   { label: "Configurazione Ordini",  viewKey: "can_view_settings_orders",         editKey: "can_edit_settings_orders", description: "Stati della commessa, fasi e avanzamento, modelli di pagamento, cartelle documenti, rapportini, squadre e calendari lavori, codici QR" },
   { label: "Fornitori",              viewKey: "can_view_settings_suppliers",      editKey: "can_edit_settings_suppliers", description: "Configurazione fornitori" },
-  { label: "Team & Utenti",          viewKey: "can_view_settings_people",         editKey: "can_edit_settings_people", description: "Utenti, ruoli e permessi, venditori, staff e sedi" },
+  { label: "Persone & Accessi",       viewKey: "can_view_settings_people",         editKey: "can_edit_settings_people", description: "Apre Persone & Accessi e Sedi. Con «Modifica» gestisce i team e le notifiche dei colleghi: utenti, ruoli, permessi, venditori e dipendenti li cambia solo l'amministratore." },
   { label: "Integrazioni & Canali",  viewKey: "can_view_settings_integrations",   editKey: "can_edit_settings_integrations", description: "Integrazioni, API, webhook, WhatsApp bot, firma elettronica, lead form e telefonia" },
-  { label: "Sicurezza & Privacy",    viewKey: "can_view_settings_security",       editKey: null, description: "Privacy, GDPR, dashboard sicurezza e registro attività" },
+  { label: "Sicurezza & Privacy",    viewKey: "can_view_settings_security",       editKey: null, description: "Apre «Privacy» (i tuoi consensi e i tuoi dati) e «Esporta i dati». Accessi, registro attività e regole di sicurezza li vede solo l'amministratore." },
 ];
 
 // ─── Visibilità sul team (trasversale, NON un modulo) ──────────────────────
@@ -255,8 +251,8 @@ export const IMPOSTAZIONI_SECTIONS: PermissionSectionDef[] = [
 // magazzino, HR): questi toggle vivono nell'area "visibilità" delle dialog
 // permessi accanto a only_assigned e ai livelli economici, non sotto Cantieri.
 export const TEAM_VISIBILITY_SECTIONS: PermissionSectionDef[] = [
-  { label: "Attività del team",   viewKey: "can_view_team_tasks",        editKey: null },
-  { label: "Calendario del team", viewKey: "can_view_all_team_calendar", editKey: null },
+  { label: "Attività del team",   viewKey: "can_view_team_tasks",        editKey: null, description: "Vede le attività (task) di tutto il team nella pagina Attività; spento vede solo le proprie." },
+  { label: "Calendario del team", viewKey: "can_view_all_team_calendar", editKey: null, description: "Nel calendario di «Attività» vede gli appuntamenti di tutto il team; spento vede solo i propri. Il Calendario CRM e il Calendario lavori hanno i loro permessi." },
 ];
 
 export const ALL_PERMISSION_SECTIONS: PermissionSectionDef[] = [
@@ -269,6 +265,69 @@ export const ALL_PERMISSION_SECTIONS: PermissionSectionDef[] = [
   ...AUTOMAZIONI_SECTIONS,
   ...IMPOSTAZIONI_SECTIONS,
 ];
+
+/**
+ * Permessi che nessun codice legge: non compaiono più negli editor (09/10/2026).
+ *
+ * Erano interruttori che non facevano niente: chi li accendeva credeva di aver
+ * dato (o tolto) un potere. Le colonne e i valori restano, nei tipi, nel SELECT,
+ * nei default dell'edge function e nei preset: «Tutti», «Nessuno» e il
+ * salvataggio non toccano quello che la persona ha già. Se un giorno qualcuno
+ * li costruisce davvero, si rimettono nell'elenco: permessiConLettore.test.ts
+ * fa fallire il test appena uno di questi ha un lettore.
+ */
+export const PERMESSI_SENZA_EFFETTO: readonly { chiave: BooleanPermissionKey; etichetta: string; perche: string }[] = [
+  {
+    chiave: "can_approve_orders",
+    etichetta: "Approva Ordini",
+    perche: "Non esiste nessuna approvazione di commessa: lo spegne solo «Sola lettura».",
+  },
+  {
+    chiave: "can_manage_warehouse_items",
+    etichetta: "Gestione Articoli",
+    perche: "Nessun codice lo legge.",
+  },
+  {
+    chiave: "can_view_interventi",
+    etichetta: "Interventi",
+    perche: "Sceglie solo la barra in basso sul telefono (MobileBottomNav); le pagine Interventi rimandano ad Assistenza.",
+  },
+  {
+    chiave: "can_view_marketing_activities",
+    etichetta: "Attività",
+    perche: "La pagina Attività non chiede permessi; conta solo come uno dei permessi che accendono l'area Marketing.",
+  },
+  {
+    chiave: "can_edit_settings_scontistica",
+    etichetta: "Modelli di preventivo · Sconti: Modifica",
+    perche: "Chi vede Sconti li può cambiare: le regole di scrittura del database guardano il permesso di vista.",
+  },
+];
+
+/**
+ * Rimette quelli che gli editor non mostrano com'erano: i pulsanti «Tutti» e
+ * «Nessuno» ricostruiscono l'elenco dai default, e senza questo azzererebbero
+ * in silenzio valori che la persona ha e che l'amministratore non ha mai visto.
+ */
+export function conservaPermessiNascosti<T extends StaffPermissions>(precedenti: StaffPermissions, nuovi: T): T {
+  const risultato: T = { ...nuovi };
+  for (const { chiave } of PERMESSI_SENZA_EFFETTO) {
+    (risultato as StaffPermissions)[chiave] = precedenti[chiave];
+  }
+  return risultato;
+}
+
+/**
+ * Accende o spegne un permesso in un elenco piatto (i modelli di permessi).
+ * Spegnere «Visualizza» spegne anche «Modifica» della stessa voce: come negli
+ * altri editor, non si modifica quello che non si vede.
+ */
+export function commutaPermesso(prev: Record<string, boolean>, chiave: string): Record<string, boolean> {
+  const next = { ...prev, [chiave]: !prev[chiave] };
+  const sezione = ALL_PERMISSION_SECTIONS.find((s) => s.viewKey === chiave);
+  if (sezione?.editKey && !next[chiave]) next[sezione.editKey] = false;
+  return next;
+}
 
 /** @deprecated Use the macro-area arrays instead */
 export const STANDALONE_SECTIONS = CRUSCOTTO_SECTIONS;
@@ -440,5 +499,9 @@ export function buildStaffPermissionsUpdate(permissions: StaffPermissions): Staf
     (base as Record<keyof StaffPermissions, StaffPermissions[keyof StaffPermissions]>)[key] =
       permissions[key] ?? DEFAULT_PERMISSIONS[key];
   }
+  // «Modifica» di Sconti non si mostra più, ma un valore vecchio non resta acceso da
+  // solo: se la persona non vede più Sconti, si spegne con la vista (altrimenti
+  // continuerebbe ad accendere l'aggregato can_edit_settings senza che nessuno possa togliergliela).
+  if (!base.can_view_settings_scontistica) base.can_edit_settings_scontistica = false;
   return syncLegacySettingsFlags(syncLegacyMarketingFlags(base as StaffPermissions));
 }

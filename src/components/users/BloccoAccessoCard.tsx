@@ -17,7 +17,7 @@ interface Props {
   isBlocked: boolean;
   blockedAt?: string | null;
   blockReason?: string | null;
-  /** Amministratore o permesso sulle persone, mai su se stessi né su un amministratore. */
+  /** Solo l'amministratore (lo rifiuta il server a chiunque altro), mai su se stesso né su un altro amministratore. */
   puoBloccare: boolean;
 }
 

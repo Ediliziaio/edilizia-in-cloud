@@ -9,7 +9,8 @@ describe("log attività utente", () => {
     expect(vocedaAttivitaRegistro("stage_changed")).toEqual({ categoria: "pipeline", titolo: "Fase cambiata" });
     expect(vocedaAttivitaRegistro("boh_strano")).toEqual({ categoria: "altro", titolo: "Boh strano" });
     expect(vocedaLogAzienda("contact.updated")).toEqual({ categoria: "contatti", titolo: "Contatto modificato" });
-    expect(vocedaLogAzienda("task_created")).toEqual({ categoria: "attivita", titolo: "Task creato" });
+    // «Task» è inglese: nell'app si chiamano Attività (9/10/2026).
+    expect(vocedaLogAzienda("task_created")).toEqual({ categoria: "attivita", titolo: "Attività creata" });
   });
 
   it("calcola gli intervalli", () => {

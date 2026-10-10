@@ -28,6 +28,7 @@ import {
   type ChangeRequestRow,
 } from "@/hooks/accountant/useAccountantChangeRequests";
 import { useAuth } from "@/contexts/AuthContext";
+import { previewPayload } from "@/lib/commercialista/anteprimaRichiesta";
 
 function operationLabel(op: string) {
   if (op === "create") return "Crea";
@@ -50,14 +51,6 @@ function resourceLabel(t: string) {
   return map[t] ?? t;
 }
 
-function previewPayload(payload: Record<string, unknown>): string {
-  const entries = Object.entries(payload).slice(0, 4);
-  if (entries.length === 0) return "—";
-  return entries
-    .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`)
-    .join(" · ");
-}
-
 export function AccountantChangeRequestsQueue() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
@@ -71,9 +64,9 @@ export function AccountantChangeRequestsQueue() {
   if (isLoading) {
     return (
       <Card>
-        <CardContent className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Caricamento richieste...
+        <CardContent role="status" className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Caricamento delle richieste…
         </CardContent>
       </Card>
     );
@@ -98,15 +91,14 @@ export function AccountantChangeRequestsQueue() {
     <Card className="border-amber-200 bg-amber-50/30">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <ListChecks className="h-4 w-4 text-amber-700" />
-          Richieste di modifica in attesa di approvazione
+          <ListChecks className="h-4 w-4 text-amber-700" aria-hidden="true" />
+          Richieste di modifica da approvare
           <Badge variant="secondary" className="ml-1">
             {requests.length}
           </Badge>
         </CardTitle>
         <CardDescription>
-          Il tuo commercialista ha proposto le seguenti modifiche. Approva o rifiuta
-          ognuna entro 7 giorni dalla creazione.
+          Il tuo commercialista ha proposto queste modifiche. Approva o rifiuta ognuna entro 7 giorni da quando è arrivata.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -138,23 +130,25 @@ export function AccountantChangeRequestsQueue() {
                   size="sm"
                   variant="outline"
                   className="border-red-200 text-red-700 hover:bg-red-50"
+                  aria-label={`Rifiuta: ${operationLabel(req.operation)} ${resourceLabel(req.resource_type).toLowerCase()}`}
                   onClick={() => {
                     setDialogState({ req, decision: "rejected" });
                     setNote("");
                   }}
                 >
-                  <XCircle className="mr-1 h-3.5 w-3.5" />
+                  <XCircle className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
                   Rifiuta
                 </Button>
                 <Button
                   size="sm"
                   className="bg-emerald-600 hover:bg-emerald-700"
+                  aria-label={`Approva: ${operationLabel(req.operation)} ${resourceLabel(req.resource_type).toLowerCase()}`}
                   onClick={() => {
                     setDialogState({ req, decision: "approved" });
                     setNote("");
                   }}
                 >
-                  <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                  <CheckCircle2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
                   Approva
                 </Button>
               </div>
@@ -170,15 +164,16 @@ export function AccountantChangeRequestsQueue() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {dialogState?.decision === "approved" ? "Approva richiesta" : "Rifiuta richiesta"}
+              {dialogState?.decision === "approved" ? "Approvare la richiesta?" : "Rifiutare la richiesta?"}
             </DialogTitle>
             <DialogDescription>
               {dialogState?.decision === "approved"
-                ? "Confermi di approvare questa modifica? Verrà applicata immediatamente al sistema."
-                : "Aggiungi una nota per spiegare al commercialista il motivo del rifiuto."}
+                ? "Il commercialista vedrà che l'hai approvata. La modifica non si applica da sola: va registrata a mano nei dati dell'azienda."
+                : "Scrivi al commercialista perché la rifiuti: lo vedrà accanto alla richiesta."}
             </DialogDescription>
           </DialogHeader>
           <Textarea
+            aria-label="Nota per il commercialista"
             placeholder={
               dialogState?.decision === "approved"
                 ? "Nota opzionale per il commercialista"
@@ -203,13 +198,13 @@ export function AccountantChangeRequestsQueue() {
             >
               {decide.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Salvataggio...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                  Salvataggio…
                 </>
               ) : dialogState?.decision === "approved" ? (
-                "Approva definitivamente"
+                "Approva la richiesta"
               ) : (
-                "Rifiuta richiesta"
+                "Rifiuta la richiesta"
               )}
             </Button>
           </DialogFooter>

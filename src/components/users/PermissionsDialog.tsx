@@ -14,7 +14,7 @@ import {
   CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS,
   PERSONE_SECTIONS, MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS,
   ALL_PERMISSION_SECTIONS, ROLE_PRESETS, syncLegacyMarketingFlags, syncLegacySettingsFlags,
-  DEFAULT_PERMISSIONS, isBlockedBySolaLettura, SOLA_LETTURA_BLOCKED_NOTE,
+  DEFAULT_PERMISSIONS, isBlockedBySolaLettura, SOLA_LETTURA_BLOCKED_NOTE, TEAM_VISIBILITY_SECTIONS,
   type PermissionSectionDef, type StaffRoleType, type BooleanPermissionKey,
 } from "@/components/users/permissionsDefaults";
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
@@ -368,41 +368,28 @@ export function PermissionsDialog({
               <Users2 className="h-4 w-4 text-violet-600" />
               <Label className="font-medium">Visibilità sul team</Label>
             </div>
-            <div className="flex items-center justify-between py-1.5">
-              <div>
-                <Label htmlFor="can_view_team_tasks" className="text-sm cursor-pointer">Attività del team</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Vede le attività (task) di tutto il team nella pagina Attività; spento vede solo le proprie
-                </p>
+            {TEAM_VISIBILITY_SECTIONS.map((s) => (
+              <div key={s.viewKey} className="flex items-center justify-between py-1.5">
+                <div>
+                  <Label htmlFor={s.viewKey} className="text-sm cursor-pointer">{s.label}</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>
+                </div>
+                <Switch
+                  id={s.viewKey}
+                  checked={!!permissions[s.viewKey]}
+                  onCheckedChange={(checked) => setPermissions(prev => ({ ...prev, [s.viewKey]: checked }))}
+                />
               </div>
-              <Switch
-                id="can_view_team_tasks"
-                checked={permissions.can_view_team_tasks || false}
-                onCheckedChange={(checked) => setPermissions(prev => ({ ...prev, can_view_team_tasks: checked }))}
-              />
-            </div>
-            <div className="flex items-center justify-between py-1.5">
-              <div>
-                <Label htmlFor="can_view_all_team_calendar" className="text-sm cursor-pointer">Calendario del team</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Vede appuntamenti ed eventi di tutti nel calendario; spento vede solo i propri
-                </p>
-              </div>
-              <Switch
-                id="can_view_all_team_calendar"
-                checked={permissions.can_view_all_team_calendar || false}
-                onCheckedChange={(checked) => setPermissions(prev => ({ ...prev, can_view_all_team_calendar: checked }))}
-              />
-            </div>
+            ))}
           </div>
 
           <Separator />
 
           <div className="flex items-center justify-between py-2">
             <div>
-              <Label htmlFor="only_assigned" className="font-medium cursor-pointer">Solo elementi assegnati</Label>
+              <Label htmlFor="only_assigned" className="font-medium cursor-pointer">Solo i dati assegnati a lui</Label>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Se attivo, l'utente vedrà SOLO ordini, attività e appuntamenti assegnati a lui
+                Vede solo commesse, attività e appuntamenti assegnati a lui.
               </p>
             </div>
             <Switch
@@ -433,7 +420,7 @@ export function PermissionsDialog({
               </Label>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {permissions.only_assigned
-                  ? "Ignorato: “Solo elementi assegnati” è più stretto e ha la precedenza."
+                  ? "Ignorato: «Solo i dati assegnati a lui» è più stretto e ha la precedenza."
                   : "Vede tutte le commesse dei magazzini che gli hai assegnato — anche quelle dei colleghi di quel magazzino — più le proprie. Serve un magazzino assegnato, altrimenti non vedrà nulla."}
               </p>
             </div>
@@ -504,7 +491,7 @@ export function PermissionsDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>Annulla</Button>
           <Button onClick={handleSubmit} disabled={isLoading}>
             {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Salva Permessi
+            Salva permessi
           </Button>
         </DialogFooter>
       </DialogContent>

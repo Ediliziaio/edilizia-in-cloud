@@ -9,6 +9,8 @@ import { Loader2, Monitor, Smartphone, Tablet, Wifi, WifiOff, XCircle } from "lu
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { userErrorMessage } from "@/lib/userErrorMessage";
+import { motivoChiusuraLeggibile } from "@/lib/users/collegamento";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -19,15 +21,17 @@ import {
 
 interface UserSessionsTabProps {
   userId: string;
+  /** Chiudere le sessioni di un'altra persona: solo l'amministratore (lo rifiuta il server a chiunque altro). */
+  puoChiudere?: boolean;
 }
 
 const deviceIcon = (type: string | null) => {
-  if (type === "mobile") return <Smartphone className="h-4 w-4" />;
-  if (type === "tablet") return <Tablet className="h-4 w-4" />;
-  return <Monitor className="h-4 w-4" />;
+  if (type === "mobile") return <Smartphone className="h-4 w-4" aria-hidden="true" />;
+  if (type === "tablet") return <Tablet className="h-4 w-4" aria-hidden="true" />;
+  return <Monitor className="h-4 w-4" aria-hidden="true" />;
 };
 
-export function UserSessionsTab({ userId }: UserSessionsTabProps) {
+export function UserSessionsTab({ userId, puoChiudere = true }: UserSessionsTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showAll, setShowAll] = useState(false);
@@ -49,7 +53,7 @@ export function UserSessionsTab({ userId }: UserSessionsTabProps) {
   const revokeMutation = useMutation({
     mutationFn: async (sessionId: string) => {
       const { data, error } = await supabase.functions.invoke("revoke-user-session", {
-        body: { session_id: sessionId, reason: "Revoked by admin" },
+        body: { session_id: sessionId, reason: "Chiusa dall'amministratore" },
       });
       if (error) throw error;
       return data as { tutti_i_dispositivi?: boolean } | null;
@@ -57,36 +61,37 @@ export function UserSessionsTab({ userId }: UserSessionsTabProps) {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.userSessions.byUser(userId) });
       toast({
-        title: "Sessione revocata",
+        title: "Sessione chiusa",
         // Una sessione non collegata a un dispositivo preciso chiude tutti gli accessi.
         description: data?.tutti_i_dispositivi ? "L'utente è stato disconnesso da tutti i dispositivi." : undefined,
       });
     },
-    onError: () => {
-      toast({ title: "Errore", description: "Impossibile revocare la sessione.", variant: "destructive" });
+    onError: (e: unknown) => {
+      toast({ title: "Non sono riuscito a chiudere la sessione", description: userErrorMessage(e, "Riprova tra un attimo."), variant: "destructive" });
     },
   });
 
   const revokeAllMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.functions.invoke("revoke-user-session", {
-        body: { revoke_all_for_user: userId, reason: "All sessions revoked by admin" },
+        body: { revoke_all_for_user: userId, reason: "Tutte le sessioni chiuse dall'amministratore" },
       });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.userSessions.byUser(userId) });
-      toast({ title: "Tutte le sessioni revocate" });
+      toast({ title: "Tutte le sessioni chiuse" });
     },
-    onError: () => {
-      toast({ title: "Errore", description: "Impossibile revocare le sessioni.", variant: "destructive" });
+    onError: (e: unknown) => {
+      toast({ title: "Non sono riuscito a chiudere le sessioni", description: userErrorMessage(e, "Riprova tra un attimo."), variant: "destructive" });
     },
   });
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-40">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div role="status" className="flex items-center justify-center h-40">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
+        <span className="sr-only">Caricamento delle sessioni…</span>
       </div>
     );
   }
@@ -100,27 +105,30 @@ export function UserSessionsTab({ userId }: UserSessionsTabProps) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-base">Sessioni Attive</CardTitle>
-            <CardDescription>{activeSessions.length} sessioni attive</CardDescription>
+            <CardTitle className="text-base">Sessioni</CardTitle>
+            <CardDescription className="mt-1.5">
+              {activeSessions.length === 1 ? "1 sessione aperta" : `${activeSessions.length} sessioni aperte`}
+              {" "}(una sessione resta aperta finché la persona non esce o non la chiudi tu)
+            </CardDescription>
           </div>
-          {activeSessions.length > 0 && (
+          {puoChiudere && activeSessions.length > 0 && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm" disabled={revokeAllMutation.isPending}>
-                  Revoca Tutte
+                  Chiudi tutte
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Revocare tutte le sessioni?</AlertDialogTitle>
+                  <AlertDialogTitle>Chiudere tutte le sessioni?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    L'utente verrà disconnesso da tutti i dispositivi.
+                    La persona esce da tutti i dispositivi.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Annulla</AlertDialogCancel>
                   <AlertDialogAction onClick={() => revokeAllMutation.mutate()}>
-                    Revoca Tutte
+                    Chiudi tutte
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -130,7 +138,7 @@ export function UserSessionsTab({ userId }: UserSessionsTabProps) {
         <CardContent>
           <div className="flex gap-2 mb-4">
             <Button variant={!showAll ? "default" : "outline"} size="sm" onClick={() => setShowAll(false)}>
-              Attive ({activeSessions.length})
+              Aperte ({activeSessions.length})
             </Button>
             <Button variant={showAll ? "default" : "outline"} size="sm" onClick={() => setShowAll(true)}>
               Tutte ({sessions?.length || 0})
@@ -144,11 +152,11 @@ export function UserSessionsTab({ userId }: UserSessionsTabProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Dispositivo</TableHead>
-                  <TableHead>IP</TableHead>
-                  <TableHead>Inizio</TableHead>
-                  <TableHead>Ultima Attività</TableHead>
+                  <TableHead>Indirizzo (IP)</TableHead>
+                  <TableHead>Iniziata</TableHead>
+                  <TableHead>Ultima attività</TableHead>
                   <TableHead>Stato</TableHead>
-                  <TableHead className="text-right">Azioni</TableHead>
+                  <TableHead className="text-right"><span className="sr-only">Azioni</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -173,27 +181,29 @@ export function UserSessionsTab({ userId }: UserSessionsTabProps) {
                     <TableCell>
                       {session.is_active ? (
                         <Badge variant="default" className="bg-green-600/10 text-green-700 border-green-600/20">
-                          <Wifi className="h-3 w-3 mr-1" /> Attiva
+                          <Wifi className="h-3 w-3 mr-1" aria-hidden="true" /> Aperta
                         </Badge>
                       ) : (
                         <Badge variant="secondary">
-                          <WifiOff className="h-3 w-3 mr-1" /> Terminata
+                          <WifiOff className="h-3 w-3 mr-1" aria-hidden="true" /> Chiusa
                         </Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {session.is_active && (
+                      {puoChiudere && session.is_active && (
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => revokeMutation.mutate(session.id)}
                           disabled={revokeMutation.isPending}
+                          aria-label="Chiudi questa sessione"
+                          title="Chiudi questa sessione"
                         >
-                          <XCircle className="h-4 w-4 text-destructive" />
+                          <XCircle className="h-4 w-4 text-destructive" aria-hidden="true" />
                         </Button>
                       )}
                       {!session.is_active && session.revoke_reason && (
-                        <span className="text-xs text-muted-foreground">{session.revoke_reason}</span>
+                        <span className="text-xs text-muted-foreground">{motivoChiusuraLeggibile(session.revoke_reason)}</span>
                       )}
                     </TableCell>
                   </TableRow>

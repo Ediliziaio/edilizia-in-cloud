@@ -1,9 +1,13 @@
 /**
  * IMP4 — Pagina unificata "Sicurezza & Privacy"
  *
- * Riunisce Privacy & GDPR, Security dashboard e Registro attività.
- * Password e 2FA personale vivono in /azienda/impostazioni/mio-profilo?tab=sicurezza.
- * Il tab attivo è mantenuto nel query param ?tab=privacy|dashboard|attivita.
+ * Tre schede: Accessi (chi è collegato, tentativi, azioni sugli utenti),
+ * Registro attività e Privacy. Password e verifica in due passaggi personali
+ * vivono in /azienda/impostazioni/mio-profilo?tab=sicurezza, lì anche le
+ * regole di sicurezza dell'azienda (blocco dopo password sbagliate, IP).
+ * La scheda attiva è nell'indirizzo: ?tab=dashboard|attivita|privacy (gli
+ * identificativi non cambiano: i rimandi e la ricerca li usano).
+ * L'amministratore apre «Accessi», chi non lo è «Privacy».
  *
  * Le 4 route precedenti reindirizzano qui via <Navigate> in companyRoutes.tsx.
  */
@@ -38,9 +42,9 @@ export default function SettingsSecurityHub() {
 
   if (permissions.isLoading) {
     return (
-      <div className="flex items-center gap-2 py-8 text-muted-foreground text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Caricamento...
+      <div role="status" className="flex items-center gap-2 py-8 text-muted-foreground text-sm">
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        Caricamento…
       </div>
     );
   }
@@ -51,7 +55,8 @@ export default function SettingsSecurityHub() {
       if ((tabParam === "dashboard" || tabParam === "attivita") && (!isAdmin || isMobile)) return "privacy";
       return tabParam;
     }
-    return "privacy";
+    // L'amministratore apre ciò che gli serve di più; gli altri hanno solo la Privacy.
+    return isAdmin && !isMobile ? "dashboard" : "privacy";
   };
 
   const activeTab = resolveDefaultTab();
@@ -62,28 +67,25 @@ export default function SettingsSecurityHub() {
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-      {/* v8.6.71 — mobile: scroll orizzontale invece di compressione (4 tab
-          con label lunghe sovrapponevano: Privacy & GDPR /
-          Security dashboard / Registro attività). */}
       <TabsList className="mb-6 w-full sm:w-auto h-auto flex-wrap justify-start gap-1 overflow-x-auto sm:overflow-visible sm:flex-nowrap max-sm:hidden">
-        {canViewPrivacy && (
-          <TabsTrigger value="privacy" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            <span>Privacy & GDPR</span>
-          </TabsTrigger>
-        )}
-
         {isAdmin && (
           <TabsTrigger value="dashboard" className="flex items-center gap-2">
-            <Activity className="h-4 w-4" />
-            <span>Security dashboard</span>
+            <Activity className="h-4 w-4" aria-hidden="true" />
+            <span>Accessi</span>
           </TabsTrigger>
         )}
 
         {isAdmin && (
           <TabsTrigger value="attivita" className="flex items-center gap-2">
-            <ScrollText className="h-4 w-4" />
+            <ScrollText className="h-4 w-4" aria-hidden="true" />
             <span>Registro attività</span>
+          </TabsTrigger>
+        )}
+
+        {canViewPrivacy && (
+          <TabsTrigger value="privacy" className="flex items-center gap-2">
+            <Shield className="h-4 w-4" aria-hidden="true" />
+            <span>Privacy</span>
           </TabsTrigger>
         )}
       </TabsList>

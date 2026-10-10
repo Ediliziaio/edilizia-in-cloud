@@ -10,6 +10,8 @@ export interface Employee {
   /** €/h usato dal trigger rapportino approvato → costo commessa.
    *  Se assente si salva il costo calcolato dallo stipendio. */
   costo_orario?: number | null;
+  /** Contributi a carico dell'azienda (%), per il costo orario calcolato. Vuoto = 28%. */
+  inps_rate?: number | null;
   is_active: boolean;
   user_id: string | null;
   role_type: string;

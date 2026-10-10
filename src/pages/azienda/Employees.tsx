@@ -11,6 +11,7 @@ import {
   ALL_PERMISSION_SECTIONS, isBlockedBySolaLettura, syncLegacyMarketingFlags, SOLA_LETTURA_BLOCKED_NOTE,
 } from "@/components/users/permissionsDefaults";
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
+import { messaggioErrorePersone } from "@/lib/users/erroriPersone";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -42,7 +43,14 @@ const MARKETING_SECTION_KEYS = [
 const INTERNAL_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => !MARKETING_SECTION_KEYS.includes(s.viewKey as string));
 const MARKETING_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => MARKETING_SECTION_KEYS.includes(s.viewKey as string));
 
-function EmployeesInner() {
+interface EmployeesProps {
+  /** Dipendenti e operai: si scrivono solo da amministratore. */
+  soloLettura?: boolean;
+  /** Squadre esterne: le modifica anche chi ha «Configurazione Ordini — Modifica». */
+  soloLetturaSquadre?: boolean;
+}
+
+function EmployeesInner({ soloLettura = false, soloLetturaSquadre = false }: EmployeesProps) {
   const { effectiveCompany } = useAuth();
 
   const queryClient = useQueryClient();
@@ -67,7 +75,7 @@ function EmployeesInner() {
     queryKey: queryKeys.employees.list(effectiveCompanyId),
     queryFn: async () => {
       const { data, error } = await supabase.from("employees")
-        .select("id, company_id, first_name, last_name, email, phone, phone_whatsapp, gross_salary, net_salary, monthly_hours, costo_orario, is_active, user_id, role_type, area")
+        .select("id, company_id, first_name, last_name, email, phone, phone_whatsapp, gross_salary, net_salary, monthly_hours, costo_orario, inps_rate, is_active, user_id, role_type, area")
         .eq("company_id", effectiveCompanyId!).order("last_name");
       if (error) {
         // Fallback if area column doesn't exist yet
@@ -114,7 +122,7 @@ function EmployeesInner() {
           area: data.area || null,
         }).eq("id", data.id).eq("company_id", effectiveCompanyId!).select("id");
         if (error) throw error;
-        if (!updated || updated.length === 0) throw new Error("Nessun dipendente aggiornato: verifica i permessi.");
+        if (!updated || updated.length === 0) throw new Error("Non è stato aggiornato nessun dipendente: controlla di avere i permessi per farlo.");
       } else {
         const { error } = await supabase.from("employees").insert({
           company_id: effectiveCompanyId!,
@@ -136,11 +144,13 @@ function EmployeesInner() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
-      toast.success(editingEmployee ? "Dipendente aggiornato" : "Dipendente creato", { description: "I dati sono stati salvati con successo." });
+      toast.success(editingEmployee ? "Dipendente aggiornato" : "Dipendente creato", { description: "I dati sono stati salvati." });
       setEmployeeDialogOpen(false); setEditingEmployee(null);
     },
     onError: (err: Error) => {
-      toast.error("Errore", { description: err.message || "Si è verificato un errore durante il salvataggio." });
+      toast.error("Non sono riuscito a salvare il dipendente", {
+        description: messaggioErrorePersone(err, "Riprova tra un attimo."),
+      });
     },
   });
 
@@ -154,7 +164,9 @@ function EmployeesInner() {
       toast.success("Dipendente eliminato", { description: "Il dipendente è stato rimosso." });
     },
     onError: (err: Error) => {
-      toast.error("Errore", { description: err.message || "Impossibile eliminare il dipendente. Potrebbe essere assegnato a degli ordini." });
+      toast.error("Non sono riuscito a eliminare il dipendente", {
+        description: messaggioErrorePersone(err, "Se è assegnato a delle commesse, impostalo come «Inattivo»."),
+      });
     },
   });
 
@@ -179,11 +191,13 @@ function EmployeesInner() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.externalTeams.all });
-      toast.success(editingTeam ? "Squadra aggiornata" : "Squadra creata", { description: "I dati sono stati salvati con successo." });
+      toast.success(editingTeam ? "Squadra aggiornata" : "Squadra creata", { description: "I dati sono stati salvati." });
       setTeamDialogOpen(false); setEditingTeam(null);
     },
     onError: (err: Error) => {
-      toast.error("Errore", { description: err.message || "Si è verificato un errore durante il salvataggio." });
+      toast.error("Non sono riuscito a salvare la squadra", {
+        description: messaggioErrorePersone(err, "Riprova tra un attimo."),
+      });
     },
   });
 
@@ -197,7 +211,9 @@ function EmployeesInner() {
       toast.success("Squadra eliminata", { description: "La squadra esterna è stata rimossa." });
     },
     onError: (err: Error) => {
-      toast.error("Errore", { description: err.message || "Impossibile eliminare la squadra. Potrebbe essere assegnata a degli ordini." });
+      toast.error("Non sono riuscito a eliminare la squadra", {
+        description: messaggioErrorePersone(err, "Se è assegnata a delle commesse, impostala come «Inattiva»."),
+      });
     },
   });
 
@@ -211,7 +227,7 @@ function EmployeesInner() {
       if (error) {
         let errBody: any = null;
         try { const ctx = (error as any).context; if (ctx instanceof Response) errBody = await ctx.json(); } catch { /* intentionally ignored */ }
-        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "");
       }
       if (!data.success) throw new Error(data.error);
       return data;
@@ -224,11 +240,13 @@ function EmployeesInner() {
       } else {
         setCreateUserDialogOpen(false);
         resetCreateUserForm();
-        toast.success("Account creato", { description: data.message });
+        toast.success("Accesso creato", { description: data.message });
       }
     },
-    onError: (error: any) => {
-      toast.error("Errore", { description: error.message || "Impossibile creare l'account." });
+    onError: (error: unknown) => {
+      toast.error("Non sono riuscito a creare l'accesso", {
+        description: messaggioErrorePersone(error, "Riprova tra un attimo."),
+      });
     },
   });
 
@@ -318,27 +336,27 @@ function EmployeesInner() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold">Gestione Staff</h1>
-        <p className="text-muted-foreground">Operai, squadre esterne e staff interno</p>
+        <h2 className="text-xl sm:text-2xl font-bold">Dipendenti e squadre</h2>
+        <p className="text-muted-foreground">Operai, squadre esterne e staff interno.</p>
       </div>
 
       <Tabs defaultValue="employees" className="space-y-4">
         <TabsList className="flex flex-nowrap h-auto gap-1 p-1 w-full justify-start overflow-x-auto scrollbar-none">
-          <TabsTrigger value="employees" className="gap-1.5 shrink-0"><Users className="h-4 w-4" />Operai ({operai.length})</TabsTrigger>
-          <TabsTrigger value="teams" className="gap-1.5 shrink-0"><Building2 className="h-4 w-4" />Squadre ({externalTeams.length})</TabsTrigger>
-          <TabsTrigger value="staff-interno" className="gap-1.5 shrink-0"><Users className="h-4 w-4" /><span className="hidden sm:inline">Staff Interno</span><span className="sm:hidden">Staff</span> ({staffInterno.length})</TabsTrigger>
-          <TabsTrigger value="worklogs" className="gap-1.5 shrink-0"><Clock className="h-4 w-4" />Rapportini</TabsTrigger>
-          <TabsTrigger value="leave" className="gap-1.5 shrink-0"><Palmtree className="h-4 w-4" /><span className="hidden sm:inline">Ferie & Permessi</span><span className="sm:hidden">Ferie</span></TabsTrigger>
+          <TabsTrigger value="employees" className="gap-1.5 shrink-0"><Users className="h-4 w-4" aria-hidden="true" />Operai ({operai.length})</TabsTrigger>
+          <TabsTrigger value="teams" className="gap-1.5 shrink-0"><Building2 className="h-4 w-4" aria-hidden="true" />Squadre ({externalTeams.length})</TabsTrigger>
+          <TabsTrigger value="staff-interno" className="gap-1.5 shrink-0"><Users className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">Staff interno</span><span className="sm:hidden">Staff</span> ({staffInterno.length})</TabsTrigger>
+          <TabsTrigger value="worklogs" className="gap-1.5 shrink-0"><Clock className="h-4 w-4" aria-hidden="true" />Rapportini</TabsTrigger>
+          <TabsTrigger value="leave" className="gap-1.5 shrink-0"><Palmtree className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">Ferie e permessi</span><span className="sm:hidden">Ferie</span></TabsTrigger>
         </TabsList>
 
         <TabsContent value="employees">
           <EmployeesTab employees={operai} isLoading={loadingEmployees} roleType="operaio"
             onNew={() => { setEditingEmployee(null); setActiveRoleType('operaio'); setEmployeeDialogOpen(true); }}
             onEdit={handleEditEmployee} onDelete={(id) => deleteEmployeeMutation.mutate(id)}
-            onViewAttachments={setAttachmentsEmployee} onCreateUser={handleCreateUser} />
+            onViewAttachments={setAttachmentsEmployee} onCreateUser={handleCreateUser} soloLettura={soloLettura} />
         </TabsContent>
         <TabsContent value="teams">
-          <ExternalTeamsTab teams={externalTeams} isLoading={loadingTeams}
+          <ExternalTeamsTab teams={externalTeams} isLoading={loadingTeams} soloLettura={soloLetturaSquadre}
             onNew={() => { setEditingTeam(null); setTeamDialogOpen(true); }}
             onEdit={handleEditTeam} onDelete={(id) => deleteTeamMutation.mutate(id)}
             onViewAttachments={setAttachmentsTeam} />
@@ -347,7 +365,7 @@ function EmployeesInner() {
           <EmployeesTab employees={staffInterno} isLoading={loadingEmployees} roleType="staff_interno"
             onNew={() => { setEditingEmployee(null); setActiveRoleType('staff_interno'); setEmployeeDialogOpen(true); }}
             onEdit={handleEditEmployee} onDelete={(id) => deleteEmployeeMutation.mutate(id)}
-            onViewAttachments={setAttachmentsEmployee} onCreateUser={handleCreateUser} />
+            onViewAttachments={setAttachmentsEmployee} onCreateUser={handleCreateUser} soloLettura={soloLettura} />
         </TabsContent>
         <TabsContent value="worklogs"><WorkLogsAdminTab /></TabsContent>
         <TabsContent value="leave">
@@ -356,11 +374,11 @@ function EmployeesInner() {
               i calendari. */}
           <Card>
             <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-              <Palmtree className="h-10 w-10 text-muted-foreground" />
+              <Palmtree className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
               <div>
-                <p className="font-medium">Ferie e permessi si gestiscono in Personale &amp; HR</p>
+                <p className="font-medium">Ferie e permessi si gestiscono in Personale e HR</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Richieste, approvazioni e saldi (ferie, permessi, ROL) sono nella tab Richieste del modulo Personale.
+                  Richieste, approvazioni e saldi (ferie, permessi, ROL) sono nella scheda «Richieste» del modulo Personale.
                 </p>
               </div>
               <Button asChild>
@@ -395,9 +413,9 @@ function EmployeesInner() {
       }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Crea Account Dipendente</DialogTitle>
+            <DialogTitle>Crea l'accesso del dipendente</DialogTitle>
             <DialogDescription>
-              {createUserEmployee && `Crea un account per ${createUserEmployee.first_name} ${createUserEmployee.last_name}`}
+              {createUserEmployee && `Crea l'accesso all'app per ${createUserEmployee.first_name} ${createUserEmployee.last_name}`}
             </DialogDescription>
           </DialogHeader>
 
@@ -405,17 +423,17 @@ function EmployeesInner() {
             <div className="space-y-4">
               <div className="p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800">
                 <p className="font-medium text-green-800 dark:text-green-200 flex items-center gap-2">
-                  <Check className="h-4 w-4" /> Account creato con successo!
+                  <Check className="h-4 w-4" aria-hidden="true" /> Accesso creato
                 </p>
                 <p className="text-sm text-green-700 dark:text-green-300 mt-2">
                   Password temporanea: <code className="bg-green-100 dark:bg-green-800 px-2 py-1 rounded font-mono">{createdPassword}</code>
                   <Button variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6 ml-1" onClick={() => {
                     navigator.clipboard.writeText(createdPassword);
                     toast.success("Copiato", { description: "Password copiata" });
-                  }}><Copy className="h-3 w-3" /></Button>
+                  }} aria-label="Copia la password"><Copy className="h-3 w-3" aria-hidden="true" /></Button>
                 </p>
                 <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-                  Comunica questa password al dipendente. Dovrà cambiarla al primo accesso.
+                  Comunica questa password al dipendente: gli è arrivata anche per email. Gli consigliamo di cambiarla al primo accesso.
                 </p>
               </div>
               <DialogFooter>
@@ -447,9 +465,9 @@ function EmployeesInner() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="user-password">Password</Label>
-                <Input id="user-password" type="text" value={createUserPassword}
-                  onChange={(e) => setCreateUserPassword(e.target.value)} placeholder="Lascia vuoto per generarla automaticamente" />
-                <p className="text-xs text-muted-foreground">Se lasci vuoto, verrà generata automaticamente e mostrata dopo la creazione</p>
+                <Input id="user-password" type="password" autoComplete="new-password" value={createUserPassword}
+                  onChange={(e) => setCreateUserPassword(e.target.value)} placeholder="Lascia vuoto per generarla da solo" />
+                <p className="text-xs text-muted-foreground">Se lasci vuoto, la password viene generata e te la mostriamo dopo la creazione.</p>
               </div>
 
               <Separator />
@@ -479,9 +497,9 @@ function EmployeesInner() {
                     <div className="flex items-center space-x-2">
                       <Checkbox id="emp-only_assigned" checked={createUserPermissions.only_assigned || false}
                         onCheckedChange={(checked) => setCreateUserPermissions((prev) => ({ ...prev, only_assigned: checked as boolean }))} />
-                      <Label htmlFor="emp-only_assigned" className="font-medium text-sm">Solo elementi assegnati</Label>
+                      <Label htmlFor="emp-only_assigned" className="font-medium text-sm">Solo i dati assegnati a lui</Label>
                     </div>
-                    <p className="text-xs text-muted-foreground ml-6">Se attivo, l'utente vedrà solo ordini, attività e appuntamenti assegnati a lui</p>
+                    <p className="text-xs text-muted-foreground ml-6">Vede solo commesse, attività e appuntamenti assegnati a lui.</p>
                   </div>
                 </div>
               </div>
@@ -489,7 +507,7 @@ function EmployeesInner() {
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setCreateUserDialogOpen(false); resetCreateUserForm(); }}>Annulla</Button>
                 <Button type="submit" disabled={createUserMutation.isPending}>
-                  {createUserMutation.isPending ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creazione...</>) : "Crea Account"}
+                  {createUserMutation.isPending ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />Creazione…</>) : "Crea l'accesso"}
                 </Button>
               </DialogFooter>
             </form>
@@ -500,10 +518,10 @@ function EmployeesInner() {
   );
 }
 
-export default function Employees() {
+export default function Employees(props: EmployeesProps = {}) {
   return (
-    <ErrorBoundary title="Errore nella gestione dipendenti">
-      <EmployeesInner />
+    <ErrorBoundary title="Non riesco a mostrare i dipendenti">
+      <EmployeesInner {...props} />
     </ErrorBoundary>
   );
 }

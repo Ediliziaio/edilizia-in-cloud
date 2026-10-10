@@ -249,10 +249,10 @@ describe("Scheda utente — i permessi si salvano anche per chi non ha ancora la
 
   async function salvaTutti() {
     await screen.findByRole("combobox", {}, { timeout: 15_000 });
-    // «Tutti»: basta un qualunque cambio perché «Salva Permessi» si accenda.
+    // «Tutti»: basta un qualunque cambio perché «Salva permessi» si accenda.
     fireEvent.click(screen.getAllByRole("button", { name: /^Tutti$/ })[0]);
     registro.length = 0;
-    fireEvent.click(screen.getByRole("button", { name: /Salva Permessi/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Salva permessi/ }));
   }
 
   it("senza riga (i venditori importati di Ener): la riga si crea, non un aggiornamento a vuoto", async () => {

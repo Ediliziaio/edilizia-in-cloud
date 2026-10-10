@@ -13,6 +13,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { messaggioErrorePersone } from "@/lib/users/erroriPersone";
 
 export type ChangeRequestStatus = "pending" | "approved" | "rejected" | "expired";
 export type ChangeRequestOperation = "create" | "update" | "delete";
@@ -162,7 +163,9 @@ export function useDecideChangeRequest() {
       queryClient.invalidateQueries({ queryKey: [KEY] });
     },
     onError: (error: Error) => {
-      toast.error("Errore decisione", { description: error.message });
+      toast.error("Non sono riuscito a registrare la decisione", {
+        description: messaggioErrorePersone(error, "Riprova tra un attimo."),
+      });
     },
   });
 }

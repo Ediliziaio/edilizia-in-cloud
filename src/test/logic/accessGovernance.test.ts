@@ -30,7 +30,7 @@ describe("access governance", () => {
     }, NOW);
 
     expect(risk.level).toBe("high");
-    expect(risk.reasons).toContain("Admin senza 2FA");
+    expect(risk.reasons).toContain("Amministratore senza app di verifica");
     expect(risk.reasons).toContain("Mai connesso");
   });
 
@@ -48,7 +48,7 @@ describe("access governance", () => {
 
     expect(risk.level).toBe("medium");
     expect(risk.reasons).toContain("Accesso esterno con permessi critici");
-    expect(risk.reasons).toContain("Accesso multi-azienda");
+    expect(risk.reasons).toContain("Entra da un'altra azienda");
   });
 
   it("produce KPI coerenti per la cabina di controllo accessi", () => {

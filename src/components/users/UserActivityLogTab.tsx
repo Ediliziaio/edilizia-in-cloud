@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { escapeCsvCell } from "@/lib/csvExport";
-import { descriviEsportazioneCrm } from "@/lib/export/esportazioniCrm";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Loader2, Download, FileText, ShieldAlert } from "lucide-react";
@@ -13,30 +12,15 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
-  CATEGORIE_LOG, contaPerCategoria, estremiIso, etichettaGiorno, intervalloPreset,
+  CATEGORIE_LOG, contaPerCategoria, dettaglioLogAzienda, estremiIso, etichettaGiorno, intervalloPreset,
   raggruppaPerGiorno, vocedaAttivitaRegistro, vocedaLogAzienda,
   azioneRidondante, voceDaAzione, type CategoriaLog, type Intervallo, type PresetPeriodo, type VoceLog,
 } from "@/lib/users/logAttivitaUtente";
+import { descriviDettagliSicurezza, etichettaAzioneSicurezza } from "@/lib/users/etichetteAzioniSicurezza";
 
 interface UserActivityLogTabProps {
   userId: string;
 }
-
-const ACTION_LABELS: Record<string, string> = {
-  user_created: "Utente creato",
-  login: "Login",
-  logout: "Logout",
-  password_changed: "Password cambiata",
-  role_changed: "Ruolo modificato",
-  permissions_updated: "Permessi aggiornati",
-  session_revoked: "Sessione revocata",
-  account_locked: "Account bloccato",
-  account_unlocked: "Account sbloccato",
-  access_blocked: "Accesso bloccato",
-  access_unblocked: "Accesso ripristinato",
-  user_deleted: "Utente eliminato",
-  crm_exported: "Esportazione dati clienti",
-};
 
 const COLORE_CATEGORIA: Record<CategoriaLog, string> = {
   sicurezza: "bg-amber-600/10 text-amber-700 border-amber-600/20",
@@ -112,7 +96,7 @@ async function caricaLog(userId: string, companyId: string, intervallo: Interval
     leggiFonte("appointments", "id, title, appointment_date, status, contact_id, created_at", "created_by", "created_at", userId, companyId, estremi, limite),
     leggiFonte("tasks", "id, title, status, contact_id, created_at", "created_by", "created_at", userId, companyId, estremi, limite),
     leggiFonte("quotes", "id, title, client_name, status, total, contact_id, created_at", "created_by", "created_at", userId, companyId, estremi, limite),
-    leggiFonte("company_activity_log", "id, action, description, target_label, created_at", "user_id", "created_at", userId, companyId, estremi, limite),
+    leggiFonte("company_activity_log", "id, action, description, target_label, target_id, target_type, created_at", "user_id", "created_at", userId, companyId, estremi, limite),
     // Commesse, calendario, magazzino, acquisti, fatture, personale… (trigger registra_azione_utente).
     leggiFonte("user_action_log", "id, azione, tabella, record_id, etichetta, campi_modificati, volte, created_at", "user_id", "created_at", userId, companyId, estremi, limite),
     leggiFonte("sms_messages", "id, to_number, body, direction, created_at", "created_by", "created_at", userId, companyId, estremi, limite),
@@ -127,13 +111,9 @@ async function caricaLog(userId: string, companyId: string, intervallo: Interval
   const voci: VoceLog[] = [];
 
   for (const r of sicurezza) {
-    const dettagli = r.details && typeof r.details === "object" ? (r.details as Record<string, unknown>) : {};
-    const testo = r.action === "crm_exported"
-      ? descriviEsportazioneCrm(r.details)
-      : Object.entries(dettagli).filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => `${k}: ${v}`).join(" • ");
     voci.push({
       id: `sic_${r.id}`, quando: r.created_at, categoria: "sicurezza",
-      titolo: ACTION_LABELS[r.action] || r.action, dettaglio: testo || null,
+      titolo: etichettaAzioneSicurezza(r.action), dettaglio: descriviDettagliSicurezza(r.action, r.details),
       impersonata: !!r.is_impersonated, azione: r.action,
     });
   }
@@ -190,11 +170,25 @@ async function caricaLog(userId: string, companyId: string, intervallo: Interval
       contactId: r.contact_id,
     });
   }
+  // Le commesse nel registro hanno l'identificativo al posto del numero: il
+  // numero e il cliente si leggono dalla commessa.
+  const nomiCommesse: Record<string, string> = {};
+  const idCommesse = [...new Set<string>(
+    logAzienda.filter((r: any) => r.target_type === "orders" && r.target_id).map((r: any) => r.target_id as string),
+  )].slice(0, 200);
+  if (idCommesse.length > 0) {
+    const { data: commesse } = await (supabase as any).from("orders")
+      .select("id, order_code, client_name").eq("company_id", companyId).in("id", idCommesse);
+    for (const c of (commesse ?? []) as Array<{ id: string; order_code: string | null; client_name: string | null }>) {
+      const nome = [c.order_code, c.client_name].filter(Boolean).join(" · ");
+      if (nome) nomiCommesse[c.id] = nome;
+    }
+  }
   for (const r of logAzienda) {
     // Preventivi, commesse e attività ora hanno la riga del registro generale: niente doppioni.
     if (azioni.length > 0 && /^(quote\.|order\.|task_)/.test(r.action ?? "")) continue;
     const v = vocedaLogAzienda(r.action);
-    voci.push({ id: `la_${r.id}`, quando: r.created_at, categoria: v.categoria, titolo: v.titolo, dettaglio: [r.target_label, r.description].filter(Boolean).join(" — ") || null });
+    voci.push({ id: `la_${r.id}`, quando: r.created_at, categoria: v.categoria, titolo: v.titolo, dettaglio: dettaglioLogAzienda(r, nomiCommesse) });
   }
 
   for (const r of sms) {
@@ -302,7 +296,7 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
       <CardHeader className="space-y-3">
         <div className="flex flex-row items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-base">Log Attività</CardTitle>
+            <CardTitle className="text-base">Attività</CardTitle>
             <CardDescription>
               {isLoading ? "Carico…" : `${visibili.length} eventi${categoria !== "all" || ricerca ? ` su ${voci.length}` : ""} nel periodo`}
               {isFetching && !isLoading && <Loader2 className="ml-2 inline h-3 w-3 animate-spin" />}
@@ -322,11 +316,11 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
           ))}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span>dal</span>
-            <Input type="date" className="h-8 w-[140px]" value={intervallo.da ?? ""} max={intervallo.a ?? undefined} onChange={(e) => cambiaData("da", e.target.value)} />
+            <Input type="date" aria-label="Dal giorno" className="h-8 w-[140px]" value={intervallo.da ?? ""} max={intervallo.a ?? undefined} onChange={(e) => cambiaData("da", e.target.value)} />
             <span>al</span>
-            <Input type="date" className="h-8 w-[140px]" value={intervallo.a ?? ""} min={intervallo.da ?? undefined} onChange={(e) => cambiaData("a", e.target.value)} />
+            <Input type="date" aria-label="Al giorno" className="h-8 w-[140px]" value={intervallo.a ?? ""} min={intervallo.da ?? undefined} onChange={(e) => cambiaData("a", e.target.value)} />
           </div>
-          <Input placeholder="Cerca nel log…" className="h-8 w-[200px]" value={ricerca} onChange={(e) => setRicerca(e.target.value)} />
+          <Input type="search" aria-label="Cerca in queste attività" placeholder="Cerca…" className="h-8 w-[200px]" value={ricerca} onChange={(e) => setRicerca(e.target.value)} />
         </div>
 
         {/* Tipo di azione */}

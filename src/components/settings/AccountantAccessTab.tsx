@@ -4,9 +4,16 @@
  * Permette al titolare/admin dell'azienda di:
  *  - Vedere lo stato delle deleghe (invitate / attive / sospese) verso
  *    studi commercialisti collegati.
- *  - Invitare un nuovo commercialista via email (con scelta di access_mode
- *    e permessi granulari).
+ *  - Invitare un nuovo commercialista via email, scegliendo il livello di
+ *    accesso (access_mode).
  *  - Sospendere, riattivare o revocare un accesso esistente.
+ *
+ * Le sette caselle dei «permessi specifici» (finanza, documenti, controllo di
+ * gestione, cantieri, richieste, esportazioni, scrittura) sono state tolte dalla
+ * schermata il 10/10/2026: le funzioni del server le salvavano ma non le leggeva
+ * nessuno (né il portale studio, né le policy, né le funzioni del database).
+ * Conta solo il livello di accesso. Il valore di riferimento continua a partire
+ * perché le funzioni lo accettano e lo registrano.
  *
  * Lato server usa 2 edge functions:
  *  - invite-accountant-to-company
@@ -27,7 +34,6 @@ import {
   Pause,
   Play,
   Plus,
-  ShieldCheck,
   Trash2,
   UserCheck,
 } from "lucide-react";
@@ -35,7 +41,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -62,10 +67,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
+import { messaggioErrorePersone } from "@/lib/users/erroriPersone";
+import { ACCESS_MODE_OPTIONS, type AccessMode } from "@/lib/commercialista/livelliAccesso";
 
 type AccessStatus = "invited" | "active" | "suspended" | "revoked";
-type AccessMode = "read_only" | "operational" | "approval_required";
 
 interface AccountantPermissions {
   finance?: boolean;
@@ -102,34 +110,6 @@ const DEFAULT_PERMISSIONS: AccountantPermissions = {
   write_actions: false,
 };
 
-const PERMISSION_LABELS: Record<keyof AccountantPermissions, string> = {
-  finance: "Finanza & tesoreria",
-  documents: "Documenti",
-  management_control: "Controllo di gestione",
-  jobs: "Cantieri & commesse",
-  requests: "Richieste documentali",
-  exports: "Esportazioni / report",
-  write_actions: "Azioni di scrittura",
-};
-
-const ACCESS_MODE_OPTIONS: Array<{ value: AccessMode; label: string; description: string }> = [
-  {
-    value: "read_only",
-    label: "Solo lettura",
-    description: "Il commercialista può consultare i dati ma non può modificare nulla.",
-  },
-  {
-    value: "operational",
-    label: "Operativo",
-    description: "Può aggiornare dati e creare documenti (no azioni critiche).",
-  },
-  {
-    value: "approval_required",
-    label: "Con approvazione",
-    description: "Può fare modifiche, ma alcune richiedono approvazione del titolare.",
-  },
-];
-
 function getStatusBadgeProps(status: AccessStatus): {
   variant: "default" | "secondary" | "outline" | "destructive";
   label: string;
@@ -151,9 +131,10 @@ function getAccessModeLabel(mode: AccessMode): string {
   return ACCESS_MODE_OPTIONS.find((o) => o.value === mode)?.label || mode;
 }
 
-export function AccountantAccessTab() {
+export function AccountantAccessTab({ soloLettura = false }: { soloLettura?: boolean } = {}) {
   const { effectiveCompany } = useAuth();
   const { toast } = useToast();
+  const confirm = useConfirm();
   const companyId = effectiveCompany?.id ?? null;
 
   const [accesses, setAccesses] = useState<AccountantAccessRow[]>([]);
@@ -164,9 +145,6 @@ export function AccountantAccessTab() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteMode, setInviteMode] = useState<AccessMode>("read_only");
-  const [invitePermissions, setInvitePermissions] = useState<AccountantPermissions>(
-    DEFAULT_PERMISSIONS,
-  );
   const [inviteNotes, setInviteNotes] = useState("");
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -190,10 +168,8 @@ export function AccountantAccessTab() {
       });
       if (error) throw error;
       setAccesses((data as AccountantAccessRow[]) || []);
-    } catch (err) {
-      setLoadError(
-        (err as Error)?.message || "Impossibile caricare le deleghe commercialista.",
-      );
+    } catch {
+      setLoadError("Non riesco a leggere le deleghe. Controlla la connessione e riprova.");
     } finally {
       setIsLoading(false);
     }
@@ -207,7 +183,6 @@ export function AccountantAccessTab() {
   function resetInviteForm() {
     setInviteEmail("");
     setInviteMode("read_only");
-    setInvitePermissions(DEFAULT_PERMISSIONS);
     setInviteNotes("");
     setInviteError(null);
   }
@@ -218,7 +193,7 @@ export function AccountantAccessTab() {
 
     setInviteError(null);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail.trim())) {
-      setInviteError("Email non valida.");
+      setInviteError("L'email non sembra valida: controlla di averla scritta giusta.");
       return;
     }
 
@@ -229,13 +204,13 @@ export function AccountantAccessTab() {
           company_id: companyId,
           accountant_email: inviteEmail.trim().toLowerCase(),
           access_mode: inviteMode,
-          permissions: invitePermissions,
+          permissions: DEFAULT_PERMISSIONS,
           notes: inviteNotes.trim() || null,
         },
       });
       if (error) throw error;
       if (!(data as { success?: boolean })?.success) {
-        const msg = (data as { error?: string })?.error || "Invito non riuscito.";
+        const msg = (data as { error?: string })?.error || "L'invito non è partito.";
         throw new Error(msg);
       }
 
@@ -249,7 +224,12 @@ export function AccountantAccessTab() {
       setInviteOpen(false);
       void loadAccesses();
     } catch (err) {
-      setInviteError((err as Error)?.message || "Errore di rete.");
+      setInviteError(
+        messaggioErrorePersone(
+          await edgeErrorMessage(err, ""),
+          "Non sono riuscito a mandare l'invito. Riprova tra un attimo.",
+        ),
+      );
     } finally {
       setIsInviting(false);
     }
@@ -259,12 +239,25 @@ export function AccountantAccessTab() {
     access: AccountantAccessRow,
     action: "revoke" | "suspend" | "reactivate",
   ) {
-    const confirmMessages: Record<typeof action, string> = {
-      revoke: `Revocare l'accesso a "${access.firm_name}"? Il commercialista non potrà più vedere i tuoi dati.`,
-      suspend: `Sospendere temporaneamente l'accesso a "${access.firm_name}"?`,
-      reactivate: `Riattivare l'accesso a "${access.firm_name}"?`,
+    const conferme: Record<typeof action, { title: string; description: string; confirmLabel: string }> = {
+      revoke: {
+        title: `Revocare l'accesso a «${access.firm_name}»?`,
+        description: "Il commercialista non potrà più vedere i dati della tua azienda. Per riaverlo dovrai invitarlo di nuovo.",
+        confirmLabel: "Revoca l'accesso",
+      },
+      suspend: {
+        title: `Sospendere l'accesso a «${access.firm_name}»?`,
+        description: "Per ora il commercialista non vede più i dati. Lo puoi riattivare quando vuoi.",
+        confirmLabel: "Sospendi",
+      },
+      reactivate: {
+        title: `Riattivare l'accesso a «${access.firm_name}»?`,
+        description: "Il commercialista torna a vedere i dati della tua azienda.",
+        confirmLabel: "Riattiva",
+      },
     };
-    if (!window.confirm(confirmMessages[action])) return;
+    const ok = await confirm({ ...conferme[action], variant: action === "revoke" ? "destructive" : "default" });
+    if (!ok) return;
 
     try {
       const { data, error } = await supabase.functions.invoke(
@@ -278,7 +271,7 @@ export function AccountantAccessTab() {
       );
       if (error) throw error;
       if (!(data as { success?: boolean })?.success) {
-        throw new Error((data as { error?: string })?.error || "Operazione non riuscita.");
+        throw new Error((data as { error?: string })?.error || "L'operazione non è riuscita.");
       }
       toast({
         title:
@@ -291,8 +284,11 @@ export function AccountantAccessTab() {
       void loadAccesses();
     } catch (err) {
       toast({
-        title: "Errore",
-        description: (err as Error)?.message || "Operazione non riuscita.",
+        title: "Non è andata a buon fine",
+        description: messaggioErrorePersone(
+          await edgeErrorMessage(err, ""),
+          "Non sono riuscito a farlo. Riprova tra un attimo.",
+        ),
         variant: "destructive",
       });
     }
@@ -301,7 +297,7 @@ export function AccountantAccessTab() {
   if (!companyId) {
     return (
       <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-900">
-        Seleziona un'azienda per gestire l'accesso del commercialista.
+        Scegli prima un'azienda per gestire l'accesso del commercialista.
       </div>
     );
   }
@@ -315,13 +311,12 @@ export function AccountantAccessTab() {
             Accesso del commercialista
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Invita il tuo studio commercialista a vedere e operare sui dati di questa
-            azienda. Scegli mode e permessi: revoca quando vuoi.
+            Dai al tuo commercialista l'accesso ai dati dell'azienda. Scegli cosa può fare e revocalo quando vuoi.
           </p>
         </div>
-        <Button onClick={() => setInviteOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Invita commercialista
+        <Button onClick={() => setInviteOpen(true)} className="gap-2" disabled={soloLettura}>
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Invita il commercialista
         </Button>
       </div>
 
@@ -371,23 +366,26 @@ export function AccountantAccessTab() {
       {/* Lista accessi */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Deleghe attive</CardTitle>
+          <CardTitle className="text-base">Studi con accesso</CardTitle>
           <CardDescription>
-            Tutti gli studi commercialisti collegati o invitati a questa azienda.
+            Gli studi commercialisti che hai invitato o che hanno già accesso a questa azienda.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading && (
-            <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Caricamento deleghe...
+            <div role="status" className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              Caricamento delle deleghe…
             </div>
           )}
 
           {loadError && !isLoading && (
-            <div className="flex items-start gap-2 m-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{loadError}</span>
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-2 m-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <span className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{loadError}</span>
+              </span>
+              <Button variant="outline" size="sm" onClick={() => void loadAccesses()}>Riprova</Button>
             </div>
           )}
 
@@ -399,12 +397,11 @@ export function AccountantAccessTab() {
               <div className="space-y-1">
                 <p className="text-sm font-medium">Nessuno studio collegato</p>
                 <p className="text-xs text-muted-foreground">
-                  Invita il tuo commercialista per dargli accesso al portale studio
-                  con i dati di questa azienda.
+                  Invita il tuo commercialista: entrerà nel portale studio e vedrà i dati di questa azienda.
                 </p>
               </div>
-              <Button onClick={() => setInviteOpen(true)} variant="outline" className="gap-2">
-                <Plus className="h-4 w-4" />
+              <Button onClick={() => setInviteOpen(true)} variant="outline" className="gap-2" disabled={soloLettura}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
                 Invita il primo commercialista
               </Button>
             </div>
@@ -471,8 +468,14 @@ export function AccountantAccessTab() {
                     <div className="flex shrink-0 items-center justify-end gap-2">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            disabled={soloLettura}
+                            aria-label={`Azioni per ${access.firm_name}`}
+                          >
+                            <MoreVertical className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -502,7 +505,7 @@ export function AccountantAccessTab() {
                                 className="gap-2 text-red-600 focus:text-red-700"
                               >
                                 <Trash2 className="h-4 w-4" />
-                                Revoca accesso
+                                Revoca l'accesso
                               </DropdownMenuItem>
                             </>
                           )}
@@ -522,19 +525,19 @@ export function AccountantAccessTab() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <UserCheck className="h-5 w-5 text-blue-700" />
+              <UserCheck className="h-5 w-5 text-blue-700" aria-hidden="true" />
               Invita il tuo commercialista
             </DialogTitle>
             <DialogDescription>
-              Inserisci l'email del commercialista. Riceverà un invito per accedere
-              al portale studio con i permessi che selezioni qui sotto.
+              Scrivi l'email del commercialista: riceverà un invito per entrare nel portale studio
+              con il livello di accesso che scegli qui sotto.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleInvite} className="space-y-4">
             {inviteError && (
-              <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div role="alert" className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>{inviteError}</span>
               </div>
             )}
@@ -582,43 +585,10 @@ export function AccountantAccessTab() {
             </div>
 
             <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-blue-700" />
-                Permessi specifici
-              </Label>
-              <div className="grid grid-cols-1 gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-2">
-                {(Object.keys(PERMISSION_LABELS) as Array<keyof AccountantPermissions>).map(
-                  (key) => (
-                    <label
-                      key={key}
-                      className="flex items-center gap-2 text-sm cursor-pointer"
-                    >
-                      <Checkbox
-                        checked={!!invitePermissions[key]}
-                        onCheckedChange={(checked) =>
-                          setInvitePermissions((prev) => ({
-                            ...prev,
-                            [key]: !!checked,
-                          }))
-                        }
-                      />
-                      <span>{PERMISSION_LABELS[key]}</span>
-                    </label>
-                  ),
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                I permessi spuntati abilitano le aree corrispondenti nel portale studio.
-                <span className="font-medium">Azioni di scrittura</span> è disattivato di
-                default per sicurezza.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="acc-invite-notes">Note (opzionale)</Label>
+              <Label htmlFor="acc-invite-notes">Note (facoltative)</Label>
               <Textarea
                 id="acc-invite-notes"
-                placeholder="Es. studio interno, contratto in firma, ecc."
+                placeholder="Per esempio: studio che segue la contabilità dal 2024"
                 value={inviteNotes}
                 onChange={(event) => setInviteNotes(event.target.value)}
                 rows={2}
@@ -641,13 +611,13 @@ export function AccountantAccessTab() {
               <Button type="submit" disabled={isInviting} className="gap-2">
                 {isInviting ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Invio in corso...
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    Invio in corso…
                   </>
                 ) : (
                   <>
-                    <Mail className="h-4 w-4" />
-                    Invia invito
+                    <Mail className="h-4 w-4" aria-hidden="true" />
+                    Manda l'invito
                   </>
                 )}
               </Button>

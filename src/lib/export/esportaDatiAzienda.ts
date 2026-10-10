@@ -55,6 +55,15 @@ export const TABELLE_EXPORT: TabellaEsportabile[] = [
 
 const RIGHE_PER_BLOCCO = 1000;
 
+/**
+ * Cosa l'archivio NON contiene ancora. Sono le tabelle che un commercialista
+ * chiede per prime; non si aggiungono senza decidere chi le può scaricare
+ * (contengono stipendi e conti). Lo dicono la pagina e il LEGGIMI.txt: un
+ * archivio che tace su quello che non ha è peggio di nessun archivio.
+ */
+export const NON_INCLUSI = ["costi", "scadenze", "prima nota", "movimenti bancari", "dipendenti"] as const;
+export const NON_INCLUSI_TESTO = `${NON_INCLUSI.slice(0, -1).join(", ")} e ${NON_INCLUSI[NON_INCLUSI.length - 1]}`;
+
 export interface EsitoTabella {
   tabella: string;
   etichetta: string;
@@ -93,7 +102,15 @@ export function csvDaRighe(righe: Array<Record<string, unknown>>): string {
   return linee.join("\r\n");
 }
 
-/** Scarica una tabella intera, a blocchi. */
+/**
+ * Scarica una tabella intera, a blocchi di 1.000 righe.
+ *
+ * Con `.range()` senza `.order()` Postgres non garantisce lo stesso ordine fra
+ * una richiesta e l'altra: su tabelle grandi (136 mila contatti) una riga poteva
+ * comparire due volte o mancare, in un archivio che si chiama backup, e il
+ * riepilogo contava le righe ricevute senza accorgersene. Tutte le 17 tabelle
+ * hanno `id` (uuid): si ordina per quello.
+ */
 export async function scaricaTabella(
   tabella: string,
   companyId: string,
@@ -104,6 +121,7 @@ export async function scaricaTabella(
       .from(tabella as never)
       .select("*")
       .eq("company_id", companyId)
+      .order("id", { ascending: true })
       .range(da, da + RIGHE_PER_BLOCCO - 1);
     if (error) throw new Error(error.message);
     const blocco = (data ?? []) as unknown as Array<Record<string, unknown>>;
@@ -141,5 +159,6 @@ export function riepilogoTestuale(esiti: EsitoTabella[], nomeAzienda: string | n
     righe.push("", "NON ESPORTATO — questi dati NON sono in questo archivio:");
     for (const e of falliti) righe.push(`- ${e.etichetta}: ${e.errore}`);
   }
+  righe.push("", `NON COMPRESI (per ora): ${NON_INCLUSI_TESTO}.`);
   return righe.join("\n");
 }

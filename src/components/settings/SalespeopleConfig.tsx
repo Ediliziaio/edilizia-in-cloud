@@ -13,7 +13,7 @@ import {
 import { SolaLetturaToggle } from "@/components/users/SolaLetturaToggle";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SalespersonDialog } from "@/components/salespeople/SalespersonDialog";
 import { CommissionRulesDialog } from "@/components/salespeople/CommissionRulesDialog";
+import { messaggioErrorePersone } from "@/lib/users/erroriPersone";
 
 export interface Salesperson {
   id: string;
@@ -68,7 +69,7 @@ const MARKETING_SECTION_KEYS = [
 const INTERNAL_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => !MARKETING_SECTION_KEYS.includes(s.viewKey as string));
 const MARKETING_SECTIONS = ALL_PERMISSION_SECTIONS.filter(s => MARKETING_SECTION_KEYS.includes(s.viewKey as string));
 
-export function SalespeopleConfig() {
+export function SalespeopleConfig({ soloLettura = false }: { soloLettura?: boolean } = {}) {
   const { effectiveCompany } = useAuth();
   
   const queryClient = useQueryClient();
@@ -132,7 +133,7 @@ export function SalespeopleConfig() {
       setDialogOpen(false); setEditingSalesperson(null);
     },
     onError: () => {
-      toast.error("Impossibile salvare il venditore.");
+      toast.error("Non sono riuscito a salvare il venditore. Riprova tra un attimo.");
     },
   });
 
@@ -142,6 +143,7 @@ export function SalespeopleConfig() {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.salespeople.all }); },
+    onError: () => { toast.error("Non sono riuscito a cambiare lo stato del venditore. Riprova tra un attimo."); },
   });
 
   const deleteMutation = useMutation({
@@ -155,7 +157,8 @@ export function SalespeopleConfig() {
     },
     onError: (error: Error) => {
       toast.error(error.message?.includes("order_salespeople")
-        ? "Impossibile eliminare: il venditore ha ordini associati." : "Impossibile eliminare il venditore.");
+        ? "Non si può eliminare: il venditore ha delle commesse collegate. Disattivalo, così non compare più ma le commesse restano."
+        : "Non sono riuscito a eliminare il venditore. Riprova tra un attimo.");
     },
   });
 
@@ -166,8 +169,8 @@ export function SalespeopleConfig() {
       const response = await supabase.functions.invoke("create-salesperson-user", {
         body: { salesperson_id, email, password: password || undefined, phone: phone || undefined, permissions },
       });
-      if (response.error) throw new Error(response.error.message || "Errore nella creazione account");
-      if (!response.data?.success) throw new Error(response.data?.error || "Errore sconosciuto");
+      if (response.error) throw new Error(response.error.message || "Errore nella creazione dell'accesso");
+      if (!response.data?.success) throw new Error(response.data?.error || "Non sono riuscito a creare l'accesso");
       return response.data;
     },
     onSuccess: (data) => {
@@ -180,11 +183,11 @@ export function SalespeopleConfig() {
       if (data.temp_password) {
         setPasswordDialog({ open: true, password: data.temp_password, name: sp ? `${sp.first_name} ${sp.last_name}` : "" });
       } else {
-        toast.success(data.message || "Account creato");
+        toast.success(data.message || "Accesso creato");
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toast.error(messaggioErrorePersone(error, "Non sono riuscito a creare l'accesso. Riprova tra un attimo."));
     },
   });
 
@@ -286,28 +289,34 @@ export function SalespeopleConfig() {
       <CardHeader>
         {/* v8.6.74 — flex-wrap su mobile */}
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
-            <CardTitle className="flex items-center gap-2"><UserCheck className="h-5 w-5 shrink-0" />Venditori</CardTitle>
-            <CardDescription>Gestisci i venditori e le loro provvigioni</CardDescription>
+          <div className="min-w-0 max-w-2xl">
+            <h2 className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight"><UserCheck className="h-5 w-5 shrink-0" aria-hidden="true" />Venditori</h2>
+            <CardDescription className="mt-1.5">Chi vende per te e come viene pagato.</CardDescription>
+            <p className="mt-1 text-xs text-muted-foreground">
+              La provvigione di ogni commessa si calcola con il tipo e il valore scritti su ogni venditore. Le «Regole
+              provvigioni» (scaglioni, bonus, penali) per ora servono a provare gli scenari: non cambiano le provvigioni
+              delle commesse.
+            </p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
             <Button onClick={() => setRulesDialogOpen(true)} size="sm" variant="outline" className="w-full sm:w-auto shrink-0">
-              <Settings2 className="h-4 w-4 mr-2" />Regole provvigioni
+              <Settings2 className="h-4 w-4 mr-2" aria-hidden="true" />Regole provvigioni
             </Button>
-            <Button onClick={handleCreate} size="sm" className="w-full sm:w-auto shrink-0">
-              <Plus className="h-4 w-4 mr-2" />Nuovo Venditore
+            <Button onClick={handleCreate} size="sm" className="w-full sm:w-auto shrink-0" disabled={soloLettura}>
+              <Plus className="h-4 w-4 mr-2" aria-hidden="true" />Nuovo venditore
             </Button>
           </div>
         </div>
       </CardHeader>
       <CardContent>
+        <fieldset disabled={soloLettura} className="m-0 min-w-0 border-0 p-0">
         {isLoading ? (
-          <div className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+          <div role="status" className="flex items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden="true" /><span className="sr-only">Caricamento dei venditori…</span></div>
         ) : salespeople.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground border rounded-lg">
-            <UserCheck className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Nessun venditore configurato.</p>
-            <p className="text-sm">Aggiungi i tuoi venditori per tracciare le provvigioni.</p>
+            <UserCheck className="h-12 w-12 mx-auto mb-4 opacity-50" aria-hidden="true" />
+            <p>Nessun venditore ancora.</p>
+            <p className="text-sm">Aggiungi i tuoi venditori per tenere il conto delle provvigioni.</p>
           </div>
         ) : (
           <Table>
@@ -315,9 +324,9 @@ export function SalespeopleConfig() {
               <TableRow>
                 <TableHead>Nome</TableHead><TableHead>Contatto</TableHead>
                 <TableHead>Modalità</TableHead>
-                <TableHead>Tipo Provvigione</TableHead><TableHead>Valore</TableHead>
+                <TableHead>Tipo di provvigione</TableHead><TableHead>Valore</TableHead>
                 <TableHead>Attivo</TableHead>
-                <TableHead className="text-right">Azioni</TableHead>
+                <TableHead className="text-right"><span className="sr-only">Azioni</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -352,24 +361,26 @@ export function SalespeopleConfig() {
                     {sp.compensation_mode === "fixed_only" ? "—" : formatCommissionValue(sp.commission_type, sp.commission_value)}
                   </TableCell>
                   <TableCell>
-                    <Switch checked={sp.is_active} disabled={toggleActiveMutation.isPending} onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: sp.id, is_active: checked })} />
+                    <Switch checked={sp.is_active} disabled={soloLettura || toggleActiveMutation.isPending} aria-label={`${sp.first_name} ${sp.last_name}: attivo`} onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: sp.id, is_active: checked })} />
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex gap-1 justify-end">
                       {!sp.user_id && (
-                        <Button variant="ghost" size="icon" onClick={() => handleOpenCreateAccount(sp)} disabled={createAccountMutation.isPending} title="Crea Account">
-                          <UserPlus className="h-4 w-4 text-primary" />
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenCreateAccount(sp)} disabled={createAccountMutation.isPending} title="Crea l'accesso" aria-label={`Crea l'accesso per ${sp.first_name} ${sp.last_name}`}>
+                          <UserPlus className="h-4 w-4 text-primary" aria-hidden="true" />
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(sp)} title="Modifica"><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(sp)} title="Modifica" aria-label={`Modifica ${sp.first_name} ${sp.last_name}`}><Pencil className="h-4 w-4" aria-hidden="true" /></Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" title="Elimina"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                          <Button variant="ghost" size="icon" title="Elimina" aria-label={`Elimina ${sp.first_name} ${sp.last_name}`}><Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" /></Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
                             <AlertDialogTitle>Eliminare il venditore?</AlertDialogTitle>
-                            <AlertDialogDescription>Il venditore {sp.first_name} {sp.last_name} verrà eliminato. Questa azione è irreversibile.</AlertDialogDescription>
+                            <AlertDialogDescription>
+                              {sp.first_name} {sp.last_name} verrà eliminato e non si può recuperare. Se ha commesse collegate non si può eliminare: in quel caso disattivalo.
+                            </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Annulla</AlertDialogCancel>
@@ -384,6 +395,7 @@ export function SalespeopleConfig() {
             </TableBody>
           </Table>
         )}
+        </fieldset>
       </CardContent>
 
       <SalespersonDialog open={dialogOpen}
@@ -402,9 +414,9 @@ export function SalespeopleConfig() {
       }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Crea Account Venditore</DialogTitle>
+            <DialogTitle>Crea l'accesso del venditore</DialogTitle>
             <DialogDescription>
-              Verrà creato un account per {createAccountDialog.salesperson?.first_name} {createAccountDialog.salesperson?.last_name}
+              Verrà creato l'accesso all'app per {createAccountDialog.salesperson?.first_name} {createAccountDialog.salesperson?.last_name}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -449,9 +461,9 @@ export function SalespeopleConfig() {
                   <div className="flex items-center space-x-2">
                     <Checkbox id="sp-only_assigned" checked={accountPermissions.only_assigned || false}
                       onCheckedChange={(checked) => setAccountPermissions((prev) => ({ ...prev, only_assigned: checked as boolean }))} />
-                    <Label htmlFor="sp-only_assigned" className="font-medium text-sm">Solo elementi assegnati</Label>
+                    <Label htmlFor="sp-only_assigned" className="font-medium text-sm">Solo i dati assegnati a lui</Label>
                   </div>
-                  <p className="text-xs text-muted-foreground ml-6">Se attivo, l'utente vedrà solo ordini, attività e appuntamenti assegnati a lui</p>
+                  <p className="text-xs text-muted-foreground ml-6">Vede solo commesse, attività e appuntamenti assegnati a lui.</p>
                 </div>
               </div>
             </div>
@@ -459,7 +471,7 @@ export function SalespeopleConfig() {
           <DialogFooter>
             <Button variant="outline" onClick={() => { setCreateAccountDialog({ open: false, salesperson: null }); resetAccountForm(); }}>Annulla</Button>
             <Button onClick={handleCreateAccount} disabled={!accountEmail || createAccountMutation.isPending}>
-              {createAccountMutation.isPending ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creazione...</>) : "Crea Account"}
+              {createAccountMutation.isPending ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creazione…</>) : "Crea l'accesso"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -469,17 +481,19 @@ export function SalespeopleConfig() {
       <Dialog open={passwordDialog.open} onOpenChange={(open) => { if (!open) setPasswordDialog({ open: false, password: "", name: "" }); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Check className="h-5 w-5 text-primary" />Account Creato!</DialogTitle>
-            <DialogDescription>L'account per {passwordDialog.name} è stato creato con successo.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><Check className="h-5 w-5 text-primary" aria-hidden="true" />Accesso creato</DialogTitle>
+            <DialogDescription>L'accesso di {passwordDialog.name} è stato creato.</DialogDescription>
           </DialogHeader>
           <Alert>
             <AlertDescription className="space-y-3">
               <p className="font-medium">Password temporanea:</p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 p-3 bg-muted rounded-md font-mono text-lg">{passwordDialog.password}</code>
-                <Button variant="outline" size="icon" onClick={copyPassword}><Copy className="h-4 w-4" /></Button>
+                <Button variant="outline" size="icon" onClick={copyPassword} aria-label="Copia la password"><Copy className="h-4 w-4" aria-hidden="true" /></Button>
               </div>
-              <p className="text-sm text-muted-foreground">Comunica questa password al venditore. Dovrà cambiarla al primo accesso.</p>
+              <p className="text-sm text-muted-foreground">
+                Comunica questa password al venditore: gli è arrivata anche per email. Gli consigliamo di cambiarla al primo accesso.
+              </p>
             </AlertDescription>
           </Alert>
           <DialogFooter>

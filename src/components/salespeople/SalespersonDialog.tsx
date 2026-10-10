@@ -36,9 +36,9 @@ const salespersonSchema = z.object({
   email: z.string().email("Email non valida").optional().or(z.literal("")),
   phone: z.string().optional(),
   compensation_mode: z.enum(["only_commission", "fixed_plus_commission", "fixed_only"]),
-  fixed_monthly_eur: z.coerce.number().min(0, "Il fisso deve essere positivo").default(0),
+  fixed_monthly_eur: z.coerce.number().min(0, "Il fisso non può essere negativo").default(0),
   commission_type: z.enum(["fixed", "percentage_sold", "percentage_collected"]),
-  commission_value: z.coerce.number().min(0, "Il valore deve essere positivo"),
+  commission_value: z.coerce.number().min(0, "Il valore non può essere negativo"),
 });
 
 type SalespersonFormData = z.infer<typeof salespersonSchema>;
@@ -133,7 +133,7 @@ export function SalespersonDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
-            {salesperson ? "Modifica Venditore" : "Nuovo Venditore"}
+            {salesperson ? "Modifica venditore" : "Nuovo venditore"}
           </DialogTitle>
           <DialogDescription>
             {salesperson
@@ -266,9 +266,9 @@ export function SalespersonDialog({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="fixed">Importo Fisso</SelectItem>
-                              <SelectItem value="percentage_sold">% sul Venduto</SelectItem>
-                              <SelectItem value="percentage_collected">% sull'Incassato</SelectItem>
+                              <SelectItem value="fixed">Importo fisso</SelectItem>
+                              <SelectItem value="percentage_sold">% sul venduto</SelectItem>
+                              <SelectItem value="percentage_collected">% sull'incassato</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -309,7 +309,7 @@ export function SalespersonDialog({
                   </p>
                 )}
                 {compensationMode !== "fixed_only" && commissionType === "percentage_collected" && (
-                  <p>Provvigione: {commissionValue ?? 0}% dell'importo effettivamente incassato (nota sul preventivo è 0, si calcola a incasso)
+                  <p>Provvigione: {commissionValue ?? 0}% di quanto il cliente ha pagato davvero (alla firma è 0, cresce man mano che incassi)
                     {compensationMode === "fixed_plus_commission" && ` · + fisso €${(fixedMonthly ?? 0).toFixed(2)}/mese`}
                   </p>
                 )}
@@ -326,7 +326,7 @@ export function SalespersonDialog({
                 Annulla
               </Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />}
                 {salesperson ? "Salva" : "Crea"}
               </Button>
             </DialogFooter>

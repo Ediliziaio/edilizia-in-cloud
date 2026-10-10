@@ -32,6 +32,8 @@ interface ExternalTeamsTabProps {
   onEdit: (team: ExternalTeam) => void;
   onDelete: (id: string) => void;
   onViewAttachments: (team: ExternalTeam) => void;
+  /** Chi guarda e basta: niente «Nuova», «Modifica», «Elimina». */
+  soloLettura?: boolean;
 }
 
 export function ExternalTeamsTab({
@@ -41,6 +43,7 @@ export function ExternalTeamsTab({
   onEdit,
   onDelete,
   onViewAttachments,
+  soloLettura = false,
 }: ExternalTeamsTabProps) {
   const activeTeams = teams.filter((t) => t.is_active);
   const inactiveTeams = teams.filter((t) => !t.is_active);
@@ -51,16 +54,16 @@ export function ExternalTeamsTab({
         <div className="text-sm text-muted-foreground">
           {activeTeams.length} attive, {inactiveTeams.length} inattive
         </div>
-        <Button onClick={onNew}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuova Squadra
+        <Button onClick={onNew} disabled={soloLettura}>
+          <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+          Nuova squadra
         </Button>
       </div>
 
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 space-y-3">
+            <div className="p-6 space-y-3" role="status" aria-busy="true" aria-label="Caricamento delle squadre">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="flex items-center gap-4">
                   <Skeleton className="h-5 w-[140px]" />
@@ -72,18 +75,18 @@ export function ExternalTeamsTab({
             </div>
           ) : teams.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              Nessuna squadra esterna registrata. Aggiungi la prima squadra per iniziare.
+              Nessuna squadra esterna ancora. Aggiungi la prima per cominciare.
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome Ditta</TableHead>
+                  <TableHead>Nome ditta</TableHead>
                   <TableHead>Referente</TableHead>
                   <TableHead>Contatti</TableHead>
                   <TableHead>Note</TableHead>
                   <TableHead>Stato</TableHead>
-                  <TableHead className="text-right">Azioni</TableHead>
+                  <TableHead className="text-right"><span className="sr-only">Azioni</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -122,29 +125,37 @@ export function ExternalTeamsTab({
                           size="icon"
                           onClick={() => onViewAttachments(team)}
                           title="Documenti"
+                          aria-label={`Documenti di ${team.name}`}
                         >
-                          <FileText className="h-4 w-4" />
+                          <FileText className="h-4 w-4" aria-hidden="true" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => onEdit(team)}
+                          disabled={soloLettura}
                           title="Modifica"
+                          aria-label={`Modifica ${team.name}`}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="h-4 w-4" aria-hidden="true" />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" title="Elimina">
-                              <Trash2 className="h-4 w-4 text-destructive" />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={soloLettura}
+                              title="Elimina"
+                              aria-label={`Elimina ${team.name}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Eliminare la squadra?</AlertDialogTitle>
+                              <AlertDialogTitle>Eliminare la squadra {team.name}?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Questa azione è irreversibile. Se la squadra è assegnata a ordini,
-                                considera invece di impostarla come "Inattiva".
+                                Non si può annullare. Se è assegnata a delle commesse, meglio impostarla come «Inattiva».
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

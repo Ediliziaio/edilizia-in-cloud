@@ -8,12 +8,17 @@
  * Su mobile questa pagina non c'è: la regola del prodotto è che su telefono non
  * si scarica niente, e un archivio da decine di MB su rete mobile è il caso in
  * cui quella regola ha più ragione.
+ *
+ * Cosa NON c'è ancora (costi, scadenze, prima nota, movimenti bancari,
+ * dipendenti): lo dicono la pagina e il LEGGIMI.txt, e aspetta la decisione su
+ * chi li può scaricare (contengono stipendi e conti).
  */
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
 import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -28,6 +33,7 @@ import {
   scaricaTabella,
   nomeArchivio,
   riepilogoTestuale,
+  NON_INCLUSI_TESTO,
   type EsitoTabella,
 } from "@/lib/export/esportaDatiAzienda";
 
@@ -45,7 +51,7 @@ export default function SettingsEsportaDati() {
   if (isMobile) {
     return (
       <Alert>
-        <Smartphone className="h-4 w-4" />
+        <Smartphone className="h-4 w-4" aria-hidden="true" />
         <AlertTitle>Da computer</AlertTitle>
         <AlertDescription>
           L'esportazione dei dati aziendali produce un archivio che può pesare
@@ -59,7 +65,7 @@ export default function SettingsEsportaDati() {
     const companyId = effectiveCompany?.id;
     if (!canExportClients) return;
     if (!companyId) {
-      toast.error("Azienda non disponibile");
+      toast.error("Scegli prima un'azienda");
       return;
     }
     setInCorso(true);
@@ -79,13 +85,14 @@ export default function SettingsEsportaDati() {
           const righe = await scaricaTabella(t.tabella, companyId);
           if (righe.length > 0) {
             // BOM: senza, Excel apre l'UTF-8 con gli accenti rotti.
-            zip.file(`${t.file}.csv`, "﻿" + csvDaRighe(righe));
+            zip.file(`${t.file}.csv`, "\uFEFF" + csvDaRighe(righe));
           }
           risultati.push({ tabella: t.tabella, etichetta: t.etichetta, righe: righe.length });
         } catch (err) {
           // Una tabella che non si legge non ferma l'export e non sparisce in
-          // silenzio: finisce nel riepilogo dentro l'archivio.
-          const motivo = err instanceof Error ? err.message : "errore sconosciuto";
+          // silenzio: finisce nel riepilogo dentro l'archivio, con il motivo in
+          // italiano (il testo tecnico resta nel registro del browser).
+          const motivo = userErrorMessage(err, "errore di lettura");
           logger.warn(`Export: tabella ${t.tabella} non esportata`, err);
           risultati.push({ tabella: t.tabella, etichetta: t.etichetta, righe: 0, errore: motivo });
         }
@@ -137,11 +144,15 @@ export default function SettingsEsportaDati() {
   return (
     <div className="space-y-4">
       <div>
-        {/* Da 768 il titolo è già nella testata («Esporta i dati»). */}
-        <h2 className="text-2xl font-bold tracking-tight md:hidden">Esporta i dati dell'azienda</h2>
+        {/* Il titolo è già nella testata («Esporta i dati»): qui solo la spiegazione. */}
         <p className="text-muted-foreground">
-          Un archivio zip con un foglio CSV per ogni elenco. Serve per un backup,
-          per passare a un altro gestionale o per consegnare tutto al commercialista.
+          Un archivio zip con un foglio CSV per ogni elenco: contatti, commesse,
+          preventivi, fatture, fornitori, magazzino e gli altri qui sotto. Serve per
+          una copia di sicurezza o per passare a un altro gestionale.
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Non ci sono ancora {NON_INCLUSI_TESTO}: se devi consegnare tutto al
+          commercialista, quelli vanno aggiunti a parte.
         </p>
       </div>
 
@@ -149,9 +160,9 @@ export default function SettingsEsportaDati() {
         <CardHeader>
           <CardTitle className="text-base">Cosa contiene</CardTitle>
           <CardDescription>
-            {TABELLE_EXPORT.length} elenchi, con tutte le colonne così come sono
-            nel database. Dentro l'archivio c'è anche un LEGGIMI.txt con quante
-            righe ha ogni elenco e, se qualcosa non si è potuto esportare, quale
+            {TABELLE_EXPORT.length} elenchi, con tutte le colonne, anche quelle
+            tecniche. Dentro l'archivio c'è anche un LEGGIMI.txt con quante
+            righe ha ogni elenco e, se qualcosa non si è potuto scaricare, quale
             e perché.
           </CardDescription>
         </CardHeader>
@@ -165,7 +176,7 @@ export default function SettingsEsportaDati() {
           </div>
 
           <Alert>
-            <AlertTriangle className="h-4 w-4" />
+            <AlertTriangle className="h-4 w-4" aria-hidden="true" />
             <AlertDescription className="text-xs">
               L'archivio contiene dati personali di clienti e personale. Trattalo
               come tratteresti l'anagrafica: non lasciarlo su un computer condiviso
@@ -175,8 +186,8 @@ export default function SettingsEsportaDati() {
 
           {inCorso && (
             <div className="space-y-2">
-              <Progress value={percentuale} className="h-2" />
-              <p className="text-xs text-muted-foreground">
+              <Progress value={percentuale} className="h-2" aria-label="Avanzamento dell'esportazione" />
+              <p role="status" className="text-xs text-muted-foreground">
                 {inLavorazione ? `Sto raccogliendo: ${inLavorazione}` : "Preparo l'archivio…"}
                 {" "}({fatte}/{TABELLE_EXPORT.length})
               </p>
@@ -185,8 +196,8 @@ export default function SettingsEsportaDati() {
 
           {canExportClients ? (
             <Button onClick={esporta} disabled={inCorso} className="gap-2">
-              {inCorso ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {inCorso ? "Esportazione in corso…" : "Esporta tutto"}
+              {inCorso ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
+              {inCorso ? "Esportazione in corso…" : `Scarica i ${TABELLE_EXPORT.length} elenchi (zip)`}
             </Button>
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -202,8 +213,8 @@ export default function SettingsEsportaDati() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               {falliti.length === 0
-                ? <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                : <AlertTriangle className="h-4 w-4 text-amber-600" />}
+                ? <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                : <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />}
               Ultimo archivio
             </CardTitle>
           </CardHeader>
@@ -212,7 +223,7 @@ export default function SettingsEsportaDati() {
               <div key={e.tabella} className="flex items-baseline justify-between gap-3 border-b py-1 last:border-b-0">
                 <span className={e.errore ? "text-destructive" : ""}>{e.etichetta}</span>
                 <span className="shrink-0 tabular-nums text-muted-foreground">
-                  {e.errore ? `non esportato — ${e.errore}` : `${e.righe} righe`}
+                  {e.errore ? `non esportato — ${e.errore}` : e.righe === 1 ? "1 riga" : `${e.righe} righe`}
                 </span>
               </div>
             ))}

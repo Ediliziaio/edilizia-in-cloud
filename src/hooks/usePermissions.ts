@@ -529,10 +529,11 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewPersone:     g("can_view_persone"),
     canViewFormazione:  g("can_view_formazione"),
     canManagePortal:    g("can_manage_portal"),
-    // Transitorio: finché la colonna DB `can_create_courses` non è applicata
-    // (migration 20271225000000, da applicare in pubblicazione) la creazione
-    // corsi resta legata a chi gestisce il Portale. Post-migration diventerà
-    // `g("can_create_courses")` puro, per separare gestione da creazione.
+    // La colonna `can_create_courses` non c'è in staff_permissions (verificato il
+    // 09/10/2026: la migrazione 20271230000000 che la prevede risulta nel registro
+    // ma la colonna manca). Finché non c'è, la creazione dei corsi segue chi
+    // gestisce il Portale. Con la colonna diventerà `g("can_create_courses")` puro:
+    // i passi sono scritti in testa a quella migrazione.
     canCreateCourses:   g("can_create_courses") || g("can_manage_portal"),
     canViewMarketingDashboard:     g("can_view_marketing_dashboard"),
     canViewMarketingContacts:      g("can_view_marketing_contacts"),

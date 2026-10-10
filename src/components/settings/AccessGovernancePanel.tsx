@@ -27,10 +27,12 @@ import {
   type AccessRiskLevel,
 } from "@/lib/accessGovernance";
 import { withClientTimeout } from "@/lib/query-timeout";
+import { sessioneCollegata, ultimoSegnoDiVita } from "@/lib/users/collegamento";
+import { nomeRuolo } from "@/lib/permessi/ruoliUtente";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -91,6 +93,7 @@ type GovernanceAccessRow = {
 
 type GovernanceSessionRow = {
   user_id: string;
+  last_active_at?: string | null;
 };
 
 type GovernanceUser = AccessRiskInput & {
@@ -100,6 +103,8 @@ type GovernanceUser = AccessRiskInput & {
   source: "profile" | "multi_company";
   roleLabels: string[];
   lastLoginLabel: string;
+  /** Una sessione aperta con un segno di vita negli ultimi 10 minuti. */
+  collegatoAdesso: boolean;
   onlyAssigned: boolean;
   visibleAreasCount: number;
 };
@@ -107,15 +112,6 @@ type GovernanceUser = AccessRiskInput & {
 type GovernanceFetchResult = {
   users: GovernanceUser[];
   warnings: string[];
-};
-
-const ROLE_LABELS: Record<string, string> = {
-  company_admin: "Admin",
-  company_staff: "Staff",
-  salesperson: "Venditore",
-  call_center: "Call center",
-  employee: "Operaio",
-  subcontractor: "Subappaltatore",
 };
 
 const RISK_STYLES: Record<AccessRiskLevel, string> = {
@@ -128,9 +124,9 @@ function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-function displayName(profile: GovernanceProfile | undefined, fallbackId: string) {
+function displayName(profile: GovernanceProfile | undefined) {
   const name = `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim();
-  return name || profile?.email || `Utente ${fallbackId.slice(0, 8)}`;
+  return name || profile?.email || "Persona senza nome";
 }
 
 function hasCriticalPermissions(roles: string[], permissions: GovernancePermissionRow | undefined) {
@@ -158,11 +154,14 @@ function formatLastLogin(value: string | null) {
   return formatDistanceToNow(date, { addSuffix: true, locale: it });
 }
 
+// Prima qui si leggeva «N sessioni attive»: una sessione resta «attiva» finché
+// nessuno la chiude, anche se la persona non entra da mesi. Ora «Collegato
+// adesso» c'è solo con un segno di vita negli ultimi 10 minuti.
 function statusLabel(user: GovernanceUser) {
-  if (user.isBlocked) return "Bloccato";
-  if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) return "Blocco temporaneo";
-  if (user.activeSessions > 0) return `${user.activeSessions} sessioni attive`;
-  return user.lastLoginLabel;
+  if (user.isBlocked) return "Accesso bloccato";
+  if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) return "Bloccato per password sbagliate";
+  if (user.collegatoAdesso) return "Collegato adesso";
+  return "Non collegato";
 }
 
 function KpiCard({
@@ -189,7 +188,7 @@ function KpiCard({
           <p className="mt-1 text-2xl font-semibold">{value}</p>
         </div>
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-background/80">
-          <Icon className="h-4 w-4 text-muted-foreground" />
+          <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </div>
       </div>
     </div>
@@ -204,6 +203,7 @@ async function readOptionalRows<T>(
   try {
     const response = await withClientTimeout(task, label, timeoutMs);
     if (response.error) {
+      console.warn(`[controllo accessi] ${label}: dati non disponibili`, response.error);
       return { rows: [], warning: `${label}: permessi o dati non disponibili` };
     }
     return { rows: (response.data ?? []) as T[] };
@@ -304,7 +304,7 @@ async function fetchGovernanceUsers(
       .limit(6000), "Ruoli utente"),
     readOptionalRows<GovernanceSessionRow>(supabase
       .from("user_sessions")
-      .select("user_id")
+      .select("user_id, last_active_at")
       .eq("company_id", companyId)
       .eq("is_active", true)
       .limit(3000), "Sessioni attive"),
@@ -334,9 +334,9 @@ async function fetchGovernanceUsers(
     rolesByUser.set(row.user_id, [...(rolesByUser.get(row.user_id) ?? []), row.role]);
   }
 
-  const sessionsByUser = new Map<string, number>();
+  const sessionsByUser = new Map<string, GovernanceSessionRow[]>();
   for (const row of sessionsResult.rows) {
-    sessionsByUser.set(row.user_id, (sessionsByUser.get(row.user_id) ?? 0) + 1);
+    sessionsByUser.set(row.user_id, [...(sessionsByUser.get(row.user_id) ?? []), row]);
   }
 
   const permissionsByUser = new Map<string, GovernancePermissionRow>();
@@ -357,14 +357,18 @@ async function fetchGovernanceUsers(
     const roles = accessRoles.length > 0 && source === "multi_company" ? accessRoles : profileRoles;
     const normalizedRoles = normalizeAccessRoles(roles.length ? roles : ["company_staff"]);
     const permissions = permissionsByUser.get(userId);
+    const sessions = sessionsByUser.get(userId) ?? [];
+    // L'ultima volta che l'app ha visto la persona: chi tiene la sessione aperta
+    // e lavora ogni giorno non entra «da mesi» solo perché non rifà il login.
+    const lastSeen = ultimoSegnoDiVita(profile?.last_login_at ?? null, sessions);
     const riskInput: AccessRiskInput = {
       id: userId,
       roles: normalizedRoles,
       require2fa: profile?.require_2fa === true,
       isBlocked: profile?.is_blocked === true,
       lockedUntil: profile?.locked_until ?? null,
-      lastLoginAt: profile?.last_login_at ?? null,
-      activeSessions: sessionsByUser.get(userId) ?? 0,
+      lastLoginAt: lastSeen,
+      activeSessions: sessions.length,
       hasCrossCompanyAccess: source === "multi_company" || accessRoles.length > 0,
       hasCriticalPermissions: hasCriticalPermissions(normalizedRoles, permissions),
     };
@@ -372,11 +376,12 @@ async function fetchGovernanceUsers(
     return {
       ...riskInput,
       id: userId,
-      name: displayName(profile, userId),
+      name: displayName(profile),
       email: profile?.email ?? "Profilo non leggibile",
       source,
-      roleLabels: normalizedRoles.map((role) => ROLE_LABELS[role] ?? role),
-      lastLoginLabel: formatLastLogin(profile?.last_login_at ?? null),
+      roleLabels: normalizedRoles.map((role) => nomeRuolo(role) || role),
+      lastLoginLabel: formatLastLogin(lastSeen),
+      collegatoAdesso: sessions.some((s) => sessioneCollegata({ is_active: true, last_active_at: s.last_active_at })),
       onlyAssigned: permissions?.only_assigned === true,
       visibleAreasCount: Array.isArray(permissions?.visible_areas) ? permissions.visible_areas.length : 0,
     };
@@ -385,7 +390,7 @@ async function fetchGovernanceUsers(
   return { users, warnings };
 }
 
-export function AccessGovernancePanel() {
+export function AccessGovernancePanel({ puoAprireScheda = false }: { puoAprireScheda?: boolean } = {}) {
   const { effectiveCompany, profile, role } = useAuth();
   const navigate = useNavigate();
   const companyId = effectiveCompany?.id;
@@ -424,32 +429,32 @@ export function AccessGovernancePanel() {
 
   const checklist = [
     {
-      label: "Admin protetti da 2FA",
+      label: "Amministratori con l'app di verifica",
       ok: summary.adminsWithout2fa === 0,
       detail: summary.adminsWithout2fa === 0
-        ? "Tutti gli admin rilevati hanno 2FA obbligatoria."
-        : `${summary.adminsWithout2fa} admin senza 2FA obbligatoria.`,
+        ? "Tutti gli amministratori hanno l'app di verifica."
+        : `${summary.adminsWithout2fa} ${summary.adminsWithout2fa === 1 ? "amministratore" : "amministratori"} senza l'app di verifica.`,
     },
     {
-      label: "Account bloccati o lock temporanei",
+      label: "Accessi bloccati",
       ok: summary.blockedUsers + summary.lockedUsers === 0,
       detail: summary.blockedUsers + summary.lockedUsers === 0
-        ? "Nessun blocco attivo."
-        : `${summary.blockedUsers} bloccati, ${summary.lockedUsers} lock temporanei.`,
+        ? "Nessun accesso bloccato."
+        : `${summary.blockedUsers} ${summary.blockedUsers === 1 ? "bloccato" : "bloccati"} dall'amministratore, ${summary.lockedUsers} per password sbagliate.`,
     },
     {
-      label: "Account inattivi presidiati",
+      label: "Accessi che non si usano da tempo",
       ok: summary.neverLoggedUsers + summary.inactiveUsers === 0,
       detail: summary.neverLoggedUsers + summary.inactiveUsers === 0
-        ? "Nessun account dormiente rilevato."
-        : `${summary.neverLoggedUsers} mai connessi, ${summary.inactiveUsers} inattivi oltre 90 giorni.`,
+        ? "Nessun accesso fermo da tempo."
+        : `${summary.neverLoggedUsers} ${summary.neverLoggedUsers === 1 ? "non è mai entrato" : "non sono mai entrati"}, ${summary.inactiveUsers} ${summary.inactiveUsers === 1 ? "non entra" : "non entrano"} da più di 90 giorni.`,
     },
     {
-      label: "Accessi esterni sotto controllo",
+      label: "Accessi da altre aziende e collaboratori esterni",
       ok: summary.highRiskUsers === 0,
       detail: summary.highRiskUsers === 0
-        ? "Nessun rischio alto nel perimetro attuale."
-        : `${summary.highRiskUsers} utenti richiedono intervento.`,
+        ? "Nessuna persona da sistemare subito."
+        : `${summary.highRiskUsers} ${summary.highRiskUsers === 1 ? "persona da sistemare" : "persone da sistemare"} subito.`,
     },
   ];
 
@@ -457,7 +462,7 @@ export function AccessGovernancePanel() {
     return (
       <Card>
         <CardContent className="py-8 text-sm text-muted-foreground">
-          Azienda non disponibile. Seleziona un contesto aziendale per vedere la governance accessi.
+          Scegli prima un'azienda per vedere il controllo degli accessi.
         </CardContent>
       </Card>
     );
@@ -465,9 +470,9 @@ export function AccessGovernancePanel() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Analisi accessi in corso...
+      <div role="status" className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        Analisi accessi in corso…
       </div>
     );
   }
@@ -476,21 +481,23 @@ export function AccessGovernancePanel() {
     return (
       <Card className="border-amber-200 bg-amber-50/60">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
+            <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
             Non riesco a verificare tutti gli accessi
-          </CardTitle>
+          </h2>
           <CardDescription>
-            La lettura dei dati di sicurezza non ha risposto correttamente. Riprova o controlla le policy RLS.
+            Non riesco a leggere gli accessi. Riprova tra un attimo; se continua, scrivi all'assistenza.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="rounded-md bg-background/70 px-3 py-2 text-xs text-muted-foreground">
-            {error instanceof Error ? error.message : "Errore sconosciuto"}
-          </p>
+          {error instanceof Error && /timeout/i.test(error.message) && (
+            <p className="rounded-md bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+              Il controllo ci ha messo troppo tempo a rispondere.
+            </p>
+          )}
           <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
-            {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            Riprova verifica
+            {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />}
+            Riprova
           </Button>
         </CardContent>
       </Card>
@@ -503,30 +510,35 @@ export function AccessGovernancePanel() {
         <CardHeader className="border-b bg-muted/30">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-primary" />
-                Sicurezza accessi
-              </CardTitle>
-              <CardDescription>
-                Controllo operativo su ruoli, 2FA, sessioni, accessi esterni e permessi critici.
+              <h2 className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight">
+                <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
+                Controllo accessi
+              </h2>
+              <CardDescription className="mt-1.5">
+                Chi ha accesso, chi non entra da tempo e chi ha permessi importanti senza la verifica in due passaggi.
               </CardDescription>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Dopo la password, ogni accesso chiede già un codice: quello dell'app di verifica se la persona l'ha
+                collegata, altrimenti quello che arriva per email. Qui si conta come «protetto» chi ha l'app
+                (Google Authenticator o simili).
+              </p>
             </div>
             <div className="min-w-[220px] rounded-lg border bg-background p-3">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Score sicurezza</span>
+                <span className="text-muted-foreground">Punteggio</span>
                 <span className="font-semibold">{summary.securityScore}/100</span>
               </div>
-              <Progress value={summary.securityScore} className="mt-2 h-2" />
+              <Progress value={summary.securityScore} className="mt-2 h-2" aria-label="Punteggio di sicurezza" />
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4 pt-4">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <KpiCard icon={Users} label="Utenti analizzati" value={summary.totalUsers} />
-            <KpiCard icon={ShieldAlert} label="Rischio alto" value={summary.highRiskUsers} tone={summary.highRiskUsers ? "bad" : "good"} />
-            <KpiCard icon={KeyRound} label="Admin senza 2FA" value={summary.adminsWithout2fa} tone={summary.adminsWithout2fa ? "bad" : "good"} />
-            <KpiCard icon={Building2} label="Multi-azienda" value={summary.crossCompanyUsers} tone={summary.crossCompanyUsers ? "warn" : "default"} />
-            <KpiCard icon={Lock} label="Bloccati" value={summary.blockedUsers + summary.lockedUsers} tone={summary.blockedUsers + summary.lockedUsers ? "warn" : "good"} />
+            <KpiCard icon={Users} label="Persone controllate" value={summary.totalUsers} />
+            <KpiCard icon={ShieldAlert} label="Da sistemare subito" value={summary.highRiskUsers} tone={summary.highRiskUsers ? "bad" : "good"} />
+            <KpiCard icon={KeyRound} label="Amministratori senza app di verifica" value={summary.adminsWithout2fa} tone={summary.adminsWithout2fa ? "bad" : "good"} />
+            <KpiCard icon={Building2} label="Con accesso da altre aziende" value={summary.crossCompanyUsers} tone={summary.crossCompanyUsers ? "warn" : "default"} />
+            <KpiCard icon={Lock} label="Accessi bloccati" value={summary.blockedUsers + summary.lockedUsers} tone={summary.blockedUsers + summary.lockedUsers ? "warn" : "good"} />
           </div>
 
           <div className="grid gap-3 lg:grid-cols-4">
@@ -537,9 +549,9 @@ export function AccessGovernancePanel() {
               )}>
                 <div className="flex items-center gap-2">
                   {item.ok ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
                   ) : (
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
                   )}
                   <p className="text-sm font-medium">{item.label}</p>
                 </div>
@@ -553,12 +565,10 @@ export function AccessGovernancePanel() {
       {governance.warnings.length > 0 && (
         <Card className="border-amber-200 bg-amber-50/60">
           <CardContent className="flex flex-col gap-2 py-3 text-sm text-amber-800 md:flex-row md:items-center">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
             <div>
-              <p className="font-medium">Analisi parziale: alcune fonti accessi non hanno risposto in tempo.</p>
-              <p className="text-xs text-amber-700">
-                {unique(governance.warnings).slice(0, 2).join(" · ")}
-              </p>
+              <p className="font-medium">L'elenco potrebbe essere incompleto: alcune informazioni non sono arrivate.</p>
+              <p className="text-xs text-amber-700">Ricarica la pagina; se il problema resta, scrivi all'assistenza.</p>
             </div>
           </CardContent>
         </Card>
@@ -566,18 +576,19 @@ export function AccessGovernancePanel() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <UserCog className="h-4 w-4" />
-            Matrice accessi e priorità
-          </CardTitle>
+          <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
+            <UserCog className="h-4 w-4" aria-hidden="true" />
+            Chi guardare per primo
+          </h2>
           <CardDescription>
-            I casi più delicati sono ordinati per rischio. Apri la scheda utente per correggere ruolo, permessi, 2FA o sessioni.
+            Le persone più delicate sono in alto.
+            {puoAprireScheda ? " Apri la scheda per correggere ruolo, permessi, verifica in due passaggi o sessioni." : ""}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {rankedUsers.length === 0 ? (
             <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-              Nessun utente trovato nel perimetro aziendale.
+              Nessuna persona trovata in questa azienda.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -587,9 +598,9 @@ export function AccessGovernancePanel() {
                     <TableHead>Persona</TableHead>
                     <TableHead>Ruoli</TableHead>
                     <TableHead>Stato</TableHead>
-                    <TableHead>Rischio</TableHead>
-                    <TableHead>Motivi</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
+                    <TableHead>Priorità</TableHead>
+                    <TableHead>Perché</TableHead>
+                    {puoAprireScheda && <TableHead className="text-right"><span className="sr-only">Azioni</span></TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -601,7 +612,7 @@ export function AccessGovernancePanel() {
                           <p className="text-xs text-muted-foreground">{user.email}</p>
                           {user.source === "multi_company" && (
                             <Badge variant="outline" className="mt-1 text-[10px]">
-                              Accesso collegato
+                              Da un'altra azienda
                             </Badge>
                           )}
                         </div>
@@ -616,20 +627,24 @@ export function AccessGovernancePanel() {
                         </div>
                         {(user.onlyAssigned || user.visibleAreasCount > 0) && (
                           <p className="mt-1 text-[11px] text-muted-foreground">
-                            {user.onlyAssigned ? "Solo assegnati" : "Tutte le assegnazioni"}
+                            {user.onlyAssigned ? "Vede solo i dati assegnati a lui" : "Vede tutti i dati"}
                             {user.visibleAreasCount > 0 ? ` · ${user.visibleAreasCount} aree visibili` : ""}
                           </p>
                         )}
                       </TableCell>
                       <TableCell>
                         <p className="text-sm">{statusLabel(user)}</p>
-                        <p className="text-xs text-muted-foreground">{user.lastLoginLabel}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {user.lastLoginAt ? `Visto ${user.lastLoginLabel}` : "Mai connesso"}
+                          {user.activeSessions > 0 && !user.collegatoAdesso
+                            ? ` · ${user.activeSessions} ${user.activeSessions === 1 ? "sessione aperta" : "sessioni aperte"}`
+                            : ""}
+                        </p>
                       </TableCell>
                       <TableCell>
-                        <Badge className={cn("border font-medium", RISK_STYLES[risk.level])}>
+                        <Badge className={cn("border font-medium whitespace-nowrap", RISK_STYLES[risk.level])}>
                           {risk.nextAction}
                         </Badge>
-                        <p className="mt-1 text-[11px] text-muted-foreground">Score {risk.score}</p>
                       </TableCell>
                       <TableCell className="max-w-[360px]">
                         <div className="flex flex-wrap gap-1">
@@ -640,17 +655,20 @@ export function AccessGovernancePanel() {
                           ))}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/azienda/impostazioni/utenti/${user.id}?tab=permissions`)}
-                          disabled={user.email === "Profilo non leggibile"}
-                        >
-                          Apri
-                          <ArrowUpRight className="ml-2 h-3.5 w-3.5" />
-                        </Button>
-                      </TableCell>
+                      {puoAprireScheda && (
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/azienda/impostazioni/utenti/${user.id}?tab=permissions`)}
+                            disabled={user.email === "Profilo non leggibile"}
+                            aria-label={`Apri la scheda di ${user.name}`}
+                          >
+                            Apri la scheda
+                            <ArrowUpRight className="ml-2 h-3.5 w-3.5" aria-hidden="true" />
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>

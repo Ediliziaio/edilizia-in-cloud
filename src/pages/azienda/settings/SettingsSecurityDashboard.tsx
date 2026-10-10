@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import {
@@ -26,10 +27,13 @@ import {
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { userErrorMessage } from "@/lib/userErrorMessage";
+import { descriviDettagliSicurezza, etichettaAzioneSicurezza } from "@/lib/users/etichetteAzioniSicurezza";
+import { FINESTRA_COLLEGATO_MINUTI, personeCollegate, sogliaCollegato } from "@/lib/users/collegamento";
 
 // --- KPI Card ---
-function SecurityKpi({ icon: Icon, label, value, variant = "default" }: {
-  icon: React.ElementType; label: string; value: string | number;
+function SecurityKpi({ icon: Icon, label, value, nota, variant = "default" }: {
+  icon: React.ElementType; label: string; value: string | number; nota?: string;
   variant?: "default" | "success" | "warning" | "danger";
 }) {
   const styles = {
@@ -47,24 +51,24 @@ function SecurityKpi({ icon: Icon, label, value, variant = "default" }: {
       <div>
         <p className="text-2xl font-bold leading-none">{value}</p>
         <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+        {nota && <p className="text-[11px] text-muted-foreground/80">{nota}</p>}
       </div>
     </div>
   );
 }
 
 // --- Audit Action Badge ---
+// Il nome viene dall'elenco unico delle azioni di sicurezza (etichetteAzioniSicurezza):
+// lo stesso della scheda utente. Le cancellazioni e i blocchi si notano.
+const AZIONI_DA_NOTARE = new Set([
+  "user_deleted", "bulk_users_deleted", "company_access_revoked", "session_revoked", "all_sessions_revoked",
+  "user_locked", "account_locked",
+]);
+const AZIONI_DI_ROUTINE = new Set(["user_created", "permission_template_created"]);
+
 function ActionBadge({ action }: { action: string }) {
-  const config: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    user_created: { label: "Utente creato", variant: "default" },
-    session_revoked: { label: "Sessione revocata", variant: "destructive" },
-    all_sessions_revoked: { label: "Sessioni revocate", variant: "destructive" },
-    permission_template_created: { label: "Template creato", variant: "secondary" },
-    permission_template_applied: { label: "Template applicato", variant: "outline" },
-    permissions_updated: { label: "Permessi aggiornati", variant: "outline" },
-    crm_exported: { label: "Esportazione dati clienti", variant: "secondary" },
-  };
-  const c = config[action] || { label: action, variant: "outline" as const };
-  return <Badge variant={c.variant} className="text-[11px]">{c.label}</Badge>;
+  const variant = AZIONI_DA_NOTARE.has(action) ? "destructive" : AZIONI_DI_ROUTINE.has(action) ? "default" : "secondary";
+  return <Badge variant={variant} className="text-[11px]">{etichettaAzioneSicurezza(action)}</Badge>;
 }
 
 export default function SettingsSecurityDashboard() {
@@ -76,7 +80,7 @@ export default function SettingsSecurityDashboard() {
   const [revokeTarget, setRevokeTarget] = useState<{ sessionId?: string; userId?: string; userName?: string } | null>(null);
 
   // --- Fetch overview ---
-  const { data: overview, isLoading: loadingOverview } = useQuery({
+  const { data: overview, isLoading: loadingOverview, isError: erroreOverview } = useQuery({
     queryKey: ["security-overview", companyId],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("get-security-report", {
@@ -94,7 +98,7 @@ export default function SettingsSecurityDashboard() {
   });
 
   // --- Fetch sessions ---
-  const { data: sessions = [], isLoading: loadingSessions } = useQuery({
+  const { data: sessions = [], isLoading: loadingSessions, isError: erroreSessioni } = useQuery({
     queryKey: ["security-sessions", companyId],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("get-security-report", {
@@ -112,7 +116,7 @@ export default function SettingsSecurityDashboard() {
   });
 
   // --- Fetch audit log ---
-  const { data: auditLog = [], isLoading: loadingAudit } = useQuery({
+  const { data: auditLog = [], isLoading: loadingAudit, isError: erroreAudit } = useQuery({
     queryKey: ["security-audit", companyId],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("get-security-report", {
@@ -130,7 +134,7 @@ export default function SettingsSecurityDashboard() {
   });
 
   // --- Fetch login attempts ---
-  const { data: loginAttempts = [], isLoading: loadingAttempts } = useQuery({
+  const { data: loginAttempts = [], isLoading: loadingAttempts, isError: erroreTentativi } = useQuery({
     queryKey: ["security-login-attempts", companyId],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("get-security-report", {
@@ -147,10 +151,31 @@ export default function SettingsSecurityDashboard() {
     staleTime: 60_000,
   });
 
+  // --- Chi è collegato adesso: sessioni aperte E viste attive da poco ---
+  // (non il numero delle sessioni «attive»: una sessione resta aperta finché
+  // qualcuno non esce, anche per mesi). Le persone, non le sessioni.
+  const { data: collegati = new Set<string>() } = useQuery({
+    queryKey: ["security-collegati", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_sessions")
+        .select("user_id, is_active, last_active_at")
+        .eq("company_id", companyId!)
+        .eq("is_active", true)
+        .gte("last_active_at", sogliaCollegato())
+        .limit(500);
+      if (error) throw error;
+      return personeCollegate((data ?? []) as Array<{ user_id: string; is_active: boolean | null; last_active_at: string | null }>);
+    },
+    enabled: !!companyId && isAdmin,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
   // --- Revoke session ---
   const revokeMutation = useMutation({
     mutationFn: async (params: { sessionId?: string; userId?: string }) => {
-      const body: Record<string, string> = { reason: "Revocata da admin" };
+      const body: Record<string, string> = { reason: "Chiusa dall'amministratore" };
       if (params.userId) {
         body.revoke_all_for_user = params.userId;
       } else if (params.sessionId) {
@@ -169,16 +194,19 @@ export default function SettingsSecurityDashboard() {
       queryClient.invalidateQueries({ queryKey: ["security-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["security-overview"] });
       queryClient.invalidateQueries({ queryKey: ["security-audit"] });
-      toast.success("Sessione revocata", {
+      queryClient.invalidateQueries({ queryKey: ["security-collegati"] });
+      toast.success("Sessione chiusa", {
         // Una sessione non collegata a un dispositivo preciso chiude tutti gli accessi.
         description: data?.tutti_i_dispositivi
           ? "Disconnesso da tutti i dispositivi."
-          : data?.revoked_count ? `${data.revoked_count} sessioni revocate` : "Operazione completata",
+          : data?.revoked_count ? `${data.revoked_count} sessioni chiuse` : "Fatto.",
       });
       setRevokeTarget(null);
     },
-    onError: (err: any) => {
-      toast.error("Errore", { description: err.message });
+    onError: (err: unknown) => {
+      toast.error("Non sono riuscito a chiudere la sessione", {
+        description: userErrorMessage(err, "Riprova tra un attimo."),
+      });
     },
   });
 
@@ -187,35 +215,51 @@ export default function SettingsSecurityDashboard() {
     queryClient.invalidateQueries({ queryKey: ["security-sessions"] });
     queryClient.invalidateQueries({ queryKey: ["security-audit"] });
     queryClient.invalidateQueries({ queryKey: ["security-login-attempts"] });
+    queryClient.invalidateQueries({ queryKey: ["security-collegati"] });
   };
 
   if (!isAdmin) {
     return (
       <div className="p-8 text-center text-muted-foreground">
         <Shield className="h-12 w-12 mx-auto mb-4 opacity-40" />
-        <p>Non hai i permessi per accedere a questa sezione.</p>
+        <p>Questa sezione la vede solo l'amministratore.</p>
       </div>
     );
   }
 
   const activeSessions = sessions.filter((s: any) => s.is_active);
+  const qualcosaNonCaricato = erroreOverview || erroreSessioni || erroreAudit || erroreTentativi;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Shield className="h-6 w-6 text-primary" />
-            Security Dashboard
-          </h1>
-          <p className="text-muted-foreground">Monitora sessioni, accessi e attività del tuo team</p>
+      {/* Header: il titolo della pagina lo mette già il layout, qui è h2 */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+            <Shield className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+            Accessi e sessioni
+          </h2>
+          <p className="text-sm text-muted-foreground">Chi è collegato, i tentativi di accesso e le azioni sugli utenti.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            La tua password e la verifica in due passaggi sono in{" "}
+            <Link to="/azienda/impostazioni/mio-profilo?tab=sicurezza" className="underline underline-offset-2">Il mio profilo → Sicurezza</Link>,
+            e nella stessa pagina, in fondo, le regole di sicurezza dell'azienda (blocco dopo password sbagliate, indirizzi consentiti).
+            Chi ha accessi a rischio lo vedi in{" "}
+            <Link to="/azienda/impostazioni/persone?tab=sicurezza-accessi" className="underline underline-offset-2">Persone &amp; Accessi → Controllo accessi</Link>.
+          </p>
         </div>
-        <Button variant="outline" size="sm" onClick={refreshAll}>
-          <RefreshCw className="h-4 w-4 mr-2" />
+        <Button variant="outline" size="sm" onClick={refreshAll} className="shrink-0">
+          <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />
           Aggiorna
         </Button>
       </div>
+
+      {qualcosaNonCaricato && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          Alcuni dati non si sono caricati.
+          <Button size="sm" variant="outline" onClick={refreshAll}>Riprova</Button>
+        </div>
+      )}
 
       {/* KPI Overview */}
       {loadingOverview ? (
@@ -226,25 +270,26 @@ export default function SettingsSecurityDashboard() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <SecurityKpi
             icon={Wifi}
-            label="Sessioni attive"
-            value={overview.active_sessions}
-            variant={overview.active_sessions > 0 ? "success" : "default"}
+            label="Collegati adesso"
+            nota={`${overview.active_sessions} ${overview.active_sessions === 1 ? "sessione rimasta aperta" : "sessioni rimaste aperte"}`}
+            value={collegati.size}
+            variant={collegati.size > 0 ? "success" : "default"}
           />
           <SecurityKpi
             icon={AlertTriangle}
-            label="Tentativi falliti (24h)"
+            label="Accessi falliti nelle ultime 24 ore"
             value={overview.failed_attempts_24h}
             variant={overview.failed_attempts_24h > 5 ? "danger" : overview.failed_attempts_24h > 0 ? "warning" : "default"}
           />
           <SecurityKpi
             icon={Lock}
-            label="Account bloccati"
+            label="Accessi bloccati"
             value={overview.locked_count}
             variant={overview.locked_count > 0 ? "danger" : "default"}
           />
           <SecurityKpi
             icon={Users}
-            label="Utenti totali"
+            label="Persone"
             value={overview.total_users}
           />
         </div>
@@ -257,7 +302,7 @@ export default function SettingsSecurityDashboard() {
             <div className="flex items-start gap-3">
               <Lock className="h-5 w-5 text-destructive mt-0.5" />
               <div>
-                <p className="font-medium text-destructive">Account bloccati</p>
+                <p className="font-medium text-destructive">Accessi bloccati per password sbagliate</p>
                 <div className="mt-1 space-y-1">
                   {(overview.locked_accounts ?? []).map((u: any) => (
                     <p key={u.id} className="text-sm text-muted-foreground">
@@ -276,13 +321,13 @@ export default function SettingsSecurityDashboard() {
       <Tabs defaultValue="sessions" className="space-y-4">
         <TabsList>
           <TabsTrigger value="sessions" className="gap-1.5">
-            <Wifi className="h-3.5 w-3.5" /> Sessioni
+            <Wifi className="h-3.5 w-3.5" aria-hidden="true" /> Collegati
           </TabsTrigger>
           <TabsTrigger value="attempts" className="gap-1.5">
-            <AlertTriangle className="h-3.5 w-3.5" /> Tentativi Login
+            <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /> Tentativi di accesso
           </TabsTrigger>
           <TabsTrigger value="audit" className="gap-1.5">
-            <Activity className="h-3.5 w-3.5" /> Audit Log
+            <Activity className="h-3.5 w-3.5" aria-hidden="true" /> Azioni sugli utenti
           </TabsTrigger>
         </TabsList>
 
@@ -290,9 +335,11 @@ export default function SettingsSecurityDashboard() {
         <TabsContent value="sessions">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Sessioni Utente</CardTitle>
+              <CardTitle className="text-base">Sessioni delle persone</CardTitle>
               <CardDescription>
-                {activeSessions.length} sessioni attive su {sessions.length} totali
+                {collegati.size === 1 ? "1 persona collegata" : `${collegati.size} persone collegate`} adesso (viste attive negli ultimi {FINESTRA_COLLEGATO_MINUTI} minuti).{" "}
+                {activeSessions.length === 1 ? "1 sessione è rimasta aperta" : `${activeSessions.length} sessioni sono rimaste aperte`} su {sessions.length} recenti:
+                una sessione si chiude quando la persona esce, oppure da qui.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -301,18 +348,18 @@ export default function SettingsSecurityDashboard() {
                   {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
                 </div>
               ) : sessions.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">Nessuna sessione registrata</p>
+                <p className="text-center text-muted-foreground py-8">Nessuna sessione registrata.</p>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Utente</TableHead>
+                      <TableHead>Persona</TableHead>
                       <TableHead>Dispositivo</TableHead>
-                      <TableHead>IP</TableHead>
-                      <TableHead>Inizio</TableHead>
+                      <TableHead>Indirizzo (IP)</TableHead>
+                      <TableHead>Iniziata</TableHead>
                       <TableHead>Ultima attività</TableHead>
                       <TableHead>Stato</TableHead>
-                      <TableHead className="text-right w-12"></TableHead>
+                      <TableHead className="text-right w-12"><span className="sr-only">Azioni</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -352,14 +399,14 @@ export default function SettingsSecurityDashboard() {
                           <TableCell>
                             {s.is_active ? (
                               <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20 text-[11px]">
-                                <Wifi className="h-2.5 w-2.5 mr-0.5" /> Attiva
+                                <Wifi className="h-2.5 w-2.5 mr-0.5" aria-hidden="true" /> Aperta
                               </Badge>
                             ) : s.revoked_by ? (
                               <Badge variant="destructive" className="text-[11px]">
-                                <XCircle className="h-2.5 w-2.5 mr-0.5" /> Revocata
+                                <XCircle className="h-2.5 w-2.5 mr-0.5" aria-hidden="true" /> Chiusa da un amministratore
                               </Badge>
                             ) : (
-                              <Badge variant="secondary" className="text-[11px]">Terminata</Badge>
+                              <Badge variant="secondary" className="text-[11px]">Chiusa</Badge>
                             )}
                           </TableCell>
                           <TableCell className="text-right">
@@ -368,9 +415,11 @@ export default function SettingsSecurityDashboard() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 text-destructive hover:text-destructive"
+                                aria-label={`Chiudi la sessione di ${userName}`}
+                                title="Chiudi la sessione"
                                 onClick={() => setRevokeTarget({ sessionId: s.id, userName })}
                               >
-                                <XCircle className="h-4 w-4" />
+                                <XCircle className="h-4 w-4" aria-hidden="true" />
                               </Button>
                             )}
                           </TableCell>
@@ -388,8 +437,8 @@ export default function SettingsSecurityDashboard() {
         <TabsContent value="attempts">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Tentativi di Login</CardTitle>
-              <CardDescription>Ultimi 200 tentativi di accesso</CardDescription>
+              <CardTitle className="text-base">Tentativi di accesso</CardTitle>
+              <CardDescription>Gli ultimi 200, riusciti e falliti.</CardDescription>
             </CardHeader>
             <CardContent>
               {loadingAttempts ? (
@@ -397,15 +446,15 @@ export default function SettingsSecurityDashboard() {
                   {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
                 </div>
               ) : loginAttempts.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">Nessun tentativo registrato</p>
+                <p className="text-center text-muted-foreground py-8">Nessun tentativo registrato.</p>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Email</TableHead>
-                      <TableHead>IP</TableHead>
+                      <TableHead>Indirizzo (IP)</TableHead>
                       <TableHead>Esito</TableHead>
-                      <TableHead>Data</TableHead>
+                      <TableHead>Quando</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -415,7 +464,7 @@ export default function SettingsSecurityDashboard() {
                         <TableCell className="text-xs text-muted-foreground">{a.ip_address || "—"}</TableCell>
                         <TableCell>
                           {a.success ? (
-                            <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20 text-[11px]">Successo</Badge>
+                            <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500/20 text-[11px]">Riuscito</Badge>
                           ) : (
                             <Badge variant="destructive" className="text-[11px]">Fallito</Badge>
                           )}
@@ -436,23 +485,23 @@ export default function SettingsSecurityDashboard() {
         <TabsContent value="audit">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Audit Log</CardTitle>
-              <CardDescription>Ultime 200 azioni registrate</CardDescription>
+              <CardTitle className="text-base">Azioni sugli utenti</CardTitle>
+              <CardDescription>Le ultime 200: chi ha creato, bloccato o cambiato qualcuno, e chi ha chiuso una sessione.</CardDescription>
             </CardHeader>
             <CardContent>
               {loadingAudit ? (
                 <div className="flex justify-center p-6"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : auditLog.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">Nessuna attività registrata</p>
+                <p className="text-center text-muted-foreground py-8">Nessuna azione registrata.</p>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Azione</TableHead>
-                      <TableHead>Attore</TableHead>
-                      <TableHead>Target</TableHead>
+                      <TableHead>Cosa è successo</TableHead>
+                      <TableHead>Chi</TableHead>
+                      <TableHead>Su chi</TableHead>
                       <TableHead>Dettagli</TableHead>
-                      <TableHead>Data</TableHead>
+                      <TableHead>Quando</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -469,23 +518,29 @@ export default function SettingsSecurityDashboard() {
                             {target ? `${target.first_name} ${target.last_name}` : "—"}
                           </TableCell>
                           <TableCell>
-                            {log.details && Object.keys(log.details).length > 0 ? (
-                              <Collapsible>
-                                <CollapsibleTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px]">
-                                    <Eye className="h-3 w-3 mr-1" /> Dettagli
-                                    <ChevronDown className="h-3 w-3 ml-1" />
-                                  </Button>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent>
-                                  <pre className="text-[10px] text-muted-foreground mt-1 bg-muted rounded p-2 max-w-[300px] overflow-auto">
-                                    {JSON.stringify(log.details, null, 2)}
-                                  </pre>
-                                </CollapsibleContent>
-                              </Collapsible>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            )}
+                            {(() => {
+                              // Una frase, se l'azione la conosciamo; per le altre i dati tecnici restano a disposizione, chiusi.
+                              const frase = descriviDettagliSicurezza(log.action, log.details);
+                              if (frase) return <span className="text-xs text-muted-foreground">{frase}</span>;
+                              if (log.details && Object.keys(log.details).length > 0) {
+                                return (
+                                  <Collapsible>
+                                    <CollapsibleTrigger asChild>
+                                      <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px]">
+                                        <Eye className="h-3 w-3 mr-1" aria-hidden="true" /> Dati tecnici
+                                        <ChevronDown className="h-3 w-3 ml-1" aria-hidden="true" />
+                                      </Button>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent>
+                                      <pre className="text-[10px] text-muted-foreground mt-1 bg-muted rounded p-2 max-w-[300px] overflow-auto">
+                                        {JSON.stringify(log.details, null, 2)}
+                                      </pre>
+                                    </CollapsibleContent>
+                                  </Collapsible>
+                                );
+                              }
+                              return <span className="text-xs text-muted-foreground">—</span>;
+                            })()}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                             {formatDistanceToNow(new Date(log.created_at), { addSuffix: true, locale: it })}
@@ -505,11 +560,11 @@ export default function SettingsSecurityDashboard() {
       <AlertDialog open={!!revokeTarget} onOpenChange={() => setRevokeTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Revocare la sessione?</AlertDialogTitle>
+            <AlertDialogTitle>Chiudere la sessione?</AlertDialogTitle>
             <AlertDialogDescription>
               {revokeTarget?.userName
-                ? `La sessione di ${revokeTarget.userName} verrà terminata immediatamente.`
-                : "La sessione verrà terminata immediatamente."}
+                ? `La sessione di ${revokeTarget.userName} si chiude subito.`
+                : "La sessione si chiude subito."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -525,7 +580,7 @@ export default function SettingsSecurityDashboard() {
                 }
               }}
             >
-              Revoca
+              Chiudi la sessione
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
