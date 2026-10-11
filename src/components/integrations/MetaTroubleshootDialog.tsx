@@ -31,6 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, KeyRound, LayoutList, Wrench } from "lucide-react";
 import { toast } from "sonner";
+import { format, subDays } from "date-fns";
 import { useMetaIntegration } from "@/hooks/useMetaIntegration";
 import type { Integration } from "@/types/integrations";
 
@@ -64,10 +65,33 @@ export function MetaTroubleshootDialog({
   ];
   const [days, setDays] = useState("3");
   const [syncing, setSyncing] = useState(false);
+  // Si può recuperare da TUTTI i moduli attivi (predefinito) o da uno solo.
+  const TUTTI = "__tutti__";
+  const [formId, setFormId] = useState(TUTTI);
+  const moduliAttivi = ((hook.forms ?? []) as Array<{ form_id: string; form_name: string; status: string; page_asset_id: string | null }>)
+    .filter((f) => f.status === "active");
+  // Il nome della pagina accanto al modulo: distingue due moduli con lo stesso
+  // nome su pagine diverse (es. «Richiesta preventivo» su Green SOS e su Energia Più).
+  const nomePagina = (pageAssetId: string | null) =>
+    ((hook.assets ?? []) as Array<{ id: string; asset_name: string }>).find((a) => a.id === pageAssetId)?.asset_name ?? "";
 
   const handleBackfill = async () => {
     setSyncing(true);
     try {
+      if (formId !== TUTTI) {
+        // Un modulo solo: lo stesso recupero di «Importa i contatti passati»,
+        // sulla finestra scelta (da oggi indietro di N giorni di calendario).
+        const da = format(subDays(new Date(), Math.max(0, Number(days) - 1)), "yyyy-MM-dd");
+        const res = await hook.callProxy("backfill-leads", { form_id: formId, mode: "since_date", since_date: da });
+        const imported = Number(res?.imported ?? 0);
+        const nome = moduliAttivi.find((f) => f.form_id === formId)?.form_name ?? "il modulo";
+        if (imported === 0) {
+          toast.success(`Nessun lead da recuperare per «${nome}» in questo periodo.`);
+        } else {
+          toast.success(`${imported} lead recuperati da «${nome}»: li trovi tra i contatti a breve.`);
+        }
+        return;
+      }
       const res = await hook.callProxy("backfill-recent", { days: Number(days) });
       const imported = Number(res?.imported ?? 0);
       const forms = Number(res?.forms ?? 0);
@@ -151,6 +175,27 @@ export function MetaTroubleshootDialog({
                 messaggi automatici: chi ha scritto settimane fa non deve ricevere un «ti
                 ricontattiamo subito».
               </p>
+              {moduliAttivi.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Modulo</p>
+                  <Select value={formId} onValueChange={setFormId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={TUTTI}>Tutti i moduli attivi</SelectItem>
+                      {moduliAttivi.map((f) => {
+                        const pag = nomePagina(f.page_asset_id);
+                        return (
+                          <SelectItem key={f.form_id} value={f.form_id}>
+                            {f.form_name}{pag ? ` — ${pag}` : ""}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <Select value={days} onValueChange={setDays}>
                   <SelectTrigger className="w-44">

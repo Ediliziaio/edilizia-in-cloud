@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -72,6 +72,21 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
         String(f.created_time ?? "").includes(chiave))
     : metaForms;
 
+  // Raggruppa i moduli per pagina: con più pagine collegate sulla stessa
+  // integrazione (es. Green SOS ed Energia Più) l'elenco piatto mescolava i
+  // moduli di tutte. Ogni pagina ha la sua intestazione col numero di moduli.
+  const gruppiPagina = useMemo(() => {
+    const perPagina = new Map<string, { nome: string; moduli: any[] }>();
+    for (const f of mostrati) {
+      const chiavePagina = String(f.page_asset_id ?? f.page_name ?? "—");
+      const g = perPagina.get(chiavePagina);
+      if (g) g.moduli.push(f);
+      else perPagina.set(chiavePagina, { nome: f.page_name || "Pagina", moduli: [f] });
+    }
+    return Array.from(perPagina.values()).sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+  }, [mostrati]);
+  const raggruppaPerPagina = gruppiPagina.length > 1;
+
   const isFormActive = (formId: string) => {
     return forms.some((f: any) => f.form_id === formId && f.status === "active");
   };
@@ -133,6 +148,101 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
     );
   }
 
+  const renderForm = (form: any) => {
+    const active = isFormActive(form.id);
+    const isBackfillTarget = backfillFormId === form.id;
+    // Sotto il nome del modulo: la pagina (solo quando NON è già l'intestazione
+    // del gruppo), la data di creazione e l'eventuale stato non attivo.
+    const sottotitolo: string[] = [];
+    if (!raggruppaPerPagina && form.page_name) sottotitolo.push(form.page_name);
+    if (form.created_time) {
+      sottotitolo.push(`creato il ${format(new Date(form.created_time), "d MMM yyyy", { locale: it })}`);
+    }
+    if (form.status && form.status !== "ACTIVE") sottotitolo.push(String(form.status).toLowerCase());
+    return (
+      <div key={form.id} className="px-4 py-3 space-y-2">
+        <div className="flex items-center gap-3">
+          <Switch
+            checked={active}
+            onCheckedChange={() => handleToggle(form)}
+            disabled={updateFormStatus.isPending}
+          />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{form.name}</p>
+            {sottotitolo.length > 0 && (
+              <p className="text-xs text-muted-foreground truncate">{sottotitolo.join(" · ")}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            {form.questions && (
+              <span className="text-xs text-muted-foreground">
+                {form.questions.length} campi
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setBackfillFormId(isBackfillTarget ? null : form.id)}
+              className="h-7 px-2 text-xs"
+              title="Importa lead storici"
+            >
+              <Download className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onMapFields(form.id)}
+              className="h-7 px-2 text-xs"
+            >
+              <Settings2 className="h-3 w-3 mr-1" />
+              Mappa
+            </Button>
+          </div>
+        </div>
+
+        {/* Backfill panel */}
+        {isBackfillTarget && (
+          <div className="border rounded-lg p-3 bg-muted/30 space-y-3 ml-8">
+            <p className="text-xs font-medium">Importa lead storici</p>
+            <div className="flex items-center gap-2">
+              <Select value={backfillMode} onValueChange={(v) => setBackfillMode(v as any)}>
+                <SelectTrigger className="h-8 text-xs w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti i lead</SelectItem>
+                  <SelectItem value="since_date">Da una data</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {backfillMode === "since_date" && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                      <CalendarIcon className="h-3 w-3" />
+                      {backfillDate ? format(backfillDate, "dd/MM/yyyy", { locale: it }) : "Seleziona data"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={backfillDate} onSelect={setBackfillDate} locale={it} />
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" className="h-7 text-xs" onClick={() => handleBackfill(form.id)} disabled={backfillProgress?.running || (backfillMode === "since_date" && !backfillDate)}>
+                Avvia importazione
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setBackfillFormId(null)}>
+                Annulla
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
@@ -175,100 +285,23 @@ export function FormListStep({ hook, onMapFields }: FormListStepProps) {
         </div>
       )}
 
-      <div className="border rounded-lg divide-y max-h-[420px] overflow-y-auto">
+      <div className="border rounded-lg max-h-[420px] overflow-y-auto">
         {mostrati.length === 0 && (
           <p className="px-4 py-6 text-center text-sm text-muted-foreground">
             Nessun modulo con «{cerca}».
           </p>
         )}
-        {mostrati.map((form) => {
-          const active = isFormActive(form.id);
-          const isBackfillTarget = backfillFormId === form.id;
-          return (
-            <div key={form.id} className="px-4 py-3 space-y-2">
-              <div className="flex items-center gap-3">
-                <Switch
-                  checked={active}
-                  onCheckedChange={() => handleToggle(form)}
-                  disabled={updateFormStatus.isPending}
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{form.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {form.page_name}
-                    {form.created_time ? ` · creato il ${format(new Date(form.created_time), "d MMM yyyy", { locale: it })}` : ""}
-                    {form.status && form.status !== "ACTIVE" ? ` · ${String(form.status).toLowerCase()}` : ""}
-                  </p>
+        {raggruppaPerPagina
+          ? gruppiPagina.map((g) => (
+              <div key={g.nome}>
+                <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-muted/80 px-4 py-2 text-xs font-semibold text-muted-foreground backdrop-blur">
+                  <span className="truncate">{g.nome}</span>
+                  <span className="shrink-0 font-normal">{g.moduli.length} moduli</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  {form.questions && (
-                    <span className="text-xs text-muted-foreground">
-                      {form.questions.length} campi
-                    </span>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setBackfillFormId(isBackfillTarget ? null : form.id)}
-                    className="h-7 px-2 text-xs"
-                    title="Importa lead storici"
-                  >
-                    <Download className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onMapFields(form.id)}
-                    className="h-7 px-2 text-xs"
-                  >
-                    <Settings2 className="h-3 w-3 mr-1" />
-                    Mappa
-                  </Button>
-                </div>
+                <div className="divide-y">{g.moduli.map(renderForm)}</div>
               </div>
-
-              {/* Backfill panel */}
-              {isBackfillTarget && (
-                <div className="border rounded-lg p-3 bg-muted/30 space-y-3 ml-8">
-                  <p className="text-xs font-medium">Importa lead storici</p>
-                  <div className="flex items-center gap-2">
-                    <Select value={backfillMode} onValueChange={(v) => setBackfillMode(v as any)}>
-                      <SelectTrigger className="h-8 text-xs w-[160px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tutti i lead</SelectItem>
-                        <SelectItem value="since_date">Da una data</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    {backfillMode === "since_date" && (
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
-                            <CalendarIcon className="h-3 w-3" />
-                            {backfillDate ? format(backfillDate, "dd/MM/yyyy", { locale: it }) : "Seleziona data"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" selected={backfillDate} onSelect={setBackfillDate} locale={it} />
-                        </PopoverContent>
-                      </Popover>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" className="h-7 text-xs" onClick={() => handleBackfill(form.id)} disabled={backfillProgress?.running || (backfillMode === "since_date" && !backfillDate)}>
-                      Avvia importazione
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setBackfillFormId(null)}>
-                      Annulla
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+            ))
+          : <div className="divide-y">{mostrati.map(renderForm)}</div>}
       </div>
     </div>
   );
