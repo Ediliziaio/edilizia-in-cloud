@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -41,10 +41,11 @@ export function ChatConversazioniTab() {
   const [cerca, setCerca] = useState("");
   const [filtroStato, setFiltroStato] = useState("tutti");
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
+  useEffect(() => { setSelectedSession(null); }, [companyId]);
 
   // Fetch sessions with agent name
-  const { data: sessions = [], isLoading } = useQuery({
-    queryKey: ["chat-sessions", companyId, filtroStato, cerca],
+  const { data: sessions = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ["chat-sessions", companyId, filtroStato],
     enabled: !!companyId,
     queryFn: async () => {
       let q = supabase
@@ -65,9 +66,9 @@ export function ChatConversazioniTab() {
   });
 
   // Fetch messages for selected session
-  const { data: messages = [], isLoading: loadingMessages } = useQuery({
-    queryKey: ["chat-messages", selectedSession],
-    enabled: !!selectedSession,
+  const { data: messages = [], isLoading: loadingMessages, isError: messagesError, refetch: retryMessages } = useQuery({
+    queryKey: ["chat-messages", companyId, selectedSession],
+    enabled: !!companyId && !!selectedSession && sessions.some(s => s.id === selectedSession),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ai_chat_messages")
@@ -82,7 +83,7 @@ export function ChatConversazioniTab() {
   // Client-side search filter
   const filteredSessions = useMemo(() => {
     if (!cerca.trim()) return sessions;
-    const term = cerca.toLowerCase();
+    const term = cerca.trim().toLowerCase();
     return sessions.filter(s =>
       (s.agent_nome?.toLowerCase().includes(term)) ||
       s.canale.toLowerCase().includes(term) ||
@@ -123,6 +124,9 @@ export function ChatConversazioniTab() {
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   </div>
+                ) : messagesError ? (
+                  <div role="alert" className="py-8 text-center"><p>Impossibile caricare i messaggi.</p>
+                    <Button variant="outline" className="mt-2" onClick={() => retryMessages()}>Riprova</Button></div>
                 ) : messages.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">
                     Nessun messaggio in questa sessione.
@@ -165,6 +169,10 @@ export function ChatConversazioniTab() {
   return (
     // Telefono: ricerca e stato sulla stessa riga, stato vuoto in una riga.
     <div className="space-y-4 max-md:space-y-3">
+      <p className="text-sm text-muted-foreground" role="status">
+        Questa scheda mostra le sessioni registrate dagli agenti AI. Lo storico del widget chat del sito
+        è separato e non viene incluso automaticamente qui.
+      </p>
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap max-md:flex-nowrap max-md:gap-2">
         <div className="relative flex-1 max-w-xs max-md:min-w-0 max-md:max-w-none">
@@ -193,17 +201,18 @@ export function ChatConversazioniTab() {
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
+      ) : isError ? (
+        <div role="alert" className="rounded-lg border p-4"><p>Impossibile caricare le sessioni chat.</p>
+          <Button variant="outline" className="mt-2" onClick={() => refetch()}>Riprova</Button></div>
+      ) : filteredSessions.length === 0 && sessions.length > 0 ? (
+        <div className="py-8 text-center"><p>Nessuna sessione corrisponde alla ricerca.</p>
+          <Button variant="outline" className="mt-2" onClick={() => setCerca("")}>Azzera ricerca</Button></div>
       ) : sessions.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-center max-md:py-4">
           <MessageSquare className="h-10 w-10 text-muted-foreground mb-3 max-md:hidden" />
           <p className="font-semibold max-md:text-[13px]">Nessuna sessione chat</p>
           <p className="text-sm text-muted-foreground mt-1 max-md:hidden">
-            Le sessioni appariranno quando gli utenti interagiranno con i tuoi agenti chat.
-          </p>
-          {/* Audit AI 2026-06: stesso discorso delle conversazioni vocali —
-              il salvataggio sessioni dal widget/provider non è ancora cablato. */}
-          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 max-md:mt-1.5 max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:text-[11px]">
-            Il salvataggio automatico delle sessioni chat non è ancora attivo.
+            Nessuna sessione registrata per gli agenti AI e i filtri selezionati.
           </p>
         </div>
       ) : (

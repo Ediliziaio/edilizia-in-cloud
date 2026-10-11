@@ -1,10 +1,12 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 
-import { risolviTelnyx } from "../_shared/telnyxApiKey.ts";
 import { TTS_MODEL_VOCE } from "../_shared/voicePricing.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { agentCompanyAccess } from "../_shared/agentCompanyAccess.ts";
+import { CAMPAIGN_ACTIONS, CampaignError, campaignPreparation } from "../_shared/campaignPreparation.ts";
+import { campaignPermission } from "../_shared/campaignPermission.ts";
 
 const EL_BASE = "https://api.elevenlabs.io/v1";
 
@@ -72,9 +74,9 @@ async function costruisciStrumentoSistema(
   elName: string,
   toolsConfig: ToolsConfig,
   companyId: string,
-  adminClient: ReturnType<typeof createClient>,
+  adminClient: SupabaseClient,
 ): Promise<unknown | null> {
-  if (elName !== "transfer_to_number") return { type: "system", name: elName };
+  if (elName !== "transfer_to_number") return {};
 
   // ElevenLabs vuole le destinazioni DICHIARATE in anticipo: non si può passare
   // un numero qualunque a chiamata in corso. Quindi si dichiarano tutti gli
@@ -122,8 +124,7 @@ async function costruisciStrumentoSistema(
   // Nessuna destinazione = promessa vuota. Meglio non dare lo strumento che
   // far dire "le passo un collega" nel nulla.
   if (destinazioni.length === 0) {
-    console.warn("[PROXY] trasferimento abilitato ma nessun numero disponibile: strumento saltato");
-    return null;
+    throw new Error("Trasferimento abilitato senza destinazione: configura un numero operatore o disabilita il trasferimento");
   }
 
   return {
@@ -267,30 +268,26 @@ async function makeAutoToolUrl(companyId: string, elevenlabsAgentId: string): Pr
 
 /**
  * Crea su ElevenLabs i tool abilitati in tools_config (POST /convai/tools) e
- * restituisce gli id da collegare all'agente. I tool precedenti dell'agente
- * (tools_config.elevenlabs_tool_ids) vengono eliminati prima: cosi' un update
- * non lascia orfani sull'account EL.
+ * restituisce gli id da collegare all'agente. I tool precedenti restano attivi
+ * fino al completamento del salvataggio remoto e locale.
  */
 async function sincronizzaToolElevenLabs(
   apiKey: string,
   companyId: string,
   elevenlabsAgentId: string,
   toolsConfig: ToolsConfig | null | undefined,
-  precedenti: string[] | undefined,
-  adminClient: ReturnType<typeof createClient>,
-): Promise<{ toolIds: string[]; systemTools: unknown[] }> {
-  for (const id of precedenti ?? []) {
-    try { await elFetch(`/convai/tools/${id}`, "DELETE", apiKey); } catch (e) {
-      console.warn(`[PROXY] delete tool ${id} fallita:`, e instanceof Error ? e.message : e);
-    }
-  }
-  const systemTools: unknown[] = [];
+  adminClient: SupabaseClient,
+): Promise<{ toolIds: string[]; systemTools: Record<string, unknown> }> {
+  // Prepare replacements first: the currently attached tools remain live
+  // until the agent and its local tool IDs have both been updated.
+  // Explicit null disables a previously enabled built-in tool on PATCH.
+  const systemTools: Record<string, unknown> = Object.fromEntries(Object.values(SYSTEM_TOOL_MAP).map(name => [name, null]));
   if (toolsConfig?.system_tools) {
     for (const [id, enabled] of Object.entries(toolsConfig.system_tools)) {
       const elName = SYSTEM_TOOL_MAP[id];
       if (!enabled || !elName) continue;
       const strumento = await costruisciStrumentoSistema(elName, toolsConfig, companyId, adminClient);
-      if (strumento) systemTools.push(strumento);
+      if (strumento) systemTools[elName] = strumento;
     }
   }
   const autoUrl = await makeAutoToolUrl(companyId, elevenlabsAgentId);
@@ -304,7 +301,10 @@ async function sincronizzaToolElevenLabs(
   const toolIds: string[] = [];
   for (const [canon, urlEsplicito] of daCreare) {
     const url = urlEsplicito || autoUrl?.(canon) || null;
-    if (!url) { console.warn(`[PROXY] tool ${canon} senza URL (secret mancante?): saltato`); continue; }
+    if (!url) {
+      await cleanupTools(apiKey, toolIds);
+      throw new Error(`Strumento ${canon} non configurabile: manca l'URL sicuro`);
+    }
     const def = DEFINIZIONI_TOOL[canon];
     const body = {
       tool_config: {
@@ -323,9 +323,11 @@ async function sincronizzaToolElevenLabs(
     try {
       const res = await elFetch("/convai/tools", "POST", apiKey, body);
       const id = res?.id ?? res?.tool_id;
-      if (id) toolIds.push(String(id));
+      if (!id) throw new Error(`ElevenLabs non ha restituito l'ID dello strumento ${canon}`);
+      toolIds.push(String(id));
     } catch (e) {
-      console.error(`[PROXY] creazione tool ${canon} fallita:`, e instanceof Error ? e.message : e);
+      await cleanupTools(apiKey, toolIds);
+      throw e;
     }
   }
   return { toolIds, systemTools };
@@ -379,17 +381,28 @@ Deno.serve(async (req) => {
 
     const userId = user.id;
 
-    // Get user's company_id
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
-    const { data: profile } = await adminClient
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-
-    const companyId = profile?.company_id;
-    if (!companyId) {
-      return json({ error: "Nessuna azienda associata" }, 403);
+    const body = await req.json();
+    const { action, agent_id } = body;
+    let payload = body.payload;
+    const access = await agentCompanyAccess(adminClient, userId, body.company_id, corsHeaders);
+    const companyId = access.companyId;
+    if (action === "get_capabilities") return json({ version: 2, tenant_scoped: true, draft_provisioning: true, campaign_preparation: true, campaign_dispatch: false });
+    if (CAMPAIGN_ACTIONS.includes(action)) {
+      if (payload !== undefined && (!payload || typeof payload !== "object" || Array.isArray(payload))) return json({ error: "Dati campagna non validi" }, 400);
+      await campaignPermission(adminClient, userId, companyId, access.isSuperAdmin, action, corsHeaders);
+      if (["create_campaign", "delete_campaign", "prepare_campaign"].includes(action) && !access.isSuperAdmin) {
+        // Must use the USER client: auth.uid() in this RPC must not be service_role.
+        const { data: readOnly, error: permissionError } = await userClient.rpc("utente_sola_lettura", { p_company_id: companyId });
+        if (permissionError || readOnly !== false) return json({ error: "Sola lettura o permesso di modifica non verificabile" }, 403);
+      }
+      const rl = await checkRateLimit({ functionName: "campaign-preparation", callerId: companyId, maxCalls: 60, windowSeconds: 60 });
+      if (!rl.allowed) return rateLimitResponse(rl.retryAfterSeconds ?? 60, corsHeaders);
+      try { return json(await campaignPreparation(adminClient, companyId, action, payload)); }
+      catch (error) {
+        if (error instanceof CampaignError) return json({ error: error.message }, error.status);
+        throw error;
+      }
     }
 
     // --- Get API key from platform_settings first, then env fallback ---
@@ -397,12 +410,6 @@ Deno.serve(async (req) => {
     if (!apiKey) {
       return json({ error: "Chiave API ElevenLabs non configurata. Contattare l'amministratore." }, 500);
     }
-
-    // --- Parse request ---
-    const body = await req.json();
-    const { action, agent_id, payload } = body;
-
-    const callerIsSuperAdmin = await isSuperAdmin(adminClient, userId);
 
     // Rate limit expensive AI operations: max 30 calls per minute per company
     const expensiveActions = [
@@ -412,6 +419,11 @@ Deno.serve(async (req) => {
       "get_conversations",
       "get_conversation",
       "get_conversation_audio",
+      "link_phone_number",
+      "assign_phone_agent",
+      "add_kb_doc",
+      "remove_kb_doc",
+      "add_voice",
     ];
     if (expensiveActions.includes(action)) {
       const rl = await checkRateLimit({
@@ -429,15 +441,35 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "create_agent": {
+        if (!payload?.local_agent_id) return json({ error: "Salva prima una bozza dell'agente" }, 400);
+        const { data: draft, error: draftError } = await adminClient.from("ai_agents_v2")
+          .select("*").eq("id", payload.local_agent_id).eq("company_id", companyId).single();
+        if (draftError || !draft) return json({ error: "Bozza non trovata o non autorizzata" }, 403);
+        if (draft.elevenlabs_agent_id) {
+          return json({ agent_id: draft.id, elevenlabs_agent_id: draft.elevenlabs_agent_id,
+            elevenlabs_tool_ids: draft.tools_config?.elevenlabs_tool_ids ?? [] });
+        }
+        if (!["vocale", "campagna"].includes(draft.tipo) || !["bozza", "pausa"].includes(draft.stato)) {
+          return json({ error: "Solo una bozza vocale può essere collegata" }, 400);
+        }
+        payload = { local_agent_id: draft.id, name: draft.nome, system_prompt: draft.system_prompt,
+          first_message: draft.primo_messaggio, llm_model: draft.llm_model, temperature: draft.temperatura ?? 0.7,
+          language: draft.lingua, voice_id: draft.elevenlabs_voice_id, tools_config: draft.tools_config };
         // FIX BUG #1: usa voce italiana di default e modello multilingual
         const voiceId = payload?.voice_id || DEFAULT_ITALIAN_VOICE_ID;
 
-        const createToolsConfig = payload?.tools_config as ToolsConfig | null | undefined;
+        const storedTools = payload?.tools_config as ToolsConfig | null | undefined;
+        const createToolsConfig: ToolsConfig = {
+          ...storedTools,
+          system_tools: { ...storedTools?.system_tools,
+            ...(typeof draft.rileva_segreteria === "boolean" ? { voicemail_detection: draft.rileva_segreteria } : {}) },
+        };
 
         const createBody: Record<string, unknown> = {
           conversation_config: {
+            conversation: { max_duration_seconds: validMaxDuration(draft.durata_max_secondi ?? 300) },
             agent: {
-              prompt: { prompt: payload?.system_prompt || "" },
+              prompt: { prompt: payload?.system_prompt || "", llm: payload?.llm_model || "gemini-2.5-flash", ...(payload?.temperature !== undefined ? { temperature: validTemperature(payload.temperature) } : {}) },
               first_message: payload?.first_message || "",
               language: payload?.language || "it",
             },
@@ -447,11 +479,13 @@ Deno.serve(async (req) => {
             },
           },
           name: payload?.name || "Nuovo Agente",
+          platform_settings: { privacy: { record_voice: draft.registra_chiamate !== false } },
         };
 
         const elRes = await elFetch("/convai/agents/create", "POST", apiKey, createBody);
 
         const elAgentId = elRes?.agent_id;
+        if (!elAgentId) throw new Error("ElevenLabs non ha restituito l'ID dell'agente");
 
         // Tool: gli URL contengono l'agent id EL, che esiste solo ora. Si creano
         // i tool e si collegano all'agente via prompt.tool_ids (il campo
@@ -459,25 +493,28 @@ Deno.serve(async (req) => {
         let elToolIds: string[] = [];
         if (elAgentId && createToolsConfig) {
           try {
-            const sync = await sincronizzaToolElevenLabs(apiKey, companyId, elAgentId, createToolsConfig, [], adminClient);
+            const sync = await sincronizzaToolElevenLabs(apiKey, companyId, elAgentId, createToolsConfig, adminClient);
             elToolIds = sync.toolIds;
-            if (elToolIds.length || sync.systemTools.length) {
-              await elFetch(`/convai/agents/${elAgentId}`, "PATCH", apiKey, {
-                conversation_config: { agent: { prompt: { tool_ids: elToolIds }, ...(sync.systemTools.length ? { tools: sync.systemTools } : {}) } },
-              });
-            }
+            await elFetch(`/convai/agents/${elAgentId}`, "PATCH", apiKey, {
+              conversation_config: { agent: { prompt: { tool_ids: elToolIds, built_in_tools: sync.systemTools } } },
+            });
           } catch (toolErr) {
-            console.error(`[PROXY] Aggancio tool fallito per ${elAgentId}:`, toolErr);
+            await cleanupTools(apiKey, elToolIds);
+            try { await elFetch(`/convai/agents/${elAgentId}`, "DELETE", apiKey); } catch { /* Original error remains visible. */ }
+            throw toolErr;
           }
         }
 
-        // Il record locale lo scrive il chiamante nel modello v2 (ai_agents_v2):
-        // prima qui si inseriva ANCHE in ai_agents (v1) e ogni agente nasceva
-        // doppio, con la copia v1 orfana per sempre. Qui resta solo ElevenLabs.
-        const newAgent: { id: string | null } = { id: null };
-        await auditLog(adminClient, companyId, null, userId, "create_agent", { name: payload?.name, elevenlabs_agent_id: elAgentId });
-
-        result = { agent_id: newAgent.id, elevenlabs_agent_id: elAgentId, elevenlabs_tool_ids: elToolIds };
+        const { data: bound, error: bindError } = await adminClient.from("ai_agents_v2")
+          .update({ elevenlabs_agent_id: elAgentId, tools_config: { ...draft.tools_config, elevenlabs_tool_ids: elToolIds } })
+          .eq("id", draft.id).eq("company_id", companyId).is("elevenlabs_agent_id", null).select("id").single();
+        if (bindError || !bound) {
+          try { await elFetch(`/convai/agents/${elAgentId}`, "DELETE", apiKey); } catch { console.warn("Pulizia agente non completata"); }
+          await cleanupTools(apiKey, elToolIds);
+          throw bindError || new Error("Collegamento non salvato: riprova dalla bozza");
+        }
+        await auditLog(adminClient, companyId, draft.id, userId, "create_agent", { name: payload?.name, elevenlabs_agent_id: elAgentId });
+        result = { agent_id: draft.id, elevenlabs_agent_id: elAgentId, elevenlabs_tool_ids: elToolIds };
         break;
       }
 
@@ -498,6 +535,12 @@ Deno.serve(async (req) => {
         if (payload?.system_prompt !== undefined) {
           agentPatch.prompt = { prompt: payload.system_prompt };
         }
+        if (payload?.llm_model !== undefined || payload?.temperature !== undefined) {
+          agentPatch.prompt = { ...(agentPatch.prompt as Record<string, unknown> ?? {}),
+            ...(payload.llm_model !== undefined ? { llm: payload.llm_model } : {}),
+            ...(payload.temperature !== undefined ? { temperature: validTemperature(payload.temperature) } : {}),
+          };
+        }
         if (payload?.first_message !== undefined) {
           agentPatch.first_message = payload.first_message;
         }
@@ -509,13 +552,13 @@ Deno.serve(async (req) => {
         // ElevenLabs. Qui l'agent id EL è noto → gli URL auto dei tool con backend
         // vengono generati subito.
         let nuoviToolIds: string[] | null = null;
+        let precedenti: string[] = [];
         if (payload?.tools_config !== undefined) {
           const cfg = payload.tools_config as (ToolsConfig & { elevenlabs_tool_ids?: string[] }) | null;
-          const precedenti = await toolIdsPrecedenti(adminClient, ownership);
-          const sync = await sincronizzaToolElevenLabs(apiKey, companyId, agent_id, cfg, precedenti, adminClient);
+          precedenti = await toolIdsPrecedenti(adminClient, ownership);
+          const sync = await sincronizzaToolElevenLabs(apiKey, companyId, agent_id, cfg, adminClient);
           nuoviToolIds = sync.toolIds;
-          agentPatch.prompt = { ...(agentPatch.prompt as Record<string, unknown> ?? {}), tool_ids: nuoviToolIds };
-          if (sync.systemTools.length) agentPatch.tools = sync.systemTools;
+          agentPatch.prompt = { ...(agentPatch.prompt as Record<string, unknown> ?? {}), tool_ids: nuoviToolIds, built_in_tools: sync.systemTools };
         }
 
         // FIX BUG #1: usa modello multilingual quando la voce viene aggiornata
@@ -543,8 +586,9 @@ Deno.serve(async (req) => {
         if (Object.keys(updateBody).length > 0) {
           try {
             await elFetch(`/convai/agents/${agent_id}`, "PATCH", apiKey, updateBody);
-          } catch {
-            // ElevenLabs may not have this agent — continue with local update
+          } catch (err) {
+            await cleanupTools(apiKey, nuoviToolIds ?? []);
+            throw err;
           }
         }
 
@@ -555,14 +599,16 @@ Deno.serve(async (req) => {
           if (payload?.first_message !== undefined) v2Patch.primo_messaggio = payload.first_message;
           if (payload?.language !== undefined) v2Patch.lingua = payload.language;
           if (payload?.llm_model !== undefined) v2Patch.llm_model = payload.llm_model;
+          if (payload?.temperature !== undefined) v2Patch.temperatura = validTemperature(payload.temperature);
           if (payload?.voice_id !== undefined) v2Patch.elevenlabs_voice_id = payload.voice_id;
           if (payload?.tools_config !== undefined) v2Patch.tools_config = { ...(payload.tools_config as Record<string, unknown>), elevenlabs_tool_ids: nuoviToolIds ?? [] };
           if (Object.keys(v2Patch).length > 0) {
-            await adminClient
+            const { data: saved, error } = await adminClient
               .from("ai_agents_v2")
               .update(v2Patch)
               .eq("id", ownership.v2AgentId)
-              .eq("company_id", companyId);
+              .eq("company_id", companyId).select("id").single();
+            if (error || !saved) throw error || new Error("Agente non aggiornato nel gestionale");
           }
         }
 
@@ -576,16 +622,18 @@ Deno.serve(async (req) => {
           if (payload?.voice_id !== undefined) legacyPatch.voice_id = payload.voice_id;
           if (payload?.tools_config !== undefined) legacyPatch.tools_config = { ...(payload.tools_config as Record<string, unknown>), elevenlabs_tool_ids: nuoviToolIds ?? [] };
           if (Object.keys(legacyPatch).length > 0) {
-            await adminClient
+            const { data: saved, error } = await adminClient
               .from("ai_agents")
               .update(legacyPatch)
               .eq("id", ownership.legacyAgentId)
-              .eq("company_id", companyId);
+              .eq("company_id", companyId).select("id").single();
+            if (error || !saved) throw error || new Error("Agente non aggiornato nel gestionale");
           }
         }
 
         await auditLog(adminClient, companyId, ownership.legacyAgentId ?? ownership.v2AgentId, userId, "update_agent", { agent_id, changes: Object.keys(payload || {}) });
-        result = { success: true };
+        if (nuoviToolIds !== null) await cleanupTools(apiKey, precedenti.filter(id => !nuoviToolIds!.includes(id)));
+        result = { success: true, ...(nuoviToolIds !== null ? { elevenlabs_tool_ids: nuoviToolIds } : {}) };
         break;
       }
 
@@ -599,13 +647,11 @@ Deno.serve(async (req) => {
         }
 
         try {
-          for (const tid of await toolIdsPrecedenti(adminClient, ownership)) {
-            try { await elFetch(`/convai/tools/${tid}`, "DELETE", apiKey); } catch { /* best effort */ }
-          }
           await elFetch(`/convai/agents/${agent_id}`, "DELETE", apiKey);
-        } catch {
-          // May already be deleted
+        } catch (err) {
+          if (!(err instanceof ElevenLabsApiError && err.status === 404)) throw err;
         }
+        await cleanupTools(apiKey, await toolIdsPrecedenti(adminClient, ownership));
         await auditLog(adminClient, companyId, null, userId, "delete_agent", { agent_id });
         result = { success: true };
         break;
@@ -626,16 +672,28 @@ Deno.serve(async (req) => {
       // --- KB Sync Actions (FIX 8) ---
       case "add_kb_doc": {
         if (!agent_id) throw new Error("agent_id richiesto");
-        if (!payload?.source_url && !payload?.name) throw new Error("source_url o name richiesti");
+        if (!payload?.source_url && !payload?.text) throw new Error("URL o testo del documento richiesti");
         // Ownership check
         const own = await findOwnedAgentByElevenLabsId(adminClient, companyId, agent_id);
         if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
 
-        const docResult = await elFetch(`/convai/agents/${agent_id}/add-to-knowledge-base`, "POST", apiKey, {
-          url: payload?.source_url,
-          name: payload?.name,
-        });
-        result = { elevenlabs_doc_id: docResult?.id || null };
+        const remote = await elFetch(`/convai/agents/${agent_id}`, "GET", apiKey);
+        const prompt = remote?.conversation_config?.agent?.prompt ?? {};
+        const type = payload.source_url ? "url" : "text";
+        const docResult = await elFetch(`/convai/knowledge-base/${type}`, "POST", apiKey,
+          { name: payload.name, ...(type === "url" ? { url: payload.source_url } : { text: payload.text }) });
+        if (!docResult?.id) throw new Error("ElevenLabs non ha restituito l'ID del documento");
+        try {
+          await elFetch(`/convai/agents/${agent_id}`, "PATCH", apiKey, {
+            conversation_config: { agent: { prompt: { ...prompt, knowledge_base: [
+              ...(prompt.knowledge_base ?? []), { id: docResult.id, name: payload.name, type },
+            ] } } },
+          });
+        } catch (err) {
+          try { await elFetch(`/convai/knowledge-base/${docResult.id}`, "DELETE", apiKey); } catch { /* Original failure stays visible. */ }
+          throw err;
+        }
+        result = { elevenlabs_doc_id: docResult.id };
         break;
       }
 
@@ -644,13 +702,13 @@ Deno.serve(async (req) => {
         const own = await findOwnedAgentByElevenLabsId(adminClient, companyId, agent_id);
         if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
 
-        try {
-          await elFetch(`/convai/agents/${agent_id}/remove-from-knowledge-base`, "POST", apiKey, {
-            document_id: payload.doc_id,
-          });
-        } catch {
-          // Doc may not exist on EL side
-        }
+        const remote = await elFetch(`/convai/agents/${agent_id}`, "GET", apiKey);
+        const prompt = remote?.conversation_config?.agent?.prompt ?? {};
+        await elFetch(`/convai/agents/${agent_id}`, "PATCH", apiKey, {
+          conversation_config: { agent: { prompt: { ...prompt,
+            knowledge_base: (prompt.knowledge_base ?? []).filter((doc: { id: string }) => doc.id !== payload.doc_id),
+          } } },
+        });
         result = { success: true };
         break;
       }
@@ -660,12 +718,8 @@ Deno.serve(async (req) => {
         const own = await findOwnedAgentByElevenLabsId(adminClient, companyId, agent_id);
         if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
 
-        try {
-          const docs = await elFetch(`/convai/agents/${agent_id}/knowledge-base`, "GET", apiKey);
-          result = docs;
-        } catch {
-          result = { documents: [] };
-        }
+        const remote = await elFetch(`/convai/agents/${agent_id}`, "GET", apiKey);
+        result = { documents: remote?.conversation_config?.agent?.prompt?.knowledge_base ?? [] };
         break;
       }
 
@@ -731,20 +785,17 @@ Deno.serve(async (req) => {
 
       case "get_phone_numbers": {
         const phonesRes = await elFetch("/convai/phone-numbers", "GET", apiKey);
-        if (callerIsSuperAdmin) {
-          result = phonesRes;
-          break;
-        }
 
         const rawNumbers = Array.isArray(phonesRes?.phone_numbers)
           ? phonesRes.phone_numbers
           : Array.isArray(phonesRes)
             ? phonesRes
             : [];
-        const { data: localNumbers } = await adminClient
+        const { data: localNumbers, error: numbersError } = await adminClient
           .from("ai_phone_numbers_v2")
           .select("numero, elevenlabs_phone_id")
           .eq("company_id", companyId);
+        if (numbersError) throw numbersError;
         const allowedIds = new Set(
           ((localNumbers as Array<{ elevenlabs_phone_id?: string | null }> | null) ?? [])
             .map((n) => n.elevenlabs_phone_id)
@@ -776,7 +827,7 @@ Deno.serve(async (req) => {
         const formData = new FormData();
         formData.append("name", payload.name as string);
         if (payload.description) formData.append("description", payload.description as string);
-        const blob = new Blob([audioBytes], { type: "audio/mpeg" });
+        const blob = new Blob([new Uint8Array(audioBytes).buffer], { type: "audio/mpeg" });
         formData.append("files", blob, "sample.mp3");
 
         const voiceRes = await fetch(`${EL_BASE}/voices/add`, {
@@ -795,12 +846,30 @@ Deno.serve(async (req) => {
       case "sync_kb": {
         // Sync local docs to EL — just returns current EL docs for comparison
         if (!agent_id) throw new Error("agent_id richiesto");
-        try {
-          const elDocs = await elFetch(`/convai/agents/${agent_id}/knowledge-base`, "GET", apiKey);
-          result = { elevenlabs_docs: elDocs?.documents || [] };
-        } catch {
-          result = { elevenlabs_docs: [] };
+        const own = await findOwnedAgentByElevenLabsId(adminClient, companyId, agent_id);
+        if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
+        const remote = await elFetch(`/convai/agents/${agent_id}`, "GET", apiKey);
+        result = { elevenlabs_docs: remote?.conversation_config?.agent?.prompt?.knowledge_base || [] };
+        break;
+      }
+
+      case "assign_phone_agent": {
+        if (!payload?.local_phone_id) return json({ error: "Numero locale richiesto" }, 400);
+        const { data: number, error: numberError } = await adminClient.from("ai_phone_numbers_v2")
+          .select("id, elevenlabs_phone_id").eq("company_id", companyId).eq("id", payload.local_phone_id).single();
+        if (numberError || !number) return json({ error: "Numero non trovato o non autorizzato" }, 403);
+        let localAgentId: string | null = null;
+        if (agent_id) {
+          const own = await findOwnedAgentByElevenLabsId(adminClient, companyId, agent_id);
+          if (!own?.v2AgentId) return json({ error: "Agente non trovato o non autorizzato" }, 403);
+          localAgentId = own.v2AgentId;
         }
+        if (number.elevenlabs_phone_id) await elFetch(`/convai/phone-numbers/${number.elevenlabs_phone_id}`,
+          "PATCH", apiKey, { agent_id: agent_id ?? null });
+        const { data: saved, error } = await adminClient.from("ai_phone_numbers_v2")
+          .update({ agent_id: localAgentId }).eq("id", number.id).eq("company_id", companyId).select("id").single();
+        if (error || !saved) throw error || new Error("Assegnazione numero non salvata");
+        result = { success: true };
         break;
       }
 
@@ -811,24 +880,27 @@ Deno.serve(async (req) => {
         // Ownership check
         const own = await findOwnedAgentByElevenLabsId(adminClient, companyId, agent_id);
         if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
+        const [{ data: v2Number, error: v2ReadError }, { data: legacyNumber, error: legacyReadError }] = await Promise.all([
+          adminClient.from("ai_phone_numbers_v2").select("id, elevenlabs_phone_id")
+            .eq("company_id", companyId).eq("numero", payload.phone_number).maybeSingle(),
+          adminClient.from("ai_agent_phone_numbers").select("id, elevenlabs_phone_number_id")
+            .eq("company_id", companyId).eq("phone_number", payload.phone_number).maybeSingle(),
+        ]);
+        if (v2ReadError || legacyReadError) throw v2ReadError || legacyReadError;
+        if (!v2Number && !legacyNumber) return json({ error: "Numero non appartenente all'azienda" }, 403);
 
         // Chiave Telnyx: secret env prima, tabella dopo. In produzione la
         // tabella ha api_key_encrypted VUOTO e questo ramo falliva sempre con
         // "Telnyx non configurato" — con TELNYX_API_KEY sano a un metro.
-        const telnyx = await risolviTelnyx(adminClient);
-        if (!telnyx) throw new Error("Telnyx non configurato: manca TELNYX_API_KEY (secret) e telnyx_settings e' vuota");
-
-        const linkBody: Record<string, unknown> = {
-          phone_number: payload.phone_number,
-          provider: "telnyx",
-          telnyx_api_key: telnyx.apiKey,
-        };
-        if (telnyx.connectionId) {
-          linkBody.telnyx_connection_id = telnyx.connectionId;
+        let elPhoneNumberId = v2Number?.elevenlabs_phone_id || legacyNumber?.elevenlabs_phone_number_id;
+        if (!elPhoneNumberId) {
+          // A retry after a local write failure must not import the same number twice.
+          const existing = await elFetch("/convai/phone-numbers", "GET", apiKey);
+          const remoteNumbers = Array.isArray(existing) ? existing : existing?.phone_numbers ?? [];
+          const found = remoteNumbers.find((n: Record<string, unknown>) => normalizePhone(n.phone_number) === normalizePhone(payload.phone_number));
+          elPhoneNumberId = found?.phone_number_id || found?.id;
         }
-
-        const linkRes = await elFetch("/convai/phone-numbers/create", "POST", apiKey, linkBody);
-        const elPhoneNumberId = linkRes?.phone_number_id || linkRes?.id;
+        if (!elPhoneNumberId) throw new Error("Importa prima questo numero in ElevenLabs come trunk SIP Telnyx e configura l'instradamento. La sola chiave API Telnyx non collega il numero.");
 
         // ── FIX F5 voce INBOUND ─────────────────────────────────────────────
         // Il create registra il numero su ElevenLabs ma NON lo assegna
@@ -861,12 +933,13 @@ Deno.serve(async (req) => {
         // numero però gia' acquistato e fatturato sia su Telnyx sia su
         // ElevenLabs. Ora l'id finisce su ENTRAMBI i modelli.
         if (elPhoneNumberId) {
-          if (payload.local_phone_id) {
-            await adminClient
+          if (legacyNumber) {
+            const { error: legacyWriteError } = await adminClient
               .from("ai_agent_phone_numbers")
               .update({ elevenlabs_phone_number_id: elPhoneNumberId })
-              .eq("id", payload.local_phone_id)
+              .eq("id", legacyNumber.id)
               .eq("company_id", companyId);
+            if (legacyWriteError) throw legacyWriteError;
           }
 
           // Modello v2: match sul numero (l'unico dato sempre disponibile qui).
@@ -875,16 +948,13 @@ Deno.serve(async (req) => {
           const { error: v2Err, count: v2Count } = await adminClient
             .from("ai_phone_numbers_v2")
             .update(
-              { elevenlabs_phone_id: elPhoneNumberId },
+              { elevenlabs_phone_id: elPhoneNumberId, ...(own.v2AgentId && inboundAssigned ? { agent_id: own.v2AgentId } : {}) },
               { count: "exact" },
             )
             .eq("company_id", companyId)
             .eq("numero", payload.phone_number);
           if (v2Err) {
-            console.error(
-              "[elevenlabs-proxy] aggiornamento ai_phone_numbers_v2 fallito:",
-              v2Err.message,
-            );
+            throw v2Err;
           } else {
             console.log(
               `[elevenlabs-proxy] id ElevenLabs propagato su ${v2Count ?? 0} riga/e v2 per ${payload.phone_number}`,
@@ -908,6 +978,7 @@ Deno.serve(async (req) => {
 
     return json(result);
   } catch (err: unknown) {
+    if (err instanceof Response) return err;
     const message = err instanceof Error ? err.message : "Errore interno";
     console.error("elevenlabs-proxy error:", message);
     return json({ error: message }, 500);
@@ -919,6 +990,7 @@ Deno.serve(async (req) => {
 async function elFetch(path: string, method: string, apiKey: string, body?: unknown) {
   const opts: RequestInit = {
     method,
+    signal: AbortSignal.timeout(30_000),
     headers: {
       "xi-api-key": apiKey,
       "Content-Type": "application/json",
@@ -929,14 +1001,35 @@ async function elFetch(path: string, method: string, apiKey: string, body?: unkn
   const res = await fetch(`${EL_BASE}${path}`, opts);
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`ElevenLabs API error ${res.status}: ${text}`);
+    throw new ElevenLabsApiError(res.status, text);
   }
   if (res.status === 204) return null;
   return res.json();
 }
 
+class ElevenLabsApiError extends Error {
+  constructor(public status: number, detail: string) { super(`ElevenLabs API error ${status}: ${detail}`); }
+}
+function validMaxDuration(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 30 || value > 3600) {
+    throw new Error("La durata massima deve essere tra 30 e 3600 secondi");
+  }
+  return value;
+}
+
+function validTemperature(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) throw new Error("Temperatura non valida: usa un valore tra 0 e 1");
+  return value;
+}
+async function cleanupTools(apiKey: string, ids: string[]) {
+  for (const id of ids) {
+    try { await elFetch(`/convai/tools/${id}`, "DELETE", apiKey); }
+    catch { console.warn("Pulizia strumento ElevenLabs incompleta"); }
+  }
+}
+
 async function auditLog(
-  client: ReturnType<typeof createClient>,
+  client: SupabaseClient,
   companyId: string,
   agentId: string | null,
   userId: string,
@@ -952,17 +1045,9 @@ async function auditLog(
   });
 }
 
-async function isSuperAdmin(client: ReturnType<typeof createClient>, userId: string): Promise<boolean> {
-  const { data } = await client
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId);
-  return ((data as Array<{ role?: string }> | null) ?? []).some((row) => row.role === "super_admin");
-}
-
 /** Gli id dei tool EL salvati nel tools_config locale (v2, poi legacy). */
 async function toolIdsPrecedenti(
-  client: ReturnType<typeof createClient>,
+  client: SupabaseClient,
   ownership: { legacyAgentId: string | null; v2AgentId: string | null },
 ): Promise<string[]> {
   if (ownership.v2AgentId) {
@@ -979,7 +1064,7 @@ async function toolIdsPrecedenti(
 }
 
 async function findOwnedAgentByElevenLabsId(
-  client: ReturnType<typeof createClient>,
+  client: SupabaseClient,
   companyId: string,
   elevenlabsAgentId: string,
 ): Promise<{ legacyAgentId: string | null; v2AgentId: string | null } | null> {
@@ -1005,7 +1090,7 @@ async function findOwnedAgentByElevenLabsId(
 }
 
 async function hasConversationAccess(
-  client: ReturnType<typeof createClient>,
+  client: SupabaseClient,
   companyId: string,
   elevenlabsConversationId: string,
 ): Promise<boolean> {

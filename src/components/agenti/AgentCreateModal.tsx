@@ -526,16 +526,18 @@ function StepComportamento({ state, update }: { state: WizardState; update: (p: 
       <p className="text-sm text-muted-foreground">Configura il comportamento avanzato dell'agente vocale.</p>
 
       <div className="space-y-3">
-        <ToggleRow label="Risposta automatica" desc="L'agente risponde automaticamente alle chiamate" checked={state.risposta_automatica} onChange={(v) => update({ risposta_automatica: v })} />
+        <ToggleRow label="Risposta alle chiamate" desc="Si abilita assegnando il numero all'agente nella scheda Telefonia" checked={state.risposta_automatica} onChange={(v) => update({ risposta_automatica: v })} disabled />
         <ToggleRow label="Registra chiamate" desc="Salva audio delle conversazioni" checked={state.registra_chiamate} onChange={(v) => update({ registra_chiamate: v })} />
-        <ToggleRow label="Trascrivi chiamate" desc="Genera trascrizione automatica" checked={state.trascrivi_chiamate} onChange={(v) => update({ trascrivi_chiamate: v })} />
+        <ToggleRow label="Trascrizione automatica" desc="Necessaria al servizio vocale; conservazione da configurare nel provider" checked={state.trascrivi_chiamate} onChange={(v) => update({ trascrivi_chiamate: v })} disabled />
         <ToggleRow label="Rileva segreteria" desc="Riconosce e gestisce le segreterie telefoniche" checked={state.rileva_segreteria} onChange={(v) => update({ rileva_segreteria: v })} />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>Squilli max</Label>
+          <p className="text-[11px] text-muted-foreground">Gestiti dal provider telefonico, non da questo campo.</p>
           <Input
+            disabled
             type="number"
             value={state.squillo_max}
             onChange={(e) => update({ squillo_max: parseInt(e.target.value) || 6 })}
@@ -668,14 +670,14 @@ function StepReview({ state }: { state: WizardState }) {
 
 // ─── Helpers ───
 
-function ToggleRow({ label, desc, checked, onChange }: { label: string; desc: string; checked: boolean; onChange: (v: boolean) => void }) {
+function ToggleRow({ label, desc, checked, onChange, disabled = false }: { label: string; desc: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-2 py-1">
       <div>
         <span className="text-sm font-medium text-foreground">{label}</span>
         <p className="text-[11px] text-muted-foreground">{desc}</p>
       </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch aria-label={label} disabled={disabled} checked={checked} onCheckedChange={onChange} />
     </div>
   );
 }

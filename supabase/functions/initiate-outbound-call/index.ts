@@ -1,7 +1,11 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { saldoVoce, SOGLIA_MINIMA_CHIAMATA_EUR } from "../_shared/voiceCredits.ts";
 import { prezzoMinutoVoce } from "../_shared/voicePricing.ts";
+import { outboundVoiceRequest } from "../_shared/outboundVoice.ts";
+import { agentCompanyAccess } from "../_shared/agentCompanyAccess.ts";
+import { normalizeVoicePhone, voiceContactExclusion } from "../_shared/contactVoice.ts";
+import { segnalaErroreAI } from "../_shared/allarmeAI.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -50,28 +54,22 @@ Deno.serve(async (req) => {
 
     userId = user.id;
 
-    const { data: profile } = await adminClient
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-
-    if (!profile?.company_id) return json(req, { error: "No company" }, 400);
-    companyId = profile.company_id;
-
     const body = await req.json();
     const { agent_id, contact_id, phone_number } = body;
+    const access = await agentCompanyAccess(adminClient, userId, body.company_id, getCorsHeaders(req));
+    companyId = access.companyId;
 
     return await handleOutboundCall(req, adminClient, {
       agentId: agent_id,
       contactId: contact_id,
       phoneNumber: phone_number,
-      companyId,
+      companyId: access.companyId,
       userId,
       skipSubscriptionCheck: false,
       dynamicVars: body.dynamic_vars,
     });
   } catch (err: unknown) {
+    if (err instanceof Response) return err;
     const message = err instanceof Error ? err.message : "Internal error";
     console.error("initiate-outbound-call error:", message);
     return json(req, { error: message }, 500);
@@ -90,11 +88,12 @@ interface OutboundCallParams {
 
 async function handleOutboundCall(
   req: Request,
-  adminClient: ReturnType<typeof createClient>,
+  adminClient: SupabaseClient,
   params: OutboundCallParams
 ) {
   const { agentId, contactId, phoneNumber, companyId, userId, skipSubscriptionCheck, dynamicVars } = params;
 
+  if (typeof companyId !== "string" || !companyId) return json(req, { error: "company_id obbligatorio" }, 400);
   if (!agentId) return json(req, { error: "agent_id obbligatorio" }, 400);
   if (!contactId && !phoneNumber) return json(req, { error: "contact_id o phone_number obbligatorio" }, 400);
 
@@ -113,35 +112,42 @@ async function handleOutboundCall(
      *  leggeva nessuno: v2 la chiama `durata_max_secondi`, il modello legacy
      *  `max_duration`. */
     durataMassimaSecondi?: number | null;
+    llmModel?: string | null;
   };
   let agent: CallAgent | null = null;
   let agenteV2 = false;
 
-  const { data: agentV2 } = await adminClient
+  const { data: agentV2, error: agentV2Error } = await adminClient
     .from("ai_agents_v2")
-    .select("id, elevenlabs_agent_id, nome, durata_max_secondi")
+    .select("id, elevenlabs_agent_id, nome, durata_max_secondi, stato, llm_model")
     .eq("id", agentId)
     .eq("company_id", companyId)
     .maybeSingle();
+  if (agentV2Error) return json(req, { error: "Impossibile verificare l'agente" }, 500);
   if (agentV2) {
+    if (agentV2.stato !== "attivo") return json(req, { error: "Attiva l'agente prima di avviare una chiamata" }, 400);
     agent = {
       id: agentV2.id,
       elevenlabs_agent_id: agentV2.elevenlabs_agent_id,
       name: agentV2.nome,
       durataMassimaSecondi: agentV2.durata_max_secondi ?? null,
+      llmModel: agentV2.llm_model ?? null,
     };
     agenteV2 = true;
   } else {
-    const { data: agentLegacy } = await adminClient
+    const { data: agentLegacy, error: legacyError } = await adminClient
       .from("ai_agents")
-      .select("id, elevenlabs_agent_id, name, business_hours_enabled, orario_apertura, orario_chiusura, giorni_attivi, max_duration")
+      .select("id, elevenlabs_agent_id, name, status, business_hours_enabled, orario_apertura, orario_chiusura, giorni_attivi, max_duration, llm_model")
       .eq("id", agentId)
       .eq("company_id", companyId)
       .maybeSingle();
+    if (legacyError) return json(req, { error: "Impossibile verificare l'agente legacy" }, 500);
+    if (agentLegacy && agentLegacy.status !== "active") return json(req, { error: "Attiva l'agente prima di avviare una chiamata" }, 400);
     agent = agentLegacy as CallAgent | null;
     if (agent && agentLegacy) {
       agent.durataMassimaSecondi =
         (agentLegacy as { max_duration?: number | null }).max_duration ?? null;
+      agent.llmModel = agentLegacy.llm_model ?? null;
     }
   }
 
@@ -171,20 +177,27 @@ async function handleOutboundCall(
   let targetContactId = contactId;
 
   if (contactId) {
-    const { data: contact } = await adminClient
+    const { data: contact, error: contactError } = await adminClient
       .from("marketing_contacts")
-      .select("id, phone, optout_call")
+      .select("id, phone, optout_call, opt_out, deleted_at, ricontatta_dopo")
       .eq("id", contactId)
       .eq("company_id", companyId)
-      .single();
+      .maybeSingle();
 
+    if (contactError) return json(req, { error: "Impossibile verificare il contatto" }, 500);
     if (!contact) return json(req, { error: "Contatto non trovato" }, 404);
-    if (contact.optout_call) return json(req, { error: "Contatto in DND per chiamate." }, 403);
-    if (!contact.phone) return json(req, { error: "Contatto senza numero di telefono" }, 400);
+    const excluded = voiceContactExclusion(contact);
+    if (excluded) return json(req, { error: excluded }, 403);
 
     targetPhone = contact.phone;
     targetContactId = contact.id;
   }
+
+  const normalizedPhone = normalizeVoicePhone(targetPhone);
+  if (!normalizedPhone) {
+    return json(req, { error: "Numero di telefono non valido: usa il prefisso internazionale (es. +39)." }, 400);
+  }
+  targetPhone = normalizedPhone;
 
   // Gate funzionalita'. Prima si guardava ai_subscriptions, tabella del vecchio
   // modulo AI che in produzione e' VUOTA: ogni utente non super_admin riceveva
@@ -233,9 +246,7 @@ async function handleOutboundCall(
   // Il tetto e' quello dell'agente; la tariffa e' la stessa che usa il conteggio
   // dopo la chiamata, quindi le due cifre parlano la stessa lingua.
   if (agent.durataMassimaSecondi && agent.durataMassimaSecondi > 0) {
-    // Il client qui e' quello permissivo delle edge function: il cast tiene
-    // buono il generico dell'aiutante condiviso.
-    const tariffa = await prezzoMinutoVoce(adminClient as never, companyId, null, null);
+    const tariffa = await prezzoMinutoVoce(adminClient, companyId, agent.llmModel, null);
     const minutiMax = agent.durataMassimaSecondi / 60;
     const costoMassimo = Number((minutiMax * tariffa.prezzoPerMin).toFixed(2));
     if (saldo.spendibile < costoMassimo) {
@@ -259,61 +270,60 @@ async function handleOutboundCall(
   // Get phone number config — prima ai_phone_numbers_v2 (nuovo modello), fallback al
   // legacy ai_agent_phone_numbers. Si usa l'ID numero ElevenLabs (Telnyx-linked).
   let elPhoneId: string | null = null;
+  let phoneProvider = "telnyx";
 
-  const { data: phoneV2 } = await adminClient
+  const { data: phoneV2, error: phoneV2Error } = await adminClient
     .from("ai_phone_numbers_v2")
-    .select("elevenlabs_phone_id")
+    .select("elevenlabs_phone_id, provider")
     .eq("agent_id", agentId)
     .eq("company_id", companyId)
+    .eq("attivo", true)
+    .not("elevenlabs_phone_id", "is", null)
     .limit(1)
     .maybeSingle();
+  if (phoneV2Error) return json(req, { error: "Impossibile verificare il numero dell'agente" }, 500);
   if (phoneV2?.elevenlabs_phone_id) {
     elPhoneId = phoneV2.elevenlabs_phone_id;
+    phoneProvider = phoneV2.provider || "telnyx";
   } else {
-    const { data: phoneConfig } = await adminClient
+    const { data: phoneConfig, error: phoneError } = await adminClient
       .from("ai_agent_phone_numbers")
-      .select("elevenlabs_phone_id, elevenlabs_phone_number_id")
+      .select("elevenlabs_phone_id, elevenlabs_phone_number_id, provider")
       .eq("agent_id", agentId)
       .eq("company_id", companyId)
       .limit(1)
       .maybeSingle();
+    if (phoneError) return json(req, { error: "Impossibile verificare il numero dell'agente" }, 500);
     elPhoneId = phoneConfig?.elevenlabs_phone_number_id || phoneConfig?.elevenlabs_phone_id || null;
+    phoneProvider = phoneConfig?.provider || "twilio";
   }
 
   if (!elPhoneId) {
     return json(req, { error: "Nessun numero di telefono configurato per questo agente." }, 400);
   }
 
-  // Build ElevenLabs call payload with optional dynamic variables
-  const elPayload: Record<string, unknown> = {
-    agent_id: agent.elevenlabs_agent_id,
-    agent_phone_number_id: elPhoneId,
-    to_number: targetPhone,
-  };
+  const { url: outboundUrl, payload: elPayload } = outboundVoiceRequest(phoneProvider, agent.elevenlabs_agent_id, elPhoneId, targetPhone, dynamicVars);
 
-  if (dynamicVars && Object.keys(dynamicVars).length > 0) {
-    elPayload.conversation_config = {
-      agent: {
-        dynamic_variables: dynamicVars,
-      },
-    };
-  }
-
-  // Initiate outbound call via ElevenLabs Telnyx endpoint (with 429 retry, max 3 attempts)
+  // Initiate via the configured provider (with 429 retry, max 3 attempts).
   let callRes: Response | null = null;
   let callData: Record<string, unknown> = {};
   const MAX_ATTEMPTS = 3;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    callRes = await fetch("https://api.elevenlabs.io/v1/convai/telnyx/outbound-call", {
+    try { callRes = await fetch(outboundUrl, {
       method: "POST",
+      signal: AbortSignal.timeout(30_000),
       headers: {
         "xi-api-key": elevenLabsApiKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(elPayload),
-    });
-    callData = await callRes.json();
+    }); } catch (error) {
+      segnalaErroreAI(error, { funzione: "initiate-outbound-call", companyId, modello: agent.llmModel || undefined });
+      // No retry after an ambiguous network outcome: a call may already have started.
+      return json(req, { error: "Esito della chiamata non verificabile. Controlla le conversazioni prima di riprovare.", outcome_unknown: true }, 502);
+    }
+    callData = await callRes.json().catch(() => ({}));
 
     if (callRes.status !== 429) break;
 
@@ -324,8 +334,13 @@ async function handleOutboundCall(
   }
 
   if (!callRes!.ok) {
+    segnalaErroreAI({ provider: "elevenlabs", stato: callRes!.status, messaggio: JSON.stringify(callData) }, { funzione: "initiate-outbound-call", companyId });
     console.error("[OUTBOUND] ElevenLabs error:", callData);
     return json(req, { error: (callData as any)?.detail?.message || (callData as any)?.detail || "Errore ElevenLabs" }, callRes!.status);
+  }
+  if (callData.success === false || (callData.success !== true && !callData.conversation_id)) {
+    segnalaErroreAI({ provider: "elevenlabs", stato: 502, messaggio: "Avvio outbound non confermato" }, { funzione: "initiate-outbound-call", companyId });
+    return json(req, { error: "Il provider non ha confermato l'avvio della chiamata." }, 502);
   }
 
   // Save conversation record. Per gli agenti v2 la FK e' agent_v2_id: prima
@@ -341,7 +356,7 @@ async function handleOutboundCall(
     status: "in_progress",
     duration_seconds: 0,
     messages_count: 0,
-    metadata: { outbound: true, phone: targetPhone, initiated_by: userId, provider: "telnyx" },
+    metadata: { outbound: true, phone: targetPhone, initiated_by: userId, provider: phoneProvider },
   });
   if (convErr) console.error("[OUTBOUND] segnaposto conversazione NON salvato:", convErr.message);
 
@@ -355,7 +370,7 @@ async function handleOutboundCall(
       contact_id: targetContactId,
       phone: targetPhone,
       elevenlabs_conversation_id: callData.conversation_id,
-      provider: "telnyx",
+      provider: phoneProvider,
     },
   });
 

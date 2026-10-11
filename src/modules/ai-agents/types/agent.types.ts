@@ -123,6 +123,8 @@ export const LANGUAGE_OPTIONS = [
 ];
 
 export type ProxyAction =
+  | "get_capabilities"
+  | "list_campaigns" | "campaign_agents" | "create_campaign" | "delete_campaign" | "campaign_contacts" | "prepare_campaign"
   | "create_agent"
   | "get_agent"
   | "list_agents"
@@ -135,6 +137,7 @@ export type ProxyAction =
   | "list_kb_docs"
   | "sync_kb"
   | "link_phone_number"
+  | "assign_phone_agent"
   | "get_conversations"
   | "get_conversation"
   | "get_conversation_audio"

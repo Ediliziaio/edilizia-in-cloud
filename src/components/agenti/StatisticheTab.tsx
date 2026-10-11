@@ -5,7 +5,8 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Phone, MessageSquare, Bot, CreditCard, TrendingUp, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { MessageSquare, Bot, CreditCard, TrendingUp, Clock } from "lucide-react";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -42,25 +43,20 @@ export function StatisticheTab() {
   // Realtime subscription: invalida le query stats ad ogni nuova conversazione
   useEffect(() => {
     if (!companyId) return;
-    const channel = supabase
-      .channel("ai-stats-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "ai_agent_conversations",
-          filter: `company_id=eq.${companyId}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["ai-analytics", companyId] });
-        }
-      )
-      .subscribe();
+    let channel = supabase.channel(`ai-stats-realtime:${companyId}`);
+    for (const table of ["ai_agent_conversations", "ai_conversations_v2", "ai_chat_sessions", "ai_credit_transactions", "ai_agents_v2"]) {
+      channel = channel.on("postgres_changes", {
+        event: "*", schema: "public", table, filter: `company_id=eq.${companyId}`,
+      }, () => {
+        queryClient.invalidateQueries({ queryKey: ["ai-analytics", companyId] });
+        queryClient.invalidateQueries({ queryKey: ["ai-company-stats", companyId] });
+      });
+    }
+    channel.subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [companyId, queryClient]);
 
-  const { data: analytics, isLoading } = useQuery({
+  const { data: analytics, isLoading, isError, refetch } = useQuery({
     queryKey: ["ai-analytics", companyId, giorni],
     enabled: !!companyId,
     queryFn: async () => {
@@ -72,6 +68,7 @@ export function StatisticheTab() {
       return data as unknown as Analytics;
     },
     staleTime: 60_000,
+    refetchInterval: 60_000,
   });
 
   if (isLoading) {
@@ -86,25 +83,25 @@ export function StatisticheTab() {
     );
   }
 
+  if (isError) {
+    return <div role="alert" className="rounded-lg border p-4 space-y-2">
+      <p>Impossibile caricare le statistiche. I contatori non sono disponibili.</p>
+      <Button variant="outline" onClick={() => refetch()}>Riprova</Button>
+    </div>;
+  }
   if (!analytics) {
     return (
       <div className="py-12 text-center">
         <p className="text-muted-foreground">Nessun dato disponibile</p>
-        {/* Audit AI 2026-06: i KPI dipendono dagli eventi conversazioni/chiamate
-            che il provider non invia ancora (webhook non cablato) — senza
-            questa nota lo zero sembrava "nessuna attività". */}
-        <p className="mx-auto mt-3 w-fit rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
-          Le statistiche si popoleranno quando la raccolta eventi (webhook provider) sarà attiva.
-        </p>
       </div>
     );
   }
 
   const kpis = [
-    { label: "Chiamate", value: analytics.chiamate.totali, icon: Phone, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
-    { label: "Tasso Risposta", value: `${Math.round(analytics.chiamate.tasso_risposta)}%`, icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
+    { label: "Conversazioni", value: analytics.chiamate.totali, icon: MessageSquare, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
+    { label: "Completamento", value: `${Math.round(analytics.chiamate.tasso_risposta)}%`, icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
     { label: "Chat", value: analytics.chat.totali, icon: MessageSquare, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
-    { label: "Durata Media", value: `${Math.round(analytics.chiamate.durata_media_sec)}s`, icon: Clock, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
+    { label: "Durata media conv.", value: `${Math.round(analytics.chiamate.durata_media_sec)}s`, icon: Clock, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
     { label: "Crediti Usati", value: analytics.crediti.totale_consumato.toFixed(1), icon: CreditCard, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
     { label: "Agenti Attivi", value: analytics.agenti.reduce((s, a) => s + a.count, 0), icon: Bot, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
   ];
@@ -114,16 +111,13 @@ export function StatisticheTab() {
     value: a.count,
   }));
 
-  // Audit AI 2026-06: chiamate/chat restano a zero finché la raccolta eventi
-  // dal provider (webhook) non è cablata — senza la nota, gli zeri sembrano
-  // "nessuna attività degli agenti" invece di "dati non ancora raccolti".
   const noEventData = (analytics.chiamate?.totali ?? 0) === 0 && (analytics.chat?.totali ?? 0) === 0;
 
   return (
     <div className="space-y-6">
       {noEventData && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Chiamate e chat si popoleranno quando la raccolta eventi dal provider (webhook) sarà attiva.
+          Nessuna conversazione o sessione chat registrata nel periodo selezionato.
         </p>
       )}
       <div className="flex items-center justify-between">
@@ -139,6 +133,7 @@ export function StatisticheTab() {
           </SelectContent>
         </Select>
       </div>
+      <p className="text-xs text-muted-foreground">Conversazioni e durata comprendono tutti i canali registrati. Le sessioni chat sono riportate separatamente.</p>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -166,7 +161,7 @@ export function StatisticheTab() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Phone className="h-4 w-4" /> Chiamate per Giorno
+              <MessageSquare className="h-4 w-4" /> Conversazioni per giorno
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -180,7 +175,7 @@ export function StatisticheTab() {
                     contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
                     labelStyle={{ color: "hsl(var(--foreground))" }}
                   />
-                  <Bar dataKey="count" name="Chiamate" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" name="Conversazioni" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

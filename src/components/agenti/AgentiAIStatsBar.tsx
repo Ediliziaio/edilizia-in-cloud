@@ -1,4 +1,4 @@
-import { Bot, Phone, MessageSquare, TrendingUp, Clock, CreditCard } from "lucide-react";
+import { Bot, MessageSquare, TrendingUp, Clock, CreditCard } from "lucide-react";
 import type { AICompanyStats } from "@/types/unifiedAgent.types";
 
 // I sei numeri stavano su una striscia bianca con bordo al 90% di luminosita':
@@ -16,15 +16,15 @@ const STAT_CONFIG = [
   },
   {
     key: "conv_totali" as const,
-    label: "Chiamate (30gg)",
-    icon: Phone,
+    label: "Conversazioni (30gg)",
+    icon: MessageSquare,
     format: (v: number) => v.toLocaleString("it-IT"),
     color: "text-violet-600",
     bg: "bg-violet-50 ring-1 ring-inset ring-violet-100",
   },
   {
     key: "minuti_totali" as const,
-    label: "Minuti (30gg)",
+    label: "Minuti totali (30gg)",
     icon: Clock,
     format: (v: number) => `${Math.round(v)} min`,
     color: "text-amber-600",
@@ -32,7 +32,7 @@ const STAT_CONFIG = [
   },
   {
     key: "chat_totali" as const,
-    label: "Chat (30gg)",
+    label: "Chat/WhatsApp (30gg)",
     icon: MessageSquare,
     format: (v: number) => v.toLocaleString("it-IT"),
     color: "text-sky-600",
@@ -40,7 +40,7 @@ const STAT_CONFIG = [
   },
   {
     key: "tasso_risposta" as const,
-    label: "Tasso risposta",
+    label: "Risposte outbound",
     icon: TrendingUp,
     format: (v: number) => `${Math.round(v)}%`,
     color: "text-emerald-600",

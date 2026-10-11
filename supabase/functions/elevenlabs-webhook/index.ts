@@ -1,7 +1,8 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verificaFirmaElevenLabs, normalizzaPostCall } from "../_shared/elevenlabsWebhook.ts";
 import { corsHeaders as baseCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { prezzoMinutoVoce } from "../_shared/voicePricing.ts";
+import { voiceConversationStatus } from "../_shared/voiceConversation.ts";
 
 const corsHeaders = {
   ...baseCorsHeaders,
@@ -368,13 +369,13 @@ Deno.serve(async (req) => {
     if (agentV2Id) {
       try {
         const durationMin = Math.max(0.0167, durationSeconds / 60);
-        await adminClient.from("ai_conversations_v2").insert({
+        const { error: mirrorError } = await adminClient.from("ai_conversations_v2").insert({
           agent_id: agentV2Id,
           company_id: companyId,
           elevenlabs_conversation_id: conversationId,
           contact_id: contactId,
-          stato: status === "completed" ? "completata" : status,
-          canale: "telefono",
+          stato: voiceConversationStatus(status),
+          canale: "voce",
           direzione: callDirection,
           durata_secondi: durationSeconds,
           riassunto: summaryText,
@@ -382,9 +383,12 @@ Deno.serve(async (req) => {
           numero_chiamante: metadata?.caller_phone || null,
           numero_chiamato: metadata?.called_phone || null,
         } as never);
+        // Supabase returns write failures as data, not thrown exceptions.
+        // Never increment counters when the corresponding row was rejected.
+        if (mirrorError) throw new Error(mirrorError.message);
 
         // Increment v2 agent stats atomically
-        await adminClient.rpc("increment_agent_stats" as never, {
+        const { error: statsError } = await adminClient.rpc("increment_agent_stats" as never, {
           p_agent_id: agentV2Id,
           p_chiamate: 1,
           p_chiamate_completate: status === "completed" ? 1 : 0,
@@ -392,6 +396,7 @@ Deno.serve(async (req) => {
           p_chat: 0,
           p_costo: 0, // will be set after billing calc
         } as never);
+        if (statsError) throw new Error(statsError.message);
       } catch (v2Err) {
         console.error("[WEBHOOK] v2 dual-write error:", v2Err);
       }

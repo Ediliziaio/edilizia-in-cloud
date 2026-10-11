@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -22,7 +22,7 @@ import { ConversazioniTab } from "@/components/agenti/ConversazioniTab";
 import { AgenteWhatsAppLeadPanel } from "@/components/agenti/AgenteWhatsAppLeadPanel";
 import { useAiAgentsBasePath } from "@/hooks/useAiAgentsBasePath";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { callElevenLabsProxy } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
+import { callElevenLabsProxy, requireAgentProxyV2 } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
 import type { UnifiedAgent } from "@/types/unifiedAgent.types";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -70,14 +70,17 @@ export default function AgentDetailPage() {
   const companyId = useEffectiveCompanyId();
   // Prefix dinamico: preserva contesto admin vs azienda sui link "Torna agli agenti"
   const basePath = useAiAgentsBasePath();
-  const [activeTab, setActiveTab] = useState<SubTab>("panoramica");
+  const [params, setParams] = useSearchParams();
+  const requestedTab = params.get("tab");
+  const activeTab: SubTab = ["configurazione", "conversazioni", "statistiche"].includes(requestedTab ?? "") ? requestedTab as SubTab : "panoramica";
+  const setActiveTab = (tab: SubTab) => setParams(previous => { const next = new URLSearchParams(previous); next.set("tab", tab); return next; }, { replace: true });
   // Telefono: l'agente si guarda (panoramica e chiamate); configurazione e
   // statistiche si usano da computer o tablet.
   const isMobile = useIsMobile();
   const schedaVisibile: SubTab =
     isMobile && (activeTab === "configurazione" || activeTab === "statistiche") ? "panoramica" : activeTab;
 
-  const { data: agent, isLoading } = useQuery({
+  const { data: agent, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["agent-detail", companyId, agentId],
     enabled: !!agentId && !!companyId,
     queryFn: async () => {
@@ -108,7 +111,7 @@ export default function AgentDetailPage() {
 
   useEffect(() => {
     setHasLoadedEdit(false);
-  }, [agentId]);
+  }, [agentId, companyId]);
 
   // Load edit state from agent — in useEffect per evitare setState durante
   // render (React anti-pattern che causava "Cannot update state during render"
@@ -173,9 +176,12 @@ export default function AgentDetailPage() {
         trasferimento: { ...(prevConfig.trasferimento ?? {}), numero: numeroOperatore },
       };
 
+      let syncedToolIds: string[] | undefined;
       if (agent?.elevenlabs_agent_id) {
-        await callElevenLabsProxy({
+        await requireAgentProxyV2(companyId);
+        const synced = await callElevenLabsProxy<{ elevenlabs_tool_ids?: string[] }>({
           action: "update_agent",
+          company_id: companyId,
           agent_id: agent.elevenlabs_agent_id,
           payload: {
             name: nome,
@@ -183,12 +189,14 @@ export default function AgentDetailPage() {
             first_message: editPrimoMsg.trim() || "",
             language: editLingua,
             llm_model: editModel,
+            temperature: Math.min(1, Math.max(0, safeNumber(editTemp, 0.7))),
             tools_config: newToolsConfig,
           },
         });
+        syncedToolIds = synced.elevenlabs_tool_ids;
       }
 
-      const { error } = await supabase
+      const { data: saved, error } = await supabase
         .from("ai_agents_v2")
         .update({
           nome,
@@ -198,11 +206,11 @@ export default function AgentDetailPage() {
           lingua: editLingua,
           llm_model: editModel,
           temperatura: Math.min(1, Math.max(0, safeNumber(editTemp, 0.7))),
-          tools_config: newToolsConfig,
+          tools_config: { ...newToolsConfig, ...(syncedToolIds ? { elevenlabs_tool_ids: syncedToolIds } : {}) },
         } as never)
         .eq("company_id", companyId)
-        .eq("id", agentId!);
-      if (error) throw error;
+        .eq("id", agentId!).select("id").single();
+      if (error || !saved) throw error || new Error("Agente non aggiornato");
     },
     onSuccess: () => {
       toast.success("Agente aggiornato");
@@ -210,6 +218,20 @@ export default function AgentDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["unified-ai-agents"] });
     },
     onError: (err) => toast.error(err.message),
+  });
+
+  const connectAgent = useMutation({
+    mutationFn: async () => {
+      if (!companyId || !agentId) throw new Error("Azienda o agente mancanti");
+      await requireAgentProxyV2(companyId);
+      await callElevenLabsProxy({ action: "create_agent", company_id: companyId, payload: { local_agent_id: agentId } });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agent-detail", companyId, agentId] });
+      queryClient.invalidateQueries({ queryKey: ["unified-ai-agents", companyId] });
+      toast.success("Agente collegato a ElevenLabs");
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   if (isLoading) {
@@ -220,6 +242,10 @@ export default function AgentDetailPage() {
     );
   }
 
+  if (isError) return <div role="alert" className="py-8 text-center">
+    <p>Impossibile caricare l'agente: {error.message}</p>
+    <Button variant="outline" className="mt-3" onClick={() => refetch()}>Riprova</Button>
+  </div>;
   if (!agent) {
     return (
       <div className="p-6 text-center">
@@ -276,6 +302,17 @@ export default function AgentDetailPage() {
           </div>
         </div>
       </div>
+
+      {isVoice && !agent.elevenlabs_agent_id && (
+        <div role="status" className="mx-6 mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 max-md:mx-0">
+          <p className="text-sm">Bozza non collegata: l'agente non può ancora chiamare o rispondere. Salva le modifiche alla configurazione prima di collegarlo.</p>
+          <Button className="mt-3" variant="outline" onClick={() => connectAgent.mutate()}
+            disabled={connectAgent.isPending || updateAgent.isPending}>
+            {connectAgent.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Collega agente vocale
+          </Button>
+        </div>
+      )}
 
       {/* Tabs */}
       <Tabs value={schedaVisibile} onValueChange={(v) => setActiveTab(v as SubTab)}>

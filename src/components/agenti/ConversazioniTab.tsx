@@ -66,10 +66,11 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
     setAgentFilter(agentIdFilter || "tutti");
   }, [agentIdFilter]);
   const [selectedConv, setSelectedConv] = useState<ConversationV2 | null>(null);
+  useEffect(() => { setSelectedConv(null); }, [companyId]);
 
   const { data: agents = [] } = useUnifiedAgents();
 
-  const { data: conversations = [], isLoading } = useQuery({
+  const { data: conversations = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["ai-conversations-v2", companyId, agentFilter],
     enabled: !!companyId,
     queryFn: async () => {
@@ -77,6 +78,7 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
         .from("ai_conversations_v2" as never)
         .select("*")
         .eq("company_id", companyId!)
+        .eq("canale", "voce")
         .order("creato_il", { ascending: false })
         .limit(100);
 
@@ -90,7 +92,7 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
     },
   });
 
-  if (selectedConv) {
+  if (selectedConv && selectedConv.company_id === companyId) {
     return (
       <ConversazioneDetail
         conv={selectedConv}
@@ -127,6 +129,9 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
+      ) : isError ? (
+        <div role="alert" className="rounded-lg border p-4"><p>Impossibile caricare le chiamate.</p>
+          <Button variant="outline" className="mt-2" onClick={() => refetch()}>Riprova</Button></div>
       ) : conversations.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center max-md:py-4">
           <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-3 max-md:hidden">
@@ -232,6 +237,7 @@ function ConversazioneDetail({
   agentName: string;
   onBack: () => void;
 }) {
+  const companyId = useEffectiveCompanyId();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -251,35 +257,37 @@ function ConversazioneDetail({
   }, [audioSrc]);
 
   const fetchAudio = useCallback(async () => {
-    if (audioSrc || !conv.elevenlabs_conversation_id) return;
+    if (audioSrc) return audioSrc;
+    if (!companyId || !conv.elevenlabs_conversation_id) return null;
     setLoadingAudio(true);
     try {
       const result = await callElevenLabsProxy<{ audio_base64: string; content_type: string }>({
         action: "get_conversation_audio",
+        company_id: companyId!,
         payload: { conversation_id: conv.elevenlabs_conversation_id },
       });
-      if (result?.audio_base64) {
-        setAudioSrc(`data:${result.content_type};base64,${result.audio_base64}`);
-      }
+      if (!result?.audio_base64) throw new Error("Registrazione non disponibile");
+      const source = `data:${result.content_type};base64,${result.audio_base64}`;
+      setAudioSrc(source);
+      return source;
     } catch (e: any) {
       toast.error("Impossibile caricare l'audio");
+      return null;
     } finally {
       setLoadingAudio(false);
     }
-  }, [conv.elevenlabs_conversation_id, audioSrc]);
+  }, [conv.elevenlabs_conversation_id, audioSrc, companyId]);
 
   const togglePlay = async () => {
-    if (!audioSrc) {
-      await fetchAudio();
-    }
-    if (audioRef.current) {
-      if (playing) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
-      }
-      setPlaying(!playing);
-    }
+    try {
+      if (playing) { audioRef.current?.pause(); return; }
+      const source = audioSrc || await fetchAudio();
+      const audio = audioRef.current;
+      if (!audio || !source) return;
+      // The first click precedes React's next render: set src before play().
+      if (audio.src !== source) audio.src = source;
+      await audio.play();
+    } catch { setPlaying(false); toast.error("Impossibile riprodurre la registrazione"); }
   };
 
   const seekTo = (time: number) => {
@@ -287,8 +295,7 @@ function ConversazioneDetail({
       audioRef.current.currentTime = time;
       setCurrentTime(time);
       if (!playing) {
-        audioRef.current.play();
-        setPlaying(true);
+        audioRef.current.play().catch(() => toast.error("Impossibile riprodurre la registrazione"));
       }
     }
   };
@@ -350,15 +357,15 @@ function ConversazioneDetail({
               </div>
               <Volume2 className="h-4 w-4 text-muted-foreground" />
             </div>
-            {audioSrc && (
               <audio
                 ref={audioRef}
                 src={audioSrc}
+                onPlay={() => setPlaying(true)}
+                onPause={() => setPlaying(false)}
                 onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
                 onEnded={() => setPlaying(false)}
                 className="hidden"
               />
-            )}
           </CardContent>
         </Card>
       )}

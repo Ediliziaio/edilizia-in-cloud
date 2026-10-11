@@ -72,7 +72,7 @@ export default function AgentiAIPage() {
   const activeTab: MainTab =
     rawTab && TABS.some((t) => t.key === rawTab) && !(isMobile && !TAB_TELEFONO.includes(rawTab)) ? rawTab : "agenti";
   const companyId = useEffectiveCompanyId();
-  const { data: stats, isLoading: statsLoading } = useAICompanyStats();
+  const { data: stats, isLoading: statsLoading, isError: statsError, refetch: retryStats } = useAICompanyStats();
 
   // ElevenLabs config status — read-only via safe view
   const { data: elConfig } = useQuery({
@@ -166,7 +166,9 @@ export default function AgentiAIPage() {
 
         {/* Stats bar — only on Agenti tab */}
         {activeTab === "agenti" && (
-          stats
+          statsError ? <div role="alert" className="mb-3 rounded-lg border border-amber-200 p-3 text-sm">
+            Statistiche non caricate. <button className="underline" onClick={() => retryStats()}>Riprova</button>
+          </div> : stats
             ? <AgentiAIStatsBar stats={stats} />
             : statsLoading
               ? (

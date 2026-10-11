@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { requireAgentProxyV2 } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDropzone } from "react-dropzone";
 import {
@@ -106,11 +107,18 @@ export function KnowledgeBaseTab() {
   const addDoc = useMutation({
     mutationFn: async () => {
       if (!companyId || !user) throw new Error("Missing context");
+      if (!addTitle.trim()) throw new Error("Inserisci il titolo del documento");
+      if (addType === "text" && !addText.trim()) throw new Error("Inserisci il contenuto del documento");
+      if (addType === "file" && !addFile) throw new Error("Scegli il file da caricare");
+      if (addType === "url") {
+        const url = new URL(addUrl.trim());
+        if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("Inserisci un indirizzo web valido");
+      }
 
       // Insert doc record
       const insertData: Record<string, unknown> = {
         company_id: companyId,
-        titolo: addTitle,
+        titolo: addTitle.trim(),
         tipo: addType,
         sync_status: "pending",
       };
@@ -135,7 +143,11 @@ export function KnowledgeBaseTab() {
         const { error: uploadErr } = await supabase.storage
           .from("ai-knowledge")
           .upload(`${companyId}/${doc.id}`, addFile);
-        if (uploadErr) throw uploadErr;
+        if (uploadErr) {
+          const { error: rollbackError } = await supabase.from("ai_knowledge_base_v2").delete().eq("id", doc.id).eq("company_id", companyId);
+          if (rollbackError) throw new Error("Caricamento fallito: il documento resta in attesa, riprova il caricamento");
+          throw uploadErr;
+        }
       }
 
       return doc;
@@ -150,24 +162,31 @@ export function KnowledgeBaseTab() {
 
   const syncDoc = useMutation({
     mutationFn: async (docId: string) => {
-      const { error } = await supabase.functions.invoke("kb-sync", {
-        body: { action: "sync_document", doc_id: docId },
+      if (!companyId) throw new Error("Nessuna azienda associata");
+      await requireAgentProxyV2(companyId);
+      const { data, error } = await supabase.functions.invoke("kb-sync", {
+        body: { action: "sync_document", company_id: companyId, doc_id: docId },
       });
       if (error) throw error;
+      if (data?.error || !data?.success) throw new Error(data?.error || "Sincronizzazione non completata");
     },
     onSuccess: () => {
-      toast.success("Sincronizzazione avviata");
+      toast.success("Documento sincronizzato");
       queryClient.invalidateQueries({ queryKey: ["kb-docs-v2"] });
+      queryClient.invalidateQueries({ queryKey: ["kb-last-sync"] });
     },
     onError: (err) => toast.error(`Errore sync: ${err.message}`),
   });
 
   const deleteDoc = useMutation({
     mutationFn: async (docId: string) => {
-      const { error } = await supabase.functions.invoke("kb-sync", {
-        body: { action: "delete_document", doc_id: docId },
+      if (!companyId) throw new Error("Nessuna azienda associata");
+      await requireAgentProxyV2(companyId);
+      const { data, error } = await supabase.functions.invoke("kb-sync", {
+        body: { action: "delete_document", company_id: companyId, doc_id: docId },
       });
       if (error) throw error;
+      if (data?.error || !data?.success) throw new Error(data?.error || "Documento non eliminato");
     },
     onSuccess: () => {
       toast.success("Documento eliminato");

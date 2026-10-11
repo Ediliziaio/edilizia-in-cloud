@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { callElevenLabsProxy } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
+import { callElevenLabsProxy, requireAgentProxyV2 } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
 import { useUnifiedAgents } from "@/hooks/useUnifiedAgents";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   Phone,
   RefreshCw,
@@ -49,11 +49,13 @@ interface PhoneNumberV2 {
 }
 
 export function TelephonyTab() {
+  const isAdminContext = useLocation().pathname.startsWith("/admin");
+  const settingsUrl = isAdminContext ? "/admin/ai-config" : "/azienda/impostazioni/numeri-telefono";
   const companyId = useEffectiveCompanyId();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
 
-  const { data: numbers = [], isLoading } = useQuery({
+  const { data: numbers = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["ai-phone-numbers-v2", companyId],
     enabled: !!companyId,
     queryFn: async () => {
@@ -72,16 +74,29 @@ export function TelephonyTab() {
 
   const assignAgent = useMutation({
     mutationFn: async ({ numberId, agentId }: { numberId: string; agentId: string | null }) => {
-      const { error } = await supabase
+      if (!companyId) throw new Error("Nessuna azienda associata");
+      if (agentId && !allAgents.some(a => a.id === agentId)) throw new Error("Agente non disponibile per questa azienda");
+      const number = numbers.find(n => n.id === numberId);
+      if (!number) throw new Error("Numero non disponibile");
+      if (number.elevenlabs_phone_id) {
+        const agent = allAgents.find(a => a.id === agentId);
+        if (agentId && !agent?.elevenlabs_agent_id) throw new Error("Collega prima l'agente a ElevenLabs");
+        await requireAgentProxyV2(companyId);
+        await callElevenLabsProxy({ action: "assign_phone_agent", company_id: companyId,
+          agent_id: agent?.elevenlabs_agent_id ?? null, payload: { local_phone_id: numberId } });
+        return;
+      }
+      const { data: saved, error } = await supabase
         .from("ai_phone_numbers_v2" as never)
         .update({ agent_id: agentId } as never)
-        .eq("id", numberId);
-      if (error) throw error;
+        .eq("company_id", companyId).eq("id", numberId).select("id").single();
+      if (error || !saved) throw error || new Error("Numero non aggiornato");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ai-phone-numbers-v2"] });
       toast.success("Agente assegnato");
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   // Collega il numero a ElevenLabs (provisioning sullo stesso account Telnyx):
@@ -93,22 +108,22 @@ export function TelephonyTab() {
         | undefined;
       if (!agent) throw new Error("Assegna prima un agente vocale al numero");
       if (!agent.elevenlabs_agent_id) throw new Error("L'agente non è ancora collegato a ElevenLabs");
-      const res = await callElevenLabsProxy<{ elevenlabs_phone_number_id?: string }>({
+      if (!companyId) throw new Error("Nessuna azienda associata");
+      await requireAgentProxyV2(companyId);
+      const res = await callElevenLabsProxy<{ elevenlabs_phone_number_id?: string; inbound_assigned?: boolean }>({
         action: "link_phone_number",
+        company_id: companyId!,
         agent_id: agent.elevenlabs_agent_id,
         payload: { phone_number: num.numero },
       });
       const elPhoneId = res?.elevenlabs_phone_number_id;
       if (!elPhoneId) throw new Error("ElevenLabs non ha restituito un ID per il numero");
-      const { error } = await supabase
-        .from("ai_phone_numbers_v2" as never)
-        .update({ elevenlabs_phone_id: elPhoneId } as never)
-        .eq("id", num.id);
-      if (error) throw error;
+      return res.inbound_assigned === true;
     },
-    onSuccess: () => {
+    onSuccess: (inboundAssigned) => {
       queryClient.invalidateQueries({ queryKey: ["ai-phone-numbers-v2"] });
-      toast.success("Numero collegato a ElevenLabs — l'agente può chiamare e RICEVERE su questo numero");
+      if (inboundAssigned) toast.success("Numero collegato: chiamate in entrata assegnate all'agente");
+      else toast.warning("Numero registrato, ma chiamate in entrata non assegnate. Riprova il collegamento.");
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore collegamento ElevenLabs"),
   });
@@ -118,6 +133,7 @@ export function TelephonyTab() {
     try {
       const result = await callElevenLabsProxy<{ phone_numbers?: { phone_number_id: string; phone_number: string; agent_id: string | null }[] }>({
         action: "get_phone_numbers",
+        company_id: companyId!,
       });
       const elNumbers = result?.phone_numbers || [];
       toast.success(`${elNumbers.length} numeri trovati su ElevenLabs`);
@@ -137,12 +153,12 @@ export function TelephonyTab() {
       <div className="flex items-center justify-end">
         <div className="flex items-center gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link to="/azienda/impostazioni/numeri-telefono"><Settings2 className="h-4 w-4 mr-1.5" /> Gestisci numeri</Link>
+            <Link to={settingsUrl}><Settings2 className="h-4 w-4 mr-1.5" /> {isAdminContext ? "Configurazione AI" : "Gestisci numeri"}</Link>
           </Button>
-          <Button variant="outline" size="sm" onClick={syncFromEL} disabled={syncing} title="Sincronizza i numeri con ElevenLabs">
+          <Button variant="outline" size="sm" onClick={syncFromEL} disabled={syncing || !companyId} title="Verifica i numeri dell'azienda su ElevenLabs">
             {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
             {/* «Sync» all'inglese: il nome del servizio resta nel suggerimento. */}
-            Sincronizza
+            Verifica collegamenti
           </Button>
         </div>
       </div>
@@ -152,6 +168,9 @@ export function TelephonyTab() {
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
+      ) : isError ? (
+        <div role="alert" className="rounded-lg border p-4"><p>Impossibile caricare i numeri telefonici.</p>
+          <Button variant="outline" className="mt-2" onClick={() => refetch()}>Riprova</Button></div>
       ) : numbers.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
           <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
@@ -159,11 +178,12 @@ export function TelephonyTab() {
           </div>
           <p className="text-foreground font-medium">Nessun numero configurato</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-            I numeri per le chiamate AI si aggiungono in <strong>Impostazioni → Telefonia</strong>
-            (sezione "Numeri per chiamate AI"). Poi qui li assegni a un agente vocale.
+            {isAdminContext
+              ? "Per le chiamate AI occorre un numero della piattaforma configurato nel provider e assegnato a un agente. Le impostazioni dei numeri aziendali non gestiscono i numeri del superadmin."
+              : <>I numeri per le chiamate AI si aggiungono in <strong>Impostazioni → Telefonia</strong> (sezione "Numeri per chiamate AI"). Poi qui li assegni a un agente vocale.</>}
           </p>
           <Button asChild variant="default" size="sm" className="mt-4">
-            <Link to="/azienda/impostazioni/numeri-telefono"><Settings2 className="h-4 w-4 mr-1.5" /> Vai a Telefonia</Link>
+            <Link to={settingsUrl}><Settings2 className="h-4 w-4 mr-1.5" /> {isAdminContext ? "Apri configurazione piattaforma" : "Vai a Telefonia"}</Link>
           </Button>
         </div>
       ) : (
@@ -221,9 +241,11 @@ export function TelephonyTab() {
                     </TableCell>
                     <TableCell>
                       {num.elevenlabs_phone_id ? (
-                        <span className="flex items-center gap-1 text-xs text-primary">
+                        <div className="space-y-1"><span className="flex items-center gap-1 text-xs text-primary">
                           <Link2 className="h-3 w-3" /> Collegato
-                        </span>
+                        </span>{num.agent_id && <Button size="sm" variant="outline" className="h-7 text-xs"
+                          disabled={linkToEL.isPending || assignAgent.isPending}
+                          onClick={() => linkToEL.mutate(num)}>Verifica e riassegna</Button>}</div>
                       ) : num.agent_id ? (
                         <Button
                           size="sm"

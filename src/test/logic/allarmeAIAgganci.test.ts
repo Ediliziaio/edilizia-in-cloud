@@ -12,6 +12,12 @@ import { describe, expect, it } from "vitest";
 const sorgente = (percorso: string) => readFileSync(resolve(process.cwd(), percorso), "utf8");
 
 describe("I punti in cui il provider risponde sono agganciati all'allarme", () => {
+  it("le chiamate vocali segnalano errori di rete e risposte ElevenLabs non riuscite", () => {
+    const s = sorgente("supabase/functions/initiate-outbound-call/index.ts");
+    expect(s).toContain('import { segnalaErroreAI } from "../_shared/allarmeAI.ts"');
+    expect(s).toMatch(/catch \(error\) \{\s*segnalaErroreAI\(error,/);
+    expect(s).toMatch(/if \(!callRes!\.ok\) \{\s*segnalaErroreAI\(\{ provider: "elevenlabs"/);
+  });
   it("il router segnala dentro il catch di ogni tentativo, col task e il modello", () => {
     const s = sorgente("supabase/functions/_shared/aiRouter.ts");
     expect(s).toContain('import { segnalaErroreAI } from "./allarmeAI.ts"');

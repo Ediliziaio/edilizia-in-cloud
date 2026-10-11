@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { campaignPreparationRequest, readPreparedCampaignRecipients, type PreparedCampaignRecipients } from "@/lib/campaignPreparation";
+import { CampaignRecipientsDialog } from "./CampaignRecipientsDialog";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import {
   Plus, Play, Pause, Trash2, Megaphone, CheckCircle2, Phone, BarChart3,
-  Calendar, Loader2,
+  Calendar, Loader2, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -37,102 +39,101 @@ interface Campaign {
   data_fine: string | null;
   schedulata_il: string | null;
   creato_il: string;
+  aggiornato_il: string;
+  metadata?: { preparazione_destinatari?: PreparedCampaignRecipients } | null;
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   bozza: { label: "Bozza", variant: "secondary" },
-  programmata: { label: "Programmata", variant: "outline" },
   in_corso: { label: "In corso", variant: "default" },
   completata: { label: "Completata", variant: "secondary" },
-  in_pausa: { label: "In pausa", variant: "destructive" },
+  pausa: { label: "In pausa", variant: "destructive" },
+  archiviata: { label: "Archiviata", variant: "outline" },
 };
 
 export function CampagneTab() {
   const companyId = useEffectiveCompanyId();
+  const { solaLettura } = usePermissions();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("all");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createStep, setCreateStep] = useState(1);
-  const [form, setForm] = useState({ nome: "", descrizione: "", agent_id: "", tipo: "outbound" });
+  const [form, setForm] = useState({ nome: "", descrizione: "", agent_id: "", tipo: "chiamata" });
+  const [recipientCampaign, setRecipientCampaign] = useState<Campaign | null>(null);
+  const draftId = useRef<string | null>(null);
+  const activeCompany = useRef(companyId);
+  activeCompany.current = companyId;
+  useEffect(() => {
+    setShowCreateDialog(false); setRecipientCampaign(null); setCreateStep(1); setStatusFilter("all");
+    setForm({ nome: "", descrizione: "", agent_id: "", tipo: "chiamata" }); draftId.current = null;
+  }, [companyId]);
+  const openCreate = () => { draftId.current ??= crypto.randomUUID(); setShowCreateDialog(true); };
 
-  const { data: campaigns = [], isLoading } = useQuery({
+  const { data: campaigns = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["ai-campaigns-v2", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ai_campaigns_v2" as never)
-        .select("*")
-        .eq("company_id", companyId!)
-        .order("creato_il", { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as Campaign[];
+      const result = await campaignPreparationRequest<{ campaigns: Campaign[] }>(companyId!, "list_campaigns");
+      return result.campaigns;
     },
+    retry: false, refetchInterval: 60_000,
   });
 
-  const { data: agents = [] } = useQuery({
+  const { data: agents = [], isError: agentsError, isLoading: agentsLoading, refetch: reloadAgents } = useQuery({
     queryKey: ["ai-agents-v2-select", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("ai_agents_v2" as never)
-        .select("id, nome, tipo")
-        .eq("company_id", companyId!);
-      return (data ?? []) as unknown as { id: string; nome: string; tipo: string }[];
+      const result = await campaignPreparationRequest<{ agents: { id: string; nome: string; tipo: string }[] }>(companyId!, "campaign_agents");
+      return result.agents;
     },
+    retry: false,
   });
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!companyId || !form.agent_id) throw new Error("Dati mancanti");
-      const { error } = await supabase.from("ai_campaigns_v2" as never).insert({
-        company_id: companyId,
-        nome: form.nome,
+      if (!companyId || !form.agent_id || !form.nome.trim()) throw new Error("Inserisci nome e agente");
+      if (!agents.some(a => a.id === form.agent_id)) throw new Error("Seleziona un agente vocale dell'azienda");
+      if (!draftId.current) throw new Error("Riapri la creazione campagna");
+      await campaignPreparationRequest(companyId, "create_campaign", {
+        id: draftId.current,
+        nome: form.nome.trim(),
         descrizione: form.descrizione || null,
         agent_id: form.agent_id,
-        tipo: form.tipo,
-        stato: "bozza",
-      } as never);
-      if (error) throw error;
+      });
+      return companyId;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ai-campaigns-v2"] });
+    onSuccess: savedCompany => {
+      queryClient.invalidateQueries({ queryKey: ["ai-campaigns-v2", savedCompany] });
+      if (activeCompany.current !== savedCompany) return;
       toast.success("Campagna creata");
+      draftId.current = null;
       setShowCreateDialog(false);
       setCreateStep(1);
-      setForm({ nome: "", descrizione: "", agent_id: "", tipo: "outbound" });
+      setForm({ nome: "", descrizione: "", agent_id: "", tipo: "chiamata" });
     },
-    onError: () => toast.error("Errore nella creazione"),
-  });
-
-  const updateStatus = useMutation({
-    mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
-      const { error } = await supabase
-        .from("ai_campaigns_v2" as never)
-        .update({ stato } as never)
-        .eq("id" as never, id as never);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ai-campaigns-v2"] }),
+    onError: (err: Error) => toast.error(err.message || "Errore nella creazione"),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("ai_campaigns_v2" as never).delete().eq("id" as never, id as never);
-      if (error) throw error;
+    mutationFn: async (campaign: Campaign) => {
+      if (!companyId) throw new Error("Nessuna azienda associata");
+      await campaignPreparationRequest(companyId, "delete_campaign", { campaign_id: campaign.id, updated_at: campaign.aggiornato_il });
+      return companyId;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ai-campaigns-v2"] });
+    onSuccess: savedCompany => {
+      queryClient.invalidateQueries({ queryKey: ["ai-campaigns-v2", savedCompany] });
       toast.success("Campagna eliminata");
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const filtered = statusFilter === "all" ? campaigns : campaigns.filter((c) => c.stato === statusFilter);
 
   const statsActive = campaigns.filter((c) => c.stato === "in_corso").length;
   const statsCompleted = campaigns.filter((c) => c.stato === "completata").length;
-  const statsCalls = campaigns.reduce((s, c) => s + c.chiamate_effettuate, 0);
+  const statsCalls = campaigns.reduce((s, c) => s + (Number(c.chiamate_effettuate) || 0), 0);
   const statsRate = statsCalls > 0
-    ? Math.round(campaigns.reduce((s, c) => s + c.chiamate_completate, 0) / statsCalls * 100)
+    ? Math.round(campaigns.reduce((s, c) => s + (Number(c.chiamate_completate) || 0), 0) / statsCalls * 100)
     : 0;
 
   return (
@@ -142,13 +143,17 @@ export function CampagneTab() {
           <h2 className="text-xl font-bold text-foreground">Campagne Outbound</h2>
           <p className="text-sm text-muted-foreground">Gestisci campagne di chiamate in uscita con i tuoi agenti AI</p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)}>
+        <Button disabled={!companyId || isError || solaLettura} onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" /> Nuova Campagna
         </Button>
       </div>
+      {solaLettura && <p className="text-sm text-muted-foreground">Accesso in sola lettura: non puoi creare o modificare campagne.</p>}
+      <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+        Qui puoi preparare bozze e selezionare destinatari CRM. L'esecutore massivo non è ancora collegato: nessuna chiamata parte da questa scheda.
+      </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {!isLoading && !isError && <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: "Attive", value: statsActive, icon: Megaphone, color: "text-primary" },
           { label: "Completate", value: statsCompleted, icon: CheckCircle2, color: "text-primary/70" },
@@ -167,7 +172,8 @@ export function CampagneTab() {
             </CardContent>
           </Card>
         ))}
-      </div>
+      </div>}
+      {!isError && !isLoading && campaigns.length >= 500 && <p className="text-sm text-muted-foreground">Sono mostrate le 500 campagne più recenti. I contatori si riferiscono alle campagne caricate.</p>}
 
       {/* Filter */}
       <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -177,10 +183,10 @@ export function CampagneTab() {
         <SelectContent>
           <SelectItem value="all">Tutti gli stati</SelectItem>
           <SelectItem value="bozza">Bozza</SelectItem>
-          <SelectItem value="programmata">Programmata</SelectItem>
           <SelectItem value="in_corso">In corso</SelectItem>
           <SelectItem value="completata">Completata</SelectItem>
-          <SelectItem value="in_pausa">In pausa</SelectItem>
+          <SelectItem value="pausa">In pausa</SelectItem>
+          <SelectItem value="archiviata">Archiviata</SelectItem>
         </SelectContent>
       </Select>
 
@@ -189,13 +195,16 @@ export function CampagneTab() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
+      ) : isError ? (
+        <div role="alert" className="rounded-lg border p-4"><p>Impossibile caricare le campagne. {error?.message}</p>
+          <Button variant="outline" className="mt-2" onClick={() => refetch()}>Riprova</Button></div>
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <Megaphone className="h-12 w-12 mx-auto mb-3 opacity-30" />
             <p>Nessuna campagna trovata</p>
-            <Button variant="outline" className="mt-4" onClick={() => setShowCreateDialog(true)}>
-              <Plus className="h-4 w-4 mr-2" /> Crea la prima campagna
+            <Button variant="outline" className="mt-4" disabled={!companyId || (solaLettura && statusFilter === "all")} onClick={statusFilter !== "all" ? () => setStatusFilter("all") : openCreate}>
+              {statusFilter !== "all" ? "Mostra tutte le campagne" : <><Plus className="h-4 w-4 mr-2" /> Crea la prima campagna</>}
             </Button>
           </CardContent>
         </Card>
@@ -203,8 +212,9 @@ export function CampagneTab() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((c) => {
             const badge = STATUS_MAP[c.stato] || STATUS_MAP.bozza;
+            const prepared = readPreparedCampaignRecipients(c.metadata);
             const progress = c.totale_contatti > 0
-              ? Math.round((c.chiamate_effettuate / c.totale_contatti) * 100)
+              ? Math.min(100, Math.max(0, Math.round((c.chiamate_effettuate / c.totale_contatti) * 100)))
               : 0;
             return (
               <Card key={c.id} className="hover:shadow-md transition-shadow">
@@ -218,6 +228,8 @@ export function CampagneTab() {
                   )}
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  {c.stato === "bozza" && <div className="text-xs text-muted-foreground">{prepared?.recipients.length || 0} destinatari preparati · nessun invio
+                    {!!prepared?.excluded.length && <span className="block text-amber-700">{prepared.excluded.length} esclusi dall'ultima selezione</span>}</div>}
                   <div className="grid grid-cols-3 gap-2 text-center text-xs">
                     <div>
                       <p className="font-mono font-bold text-foreground">{c.totale_contatti}</p>
@@ -236,22 +248,24 @@ export function CampagneTab() {
                   {c.totale_contatti > 0 && (
                     <div className="space-y-1">
                       <Progress value={progress} className="h-2" />
-                      <p className="text-[10px] text-muted-foreground text-right">{progress}% completato</p>
+                      <p className="text-[10px] text-muted-foreground text-right">{c.chiamate_effettuate} chiamate registrate / {c.totale_contatti} contatti</p>
                     </div>
                   )}
 
                   <div className="flex items-center justify-between pt-2 border-t border-border">
                     <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {format(new Date(c.creato_il), "dd MMM yyyy", { locale: it })}
+                      {Number.isFinite(Date.parse(c.creato_il)) ? format(new Date(c.creato_il), "dd MMM yyyy", { locale: it }) : "Data non disponibile"}
                     </span>
                     <div className="flex gap-1">
-                      {(c.stato === "bozza" || c.stato === "programmata" || c.stato === "in_pausa") && (
+                      {(c.stato === "bozza" || c.stato === "pausa") && (
                         <Button
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7"
-                          onClick={() => updateStatus.mutate({ id: c.id, stato: "in_corso" })}
+                          disabled
+                          aria-label="Avvio massivo non disponibile"
+                          title="Esecuzione massiva non ancora collegata"
                         >
                           <Play className="h-3.5 w-3.5" />
                         </Button>
@@ -261,14 +275,17 @@ export function CampagneTab() {
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7"
-                          onClick={() => updateStatus.mutate({ id: c.id, stato: "in_pausa" })}
+                          disabled
+                          aria-label="Pausa massiva non disponibile"
+                          title="Esecuzione massiva non ancora collegata"
                         >
                           <Pause className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      <AlertDialog>
+                      {c.stato === "bozza" && !solaLettura && <Button size="sm" variant="outline" onClick={() => setRecipientCampaign(c)}><Users className="h-3.5 w-3.5 mr-1" />Destinatari</Button>}
+                      {c.stato === "bozza" && !solaLettura && Number(c.chiamate_effettuate || 0) === 0 && <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button size="icon" variant="ghost" className="h-7 w-7">
+                          <Button aria-label={`Elimina bozza ${c.nome}`} disabled={deleteMutation.isPending} size="icon" variant="ghost" className="h-7 w-7">
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
                           </Button>
                         </AlertDialogTrigger>
@@ -279,10 +296,10 @@ export function CampagneTab() {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Annulla</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => deleteMutation.mutate(c.id)}>Elimina</AlertDialogAction>
+                            <AlertDialogAction onClick={() => deleteMutation.mutate(c)}>Elimina</AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
-                      </AlertDialog>
+                      </AlertDialog>}
                     </div>
                   </div>
                 </CardContent>
@@ -293,7 +310,8 @@ export function CampagneTab() {
       )}
 
       {/* Create Dialog — 3-step wizard */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+      {recipientCampaign && companyId && <CampaignRecipientsDialog key={`${companyId}:${recipientCampaign.id}`} companyId={companyId} campaign={recipientCampaign} onClose={() => setRecipientCampaign(null)} />}
+      <Dialog open={showCreateDialog} onOpenChange={open => { if (!createMutation.isPending) setShowCreateDialog(open); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Nuova Campagna — Step {createStep}/3</DialogTitle>
@@ -304,6 +322,7 @@ export function CampagneTab() {
               <div className="space-y-2">
                 <Label>Nome campagna</Label>
                 <Input
+                  maxLength={160}
                   value={form.nome}
                   onChange={(e) => setForm({ ...form, nome: e.target.value })}
                   placeholder="Es. Richiamo lead freddi"
@@ -316,6 +335,7 @@ export function CampagneTab() {
                   onChange={(e) => setForm({ ...form, descrizione: e.target.value })}
                   placeholder="Obiettivo della campagna..."
                   rows={3}
+                  maxLength={2000}
                 />
               </div>
             </div>
@@ -323,6 +343,9 @@ export function CampagneTab() {
 
           {createStep === 2 && (
             <div className="space-y-4">
+              {agentsError && <div role="alert">Impossibile caricare gli agenti. <Button variant="outline" onClick={() => reloadAgents()}>Riprova</Button></div>}
+              {agentsLoading && <p>Caricamento agenti…</p>}
+              {!agentsLoading && !agentsError && !agents.length && <p className="text-sm text-muted-foreground">Crea prima un agente vocale nella scheda Agenti.</p>}
               <div className="space-y-2">
                 <Label>Agente AI</Label>
                 <Select value={form.agent_id} onValueChange={(v) => setForm({ ...form, agent_id: v })}>
@@ -345,9 +368,7 @@ export function CampagneTab() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="outbound">Outbound (chiamate in uscita)</SelectItem>
-                    <SelectItem value="follow_up">Follow-up</SelectItem>
-                    <SelectItem value="survey">Sondaggio</SelectItem>
+                    <SelectItem value="chiamata">Chiamate in uscita</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -373,19 +394,19 @@ export function CampagneTab() {
                 </CardContent>
               </Card>
               <p className="text-xs text-muted-foreground">
-                La campagna verrà creata come bozza. Potrai aggiungere i contatti e configurare la schedulazione in seguito.
+                La campagna verrà salvata come bozza, senza effettuare chiamate. Potrai selezionare i destinatari CRM dalla sua scheda. L'avvio massivo resta disabilitato.
               </p>
             </div>
           )}
 
           <DialogFooter className="gap-2">
             {createStep > 1 && (
-              <Button variant="outline" onClick={() => setCreateStep(createStep - 1)}>Indietro</Button>
+              <Button variant="outline" disabled={createMutation.isPending} onClick={() => setCreateStep(createStep - 1)}>Indietro</Button>
             )}
             {createStep < 3 ? (
               <Button
                 onClick={() => setCreateStep(createStep + 1)}
-                disabled={createStep === 1 ? !form.nome : !form.agent_id}
+                disabled={createStep === 1 ? !form.nome.trim() : agentsError || agentsLoading || !agents.some(a => a.id === form.agent_id)}
               >
                 Avanti
               </Button>

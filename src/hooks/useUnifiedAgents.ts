@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { callElevenLabsProxy } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
+import { callElevenLabsProxy, requireAgentProxyV2 } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
 import { logger } from "@/utils/logger";
 import { withClientTimeout } from "@/lib/query-timeout";
 import { toast } from "sonner";
+import { duplicateAgentConfiguration } from "@/lib/aiAgents";
 import type {
   UnifiedAgent,
   UnifiedAgentInsert,
@@ -114,42 +115,6 @@ export function useCreateUnifiedAgent() {
       assertAgentBaseConfig(input);
 
       const needsElevenLabs = input.tipo === "vocale" || input.tipo === "campagna";
-      let elAgentId: string | null = null;
-      let elToolIds: string[] = [];
-
-      if (needsElevenLabs) {
-        try {
-          const result = await callElevenLabsProxy<{ elevenlabs_agent_id: string; elevenlabs_tool_ids?: string[] }>({
-            action: "create_agent",
-            payload: {
-              name: input.nome,
-              system_prompt: input.system_prompt || "",
-              first_message: input.primo_messaggio || "",
-              llm_model: input.llm_model || "gemini-2.5-flash",
-              language: input.lingua || "it",
-              // Prima la voce scelta nel wizard restava solo nel nostro DB:
-              // ElevenLabs creava l'agente con la voce di default.
-              ...(input.elevenlabs_voice_id ? { voice_id: input.elevenlabs_voice_id } : {}),
-              // Gli strumenti abilitati dal template/wizard: il proxy li crea
-              // su ElevenLabs e li collega all'agente (prima nessun tool
-              // arrivava mai alla creazione).
-              ...(input.tools_config ? { tools_config: input.tools_config } : {}),
-            },
-          });
-          elAgentId = result.elevenlabs_agent_id || null;
-          elToolIds = result.elevenlabs_tool_ids ?? [];
-        } catch (e) {
-          logger.warn("ElevenLabs creation failed, proceeding without:", e);
-          // Non e' un successo a meta': un agente vocale senza ElevenLabs non
-          // puo' ne' chiamare ne' rispondere. Lo si dice subito, non in log.
-          toast.warning(
-            "Agente salvato, ma NON collegato a ElevenLabs: " +
-              (e instanceof Error ? e.message : "errore sconosciuto") +
-              ". Non potra' chiamare finche' non viene ricollegato.",
-          );
-        }
-      }
-
       const { data: user } = await supabase.auth.getUser();
 
       const insertPayload: Record<string, unknown> = {
@@ -162,10 +127,10 @@ export function useCreateUnifiedAgent() {
           primo_messaggio: normalizeText(input.primo_messaggio),
           lingua: input.lingua || "it",
           llm_model: input.llm_model || "gemini-2.5-flash",
-          elevenlabs_agent_id: elAgentId,
+          elevenlabs_agent_id: null,
           elevenlabs_voice_id: input.elevenlabs_voice_id || null,
           creato_da: user?.user?.id || null,
-          ...(input.tools_config ? { tools_config: { ...input.tools_config, elevenlabs_tool_ids: elToolIds } } : {}),
+          ...(input.tools_config ? { tools_config: { ...input.tools_config, elevenlabs_tool_ids: [] } } : {}),
       };
 
       // Persist wizard-collected fields
@@ -187,20 +152,28 @@ export function useCreateUnifiedAgent() {
         .select("id")
         .single();
 
-      if (error) {
-        if (elAgentId) {
-          try {
-            await callElevenLabsProxy({ action: "delete_agent", agent_id: elAgentId });
-          } catch (_) { /* rollback ElevenLabs non critico — silenzioso */ }
+      if (error || !data) throw error || new Error("Bozza non salvata");
+      const draft = data as unknown as { id: string };
+      // Local ownership exists before provisioning; the backend binds the
+      // remote ID atomically. A failed provisioning leaves a recoverable draft.
+      if (needsElevenLabs) {
+        try {
+          await requireAgentProxyV2(companyId);
+          await callElevenLabsProxy({ action: "create_agent", company_id: companyId, payload: { local_agent_id: draft.id } });
+        } catch (e) {
+          logger.warn("ElevenLabs provisioning failed; draft retained:", e);
+          toast.warning("Bozza salvata, collegamento vocale non completato: " +
+            (e instanceof Error ? e.message : "errore sconosciuto") +
+            ". Apri l'agente e riprova il collegamento.");
         }
-        throw error;
       }
-
-      return data as unknown as { id: string };
+      return draft;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
-      toast.success("Agente creato con successo");
+      queryClient.invalidateQueries({ queryKey: ["ai-company-stats", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["ai-analytics", companyId] });
+      toast.success("Bozza agente creata");
     },
     onError: (err: Error) => {
       toast.error(err.message || "Errore nella creazione dell'agente");
@@ -230,24 +203,21 @@ export function useDeleteUnifiedAgent() {
         throw new Error("Metti in pausa l'agente prima di eliminarlo.");
       }
 
-      const { error } = await supabase
-        .from("ai_agents_v2" as never)
-        .delete()
-        .eq("company_id", companyId)
-        .eq("id", id);
-      if (error) throw error;
-
       if (elId) {
-        try {
-          await callElevenLabsProxy({ action: "delete_agent", agent_id: elId });
-        } catch (e) {
-          logger.warn("ElevenLabs delete failed:", e);
-        }
+        // The proxy verifies local ownership: delete remotely while the row
+        // still exists, and keep it available for retry if the provider fails.
+        await requireAgentProxyV2(companyId);
+        await callElevenLabsProxy({ action: "delete_agent", company_id: companyId, agent_id: elId });
       }
+      const { data: removed, error } = await supabase.from("ai_agents_v2" as never).delete()
+        .eq("company_id", companyId).eq("id", id).select("id").single();
+      if (error || !removed) throw error || new Error("Agente non eliminato");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       toast.success("Agente eliminato");
+      queryClient.invalidateQueries({ queryKey: ["ai-company-stats", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["ai-analytics", companyId] });
     },
     onError: (err: Error) => {
       toast.error(err.message || "Errore nell'eliminazione");
@@ -274,15 +244,17 @@ export function useUpdateUnifiedAgentStatus() {
         assertAgentReadyForActivation(data as unknown as Partial<UnifiedAgent>);
       }
 
-      const { error } = await supabase
+      const { data: saved, error } = await supabase
         .from("ai_agents_v2" as never)
         .update({ stato } as never)
         .eq("company_id", companyId)
-        .eq("id", id);
-      if (error) throw error;
+        .eq("id", id).select("id").single();
+      if (error || !saved) throw error || new Error("Stato agente non aggiornato");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["ai-company-stats", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["ai-analytics", companyId] });
     },
     onError: (err: Error) => {
       toast.error(err.message || "Errore nell'aggiornamento stato");
@@ -315,17 +287,7 @@ export function useDuplicateUnifiedAgent() {
         .from("ai_agents_v2" as never)
         .insert({
           company_id: companyId,
-          nome: `${s.nome} (copia)`,
-          tipo: s.tipo,
-          descrizione: s.descrizione,
-          system_prompt: s.system_prompt,
-          primo_messaggio: s.primo_messaggio,
-          lingua: s.lingua,
-          llm_model: s.llm_model,
-          temperatura: s.temperatura,
-          elevenlabs_voice_id: s.elevenlabs_voice_id,
-          voice_nome: s.voice_nome,
-          stato: "bozza",
+          ...duplicateAgentConfiguration(s as unknown as Record<string, unknown>),
           creato_da: user?.user?.id || null,
         } as never)
         .select("id")
@@ -362,7 +324,7 @@ export function useAICompanyStats() {
       );
       if (error) {
         logger.warn("Stats RPC failed:", error);
-        return null;
+        throw error;
       }
       if (!data) return null;
       const row = Array.isArray(data) ? data[0] : data;

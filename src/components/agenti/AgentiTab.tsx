@@ -74,7 +74,7 @@ export function AgentiTab() {
   };
 
   const handleNavigateConversations = (id: string) => {
-    navigate(`${basePath}/${id}`);
+    navigate(`${basePath}/${id}?tab=conversazioni`);
   };
 
   return (
@@ -167,6 +167,11 @@ export function AgentiTab() {
             )}
             Riprova
           </Button>
+        </div>
+      ) : agenti.length === 0 && (cerca.trim() || filtroStato !== "tutti" || filtroTipo !== "tutti") ? (
+        <div className="py-12 text-center">
+          <p>Nessun agente corrisponde ai filtri selezionati.</p>
+          <Button variant="outline" className="mt-3" onClick={() => { setCerca(""); setFiltroStato("tutti"); setFiltroTipo("tutti"); }}>Azzera filtri</Button>
         </div>
       ) : agenti.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 max-md:rounded-xl max-md:px-3 max-md:py-4">
