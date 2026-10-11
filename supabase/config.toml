@@ -291,6 +291,10 @@ verify_jwt = false
 [functions.ai-conversations-sweeper]
 verify_jwt = false
 
+# Queue worker: only internal service calls or the Vault cron secret.
+[functions.voice-campaign-dispatch]
+verify_jwt = false
+
 # Cron lead caldi -> proposta di chiamata. Auth x-cron-secret o service-role.
 [functions.ai-voice-outbound-leads]
 verify_jwt = false

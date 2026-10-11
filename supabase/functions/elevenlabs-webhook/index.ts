@@ -3,6 +3,7 @@ import { verificaFirmaElevenLabs, normalizzaPostCall } from "../_shared/elevenla
 import { corsHeaders as baseCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { prezzoMinutoVoce } from "../_shared/voicePricing.ts";
 import { voiceConversationStatus } from "../_shared/voiceConversation.ts";
+import { settleVoiceConversation } from "../_shared/voiceSettlement.ts";
 
 const corsHeaders = {
   ...baseCorsHeaders,
@@ -72,16 +73,23 @@ Deno.serve(async (req) => {
     // senza statistiche e SENZA ADDEBITO CREDITI — chiamate gratis, appese per
     // sempre in_progress. Skippa solo se la riga è già FINALIZZATA; il
     // segnaposto in_progress va invece completato (update, non insert).
-    const { data: existingConv } = await adminClient
+    const { data: existingConv, error: existingError } = await adminClient
       .from("ai_agent_conversations")
-      .select("id, status, metadata, contact_id")
+      .select("id, status, metadata, contact_id, company_id")
       .eq("elevenlabs_conversation_id", conversationId)
       .maybeSingle();
+    if (existingError) throw new Error("Impossibile verificare la conversazione");
 
     const placeholderConvId: string | null =
       existingConv?.status === "in_progress" ? (existingConv.id as string) : null;
 
     if (existingConv && !placeholderConvId) {
+      // New records carry a frozen tariff. Repair ONLY these: historical records
+      // without a usage row may already have been charged by the old implementation.
+      if (existingConv.metadata?.voice_billing_version === 2 && !existingConv.metadata?.voice_billing_settled) {
+        await settleVoiceConversation(adminClient, existingConv.company_id, existingConv.id,
+          existingConv.metadata.voice_billing_pricing, voiceConversationStatus(existingConv.status));
+      }
       console.log(`[WEBHOOK] Conversation ${conversationId} already processed, skipping`);
       return json({
         success: true,
@@ -119,12 +127,18 @@ Deno.serve(async (req) => {
     }
 
     const companyId = agent.company_id;
+    const tariffa = await prezzoMinutoVoce(adminClient, companyId, agent.llm_model, agent.tts_model);
+    const durationMin = Math.max(0.0167, durationSeconds / 60);
+    const costRealTotal = Number((durationMin * tariffa.costoRealePerMin).toFixed(4));
+    const costBilledTotal = Number((durationMin * tariffa.prezzoPerMin).toFixed(4));
+    const billingPricing = { real_per_min: tariffa.costoRealePerMin, billed_per_min: tariffa.prezzoPerMin,
+      llm_model: tariffa.llmModel, tts_model: tariffa.ttsModel };
     let contactId: string | null = null;
     let appointmentCreated = false;
     let newContactCreated = false;
 
     // ============ DND CHECK FOR INBOUND CALLS (FIX 8) ============
-    const callDirection = metadata?.call_direction || "inbound";
+    const callDirection = metadata?.call_direction || (existingConv?.metadata?.outbound ? "outbound" : "inbound");
     if (callDirection === "inbound" && metadata?.caller_phone) {
       // Match sul suffisso (9 cifre) come telnyx-webhook e call-init: il
       // confronto esatto con il formato di ElevenLabs non combaciava mai, e il
@@ -299,7 +313,7 @@ Deno.serve(async (req) => {
       status,
       summary: summaryText,
       transcript: transcript.length > 0 ? transcript : null,
-      metadata: Object.keys(metadata).length > 0 ? metadata : {},
+      metadata: { ...metadata, call_direction: callDirection, voice_billing_version: 2, voice_billing_pricing: billingPricing },
       sentiment,
       sentiment_score: sentimentScore,
     };
@@ -365,42 +379,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ============ DUAL-WRITE TO ai_conversations_v2 ============
-    if (agentV2Id) {
-      try {
-        const durationMin = Math.max(0.0167, durationSeconds / 60);
-        const { error: mirrorError } = await adminClient.from("ai_conversations_v2").insert({
-          agent_id: agentV2Id,
-          company_id: companyId,
-          elevenlabs_conversation_id: conversationId,
-          contact_id: contactId,
-          stato: voiceConversationStatus(status),
-          canale: "voce",
-          direzione: callDirection,
-          durata_secondi: durationSeconds,
-          riassunto: summaryText,
-          trascrizione_json: transcript.length > 0 ? transcript : null,
-          numero_chiamante: metadata?.caller_phone || null,
-          numero_chiamato: metadata?.called_phone || null,
-        } as never);
-        // Supabase returns write failures as data, not thrown exceptions.
-        // Never increment counters when the corresponding row was rejected.
-        if (mirrorError) throw new Error(mirrorError.message);
-
-        // Increment v2 agent stats atomically
-        const { error: statsError } = await adminClient.rpc("increment_agent_stats" as never, {
-          p_agent_id: agentV2Id,
-          p_chiamate: 1,
-          p_chiamate_completate: status === "completed" ? 1 : 0,
-          p_minuti: Number(durationMin.toFixed(2)),
-          p_chat: 0,
-          p_costo: 0, // will be set after billing calc
-        } as never);
-        if (statsError) throw new Error(statsError.message);
-      } catch (v2Err) {
-        console.error("[WEBHOOK] v2 dual-write error:", v2Err);
-      }
-    }
+    if (convErr || !convRecord) throw new Error("Conversazione non salvata: nessun addebito eseguito");
 
     // ============ UPDATE BRANCH STATS (atomic, no race) ============
     if (branchId && !convErr) {
@@ -414,85 +393,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ============ CREDIT SYSTEM (ATOMIC) ============
-    const durationMin = Math.max(0.0167, durationSeconds / 60);
-    // Tariffa al minuto dal helper condiviso (platform_pricing + override
-    // azienda). Prima si cercava "eleven_multilingual_v2" per gli agenti v2,
-    // che invece parlano con eleven_flash_v2_5: nessuna riga, prezzo hardcodato.
-    const tariffa = await prezzoMinutoVoce(adminClient, companyId, agent.llm_model, agent.tts_model);
-    const ttsModel = tariffa.ttsModel;
-    const costRealPerMin = tariffa.costoRealePerMin;
-    const costBilledPerMin = tariffa.prezzoPerMin;
-    if (tariffa.fonte === "ripiego") console.error("[WEBHOOK] tariffa di ripiego usata per", agent.llm_model, ttsModel);
-
-    const costRealTotal = Number((durationMin * costRealPerMin).toFixed(4));
-    const costBilledTotal = Number((durationMin * costBilledPerMin).toFixed(4));
-    const marginTotal = Number((costBilledTotal - costRealTotal).toFixed(4));
-
-    // ATOMIC balance deduction — prevents race conditions with concurrent calls
-    const { data: updatedCredits, error: deductErr } = await adminClient.rpc(
-      "deduct_ai_credits" as never,
-      {
-        p_company_id: companyId,
-        p_cost: costBilledTotal,
-      }
-    );
-
-    let balanceBefore = 0;
-    let balanceAfter = 0;
-
-    if (deductErr) {
-      console.error("Error deducting credits (falling back to manual):", deductErr);
-      const { data: credits } = await adminClient
-        .from("ai_credits")
-        .select("balance_eur, total_spent_eur")
-        .eq("company_id", companyId)
-        .maybeSingle();
-
-      balanceBefore = credits?.balance_eur ?? 0;
-      balanceAfter = Number((balanceBefore - costBilledTotal).toFixed(4));
-
-      if (credits) {
-        await adminClient
-          .from("ai_credits")
-          .update({
-            balance_eur: balanceAfter,
-            total_spent_eur: Number(((credits.total_spent_eur ?? 0) + costBilledTotal).toFixed(4)),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("company_id", companyId);
-      } else {
-        await adminClient.from("ai_credits").insert({
-          company_id: companyId,
-          balance_eur: -costBilledTotal,
-          total_spent_eur: costBilledTotal,
-        });
-        balanceAfter = -costBilledTotal;
-      }
-    } else {
-      const result = updatedCredits as unknown as { balance_before: number; balance_after: number } | null;
-      balanceBefore = result?.balance_before ?? 0;
-      balanceAfter = result?.balance_after ?? 0;
-    }
-
-    // Record usage
-    const { error: usageErr } = await adminClient.from("ai_credit_usage").insert({
-      company_id: companyId,
-      conversation_id: convRecord?.id || null,
-      ...(agentV2Id ? { agent_id: null, agent_v2_id: agentV2Id } : { agent_id: agent.id }),
-      duration_sec: durationSeconds,
-      duration_min: Number(durationMin.toFixed(4)),
-      llm_model: agent.llm_model,
-      tts_model: ttsModel,
-      cost_real_per_min: costRealPerMin,
-      cost_billed_per_min: costBilledPerMin,
-      cost_real_total: costRealTotal,
-      cost_billed_total: costBilledTotal,
-      margin_total: marginTotal,
-      balance_before: balanceBefore,
-      balance_after: balanceAfter,
-    });
-    if (usageErr) console.error("[WEBHOOK] ai_credit_usage NON salvato:", usageErr.message);
+    // Transactional and idempotent: no partially deducted balance and no fake zero-cost mirror.
+    const settlement = await settleVoiceConversation(adminClient, companyId, convRecord.id,
+      billingPricing, voiceConversationStatus(status));
+    const balanceAfter = settlement.balance_after;
 
     // Handle low/zero balance
     if (balanceAfter <= 0) {
@@ -608,6 +512,7 @@ Deno.serve(async (req) => {
           .from("marketing_contacts")
           .select("phone, email, first_name")
           .eq("id", contactId)
+          .eq("company_id", companyId)
           .single();
 
         if (contact?.phone || contact?.email) {
@@ -633,37 +538,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ============ WHATSAPP AFTER-CALL (P2-04) ============
-    // If appointment was created, send WhatsApp template confirmation
-    if (appointmentCreated && contactId) {
-      try {
-        const { data: waContact } = await adminClient
-          .from("marketing_contacts")
-          .select("phone, first_name")
-          .eq("id", contactId)
-          .single();
-
-        if (waContact?.phone) {
-          const waMsg = `Ciao ${waContact.first_name || ""}! Il tuo appuntamento è stato confermato. Ti aspettiamo!`;
-          // Fire-and-forget WhatsApp
-          fetch(`${supabaseUrl}/functions/v1/send-contact-message`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${serviceRoleKey}`,
-            },
-            body: JSON.stringify({
-              company_id: companyId,
-              contact_id: contactId,
-              channel: "whatsapp",
-              content: waMsg,
-            }),
-          }).catch((e) => console.error("[WEBHOOK] WhatsApp after-call error:", e));
-        }
-      } catch (waErr) {
-        console.error("[WEBHOOK] WhatsApp after-call setup error:", waErr);
-      }
-    }
+    // Confirmation is sent only by the enabled block above, never twice or while disabled.
 
     // ============ SMS POST-CALL (P1-06) ============
     const smsAgent = agent as typeof agent & { sms_postcall_enabled?: boolean; sms_postcall_trigger?: string; sms_postcall_template?: string };
@@ -682,6 +557,7 @@ Deno.serve(async (req) => {
             .from("marketing_contacts")
             .select("phone, first_name")
             .eq("id", contactId)
+            .eq("company_id", companyId)
             .single();
 
           if (contact?.phone) {

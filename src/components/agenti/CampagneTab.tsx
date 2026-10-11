@@ -40,7 +40,10 @@ interface Campaign {
   schedulata_il: string | null;
   creato_il: string;
   aggiornato_il: string;
-  metadata?: { preparazione_destinatari?: PreparedCampaignRecipients } | null;
+  metadata?: { preparazione_destinatari?: PreparedCampaignRecipients; errore_esecuzione?: string } | null;
+  orario_inizio?: string;
+  orario_fine?: string;
+  fuso_orario?: string;
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -60,23 +63,39 @@ export function CampagneTab() {
   const [createStep, setCreateStep] = useState(1);
   const [form, setForm] = useState({ nome: "", descrizione: "", agent_id: "", tipo: "chiamata" });
   const [recipientCampaign, setRecipientCampaign] = useState<Campaign | null>(null);
+  const [confirmCampaign, setConfirmCampaign] = useState<Campaign | null>(null);
   const draftId = useRef<string | null>(null);
   const activeCompany = useRef(companyId);
   activeCompany.current = companyId;
   useEffect(() => {
-    setShowCreateDialog(false); setRecipientCampaign(null); setCreateStep(1); setStatusFilter("all");
+    setShowCreateDialog(false); setRecipientCampaign(null); setConfirmCampaign(null); setCreateStep(1); setStatusFilter("all");
     setForm({ nome: "", descrizione: "", agent_id: "", tipo: "chiamata" }); draftId.current = null;
   }, [companyId]);
   const openCreate = () => { draftId.current ??= crypto.randomUUID(); setShowCreateDialog(true); };
 
-  const { data: campaigns = [], isLoading, isError, error, refetch } = useQuery({
+  const { data: campaignResult, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["ai-campaigns-v2", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const result = await campaignPreparationRequest<{ campaigns: Campaign[] }>(companyId!, "list_campaigns");
-      return result.campaigns;
+      return campaignPreparationRequest<{ campaigns: Campaign[]; dispatch_enabled: boolean }>(companyId!, "list_campaigns");
     },
     retry: false, refetchInterval: 60_000,
+  });
+  const campaigns: Campaign[] = Array.isArray(campaignResult) ? campaignResult : campaignResult?.campaigns || [];
+  const dispatchEnabled = !Array.isArray(campaignResult) && campaignResult?.dispatch_enabled === true;
+  const controlMutation = useMutation({
+    mutationFn: async ({ campaign, action }: { campaign: Campaign; action: "start_campaign" | "pause_campaign" }) => {
+      if (!companyId || solaLettura) throw new Error("Modifica non consentita");
+      await campaignPreparationRequest(companyId, action, { campaign_id: campaign.id, updated_at: campaign.aggiornato_il });
+      return { savedCompany: companyId, action };
+    },
+    onSuccess: ({ savedCompany, action }) => {
+      queryClient.invalidateQueries({ queryKey: ["ai-campaigns-v2", savedCompany] });
+      if (savedCompany !== activeCompany.current) return;
+      setConfirmCampaign(null);
+      toast.success(action === "start_campaign" ? "Campagna in coda: le chiamate partiranno negli orari previsti" : "Campagna in pausa: eventuali chiamate già avviate termineranno normalmente");
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const { data: agents = [], isError: agentsError, isLoading: agentsLoading, refetch: reloadAgents } = useQuery({
@@ -149,7 +168,8 @@ export function CampagneTab() {
       </div>
       {solaLettura && <p className="text-sm text-muted-foreground">Accesso in sola lettura: non puoi creare o modificare campagne.</p>}
       <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-        Qui puoi preparare bozze e selezionare destinatari CRM. L'esecutore massivo non è ancora collegato: nessuna chiamata parte da questa scheda.
+        {dispatchEnabled ? "Avvio su conferma, una chiamata alla volta per azienda, negli orari previsti. Consenso, esclusioni e saldo vengono ricontrollati prima di ogni chiamata. Nessun richiamo automatico dopo un esito incerto."
+          : "Qui puoi preparare bozze e selezionare destinatari CRM. L'esecutore massivo non è ancora attivo: nessuna chiamata parte da questa scheda."}
       </div>
 
       {/* Stats */}
@@ -226,6 +246,7 @@ export function CampagneTab() {
                   {c.descrizione && (
                     <p className="text-xs text-muted-foreground line-clamp-2">{c.descrizione}</p>
                   )}
+                  {c.metadata?.errore_esecuzione && <p role="alert" className="text-xs text-amber-700">{c.metadata.errore_esecuzione}</p>}
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {c.stato === "bozza" && <div className="text-xs text-muted-foreground">{prepared?.recipients.length || 0} destinatari preparati · nessun invio
@@ -263,9 +284,10 @@ export function CampagneTab() {
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7"
-                          disabled
-                          aria-label="Avvio massivo non disponibile"
-                          title="Esecuzione massiva non ancora collegata"
+                          disabled={!dispatchEnabled || solaLettura || controlMutation.isPending || (c.stato === "bozza" && !prepared?.recipients.length)}
+                          aria-label={dispatchEnabled ? "Avvia campagna" : "Avvio massivo non disponibile"}
+                          title={dispatchEnabled ? "Conferma avvio" : "Esecutore non attivo"}
+                          onClick={() => setConfirmCampaign(c)}
                         >
                           <Play className="h-3.5 w-3.5" />
                         </Button>
@@ -275,9 +297,10 @@ export function CampagneTab() {
                           size="icon"
                           variant="ghost"
                           className="h-7 w-7"
-                          disabled
-                          aria-label="Pausa massiva non disponibile"
-                          title="Esecuzione massiva non ancora collegata"
+                          disabled={!dispatchEnabled || solaLettura || controlMutation.isPending}
+                          aria-label={dispatchEnabled ? "Metti in pausa" : "Pausa massiva non disponibile"}
+                          title="Blocca le prossime chiamate"
+                          onClick={() => controlMutation.mutate({ campaign: c, action: "pause_campaign" })}
                         >
                           <Pause className="h-3.5 w-3.5" />
                         </Button>
@@ -310,6 +333,16 @@ export function CampagneTab() {
       )}
 
       {/* Create Dialog — 3-step wizard */}
+      <Dialog open={!!confirmCampaign} onOpenChange={open => { if (!open && !controlMutation.isPending) setConfirmCampaign(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Avviare {confirmCampaign?.nome}?</DialogTitle></DialogHeader>
+          <p className="text-sm">Le chiamate consumano credito e partono una alla volta. Fascia {confirmCampaign?.orario_inizio?.slice(0,5) || "09:00"}–{confirmCampaign?.orario_fine?.slice(0,5) || "18:00"} ({confirmCampaign?.fuso_orario || "Europe/Rome"}), nei giorni configurati; per le nuove campagne, dal lunedì al venerdì.</p>
+          <p className="text-sm text-muted-foreground">Puoi mettere in pausa le chiamate successive. I contatti non più idonei vengono esclusi; i timeout incerti bloccano la campagna per verifica, senza richiamare automaticamente.</p>
+          <DialogFooter><Button variant="outline" disabled={controlMutation.isPending} onClick={() => setConfirmCampaign(null)}>Annulla</Button>
+            <Button disabled={controlMutation.isPending || solaLettura || !dispatchEnabled} onClick={() => confirmCampaign && controlMutation.mutate({campaign:confirmCampaign,action:"start_campaign"})}>
+              {controlMutation.isPending ? "Avvio..." : "Conferma e avvia"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
       {recipientCampaign && companyId && <CampaignRecipientsDialog key={`${companyId}:${recipientCampaign.id}`} companyId={companyId} campaign={recipientCampaign} onClose={() => setRecipientCampaign(null)} />}
       <Dialog open={showCreateDialog} onOpenChange={open => { if (!createMutation.isPending) setShowCreateDialog(open); }}>
         <DialogContent className="sm:max-w-lg">

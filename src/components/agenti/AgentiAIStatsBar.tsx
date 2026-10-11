@@ -24,7 +24,7 @@ const STAT_CONFIG = [
   },
   {
     key: "minuti_totali" as const,
-    label: "Minuti totali (30gg)",
+    label: "Minuti voce (30gg)",
     icon: Clock,
     format: (v: number) => `${Math.round(v)} min`,
     color: "text-amber-600",
@@ -32,7 +32,7 @@ const STAT_CONFIG = [
   },
   {
     key: "chat_totali" as const,
-    label: "Chat/WhatsApp (30gg)",
+    label: "Sessioni chat (30gg)",
     icon: MessageSquare,
     format: (v: number) => v.toLocaleString("it-IT"),
     color: "text-sky-600",
@@ -48,10 +48,10 @@ const STAT_CONFIG = [
   },
   {
     key: "crediti_usati" as const,
-    label: "Crediti usati",
+    label: "Costo addebitato",
     icon: CreditCard,
     format: (v: number) =>
-      v.toLocaleString("it-IT", { maximumFractionDigits: 0 }),
+      v.toLocaleString("it-IT", { style: "currency", currency: "EUR" }),
     color: "text-slate-600",
     bg: "bg-slate-100 ring-1 ring-inset ring-slate-200",
   },

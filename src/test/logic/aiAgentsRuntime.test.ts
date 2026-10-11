@@ -8,6 +8,8 @@ import { voiceConversationStatus } from "../../../supabase/functions/_shared/voi
 import { outboundVoiceRequest } from "../../../supabase/functions/_shared/outboundVoice";
 import { CAMPAIGN_ACTIONS, CampaignError, campaignPreparation } from "../../../supabase/functions/_shared/campaignPreparation";
 import { normalizeVoicePhone, voiceContactExclusion } from "../../../supabase/functions/_shared/contactVoice";
+import { CHAT_HISTORY_ACTIONS, agentChatHistory } from "../../../supabase/functions/_shared/agentChatHistory";
+import { settleVoiceConversation } from "../../../supabase/functions/_shared/voiceSettlement";
 
 type Query = { table: string; steps: unknown[][] };
 function database(resolve: (q: Query) => any = () => ({ data: null, error: null })) {
@@ -42,7 +44,7 @@ function runtime(path: string, db: ReturnType<typeof database>, overrides: Recor
     createClient: () => db, TTS_MODEL_VOCE: "eleven_flash_v2_5", getCorsHeaders: () => ({}),
     getPlatformSetting: async () => "test-key", checkRateLimit: async () => ({ allowed: true }),
     agentCompanyAccess: async () => ({ companyId: company, isSuperAdmin: false }),
-    CAMPAIGN_ACTIONS, CampaignError, campaignPreparation, campaignPermission: vi.fn(async () => undefined), normalizeVoicePhone, voiceContactExclusion, segnalaErroreAI: vi.fn(), fetch, ...overrides,
+    CHAT_HISTORY_ACTIONS, agentChatHistory, settleVoiceConversation, CAMPAIGN_ACTIONS, CampaignError, campaignPreparation, campaignPermission: vi.fn(async () => undefined), normalizeVoicePhone, voiceContactExclusion, segnalaErroreAI: vi.fn(), fetch, ...overrides,
   });
   return { fetch, run: (body: unknown, token = "test") => handler(new Request("https://local.test", {
     method: "POST", headers: { Authorization: "Bearer " + token }, body: JSON.stringify(body),
@@ -51,29 +53,26 @@ function runtime(path: string, db: ReturnType<typeof database>, overrides: Recor
 const proxyPath = "supabase/functions/elevenlabs-proxy/index.ts";
 const kbPath = "supabase/functions/kb-sync/index.ts";
 
-describe("post-call mirror and counters", () => {
-  const source = fs.readFileSync("supabase/functions/elevenlabs-webhook/index.ts", "utf8");
-  const block = source.split("// ============ DUAL-WRITE TO ai_conversations_v2 ============")[1]
-    .split("// ============ UPDATE BRANCH STATS")[0];
-  async function mirror(db: ReturnType<typeof database>, status = "completed") {
-    const js = ts.transpileModule("(async () => {" + block + "})()", {
-      compilerOptions: { target: ts.ScriptTarget.ES2022 },
-    }).outputText;
-    await vm.runInNewContext(js, { adminClient: db, agentV2Id: "agent", companyId: company,
-      durationSeconds: 60, conversationId: "conversation", contactId: null, status, callDirection: "inbound",
-      summaryText: "Summary", transcript: [], metadata: {}, voiceConversationStatus, Error,
-      console: { error() {} } });
-  }
-  it("writes canonical channel and status before incrementing counters", async () => {
+describe("post-call atomic settlement", () => {
+  it("requires the atomic transaction rather than a manual balance fallback", async () => {
     const db = database();
-    await mirror(db, "failed");
-    expect(db.calls[0].steps).toContainEqual(["insert", expect.objectContaining({ canale: "voce", stato: "fallita", company_id: company })]);
-    expect(db.rpc).toHaveBeenCalledWith("increment_agent_stats", expect.objectContaining({ p_chiamate_completate: 0 }));
+    db.rpc.mockResolvedValue({ data: { balance_before: 10, balance_after: 9, already_billed: false }, error: null } as any);
+    expect(await settleVoiceConversation(db, company, "conversation", { billed_per_min: 1 }, "completata")).toMatchObject({ balance_after: 9 });
+    expect(db.rpc).toHaveBeenCalledWith("settle_voice_conversation", expect.objectContaining({ p_company_id: company, p_conversation_id: "conversation", p_state: "completata" }));
+    expect(db.calls).toHaveLength(0);
   });
-  it("does not increment when the database rejects the conversation", async () => {
-    const db = database(() => ({ data: null, error: { message: "invalid state" } }));
-    await mirror(db);
-    expect(db.rpc).not.toHaveBeenCalled();
+  it("does not report successful billing when the transaction fails", async () => {
+    const db = database();
+    db.rpc.mockResolvedValue({ error: { message: "temporary failure" } } as any);
+    await expect(settleVoiceConversation(db, company, "conversation", {}, "completata")).rejects.toThrow("ritentato");
+    expect(db.calls).toHaveLength(0);
+  });
+  it("accepts an idempotent replay but rejects malformed balances", async () => {
+    const db = database();
+    db.rpc.mockResolvedValue({ data: { balance_before: 10, balance_after: 9, already_billed: true }, error: null } as any);
+    expect((await settleVoiceConversation(db, company, "conversation", {}, "completata")).already_billed).toBe(true);
+    db.rpc.mockResolvedValue({ data: { balance_after: "9" }, error: null } as any);
+    await expect(settleVoiceConversation(db, company, "conversation", {}, "completata")).rejects.toThrow();
   });
 });
 

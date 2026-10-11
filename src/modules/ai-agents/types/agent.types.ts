@@ -124,6 +124,8 @@ export const LANGUAGE_OPTIONS = [
 
 export type ProxyAction =
   | "get_capabilities"
+  | "chat_sessions" | "chat_messages"
+  | "start_campaign" | "pause_campaign"
   | "list_campaigns" | "campaign_agents" | "create_campaign" | "delete_campaign" | "campaign_contacts" | "prepare_campaign"
   | "create_agent"
   | "get_agent"

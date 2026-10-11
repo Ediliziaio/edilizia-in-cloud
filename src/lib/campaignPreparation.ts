@@ -22,8 +22,8 @@ export function readPreparedCampaignRecipients(metadata: unknown): PreparedCampa
   };
 }
 export async function campaignPreparationRequest<T>(companyId: string, action: ProxyAction, payload?: Record<string, unknown>): Promise<T> {
-  let capabilities: { campaign_preparation?: boolean };
-  try { capabilities = await callElevenLabsProxy<{ campaign_preparation?: boolean }>({ action: "get_capabilities", company_id: companyId }); }
+  let capabilities: { campaign_preparation?: boolean; campaign_dispatch?: boolean };
+  try { capabilities = await callElevenLabsProxy<{ campaign_preparation?: boolean; campaign_dispatch?: boolean }>({ action: "get_capabilities", company_id: companyId }); }
   catch (error) {
     if (error instanceof Error && /azione non supportata.*get_capabilities|^nessuna azienda associata$/i.test(error.message)) {
       throw new Error("Il servizio server delle campagne non è ancora aggiornato. Pubblica frontend e funzioni server insieme.");
@@ -31,5 +31,6 @@ export async function campaignPreparationRequest<T>(companyId: string, action: P
     throw error;
   }
   if (!capabilities?.campaign_preparation) throw new Error("La preparazione campagne richiede il servizio server aggiornato. Nessuna chiamata è stata avviata.");
+  if (["start_campaign", "pause_campaign"].includes(action) && !capabilities.campaign_dispatch) throw new Error("L'esecutore campagne non è ancora attivo.");
   return callElevenLabsProxy<T>({ action, company_id: companyId, payload });
 }

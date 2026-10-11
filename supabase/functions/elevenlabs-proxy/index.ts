@@ -6,6 +6,7 @@ import { TTS_MODEL_VOCE } from "../_shared/voicePricing.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { agentCompanyAccess } from "../_shared/agentCompanyAccess.ts";
 import { CAMPAIGN_ACTIONS, CampaignError, campaignPreparation } from "../_shared/campaignPreparation.ts";
+import { CHAT_HISTORY_ACTIONS, agentChatHistory } from "../_shared/agentChatHistory.ts";
 import { campaignPermission } from "../_shared/campaignPermission.ts";
 
 const EL_BASE = "https://api.elevenlabs.io/v1";
@@ -387,11 +388,23 @@ Deno.serve(async (req) => {
     let payload = body.payload;
     const access = await agentCompanyAccess(adminClient, userId, body.company_id, corsHeaders);
     const companyId = access.companyId;
-    if (action === "get_capabilities") return json({ version: 2, tenant_scoped: true, draft_provisioning: true, campaign_preparation: true, campaign_dispatch: false });
+    if (action === "get_capabilities") {
+      const ready = await adminClient.rpc("voice_campaign_runtime_ready");
+      return json({ version: 2, tenant_scoped: true, draft_provisioning: true, campaign_preparation: true,
+        campaign_dispatch: !ready.error && ready.data === true, chat_history: true });
+    }
+    if (CHAT_HISTORY_ACTIONS.includes(action)) {
+      if (payload !== undefined && (!payload || typeof payload !== "object" || Array.isArray(payload))) return json({ error: "Dati chat non validi" }, 400);
+      await campaignPermission(adminClient, userId, companyId, access.isSuperAdmin, action, corsHeaders);
+      const chatLimit = await checkRateLimit({ functionName: "agent-chat-history", callerId: companyId, maxCalls: 60, windowSeconds: 60 });
+      if (!chatLimit.allowed) return rateLimitResponse(chatLimit.retryAfterSeconds ?? 60, corsHeaders);
+      try { return json(await agentChatHistory(adminClient, companyId, action, payload)); }
+      catch (error) { return json({ error: error instanceof Error ? error.message : "Cronologia non disponibile" }, 400); }
+    }
     if (CAMPAIGN_ACTIONS.includes(action)) {
       if (payload !== undefined && (!payload || typeof payload !== "object" || Array.isArray(payload))) return json({ error: "Dati campagna non validi" }, 400);
       await campaignPermission(adminClient, userId, companyId, access.isSuperAdmin, action, corsHeaders);
-      if (["create_campaign", "delete_campaign", "prepare_campaign"].includes(action) && !access.isSuperAdmin) {
+      if (["create_campaign", "delete_campaign", "prepare_campaign", "start_campaign", "pause_campaign"].includes(action) && !access.isSuperAdmin) {
         // Must use the USER client: auth.uid() in this RPC must not be service_role.
         const { data: readOnly, error: permissionError } = await userClient.rpc("utente_sola_lettura", { p_company_id: companyId });
         if (permissionError || readOnly !== false) return json({ error: "Sola lettura o permesso di modifica non verificabile" }, 403);

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { agentChatHistoryRequest } from "@/lib/agentChatHistory";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import {
   MessageSquare, Search, Clock, User, Bot, Loader2, ChevronRight,
@@ -27,6 +27,7 @@ interface ChatSession {
   messaggi_totali: number;
   durata_secondi: number;
   agent_nome?: string;
+  source: "agente" | "sito";
 }
 
 interface ChatMessage {
@@ -41,44 +42,39 @@ export function ChatConversazioniTab() {
   const [cerca, setCerca] = useState("");
   const [filtroStato, setFiltroStato] = useState("tutti");
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
-  useEffect(() => { setSelectedSession(null); }, [companyId]);
+  const [source, setSource] = useState("tutti");
+  const [page, setPage] = useState(0);
+  const [messagePage, setMessagePage] = useState(0);
+  const [search, setSearch] = useState("");
+  useEffect(() => { const timer = setTimeout(() => { setSearch(cerca.trim()); setPage(0); }, 300); return () => clearTimeout(timer); }, [cerca]);
+  useEffect(() => { setSelectedSession(null); setPage(0); setMessagePage(0); }, [companyId, filtroStato, source]);
+  const showDate = (value: string, pattern: string) => Number.isFinite(new Date(value).getTime())
+    ? format(new Date(value), pattern, { locale: it }) : "Data non disponibile";
 
   // Fetch sessions with agent name
-  const { data: sessions = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["chat-sessions", companyId, filtroStato],
+  const { data: sessionResult, isLoading, isError, error: sessionError, refetch } = useQuery({
+    queryKey: ["chat-sessions", companyId, filtroStato, source, page, search],
     enabled: !!companyId,
     queryFn: async () => {
-      let q = supabase
-        .from("ai_chat_sessions")
-        .select("*, ai_agents_v2!inner(nome)")
-        .eq("company_id", companyId!)
-        .order("iniziata_il", { ascending: false });
-
-      if (filtroStato !== "tutti") q = q.eq("stato", filtroStato);
-
-      const { data, error } = await q.limit(100);
-      if (error) throw error;
-      return (data || []).map((s: Record<string, unknown>) => ({
-        ...s,
-        agent_nome: (s.ai_agents_v2 as Record<string, string>)?.nome,
-      })) as ChatSession[];
+      return agentChatHistoryRequest<{ sessions: ChatSession[]; has_more: boolean }>(companyId!, "chat_sessions",
+        { page, source, status: filtroStato, search });
     },
+    refetchInterval: 60_000, retry: false,
   });
+  const sessions = sessionResult?.sessions || [];
+  const selectedSessionData = sessions.find(s => s.source + ":" + s.id === selectedSession);
 
   // Fetch messages for selected session
-  const { data: messages = [], isLoading: loadingMessages, isError: messagesError, refetch: retryMessages } = useQuery({
-    queryKey: ["chat-messages", companyId, selectedSession],
-    enabled: !!companyId && !!selectedSession && sessions.some(s => s.id === selectedSession),
+  const { data: messageResult, isLoading: loadingMessages, isError: messagesError, refetch: retryMessages } = useQuery({
+    queryKey: ["chat-messages", companyId, selectedSession, messagePage],
+    enabled: !!companyId && !!selectedSessionData,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ai_chat_messages")
-        .select("*")
-        .eq("session_id", selectedSession!)
-        .order("creato_il", { ascending: true });
-      if (error) throw error;
-      return (data || []) as ChatMessage[];
+      return agentChatHistoryRequest<{ messages: ChatMessage[]; has_more: boolean }>(companyId!, "chat_messages",
+        { session_id: selectedSessionData!.id, source: selectedSessionData!.source, page: messagePage });
     },
+    retry: false,
   });
+  const messages = messageResult?.messages || [];
 
   // Client-side search filter
   const filteredSessions = useMemo(() => {
@@ -90,8 +86,6 @@ export function ChatConversazioniTab() {
       s.stato.toLowerCase().includes(term)
     );
   }, [sessions, cerca]);
-
-  const selectedSessionData = sessions.find(s => s.id === selectedSession);
 
   if (selectedSession && selectedSessionData) {
     return (
@@ -106,7 +100,7 @@ export function ChatConversazioniTab() {
               Chat con {selectedSessionData.agent_nome || "Agente"}
             </h3>
             <p className="text-[10px] text-muted-foreground max-md:text-[11px]">
-              {format(new Date(selectedSessionData.iniziata_il), "d MMM yyyy HH:mm", { locale: it })}
+              {showDate(selectedSessionData.iniziata_il, "d MMM yyyy HH:mm")}
               {" · "}{selectedSessionData.messaggi_totali} messaggi
             </p>
           </div>
@@ -150,7 +144,7 @@ export function ChatConversazioniTab() {
                           {msg.ruolo === "assistant" && <Bot className="h-3 w-3 text-primary" />}
                           {msg.ruolo === "user" && <User className="h-3 w-3" />}
                           <span className="text-[9px] opacity-70 max-md:text-[11px]">
-                            {format(new Date(msg.creato_il), "HH:mm")}
+                            {showDate(msg.creato_il, "HH:mm")}
                           </span>
                         </div>
                         <p className="text-sm whitespace-pre-wrap">{msg.contenuto}</p>
@@ -162,6 +156,11 @@ export function ChatConversazioniTab() {
             </ScrollArea>
           </CardContent>
         </Card>
+        {(messagePage > 0 || messageResult?.has_more) && <div className="flex items-center justify-between">
+          <Button variant="outline" disabled={messagePage === 0 || loadingMessages} onClick={() => setMessagePage(p => p - 1)}>Messaggi precedenti</Button>
+          <span className="text-sm">Pagina {messagePage + 1}</span>
+          <Button variant="outline" disabled={!messageResult?.has_more || loadingMessages} onClick={() => setMessagePage(p => p + 1)}>Messaggi successivi</Button>
+        </div>}
       </div>
     );
   }
@@ -170,8 +169,7 @@ export function ChatConversazioniTab() {
     // Telefono: ricerca e stato sulla stessa riga, stato vuoto in una riga.
     <div className="space-y-4 max-md:space-y-3">
       <p className="text-sm text-muted-foreground" role="status">
-        Questa scheda mostra le sessioni registrate dagli agenti AI. Lo storico del widget chat del sito
-        è separato e non viene incluso automaticamente qui.
+        Conversazioni degli agenti e del widget del sito, distinte per canale. La ricerca comprende tutto lo storico.
       </p>
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap max-md:flex-nowrap max-md:gap-2">
@@ -194,6 +192,10 @@ export function ChatConversazioniTab() {
             <SelectItem value="chiusa">Chiuse</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={source} onValueChange={setSource}>
+          <SelectTrigger className="w-36 h-8"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="tutti">Tutti i canali</SelectItem><SelectItem value="agente">Agenti AI</SelectItem><SelectItem value="sito">Widget sito</SelectItem></SelectContent>
+        </Select>
       </div>
 
       {/* Sessions list */}
@@ -202,7 +204,7 @@ export function ChatConversazioniTab() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : isError ? (
-        <div role="alert" className="rounded-lg border p-4"><p>Impossibile caricare le sessioni chat.</p>
+        <div role="alert" className="rounded-lg border p-4"><p>{sessionError instanceof Error ? sessionError.message : "Impossibile caricare le sessioni chat."}</p>
           <Button variant="outline" className="mt-2" onClick={() => refetch()}>Riprova</Button></div>
       ) : filteredSessions.length === 0 && sessions.length > 0 ? (
         <div className="py-8 text-center"><p>Nessuna sessione corrisponde alla ricerca.</p>
@@ -219,9 +221,9 @@ export function ChatConversazioniTab() {
         <div className="space-y-2">
           {filteredSessions.map((s) => (
             <Card
-              key={s.id}
+              key={s.source + ":" + s.id}
               className="cursor-pointer hover:shadow-sm transition-shadow"
-              onClick={() => setSelectedSession(s.id)}
+              onClick={() => { setSelectedSession(s.source + ":" + s.id); setMessagePage(0); }}
             >
               <CardContent className="p-3 flex items-center gap-3">
                 <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -245,7 +247,7 @@ export function ChatConversazioniTab() {
                       <Clock className="h-2.5 w-2.5" /> {Math.round(s.durata_secondi / 60)}m
                     </span>
                     <span className="text-[10px] text-muted-foreground max-md:text-[11px]">
-                      {format(new Date(s.iniziata_il), "d MMM HH:mm", { locale: it })}
+                      {showDate(s.iniziata_il, "d MMM HH:mm")}
                     </span>
                   </div>
                 </div>
@@ -255,6 +257,11 @@ export function ChatConversazioniTab() {
           ))}
         </div>
       )}
+      {(page > 0 || sessionResult?.has_more) && <div className="flex items-center justify-between">
+        <Button variant="outline" disabled={page === 0 || isLoading} onClick={() => setPage(p => p - 1)}>Precedenti</Button>
+        <span className="text-sm">Pagina {page + 1}</span>
+        <Button variant="outline" disabled={!sessionResult?.has_more || isLoading} onClick={() => setPage(p => p + 1)}>Successive</Button>
+      </div>}
     </div>
   );
 }

@@ -44,7 +44,7 @@ export function StatisticheTab() {
   useEffect(() => {
     if (!companyId) return;
     let channel = supabase.channel(`ai-stats-realtime:${companyId}`);
-    for (const table of ["ai_agent_conversations", "ai_conversations_v2", "ai_chat_sessions", "ai_credit_transactions", "ai_agents_v2"]) {
+    for (const table of ["ai_agent_conversations", "ai_conversations_v2", "ai_chat_sessions", "public_chat_sessions", "ai_credit_usage", "ai_credit_transactions", "ai_agents_v2"]) {
       channel = channel.on("postgres_changes", {
         event: "*", schema: "public", table, filter: `company_id=eq.${companyId}`,
       }, () => {
@@ -98,11 +98,11 @@ export function StatisticheTab() {
   }
 
   const kpis = [
-    { label: "Conversazioni", value: analytics.chiamate.totali, icon: MessageSquare, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
+    { label: "Chiamate", value: analytics.chiamate.totali, icon: MessageSquare, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
     { label: "Completamento", value: `${Math.round(analytics.chiamate.tasso_risposta)}%`, icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
     { label: "Chat", value: analytics.chat.totali, icon: MessageSquare, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
     { label: "Durata media conv.", value: `${Math.round(analytics.chiamate.durata_media_sec)}s`, icon: Clock, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
-    { label: "Crediti Usati", value: analytics.crediti.totale_consumato.toFixed(1), icon: CreditCard, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
+    { label: "Costo addebitato", value: analytics.crediti.totale_consumato.toLocaleString("it-IT", { style: "currency", currency: "EUR" }), icon: CreditCard, color: "text-blue-600", bg: "bg-blue-50 ring-1 ring-inset ring-blue-100" },
     { label: "Agenti Attivi", value: analytics.agenti.reduce((s, a) => s + a.count, 0), icon: Bot, color: "text-violet-600", bg: "bg-violet-50 ring-1 ring-inset ring-violet-100" },
   ];
 
@@ -133,7 +133,7 @@ export function StatisticheTab() {
           </SelectContent>
         </Select>
       </div>
-      <p className="text-xs text-muted-foreground">Conversazioni e durata comprendono tutti i canali registrati. Le sessioni chat sono riportate separatamente.</p>
+      <p className="text-xs text-muted-foreground">Chiamate vocali e chat sono conteggiate separatamente. Le chat includono il widget del sito; i costi riportano gli importi addebitati, senza sommare due volte lo storico delle chiamate.</p>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -161,7 +161,7 @@ export function StatisticheTab() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" /> Conversazioni per giorno
+              <MessageSquare className="h-4 w-4" /> Chiamate per giorno
             </CardTitle>
           </CardHeader>
           <CardContent>

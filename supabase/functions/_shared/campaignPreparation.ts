@@ -1,6 +1,6 @@
 import { prepareVoiceRecipients, voiceContactExclusion, type VoiceContact } from "./contactVoice.ts";
 
-export const CAMPAIGN_ACTIONS = ["list_campaigns", "campaign_agents", "create_campaign", "delete_campaign", "campaign_contacts", "prepare_campaign"];
+export const CAMPAIGN_ACTIONS = ["list_campaigns", "campaign_agents", "create_campaign", "delete_campaign", "campaign_contacts", "prepare_campaign", "start_campaign", "pause_campaign"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export class CampaignError extends Error {
   constructor(message: string, public status = 400) { super(message); }
@@ -19,7 +19,8 @@ export async function campaignPreparation(db: any, companyId: string, action: st
   if (action === "list_campaigns") {
     const campaigns = checked(await db.from("ai_campaigns_v2").select("*").eq("company_id", companyId)
       .order("creato_il", { ascending: false }).limit(500), "Impossibile caricare le campagne");
-    return { campaigns: campaigns || [] };
+    const readiness = await db.rpc("voice_campaign_runtime_ready");
+    return { campaigns: campaigns || [], dispatch_enabled: !readiness.error && readiness.data === true };
   }
   if (action === "campaign_agents") {
     const agents = checked(await db.from("ai_agents_v2").select("id,nome,tipo,stato,elevenlabs_agent_id")
@@ -58,6 +59,13 @@ export async function campaignPreparation(db: any, companyId: string, action: st
   }
 
   const campaignId = id(payload.campaign_id);
+  if (["start_campaign", "pause_campaign"].includes(action)) {
+    if (typeof payload.updated_at !== "string" || !Number.isFinite(Date.parse(payload.updated_at))) throw new CampaignError("Ricarica la campagna prima di procedere");
+    const result = await db.rpc("control_voice_campaign", { p_company_id: companyId, p_campaign_id: campaignId,
+      p_updated_at: payload.updated_at, p_action: action === "start_campaign" ? "start" : "pause" });
+    if (result.error) throw new CampaignError(result.error.message || "Campagna non avviata", 409);
+    return result.data;
+  }
   const campaign = checked(await db.from("ai_campaigns_v2").select("*").eq("id", campaignId).eq("company_id", companyId).maybeSingle(), "Impossibile verificare la campagna");
   if (!campaign) throw new CampaignError("Campagna non trovata", 404);
   if (campaign.stato !== "bozza" || Number(campaign.chiamate_effettuate) > 0) throw new CampaignError("Puoi modificare o eliminare solo bozze mai avviate", 409);

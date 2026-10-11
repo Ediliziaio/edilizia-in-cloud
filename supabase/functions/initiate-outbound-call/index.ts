@@ -44,6 +44,8 @@ Deno.serve(async (req) => {
         userId: userId!,
         skipSubscriptionCheck: body.skip_subscription_check || false,
         dynamicVars: body.dynamic_vars,
+        campaignRecipientId: body.campaign_recipient_id,
+        campaignClaimToken: body.campaign_claim_token,
       });
     }
 
@@ -84,6 +86,8 @@ interface OutboundCallParams {
   userId: string;
   skipSubscriptionCheck: boolean;
   dynamicVars?: Record<string, string>;
+  campaignRecipientId?: string;
+  campaignClaimToken?: string;
 }
 
 async function handleOutboundCall(
@@ -179,15 +183,15 @@ async function handleOutboundCall(
   if (contactId) {
     const { data: contact, error: contactError } = await adminClient
       .from("marketing_contacts")
-      .select("id, phone, optout_call, opt_out, deleted_at, ricontatta_dopo")
+      .select("id, phone, optout_call, opt_out, deleted_at, ricontatta_dopo, marketing_consent")
       .eq("id", contactId)
       .eq("company_id", companyId)
       .maybeSingle();
 
     if (contactError) return json(req, { error: "Impossibile verificare il contatto" }, 500);
     if (!contact) return json(req, { error: "Contatto non trovato" }, 404);
-    const excluded = voiceContactExclusion(contact);
-    if (excluded) return json(req, { error: excluded }, 403);
+    const excluded = voiceContactExclusion(contact, !!params.campaignRecipientId);
+    if (excluded) return json(req, { error: excluded, contact_excluded: true }, 403);
 
     targetPhone = contact.phone;
     targetContactId = contact.id;
@@ -303,6 +307,18 @@ async function handleOutboundCall(
   }
 
   const { url: outboundUrl, payload: elPayload } = outboundVoiceRequest(phoneProvider, agent.elevenlabs_agent_id, elPhoneId, targetPhone, dynamicVars);
+  if (params.campaignRecipientId) {
+    const { data: begun, error: beginError } = await adminClient.rpc("begin_voice_campaign_call" as never, {
+      p_company_id: companyId, p_recipient_id: params.campaignRecipientId, p_token: params.campaignClaimToken,
+      p_agent_id: agentId, p_contact_id: targetContactId,
+    } as never);
+    if (beginError || begun !== true) {
+      const { data: queue } = await adminClient.from("ai_campaign_contacts").select("stato")
+        .eq("id", params.campaignRecipientId).maybeSingle();
+      return json(req, { error: "Campagna in pausa, fuori orario o tentativo già preso in carico",
+        outcome_unknown: queue?.stato === "in_chiamata" }, 409);
+    }
+  }
 
   // Initiate via the configured provider (with 429 retry, max 3 attempts).
   let callRes: Response | null = null;
@@ -356,7 +372,8 @@ async function handleOutboundCall(
     status: "in_progress",
     duration_seconds: 0,
     messages_count: 0,
-    metadata: { outbound: true, phone: targetPhone, initiated_by: userId, provider: phoneProvider },
+    metadata: { outbound: true, call_direction: "outbound", phone: targetPhone, initiated_by: userId, provider: phoneProvider,
+      ...(params.campaignRecipientId ? { campaign_recipient_id: params.campaignRecipientId, campaign_claim_token: params.campaignClaimToken } : {}) },
   });
   if (convErr) console.error("[OUTBOUND] segnaposto conversazione NON salvato:", convErr.message);
 
