@@ -24,6 +24,9 @@ import { getMsOAuthCredentials } from "../_shared/msOAuth.ts";
 
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { emettiEmailRicevuta } from "../_shared/emailRicevutaEvento.ts";
+// Tetti per giro (caselle, messaggi, allegati, tempo): tenere ogni giro piccolo
+// e certo di finire, così `last_synced_at` avanza e il lavoro resta leggero.
+import { LIMITI_POLL, fermaIlGiro } from "./limiti.ts";
 interface ConnectionDue {
   id: string;
   provider: "gmail" | "outlook" | "imap";
@@ -139,7 +142,7 @@ function decodeBase64Url(data: string): string {
 const ATTACH_BUCKET = "email-attachments"; // stesso bucket letto da email-ai-estrai-allegato
 const MAX_ATT_BYTES = 15 * 1024 * 1024; // 15MB per allegato
 const MAX_ATT_PER_EMAIL = 5;
-const MAX_ATT_PER_RUN = 40; // bound globale latenza/timeout poller
+const MAX_ATT_PER_RUN = LIMITI_POLL.allegatiPerGiro; // bound globale per giro (CPU/tempo del worker)
 
 interface GmailAttMeta { filename: string; mime: string; size: number; attachmentId: string }
 
@@ -501,8 +504,9 @@ async function pollGmail(
  *
  * SICUREZZA (un bug qui potrebbe segnare letto in massa → guardie forti):
  *  - procede SOLO se la list Gmail va a buon fine (HTTP ok), altrimenti no-op;
- *  - richiede paginazione COMPLETA del set non-letto: se è enorme (>4000) fa
- *    abort senza update, per non agire su un set parziale (falsi "letti");
+ *  - richiede paginazione COMPLETA del set non-letto entro il tetto di pagine
+ *    (LIMITI_POLL.reconcilePagine): se eccede, abort senza update, per non agire
+ *    su un set parziale (falsi "letti");
  *  - candidati limitati alle non-lette recenti (ultimi 60 giorni).
  * Una risposta vuota MA valida (zero non-lette su Gmail) è legittima: l'utente
  * ha letto tutto altrove → allineiamo.
@@ -525,7 +529,10 @@ async function reconcileGmailReadState(
     const data = (await res.json()) as { messages?: Array<{ id: string }>; nextPageToken?: string };
     for (const m of data.messages ?? []) unreadIds.add(m.id);
     pageToken = data.nextPageToken ?? null;
-    if (++pages >= 8 && pageToken) return 0; // >4000 non-lette → abort, set incompleto
+    // Oltre il tetto di pagine con altre ancora da leggere: set incompleto, si
+    // lascia stare (nessun update su un set parziale). È un allineamento
+    // best-effort e tenerlo corto lascia CPU al lavoro principale del giro.
+    if (++pages >= LIMITI_POLL.reconcilePagine && pageToken) return 0;
   } while (pageToken);
 
   // 2) Candidati: nostre email non-lette recenti (60 gg) in inbox.
@@ -538,7 +545,7 @@ async function reconcileGmailReadState(
     .eq("is_read", false)
     .eq("mailbox_folder", "inbox")
     .gte("received_at", cutoffIso)
-    .limit(3000);
+    .limit(LIMITI_POLL.reconcileCandidati);
   if (error || !Array.isArray(localUnread) || localUnread.length === 0) return 0;
 
   // 3) Da segnare letti: locali-non-letti il cui ID Gmail NON è più tra i non-letti.
@@ -895,6 +902,9 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
     ai_triage_queued: 0,
     reads_reconciled: 0,
     errors: [] as Array<{ connection_id: string; error: string }>,
+    // true quando il tetto di tempo del giro ferma le caselle rimaste: le
+    // riprende il giro successivo (sono le più indietro nella lista).
+    budget_esaurito: false,
     duration_ms: 0,
   };
   const t0 = Date.now();
@@ -920,7 +930,7 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
     dueErr = res.error;
   } else {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res = await (supa as any).rpc("email_oauth_list_due_for_poll", { p_limit: 50 });
+    const res = await (supa as any).rpc("email_oauth_list_due_for_poll", { p_limit: LIMITI_POLL.casellePerGiro });
     due = res.data ?? null;
     dueErr = res.error;
   }
@@ -931,6 +941,14 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
   }
 
   for (const dueConn of (due ?? []) as ConnectionDue[]) {
+    // Tetto per giro: servita almeno una casella, se il tempo è finito ci si
+    // ferma e si lascia il resto al giro successivo. Così il giro finisce entro
+    // il budget del worker e `mark_sync` fa avanzare il cursore di chi è stato
+    // servito, invece di ripartire ogni volta da capo.
+    if (fermaIlGiro(t0, Date.now(), summary.connections_checked)) {
+      summary.budget_esaurito = true;
+      break;
+    }
     summary.connections_checked += 1;
     try {
       // Carica sempre il record completo: la RPC storica ritorna solo metadata minimi.
@@ -985,7 +1003,7 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
             password: c.password,
           },
           new Date(sinceTs),
-          50,
+          LIMITI_POLL.imapPerGiro,
           Number.isFinite(ultimoUid) && ultimoUid > 0 ? ultimoUid : null,
           true, // anche i messaggi già letti altrove: qui è un client di posta
         );
@@ -1030,11 +1048,14 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
         }
         const tokens = tokensData[0] as DecryptedTokens;
         const accessToken = await refreshTokenIfNeeded(supa, tokens, conn.id, conn.user_id ?? null);
-        // First sync (mai sincronizzato) → backfill aggressivo (max 1000 messaggi).
-        // Sync incrementale (already synced once) → solo i messaggi nuovi dopo
-        // last_synced_at: cap basso (200) per restare ben sotto i timeout Edge.
+        // First sync (mai sincronizzato) → allineamento più ampio (gmailPrimoGiro).
+        // Sync incrementale (già sincronizzata una volta) → solo i messaggi nuovi
+        // dopo last_synced_at, con un cap basso (gmailIncrementale) per chiudere
+        // il giro entro il budget di CPU del worker: abbastanza ampio da coprire
+        // i messaggi di una finestra di polling, e la finestra `since` si
+        // sovrappone (last_synced_at - 30 min) così niente resta scoperto al bordo.
         const isFirstSync = !conn.last_synced_at;
-        const hardCap = isFirstSync ? 1000 : 200;
+        const hardCap = isFirstSync ? LIMITI_POLL.gmailPrimoGiro : LIMITI_POLL.gmailIncrementale;
         // MP-EMAIL F2: contesto allegati condiviso inbox+sent (cap globale per run).
         const attRunCounter = { n: 0 };
         const attCtx = { supa, companyId: conn.company_id!, runCounter: attRunCounter };
@@ -1049,7 +1070,7 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
         // Outlook sent sync rinviato (Microsoft Graph richiede endpoint diverso).
         if (conn.provider === "gmail") {
           try {
-            const sentCap = isFirstSync ? 500 : 100;
+            const sentCap = isFirstSync ? LIMITI_POLL.gmailInviatePrimoGiro : LIMITI_POLL.gmailInviateIncrementale;
             const sentEmails = await pollGmail(accessToken, conn.email_address, sinceTs, sentCap, "sent", attCtx);
             // Storiamo separati così sappiamo che folder usare
             const STORE_BATCH_SENT = 10;
