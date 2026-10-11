@@ -40,4 +40,18 @@ describe('Scheda fornitori', () => {
     expect(screen.getByText('Parziale')).toBeInTheDocument();
     expect(screen.getByText(/Residuo/)).toHaveTextContent('61,00');
   });
+  it('mostra la scadenza del saldo quando acconto e saldo sono costi separati', () => {
+    state.data = { orders: [{ id: 'po1', supplier_id: 's1', oda_number: 'DEMO', status: 'ricevuto', total: 122 }],
+      invoices: [{ id: 'f1', purchase_order_id: 'po1', company_cost_id: 'cost', prima_nota_id: 'p1', cedente_ragione_sociale: 'Fornitore DEMO',
+        numero_fattura: 'DEMO', totale_documento: 122, tipo_documento: 'TD01', stato: 'contabilizzata' }],
+      entries: [{ id: 'p1', cost_id: 'cost', supplier_id: 's1', scadenza_id: null, amount: 73.2, direction: 'uscita' }],
+      dues: [{ id: 'saldo-due', cost_id: 'saldo', supplier_id: 's1', amount: 48.8, paid_amount: 0, due_date: '2026-10-10', status: 'da_pagare' }],
+      purchaseCosts: [{ id: 'cost', purchase_order_id: 'po1', supplier_id: 's1', order_id: 'o1', allocations: [], amount: 60, vat_rate: 22 },
+        { id: 'saldo', purchase_order_id: 'po1', supplier_id: 's1', order_id: 'o1', allocations: [], amount: 40, vat_rate: 22 }],
+    };
+    show();
+    expect(screen.getByText(/Scadenza:/)).toHaveTextContent('10/10/2026');
+    expect(screen.getByText('Parziale')).toBeInTheDocument();
+    expect(screen.getByText(/Residuo/)).toHaveTextContent('48,80');
+  });
 });

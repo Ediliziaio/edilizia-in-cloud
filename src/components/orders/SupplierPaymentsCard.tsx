@@ -29,7 +29,8 @@ export function SupplierPaymentsCard({ items, companyId, orderId }: SupplierPaym
     orders: documents.data?.orders ?? [], invoices: documents.data?.invoices ?? [],
     entries: documents.data?.entries ?? [], dues: documents.data?.dues ?? [],
     ambiguousCostIds: documents.data?.ambiguousCostIds ?? [],
-  }), [items, documents.data, names.data]);
+    purchaseCosts: documents.data?.purchaseCosts ?? [], orderId,
+  }), [items, documents.data, names.data, orderId]);
   const loading = !!orderId && documents.isLoading;
   const error = documents.isError || names.isError;
   const invoiced = groups.reduce((s, g) => s + g.invoiced, 0);

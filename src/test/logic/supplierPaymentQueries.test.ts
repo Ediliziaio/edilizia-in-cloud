@@ -21,7 +21,7 @@ vi.mock('@/integrations/supabase/client', () => ({ supabase: { from: (table: str
   return builder;
 } } }));
 import { allPaymentRows, useSupplierPayments, useSupplierPaymentNames } from '@/hooks/useSupplierPayments';
-type Options = { queryKey: unknown[]; enabled: boolean; queryFn: () => Promise<{ invoices: unknown[]; entries: unknown[]; orders: unknown[]; ambiguousCostIds: string[] }> };
+type Options = { queryKey: unknown[]; enabled: boolean; queryFn: () => Promise<{ invoices: unknown[]; entries: { id: string }[]; orders: unknown[]; ambiguousCostIds: string[]; purchaseCosts: { id: string }[]; dues: { id: string }[] }> };
 beforeEach(() => {
   state.requests = []; state.errorTable = '';
   state.tables = {
@@ -89,6 +89,19 @@ describe('Lettura pagamenti per commessa e azienda', () => {
     state.errorTable = 'prima_nota_entries';
     const config = useSupplierPayments('demo', 'job') as unknown as Options;
     await expect(config.queryFn()).rejects.toThrow('Accesso negato');
+  });
+  it('legge anche il costo saldo dello stesso OdA, la sua PN e la sua scadenza senza attraversare aziende', async () => {
+    state.tables.company_costs[0].purchase_order_id = 'po';
+    state.tables.company_costs.push({ id: 'saldo', company_id: 'demo', order_id: 'job', purchase_order_id: 'po' },
+      { id: 'foreign-saldo', company_id: 'other', order_id: 'job', purchase_order_id: 'po' });
+    state.tables.scadenze.push({ id: 'saldo-due', company_id: 'demo', cost_id: 'saldo', direction: 'uscita' });
+    state.tables.prima_nota_entries.push({ id: 'saldo-pn', company_id: 'demo', cost_id: 'saldo' });
+    const config = useSupplierPayments('demo', 'job') as unknown as Options, result = await config.queryFn();
+    expect(result.purchaseCosts.map(c => c.id)).toEqual(['cost', 'saldo']);
+    expect(result.dues.map(d => d.id)).toEqual(['saldo-due']);
+    expect(result.entries.map(p => p.id)).toEqual(['pn', 'saldo-pn']);
+    expect(result.ambiguousCostIds).toEqual([]);
+    for (const request of state.requests) expect(request.filters).toContainEqual(['eq', 'company_id', 'demo']);
   });
   it('senza tenant o commessa la lettura è disabilitata', () => {
     expect((useSupplierPayments('', 'job') as unknown as Options).enabled).toBe(false);

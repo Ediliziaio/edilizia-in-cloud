@@ -22,6 +22,10 @@ export interface SupplierDue {
 export interface SupplierBudgetItem {
   supplier_id: string | null; purchase_price: number | null; quantity: number;
 }
+export interface SupplierPurchaseCost {
+  id: string; purchase_order_id: string | null; supplier_id: string | null;
+  order_id: string | null; allocations: unknown; amount: number | null; vat_rate: number | null;
+}
 export interface SupplierPaymentGroup {
   key: string; name: string; ordered: number; invoiced: number; paid: number;
   unpaid: number; estimated: number; review: number; nextDeadline: string | null;
@@ -36,10 +40,44 @@ export function supplierCostNeedsAllocationReview(allocations: unknown, orderId:
   return allocations.length !== 1 || allocations[0]?.order_id !== orderId || Number(allocations[0]?.pct) !== 100;
 }
 
+/** One full invoice can have several installment costs. Expand only when the
+ * explicit OdA, supplier, job ownership and cent-exact gross sum all agree.
+ * A shared OdA, credit note, split allocation or missing price is not proof.
+ */
+export function supplierInvoiceCostIds(input: {
+  orders: SupplierOrder[]; invoices: SupplierInvoice[]; costs: SupplierPurchaseCost[];
+  orderId?: string; ambiguousCostIds?: string[];
+}): Map<string, string[]> {
+  const result = new Map<string, string[]>();
+  if (!input.orderId) return result;
+  const costs = unique(input.costs);
+  const invoices = unique(input.invoices).filter(i => !['annullata', 'scartata', 'rifiutata'].includes(i.stato));
+  const ambiguous = new Set(input.ambiguousCostIds ?? []);
+  for (const invoice of invoices) {
+    if (!invoice.purchase_order_id || !invoice.company_cost_id || invoice.tipo_documento === 'TD04' ||
+      !Number.isFinite(invoice.totale_documento) || cents(invoice.totale_documento) <= 0) continue;
+    const order = input.orders.find(o => o.id === invoice.purchase_order_id);
+    const members = costs.filter(c => c.purchase_order_id === invoice.purchase_order_id);
+    if (!order?.supplier_id || ['annullato', 'annullata', 'cancelled', 'bozza', 'draft'].includes(order.status) ||
+      invoices.filter(i => i.purchase_order_id === invoice.purchase_order_id).length !== 1 ||
+      members.length < 2 || !members.some(c => c.id === invoice.company_cost_id)) continue;
+    const owned = (c: SupplierPurchaseCost) => !ambiguous.has(c.id) && c.supplier_id === order.supplier_id &&
+      Number.isFinite(c.amount) && Number(c.amount) >= 0 && Number.isFinite(c.vat_rate) &&
+      Number(c.vat_rate) >= 0 && Number(c.vat_rate) <= 100 &&
+      (c.order_id === input.orderId || (!c.order_id && Array.isArray(c.allocations) && c.allocations.length === 1)) &&
+      !supplierCostNeedsAllocationReview(c.allocations, input.orderId!);
+    if (!members.every(owned)) continue;
+    const total = members.reduce((sum, c) => sum + cents(c.amount) + Math.round(cents(c.amount) * Number(c.vat_rate) / 100), 0);
+    if (total === cents(invoice.totale_documento)) result.set(invoice.id, members.map(c => c.id));
+  }
+  return result;
+}
+
 export function supplierPaymentSummary(input: {
   orders: SupplierOrder[]; invoices: SupplierInvoice[]; entries: SupplierCashEntry[];
   dues: SupplierDue[]; items: SupplierBudgetItem[]; names: Record<string, string>;
   ambiguousCostIds?: string[];
+  purchaseCosts?: SupplierPurchaseCost[]; orderId?: string;
 }): SupplierPaymentGroup[] {
   const orders = unique(input.orders);
   const orderMap = new Map(orders.map(o => [o.id, o]));
@@ -61,18 +99,23 @@ export function supplierPaymentSummary(input: {
     }
   }
   const invoices = unique(input.invoices).filter(i => !['annullata', 'scartata', 'rifiutata'].includes(i.stato));
+  const installmentCostIds = supplierInvoiceCostIds({ orders, invoices, costs: input.purchaseCosts ?? [],
+    orderId: input.orderId, ambiguousCostIds: input.ambiguousCostIds });
   const pools = new Map<string, SupplierInvoice[]>();
   for (const invoice of invoices) {
     const pool = invoice.company_cost_id ? `cost:${invoice.company_cost_id}` : `invoice:${invoice.id}`;
     pools.set(pool, [...(pools.get(pool) ?? []), invoice]);
   }
-  const matchingEntries = (pool: SupplierInvoice[]) => entries.filter(e =>
-    (!!pool[0].company_cost_id && e.cost_id === pool[0].company_cost_id) || pool.some(i => e.id === i.prima_nota_id));
+  const poolCostIds = (pool: SupplierInvoice[]) => new Set(pool.flatMap(i =>
+    installmentCostIds.get(i.id) ?? (i.company_cost_id ? [i.company_cost_id] : [])));
+  const matchingEntries = (pool: SupplierInvoice[]) => {
+    const costs = poolCostIds(pool);
+    return entries.filter(e => (!!e.cost_id && costs.has(e.cost_id)) || pool.some(i => e.id === i.prima_nota_id));
+  };
   const entryPoolCount = new Map<string, number>();
   for (const pool of pools.values()) for (const entry of matchingEntries(pool)) entryPoolCount.set(entry.id, (entryPoolCount.get(entry.id) ?? 0) + 1);
   for (const pool of pools.values()) {
     const invoice = pool[0];
-    const costId = invoice.company_cost_id;
     const poolEntries = matchingEntries(pool);
     // Only explicit supplier IDs; never join suppliers by a fuzzy display name.
     const supplierIds = new Set([
@@ -84,9 +127,10 @@ export function supplierPaymentSummary(input: {
     const group = get(key, (supplierId && input.names[supplierId]) || invoice.cedente_ragione_sociale || 'Fornitore');
     const total = pool.reduce((sum, i) => sum + Math.max(0, cents(i.totale_documento)), 0);
     group.invoiceCount += pool.length;
-    const poolDues = costId ? dues.filter(d => d.cost_id === costId) : [];
+    const linkedCosts = poolCostIds(pool);
+    const poolDues = dues.filter(d => !!d.cost_id && linkedCosts.has(d.cost_id));
     const hasCredit = pool.some(i => i.tipo_documento === 'TD04' || cents(i.totale_documento) < 0);
-    const uncertain = hasCredit || supplierIds.size > 1 || (costId && ambiguous.has(costId)) ||
+    const uncertain = hasCredit || supplierIds.size > 1 || [...linkedCosts].some(id => ambiguous.has(id)) ||
       pool.some(i => i.totale_documento == null) || poolEntries.some(e => (entryPoolCount.get(e.id) ?? 0) > 1);
     if (uncertain) { group.review += total; group.reviewCount += pool.length; continue; }
     const cash = poolEntries.reduce((sum, e) => sum + (e.direction === 'uscita' ? cents(e.amount) : -cents(e.amount)), 0);

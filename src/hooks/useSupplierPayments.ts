@@ -18,6 +18,7 @@ const allRows = allPaymentRows;
 const batches = (ids: string[]) => Array.from({ length: Math.ceil(ids.length / 50) }, (_, i) => ids.slice(i * 50, (i + 1) * 50));
 const dedup = <T extends { id: string }>(rows: T[]) => [...new Map(rows.map(r => [r.id, r])).values()];
 const invoiceFields = 'id,purchase_order_id,company_cost_id,prima_nota_id,cedente_ragione_sociale,cedente_piva,numero_fattura,totale_documento,tipo_documento,stato';
+const purchaseCostFields = 'id,purchase_order_id,supplier_id,order_id,allocations,amount,vat_rate';
 
 export function useSupplierPayments(companyId: string, orderId?: string) {
   return useQuery({
@@ -49,7 +50,13 @@ export function useSupplierPayments(companyId: string, orderId?: string) {
       const jobOrderIds = new Set(orders.map(o => o.id));
       const linkedInvoices = dedup((await Promise.all(invoiceReads)).flat()) as SupplierInvoice[];
       const invoices = linkedInvoices.filter(i => !i.purchase_order_id || jobOrderIds.has(i.purchase_order_id));
-      const costIds = [...new Set(invoices.map(i => i.company_cost_id).filter((id): id is string => !!id))];
+      // Read both acconto and saldo, but the calculator expands them only when
+      // one full invoice exactly covers their gross totals and this same job.
+      const purchaseCosts = dedup((await Promise.all(batches(orders.map(o => o.id)).map(ids => allRows((from, to) =>
+        supabase.from('company_costs').select(purchaseCostFields).eq('company_id', companyId)
+          .in('purchase_order_id', ids).order('id').range(from, to))))).flat());
+      const costIds = [...new Set([...invoices.map(i => i.company_cost_id).filter((id): id is string => !!id),
+        ...purchaseCosts.map(c => c.id)])];
       const noteIds = [...new Set(invoices.map(i => i.prima_nota_id).filter((id): id is string => !!id))];
       const entryFields = 'id,cost_id,supplier_id,scadenza_id,amount,direction,order_id';
       const [costEntries, directEntries, dues, costInvoices, costOwners] = await Promise.all([
@@ -75,7 +82,7 @@ export function useSupplierPayments(companyId: string, orderId?: string) {
         ...entries.filter(e => e.order_id && e.order_id !== orderId).map(e => e.cost_id).filter((id): id is string => !!id),
         ...costIds.filter(id => !knownCostIds.has(id)),
       ])];
-      return { orders, invoices, entries, dues: dedup(dues.flat()), ambiguousCostIds };
+      return { orders, invoices, entries, dues: dedup(dues.flat()), ambiguousCostIds, purchaseCosts };
     },
   });
 }
