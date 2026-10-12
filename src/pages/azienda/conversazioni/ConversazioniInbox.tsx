@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useConversazioniList,
+  useConversazioniTempoReale,
   useConversazioneTimeline,
   useConversazioneDettagli,
   useConversazioneOverlay,
@@ -36,7 +37,6 @@ import {
   type FiltroCanale,
 } from "@/lib/conversazioni/presentazione";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
 const CANALE_META: Record<CanaleConversazione, { label: string; Icon: typeof Mail; dot: string }> = {
   email:    { label: "Email",    Icon: Mail,          dot: "bg-blue-500" },
@@ -176,43 +176,8 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
     if (!timelineLoading) apertaRef.current = selectedKey;
   }, [timeline, selectedKey, timelineLoading]);
 
-  // Realtime: aggiornamento istantaneo dell'inbox.
-  //  • `conversazioni` (già nella publication): cambi stato/assegnazione/letto fatti
-  //    da ALTRI operatori → inbox condiviso sempre allineato.
-  //  • `messaging_messages` (nuovi WhatsApp): se la tabella non è ancora nella
-  //    publication, nessun evento → fallback trasparente sul polling 25s + focus.
-  // Invalido a prefisso la timeline (solo quella attiva refetcha) → niente
-  // re-subscribe a ogni cambio conversazione.
-  useEffect(() => {
-    if (!companyId) return;
-    const invalidate = () => {
-      qc.invalidateQueries({ queryKey: ["conversazioni-lista", companyId] });
-      qc.invalidateQueries({ queryKey: ["conversazione-timeline"] });
-    };
-    const channel = supabase
-      .channel(`conversazioni-inbox-${companyId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "conversazioni", filter: `company_id=eq.${companyId}` },
-        invalidate,
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messaging_messages" },
-        invalidate,
-      )
-      // WhatsApp dei numeri collegati a Meta: messaggi nuovi nei due sensi ed
-      // esito della consegna (whatsapp_messages è nel realtime dal 24/09/2026).
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "whatsapp_messages", filter: `company_id=eq.${companyId}` },
-        invalidate,
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [companyId, qc]);
+  // Tempo reale e giro ogni 25 secondi, una ricarica alla volta: vedi l'hook.
+  useConversazioniTempoReale(companyId);
 
   const filtrate = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -344,8 +309,9 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
               aria-label="Aggiorna conversazioni"
               disabled={isFetching}
               onClick={() => {
-                qc.invalidateQueries({ queryKey: ["conversazioni-lista", companyId] });
-                if (selectedItem) qc.invalidateQueries({ queryKey: ["conversazione-timeline", selectedItem.entita_tipo, selectedItem.entita_id] });
+                // Una lettura già in corso si aspetta, non si rifà.
+                qc.invalidateQueries({ queryKey: ["conversazioni-lista", companyId] }, { cancelRefetch: false });
+                if (selectedItem) qc.invalidateQueries({ queryKey: ["conversazione-timeline", selectedItem.entita_tipo, selectedItem.entita_id] }, { cancelRefetch: false });
               }}
             >
               <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
