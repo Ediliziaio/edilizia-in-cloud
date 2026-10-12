@@ -292,7 +292,8 @@ function OrdersListInner() {
           deposit_paid, deposit_2_paid, balance_paid, financing_paid,
           order_type,
           customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
-          status:order_statuses!orders_current_status_id_fkey(name, color)
+          status:order_statuses!orders_current_status_id_fkey(name, color),
+          installments:order_installments(position, type, amount, is_paid)
         `, { count: "exact" })
         .eq("company_id", effectiveCompany.id)
         .is("deleted_at", null);
@@ -391,7 +392,7 @@ function OrdersListInner() {
       if (!effectiveCompany?.id) return EMPTY;
       let query = supabase
         .from("orders")
-        .select("id, total_amount, vat_rate, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_paid, payment_type, current_status_id")
+        .select("id, total_amount, vat_rate, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_cost, financing_paid, payment_type, current_status_id, installments:order_installments(position, type, amount, is_paid)")
         .eq("company_id", effectiveCompany.id)
         .is("deleted_at", null);
       if (isYearCorrente) {
@@ -474,11 +475,12 @@ function OrdersListInner() {
       let query = supabase
         .from("orders")
         .select(`
-          id, created_at, total_amount, vat_rate,
+          id, created_at, total_amount, vat_rate, payment_type, financing_cost,
           deposit_amount, deposit_paid,
           deposit_2_amount, deposit_2_paid,
           balance_amount, balance_paid,
-          financing_amount, financing_paid
+          financing_amount, financing_paid,
+          installments:order_installments(position, type, amount, is_paid)
         `)
         .eq("company_id", effectiveCompany.id)
         .gte("created_at", from.toISOString());
@@ -510,11 +512,12 @@ function OrdersListInner() {
           id, order_code, description, total_amount, deposit_amount, balance_amount,
           vat_rate, created_at, expected_date, work_start_date, work_end_date,
           warehouse_arrival_date, indirizzo_lavori, customer_id, current_status_id, payment_type,
-          financing_amount, deposit_2_amount, has_building_bonus,
+          financing_amount, financing_cost, deposit_2_amount, has_building_bonus,
           deposit_paid, deposit_2_paid, balance_paid, financing_paid,
           order_type,
           customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
           status:order_statuses!orders_current_status_id_fkey(name, color),
+          installments:order_installments(position, type, amount, is_paid),
           order_items(id, status, quantity),
           order_employees(employee:employees(id, first_name, last_name)),
           order_external_teams(external_team:external_teams(id, name))
@@ -1377,7 +1380,8 @@ function OrdersListInner() {
         deposit_2_amount, vat_rate, created_at, expected_date, warehouse_arrival_date,
         payment_type, financing_amount, financing_cost, financing_paid, deposit_paid, deposit_2_paid, balance_paid,
         customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
-        status:order_statuses!orders_current_status_id_fkey(name)
+        status:order_statuses!orders_current_status_id_fkey(name),
+        installments:order_installments(position, type, amount, is_paid)
       `)
       .eq("company_id", effectiveCompany.id)
       .is("deleted_at", null)
@@ -1904,6 +1908,10 @@ function OrdersListInner() {
               <span className="text-muted-foreground">Da incassare</span>
               <span className="font-bold tabular-nums text-amber-700">{stats.pending.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}</span>
             </div>
+            {/* Venduto, Incassato e Da incassare sono tutti IVA inclusa, come la
+                colonna "Tot. Ivato" della tabella: così i tre numeri si leggono
+                sulla stessa base. */}
+            <span className="hidden text-[11px] text-muted-foreground sm:inline">IVA inclusa</span>
           </>
         )}
         <button

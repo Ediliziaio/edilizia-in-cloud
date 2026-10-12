@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { OrderItem } from "@/components/orders/OrderItemsList";
 import type { PaymentType } from "@/components/orders/FinancialSummary";
+import { calculateCollectedGrossFromInstallments, type InstallmentLike } from "@/lib/commissions";
 
 // ── Installment type ──────────────────────────────────────────────
 export interface Installment {
@@ -244,6 +245,15 @@ export interface OrderWithDetails {
   financing_expected_date?: string | null;
   financing_cost?: number | null;
   payment_type?: string | null;
+  /**
+   * Rate vere del piano pagamenti (order_installments), quando la query le ha
+   * caricate insieme alla commessa con un nested select. Sono la fonte di
+   * verità di Incassato e Da Ricevere: gli importi sono LORDI (IVA inclusa) e
+   * sommano al totale ivato. Le commesse più vecchie non le portano con sé: in
+   * quel caso Incassato e Da Ricevere si ricavano dalle colonne-riassunto qui
+   * sopra (sempre in lordo).
+   */
+  installments?: InstallmentLike[] | null;
   // ── Modulo Appaltatori ──────────────────────────────────────
   // Default a 'cliente' lato server (migration); manteniamo nullable
   // per safe-fall sui record letti prima del refresh delle types.
@@ -370,51 +380,59 @@ export async function deleteOrderCascading(orderId: string, companyId: string): 
   if (error) throw error;
 }
 
-function positiveAmount(value?: number | null): number {
-  const amount = Number(value) || 0;
-  return amount > 0 ? amount : 0;
+/**
+ * Il costo della finanziaria da togliere dalla base incassabile: conta solo
+ * quando la commessa è a finanziamento, esattamente come nel modulo di
+ * creazione, dove il saldo è "totale ivato − le altre rate − costo finanziaria".
+ */
+function financingCostForOrder(order: OrderWithDetails): number {
+  return order.payment_type === "financing" ? (Number(order.financing_cost) || 0) : 0;
 }
 
-function getNormalizedPaymentParts(order: Pick<OrderWithDetails,
-  "total_amount" | "deposit_amount" | "deposit_2_amount" | "financing_amount" | "balance_amount"
->) {
-  const total = positiveAmount(order.total_amount);
-  const deposit1 = positiveAmount(order.deposit_amount);
-  const deposit2 = positiveAmount(order.deposit_2_amount);
-  const financing = positiveAmount(order.financing_amount);
-  const rawBalance = positiveAmount(order.balance_amount);
-  const residualBalance = Math.max(0, total - deposit1 - deposit2 - financing);
-  const rawPlannedTotal = deposit1 + deposit2 + financing + rawBalance;
-
-  let balance = rawBalance;
-  if (total > 0 && (rawPlannedTotal > total * 1.01 || rawBalance > residualBalance * 1.01)) {
-    balance = residualBalance;
-  } else if (total > 0 && rawBalance === 0 && residualBalance > 0) {
-    balance = residualBalance;
-  }
-
-  return { total, deposit1, deposit2, financing, balance };
+/**
+ * Le rate su cui si misurano Incassato e Da Ricevere. Se la query ha caricato
+ * le rate vere (order_installments) si usano quelle; in loro assenza il piano
+ * viene ricostruito dalle colonne-riassunto, per le commesse più vecchie. In
+ * entrambi i casi gli importi sono LORDI (IVA inclusa): lo stabilisce il modulo
+ * di creazione, che salva il saldo come "totale ivato − le altre rate". Proprio
+ * per questo il saldo FINALE lo ricava per differenza, dentro
+ * calculateCollectedGrossFromInstallments, invece di fidarsi dell'importo salvato.
+ */
+function rateDellaCommessa(order: OrderWithDetails): InstallmentLike[] {
+  if (order.installments && order.installments.length > 0) return order.installments;
+  return buildInstallmentsFromLegacy(order);
 }
 
-export function getAmountDue(order: OrderWithDetails): number {
-  const parts = getNormalizedPaymentParts(order);
-  const collected = getAmountCollected(order);
-  let due = 0;
-  if (!order.deposit_paid) due += parts.deposit1;
-  if (!order.deposit_2_paid) due += parts.deposit2;
-  if (parts.financing > 0 && !order.financing_paid) due += parts.financing;
-  if (!order.balance_paid) due += parts.balance;
-  return parts.total > 0 ? Math.min(due, Math.max(0, parts.total - collected)) : due;
-}
-
+/**
+ * Incassato della commessa, in IVATO (IVA inclusa) — sulla stessa base di
+ * "Tot. Ivato" (getGrossOrderAmount). Somma le rate già incassate del piano
+ * pagamenti con la regola usata anche nel dettaglio commessa e
+ * nell'esposizione (calculateCollectedGrossFromInstallments): una rata con
+ * fattura interna vale l'incassato della fattura, il saldo finale è il residuo
+ * del totale ivato, e la quota finanziata conta come incassata (l'ha versata
+ * la finanziaria). Un piano con più rate di saldo (SAL intermedi + saldo)
+ * viene sommato per intero, senza perdere rate.
+ */
 export function getAmountCollected(order: OrderWithDetails): number {
-  const parts = getNormalizedPaymentParts(order);
-  let collected = 0;
-  if (order.deposit_paid) collected += parts.deposit1;
-  if (order.deposit_2_paid) collected += parts.deposit2;
-  if (parts.financing > 0 && order.financing_paid) collected += parts.financing;
-  if (order.balance_paid) collected += parts.balance;
-  return parts.total > 0 ? Math.min(collected, parts.total) : collected;
+  return calculateCollectedGrossFromInstallments({
+    installments: rateDellaCommessa(order),
+    totalAmount: order.total_amount,
+    vatRate: order.vat_rate ?? 22,
+    financingCost: financingCostForOrder(order),
+    includeFinancing: true,
+  });
+}
+
+/**
+ * Da Ricevere della commessa, in IVATO: totale ivato − costo finanziaria −
+ * incassato. È la stessa base del dettaglio commessa, così Incassato + Da
+ * Ricevere torna al Venduto (Tot. Ivato) quando il piano è saldato per intero.
+ */
+export function getAmountDue(order: OrderWithDetails): number {
+  const incassabile = getGrossOrderAmount(order) - financingCostForOrder(order);
+  // Arrotondato ai centesimi: toglie il rumore in virgola mobile del totale
+  // ivato (es. 110000.000…1) così la somma su molte commesse resta pulita.
+  return Math.max(0, Math.round((incassabile - getAmountCollected(order)) * 100) / 100);
 }
 
 export function getPendingPayments(order: OrderWithDetails): string[] {
