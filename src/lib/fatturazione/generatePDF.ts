@@ -25,6 +25,13 @@ async function htmlDocumento(documentoId: string): Promise<string> {
 /**
  * Apre il dialogo di stampa del documento (da lì: stampante o «Salva come PDF»).
  *
+ * Il PDF esce pulito, senza data, titolo, indirizzo dell'app e «1/1» che il
+ * browser aggiunge di suo: la pagina della funzione ha margine di stampa zero
+ * e Chrome, senza margine, non offre «Intestazioni e piè di pagina»
+ * (generate-native-pdf/documentoHtml.ts, _shared/documentoFiscaleVista.ts).
+ * È la stessa stampa nativa del preventivo fotovoltaico: niente motore di resa
+ * sul server, testo vero e selezionabile.
+ *
  * Stampa nativa del browser su un iframe nascosto (come i preventivi): testo vero
  * e senza popup. Prima si apriva una nuova scheda: con i popup bloccati (frequente)
  * l'utente si ritrovava un file .html al posto del PDF e non capiva come vedere

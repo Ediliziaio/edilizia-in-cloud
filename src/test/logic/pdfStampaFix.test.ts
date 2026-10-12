@@ -6,21 +6,23 @@ const read = (rel: string) => readFileSync(resolve(process.cwd(), rel), "utf8");
 
 describe("fix impaginazione stampa/PDF (audit)", () => {
   describe("generate-native-pdf (fatture)", () => {
-    const source = read("supabase/functions/generate-native-pdf/index.ts");
+    const stile = read("supabase/functions/_shared/documentoFiscaleVista.ts");
+    const pagina = read("supabase/functions/generate-native-pdf/documentoHtml.ts");
 
-    it("forza i colori in stampa (badge tipo documento visibile)", () => {
-      expect(source).toContain("-webkit-print-color-adjust: exact");
-      expect(source).toContain("print-color-adjust: exact");
+    it("forza i colori in stampa (tinte e filetti visibili)", () => {
+      expect(stile).toContain("-webkit-print-color-adjust: exact");
+      expect(stile).toContain("print-color-adjust: exact");
     });
 
-    it("evita spezzature di righe e blocco totali tra le pagine", () => {
-      expect(source).toContain("break-inside: avoid");
-      expect(source).toContain("page-break-inside: avoid");
-      expect(source).toContain('class="totali"');
+    it("tiene interi righe, totali e riquadri tra le pagine", () => {
+      expect(stile).toContain("break-inside: avoid");
+      expect(stile).toContain("page-break-inside: avoid");
+      expect(pagina).toContain('class="fd-conti"');
     });
 
-    it("azzera il padding del body in stampa (niente margini doppi con @page)", () => {
-      expect(source).toContain("@media print { body { padding: 0; } }");
+    it("margine di pagina zero e respiro dal foglio, ripetuto su ogni pagina", () => {
+      expect(stile).toContain("@page { size: A4; margin: 0; }");
+      expect(stile).toContain("box-decoration-break: clone");
     });
   });
 
@@ -32,8 +34,9 @@ describe("fix impaginazione stampa/PDF (audit)", () => {
       expect(dialog).toContain(".preview-fattura-scale { transform: none !important; }");
     });
 
-    it("porta il foglio nell'area stampabile (190mm con @page margin 10mm)", () => {
-      expect(dialog).toContain("width: 190mm !important");
+    it("stampa a margine di pagina zero: il foglio porta il suo respiro", () => {
+      expect(dialog).toContain("@page { size: A4; margin: 0; }");
+      expect(dialog).toContain(".preview-fattura-sheet { width: auto !important;");
     });
 
     it("forza i colori in stampa anche nell'anteprima", () => {

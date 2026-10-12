@@ -62,6 +62,9 @@ export async function stampaPreventivoNativo(
 
     // Aspetta font (Google Fonts via <link> caricano normalmente nell'iframe
     // nativo) e immagini prima di stampare, per non stampare placeholder.
+    // Leggere un'altezza fa impaginare subito il documento: i caratteri usati
+    // partono adesso e `fonts.ready` li aspetta tutti.
+    void doc.body?.offsetHeight;
     try {
       await doc.fonts?.ready;
     } catch {

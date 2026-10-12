@@ -2,6 +2,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { useDocumentoFiscale, useUpdateDocumento, useEmittiDocumento } from "@/hooks/useDocumentiFiscali";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
+import { useAuth } from "@/contexts/AuthContext";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
 import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
@@ -66,6 +67,7 @@ export default function DocumentoDetail() {
   const { data: doc, isLoading, refetch } = useDocumentoFiscale(id);
   const { data: rataCommessa } = useRataDellaFattura(id);
   const { data: azienda } = useAnagraficaAzienda();
+  const { effectiveCompany } = useAuth();
   const updateMutation = useUpdateDocumento();
   const emittiMutation = useEmittiDocumento();
   const [ncLoading, setNcLoading] = useState(false);
@@ -361,7 +363,7 @@ export default function DocumentoDetail() {
           </Link>
         </div>
         <div className="mx-auto flex max-w-4xl justify-center overflow-x-auto rounded-xl border bg-muted/30 p-6 shadow-inner">
-          <PreviewFattura documento={doc} azienda={azienda ?? null} scale={0.9} />
+          <PreviewFattura documento={doc} azienda={azienda ?? null} logoAziendale={effectiveCompany?.logo_url} scale={0.9} />
         </div>
         <p className="mx-auto mt-2 max-w-4xl text-center text-xs text-muted-foreground">
           Questa anteprima può differire leggermente dal PDF generato: premi «Apri PDF» per il documento reale.

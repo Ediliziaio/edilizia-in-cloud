@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Download, Loader2, Printer } from "lucide-react";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
+import { useAuth } from "@/contexts/AuthContext";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
 import { toast } from "sonner";
@@ -16,6 +17,7 @@ interface Props {
 
 export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
   const { data: azienda } = useAnagraficaAzienda();
+  const { effectiveCompany } = useAuth();
   const previewRef = useRef<HTMLDivElement>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
 
@@ -31,9 +33,12 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
       * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       @media print {
         body { margin: 0; }
-        @page { size: A4; margin: 10mm; }
+        /* Margine di pagina zero: Chrome non aggiunge data, titolo, indirizzo e «1/1»
+           (vedi CSS_PAGINA_STAMPA in _shared/documentoFiscaleVista.ts). Il respiro
+           lo dà il padding del foglio, ripetuto su ogni pagina. */
+        @page { size: A4; margin: 0; }
         .preview-fattura-scale { transform: none !important; }
-        .preview-fattura-sheet { width: 190mm !important; min-height: auto !important; padding: 10mm !important; margin: 0 !important; border: none !important; box-shadow: none !important; border-radius: 0 !important; }
+        .preview-fattura-sheet { width: auto !important; min-height: auto !important; margin: 0 !important; border: none !important; box-shadow: none !important; border-radius: 0 !important; }
       }
       body { font-family: system-ui, sans-serif; }
     </style></head><body>${el.innerHTML}</body></html>`);
@@ -84,7 +89,7 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
         </DialogHeader>
         <div className="flex-1 overflow-auto bg-muted/30 p-6 flex justify-center">
           <div ref={previewRef}>
-            <PreviewFattura documento={state} azienda={azienda ?? null} scale={0.85} />
+            <PreviewFattura documento={state} azienda={azienda ?? null} logoAziendale={effectiveCompany?.logo_url} scale={0.85} />
           </div>
         </div>
       </DialogContent>
