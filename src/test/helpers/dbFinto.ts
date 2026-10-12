@@ -18,6 +18,8 @@ export interface FileFinto {
 
 interface ErroreFinto {
   message: string;
+  /** Il codice SQLSTATE, come lo riporta PostgREST (per esempio «23505»). */
+  code?: string;
 }
 
 interface Esito {
@@ -58,13 +60,28 @@ function condizioneDaTesto(pezzo: string): Condizione {
   }
 }
 
+/** Una richiesta arrivata al database finto. */
+export interface OperazioneFinta {
+  tabella: string;
+  modo: Modo;
+  /** Righe lette (select), mandate (insert, upsert) o toccate (update, delete). */
+  righe: number;
+}
+
 export class DbFinto {
   tabelle: Record<string, Riga[]>;
   file = new Map<string, FileFinto>();
   chiamateRpc: { nome: string; args: Record<string, unknown> }[] = [];
   rispostaRpc: Record<string, unknown> = {};
   /** Un errore da restituire alla prossima operazione «tabella:operazione» (per esempio «sms_messages:insert»). */
-  erroriProssimi: Record<string, string> = {};
+  erroriProssimi: Record<string, string | ErroreFinto> = {};
+  /** Ogni richiesta, nell'ordine in cui è arrivata: serve a contare letture e scritture. */
+  operazioni: OperazioneFinta[] = [];
+  /**
+   * Una riga che il database rifiuta (un dato non valido): come in Postgres,
+   * l'insert o l'upsert che la contiene non scrive niente.
+   */
+  rifiuta: ((tabella: string, riga: Riga) => ErroreFinto | null) | null = null;
 
   constructor(seme: Record<string, Riga[]> = {}) {
     this.tabelle = {};
@@ -146,7 +163,7 @@ class BucketFinto {
   }
 }
 
-type Modo = "select" | "insert" | "update" | "delete";
+export type Modo = "select" | "insert" | "update" | "delete" | "upsert";
 type Forma = "molte" | "una" | "forse_una";
 
 export class QueryFinta {
@@ -159,7 +176,10 @@ export class QueryFinta {
   private conteggio = false;
   private soloConteggio = false;
   private ordine: { colonna: string; crescente: boolean } | null = null;
+  private inizio = 0;
   private massimo: number | null = null;
+  private conflitto: string[] = ["id"];
+  private ignoraDoppioni = false;
 
   constructor(private db: DbFinto, private tabella: string) {}
 
@@ -182,6 +202,15 @@ export class QueryFinta {
   update(modifica: Riga): this {
     this.modo = "update";
     this.modifica = { ...modifica };
+    return this;
+  }
+
+  /** upsert(righe, { onConflict: "a,b" }): senza onConflict vale la chiave primaria, come in PostgREST. */
+  upsert(righe: Riga | Riga[], opzioni: { onConflict?: string; ignoreDuplicates?: boolean } = {}): this {
+    this.modo = "upsert";
+    this.nuove = (Array.isArray(righe) ? righe : [righe]).map((r) => ({ ...r }));
+    if (opzioni.onConflict) this.conflitto = opzioni.onConflict.split(",").map((c) => c.trim());
+    this.ignoraDoppioni = !!opzioni.ignoreDuplicates;
     return this;
   }
 
@@ -230,6 +259,21 @@ export class QueryFinta {
     return this;
   }
 
+  /** not("status", "in", '("annullato","cancelled")'): come in SQL, una colonna null non passa. */
+  not(colonna: string, operatore: string, valore: unknown): this {
+    if (operatore === "in") {
+      const esclusi = String(valore).replace(/^\(|\)$/g, "").split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
+      this.condizioni.push((r) => (r[colonna] ?? null) !== null && !esclusi.includes(String(r[colonna])));
+    } else if (operatore === "is" && (valore === null || valore === "null")) {
+      this.condizioni.push((r) => (r[colonna] ?? null) !== null);
+    } else if (operatore === "eq") {
+      this.condizioni.push((r) => (r[colonna] ?? null) !== null && String(r[colonna]) !== String(valore));
+    } else {
+      throw new Error(`Operatore non previsto nel database finto: not.${operatore}`);
+    }
+    return this;
+  }
+
   /** or("a.is.null,b.lte.2026-10-05T10:00:00.000Z") */
   or(espressione: string): this {
     const alternative = espressione.split(",").map(condizioneDaTesto);
@@ -244,6 +288,13 @@ export class QueryFinta {
 
   limit(n: number): this {
     this.massimo = n;
+    return this;
+  }
+
+  /** range(0, 999): le righe dalla prima alla millesima, estremi compresi. */
+  range(da: number, a: number): this {
+    this.inizio = da;
+    this.massimo = a - da + 1;
     return this;
   }
 
@@ -274,14 +325,24 @@ export class QueryFinta {
   private async esegui(): Promise<Esito> {
     // Un attimo: fra una domanda e l'altra altri chiamanti possono passare.
     await Promise.resolve();
+    const scrive = this.modo === "insert" || this.modo === "upsert";
+    const voce: OperazioneFinta = { tabella: this.tabella, modo: this.modo, righe: scrive ? this.nuove.length : 0 };
+    this.db.operazioni.push(voce);
     const chiaveErrore = `${this.tabella}:${this.modo}`;
     const errore = this.db.erroriProssimi[chiaveErrore];
     if (errore) {
       delete this.db.erroriProssimi[chiaveErrore];
-      return { data: null, error: { message: errore } };
+      return { data: null, error: typeof errore === "string" ? { message: errore } : { ...errore } };
     }
     const righe = this.db.righe(this.tabella);
     const corrisponde: Condizione = (r) => this.condizioni.every((c) => c(r));
+    const rifiuta = this.db.rifiuta;
+    if (rifiuta && scrive) {
+      for (const r of this.nuove) {
+        const rifiuto = rifiuta(this.tabella, r);
+        if (rifiuto) return { data: null, error: { ...rifiuto } };
+      }
+    }
 
     if (this.modo === "select") {
       let trovate = righe.filter(corrisponde);
@@ -294,7 +355,10 @@ export class QueryFinta {
           return ord.crescente ? c : -c;
         });
       }
-      if (this.massimo !== null) trovate = trovate.slice(0, this.massimo);
+      if (this.massimo !== null || this.inizio > 0) {
+        trovate = trovate.slice(this.inizio, this.massimo !== null ? this.inizio + this.massimo : undefined);
+      }
+      voce.righe = trovate.length;
       return this.risposta(trovate, this.conteggio ? quante : null);
     }
 
@@ -304,15 +368,56 @@ export class QueryFinta {
       return this.restituisce ? this.risposta(inserite) : { data: null, error: null };
     }
 
+    if (this.modo === "upsert") return this.eseguiUpsert(righe);
+
     if (this.modo === "update") {
       const toccate = righe.filter(corrisponde);
       for (const r of toccate) Object.assign(r, this.modifica);
+      voce.righe = toccate.length;
       return this.restituisce ? this.risposta(toccate) : { data: null, error: null };
     }
 
     const tolte = righe.filter(corrisponde);
     this.db.tabelle[this.tabella] = righe.filter((r) => !tolte.includes(r));
+    voce.righe = tolte.length;
     return this.restituisce ? this.risposta(tolte) : { data: null, error: null };
+  }
+
+  /**
+   * INSERT … ON CONFLICT come lo fa Postgres: la riga che esiste già con la
+   * stessa chiave si aggiorna, le altre si inseriscono. Una chiave con un null
+   * non va mai in conflitto (in un indice unico i null sono tutti diversi), e
+   * due righe dello stesso lotto con la stessa chiave fermano l'intero lotto.
+   */
+  private eseguiUpsert(righe: Riga[]): Esito {
+    const chiave = (r: Riga): string | null =>
+      this.conflitto.some((c) => (r[c] ?? null) === null) ? null : JSON.stringify(this.conflitto.map((c) => r[c]));
+    if (!this.ignoraDoppioni) {
+      const viste = new Set<string>();
+      for (const r of this.nuove) {
+        const k = chiave(r);
+        if (k === null) continue;
+        if (viste.has(k)) {
+          return { data: null, error: { message: "ON CONFLICT DO UPDATE command cannot affect row a second time", code: "21000" } };
+        }
+        viste.add(k);
+      }
+    }
+    const toccate: Riga[] = [];
+    for (const r of this.nuove) {
+      const k = chiave(r);
+      const esistente = k === null ? undefined : righe.find((e) => chiave(e) === k);
+      if (esistente) {
+        if (this.ignoraDoppioni) continue;
+        Object.assign(esistente, r);
+        toccate.push(esistente);
+      } else {
+        const nuova = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...r };
+        righe.push(nuova);
+        toccate.push(nuova);
+      }
+    }
+    return this.restituisce ? this.risposta(toccate) : { data: null, error: null };
   }
 }
 
