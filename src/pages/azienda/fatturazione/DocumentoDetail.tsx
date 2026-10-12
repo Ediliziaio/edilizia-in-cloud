@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
-import { useDocumentoFiscale, useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
+import { useDocumentoFiscale, useUpdateDocumento, useEmittiDocumento } from "@/hooks/useDocumentiFiscali";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
 import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
@@ -21,7 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
-  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Copy, FileWarning, Loader2, CreditCard, AlertTriangle, CheckCircle, Send, ExternalLink, Mail, Pencil, Printer, Save, FileText, Lock } from "lucide-react";
@@ -67,6 +67,7 @@ export default function DocumentoDetail() {
   const { data: rataCommessa } = useRataDellaFattura(id);
   const { data: azienda } = useAnagraficaAzienda();
   const updateMutation = useUpdateDocumento();
+  const emittiMutation = useEmittiDocumento();
   const [ncLoading, setNcLoading] = useState(false);
   const [convertLoading, setConvertLoading] = useState(false);
   const [pagaAperto, setPagaAperto] = useState(false);
@@ -97,6 +98,10 @@ export default function DocumentoDetail() {
   const modificabile = doc.stato === "bozza" || fase === "scartata";
   const isProforma = doc.tipo === "proforma";
   const isPreventivo = doc.tipo === "preventivo";
+  // Una bozza fiscale si emette direttamente dal dettaglio: assegna il numero
+  // definitivo e la porta a «Da inviare allo SDI». Proforma e preventivo hanno
+  // il loro flusso («Converti in Fattura»), quindi niente Emetti per loro.
+  const canEmettere = doc.stato === "bozza" && TIPI_SDI.includes(doc.tipo) && !isProforma && !isPreventivo;
   const canSegnaPagata = TIPI_PAGABILI.includes(doc.tipo)
     && ["emessa", "inviata_sdi", "consegnata", "accettata", "parzialmente_pagata"].includes(doc.stato)
     && residuoDaIncassare(doc) > 0;
@@ -136,6 +141,14 @@ export default function DocumentoDetail() {
 
   const handleInviaSDI = () => {
     if (!invioSdi.isPending) invioSdi.mutate(doc.id);
+  };
+
+  // Emissione dal dettaglio: il documento è già salvato (non in modifica), quindi
+  // basta la mutation; a esito riuscito si rilegge e il riquadro SDI avanza a
+  // «Da inviare allo SDI». L'esito e gli errori li annuncia useEmittiDocumento.
+  const handleEmetti = () => {
+    if (emittiMutation.isPending) return;
+    emittiMutation.mutate(doc.id, { onSuccess: () => { void refetch(); } });
   };
 
   const handleConvertToFattura = async () => {
@@ -199,6 +212,31 @@ export default function DocumentoDetail() {
             </span>
           )
         ) : null}
+        {/* Emetti: la bozza fiscale prende il numero definitivo e diventa «Da inviare allo SDI». */}
+        {canEmettere && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" className="gap-1.5" disabled={emittiMutation.isPending}>
+                {emittiMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                {emittiMutation.isPending ? "Emissione…" : "Emetti"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Emetti documento</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Emetti questa {tipoLabel}? Il numero definitivo (progressivo) viene assegnato adesso e l'azione non può essere annullata.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annulla</AlertDialogCancel>
+                <AlertDialogAction onClick={handleEmetti} disabled={emittiMutation.isPending}>
+                  {emittiMutation.isPending ? "Emissione in corso…" : "Emetti documento"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
         <Button size="sm" variant="secondary" className="gap-1.5" onClick={handleDuplica}><Copy className="h-4 w-4" />Duplica</Button>
         <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" onClick={() => void handleApriPdf()}><FileText className="h-4 w-4" />Apri PDF</Button>
         <Button size="sm" variant="secondary" className="gap-1.5 max-sm:hidden" onClick={() => void handleStampa(true)}><Save className="h-4 w-4" />Salva PDF</Button>
@@ -271,6 +309,8 @@ export default function DocumentoDetail() {
           onAggiorna={() => aggiornaStatoSdi.mutate(doc.id)}
           isAggiorna={aggiornaStatoSdi.isPending}
           onEsportaXml={handleDownloadXML}
+          onEmetti={canEmettere ? handleEmetti : undefined}
+          isEmitting={emittiMutation.isPending}
         />
       )}
 

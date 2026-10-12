@@ -3,9 +3,13 @@
  *
  * Un riquadro solo, al centro, sopra l'anteprima: dice a che punto è la fattura
  * verso lo SDI e dà i quattro gesti che servono — Cosa fare, Visualizza la fattura
- * elettronica, Verifica formale, Esporta XML — più Invia / Aggiorna quando
- * servono. Prima c'erano un banner, due pulsanti sparsi nella testata e nessun
- * modo di vedere l'XML come fattura o di controllarla prima di spedirla.
+ * elettronica, Verifica formale, Esporta XML — più Emetti / Invia / Aggiorna
+ * quando servono. Prima c'erano un banner, due pulsanti sparsi nella testata e
+ * nessun modo di vedere l'XML come fattura o di controllarla prima di spedirla.
+ *
+ * Per una bozza il riquadro dà anche «Emetti»: il numero definitivo si assegna
+ * qui, dove i passi lo descrivono, così si passa a «Da inviare allo SDI» senza
+ * dover prima aprire la modifica (12/10/2026).
  */
 import { useState } from "react";
 import { AlertTriangle, CheckCircle2, ClipboardCheck, Clock, FileDown, FileSearch, HelpCircle, Info, Loader2, Printer, RefreshCw, Send, XCircle } from "lucide-react";
@@ -33,6 +37,9 @@ interface Props {
   onAggiorna?: () => void;
   isAggiorna?: boolean;
   onEsportaXml: () => void;
+  /** «Emetti» per una bozza: assegna il numero definitivo e la porta a «Da inviare allo SDI». */
+  onEmetti?: () => void;
+  isEmitting?: boolean;
 }
 
 const TONI = {
@@ -82,7 +89,7 @@ const PASSI: Record<FaseSdi | "bozza", string[]> = {
   ],
 };
 
-export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, isInvio, onAggiorna, isAggiorna, onEsportaXml }: Props) {
+export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, isInvio, onAggiorna, isAggiorna, onEsportaXml, onEmetti, isEmitting }: Props) {
   const [cosaFare, setCosaFare] = useState(false);
   const [vista, setVista] = useState<FatturaRicevutaVista | null>(null);
   const [verifica, setVerifica] = useState<RisultatoVerifica | null>(null);
@@ -103,6 +110,8 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
   const motivo = f?.fase === "scartata" ? motivoSdi(doc.sdi_errori) : null;
   const erroreInvio = f?.fase === "da_inviare" ? motivoSdi(doc.sdi_errori) : null;
   const inviabile = !!f && puoInviare(doc as never) && !!onInvia;
+  // Bozza: prima dell'invio c'è l'emissione, che assegna il numero definitivo.
+  const emettibile = !f && bozza && !!onEmetti;
   const scartata = f?.fase === "scartata";
 
   const apriVista = async () => {
@@ -166,6 +175,31 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
             <Button variant="outline" size="sm" className={btn} onClick={onAggiorna} disabled={isAggiorna}>
               {isAggiorna ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Aggiorna stato
             </Button>
+          )}
+
+          {emettibile && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" className="h-9 gap-1.5 text-xs font-medium shadow-sm max-sm:h-8" disabled={isEmitting}>
+                  {isEmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {isEmitting ? "Emissione…" : "Emetti"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Emetti documento</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Emetti questa {tipoLabel}? Il numero definitivo (progressivo) viene assegnato adesso e l'azione non può essere annullata.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogAction onClick={onEmetti} disabled={isEmitting}>
+                    {isEmitting ? "Emissione in corso…" : "Emetti documento"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
 
           {inviabile && (
