@@ -8,6 +8,11 @@
  * salvataggio falliva a metà (cancella, poi aggiorna una per una, poi inserisce) il database restava cambiato a metà senza
  * che la pagina lo dicesse. «Prob. vittoria %» NON si è tolta (decisione di Florin) ma la pagina dice che non entra nelle
  * statistiche. Qui si tiene fermo tutto questo.
+ *
+ * 13/10/2026: con dieci fasi l'editor era lunghissimo (ogni fase una scheda alta con le sue frasi). Ora ogni fase è una riga
+ * (maniglia, frecce, nome, esito, prob., ferma, cestino); le spiegazioni stanno una volta sola nella «Guida alle colonne» e,
+ * per l'esito, nel menu sotto ogni voce; «Aggiungi fase» c'è anche in fondo e la fase nuova arriva col nome già selezionato;
+ * le frecce spostano una fase di un posto, comode quando l'elenco è lungo.
  */
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -172,37 +177,71 @@ describe("le fasi di una pipeline", () => {
   it("titolo e descrizione: dove entrano i nuovi contatti dei moduli", async () => {
     await apri();
     expect(screen.getByText("Fasi di «Vendita edile»")).toBeTruthy();
-    expect(screen.getByText("Trascina per cambiare l'ordine. La prima fase è dove entrano i nuovi contatti dei moduli.")).toBeTruthy();
+    expect(screen.getByText("La prima fase è dove entrano i nuovi contatti dei moduli.")).toBeTruthy();
   });
 
-  it("cosa succede quando una trattativa arriva in una fase è scritto sotto il menu, non solo nel title", async () => {
+  it("una riga per fase: le spiegazioni non si ripetono sotto ogni fase, stanno una volta sola nella guida", async () => {
     await apri();
-    const etichette = screen.getAllByText("Quando una trattativa arriva qui diventa…");
-    expect(etichette).toHaveLength(3);
-    const frase = (valore: string) => AUTO_STATUS_OPTIONS.find((o) => o.value === valore)!.hint;
-    // La frase dell'opzione scelta di OGNI fase è sullo schermo (nessuna va cercata col mouse).
-    expect(screen.getAllByText(frase("none"))).toHaveLength(1);
-    expect(screen.getAllByText(frase("won"))).toHaveLength(1);
-    expect(screen.getAllByText(frase("abandoned"))).toHaveLength(1);
-    // E il menu la richiama come descrizione accessibile.
+    expect(screen.queryByText("Quando una trattativa arriva qui diventa…")).toBeNull();
+    const guida = screen.getByRole("button", { name: "Guida alle colonne" });
+    const pannello = document.getElementById(guida.getAttribute("aria-controls") ?? "") as HTMLElement;
+    // Chiusa all'apertura della pagina: la lista delle fasi viene subito.
+    expect(guida.getAttribute("aria-expanded")).toBe("false");
+    expect(pannello.hidden).toBe(true);
+    // Fuori dalla guida le frasi degli esiti ci sono solo per il lettore di schermo (una per fase), non sullo schermo.
+    const perFase = AUTO_STATUS_OPTIONS.flatMap((opt) => screen.queryAllByText(opt.hint).filter((el) => !pannello.contains(el)));
+    expect(perFase).toHaveLength(3);
+    for (const el of perFase) expect(el.className).toMatch(/\bsr-only\b/);
+    fireEvent.click(guida);
+    expect(guida.getAttribute("aria-expanded")).toBe("true");
+    expect(pannello.hidden).toBe(false);
+    // Dentro: ogni esito con la sua frase, la probabilità e «ferma», una volta sola.
+    for (const opt of AUTO_STATUS_OPTIONS) {
+      expect(within(pannello).getAllByText(opt.hint, { exact: false })).toHaveLength(1);
+    }
+    expect(within(pannello).getAllByText(/si salva, ma oggi non entra nelle statistiche/)).toHaveLength(1);
+    expect(within(pannello).getAllByText("Dopo quanti giorni nella fase una trattativa risulta ferma.")).toHaveLength(1);
+    expect(screen.getAllByText(/si salva, ma oggi non entra nelle statistiche/)).toHaveLength(1);
+  });
+
+  it("l'esito: nella riga il nome corto, la frase per il lettore di schermo e nel menu sotto ogni voce (non solo nel title)", async () => {
+    await apri();
     const tendine = screen.getAllByRole("combobox");
     expect(tendine).toHaveLength(3);
-    const descritta = document.getElementById(tendine[1].getAttribute("aria-describedby") ?? "");
-    expect(descritta?.textContent).toBe(frase("won"));
-    // Ogni menu ha il suo nome (l'etichetta visibile).
-    for (const t of tendine) expect(t.id).toBeTruthy();
-    expect(screen.getAllByLabelText("Quando una trattativa arriva qui diventa…")).toHaveLength(3);
+    const vinta = screen.getByRole("combobox", { name: "Esito della fase 2" });
+    expect(within(vinta).getByText("Vinta")).toBeTruthy();
+    const frase = (valore: string) => AUTO_STATUS_OPTIONS.find((o) => o.value === valore)!.hint;
+    // Il menu chiuso porta la frase dell'esito scelto come descrizione accessibile.
+    expect(document.getElementById(vinta.getAttribute("aria-describedby") ?? "")?.textContent).toBe(frase("won"));
+    expect(document.getElementById(tendine[2].getAttribute("aria-describedby") ?? "")?.textContent).toBe(frase("abandoned"));
+    // Aperto, ogni voce dice cosa fa: la spiegazione arriva nel momento in cui si sceglie.
+    fireEvent.pointerDown(vinta, { button: 0, ctrlKey: false, pointerType: "mouse" });
+    const voci = await screen.findAllByRole("option");
+    expect(voci).toHaveLength(AUTO_STATUS_OPTIONS.length);
+    for (const opt of AUTO_STATUS_OPTIONS) {
+      const voce = voci.find((v) => v.textContent?.startsWith(opt.label));
+      expect(voce?.textContent, opt.value).toContain(opt.hint);
+    }
+    // Scelta «Persa»: la riga mostra il nome corto, la bozza si apre.
+    fireEvent.click(voci.find((v) => v.textContent?.startsWith("Persa"))!);
+    await waitFor(() => expect(within(screen.getByRole("combobox", { name: "Esito della fase 2" })).getByText("Persa")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Salva le fasi" })).toBeTruthy();
   });
 
-  it("«Ferma da (giorni)» al posto del gergo; «Prob. vittoria %» resta, con la riga che dice che non entra nelle statistiche", async () => {
+  it("«Ferma da (giorni)» e «Prob. vittoria %»: campi stretti con «gg» e «%», l'etichetta dice di quale fase", async () => {
     await apri();
     expect(screen.queryByText(/Alert ferma/)).toBeNull();
-    expect(screen.getAllByLabelText("Ferma da (giorni)")).toHaveLength(3);
-    expect(screen.getAllByLabelText("Ferma da (giorni)")[0].getAttribute("title")).toBe("Dopo quanti giorni nella fase una trattativa risulta ferma.");
+    const ferma = screen.getAllByLabelText(/^Ferma da \(giorni\) della fase \d$/);
+    expect(ferma).toHaveLength(3);
+    expect(ferma[0].getAttribute("title")).toBe("Dopo quanti giorni nella fase una trattativa risulta ferma.");
+    expect((ferma[0] as HTMLInputElement).value).toBe("14");
     // La probabilità non si è tolta: è una decisione aperta.
-    expect(screen.getAllByLabelText("Prob. vittoria %")).toHaveLength(3);
-    expect((screen.getAllByLabelText("Prob. vittoria %")[1] as HTMLInputElement).value).toBe("100");
-    expect(screen.getByText(/si salva, ma oggi non entra nelle statistiche/)).toBeTruthy();
+    expect(screen.getAllByLabelText(/^Prob\. vittoria % della fase \d$/)).toHaveLength(3);
+    expect((screen.getByLabelText("Prob. vittoria % della fase 2") as HTMLInputElement).value).toBe("100");
+    fireEvent.change(screen.getByLabelText("Ferma da (giorni) della fase 1"), { target: { value: "21" } });
+    fireEvent.change(screen.getByLabelText("Prob. vittoria % della fase 1"), { target: { value: "150" } });
+    expect((screen.getByLabelText("Ferma da (giorni) della fase 1") as HTMLInputElement).value).toBe("21");
+    expect((screen.getByLabelText("Prob. vittoria % della fase 1") as HTMLInputElement).value).toBe("100");
   });
 
   it("il nome di una fase non cambia mentre lo si scrive (etichetta con il numero)", async () => {
@@ -213,17 +252,26 @@ describe("le fasi di una pipeline", () => {
     expect(screen.getByRole("button", { name: "Trascina la fase 1 per cambiare l'ordine" })).toBeTruthy();
   });
 
-  it("bersagli da 44 px sul telefono: maniglia, nome, cestino e campi numerici", async () => {
+  it("bersagli da 44 px sul telefono: frecce, nome, cestino, esito e campi numerici; la maniglia solo da tablet in su", async () => {
     await apri();
     const regole: Array<[HTMLElement, string]> = [
-      [screen.getByRole("button", { name: "Trascina la fase 1 per cambiare l'ordine" }), "grip"],
+      [screen.getByRole("button", { name: "Sposta «Nuovo contatto» più in basso" }), "giù"],
+      [screen.getByRole("button", { name: "Sposta «Contratto firmato» più in alto" }), "su"],
       [screen.getByLabelText("Nome della fase 1"), "nome"],
       [screen.getByRole("button", { name: "Elimina la fase «Nuovo contatto»" }), "cestino"],
-      [screen.getAllByLabelText("Ferma da (giorni)")[0], "ferma"],
-      [screen.getAllByLabelText("Prob. vittoria %")[0], "probabilità"],
-      [screen.getAllByRole("combobox")[0], "esito"],
+      [screen.getByLabelText("Ferma da (giorni) della fase 1"), "ferma"],
+      [screen.getByLabelText("Prob. vittoria % della fase 1"), "probabilità"],
+      [screen.getByRole("combobox", { name: "Esito della fase 1" }), "esito"],
+      [screen.getByRole("button", { name: "Aggiungi una fase" }), "aggiungi in testa"],
+      [screen.getByRole("button", { name: "Aggiungi fase" }), "aggiungi in fondo"],
     ];
     for (const [el, nome] of regole) expect(el.className, nome).toMatch(/max-md:h-11/);
+    for (const freccia of screen.getAllByRole("button", { name: /^Sposta / })) expect(freccia.className).toMatch(/max-md:w-11/);
+    // Sul telefono si riordina con le frecce: trascinare lì si confonde con lo scorrimento della pagina.
+    const maniglia = screen.getByRole("button", { name: "Trascina la fase 1 per cambiare l'ordine" });
+    expect(maniglia.className).toMatch(/(^|\s)hidden(\s|$)/);
+    expect(maniglia.className).toMatch(/md:inline-flex/);
+    expect(maniglia.className).toMatch(/touch-none/);
   });
 
   it("la barra «Salva le fasi» compare solo con modifiche, dice «Modifiche non salvate», e sparisce a salvataggio fatto", async () => {
@@ -295,12 +343,66 @@ describe("le fasi di una pipeline", () => {
     expect(db.stato.fasi.map((f) => f.name)).toContain("Preventivo inviato");
   });
 
+  it("«Aggiungi fase» in fondo: la fase nuova arriva a metà schermo col nome già selezionato, e il secondo nome non si ripete", async () => {
+    await apri();
+    const scorri = vi.spyOn(Element.prototype, "scrollIntoView");
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Aggiungi fase" }));
+      const campo = screen.getByLabelText("Nome della fase 4") as HTMLInputElement;
+      expect(campo.value).toBe("Nuova fase");
+      expect(document.activeElement).toBe(campo);
+      expect([campo.selectionStart, campo.selectionEnd]).toEqual([0, "Nuova fase".length]);
+      expect(scorri).toHaveBeenCalledWith({ block: "center", behavior: "smooth" });
+      expect(scorri.mock.contexts.at(-1)).toBe(campo);
+      // Anche dal pulsante in testata si arriva alla fase nuova; due «Nuova fase» non si potrebbero salvare.
+      fireEvent.click(screen.getByRole("button", { name: "Aggiungi una fase" }));
+      const secondo = screen.getByLabelText("Nome della fase 5") as HTMLInputElement;
+      expect(secondo.value).toBe("Nuova fase 2");
+      expect(document.activeElement).toBe(secondo);
+    } finally {
+      scorri.mockRestore();
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Salva le fasi" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Fasi salvate"));
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(db.stato.fasi.map((f) => f.name)).toEqual(expect.arrayContaining(["Nuova fase", "Nuova fase 2"]));
+  });
+
+  it("le frecce spostano una fase di un posto nella bozza: la prima non sale, l'ultima non scende, il focus resta sotto le dita", async () => {
+    await apri();
+    expect(screen.getByRole("button", { name: "Sposta «Nuovo contatto» più in alto" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sposta «Fuori zona» più in basso" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sposta «Contratto firmato» più in alto" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sposta «Nuovo contatto» più in basso" }));
+    expect((screen.getByLabelText("Nome della fase 1") as HTMLInputElement).value).toBe("Contratto firmato");
+    expect((screen.getByLabelText("Nome della fase 2") as HTMLInputElement).value).toBe("Nuovo contatto");
+    // Niente si scrive finché non si salva; chi usa il lettore di schermo sente dove è finita.
+    expect(scritture("update", "marketing_pipeline_stages")).toHaveLength(0);
+    expect(screen.getByText("«Nuovo contatto»: posizione 2 di 3.")).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Sposta «Nuovo contatto» più in basso" }));
+
+    // Arrivata in fondo, la freccia giù si spegne e il focus passa a quella che si può ancora premere.
+    fireEvent.click(screen.getByRole("button", { name: "Sposta «Nuovo contatto» più in basso" }));
+    expect(screen.getByRole("button", { name: "Sposta «Nuovo contatto» più in basso" })).toBeDisabled();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Sposta «Nuovo contatto» più in alto" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Salva le fasi" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Fasi salvate"));
+    const ordine = [...db.stato.fasi].sort((x, y) => (x.position as number) - (y.position as number)).map((f) => f.name);
+    expect(ordine).toEqual(["Contratto firmato", "Fuori zona", "Nuovo contatto"]);
+  });
+
   it("senza il permesso: niente aggiungere né salvare, i campi sono spenti e la riga lo spiega", async () => {
     permessi.modifica = false;
     await apri();
     expect(screen.getByText("Sola lettura: per modificare le fasi serve il permesso «Modifica» su Personalizzazione.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Aggiungi una fase" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Aggiungi fase" })).toBeNull();
+    expect(screen.queryAllByRole("button", { name: /^(Sposta|Trascina|Elimina)/ })).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "Guida alle colonne" })).toBeEnabled();
     expect(screen.getByLabelText("Nome della fase 1")).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Esito della fase 1" })).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Nome della fase 1"), { target: { value: "Altro" } });
     expect(screen.queryByRole("button", { name: "Salva le fasi" })).toBeNull();
   });
