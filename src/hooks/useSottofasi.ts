@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
-import { messaggioErrore, sottofaseDaRiga, sottofasiPerFase, type Sottofase } from "@/lib/orders/sottofasi";
+import { messaggioErrore, SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, type Sottofase } from "@/lib/orders/sottofasi";
 
 // La tabella non è ancora nei tipi generati: cast localizzato, come useOrderWorkPhases.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,14 +22,13 @@ export function useSottofasi(orderId: string | null | undefined) {
     enabled: !!orderId,
     staleTime: 30_000,
     queryFn: async (): Promise<Sottofase[]> => {
-      // Le sottofasi non hanno la commessa: si filtra per quella della loro fase.
+      // Le sottofasi non hanno la commessa: si parte dalle fasi della commessa.
       const { data, error } = await db
-        .from("order_work_subphases")
-        .select("id, phase_id, name, position, peso, fatta, fatta_il, fase:order_work_phases!inner(order_id)")
-        .eq("fase.order_id", orderId!)
-        .order("position", { ascending: true });
+        .from("order_work_phases")
+        .select(`id, ${SOTTOFASI_NELLA_FASE}`)
+        .eq("order_id", orderId!);
       if (error) throw error;
-      return ((data ?? []) as Record<string, unknown>[]).map(sottofaseDaRiga);
+      return sottofasiDalleFasi(data as Record<string, unknown>[] | null);
     },
   });
 

@@ -32,7 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
-import { faseHaSottofasi, messaggioErrore, sottofaseDaRiga, sottofasiPerFase, type Sottofase } from "@/lib/orders/sottofasi";
+import { faseHaSottofasi, messaggioErrore, SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, type Sottofase } from "@/lib/orders/sottofasi";
 
 // Le foto restano indirizzate come prima nel database; in lettura passano da
 // un link a scadenza (linkFileRiservato), cosi' funzionano anche quando il
@@ -102,7 +102,10 @@ export default function CampoAvanzamento() {
         .select("id, order_id, name, position, status, percentuale, notes, foto_urls, completata_il")
         // La chiave della query aveva già l'azienda, la query no.
         .eq("company_id", companyId!)
-        .order("position", { ascending: true });
+        // Stesso ordine completo della lettura delle sottofasi: oltre il
+        // massimo di righe per lettura le due prendono le stesse fasi.
+        .order("position", { ascending: true })
+        .order("id", { ascending: true });
       if (error) throw error;
       return (data ?? []) as unknown as Fase[];
     },
@@ -130,19 +133,20 @@ export default function CampoAvanzamento() {
     staleTime: 60_000,
   });
 
-  // Le sottofasi dei MIEI cantieri: non hanno l'azienda, si filtra per quella della
-  // loro fase (la RLS è la stessa delle fasi). Se la lettura fallisce (tabella non
-  // ancora creata) le fasi restano come sempre.
+  // Le sottofasi dei MIEI cantieri: non hanno l'azienda, si parte dalle fasi
+  // dell'azienda (la RLS è la stessa delle fasi). Se la lettura fallisce le fasi
+  // restano come sempre.
   const sottofasiQuery = useQuery({
     queryKey: ["campo-sottofasi", companyId, user?.id],
     queryFn: async (): Promise<Sottofase[]> => {
       const { data, error } = await db
-        .from("order_work_subphases")
-        .select("id, phase_id, name, position, peso, fatta, fatta_il, fase:order_work_phases!inner(company_id)")
-        .eq("fase.company_id", companyId!)
-        .order("position", { ascending: true });
+        .from("order_work_phases")
+        .select(`id, ${SOTTOFASI_NELLA_FASE}`)
+        .eq("company_id", companyId!)
+        .order("position", { ascending: true })
+        .order("id", { ascending: true });
       if (error) throw error;
-      return ((data ?? []) as Record<string, unknown>[]).map(sottofaseDaRiga);
+      return sottofasiDalleFasi(data as Record<string, unknown>[] | null);
     },
     enabled: !!user?.id && !!companyId,
     staleTime: 30_000,

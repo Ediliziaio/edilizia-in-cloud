@@ -17,9 +17,9 @@ vi.mock("@/components/common/ImgRiservata", () => ({ ImgRiservata: (): null => n
 vi.mock("@/lib/storage/fileRiservati", () => ({ linkFileRiservato: async (u: string) => u }));
 vi.mock("@/integrations/supabase/client", () => {
   const costruisci = (tabella: string) => {
+    // Le sottofasi arrivano annidate nelle fasi dell'azienda («sottofasi»).
     const righe = () =>
-      tabella === "order_work_phases" ? dati.fasi
-      : tabella === "order_work_subphases" ? dati.sottofasi
+      tabella === "order_work_phases" ? dati.fasi.map((f) => ({ ...f, sottofasi: dati.sottofasi.filter((s) => s.phase_id === f.id) }))
       : tabella === "orders" ? [{ id: "o1", order_code: "C-1", description: "Bagno", indirizzo_lavori: "Via Roma 1" }]
       : [];
     // Lettura: l'oggetto si può «attendere» a ogni passo della catena.

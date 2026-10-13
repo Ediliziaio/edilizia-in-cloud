@@ -71,6 +71,22 @@ export function sottofasiPerFase<T extends Pick<Sottofase, "phase_id" | "positio
   return mappa;
 }
 
+/**
+ * Le sottofasi si leggono partendo dalle fasi (12/10/2026): un `select` su
+ * order_work_phases filtrato per commessa (o per azienda), con le sottofasi
+ * annidate. Così le regole di accesso si valutano solo sulle fasi richieste e
+ * sulle loro sottofasi: pochi millisecondi anche con molte commesse.
+ */
+export const SOTTOFASI_NELLA_FASE = "sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il)";
+
+/** Le sottofasi annidate nelle fasi (vedi SOTTOFASI_NELLA_FASE), in ordine di posizione. */
+export function sottofasiDalleFasi(fasi: ReadonlyArray<Record<string, unknown>> | null | undefined): Sottofase[] {
+  return (fasi ?? [])
+    .flatMap((f) => (Array.isArray(f.sottofasi) ? (f.sottofasi as Record<string, unknown>[]) : []))
+    .map(sottofaseDaRiga)
+    .sort((a, b) => a.position - b.position);
+}
+
 export function sottofaseDaRiga(r: Record<string, unknown>): Sottofase {
   return {
     id: String(r.id),

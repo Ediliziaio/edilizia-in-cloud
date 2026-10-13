@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { NoteCantiereCampo } from "@/components/campo/NoteCantiereCampo";
 import { ChiLavoraCampo } from "@/components/campo/ChiLavoraCampo";
 import { SottofasiContate } from "@/components/campo/SottofasiContate";
-import { sottofaseDaRiga, sottofasiPerFase, type Sottofase } from "@/lib/orders/sottofasi";
+import { SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, type Sottofase } from "@/lib/orders/sottofasi";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
@@ -461,12 +461,11 @@ export default function CampoLavoroDetail() {
     queryFn: async (): Promise<Sottofase[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
-        .from("order_work_subphases")
-        .select("id, phase_id, name, position, peso, fatta, fatta_il, fase:order_work_phases!inner(order_id)")
-        .eq("fase.order_id", orderId)
-        .order("position", { ascending: true });
+        .from("order_work_phases")
+        .select(`id, ${SOTTOFASI_NELLA_FASE}`)
+        .eq("order_id", orderId);
       if (error) return [];
-      return ((data ?? []) as Record<string, unknown>[]).map(sottofaseDaRiga);
+      return sottofasiDalleFasi(data as Record<string, unknown>[] | null);
     },
   });
   const sottofasiDi = useMemo(() => sottofasiPerFase(sottofasiLavoro), [sottofasiLavoro]);

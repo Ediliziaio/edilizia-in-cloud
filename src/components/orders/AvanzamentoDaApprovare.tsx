@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { anteprimaAvanzamento, type RigaAnteprima } from "@/lib/orders/anteprimaAvanzamento";
-import { sottofaseDaRiga } from "@/lib/orders/sottofasi";
+import { SOTTOFASI_NELLA_FASE, sottofasiDalleFasi } from "@/lib/orders/sottofasi";
 
 // Le sottofasi non sono ancora nei tipi generati: cast localizzato.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,17 +18,13 @@ export function AvanzamentoDaApprovare({ orderId, reportId }: { orderId: string;
     queryFn: async (): Promise<RigaAnteprima[]> => {
       // Un'anteprima: se qualcosa non si legge, non si mostra niente (l'approvazione non cambia).
       try {
-        const [rapp, fasi, sotto] = await Promise.all([
+        // Le fasi della commessa con le loro sottofasi, in una lettura sola.
+        const [rapp, fasi] = await Promise.all([
           db.from("campo_rapportini").select("fasi_lavorate").eq("id", reportId).eq("order_id", orderId).maybeSingle(),
-          db.from("order_work_phases").select("id, name, status, percentuale").eq("order_id", orderId),
-          db.from("order_work_subphases")
-            .select("id, phase_id, name, position, peso, fatta, fatta_il, fase:order_work_phases!inner(order_id)")
-            .eq("fase.order_id", orderId)
-            .order("position", { ascending: true }),
+          db.from("order_work_phases").select(`id, name, status, percentuale, ${SOTTOFASI_NELLA_FASE}`).eq("order_id", orderId),
         ]);
         if (rapp.error || fasi.error || !Array.isArray(rapp.data?.fasi_lavorate)) return [];
-        const sottofasi = sotto.error ? [] : ((sotto.data ?? []) as Record<string, unknown>[]).map(sottofaseDaRiga);
-        return anteprimaAvanzamento(fasi.data ?? [], sottofasi, rapp.data.fasi_lavorate);
+        return anteprimaAvanzamento(fasi.data ?? [], sottofasiDalleFasi(fasi.data), rapp.data.fasi_lavorate);
       } catch {
         return [];
       }
