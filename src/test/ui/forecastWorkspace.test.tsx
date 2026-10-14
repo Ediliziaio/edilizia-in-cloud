@@ -17,12 +17,12 @@ vi.mock("recharts", () => ({
     <div>{children}</div>
   ),
   AreaChart: () => <div>Grafico di verifica</div>,
-  Area: () => null,
-  CartesianGrid: () => null,
-  ReferenceLine: () => null,
-  Tooltip: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
+  Area: (): null => null,
+  CartesianGrid: (): null => null,
+  ReferenceLine: (): null => null,
+  Tooltip: (): null => null,
+  XAxis: (): null => null,
+  YAxis: (): null => null,
 }));
 import { ForecastWorkspace } from "@/components/forecast/ForecastWorkspace";
 import { forecastFixture } from "@/test/fixtures/forecastDataset";
@@ -149,6 +149,47 @@ describe("forecast workspace decisions", () => {
     ).toBeNull();
     click(screen.getByRole("tab", { name: "Cassa futura" }));
     expect(screen.getByText(/A fine periodo:.*13.000/)).toBeVisible();
+    click(screen.getByRole("tab", { name: "Movimenti" }));
+    expect(
+      screen.getByRole("combobox", { name: "Direzione movimenti" }),
+    ).toHaveValue("out");
+    expect(
+      screen.queryByRole("link", { name: "Apri fonte: SAL commessa" }),
+    ).toBeNull();
+  });
+  it("exports all filtered rows without changing the whole plan export", () => {
+    mount();
+    click(screen.getByRole("tab", { name: "Movimenti" }));
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Direzione movimenti" }),
+      { target: { value: "out" } },
+    );
+    click(screen.getByRole("button", { name: "Esporta vista" }));
+    const filtered = vi.mocked(exportToCSV).mock.calls[0][0];
+    expect(filtered.length).toBeGreaterThan(0);
+    expect(filtered.every((r) => r.direzione === "Uscita")).toBe(true);
+    click(screen.getByRole("button", { name: "Esporta piano" }));
+    expect(
+      vi
+        .mocked(exportToCSV)
+        .mock.calls[1][0].find((r) => r.descrizione === "SAL commessa"),
+    ).toBeDefined();
+  });
+  it("resets a previous search when opening an actionable missing-date filter", () => {
+    mount();
+    click(screen.getByRole("tab", { name: "Movimenti" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Cerca nei movimenti" }),
+      { target: { value: "SAL" } },
+    );
+    click(screen.getByRole("tab", { name: "Cassa futura" }));
+    click(screen.getByRole("button", { name: /Movimenti senza data/ }));
+    expect(
+      screen.getByRole("textbox", { name: "Cerca nei movimenti" }),
+    ).toHaveValue("");
+    expect(
+      screen.getByRole("link", { name: "Apri fonte: Spesa senza scadenza" }),
+    ).toBeVisible();
   });
   it("stores planning preferences separately for each company", async () => {
     const first = mount();

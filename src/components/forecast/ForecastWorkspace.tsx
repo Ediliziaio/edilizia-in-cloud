@@ -43,6 +43,7 @@ import {
 } from "@/lib/finance/forecastLedger";
 import type { ForecastDataset } from "@/hooks/useForecastLedger";
 import { cn } from "@/lib/utils";
+import "./forecastWorkspace.css";
 
 const MarginTab = lazy(() =>
   import("./MarginTab").then((m) => ({ default: m.MarginTab })),
@@ -78,6 +79,16 @@ const defaults: Preferences = {
   estimates: true,
   overdue: false,
 };
+interface MovementControls {
+  search: string;
+  direction: string;
+  page: number;
+}
+const defaultControls: MovementControls = {
+  search: "",
+  direction: "all",
+  page: 1,
+};
 function readPreferences(companyId: string): Preferences {
   try {
     const p = JSON.parse(
@@ -110,7 +121,7 @@ function Metric({
   icon: typeof Wallet;
 }) {
   return (
-    <div className={cn(panel, "min-w-0 p-4 shadow-sm sm:p-5")}>
+    <div className={cn(panel, "forecast-metric min-w-0 p-4 shadow-sm sm:p-5")}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-slate-500">{label}</p>
         <Icon aria-hidden className="h-4 w-4 shrink-0 text-slate-400" />
@@ -139,7 +150,7 @@ function ActionRow({
   return (
     <button
       onClick={onClick}
-      className="flex min-h-16 w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 text-left transition-colors hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800"
+      className="forecast-action flex min-h-16 w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 text-left transition-colors hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800"
     >
       <span>
         <span className="block text-sm font-medium">{title}</span>
@@ -164,6 +175,8 @@ export function ForecastWorkspace({
   const [tab, setTab] = useState("cassa");
   const [chartView, setChartView] = useState("giorni");
   const [movementFilter, setMovementFilter] = useState("piano");
+  const [detailControls, setDetailControls] = useState(defaultControls);
+  const [collectedControls, setCollectedControls] = useState(defaultControls);
   const [weekRange, setWeekRange] = useState<{
     start: string;
     end: string;
@@ -232,6 +245,7 @@ export function ForecastWorkspace({
       data.opening.updatedAt.slice(0, 10) < moveDay(data.today, -1));
   const incomplete = data.issues.length > 0;
   const openMovements = (filter: string) => {
+    setDetailControls(defaultControls);
     setMovementFilter(filter);
     setWeekRange(null);
     setTab("movimenti");
@@ -319,7 +333,7 @@ export function ForecastWorkspace({
   };
   return (
     <div
-      className="space-y-6 pb-8 text-slate-900 dark:text-slate-100"
+      className="forecast-workspace space-y-6 pb-8 text-slate-900 dark:text-slate-100"
       data-testid="forecast-workspace"
     >
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -332,6 +346,22 @@ export function ForecastWorkspace({
           </h1>
           <p className="mt-1 text-sm text-slate-500">
             La cassa che avrai. Le scadenze da gestire prima.
+          </p>
+          <p
+            className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-500"
+            role="status"
+            aria-live="polite"
+          >
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                incomplete ? "bg-amber-500" : "bg-emerald-500",
+              )}
+              aria-hidden
+            />
+            {refreshing
+              ? "Caricamento dei dati in corso…"
+              : `Dati caricati alle ${new Date(data.updatedAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`}
           </p>
         </div>
         <div className="flex gap-2 print:hidden">
@@ -392,7 +422,15 @@ export function ForecastWorkspace({
         </div>
       )}
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="mb-6 grid h-auto w-full grid-cols-4 rounded-xl bg-slate-100 p-1 dark:bg-slate-900 sm:w-fit sm:min-w-[440px] print:hidden">
+        <TabsList
+          data-tab-index={[
+            "cassa",
+            "movimenti",
+            "incassato",
+            "marginalita",
+          ].indexOf(tab)}
+          className="forecast-tabs mb-6 grid h-auto w-full grid-cols-4 rounded-xl bg-slate-100 p-1 dark:bg-slate-900 sm:w-fit sm:min-w-[440px] print:hidden"
+        >
           {[
             ["cassa", "Cassa futura"],
             ["movimenti", "Movimenti"],
@@ -453,7 +491,7 @@ export function ForecastWorkspace({
               />
             </label>
           </div>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="forecast-metrics grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Metric
               icon={Landmark}
               label="Disponibilità di partenza"
@@ -573,82 +611,136 @@ export function ForecastWorkspace({
               </p>
             </div>
             {chartView === "settimane" ? (
-              <div className="overflow-x-auto p-3 sm:p-5">
-                <table className="w-full min-w-[670px] text-sm">
-                  <caption className="sr-only">
-                    Piano settimanale con minimo giornaliero e saldo finale
-                  </caption>
-                  <thead>
-                    <tr className="border-b text-left text-xs text-slate-500">
-                      {[
-                        "Periodo",
-                        "Entrate",
-                        "Uscite",
-                        "Minimo giornaliero",
-                        "Saldo finale",
-                      ].map((label, i) => (
-                        <th
-                          key={label}
+              <div className="forecast-view">
+                <div className="divide-y divide-slate-100 px-4 dark:divide-slate-800 sm:hidden">
+                  {weeks.map((w) => (
+                    <button
+                      key={w.start}
+                      className={cn(
+                        "forecast-week w-full rounded-lg py-4 text-left",
+                        w.minimum != null &&
+                          w.minimum < prefs.threshold &&
+                          "text-rose-700 dark:text-rose-300",
+                      )}
+                      aria-label={`Apri settimana ${shortDate(w.start)}`}
+                      onClick={() => {
+                        setDetailControls(defaultControls);
+                        setWeekRange({ start: w.start, end: w.end });
+                        setMovementFilter("piano");
+                        setTab("movimenti");
+                      }}
+                    >
+                      <span className="flex items-center justify-between text-sm font-semibold">
+                        {shortDate(w.start)} – {shortDate(w.end)}
+                        <ArrowRight className="h-4 w-4" aria-hidden />
+                      </span>
+                      <span className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                        <span className="text-slate-500">
+                          Entrate{" "}
+                          <strong className="mt-1 block font-medium tabular-nums text-emerald-600">
+                            {money(w.income)}
+                          </strong>
+                        </span>
+                        <span className="text-slate-500">
+                          Uscite{" "}
+                          <strong className="mt-1 block font-medium tabular-nums text-rose-600">
+                            {money(w.expense)}
+                          </strong>
+                        </span>
+                        <span>
+                          Minimo giornaliero{" "}
+                          <strong className="mt-1 block font-semibold tabular-nums">
+                            {money(w.minimum)}
+                          </strong>
+                        </span>
+                        <span className="text-slate-500">
+                          Saldo finale{" "}
+                          <strong className="mt-1 block font-medium tabular-nums text-slate-900 dark:text-slate-100">
+                            {money(w.balance)}
+                          </strong>
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="hidden overflow-x-auto p-5 sm:block">
+                  <table className="w-full min-w-[670px] text-sm">
+                    <caption className="sr-only">
+                      Piano settimanale con minimo giornaliero e saldo finale
+                    </caption>
+                    <thead>
+                      <tr className="border-b text-left text-xs text-slate-500">
+                        {[
+                          "Periodo",
+                          "Entrate",
+                          "Uscite",
+                          "Minimo giornaliero",
+                          "Saldo finale",
+                        ].map((label, i) => (
+                          <th
+                            key={label}
+                            className={cn(
+                              "pb-3 font-medium",
+                              i > 0 && "text-right",
+                            )}
+                          >
+                            {label}
+                          </th>
+                        ))}
+                        <th>
+                          <span className="sr-only">Dettaglio</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {weeks.map((w) => (
+                        <tr
+                          key={w.start}
                           className={cn(
-                            "pb-3 font-medium",
-                            i > 0 && "text-right",
+                            "border-b border-slate-100 dark:border-slate-800",
+                            w.minimum != null &&
+                              w.minimum < prefs.threshold &&
+                              "bg-rose-50/70 dark:bg-rose-950/20",
                           )}
                         >
-                          {label}
-                        </th>
-                      ))}
-                      <th>
-                        <span className="sr-only">Dettaglio</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weeks.map((w) => (
-                      <tr
-                        key={w.start}
-                        className={cn(
-                          "border-b border-slate-100 dark:border-slate-800",
-                          w.minimum != null &&
-                            w.minimum < prefs.threshold &&
-                            "bg-rose-50/70 dark:bg-rose-950/20",
-                        )}
-                      >
-                        <td className="py-3 pr-3 text-xs">
-                          {shortDate(w.start)} – {shortDate(w.end)}
-                        </td>
-                        {[w.income, w.expense, w.minimum, w.balance].map(
-                          (value, i) => (
-                            <td
-                              key={i}
-                              className={cn(
-                                "py-3 text-right tabular-nums",
-                                i === 0 && "text-emerald-600",
-                                i === 1 && "text-rose-600",
-                                i === 2 && "font-medium",
-                              )}
+                          <td className="py-3 pr-3 text-xs">
+                            {shortDate(w.start)} – {shortDate(w.end)}
+                          </td>
+                          {[w.income, w.expense, w.minimum, w.balance].map(
+                            (value, i) => (
+                              <td
+                                key={i}
+                                className={cn(
+                                  "py-3 text-right tabular-nums",
+                                  i === 0 && "text-emerald-600",
+                                  i === 1 && "text-rose-600",
+                                  i === 2 && "font-medium",
+                                )}
+                              >
+                                {money(value)}
+                              </td>
+                            ),
+                          )}
+                          <td className="pl-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Apri movimenti ${shortDate(w.start)}`}
+                              onClick={() => {
+                                setDetailControls(defaultControls);
+                                setWeekRange({ start: w.start, end: w.end });
+                                setMovementFilter("piano");
+                                setTab("movimenti");
+                              }}
                             >
-                              {money(value)}
-                            </td>
-                          ),
-                        )}
-                        <td className="pl-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Apri movimenti ${shortDate(w.start)}`}
-                            onClick={() => {
-                              setWeekRange({ start: w.start, end: w.end });
-                              setMovementFilter("piano");
-                              setTab("movimenti");
-                            }}
-                          >
-                            <ArrowRight className="h-4 w-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                              <ArrowRight className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ) : data.opening.cents == null ? (
               <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 p-6 text-center">
@@ -662,7 +754,7 @@ export function ForecastWorkspace({
               </div>
             ) : (
               <div
-                className="h-[290px] w-full px-1 py-5 sm:px-4"
+                className="forecast-view h-[290px] w-full px-1 py-5 sm:px-4"
                 aria-label="Grafico saldo giornaliero"
               >
                 <ResponsiveContainer width="100%" height="100%">
@@ -768,7 +860,7 @@ export function ForecastWorkspace({
                     aria-pressed={prefs.delay === delay}
                     onClick={() => updatePrefs({ delay })}
                     className={cn(
-                      "rounded-xl border p-3 text-left transition-colors",
+                      "forecast-scenario rounded-xl border p-3 text-left transition-colors",
                       prefs.delay === delay
                         ? "border-blue-400 bg-blue-50 dark:bg-blue-950/30"
                         : "border-slate-200 hover:border-slate-400 dark:border-slate-800",
@@ -794,7 +886,7 @@ export function ForecastWorkspace({
                 ))}
               </div>
               <div className="mt-4 space-y-3 border-t border-slate-100 pt-4 text-xs dark:border-slate-800">
-                <label className="flex cursor-pointer items-center gap-2">
+                <label className="flex min-h-10 cursor-pointer items-center gap-3 leading-relaxed">
                   <input
                     type="checkbox"
                     checked={prefs.estimates}
@@ -805,7 +897,7 @@ export function ForecastWorkspace({
                   />
                   Includi stime di stipendi, acquisti e costi ricorrenti
                 </label>
-                <label className="flex cursor-pointer items-center gap-2">
+                <label className="flex min-h-10 cursor-pointer items-center gap-3 leading-relaxed">
                   <input
                     type="checkbox"
                     checked={prefs.overdue}
@@ -864,6 +956,7 @@ export function ForecastWorkspace({
               className="h-10 rounded-xl border bg-background px-3 text-sm"
               value={movementFilter}
               onChange={(e) => {
+                setDetailControls(defaultControls);
                 setMovementFilter(e.target.value);
                 setWeekRange(null);
               }}
@@ -888,9 +981,10 @@ export function ForecastWorkspace({
             </p>
           )}
           <MovementList
-            key={`${movementFilter}:${weekRange?.start ?? ""}`}
             rows={detailMovements}
             today={data.today}
+            controls={detailControls}
+            onControlsChange={setDetailControls}
           />
         </TabsContent>
         <TabsContent value="incassato" className="mt-0 space-y-4">
@@ -921,7 +1015,13 @@ export function ForecastWorkspace({
               detail={`${comparable.length} incassi con scadenza collegata · ultimi 12 mesi`}
             />
           </div>
-          <MovementList rows={collected} today={data.today} collected />
+          <MovementList
+            rows={collected}
+            today={data.today}
+            controls={collectedControls}
+            onControlsChange={setCollectedControls}
+            collected
+          />
         </TabsContent>
         <TabsContent value="marginalita" className="mt-0">
           <div className="mb-4 flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-900">
@@ -943,14 +1043,16 @@ function MovementList({
   rows,
   today,
   collected = false,
+  controls,
+  onControlsChange,
 }: {
   rows: ForecastMovement[];
   today: string;
   collected?: boolean;
+  controls: MovementControls;
+  onControlsChange: (controls: MovementControls) => void;
 }) {
-  const [search, setSearch] = useState("");
-  const [direction, setDirection] = useState("all");
-  const [page, setPage] = useState(1);
+  const { search, direction, page } = controls;
   const filtered = rows.filter(
     (m) =>
       (direction === "all" || m.direction === direction) &&
@@ -977,6 +1079,37 @@ function MovementList({
           : m.estimated
             ? "Stima"
             : "Programmato";
+  const exportView = () =>
+    exportToCSV(
+      filtered.map((m) => ({
+        data: m.date ?? "",
+        descrizione: m.description,
+        controparte: m.counterparty ?? "",
+        categoria: FORECAST_CATEGORIES[m.category],
+        fonte: m.source,
+        stato: status(m),
+        direzione: m.direction === "in" ? "Entrata" : "Uscita",
+        importo: (m.cents / 100).toFixed(2),
+        data_attesa: m.expectedDate ?? "",
+        note: m.note ?? "",
+      })),
+      [
+        {
+          key: "data",
+          label: collected ? "Data registrazione" : "Data prevista",
+        },
+        { key: "descrizione", label: "Descrizione" },
+        { key: "controparte", label: "Controparte" },
+        { key: "categoria", label: "Categoria" },
+        { key: "fonte", label: "Fonte" },
+        { key: "stato", label: "Stato" },
+        { key: "direzione", label: "Direzione" },
+        { key: "importo", label: "Importo EUR" },
+        { key: "data_attesa", label: "Data attesa" },
+        { key: "note", label: "Note" },
+      ],
+      `previsionale-${collected ? "incassato" : "movimenti"}-vista-${today}.csv`,
+    );
   return (
     <div className={cn(panel, "overflow-hidden")}>
       <div className="flex flex-col gap-3 border-b border-slate-100 p-4 dark:border-slate-800 sm:flex-row">
@@ -987,8 +1120,11 @@ function MovementList({
             placeholder="Cerca descrizione, cliente o fonte"
             value={search}
             onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
+              onControlsChange({
+                ...controls,
+                search: e.target.value,
+                page: 1,
+              });
             }}
             className="h-10 rounded-xl pl-9"
           />
@@ -999,8 +1135,11 @@ function MovementList({
             className="h-10 rounded-xl border bg-background px-3 text-sm"
             value={direction}
             onChange={(e) => {
-              setDirection(e.target.value);
-              setPage(1);
+              onControlsChange({
+                ...controls,
+                direction: e.target.value,
+                page: 1,
+              });
             }}
           >
             <option value="all">Entrate e uscite</option>
@@ -1008,6 +1147,16 @@ function MovementList({
             <option value="out">Solo uscite</option>
           </select>
         )}
+        <Button
+          variant="outline"
+          onClick={exportView}
+          disabled={!filtered.length}
+          className="h-10 rounded-xl"
+          title="Esporta tutti i movimenti che corrispondono ai filtri, anche nelle altre pagine"
+        >
+          <Download className="mr-2 h-4 w-4" aria-hidden />
+          Esporta vista
+        </Button>
       </div>
       <div className="flex flex-wrap gap-x-5 gap-y-1 px-4 py-3 text-xs text-slate-500">
         <span>{filtered.length} movimenti</span>
@@ -1058,7 +1207,7 @@ function MovementList({
                 {visible.map((m) => (
                   <tr
                     key={m.id}
-                    className="border-b border-slate-100 dark:border-slate-800"
+                    className="forecast-movement border-b border-slate-100 dark:border-slate-800"
                   >
                     <td className="whitespace-nowrap p-3 text-xs">
                       {shortDate(m.date)}
@@ -1113,7 +1262,11 @@ function MovementList({
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800 sm:hidden">
             {visible.map((m) => (
-              <Link key={m.id} to={m.href} className="block p-4">
+              <Link
+                key={m.id}
+                to={m.href}
+                className="forecast-movement block p-4"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="break-words text-sm font-medium">
@@ -1138,6 +1291,11 @@ function MovementList({
                 <p className="mt-3 text-[11px] text-slate-500">
                   {shortDate(m.date)} · {m.source} · {status(m)}
                 </p>
+                {collected && m.expectedDate && (
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Atteso {fullDate(m.expectedDate)}
+                  </p>
+                )}
                 {m.note && (
                   <p className="mt-1 text-[11px] text-slate-500">{m.note}</p>
                 )}
@@ -1156,7 +1314,9 @@ function MovementList({
             size="icon"
             aria-label="Pagina precedente"
             disabled={currentPage <= 1}
-            onClick={() => setPage(currentPage - 1)}
+            onClick={() =>
+              onControlsChange({ ...controls, page: currentPage - 1 })
+            }
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -1165,7 +1325,9 @@ function MovementList({
             size="icon"
             aria-label="Pagina successiva"
             disabled={currentPage >= pages}
-            onClick={() => setPage(currentPage + 1)}
+            onClick={() =>
+              onControlsChange({ ...controls, page: currentPage + 1 })
+            }
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
