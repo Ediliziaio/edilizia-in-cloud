@@ -161,7 +161,7 @@ const SettingsIntegrations = lazy(() => import("@/pages/azienda/settings/Setting
 const SettingsWhatsAppBot = lazy(() => import("@/pages/azienda/settings/SettingsWhatsAppBot"));
 const SettingsCostCategories = lazy(() => import("@/pages/azienda/settings/SettingsCostCategories"));
 const SettingsFinanceAutomation = lazy(() => import("@/pages/azienda/settings/SettingsFinanceAutomation"));
-const SettingsCredits = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
+const SettingsCreditsRedirect = lazy(() => import("@/pages/azienda/settings/SettingsCreditsRedirect"));
 const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
 const AITestLab = lazy(() => import("@/pages/azienda/settings/AITestLab"));
 const SettingsFirmaElettronica = lazy(() => import("@/pages/azienda/settings/SettingsFirmaElettronica"));
@@ -1297,14 +1297,11 @@ export default function CompanyRoutesContainer() {
           <Route path="integrazioni" element={withCompanyPermission("canViewSettingsIntegrations", <SoloTabletDesktop avviso="Le integrazioni si gestiscono da tablet o computer."><SettingsIntegrations /></SoloTabletDesktop>)} />
           <Route path="whatsapp-bot" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsWhatsAppBot />)} />
           <Route path="lead-forms" element={withCompanyPermission("canViewSettingsIntegrations", <FacebookFormsPage />)} />
-          {/* Apple Guideline 3.1.1 — SettingsCredits contiene RechargeDialog Stripe, blocco su iOS */}
+          {/* Vecchi link e ritorni Stripe: tutti alla scheda Crediti del Piano.
+              Il blocco iOS e il permesso sono sulla destinazione. */}
           <Route
             path="crediti"
-            element={
-              isIOSNativePlatform
-                ? <IosBillingBlocked />
-                : withCompanyPermission("canViewBilling", <SettingsCredits />)
-            }
+            element={<SettingsCreditsRedirect />}
           />
           <Route path="api" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsApiKeys />)} />
           <Route path="webhook" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsWebhooks />)} />
@@ -1329,9 +1326,9 @@ export default function CompanyRoutesContainer() {
             element={
               isIOSNativePlatform
                 ? <IosBillingBlocked />
-                // L'abbonamento a EiC lo gestisce l'amministratore, come il menu
-                // (visibile solo a lui) e il portale Stripe (customer-portal).
-                : withCompanyPermission("canViewBilling", <SettingsSubscriptionBilling />, (p) => p.isAdmin)
+                // Piano e Pagamenti restano dell'amministratore. Chi ha solo
+                // Fatturazione entra nella sola scheda Crediti (controllo interno).
+                : withCompanyPermission("canViewBilling", <SettingsSubscriptionBilling />, (p) => p.isAdmin || p.canViewBilling)
             }
           />
           <Route path="form-builder" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFormBuilder />)} />

@@ -121,7 +121,7 @@ export function RenderCreditGate({
               <Button
                 variant="default"
                 size="sm"
-                onClick={() => navigate("/azienda/impostazioni/crediti")}
+                onClick={() => navigate("/azienda/impostazioni/abbonamento?tab=portafoglio")}
               >
                 <Zap className="h-4 w-4 mr-1" /> Acquista crediti
               </Button>
@@ -146,7 +146,7 @@ export function RenderCreditGate({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => navigate("/azienda/impostazioni/crediti")}
+                onClick={() => navigate("/azienda/impostazioni/abbonamento?tab=portafoglio")}
               >
                 Acquista crediti
               </Button>

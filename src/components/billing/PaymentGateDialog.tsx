@@ -84,7 +84,7 @@ export function PaymentGateDialog() {
 
   const vaiAiCrediti = () => {
     hide();
-    navigate("/azienda/impostazioni/crediti");
+    navigate("/azienda/impostazioni/abbonamento?tab=portafoglio");
   };
 
   const ricaricaOra = () => {

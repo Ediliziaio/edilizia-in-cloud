@@ -36,7 +36,7 @@ describe("hub da telefono: cosa si vede", () => {
     for (const si of ["Il mio profilo", "Profilo aziendale", "Utenti e permessi", "Notifiche", "Sicurezza & Privacy", "Esporta i dati"]) {
       expect(nomi.some((n) => n.includes(si)), si).toBe(true);
     }
-    for (const no of ["Listino", "Modelli preventivi e contratti", "Firma e condizioni", "Finanziamenti", "Integrazioni", "Piano abbonamento", "Stati commessa", "Sedi", "Marchio e colori"]) {
+    for (const no of ["Listino", "Modelli preventivi e contratti", "Firma e condizioni", "Finanziamenti", "Integrazioni", "Stati commessa", "Sedi", "Marchio e colori"]) {
       expect(nomi.some((n) => n.startsWith(no)), no).toBe(false);
     }
   });
@@ -71,9 +71,10 @@ describe("hub da telefono: cosa si vede", () => {
     expect(gruppi).toEqual(expect.arrayContaining(["Il mio account", "La mia azienda", "Account corrente"]));
   });
 
-  it("«Crediti e ricariche» è fra le voci della sua azienda (da telefono la pagina c'è)", () => {
+  it("Piano abbonamento apre Crediti anche da telefono, senza una seconda voce", () => {
     apri();
-    expect(voci().some((n) => n.startsWith("Crediti e ricariche"))).toBe(true);
+    expect(screen.getByRole("link", { name: /^Piano abbonamento/ })).toHaveAttribute("href", "/azienda/impostazioni/abbonamento?tab=portafoglio");
+    expect(voci().some((n) => n.startsWith("Crediti e ricariche"))).toBe(false);
   });
 });
 

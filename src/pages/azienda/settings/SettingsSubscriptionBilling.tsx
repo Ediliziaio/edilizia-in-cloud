@@ -19,6 +19,7 @@ import {
   ArrowUpRight, ArrowDownRight, XCircle,
 } from "lucide-react";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -923,12 +924,15 @@ function AutoTopupFailureBanner() {
 
 export default function SettingsSubscriptionBilling() {
   const { isScopriPlan, isLoading: limitsLoading } = useSubscriptionLimits();
+  const permissions = usePermissions();
+  const canManagePlan = permissions.isAdmin;
   // Dal telefono l'abbonamento non si attiva, non si paga e non si rinnova:
   // solo dal computer (regola dell'utente, 25/09/2026).
   const isMobile = useIsMobile();
   const [params, setParams] = useSearchParams();
   const tabParam = params.get("tab") ?? "";
-  const activeTab = VALID_TABS.has(tabParam) ? tabParam : "abbonamenti";
+  // Chi prima accedeva solo alla pagina Crediti continua a vedere SOLO Crediti.
+  const activeTab = !canManagePlan ? "portafoglio" : VALID_TABS.has(tabParam) ? tabParam : "abbonamenti";
 
   const setTab = (v: string) => {
     const next = new URLSearchParams(params);
@@ -938,10 +942,7 @@ export default function SettingsSubscriptionBilling() {
 
   // Mantieni vecchia logica "Scopri" (paywall onboarding)
   const navigate = useNavigate();
-  if (isMobile) {
-    return <AvvisoSoloDaComputer titolo="L'abbonamento si gestisce e si rinnova dal computer" />;
-  }
-  if (limitsLoading) {
+  if (limitsLoading || permissions.isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-64" />
@@ -950,8 +951,11 @@ export default function SettingsSubscriptionBilling() {
     );
   }
 
-  if (isScopriPlan) {
-    return (
+  if (permissions.loadError || (!canManagePlan && !permissions.canViewBilling)) {
+    return <p role="alert">Non hai i permessi per accedere a questa sezione.</p>;
+  }
+
+  const pianoScopri = (
       <div className="space-y-6">
         {/* Niente h1 — SettingsLayout monta già "Piano abbonamento" nell'header */}
         <p className="text-muted-foreground">Stai usando il Piano Scopri gratuito.</p>
@@ -980,16 +984,16 @@ export default function SettingsSubscriptionBilling() {
           </CardContent>
         </Card>
       </div>
-    );
-  }
+  );
 
   return (
     <div className="space-y-5">
       {/* Niente h1 — SettingsLayout monta già "Piano abbonamento" nell'header */}
       {/* Carta rifiutata sulla ricarica automatica: sopra ai tab, sempre visibile */}
-      <AutoTopupFailureBanner />
+      {canManagePlan && !isMobile && <AutoTopupFailureBanner />}
       <Tabs value={activeTab} onValueChange={setTab} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
+        <TabsList className={`grid w-full max-w-md ${canManagePlan ? "grid-cols-3" : "grid-cols-1"}`}>
+          {canManagePlan && <>
           <TabsTrigger value="abbonamenti" className="gap-1.5">
             <Layers className="h-3.5 w-3.5" />
             Piano
@@ -998,18 +1002,21 @@ export default function SettingsSubscriptionBilling() {
             <CreditCard className="h-3.5 w-3.5" />
             Pagamenti
           </TabsTrigger>
+          </>}
           <TabsTrigger value="portafoglio" className="gap-1.5">
             <Wallet className="h-3.5 w-3.5" />
             Crediti
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="abbonamenti" className="mt-5">
-          <TabAbbonamenti />
-        </TabsContent>
-        <TabsContent value="pagamenti" className="mt-5">
-          <TabPagamenti />
-        </TabsContent>
+        {canManagePlan && <>
+          <TabsContent value="abbonamenti" className="mt-5">
+            {isMobile ? <AvvisoSoloDaComputer titolo="L'abbonamento si gestisce e si rinnova dal computer" /> : isScopriPlan ? pianoScopri : <TabAbbonamenti />}
+          </TabsContent>
+          <TabsContent value="pagamenti" className="mt-5">
+            {isMobile ? <AvvisoSoloDaComputer titolo="I pagamenti dell'abbonamento si gestiscono dal computer" /> : <TabPagamenti />}
+          </TabsContent>
+        </>}
         <TabsContent value="portafoglio" className="mt-5">
           <TabPortafoglio />
         </TabsContent>

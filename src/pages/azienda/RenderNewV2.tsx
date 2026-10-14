@@ -990,7 +990,7 @@ export default function RenderNewV2() {
         toast.error("Crediti render esauriti. Ricarica il pacchetto per continuare.", {
           action: {
             label: "Ricarica",
-            onClick: () => navigate("/azienda/impostazioni/crediti"),
+            onClick: () => navigate("/azienda/impostazioni/abbonamento?tab=portafoglio"),
           },
         });
         return;

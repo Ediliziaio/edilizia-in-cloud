@@ -51,7 +51,7 @@ export function EmailCreditsBanner({ warnBelowEur }: { warnBelowEur?: number } =
             <strong>Invii email bloccati</strong> — saldo crediti esaurito.
           </span>
           <Link
-            to="/azienda/impostazioni/crediti"
+            to="/azienda/impostazioni/abbonamento?tab=portafoglio"
             className="shrink-0 text-sm font-semibold underline underline-offset-2"
           >
             Ricarica ora <ArrowRight className="ml-1 inline h-3 w-3" />
@@ -75,7 +75,7 @@ export function EmailCreditsBanner({ warnBelowEur }: { warnBelowEur?: number } =
             invio grande potrebbe non bastare.
           </span>
           <Link
-            to="/azienda/impostazioni/crediti"
+            to="/azienda/impostazioni/abbonamento?tab=portafoglio"
             className="shrink-0 text-sm font-semibold underline underline-offset-2"
           >
             Ricarica <ArrowRight className="ml-1 inline h-3 w-3" />

@@ -289,7 +289,7 @@ export function CreditiTab() {
           <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
             <p className="text-sm text-muted-foreground">Per ricaricare i crediti usa il pagamento con carta.</p>
             <Button asChild size="sm">
-              <Link to="/azienda/impostazioni/crediti">
+              <Link to="/azienda/impostazioni/abbonamento?tab=portafoglio">
                 <CreditCard className="h-4 w-4 mr-2" /> Ricarica i crediti
               </Link>
             </Button>

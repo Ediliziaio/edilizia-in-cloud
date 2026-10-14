@@ -23,7 +23,7 @@ export const TITOLI_IMPOSTAZIONI: Record<string, TitoloImpostazione> = {
   profilo:                { title: "Profilo aziendale",        description: "I dati dell'azienda che compaiono su preventivi, fatture e documenti" },
   sedi:                   { title: "Sedi",                     description: "Showroom, magazzini e uffici dell'azienda" },
   branding:               { title: "Marchio e colori",         description: "Logo, colori, nome e indirizzo web della piattaforma con il tuo marchio" },
-  abbonamento:            { title: "Piano abbonamento",        description: "Il tuo piano, i pagamenti e le fatture dell'abbonamento" },
+  abbonamento:            { title: "Piano abbonamento",        description: "Il tuo piano, i pagamenti, le fatture dell'abbonamento e i crediti" },
   crediti:                { title: "Crediti e ricariche",      description: "Il saldo per AI, email, WhatsApp e SMS; la ricarica anche automatica" },
   persone:                { title: "Utenti e permessi",        description: "Utenti e permessi, venditori, dipendenti, subappaltatori, team e commercialista" },
   utenti:                 { title: "Utenti",                   description: "Gestisci gli accessi e i ruoli degli utenti" },

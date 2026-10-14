@@ -654,7 +654,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
           <Alert className="text-xs">
             <AlertDescription>
               Ogni messaggio scala dal saldo AI dell'azienda. Vedi consumi in
-              {" "}<a href="/azienda/impostazioni/crediti" className="underline">Impostazioni → Crediti</a>.
+              {" "}<a href="/azienda/impostazioni/abbonamento?tab=portafoglio" className="underline">Impostazioni → Crediti</a>.
             </AlertDescription>
           </Alert>
         </div>

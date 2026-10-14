@@ -8,7 +8,7 @@
  * - Nomi che si leggono: Piano · Pagamenti · Crediti (gli indirizzi `?tab=` restano `abbonamenti`, `pagamenti`,
  *   `portafoglio`: li usano altri link dell'app).
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { readFileSync } from "node:fs";
@@ -21,6 +21,8 @@ const fatture = vi.hoisted(() => [
   { id: "f4", stripeInvoiceId: "in_4", amountPaid: 0, amountDue: 12700, currency: "eur", status: "uncollectible", invoiceUrl: null as string | null, invoicePdf: null as string | null, periodStart: "2026-07-01T00:00:00Z", periodEnd: "2026-08-01T00:00:00Z", paidAt: null as string | null, createdAt: "2026-07-01T00:00:00Z" },
   { id: "f5", stripeInvoiceId: "in_5", amountPaid: 0, amountDue: 12700, currency: "eur", status: "draft", invoiceUrl: null as string | null, invoicePdf: null as string | null, periodStart: "2026-06-01T00:00:00Z", periodEnd: "2026-07-01T00:00:00Z", paidAt: null as string | null, createdAt: "2026-06-01T00:00:00Z" },
 ]);
+const accesso = vi.hoisted(() => ({ isAdmin: true, canViewBilling: true, isLoading: false, mobile: false, scopri: false }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => accesso }));
 
 vi.mock("@/hooks/useBilling", () => ({
   abbonamentoDaAttivare: () => false,
@@ -43,9 +45,9 @@ vi.mock("@/hooks/useBilling", () => ({
 vi.mock("@/hooks/useBillingDetails", () => ({
   useBillingDetails: () => ({ data: { legal_name: "Rossi Costruzioni Srl", vat_number: "01234567897", address_line1: "Via Roma 1", postal_code: "20100", city: "Milano", invoice_email: "amm@rossi.it" } }),
 }));
-vi.mock("@/hooks/useSubscriptionLimits", () => ({ useSubscriptionLimits: () => ({ isScopriPlan: false, isLoading: false }) }));
-vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
-vi.mock("@/components/mobile/SoloDaComputer", () => ({ AvvisoSoloDaComputer: (): null => null }));
+vi.mock("@/hooks/useSubscriptionLimits", () => ({ useSubscriptionLimits: () => ({ isScopriPlan: accesso.scopri, isLoading: false }) }));
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => accesso.mobile }));
+vi.mock("@/components/mobile/SoloDaComputer", () => ({ AvvisoSoloDaComputer: ({ titolo }: { titolo: string }) => <p>{titolo}</p> }));
 vi.mock("@/components/billing/BillingDetailsCard", () => ({ BillingDetailsCard: (): null => null }));
 vi.mock("@/components/billing/SpazioArchiviazioneCard", () => ({ SpazioArchiviazioneCard: (): null => null }));
 vi.mock("@/components/billing/PlanChangeDialog", () => ({ PlanChangeDialog: (): null => null, CancelPlanDialog: (): null => null }));
@@ -59,6 +61,36 @@ function apri(percorso = "/azienda/impostazioni/abbonamento") {
 const schede = () => screen.getAllByRole("tab").map((s) => s.textContent?.trim());
 
 afterEach(cleanup);
+beforeEach(() => Object.assign(accesso, { isAdmin: true, canViewBilling: true, isLoading: false, mobile: false, scopri: false }));
+
+describe("Crediti ha una sola pagina, senza perdere accessi", () => {
+  it.each(["", "?tab=abbonamenti", "?tab=pagamenti", "?tab=portafoglio"])("chi ha solo Fatturazione vede solo Crediti anche con %s", async query => {
+    accesso.isAdmin = false;
+    apri(`/azienda/impostazioni/abbonamento${query}`);
+    expect(schede()).toEqual(["Crediti"]);
+    expect(await screen.findByText("CONTENUTO DELLA SCHEDA CREDITI")).toBeInTheDocument();
+    expect(screen.queryByText("Cronologia dei pagamenti")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Cambia o annulla/ })).not.toBeInTheDocument();
+  });
+  it("senza Fatturazione e senza amministrazione non monta i crediti", () => {
+    accesso.isAdmin = false; accesso.canViewBilling = false;
+    apri("/azienda/impostazioni/abbonamento?tab=portafoglio");
+    expect(screen.getByRole("alert")).toHaveTextContent("Non hai i permessi");
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+  });
+  it("i crediti continuano a essere disponibili dal telefono", async () => {
+    accesso.mobile = true; apri("/azienda/impostazioni/abbonamento?tab=portafoglio");
+    expect(await screen.findByText("CONTENUTO DELLA SCHEDA CREDITI")).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Piano" }), { button: 0, ctrlKey: false });
+    expect(screen.getByText("L'abbonamento si gestisce e si rinnova dal computer")).toBeInTheDocument();
+  });
+  it("anche il Piano Scopri conserva la scheda Crediti", async () => {
+    accesso.scopri = true; apri();
+    expect(screen.getByText("Stai usando il Piano Scopri gratuito.")).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Crediti" }), { button: 0, ctrlKey: false });
+    expect(await screen.findByText("CONTENUTO DELLA SCHEDA CREDITI")).toBeInTheDocument();
+  });
+});
 
 describe("Piano abbonamento: tre schede", () => {
   it("Piano, Pagamenti e Crediti: non ci sono più «Notifiche», «Abbonamenti» e «Portafoglio»", () => {

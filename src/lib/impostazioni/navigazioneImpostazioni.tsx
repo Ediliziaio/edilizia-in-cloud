@@ -4,7 +4,7 @@ import type { Permissions } from "@/hooks/usePermissions";
 import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
 import { GRUPPI_IMPOSTAZIONI, percorsoNelGruppo, schedeVisibili, sezioneDaPercorso, type GruppoImpostazioni } from "./gruppiImpostazioni";
 import { impostazioneNelPiano, type StatoPiano } from "./pianoImpostazioni";
-import { Users, Building2, MapPin, Paintbrush, Wallet, Coins, Brain, Bell, ImagePlus, ListOrdered, FolderOpen, HardHat, ClipboardList, ListChecks, Banknote, Truck, QrCode, RefreshCw, Package, FileSignature, Tag, SlidersHorizontal, GitBranch, ThumbsDown, FileText, CalendarDays, FormInput, Shield, Plug, Key, Globe, AtSign, Phone } from "lucide-react";
+import { Users, Building2, MapPin, Paintbrush, Wallet, Brain, Bell, ImagePlus, ListOrdered, FolderOpen, HardHat, ClipboardList, ListChecks, Banknote, Truck, QrCode, RefreshCw, Package, FileSignature, Tag, SlidersHorizontal, GitBranch, ThumbsDown, FileText, CalendarDays, FormInput, Shield, Plug, Key, Globe, AtSign, Phone } from "lucide-react";
 
 /** I parametri dopo il «?» di un indirizzo («…/persone?tab=team#x» → tab=team). */
 function parametriDa(url: string): URLSearchParams {
@@ -21,6 +21,7 @@ function schedaInternaAccessibile(url: string, sezione: string | null, permissio
   const scheda = parametriDa(url).get("tab");
   if (!scheda) return true;
   const admin = permissions.isAdmin;
+  if (sezione === "abbonamento" && scheda !== "portafoglio") return admin;
   if (sezione === "persone") {
     const vedeUtenti = admin || permissions.canViewUsers;
     const vedePersone = admin || permissions.canViewSettingsPeople;
@@ -71,6 +72,7 @@ export function impostazioneAccessibile(url: string, permissions: Permissions, p
   if (scheda) return permissions.isAdmin || Boolean(permissions[scheda.permesso]);
   const secondarie: Record<string, boolean> = {
     "crediti": (permissions.isAdmin || permissions.canViewBilling) && !isIOSNativePlatform,
+    "abbonamento": (permissions.isAdmin || permissions.canViewBilling) && !isIOSNativePlatform && schedaInternaAccessibile(url, sezione, permissions),
     "fatturazione-nativa": permissions.isAdmin || permissions.canViewBilling,
     "ai-automazioni": permissions.isAdmin || permissions.canViewSettingsCustomization,
     "preferenze-email": permissions.isAdmin || permissions.canViewMarketingEmail,
@@ -134,13 +136,9 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
         { to: "/azienda/impostazioni/profilo",      label: "Profilo aziendale", icon: <Building2 className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsProfile },
         { to: "/azienda/impostazioni/sedi",          label: "Sedi",              icon: <MapPin className="h-4 w-4" />,       visible: isAdmin || permissions.canViewSettingsPeople },
         { to: "/azienda/impostazioni/branding",      label: "Marchio e colori",    icon: <Paintbrush className="h-4 w-4" />,   visible: isAdmin },
-        // v8.6.59 — Solo "Piano abbonamento": "Crediti & Saldo" è ora il tab
-        // "Portafoglio" interno alla dashboard Abbonamento (no duplicazione).
-        // Apple Guideline 3.1.1 — nascosto su iOS nativo (no link a Stripe checkout).
-        { to: "/azienda/impostazioni/abbonamento",   label: "Piano abbonamento", icon: <Wallet className="h-4 w-4" />,       visible: isAdmin && !isIOSNativePlatform },
-        // Crediti e ricariche: il saldo, la ricarica e la ricarica automatica. Chi ha «Fatturazione» la vede anche senza
-        // essere amministratore, come la rotta (companyRoutes: crediti).
-        { to: "/azienda/impostazioni/crediti",       label: "Crediti e ricariche", icon: <Coins className="h-4 w-4" />,     visible: (isAdmin || permissions.canViewBilling) && !isIOSNativePlatform },
+        // Un solo ingresso. Da telefono e per chi ha solo Fatturazione si apre
+        // direttamente Crediti, senza concedere gestione piano o portale Stripe.
+        { to: `/azienda/impostazioni/abbonamento${!isAdmin || isMobile ? "?tab=portafoglio" : ""}`, label: "Piano abbonamento", icon: <Wallet className="h-4 w-4" />, visible: (isAdmin || permissions.canViewBilling) && !isIOSNativePlatform },
       ],
     },
     {

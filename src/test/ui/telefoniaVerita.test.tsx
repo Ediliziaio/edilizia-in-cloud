@@ -117,7 +117,7 @@ describe("la testata", () => {
     expect(riga.tagName).toBe("P");
     expect(within(riga).getByRole("link", { name: "Centralino" }).getAttribute("href")).toBe("/azienda/centralino");
     expect(within(riga).getByRole("link", { name: "Agenti AI → Telefonia" }).getAttribute("href")).toBe("/azienda/agenti-ai?tab=telefonia");
-    expect(within(riga).getByRole("link", { name: "Crediti" }).getAttribute("href")).toBe("/azienda/impostazioni/crediti");
+    expect(within(riga).getByRole("link", { name: "Crediti" }).getAttribute("href")).toBe("/azienda/impostazioni/abbonamento?tab=portafoglio");
     expect(riga.textContent).toContain("I numeri sono gestiti da Telnyx per conto della piattaforma; il credito SMS è in Crediti.");
     expect(screen.queryByText(/Chiama e parla dal browser/)).toBeNull();
   });

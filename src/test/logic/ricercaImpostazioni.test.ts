@@ -123,7 +123,7 @@ const DOMANDE: [string, string[]][] = [
   ["abbonamento", ["abbonamento"]],
   ["piano", ["abbonamento"]],
   ["fattura abbonamento", ["abbonamento"]],
-  ["crediti", ["crediti"]],
+  ["crediti", ["abbonamento"]],
   ["backup", ["esporta-dati"]],
   ["esporta", ["esporta-dati"]],
   ["privacy", ["sicurezza-privacy"]],
@@ -230,7 +230,7 @@ describe("il motore", () => {
   it("singolare e plurale: «tariffa» trova le tariffe, ma «ricarica» non trova il ricarico", () => {
     expect(cerca("tariffa")).toContain("Listino · Manodopera e servizi");
     expect(cerca("ricarica")).not.toContain("Listino · Manodopera e servizi");
-    expect(cerca("ricarica")).toContain("Crediti e ricariche");
+    expect(cerca("ricarica")).toContain("Piano abbonamento · Crediti");
     expect(cerca("carta")).not.toContain("Cartelle documenti");
   });
 
@@ -378,9 +378,10 @@ describe("chi non può aprire una pagina non la trova", () => {
     expect(nomi(permessi(), COMPLETO, { fatturazioneNativa: true }).filter((t) => t.startsWith("Fatturazione"))).toEqual([]);
   });
 
-  it("«Crediti e ricariche» c'è per chi ha la fatturazione, anche senza essere amministratore", () => {
-    expect(nomi(permessi({ canViewBilling: true }))).toContain("Crediti e ricariche");
-    expect(nomi(permessi())).not.toContain("Crediti e ricariche");
+  it("«Piano abbonamento · Crediti» c'è per chi ha la fatturazione, anche senza essere amministratore", () => {
+    const risultati = cercaImpostazioni(vociRicercabili(permessi({ canViewBilling: true }), COMPLETO, false), "crediti");
+    expect(risultati.some(v => v.url === "/azienda/impostazioni/abbonamento?tab=portafoglio")).toBe(true);
+    expect(nomi(permessi())).not.toContain("Piano abbonamento · Crediti");
   });
 
   it("la pagina WhatsApp (fuori da Impostazioni) ha il suo permesso e la sua funzione del piano", () => {

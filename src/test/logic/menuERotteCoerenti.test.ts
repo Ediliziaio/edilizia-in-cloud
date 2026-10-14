@@ -30,7 +30,7 @@ for (const pezzo of PEZZI_DI_ROTTA) {
 const segmenti = new Set(PEZZI_DI_ROTTA.map((p) => p.match(/^\s*path="([^"]+)"/)?.[1]?.split("/")[0]).filter((s): s is string => Boolean(s)));
 const rimandi = new Set(
   [...segmenti].filter((s) =>
-    PEZZI_DI_ROTTA.filter((p) => p.match(/^\s*path="([^"]+)"/)?.[1]?.split("/")[0] === s).every((p) => /element=\{<Navigate/.test(p)),
+    PEZZI_DI_ROTTA.filter((p) => p.match(/^\s*path="([^"]+)"/)?.[1]?.split("/")[0] === s).every((p) => /element=\{<(Navigate|SettingsCreditsRedirect)/.test(p)),
   ),
 );
 
@@ -45,7 +45,6 @@ const menu = (p: Permissions) => buildSettingsGroups(p.isAdmin, p, piano, false)
  */
 const DIFFERENZE_NOTE: Record<string, string> = {
   branding: "il menu mostra Marchio e colori solo all'amministratore, la rotta lo apre a chi ha «Personalizzazione» (decisione aperta)",
-  abbonamento: "la rotta vuole «Fatturazione» e l'amministratore insieme (regola composta): coincide con il menu, che è solo dell'amministratore",
 };
 
 /** Pagine con una rotta e nessuna voce di menu, e perché. */
@@ -115,9 +114,11 @@ describe("le pagine con una rotta hanno una porta d'ingresso", () => {
     expect(senzaPorta.sort()).toEqual(Object.keys(SENZA_VOCE_NOTE).filter((s) => !nellaRicerca.has(s)).sort());
   });
 
-  it("«Mittente e aspetto delle email» e «Crediti e ricariche» hanno una porta d'ingresso", () => {
+  it("email e crediti hanno una porta d'ingresso, senza una pagina crediti parallela", () => {
     expect(nellaRicerca.has("preferenze-email")).toBe(true);
-    expect(nelMenu.has("crediti")).toBe(true);
+    expect(nelMenu.has("abbonamento")).toBe(true);
+    expect(nelMenu.has("crediti")).toBe(false);
+    expect(rimandi.has("crediti")).toBe(true);
   });
 
   it("le eccezioni sono rotte vere", () => {

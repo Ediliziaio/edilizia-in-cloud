@@ -382,7 +382,7 @@ export default function SettingsPhoneNumbers() {
         {" · "}
         <Link to="/azienda/agenti-ai?tab=telefonia" className="font-medium text-foreground underline max-md:inline-block max-md:py-2.5">Agenti AI → Telefonia</Link>.
         {" "}I numeri sono gestiti da Telnyx per conto della piattaforma; il credito SMS è in{" "}
-        <Link to="/azienda/impostazioni/crediti" className="font-medium text-foreground underline max-md:inline-block max-md:py-2.5">Crediti</Link>.
+        <Link to="/azienda/impostazioni/abbonamento?tab=portafoglio" className="font-medium text-foreground underline max-md:inline-block max-md:py-2.5">Crediti</Link>.
       </p>
 
       {schedaNormativaInCima && (

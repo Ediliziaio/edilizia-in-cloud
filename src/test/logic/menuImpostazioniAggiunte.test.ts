@@ -17,17 +17,18 @@ const voci = (p: Permissions, mobile = false) => buildSettingsGroups(p.isAdmin, 
 
 afterEach(() => vi.resetModules());
 
-describe("«Crediti e ricariche» nel menu", () => {
-  it("sta in «La mia azienda», subito dopo «Piano abbonamento»", () => {
+describe("un solo ingresso per Piano e Crediti", () => {
+  it("in «La mia azienda» resta solo Piano abbonamento", () => {
     const gruppo = voci(permessi({ isAdmin: true })).find((g) => g.label === "La mia azienda")!;
     expect(gruppo.items.filter((i) => i.visible).map((i) => i.label)).toEqual([
-      "Profilo aziendale", "Sedi", "Marchio e colori", "Piano abbonamento", "Crediti e ricariche",
+      "Profilo aziendale", "Sedi", "Marchio e colori", "Piano abbonamento",
     ]);
-    expect(gruppo.items.find((i) => i.label === "Crediti e ricariche")!.to).toBe(url("crediti"));
+    expect(gruppo.items.find((i) => i.label === "Piano abbonamento")!.to).toBe(url("abbonamento"));
+    expect(gruppo.items.some(i => i.to === url("crediti"))).toBe(false);
   });
 
   it("lo vede l'amministratore e chi ha il permesso di fatturazione, anche senza essere amministratore", () => {
-    const visibile = (p: Permissions) => Boolean(voci(p).flatMap((g) => g.items).find((i) => i.to === url("crediti"))!.visible);
+    const visibile = (p: Permissions) => Boolean(voci(p).flatMap((g) => g.items).find((i) => i.label === "Piano abbonamento")!.visible);
     expect(visibile(permessi({ isAdmin: true }))).toBe(true);
     expect(visibile(permessi({ canViewBilling: true }))).toBe(true);
     expect(visibile(permessi({ canViewSettingsProfile: true, canViewCosts: true }))).toBe(false);
@@ -36,8 +37,9 @@ describe("«Crediti e ricariche» nel menu", () => {
 
   it("chi lo vede nel menu lo apre dalla ricerca, e viceversa", () => {
     for (const p of [permessi({ isAdmin: true }), permessi({ canViewBilling: true }), permessi()]) {
-      const nelMenu = Boolean(voci(p).flatMap((g) => g.items).find((i) => i.to === url("crediti"))!.visible);
+      const nelMenu = Boolean(voci(p).flatMap((g) => g.items).find((i) => i.label === "Piano abbonamento")!.visible);
       expect(impostazioneAccessibile(url("crediti"), p, piano, false)).toBe(nelMenu);
+      expect(impostazioneAccessibile(url("abbonamento?tab=portafoglio"), p, piano, false)).toBe(nelMenu);
     }
   });
 
@@ -46,14 +48,24 @@ describe("«Crediti e ricariche» nel menu", () => {
     vi.doMock("@/lib/mobile/platform", () => ({ isIOS: true }));
     const nav = await import("@/lib/impostazioni/navigazioneImpostazioni");
     const p = permessi({ isAdmin: true });
-    const crediti = nav.buildSettingsGroups(true, p, piano, false).flatMap((g) => g.items).find((i) => i.to === url("crediti"))!;
+    const crediti = nav.buildSettingsGroups(true, p, piano, false).flatMap((g) => g.items).find((i) => i.label === "Piano abbonamento")!;
     expect(crediti.visible).toBe(false);
     expect(nav.impostazioneAccessibile(url("crediti"), p, piano, false)).toBe(false);
+    expect(nav.impostazioneAccessibile(url("abbonamento?tab=portafoglio"), p, piano, false)).toBe(false);
     vi.doUnmock("@/lib/mobile/platform");
   });
 
   it("la voce nuova non cambia l'ordine dei gruppi", () => {
     expect(voci(permessi({ isAdmin: true })).map((g) => g.label).slice(0, 3)).toEqual(["Il mio account", "La mia azienda", "Persone & Accessi"]);
+  });
+  it("Fatturazione apre direttamente Crediti ma non Piano o Pagamenti", () => {
+    const p = permessi({ canViewBilling: true });
+    const voce = voci(p).flatMap(g => g.items).find(i => i.label === "Piano abbonamento")!;
+    expect(voce.to).toBe(url("abbonamento?tab=portafoglio"));
+    for (const tab of ["abbonamenti", "pagamenti"]) expect(impostazioneAccessibile(url(`abbonamento?tab=${tab}`), p, piano, false)).toBe(false);
+  });
+  it("da telefono l'unica voce apre direttamente Crediti", () => {
+    expect(voci(permessi({ isAdmin: true }), true).flatMap(g => g.items).find(i => i.label === "Piano abbonamento")!.to).toBe(url("abbonamento?tab=portafoglio"));
   });
 });
 

@@ -62,7 +62,7 @@ describe("la pagina dei crediti degli agenti", () => {
   it("la ricarica manuale la vede solo il super admin; gli altri vanno al pagamento", () => {
     expect(pagina).toContain('const isSuperAdmin = role === "super_admin";');
     expect(pagina).toMatch(/\{!isSuperAdmin \? \(/);
-    expect(pagina).toContain('<Link to="/azienda/impostazioni/crediti">');
+    expect(pagina).toContain('<Link to="/azienda/impostazioni/abbonamento?tab=portafoglio">');
     expect(pagina).toContain('service: "ai_agents"');
   });
 

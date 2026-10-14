@@ -33,7 +33,6 @@ import { LogOut, ChevronRight, Loader2, Search } from "lucide-react";
 // raggiungibili da desktop e via ricerca/URL diretto — qui le togliamo solo
 // dalla griglia mobile.
 const HIDDEN_ON_MOBILE = new Set<string>([
-  "/azienda/impostazioni/abbonamento",        // Piano abbonamento
   "/azienda/impostazioni/branding",           // White-Label
   "/azienda/impostazioni/stati-ordine",       // Stati ordine
   "/azienda/impostazioni/cartelle-documenti", // Cartelle documenti
