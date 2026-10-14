@@ -629,4 +629,3 @@ begin
     raise exception 'conversazioni_lista: manca plan_cache_mode = force_custom_plan';
   end if;
 end $$;
-

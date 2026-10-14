@@ -22,7 +22,7 @@ try {
     CREATE UNIQUE INDEX uq_gcal_busy_slots_event ON public.google_calendar_busy_slots(company_id,user_id,google_event_id);
     ALTER TABLE public.google_calendar_busy_slots ENABLE ROW LEVEL SECURITY;
     GRANT ALL ON public.google_calendar_busy_slots TO service_role;`);
-  const sql=readFileSync("supabase/migrations/20281014130000_gcal_busy_lease_preparazione.sql","utf8") + readFileSync("supabase/migrations-pending/calendario_occupazioni_identita_calendario.sql","utf8");
+  const sql=readFileSync("supabase/migrations/20281014130000_gcal_busy_lease_preparazione.sql","utf8") + readFileSync("supabase/migrations/20281014130100_gcal_busy_identita_calendario.sql","utf8");
   await db.exec(sql); await db.exec(sql); // Idempotence as well as syntax.
   await db.exec("SET ROLE service_role");
   const company="11111111-1111-4111-8111-111111111111",user="22222222-2222-4222-8222-222222222222";
