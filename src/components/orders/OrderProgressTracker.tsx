@@ -23,6 +23,7 @@ interface OrderProgressTrackerProps {
   onStatusChange?: (statusId: string) => void;
   interactive?: boolean;
   size?: "sm" | "md" | "lg";
+  layout?: "responsive" | "vertical";
 }
 
 export function OrderProgressTracker({
@@ -32,6 +33,7 @@ export function OrderProgressTracker({
   onStatusChange,
   interactive = false,
   size = "md",
+  layout = "responsive",
 }: OrderProgressTrackerProps) {
   const sortedStatuses = useMemo(
     () => [...statuses].sort((a, b) => a.position - b.position),
@@ -75,7 +77,7 @@ export function OrderProgressTracker({
   return (
     <div className="w-full">
       {/* Desktop horizontal layout */}
-      <div className="hidden md:flex items-start justify-between">
+      <div className={cn("items-start justify-between", layout === "vertical" ? "hidden" : "hidden md:flex")}>
         {sortedStatuses.map((status, index) => {
           const isCompleted = index < currentIndex;
           const isCurrent = index === currentIndex;
@@ -150,7 +152,7 @@ export function OrderProgressTracker({
       </div>
 
       {/* Mobile vertical layout */}
-      <div className="md:hidden space-y-4">
+      <div className={cn(layout === "vertical" && size === "sm" ? "space-y-2" : "space-y-4", layout !== "vertical" && "md:hidden")}>
         {sortedStatuses.map((status, index) => {
           const isCompleted = index < currentIndex;
           const isCurrent = index === currentIndex;
@@ -187,7 +189,8 @@ export function OrderProgressTracker({
                 {index < sortedStatuses.length - 1 && (
                   <div
                     className={cn(
-                      "w-0.5 h-8 mt-2 transition-colors duration-300",
+                      "w-0.5 transition-colors duration-300",
+                      layout === "vertical" && size === "sm" ? "h-4 mt-1" : "h-8 mt-2",
                       isCompleted || isCurrent ? "bg-success" : "bg-muted"
                     )}
                   />

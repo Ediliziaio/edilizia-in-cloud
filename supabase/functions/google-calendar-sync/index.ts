@@ -10,6 +10,9 @@ import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 import { puoGestireCalendari } from "../_shared/permessiCalendari.ts";
+import { listGoogleAppointmentEvents, reconcileMissingGoogleAppointments } from "../_shared/googleAppointmentReconcile.ts";
+import { applyGoogleAppointmentChange, deleteGoogleAppointmentEvent, importGoogleAppointment, insertGoogleAppointmentEvent, loadGoogleAppointmentMappings, saveGoogleAppointmentMapping } from "../_shared/googleAppointmentPersistence.ts";
+import { syncGoogleBusySlots } from "../_shared/googleBusySlots.ts";
 // P2-5 nota: questo file usa già AbortSignal.timeout(15000) su tutti i fetch
 // (pattern nativo equivalente a fetchWithTimeout). Nessuna modifica necessaria.
 
@@ -278,97 +281,16 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
   const timeMin = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const timeMax = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
 
-  let totalPulled = 0;
-  const allGoogleEventIds: string[] = [];
-
-  for (const calId of calendarIds) {
-    try {
-      const params = new URLSearchParams({
-        timeMin,
-        timeMax,
-        singleEvents: "true",
-        orderBy: "startTime",
-        maxResults: "250",
-      });
-
-      const res = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?${params}`,
-        { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15000) }
-      );
-
-      if (!res.ok) {
-        const errText = await res.text();
-        console.error(`Failed to fetch events for calendar ${calId}:`, errText);
-        continue;
-      }
-
-      const data = await res.json();
-      const events = data.items || [];
-
-      for (const event of events) {
-        if (event.status === "cancelled") continue;
-        // Le pose le mettiamo noi: non sono «occupato» ma lavoro pianificato.
-        if (event.extendedProperties?.private?.eic_kind === "posa") continue;
-
-        const isAllDay = !!event.start?.date;
-        const startAt = isAllDay ? event.start.date + "T00:00:00Z" : event.start?.dateTime;
-        const endAt = isAllDay ? event.end.date + "T00:00:00Z" : event.end?.dateTime;
-        if (!startAt || !endAt) continue;
-
-        const googleEventId = event.id;
-        allGoogleEventIds.push(googleEventId);
-
-        await admin.from("google_calendar_busy_slots").upsert(
-          {
-            company_id: companyId,
-            user_id: userId,
-            google_event_id: googleEventId,
-            google_calendar_id: calId,
-            summary: event.summary || null,
-            start_at: startAt,
-            end_at: endAt,
-            is_all_day: isAllDay,
-          },
-          { onConflict: "company_id,user_id,google_event_id" }
-        );
-        totalPulled++;
-      }
-    } catch (e) {
-      console.error(`Error pulling calendar ${calId}:`, e);
-    }
+  const result = await syncGoogleBusySlots(admin, { companyId, userId,connectionId:conn.id, calendarIds, accessToken, timeMin, timeMax });
+  if (result.failedCalendars.length > 0) {
+    return json({ ...result, error: "Sincronizzazione incompleta: conservati gli impegni dei calendari non verificati" }, 502);
   }
-
-  // Clean up stale slots — delete events no longer returned by Google
-  if (allGoogleEventIds.length > 0) {
-    const { data: existingSlots } = await admin
-      .from("google_calendar_busy_slots")
-      .select("id, google_event_id, google_calendar_id")
-      .eq("company_id", companyId)
-      .eq("user_id", userId)
-      .in("google_calendar_id", calendarIds);
-
-    const staleIds = (existingSlots || [])
-      .filter((s: any) => !allGoogleEventIds.includes(s.google_event_id))
-      .map((s: any) => s.id);
-
-    if (staleIds.length > 0) {
-      await admin.from("google_calendar_busy_slots").delete().in("id", staleIds);
-    }
-  } else {
-    await admin
-      .from("google_calendar_busy_slots")
-      .delete()
-      .eq("company_id", companyId)
-      .eq("user_id", userId);
-  }
-
-  // Update last_sync_at
-  await admin
-    .from("google_calendar_connections")
+  if(result.deferredCalendars?.length)return json({...result,error:"Sincronizzazione già in corso: attendi il completamento prima di riprovare"},409);
+  const { error: syncError } = await admin.from("google_calendar_connections")
     .update({ last_sync_at: new Date().toISOString() })
-    .eq("id", conn.id);
-
-  return json({ pulled: totalPulled });
+    .eq("id", conn.id).eq("company_id", companyId).eq("user_id", userId);
+  if (syncError) return json({ error: "Sincronizzazione eseguita, stato non aggiornato" }, 500);
+  return json(result);
 }
 
 /**
@@ -475,11 +397,13 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
 
   // Fetch appointment PRIMA della connessione: serve per risolvere owner_id
   // del calendar marketing → Google Calendar di quel responsabile.
-  const { data: apt } = await admin
+  const { data: apt, error: appointmentError } = await admin
     .from("appointments")
     .select("*")
     .eq("id", appointmentId)
+    .eq("company_id", companyId)
     .single();
+  if (appointmentError && appointmentError.code !== "PGRST116") throw new Error("Lettura appuntamento non riuscita");
   if (!apt) return json({ error: "Appointment not found" }, 404);
 
   const esito = await risolviBersaglio(admin, apt, userId, companyId);
@@ -495,11 +419,13 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
   if (!accessToken) return json({ error: "Token expired" }, 401);
 
   // Un appuntamento ha UN evento, a prescindere da quale account lo ha creato.
-  const { data: existing } = await admin
+  const { data: existing, error: existingError } = await admin
     .from("google_calendar_event_map")
     .select("id")
     .eq("appointment_id", appointmentId)
+    .eq("company_id", companyId)
     .maybeSingle();
+  if (existingError) throw new Error("Collegamento Google non verificabile: nessun nuovo evento creato");
   // Già sull'agenda (il sync automatico e il clic dell'utente arrivano quasi insieme): non è un errore.
   if (existing) return json({ alreadySynced: true, mappingId: existing.id });
 
@@ -507,17 +433,9 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
   const scheda = await schedaPerEvento(admin, apt);
   const googleEvent = buildGoogleEvent(apt, { createMeet: meetRequested && !apt.meeting_url, scheda });
 
-  const res = await fetch(
+  const res = await insertGoogleAppointmentEvent(
     buildGoogleEventUrl(calendarioDestinazione, undefined, meetRequested),
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(googleEvent),
-      signal: AbortSignal.timeout(15000),
-    }
+    accessToken, googleEvent, companyId, appointmentId,
   );
 
   if (!res.ok) {
@@ -536,15 +454,15 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
   }
 
   const created = await res.json();
-  const meetUrl = await persistMeetDetails(admin, appointmentId, created, meetRequested);
-
-  await admin.from("google_calendar_event_map").insert({
+  const meetUrl = await persistMeetDetails(admin, appointmentId, created, meetRequested, companyId);
+  await saveGoogleAppointmentMapping(admin, {
     company_id: companyId,
     user_id: effectiveUserId,
     appointment_id: appointmentId,
     google_event_id: created.id,
     google_calendar_id: calendarioDestinazione,
-    etag: created.etag || null,
+    // A recovered event may have newer Google edits: do not acknowledge them as applied.
+    etag: res.headers.get("x-eic-recovered") === "true" ? null : created.etag || null,
     source: "crm",
     last_synced_at: new Date().toISOString(),
     last_updated_by: "crm",
@@ -571,11 +489,13 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
   // L'evento sta sul calendario dell'account che lo ha creato: lo dice la
   // mappa, non chi sta cliccando adesso ne' il responsabile del calendario
   // (che dal 09/09/2026 puo' essere un altro).
-  const { data: mapping } = await admin
+  const { data: mapping, error: mappingError } = await admin
     .from("google_calendar_event_map")
     .select("*")
     .eq("appointment_id", appointmentId)
+    .eq("company_id", companyId)
     .maybeSingle();
+  if (mappingError) throw new Error("Collegamento Google non verificabile");
   if (!mapping) return json({ error: "No mapping found, use push-event" }, 404);
   const effectiveUserId: string = mapping.user_id ?? userId;
 
@@ -590,11 +510,13 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
   const accessToken = await getValidAccessToken(admin, conn);
   if (!accessToken) return json({ error: "Token expired" }, 401);
 
-  const { data: apt } = await admin
+  const { data: apt, error: appointmentError } = await admin
     .from("appointments")
     .select("*")
     .eq("id", appointmentId)
+    .eq("company_id", companyId)
     .single();
+  if (appointmentError && appointmentError.code !== "PGRST116") throw new Error("Lettura appuntamento non riuscita");
   if (!apt) return json({ error: "Appointment not found" }, 404);
 
   const meetRequested = shouldUseGoogleMeet(apt);
@@ -625,8 +547,8 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
   }
 
   const updated = await res.json();
-  const meetUrl = await persistMeetDetails(admin, appointmentId, updated, meetRequested);
-  await admin
+  const meetUrl = await persistMeetDetails(admin, appointmentId, updated, meetRequested, companyId);
+  const { data: savedMapping, error: savedMappingError } = await admin
     .from("google_calendar_event_map")
     .update({
       etag: updated.etag || null,
@@ -635,7 +557,9 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
       last_sync_source: "crm",
       last_sync_at: new Date().toISOString(),
     })
-    .eq("id", mapping.id);
+    .eq("id", mapping.id).eq("company_id", companyId).eq("google_event_id", mapping.google_event_id)
+    .select("id").maybeSingle();
+  if (savedMappingError || !savedMapping) throw new Error("Modifica Google eseguita, collegamento non aggiornato");
 
   // Loop prevention: segna che questo update viene dal CRM
   await admin
@@ -665,11 +589,13 @@ async function deleteEvent(
 ): Promise<Response> {
   const admin = getSupabaseAdmin();
   // Prova prima il mapping, poi i parametri esplicit "hint" (trigger DB).
-  const { data: mapping } = await admin
+  const { data: mapping, error: mappingError } = await admin
     .from("google_calendar_event_map")
     .select("*")
     .eq("appointment_id", appointmentId)
+    .eq("company_id", companyId)
     .maybeSingle();
+  if (mappingError) throw new Error("Collegamento Google non verificabile: cancellazione sospesa");
   // Il token giusto e' quello dell'account che ha l'evento.
   const effectiveUserId: string = mapping?.user_id ?? userId;
   const conn = await getConnection(admin, effectiveUserId, companyId);
@@ -685,34 +611,23 @@ async function deleteEvent(
     return json({ success: true, message: "No mapping or hint found" });
   }
 
-  try {
-    const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(googleCalendarId)}/events/${encodeURIComponent(googleEventId)}`,
-      {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${accessToken}` },
-        signal: AbortSignal.timeout(15000),
-      }
-    );
-    if (!res.ok && res.status !== 404 && res.status !== 410) {
-      const errText = await res.text();
-      console.error("Delete event failed:", res.status, errText);
-    }
-  } catch (e) {
-    console.error("Delete event error:", e);
-  }
+  await deleteGoogleAppointmentEvent(googleCalendarId, googleEventId, accessToken);
 
-  // Cleanup mapping (idempotente: se cascade l'ha già eliminato, no-op)
-  if (mapping) {
-    await admin.from("google_calendar_event_map").delete().eq("id", mapping.id);
-  }
   // Cleanup busy_slot orfano locale per quel google_event_id
-  await admin
+  const { error: busyError } = await admin
     .from("google_calendar_busy_slots")
     .delete()
     .eq("company_id", companyId)
     .eq("user_id", effectiveUserId)
+    .eq("google_calendar_id", googleCalendarId)
     .eq("google_event_id", googleEventId);
+  if (busyError) throw new Error("Evento cancellato su Google, disponibilità locale da aggiornare");
+  // Keep the map until every preceding operation succeeds, so failures remain retryable.
+  if (mapping) {
+    const { error } = await admin.from("google_calendar_event_map").delete().eq("id", mapping.id)
+      .eq("company_id", companyId).eq("user_id", effectiveUserId).eq("google_event_id", googleEventId);
+    if (error) throw new Error("Evento cancellato su Google, collegamento locale da riprovare");
+  }
 
   return json({ success: true });
 }
@@ -736,34 +651,12 @@ async function reconcileCalendario(
   const timeMin = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const timeMax = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
 
-  const params = new URLSearchParams({
-    timeMin,
-    timeMax,
-    singleEvents: "true",
-    orderBy: "startTime",
-    maxResults: "500",
-  });
-
-  const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?${params}`,
-    { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15000) }
-  );
-
-  if (!res.ok) {
-    console.error("reconcilePrimary: failed to fetch events", await res.text());
-    return { created: 0, updated: 0, removed: 0 };
-  }
-
-  const data = await res.json();
-  const googleEvents: any[] = (data.items || []).filter((e: any) => e.status !== "cancelled");
+  const googleEvents = (await listGoogleAppointmentEvents(calId, accessToken, timeMin, timeMax))
+    .filter((event) => event.status !== "cancelled");
 
   // Load all existing mappings for this user
-  const { data: existingMappings } = await admin
-    .from("google_calendar_event_map")
-    .select("*")
-    .eq("company_id", companyId)
-    .eq("user_id", userId)
-    .eq("google_calendar_id", calId);
+  const scope = { companyId, userId, calendarId: calId };
+  const existingMappings = await loadGoogleAppointmentMappings(admin, scope);
 
   const mappingsByGoogleId = new Map<string, any>();
   (existingMappings || []).forEach((m: any) => mappingsByGoogleId.set(m.google_event_id, m));
@@ -793,9 +686,7 @@ async function reconcileCalendario(
 
       // Google wins: update CRM appointment
       const fields = parseGoogleEventToCrmFields(gEvent);
-      await admin
-        .from("appointments")
-        .update({
+      await applyGoogleAppointmentChange(admin, scope, mapping, {
           title: fields.title,
           appointment_date: fields.date,
           appointment_time: fields.time,
@@ -807,24 +698,19 @@ async function reconcileCalendario(
           meeting_status: fields.meetingStatus,
           meeting_created_at: fields.meetingUrl ? new Date().toISOString() : null,
           updated_at: new Date().toISOString(),
-        })
-        .eq("id", mapping.appointment_id);
-
-      await admin
-        .from("google_calendar_event_map")
-        .update({
-          etag: currentEtag,
-          last_synced_at: new Date().toISOString(),
-          last_updated_by: "google",
-        })
-        .eq("id", mapping.id);
+        }, currentEtag);
 
       updated++;
     } else if (crmOriginated) {
       // CRM-originated but mapping lost — re-link
       const aptId = extractCrmAppointmentId(gEvent);
       if (aptId) {
-        await admin.from("google_calendar_event_map").insert({
+        // A copied description is not proof of tenant ownership.
+        const { data: owned, error: ownerError } = await admin.from("appointments").select("id")
+          .eq("id", aptId).eq("company_id", companyId).maybeSingle();
+        if (ownerError) throw new Error("Proprietà appuntamento Google non verificabile");
+        if (!owned) continue;
+        await saveGoogleAppointmentMapping(admin, {
           company_id: companyId,
           user_id: userId,
           appointment_id: aptId,
@@ -844,13 +730,11 @@ async function reconcileCalendario(
       // colonna che non esiste, quindi restava sempre spento e la scelta
       // dell'utente non contava niente (18/09/2026).
       const importAll = (settings as { import_google_events_to_crm?: boolean } | null)?.import_google_events_to_crm === true;
-      const hasCrmPrefix = (gEvent.summary || "").startsWith("[CRM]");
+      const hasCrmPrefix = typeof gEvent.summary === "string" && gEvent.summary.startsWith("[CRM]");
       if (!importAll && !hasCrmPrefix) continue;
 
       const fields = parseGoogleEventToCrmFields(gEvent);
-      const { data: newApt } = await admin
-        .from("appointments")
-        .insert({
+      const imported = await importGoogleAppointment(admin, scope, googleEventId, {
           company_id: companyId,
           created_by: userId,
           // L'evento è sull'agenda di questa persona: l'appuntamento è suo.
@@ -874,59 +758,21 @@ async function reconcileCalendario(
           meeting_url: fields.meetingUrl,
           meeting_status: fields.meetingStatus,
           meeting_created_at: fields.meetingUrl ? new Date().toISOString() : null,
-        })
-        .select("id")
-        .single();
-
-      if (newApt) {
-        await admin.from("google_calendar_event_map").insert({
-          company_id: companyId,
-          user_id: userId,
-          appointment_id: newApt.id,
-          google_event_id: googleEventId,
-          google_calendar_id: calId,
+        }, {
           etag: currentEtag,
           source: "google",
           last_synced_at: new Date().toISOString(),
           last_updated_by: "google",
         });
-        created++;
-      }
+      if (imported.created) created++;
     }
   }
 
-  // Evento sparito da Google: l'appuntamento NON si cancella, diventa
-  // «annullato» e resta nello storico (richiesta di Il Bagno Group, 18/09/2026:
-  // il cliente toglie l'evento dal calendario e prima in EiC non restava niente
-  // da vedere). Si guarda solo la finestra letta qui sopra: un appuntamento
-  // fuori da -7/+60 giorni non è "sparito", semplicemente non è stato chiesto.
-  const giornoMin = timeMin.slice(0, 10);
-  const giornoMax = timeMax.slice(0, 10);
-  for (const [gId, mapping] of mappingsByGoogleId.entries()) {
-    if (seenGoogleIds.has(gId)) continue;
-    const { data: apt } = await admin
-      .from("appointments")
-      .select("id, appointment_date, status, internal_notes")
-      .eq("id", mapping.appointment_id)
-      .maybeSingle();
-    const riga = apt as { id: string; appointment_date: string | null; status: string | null; internal_notes: string | null } | null;
-    const dentroFinestra = !!riga?.appointment_date && riga.appointment_date >= giornoMin && riga.appointment_date <= giornoMax;
-    if (!riga || !dentroFinestra) continue;
-
-    if (!["annullato", "cancelled", "completato"].includes(String(riga.status ?? ""))) {
-      const nota = `Annullato il ${new Date().toLocaleDateString("it-IT")}: l'evento è stato eliminato da Google Calendar.`;
-      await admin
-        .from("appointments")
-        .update({
-          status: "annullato",
-          cancelled_at: new Date().toISOString(),
-          internal_notes: riga.internal_notes ? `${riga.internal_notes}\n${nota}` : nota,
-        })
-        .eq("id", riga.id);
-    }
-    await admin.from("google_calendar_event_map").delete().eq("id", mapping.id);
-    removed++;
-  }
+  // Missing from a rolling/paginated list is NOT evidence of cancellation.
+  // Preserve history and verify a future event individually before changing its status.
+  removed = await reconcileMissingGoogleAppointments(admin, {
+    companyId, userId, calendarId: calId, accessToken, timeMax,
+  }, existingMappings ?? [], seenGoogleIds);
 
   return { created, updated, removed };
 }
@@ -971,6 +817,7 @@ async function reconcilePrimary(userId: string, companyId: string): Promise<{ cr
   }
 
   const totale = { created: 0, updated: 0, removed: 0 };
+  let failed = 0;
   for (const [calId, marketingCalendarId] of daLeggere) {
     try {
       const r = await reconcileCalendario(admin, accessToken, settings, userId, companyId, calId, marketingCalendarId, allowImport);
@@ -979,8 +826,10 @@ async function reconcilePrimary(userId: string, companyId: string): Promise<{ cr
       totale.removed += r.removed;
     } catch (e) {
       console.error(`reconcilePrimary: calendario ${calId}`, e instanceof Error ? e.message : String(e));
+      failed++;
     }
   }
+  if (failed) throw new Error(`Sincronizzazione appuntamenti incompleta: ${failed} calendari da riprovare`);
   return totale;
 }
 
@@ -1025,6 +874,8 @@ async function cleanupCrmDuplicates(userId: string, companyId: string): Promise<
   const admin = getSupabaseAdmin();
   const conn = await getConnection(admin, userId, companyId);
   if (!conn) return { cleaned: 0 };
+  const pref = await preferenzeSync(admin, userId, companyId);
+  if (!pref.attiva || pref.direzione === "from_google") return { cleaned: 0 };
 
   const accessToken = await getValidAccessToken(admin, conn);
   if (!accessToken) return { cleaned: 0 };
@@ -1037,26 +888,13 @@ async function cleanupCrmDuplicates(userId: string, companyId: string): Promise<
   const now = new Date();
   const timeMin = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const timeMax = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
-  const params = new URLSearchParams({
-    timeMin,
-    timeMax,
-    singleEvents: "true",
-    maxResults: "500",
-  });
-
-  const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?${params}`,
-    { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15000) }
-  );
-  if (!res.ok) return { cleaned: 0 };
-  const data = await res.json();
-  const items: any[] = data.items || [];
+  const items = await listGoogleAppointmentEvents(calId, accessToken, timeMin, timeMax);
 
   // Raggruppa eventi CRM-originated per crm_appointment_id
   const groups = new Map<string, any[]>();
   for (const e of items) {
     if (e.status === "cancelled") continue;
-    const desc = e.description || "";
+    const desc = typeof e.description === "string" ? e.description : "";
     const m = desc.match(/crm_appointment_id=([0-9a-f-]{36})/i);
     if (!m) continue;
     const aptId = m[1];
@@ -1069,42 +907,41 @@ async function cleanupCrmDuplicates(userId: string, companyId: string): Promise<
     if (events.length <= 1) continue;
 
     // Trova il mapping CRM ufficiale per quell'appointment
-    const { data: mapping } = await admin
+    const { data: mapping, error: mappingError } = await admin
       .from("google_calendar_event_map")
       .select("google_event_id")
       .eq("appointment_id", aptId)
       .eq("user_id", userId)
+      .eq("company_id", companyId)
+      .eq("google_calendar_id", calId)
       .maybeSingle();
-
-    const officialId = mapping?.google_event_id ?? events[0].id; // fallback: tieni il primo
+    if (mappingError) throw new Error("Duplicati Google non verificabili: nessuna cancellazione eseguita");
+    const officialId = mapping?.google_event_id;
+    const official = events.find(e => e.id === officialId);
+    // Never select an arbitrary survivor when the official event is missing/moved.
+    if (!official) continue;
+    const { data: owned, error: ownerError } = await admin.from("appointments").select("id")
+      .eq("id", aptId).eq("company_id", companyId).maybeSingle();
+    if (ownerError) throw new Error("Proprietà duplicati Google non verificabile");
+    if (!owned) continue;
 
     // Cancella da Google tutti gli altri
     for (const e of events) {
       if (e.id === officialId) continue;
-      try {
-        const delRes = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(e.id)}`,
-          {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${accessToken}` },
-            signal: AbortSignal.timeout(15000),
-          }
-        );
-        if (delRes.ok || delRes.status === 404 || delRes.status === 410) {
-          // anche se 404/410 (già gone), pulisco i busy_slots locali
-          await admin
+      // Copies with different dates/content may be intentional: preserve them.
+      const content = (event: any) => JSON.stringify([event.summary, event.start, event.end,
+        event.location, String(event.description ?? "").replace(/crm_last_update=[^\n]*/g, "")]);
+      if (content(e) !== content(official)) continue;
+      await deleteGoogleAppointmentEvent(calId, e.id, accessToken);
+      const { error: cacheError } = await admin
             .from("google_calendar_busy_slots")
             .delete()
             .eq("company_id", companyId)
             .eq("user_id", userId)
+            .eq("google_calendar_id", calId)
             .eq("google_event_id", e.id);
-          cleaned++;
-        } else {
-          console.warn(`cleanupCrmDuplicates: delete failed for ${e.id} status=${delRes.status}`);
-        }
-      } catch (err) {
-        console.warn(`cleanupCrmDuplicates: error deleting ${e.id}`, err);
-      }
+      if (cacheError) throw new Error("Duplicato rimosso su Google, disponibilità locale da aggiornare");
+      cleaned++;
     }
   }
 
@@ -1119,6 +956,7 @@ async function fullSync(userId: string, companyId: string): Promise<Response> {
 
   const pullRes = await pullBusySlots(userId, companyId);
   const pullData = await pullRes.json();
+  if (!pullRes.ok) return json(pullData,pullRes.status);
 
   // Run two-way reconciliation if enabled
   const reconcileResult = await reconcilePrimary(userId, companyId);
@@ -1434,7 +1272,8 @@ async function persistMeetDetails(
   admin: ReturnType<typeof getSupabaseAdmin>,
   appointmentId: string,
   gEvent: any,
-  meetRequested: boolean
+  meetRequested: boolean,
+  companyId: string,
 ): Promise<string | null> {
   const meetUrl = extractMeetUrl(gEvent);
   if (!meetRequested && !meetUrl) return null;
@@ -1451,10 +1290,9 @@ async function persistMeetDetails(
         meeting_status: "pending",
       };
 
-  const { error } = await admin.from("appointments").update(patch).eq("id", appointmentId);
-  if (error) {
-    console.error("persistMeetDetails: failed to update appointment", error);
-  }
+  const { data: saved, error } = await admin.from("appointments").update(patch)
+    .eq("id", appointmentId).eq("company_id", companyId).select("id").maybeSingle();
+  if (error || !saved) throw new Error("Link della videochiamata non salvato: riprovare la sincronizzazione");
   return meetUrl;
 }
 
@@ -1549,7 +1387,13 @@ function buildGoogleEvent(apt: any, options: { createMeet?: boolean; scheda?: st
     end = { dateTime: endTime, timeZone: "Europe/Rome" };
   } else {
     start = { date: dateStr };
-    end = { date: dateStr };
+    // Google end is exclusive, including all-day events (same date is invalid).
+    const nextDay = new Date(`${dateStr}T00:00:00Z`);
+    if (!Number.isFinite(nextDay.getTime()) || nextDay.toISOString().slice(0, 10) !== dateStr) {
+      throw new Error("Data appuntamento non valida");
+    }
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+    end = { date: nextDay.toISOString().slice(0, 10) };
   }
 
   const scheda = options.scheda ?? "";
@@ -1632,7 +1476,7 @@ function parseGoogleEventToCrmFields(gEvent: any): {
   const location = gEvent.location && gEvent.location !== linkFisso ? gEvent.location : null;
 
   // Strip CRM metadata from description
-  let description = senzaSchedaCliente(gEvent.description || "");
+  let description: string | null = senzaSchedaCliente(gEvent.description || "");
   description = description
     .replace(/crm_appointment_id=[0-9a-f-]{36}/gi, "")
     .replace(/crm_sync=true/gi, "")
@@ -1768,6 +1612,7 @@ async function cronFullSync(): Promise<Response> {
     let failed = 0;
 
     let inPausa = 0;
+    let inCorso = 0;
     for (const conn of connections!) {
       try {
         const pref = await preferenzeSync(admin, conn.user_id, conn.company_id);
@@ -1780,6 +1625,12 @@ async function cronFullSync(): Promise<Response> {
         console.log(`cronFullSync: syncing user=${conn.user_id} company=${conn.company_id}`);
         const pullRes = await pullBusySlots(conn.user_id, conn.company_id);
         const pullData = await pullRes.json();
+        if(pullRes.status===409){
+          inCorso++;
+          results.push({userId:conn.user_id,companyId:conn.company_id,status:"in_progress"});
+          continue;
+        }
+        if (!pullRes.ok) throw new Error("Sincronizzazione occupazioni incompleta; riprova al prossimo giro");
         const reconcileResult = await reconcilePrimary(conn.user_id, conn.company_id);
         const recuperati = pref.direzione === "from_google"
           ? 0
@@ -1823,7 +1674,7 @@ async function cronFullSync(): Promise<Response> {
     // Update audit log
     if (logId) {
       await admin.from("google_calendar_sync_log").update({
-        status: "completed",
+        status: failed > 0 ? "failed" : "completed",
         connections_found: total,
         connections_synced: synced,
         connections_failed: failed,
@@ -1841,7 +1692,7 @@ async function cronFullSync(): Promise<Response> {
       .lt("started_at", new Date(Date.now() - 30 * 864e5).toISOString());
 
     console.log(`cronFullSync: completed. Synced ${synced}, failed ${failed}, in pausa ${inPausa}.`);
-    return json({ synced, failed, inPausa, total, results });
+    return json({ synced, failed, inPausa,inCorso, total, results },failed > 0 ? 502 : 200);
   } catch (globalErr: any) {
     console.error("cronFullSync: global error", globalErr);
     if (logId) {
@@ -1882,9 +1733,7 @@ serveConMetricheRapida("google-calendar-sync", async (req) => {
         // Lo stesso canale serve alle pose (commesse) e agli appuntamenti dei
         // calendari di marketing agganciati: si rileggono entrambi.
         const pose = await pullCalendarOrders(interno.connectionId, interno.calendarId);
-        const appuntamenti = await reconcilePerCalendario(interno.connectionId, interno.calendarId).catch((e) => ({
-          created: 0, updated: 0, removed: 0, skipped: e instanceof Error ? e.message : String(e),
-        }));
+        const appuntamenti = await reconcilePerCalendario(interno.connectionId, interno.calendarId);
         return json({ ...pose, appuntamenti });
       }
       // Appuntamenti: dal trigger di cancellazione (che non ha una service key
@@ -1984,7 +1833,9 @@ serveConMetricheRapida("google-calendar-sync", async (req) => {
         return updateEvent(userId, companyId, appointmentId);
       case "delete-event":
         if (!appointmentId) return json({ error: "appointmentId required" }, 400);
-        return deleteEvent(userId, companyId, appointmentId, googleEventId, googleCalendarId);
+        // Mapping hints are a trusted DB-trigger snapshot, not user-selected Google targets.
+        return deleteEvent(userId, companyId, appointmentId,
+          token === serviceRoleKey ? googleEventId : undefined, token === serviceRoleKey ? googleCalendarId : undefined);
       case "full-sync":
         return fullSync(userId, companyId);
       case "push-order": {

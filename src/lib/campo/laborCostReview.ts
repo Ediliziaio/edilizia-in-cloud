@@ -39,6 +39,12 @@ export function laborLineCost(hours: number, rate: number): number {
   const [h, hd] = decimal(hours), [r, rd] = decimal(rate);
   return roundedRatio(h * r, hd * rd);
 }
+/** Decimal division with the same rounding as numeric PostgreSQL (no binary ties). */
+export function laborHourlyCost(total: number, hours: number): number {
+  if (!Number.isFinite(total) || !Number.isFinite(hours) || total < 0 || hours <= 0) throw new Error("Costo o ore non validi");
+  const [c, cd] = decimal(total), [h, hd] = decimal(hours);
+  return roundedRatio(c * hd, cd * h);
+}
 export interface HourlyCostReview { amount: number | null; source: "manuale" | "calcolato" | "mancante"; note: string }
 export function reviewHourlyCost(e: LaborEmployee): HourlyCostReview {
   const manual = numeric(e.costo_orario);

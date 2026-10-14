@@ -1,190 +1,135 @@
-import { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { useNavigate } from "react-router-dom";
-import { format, isSameDay, differenceInDays } from "date-fns";
+import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { AlertTriangle, UsersRound } from "lucide-react";
-import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
-import { hasLogisticRisk, rischioPagamenti } from "@/lib/calendarUtils";
-import { formatCurrency } from "@/lib/formatters";
-import { calculateLeadTime } from "./LeadTimeStats";
-import type { CalendarOrder } from "@/types/calendar";
-
-function darkenColor(hex: string): string {
-  const r = Math.max(0, parseInt(hex.slice(1, 3), 16) - 40);
-  const g = Math.max(0, parseInt(hex.slice(3, 5), 16) - 40);
-  const b = Math.max(0, parseInt(hex.slice(5, 7), 16) - 40);
-  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-}
-
-interface BarInfo {
-  left: number;
-  width: number;
-  orderStart: Date;
-  orderEnd: Date;
-}
-
-interface DraggableOrderBarProps {
-  order: CalendarOrder;
-  bar: BarInfo;
-  dayWidth: number;
-  minBarWidth?: number;
-  color: string;
-  progress?: number; // 0-100
-}
+import { canMoveCalendarWorkPeriod } from "@/lib/calendar/planningTools";
+import { calendarEventStatus } from "@/lib/calendar/eventDetails";
+import type { CalendarOrder, CalendarWorkPeriod } from "@/types/calendar";
 
 export function DraggableOrderBar({
   order,
+  period,
   bar,
   dayWidth,
-  minBarWidth = 24,
+  minBarWidth = 0,
   color,
   progress,
-}: DraggableOrderBarProps) {
-  const navigate = useNavigate();
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: order.id,
-    data: { order, bar },
+  onSelect,
+  top = 10,
+  height = 24,
+}: {
+  order: CalendarOrder;
+  period: CalendarWorkPeriod;
+  bar: { left: number; width: number; orderStart: Date; orderEnd: Date };
+  dayWidth: number;
+  minBarWidth?: number;
+  color: string;
+  progress?: number;
+  onSelect: () => void;
+  top?: number;
+  height?: number;
+}) {
+  const p = usePermissions();
+  const canDrag =
+    !p.isLoading &&
+    p.canEditOrders &&
+    !p.solaLettura &&
+    canMoveCalendarWorkPeriod(order, period);
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({
+      id: order.id + ":" + period.id,
+      disabled: !canDrag,
+      data: { order, period, bar },
+    });
+  const percent =
+    typeof progress === "number" && Number.isFinite(progress)
+      ? Math.max(0, Math.min(100, progress))
+      : undefined;
+  const status = calendarEventStatus({
+    type: "lavoro",
+    order,
+    work: period,
+    color,
   });
-
-  const leadTime = calculateLeadTime(order);
+  const names = [
+    ...new Set(
+      period.resources
+        .filter(
+          (b) =>
+            b.start_date <= period.end_date && b.end_date >= period.start_date,
+        )
+        .map((b) => b.resourceName),
+    ),
+  ];
+  const width = Math.max(bar.width, dayWidth, minBarWidth);
   const duration = differenceInDays(bar.orderEnd, bar.orderStart) + 1;
-
-  const logisticRisk = hasLogisticRisk(order);
-  const rischioPag = rischioPagamenti(order);
-  const externalTeamNames = order.order_external_teams
-    ?.map((aet) => aet.external_team.name)
-    .join(", ");
-
-  const visualWidth = Math.max(bar.width, dayWidth, minBarWidth);
-  const showFullLabel = visualWidth >= 150;
-  const showCompactLabel = visualWidth >= 72;
-  const showDuration = visualWidth >= 220;
-
-  const style = {
-    left: bar.left + (transform?.x || 0),
-    width: visualWidth,
-    backgroundColor: color,
-    borderLeftColor: darkenColor(color),
-    opacity: isDragging ? 0.6 : 1,
-    cursor: isDragging ? "grabbing" : "grab",
-    ...(logisticRisk ? {
-      backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255,255,255,0.15) 4px, rgba(255,255,255,0.15) 8px)`,
-    } : {}),
-  };
-
-  const handleClick = (e: React.MouseEvent) => {
-    if (!isDragging && !transform?.x) {
-      e.preventDefault();
-      e.stopPropagation();
-      setEditDialogOpen(true);
-    }
-  };
-
   return (
-    <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            ref={setNodeRef}
-            {...attributes}
-            {...listeners}
-            className="absolute top-2 bottom-2 rounded-md shadow-sm ring-1 ring-black/5 transition-all hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/40 flex items-center px-2 overflow-hidden touch-none border-l-[3px]"
-            style={style}
-            onClick={handleClick}
-            title={`${order.order_code || "Ordine"} - ${order.customer.last_name}`}
-          >
-            {/* Progress overlay */}
-            {progress !== undefined && progress > 0 && progress < 100 && (
-              <div
-                className="absolute inset-0 rounded-md"
-                style={{
-                  width: `${progress}%`,
-                  backgroundColor: "rgba(0,0,0,0.15)",
-                }}
-              />
-            )}
-            <div className="relative z-10 flex w-full items-center gap-1 truncate text-xs text-white">
-              {showFullLabel ? (
-                <>
-                  <span className="font-semibold">{order.order_code || "N/A"}</span>
-                  <span className="opacity-75">- {order.customer.last_name}</span>
-                  {showDuration && (
-                    <span className="ml-auto rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold">{duration}g</span>
-                  )}
-                </>
-              ) : showCompactLabel ? (
-                <span className="font-medium truncate">
-                  {order.order_code || order.description.slice(0, 20)}
-                </span>
-              ) : null}
-              {rischioPag && (
-                rischioPag.livello === "preavviso" ? (
-                  <AlertTriangle className="ml-auto h-3.5 w-3.5 shrink-0 fill-red-600 text-white" />
-                ) : (
-                  <span className={`ml-auto shrink-0 rounded px-1 text-[10px] font-bold text-white ${rischioPag.livello === "rosso" ? "bg-red-600" : "bg-amber-500"}`}>€</span>
-                )
-              )}
-            </div>
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-[250px]">
-          <div className="space-y-1">
-            <p className="font-medium">{order.order_code || "Ordine"}</p>
-            <p className="text-sm text-muted-foreground">
-              {order.customer.first_name} {order.customer.last_name}
-            </p>
-            <p className="text-sm truncate">{order.description}</p>
-            <p className="text-xs text-muted-foreground">
-              {format(bar.orderStart, "d MMM", { locale: it })}
-              {!isSameDay(bar.orderStart, bar.orderEnd) && (
-                <> - {format(bar.orderEnd, "d MMM", { locale: it })}</>
-              )}
-            </p>
-            {order.status && (
-              <p className="text-xs">
-                Stato: <span style={{ color: order.status.color }}>{order.status.name}</span>
-              </p>
-            )}
-            {order.order_employees && order.order_employees.length > 0 ? (
-              <p className="text-xs">
-                Squadra: {order.order_employees.map(ae => `${ae.employee?.first_name?.[0] ?? ""}${ae.employee?.last_name?.[0] ?? ""}`).join(", ")}
-              </p>
-            ) : (
-              <p className="text-xs text-amber-500">Nessuna squadra assegnata</p>
-            )}
-            {externalTeamNames && (
-              <div className="flex items-center gap-1 text-xs">
-                <UsersRound className="h-3 w-3" />
-                <span>{externalTeamNames}</span>
-              </div>
-            )}
-            {leadTime !== null && (
-              <p className="text-xs font-medium">
-                Lead Time: {leadTime} giorni
-              </p>
-            )}
-            {rischioPag && (
-              <p className={`text-xs font-medium ${rischioPag.livello === "ambra" ? "text-amber-500" : "text-red-500"}`}>
-                ⚠️ {rischioPag.messaggio}: {formatCurrency(rischioPag.importo_eur)}
-              </p>
-            )}
-            <p className="text-xs text-primary mt-1">Clicca per modificare le date</p>
-          </div>
-        </TooltipContent>
-      </Tooltip>
-
-      <EditOrderDatesDialog
-        order={order}
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-      />
-    </>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          ref={setNodeRef}
+          {...(canDrag ? attributes : {})}
+          {...(canDrag ? listeners : {})}
+          aria-label={"Dettagli " + period.name + " · " + order.order_code}
+          title={period.name + " · " + order.order_code}
+          className="absolute flex items-center gap-2 overflow-hidden rounded-md border-l-[3px] border-black/15 px-2 text-left text-[11px] text-white shadow-sm hover:brightness-110 focus:ring-2 focus:ring-primary touch-none"
+          style={{
+            top,
+            height,
+            left: bar.left + (transform?.x || 0),
+            width,
+            backgroundColor: color,
+            opacity: isDragging ? 0.6 : 1,
+            cursor: canDrag ? "grab" : "pointer",
+          }}
+          onClick={(e) => {
+            if (!isDragging && !transform?.x) {
+              e.stopPropagation();
+              onSelect();
+            }
+          }}
+        >
+          {percent !== undefined && (
+            <span
+              className="pointer-events-none absolute inset-y-0 left-0 bg-black/15"
+              style={{ width: percent + "%" }}
+            />
+          )}
+          {width >= 60 && (
+            <span className="relative min-w-0 flex-1 truncate font-medium">
+              {period.phase_id ? period.name : order.order_code}
+            </span>
+          )}
+          {width >= 150 && percent !== undefined && (
+            <span className="relative shrink-0 text-[10px]">{percent}%</span>
+          )}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[300px] space-y-1">
+        <p className="font-semibold">{period.name}</p>
+        <p className="text-xs">{order.order_code}</p>
+        <p className="text-xs">
+          {format(bar.orderStart, "d MMM", { locale: it })} —{" "}
+          {format(bar.orderEnd, "d MMM yyyy", { locale: it })} · {duration}{" "}
+          giorni di calendario
+        </p>
+        {status && <p className="text-xs">{status}</p>}
+        {percent !== undefined && (
+          <p className="text-xs">Avanzamento registrato: {percent}%</p>
+        )}
+        <p className="text-xs">{names.join(", ") || "Risorse da assegnare"}</p>
+        <p className="text-xs">
+          {canDrag
+            ? "Trascina per spostare le date della commessa. Clicca per i dettagli."
+            : "Clicca per i dettagli. Le date delle fasi si gestiscono nelle lavorazioni."}
+        </p>
+      </TooltipContent>
+    </Tooltip>
   );
 }

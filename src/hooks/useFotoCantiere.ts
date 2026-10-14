@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { compressImage } from '@/lib/campo/foto-compressor';
 import { applyWatermark } from '@/lib/campo/foto-watermark';
 import { useOfflineSync } from '@/hooks/campo/useOfflineSync';
+import { refreshCommessaCampoQueries } from '@/lib/orders/refreshCommessaCampoQueries';
 
 /** Quante foto salgono insieme: 2 tiene occupata la rete senza affamare il
  *  resto dell'app su 4G di cantiere. */
@@ -204,7 +205,10 @@ export function useFotoCantiere(orderId?: string) {
 
       return caricate.map((e) => (e as PromiseFulfilledResult<{ path: string }>).value.path);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey }),
+    onSuccess: () => {
+      if (orderId) void refreshCommessaCampoQueries(qc, orderId, companyId);
+      else void qc.invalidateQueries({ queryKey });
+    },
     onError: () => toast.error('Errore durante il caricamento foto'),
   });
 
@@ -215,7 +219,8 @@ export function useFotoCantiere(orderId?: string) {
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey });
+      if (orderId) void refreshCommessaCampoQueries(qc, orderId, companyId);
+      else void qc.invalidateQueries({ queryKey });
       toast.success('Foto eliminata');
     },
     onError: () => toast.error('Errore eliminazione foto'),

@@ -55,6 +55,13 @@ export function crewShiftChanges(snapshot: CrewSnapshot, employeeIds: readonly s
     noAccount: snapshot.employees.filter(e => selected.has(e.id) && !e.userId).map(e => e.id),
   };
 }
+/** Changes this draft only; a daily replacement never changes the permanent roster. */
+export function replaceShiftParticipant(draft: CrewShiftDraft, absentId: string, replacementId: string, snapshot: CrewSnapshot): CrewShiftDraft | null {
+  if (!draft.employeeIds.includes(absentId) || draft.employeeIds.includes(replacementId) ||
+    !snapshot.employees.some(e => e.id === replacementId && e.active)) return null;
+  return { ...draft, employeeIds: draft.employeeIds.map(id => id === absentId ? replacementId : id),
+    leaderEmployeeId: draft.leaderEmployeeId === absentId ? null : draft.leaderEmployeeId };
+}
 export function overlappingShifts(draft: CrewShiftDraft, shifts: readonly CrewShift[]) {
   return shifts.filter(s => s.status === "planned" && s.shiftId !== draft.shiftId && s.workDate === draft.workDate &&
     s.startTime < draft.endTime && draft.startTime < s.endTime && s.employeeIds.some(id => draft.employeeIds.includes(id)));

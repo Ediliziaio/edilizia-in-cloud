@@ -29,6 +29,8 @@ export const TARIFFE_QUERY_KEYS = [
   ["sr-tariffe-manodopera"],
   // Calcolo costi preventivo + ArticleCatalog
   ["tariffe-aziendali"],
+  // Abbinamento manodopera nel computo: la chiave non inizia con "tariff".
+  ["computo-tariffe-picker"],
   // Modulo fotovoltaico
   ["tariffe"],
 ] as const;

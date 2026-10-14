@@ -27,7 +27,7 @@ export function SettingsLayout() {
   const { pathname } = useLocation();
   const permissions = usePermissions();
   const { stato: piano } = useStatoPiano();
-  // Pagine raggruppate (Listino, Modelli di preventivo, Firma e condizioni): titolo
+  // Pagine raggruppate (Listino, Modelli preventivi e contratti, Firma e condizioni): titolo
   // del gruppo e schede per passare da una pagina all'altra. Le schede fuori
   // dal piano dell'azienda non compaiono.
   const sezione = sezioneDaPercorso(pathname);

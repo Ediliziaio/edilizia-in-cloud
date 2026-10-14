@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { aliquotaComune, aliquotaValida, costoArticolo, costoTariffa, unitaTariffa } from "@/lib/listino/costoTariffa";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -27,6 +28,13 @@ export interface ArticlePro {
 export interface TariffaPro {
   id: string;
   nome: string;
+  vertical_associato?: string | null;
+  codice?: string | null;
+  descrizione?: string | null;
+  fonte?: string | null;
+  custom_field_values?: unknown;
+  attivo?: boolean | null;
+  attiva?: boolean | null;
   tipo: "posa" | "trasporto" | "smaltimento" | "nolo" | "tiro_piano" | string;
   prezzo_vendita: number;
   /** Legacy: era la colonna prezzo_costo. FASE 6: valore uguale a costo_interno. */
@@ -725,12 +733,11 @@ export function usePreventivoCosti(companyId: string | undefined) {
     queryKey: ["tariffe-aziendali", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await supabase
+      const data = await loadCatalogPages<{id: string} & Record<string, unknown>>((from, to) => supabase
         .from("tariffe_aziendali")
         .select("*")
         .eq("company_id", companyId!)
-        .order("nome");
-      if (!data) return [] as TariffaPro[];
+        .order("nome").order("id").range(from, to));
       return data.map((d: Record<string, unknown>) => {
         // Costo con la regola unica (costoTariffa, 05/10/2026): costo_interno,
         // prezzo_costo, costo_default, vince il primo maggiore di zero. Prima

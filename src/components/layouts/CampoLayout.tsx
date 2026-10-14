@@ -17,7 +17,6 @@ import {
   ClipboardCheck,
   FileText,
   Mic,
-  Shield,
   CreditCard,
   Ticket,
   Settings,
@@ -98,7 +97,7 @@ export default function CampoLayout() {
   // si esce col back del wizard, non cambiando tab a metà compilazione.
   // (Il rapportino vocale resta fuori: è una schermata singola senza barra
   // propria, lì la bottom-nav serve ancora.)
-  const inFlussoCompilazione = /\/(rapportino|sicurezza)$/.test(location.pathname);
+  const inFlussoCompilazione = /\/(rapportino|rapporto-fine-lavori|sicurezza)$/.test(location.pathname);
 
   // Messaggi chat team non letti. Riusa l'hook condiviso (RPC
   // get_internal_chat_sidebar_state + realtime), come nell'app azienda: le
@@ -120,13 +119,12 @@ export default function CampoLayout() {
     // Magazzino erano raggiungibili SOLO da mobile (o per niente).
     { title: "Timbratura", url: "/campo/timbratura", icon: Clock },
     { title: "Magazzino", url: "/campo/magazzino", icon: Package },
-    ...(mieiMezzi.length > 0 ? [{ title: mieiMezzi.length > 1 ? "I miei mezzi" : "Il mio mezzo", url: "/campo/mezzi", icon: Truck }] : []),
+    { title: mieiMezzi.length ? "Mezzi e attrezzi" : "Scansiona attrezzo", url: mieiMezzi.length ? "/campo/mezzi" : "/campo/mezzi?scansiona=1", icon: Truck },
     { title: "Presenze", url: "/campo/presenze", icon: Clock },
     { title: "Ferie e Permessi", url: "/campo/ferie", icon: CalendarDays },
     { title: "Cedolini", url: "/campo/cedolini", icon: Receipt },
     { title: "Rapportino Vocale", url: "/campo/rapportino-vocale", icon: Mic },
     { title: "Chat", url: "/campo/chat", icon: MessageSquare, badge: unreadCount },
-    { title: "Sicurezza", url: "/campo/sicurezza", icon: Shield },
     { title: "Tesserino", url: "/campo/tesserino", icon: CreditCard },
     // /campo/documenti delega per ruolo (CampoDocumenti → SubDocumenti solo se
     // subappaltatore). Puntare a /campo/sub/documenti mostrava all'OPERAIO la
@@ -143,7 +141,6 @@ export default function CampoLayout() {
     { title: "Attività", url: "/campo/attivita", icon: ClipboardCheck },
     { title: "Rapportino Vocale", url: "/campo/rapportino-vocale", icon: Mic },
     { title: "Chat", url: "/campo/chat", icon: MessageSquare, badge: unreadCount },
-    { title: "Sicurezza", url: "/campo/sicurezza", icon: Shield },
     // Era "SAL" (importi/ritenute): in cantiere serve segnare le fasi fatte.
     { title: "Avanzamento", url: "/campo/avanzamento", icon: ListChecks },
     { title: "Documenti", url: "/campo/documenti", icon: FileText },
@@ -284,7 +281,7 @@ export default function CampoLayout() {
               in alto deve essere uguale"): logo EiC + azienda/area + Impostazioni.
               Prima su mobile non c'era header; ora la cornice è uniforme tra le app. */}
           <header className="md:hidden sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background px-2">
-            {isSubPage && (
+            {isSubPage && !inFlussoCompilazione && (
               <Button
                 variant="ghost"
                 size="icon"

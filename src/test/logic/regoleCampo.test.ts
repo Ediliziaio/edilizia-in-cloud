@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  REGOLE_COME_OGGI, giaCoperto, leggiRegole, operaioSoloOre, oreInTesto, proponiOre, scostamento,
+  REGOLE_COME_OGGI, giaCoperto, leggiRegole, operaioSoloOre, oreInTesto, proponiOre, scostamento, flussoPersona,
 } from "@/lib/campo/regoleCampo";
 
 describe("Regole di cantiere per azienda", () => {
@@ -30,6 +30,7 @@ describe("Regole di cantiere per azienda", () => {
   it("propone le ore timbrate, ma non se manca la timbratura o è ancora dentro", () => {
     expect(proponiOre(7.5, false)).toBe(7.5);
     expect(proponiOre(7.4999)).toBe(7.5);
+    expect(proponiOre(7 + 37 / 60)).toBe(7.62);
     expect(proponiOre(null)).toBe("");
     expect(proponiOre(0)).toBe("");
     expect(proponiOre(6, true)).toBe("");
@@ -57,5 +58,18 @@ describe("Regole di cantiere per azienda", () => {
     expect(giaCoperto({ gia_registrato_da_altri: true })).toBe("collega");
     expect(giaCoperto({ rapportino_inviato: true, gia_registrato_da_altri: true })).toBe("suo");
     expect(giaCoperto({})).toBeNull();
+  });
+});
+
+describe("Responsabilità senza ore duplicate", () => {
+  it.each(["ognuno", "capo", "ore_proprie"] as const)("il subappaltatore mantiene il proprio giornaliero in %s", chiCompila => {
+    const f = flussoPersona({ ...REGOLE_COME_OGGI, chiCompila }, { esisteCapo: true }, true);
+    expect(f.soloTimbratura).toBe(false); expect(f.soloOre).toBe(false);
+  });
+  it("il capo nel flusso misto non può registrare la squadra", () => {
+    expect(flussoPersona({ ...REGOLE_COME_OGGI, chiCompila: "ore_proprie" }, { isCapocantiere: true, esisteCapo: true }).registraSquadra).toBe(false);
+  });
+  it("senza capo non lascia il cantiere senza rendicontazione", () => {
+    expect(flussoPersona({ ...REGOLE_COME_OGGI, chiCompila: "capo" }, { esisteCapo: false }).soloTimbratura).toBe(false);
   });
 });

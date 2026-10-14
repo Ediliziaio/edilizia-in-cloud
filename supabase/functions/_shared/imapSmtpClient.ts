@@ -592,6 +592,11 @@ export async function imapTestConnection(cfg: ImapConfig): Promise<boolean> {
  *    per EiC non esiste più. Per la posta personale servono TUTTI i messaggi
  *    del periodo, con il cursore UID a evitare di rileggerli ogni giro.
  */
+export function scegliUidPolling(trovati:string[],maxMessages:number,ordine:"recenti"|"cursore"="recenti"):string[]{
+  if(!Number.isInteger(maxMessages)||maxMessages<1)throw new Error("invalid_imap_page_limit");
+  return ordine==="cursore"?[...trovati].sort((a,b)=>Number(a)-Number(b)).slice(0,maxMessages):trovati.slice(-maxMessages);
+}
+
 export async function imapScaricaNuovi(
   cfg: ImapConfig,
   sinceDate: Date,
@@ -608,6 +613,8 @@ export async function imapScaricaNuovi(
    * cursore): serve a ritrovare risposte vecchie senza leggere tutta la casella.
    */
   perMessageId?: string[],
+  /** Cursor-based ingestion must save oldest outstanding UIDs first. */
+  ordine: "recenti" | "cursore" = "recenti",
 ): Promise<ImapMessage[]> {
   const conn = cfg.secure
     ? await Deno.connectTls({ hostname: cfg.host, port: cfg.port })
@@ -703,19 +710,22 @@ export async function imapScaricaNuovi(
       throw new Error(`imap_search_rifiutata: ${motivo.trim()}`);
     }
     // "n:*" restituisce l'ultimo messaggio anche se il suo UID e' < n: filtro esplicito.
-    const uids = searchLine.replace("* SEARCH", "").trim().split(/\s+/).filter(Boolean)
-      .filter((u) => !conCursore || parseInt(u, 10) > (sinceUid as number))
-      // I più recenti: su una casella con storico, i primi per UID sono i più
-      // vecchi e riempirebbero il tetto senza mai arrivare a oggi.
-      .slice(uidsPerId ? 0 : -maxMessages);
+    const trovati = searchLine.replace("* SEARCH", "").trim().split(/\s+/).filter(Boolean)
+      .filter((u) => !conCursore || parseInt(u, 10) > (sinceUid as number));
+    // Legacy callers read the head; cursor ingestion saves a contiguous prefix.
+    const uids=uidsPerId?trovati:scegliUidPolling(trovati,maxMessages,ordine);
 
     const messages: ImapMessage[] = [];
     for (const uid of uids) {
       try {
         const fetchResp = await send(`UID FETCH ${uid} (BODY.PEEK[])`);
         const parsed = parseImapMessage(uid, fetchResp);
+        if(!parsed&&ordine==="cursore")throw new Error("imap_message_incomplete");
         if (parsed) messages.push(parsed);
-      } catch { /* skip single message errors */ }
+      } catch(e) {
+        if(ordine==="cursore")throw e; // A high UID must not hide a failed earlier message.
+        /* Legacy head readers skip single message errors. */
+      }
     }
 
     await send(`LOGOUT`);

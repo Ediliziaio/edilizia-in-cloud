@@ -48,6 +48,8 @@ export interface PrezzarioVoce {
   codice: string | null;
   descrizione: string;
   unita_misura: string | null;
+  /** Solo nella selezione UI: conserva l'assenza dell'unità dopo un'integrazione manuale. */
+  unita_misura_originale?: string | null;
   prezzo: number;
   /** Incidenza manodopera 0..1 (obbligo base d'asta). */
   incidenza_manodopera_pct: number | null;

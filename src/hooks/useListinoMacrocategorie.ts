@@ -126,6 +126,7 @@ export function useMacrocategorieMutations() {
   // di campi cosmetici (nome/descrizione/immagine/verticali/pagina-pdf).
   const invalidateLight = () => {
     void qc.invalidateQueries({ queryKey: ["listino-macrocategorie", companyId] });
+    void qc.invalidateQueries({ queryKey: ["catalog", "aree", companyId] });
     void qc.invalidateQueries({ queryKey: ["sr-listino-macrocategorie"] });
   };
 

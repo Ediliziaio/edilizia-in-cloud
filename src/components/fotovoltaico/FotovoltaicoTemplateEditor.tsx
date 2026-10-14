@@ -6,7 +6,7 @@ import { TemplateCoverStylePicker, TemplateCoverTextFields, coverStyleOnly } fro
 /**
  * FotovoltaicoTemplateEditor — editor del template PDF del modulo Fotovoltaico.
  *
- * Usato dentro la scheda «Moduli» di Impostazioni → Modelli di preventivo
+ * Usato dentro la scheda «Moduli» di Impostazioni → Modelli preventivi e contratti
  * (Moduli → Fotovoltaico).
  *
  * Configura `fv_template_pdf` per la company corrente:

@@ -2,7 +2,7 @@
  * StepContenuti — Step 3 wizard: scegli i contenuti del PDF cliente.
  *
  * L'azienda mantiene una "libreria" di esigenze/soluzioni/USP/incluso/passi
- * nel modello del preventivo Serramenti, in Impostazioni → Modelli di preventivo → Moduli (più voci possibili). Qui il commerciale
+ * nel modello del preventivo Serramenti, in Impostazioni → Modelli preventivi e contratti → Moduli (più voci possibili). Qui il commerciale
  * sceglie per il preventivo specifico quali voci usare, ne aggiunge di
  * custom, può modificare i testi inline.
  *
@@ -173,7 +173,7 @@ function ObjectItemsPicker({
         </div>
       ) : (
         <SrCallout variant="info">
-          La tua libreria dei modelli non ha ancora {label.toLowerCase()}. Vai in <strong>Impostazioni → Modelli di preventivo → Moduli → Serramenti</strong> per aggiungerne.
+          La tua libreria dei modelli non ha ancora {label.toLowerCase()}. Vai in <strong>Impostazioni → Modelli preventivi e contratti → Moduli → Serramenti</strong> per aggiungerne.
         </SrCallout>
       )}
 
@@ -330,7 +330,7 @@ function StringItemsPicker({
         </div>
       ) : (
         <SrCallout variant="info">
-          La tua libreria dei modelli non ha ancora <strong>{label.toLowerCase()}</strong>. Vai in <strong>Impostazioni → Modelli di preventivo → Moduli → Serramenti</strong> per aggiungerne.
+          La tua libreria dei modelli non ha ancora <strong>{label.toLowerCase()}</strong>. Vai in <strong>Impostazioni → Modelli preventivi e contratti → Moduli → Serramenti</strong> per aggiungerne.
         </SrCallout>
       )}
 
@@ -551,7 +551,7 @@ export function StepContenuti({ form, onChange, senzaEsigenze = false }: Props) 
 
       {!hasAnyTemplate && (
         <SrCallout variant="warning" className="max-md:hidden">
-          La libreria dei modelli è vuota. Configurala in <strong>Impostazioni → Modelli di preventivo → Moduli → Serramenti</strong> per accelerare la compilazione dei preventivi.
+          La libreria dei modelli è vuota. Configurala in <strong>Impostazioni → Modelli preventivi e contratti → Moduli → Serramenti</strong> per accelerare la compilazione dei preventivi.
         </SrCallout>
       )}
 

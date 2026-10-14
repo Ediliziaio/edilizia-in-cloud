@@ -12,7 +12,7 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: {
 vi.mock("@/integrations/supabase/client", () => {
   const costruisci = (dati: unknown[]) => {
     const b: Record<string, unknown> = {};
-    for (const m of ["select", "eq", "order"]) b[m] = () => b;
+    for (const m of ["select", "eq", "order", "range", "abortSignal"]) b[m] = () => b;
     b.maybeSingle = async () => ({ data: { modelli_inizializzati: true, modello_predefinito: null as unknown, sal_matura_quando: "emesso" }, error: null as unknown });
     b.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: dati, error: null as unknown }).then(ok);
     return b;

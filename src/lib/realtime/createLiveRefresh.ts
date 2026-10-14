@@ -11,11 +11,14 @@ export function createLiveRefresh(options: {
   let lastRefresh = -Infinity;
   let delay = 15_000;
   let reconcile = false;
+  let failures = 0;
+  let pending = false;
 
   const request = (full = false) => {
     if (disposed) return;
+    pending = true;
     reconcile ||= full;
-    if (timer || document.hidden || !navigator.onLine) return;
+    if (timer || running || document.hidden || !navigator.onLine) return;
     timer = setTimeout(run, Math.max(1000, delay - (Date.now() - lastRefresh)));
   };
   const run = () => {
@@ -23,17 +26,24 @@ export function createLiveRefresh(options: {
     if (disposed || document.hidden || !navigator.onLine) return;
     if (running || options.busy() || Date.now() - lastRefresh < delay) { request(); return; }
     running = true;
+    pending = false;
     const start = Date.now();
     const full = reconcile;
     reconcile = false;
     lastRefresh = start;
-    void options.refresh(full).catch(() => {
+    void Promise.resolve().then(() => options.refresh(full)).then(() => {
+      failures = 0;
+    }).catch(() => {
+      failures = Math.min(failures + 1, 3);
       // Gli errori di lettura sono già gestiti dal QueryClient. Il prossimo
       // ritorno/heartbeat riprova senza produrre rejection non gestite.
     }).finally(() => {
       running = false;
       lastRefresh = Date.now();
-      delay = Math.min(120_000, Math.max(15_000, (lastRefresh - start) * 5));
+      delay = Math.min(120_000, Math.max(15_000 * 2 ** failures, (lastRefresh - start) * 5));
+      // An event arriving during a fetch must survive its completion. A
+      // timer already queued must respect the new cooldown before reading.
+      if (pending) request();
     });
   };
   const resume = () => { request(true); };

@@ -1,7 +1,7 @@
 /**
  * «Errore nel caricamento della pagina» (Ener Italia, 25/09/2026).
  *
- * Dalle 11:59 la pagina Impostazioni → Modelli di preventivo andava in crash:
+ * Dalle 11:59 la pagina Impostazioni → Modelli preventivi e contratti andava in crash:
  * l'anteprima dei modelli «offerta» passava la copertina a getLogoPublicUrl,
  * che faceva `null.replace` sui modelli senza copertina. E dopo il crash anche
  * le Opportunità e ogni altra pagina mostravano lo stesso errore, finché non si
@@ -67,7 +67,7 @@ describe("l'errore di una pagina non blocca le altre", () => {
   it("cambiando pagina l'errore si toglie e si vede la pagina nuova", () => {
     const { rerender } = render(
       <ErrorBoundary title={TITOLO} resetKey="/azienda/impostazioni/template-preventivi">
-        <Pagina rompe nome="Modelli di preventivo" />
+        <Pagina rompe nome="Modelli preventivi e contratti" />
       </ErrorBoundary>,
     );
     expect(screen.getByText(TITOLO)).toBeTruthy();
@@ -84,12 +84,12 @@ describe("l'errore di una pagina non blocca le altre", () => {
   it("restando sulla stessa pagina l'errore resta", () => {
     const { rerender } = render(
       <ErrorBoundary title={TITOLO} resetKey="/azienda/impostazioni/template-preventivi">
-        <Pagina rompe nome="Modelli di preventivo" />
+        <Pagina rompe nome="Modelli preventivi e contratti" />
       </ErrorBoundary>,
     );
     rerender(
       <ErrorBoundary title={TITOLO} resetKey="/azienda/impostazioni/template-preventivi">
-        <Pagina rompe={false} nome="Modelli di preventivo" />
+        <Pagina rompe={false} nome="Modelli preventivi e contratti" />
       </ErrorBoundary>,
     );
     expect(screen.getByText(TITOLO)).toBeTruthy();

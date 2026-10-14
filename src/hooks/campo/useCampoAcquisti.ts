@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ModalitaAcquisto, RigaAcquisto, StatoAcquisto, StatoRimborso } from "@/lib/campo/acquisti";
+import { refreshCampoAcquistoQueries } from "@/lib/orders/refreshCommessaCampoQueries";
 
 export interface AcquistoMio {
   id: string;
@@ -60,7 +61,9 @@ export interface NuovoAcquisto {
 
 export function useRegistraAcquisto() {
   const qc = useQueryClient();
+  const { profile } = useAuth();
   return useMutation({
+    onMutate: () => ({ companyId: profile?.company_id }),
     mutationFn: async (a: NuovoAcquisto) => {
       const { data, error } = await rpc()("campo_acquisto_registra", {
         p_order_id: a.orderId,
@@ -76,19 +79,23 @@ export function useRegistraAcquisto() {
         p_note: a.note || null,
       });
       if (error) throw error;
+      if (typeof data !== "string" || !data.trim()) throw new Error("L’ufficio non ha confermato la ricezione: controlla le ultime inviate prima di riprovare.");
       return data as string;
     },
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["campo-acquisti-miei"] }); },
+    onSuccess: (_id, a, context) => { void refreshCampoAcquistoQueries(qc, a.orderId, context?.companyId); },
   });
 }
 
 export function useAnnullaAcquisto() {
   const qc = useQueryClient();
+  const { profile, user } = useAuth();
   return useMutation({
+    onMutate: (id: string) => ({ companyId: profile?.company_id,
+      orderId: qc.getQueryData<AcquistoMio[]>(["campo-acquisti-miei", profile?.company_id, user?.id])?.find(a => a.id === id)?.order_id }),
     mutationFn: async (id: string) => {
       const { error } = await rpc()("campo_acquisto_annulla", { p_id: id });
       if (error) throw error;
     },
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["campo-acquisti-miei"] }); },
+    onSuccess: (_data, _id, context) => { void refreshCampoAcquistoQueries(qc, context?.orderId, context?.companyId); },
   });
 }

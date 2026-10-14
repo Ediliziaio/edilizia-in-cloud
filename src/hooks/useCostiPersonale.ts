@@ -18,9 +18,8 @@ import { useQuery } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { costoOrarioDipendente, oreContrattualiMese } from "@/lib/costoOrarioDipendente";
+import { reportParticipants } from "@/lib/campo/laborCostReview";
 
-// Ore contrattuali di fallback (CCNL edilizia ~40h/sett ≈ 173 h/mese)
-const DEFAULT_MONTHLY_HOURS = 173;
 const DEFAULT_INPS_RATE = 28;
 
 export interface RapportinoGiorno {
@@ -118,6 +117,7 @@ interface RapportinoRow {
   ore_straordinario: number | null;
   descrizione_lavori: string | null;
   stato: string;
+  presenze?: unknown;
   autore: { first_name: string | null; last_name: string | null } | null;
   order: { id: string; order_code: string | null } | null;
 }
@@ -178,12 +178,12 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
         .select(
           // NB: profiles va disambiguato per FK (user_id vs approvato_da),
           // altrimenti PostgREST rifiuta l'embed ("more than one relationship").
-          "id, user_id, order_id, data_lavoro, ore_lavorate, ore_straordinario, descrizione_lavori, stato, autore:profiles!campo_rapportini_user_id_fkey(first_name, last_name), order:orders(id, order_code)",
+          "id, user_id, order_id, data_lavoro, ore_lavorate, ore_straordinario, descrizione_lavori, stato, presenze, autore:profiles!campo_rapportini_user_id_fkey(first_name, last_name), order:orders(id, order_code)",
         )
         .eq("company_id", companyId!)
         .gte("data_lavoro", monthStart)
         .lte("data_lavoro", monthEnd)
-        .neq("stato", "rifiutato")
+        .in("stato", ["inviato", "approvato"])
         .order("data_lavoro", { ascending: true })
         .limit(2000);
       if (error) throw error;
@@ -199,6 +199,7 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
   const { dipendenti, altriOperatori, totali } = useMemo(() => {
     // Rapportini normalizzati + indicizzati per user_id
     const byUser = new Map<string, RapportinoGiorno[]>();
+    const byEmployee = new Map<string, RapportinoGiorno[]>();
     const nomiByUser = new Map<string, string>();
     for (const r of rapportiniRaw) {
       const norm: RapportinoGiorno = {
@@ -211,10 +212,23 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
         orderId: r.order?.id ?? r.order_id ?? null,
         orderCode: r.order?.order_code ?? null,
       };
-      const list = byUser.get(r.user_id) ?? [];
-      list.push(norm);
-      byUser.set(r.user_id, list);
-      if (r.autore) {
+      const participants = reportParticipants({ ...r, company_id: companyId ?? "", order_id: r.order_id ?? "", updated_at: "" }, employees);
+      const isCrew = Array.isArray(r.presenze) && r.presenze.length > 0;
+      for (const person of participants) {
+        if (person.hours == null || person.hours < 0 || person.hours > 24) continue;
+        const line = isCrew ? { ...norm, ore_lavorate: person.hours, ore_straordinario: 0 } : norm;
+        if (person.kind === "employee" && person.employee) {
+          const list = byEmployee.get(person.employee.id) ?? [];
+          list.push(line); byEmployee.set(person.employee.id, list);
+        } else {
+          // An external presence is not the head's personal hours or salary.
+          const key = person.kind === "external" ? person.key : r.user_id;
+          const list = byUser.get(key) ?? [];
+          list.push(line); byUser.set(key, list);
+          if (isCrew) nomiByUser.set(key, person.name);
+        }
+      }
+      if (r.autore && !isCrew) {
         nomiByUser.set(
           r.user_id,
           [r.autore.first_name, r.autore.last_name].filter(Boolean).join(" ") || "Operatore",
@@ -224,7 +238,7 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
 
     const dipendenti: DipendenteMese[] = employees.map((emp) => {
       const lordo = Number(emp.gross_salary) || 0;
-      const inpsRate = Number(emp.inps_rate) || DEFAULT_INPS_RATE;
+      const inpsRate = emp.inps_rate == null ? DEFAULT_INPS_RATE : Number(emp.inps_rate);
       const oneri = lordo * (inpsRate / 100);
       const oreContrattuali = oreContrattualiMese(emp);
       // Unica formula, condivisa col database e con le altre schermate: se il
@@ -232,8 +246,7 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
       // che finisce nel costo di commessa.
       const costoOrario = costoOrarioDipendente(emp);
 
-      const rapportini = emp.user_id ? (byUser.get(emp.user_id) ?? []) : [];
-      if (emp.user_id) byUser.delete(emp.user_id);
+      const rapportini = byEmployee.get(emp.id) ?? [];
 
       const oreLavorate = rapportini.reduce((s, r) => s + r.ore_lavorate, 0);
       const oreStraordinario = rapportini.reduce((s, r) => s + r.ore_straordinario, 0);
@@ -259,7 +272,7 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
         giorniLavorati,
         commesse: aggregaCommesse(rapportini),
         rapportini,
-        senzaUtente: !emp.user_id,
+        senzaUtente: !emp.user_id && rapportini.length === 0,
       };
     });
 
@@ -295,7 +308,7 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
     };
 
     return { dipendenti, altriOperatori, totali };
-  }, [employees, rapportiniRaw]);
+  }, [companyId, employees, rapportiniRaw]);
 
   return {
     dipendenti,

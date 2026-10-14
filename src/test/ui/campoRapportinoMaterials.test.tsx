@@ -55,7 +55,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   }, functions: { invoke: async () => ({ data: { pdf_url: "https://local.invalid/rapportino-v2-test.pdf" }, error: null as null }) },
 } }));
 beforeEach(() => { vi.clearAllMocks(); state.allowed = true; state.role = { isCapocantiere: false, esisteCapo: false }; state.phases = []; state.punches = []; state.timeError = false; state.crew = []; state.orderId = "order"; state.weather = undefined; state.articles = [{ id: "article", name: "Malta", categoria: "Materiali" }]; state.articlesError = false; });
-beforeEach(() => { state.reportDate = null; state.existing = null; vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-09-24T15:00:00+02:00")); });
+beforeEach(() => { localStorage.clear(); state.reportDate = null; state.existing = null; vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-09-24T15:00:00+02:00")); });
 beforeEach(() => { state.deliveries = []; state.deliveriesError = false; });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 const openMaterials = () => { render(<CampoRapportino />); fireEvent.change(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "0" } }); fireEvent.click(screen.getByRole("button", { name: "Avanti" })); fireEvent.click(screen.getByRole("button", { name: "Malta" })); };

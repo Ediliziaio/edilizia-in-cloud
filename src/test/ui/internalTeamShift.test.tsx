@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InternalTeamShiftEditor } from "@/components/orders/InternalTeamShiftEditor";
@@ -12,6 +13,33 @@ const draw = (save = vi.fn().mockResolvedValue(undefined), canPlan = true) => {
   return { save, props, ...render(<InternalTeamShiftEditor {...props} />) };
 };
 describe("Turno squadra · UI", () => {
+  it("cambio rapido applicato alla bozza, senza salvare o alterare la squadra", async () => {
+    const {save} = draw();
+    fireEvent.click(screen.getByText("Sostituisci una persona solo in questo turno"));
+    expect(screen.getByRole("button", {name: "Applica alla bozza"})).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Chi non partecipa"), {target: {value: "a"}});
+    fireEvent.change(screen.getByLabelText("Chi viene al suo posto"), {target: {value: "c"}});
+    fireEvent.click(screen.getByRole("button", {name: "Applica alla bozza"}));
+    expect(save).not.toHaveBeenCalled();
+    expect(screen.getByRole("checkbox", {name: /Anna Bianchi/})).not.toBeChecked();
+    expect(screen.getByRole("checkbox", {name: /Carlo Verdi/})).toBeChecked();
+    expect(screen.getByText("Non partecipano: Anna Bianchi")).toBeInTheDocument();
+    expect(screen.getByText("Persone aggiunte: Carlo Verdi")).toBeInTheDocument();
+    expect(screen.getByLabelText("Referente del turno")).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", {name: "Pianifica turno"}));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    expect(save.mock.calls[0][0]).toMatchObject({employeeIds: ["c", "b"], leaderEmployeeId: null});
+    expect(snapshot.roster.employeeIds).toEqual(["a", "b"]);
+  });
+  it("un aggiornamento concorrente blocca anche il cambio rapido", () => {
+    const {rerender, props} = draw();
+    fireEvent.click(screen.getByText("Sostituisci una persona solo in questo turno"));
+    fireEvent.change(screen.getByLabelText("Chi non partecipa"), {target: {value: "a"}});
+    fireEvent.change(screen.getByLabelText("Chi viene al suo posto"), {target: {value: "c"}});
+    rerender(<InternalTeamShiftEditor {...props} snapshot={{...snapshot, roster: {...snapshot.roster, version: "v2"}}} />);
+    expect(screen.getByRole("button", {name: "Applica alla bozza"})).toBeDisabled();
+    expect(screen.getByRole("checkbox", {name: /Anna Bianchi/})).toBeChecked();
+  });
   it("squadra precompilata, assenti esclusi e sostituti senza cambiare il roster", async () => {
     const { save } = draw();
     fireEvent.click(screen.getByRole("checkbox", { name: /Anna Bianchi/ }));

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -77,6 +77,9 @@ import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { testoErrore } from "@/lib/impostazioni/testoErrore";
 import { parametroDaScheda, schedaDaParametro } from "./SettingsTariffe/schede";
 import { NotaMargine } from "./SettingsTariffe/NotaMargine";
+import { categoriaPrezzarioTariffa } from "@/lib/prezzario/catalogo";
+import { costoTariffaConosciuto, formatPrezzoUnitario, prezzoMinimoPerMargine, semaforoMargineTariffa as margineSemaforo } from "@/lib/tariffe/economiaTariffa";
+import { dipendentePerCostoLavorazione } from "@/lib/tariffe/costoDipendente";
 
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -95,6 +98,7 @@ import { NotaMargine } from "./SettingsTariffe/NotaMargine";
 // ri-scattava all'infinito → "Maximum update depth exceeded" (#185) quando un
 // filtro svuotava il tab attivo. Vedi system_health_metrics /impostazioni/tariffe.
 const EMPTY_TARIFFE: Tariffa[] = [];
+const EMPTY_SELECTED_IDS = new Set<string>();
 
 const TIPO_DEFS: TipoDef[] = [
   { value: "posa", label: "Posa", group: "lavorazione", hint: "Installazione prodotti (finestre, porte, pavimenti)" },
@@ -218,49 +222,7 @@ function tipoBadgeClass(tipo: string) {
   return map[tipo] ?? map.altro;
 }
 
-/** Colore semaforo margine: >=25% verde, >=15% giallo, altrimenti rosso. */
-function margineColor(margine: number): string {
-  if (margine >= 25) return "text-emerald-600";
-  if (margine >= 15) return "text-amber-600";
-  return "text-rose-600";
-}
-
-/** Label umana del margine (es. "Ottimo", "Basso", "Sottocosto"). */
-function margineLabel(margine: number, hasCost: boolean): string {
-  if (!hasCost) return "n/d";
-  if (margine < 0) return "Sottocosto";
-  if (margine < 15) return "Basso";
-  if (margine < 25) return "Accettabile";
-  return "Ottimo";
-}
-
-/**
- * Semaforo margine della TABELLA: usa il «Margine minimo delle commesse» di
- * Approvazioni (#40), non una soglia fissa. (Il dialogo della voce e la riga dei
- * numeri usano ancora 15/25 fissi: vedi `margineColor`; la scelta di una soglia
- * sola è una decisione aperta.) Restituisce le classi per il pallino e per il
- * testo, più una label accessibile.
- * - margine non calcolabile (manca costo o vendita) → neutro
- * - < 0 → rosso (in perdita / sottocosto)
- * - < soglia → giallo (sotto la soglia minima)
- * - ≥ soglia → verde (margine sano)
- */
-function margineSemaforo(
-  margine: number | null,
-  soglia: number,
-): { dot: string; text: string; label: string } {
-  if (margine == null || !Number.isFinite(margine)) {
-    return { dot: "bg-muted-foreground/40", text: "text-muted-foreground", label: "Margine non calcolabile" };
-  }
-  if (margine < 0) {
-    return { dot: "bg-rose-500", text: "text-rose-600", label: "In perdita (sottocosto)" };
-  }
-  if (margine < soglia) {
-    return { dot: "bg-amber-500", text: "text-amber-600", label: `Sotto la soglia minima (${soglia}%)` };
-  }
-  return { dot: "bg-emerald-500", text: "text-emerald-600", label: "Margine sano" };
-}
-
+/** Margine sul prezzo di vendita. */
 function calcMargine(pv: number, pa: number) {
   if (!pv) return 0;
   return ((pv - pa) / pv) * 100;
@@ -292,10 +254,11 @@ function TariffaVariantiSection({
  * blu a parte): la prima voce dell'elenco partiva più in basso per niente.
  */
 function RigaNumeri({
-  tariffe, isAdmin, soglia, onShowSottoSoglia, onCompletaBasi,
+  tariffe, isAdmin, soglia, onShowSottoSoglia, onCompletaBasi, onDaCompletare,
 }: {
   tariffe: Tariffa[]; isAdmin: boolean; soglia: number;
   onShowSottoSoglia?: () => void; onCompletaBasi?: () => void;
+  onDaCompletare?: (filtro: "senza-costo" | "senza-prezzo") => void;
 }) {
   const idSpiegazioneBasi = useId();
   const kpi = useMemo(() => {
@@ -307,10 +270,15 @@ function RigaNumeri({
     let sumMarg = 0;
     let countMarg = 0;
     let sottoSoglia = 0; // #49 — voci con margine calcolabile sotto la soglia di Approvazioni
+    let senzaCosto = 0; let senzaPrezzo = 0;
     for (const t of tariffe) {
+      if (t.attivo === false) continue;
       const pv = t.prezzo_vendita ?? 0;
-      const pc = costoTariffa(t) ?? 0;
-      if (pv > 0 && pc > 0) {
+      const costoNoto = costoTariffaConosciuto(t);
+      const pc = costoNoto ?? 0;
+      if (costoNoto == null) senzaCosto++;
+      if (pv <= 0) senzaPrezzo++;
+      if (pv > 0 && costoNoto != null) {
         const m = calcMargine(pv, pc);
         sumMarg += m;
         countMarg += 1;
@@ -318,7 +286,7 @@ function RigaNumeri({
       }
     }
     const margineMedio = countMarg > 0 ? sumMarg / countMarg : 0;
-    return { totali, attive, archiviate, basi, margineMedio, countMarg, sottoSoglia };
+    return { totali, attive, archiviate, basi, margineMedio, countMarg, sottoSoglia, senzaCosto, senzaPrezzo };
   }, [tariffe, soglia]);
 
   const spiegazioneBasi = "Apri una voce, controlla cosa comprende e imposta i tuoi prezzi. Le basi non sono attive nei preventivi.";
@@ -340,11 +308,11 @@ function RigaNumeri({
           <div className="hidden h-4 w-px bg-border sm:block" aria-hidden />
           <div className="flex items-baseline gap-1.5">
             <span className="text-muted-foreground">Margine medio</span>
-            <span className={`text-lg font-bold leading-none tabular-nums ${kpi.countMarg > 0 ? margineColor(kpi.margineMedio) : "text-muted-foreground"}`}>
+            <span className={`text-lg font-bold leading-none tabular-nums ${kpi.countMarg > 0 ? margineSemaforo(kpi.margineMedio, soglia).text : "text-muted-foreground"}`}>
               {kpi.countMarg > 0 ? `${kpi.margineMedio.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : "—"}
             </span>
             {kpi.countMarg > 0 && (
-              <span className="text-xs text-muted-foreground">su {kpi.countMarg} con costi</span>
+              <span className="text-xs text-muted-foreground">su {kpi.countMarg} attive con costi</span>
             )}
           </div>
         </>
@@ -360,6 +328,8 @@ function RigaNumeri({
           {kpi.sottoSoglia} sotto soglia ({soglia}%)
         </button>
       )}
+      {isAdmin && kpi.senzaCosto > 0 && <button type="button" onClick={() => onDaCompletare?.("senza-costo")} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">{kpi.senzaCosto} senza costo</button>}
+      {kpi.senzaPrezzo > 0 && <button type="button" onClick={() => onDaCompletare?.("senza-prezzo")} className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">{kpi.senzaPrezzo} senza prezzo</button>}
       {kpi.basi > 0 && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-blue-200 bg-blue-50/60 py-1 pl-2.5 pr-1 dark:border-blue-900/50 dark:bg-blue-950/30" title={spiegazioneBasi}>
           <span className="text-xs">
@@ -386,7 +356,7 @@ const CAMPO_DA_DITO = "max-md:h-11";
  * Tipo e unità partono come sempre da «Posa» e «pz».
  */
 export function TariffaDialog({
-  open, onClose, editing, companyId, isAdmin, currentVertical, onSaved, squadre = [], dipendenti = [], erroreDipendenti = false, gruppoIniziale = "posa",
+  open, onClose, editing, companyId, isAdmin, currentVertical, onSaved, squadre = [], dipendenti = [], erroreDipendenti = false, gruppoIniziale = "posa", sogliaMinima = 15,
 }: {
   open: boolean; onClose: () => void; editing: Tariffa | null;
   companyId: string; isAdmin: boolean;
@@ -397,6 +367,7 @@ export function TariffaDialog({
   dipendenti?: DipendenteCostoLavorazione[];
   erroreDipendenti?: boolean;
   gruppoIniziale?: GruppoLavorazione;
+  sogliaMinima?: number;
 }) {
   // Un id per campo, perché l'etichetta lo nomini per chi usa il lettore di schermo.
   const idBase = useId();
@@ -419,7 +390,7 @@ export function TariffaDialog({
   // (DEFAULT) e nascondeva il costo vero rimasto in prezzo_costo; salvando,
   // quello 0 finiva su tutte e tre le colonne e il costo andava perso (05/10/2026).
   const [costoInterno, setCostoInterno] = useState(
-    String(costoTariffa(editing) ?? ""),
+    String(costoTariffaConosciuto(editing) ?? ""),
   );
   const [verticalAssociato, setVerticalAssociato] = useState<string>(
     editing ? (editing.vertical_associato ?? "") : (currentVertical ?? ""),
@@ -462,6 +433,10 @@ export function TariffaDialog({
   const ciNum = calcoloCosto.applicato ?? 0;
   const marginePerc = pvNum > 0 ? ((pvNum - ciNum) / pvNum) * 100 : 0;
   const guadagnoUnit = pvNum - ciNum;
+  const costoNoto = configCosto.modalita === "manuale" ? costoInterno.trim() !== "" && numeroCosto(costoInterno) != null : calcoloCosto.applicato != null;
+  const semMargine = margineSemaforo(costoNoto && pvNum > 0 ? marginePerc : null, sogliaMinima);
+  const prezzoMinimo = costoNoto ? prezzoMinimoPerMargine(ciNum, sogliaMinima) : null;
+  const importiInvariati = !!editing && pvNum === (editing.prezzo_vendita ?? 0) && ciNum === (costoTariffa(editing) ?? 0);
 
   // Validazioni soft (non bloccanti — warning in UI)
   const warnings: string[] = [];
@@ -472,12 +447,13 @@ export function TariffaDialog({
   // M1 (audit): evitare di persistere margini negativi o tariffe nuove senza prezzo.
   //   - Per tariffe esistenti lasciamo passare prezzo=0 (archive di fatto)
   //   - Per nuove tariffe forziamo prezzo>0 (non ha senso creare una tariffa a zero)
-  //   - Per admin, costo uguale o maggiore del prezzo blocca (margine zero o negativo: = non ha senso commerciale)
+  //   - Gli importi modificati con costo uguale o maggiore del prezzo bloccano;
+  //     le correzioni descrittive possono mantenere gli importi esistenti.
   const blockReason: string | null = (() => {
     if (isAdmin && configCosto.modalita === "manuale" && costoInterno.trim() && numeroCosto(costoInterno) == null) return "Inserisci un costo diretto valido, maggiore o uguale a zero.";
     if (isAdmin && calcoloCosto.applicato == null) return "Completa il costo della modalità scelta: ore, operatori e costo orario oppure importo del subappalto.";
     if (squadraConSquadraInterna) return "Una squadra interna non può usare un listino riservato al subappaltatore: in «Altri dati» scegli Listino aziendale (generico).";
-    if (isAdmin && pvNum > 0 && ciNum > 0 && ciNum >= pvNum) {
+    if (isAdmin && !importiInvariati && pvNum > 0 && ciNum > 0 && ciNum >= pvNum) {
       return "Il costo è uguale o più alto del prezzo di vendita. Correggi prima di salvare.";
     }
     if (!editing && pvNum <= 0) {
@@ -549,7 +525,7 @@ export function TariffaDialog({
         payload.costo_default = costoInternoValue;
         // Manteniamo il legacy prezzo_costo allineato finché esiste la colonna
         payload.prezzo_costo = costoInternoValue;
-        payload.custom_field_values = campiConCostoLavorazione(editing?.custom_field_values, configCosto, costoInternoValue, gruppo);
+        payload.custom_field_values = campiConCostoLavorazione(editing?.custom_field_values, { ...configCosto, ...(configCosto.modalita === "manuale" ? { costo_diretto_impostato: costoInterno.trim() !== "" } : {}) }, costoInternoValue, gruppo);
       }
 
       const tbl = supabase.from("tariffe_aziendali");
@@ -576,18 +552,18 @@ export function TariffaDialog({
   const umLabel = UM_FATTURAZIONE.find((u) => u.value === unitaFatturazione)?.label ?? unitaFatturazione;
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+    <Dialog open={open} onOpenChange={v => { if (!v && !saving) onClose(); }}>
+      <DialogContent className="flex max-w-3xl max-h-[90vh] flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b px-6 py-5 pr-12">
           <DialogTitle>{editing ? "Modifica voce" : "Nuova voce"}</DialogTitle>
           <DialogDescription>
             {editing
-              ? "Modifica i dati della voce. L'unità di misura è fissa per le voci già usate in preventivo."
+              ? "Modifica i dati della voce. Le voci salvate mantengono l'unità di misura originale."
               : "Scegli che lavoro è e come si misura, poi scrivi il nome, il prezzo e il costo."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
           {/* Le due scelte che decidono: tipo di lavoro e unità. Partono da «Posa» e «pz». */}
           <div className="grid items-start gap-3 sm:grid-cols-2">
             <div>
@@ -658,7 +634,7 @@ export function TariffaDialog({
                 id={idDi("prezzo")}
                 type="number"
                 min="0"
-                step="0.01"
+                step="0.0001"
                 value={prezzoVendita}
                 onChange={(e) => setPrezzoVendita(e.target.value)}
                 placeholder="0.00"
@@ -680,19 +656,19 @@ export function TariffaDialog({
                 {isAdmin && (
                   <div className="rounded-md bg-background p-2 border">
                     <div className="text-xs text-muted-foreground">Costo</div>
-                    <div className="font-semibold text-rose-600">{formatCurrency(ciNum)}</div>
+                    <div className="font-semibold text-rose-600">{costoNoto ? formatPrezzoUnitario(ciNum) : "Da impostare"}</div>
                   </div>
                 )}
                 <div className="rounded-md bg-background p-2 border">
                   <div className="text-xs text-muted-foreground">Vendita</div>
-                  <div className="font-semibold">{formatCurrency(pvNum)}</div>
+                  <div className="font-semibold">{formatPrezzoUnitario(pvNum)}</div>
                 </div>
                 {isAdmin && (
                   <div className="rounded-md bg-background p-2 border">
                     <div className="text-xs text-muted-foreground">Guadagno</div>
-                    <div className={`font-semibold ${margineColor(marginePerc)}`}>
-                      {formatCurrency(guadagnoUnit)}
-                      {pvNum > 0 && (
+                    <div className={`font-semibold ${semMargine.text}`}>
+                      {costoNoto ? formatPrezzoUnitario(guadagnoUnit) : "Da calcolare"}
+                      {costoNoto && pvNum > 0 && (
                         <span className="ml-1 text-xs font-normal">
                           ({marginePerc.toLocaleString("it-IT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%)
                         </span>
@@ -701,16 +677,17 @@ export function TariffaDialog({
                   </div>
                 )}
               </div>
-              {isAdmin && pvNum > 0 && ciNum > 0 && (
+              {isAdmin && pvNum > 0 && (
                 <div className="flex items-center justify-between rounded-md bg-background px-3 py-2 text-xs border">
                   <span className="text-muted-foreground">
                     Giudizio margine:
                   </span>
-                  <span className={`font-semibold ${margineColor(marginePerc)}`}>
-                    {margineLabel(marginePerc, true)}
+                  <span className={`font-semibold ${semMargine.text}`}>
+                    {semMargine.label}
                   </span>
                 </div>
               )}
+              {isAdmin && prezzoMinimo != null && pvNum < prezzoMinimo && <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200"><span>Per raggiungere il margine minimo del {sogliaMinima}%: {formatPrezzoUnitario(prezzoMinimo)} / {umLabel}.</span><Button type="button" size="sm" variant="outline" onClick={() => setPrezzoVendita(String(prezzoMinimo))}>Usa questo prezzo</Button></div>}
             </div>
           )}
 
@@ -951,14 +928,14 @@ export function TariffaDialog({
             </div>
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t bg-background px-6 py-4">
           {blockReason && (
             <div id={idDi("blocco")} className="mr-auto flex items-start gap-1.5 self-center text-xs text-rose-600">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
               <span>{blockReason}</span>
             </div>
           )}
-          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button variant="outline" disabled={saving} onClick={onClose}>Annulla</Button>
           <Button onClick={handleSave} disabled={saving || !!blockReason} aria-describedby={blockReason ? idDi("blocco") : undefined}>
             {saving ? "Salvataggio..." : "Salva"}
           </Button>
@@ -1415,6 +1392,7 @@ function NomeVoce({
           </Badge>
         )}
         <Badge variant="outline" className="h-4 shrink-0 px-1.5 text-[10px] font-normal">{GRUPPI_LAVORAZIONE.find(g => g.id === gruppoLavorazione(t))?.nome}</Badge>
+        {categoriaPrezzarioTariffa(t) && <Badge variant="outline" title={`${t.fonte ?? "Prezziario"} · ${categoriaPrezzarioTariffa(t)}`} className="h-4 max-w-52 shrink-0 truncate px-1.5 text-[10px] font-normal">{categoriaPrezzarioTariffa(t)}</Badge>}
         {t.tipo === "tiro_piano" && t.prezzo_piano_aggiuntivo != null && (
           <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">
             +{formatCurrency(t.prezzo_piano_aggiuntivo)}/piano oltre il {t.piano_base ?? 1}°
@@ -1506,8 +1484,8 @@ function TariffeTable({
     costo: (t: Tariffa) => costoTariffa(t) ?? 0,
     margine: (t: Tariffa) => {
       const pv = t.prezzo_vendita ?? 0;
-      const pc = costoTariffa(t) ?? 0;
-      return pv > 0 && pc > 0 ? calcMargine(pv, pc) : -Infinity;
+      const pc = costoTariffaConosciuto(t);
+      return pv > 0 && pc != null ? calcMargine(pv, pc) : -Infinity;
     },
     attivo: (t: Tariffa) => (t.attivo !== false ? 1 : 0),
   }), []);
@@ -1550,8 +1528,9 @@ function TariffeTable({
             <li className="px-3 py-10 text-center"><NessunaVoceTrovata isAdmin={isAdmin} /></li>
           ) : sortedItems.map((t) => {
             const pv = t.prezzo_vendita ?? 0;
-            const pc = costoTariffa(t) ?? 0;
-            const hasBoth = pv > 0 && pc > 0;
+            const costoNoto = costoTariffaConosciuto(t);
+            const pc = costoNoto ?? 0;
+            const hasBoth = pv > 0 && costoNoto != null;
             const margine = calcMargine(pv, pc);
             const sem = margineSemaforo(hasBoth ? margine : null, soglia);
             const isAttivo = t.attivo !== false;
@@ -1578,7 +1557,7 @@ function TariffeTable({
                     <div className="flex items-baseline gap-1">
                       <dt className="text-xs text-muted-foreground">Vendita</dt>
                       <dd className="font-medium tabular-nums">
-                        {pv ? formatCurrency(pv) : <span className="text-muted-foreground">—</span>}
+                        {pv ? formatPrezzoUnitario(pv) : <span className="text-muted-foreground">—</span>}
                         <span className="text-xs font-normal text-muted-foreground"> / {unitaDellaVoce(t)}</span>
                       </dd>
                     </div>
@@ -1586,7 +1565,7 @@ function TariffeTable({
                       <div className="flex items-baseline gap-1">
                         <dt className="text-xs text-muted-foreground">Costo</dt>
                         <dd className="tabular-nums">
-                          {pc ? formatCurrency(pc) : <span className="text-muted-foreground">—</span>}
+                          {costoNoto != null ? formatPrezzoUnitario(pc) : <span className="text-muted-foreground">—</span>}
                           {pc > 0 && <span className="text-xs text-muted-foreground"> · {modalitaCostoVoce(t, pc)}</span>}
                         </dd>
                       </div>
@@ -1646,8 +1625,9 @@ function TariffeTable({
             </TableRow>
           ) : sortedItems.map((t) => {
             const pv = t.prezzo_vendita ?? 0;
-            const pc = costoTariffa(t) ?? 0;
-            const hasBoth = pv > 0 && pc > 0;
+            const costoNoto = costoTariffaConosciuto(t);
+            const pc = costoNoto ?? 0;
+            const hasBoth = pv > 0 && costoNoto != null;
             const margine = calcMargine(pv, pc);
             const sem = margineSemaforo(hasBoth ? margine : null, soglia);
             const isAttivo = t.attivo !== false;
@@ -1677,15 +1657,15 @@ function TariffeTable({
                 <TableCell>
                   <NomeVoce t={t} squadraName={squadraName} />
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
+                <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                   {unitaDellaVoce(t)}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
-                  {pv ? formatCurrency(pv) : <span className="text-muted-foreground">—</span>}
+                  {pv ? formatPrezzoUnitario(pv) : <span className="text-muted-foreground">—</span>}
                 </TableCell>
                 {isAdmin && (
                   <TableCell className="whitespace-nowrap text-right tabular-nums">
-                    {pc ? formatCurrency(pc) : <span className="text-muted-foreground">—</span>}
+                    {costoNoto != null ? formatPrezzoUnitario(pc) : <span className="text-muted-foreground">—</span>}
                     <span className="block text-[10px] text-muted-foreground">{modalitaCostoVoce(t, pc)}</span>
                   </TableCell>
                 )}
@@ -1714,7 +1694,7 @@ function TariffeTable({
 type StatoFilter = "all" | "attive" | "archiviate" | "standard";
 type VerticalFilter = FiltroAreaTariffe;
 /** Filtro per redditività (solo admin): tutte / sotto la soglia minima / in perdita. */
-type MargineFilter = "all" | "sotto-soglia" | "perdita";
+type MargineFilter = "all" | "sotto-soglia" | "perdita" | "senza-costo" | "senza-prezzo";
 
 export default function SettingsTariffe() {
   const { effectiveCompany, role } = useAuth();
@@ -1727,8 +1707,8 @@ export default function SettingsTariffe() {
   const companyId = effectiveCompany?.id as string | undefined;
   const queryClient = useQueryClient();
 
-  // «Margine minimo delle commesse» di Approvazioni (#40) — guida il semaforo della tabella e il filtro redditività.
-  // Il dialogo della voce e la riga dei numeri usano ancora 15/25 fissi (decisione aperta: una soglia sola).
+  // «Margine minimo delle commesse» di Approvazioni (#40): editor, riepilogo,
+  // tabella e filtro redditività condividono la stessa soglia.
   // Fallback sicuro ai default anche se la tabella non è ancora applicata.
   const { data: governance } = useGovernanceThresholds(companyId);
   const soglia = governance?.marginalita?.sogliaMinimaPerc ?? 15;
@@ -1747,10 +1727,11 @@ export default function SettingsTariffe() {
   const [squadraFilter, setSquadraFilter] = useState<string>("tutte");
   const [margineFilter, setMargineFilter] = useState<MargineFilter>("all");
   const [lavorazioneFilter, setLavorazioneFilter] = useState<GruppoLavorazione | "all">("all");
+  const [categoriaRegionaleFilter, setCategoriaRegionaleFilter] = useState("all");
   const [usageTariffa, setUsageTariffa] = useState<Tariffa | null>(null);
   const [analisiTariffa, setAnalisiTariffa] = useState<Tariffa | null>(null);
   // Selezione multipla per azioni in blocco
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selezioneTabella, setSelezioneTabella] = useState<{ ambito: string; dati: Tariffa[]; ids: Set<string> }>({ ambito: "", dati: EMPTY_TARIFFE, ids: EMPTY_SELECTED_IDS });
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [priceAdjustOpen, setPriceAdjustOpen] = useState(false);
   const daTelefono = useIsMobile();
@@ -1785,6 +1766,15 @@ export default function SettingsTariffe() {
     },
   });
 
+  // La selezione vale solo per questi filtri e questi dati: cambiandoli si
+  // azzera subito, senza un effect che provochi un secondo rendering.
+  const ambitoSelezione = JSON.stringify([companyId, activeGroup, search, statoFilter, verticalFilter, margineFilter, lavorazioneFilter, categoriaRegionaleFilter, squadraFilter]);
+  const selectedIds = selezioneTabella.ambito === ambitoSelezione && selezioneTabella.dati === tariffe ? selezioneTabella.ids : EMPTY_SELECTED_IDS;
+  const setSelectedIds = (valore: Set<string> | ((prima: Set<string>) => Set<string>)) => setSelezioneTabella(prima => {
+    const ids = prima.ambito === ambitoSelezione && prima.dati === tariffe ? prima.ids : EMPTY_SELECTED_IDS;
+    return { ambito: ambitoSelezione, dati: tariffe, ids: typeof valore === "function" ? valore(ids) : valore };
+  });
+
   // Squadre/subappaltatori: servono per il filtro, il badge in tabella e il
   // select nel form ("ogni squadra col suo listino").
   const { data: squadre = [] } = useQuery({
@@ -1811,10 +1801,9 @@ export default function SettingsTariffe() {
     enabled: !!companyId && dialogOpen && isAdmin && permissions.canViewEmployees && permissions.canViewCosts,
     staleTime: 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase.from("employees")
-        .select("id, first_name, last_name, costo_orario").eq("company_id", companyId!).eq("is_active", true).order("last_name");
-      if (error) throw error;
-      return (data ?? []) as DipendenteCostoLavorazione[];
+      const data = await loadCatalogPages<DipendenteCostoLavorazione & { gross_salary?: number | null; monthly_hours?: number | null; inps_rate?: number | null }>((from, to) => supabase.from("employees")
+        .select("id, first_name, last_name, costo_orario, gross_salary, monthly_hours, inps_rate").eq("company_id", companyId!).eq("is_active", true).order("last_name").order("id").range(from, to));
+      return data.map(dipendentePerCostoLavorazione);
     },
   });
 
@@ -1994,16 +1983,22 @@ export default function SettingsTariffe() {
       // vertical
       if (!tariffaNellArea(t.vertical_associato, verticalFilter, currentVertical)) return false;
       if (lavorazioneFilter !== "all" && gruppoLavorazione(t) !== lavorazioneFilter) return false;
+      if (categoriaRegionaleFilter !== "all" && categoriaPrezzarioTariffa(t) !== categoriaRegionaleFilter) return false;
       // search — nome, descrizione, tipo, unità di fatturazione e vertical
       if (q) {
-        const haystack = `${t.nome} ${t.descrizione ?? ""} ${tipoLabel(t.tipo)} ${unitaTariffa(t, "")} ${unitaDellaVoce(t)} ${t.vertical_associato ?? ""}`.toLowerCase();
+        const haystack = `${t.nome} ${t.descrizione ?? ""} ${t.codice ?? ""} ${t.fonte ?? ""} ${categoriaPrezzarioTariffa(t) ?? ""} ${tipoLabel(t.tipo)} ${unitaTariffa(t, "")} ${unitaDellaVoce(t)} ${t.vertical_associato ?? ""}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       // margine (redditività) — solo per voci con margine calcolabile
-      if (margineFilter !== "all") {
+      if (margineFilter === "senza-costo") {
+        if (costoTariffaConosciuto(t) != null) return false;
+      } else if (margineFilter === "senza-prezzo") {
+        if ((t.prezzo_vendita ?? 0) > 0) return false;
+      } else if (margineFilter !== "all") {
         const pv = t.prezzo_vendita ?? 0;
-        const pc = costoTariffa(t) ?? 0;
-        const hasBoth = pv > 0 && pc > 0;
+        const costoNoto = costoTariffaConosciuto(t);
+        const pc = costoNoto ?? 0;
+        const hasBoth = pv > 0 && costoNoto != null;
         if (!hasBoth) return false;
         const m = calcMargine(pv, pc);
         if (margineFilter === "perdita" && !(m < 0)) return false;
@@ -2011,7 +2006,7 @@ export default function SettingsTariffe() {
       }
       return true;
     });
-  }, [tariffe, statoFilter, squadraFilter, verticalFilter, currentVertical, search, margineFilter, soglia, lavorazioneFilter]);
+  }, [tariffe, statoFilter, squadraFilter, verticalFilter, currentVertical, search, margineFilter, soglia, lavorazioneFilter, categoriaRegionaleFilter]);
 
   // Raggruppamento per group (per i tab)
   const byGroup = useMemo(() => {
@@ -2029,13 +2024,6 @@ export default function SettingsTariffe() {
     () => (activeGroup === "all" ? filtered : byGroup[activeGroup] ?? EMPTY_TARIFFE),
     [activeGroup, filtered, byGroup],
   );
-
-  // La selezione si azzera ogni volta che cambia l'insieme visibile (filtri,
-  // ricerca, tab) o quando i dati si ricaricano dopo una mutazione: così non
-  // restano mai selezionati id non più visibili.
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [tariffeForActiveGroup]);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -2072,7 +2060,7 @@ export default function SettingsTariffe() {
     search.trim() !== "" ||
     statoFilter !== "attive" ||
     verticalFilter !== "all" ||
-    lavorazioneFilter !== "all" || squadraFilter !== "tutte" ||
+    lavorazioneFilter !== "all" || categoriaRegionaleFilter !== "all" || squadraFilter !== "tutte" ||
     margineFilter !== "all" ||
     activeGroup !== "all";
 
@@ -2083,6 +2071,7 @@ export default function SettingsTariffe() {
     setMargineFilter("all");
     setActiveGroup("all");
     setLavorazioneFilter("all");
+    setCategoriaRegionaleFilter("all");
     setSquadraFilter("tutte");
   };
 
@@ -2092,6 +2081,7 @@ export default function SettingsTariffe() {
   const activeFilterChips = useMemo(() => {
     const chips: { key: string; label: string; onRemove: () => void }[] = [];
     const q = search.trim();
+    if (categoriaRegionaleFilter !== "all") chips.push({ key: "categoria-regionale", label: `Categoria regionale: ${categoriaRegionaleFilter}`, onRemove: () => setCategoriaRegionaleFilter("all") });
     if (lavorazioneFilter !== "all") chips.push({ key: "lavorazione", label: `Lavorazioni: ${GRUPPI_LAVORAZIONE.find(g => g.id === lavorazioneFilter)?.nome}`, onRemove: () => setLavorazioneFilter("all") });
     if (q) chips.push({ key: "search", label: `Cerca: "${q}"`, onRemove: () => setSearch("") });
     if (statoFilter !== "attive")
@@ -2112,11 +2102,11 @@ export default function SettingsTariffe() {
     if (margineFilter !== "all")
       chips.push({
         key: "margine",
-        label: margineFilter === "perdita" ? "Redditività: in perdita" : "Redditività: sotto soglia",
+        label: margineFilter === "perdita" ? "Redditività: in perdita" : margineFilter === "senza-costo" ? "Prezzi e costi: costo da impostare" : margineFilter === "senza-prezzo" ? "Prezzi e costi: prezzo da impostare" : "Redditività: sotto soglia",
         onRemove: () => setMargineFilter("all"),
       });
     return chips;
-  }, [search, statoFilter, verticalFilter, margineFilter, currentVertical, lavorazioneFilter]);
+  }, [search, statoFilter, verticalFilter, margineFilter, currentVertical, lavorazioneFilter, categoriaRegionaleFilter]);
 
   // Esporta in CSV ciò che è attualmente filtrato (round-trip con l'import).
   const exportCsv = () => {
@@ -2261,13 +2251,16 @@ export default function SettingsTariffe() {
         isAdmin={isAdmin}
         soglia={soglia}
         onShowSottoSoglia={() => {
+          resetFilters();
           setMargineFilter("sotto-soglia");
           setActiveGroup("all");
         }}
         onCompletaBasi={() => {
           setStatoFilter("standard"); setActiveGroup("all"); setSearch("");
           setVerticalFilter("all"); setSquadraFilter("tutte"); setMargineFilter("all"); setLavorazioneFilter("all");
+          setCategoriaRegionaleFilter("all");
         }}
+        onDaCompletare={filtro => { resetFilters(); setMargineFilter(filtro); }}
       />
 
       {/* Filter bar — senza Card: bordo e padding non aggiungevano niente,
@@ -2288,7 +2281,7 @@ export default function SettingsTariffe() {
           </div>
           <FiltriRipiegabili
             daTelefono={daTelefono}
-            attivi={[statoFilter !== "attive", verticalFilter !== "all", lavorazioneFilter !== "all", squadraFilter !== "tutte", margineFilter !== "all"].filter(Boolean).length}
+            attivi={[statoFilter !== "attive", verticalFilter !== "all", lavorazioneFilter !== "all", categoriaRegionaleFilter !== "all", squadraFilter !== "tutte", margineFilter !== "all"].filter(Boolean).length}
           >
           <Select value={statoFilter} onValueChange={(v) => setStatoFilter(v as StatoFilter)}>
             <SelectTrigger aria-label="Filtra per stato della voce" className="h-9 w-full md:w-[180px] max-md:h-11">
@@ -2317,6 +2310,10 @@ export default function SettingsTariffe() {
             <option value="all">Tutte le lavorazioni</option>
             {GRUPPI_LAVORAZIONE.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
           </select>
+          {tariffe.some(t => categoriaPrezzarioTariffa(t)) && <select aria-label="Filtra per categoria regionale" value={categoriaRegionaleFilter} onChange={e => { setCategoriaRegionaleFilter(e.target.value); setActiveGroup("all"); }} className="h-9 w-full rounded-md border bg-background px-3 text-sm md:w-[250px] max-md:h-11">
+            <option value="all">Tutte le categorie regionali</option>
+            {[...new Set(tariffe.flatMap(t => categoriaPrezzarioTariffa(t) ? [categoriaPrezzarioTariffa(t)!] : []))].sort().map(c => <option key={c} value={c}>{c}</option>)}
+          </select>}
           {squadre.length > 0 && (
             <Select value={squadraFilter} onValueChange={setSquadraFilter}>
               <SelectTrigger aria-label="Filtra per listino" className="h-9 w-full md:w-[180px] max-md:h-11">
@@ -2340,6 +2337,8 @@ export default function SettingsTariffe() {
                 <SelectItem value="all">Tutti i margini</SelectItem>
                 <SelectItem value="sotto-soglia">Sotto soglia (&lt;{soglia}%)</SelectItem>
                 <SelectItem value="perdita">In perdita (&lt;0%)</SelectItem>
+                <SelectItem value="senza-costo">Costo da impostare</SelectItem>
+                <SelectItem value="senza-prezzo">Prezzo da impostare</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -2569,6 +2568,7 @@ export default function SettingsTariffe() {
           isAdmin={isAdmin}
           currentVertical={verticalFilter.startsWith("area:") ? (AREE_STANDARD.find(a => a.chiave === verticalFilter.slice(5))?.verticale ?? verticalFilter.slice(5)) : verticalFilter === "global" ? null : currentVertical}
           gruppoIniziale={lavorazioneFilter === "all" ? "posa" : lavorazioneFilter}
+          sogliaMinima={soglia}
           dipendenti={permissions.canViewEmployees && permissions.canViewCosts ? dipendenti : []}
           erroreDipendenti={erroreDipendenti}
           onSaved={() => invalidateAllTariffe(queryClient)}
@@ -2603,6 +2603,7 @@ export default function SettingsTariffe() {
           onOpenChange={setImportRegionaleOpen}
           companyId={companyId}
           isAdmin={isAdmin}
+          existing={tariffe}
           onImported={() => invalidateAllTariffe(queryClient)}
         />
       )}
@@ -2668,6 +2669,7 @@ export default function SettingsTariffe() {
           items={selectedItems}
           isAdmin={isAdmin}
           companyId={companyId}
+          sogliaMinima={soglia}
           onApplied={clearSelection}
         />
       )}

@@ -12,6 +12,8 @@
  * senza ore né fusi orari.
  */
 
+import { planningDay } from "./planning";
+
 export type StatoFase = "da_iniziare" | "in_corso" | "completata";
 
 export interface RapportinoFasi {
@@ -56,6 +58,8 @@ export interface FaseCrono {
   ritardoInizio: number;
   /** Ore dichiarate nei rapportini. */
   ore: number;
+  /** Date non valide o intervalli invertiti: non sono durate o ritardi affidabili. */
+  dateIncoerenti?: boolean;
 }
 
 export type TipoTraguardo = "contratto" | "apertura" | "inizio_lavori" | "fine_lavori" | "consegna";
@@ -102,22 +106,26 @@ const STATI_VALIDI = new Set(["inviato", "approvato"]);
 export function lavoroRealeFasi(rapportini: ReadonlyArray<RapportinoFasi>): Map<string, LavoroReale> {
   const fasi = new Map<string, LavoroReale>();
   for (const r of rapportini) {
-    if (!r.data_lavoro || !STATI_VALIDI.has(String(r.stato ?? ""))) continue;
-    const giorno = r.data_lavoro.slice(0, 10);
+    const giorno = planningDay(r.data_lavoro);
+    if (!giorno || !STATI_VALIDI.has(String(r.stato ?? ""))) continue;
+    const contate = new Set<string>();
     for (const voce of Array.isArray(r.fasi_lavorate) ? r.fasi_lavorate : []) {
       if (!voce || typeof voce !== "object") continue;
       const id = (voce as { phase_id?: unknown }).phase_id;
       if (typeof id !== "string" || !id) continue;
-      const ore = Number((voce as { ore?: unknown }).ore) || 0;
+      const valore = Number((voce as { ore?: unknown }).ore);
+      const ore = Number.isFinite(valore) ? Math.max(0, valore) : 0;
       const lavoro = fasi.get(id);
       if (!lavoro) {
         fasi.set(id, { primo: giorno, ultimo: giorno, ore, rapportini: 1 });
+        contate.add(id);
         continue;
       }
       if (giorno < lavoro.primo) lavoro.primo = giorno;
       if (giorno > lavoro.ultimo) lavoro.ultimo = giorno;
       lavoro.ore += ore;
-      lavoro.rapportini += 1;
+      if (!contate.has(id)) lavoro.rapportini += 1;
+      contate.add(id);
     }
   }
   return fasi;
@@ -143,18 +151,24 @@ export function fasiCronoprogramma(
   return fasi.map((f) => {
     const lavoro = reale.get(f.id);
     const completata = f.status === "completata";
-    const realeInizio = lavoro?.primo ?? null;
-    const realeFine = completata ? (f.completata_il ?? lavoro?.ultimo ?? null) : null;
+    const previstoInizio = planningDay(f.start_date) || null;
+    const previstoFine = planningDay(f.end_date) || null;
+    const realeInizio = planningDay(lavoro?.primo) || null;
+    const chiusura = planningDay(f.completata_il) || null;
+    const realeFine = completata ? (chiusura ?? (planningDay(lavoro?.ultimo) || null)) : null;
+    const dateIncoerenti = !!((f.start_date && !previstoInizio) || (f.end_date && !previstoFine) ||
+      (f.completata_il && !chiusura) || (previstoInizio && previstoFine && previstoFine < previstoInizio) ||
+      (realeInizio && realeFine && realeFine < realeInizio));
 
     let ritardoFine = 0;
-    if (f.end_date) {
-      if (completata && realeFine) ritardoFine = Math.max(0, giorniTra(f.end_date, realeFine));
-      else if (!completata) ritardoFine = Math.max(0, giorniTra(f.end_date, oggi));
+    if (previstoFine && !dateIncoerenti) {
+      if (completata && realeFine) ritardoFine = Math.max(0, giorniTra(previstoFine, realeFine));
+      else if (!completata) ritardoFine = Math.max(0, giorniTra(previstoFine, oggi));
     }
     let ritardoInizio = 0;
-    if (f.start_date) {
-      if (realeInizio) ritardoInizio = Math.max(0, giorniTra(f.start_date, realeInizio));
-      else if (f.status === "da_iniziare") ritardoInizio = Math.max(0, giorniTra(f.start_date, oggi));
+    if (previstoInizio && !dateIncoerenti) {
+      if (realeInizio) ritardoInizio = Math.max(0, giorniTra(previstoInizio, realeInizio));
+      else if (f.status === "da_iniziare") ritardoInizio = Math.max(0, giorniTra(previstoInizio, oggi));
     }
 
     return {
@@ -162,14 +176,15 @@ export function fasiCronoprogramma(
       nome: f.name,
       stato: f.status,
       avanzamento: avanzamentoFase(f),
-      previstoInizio: f.start_date,
-      previstoFine: f.end_date,
+      previstoInizio,
+      previstoFine,
       realeInizio,
       realeFine,
-      chiusuraRegistrata: completata && !!f.completata_il,
+      chiusuraRegistrata: completata && !!chiusura,
       ritardoFine,
       ritardoInizio,
       ore: lavoro?.ore ?? 0,
+      dateIncoerenti,
     };
   });
 }
@@ -221,6 +236,7 @@ export interface ConfrontoTempi {
  * quanto si è sforato. Le regole del ritardo sono quelle del cronoprogramma.
  */
 export function confrontoTempi(f: FaseCrono, oggi: string): ConfrontoTempi {
+  if (f.dateIncoerenti) return { esito: f.stato === "completata" ? "finita" : f.stato, giorniPrevisti: null, giorniReali: null, ritardo: 0, mancano: null };
   const giorniPrevisti = f.previstoInizio && f.previstoFine ? Math.max(1, giorniTra(f.previstoInizio, f.previstoFine) + 1) : null;
   const durata = (fine: string | null) => (f.realeInizio && fine ? Math.max(1, giorniTra(f.realeInizio, fine) + 1) : null);
   // Chiusa senza giorno di chiusura e con un giorno solo di rapportini: quel
@@ -270,7 +286,7 @@ export function traguardiCommessa(input: {
   if (input.inizioLavori) traguardi.push({ tipo: "inizio_lavori", data: input.inizioLavori, etichetta: "Inizio lavori previsto" });
   if (input.fineLavori) traguardi.push({ tipo: "fine_lavori", data: input.fineLavori, etichetta: "Fine lavori prevista" });
   if (input.consegna) traguardi.push({ tipo: "consegna", data: input.consegna, etichetta: "Consegna prevista" });
-  return traguardi.sort((a, b) => a.data.localeCompare(b.data));
+  return traguardi.filter(t => !!planningDay(t.data)).sort((a, b) => a.data.localeCompare(b.data));
 }
 
 /** L'asse del tempo: da tre giorni prima della data più vecchia a tre dopo la più recente, oggi compreso. */
@@ -278,7 +294,23 @@ export function intervalloCronoprogramma(
   fasi: ReadonlyArray<FaseCrono>,
   traguardi: ReadonlyArray<Traguardo>,
   oggi: string,
+  periodo?: "previsto" | "confronto",
 ): Asse {
+  // The operational view is independent of old administrative milestones.
+  // A closed job must not keep growing to today. Legacy callers retain their axis.
+  if (periodo) {
+    const date = fasi.flatMap(f => [f.previstoInizio, f.previstoFine,
+      ...(periodo === "confronto" ? [f.realeInizio, f.realeFine] : [])])
+      .concat(traguardi.filter(t => t.tipo === "inizio_lavori" || t.tipo === "fine_lavori").map(t => t.data))
+      .filter((d): d is string => !!d && !!planningDay(d)).sort();
+    if (!date.length) date.push(...fasi.flatMap(f => [f.realeInizio, f.realeFine]).filter((d): d is string => !!d && !!planningDay(d)));
+    date.sort();
+    if (!date.length) date.push(oggi);
+    if (periodo === "confronto" && fasi.some(f => f.stato !== "completata") && oggi >= date[0]) date.push(oggi);
+    date.sort();
+    const da = aggiungiGiorni(date[0], -3), a = aggiungiGiorni(date[date.length - 1], 3);
+    return { da, a, giorni: giorniTra(da, a) + 1 };
+  }
   const date: string[] = [oggi, ...traguardi.map((t) => t.data)];
   for (const f of fasi) {
     for (const d of [f.previstoInizio, f.previstoFine, f.realeInizio, f.realeFine]) if (d) date.push(d);
@@ -291,7 +323,7 @@ export function intervalloCronoprogramma(
 
 /** Posizione e larghezza, in % dell'asse, di un intervallo di giorni (estremi compresi), tagliato ai bordi. */
 export function barra(da: string, a: string, asse: Pick<Asse, "da" | "giorni">): { left: number; width: number } {
-  const inizio = Math.max(0, giorniTra(asse.da, da));
+  const inizio = Math.min(asse.giorni, Math.max(0, giorniTra(asse.da, da)));
   const fine = Math.min(asse.giorni - 1, giorniTra(asse.da, a));
   return {
     left: (inizio / asse.giorni) * 100,
@@ -300,16 +332,33 @@ export function barra(da: string, a: string, asse: Pick<Asse, "da" | "giorni">):
 }
 
 /** Le tacche dell'asse: i lunedì fino a 120 giorni, oltre i primi del mese. */
-export function tacche(asse: Asse): Array<{ data: string; left: number; mese: boolean }> {
-  const mese = asse.giorni > 120;
+export function tacche(asse: Asse, scala?: "mesi" | "settimane"): Array<{ data: string; left: number; mese: boolean }> {
+  const mese = scala === "mesi" || (!scala && asse.giorni > 120);
   const out: Array<{ data: string; left: number; mese: boolean }> = [];
-  for (let i = 0; i < asse.giorni; i++) {
-    const data = aggiungiGiorni(asse.da, i);
-    const d = new Date(numeroGiorno(data) * GIORNO_MS);
-    const segna = mese ? d.getUTCDate() === 1 : d.getUTCDay() === 1;
-    if (segna) out.push({ data, left: (i / asse.giorni) * 100, mese });
+  const d = new Date(numeroGiorno(asse.da) * GIORNO_MS);
+  if (mese) { d.setUTCDate(1); if (d.getTime() / GIORNO_MS < numeroGiorno(asse.da)) d.setUTCMonth(d.getUTCMonth() + 1); }
+  else d.setUTCDate(d.getUTCDate() + (8 - d.getUTCDay()) % 7);
+  // A very long historical interval remains bounded to a readable number of ticks.
+  const passoMesi = Math.max(1, Math.ceil(asse.giorni / (31 * 120)));
+  const passoSettimane = Math.max(1, Math.ceil(asse.giorni / (7 * 120)));
+  while (d.getTime() / GIORNO_MS <= numeroGiorno(asse.a)) {
+    const data = d.toISOString().slice(0, 10);
+    out.push({ data, left: (giorniTra(asse.da, data) / asse.giorni) * 100, mese });
+    if (mese) d.setUTCMonth(d.getUTCMonth() + passoMesi); else d.setUTCDate(d.getUTCDate() + 7 * passoSettimane);
   }
   return out;
+}
+
+/** Completed overruns are history, not a current warning. Unknown dates aren't on-time proof. */
+export function riepilogoCronoprogramma(fasi: ReadonlyArray<FaseCrono>) {
+  const aperteInRitardo = fasi.filter(f => f.stato !== "completata" && !!ritardoFase(f));
+  const chiuseOltre = fasi.filter(f => f.stato === "completata" && f.ritardoFine > 0);
+  const senzaPiano = fasi.filter(f => !f.previstoInizio || !f.previstoFine);
+  const senzaFineReale = fasi.filter(f => f.stato === "completata" && !f.realeFine);
+  const incoerenti = fasi.filter(f => f.dateIncoerenti);
+  return { aperteInRitardo, chiuseOltre, senzaPiano, senzaFineReale, incoerenti,
+    completate: fasi.filter(f => f.stato === "completata").length,
+    tutteChiuse: fasi.length > 0 && fasi.every(f => f.stato === "completata") };
 }
 
 /**

@@ -1,15 +1,16 @@
 /** One navigation contract for desktop, mobile, notifications and old links. */
 export type OrderDetailTab = "panoramica" | "cantiere" | "articoli" | "finanza";
 export const CANTIERE_VIEWS = [
-  { value: "lavorazioni", label: "Lavorazioni", description: "Fasi, attività da completare e pianificazione." },
+  { value: "lavorazioni", label: "Lavorazioni", description: "Fasi, responsabili, assegnazioni e mezzi del cantiere." },
   { value: "cronoprogramma", label: "Cronoprogramma", description: "Le fasi nel tempo: date previste e reali, ritardi e avanzamento." },
-  { value: "squadra", label: "Squadra e mezzi", description: "Persone, ditte, mezzi e istruzioni per il cantiere." },
+  { value: "squadra", label: "Risorse e statistiche", description: "Persone coinvolte, ore registrate e utilizzo dei mezzi. Assegnazioni in Lavorazioni." },
   { value: "diario", label: "Diario", description: "Rapportini, foto e aggiornamenti dal campo." },
-  { value: "collaudo", label: "Collaudo", description: "Verifiche, verbali e riserve da risolvere." },
+  { value: "collaudo", label: "Consegna e assistenza", description: "Collaudi, verbali, riserve e interventi di assistenza." },
 ] as const;
 export type CantiereView = typeof CANTIERE_VIEWS[number]["value"];
 export const ECONOMIA_VIEWS = [
   { value: "margini", label: "Margini e costi", description: "Risultato della commessa, scostamenti e costi da verificare." },
+  { value: "manodopera", label: "Manodopera e subappalti", description: "Ore, tariffe, budget e costi registrati di dipendenti e ditte." },
   { value: "pagamenti", label: "Incassi e pagamenti", description: "Rate cliente, uscite ai fornitori e disponibilità di cassa." },
   { value: "documenti", label: "Varianti, SAL e documenti", description: "Variazioni del contratto, avanzamento economico e documenti fiscali." },
 ] as const;
@@ -21,6 +22,7 @@ export const MATERIALI_VIEWS = [
 ] as const;
 export type MaterialiView = typeof MATERIALI_VIEWS[number]["value"];
 export function resolveEconomiaView(search: string, section?: string): EconomiaView {
+  if (section === "section-manodopera-costi") return "manodopera";
   if (section === "section-pagamenti" || section === "esposizione-commessa" || section === "section-ritenute") return "pagamenti";
   if (section === "section-sal" || section === "section-varianti" || section === "section-fatturazione") return "documenti";
   if (section === "section-conto-economico") return "margini";
@@ -34,9 +36,10 @@ export function resolveMaterialiView(search: string, section?: string): Material
 }
 const CANTIERE_SECTIONS: Partial<Record<string, CantiereView>> = {
   "section-lavorazioni": "lavorazioni", "section-attivita": "lavorazioni",
-  "section-pianificazione": "lavorazioni", "section-cronoprogramma": "cronoprogramma", "section-squadra": "squadra",
-  "section-mezzi": "squadra", "section-rapportini": "diario",
+  "section-pianificazione": "lavorazioni", "section-cronoprogramma": "cronoprogramma", "section-squadra": "lavorazioni", "section-statistiche": "squadra",
+  "section-mezzi": "lavorazioni", "section-rapportini": "diario",
   "section-foto": "diario", "section-diario": "diario", "section-collaudo": "collaudo",
+  "section-assistenza": "collaudo", "section-sopralluoghi": "lavorazioni",
 };
 export function resolveCantiereView(search: string, section?: string): CantiereView {
   if (section && Object.hasOwn(CANTIERE_SECTIONS, section)) return CANTIERE_SECTIONS[section]!;
@@ -57,7 +60,8 @@ export const ORDER_DETAIL_TABS = [
 
 const SECTION_TABS = {
   "section-stato": "panoramica",
-  "section-assistenza": "panoramica",
+  "section-assistenza": "cantiere",
+  "section-sopralluoghi": "cantiere",
   "section-note": "panoramica",
   "section-documenti": "panoramica",
   "section-lavorazioni": "cantiere",
@@ -68,6 +72,7 @@ const SECTION_TABS = {
   "section-collaudo": "cantiere",
   "section-foto": "cantiere",
   "section-squadra": "cantiere",
+  "section-statistiche": "cantiere",
   "section-mezzi": "cantiere",
   "section-diario": "cantiere",
   "section-sal": "finanza",
@@ -78,6 +83,7 @@ const SECTION_TABS = {
   "section-fatturazione": "finanza",
   "section-pagamenti": "finanza",
   "section-conto-economico": "finanza",
+  "section-manodopera-costi": "finanza",
   "esposizione-commessa": "finanza",
   "section-ritenute": "finanza",
 } as const satisfies Record<string, OrderDetailTab>;
@@ -95,7 +101,7 @@ const LEGACY_TABS: Record<string, OrderDetailDestination> = {
   stato: { tab: "panoramica", section: "section-stato" },
   campo: { tab: "cantiere", section: "section-rapportini" },
   sal: { tab: "finanza", section: "section-sal" },
-  assistenza: { tab: "panoramica", section: "section-assistenza" },
+  assistenza: { tab: "cantiere", section: "section-assistenza" },
   altro: { tab: "panoramica", section: "section-note" },
   ritenute: { tab: "finanza", section: "section-ritenute" },
   materiali: { tab: "articoli" },

@@ -7,9 +7,14 @@ const sal = (numero_sal: number, stato: string, importo_totale: number) => ({ id
 const tutti = [sal(1, "firmato", 10000), sal(2, "approvato", 6000.5), sal(3, "bozza", 99999), sal(4, "emesso", 4000), sal(5, "emesso", 20000)];
 
 describe.each([["app", app], ["edge", edge]])("salNetto (%s)", (_nome, m) => {
-  it("il già maturato conta i SAL emessi, approvati o firmati con numero minore; le bozze no", () => {
-    expect(m.maturatoPrecedente({ id: "s4", numero_sal: 4 }, tutti)).toBe(16000.5);
+  it("usa l'ultimo cumulativo emesso, approvato o firmato; le bozze no", () => {
+    expect(m.maturatoPrecedente({ id: "s4", numero_sal: 4 }, tutti)).toBe(6000.5);
     expect(m.maturatoPrecedente({ id: "s1", numero_sal: 1 }, tutti)).toBe(0);
+  });
+  it("tre SAL cumulativi non sottraggono due volte l'avanzamento già certificato",()=>{
+    const records=[sal(1,"emesso",10000),sal(2,"approvato",20000),sal(3,"firmato",30000)];
+    expect(m.maturatoPrecedente(records[2],records)).toBe(20000);
+    expect(records.reduce((sum,s)=>sum+m.nettoSal(s.importo_totale,m.maturatoPrecedente(s,records)).daFatturare,0)).toBe(30000);
   });
   it("non conta se stesso né i SAL successivi", () => {
     expect(m.maturatoPrecedente({ id: "s2", numero_sal: 2 }, tutti)).toBe(10000);

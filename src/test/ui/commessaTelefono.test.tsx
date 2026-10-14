@@ -63,6 +63,10 @@ vi.mock("@/components/manodopera/NoteCantiere", () => ({
   NoteCantiere: ({ phaseId }: { phaseId?: string | null }) => <div>{phaseId ? `Note della fase ${phaseId}` : "Note della commessa"}</div>,
 }));
 vi.mock("@/hooks/useOperai", () => ({
+  oggiRoma: () => "2026-10-14",
+  useSquadre: () => ({data: [] as unknown[], isLoading: false, isError: false}),
+  useSquadraSuCommessa: () => ({mutate: vi.fn()}),
+  messaggioErroreOperai: () => "Errore",
   useSquadreCommessa: () => ({ data: [] as unknown[] }),
   useNoteCantiere: () => ({ data: [] as unknown[] }),
 }));

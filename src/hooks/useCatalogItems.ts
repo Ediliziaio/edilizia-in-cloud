@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useFamilies } from "@/hooks/useFamilies";
 import { queryKeys } from "@/lib/queryKeys";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import type {
   ArticleTemplateLite,
   CatalogItem,
@@ -32,7 +33,9 @@ interface UseCatalogItemsParams {
 }
 
 /** Fallback sicuro per eventuali modalita_prezzo legacy non mappate. */
-function normalizeModalita(raw: string | null | undefined): ModalitaPrezzoUnified {
+function normalizeModalita(
+  raw: string | null | undefined,
+): ModalitaPrezzoUnified {
   if (raw === "mq" || raw === "griglia" || raw === "misura_libera") return raw;
   return "pz";
 }
@@ -46,25 +49,36 @@ function useArticleTemplatesLite() {
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
-    queryFn: async (): Promise<ArticleTemplateLite[]> => {
-      const { data, error } = await supabase
-        .from("article_templates")
-        .select(
-          "id, company_id, name, sku, marca, modello, description, " +
-            "categoria_id, modalita_prezzo, prezzo_vendita, " +
-            "prezzo_acquisto_netto, vat_rate, unit_of_measure, immagine_url, " +
-            "pdf_scheda_url, ha_montaggio, montaggio_tariffa_id, " +
-            "montaggio_tipo, attivo, sort_order",
-        )
-        .eq("company_id", companyId!)
-        .eq("attivo", true)
-        .order("sort_order", { ascending: true });
-      if (error) throw new Error(error.message);
+    queryFn: async ({ signal }): Promise<ArticleTemplateLite[]> => {
+      const data = await loadCatalogPages<ArticleTemplateLite>(
+        (from, to) =>
+          supabase
+            .from("article_templates")
+            .select(
+              "id, company_id, name, sku, marca, modello, description, " +
+                "categoria_id, category, family_id, modalita_prezzo, prezzo_vendita, " +
+                "prezzo_acquisto_netto, vat_rate, unit_of_measure, immagine_url, " +
+                "pdf_scheda_url, ha_montaggio, montaggio_tariffa_id, " +
+                "montaggio_tipo, attivo, sort_order",
+            )
+            .eq("company_id", companyId!)
+            .eq("attivo", true)
+            .order("sort_order", { ascending: true })
+            .order("name")
+            .order("id")
+            .range(from, to)
+            .abortSignal(signal) as unknown as PromiseLike<{
+            data: ArticleTemplateLite[] | null;
+            error: { message: string } | null;
+          }>,
+      );
       // La colonna `posa_linked` arriva con la migration Step 3; fino a
       // quando i types generati non sono rigenerati, leggiamo in modo
       // difensivo e trattiamo null come true (default spec §4.3).
       const rows = (data ?? []) as unknown as Array<
-        Omit<ArticleTemplateLite, "posa_linked"> & { posa_linked?: boolean | null }
+        Omit<ArticleTemplateLite, "posa_linked"> & {
+          posa_linked?: boolean | null;
+        }
       >;
       return rows.map((r) => ({
         ...r,
@@ -76,8 +90,18 @@ function useArticleTemplatesLite() {
 
 export function useCatalogItems(params: UseCatalogItemsParams = {}) {
   const { categoriaId, search } = params;
-  const { families, isLoading: familiesLoading, error: familiesError } = useFamilies();
-  const { data: articoli, isLoading: articoliLoading, error: articlesError } = useArticleTemplatesLite();
+  const {
+    families,
+    isLoading: familiesLoading,
+    error: familiesError,
+    refetch: refetchFamilies,
+  } = useFamilies();
+  const {
+    data: articoli,
+    isLoading: articoliLoading,
+    error: articlesError,
+    refetch: refetchArticles,
+  } = useArticleTemplatesLite();
 
   const items: CatalogItem[] = useMemo(() => {
     const famItems: CatalogItemFamily[] = (families ?? [])
@@ -85,23 +109,28 @@ export function useCatalogItems(params: UseCatalogItemsParams = {}) {
       .map((f) => {
         // `posa_linked` arriva dalla migration Step 3. Fino alla rigenerazione
         // dei types potrebbe non essere presente: leggiamo in modo difensivo.
-        const posaLinkedRaw = (f as unknown as { posa_linked?: boolean | null }).posa_linked;
+        const posaLinkedRaw = (f as unknown as { posa_linked?: boolean | null })
+          .posa_linked;
         // Modalità manodopera (migration 20260421000030). Pre-migration:
         // deriviamo da posa_tariffa_default_id (retrocompat).
-        const moMod = (f as unknown as {
-          manodopera_modalita?: "tariffa" | "manuale" | "nessuna" | null;
-        }).manodopera_modalita;
+        const moMod = (
+          f as unknown as {
+            manodopera_modalita?: "tariffa" | "manuale" | "nessuna" | null;
+          }
+        ).manodopera_modalita;
         const haPosaAutomatica =
           moMod === "manuale"
-            ? (Number(
+            ? Number(
                 (f as unknown as { manodopera_prezzo_vendita?: number | null })
                   .manodopera_prezzo_vendita ?? 0,
               ) > 0 ||
-                Number(
-                  (f as unknown as {
+              Number(
+                (
+                  f as unknown as {
                     manodopera_costo_acquisto?: number | null;
-                  }).manodopera_costo_acquisto ?? 0,
-                ) > 0)
+                  }
+                ).manodopera_costo_acquisto ?? 0,
+              ) > 0
             : moMod === "tariffa"
               ? !!f.posa_tariffa_default_id
               : moMod === "nessuna"
@@ -160,7 +189,12 @@ export function useCatalogItems(params: UseCatalogItemsParams = {}) {
         if ((it.descrizione ?? "").toLowerCase().includes(q)) return true;
         if (it.source === "article" && (it.sku ?? "").toLowerCase().includes(q))
           return true;
-        if (it.source === "article" && [it.marca, it.article.modello].some((value) => (value ?? "").toLowerCase().includes(q)))
+        if (
+          it.source === "article" &&
+          [it.marca, it.article.modello].some((value) =>
+            (value ?? "").toLowerCase().includes(q),
+          )
+        )
           return true;
         return false;
       });
@@ -178,9 +212,7 @@ export function useCatalogItems(params: UseCatalogItemsParams = {}) {
     items,
     isLoading: familiesLoading || articoliLoading,
     error: familiesError || articlesError,
-    queryKey: queryKeys.catalog.items(
-      undefined,
-      categoriaId ?? null,
-    ),
+    refetch: () => Promise.allSettled([refetchFamilies(), refetchArticles()]),
+    queryKey: queryKeys.catalog.items(undefined, categoriaId ?? null),
   };
 }

@@ -2,6 +2,17 @@ import type { PhaseAssignment, WorkPhase } from "@/hooks/useOrderWorkPhases";
 
 export type WorkFilter = "all" | "in_corso" | "da_iniziare" | "completata" | "attention";
 
+export type PlanningSection = "dates" | "people" | "materials";
+export function phasePlanningIssues(phase: WorkPhase, hasCrew: boolean, missingMaterials = 0): { section: PlanningSection; label: string }[] {
+  if (phase.status === "completata") return [];
+  const issues: { section: PlanningSection; label: string }[] = [];
+  if (!validWorkDates(phase.start_date, phase.end_date)) issues.push({ section: "dates", label: "Controlla le date" });
+  else if (!phase.start_date || !phase.end_date) issues.push({ section: "dates", label: "Completa le date" });
+  if (!phase.assignments.length && !hasCrew) issues.push({ section: "people", label: "Assegna chi lavora" });
+  if (missingMaterials > 0) issues.push({ section: "materials", label: `${missingMaterials} ${missingMaterials === 1 ? "materiale da ordinare" : "materiali da ordinare"}` });
+  return issues;
+}
+
 /**
  * Una fase va organizzata se non ha chi la fa, date o è scaduta. «Chi la fa»
  * sono anche le squadre messe sulla fase (26/09/2026): fasiConSquadra.
@@ -10,7 +21,7 @@ export function phaseNeedsAttention(phase: WorkPhase, today: string, fasiConSqua
   const qualcunoLaFa = phase.assignments.length > 0 || !!fasiConSquadra?.has(phase.id);
   return phase.status !== "completata" && (
     !qualcunoLaFa || !phase.start_date || !phase.end_date ||
-    phase.end_date < today || phase.end_date < phase.start_date
+    phase.end_date < today || !validWorkDates(phase.start_date, phase.end_date)
   );
 }
 
@@ -43,7 +54,13 @@ export function parseWorkAmount(raw: string): number | null {
 }
 
 export function validWorkDates(start: string | null, end: string | null) {
-  return !start || !end || end >= start;
+  const valid = (value: string | null) => {
+    if (!value) return true;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const parsed = new Date(`${value}T12:00:00Z`);
+    return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  };
+  return valid(start) && valid(end) && (!start || !end || end >= start);
 }
 
 export function wouldDuplicateAssignment(assignments: PhaseAssignment[], current: PhaseAssignment, targetPhase: string | null) {

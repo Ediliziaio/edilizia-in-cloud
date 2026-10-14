@@ -1,8 +1,8 @@
 /**
  * Dettaglio ordine/cantiere assegnato all'operaio o subappaltatore.
- * Verifica accesso tramite order_campo_assignments — sicurezza obbligatoria.
+ * Verifica accesso tramite order_campo_assignments.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { missingCampoDocument, CAMPO_DOCUMENT_REQUIRED } from "../../../supabase/functions/_shared/campoDocumentGuard";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -24,6 +24,7 @@ import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCommessaCampoSync } from "@/hooks/useCommessaCampoSync";
 import { cn } from "@/lib/utils";
 import { useOrderDiary } from "@/hooks/useOrderDiary";
 import { useIsCampo } from "@/hooks/useIsCampo";
@@ -35,6 +36,10 @@ import { campoDayWindow } from "@/lib/campo/timeSummary";
 import { campoWorkDay } from "@/lib/campo/workDay";
 import { rapportinoConsegnato, rapportinoDaRifare, statoRapportino } from "@/lib/campo/rapportinoStato";
 import { RapportinoCardCampo } from "@/components/campo/RapportinoCardCampo";
+import { campoReportUrl, isClientReport } from "@/lib/campo/reportKind";
+import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
+import { REGOLE_COME_OGGI, flussoPersona } from "@/lib/campo/regoleCampo";
+import { useRapportinoProtocollo } from "@/hooks/campo/useRapportinoProtocollo";
 
 type Tab = "descrizione" | "rapportini" | "diario" | "documenti" | "chat";
 
@@ -88,6 +93,8 @@ type CampoRapportinoRow = {
   fasi_lavorate?: unknown;
   percentuale_avanzamento?: number | null;
   lavoro_completato?: boolean | null;
+  firma_cliente_url?: string | null;
+  firma_cliente_nome?: string | null;
 };
 
 type SignatureRequestRow = {
@@ -241,9 +248,19 @@ export default function CampoLavoroDetail() {
   const { user, profile } = useAuth();
   const { isOperaio } = useIsCampo();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<Tab>("descrizione");
+  const [activeTab, setActiveTab] = useState<Tab>(() => searchParams.get("tab") === "rapportini" ? "rapportini" : "descrizione");
+  const [reportList, setReportList] = useState<"daily" | "client">(() => searchParams.get("tipo") === "client" ? "client" : "daily");
+  const pageRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    // The previous tab's scroll offset must not hide the next tab's first actions
+    // behind the sticky site header. Works with the mobile main and desktop page.
+    const main = pageRef.current?.closest("main");
+    if (main) main.scrollTop = 0;
+    if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+  }, [activeTab, reportList, orderId]);
   const [assignmentTimedOut, setAssignmentTimedOut] = useState(false);
   const companyId = profile?.company_id ?? null;
+  useCommessaCampoSync(orderId, companyId, !!user);
   const currentUserIds = Array.from(new Set([user?.id, profile?.id].filter((id): id is string => Boolean(id))));
   const currentUserId = currentUserIds[0] ?? null;
   const currentUserKey = currentUserIds.join("|");
@@ -254,7 +271,7 @@ export default function CampoLavoroDetail() {
   const today = campoWorkDay();
 
   // Verifica assegnazione — controlla order_campo_assignments e order_employees
-  const { data: assignment, isLoading, isFetching, isError, error } = useQuery<CampoAssignment | null>({
+  const { data: assignment, isLoading, isError, error } = useQuery<CampoAssignment | null>({
     queryKey: ["campo-lavoro", orderId, companyId, currentUserKey, fallbackOrderCode, fallbackOrderTitle, fallbackOrderAddress],
     queryFn: async () => {
       const orderSelect = `
@@ -402,8 +419,9 @@ export default function CampoLavoroDetail() {
 
   useEffect(() => {
     if (!isLoading) {
-      setAssignmentTimedOut(false);
-      return undefined;
+      let active = true;
+      void Promise.resolve().then(() => { if (active) setAssignmentTimedOut(false); });
+      return () => { active = false; };
     }
     const timer = setTimeout(() => setAssignmentTimedOut(true), 5000);
     return () => clearTimeout(timer);
@@ -486,7 +504,7 @@ export default function CampoLavoroDetail() {
   const quanteMie = mieFasi.filter((f) => f.tu || f.squadra).length;
 
   // Rapportini dell'utente su questo ordine
-  const { data: rapportini = [] } = useQuery<CampoRapportinoRow[]>({
+  const { data: rapportini = [], isLoading: rapportiniLoading, isError: rapportiniError, refetch: ricaricaRapportini } = useQuery<CampoRapportinoRow[]>({
     queryKey: ["campo-rapportini-ordine", orderId, currentUserId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -500,6 +518,23 @@ export default function CampoLavoroDetail() {
     },
     enabled: !!orderId && !!currentUserId && activeTab === "rapportini",
   });
+  const giornalieri = rapportini.filter(r => !isClientReport(r));
+  const rapportiCliente = rapportini.filter(isClientReport);
+  const rapportiVisibili = reportList === "daily" ? giornalieri : rapportiCliente;
+  const { data: ruoloRapporti, isLoading: ruoloRapportiLoading, isError: ruoloRapportiError, refetch: ricaricaRuoloRapporti } = useQuery({
+    queryKey: ["campo-ruolo", orderId, user?.id],
+    enabled: !!orderId && !!user?.id && !!companyId,
+    staleTime: 300_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("campo_mio_ruolo", { p_order_id: orderId! });
+      if (error) throw error;
+      const r = (data ?? {}) as { capocantiere?: boolean; esiste_capo?: boolean; caposquadra?: boolean };
+      return { isCapocantiere: !!r.capocantiere, esisteCapo: !!r.esiste_capo, isCaposquadra: !!r.caposquadra };
+    },
+  });
+  const puoCompilareCliente = !!ruoloRapporti && (ruoloRapporti.isCapocantiere || !ruoloRapporti.esisteCapo);
+  const regoleRapporti = useRegoleCampoOrdine(orderId);
+  const protocolloRapporti = useRapportinoProtocollo(companyId ?? null, user?.id);
 
   // ── Firma del rapportino a posteriori + PDF ────────────────────────────
   // All'invio il PDF viene generato da solo; da qui l'operaio/capocantiere
@@ -511,18 +546,27 @@ export default function CampoLavoroDetail() {
 
   const firmaRapportinoMutation = useMutation({
     mutationFn: async ({ rapportinoId, dataUrl }: { rapportinoId: string; dataUrl: string }) => {
+      if (!companyId || !orderId || !currentUserId) throw new Error("Sessione non pronta: riprova.");
+      const report = rapportini.find(r => r.id === rapportinoId);
+      if (!report || rapportinoDaRifare(statoRapportino(report))) throw new Error("Il rapporto va prima completato o corretto.");
       const blob = await (await fetch(dataUrl)).blob();
-      const path = `${companyId}/${orderId}/firme/${Date.now()}_operaio.png`;
+      const path = `${companyId}/${orderId}/firme/${crypto.randomUUID()}_operaio.png`;
       const { data: up, error: upErr } = await supabase.storage
         .from("campo-rapportini")
         .upload(path, blob, { contentType: "image/png", upsert: false });
       if (upErr || !up?.path) throw upErr ?? new Error("Upload firma non riuscito");
       const { data: urlData } = supabase.storage.from("campo-rapportini").getPublicUrl(up.path);
-      const { error: updErr } = await supabase
+      const { data: firmato, error: updErr } = await supabase
         .from("campo_rapportini")
         .update({ firma_operaio_url: urlData.publicUrl, pdf_url: null })
-        .eq("id", rapportinoId);
+        .eq("id", rapportinoId)
+        .eq("company_id", companyId)
+        .eq("order_id", orderId)
+        .eq("user_id", currentUserId)
+        .select("id")
+        .maybeSingle();
       if (updErr) throw updErr;
+      if (!firmato) throw new Error("Firma non salvata: il rapporto non è più disponibile. Ricarica e riprova.");
       // Invalidate the old export immediately; regenerate with visible feedback.
       if (orderId) void notifyRapportinoPdf(rapportinoId, orderId, queryClient);
     },
@@ -585,32 +629,6 @@ export default function CampoLavoroDetail() {
       return data?.[0] ?? null;
     },
     enabled: !!orderId && !!currentUserId,
-    staleTime: 30_000,
-  });
-
-  const { data: checklistOggi } = useQuery({
-    queryKey: ["campo-lavoro-checklist-oggi", companyId, currentUserId, today],
-    queryFn: async () => {
-      // La checklist è UNA AL GIORNO per persona: l'upsert in
-      // useChecklistSicurezza va in conflitto su (company_id, operaio_id,
-      // data, turno) e la pagina Sicurezza la conferma SEMPRE con
-      // order_id = null. Filtrare qui per order_id non matchava quindi mai
-      // → "Sicurezza: Da fare" restava rosso anche dopo averla firmata e il
-      // CTA della giornata non avanzava mai. Usiamo la chiave naturale.
-      const { data, error } = await supabase
-        .from("checklist_sicurezza")
-        .select("id, completata, firmata")
-        .eq("company_id", companyId!)
-        .eq("operaio_id", currentUserId!)
-        .eq("data", today)
-        // Più turni nello stesso giorno → tieni quello completato.
-        .order("completata", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!companyId && !!currentUserId,
     staleTime: 30_000,
   });
 
@@ -714,7 +732,6 @@ export default function CampoLavoroDetail() {
 	  // Lo stato vero del rapportino di oggi: uno respinto o rimasto in bozza NON è consegnato.
 	  const statoRapportinoOggi = statoRapportino(rapportinoOggi);
 	  const rapportinoInviatoOggi = rapportinoConsegnato(statoRapportinoOggi);
-	  const checklistCompletataOggi = !!checklistOggi?.completata;
 	  const fotoCountOggi = countCollection(rapportinoOggi?.foto_urls);
 	  const materialiCountOggi = countCollection(rapportinoOggi?.materiali_usati);
   const orderContextParams = new URLSearchParams();
@@ -725,9 +742,9 @@ export default function CampoLavoroDetail() {
   const orderContextQuery = orderContextParams.toString();
   const withOrderContext = (path: string) => `${path}${orderContextQuery ? `?${orderContextQuery}` : ""}`;
   const timbraturaUrl = withOrderContext("/campo/timbratura");
-  const checklistUrl = withOrderContext("/campo/sicurezza");
   const rapportinoManualeUrl = withOrderContext(`/campo/lavoro/${orderId}/rapportino`);
   const rapportinoVocaleUrl = withOrderContext(`/campo/lavoro/${orderId}/rapportino-vocale`);
+  const soloTimbratura = flussoPersona(regoleRapporti.data ?? REGOLE_COME_OGGI, ruoloRapporti ?? {}, !isOperaio).soloTimbratura && !rapportinoDaRifare(statoRapportinoOggi);
   // `data` apre il rapportino di quel giorno: se era respinto o in bozza si riapre già compilato.
   const rapportinoDelGiornoUrl = (giorno: string) => {
     const params = new URLSearchParams(orderContextQuery);
@@ -738,17 +755,16 @@ export default function CampoLavoroDetail() {
   // sidebar né nelle azioni rapide (CampoLayout subItems / AccesaoRapido), così
   // `hasTimbratoQui` restava false per sempre e il CTA principale del lavoro
   // era bloccato su "Timbra entrata" → una pagina fuori dalla sua navigazione.
-  // Per il sub la sequenza sensata è: checklist → rapportino → fine.
+  // Per il sub basta il rapportino; non c'è check-in sicurezza.
   // La TIMBRATURA NON è un prerequisito del rapportino: capita spesso di
   // scordarsela e il lavoro va comunque documentato. Prima il CTA restava
   // inchiodato su "Timbra entrata" e senza quella non si arrivava mai al
-  // resto. Ora l'ordine segue il lavoro (sicurezza → rapportino) e la
+  // resto. Ora l'ordine segue il lavoro (rapportino) e la
   // timbratura resta un passo consigliato, raggiungibile dalla card.
   // Il rapportino di oggi, aperto per correggerlo se era stato respinto o lasciato in bozza.
   const rapportinoDiOggiUrl = rapportinoDelGiornoUrl(today);
   const passiGiornata: Record<PassoGiornata, { label: string; icon: LucideIcon; onClick: () => void; tone: "primary" | "success" }> = {
-    "checklist": { label: "Checklist sicurezza", icon: ShieldCheck, onClick: () => navigate(checklistUrl), tone: "primary" },
-    "rapportino-vocale": { label: "Rapportino AI", icon: Mic, onClick: () => navigate(rapportinoVocaleUrl), tone: "primary" },
+    "rapportino-vocale": { label: "Giornaliero", icon: ClipboardList, onClick: () => navigate(rapportinoManualeUrl), tone: "primary" },
     "correggi-rapportino": { label: "Correggi il rapportino", icon: ClipboardList, onClick: () => navigate(rapportinoDiOggiUrl), tone: "primary" },
     "completa-rapportino": { label: "Completa il rapportino", icon: ClipboardList, onClick: () => navigate(rapportinoDiOggiUrl), tone: "primary" },
     "timbra-entrata": { label: "Timbra entrata", icon: LogIn, onClick: () => navigate(timbraturaUrl), tone: "success" },
@@ -756,11 +772,11 @@ export default function CampoLavoroDetail() {
     "torna-ai-lavori": { label: "Torna ai lavori", icon: CheckCircle, onClick: () => navigate("/campo/calendario"), tone: "primary" },
   };
   const nextStickyAction = passiGiornata[prossimoPassoGiornata({
-    checklistFatta: checklistCompletataOggi,
     statoRapportino: statoRapportinoOggi,
     isOperaio,
     hasTimbrato: hasTimbratoQui,
     uscitaRegistrata: uscitaRegistrataOggi,
+    compilaGiornaliero: !soloTimbratura,
   })];
   const NextStickyIcon = nextStickyAction.icon;
   const tabs: { key: Tab; label: string }[] = [
@@ -776,7 +792,7 @@ export default function CampoLavoroDetail() {
   // una striscia bianca sotto la pagina e il gesto non raggiungeva mai il
   // blocco interno.
   return (
-    <div className="mx-auto flex max-w-6xl flex-col">
+    <div ref={pageRef} className="mx-auto flex max-w-6xl flex-col">
       {/* Header sticky */}
       {/* -top-3 compensa il padding-top del <main>: lo sticky si aggancia
           sotto il padding del contenitore scrollante, lasciando una striscia
@@ -797,6 +813,7 @@ export default function CampoLavoroDetail() {
         </div>
 
         {/* Avanzamento compatto: una riga sottile invece della card grande */}
+        {activeTab === "descrizione" && <>
         <div className="rounded-xl bg-primary/10 px-3 py-2 text-primary md:rounded-2xl md:p-3">
           <div className="flex items-center gap-2.5">
             <span className="text-lg font-black leading-none md:text-2xl">{order?.percentuale_avanzamento ?? 0}%</span>
@@ -829,15 +846,17 @@ export default function CampoLavoroDetail() {
           {/* Le foto hanno casa loro: si scattano durante il lavoro, non la
               sera dentro al rapportino (dove la galleria è irraggiungibile). */}
           <QuickAction icon={Camera} label="Foto" onClick={() => navigate(`/campo/lavoro/${orderId}/foto`)} />
-          <QuickAction icon={ClipboardList} label="Rapportino" onClick={() => navigate(rapportinoManualeUrl)} />
+          {!soloTimbratura && <QuickAction icon={ClipboardList} label="Giornaliero" onClick={() => navigate(rapportinoManualeUrl)} />}
           <QuickAction icon={AlertCircle} label="Ticket" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
         </div>
+        </>}
 
         {/* Tab selector */}
         <div className="mt-2 flex gap-1 overflow-x-auto scrollbar-hide md:mt-3">
           {tabs.map(({ key, label }) => (
             <button
               key={key}
+              aria-pressed={activeTab === key}
               onClick={() => setActiveTab(key)}
               className={cn(
                 "whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
@@ -856,13 +875,12 @@ export default function CampoLavoroDetail() {
       <div className="space-y-3 px-3 py-3 md:space-y-4 md:px-4 md:py-4">
         {/* Le istruzioni dell'ufficio vengono prima di tutto: si leggono entrando. */}
         {orderId && <NoteCantiereCampo orderId={orderId} />}
-	        <CampoCloseDayCard
+	        {activeTab === "descrizione" && <CampoCloseDayCard
 	          isOperaio={isOperaio}
 	          hasTimbrato={hasTimbratoQui}
 	          isInCantiere={isInCantiere}
 	          isInPausa={isInPausa}
 	          uscitaRegistrata={uscitaRegistrataOggi}
-	          checklistDone={checklistCompletataOggi}
 	          rapportinoDone={rapportinoInviatoOggi}
 	          rapportinoDetail={statoRapportinoOggi === "rifiutato" ? "Respinto: da rifare" : statoRapportinoOggi === "bozza" ? "Da completare" : undefined}
 	          fotoCount={fotoCountOggi}
@@ -870,9 +888,8 @@ export default function CampoLavoroDetail() {
 	          oreRapportino={rapportinoOggi?.ore_lavorate ?? null}
 	          avanzamentoRapportino={rapportinoOggi?.percentuale_avanzamento ?? null}
 	          onTimbratura={() => navigate(timbraturaUrl)}
-	          onChecklist={() => navigate(checklistUrl)}
 	          onRapportino={() => navigate(rapportinoDaRifare(statoRapportinoOggi) ? rapportinoDiOggiUrl : rapportinoManualeUrl)}
-	        />
+	        />}
 
         {/* ── Tab: Descrizione ── */}
         {activeTab === "descrizione" && (
@@ -1013,40 +1030,76 @@ export default function CampoLavoroDetail() {
         {/* ── Tab: Rapportini ── */}
         {activeTab === "rapportini" && (
           <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2 rounded-2xl border bg-muted/40 p-1.5" role="group" aria-label="Tipo di rapporto">
+              <button type="button" aria-pressed={reportList === "daily"} onClick={() => setReportList("daily")}
+                className={cn("min-h-12 rounded-xl px-2 py-2 text-sm font-semibold", reportList === "daily" ? "bg-background shadow-sm text-primary" : "text-muted-foreground")}>
+                Giornalieri ({giornalieri.length})
+              </button>
+              <button type="button" aria-pressed={reportList === "client"} onClick={() => setReportList("client")}
+                className={cn("min-h-12 rounded-xl px-2 py-2 text-sm font-semibold", reportList === "client" ? "bg-background shadow-sm text-primary" : "text-muted-foreground")}>
+                Rapporti cliente ({rapportiCliente.length})
+              </button>
+            </div>
+            <div className="rounded-2xl border bg-background p-4">
+              <h2 className="font-bold">{reportList === "daily" ? "La giornata per l’ufficio" : "La conferma del cliente"}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{reportList === "daily"
+                ? "Ore, lavori, foto e materiali. Invia oggi o entro domani: la firma del cliente non serve."
+                : "Rapporti di fine lavori con firma del cliente, separati nello storico. Consegna, collaudo e firma elettronica sono in Documenti."}</p>
+            </div>
+            {reportList === "daily" ? soloTimbratura ? <p className="rounded-xl border bg-muted/40 p-3 text-sm">Il giornaliero lo compila il responsabile. Tu registra entrata e uscita; lo storico resta consultabile.</p> : (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <button
                 onClick={() => navigate(rapportinoVocaleUrl)}
                 className="w-full bg-primary text-primary-foreground font-bold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
               >
                 <Mic className="w-5 h-5" />
-                Rapportino vocale AI
+                Racconta a voce
               </button>
               <button
                 onClick={() => navigate(`/campo/lavoro/${orderId}/rapportino`)}
                 className="w-full bg-muted text-foreground border border-border font-semibold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
               >
                 <Plus className="w-5 h-5" />
-                Compila manualmente
+                Scrivi il giornaliero
               </button>
             </div>
+            ) : (
+              <div className="space-y-2">
+                {puoCompilareCliente ? <button type="button" onClick={() => navigate(campoReportUrl(orderId!, "client"))}
+                  className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-3 text-base font-bold text-primary-foreground">
+                  <ClipboardSignature className="h-5 w-5" />Nuovo rapporto di fine lavori
+                </button> : ruoloRapportiLoading ? <p role="status" className="text-sm text-muted-foreground">Verifico chi può compilare il rapporto cliente…</p> : ruoloRapportiError ? <div role="alert" className="text-sm">
+                  <p>Non riesco a verificare il tuo ruolo sul cantiere. Non posso ancora abilitare un nuovo rapporto cliente.</p>
+                  <button type="button" className="min-h-11 text-primary underline" onClick={() => void ricaricaRuoloRapporti()}>Riprova il ruolo</button>
+                </div> : <p className="text-sm text-muted-foreground">La conferma del cliente è gestita dal capocantiere; lo storico dei tuoi rapporti resta consultabile.</p>}
+                <button type="button" onClick={() => setActiveTab("documenti")}
+                  className="min-h-12 w-full rounded-xl border px-3 py-3 text-sm font-semibold">Documenti e firma elettronica</button>
+                <p className="text-xs text-muted-foreground">{protocolloRapporti.data === 2 ? "Giornaliero e rapporto cliente sono documenti distinti. La firma non aggiunge altre ore o consumi." : "La separazione dei due documenti nello stesso giorno richiede l’aggiornamento del database. Un giornaliero già inviato non viene sostituito."}</p>
+              </div>
+            )}
 
-            {rapportini.length === 0 ? (
+            {rapportiniLoading ? <p role="status" className="py-6 text-center text-sm text-muted-foreground">Carico i rapporti…</p> : rapportiniError ? (
+              <div role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm">
+                <p>Non riesco a caricare lo storico. Non significa che i rapporti siano assenti.</p>
+                <button type="button" className="min-h-11 font-semibold text-primary underline" onClick={() => void ricaricaRapportini()}>Riprova lo storico</button>
+              </div>
+            ) : rapportiVisibili.length === 0 ? (
               <div className="flex flex-col items-center py-12 gap-3 text-center">
                 <FileText className="w-10 h-10 text-muted-foreground" />
                 <div>
-                  <p className="font-semibold text-foreground">Nessun rapportino per questo cantiere</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Aggiungi foto, ore, avanzamento e note dal cantiere.</p>
+                  <p className="font-semibold text-foreground">{reportList === "daily" ? "Nessun giornaliero per questo cantiere" : "Nessun rapporto cliente per questo cantiere"}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{reportList === "daily" ? "Racconta la giornata a voce oppure scrivila." : "Non occorre far firmare il cliente ogni giorno."}</p>
                 </div>
               </div>
             ) : (
-              rapportini.map((r) => (
+              rapportiVisibili.map((r) => (
                 <RapportinoCardCampo
                   key={r.id}
                   r={r}
                   pdfOccupato={pdfBusyId === r.id}
                   onPdf={() => void apriPdfRapportino(r)}
                   onFirma={() => { setFirmaRapportinoId(r.id); setFirmaDataUrl(null); }}
-                  onCorreggi={() => navigate(rapportinoDelGiornoUrl(r.data_lavoro))}
+                  onCorreggi={() => navigate(campoReportUrl(orderId!, isClientReport(r) ? "client" : "daily", r.data_lavoro))}
                   nomiFasi={nomiFasi}
                 />
               ))
@@ -1056,8 +1109,9 @@ export default function CampoLavoroDetail() {
             {firmaRapportinoId && (
               <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-3 sm:items-center">
                 <div className="w-full max-w-md space-y-3 rounded-2xl bg-background p-4 shadow-xl">
-                  <p className="text-base font-black text-foreground">Firma il rapportino</p>
-                  <FirmaPad label="Firma con il dito" onChange={setFirmaDataUrl} />
+                  <p className="text-base font-black text-foreground">Aggiungi la tua firma</p>
+                  <p className="text-sm text-muted-foreground">Firma di chi ha compilato il rapporto. Non è la firma del cliente.</p>
+                  <FirmaPad label="La tua firma" onChange={setFirmaDataUrl} />
                   <div className="flex gap-2">
                     <button
                       onClick={() => { setFirmaRapportinoId(null); setFirmaDataUrl(null); }}
@@ -1100,9 +1154,10 @@ export default function CampoLavoroDetail() {
       {/* -bottom-28 compensa il padding-bottom (pb-28) del <main>: senza,
           la barra si aggancia 112px sopra il fondo e il bottone copre il
           contenuto. Il padding tiene il bottone sopra la bottom nav fissa, safe-area dell'iPhone compresa. */}
-      <div className="sticky -bottom-28 bg-background border-t border-border px-4 py-3 z-20 pb-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-0 md:pb-3">
+      {activeTab === "descrizione" && <div className="sticky -bottom-28 bg-background border-t border-border px-4 py-3 z-20 pb-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-0 md:pb-3">
         <button
           onClick={nextStickyAction.onClick}
+          disabled={!!regoleRapporti.isLoading || !!regoleRapporti.isError || !!ruoloRapportiLoading || !!ruoloRapportiError}
           className={cn(
             "flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98]",
             nextStickyAction.tone === "success" ? "bg-emerald-600" : "bg-primary",
@@ -1111,7 +1166,7 @@ export default function CampoLavoroDetail() {
           <NextStickyIcon className="h-4 w-4" />
           {nextStickyAction.label}
         </button>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -1146,18 +1201,18 @@ function DiarioCantiere({ orderId }: { orderId: string }) {
           {timeline.slice(0, 20).map((entry) => {
             const isEvent = entry.kind === "event";
             const data = entry.data;
-            const payload = entry.kind === "event" ? data.payload ?? {} : {};
+            const payload = entry.kind === "event" ? entry.data.payload ?? {} : {};
             const title = entry.kind === "event"
-              ? diaryEventLabel(data.event_type, payload)
+              ? diaryEventLabel(entry.data.event_type, payload)
               : entry.kind === "audit"
-                ? data.title
-                : data.subject || (data.channel === "nota_interna" ? "Nota interna" : "Messaggio");
+                ? entry.data.title
+                : entry.data.subject || (entry.data.channel === "nota_interna" ? "Nota interna" : "Messaggio");
             const body = entry.kind === "event"
               ? payload.descrizione_lavori || payload.note || payload.message
               : entry.kind === "audit"
-                ? data.description
-                : data.body;
-            const actorName = entry.kind === "message" ? data.sent_by_name : data.actor_name;
+                ? entry.data.description
+                : entry.data.body;
+            const actorName = entry.kind === "message" ? entry.data.sent_by_name : entry.data.actor_name;
             return (
               <div key={`${entry.kind}-${data.id}`} className="rounded-2xl border bg-background p-4 shadow-sm">
                 <div className="flex items-start gap-3">
@@ -1176,7 +1231,7 @@ function DiarioCantiere({ orderId }: { orderId: string }) {
                     </div>
                     {actorName && <p className="text-xs text-muted-foreground">Da {actorName}</p>}
                     {body && <p className="mt-2 text-sm leading-relaxed text-foreground">{String(body)}</p>}
-                    {payload.foto_count ? (
+                    {typeof payload.foto_count === "number" && Number.isInteger(payload.foto_count) && payload.foto_count > 0 ? (
                       <p className="mt-2 text-xs font-semibold text-primary">{payload.foto_count} foto allegate al rapportino</p>
                     ) : null}
                   </div>
@@ -1196,7 +1251,6 @@ function CampoCloseDayCard({
   isInCantiere,
   isInPausa,
   uscitaRegistrata,
-  checklistDone,
   rapportinoDone,
   rapportinoDetail,
   fotoCount,
@@ -1204,7 +1258,6 @@ function CampoCloseDayCard({
   oreRapportino,
   avanzamentoRapportino,
   onTimbratura,
-  onChecklist,
   onRapportino,
 }: {
   isOperaio: boolean;
@@ -1212,7 +1265,6 @@ function CampoCloseDayCard({
   isInCantiere: boolean;
   isInPausa: boolean;
   uscitaRegistrata: boolean;
-  checklistDone: boolean;
   rapportinoDone: boolean;
   /** Cosa scrivere sotto «Rapportino» quando non è consegnato (di default «Manca»). */
   rapportinoDetail?: string;
@@ -1221,31 +1273,24 @@ function CampoCloseDayCard({
   oreRapportino: number | null;
   avanzamentoRapportino: number | null;
   onTimbratura: () => void;
-  onChecklist: () => void;
   onRapportino: () => void;
 }) {
   // Il subappaltatore non timbra: la timbratura non è nella sua navigazione
   // (né sidebar né azioni rapide), quindi entrata/uscita resterebbero per
   // sempre "Manca" e la giornata non si chiuderebbe mai. Per lui la giornata
-  // è checklist + rapportino.
+  // è il rapportino.
   // La timbratura NON è un prerequisito: capita di dimenticarla e il lavoro
   // va documentato lo stesso. Entrata e uscita restano passi CONSIGLIATI —
-  // quello che l'ufficio deve avere per forza è sicurezza + rapportino.
+  // quello che l'ufficio deve avere è il rapportino.
   const timbraturaAttesa = isOperaio && !hasTimbrato;
   const uscitaOk = isOperaio ? uscitaRegistrata : true;
 
   const evidenceOk = fotoCount > 0 || materialiCount > 0 || avanzamentoRapportino != null;
-  const requiredMissing = [checklistDone, rapportinoDone].filter((ok) => !ok).length;
-  const readyToExit = checklistDone && rapportinoDone && hasTimbrato && !uscitaOk;
-  const giornataCompleta = checklistDone && rapportinoDone && uscitaOk;
+  const requiredMissing = rapportinoDone ? 0 : 1;
+  const readyToExit = rapportinoDone && hasTimbrato && !uscitaOk;
+  const giornataCompleta = rapportinoDone && uscitaOk;
 
-  const status = !checklistDone
-    ? {
-        label: "Sicurezza",
-        cls: "bg-amber-100 text-amber-800",
-        text: "Completa la checklist prima di proseguire.",
-      }
-    : !rapportinoDone
+  const status = !rapportinoDone
       ? {
           label: "Rapportino",
           cls: "bg-amber-100 text-amber-800",
@@ -1261,13 +1306,13 @@ function CampoCloseDayCard({
           ? {
               label: "Manca la timbratura",
               cls: "bg-blue-100 text-blue-800",
-              text: "Sicurezza e rapportino ci sono. Se hai lavorato qui, registra anche la timbratura.",
+              text: "Il rapportino è presente. Se hai lavorato qui, registra anche la timbratura.",
             }
           : giornataCompleta
             ? {
                 label: "Chiusa",
                 cls: "bg-emerald-100 text-emerald-800",
-                text: "Giornata allineata: ore, sicurezza e rapportino sono presenti.",
+                text: "Giornata allineata: ore e rapportino sono presenti.",
               }
             : {
                 label: "Allineata",
@@ -1289,7 +1334,7 @@ function CampoCloseDayCard({
 
       {/* Ogni passo è un collegamento: prima erano riquadri morti e l'unico
           modo di muoversi era il bottone grande in fondo. */}
-      <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
+      <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
         {isOperaio && (
           <CloseDayStep
             ok={hasTimbrato}
@@ -1300,7 +1345,6 @@ function CampoCloseDayCard({
             onClick={onTimbratura}
           />
         )}
-        <CloseDayStep ok={checklistDone} icon={ShieldCheck} label="Sicurezza" detail={checklistDone ? "Ok" : "Da fare"} onClick={onChecklist} />
         <CloseDayStep ok={evidenceOk} icon={Camera} label="Evidenze" detail={evidenceOk ? `${fotoCount} foto · ${materialiCount} mat.` : "Consigliate"} optional onClick={onRapportino} />
         <CloseDayStep ok={rapportinoDone} icon={FileText} label="Rapportino" detail={rapportinoDone ? `${oreRapportino ?? 0} h` : rapportinoDetail ?? "Manca"} onClick={onRapportino} />
         {isOperaio && (

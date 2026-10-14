@@ -96,7 +96,7 @@ export function OrderCommessaSummary({
       <details className="group/status border-t border-slate-100">
         <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:min-h-8 sm:px-4 [&::-webkit-details-marker]:hidden">
           <ChevronDown className="h-3.5 w-3.5 transition-transform group-open/status:rotate-180" />
-          Stato e storico
+          Stato generale e cronologia
         </summary>
         <div id="section-stato" className="scroll-mt-24 space-y-4 border-t border-slate-100 p-3 sm:p-4">{children}</div>
       </details>

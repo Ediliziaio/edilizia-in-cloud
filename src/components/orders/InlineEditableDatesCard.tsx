@@ -1,30 +1,22 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
-import { CalendarIcon, Calendar as CalendarLucide, CalendarPlus, CheckCircle2, Hammer, Ruler, Search } from "lucide-react";
+import { CalendarDays, CalendarPlus, MoreHorizontal, Pencil } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import { logger } from "@/utils/logger";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
-import { useAuth } from "@/contexts/AuthContext";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { planningDay, planningTime, validatePlanning, type OrderPlanningDates } from "@/lib/orders/planning";
 
 interface InlineEditableDatesCardProps {
   orderId: string;
@@ -32,394 +24,129 @@ interface InlineEditableDatesCardProps {
   warehouseArrivalDate?: string | null;
   workStartDate?: string | null;
   workEndDate?: string | null;
+  workStartTime?: string | null;
+  workEndTime?: string | null;
+  updatedAt?: string | null;
   orderCode?: string | null;
   orderDescription?: string | null;
   defaultAddress?: string | null;
+  onOpenSchedule?: () => void;
 }
+const DATE_FIELDS = [
+  ["work_start_date", "Inizio lavori"], ["work_end_date", "Fine lavori"],
+  ["expected_date", "Posa prevista"], ["warehouse_arrival_date", "Arrivo materiali"],
+] as const;
 
-function InlineDatePicker({
-  label,
-  value,
-  onSelect,
-  disabled = false,
-}: {
-  label: string;
-  value: Date | undefined;
-  onSelect: (d: Date | undefined) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide">{label}</p>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={disabled}
-            className={cn(
-              "w-full justify-start text-left font-normal h-9 border-slate-200 hover:border-orange-300 hover:bg-orange-50/40",
-              !value && "text-slate-400"
-            )}
-          >
-            <CalendarIcon className="mr-2 h-3.5 w-3.5 text-orange-500" />
-            {value ? format(value, "d MMM yyyy", { locale: it }) : "Non impostata"}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="single"
-            selected={value}
-            onSelect={onSelect}
-            locale={it}
-            className="p-3 pointer-events-auto"
-          />
-        </PopoverContent>
-      </Popover>
-    </div>
-  );
+/** Read dates first, edit together. The order is already a calendar event:
+ * never generate/delete a second pair of start/end appointments. */
+export function InlineEditableDatesCard(props: InlineEditableDatesCardProps) {
+  return <PlanningDatesPanel key={props.orderId} {...props} />;
 }
-
-export function InlineEditableDatesCard({
-  orderId,
-  expectedDate,
-  warehouseArrivalDate,
-  workStartDate,
-  workEndDate,
-  orderCode,
-  orderDescription,
-  defaultAddress,
-}: InlineEditableDatesCardProps) {
-  const queryClient = useQueryClient();
-  const { effectiveCompany, user } = useAuth();
-
-  const parse = (v?: string | null) => (v ? parseISO(v) : undefined);
-  const [expected, setExpected] = useState<Date | undefined>(parse(expectedDate));
-  const [warehouse, setWarehouse] = useState<Date | undefined>(parse(warehouseArrivalDate));
-  const [workStart, setWorkStart] = useState<Date | undefined>(parse(workStartDate));
-  const [workEnd, setWorkEnd] = useState<Date | undefined>(parse(workEndDate));
-  const [workPlanOpen, setWorkPlanOpen] = useState(false);
-  const [workPlanStart, setWorkPlanStart] = useState<Date | undefined>(parse(workStartDate));
-  const [workPlanEnd, setWorkPlanEnd] = useState<Date | undefined>(parse(workEndDate));
-  const [savingWorkPlan, setSavingWorkPlan] = useState(false);
-  const [savingDates, setSavingDates] = useState(false);
-  const [appointmentOpen, setAppointmentOpen] = useState(false);
-  const [appointmentPreset, setAppointmentPreset] = useState<{
-    type: string;
-    title: string;
-    date?: string;
-  } | null>(null);
-
+function PlanningDatesPanel({orderId, expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
+  workStartTime, workEndTime, updatedAt, orderCode, orderDescription, defaultAddress, onOpenSchedule}: InlineEditableDatesCardProps) {
+  const qc = useQueryClient();
+  const { effectiveCompany } = useAuth();
+  const { canEditOrders } = usePermissions();
+  const companyId = effectiveCompany?.id;
+  const readonly = !canEditOrders || !companyId;
+  const persisted: OrderPlanningDates = {
+    expected_date: expectedDate ?? null, warehouse_arrival_date: warehouseArrivalDate ?? null,
+    work_start_date: workStartDate ?? null, work_end_date: workEndDate ?? null,
+    work_start_time: planningTime(workStartTime) || null, work_end_time: planningTime(workEndTime) || null,
+  };
+  const fingerprint = JSON.stringify([updatedAt, persisted]);
+  const [saved, setSaved] = useState<{fingerprint: string; dates: OrderPlanningDates} | null>(null);
+  const displayed = saved?.fingerprint === fingerprint ? saved.dates : persisted;
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<OrderPlanningDates>(persisted);
+  const [editVersion, setEditVersion] = useState(updatedAt);
+  const [saving, setSaving] = useState(false);
+  const [appointmentPreset, setAppointmentPreset] = useState<{type: string; title: string; date?: string} | null>(null);
   const orderRef = [orderCode, orderDescription].filter(Boolean).join(" - ");
-
-  useEffect(() => {
-    setExpected(parse(expectedDate));
-    setWarehouse(parse(warehouseArrivalDate));
-    setWorkStart(parse(workStartDate));
-    setWorkEnd(parse(workEndDate));
-    setWorkPlanStart(parse(workStartDate));
-    setWorkPlanEnd(parse(workEndDate));
-  }, [expectedDate, warehouseArrivalDate, workStartDate, workEndDate]);
-
-  const syncWorkAppointment = useCallback(
-    async (type: "inizio_lavori" | "fine_lavori", date: Date | undefined) => {
-      if (!effectiveCompany?.id) return;
-
-      const { data: existing, error: findError } = await supabase
-        .from("appointments")
-        .select("id")
-        .eq("company_id", effectiveCompany.id)
-        .eq("order_id", orderId)
-        .eq("appointment_type", type)
-        .limit(1)
-        .maybeSingle();
-      if (findError) throw findError;
-
-      if (!date) {
-        if (existing?.id) {
-          const { error } = await supabase.from("appointments").delete().eq("id", existing.id);
-          if (error) throw error;
-        }
-        return;
-      }
-
-      if (!user?.id && !existing?.id) return;
-
-      const dateValue = format(date, "yyyy-MM-dd");
-      const title = `${type === "inizio_lavori" ? "Inizio lavori" : "Fine lavori"}${orderRef ? ` · ${orderRef}` : ""}`;
-      const payload = {
-        company_id: effectiveCompany.id,
-        order_id: orderId,
-        title,
-        description: type === "inizio_lavori"
-          ? "Milestone operativo di avvio lavori collegato alla commessa."
-          : "Milestone operativo di fine lavori collegato alla commessa.",
-        appointment_date: dateValue,
-        appointment_time: null,
-        appointment_end_time: null,
-        appointment_type: type,
-        assigned_to: null,
-        calendar_id: null,
-        contact_id: null,
-        status: "confermato",
-        reminder_minutes: null,
-        reminder_sent: false,
-        formatted_address: defaultAddress || null,
-        created_by: user?.id,
-      };
-
-      if (existing?.id) {
-        const { created_by: _createdBy, company_id: _companyId, ...updatePayload } = payload;
-        const { error } = await supabase.from("appointments").update(updatePayload).eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("appointments").insert(payload);
-        if (error) throw error;
-      }
-    },
-    [defaultAddress, effectiveCompany?.id, orderId, orderRef, user?.id]
-  );
-
-  const saveField = useCallback(
-    async (field: string, date: Date | undefined) => {
-      setSavingDates(true);
-      try {
-        const value = date ? format(date, "yyyy-MM-dd") : null;
-        const { error } = await supabase
-          .from("orders")
-          .update({ [field]: value })
-          .eq("id", orderId);
-        if (error) {
-          toast.error("Errore nel salvataggio della data");
-          logger.error("Error saving date:", error);
-        } else {
-          if (field === "work_start_date") {
-            await syncWorkAppointment("inizio_lavori", date);
-          }
-          if (field === "work_end_date") {
-            await syncWorkAppointment("fine_lavori", date);
-          }
-          toast.success("Data aggiornata");
-          queryClient.invalidateQueries({ queryKey: ["order", orderId] });
-          queryClient.invalidateQueries({ queryKey: ["orders", "detail", orderId] });
-          queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
-          queryClient.invalidateQueries({ queryKey: ["appointments"] });
-        }
-      } finally {
-        setSavingDates(false);
-      }
-    },
-    [orderId, queryClient, syncWorkAppointment]
-  );
-
-  const handleChange = (
-    field: string,
-    setter: (d: Date | undefined) => void,
-    date: Date | undefined
-  ) => {
-    if (field === "work_start_date" && date && workEnd && date > workEnd) {
-      toast.error("La data inizio lavori non può essere dopo la fine");
-      return;
-    }
-    if (field === "work_end_date" && date && workStart && date < workStart) {
-      toast.error("La data fine lavori non può essere prima dell'inizio");
-      return;
-    }
-    setter(date);
-    saveField(field, date);
+  const refresh = () => {
+    for (const key of [["order", orderId], ["orders", "detail", orderId], ["orders", "diary-header", orderId],
+      ["calendar-orders"], ["appointments"], ["order-appointments", orderId], ["order-schedule-health", orderId],
+      ["campo-lavoro", orderId], ["campo-lavori-assegnati"], ["order-conteggi-viste", orderId]])
+      void qc.invalidateQueries({ queryKey: key });
   };
-
-  const openPlanner = (type: string, label: string, date?: Date) => {
-    setAppointmentPreset({
-      type,
-      title: `${label}${orderRef ? ` · ${orderRef}` : ""}`,
-      date: date ? format(date, "yyyy-MM-dd") : undefined,
-    });
-    setAppointmentOpen(true);
+  const edit = () => { setDraft({...displayed}); setEditVersion(updatedAt); setOpen(true); };
+  const planAppointment = (type: string, title: string, day?: string | null) => {
+    if (!readonly) setAppointmentPreset({type, title: title + (orderRef ? " · " + orderRef : ""), date: planningDay(day) || undefined});
   };
-
-  const openWorkPlanner = () => {
-    setWorkPlanStart(workStart);
-    setWorkPlanEnd(workEnd);
-    setWorkPlanOpen(true);
-  };
-
-  const saveWorkPlan = async () => {
-    if (!workPlanStart || !workPlanEnd) {
-      toast.error("Imposta data inizio e data fine lavori");
-      return;
-    }
-    if (workPlanEnd < workPlanStart) {
-      toast.error("La data fine lavori non può essere prima dell'inizio");
-      return;
-    }
-
-    setSavingWorkPlan(true);
+  const save = async () => {
+    if (saving || readonly) return;
+    const problem = validatePlanning(draft);
+    if (problem) { toast.error(problem); return; }
+    setSaving(true);
     try {
-      const startValue = format(workPlanStart, "yyyy-MM-dd");
-      const endValue = format(workPlanEnd, "yyyy-MM-dd");
-      const { error } = await supabase
-        .from("orders")
-        .update({ work_start_date: startValue, work_end_date: endValue })
-        .eq("id", orderId);
+      // work_*_time exists since pose_google_sync, but generated types lag the schema.
+      let query = supabase.from("orders").update(draft as never).eq("id", orderId).eq("company_id", companyId!);
+      if (editVersion) query = query.eq("updated_at", editVersion);
+      const {data, error} = await query.select("id").maybeSingle();
       if (error) throw error;
-
-      await syncWorkAppointment("inizio_lavori", workPlanStart);
-      await syncWorkAppointment("fine_lavori", workPlanEnd);
-
-      setWorkStart(workPlanStart);
-      setWorkEnd(workPlanEnd);
-      queryClient.invalidateQueries({ queryKey: ["order", orderId] });
-      queryClient.invalidateQueries({ queryKey: ["orders", "detail", orderId] });
-      queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["appointments"] });
-      toast.success("Pianificazione lavori aggiornata");
-      setWorkPlanOpen(false);
+      if (!data) throw new Error("Date non salvate: la commessa potrebbe essere cambiata. Riapri la pianificazione e riprova.");
+      setSaved({fingerprint, dates: {...draft}});
+      refresh(); setOpen(false);
+      toast.success("Date della commessa salvate");
+      // trg_orders_google_sync owns external sync and retries via its queue.
+      // A second push here could race the queue and create duplicate events.
     } catch (error) {
-      logger.error("Error saving work plan:", error);
-      toast.error("Errore nella pianificazione lavori");
-    } finally {
-      setSavingWorkPlan(false);
-    }
+      logger.error("Salvataggio pianificazione non riuscito", error);
+      toast.error(error instanceof Error ? error.message : "Date non salvate. Riprova.");
+    } finally { setSaving(false); }
   };
-
-  return (
-    <>
-      <QuoteCard
-        title="Tempistiche e calendario"
-        icon={<CalendarLucide className="h-4 w-4" />}
-      >
-        <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
-          <div className="mb-2 flex items-start gap-2">
-            <CalendarPlus className="mt-0.5 h-4 w-4 text-blue-600" />
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Pianifica attività di commessa</p>
-              <p className="text-xs text-slate-600">
-                Gestisci appuntamenti, rilievi e pianificazione lavori nel Calendario Lavori.
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="justify-start bg-white"
-              onClick={openWorkPlanner}
-            >
-              <Hammer className="mr-2 h-4 w-4 text-orange-600" />
-              Pianifica lavori
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="justify-start bg-white"
-              onClick={() => openPlanner("sopralluogo_preventivo", "Sopralluogo", expected ?? workStart)}
-            >
-              <Search className="mr-2 h-4 w-4 text-blue-600" />
-              Sopralluogo
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="justify-start bg-white"
-              onClick={() => openPlanner("rilievo_tecnico", "Rilievo misure", expected ?? workStart)}
-            >
-              <Ruler className="mr-2 h-4 w-4 text-emerald-600" />
-              Rilievo misure
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="justify-start bg-white"
-              onClick={() => openPlanner("collaudo", "Collaudo lavori", workEnd ?? expected)}
-            >
-              <CheckCircle2 className="mr-2 h-4 w-4 text-orange-600" />
-              Collaudo
-            </Button>
-          </div>
+  const inconsistent = validatePlanning(displayed) ||
+    (displayed.expected_date && displayed.work_start_date && displayed.work_end_date &&
+      (displayed.expected_date < displayed.work_start_date || displayed.expected_date > displayed.work_end_date)
+      ? "La posa prevista è fuori dal periodo lavori: verifica le date." : null);
+  return <>
+    <Card>
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 pb-3">
+        <CardTitle className="flex items-center gap-2 text-base"><CalendarDays className="h-4 w-4 text-orange-500" />Date del cantiere</CardTitle>
+        {!readonly && <Button type="button" aria-label="Modifica date" variant="outline" size="sm" onClick={edit} className="min-h-10"><Pencil className="mr-1.5 h-3.5 w-3.5" /><span className="hidden sm:inline">Modifica date</span><span className="sm:hidden">Modifica</span></Button>}
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+          {DATE_FIELDS.map(([field, label]) => {
+            const day = planningDay(displayed[field]);
+            const time = field === "work_start_date" ? displayed.work_start_time : field === "work_end_date" ? displayed.work_end_time : null;
+            return <div key={field}><dt className="text-xs text-muted-foreground">{label}</dt>
+              <dd className={"mt-1 text-sm " + (day ? "font-medium" : "text-muted-foreground")}>{day ? format(parseISO(day), "d MMM yyyy", {locale: it}) : displayed[field] ? "Data da verificare" : "Da definire"}{time && day ? " · " + time : ""}</dd></div>;
+          })}
+        </dl>
+        {inconsistent && <p role="alert" className="rounded-md bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">{inconsistent}</p>}
+        <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+          {!readonly && <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" aria-label="Pianifica appuntamento" variant="outline" size="sm" className="min-h-10"><CalendarPlus className="mr-1.5 h-4 w-4" /><span className="hidden sm:inline">Pianifica appuntamento</span><span className="sm:hidden">Appuntamento</span><MoreHorizontal className="ml-1.5 h-3.5 w-3.5" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={() => planAppointment("sopralluogo_preventivo", "Sopralluogo", displayed.work_start_date)}>Sopralluogo</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => planAppointment("rilievo_tecnico", "Rilievo misure", displayed.work_start_date)}>Rilievo misure</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => planAppointment("collaudo", "Collaudo lavori", displayed.work_end_date)}>Collaudo</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>}
+          {onOpenSchedule && <Button type="button" variant="ghost" size="sm" onClick={onOpenSchedule}>Cronoprogramma</Button>}
+          <Button asChild variant="ghost" size="sm"><Link to="/azienda/calendario" aria-label="Apri calendario"><span className="hidden sm:inline">Apri calendario</span><span className="sm:hidden">Calendario</span></Link></Button>
         </div>
-
-        <div className="grid grid-cols-1 gap-3">
-          <InlineDatePicker
-            label="Data Posa Prevista"
-            value={expected}
-            onSelect={(d) => handleChange("expected_date", setExpected, d)}
-            disabled={savingDates}
-          />
-          <InlineDatePicker
-            label="Arrivo Merce"
-            value={warehouse}
-            onSelect={(d) => handleChange("warehouse_arrival_date", setWarehouse, d)}
-            disabled={savingDates}
-          />
-          <InlineDatePicker
-            label="Inizio Lavori"
-            value={workStart}
-            onSelect={(d) => handleChange("work_start_date", setWorkStart, d)}
-            disabled={savingDates}
-          />
-          <InlineDatePicker
-            label="Fine Lavori"
-            value={workEnd}
-            onSelect={(d) => handleChange("work_end_date", setWorkEnd, d)}
-            disabled={savingDates}
-          />
+      </CardContent>
+    </Card>
+    <AppointmentDialog open={!!appointmentPreset} onOpenChange={next => {if (!next) setAppointmentPreset(null);}}
+      onSaved={() => {refresh(); setAppointmentPreset(null);}} defaultOrderId={orderId}
+      defaultDate={appointmentPreset?.date} defaultAppointmentType={appointmentPreset?.type ?? "sopralluogo_preventivo"}
+      defaultTitle={appointmentPreset?.title ?? ""} defaultAddress={defaultAddress} showOrderSelect={false} requireTime hideMarketingFields />
+    <Dialog open={open} onOpenChange={next => {if (!saving) setOpen(next);}}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader><DialogTitle>Modifica date del cantiere</DialogTitle><DialogDescription>Periodo generale della commessa. Le singole lavorazioni mantengono le proprie date.</DialogDescription></DialogHeader>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {DATE_FIELDS.map(([field, label]) => <div key={field} className="space-y-1.5"><Label htmlFor={orderId + "-" + field}>{label}</Label>
+            <Input id={orderId + "-" + field} type="date" value={planningDay(draft[field])} disabled={saving}
+              onChange={e => setDraft(previous => ({...previous, [field]: e.target.value || null,
+                ...(field === "work_start_date" && !e.target.value ? {work_start_time: null} : {}),
+                ...(field === "work_end_date" && !e.target.value ? {work_end_time: null} : {})}))} /></div>)}
+          {([["work_start_time", "Ora inizio", "work_start_date"], ["work_end_time", "Ora fine", "work_end_date"]] as const).map(([field, label, day]) => <div key={field} className="space-y-1.5"><Label htmlFor={orderId + "-" + field}>{label} <span className="text-xs text-muted-foreground">facoltativa</span></Label>
+            <Input id={orderId + "-" + field} type="time" value={draft[field] ?? ""} disabled={saving || !draft[day]} onChange={e => setDraft(previous => ({...previous, [field]: e.target.value || null}))} /></div>)}
         </div>
-      </QuoteCard>
-
-      <AppointmentDialog
-        open={appointmentOpen}
-        onOpenChange={setAppointmentOpen}
-        onSaved={() => {
-          queryClient.invalidateQueries({ queryKey: ["order-appointments", orderId] });
-          queryClient.invalidateQueries({ queryKey: ["appointments"] });
-          queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
-          setAppointmentOpen(false);
-        }}
-        defaultOrderId={orderId}
-        defaultDate={appointmentPreset?.date}
-        defaultAppointmentType={appointmentPreset?.type ?? "sopralluogo_preventivo"}
-        defaultTitle={appointmentPreset?.title ?? ""}
-        defaultAddress={defaultAddress}
-        showOrderSelect={false}
-        requireTime
-        hideMarketingFields
-      />
-
-      <Dialog open={workPlanOpen} onOpenChange={setWorkPlanOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Pianifica lavori</DialogTitle>
-            <DialogDescription>
-              Imposta l'intervallo operativo della commessa. Le due milestone saranno visibili nel Calendario Lavori.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3 py-2">
-            <InlineDatePicker
-              label="Data inizio"
-              value={workPlanStart}
-              onSelect={setWorkPlanStart}
-            />
-            <InlineDatePicker
-              label="Data fine"
-              value={workPlanEnd}
-              onSelect={setWorkPlanEnd}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setWorkPlanOpen(false)} disabled={savingWorkPlan}>
-              Annulla
-            </Button>
-            <Button onClick={saveWorkPlan} disabled={savingWorkPlan}>
-              {savingWorkPlan ? "Salvataggio..." : "Salva pianificazione"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
+        <p className="text-xs text-muted-foreground">Senza orari, il lavoro è pianificato per l'intera giornata. I calendari esterni seguono le integrazioni configurate.</p>
+        <DialogFooter><Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Annulla</Button><Button onClick={save} disabled={saving || readonly}>{saving ? "Salvataggio…" : "Salva date"}</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </>;
 }

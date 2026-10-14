@@ -9,46 +9,67 @@ import {
   eachDayOfInterval,
   isSameMonth,
   isSameDay,
-  parseISO,
   addMonths,
   subMonths,
+  addDays,
+  startOfDay,
 } from "date-fns";
 import { it } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, Hammer, MapPin, Package, Wrench, AlertTriangle, Users, UsersRound, CalendarClock, Check, Settings } from "lucide-react";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  ChevronLeft,
+  ChevronRight,
+  PanelRightOpen,
+  HardHat,
+  Clock3,
+} from "lucide-react";
+
 import { cn } from "@/lib/utils";
+import { buildCalendarEvents, type CalendarEvent } from "@/lib/calendar/events";
+import { calendarEventTime } from "@/lib/calendar/eventDetails";
+import { CalendarDayDetailsDialog } from "./CalendarDayDetailsDialog";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { DEFAULT_CALENDAR_EVENT_COLORS, hasLogisticRisk, rischioPagamenti, getEmployeeInitials, etichettaCommessa, WEEK_DAYS_IT, APPOINTMENT_ICONS, mapAppointmentToEditData, appuntamentoAnnullato, type CalendarEventColors } from "@/lib/calendarUtils";
-import { formatCurrency } from "@/lib/formatters";
+import {
+  DEFAULT_CALENDAR_EVENT_COLORS,
+  etichettaCommessa,
+  WEEK_DAYS_IT,
+  mapAppointmentToEditData,
+  type CalendarEventColors,
+} from "@/lib/calendarUtils";
 import { EditOrderDatesDialog } from "./EditOrderDatesDialog";
-import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarWarehouseInfo, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
-import { weatherCodeToEmoji, weatherCodeToLabel, type WeatherDay, type MultiLocationWeather, type LocationWeatherDay } from "@/hooks/useWeatherForecast";
-import { WeatherBadgeMulti } from "./WeatherBadge";
-import { Navigation } from "lucide-react";
-import { AppointmentDialog, type AppointmentData } from "@/components/appointments/AppointmentDialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-
-interface CalendarEvent {
-  type: "posa" | "merce" | "lavoro" | "appointment" | "google_busy" | "leave" | "intervento" | "manutenzione";
-  order?: CalendarOrder;
-  appointment?: CalendarAppointment;
-  busySlot?: GoogleBusySlot;
-  leave?: ApprovedLeave;
-  intervento?: CalendarIntervento;
-  manutenzione?: CalendarManutenzione;
-  color: string;
-}
-
+import type {
+  CalendarScope,
+  CalendarOrder,
+  CalendarAppointment,
+  GoogleBusySlot,
+  ApprovedLeave,
+  CalendarWarehouseInfo,
+  CalendarIntervento,
+  CalendarManutenzione,
+} from "@/types/calendar";
+import {
+  weatherCodeToEmoji,
+  type WeatherDay,
+  type MultiLocationWeather,
+  type LocationWeatherDay,
+} from "@/hooks/useWeatherForecast";
+import {
+  AppointmentDialog,
+  type AppointmentData,
+} from "@/components/appointments/AppointmentDialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 interface CalendarMonthViewProps {
+  isLoading?: boolean;
+  calendarScope?: CalendarScope;
+  presentation?: "month" | "agenda";
   orders: CalendarOrder[];
   appointments?: CalendarAppointment[];
   busySlots?: GoogleBusySlot[];
@@ -60,7 +81,16 @@ interface CalendarMonthViewProps {
   warehouseInfo?: Map<string, CalendarWarehouseInfo>;
   weatherForecast?: Map<string, WeatherDay>;
   calendarWeatherMulti?: MultiLocationWeather;
-  orderWeatherMap?: Map<string, { weather?: LocationWeatherDay; distanceKm?: number; durationMin?: number; durationLabel?: string; address?: string }>;
+  orderWeatherMap?: Map<
+    string,
+    {
+      weather?: LocationWeatherDay;
+      distanceKm?: number;
+      durationMin?: number;
+      durationLabel?: string;
+      address?: string;
+    }
+  >;
   interventi?: CalendarIntervento[];
   manutenzioni?: CalendarManutenzione[];
   onOpenDay?: (date: Date) => void;
@@ -71,6 +101,9 @@ interface CalendarMonthViewProps {
 }
 
 export function CalendarMonthView({
+  isLoading = false,
+  calendarScope = "personal",
+  presentation = "month",
   orders,
   appointments = [],
   busySlots = [],
@@ -90,103 +123,57 @@ export function CalendarMonthView({
   orderColorFn,
 }: CalendarMonthViewProps) {
   const queryClient = useQueryClient();
+  const permissions = usePermissions();
   const [editingOrder, setEditingOrder] = useState<CalendarOrder | null>(null);
-  const [editingAppointment, setEditingAppointment] = useState<AppointmentData | null>(null);
+  const [editingAppointment, setEditingAppointment] =
+    useState<AppointmentData | null>(null);
   const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
-  const [newAppointmentDate, setNewAppointmentDate] = useState<string | undefined>();
-  const [warehouseDrawer, setWarehouseDrawer] = useState<CalendarWarehouseInfo | null>(null);
+  const [newAppointmentDate, setNewAppointmentDate] = useState<
+    string | undefined
+  >();
+  const [dayDetailsOpen, setDayDetailsOpen] = useState(false);
+  const [warehouseDrawer, setWarehouseDrawer] =
+    useState<CalendarWarehouseInfo | null>(null);
 
+  const [agendaDay, setAgendaDay] = useState<Date | null>(null);
   const days = useMemo(() => {
+    if (presentation === "agenda")
+      return Array.from({ length: 7 }, (_, i) =>
+        addDays(startOfDay(currentDate), i),
+      );
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
     const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
     const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
     return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
-  }, [currentDate]);
+  }, [currentDate, presentation]);
 
-  // Pre-compute events by date string for O(1) lookups per day instead of O(orders * days)
-  const eventsByDate = useMemo(() => {
-    const map = new Map<string, CalendarEvent[]>();
-    const addEvent = (dateStr: string, event: CalendarEvent) => {
-      const existing = map.get(dateStr);
-      if (existing) existing.push(event);
-      else map.set(dateStr, [event]);
-    };
-    const addEventForRange = (start: Date, end: Date, event: CalendarEvent) => {
-      // Clamp range to visible calendar days to avoid iterating huge ranges
-      const rangeStart = days.length > 0 && start < days[0] ? days[0] : start;
-      const rangeEnd = days.length > 0 && end > days[days.length - 1] ? days[days.length - 1] : end;
-      const cursor = new Date(rangeStart);
-      while (cursor <= rangeEnd) {
-        addEvent(format(cursor, "yyyy-MM-dd"), { ...event });
-        cursor.setDate(cursor.getDate() + 1);
-      }
-    };
-
-    orders.forEach((order) => {
-      const posaDate = !hiddenEventTypes.has("posa") ? order.expected_date : null;
-      const merceDate = !hiddenEventTypes.has("merce") ? order.warehouse_arrival_date : null;
-
-      if (posaDate) {
-        addEvent(posaDate, { type: "posa", order, color: eventColors.posa });
-      }
-      if (merceDate) {
-        addEvent(merceDate, { type: "merce", order, color: eventColors.merce });
-      }
-      // Range "lavoro": evita di duplicare lo stesso ordine nei giorni in cui
-      // è già visibile come posa o arrivo merce (la data principale prevale).
-      if (!hiddenEventTypes.has("lavoro") && order.work_start_date) {
-        const workStart = parseISO(order.work_start_date);
-        const workEnd = order.work_end_date ? parseISO(order.work_end_date) : workStart;
-        const rangeStart = days.length > 0 && workStart < days[0] ? days[0] : workStart;
-        const rangeEnd = days.length > 0 && workEnd > days[days.length - 1] ? days[days.length - 1] : workEnd;
-        const cursor = new Date(rangeStart);
-        while (cursor <= rangeEnd) {
-          const dateStr = format(cursor, "yyyy-MM-dd");
-          if (dateStr !== posaDate && dateStr !== merceDate) {
-            addEvent(dateStr, { type: "lavoro", order, color: orderColorFn?.(order) ?? eventColors.lavoro });
-          }
-          cursor.setDate(cursor.getDate() + 1);
-        }
-      }
-    });
-    if (!hiddenEventTypes.has("appuntamento")) {
-      appointments.forEach((apt) => {
-        addEvent(apt.appointment_date, { type: "appointment", appointment: apt, color: eventColors.appuntamento });
-      });
-    }
-    if (!hiddenEventTypes.has("google_busy")) {
-      busySlots.forEach((slot) => {
-        const slotStart = parseISO(slot.start_at);
-        if (slot.is_all_day) {
-          addEvent(format(slotStart, "yyyy-MM-dd"), { type: "google_busy", busySlot: slot, color: eventColors.google_busy });
-        } else {
-          const slotEnd = parseISO(slot.end_at);
-          addEventForRange(slotStart, slotEnd, { type: "google_busy", busySlot: slot, color: eventColors.google_busy });
-        }
-      });
-    }
-    if (!hiddenEventTypes.has("leaves")) {
-      approvedLeaves.forEach((lr) => {
-        addEventForRange(parseISO(lr.start_date), parseISO(lr.end_date), { type: "leave", leave: lr, color: eventColors.leave });
-      });
-    }
-    if (!hiddenEventTypes.has("intervento")) {
-      interventi.forEach((iv) => {
-        if (iv.data_intervento_prevista) {
-          addEvent(iv.data_intervento_prevista, { type: "intervento", intervento: iv, color: eventColors.intervento });
-        }
-      });
-    }
-    if (!hiddenEventTypes.has("manutenzione")) {
-      manutenzioni.forEach((mn) => {
-        if (mn.prossima_scadenza) {
-          addEvent(mn.prossima_scadenza, { type: "manutenzione", manutenzione: mn, color: eventColors.manutenzione });
-        }
-      });
-    }
-    return map;
-  }, [orders, appointments, busySlots, approvedLeaves, interventi, manutenzioni, hiddenEventTypes, days, eventColors, orderColorFn]);
+  const eventsByDate = useMemo(
+    () =>
+      buildCalendarEvents(days, {
+        orders,
+        appointments,
+        busySlots,
+        approvedLeaves,
+        interventi,
+        manutenzioni,
+        hiddenEventTypes,
+        eventColors,
+        orderColorFn,
+      }),
+    [
+      orders,
+      appointments,
+      busySlots,
+      approvedLeaves,
+      interventi,
+      manutenzioni,
+      hiddenEventTypes,
+      days,
+      eventColors,
+      orderColorFn,
+    ],
+  );
 
   const getEventsForDay = (day: Date): CalendarEvent[] => {
     return eventsByDate.get(format(day, "yyyy-MM-dd")) || [];
@@ -194,22 +181,15 @@ export function CalendarMonthView({
 
   const weekDays = WEEK_DAYS_IT;
 
-  // ── Mobile (stile Google Calendar) ──────────────────────────────────────
-  // Le celle mese su 375px rendevano il testo evento illeggibile: qui griglia
-  // a pallini (max 3 per giorno + colore per tipo) + agenda del giorno
-  // selezionato. Il tap seleziona il giorno; le voci agenda aprono l'editor.
+  // Su mobile le celle restano compatte; il tap apre lo stesso dettaglio del giorno.
   const isMobile = useIsMobile();
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const selectedDate = useMemo(() => {
-    if (selectedKey) {
-      const d = parseISO(selectedKey);
-      if (isSameMonth(d, currentDate)) return d;
-    }
-    return currentDate;
-  }, [selectedKey, currentDate]);
+  const selectedDate =
+    presentation === "agenda" ? (agendaDay ?? currentDate) : currentDate;
 
   /** Riga d'agenda leggibile da un CalendarEvent (etichetta + azione). */
-  const describeEvent = (event: CalendarEvent): { label: string; color: string; onClick?: () => void } => {
+  const describeEvent = (
+    event: CalendarEvent,
+  ): { label: string; color: string; onClick?: () => void } => {
     if (event.type === "google_busy" && event.busySlot) {
       return {
         label: event.busySlot.team_name
@@ -219,7 +199,11 @@ export function CalendarMonthView({
       };
     }
     if (event.type === "leave" && event.leave) {
-      return { label: `Ferie/permesso · ${event.leave.employee_name ?? ""}`.trim(), color: event.color };
+      return {
+        label:
+          `Ferie/permesso · ${[event.leave.employee?.first_name, event.leave.employee?.last_name].filter(Boolean).join(" ")}`.trim(),
+        color: event.color,
+      };
     }
     if (event.type === "intervento" && event.intervento) {
       return { label: event.intervento.subject, color: event.color };
@@ -232,17 +216,25 @@ export function CalendarMonthView({
         label: event.appointment.title || "Appuntamento",
         color: event.color,
         onClick: () => {
+          setDayDetailsOpen(false);
           setEditingAppointment(mapAppointmentToEditData(event.appointment!));
           setAppointmentDialogOpen(true);
         },
       };
     }
     if (event.order) {
-      const kind = event.type === "posa" ? "Posa" : event.type === "lavoro" ? "Lavoro" : "Merce";
+      const kind =
+        event.type === "posa"
+          ? "Posa"
+          : event.type === "lavoro"
+            ? "Lavoro"
+            : "Merce";
       return {
-        label: `${kind} · ${event.order.customer_name ?? event.order.order_code ?? ""}`.trim(),
+        label:
+          `${event.work?.phase_id ? event.work.name : kind} · ${etichettaCommessa(event.order)}`.trim(),
         color: event.color,
         onClick: () => {
+          setDayDetailsOpen(false);
           if (event.type === "merce" && warehouseInfo?.get(event.order!.id)) {
             setWarehouseDrawer(warehouseInfo.get(event.order!.id)!);
           } else {
@@ -254,466 +246,370 @@ export function CalendarMonthView({
     return { label: "Evento", color: event.color };
   };
 
+  const selectedEvents = getEventsForDay(selectedDate);
+  const selectedDateKey = format(selectedDate, "yyyy-MM-dd");
+  const selectedForecast =
+    calendarWeatherMulti?.get(selectedDateKey)?.[0] ??
+    weatherForecast?.get(selectedDateKey);
+  const eventTime = calendarEventTime;
+  const previewLabel = (event: CalendarEvent) =>
+    event.order
+      ? `${event.work?.phase_id ? `${event.work.name} · ` : event.type === "posa" ? "Posa · " : event.type === "merce" ? "Merce · " : ""}${etichettaCommessa(event.order) || event.order.order_code || "Commessa"}`
+      : describeEvent(event).label;
+  const previewPriority = (event: CalendarEvent) =>
+    event.appointment
+      ? 0
+      : event.type === "posa" || event.type === "merce"
+        ? 1
+        : event.type === "lavoro"
+          ? 3
+          : 2;
+
   return (
-    // Mobile: niente riquadro attorno (dentro ce ne sono già due: mese e agenda).
-    <Card className="p-3 sm:p-4 max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
-      <div className="flex items-center justify-between mb-4 max-sm:mb-2">
-        <Button variant="ghost" size="icon" className="max-sm:h-8 max-sm:w-8" onClick={() => onDateChange(subMonths(currentDate, 1))}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <h2 className="text-lg font-semibold capitalize max-sm:text-base">
-          {format(currentDate, "MMMM yyyy", { locale: it })}
-        </h2>
-        <Button variant="ghost" size="icon" className="max-sm:h-8 max-sm:w-8" onClick={() => onDateChange(addMonths(currentDate, 1))}>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {isMobile ? (
-        (() => {
-          const selKey = format(selectedDate, "yyyy-MM-dd");
-          const selEvents = getEventsForDay(selectedDate);
-          return (
-            <div className="flex flex-col gap-2">
-              {/* Griglia mese a pallini */}
-              <div className="overflow-hidden rounded-lg border bg-card">
-                <div className="grid grid-cols-7 border-b bg-muted/30">
-                  {weekDays.map((day) => (
-                    <div key={day} className="py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {day}
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7">
-                  {days.map((day) => {
-                    const dayEvents = getEventsForDay(day);
-                    const inMonth = isSameMonth(day, currentDate);
-                    const today = isSameDay(day, new Date());
-                    const selected = isSameDay(day, selectedDate);
-                    const dotColors = [...new Set(dayEvents.map((e) => e.color))].slice(0, 3);
-                    return (
-                      <button
-                        key={format(day, "yyyy-MM-dd")}
-                        type="button"
-                        onClick={() => setSelectedKey(format(day, "yyyy-MM-dd"))}
-                        className={cn("flex h-11 flex-col items-center justify-center gap-0.5", !inMonth && "opacity-40")}
-                      >
-                        <span className={cn(
-                          "flex h-6 w-6 items-center justify-center rounded-full text-xs",
-                          selected ? "bg-primary font-semibold text-primary-foreground" : today ? "font-bold text-primary" : "text-foreground"
-                        )}>
-                          {format(day, "d")}
-                        </span>
-                        <span className="flex h-1.5 items-center gap-0.5">
-                          {dotColors.map((c, i) => (
-                            <span key={i} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: c }} />
-                          ))}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Agenda del giorno selezionato */}
-              <div className="overflow-hidden rounded-lg border bg-card">
-                <div className="flex items-center justify-between border-b px-3 py-2">
-                  <p className="text-sm font-semibold capitalize">{format(selectedDate, "EEEE d MMMM", { locale: it })}</p>
-                  <button
-                    type="button"
-                    onClick={() => { setEditingAppointment(null); setNewAppointmentDate(selKey); setAppointmentDialogOpen(true); }}
-                    className="tap-compact inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium text-muted-foreground hover:bg-muted"
-                  >
-                    + Nuovo
-                  </button>
-                </div>
-                {selEvents.length === 0 ? (
-                  <p className="px-3 py-4 text-center text-sm text-muted-foreground">Nessun impegno</p>
-                ) : (
-                  <div className="divide-y">
-                    {selEvents.map((event, i) => {
-                      const d = describeEvent(event);
-                      return (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={d.onClick}
-                          disabled={!d.onClick}
-                          className={cn("flex w-full items-center gap-2 px-3 py-2 text-left", d.onClick && "active:bg-muted")}
-                        >
-                          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
-                          <span className="min-w-0 flex-1 truncate text-[13px] leading-tight">{d.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()
-      ) : (
-      <TooltipProvider delayDuration={200}>
-        <div className="grid grid-cols-7 gap-px bg-muted rounded-lg overflow-hidden">
-          {weekDays.map((day) => (
-            <div
-              key={day}
-              className="bg-muted-foreground/5 p-2 text-center text-sm font-medium text-muted-foreground"
+    <div
+      className="min-w-0 overflow-hidden rounded-xl border bg-card max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent"
+      data-testid="work-calendar-month"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 max-sm:px-0">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold capitalize">
+            {presentation === "agenda"
+              ? `${format(days[0], "d MMM", { locale: it })} — ${format(days[6], "d MMM yyyy", { locale: it })}`
+              : format(currentDate, "MMMM yyyy", { locale: it })}
+          </h2>
+          <div className="flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              aria-label={
+                presentation === "agenda"
+                  ? "Sette giorni precedenti"
+                  : "Mese precedente"
+              }
+              onClick={() =>
+                onDateChange(
+                  presentation === "agenda"
+                    ? addDays(currentDate, -7)
+                    : subMonths(currentDate, 1),
+                )
+              }
             >
-              {day}
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              aria-label={
+                presentation === "agenda"
+                  ? "Sette giorni successivi"
+                  : "Mese successivo"
+              }
+              onClick={() =>
+                onDateChange(
+                  presentation === "agenda"
+                    ? addDays(currentDate, 7)
+                    : addMonths(currentDate, 1),
+                )
+              }
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        {!isMobile && (
+          <div className="flex items-center gap-4">
+            <div
+              className="hidden items-center gap-3 text-[11px] text-muted-foreground lg:flex"
+              aria-label="Legenda degli eventi"
+            >
+              <span className="flex items-center gap-1.5">
+                <HardHat className="h-3.5 w-3.5" />
+                Cantieri
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Clock3 className="h-3.5 w-3.5" />
+                Appuntamenti
+              </span>
             </div>
-          ))}
-
-          {days.map((day, dayIdx) => {
-            const dayEvents = getEventsForDay(day);
-            const isToday = isSameDay(day, new Date());
-            const isCurrentMonth = isSameMonth(day, currentDate);
-
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-2 text-xs"
+              aria-label="Apri dettaglio del giorno selezionato"
+              onClick={() => setDayDetailsOpen(true)}
+            >
+              <PanelRightOpen className="h-3.5 w-3.5" />
+              {format(selectedDate, "d MMM", { locale: it })} ·{" "}
+              {selectedEvents.length} eventi
+            </Button>
+          </div>
+        )}
+      </div>
+      {presentation === "agenda" ? (
+        <div
+          className="divide-y border-t"
+          role="region"
+          aria-label="Prossimi sette giorni"
+        >
+          {days.map((day) => {
+            const events = getEventsForDay(day);
+            const ordered = [...events].sort(
+              (a, b) =>
+                previewPriority(a) - previewPriority(b) ||
+                eventTime(a).localeCompare(eventTime(b)),
+            );
+            const open = () => {
+              setAgendaDay(day);
+              setDayDetailsOpen(true);
+            };
             return (
-              <div
-                key={dayIdx}
-                onClick={() => {
-                  setEditingAppointment(null);
-                  setNewAppointmentDate(format(day, "yyyy-MM-dd"));
-                  setAppointmentDialogOpen(true);
-                }}
-                className={cn(
-                  "min-h-[112px] sm:min-h-[132px] bg-background p-1.5 transition-colors cursor-pointer hover:bg-muted/30",
-                  !isCurrentMonth && "bg-muted/50"
-                )}
+              <section
+                key={format(day, "yyyy-MM-dd")}
+                className="grid gap-3 px-4 py-4 sm:grid-cols-[130px_minmax(0,1fr)]"
               >
-                <div className="flex items-center justify-between mb-1">
-                  <div
-                    className={cn(
-                      "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full",
-                      isToday && "bg-primary text-primary-foreground",
-                      !isCurrentMonth && "text-muted-foreground"
-                    )}
-                  >
-                    {format(day, "d")}
-                  </div>
-                  {(() => {
-                    const dateKey = format(day, "yyyy-MM-dd");
-                    // Preferisci multi-location se disponibile
-                    if (calendarWeatherMulti) {
-                      const locs = calendarWeatherMulti.get(dateKey);
-                      if (locs && locs.length > 0) return <WeatherBadgeMulti locations={locs} size="sm" />;
-                    }
-                    // Fallback al meteo singolo
-                    if (weatherForecast) {
-                      const w = weatherForecast.get(dateKey);
-                      return w ? <span className="text-[10px] leading-none">{weatherCodeToEmoji(w.code)}</span> : null;
-                    }
-                    return null;
-                  })()}
+                <div>
+                  <h3 className="text-sm font-semibold capitalize">
+                    {format(day, "EEEE d MMM", { locale: it })}
+                  </h3>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {events.length
+                      ? `${events.length} eventi`
+                      : "Nessun impegno"}
+                  </p>
                 </div>
-
-                {/* Niente riga «N attività» in cima a ogni giorno: le pastiglie si
-                    contano a colpo d'occhio e oltre cinque c'è già «+N altri». */}
                 <div className="space-y-1">
-                  {dayEvents.slice(0, 5).map((event, eventIdx) => {
-                    if (event.type === "google_busy" && event.busySlot) {
-                      return (
-                        <Tooltip key={`busy-${event.busySlot.id}-${eventIdx}`}>
-                          <TooltipTrigger asChild>
-                            <div
-                              className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border border-dashed border-muted-foreground/40 bg-muted/60 text-muted-foreground truncate cursor-default"
-                              style={event.busySlot.team_color ? { borderLeftWidth: 3, borderLeftStyle: "solid", borderLeftColor: event.busySlot.team_color } : undefined}
-                            >
-                              <CalendarClock className="h-3 w-3 flex-shrink-0 opacity-60" />
-                              <span className="truncate">{event.busySlot.team_name ? `${event.busySlot.team_name} · ` : ""}{event.busySlot.summary || "Occupato"}</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-xs">
-                            <p className="font-semibold">Slot occupato Google</p>
-                            {event.busySlot.summary && <p className="text-xs">{event.busySlot.summary}</p>}
-                          </TooltipContent>
-                        </Tooltip>
-                      );
-                    }
-                    if (event.type === "appointment" && event.appointment) {
-                      const apt = event.appointment;
-                      const AptIcon = APPOINTMENT_ICONS[apt.appointment_type] || CalendarClock;
-                      const isSynced = syncedAppointmentIds?.has(apt.id);
-                      return (
-                        <Tooltip key={`apt-${apt.id}-${eventIdx}`}>
-                          <TooltipTrigger asChild>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingAppointment(mapAppointmentToEditData(apt));
-                                setNewAppointmentDate(undefined);
-                                setAppointmentDialogOpen(true);
-                              }}
-                              className={cn("w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white transition-opacity hover:opacity-80 truncate", apt.is_completed && "opacity-50")}
-                              style={{ backgroundColor: event.color }}
-                            >
-                              <AptIcon className="h-3 w-3 flex-shrink-0" />
-                              <span className={cn("truncate font-medium", appuntamentoAnnullato(apt.status) && "line-through opacity-70")}>{apt.title}</span>
-                              {isSynced && <Check className="h-3 w-3 flex-shrink-0 text-green-200" />}
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-xs">
-                            <p className="font-semibold">{apt.title}</p>
-                            {apt.appointment_time && <p className="text-xs">Ore: {apt.appointment_time.slice(0, 5)}</p>}
-                            {apt.description && <p className="text-xs text-muted-foreground">{apt.description}</p>}
-                            {apt.assigned_profile && <p className="text-xs flex items-center gap-1"><Users className="h-3 w-3" />Assegnato a: {apt.assigned_profile.first_name} {apt.assigned_profile.last_name}</p>}
-                            {apt.formatted_address && (
-                              <a
-                                href={apt.lat && apt.lng ? `https://www.google.com/maps/search/?api=1&query=${apt.lat},${apt.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(apt.formatted_address)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-xs text-blue-600 hover:underline mt-1"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <MapPin className="h-3 w-3 shrink-0" />
-                                <span className="truncate">{apt.formatted_address}</span>
-                              </a>
-                            )}
-                            {isSynced && <p className="text-xs text-green-500 flex items-center gap-1"><Check className="h-3 w-3" />Sincronizzato con Google</p>}
-                            <p className="text-xs text-primary mt-1">Clicca per modificare</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      );
-                    }
-
-                    if (event.type === "leave" && event.leave) {
-                      const emp = event.leave.employee;
-                      const empName = emp ? `${emp.first_name} ${emp.last_name}` : "";
-                      return (
-                        <Tooltip key={`leave-${event.leave.id}-${eventIdx}`}>
-                          <TooltipTrigger asChild>
-                            <div className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-amber-500/20 border-l-2 border-amber-500 text-amber-900 dark:text-amber-200 truncate cursor-default">
-                              <span className="truncate">🏖 {empName}</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-xs">
-                            <p className="font-semibold">{event.leave.type === "ferie" ? "Ferie" : "Permesso"}</p>
-                            <p className="text-sm">{empName}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      );
-                    }
-
-                    if (event.type === "intervento" && event.intervento) {
-                      return (
-                        <Tooltip key={`iv-${event.intervento.id}-${eventIdx}`}>
-                          <TooltipTrigger asChild>
-                            <div
-                              className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white truncate cursor-default"
-                              style={{ backgroundColor: event.color }}
-                            >
-                              <Wrench className="h-3 w-3 flex-shrink-0" />
-                              <span className="truncate font-medium">{event.intervento.subject}</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-xs">
-                            <p className="font-semibold">Intervento</p>
-                            <p className="text-sm">{event.intervento.subject}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{event.intervento.status}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      );
-                    }
-                    if (event.type === "manutenzione" && event.manutenzione) {
-                      return (
-                        <Tooltip key={`mn-${event.manutenzione.id}-${eventIdx}`}>
-                          <TooltipTrigger asChild>
-                            <div
-                              className="w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded text-white truncate cursor-default"
-                              style={{ backgroundColor: event.color }}
-                            >
-                              <Settings className="h-3 w-3 flex-shrink-0" />
-                              <span className="truncate font-medium">{event.manutenzione.titolo}</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-xs">
-                            <p className="font-semibold">Manutenzione</p>
-                            <p className="text-sm">{event.manutenzione.titolo}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{event.manutenzione.stato}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      );
-                    }
-                    if (!event.order) return null;
-                    const logisticRisk = event.type === "posa" && hasLogisticRisk(event.order);
-                    const rischioPag = (event.type === "lavoro" || event.type === "posa") ? rischioPagamenti(event.order) : null;
-                    const initials = getEmployeeInitials(event.order);
-                    const whInfo = event.type === "merce" && warehouseInfo ? warehouseInfo.get(event.order.id) : undefined;
-                    const etichetta = etichettaCommessa(event.order);
-
-                    return (
-                      <Tooltip key={`${event.order.id}-${event.type}-${eventIdx}`}>
-                        <TooltipTrigger asChild>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (event.type === "merce" && whInfo) {
-                                setWarehouseDrawer(whInfo);
-                              } else {
-                                setEditingOrder(event.order!);
-                              }
-                            }}
-                            className={`w-full flex items-center gap-1 text-xs px-1.5 py-0.5 rounded transition-opacity hover:opacity-80 truncate ${event.type === "posa" || event.type === "merce" ? "font-medium" : "text-white"}`}
-                            style={
-                              // La tinta dice la COMMESSA (o squadra/tipo), lo stile dice il TIPO:
-                              // lavori = barra piena, data posa = chiara bordata, merce = tratteggiata.
-                              event.type === "posa"
-                                ? { backgroundColor: `${event.color}1F`, boxShadow: `inset 0 0 0 1.5px ${event.color}`, color: event.color }
-                                : event.type === "merce"
-                                  ? { backgroundColor: `${event.color}14`, border: `1.5px dashed ${event.color}`, color: event.color }
-                                  : { backgroundColor: event.color }
-                            }
-                          >
-                            {event.order.status && (
-                              <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: event.order.status.color }} />
-                            )}
-                            {/* Sotto 1280 il tipo lo dice già lo stile (piena, bordata,
-                                tratteggiata): l'icona lascia il posto al nome. */}
-                            {event.type === "posa" ? <Hammer className="h-3 w-3 flex-shrink-0 max-xl:hidden" /> : event.type === "lavoro" ? <Wrench className="h-3 w-3 flex-shrink-0 max-xl:hidden" /> : <Package className="h-3 w-3 flex-shrink-0 max-xl:hidden" />}
-                            {/* Il codice «ORD-2026-0…» riempiva la pastiglia e il cliente
-                                non si vedeva mai: il codice torna davanti solo da
-                                1536, altrimenti resta nel tooltip. */}
-                            <span className="truncate font-medium">
-                              {etichetta ? (
-                                <>
-                                  {event.order.order_code && <span className="hidden 2xl:inline">{event.order.order_code} - </span>}
-                                  {etichetta}
-                                </>
-                              ) : (event.order.order_code || "Ordine")}
-                            </span>
-                            {logisticRisk && <AlertTriangle className={`h-3 w-3 flex-shrink-0 ${event.type === "posa" ? "text-amber-500" : "text-yellow-200"}`} />}
-                            {rischioPag && (
-                              rischioPag.livello === "preavviso" ? (
-                                // Triangolo, non €: "stai per partire e non hai incassato".
-                                <AlertTriangle className="h-3 w-3 shrink-0 fill-red-600 text-white" />
-                              ) : (
-                                <span className={`shrink-0 rounded px-0.5 text-[9px] font-bold text-white ${rischioPag.livello === "rosso" ? "bg-red-600" : "bg-amber-500"}`}>€</span>
-                              )
-                            )}
-                            {(event.type === "posa" || event.type === "lavoro") && (() => {
-                              const empCount = event.order!.order_employees?.length ?? 0;
-                              if (empCount === 0) return (
-                                <span className="ml-auto shrink-0 text-[9px] bg-red-500/80 text-white rounded px-0.5">!</span>
-                              );
-                              return (
-                                <span className={`ml-auto shrink-0 text-[9px] rounded px-0.5 ${event.type === "posa" || event.type === "merce" ? "bg-black/10" : "bg-white/20"}`}>{empCount}op</span>
-                              );
-                            })()}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs">
-                          {(() => {
-                            const owInfo = orderWeatherMap?.get(event.order!.id);
-                            const orderAddress = event.order!.indirizzo_lavori || owInfo?.address;
-                            return (
-                              <div className="space-y-1">
-                                <p className="font-semibold">{event.order!.order_code || "N/A"} - {event.type === "posa" ? "Data Posa" : event.type === "lavoro" ? "Lavori in corso" : "Arrivo Merce"}</p>
-                                <p className="text-sm">{event.order!.customer.first_name} {event.order!.customer.last_name}</p>
-                                {event.order!.description && <p className="text-xs text-muted-foreground line-clamp-2">{event.order!.description}</p>}
-                                {orderAddress && (
-                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <MapPin className="h-3 w-3 shrink-0" />
-                                    <span className="truncate">{orderAddress}</span>
-                                  </div>
-                                )}
-                                {event.order!.status && (
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: event.order!.status.color }} />
-                                    <span className="text-xs">{event.order!.status.name}</span>
-                                  </div>
-                                )}
-                                {initials ? (
-                                  <div className="flex items-center gap-1 text-xs"><Users className="h-3 w-3" /><span>{initials}</span></div>
-                                ) : (
-                                  <div className="flex items-center gap-1 text-xs text-amber-500"><Users className="h-3 w-3" /><span>Nessuna squadra</span></div>
-                                )}
-                                {(() => {
-                                  const extNames = event.order!.order_external_teams?.map((aet) => aet.external_team.name).join(", ");
-                                  return extNames ? (<div className="flex items-center gap-1 text-xs"><UsersRound className="h-3 w-3" /><span>{extNames}</span></div>) : null;
-                                })()}
-                                {/* Meteo + Distanza cantiere */}
-                                {owInfo && (owInfo.weather || owInfo.distanceKm != null) && (
-                                  <div className="mt-1 pt-1 border-t border-border/50 space-y-0.5">
-                                    {owInfo.distanceKm != null && (
-                                      <div className="flex items-center gap-1 text-xs">
-                                        <Navigation className="h-3 w-3 text-blue-500 shrink-0" />
-                                        <span className="font-medium">{owInfo.distanceKm} km</span>
-                                        {owInfo.durationLabel && (
-                                          <span className="text-muted-foreground">· {owInfo.durationLabel} dalla sede</span>
-                                        )}
-                                      </div>
-                                    )}
-                                    {owInfo.weather && (
-                                      <div className="flex items-center gap-1.5 text-xs">
-                                        <span className="text-base leading-none">{weatherCodeToEmoji(owInfo.weather.code)}</span>
-                                        <span className="font-medium">{weatherCodeToLabel(owInfo.weather.code)}</span>
-                                        <span>{owInfo.weather.minTemp}°–{owInfo.weather.maxTemp}°</span>
-                                        {owInfo.weather.precip > 0 && <span className="text-blue-600">{owInfo.weather.precip}mm</span>}
-                                        {owInfo.weather.precip > 20 && <span className="text-red-500 font-medium">⚠️</span>}
-                                        {owInfo.weather.precip > 5 && owInfo.weather.precip <= 20 && <span className="text-orange-500">⚠️</span>}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                                {logisticRisk && (
-                                  <div className="flex items-center gap-1 text-xs text-amber-500 font-medium">
-                                    <AlertTriangle className="h-3 w-3" />
-                                    {!event.order!.warehouse_arrival_date ? "Merce non confermata" : "Merce arriva dopo la posa"}
-                                  </div>
-                                )}
-                                {rischioPag && (
-                                  <div className={`flex items-center gap-1 text-xs font-medium ${rischioPag.livello === "ambra" ? "text-amber-500" : "text-red-500"}`}>
-                                    <AlertTriangle className="h-3 w-3 shrink-0" />
-                                    <span>{rischioPag.messaggio}: {formatCurrency(rischioPag.importo_eur)}</span>
-                                  </div>
-                                )}
-                                {event.type === "merce" && whInfo && (
-                                  <div className="mt-1 space-y-1 border-t pt-1">
-                                    <div className="flex gap-3 text-xs">
-                                      <span className="text-green-600 font-medium">✅ {whInfo.readyCount} pronti</span>
-                                      <span className="text-amber-600 font-medium">⏳ {whInfo.pendingCount} in attesa</span>
-                                    </div>
-                                    {whInfo.items.slice(0, 3).map(item => (
-                                      <div key={item.id} className="flex items-center justify-between text-xs">
-                                        <span className="truncate">{item.name}</span>
-                                        <span className={`ml-2 shrink-0 font-medium ${item.status === "in_magazzino" || item.status === "installato" ? "text-green-600" : "text-amber-600"}`}>{item.status}</span>
-                                      </div>
-                                    ))}
-                                    <p className="text-xs text-primary cursor-pointer" onClick={(e) => { e.stopPropagation(); setWarehouseDrawer(whInfo); }}>Vedi dettaglio →</p>
-                                  </div>
-                                )}
-                                <p className="text-xs text-primary mt-1">{event.type === "merce" && whInfo ? "Clicca per i dettagli magazzino" : "Clicca per modificare le date"}</p>
-                              </div>
-                            );
-                          })()}
-                        </TooltipContent>
-                      </Tooltip>
-                    );
-                  })}
-                  {dayEvents.length > 5 && (
+                  {ordered.slice(0, 3).map((event, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={open}
+                      className="flex w-full items-start gap-3 rounded-lg px-2 py-2 text-left hover:bg-muted/40"
+                    >
+                      <span
+                        className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: event.color }}
+                      />
+                      <span className="w-10 shrink-0 text-xs font-semibold tabular-nums">
+                        {eventTime(event) || "Giorno"}
+                      </span>
+                      <span className="min-w-0 text-sm">
+                        <span className="line-clamp-2">
+                          {previewLabel(event)}
+                        </span>
+                        {event.order?.order_code && (
+                          <span className="text-[11px] text-muted-foreground">
+                            {event.order.order_code}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  ))}
+                  {events.length > 3 && (
                     <button
                       type="button"
-                      className="w-full rounded bg-muted/70 px-1 py-0.5 text-center text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (onOpenDay) onOpenDay(day);
-                        else onDateChange(day);
-                      }}
+                      onClick={open}
+                      className="px-2 py-2 text-xs font-medium text-primary hover:underline"
                     >
-                      +{dayEvents.length - 5} altri · vai al giorno
+                      Apri tutti i {events.length} eventi
                     </button>
                   )}
                 </div>
-              </div>
+              </section>
             );
           })}
         </div>
-      </TooltipProvider>
+      ) : (
+        <div className="overflow-hidden border-t bg-background max-sm:rounded-xl max-sm:border">
+          <div className="grid grid-cols-7 border-b bg-muted/30">
+            {weekDays.map((day) => (
+              <div
+                key={day}
+                className="py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7" aria-label="Giorni del calendario">
+            {days.map((day) => {
+              const date = format(day, "yyyy-MM-dd");
+              const events = getEventsForDay(day);
+              const selected = isSameDay(day, selectedDate);
+              const today = isSameDay(day, new Date());
+              const work = new Set(
+                events.filter((e) => e.order).map((e) => e.order!.id),
+              ).size;
+              const meetings = events.filter((e) => e.appointment).length;
+              const other =
+                events.length - events.filter((e) => e.order).length - meetings;
+              const colors = [...new Set(events.map((e) => e.color))].slice(
+                0,
+                3,
+              );
+              const previews = [...events]
+                .sort(
+                  (a, b) =>
+                    previewPriority(a) - previewPriority(b) ||
+                    eventTime(a).localeCompare(eventTime(b)) ||
+                    previewLabel(a).localeCompare(previewLabel(b)),
+                )
+                .slice(0, 2);
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  aria-pressed={selected}
+                  aria-current={today ? "date" : undefined}
+                  aria-label={`${format(day, "EEEE d MMMM yyyy", { locale: it })}: ${work} cantieri, ${meetings} appuntamenti, ${other} altri eventi`}
+                  title={previews
+                    .map(
+                      (e) =>
+                        `${eventTime(e)} ${previewLabel(e)}${e.order?.order_code ? ` · ${e.order.order_code}` : ""}`,
+                    )
+                    .join("\n")}
+                  onClick={() => {
+                    onDateChange(day);
+                    setDayDetailsOpen(true);
+                  }}
+                  className={cn(
+                    "flex min-w-0 flex-col items-stretch justify-start border-b border-r p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary hover:bg-muted/30",
+                    isMobile ? "h-14 text-center" : "h-[144px]",
+                    !isSameMonth(day, currentDate) &&
+                      "text-muted-foreground bg-muted/15",
+                    selected && "bg-primary/5 ring-1 ring-inset ring-primary",
+                    day.getDay() % 6 === 0 && !selected && "bg-muted/20",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "mb-1 flex items-center gap-1",
+                      isMobile && "justify-center",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs",
+                        today && "bg-primary font-bold text-primary-foreground",
+                        selected && !today && "font-bold text-primary",
+                      )}
+                    >
+                      {format(day, "d")}
+                    </span>
+                    {!isMobile && weatherForecast?.get(date) && (
+                      <span className="text-[10px]">
+                        {weatherCodeToEmoji(weatherForecast.get(date)!.code)}
+                      </span>
+                    )}
+                  </div>
+                  {isMobile ? (
+                    <div className="flex items-center justify-center gap-0.5">
+                      {colors.map((c) => (
+                        <span
+                          key={c}
+                          className="h-1.5 w-1.5 rounded-full"
+                          style={{ backgroundColor: c }}
+                        />
+                      ))}
+                      {events.length > 0 && (
+                        <span className="ml-1 text-[9px] text-muted-foreground">
+                          {events.length}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {previews.map((event, index) => (
+                        <div
+                          key={`${event.type}:${event.order?.id || event.appointment?.id || index}`}
+                          className={cn(
+                            "flex min-w-0 items-start gap-1.5 rounded px-1.5 py-0.5 text-[11px] leading-4",
+                            event.order && "bg-muted/60",
+                          )}
+                          title={`${eventTime(event)} ${previewLabel(event)}${event.order?.order_code ? ` · ${event.order.order_code}` : ""}`}
+                        >
+                          <span
+                            className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: event.color }}
+                          />
+                          {eventTime(event) && (
+                            <span className="shrink-0 text-[10px] font-semibold tabular-nums">
+                              {eventTime(event)}
+                            </span>
+                          )}
+                          <span className="line-clamp-2 min-w-0 flex-1">
+                            {previewLabel(event)}
+                          </span>
+                          {event.order?.order_code && (
+                            <span
+                              className="ml-auto shrink-0 text-[9px] tabular-nums text-muted-foreground"
+                              aria-hidden="true"
+                            >
+                              {event.order.order_code
+                                .split("-")
+                                .at(-1)
+                                ?.slice(-8)}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                      {events.length > previews.length && (
+                        <span className="block px-2 pt-0.5 text-[10px] font-medium text-muted-foreground">
+                          +{events.length - previews.length} altri eventi
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
+      <p className="px-4 py-2.5 text-[11px] text-muted-foreground max-sm:px-0">
+        Seleziona un giorno per consultare l’agenda completa e le risorse
+        assegnate.
+      </p>
+      <CalendarDayDetailsDialog
+        isLoading={isLoading}
+        calendarScope={calendarScope}
+        open={dayDetailsOpen}
+        onOpenChange={setDayDetailsOpen}
+        date={selectedDate}
+        events={selectedEvents}
+        isMobile={isMobile}
+        readOnly={permissions.solaLettura}
+        canEditOrders={permissions.canEditOrders}
+        canViewPayments={permissions.canViewScadenzario}
+        syncedAppointmentIds={syncedAppointmentIds}
+        warehouseInfo={warehouseInfo}
+        forecast={selectedForecast}
+        orderWeatherMap={orderWeatherMap}
+        onCreateAppointment={() => {
+          setDayDetailsOpen(false);
+          setEditingAppointment(null);
+          setNewAppointmentDate(selectedDateKey);
+          setAppointmentDialogOpen(true);
+        }}
+        onEditEvent={(event) => describeEvent(event).onClick?.()}
+        onOpenDay={
+          onOpenDay
+            ? () => {
+                setDayDetailsOpen(false);
+                onOpenDay(selectedDate);
+              }
+            : undefined
+        }
+      />
 
       {editingOrder && (
-        <EditOrderDatesDialog order={editingOrder} open={!!editingOrder} onOpenChange={(open) => !open && setEditingOrder(null)} orderWeatherInfo={orderWeatherMap?.get(editingOrder.id)} />
+        <EditOrderDatesDialog
+          order={editingOrder}
+          open={!!editingOrder}
+          onOpenChange={(open) => !open && setEditingOrder(null)}
+          orderWeatherInfo={orderWeatherMap?.get(editingOrder.id)}
+        />
       )}
 
       <AppointmentDialog
@@ -738,24 +634,38 @@ export function CalendarMonthView({
 
       {/* Warehouse mini-drawer */}
       {warehouseDrawer && (
-        <Sheet open={!!warehouseDrawer} onOpenChange={(open) => !open && setWarehouseDrawer(null)}>
+        <Sheet
+          open={!!warehouseDrawer}
+          onOpenChange={(open) => !open && setWarehouseDrawer(null)}
+        >
           <SheetContent side="right" className="w-full sm:max-w-sm">
             <SheetHeader>
               <SheetTitle className="text-sm">
-                {warehouseDrawer.orderCode ? `${warehouseDrawer.orderCode} · ` : ""}
+                {warehouseDrawer.orderCode
+                  ? `${warehouseDrawer.orderCode} · `
+                  : ""}
                 {warehouseDrawer.customerName}
               </SheetTitle>
             </SheetHeader>
             <div className="mt-4 space-y-3">
               <div className="flex gap-4 text-sm">
-                <span className="text-green-600 font-medium">✅ {warehouseDrawer.readyCount} pronti</span>
-                <span className="text-amber-600 font-medium">⏳ {warehouseDrawer.pendingCount} in attesa</span>
+                <span className="text-green-600 font-medium">
+                  ✅ {warehouseDrawer.readyCount} pronti
+                </span>
+                <span className="text-amber-600 font-medium">
+                  ⏳ {warehouseDrawer.pendingCount} in attesa
+                </span>
               </div>
               <div className="space-y-1">
-                {warehouseDrawer.items.map(item => (
-                  <div key={item.id} className="flex items-center justify-between text-xs border rounded px-2 py-1">
+                {warehouseDrawer.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between text-xs border rounded px-2 py-1"
+                  >
                     <span className="truncate">{item.name}</span>
-                    <span className={`ml-2 shrink-0 font-medium ${item.status === "in_magazzino" || item.status === "installato" ? "text-green-600" : "text-amber-600"}`}>
+                    <span
+                      className={`ml-2 shrink-0 font-medium ${item.status === "in_magazzino" || item.status === "installato" ? "text-green-600" : "text-amber-600"}`}
+                    >
                       {item.status}
                     </span>
                   </div>
@@ -772,6 +682,6 @@ export function CalendarMonthView({
           </SheetContent>
         </Sheet>
       )}
-    </Card>
+    </div>
   );
 }

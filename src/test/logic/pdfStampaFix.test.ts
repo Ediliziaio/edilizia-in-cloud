@@ -52,7 +52,7 @@ describe("fix impaginazione stampa/PDF (audit)", () => {
 
   describe("altri template edge (colori invisibili in stampa)", () => {
     it("generate-sal-pdf contiene print-color-adjust", () => {
-      const source = read("supabase/functions/generate-sal-pdf/index.ts");
+      const source = read("supabase/functions/generate-sal-pdf/render.ts");
       expect(source).toContain("print-color-adjust: exact");
     });
 

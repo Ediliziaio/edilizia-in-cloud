@@ -1,5 +1,5 @@
 /**
- * Modelli di preventivo: i testi che la pagina costruisce da sola (10/10/2026).
+ * Modelli preventivi e contratti: i testi che la pagina costruisce da sola (10/10/2026).
  *
  * - Un errore non arriva mai a schermo col messaggio del database («new row violates…», «Failed to fetch»):
  *   `erroreInItaliano` lo traduce, e lascia passare solo le frasi che `useQuoteTemplates` scrive già in italiano.

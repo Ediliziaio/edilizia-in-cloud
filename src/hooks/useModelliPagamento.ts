@@ -6,10 +6,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import {
-  assemblaModelliPagamento, modelliPagamentoDaOffrire,
-  type ModelloPagamento, type ModelloPagamentoPerServer, type PayloadModelloPagamento,
+  assemblaModelliPagamento,
+  modelliPagamentoDaOffrire,
+  type ModelloPagamento,
+  type ModelloPagamentoPerServer,
+  type PayloadModelloPagamento,
+  type RigaModelloPagamento,
+  type RigaRataModelloPagamento,
 } from "@/lib/orders/modelliPagamento";
 import { salMaturaValido, type SalMatura } from "@/lib/orders/salMaturazione";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 
 // Le tabelle non sono ancora nei tipi generati: cast localizzato.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -25,16 +31,25 @@ interface ModelliPagamentoAzienda {
   /** La lettura è andata a buon fine (le tabelle ci sono): senza, si offrono i modelli di partenza e non si tenta nulla. */
   disponibile: boolean;
 }
-const NESSUNO: ModelliPagamentoAzienda = { modelli: [], inizializzati: false, predefinito: null, salMatura: "emesso", disponibile: false };
+const NESSUNO: ModelliPagamentoAzienda = {
+  modelli: [],
+  inizializzati: false,
+  predefinito: null,
+  salMatura: "emesso",
+  disponibile: false,
+};
 
-export const chiaveModelliPagamento = (companyId: string | undefined) => ["modelli-pagamento", companyId] as const;
+export const chiaveModelliPagamento = (companyId: string | undefined) =>
+  ["modelli-pagamento", companyId] as const;
 
 /** Messaggi in italiano per gli errori che l'utente può causare (i controlli del database sono già in italiano). */
 export function messaggioModelloPagamento(e: unknown): string {
   const err = e as { code?: string; message?: string } | null;
   if (err?.code === "23505") return "Esiste già un modello con questo nome.";
-  if (err?.code === "42501") return "Non hai il permesso di modificare i modelli di pagamento.";
-  if (err?.code === "22023" || err?.code === "P0002") return err.message || "Controlla i dati del modello.";
+  if (err?.code === "42501")
+    return "Non hai il permesso di modificare i modelli di pagamento.";
+  if (err?.code === "22023" || err?.code === "P0002")
+    return err.message || "Controlla i dati del modello.";
   // Tutto il resto (rete, sessione scaduta, errori interni) non arriva al titolare con il suo testo tecnico.
   return userErrorMessage(e);
 }
@@ -49,22 +64,48 @@ export function useModelliPagamento() {
     queryKey: chiaveModelliPagamento(companyId),
     enabled: !!companyId,
     staleTime: 60_000,
-    queryFn: async (): Promise<ModelliPagamentoAzienda> => {
+    queryFn: async ({ signal }): Promise<ModelliPagamentoAzienda> => {
       // Se la lettura fallisce (tabelle non ancora create, rete) si offrono i soli modelli di partenza.
       try {
         const [m, r, impostazioni] = await Promise.all([
-          db.from("payment_plan_templates").select("id, name, hint, position").eq("company_id", companyId!).order("position"),
-          db.from("payment_plan_template_rows")
-            .select("id, template_id, position, label, type, percent, trigger_evento, trigger_numero, giorni_preavviso")
-            .eq("company_id", companyId!).order("position"),
+          loadCatalogPages<RigaModelloPagamento>((from, to) =>
+            db
+              .from("payment_plan_templates")
+              .select("id, name, hint, position")
+              .eq("company_id", companyId!)
+              .order("position")
+              .order("id")
+              .range(from, to)
+              .abortSignal(signal),
+          ),
+          loadCatalogPages<RigaRataModelloPagamento>((from, to) =>
+            db
+              .from("payment_plan_template_rows")
+              .select(
+                "id, template_id, position, label, type, percent, trigger_evento, trigger_numero, giorni_preavviso",
+              )
+              .eq("company_id", companyId!)
+              .order("position")
+              .order("id")
+              .range(from, to)
+              .abortSignal(signal),
+          ),
           // «*»: la colonna sal_matura_quando c'è solo dopo la seconda migrazione, e la lettura non deve fallire senza.
-          db.from("company_pagamenti_settings").select("*").eq("company_id", companyId!).maybeSingle(),
+          db
+            .from("company_pagamenti_settings")
+            .select("*")
+            .eq("company_id", companyId!)
+            .maybeSingle(),
         ]);
-        for (const x of [m, r, impostazioni]) if (x.error) throw x.error;
+        if (impostazioni.error) throw impostazioni.error;
         return {
-          modelli: assemblaModelliPagamento(m.data ?? [], r.data ?? []),
+          modelli: assemblaModelliPagamento(m, r),
           inizializzati: Boolean(impostazioni.data?.modelli_inizializzati),
-          predefinito: (impostazioni.data?.modello_predefinito as string | null | undefined) ?? null,
+          predefinito:
+            (impostazioni.data?.modello_predefinito as
+              | string
+              | null
+              | undefined) ?? null,
           salMatura: salMaturaValido(impostazioni.data?.sal_matura_quando),
           disponibile: true,
         };
@@ -74,12 +115,17 @@ export function useModelliPagamento() {
     },
   });
 
-  const riparti = () => qc.invalidateQueries({ queryKey: chiaveModelliPagamento(companyId) });
+  const riparti = () =>
+    qc.invalidateQueries({ queryKey: chiaveModelliPagamento(companyId) });
   const onError = (e: unknown) => toast.error(messaggioModelloPagamento(e));
 
   const salva = useMutation({
     mutationFn: async (modello: PayloadModelloPagamento): Promise<string> => {
-      const { data, error } = await db.rpc("salva_modello_pagamento", { p_company_id: companyId, p_modello: modello });
+      if (!companyId) throw new Error("Azienda non disponibile.");
+      const { data, error } = await db.rpc("salva_modello_pagamento", {
+        p_company_id: companyId,
+        p_modello: modello,
+      });
       if (error) throw error;
       return data as string;
     },
@@ -89,7 +135,11 @@ export function useModelliPagamento() {
 
   const elimina = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await db.rpc("elimina_modello_pagamento", { p_company_id: companyId, p_id: id });
+      if (!companyId) throw new Error("Azienda non disponibile.");
+      const { error } = await db.rpc("elimina_modello_pagamento", {
+        p_company_id: companyId,
+        p_id: id,
+      });
       if (error) throw error;
     },
     onSuccess: riparti,
@@ -98,9 +148,18 @@ export function useModelliPagamento() {
 
   // I modelli di partenza diventano dell'azienda (una volta), o si rimettono quelli che mancano.
   const inizializza = useMutation({
-    mutationFn: async ({ modelli, soloMancanti }: { modelli: ModelloPagamentoPerServer[]; soloMancanti: boolean }): Promise<number> => {
+    mutationFn: async ({
+      modelli,
+      soloMancanti,
+    }: {
+      modelli: ModelloPagamentoPerServer[];
+      soloMancanti: boolean;
+    }): Promise<number> => {
+      if (!companyId) throw new Error("Azienda non disponibile.");
       const { data, error } = await db.rpc("inizializza_modelli_pagamento", {
-        p_company_id: companyId, p_modelli: modelli, p_solo_mancanti: soloMancanti,
+        p_company_id: companyId,
+        p_modelli: modelli,
+        p_solo_mancanti: soloMancanti,
       });
       if (error) throw error;
       return Number(data) || 0;
@@ -111,24 +170,47 @@ export function useModelliPagamento() {
 
   // Le scelte dell'azienda: il modello di partenza e quando matura la rata di un SAL.
   const impostazioni = useMutation({
-    mutationFn: async (valori: { modelloPredefinito?: string | null; salMatura?: SalMatura }) => {
+    mutationFn: async (valori: {
+      modelloPredefinito?: string | null;
+      salMatura?: SalMatura;
+    }) => {
+      if (!companyId) throw new Error("Azienda non disponibile.");
       const p_valori: Record<string, unknown> = {};
-      if (valori.modelloPredefinito !== undefined) p_valori.modello_predefinito = valori.modelloPredefinito;
-      if (valori.salMatura !== undefined) p_valori.sal_matura_quando = valori.salMatura;
-      const { error } = await db.rpc("pagamenti_impostazioni_salva", { p_company_id: companyId, p_valori });
+      if (valori.modelloPredefinito !== undefined)
+        p_valori.modello_predefinito = valori.modelloPredefinito;
+      if (valori.salMatura !== undefined)
+        p_valori.sal_matura_quando = valori.salMatura;
+      const { error } = await db.rpc("pagamenti_impostazioni_salva", {
+        p_company_id: companyId,
+        p_valori,
+      });
       if (error) throw error;
     },
     onSuccess: (_esito, valori) => {
       // La stella (il modello di partenza) vale per le commesse nuove; la regola del SAL vale per TUTTE le commesse
       // dell'azienda, anche per quelle già aperte (SalTab la legge quando mostra ogni rata).
-      toast.success(valori.salMatura !== undefined ? "Fatto: vale subito per tutte le commesse." : "Fatto: vale da subito per le commesse nuove.");
-      void riparti();
+      toast.success(
+        valori.salMatura !== undefined
+          ? "Fatto: vale subito per tutte le commesse."
+          : "Fatto: vale da subito per le commesse nuove.",
+      );
+      if(valori.salMatura!==undefined){
+        void qc.invalidateQueries({queryKey:["sal-matura",companyId]});
+        void qc.invalidateQueries({queryKey:["sal-records"]});
+        void qc.invalidateQueries({queryKey:["order-installments"]});
+        void qc.invalidateQueries({queryKey:["orders"]});
+        void qc.invalidateQueries({queryKey:["forecast-installments"]});
+      }
+      return riparti();
     },
     onError,
   });
 
   const dati = query.data ?? NESSUNO;
-  const offerti = useMemo(() => modelliPagamentoDaOffrire(dati.inizializzati, dati.modelli), [dati.inizializzati, dati.modelli]);
+  const offerti = useMemo(
+    () => modelliPagamentoDaOffrire(dati.inizializzati, dati.modelli),
+    [dati.inizializzati, dati.modelli],
+  );
   return {
     modelli: dati.modelli,
     /** I modelli da offrire: i suoi, o finché non li ha fatti suoi quelli di partenza. */
@@ -140,6 +222,9 @@ export function useModelliPagamento() {
     isLoading: query.isLoading,
     /** Per «Riprova» quando i modelli non si riescono a leggere. */
     refetch: query.refetch,
-    salva, elimina, inizializza, impostazioni,
+    salva,
+    elimina,
+    inizializza,
+    impostazioni,
   };
 }

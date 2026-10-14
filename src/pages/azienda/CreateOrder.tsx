@@ -43,6 +43,7 @@ import {
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
+import {SalPlanInfo} from "@/components/orders/SalPlanInfo";
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { PendingFilesUpload, type PendingFile } from "@/components/orders/PendingFilesUpload";
 import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
@@ -1532,6 +1533,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             financingCost={financingCost || ""}
             onFinancingCostChange={(val) => setValue("financing_cost", val)}
           />
+          {effectiveCompany?.id && installments.some(r=>r.trigger_evento==="sal_numero") && <SalPlanInfo creating companyId={effectiveCompany.id} installments={installments}/>}
         </div>
 
         {/* Customer Dates Card */}

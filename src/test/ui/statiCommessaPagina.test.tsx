@@ -13,6 +13,7 @@ const stato = (id: string, name: string, position: number, extra: Record<string,
 const state = vi.hoisted(() => ({
   admin: true, modifica: true, automazioni: true, portale: false,
   avvisa: true,
+  avvisoErrore: false, usoErrore: false, ordini: [] as Array<{ id: string; current_status_id: string | null }>,
   letturaErrore: false, letture: 0,
   aggiornamentoRighe: [{ id: "azienda-1" }] as unknown[],
   aggiornamentoErrore: null as unknown,
@@ -35,22 +36,17 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: (...argomenti: unknown[]) => state.rpc(...argomenti),
     from: (tabella: string) => {
-      if (tabella === "order_statuses") {
-        return {
-          select: () => ({
-            eq: () => ({
-              order: async () => {
-                state.letture += 1;
-                return state.letturaErrore
-                  ? { data: null as unknown, error: { message: "permission denied for table order_statuses" } }
-                  : { data: state.stati, error: null as unknown };
-              },
-            }),
-          }),
-        };
+      if (tabella === "orders" || tabella === "order_statuses") {
+        const q = { select: () => q, eq: () => q, order: () => q,
+          range: async (from: number, to: number) => {
+            if (tabella === "order_statuses") state.letture += 1;
+            const errore = tabella === "orders" ? state.usoErrore : state.letturaErrore;
+            return errore ? { data: null as null, error: { message: "permission denied" } } : { data: (tabella === "orders" ? state.ordini : state.stati).slice(from, to + 1), error: null as null };
+          },
+        }; return q;
       }
       return {
-        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { avvisa_cliente_cambio_fase: state.avvisa }, error: null as unknown }) }) }),
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { avvisa_cliente_cambio_fase: state.avvisa }, error: state.avvisoErrore ? { message: "Lettura non disponibile" } : null as unknown }) }) }),
         update: (valori: Record<string, unknown>) => {
           state.aggiornamenti.push(valori);
           return { eq: () => ({ select: async () => ({ data: state.aggiornamentoRighe, error: state.aggiornamentoErrore }) }) };
@@ -77,7 +73,7 @@ function apri() {
 beforeEach(() => {
   vi.clearAllMocks();
   Object.assign(state, {
-    admin: true, modifica: true, automazioni: true, portale: false, avvisa: true, letturaErrore: false, letture: 0,
+    admin: true, modifica: true, automazioni: true, portale: false, avvisa: true, avvisoErrore: false, usoErrore: false, ordini: [], letturaErrore: false, letture: 0,
     aggiornamentoRighe: [{ id: "azienda-1" }], aggiornamentoErrore: null, aggiornamenti: [],
     stati: [
       stato("s1", "Contratto Firmato", 0),
@@ -85,7 +81,11 @@ beforeEach(() => {
       stato("s3", "Assistenza", 2, { is_support_phase: true }),
     ],
   });
-  state.rpc.mockResolvedValue({ data: null as unknown, error: null as unknown });
+  state.rpc.mockImplementation(async (_nome: string, args: { p_statuses: Array<Record<string, unknown>> }) => {
+    const data = args.p_statuses.map((r, i) => ({ ...r, id: r.id ?? `generato-${i}` }));
+    state.stati = data;
+    return { data, error: null as null };
+  });
 });
 afterEach(() => {
   cleanup();
@@ -113,7 +113,7 @@ describe("Stati commessa: la pagina dice il vero", () => {
     await screen.findByDisplayValue("Posa");
     expect(screen.queryAllByRole("heading", { level: 1 })).toHaveLength(0);
     const titoli = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    expect(titoli).toEqual(["I tuoi stati", "Cosa vede il cliente", "Parti da un elenco pronto"]);
+    expect(titoli).toEqual(["I tuoi stati", "Parti da un elenco pronto", "Cosa vede il cliente"]);
   });
 
   it("parla di stati, non di fasi: lo stato Assistenza, niente «Progress Tracker» né «pipeline»", async () => {
@@ -124,7 +124,7 @@ describe("Stati commessa: la pagina dice il vero", () => {
     expect(testo).not.toMatch(/Fase Assistenza/i);
     expect(testo).not.toMatch(/cambio di fase/i);
     expect(testo).not.toMatch(/Progress Tracker/i);
-    expect(testo).not.toMatch(/pipeline/i);
+    expect(testo).toContain("La pipeline delle Opportunità segue la vendita");
     expect(screen.getByRole("switch", { name: "Avvisa il cliente a ogni cambio di stato" })).toBeInTheDocument();
   });
 
@@ -200,19 +200,21 @@ describe("Stati commessa: modifiche e bozza", () => {
     await waitFor(() => expect(state.errore).toHaveBeenCalledWith("Non sono riuscito a salvare. Riprova tra poco."));
   });
 
-  it("un elenco pronto sostituisce la lista solo nella bozza: niente si scrive finché non si preme «Salva modifiche»", async () => {
+  it("un elenco pronto aggiunge alla bozza senza cancellare stati: nessuna scrittura prima della conferma", async () => {
     apri();
     await screen.findByLabelText("Nome dello stato 2");
     fireEvent.click(screen.getByText("Parti da un elenco pronto"));
     fireEvent.click(screen.getByRole("button", { name: "Impianti" }));
-    expect(state.info).toHaveBeenCalledWith("Elenco «Impianti» caricato: controlla la lista e premi «Salva modifiche».");
-    expect(screen.getByDisplayValue("Collaudo e Certificazione")).toBeInTheDocument();
+    expect(state.info).toHaveBeenCalledWith("Modello «Impianti» aggiunto alla bozza. Gli stati esistenti restano invariati: controlla e salva.");
+    expect(screen.getByDisplayValue("Verifica e Documentazione")).toBeInTheDocument();
     expect(state.rpc).not.toHaveBeenCalled();
     // Lo stato Assistenza e quelli con lo stesso nome restano collegati alle commesse: tengono il loro id.
     fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
     await waitFor(() => expect(state.rpc).toHaveBeenCalled());
     const inviati = (state.rpc.mock.calls[0][1] as { p_statuses: { id?: string; name: string }[] }).p_statuses;
     expect(inviati.find((s) => s.name === "Assistenza")?.id).toBe("s3");
+    expect(inviati.find((s) => s.name === "Posa")?.id).toBe("s2");
+    expect(inviati.find((s) => s.name === "Contratto Firmato")?.id).toBe("s1");
   });
 
   it("lo stato Assistenza non si elimina", async () => {
@@ -307,5 +309,60 @@ describe("Stati commessa: la lettura che fallisce", () => {
     const lette = state.letture;
     fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
     await waitFor(() => expect(state.letture).toBeGreaterThan(lette));
+  });
+});
+
+
+describe("Stati e commesse collegate", () => {
+  it("mostra le commesse collegate e impedisce di eliminare uno stato in uso", async () => {
+    state.ordini = [{ id: "o1", current_status_id: "s2" }, { id: "o2", current_status_id: "s2" }];
+    apri();
+    await screen.findByText("2 commesse");
+    expect(screen.getByRole("button", { name: "Elimina lo stato Posa" })).toBeDisabled();
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+  it("un elenco pronto non scarta stati che sono ancora usati da commesse", async () => {
+    state.ordini = [{ id: "o1", current_status_id: "s2" }];
+    apri(); await screen.findByText("1 commessa");
+    fireEvent.click(screen.getByText("Parti da un elenco pronto"));
+    fireEvent.click(screen.getByRole("button", { name: "Impianti" }));
+    expect(state.errore).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Nome dello stato 2")).toHaveValue("Posa");
+    expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeEnabled();
+  });
+  it("le frecce riordinano gli stessi identificativi, senza creare un nuovo stato", async () => {
+    apri(); await screen.findByLabelText("Nome dello stato 2");
+    fireEvent.click(screen.getByRole("button", { name: "Sposta su Posa" }));
+    expect(screen.getByLabelText("Nome dello stato 1")).toHaveValue("Posa");
+    fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+    await waitFor(() => expect(state.rpc).toHaveBeenCalled());
+    expect(state.rpc.mock.calls[0][1].p_statuses.map((s: { id: string }) => s.id)).toEqual(["s2", "s1", "s3"]);
+  });
+  it("ripristinare il nome originale non lascia modifiche fittizie da salvare", async () => {
+    apri(); const nome = await screen.findByLabelText("Nome dello stato 2");
+    fireEvent.change(nome, { target: { value: "Posa nuova" } });
+    fireEvent.change(nome, { target: { value: "Posa" } });
+    expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeDisabled();
+  });
+  it("cambiare lo stato dell’anteprima non modifica la configurazione né una commessa", async () => {
+    apri(); await screen.findByLabelText("Nome dello stato 2");
+    fireEvent.change(screen.getByRole("combobox", { name: "Stato da mostrare nell’anteprima" }), { target: { value: "s2" } });
+    expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeDisabled();
+    expect(state.rpc).not.toHaveBeenCalled();
+    expect(state.aggiornamenti).toHaveLength(0);
+  });
+  it("la lettura delle email fallita non diventa una scelta modificabile basata su un valore fittizio", async () => {
+    state.avvisoErrore = true;
+    apri(); await screen.findByText(/Non riesco a leggere la scelta delle email/);
+    expect(screen.getByRole("switch", { name: "Avvisa il cliente a ogni cambio di stato" })).toBeDisabled();
+    expect(state.aggiornamenti).toHaveLength(0);
+  });
+  it("senza conferma dal salvataggio conserva la bozza e non annuncia successo", async () => {
+    state.rpc.mockResolvedValue({ data: null, error: null });
+    apri(); fireEvent.change(await screen.findByLabelText("Nome dello stato 2"), { target: { value: "Posa nuova" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+    await waitFor(() => expect(state.errore).toHaveBeenCalled());
+    expect(state.successo).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Nome dello stato 2")).toHaveValue("Posa nuova");
   });
 });

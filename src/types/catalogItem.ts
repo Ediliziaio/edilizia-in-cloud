@@ -28,6 +28,9 @@ export interface ArticleTemplateLite {
   modello: string | null;
   description: string | null;
   categoria_id: string | null;
+  /** Categoria testuale legacy e famiglia collegata, quando presenti. */
+  category?: string | null;
+  family_id?: string | null;
   modalita_prezzo: string;
   prezzo_vendita: number | null;
   prezzo_acquisto_netto: number | null;

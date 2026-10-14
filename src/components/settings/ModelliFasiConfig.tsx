@@ -55,7 +55,7 @@ export default function ModelliFasiConfig({ evidenziata = false }: { evidenziata
       <SezioneImpostazione
         id="modelli"
         titolo="Modelli di fasi"
-        descrizione="Quando apri una commessa e premi «Scegli le fasi» trovi questi. Ogni fase può avere sottofasi: spuntandole, la fase avanza da sola. Le commesse già avviate non cambiano."
+        descrizione="Li trovi nella commessa: Lavorazioni → Aggiungi fasi → Usa un modello. Ogni fase può avere sottofasi. Modificare un modello non cambia le commesse già avviate."
         azione={puoAgire ? <Button size="sm" onClick={() => setBozza(bozzaVuota())}><Plus className="mr-1 h-4 w-4" />Nuovo modello</Button> : undefined}
         evidenziata={evidenziata}
       >

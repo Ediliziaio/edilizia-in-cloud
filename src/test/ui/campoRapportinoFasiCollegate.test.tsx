@@ -69,6 +69,7 @@ const FOTO_A = "https://local.invalid/a.jpg";
 const FOTO_B = "https://local.invalid/b.jpg";
 
 beforeEach(() => {
+  localStorage.clear();
   vi.clearAllMocks();
   state.role = { isCapocantiere: false, esisteCapo: false };
   state.phases = [

@@ -201,7 +201,9 @@ Deno.serve(async (req) => {
       base64 = image_base64;
       resolvedMimeType = mime_type ?? "image/jpeg";
       resolvedFileName = file_name ?? "ddt-upload";
-      fingerprintInput = image_base64.substring(0, 256); // primi 256 char come fingerprint
+      // Hash del contenuto completo: intestazioni JPEG uguali non identificano la stessa bolla.
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(image_base64));
+      fingerprintInput = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("");
     } else {
       if (!storage_bucket || !storage_path || !file_name) {
         return errorResponse(

@@ -25,6 +25,10 @@ export interface PhaseAssignment {
   is_paid: boolean;
   paid_date: string | null;
   notes: string | null;
+  /** Read-only identity from the related record, also for inactive historical staff. */
+  executor_label?: string | null;
+  executor_inactive?: boolean;
+  executor_kind?: "interna" | "esterna";
 }
 
 export interface WorkPhase {
@@ -216,7 +220,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
-  const invalidate = () => refreshWorkQueries(qc, orderId);
+  const invalidate = () => refreshWorkQueries(qc, orderId, companyId);
 
   // Ogni mutation fallita mostra un toast (prima: fallimenti silenziosi → spinner
   // infinito nel dialog "Aggiungi esecutore" e input che tornano indietro senza avviso).
@@ -224,13 +228,13 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     toast.error(e instanceof Error ? e.message : "Operazione non riuscita. Riprova.");
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["order_work_phases", orderId],
+    queryKey: ["order_work_phases", orderId, companyId],
     enabled: !!orderId && !!companyId,
     queryFn: async () => {
       const [phasesRes, empRes, teamRes] = await Promise.all([
-        db.from("order_work_phases").select("*").eq("order_id", orderId!).order("position", { ascending: true }),
-        db.from("order_employees").select("id, employee_id, phase_id, total_cost, cost_preventivo, hours_worked, is_paid, paid_date, notes").eq("order_id", orderId!),
-        db.from("order_external_teams").select("id, external_team_id, phase_id, total_cost, cost_preventivo, is_paid, paid_date, notes").eq("order_id", orderId!),
+        db.from("order_work_phases").select("*").eq("order_id", orderId!).eq("company_id", companyId!).order("position", { ascending: true }),
+        db.from("order_employees").select("id, employee_id, phase_id, total_cost, cost_preventivo, hours_worked, is_paid, paid_date, notes, employee:employees(first_name,last_name,is_active), orders!inner(company_id)").eq("order_id", orderId!).eq("orders.company_id", companyId!).eq("employee.company_id", companyId!),
+        db.from("order_external_teams").select("id, external_team_id, phase_id, total_cost, cost_preventivo, is_paid, paid_date, notes, team:external_teams(name,kind,is_active), orders!inner(company_id)").eq("order_id", orderId!).eq("orders.company_id", companyId!).eq("team.company_id", companyId!),
       ]);
       if (phasesRes.error) throw phasesRes.error;
       if (empRes.error) throw empRes.error;
@@ -249,6 +253,8 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         is_paid: Boolean(e.is_paid),
         paid_date: (e.paid_date as string) ?? null,
         notes: (e.notes as string) ?? null,
+        executor_label: e.employee && typeof e.employee === "object" ? [(e.employee as Record<string, unknown>).first_name, (e.employee as Record<string, unknown>).last_name].filter(v => typeof v === "string").join(" ").trim() || null : null,
+        executor_inactive: !!e.employee && (e.employee as Record<string, unknown>).is_active === false,
       }));
 
       const teamAssignments: PhaseAssignment[] = (teamRes.data ?? []).map((t: Record<string, unknown>): PhaseAssignment => ({
@@ -264,6 +270,9 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         is_paid: Boolean(t.is_paid),
         paid_date: (t.paid_date as string) ?? null,
         notes: (t.notes as string) ?? null,
+        executor_label: t.team && typeof t.team === "object" && typeof (t.team as Record<string, unknown>).name === "string" ? (t.team as Record<string, unknown>).name as string : null,
+        executor_inactive: !!t.team && (t.team as Record<string, unknown>).is_active === false,
+        executor_kind: (t.team as {kind?: "interna" | "esterna"} | null)?.kind,
       }));
 
       const all = [...empAssignments, ...teamAssignments];
@@ -467,6 +476,9 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   const addAssignment = useMutation({
     mutationFn: async (a: AddAssignmentPayload) => {
       if (a.executor_type === "interno") {
+        if ((a.hours ?? 0) !== 0 || a.cost_consuntivo !== 0) {
+          throw new Error("L'assegnazione non registra ore o spese: usa i rapportini per il consuntivo del dipendente.");
+        }
         const { error } = await db.from("order_employees").insert({
           order_id: orderId,
           employee_id: a.employee_id,

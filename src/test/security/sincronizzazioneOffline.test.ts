@@ -19,18 +19,19 @@ const dir = resolve(__dirname, "../../../supabase/migrations");
 const nome = readdirSync(dir).find((f) => f.includes("sincronizzazione_offline_idempotente"));
 if (!nome) throw new Error("migrazione sincronizzazione_offline_idempotente non trovata");
 const sql = readFileSync(resolve(dir, nome), "utf8");
-const hook = readFileSync(
-  resolve(__dirname, "../../hooks/campo/useOfflineSync.ts"), "utf8");
+const hook = readFileSync(resolve(__dirname, "../../lib/campo/offlineProcessor.ts"), "utf8");
 
-describe("il difetto che questa RPC chiude", () => {
-  it("la coda del client rigioca ancora con insert semplici", () => {
-    // Se un giorno il client passerà a sync_batch, questa prova va aggiornata:
-    // serve a ricordare perché la RPC esiste.
-    expect(hook).toMatch(/\.insert\(item\.payload\)/);
+describe("il client non aggira le policy ed evita i reinvii duplicati", () => {
+  it("l'insert ha una chiave stabile e verifica la propria riga dopo una risposta persa", () => {
+    expect(hook).toContain("syncOperationId(item)");
+    expect(hook).toContain('error.code === "23505"');
+    expect(hook).toContain('.eq("id", id).eq("company_id", row?.company_id');
   });
 
-  it("e accetta un nome di tabella dal telefono", () => {
-    expect(hook).toMatch(/from\(item\.target\)/);
+  it("rifiuta target generici provenienti dal telefono", () => {
+    expect(hook).not.toMatch(/from\(item\.target\)/);
+    expect(hook).toContain('item.type === "generic"');
+    expect(hook).toContain("SyncPermanentError");
   });
 });
 

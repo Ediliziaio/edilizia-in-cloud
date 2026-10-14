@@ -6,6 +6,12 @@ import {
 } from "@/lib/settingsQuoteTemplatesRoute";
 
 describe("settings quote templates route params", () => {
+  it("apre Varianti anche da un URL con un vecchio modulo e ripulisce solo i parametri del modulo", () => {
+    const params = new URLSearchParams("tab=varianti&modulo=serramenti&modello=finestre&section=cover&foo=1");
+    expect(resolveQuoteTemplatesTopTab("varianti", "serramenti")).toBe("varianti");
+    expect(normalizeQuoteTemplatesParams(params)?.toString()).toBe("tab=varianti&foo=1");
+    expect(buildQuoteTemplatesTabParams(params, "varianti").toString()).toBe("tab=varianti&foo=1");
+  });
   it("forces the sales-modules tab when a valid sales module is in the URL", () => {
     expect(resolveQuoteTemplatesTopTab("documenti", "serramenti")).toBe("moduli-vendita");
     expect(resolveQuoteTemplatesTopTab("documenti", "fotovoltaico")).toBe("moduli-vendita");

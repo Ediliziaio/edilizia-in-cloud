@@ -58,6 +58,11 @@ describe("Chiusura di una fase dall'ufficio (06/10/2026)", () => {
 });
 
 describe("Collegamento assegnazione e app Campo (API simulate)", () => {
+  it.each([{hours: 8}, {cost_consuntivo: 208}])("assegnare un dipendente non può inserire un consuntivo %s", async patch => {
+    const {result} = renderHook(() => useOrderWorkPhases("order"));
+    await expect(result.current.addAssignment.mutateAsync({...payload, ...patch})).rejects.toThrow(/rapportini/);
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
   it("non imputa la squadra interna come subappaltatore neppure chiamando la mutation", async () => {
     const team = builder({ data: { id: "team", kind: "interna", is_active: true }, error: null as null });
     const assignments = builder(null);

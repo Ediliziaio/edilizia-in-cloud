@@ -26,12 +26,14 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: (tabella: string) => {
+      let intervallo: [number, number] | null = null;
       const q = {
         select: (colonne: string) => { stato.select[tabella] = colonne; return q; },
         eq: () => q,
         order: () => q,
+        range: (from: number, to: number) => { intervallo = [from, to]; return q; },
         maybeSingle: () => Promise.resolve({ data: null, error: null }),
-        then: (ok: (r: unknown) => unknown) => Promise.resolve({ data: stato.righe[tabella] ?? [], error: null }).then(ok),
+        then: (ok: (r: unknown) => unknown) => { const tutte = stato.righe[tabella] ?? []; return Promise.resolve({ data: intervallo ? tutte.slice(intervallo[0], intervallo[1] + 1) : tutte, error: null }).then(ok); },
       };
       return q;
     },
@@ -51,6 +53,12 @@ async function tariffeLette(righe: unknown[]): Promise<TariffaPro[]> {
 }
 
 describe("Tariffe: costo e unità con la regola unica", () => {
+  it("legge anche la tariffa regionale oltre il limite REST di mille righe", async () => {
+    const righe = Array.from({ length: 1050 }, (_, i) => ({ id: `t${i}`, nome: `Tariffa ${i}`, tipo: "manodopera", prezzo_vendita: 0.0066, costo_interno: 0.0044, codice: `REG-${i}`, unita: "kg", unita_fatturazione: "kg" }));
+    const tariffe = await tariffeLette(righe);
+    expect(tariffe).toHaveLength(1050);
+    expect(tariffe[1049]).toMatchObject({ codice: "REG-1049", costo_interno: 0.0044, prezzo_vendita: 0.0066 });
+  });
   it("il costo vero in prezzo_costo vince sullo 0 di default di costo_interno, e lo portano entrambe le colonne", async () => {
     const [posa, vuota] = await tariffeLette([
       { id: "t1", nome: "Posa", tipo: "posa", prezzo_vendita: 90, costo_interno: 0, prezzo_costo: 35, costo_default: null, unita: "pz", unita_fatturazione: "pz" },

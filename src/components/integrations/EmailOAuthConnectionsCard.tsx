@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { emailSyncPending } from "@/lib/email/syncPending";
 import { cn } from "@/lib/utils";
 import { ImapCustomDialog, type CasellaDaRicollegare } from "./ImapCustomDialog";
 import { EmailSignatureEditor } from "./EmailSignatureEditor";
@@ -237,8 +238,10 @@ export function EmailOAuthConnectionsCard() {
       const stored = typeof data === "object" && data && "emails_stored" in data
         ? Number((data as { emails_stored?: number }).emails_stored ?? 0)
         : null;
-      toast.success("Email aggiornate", {
-        description: stored == null ? "Aggiorno la lista email." : `${stored} nuove email salvate nel client personale.`,
+      const pending = emailSyncPending(data);
+      const notify = pending ? toast.info : toast.success;
+      notify(pending ? "Recupero email in corso" : "Email aggiornate", {
+        description: pending ? "La pagina disponibile è salvata. Il recupero delle altre email prosegue nei prossimi giri." : stored == null ? "Aggiorno la lista email." : `${stored} nuove email salvate nel client personale.`,
       });
       void qc.invalidateQueries({ queryKey: ["email-oauth-connections"] });
       void qc.invalidateQueries({ queryKey: ["email-client-connections"] });

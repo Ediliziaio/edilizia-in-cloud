@@ -14,7 +14,11 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { TravelLeg } from "@/types/marketingCalendar";
-import { getRoute, formatDurationText, formatDistanceText } from "@/lib/routing";
+import {
+  getRoute,
+  formatDurationText,
+  formatDistanceText,
+} from "@/lib/routing";
 import { useCompanyBase } from "@/hooks/useCompanyBase";
 
 interface AppointmentWithLocation {
@@ -25,7 +29,12 @@ interface AppointmentWithLocation {
   lng?: number | null;
 }
 
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+function haversineKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
@@ -49,25 +58,35 @@ export function useOperativeTravelLegs(
   appointments: AppointmentWithLocation[],
   baseLat?: number,
   baseLng?: number,
-  avgSpeedKmh = 60
+  avgSpeedKmh = 60,
+  requireConfiguredBase = false,
 ): TravelLegsResult {
   const companyBase = useCompanyBase();
   const effBaseLat = baseLat ?? companyBase?.lat ?? 45.4654;
   const effBaseLng = baseLng ?? companyBase?.lng ?? 9.1859;
 
+  const hasBase = (baseLat != null && baseLng != null) || companyBase != null;
   const sorted = useMemo(() => {
+    if (requireConfiguredBase && !hasBase) return [];
     return [...appointments]
-      .filter(a => a.lat && a.lng)
+      .filter(
+        (a) =>
+          a.lat != null &&
+          a.lng != null &&
+          Number.isFinite(a.lat) &&
+          Number.isFinite(a.lng),
+      )
       .sort((a, b) => {
         const aTime = a.appointment_time ?? "00:00";
         const bTime = b.appointment_time ?? "00:00";
         return aTime.localeCompare(bTime);
       });
-  }, [appointments]);
+  }, [appointments, requireConfiguredBase, hasBase]);
 
   // ── Livello 1: stima haversine istantanea ──────────────────────────────────
   const estimate = useMemo((): Omit<TravelLegsResult, "isRealRoute"> => {
-    if (sorted.length === 0) return { travelLegs: [], totalKm: 0, totalMinutes: 0 };
+    if (sorted.length === 0)
+      return { travelLegs: [], totalKm: 0, totalMinutes: 0 };
 
     const legs: TravelLeg[] = [];
     let totalKm = 0;
@@ -109,8 +128,8 @@ export function useOperativeTravelLegs(
   // queryKey stabile: id ordinati + base. Vedi perf fix 2026-05-27 in
   // MarketingCalendar — id non ordinati causavano cache miss continui.
   const routeKey = useMemo(
-    () => sorted.map(a => `${a.id}:${a.lat},${a.lng}`).join("|"),
-    [sorted]
+    () => sorted.map((a) => `${a.id}:${a.lat},${a.lng}`).join("|"),
+    [sorted],
   );
 
   const { data: realLegs } = useQuery({
@@ -118,7 +137,7 @@ export function useOperativeTravelLegs(
     queryFn: async (): Promise<TravelLeg[] | null> => {
       const waypoints = [
         { lat: effBaseLat, lng: effBaseLng },
-        ...sorted.map(a => ({ lat: a.lat!, lng: a.lng! })),
+        ...sorted.map((a) => ({ lat: a.lat!, lng: a.lng! })),
       ];
       const route = await getRoute(waypoints);
       if (!route?.legs || route.legs.length !== sorted.length) return null;

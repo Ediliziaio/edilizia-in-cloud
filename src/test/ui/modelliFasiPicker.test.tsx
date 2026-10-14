@@ -4,8 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ModelliFasiPicker } from "@/components/orders/ModelliFasiPicker";
 import type { ModelloFasi } from "@/lib/orders/modelliFasi";
 
-const state = vi.hoisted(() => ({ modelli: [] as unknown[], inizializzati: false }));
-vi.mock("@/hooks/useModelliFasi", () => ({ useModelliFasi: () => ({ modelli: state.modelli, inizializzati: state.inizializzati }) }));
+const state = vi.hoisted(() => ({ modelli: [] as unknown[], inizializzati: false, loading: false, error: false, settings: true, refetch: vi.fn() }));
+vi.mock("@/hooks/useModelliFasi", () => ({ useModelliFasi: () => ({ modelli: state.modelli, inizializzati: state.inizializzati, isLoading: state.loading, isError: state.error, refetch: state.refetch }) }));
+vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canViewSettingsOrders: state.settings})}));
 vi.mock("@/hooks/useOrderWorkPhases", () => ({
   PHASE_TEMPLATES: [
     { key: "bagno", label: "Bagno", hint: "Rifacimento bagno", phases: ["Demolizioni", "Impianti"] },
@@ -20,10 +21,29 @@ const mio: ModelloFasi = {
     { nome: "Collaudo", sottofasi: [] },
   ],
 };
-beforeEach(() => { state.modelli = []; state.inizializzati = false; });
+beforeEach(() => { state.modelli = []; state.inizializzati = false; state.error = false; state.loading = false; state.settings = true; vi.clearAllMocks(); });
 afterEach(cleanup);
 
 describe("ModelliFasiPicker", () => {
+  it("indica la pagina dei modelli con il permesso corretto", () => {
+    const {rerender} = render(<ModelliFasiPicker onApplica={vi.fn()} inCorso={false} />);
+    expect(screen.getByRole("link", {name: "Gestisci modelli"})).toHaveAttribute("href", "/azienda/impostazioni/modelli-fasi#modelli");
+    state.settings = false; rerender(<ModelliFasiPicker onApplica={vi.fn()} inCorso={false} />);
+    expect(screen.queryByRole("link", {name: "Gestisci modelli"})).not.toBeInTheDocument();
+  });
+  it.each(["loading", "error"] as const)("%s non applica modelli standard al posto di dati non letti", key => {
+    state[key] = true; const onApplica = vi.fn(); render(<ModelliFasiPicker onApplica={onApplica} inCorso={false} />);
+    expect(screen.getByRole("button", {name: "Bagno"})).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", {name: "Bagno"})); expect(onApplica).not.toHaveBeenCalled();
+    if (key === "error") {fireEvent.click(screen.getByRole("button", {name: "Riprova modelli"})); expect(state.refetch).toHaveBeenCalledOnce();}
+  });
+  it("filtra i modelli senza applicare né cambiare quelli memorizzati", () => {
+    state.inizializzati = true; state.modelli = Array.from({length: 6}, (_, i) => ({...mio, id: `m${i}`, nome: `Impianti ${i}`}));
+    const onApplica = vi.fn(); render(<ModelliFasiPicker onApplica={onApplica} inCorso={false} />);
+    fireEvent.change(screen.getByLabelText("Cerca modello"), {target: {value: "impianti 3"}});
+    expect(screen.getByRole("button", {name: "Impianti 3"})).toBeInTheDocument(); expect(screen.queryByRole("button", {name: "Impianti 1"})).not.toBeInTheDocument();
+    expect(onApplica).not.toHaveBeenCalled(); expect(state.modelli).toHaveLength(6);
+  });
   it("finché l'azienda non li ha fatti suoi è quello di sempre: «Parti da un modello» e gli stessi modelli", () => {
     render(<ModelliFasiPicker onApplica={vi.fn()} inCorso={false} />);
     expect(screen.getByText("Parti da un modello")).toBeInTheDocument();
@@ -81,8 +101,9 @@ describe("ModelliFasiPicker", () => {
   });
 
   it("mentre salva il pulsante è spento", () => {
-    render(<ModelliFasiPicker onApplica={vi.fn()} inCorso />);
+    const {rerender} = render(<ModelliFasiPicker onApplica={vi.fn()} inCorso={false} />);
     fireEvent.click(screen.getByRole("button", { name: "Bagno" }));
+    rerender(<ModelliFasiPicker onApplica={vi.fn()} inCorso />);
     expect(screen.getByRole("button", { name: "Aggiungi le 2 fasi" })).toBeDisabled();
   });
 });

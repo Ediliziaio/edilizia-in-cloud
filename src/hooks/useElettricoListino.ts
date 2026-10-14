@@ -16,6 +16,7 @@
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { termineDiRicerca } from "@/lib/ricercaPostgrest";
 import { buildSeedRows } from "@/lib/elettrico/seedListino";
@@ -25,7 +26,7 @@ import type {
   EleListinoVoce,
   EleUnitaMisura,
 } from "@/types/elettrico";
-import type { AdottaPrezzarioInput } from "@/lib/prezzario/queries";
+import { useAdottaPrezzarioListino } from "@/lib/prezzario/adozioneLavorazioni";
 import { costoTariffa, unitaTariffa, type CostiTariffa } from "@/lib/listino/costoTariffa";
 
 // Tipi ele_* non rigenerati: cast unico, riusato in tutto il file.
@@ -94,7 +95,7 @@ export function useListinoVoci(capitoloId?: string | null) {
     queryKey: K.voci(companyId, capitoloId),
     enabled: !!companyId,
     staleTime: 60_000,
-    queryFn: async () => {
+    queryFn: async () => loadCatalogPages(async (from, to) => {
       let q = sb()
         .from("ele_listino_voci")
         .select("*")
@@ -102,10 +103,9 @@ export function useListinoVoci(capitoloId?: string | null) {
       if (capitoloId) q = q.eq("capitolo_id", capitoloId);
       const { data, error } = await q
         .order("ordine", { ascending: true })
-        .order("created_at", { ascending: true });
-      if (error) throw new Error(error.message);
-      return (data ?? []) as EleListinoVoce[];
-    },
+        .order("created_at", { ascending: true }).order("id").range(from, to);
+      return { data: (data ?? []) as EleListinoVoce[], error };
+    }),
   });
 }
 
@@ -266,58 +266,7 @@ export function useImportSeedListino() {
  * voci finiscono nel listino Elettrico e si invalidano le query key `ele-listino-*`.
  */
 export function useAdottaPrezzario() {
-  const companyId = useEffectiveCompanyId();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: AdottaPrezzarioInput): Promise<{ inserite: number; senzaUnita: number }> => {
-      if (!companyId) throw new Error("Azienda non disponibile");
-      if (input.voci.length === 0) return { inserite: 0, senzaUnita: 0 };
-      // Nome fonte per la nota (una sola lettura, riusata su tutte le voci).
-      const { data: fonteRow, error: fonteErr } = await sb()
-        .from("prezzario_fonte")
-        .select("nome")
-        .eq("id", input.fonteId)
-        .maybeSingle();
-      if (fonteErr) throw new Error(fonteErr.message);
-      const nomeFonte = (fonteRow?.nome as string | undefined) ?? "Prezzario";
-      const rows = input.voci.map((v, idx) => {
-        const prezzo = Number(v.prezzo) || 0;
-        const incid = v.incidenza_manodopera_pct ?? 0;
-        const costo_manodopera = Math.round(prezzo * incid * 100) / 100;
-        const costo_materiali = Math.round((prezzo - costo_manodopera) * 100) / 100;
-        const prezzo_unitario = Math.round(prezzo * (1 + input.ricaricoPct / 100) * 100) / 100;
-        const note = v.codice ? `Fonte: ${nomeFonte} (cod. ${v.codice})` : `Fonte: ${nomeFonte}`;
-        return {
-          company_id: companyId,
-          capitolo_id: input.capitoloId ?? null,
-          codice: v.codice ?? null,
-          descrizione: v.descrizione,
-          // 84% delle voci di prezzario NON ha l'unita' di misura:
-          // 306.522 su 364.011, e sedici prezzari su diciannove ne sono
-          // privi al 100%. La colonna e' NOT NULL con default 'cad', quindi
-          // qui l'unita' si inventa comunque — ma almeno si conta, e chi
-          // adotta se lo sente dire invece di ritrovarsi una lavorazione da
-          // 12 EUR/m2 in listino come 12 EUR al pezzo.
-          unita_misura: v.unita_misura ?? "cad",
-          costo_materiali,
-          costo_manodopera,
-          ricarico_pct: input.ricaricoPct,
-          prezzo_unitario,
-          note,
-          fonte: nomeFonte,
-          ordine: idx,
-        };
-      });
-      const { error } = await sb().from("ele_listino_voci").insert(rows);
-      if (error) throw new Error(error.message);
-      const senzaUnita = input.voci.filter((v) => !v.unita_misura).length;
-      return { inserite: rows.length, senzaUnita };
-    },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["ele-listino-voci", companyId] });
-      void qc.invalidateQueries({ queryKey: ["ele-listino-capitoli", companyId] });
-    },
-  });
+  return useAdottaPrezzarioListino("ele");
 }
 
 // ─── Prefill da listino prodotti / manodopera ───────────────────────────────

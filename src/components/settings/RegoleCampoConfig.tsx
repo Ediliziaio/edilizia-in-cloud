@@ -3,34 +3,45 @@
  *
  * Il software si adatta all'azienda, non il contrario: qui l'azienda sceglie
  * come lavorano i suoi cantieri e l'app degli operai e dei capocantiere si
- * comporta di conseguenza. Tre scelte, in parole semplici; senza scelte
- * l'app funziona come sempre.
+ * comporta di conseguenza. Le tre scelte sono affiancate da una prova del flusso
+ * e dai collegamenti alle risorse operative; senza scelte l'app funziona come sempre.
  *
  * Il titolo della pagina lo mette il layout delle Impostazioni. Le scelte si salvano insieme, con «Salva modifiche»
  * (la barra resta in vista mentre si scorre), e uscire con una scelta cambiata chiede conferma.
  */
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Info, Loader2, Save } from "lucide-react";
+import { ArrowUpRight, Info, Loader2, Save, Users, CalendarDays, ListChecks, ClipboardCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useRegoleAzienda, useSalvaRegoleAzienda } from "@/hooks/useRegoleCampo";
+import { useVaiASezione } from "@/hooks/useVaiASezione";
+import { useSettingsFloatingBar } from "@/hooks/useSettingsFloatingBar";
+import { RegoleCampoAnteprima } from "@/components/settings/RegoleCampoAnteprima";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import {
   REGOLE_COME_OGGI, SCOSTAMENTI_PROPOSTI, SCOSTAMENTO_PREDEFINITO, oreInTesto,
-  type ChiCompila, type OreDalle, type RegoleCampo,
+  scostamento, type ChiCompila, type OreDalle, type RegoleCampo,
 } from "@/lib/campo/regoleCampo";
 import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoSolaLetturaImpostazioni";
-import { SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
+import { IndiceSezioni, SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+
+const SEZIONI = [
+  { id: "chi-scrive", etichetta: "Chi compila" },
+  { id: "ore", etichetta: "Ore e presenze" },
+  { id: "avviso", etichetta: "Controllo ore" },
+  { id: "in-pratica", etichetta: "Anteprima" },
+];
 
 function Opzione({
   value, titolo, descrizione, scelta, disabilitata,
@@ -59,23 +70,28 @@ function inPratica(r: RegoleCampo): string[] {
   const righe: string[] = [];
   righe.push(
     r.chiCompila === "capo"
-      ? "Dove c’è un capocantiere, gli operai timbrano entrata e uscita e basta: niente promemoria del rapportino e niente ore da scrivere. Il rapportino del cantiere lo manda il capocantiere."
+      ? "Dove c’è un responsabile, gli operai timbrano entrata e uscita: niente promemoria del rapportino e niente ore da scrivere. Il capocantiere racconta il cantiere; i capisquadra rendicontano la propria squadra."
       : r.chiCompila === "ore_proprie"
-        ? "Dove c’è un capocantiere, ogni operaio manda solo le sue ore; il racconto del cantiere (lavori, foto, avanzamento) lo fa il capocantiere. Un cantiere senza capocantiere resta come «ognuno il suo»."
+        ? "Dove c’è un responsabile, ogni operaio manda solo le proprie ore; il responsabile racconta lavori, foto e avanzamento. Senza un responsabile assegnato resta il flusso «ognuno il suo»."
         : "Ogni operaio scrive il rapportino della sua giornata. Il capocantiere può aggiungere la squadra.",
   );
   righe.push(
-    r.oreDalle === "timbrature"
+    r.chiCompila === "ore_proprie"
+      ? "Con il flusso misto anche il responsabile conferma solo le proprie ore: non inserisce le presenze degli altri."
+      : r.oreDalle === "timbrature"
       ? "Nel rapportino di squadra le ore partono da quelle timbrate: il capo le controlla, aggiunge chi non ha timbrato e può correggerle."
       : "Nel rapportino di squadra il capo scrive a mano le ore di ognuno.",
   );
   righe.push(
-    r.avvisoScostamentoMinuti != null
+    r.chiCompila === "ore_proprie"
+      ? "Il controllo degli scostamenti riguarda le presenze di squadra: nel flusso misto la preferenza è conservata per gli altri flussi."
+      : r.avvisoScostamentoMinuti != null
       ? `Se le ore scritte sono diverse da quelle timbrate di più di ${oreInTesto(r.avvisoScostamentoMinuti / 60)}, il capo vede un avviso.`
       : "Nessun avviso sulle differenze tra ore scritte e ore timbrate.",
   );
   // Vale qualunque sia la scelta: una riga in più, non un riquadro a parte.
-  righe.push("Una persona non si conta mai due volte nello stesso giorno e cantiere: se il capo l’ha già segnata, il suo rapportino personale non chiede più le ore.");
+  righe.push("Se il capo ha già registrato le ore di una persona, il giornaliero personale non le ripropone. Eventuali ore aggiuntive devono essere indicate esplicitamente.");
+  righe.push("Le ditte subappaltatrici rendicontano il proprio incarico; queste scelte organizzano il lavoro dei dipendenti. L’approvazione resta all’ufficio secondo i permessi Ordini, separata dalla firma del cliente.");
   return righe;
 }
 
@@ -90,10 +106,13 @@ function messaggioErroreSalvataggio(errore: unknown): string {
 export default function RegoleCampoConfig() {
   const { effectiveCompany, role } = useAuth();
   const permissions = usePermissions();
+  const isAdmin = role === "company_admin" || role === "super_admin";
   const puoModificare = !permissions.isLoading && (role === "company_admin" || role === "super_admin" || !!permissions.canEditSettingsOrders);
   const companyId = effectiveCompany?.id;
   const { data, isLoading, isError, refetch } = useRegoleAzienda(companyId);
   const salva = useSalvaRegoleAzienda(companyId);
+  const { evidenziata, vai } = useVaiASezione(!!companyId && !isLoading && !isError && !!data);
+  const { contenitore, barra, stile, altezza } = useSettingsFloatingBar();
 
   // Le modifiche non ancora salvate: si parte da ciò che c'è, si salva a richiesta. La bozza è di UN'azienda: se si cambia
   // azienda (super amministratore) quella dell'altra non si vede.
@@ -107,21 +126,34 @@ export default function RegoleCampoConfig() {
     bozza.avvisoScostamentoMinuti !== salvate.avvisoScostamentoMinuti
   );
   const cambia = (parte: Partial<RegoleCampo>) => {
-    if (!puoModificare) return;
+    if (!puoModificare || !companyId || !data || salva.isPending) return;
     setBozzaAzienda({ companyId, regole: { ...regole, ...parte } });
   };
   const annulla = () => setBozzaAzienda(null);
   useSettingsDraftGuard(modificato || salva.isPending);
 
   const conferma = () => {
-    if (!puoModificare || !modificato || salva.isPending) return;
+    if (!puoModificare || !companyId || !data || !modificato || salva.isPending) return;
     salva.mutate(regole, {
-      onSuccess: () => { setBozzaAzienda(null); toast.success("Impostazioni salvate"); },
+      onSuccess: () => { setBozzaAzienda((precedente) => precedente?.companyId === companyId ? null : precedente); toast.success("Impostazioni salvate"); },
       onError: (errore) => toast.error(messaggioErroreSalvataggio(errore)),
     });
   };
 
-  if (isLoading) {
+  const flussoMisto = regole.chiCompila === "ore_proprie";
+  const bloccato = !puoModificare || salva.isPending;
+  // Il database accetta anche soglie personalizzate: non mostrare un campo vuoto per una scelta già salvata.
+  const soglie = [...new Set<number>([...SCOSTAMENTI_PROPOSTI, ...(regole.avvisoScostamentoMinuti == null ? [] : [regole.avvisoScostamentoMinuti])])].sort((a, b) => a - b);
+  const esempio = scostamento(9, 8, regole.avvisoScostamentoMinuti);
+  const collegamenti = [
+    { titolo: "Operai e squadre", descrizione: "Persone, composizione e responsabile delle squadre interne.", to: "/azienda/manodopera?tab=operai&vista=squadre", icona: Users, visibile: isAdmin || permissions.canViewOperai },
+    { titolo: "Squadre e calendari lavori", descrizione: "Disponibilità e calendari delle risorse: usa le stesse squadre.", to: "/azienda/impostazioni/calendari-lavori?tab=squadre", icona: CalendarDays, visibile: isAdmin || permissions.canViewSettingsOrders },
+    { titolo: "Commesse e rapportini", descrizione: "Assegna persone e responsabili alla commessa; qui l’ufficio controlla e approva i rapportini.", to: "/azienda/ordini", icona: ClipboardCheck, visibile: isAdmin || permissions.canViewOrders },
+    { titolo: "Fasi e avanzamento", descrizione: "Modelli delle fasi e chi può spuntare le sottofasi nell’app.", to: "/azienda/impostazioni/modelli-fasi#regole", icona: ListChecks, visibile: isAdmin || permissions.canViewSettingsOrders },
+  ].filter((link) => link.visibile);
+
+  if (!companyId) return <Alert><AlertDescription>Seleziona un’azienda per consultare le regole dei rapportini.</AlertDescription></Alert>;
+  if (isLoading || (!data && !isError)) {
     return <div className="space-y-4" role="status" aria-label="Caricamento delle scelte"><Skeleton className="h-40 w-full" /><Skeleton className="h-40 w-full" /></div>;
   }
   if (isError) {
@@ -136,10 +168,10 @@ export default function RegoleCampoConfig() {
   }
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="w-full min-w-0 space-y-4 [&_section]:scroll-mt-44 sm:[&_section]:scroll-mt-32" data-testid="regole-campo-pagina">
       <p className="text-sm text-muted-foreground">
-        Ogni azienda lavora a modo suo: qui scegli come funziona la tua. L’app degli operai e dei capocantiere
-        si adatta alle tue scelte, su tutti i cantieri.
+        Scegli chi compila il giornaliero, come raccogliere le ore e quando segnalare una differenza.
+        Le regole valgono per tutti i cantieri dell’azienda; persone e responsabili si assegnano nelle commesse.
       </p>
 
       {!data?.sceltaFatta && (
@@ -152,24 +184,24 @@ export default function RegoleCampoConfig() {
       )}
       {!permissions.isLoading && !puoModificare && <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />}
 
-      {/* disabled su un fieldset spegne ogni campo e pulsante che contiene. */}
-      <fieldset disabled={!puoModificare || salva.isPending} className="m-0 min-w-0 space-y-4 border-0 p-0">
-        {/* Il salvataggio resta in vista mentre si scorre: prima i pulsanti stavano in fondo, dopo cinque riquadri. */}
+      <div ref={contenitore} className="sticky top-2 z-20" style={{ height: altezza }}>
+      <div ref={barra} style={stile} className="z-20 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card/95 p-2 shadow-sm backdrop-blur">
+        <IndiceSezioni voci={SEZIONI} onVai={vai} />
         {puoModificare && (
-          <div className="sticky top-2 z-20 flex flex-wrap items-center justify-end gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
+          <div className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:w-auto">
             <p
               role="status"
               className={cn(
                 "mr-auto text-xs",
-                salva.isPending || modificato ? "text-muted-foreground" : "sr-only",
+                "text-muted-foreground",
                 modificato && !salva.isPending && "font-medium text-amber-700 dark:text-amber-400",
               )}
             >
-              {salva.isPending ? "Salvataggio…" : modificato ? "Modifiche non salvate" : "Nessuna modifica da salvare"}
+              {salva.isPending ? "Salvataggio…" : modificato ? "Modifiche non salvate" : "Nessuna modifica"}
             </p>
             {modificato && (
-              <Button size="sm" variant="ghost" onClick={annulla} disabled={salva.isPending}>
-                Annulla le modifiche
+              <Button size="sm" variant="ghost" aria-label="Annulla le modifiche" onClick={annulla} disabled={salva.isPending}>
+                <span className="hidden sm:inline" aria-hidden="true">Annulla le modifiche</span><span className="sm:hidden" aria-hidden="true">Annulla</span>
               </Button>
             )}
             <Button size="sm" onClick={conferma} disabled={!modificato || salva.isPending}>
@@ -178,9 +210,16 @@ export default function RegoleCampoConfig() {
             </Button>
           </div>
         )}
+      </div>
+      </div>
+
+      <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" data-testid="regole-campo-colonne">
+        <fieldset disabled={bloccato} className="m-0 min-w-0 space-y-4 border-0 p-0">
+
 
         <SezioneImpostazione
           id="chi-scrive"
+          evidenziata={evidenziata === "chi-scrive"}
           titolo="Chi scrive il rapportino del cantiere?"
           descrizione="Il racconto della giornata: cosa si è fatto, foto, materiali, avanzamento."
         >
@@ -194,17 +233,17 @@ export default function RegoleCampoConfig() {
               <Opzione
                 value="ognuno" titolo="Ognuno il suo"
                 descrizione="Ogni operaio scrive il rapportino della propria giornata. Il capocantiere può aggiungere la squadra."
-                scelta={regole.chiCompila === "ognuno"} disabilitata={!puoModificare}
+                scelta={regole.chiCompila === "ognuno"} disabilitata={bloccato}
               />
               <Opzione
                 value="capo" titolo="Lo scrive il capocantiere"
-                descrizione="Un solo rapportino per cantiere e per giorno, del capocantiere (o del caposquadra per la sua squadra). Gli operai timbrano entrata e uscita e basta. Un cantiere senza capocantiere resta come «ognuno il suo»."
-                scelta={regole.chiCompila === "capo"} disabilitata={!puoModificare}
+                descrizione="Il capocantiere invia il giornaliero del cantiere; i capisquadra possono rendicontare la propria squadra. Gli operai timbrano entrata e uscita. Senza un responsabile assegnato, ciascuno compila il proprio giornaliero."
+                scelta={regole.chiCompila === "capo"} disabilitata={bloccato}
               />
               <Opzione
                 value="ore_proprie" titolo="Il racconto al capo, le ore a ognuno"
-                descrizione="Il racconto del cantiere (lavori, foto, avanzamento) lo fa il capocantiere; ogni operaio manda solo le proprie ore. Un cantiere senza capocantiere resta come «ognuno il suo»."
-                scelta={regole.chiCompila === "ore_proprie"} disabilitata={!puoModificare}
+                descrizione="Lavori, foto e avanzamento li racconta il responsabile. Ogni persona, incluso il responsabile, conferma solo le proprie ore: niente presenze degli altri nello stesso rapportino. Senza un responsabile assegnato, ciascuno compila il proprio giornaliero."
+                scelta={regole.chiCompila === "ore_proprie"} disabilitata={bloccato}
               />
             </RadioGroup>
           </div>
@@ -212,25 +251,27 @@ export default function RegoleCampoConfig() {
 
         <SezioneImpostazione
           id="ore"
+          evidenziata={evidenziata === "ore"}
           titolo="Da dove vengono le ore di ognuno?"
           descrizione="Vale per il rapportino di squadra, quello in cui il capo segna chi ha lavorato."
         >
           <div className="px-4 py-4">
+            {regole.chiCompila === "ore_proprie" && <p role="status" className="mb-3 text-sm text-muted-foreground">Nel flusso misto ognuno conferma le proprie ore. Questa preferenza viene conservata per quando scegli un flusso con presenze di squadra.</p>}
             <RadioGroup
               aria-labelledby="ore-titolo"
               value={regole.oreDalle}
               onValueChange={(v) => cambia({ oreDalle: v as OreDalle })}
-              className="grid gap-3"
+              className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2"
             >
               <Opzione
                 value="capo" titolo="Le scrive il capo"
                 descrizione="Il capo scrive a mano le ore di ogni persona che era in cantiere."
-                scelta={regole.oreDalle === "capo"} disabilitata={!puoModificare}
+                scelta={regole.oreDalle === "capo"} disabilitata={bloccato || flussoMisto}
               />
               <Opzione
                 value="timbrature" titolo="Dalle timbrature"
                 descrizione="Le ore partono da quelle timbrate in cantiere. Il capo le controlla, aggiunge chi non ha timbrato (ditte, chi non ha l’app, chi ha dimenticato) e può correggere."
-                scelta={regole.oreDalle === "timbrature"} disabilitata={!puoModificare}
+                scelta={regole.oreDalle === "timbrature"} disabilitata={bloccato || flussoMisto}
               />
             </RadioGroup>
           </div>
@@ -238,15 +279,18 @@ export default function RegoleCampoConfig() {
 
         <SezioneImpostazione
           id="avviso"
+          evidenziata={evidenziata === "avviso"}
           titolo="Avviso se le ore non tornano"
-          descrizione="Aiuta a non far pesare sulla commessa ore che non ci sono state, e a non perdere quelle vere."
+          descrizione="Confronta le presenze inserite dal responsabile con le timbrature disponibili. È un avviso, non un blocco all’invio."
+          ambito={flussoMisto ? <Badge variant="outline">Preferenza conservata</Badge> : undefined}
         >
           <div className="space-y-3 px-4 py-4">
+            {flussoMisto && <p className="text-sm text-muted-foreground">Nel flusso misto non si inseriscono presenze di squadra: il controllo si riattiva scegliendo uno degli altri flussi.</p>}
             <div className="flex items-center gap-3">
               <Switch
                 id="avviso-scostamento"
                 checked={regole.avvisoScostamentoMinuti != null}
-                disabled={!puoModificare}
+                disabled={bloccato || flussoMisto}
                 onCheckedChange={(acceso) => cambia({ avvisoScostamentoMinuti: acceso ? SCOSTAMENTO_PREDEFINITO : null })}
               />
               <Label htmlFor="avviso-scostamento" className="text-sm">
@@ -259,36 +303,54 @@ export default function RegoleCampoConfig() {
                 <Select
                   value={String(regole.avvisoScostamentoMinuti)}
                   onValueChange={(v) => cambia({ avvisoScostamentoMinuti: Number(v) })}
-                  disabled={!puoModificare}
+                  disabled={bloccato || flussoMisto}
                 >
                   <SelectTrigger className="h-9 w-32" aria-label="Differenza che fa scattare l’avviso">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {SCOSTAMENTI_PROPOSTI.map((m) => (
+                    {soglie.map((m) => (
                       <SelectItem key={m} value={String(m)}>{oreInTesto(m / 60)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
+            {!flussoMisto && regole.avvisoScostamentoMinuti != null && (
+              <div className="rounded-lg border bg-muted/30 p-3 text-xs" role="region" aria-label="Esempio del controllo ore">
+                <p className="font-medium">Esempio: 8 h timbrate · 9 h registrate</p>
+                <p className={cn("mt-1", esempio?.fuori ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
+                  {esempio?.fuori ? "Il capo vede un avviso: la differenza di 1 h supera la soglia scelta." : "Nessun avviso: la differenza di 1 h non supera la soglia scelta."}
+                </p>
+                <p className="mt-1 text-muted-foreground">Se manca una timbratura, il confronto non è disponibile. La prova non registra ore.</p>
+              </div>
+            )}
           </div>
         </SezioneImpostazione>
 
-        <SezioneImpostazione id="in-pratica" titolo="In pratica, con queste scelte">
-          <ul className="list-disc space-y-1.5 px-4 py-4 pl-9 text-sm">
-            {inPratica(regole).map((riga) => <li key={riga}>{riga}</li>)}
-          </ul>
-        </SezioneImpostazione>
-      </fieldset>
+        </fieldset>
 
-      <p className="text-xs text-muted-foreground">
-        Altre regole per chi lavora in cantiere:{" "}
-        <Link to="/azienda/impostazioni/modelli-fasi#regole" className="font-medium text-primary underline">
-          chi può spuntare le sottofasi
-        </Link>
-        .
-      </p>
+        <aside className="min-w-0 space-y-4" aria-label="Anteprima e collegamenti">
+          <RegoleCampoAnteprima regole={regole} modificato={modificato} dettagli={inPratica(regole)} evidenziata={evidenziata === "in-pratica"} />
+          {collegamenti.length > 0 && <section className="rounded-lg border bg-card" aria-labelledby="collegamenti-campo-titolo">
+            <header className="border-b px-4 py-3">
+              <h2 id="collegamenti-campo-titolo" className="text-base font-semibold">Completa l’organizzazione del cantiere</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Queste regole usano persone, squadre e incarichi già presenti nel gestionale.</p>
+            </header>
+            <div className="divide-y">
+              {collegamenti.map(({ titolo, descrizione, to, icona: Icona }) => (
+                <Link key={to} to={to} className="group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+                  <Icona className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                  <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{titolo}</span><span className="mt-0.5 block text-xs text-muted-foreground">{descrizione}</span></span>
+                  <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" aria-hidden="true" />
+                </Link>
+              ))}
+            </div>
+          </section>}
+          <p className="px-1 text-xs text-muted-foreground">Le ore approvate alimentano la manodopera della commessa secondo i costi delle persone e degli incarichi. Le tariffe di vendita del listino servono invece a preparare i preventivi.</p>
+          {(isAdmin || permissions.canViewSettingsOrders) && <p className="px-1 text-xs text-muted-foreground">Altre regole dell’app: <Link to="/azienda/impostazioni/modelli-fasi#regole" className="font-medium text-primary underline">chi può spuntare le sottofasi</Link>.</p>}
+        </aside>
+      </div>
     </div>
   );
 }

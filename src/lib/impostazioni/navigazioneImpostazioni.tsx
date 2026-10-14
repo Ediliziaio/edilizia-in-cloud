@@ -93,7 +93,7 @@ export interface SettingsNavItem {
   /** Solo tablet e computer: da telefono la voce sparisce (vedi useIsMobile). */
   desktopOnly?: boolean;
   /**
-   * Tutti gli indirizzi che la voce può aprire. Una voce con le schede (Listino, Modelli di preventivo, Firma e
+   * Tutti gli indirizzi che la voce può aprire. Una voce con le schede (Listino, Modelli preventivi e contratti, Firma e
    * condizioni) apre la prima scheda che l'utente può vedere: chi sceglie cosa nascondere da telefono deve
    * guardarli tutti, non solo quello di oggi.
    */
@@ -188,7 +188,7 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
         // stessi; manodopera e kit stanno nel Listino, condizioni con la firma.
         // Render e sopralluoghi sono nei loro gruppi.
         // 09/10/2026: da cinque a quattro. Prezzo e margini, sconti e approvazioni
-        // sono schede di «Modelli di preventivo», non più una voce a sé.
+        // sono schede di «Modelli preventivi e contratti», non più una voce a sé.
         voceGruppo("listino", <Package className="h-4 w-4" />),
         { to: "/azienda/impostazioni/finanziamenti",        label: "Finanziamenti",        icon: <Banknote className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsFinanziamenti },
         voceGruppo("modelli", <Paintbrush className="h-4 w-4" />),

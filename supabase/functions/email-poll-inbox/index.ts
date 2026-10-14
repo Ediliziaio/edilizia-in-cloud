@@ -27,6 +27,7 @@ import { emettiEmailRicevuta } from "../_shared/emailRicevutaEvento.ts";
 // Tetti per giro (caselle, messaggi, allegati, tempo): tenere ogni giro piccolo
 // e certo di finire, così `last_synced_at` avanza e il lavoro resta leggero.
 import { LIMITI_POLL, fermaIlGiro } from "./limiti.ts";
+import { pollWindow,saveEmailPage,validOutlookNextLink,decodeMailBase64,type PollWindow } from "./progresso.ts";
 interface ConnectionDue {
   id: string;
   provider: "gmail" | "outlook" | "imap";
@@ -35,6 +36,7 @@ interface ConnectionDue {
   user_id?: string | null;
   last_synced_at?: string | null;
   sync_from_date?: string | null;
+  provider_metadata?: Record<string,unknown> | null;
 }
 
 interface DecryptedTokens {
@@ -125,12 +127,7 @@ const TOKEN_URL_GMAIL = "https://oauth2.googleapis.com/token";
 const TOKEN_URL_OUTLOOK = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 
 function decodeBase64Url(data: string): string {
-  const normalized = data.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
-  const bin = atob(padded);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return new TextDecoder().decode(bytes);
+  return new TextDecoder().decode(decodeMailBase64(data,true));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -153,12 +150,7 @@ function isDocAttachment(filename: string, mime: string): boolean {
 }
 
 function decodeBase64UrlToBytes(data: string): Uint8Array {
-  const normalized = data.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
-  const bin = atob(padded);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
+  return decodeMailBase64(data,true);
 }
 
 function sanitizeFilename(name: string): string {
@@ -206,6 +198,9 @@ async function materializeGmailAttachments(
   for (const meta of metas) {
     if (runCounter.n >= MAX_ATT_PER_RUN) break;
     if (meta.size && meta.size > MAX_ATT_BYTES) continue;
+    // Reserve before awaiting: parallel message fetches share this counter.
+    runCounter.n++;
+    let saved=false;
     try {
       const res = await fetch(`${GMAIL_API}/messages/${providerMessageId}/attachments/${meta.attachmentId}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -223,9 +218,11 @@ async function materializeGmailAttachments(
       });
       if (up.error) continue;
       out.push({ filename: meta.filename, mime: meta.mime, size: bytes.byteLength, storage_path: path });
-      runCounter.n++;
+      saved=true;
     } catch (e) {
       console.warn("[email-poll] attachment materialize failed:", e instanceof Error ? e.message : e);
+    } finally {
+      if(!saved)runCounter.n--;
     }
   }
   return out;
@@ -248,9 +245,7 @@ async function materializeImapAttachments(
     if (runCounter.n >= MAX_ATT_PER_RUN) break;
     if (!isDocAttachment(a.filename, a.mime)) continue;
     try {
-      const bin = atob(a.contentBase64);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const bytes = decodeMailBase64(a.contentBase64);
       if (bytes.byteLength === 0 || bytes.byteLength > MAX_ATT_BYTES) continue;
       await ensureAttachBucket(supa);
       const path = `${companyId}/${providerMessageId}/${Date.now()}-${sanitizeFilename(a.filename)}`;
@@ -349,12 +344,10 @@ async function pollGmail(
   emailAddress: string,
   sinceTimestamp: number,
   /**
-   * Hard cap di messaggi totali da scaricare in un singolo run.
-   * Il backfill iniziale (first sync) può sforare i 500; lo lasciamo
-   * generoso per coprire utenti con inbox grande, ma con un soft-stop
-   * per non bruciare timeout Edge Function (max ~150s).
+   * One bounded provider page. Its cursor is saved only after all writes;
+   * first sync and retries use the same persisted time window.
    */
-  hardCap = 1000,
+  hardCap = 20,
   /**
    * 2026-05-27 (richiesta utente "sincronizza anche le email inviate"):
    * folder = "inbox" → in:inbox (default, retrocompat)
@@ -365,49 +358,44 @@ async function pollGmail(
   folder: "inbox" | "sent" = "inbox",
   /** MP-EMAIL F2: se presente, scarica gli allegati documentali nel bucket. */
   attCtx?: { supa: SupabaseClient; companyId: string; runCounter: { n: number } },
-): Promise<NormalizedEmail[]> {
+  window?: PollWindow,
+): Promise<{emails:NormalizedEmail[];nextToken:string|null}> {
   // Gmail query: recenti, non in spam/trash
-  // 2026-05-26: paginazione completa via nextPageToken. maxResults=100 per pagina
-  // (max consentito da Gmail), cap totale = hardCap. Sufficiente per inbox grandi.
+  // Pagination continues next run; never discard the tail of a capped query.
   const qSince = Math.floor(sinceTimestamp / 1000); // Unix seconds
   // 2026-05-27: query dinamica per folder. `in:sent` cattura anche le email
   // inviate dall'utente da web/mobile Gmail (non solo quelle via EiC).
-  const qParam = encodeURIComponent(`in:${folder} after:${qSince}`);
+  const qParam = encodeURIComponent(`in:${folder} after:${qSince}${window?` before:${Math.ceil(window.untilMs/1000)}`:""}`);
 
-  // 1) Lista TUTTI i messaggi del periodo, paginando.
+  // 1) One page of the stable window, not an entire mailbox in one invocation.
   const messageIds: string[] = [];
-  let pageToken: string | null = null;
-  let safety = 0;
-  do {
-    safety++;
-    if (safety > 20) break; // 20 pagine × 100 = 2000 msg max, hard stop
-    const url = `${GMAIL_API}/messages?q=${qParam}&maxResults=100${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ""}`;
-    const listRes = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  const pageToken=folder==="inbox"?window?.inboxToken:window?.sentToken;
+    const url = `${GMAIL_API}/messages?q=${qParam}&maxResults=${hardCap}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ""}`;
+    const listRes = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` },signal:AbortSignal.timeout(15_000) });
     if (!listRes.ok) throw new Error(`gmail_list_${listRes.status}`);
     const listJson = await listRes.json() as { messages?: Array<{ id: string }>; nextPageToken?: string };
+    if(listJson.messages&&(!Array.isArray(listJson.messages)||listJson.messages.length>hardCap))throw new Error("gmail_invalid_page");
     if (listJson.messages?.length) {
       for (const m of listJson.messages) {
+        if(typeof m.id!=="string"||!m.id)throw new Error("gmail_message_without_id");
         messageIds.push(m.id);
         if (messageIds.length >= hardCap) break;
       }
     }
-    pageToken = listJson.nextPageToken ?? null;
-    if (messageIds.length >= hardCap) break;
-  } while (pageToken);
+  const nextToken=listJson.nextPageToken??null;
+  if(nextToken!==null&&(typeof nextToken!=="string"||!nextToken||nextToken===pageToken))throw new Error("gmail_invalid_pagination");
 
-  if (messageIds.length === 0) return [];
+  if (messageIds.length === 0) return {emails:[],nextToken};
 
-  // 2026-05-26: fetch dettagli in PARALLELO con batch size 15.
-  // Serie (1 alla volta) → 1000 messaggi × 100ms = 100s = timeout.
-  // Parallelo (15 alla volta) → 1000/15 × 100ms = ~7s. 14× più veloce.
-  // Limite 15: stiamo sotto il quota Gmail (250 quota units / second per user;
-  // un messages.get costa 5 quota → 50 req/s teorici, prendo margine).
-  const BATCH_SIZE = 15;
+  // Five concurrent detail requests keep memory/CPU and provider quotas bounded.
+  const BATCH_SIZE = 5;
   const fetchOne = async (messageId: string): Promise<NormalizedEmail | null> => {
     const msgRes = await fetch(`${GMAIL_API}/messages/${messageId}?format=full`, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      signal:AbortSignal.timeout(15_000),
     });
-    if (!msgRes.ok) return null;
+    if(msgRes.status===404)return null; // Deleted since listing: safe to advance.
+    if (!msgRes.ok) throw new Error(`gmail_message_${msgRes.status}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const msg = await msgRes.json() as any;
     const headers = (msg.payload?.headers ?? []) as Array<{ name: string; value: string }>;
@@ -490,7 +478,7 @@ async function pollGmail(
       if (r) emails.push(r);
     }
   }
-  return emails;
+  return {emails,nextToken};
 }
 
 /**
@@ -577,43 +565,41 @@ async function pollOutlook(
   accessToken: string,
   emailAddress: string,
   sinceTimestamp: number,
-  hardCap = 1000,
-): Promise<NormalizedEmail[]> {
+  hardCap = 20,
+  window?: PollWindow,
+): Promise<{emails:NormalizedEmail[];nextToken:string|null}> {
   // 2026-05-26: paginazione via @odata.nextLink, $top=100 per pagina.
   const sinceIso = new Date(sinceTimestamp).toISOString();
   const params = new URLSearchParams({
-    "$filter": `receivedDateTime gt ${sinceIso}`,
+    "$filter": `receivedDateTime gt ${sinceIso}${window?` and receivedDateTime lt ${new Date(window.untilMs).toISOString()}`:""}`,
     "$orderby": "receivedDateTime desc",
-    "$top": "100",
+    "$top": String(hardCap),
     "$select": "id,conversationId,subject,from,toRecipients,ccRecipients,bccRecipients,body,bodyPreview,receivedDateTime,internetMessageId,isRead,hasAttachments",
   });
 
-  // Collect TUTTE le pagine
+  // One page; @odata.nextLink is checkpointed after successful storage.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allMessages: any[] = [];
   // `/me/messages` pesca da TUTTE le cartelle: la posta inviata e quella nel
   // cestino sarebbero finite fra le ricevute. La casella in arrivo è
   // `mailFolders/inbox`, come per Gmail si guarda INBOX.
-  let nextUrl: string | null = `${GRAPH_API}/mailFolders/inbox/messages?${params.toString()}`;
-  let safety = 0;
-  while (nextUrl) {
-    safety++;
-    if (safety > 20) break; // hard stop
-    const res: Response = await fetch(nextUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+  const nextUrl=window?.inboxToken??`${GRAPH_API}/mailFolders/inbox/messages?${params.toString()}`;
+  if(!validOutlookNextLink(nextUrl))throw new Error("outlook_invalid_pagination_url");
+    const res: Response = await fetch(nextUrl, { headers: { Authorization: `Bearer ${accessToken}` },signal:AbortSignal.timeout(15_000) });
     if (!res.ok) throw new Error(`outlook_list_${res.status}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const json = await res.json() as { value?: any[]; "@odata.nextLink"?: string };
+    if(json.value&&(!Array.isArray(json.value)||json.value.length>hardCap))throw new Error("outlook_invalid_page");
     if (json.value?.length) {
       for (const v of json.value) {
         allMessages.push(v);
         if (allMessages.length >= hardCap) break;
       }
     }
-    if (allMessages.length >= hardCap) break;
-    nextUrl = json["@odata.nextLink"] ?? null;
-  }
+  const nextToken=json["@odata.nextLink"]??null;
+  if(nextToken!==null&&(!validOutlookNextLink(nextToken)||nextToken===nextUrl))throw new Error("outlook_invalid_pagination");
 
-  if (allMessages.length === 0) return [];
+  if (allMessages.length === 0) return {emails:[],nextToken};
 
   const emails: NormalizedEmail[] = [];
   for (const m of allMessages) {
@@ -633,7 +619,7 @@ async function pollOutlook(
       is_read: !!m.isRead,
     });
   }
-  return emails;
+  return {emails,nextToken};
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -876,7 +862,8 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
   const expectedSecret = Deno.env.get("PROACTIVE_CRON_SECRET");
   const authHeader = req.headers.get("Authorization") ?? "";
   const isAuthorizedCron = cronSecret && expectedSecret && cronSecret === expectedSecret;
-  const isServiceRole = authHeader.includes(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "_no_match_");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const isServiceRole = !!serviceKey && authHeader === `Bearer ${serviceKey}`;
 
   const supa = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -905,6 +892,7 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
     // true quando il tetto di tempo del giro ferma le caselle rimaste: le
     // riprende il giro successivo (sono le più indietro nella lista).
     budget_esaurito: false,
+    pending_windows: 0,
     duration_ms: 0,
   };
   const t0 = Date.now();
@@ -955,7 +943,7 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: connFull, error: connErr } = await (supa as any)
         .from("email_oauth_connections")
-        .select("id, provider, email_address, company_id, user_id, last_synced_at, sync_from_date")
+        .select("id, provider, email_address, company_id, user_id, last_synced_at, sync_from_date, provider_metadata")
         .eq("id", dueConn.id)
         .maybeSingle();
       if (connErr || !connFull) {
@@ -970,7 +958,35 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
       const sinceTs = computeSinceTimestamp(conn);
       let emails: NormalizedEmail[] = [];
       let uidPiuAlto = 0;
+      let imapPageSize=0;
       let metaImap: Record<string, unknown> = {};
+      let metadata = conn.provider_metadata ?? {};
+      let mailboxFetched=0;
+      const checkpoint = async () => {
+        const { error } = await supa.from("email_oauth_connections").update({provider_metadata:metadata})
+          .eq("id",conn.id).eq("company_id",conn.company_id!).eq("user_id",conn.user_id!);
+        if(error)throw error;
+      };
+      const connContext = {id:conn.id,company_id:conn.company_id,user_id:conn.user_id,email_address:conn.email_address,provider:conn.provider};
+      const savePage = async (page:NormalizedEmail[],folder:"inbox"|"sent"="inbox") => {
+        summary.emails_fetched += page.length;
+        mailboxFetched+=page.length;
+        let triageCandidates=0;
+        try {
+          await saveEmailPage(page,async(email)=>{
+            const r=await storePersonalEmail(supa,connContext,email,folder);
+            if(r.stored)summary.emails_stored++;
+            if(r.needsTriage)triageCandidates++;
+          });
+        } finally {
+          // A partial storage failure must not strand emails already saved.
+          if(triageCandidates>0){
+            queueL1Cascade(conn.company_id!,triageCandidates);
+            queueTriagePending(conn.company_id!,triageCandidates);
+            summary.ai_triage_queued+=triageCandidates;
+          }
+        }
+      };
 
       if (conn.provider === "imap") {
         // Branch IMAP custom (Aruba/Libero/iCloud/...)
@@ -993,27 +1009,42 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
           .eq("id", conn.id)
           .maybeSingle();
         metaImap = (statoImap?.provider_metadata as Record<string, unknown> | null) ?? {};
+        metadata=metaImap;
+        const oldAnchor=Number(metaImap.eic_imap_since_ms);
+        const imapSince=Number.isFinite(oldAnchor)&&oldAnchor>0?oldAnchor:sinceTs;
+        metadata={...metadata,eic_imap_since_ms:imapSince};
+        await checkpoint(); // Preserve first-sync anchor even if storing fails.
         const ultimoUid = Number(metaImap.last_imap_uid ?? 0);
-        const imapMsgs: ImapMessage[] = await imapScaricaNuovi(
-          {
+        const imapConfig={
             host: c.imap_host,
             port: c.imap_port,
             secure: c.imap_secure,
             username: c.imap_username || c.email_address,
             password: c.password,
-          },
-          new Date(sinceTs),
+          };
+        const imapMsgs: ImapMessage[] = await imapScaricaNuovi(
+          imapConfig,
+          new Date(imapSince),
           LIMITI_POLL.imapPerGiro,
           Number.isFinite(ultimoUid) && ultimoUid > 0 ? ultimoUid : null,
           true, // anche i messaggi già letti altrove: qui è un client di posta
+          undefined,
+          "cursore", // Never jump over old UIDs when checkpointing a capped page.
         );
+        imapPageSize=imapMsgs.length;
         for (const m of imapMsgs) {
           const n = parseInt(m.uid, 10);
           if (Number.isFinite(n) && n > uidPiuAlto) uidPiuAlto = n;
         }
         const imapAttRun = { n: 0 };
         emails = [];
-        for (const m of imapMsgs) {
+        // Current mail remains visible while old UIDs are backfilled. Never
+        // checkpoint the high UID of this separate, small recent-head read.
+        const recentMsgs=imapSince<Date.now()-3600_000
+          ? await imapScaricaNuovi(imapConfig,new Date(Date.now()-30*60_000),3,null,true)
+          : [];
+        const uniqueMsgs=new Map([...recentMsgs,...imapMsgs].map(m=>[m.uid,m]));
+        for (const m of uniqueMsgs.values()) {
           const attachments = m.attachments && m.attachments.length
             ? await materializeImapAttachments(supa, conn.company_id!, m.messageId, m.attachments, imapAttRun)
             : [];
@@ -1048,6 +1079,13 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
         }
         const tokens = tokensData[0] as DecryptedTokens;
         const accessToken = await refreshTokenIfNeeded(supa, tokens, conn.id, conn.user_id ?? null);
+        const syncFrom=conn.sync_from_date?Date.parse(conn.sync_from_date):0;
+        const window=pollWindow(metadata.eic_poll_window,conn.id,conn.provider,sinceTs,
+          Number.isFinite(syncFrom)?syncFrom:0,Date.now());
+        // Persist the window BEFORE network/decoding: mark_sync advances its
+        // scheduling timestamp even on failure, but cannot erase this anchor.
+        metadata={...metadata,eic_poll_window:window};
+        await checkpoint();
         // First sync (mai sincronizzato) → allineamento più ampio (gmailPrimoGiro).
         // Sync incrementale (già sincronizzata una volta) → solo i messaggi nuovi
         // dopo last_synced_at, con un cap basso (gmailIncrementale) per chiudere
@@ -1059,9 +1097,24 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
         // MP-EMAIL F2: contesto allegati condiviso inbox+sent (cap globale per run).
         const attRunCounter = { n: 0 };
         const attCtx = { supa, companyId: conn.company_id!, runCounter: attRunCounter };
-        emails = conn.provider === "gmail"
-          ? await pollGmail(accessToken, conn.email_address, sinceTs, hardCap, "inbox", attCtx)
-          : await pollOutlook(accessToken, conn.email_address, sinceTs, hardCap);
+        // Historical backfill must not delay current incoming mail. This small
+        // head read never advances the historical cursor; duplicates are safe.
+        if(window.untilMs<Date.now()-60_000){
+          const head={...window,sinceMs:Date.now()-30*60_000,untilMs:Date.now(),inboxToken:null};
+          const recent=conn.provider==="gmail"
+            ? await pollGmail(accessToken,conn.email_address,head.sinceMs,5,"inbox",attCtx,head)
+            : await pollOutlook(accessToken,conn.email_address,head.sinceMs,5,head);
+          await savePage(recent.emails);
+        }
+        if(!window.inboxDone){
+          const page=conn.provider === "gmail"
+            ? await pollGmail(accessToken,conn.email_address,window.sinceMs,hardCap,"inbox",attCtx,window)
+            : await pollOutlook(accessToken,conn.email_address,window.sinceMs,hardCap,window);
+          await savePage(page.emails);
+          window.inboxToken=page.nextToken;window.inboxDone=page.nextToken===null;
+          metadata={...metadata,eic_poll_window:{...window}};
+          await checkpoint();
+        }
 
         // 2026-05-27 (richiesta utente): sync parallelo SENT — email inviate
         // dall'utente (da web/mobile Gmail, NON solo via EiC) compaiono nella
@@ -1069,95 +1122,49 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
         // perché tipicamente uno invia meno di quanto riceve.
         // Outlook sent sync rinviato (Microsoft Graph richiede endpoint diverso).
         if (conn.provider === "gmail") {
-          try {
+          if(!window.sentDone){
             const sentCap = isFirstSync ? LIMITI_POLL.gmailInviatePrimoGiro : LIMITI_POLL.gmailInviateIncrementale;
-            const sentEmails = await pollGmail(accessToken, conn.email_address, sinceTs, sentCap, "sent", attCtx);
-            // Storiamo separati così sappiamo che folder usare
-            const STORE_BATCH_SENT = 10;
-            const sentConnContext = {
-              id: conn.id,
-              company_id: conn.company_id,
-              user_id: conn.user_id,
-              email_address: conn.email_address,
-              provider: conn.provider,
-            };
-            for (let i = 0; i < sentEmails.length; i += STORE_BATCH_SENT) {
-              const slice = sentEmails.slice(i, i + STORE_BATCH_SENT);
-              await Promise.allSettled(
-                slice.map((e) => storePersonalEmail(supa, sentConnContext, e, "sent")),
-              );
-            }
-            summary.emails_fetched += sentEmails.length;
-          } catch (e) {
-            console.warn(`[email-poll] sent sync failed for ${conn.email_address}:`, e instanceof Error ? e.message : e);
+            const page=await pollGmail(accessToken,conn.email_address,window.sinceMs,sentCap,"sent",attCtx,window);
+            await savePage(page.emails,"sent");
+            window.sentToken=page.nextToken;window.sentDone=page.nextToken===null;
+            metadata={...metadata,eic_poll_window:{...window}};
+            await checkpoint();
           }
 
           // Riconciliazione stato letto/non-letto: allinea is_read alle email
           // aperte da altri strumenti (Gmail web/mobile), anche quelle vecchie
           // fuori dalla finestra di re-fetch. Best-effort: non blocca il sync.
           try {
+            if(window.inboxDone&&window.sentDone)
             summary.reads_reconciled += await reconcileGmailReadState(supa, accessToken, conn.id);
           } catch (e) {
             console.warn(`[email-poll] read-state reconcile failed for ${conn.email_address}:`, e instanceof Error ? e.message : e);
           }
         }
+        if(!window.inboxDone||!window.sentDone)summary.pending_windows++;
       }
 
-      summary.emails_fetched += emails.length;
-
-      // Salvataggio diretto nel client personale, senza perdere ownership utente/account.
-      // 2026-05-26: storage parallelo a batch di 10 per non saturare il pool
-      // di connessioni Postgres. Riduce ~10× il tempo storage per i first sync.
-      const STORE_BATCH = 10;
-      let stored = 0;
-      let triageCandidates = 0;
-      const connContext = {
-        id: conn.id,
-        company_id: conn.company_id,
-        user_id: conn.user_id,
-        email_address: conn.email_address,
-        provider: conn.provider,
-      };
-      for (let i = 0; i < emails.length; i += STORE_BATCH) {
-        const slice = emails.slice(i, i + STORE_BATCH);
-        const results = await Promise.allSettled(
-          slice.map((e) => storePersonalEmail(supa, connContext, e)),
-        );
-        for (const r of results) {
-          if (r.status === "fulfilled") {
-            if (r.value.stored) stored++;
-            if (r.value.needsTriage) triageCandidates++;
-          } else {
-            console.warn("[email-poll] storePersonalEmail failed:", r.reason?.message ?? r.reason);
-          }
-        }
+      // IMAP advances its UID only after every fetched message was saved.
+      if(conn.provider==="imap"){
+        await savePage(emails);
+        metadata={...metadata,eic_imap_since_ms:imapPageSize<LIMITI_POLL.imapPerGiro?null:metadata.eic_imap_since_ms};
+        if(imapPageSize>=LIMITI_POLL.imapPerGiro)summary.pending_windows++;
       }
-      summary.emails_stored += stored;
-      if (emails.length > 0) {
-        await resolveThreadsForUser(conn.user_id, emails.length + 20);
+      if (mailboxFetched > 0) {
+        await resolveThreadsForUser(conn.user_id, mailboxFetched + 20);
       }
-      if (triageCandidates > 0) {
-        // MP-EMAIL-AI-01: la cascata L1 (costo zero) e poi L3 danno la
-        // `categoria`. Il triage di email-triage-ai resta anche con L3 su cron:
-        // è l'unico che scrive priorità, riassunto, azione suggerita e dati
-        // estratti (ai_*), letti dal pannello AI dell'email, dalla pagina
-        // Triage email e dal badge «urgenti». Toglierlo spegne quelli.
-        queueL1Cascade(conn.company_id, triageCandidates);
-        queueTriagePending(conn.company_id, triageCandidates);
-        summary.ai_triage_queued += triageCandidates;
-      }
-
       // Mark sync ok
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supa as any).rpc("email_oauth_mark_sync", {
+      const marked=await (supa as any).rpc("email_oauth_mark_sync", {
         p_connection_id: conn.id,
         p_success: true,
-        p_emails_fetched: emails.length,
+        p_emails_fetched: mailboxFetched,
         p_error: null,
         // Merge, non sostituzione: `provider_metadata` è di tutti, non solo
         // del cursore IMAP.
-        p_provider_metadata: uidPiuAlto > 0 ? { ...metaImap, last_imap_uid: uidPiuAlto } : null,
+        p_provider_metadata: conn.provider==="imap" ? { ...metadata,...(uidPiuAlto>0?{last_imap_uid:uidPiuAlto}:{}) } : null,
       });
+      if(marked.error)throw marked.error;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       summary.errors.push({ connection_id: dueConn.id, error: msg });
@@ -1174,6 +1181,7 @@ serveConMetricheRapida("email-poll-inbox", async (req) => {
 
   summary.duration_ms = Date.now() - t0;
   return new Response(JSON.stringify(summary, null, 2), {
+    status:summary.errors.length>0?502:200,
     headers: { ...cors, "Content-Type": "application/json" },
   });
 });

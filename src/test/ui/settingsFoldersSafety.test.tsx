@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import SettingsCartelleDocumenti from "@/pages/azienda/settings/SettingsCartelleDocumenti";
 
@@ -9,12 +10,13 @@ vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isAdmin: fal
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company-1", customer_portal_enabled: false } }) }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "company-1" }));
 vi.mock("@/components/billing/SpazioArchiviazioneCard", () => ({ SpazioArchiviazioneCard: (): null => null }));
-vi.mock("@/hooks/useCartelleDocumenti", () => ({
+vi.mock("@/hooks/useCartelleDocumenti", async (original) => ({
+  ...(await original<typeof import("@/hooks/useCartelleDocumenti")>()),
   useCartelleDocumenti: () => ({ cartelle: [{ id: "f1", nome: "Contratti", visibile_cliente: false, obbligatoria: false, archiviata_at: null as string | null }], isLoading: false, isError: state.readError, refetch: state.refetch }),
   useSalvaCartella: () => ({ mutate: state.mutate, isPending: state.pending }), useRiordinaCartelle: () => ({ mutate: state.mutate, isPending: false }),
 }));
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => ({ select: () => ({ eq: async () => ({ count: 3, error: state.countError ? { message: "errore conteggio" } : null }) }) }) } }));
-const open = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><SettingsCartelleDocumenti /></QueryClientProvider>);
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => { const b = { select: () => b, eq: () => b, then: (ok: (r: unknown) => unknown) => Promise.resolve({ count: 3, error: state.countError ? { message: "errore conteggio" } : null }).then(ok) }; return b; } } }));
+const open = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><SettingsCartelleDocumenti /></MemoryRouter></QueryClientProvider>);
 beforeEach(() => { state.edit = true; state.readError = false; state.pending = false; state.countError = false; state.mutate.mockClear(); state.refetch.mockClear(); });
 afterEach(cleanup);
 describe("Cartelle documenti", () => {

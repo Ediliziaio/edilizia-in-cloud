@@ -22,7 +22,7 @@ describe("Rapportino nella lista del cantiere (operaio)", () => {
     expect(screen.getByText("5 ott 2026")).toBeInTheDocument();
     expect(screen.getByText("7.5h lavorate")).toBeInTheDocument();
     expect(screen.getByText("4 foto")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Firma/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi la tua firma" }));
     expect(a.onFirma).toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Correggi e rimanda" })).not.toBeInTheDocument();
   });
@@ -70,8 +70,8 @@ describe("Rapportino nella lista del cantiere (operaio)", () => {
 
   it("firmato: niente pulsante Firma", () => {
     disegna({ firma_operaio_url: "firma.png" });
-    expect(screen.getByText("Firmato")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Firma$/ })).not.toBeInTheDocument();
+    expect(screen.getByText("La tua firma è presente")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aggiungi la tua firma" })).not.toBeInTheDocument();
   });
 
   it("il PDF: «Genera PDF» se manca, «Apri PDF» se c'è, «Preparo PDF…» mentre lavora", () => {
@@ -111,5 +111,23 @@ describe("Rapportino nella lista del cantiere (operaio)", () => {
   it("una data illeggibile non fa cadere la lista", () => {
     disegna({ data_lavoro: "boh" });
     expect(screen.getByText("boh")).toBeInTheDocument();
+  });
+
+  it("la firma dell'autore non trasforma il giornaliero in un rapporto cliente", () => {
+    disegna({ firma_operaio_url: "mia-firma.png" });
+    expect(screen.getByText("Rapportino giornaliero")).toBeInTheDocument();
+    expect(screen.queryByText(/Firma cliente presente/)).toBeNull();
+  });
+
+  it("un fine lavori distingue nome e firma del cliente dalla firma dell'autore", () => {
+    disegna({ lavoro_completato: true, firma_cliente_url: "cliente.png", firma_cliente_nome: "Luca Bianchi" });
+    expect(screen.getByText("Rapporto cliente · Fine lavori")).toBeInTheDocument();
+    expect(screen.getByText("Firma cliente presente · Luca Bianchi")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aggiungi la tua firma" })).toBeInTheDocument();
+  });
+
+  it("non inventa una firma del cliente quando manca in un vecchio fine lavori", () => {
+    disegna({ lavoro_completato: true, firma_operaio_url: "mia-firma.png" });
+    expect(screen.getByText("Firma cliente non presente nell’archivio")).toBeInTheDocument();
   });
 });

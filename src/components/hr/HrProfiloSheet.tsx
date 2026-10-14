@@ -376,8 +376,8 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
                       </p>
                     )}
                     {isEditing && profilo && (
-                      <div className="mt-3 max-sm:hidden">
-                        <CostoPersonaHr profiloId={profilo.id} />
+                      <div className="mt-3">
+                        <CostoPersonaHr key={profilo.id} profiloId={profilo.id} />
                       </div>
                     )}
                   </div>

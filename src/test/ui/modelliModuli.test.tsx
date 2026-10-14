@@ -1,5 +1,5 @@
 /**
- * Impostazioni → Modelli di preventivo → scheda «Moduli» (10/10/2026).
+ * Impostazioni → Modelli preventivi e contratti → scheda «Moduli» (10/10/2026).
  *
  * Sotto il titolo del layout c'erano altri due titoli di pagina (h1), la parola «template» e «verticale»,
  * «Libreria moduli» al posto del nome della scheda, e chi non può modificare vedeva «Personalizza PDF» e gli

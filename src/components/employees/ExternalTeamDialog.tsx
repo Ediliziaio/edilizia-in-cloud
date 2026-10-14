@@ -76,6 +76,8 @@ interface ExternalTeamDialogProps {
   subappaltatori?: Array<{ id: string; ragione_sociale: string; user_email: string | null }>;
   /** Utenti dell'azienda (per il capocantiere delle squadre interne). */
   utenti?: Array<{ id: string; nome: string }>;
+  /** In Calendari lavori le interne si compongono dalla gestione operai. */
+  tipoBloccato?: boolean;
 }
 
 export function ExternalTeamDialog({
@@ -86,6 +88,7 @@ export function ExternalTeamDialog({
   isSaving,
   subappaltatori,
   utenti,
+  tipoBloccato = false,
 }: ExternalTeamDialogProps) {
   const form = useForm<ExternalTeamFormData>({
     resolver: zodResolver(teamSchema),
@@ -179,7 +182,7 @@ export function ExternalTeamDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select value={field.value} onValueChange={field.onChange} disabled={tipoBloccato}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue />
@@ -245,7 +248,7 @@ export function ExternalTeamDialog({
               />
             )}
 
-            {kind === "interna" && utenti && (
+            {kind === "interna" && utenti && !tipoBloccato && (
               <FormField
                 control={form.control}
                 name="leader_user_id"
@@ -274,7 +277,7 @@ export function ExternalTeamDialog({
               />
             )}
 
-            {kind === "interna" && <p className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">La squadra interna è composta da dipendenti. Dopo aver salvato l'anagrafica, apri «Dipendenti della squadra» in Calendari lavori per verificarne la composizione e la disponibilità del nuovo salvataggio.</p>}
+            {kind === "interna" && <p className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">Componenti e responsabile si gestiscono in Manodopera e Mezzi → Operai → Squadre. Il calendario Google resta collegato alla stessa squadra.</p>}
 
             {kind === "esterna" && <FormField
               control={form.control}

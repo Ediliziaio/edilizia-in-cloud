@@ -40,9 +40,10 @@ interface Props {
   customerId: string | null | undefined;
   customerEmail: string | null | undefined;
   customerName?: string;
+  compact?: boolean;
 }
 
-export function OrderCommunicationsCard({ customerId, customerEmail, customerName }: Props) {
+export function OrderCommunicationsCard({ customerId, customerEmail, customerName, compact = false }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -78,6 +79,7 @@ export function OrderCommunicationsCard({ customerId, customerEmail, customerNam
 
   // Caricamento attivo (evita l'empty-state prematuro mentre le query girano).
   const loading = (emailQ.isFetching || messaggiQ.isFetching) && items.length === 0;
+  const failed = emailQ.isError || messaggiQ.isError;
 
   // Commessa senza cliente collegato → niente comunicazioni da mostrare.
   if (!customerId) {
@@ -96,15 +98,15 @@ export function OrderCommunicationsCard({ customerId, customerEmail, customerNam
   }
 
   return (
-    <Card>
+    <Card className={compact ? "border-0 shadow-none" : undefined}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="flex items-center gap-2 text-base">
+          {!compact && <CardTitle className="flex items-center gap-2 text-base">
             <Inbox className="h-4 w-4 text-muted-foreground" /> Comunicazioni col cliente
-          </CardTitle>
+          </CardTitle>}
           <Button asChild variant="ghost" size="sm" className="h-8 shrink-0">
             <Link to={`/azienda/clienti/${customerId}?tab=email`}>
-              Tutte <ArrowRight className="h-3.5 w-3.5 ml-1" />
+              Apri conversazioni cliente <ArrowRight className="h-3.5 w-3.5 ml-1" />
             </Link>
           </Button>
         </div>
@@ -115,6 +117,11 @@ export function OrderCommunicationsCard({ customerId, customerEmail, customerNam
       <CardContent className="p-0">
         {loading ? (
           <div className="px-4 pb-4 text-sm text-muted-foreground">Caricamento…</div>
+        ) : failed ? (
+          <div role="alert" className="space-y-2 px-4 pb-4 text-sm text-destructive">
+            <p>Comunicazioni non disponibili. Non possiamo confermare che siano assenti.</p>
+            <Button type="button" size="sm" variant="outline" onClick={() => { void emailQ.refetch(); void messaggiQ.refetch(); }}>Riprova</Button>
+          </div>
         ) : items.length === 0 ? (
           <div className="px-4 pb-4 text-sm text-muted-foreground">Nessuna comunicazione recente con questo cliente.</div>
         ) : (

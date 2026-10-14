@@ -38,12 +38,12 @@ function open() {
 }
 beforeEach(() => { state.readError = false; state.writeError = false; state.writes.length = 0; state.error.mockClear(); state.success.mockClear(); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
-async function loaded() { await waitFor(() => expect(screen.getByLabelText("Margine target default %")).toHaveValue(30)); }
+async function loaded() { await waitFor(() => expect(screen.getByLabelText("Margine obiettivo %")).toHaveValue(30)); }
 
 describe("Margini: salvataggio esplicito e validazione", () => {
   it("non salva digitando, poi aggiorna soltanto il target modificato", async () => {
     open(); await loaded();
-    fireEvent.change(screen.getByLabelText("Margine target default %"), { target: { value: "35" } });
+    fireEvent.change(screen.getByLabelText("Margine obiettivo %"), { target: { value: "35" } });
     expect(state.writes).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
     await waitFor(() => expect(state.success).toHaveBeenCalledOnce());
@@ -51,9 +51,9 @@ describe("Margini: salvataggio esplicito e validazione", () => {
   });
   it("non sovrascrive la bozza dopo un refetch", async () => {
     const client = open(); await loaded();
-    fireEvent.change(screen.getByLabelText("Margine target default %"), { target: { value: "35" } });
+    fireEvent.change(screen.getByLabelText("Margine obiettivo %"), { target: { value: "35" } });
     await client.refetchQueries();
-    expect(screen.getByLabelText("Margine target default %")).toHaveValue(35);
+    expect(screen.getByLabelText("Margine obiettivo %")).toHaveValue(35);
     expect(state.writes).toHaveLength(0);
   });
   it("rifiuta un minimo maggiore del target", async () => {
@@ -65,27 +65,27 @@ describe("Margini: salvataggio esplicito e validazione", () => {
   });
   it("mantiene la bozza quando il database rifiuta il salvataggio", async () => {
     state.writeError = true; open(); await loaded();
-    fireEvent.change(screen.getByLabelText("Margine target default %"), { target: { value: "35" } });
+    fireEvent.change(screen.getByLabelText("Margine obiettivo %"), { target: { value: "35" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledOnce());
-    expect(screen.getByLabelText("Margine target default %")).toHaveValue(35);
+    expect(screen.getByLabelText("Margine obiettivo %")).toHaveValue(35);
     expect(screen.getByRole("status")).toHaveTextContent("Modifiche non salvate");
   });
   it("blocca modifiche quando la lettura fallisce", async () => {
     state.readError = true; open();
-    await waitFor(() => expect(screen.getByLabelText("Margine target default %")).toBeDisabled());
+    await waitFor(() => expect(screen.getByLabelText("Margine obiettivo %")).toBeDisabled());
     expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeDisabled();
     expect(state.writes).toHaveLength(0);
   });
   it("non perde la bozza passando a un'altra scheda se si annulla la conferma", async () => {
     const conferma = vi.spyOn(window, "confirm").mockReturnValue(false);
     open(); await loaded();
-    fireEvent.change(screen.getByLabelText("Margine target default %"), { target: { value: "35" } });
+    fireEvent.change(screen.getByLabelText("Margine obiettivo %"), { target: { value: "35" } });
     // «Apri Sconti» è un link a un'altra scheda del gruppo: con modifiche non salvate chiede conferma prima di partire.
     const evento = fireEvent.click(screen.getByRole("link", { name: "Apri Sconti" }));
     expect(conferma).toHaveBeenCalledOnce();
     expect(evento).toBe(false); // il clic è stato fermato
-    expect(screen.getByLabelText("Margine target default %")).toHaveValue(35);
+    expect(screen.getByLabelText("Margine obiettivo %")).toHaveValue(35);
   });
   it("filtra le categorie senza salvare e valida prima della scrittura automatica", async () => {
     open(); await loaded();

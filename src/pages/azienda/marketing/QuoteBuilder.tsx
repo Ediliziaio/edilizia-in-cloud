@@ -45,10 +45,10 @@ import {
 import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventivoCosti";
 import { calcolaPrezzoFamiglia, type GridPoint } from "@/hooks/useFamilyPricing";
 import { unitaTariffa } from "@/lib/listino/costoTariffa";
+import { rigaCollegataAlProdotto } from "@/lib/preventivi/catalogoPreventivo";
 import { allineaRigheAlKm, quantitaInizialeTariffa } from "@/lib/listino/tariffaAlKm";
 import { conAssiVisibili } from "@/lib/serramenti/assiCondizionati";
 import ApplyBundleDialog from "@/components/marketing/preventivi/ApplyBundleDialog";
-import { TariffePickerDialog } from "@/components/marketing/preventivi/TariffePickerDialog";
 import { AddItemDialog } from "@/components/marketing/preventivi/AddItemDialog";
 import { RilievoPosizioniDialog } from "@/components/marketing/preventivi/RilievoPosizioniDialog";
 import { QuotePaymentTermsCard } from "@/components/marketing/preventivi/QuotePaymentTermsCard";
@@ -466,7 +466,6 @@ export default function QuoteBuilder() {
 
   // IMP09: Bundle dialog
   const [bundleOpen, setBundleOpen] = useState(false);
-  const [tariffePickerOpen, setTariffePickerOpen] = useState(false);
   // Anteprima del PDF VERO (edge generate-quote-pdf), non del mock statico.
   const [anteprimaUrl, setAnteprimaUrl] = useState<string | null>(null);
   const [anteprimaLoading, setAnteprimaLoading] = useState(false);
@@ -481,6 +480,7 @@ export default function QuoteBuilder() {
   // entry point "+ Aggiungi voce" che apre la macchina a stati
   // Macrocategoria → Prodotto → Configura.
   const [addItemOpen, setAddItemOpen] = useState(false);
+  const [addItemTab, setAddItemTab] = useState<"prodotti" | "servizi">("prodotti");
   const preventivatoreUnifiedOn = isPreventivatoreUnifiedOn();
 
   // Step 2: Documents + PDF settings
@@ -1105,7 +1105,7 @@ export default function QuoteBuilder() {
     return { quantity: quantita, unit_price: unita.prezzo_vendita, prezzo_acquisto: unita.prezzo_acquisto };
   };
 
-  const addTariffa = (tariffa: TariffaPro, category: string) => {
+  const addTariffa = (tariffa: TariffaPro, category: string, quantita?: number) => {
     const riga = prezziRigaTariffa(tariffa);
     setItems((prev) => [
       ...prev,
@@ -1113,8 +1113,8 @@ export default function QuoteBuilder() {
         item_type: "service",
         item_category: category,
         name: tariffa.nome,
-        description: "",
-        quantity: riga.quantity,
+        description: tariffa.descrizione ?? "",
+        quantity: unitaTariffa(tariffa) === "a_corpo" ? 1 : quantita ?? riga.quantity,
         unit_price: riga.unit_price,
         discount_percent: 0,
         vat_rate: ivaPredefinita(),
@@ -2688,7 +2688,7 @@ export default function QuoteBuilder() {
             <Card>
               <CardHeader className="max-sm:p-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <CardTitle className="max-sm:text-base">Prodotti e Servizi</CardTitle>
+                  <CardTitle className="max-sm:text-base">Prodotti e lavori</CardTitle>
                   {preventivatoreUnifiedOn ? (
                     // Sprint A: entry point unificato. Le azioni secondarie
                     // (Riga libera/Sconto/Subtotale) sono dentro il dialog
@@ -2696,12 +2696,12 @@ export default function QuoteBuilder() {
                     // menu "Altro" sottostante per non rompere il flusso
                     // avanzato degli utenti abituati.
                     // Telefono: i tre bottoni su una riga, «Aggiungi prodotti» a riempire.
-                    <div className="flex flex-wrap gap-2 max-sm:w-full max-sm:flex-nowrap">
-                      <Button size="sm" variant="brand" className="max-sm:min-w-0 max-sm:flex-1" onClick={() => setAddItemOpen(true)}>
-                        <Plus className="h-4 w-4 mr-1" /> <span className="max-sm:hidden">Cerca e aggiungi prodotti</span><span className="sm:hidden">Aggiungi prodotti</span>
+                    <div className="flex flex-wrap gap-2 max-sm:w-full">
+                      <Button size="sm" variant="brand" className="max-sm:min-w-0 max-sm:flex-1" onClick={() => {setAddItemTab("prodotti"); setAddItemOpen(true);}}>
+                        <Plus className="h-4 w-4 mr-1" /> Prodotti
                       </Button>
-                      <Button type="button" size="sm" variant="outline" className="max-sm:shrink-0" onClick={() => addItem("product")}>
-                        <Plus className="h-4 w-4 mr-1 max-sm:hidden" /> <span className="max-sm:hidden">Aggiungi voce manuale</span><span className="sm:hidden">Voce libera</span>
+                      <Button type="button" size="sm" variant="outline" className="max-sm:flex-1" onClick={() => {setAddItemTab("servizi"); setAddItemOpen(true);}}>
+                        <Plus className="h-4 w-4 mr-1" /> Manodopera e servizi
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -2710,8 +2710,8 @@ export default function QuoteBuilder() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                          <DropdownMenuItem onClick={() => setTariffePickerOpen(true)}>
-                            <Plus className="h-4 w-4 mr-2" /> Voce dal listino tariffe
+                          <DropdownMenuItem onClick={() => addItem("product")}>
+                            <Plus className="h-4 w-4 mr-2" /> Riga libera
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setBundleOpen(true)}>
                             <Layers className="h-4 w-4 mr-2" /> Bundle
@@ -2902,11 +2902,7 @@ export default function QuoteBuilder() {
                     >
                   <div className="space-y-2">
                     {items.map((item, idx) => {
-                      const isChild =
-                        item._parentIdx != null ||
-                        ["posa", "smaltimento", "trasporto", "nolo"].includes(
-                          item.item_category
-                        );
+                      const isChild = rigaCollegataAlProdotto(item);
                       const isNota = item.item_category === "nota";
                       const isSubtotale = item.item_category === "subtotale";
                       const isSconto = item.item_category === "sconto";
@@ -3525,7 +3521,7 @@ export default function QuoteBuilder() {
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
                 Le modifiche qui valgono solo per questo preventivo. I valori di default si configurano in{" "}
-                <Link to="/azienda/impostazioni/margini#pdf-e-firma" className="underline">Impostazioni → Modelli di preventivo → Prezzo e margini</Link>.
+                <Link to="/azienda/impostazioni/margini#pdf-e-firma" className="underline">Impostazioni → Modelli preventivi e contratti → Prezzo e margini</Link>.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -4014,17 +4010,6 @@ export default function QuoteBuilder() {
       )}
 
       {/* FASE 10.4: Apply bundle dialog (famiglie + prodotti + tariffe) */}
-      <TariffePickerDialog
-        open={tariffePickerOpen}
-        onClose={() => setTariffePickerOpen(false)}
-        tariffe={tariffe}
-        onPick={(t) => {
-          // La CHECK su quote_items.item_category ammette solo queste voci:
-          // tutto il resto (manodopera, tipi custom) viaggia come "posa".
-          const ammesse = new Set(["posa", "trasporto", "tiro_piano", "smaltimento", "nolo", "pratica"]);
-          addTariffa(t, ammesse.has(t.tipo) ? t.tipo : "posa");
-        }}
-      />
       <ApplyBundleDialog
         open={bundleOpen}
         onClose={() => setBundleOpen(false)}
@@ -4066,9 +4051,13 @@ export default function QuoteBuilder() {
       {preventivatoreUnifiedOn && (
         <AddItemDialog
           open={addItemOpen}
+          initialTab={addItemTab}
           onClose={() => setAddItemOpen(false)}
           tariffe={tariffe}
           currentSortOrder={items.length}
+          quantitaInizialeTariffa={t => quantitaInizialeTariffa(t, kmCantiere).quantita}
+          prezzoUnitarioTariffa={t => calcolaTariffaAutomatica(t, 1, pianoInstallazione).prezzo_vendita}
+          onAddTariffa={(t, q) => { const ammesse = new Set(["posa", "trasporto", "tiro_piano", "smaltimento", "nolo", "pratica"]); addTariffa(t, ammesse.has(t.tipo) ? t.tipo : "posa", q); }}
           onAddItems={(configured: ConfiguredItem[]) => {
             // I ConfiguredItem portano già `client_temp_id`/`parent_temp_id`
             // nel loro `quote_item`: li preserviamo as-is in `items` per poi

@@ -33,6 +33,9 @@ import { TimelineUso } from "@/components/mezzi/TimelineUso";
 
 interface Props {
   orderId: string;
+  compact?: boolean;
+  /** Statistics view: no assignment, movement or removal commands. */
+  readOnly?: boolean;
 }
 
 function descriviPeriodi(periodi: Array<{ dal: string; al: string | null }>): string {
@@ -41,15 +44,16 @@ function descriviPeriodi(periodi: Array<{ dal: string; al: string | null }>): st
     .join(", ");
 }
 
-export function MezziCommessaCard({ orderId }: Props) {
+export function MezziCommessaCard({ orderId, compact = false, readOnly = false }: Props) {
   const perms = usePermissions();
   const puoVedere = perms.canViewMezzi || perms.isAdmin;
-  const puoModificare = (perms.canEditMezzi || perms.isAdmin) && !perms.solaLettura;
+  const puoModificare = !readOnly && (perms.canEditMezzi || perms.isAdmin) && !perms.solaLettura;
+  const vedeCosti = perms.canViewCosts === true;
 
   const { data: mezzi = [], isLoading: loadingParco, isError: parcoError, refetch: refetchParco } = useMezzi();
   const { data: sulCantiere = [], isLoading, error, refetch } = useMezziDellaCommessa(puoVedere ? orderId : undefined);
-  const { data: costiParco } = useCostiParco();
-  const { data: montaggi = [] } = useMontaggiDellaCommessa(puoVedere ? orderId : undefined);
+  const { data: costiParco, isError: costiError } = useCostiParco(puoVedere && vedeCosti);
+  const { data: montaggi = [], isLoading: loadingMontaggi, isError: montaggiError, refetch: refetchMontaggi } = useMontaggiDellaCommessa(puoVedere ? orderId : undefined);
   const { data: disponibilita } = useMezziDisponibilita();
   const assegna = useAssegnaMezzoACommessa();
   const monta = useMontaQuantita();
@@ -57,6 +61,7 @@ export function MezziCommessaCard({ orderId }: Props) {
 
   const [aperto, setAperto] = useState(false);
   const [scelto, setScelto] = useState<string>("");
+  const [mostraStorico, setMostraStorico] = useState(false);
 
   const oggi = oggiIso();
   const { data: distanze } = useDistanzeCantieri(puoVedere && sulCantiere.length > 0 ? [orderId] : []);
@@ -121,11 +126,14 @@ export function MezziCommessaCard({ orderId }: Props) {
   const libero = sceltoInfo ? liberoDi(sceltoInfo) : 0;
   const nQuantita = numeroLetto(quantita);
   const quantitaValida = !aQuantita || (nQuantita != null && nQuantita > 0 && nQuantita <= libero);
+  const storici = righe.filter(r => !r.adesso).length + righeMontaggi.filter(g => !g.adesso).length;
+  const righeVisibili = compact && !mostraStorico ? righe.filter(r => r.adesso) : righe;
+  const montaggiVisibili = compact && !mostraStorico ? righeMontaggi.filter(g => g.adesso) : righeMontaggi;
 
   if (!puoVedere) return null;
 
   const conferma = async () => {
-    if (!scelto || !quantitaValida) return;
+    if (!puoModificare || assegna.isPending || monta.isPending || !scelto || !quantitaValida) return;
     try {
       if (aQuantita) await monta.mutateAsync({ mezzoId: scelto, order_id: orderId, quantita: nQuantita! });
       else await assegna.mutateAsync({ mezzoId: scelto, orderId });
@@ -142,7 +150,7 @@ export function MezziCommessaCard({ orderId }: Props) {
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 max-sm:p-3 max-sm:pb-2">
         <CardTitle className="flex min-w-0 items-center gap-2 text-base sm:text-lg">
           <Truck className="h-4 w-4 shrink-0 text-slate-600" />
-          <span>Mezzi e attrezzature</span>
+          <span>{readOnly ? "Utilizzo di mezzi e attrezzature" : "Mezzi e attrezzature"}</span>
           {righe.length + righeMontaggi.length > 0 && <span className="shrink-0 text-xs font-normal text-muted-foreground">({righe.length + righeMontaggi.length})</span>}
         </CardTitle>
         {puoModificare && (
@@ -154,23 +162,24 @@ export function MezziCommessaCard({ orderId }: Props) {
       </CardHeader>
       <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0">
         <div className="flex flex-col items-start gap-3 rounded-lg bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="min-w-0 flex-1 text-xs text-slate-600">Mezzi propri, in leasing o a noleggio. Le assegnazioni indicano dove sono; i costi qui mostrati sono stime, non fatture di noleggio.</p>
+          <p className="min-w-0 flex-1 text-xs text-slate-600">{readOnly ? "Storico di utilizzo sul cantiere. Gestisci le assegnazioni in Lavorazioni. I costi sono stime, non nuove registrazioni contabili." : compact ? "Assegnazioni fisiche al cantiere; valgono per tutta la commessa. I mezzi al seguito delle persone sono indicati nelle rispettive fasi." : "Mezzi propri, in leasing o a noleggio. Le assegnazioni indicano dove sono; i costi qui mostrati sono stime, non fatture di noleggio."}</p>
           <Button asChild variant="outline" size="sm" className="min-h-11 border-slate-300 font-semibold text-blue-950">
             <Link to="/azienda/manodopera?tab=mezzi">Parco mezzi e noleggi</Link>
           </Button>
         </div>
-        {isLoading || loadingParco ? (
+        {compact && storici > 0 && <Button variant="outline" size="sm" aria-expanded={mostraStorico} onClick={() => setMostraStorico(v => !v)}>{mostraStorico ? "Nascondi storico" : `Mostra storico (${storici})`}</Button>}
+        {isLoading || loadingParco || loadingMontaggi ? (
           <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-        ) : error || parcoError ? (
+        ) : error || parcoError || montaggiError ? (
           <p className="text-sm text-red-700">
             Non riesco a caricare i mezzi.{" "}
-            <button type="button" className="font-semibold underline" onClick={() => { void refetch(); void refetchParco(); }}>Riprova</button>
+            <button type="button" className="font-semibold underline" onClick={() => { void refetch(); void refetchParco(); void refetchMontaggi(); }}>Riprova</button>
           </p>
         ) : righe.length === 0 && righeMontaggi.length === 0 ? (
           <p className="text-sm text-muted-foreground max-sm:text-xs">{mezzi.length === 0 ? "Il parco mezzi è vuoto. Registra prima il mezzo o l'attrezzatura, anche a noleggio, poi assegnalo al cantiere." : "Nessun mezzo è ancora passato da questo cantiere."}</p>
         ) : (
           <ul className="divide-y">
-            {righe.map((r) => (
+            {righeVisibili.map((r) => (
               <li key={r.mezzo_id} className="flex items-center gap-3 py-2.5">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100">
                   <IconaMezzo tipo={r.tipo} className="h-4 w-4 text-slate-600" />
@@ -191,7 +200,7 @@ export function MezziCommessaCard({ orderId }: Props) {
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {descriviPeriodi(r.periodi)} · {r.giorni === 1 ? "1 giorno" : `${r.giorni} giorni`}
                     {r.km != null && <> · circa {formatKm(r.km)}</>}
-                    {r.stima != null && <> · circa {formatCurrency(r.stima)}</>}
+                    {vedeCosti && !compact && r.stima != null && <> · circa {formatCurrency(r.stima)}</>}
                   </p>
                 </div>
                 {puoModificare && r.adesso && (
@@ -211,9 +220,10 @@ export function MezziCommessaCard({ orderId }: Props) {
             ))}
           </ul>
         )}
-        {righeMontaggi.length > 0 && (
+        {compact && !mostraStorico && righeVisibili.length + montaggiVisibili.length === 0 && storici > 0 && <p className="text-sm text-muted-foreground">Nessun mezzo presente adesso. Le assegnazioni precedenti sono nello storico.</p>}
+        {!montaggiError && !loadingMontaggi && montaggiVisibili.length > 0 && (
           <ul className="divide-y border-t">
-            {righeMontaggi.map((g) => (
+            {montaggiVisibili.map((g) => (
               <li key={g.id} className="flex items-center gap-3 py-2.5">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100">
                   <IconaMezzo tipo="attrezzatura" className="h-4 w-4 text-slate-600" />
@@ -228,13 +238,16 @@ export function MezziCommessaCard({ orderId }: Props) {
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {g.al ? `dal ${formatData(g.dal)} al ${formatData(g.al)}` : `dal ${formatData(g.dal)}`} · {g.giorni === 1 ? "1 giorno" : `${g.giorni} giorni`}
-                    {g.stima != null && <> · circa {formatCurrency(g.stima)}</>}
+                    {vedeCosti && !compact && g.stima != null && <> · circa {formatCurrency(g.stima)}</>}
                   </p>
                 </div>
               </li>
             ))}
           </ul>
         )}
+        {!error && !parcoError && !montaggiError && <details open={compact ? undefined : true} className={compact ? "rounded-lg border px-3 py-2" : ""}>
+        {compact && <summary className="cursor-pointer text-sm font-medium">Storico utilizzo, viaggio{vedeCosti ? " e stime di costo" : ""}</summary>}
+        <div className={compact ? "mt-3 space-y-3" : "space-y-3"}>
         {righe.length > 1 && (
           <TimelineUso
             className="rounded-lg border bg-white px-3 py-2.5"
@@ -256,12 +269,14 @@ export function MezziCommessaCard({ orderId }: Props) {
             {kmTotali > 0 && <> Km stimati dei mezzi su questo cantiere, andata e ritorno nei giorni lavorativi: <span className="font-medium text-foreground">{formatKm(kmTotali)}</span>.</>}
           </p>
         )}
-        {stimaTotale > 0 && (
+        {vedeCosti && costiError && <p className="text-xs text-amber-800">Stime di costo non disponibili. Nessun costo viene registrato da questa vista.</p>}
+        {vedeCosti && !costiError && stimaTotale > 0 && (
           <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
             Costo stimato dei mezzi su questo cantiere: <span className="font-medium text-foreground">{formatCurrency(stimaTotale)}</span>.
             Viene da assicurazione, bollo, rate e interventi dell'ultimo anno, divisi per i giorni sul cantiere. Compare nella lettura gestionale, senza modificare il margine diretto contabilizzato.
           </p>
         )}
+        </div></details>}
       </CardContent>
 
       <Dialog open={aperto} onOpenChange={(o) => { setAperto(o); if (!o) { setScelto(""); setQuantita(""); } }}>
@@ -308,7 +323,7 @@ export function MezziCommessaCard({ orderId }: Props) {
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setAperto(false)}>Annulla</Button>
-            <Button onClick={conferma} disabled={!scelto || !quantitaValida || (aQuantita && !quantita.trim()) || assegna.isPending || monta.isPending}>
+            <Button onClick={conferma} disabled={!puoModificare || !scelto || !quantitaValida || (aQuantita && !quantita.trim()) || assegna.isPending || monta.isPending}>
               {(assegna.isPending || monta.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {aQuantita ? "Segna il montaggio" : "Metti sul cantiere"}
             </Button>

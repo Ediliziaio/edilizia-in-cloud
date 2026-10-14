@@ -40,8 +40,8 @@ const HIDDEN_ON_MOBILE = new Set<string>([
   "/azienda/impostazioni/categorie-costi",    // Categorie costi
   "/azienda/impostazioni/fornitori",          // Fornitori
   "/azienda/impostazioni/listino",            // Listino prodotti
-  "/azienda/impostazioni/margini",            // Modelli di preventivo · Prezzo e margini
-  "/azienda/impostazioni/template-preventivi",// Modelli di preventivo
+  "/azienda/impostazioni/margini",            // Modelli preventivi e contratti · Prezzo e margini
+  "/azienda/impostazioni/template-preventivi",// Modelli preventivi e contratti
   "/azienda/impostazioni/catalogo-render",    // Catalogo render
   "/azienda/impostazioni/condizioni-firma",   // Firma e condizioni
   "/azienda/impostazioni/finanziamenti",      // Finanziamenti
@@ -63,8 +63,8 @@ const HIDDEN_ON_MOBILE = new Set<string>([
 
 /**
  * Una voce è nascosta da telefono se lo è uno qualsiasi dei suoi indirizzi. Le voci con le schede (Listino,
- * Modelli di preventivo, Firma e condizioni) aprono la prima scheda che l'utente può vedere: guardare solo quella
- * lasciava sul telefono «Modelli di preventivo» a chi ha il solo permesso degli Sconti, e lo nascondeva
+ * Modelli preventivi e contratti, Firma e condizioni) aprono la prima scheda che l'utente può vedere: guardare solo quella
+ * lasciava sul telefono «Modelli preventivi e contratti» a chi ha il solo permesso degli Sconti, e lo nascondeva
  * all'amministratore.
  */
 const nascostaDaTelefono = (voce: SettingsNavItem): boolean => (voce.indirizzi ?? [voce.to]).some((a) => HIDDEN_ON_MOBILE.has(a));

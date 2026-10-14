@@ -13,7 +13,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
-  AlertTriangle, CalendarOff, ChevronLeft, ChevronRight, Clock, Crown, FileWarning, HardHat, LogOut, Truck,
+  AlertTriangle, CalendarDays, CalendarOff, ChevronLeft, ChevronRight, Clock, Crown, FileWarning, HardHat, LogOut, Truck,
   MoreHorizontal, Moon, Pencil, Plus, RefreshCw, Search, Smartphone, Users, UsersRound,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -49,6 +49,7 @@ import {
 } from "@/lib/manodopera/giornata";
 import { formatDateIt } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { CALENDARI_SQUADRE, percorsoSquadra } from "@/lib/manodopera/collegamentiSquadre";
 
 type Vista = "oggi" | "squadre" | "elenco";
 const VISTE: { v: Vista; etichetta: string }[] = [
@@ -394,6 +395,8 @@ function SchedinaGiornata({ r, linkCommesse }: { r: OperaioOggi; linkCommesse: b
 
 function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onNuova: () => void }) {
   const perms = usePermissions();
+  const [params, setParams] = useSearchParams();
+  const richiesta = params.get("squadra");
   const { data: squadre = [], isLoading, error, refetch, isFetching } = useSquadre();
   const { data: operai = [] } = useOperai();
   const { data: giornata = [] } = useGiornataOperai(oggiRoma());
@@ -406,12 +409,20 @@ function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onN
   const statoOggi = useMemo(() => new Map(giornata.map((r) => [r.profilo_id, statoNoto(r.stato)])), [giornata]);
   const senzaSquadra = useMemo(() => operai.filter((o) => o.attivo && !o.squadra_id), [operai]);
   const linkCommesse = perms.canViewOrders === true || perms.isAdmin;
+  const linkCalendari = !perms.isLoading && (perms.canViewSettingsOrders === true || perms.isAdmin);
+  const selezionata = squadre.find(s => s.id === richiesta);
+  const visibili = selezionata ? [selezionata] : squadre;
 
   if (error) return <ErroreCaricamento testo="Non riesco a caricare le squadre." onRiprova={() => refetch()} inCorso={isFetching} />;
   if (isLoading) return <ScheletroLista />;
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">Componi le squadre e assegnale ai lavori delle commesse.</p>
+        {linkCalendari && <Button asChild variant="outline" size="sm"><Link to={CALENDARI_SQUADRE}><CalendarDays className="mr-2 h-4 w-4" />Calendari delle squadre</Link></Button>}
+      </div>
+      {richiesta && <p className="rounded-lg border bg-muted/20 px-3 py-2 text-sm">{selezionata ? `Squadra selezionata: ${selezionata.nome}.` : "La squadra richiesta non è attiva o non è disponibile."} <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setParams(prev => { const next = new URLSearchParams(prev); next.delete("squadra"); return next; }, { replace: true })}>Mostra tutte le squadre</Button></p>}
       {squadre.length === 0 ? (
         <div className="rounded-2xl border border-dashed bg-white px-6 py-10 text-center">
           <UsersRound className="mx-auto h-8 w-8 text-orange-500" aria-hidden="true" />
@@ -427,7 +438,7 @@ function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onN
         </div>
       ) : (
         <div className="grid items-start gap-4 lg:grid-cols-2">
-          {squadre.map((s) => (
+          {visibili.map((s) => (
             <article key={s.id} className="flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm" aria-label={s.nome}>
               <div className="h-1.5" style={{ backgroundColor: s.colore ?? "#94A3B8" }} aria-hidden="true" />
               <div className="flex items-start justify-between gap-3 px-4 pb-2 pt-3">
@@ -462,6 +473,7 @@ function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onN
                 )}
               </div>
 
+              {linkCalendari && <Link to={percorsoSquadra(CALENDARI_SQUADRE, s.id)} className="mx-4 mb-3 inline-flex items-center gap-1.5 self-start text-xs font-medium text-primary hover:underline"><CalendarDays className="h-3.5 w-3.5" />Calendario Google della squadra</Link>}
               {s.componenti.length === 0 ? (
                 <p className="px-4 pb-3 text-sm text-muted-foreground">Nessun operaio: premi «Modifica» e scegli chi ci lavora.</p>
               ) : (

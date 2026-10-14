@@ -23,16 +23,16 @@ export const LIMITI_POLL = {
   casellePerGiro: 15,
 
   /** Messaggi in arrivo per casella Gmail, giro incrementale (prima: 200). */
-  gmailIncrementale: 50,
+  gmailIncrementale: 20,
   /** Primo allineamento di una casella Gmail appena collegata (prima: 1000). */
-  gmailPrimoGiro: 300,
+  gmailPrimoGiro: 20,
   /** Messaggi inviati per casella Gmail, giro incrementale (prima: 100). */
-  gmailInviateIncrementale: 20,
+  gmailInviateIncrementale: 10,
   /** Inviati al primo allineamento di una casella Gmail (prima: 500). */
-  gmailInviatePrimoGiro: 150,
+  gmailInviatePrimoGiro: 10,
 
   /** Messaggi IMAP per casella in un giro (prima: 50). Allineato a outreach-imap-poll. */
-  imapPerGiro: 25,
+  imapPerGiro: 5,
 
   /** Allegati documentali materializzati nel bucket in un giro (prima: 40). */
   allegatiPerGiro: 12,

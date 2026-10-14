@@ -16,9 +16,10 @@ const opts = (o: Partial<PriceAdjustOptions>): PriceAdjustOptions => ({
 });
 
 describe("roundPrice", () => {
-  it("arrotonda a 2 decimali di default (none)", () => {
-    expect(roundPrice(21.989, "none")).toBe(21.99);
-    expect(roundPrice(10.005, "none")).toBe(10.01);
+  it("mantiene i quattro decimali della tariffa, anche per importi molto piccoli", () => {
+    expect(roundPrice(21.989, "none")).toBe(21.989);
+    expect(roundPrice(10.005, "none")).toBe(10.005);
+    expect(roundPrice(0.00442, "none")).toBe(0.0044);
     expect(roundPrice(10, "none")).toBe(10);
   });
 
@@ -43,7 +44,7 @@ describe("roundPrice", () => {
 describe("adjustValue", () => {
   it("percentuale positiva", () => {
     expect(adjustValue(100, opts({ mode: "percent", amount: 5 }))).toBe(105);
-    expect(adjustValue(19.99, opts({ mode: "percent", amount: 10 }))).toBe(21.99);
+    expect(adjustValue(19.99, opts({ mode: "percent", amount: 10 }))).toBe(21.989);
   });
 
   it("percentuale negativa", () => {

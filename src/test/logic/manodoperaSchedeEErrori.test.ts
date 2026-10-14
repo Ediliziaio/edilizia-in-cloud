@@ -46,7 +46,9 @@ describe("gli indirizzi che già esistono nell'app aprono ancora una parte di Ma
     for (const file of FILE) {
       for (const m of leggi(file).matchAll(/tariffe\?tab=([a-z-]+)/g)) trovati.push({ file, tab: m[1] });
     }
-    expect(trovati.length).toBeGreaterThanOrEqual(3);
+    // Ricerca e ⌘K usano ora il piano condiviso delle impostazioni; solo la
+    // vecchia rotta deve conservare necessariamente questo indirizzo letterale.
+    expect(trovati).toContainEqual({ file: "src/routes/companyRoutes.tsx", tab: "manutenzione" });
     for (const { file, tab } of trovati) {
       expect(schedaDaParametro(tab), `${file}: tab=${tab}`).not.toBe("manodopera");
     }

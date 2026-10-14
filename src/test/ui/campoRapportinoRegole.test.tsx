@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
   regole: undefined as RegoleCampo | undefined,
   oreGia: null as { ore: number; da: string } | null,
   fasi: [] as unknown[], sottofasi: [] as unknown[],
+  verificaErrore: false, verificaCaricamento: false,
 }));
 vi.mock("react-router-dom", () => ({ useParams: () => ({ orderId: "order" }), useNavigate: () => vi.fn(), useSearchParams: () => [new URLSearchParams(), vi.fn()] }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "worker" }, profile: { company_id: "company", first_name: "Mario", last_name: "Rossi" } }) }));
@@ -27,7 +28,7 @@ vi.mock("@/hooks/campo/useCampoDayTime", () => ({ useCampoDayTime: () => ({
   summary: summarizeCampoTime([], { start: new Date("2026-09-24T00:00:00Z"), end: new Date("2026-09-25T00:00:00Z"), now: new Date("2026-09-24T18:00:00Z"), includeOpen: true }),
   isSuccess: true, isError: false, refetch: vi.fn(),
 }) }));
-vi.mock("@/components/campo/FirmaPad", () => ({ FirmaPad: () => <div>Firma simulata</div> }));
+vi.mock("@/components/campo/FirmaPad", () => ({ FirmaPad: ({ label, onChange }: { label: string; onChange: (v: string | null) => void }) => <div>Firma simulata<button onClick={() => onChange("data:image/png;base64,aGVsbG8=")}>Traccia {label}</button></div> }));
 vi.mock("@/lib/campo/rapportinoAssignment", () => ({ hasRapportinoAssignment: async () => true }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), loading: vi.fn(), warning: vi.fn() } }));
 vi.mock("@tanstack/react-query", () => ({
@@ -42,7 +43,9 @@ vi.mock("@tanstack/react-query", () => ({
     queryKey[0] === "campo-ore-gia-registrate" ? state.oreGia :
     queryKey[0] === "campo-rapportino-gia-oggi" ? state.gia :
     queryKey[0] === "campo-cantiere-coord" ? { lat: 45, lng: 9 } : undefined,
-    isError: false, refetch: vi.fn() }),
+    isError: queryKey[0] === "campo-rapportino-gia-oggi" && state.verificaErrore,
+    isLoading: queryKey[0] === "campo-ruolo" && state.verificaCaricamento,
+    refetch: vi.fn() }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   useMutation: (config: { mutationFn: () => Promise<unknown>; onSuccess?: () => void; onError?: (e: unknown) => void }) => ({
     isPending: false,
@@ -58,11 +61,14 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
       then: Promise.resolve(result).then.bind(Promise.resolve(result)) };
     return query;
   }, functions: { invoke: async () => ({ data: { pdf_url: "https://local.invalid/rapportino.pdf" }, error: null as null }) },
+  storage: { from: () => ({ upload: async () => ({ data: { path: "firma.png" }, error: null as null }), getPublicUrl: () => ({ data: { publicUrl: "https://local.invalid/firma.png" } }) }) },
 } }));
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   state.role = { isCapocantiere: false, esisteCapo: false }; state.crew = []; state.regole = undefined; state.oreGia = null; state.gia = null;
   state.fasi = []; state.sottofasi = [];
+  state.verificaErrore = false; state.verificaCaricamento = false;
   vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-09-24T15:00:00+02:00"));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -156,24 +162,39 @@ describe("Il capocantiere, con le ore scritte a mano (come oggi)", () => {
 });
 
 describe("L'operaio, secondo come lavora l'azienda", () => {
-  it("se il rapportino lo fa il capo, non scrive le ore e invia lo stesso descrizione e foto", async () => {
+  it("nel flusso misto il capo racconta il cantiere ma non inserisce ore degli altri", () => {
+    state.regole = { chiCompila: "ore_proprie", oreDalle: "timbrature", avvisoScostamentoMinuti: null };
+    state.role = { isCapocantiere: true, esisteCapo: true };
+    state.crew = [{ key: "emp-1", employee_id: "1", nome: "Luca", ore_timbrate: 8 }];
+    render(<CampoRapportino />);
+    expect(ore()).toBeInTheDocument(); expect(screen.getByLabelText("Lavori svolti nella giornata")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Luca/ })).toBeNull();
+  });
+  it("la voce rimane nello stesso modulo e non permette di saltare alla verifica mentre è aperta", () => {
+    render(<CampoRapportino />);
+    fireEvent.click(screen.getByRole("button", { name: "Compila parlando" }));
+    expect(screen.getByRole("button", { name: "Avanti" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Torna a scrivere" }));
+    expect(screen.getByRole("button", { name: "Avanti" })).toBeEnabled();
+    expect(state.insert).not.toHaveBeenCalled();
+  });
+  it("se il rapportino lo fa il capo, propone solo timbratura e cantiere", () => {
     state.regole = { chiCompila: "capo", oreDalle: "capo", avvisoScostamentoMinuti: null };
     state.role = { isCapocantiere: false, esisteCapo: true };
     render(<CampoRapportino />);
     expect(ore()).toBeNull();
-    expect(screen.getByText("Le tue ore le registra il capocantiere")).toBeInTheDocument();
-    invia();
-    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ ore_lavorate: 0, ore_straordinario: 0 })));
+    expect(screen.getByRole("button", { name: "Entrata e uscita" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Invia rapportino" })).toBeNull();
+    expect(screen.queryByLabelText("Lavori svolti nella giornata")).toBeNull();
+    expect(state.insert).not.toHaveBeenCalled();
   });
 
-  it("se oggi il capo non c'era, può scrivere le sue ore", async () => {
+  it("non lascia aggirare la scelta aziendale con una deroga personale", () => {
     state.regole = { chiCompila: "capo", oreDalle: "capo", avvisoScostamentoMinuti: null };
     state.role = { isCapocantiere: false, esisteCapo: true };
     render(<CampoRapportino />);
-    fireEvent.click(screen.getByRole("button", { name: /Scrivo io le mie ore/ }));
-    fireEvent.change(ore()!, { target: { value: "6" } });
-    invia();
-    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ ore_lavorate: 6 })));
+    expect(screen.queryByRole("button", { name: /Scrivo io le mie ore/ })).toBeNull();
+    expect(state.insert).not.toHaveBeenCalled();
   });
 
   it("se il cantiere non ha un capocantiere, nessuno scriverebbe le ore: le scrive lui", () => {
@@ -260,7 +281,7 @@ describe("Un rapportino diverso per chi lo compila", () => {
     state.role = { isCapocantiere: false, esisteCapo: false };
     render(<CampoRapportino />);
     expect(screen.getByRole("button", { name: "Avanti" })).toBeInTheDocument();
-    expect(screen.getByText(/Passo 1 di 2/)).toBeInTheDocument();
+    expect(screen.getByText("1 · Lavoro e foto")).toBeInTheDocument();
     expect(screen.queryByText("Altro da segnalare (facoltativo)")).toBeNull();
   });
 
@@ -292,6 +313,94 @@ describe("Un rapportino diverso per chi lo compila", () => {
     state.role = { isCapocantiere: true, esisteCapo: true }; state.crew = [];
     render(<CampoRapportino />);
     expect(ore()).not.toBeNull();
+  });
+});
+
+describe("Giornaliero e conferma del cliente sono percorsi diversi", () => {
+  const scrivi = () => fireEvent.change(screen.getByLabelText("Lavori da confermare con il cliente"), { target: { value: "Conclusa la posa delle finestre. Nessun extra concordato." } });
+
+  it("il giornaliero non propone più di trasformarsi in fine lavori", () => {
+    render(<CampoRapportino />);
+    avanti();
+    expect(screen.getByText("Rapportino giornaliero")).toBeInTheDocument();
+    expect(screen.queryByText("Lavoro completato")).toBeNull();
+    expect(screen.queryByText("Firma del cliente")).toBeNull();
+    expect(screen.getByRole("button", { name: "Invia rapportino" })).toBeInTheDocument();
+  });
+
+  it("il rapporto cliente richiede lavori, nome e una firma prima dell'invio", async () => {
+    state.role = { isCapocantiere: true, esisteCapo: true };
+    render(<CampoRapportino tipo="client" />);
+    expect(screen.getByRole("button", { name: "Avanti" })).toBeDisabled();
+    scrivi();
+    expect(ore()).toBeNull();
+    avanti(); avanti();
+    expect(screen.getByText("Da mostrare al cliente")).toBeInTheDocument();
+    const invio = screen.getByRole("button", { name: "Invia fine lavori" });
+    expect(invio).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Nome e cognome del cliente"), { target: { value: "Luca Bianchi" } });
+    expect(invio).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Traccia Firma del cliente" }));
+    expect(invio).toBeEnabled();
+    fireEvent.click(invio);
+    await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ lavoro_completato: true, ore_lavorate: 0, ore_straordinario: 0, firma_cliente_nome: "Luca Bianchi", firma_cliente_url: "https://local.invalid/firma.png" })));
+    expect(state.insert.mock.calls[0][0]).not.toHaveProperty("presenze");
+  });
+
+  it("l'operaio con un capocantiere non può inviare il rapporto cliente dal link diretto", () => {
+    state.role = { isCapocantiere: false, esisteCapo: true };
+    render(<CampoRapportino tipo="client" />);
+    expect(screen.getByRole("alert")).toHaveTextContent("gestita dal capocantiere");
+    expect(screen.getByRole("button", { name: "Avanti" })).toBeDisabled();
+  });
+
+  it("un fine lavori respinto conserva il tipo anche se aperto dal vecchio link giornaliero", async () => {
+    state.gia = { id: "vecchio", stato: "rifiutato", lavoro_completato: true, descrizione_lavori: "Posa ultimata", ore_lavorate: 0 };
+    render(<CampoRapportino />);
+    expect(screen.getByText("Rapporto cliente · Fine lavori")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByDisplayValue("Posa ultimata")).toBeInTheDocument());
+    avanti(); avanti();
+    expect(screen.getByRole("button", { name: "Invia fine lavori" })).toBeDisabled();
+    expect(state.insert).not.toHaveBeenCalled();
+  });
+
+  it("la correzione di un vecchio fine lavori conserva le ore storiche, senza azzerarle", async () => {
+    state.gia = { id: "vecchio", stato: "rifiutato", lavoro_completato: true, descrizione_lavori: "Posa ultimata", ore_lavorate: 8 };
+    render(<CampoRapportino tipo="client" />);
+    await waitFor(() => expect(ore()).toHaveValue(8));
+    avanti(); avanti();
+    fireEvent.change(screen.getByLabelText("Nome e cognome del cliente"), { target: { value: "Luca Bianchi" } });
+    fireEvent.click(screen.getByRole("button", { name: "Traccia Firma del cliente" }));
+    fireEvent.click(screen.getByRole("button", { name: "Invia fine lavori" }));
+    await waitFor(() => expect(state.update).toHaveBeenCalledWith(expect.objectContaining({ lavoro_completato: true, ore_lavorate: 8 })));
+    expect(state.insert).not.toHaveBeenCalled();
+  });
+
+  it("non sostituisce il giornaliero già inviato con un fine lavori", () => {
+    state.gia = { id: "giornaliero", stato: "inviato", lavoro_completato: false };
+    render(<CampoRapportino tipo="client" />);
+    expect(screen.getByText(/non sostituiamo quello già inviato/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Avanti" })).toBeDisabled();
+    expect(state.insert).not.toHaveBeenCalled();
+  });
+
+  it("sospende l'invio se non riesce a controllare i doppioni", () => {
+    state.verificaErrore = true;
+    render(<CampoRapportino />);
+    expect(screen.getByRole("button", { name: "Riprova la verifica" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Avanti" })).toBeDisabled();
+  });
+
+  it("aspetta il ruolo prima di abilitare l'invio", () => {
+    state.verificaCaricamento = true;
+    render(<CampoRapportino />);
+    expect(screen.getByRole("button", { name: "Avanti" })).toBeDisabled();
+  });
+
+  it("offre fotocamera e galleria separate, con più foto dalla galleria", () => {
+    render(<CampoRapportino />);
+    expect(screen.getByLabelText("Scatta una foto")).toHaveAttribute("capture", "environment");
+    expect(screen.getByLabelText("Scegli foto dalla galleria")).toHaveAttribute("multiple");
   });
 });
 

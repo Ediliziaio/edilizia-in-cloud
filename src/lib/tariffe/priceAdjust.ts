@@ -8,7 +8,7 @@
 
 export type AdjustTarget = "vendita" | "costo" | "entrambi";
 export type AdjustMode = "percent" | "fixed";
-/** Arrotondamento del risultato: nessuno (2 decimali), a 0,50 o all'intero. */
+/** Arrotondamento del risultato: precisione unitaria (4 decimali), a 0,50 o all'intero. */
 export type RoundMode = "none" | "0.50" | "1";
 
 export interface PriceAdjustOptions {
@@ -22,7 +22,7 @@ export interface PriceAdjustOptions {
   round: RoundMode;
 }
 
-/** Arrotonda secondo {@link RoundMode}, comunque a max 2 decimali. */
+/** Arrotonda secondo {@link RoundMode}, entro i quattro decimali della tariffa. */
 export function roundPrice(n: number, round: RoundMode): number {
   if (!Number.isFinite(n)) return 0;
   switch (round) {
@@ -32,7 +32,7 @@ export function roundPrice(n: number, round: RoundMode): number {
       return Math.round(n * 2) / 2;
     case "none":
     default:
-      return Math.round(n * 100) / 100;
+      return Math.round(n * 10000) / 10000;
   }
 }
 

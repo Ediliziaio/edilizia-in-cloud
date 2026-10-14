@@ -130,7 +130,7 @@ describe("i nomi che nel menu non esistono più", () => {
   const VIETATI: [RegExp, string][] = [
     [/Tariffe aziendali/, "«Tariffe aziendali» → Listino → Manodopera e servizi"],
     [/Impostazioni (→|›|>) Tariffe\b/, "«Impostazioni → Tariffe» → Listino → Manodopera e servizi"],
-    [/Template Moduli Vendita/, "«Template Moduli Vendita» → Modelli di preventivo → Moduli"],
+    [/Template Moduli Vendita/, "«Template Moduli Vendita» → Modelli preventivi e contratti → Moduli"],
     [/Impostazioni (→|›|>) (Modelli di fasi|Fasi commessa)/, "«Modelli di fasi», «Fasi commessa» → Fasi e avanzamento"],
     [/Impostazioni (→|›|>) Posta/, "«Posta» → Il mio profilo → Email"],
     [/Impostazioni (→|›|>) Email\b/, "«Impostazioni → Email» → Il mio profilo → Email"],

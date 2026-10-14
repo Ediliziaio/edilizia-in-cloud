@@ -1,207 +1,402 @@
-/**
- * ProductPicker — Stadio 2 del Preventivatore Unificato (Sprint A §4.6).
- *
- * Mostra i prodotti della categoria selezionata come griglia di card
- * (famiglie + articoli fusi dall'hook `useCatalogItems`). Search testuale
- * con debounce 200ms, breadcrumb in alto per tornare allo Stadio 1.
- *
- * Il badge "Famiglia"/"Articolo" è puramente informativo: non blocca il
- * flusso e non cambia comportamento. Serve agli utenti esperti che vogliono
- * sapere da quale fonte viene il prodotto.
- */
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { MiniaturaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
 import { haDisegno } from "@/lib/serramenti/disegnoDaFamiglia";
-import { ArrowLeft, ChevronRight, Package, Search } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Package,
+  Search,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { useCatalogItems } from "@/hooks/useCatalogItems";
 import { useCatalogCategories } from "@/hooks/useCatalogCategories";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { CatalogCategory, CatalogItem } from "@/types/catalogItem";
 import { LinkImpostazione } from "@/components/impostazioni/LinkImpostazione";
+import {
+  corrispondeProdottoCatalogo,
+  dettagliProdottoCatalogo,
+  prezzoProdottoCatalogo,
+  categoriaProdottoCatalogo,
+} from "@/lib/preventivi/catalogoPreventivo";
 
-interface ProductPickerProps {
+interface Props {
   category?: CatalogCategory | null;
   onBack?: () => void;
-  onSelectItem: (item: CatalogItem) => void;
+  onSelectItem: (item: CatalogItem, contesto?: string) => void;
+  attivo?: boolean;
+  prodotti?: CatalogItem[];
+  ambito?: string;
+  nomeArea?: string;
 }
+const DIMENSIONE_PAGINA = 30;
+const CATEGORIE_VUOTE: CatalogCategory[] = [];
 
-/** Formatta il prezzo base in base alla modalità (€ pz vs €/mq vs "da €"). */
-function formatPriceHint(item: CatalogItem): string {
-  const mod = item.modalita_prezzo;
-  if (mod === "mq") return `${formatCurrency(item.prezzo_base_vendita)}/mq`;
-  if (mod === "griglia" || mod === "misura_libera") {
-    // Le famiglie a griglia hanno spesso prezzo base 0: «da 0,00 €» confonde,
-    // il prezzo lo dà il configuratore in base alle misure.
-    if (!item.prezzo_base_vendita || Number(item.prezzo_base_vendita) <= 0) return "prezzo a misura";
-    return `da ${formatCurrency(item.prezzo_base_vendita)}`;
-  }
-  return `${formatCurrency(item.prezzo_base_vendita)}/${item.unit_of_measure || "pz"}`;
-}
-
-export function ProductPicker({ category, onBack, onSelectItem }: ProductPickerProps) {
-  const [searchRaw, setSearchRaw] = useState("");
-  const [searchDebounced, setSearchDebounced] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const { data: categories = [] } = useCatalogCategories();
-  // Telefono: niente tastiera aperta da sola, copriva metà del catalogo.
+export function ProductPicker({
+  category,
+  onBack,
+  onSelectItem,
+  attivo = true,
+  prodotti,
+  ambito = "all",
+  nomeArea,
+}: Props) {
+  const [cerca, setCerca] = useState("");
+  const [filtroCategoria, setFiltroCategoria] = useState({ ambito, id: "" });
+  const [filtroPagina, setFiltroPagina] = useState({ ambito, numero: 0 });
+  const categoria = filtroCategoria.ambito === ambito ? filtroCategoria.id : "";
+  const pagina = filtroPagina.ambito === ambito ? filtroPagina.numero : 0;
+  const setPagina = (numero: number) => setFiltroPagina({ ambito, numero });
+  const categorieQuery = useCatalogCategories();
+  const categorie = categorieQuery.data ?? CATEGORIE_VUOTE;
+  const { items: tutti, isLoading, error, refetch } = useCatalogItems();
+  const items = prodotti ?? tutti;
   const isMobile = useIsMobile();
-
-  // Debounce 200ms per evitare re-filter ad ogni keystroke
-  useEffect(() => {
-    const t = setTimeout(() => setSearchDebounced(searchRaw), 200);
-    return () => clearTimeout(t);
-  }, [searchRaw]);
-
-  const { items, isLoading, error } = useCatalogItems({
-    categoriaId: category?.id ?? (categoryFilter || null),
-    search: searchDebounced,
-  });
+  const categoriaId = category?.id ?? categoria;
+  const filtrate = useMemo(
+    () =>
+      items.filter(
+        (i) =>
+          (!categoriaId ||
+            categoriaProdottoCatalogo(i, categorie).id === categoriaId) &&
+          corrispondeProdottoCatalogo(i, categorie, cerca),
+      ),
+    [items, categorie, categoriaId, cerca],
+  );
+  const paginaCorrente = Math.min(
+    pagina,
+    Math.max(0, Math.ceil(filtrate.length / DIMENSIONE_PAGINA) - 1),
+  );
+  const visibili = filtrate.slice(
+    paginaCorrente * DIMENSIONE_PAGINA,
+    (paginaCorrente + 1) * DIMENSIONE_PAGINA,
+  );
+  const cambiaCategoria = (id: string) => {
+    setFiltroCategoria({ ambito, id });
+    setPagina(0);
+  };
+  const categorieNavigabili = useMemo(() => {
+    const gruppi = new Map<
+      string,
+      { id: string; nome: string; conteggio: number }
+    >();
+    for (const item of items) {
+      const c = categoriaProdottoCatalogo(item, categorie);
+      const gruppo = gruppi.get(c.id) ?? { ...c, conteggio: 0 };
+      gruppo.conteggio++;
+      gruppi.set(c.id, gruppo);
+    }
+    return [...gruppi.values()].sort((a, b) =>
+      a.id === "altri"
+        ? 1
+        : b.id === "altri"
+          ? -1
+          : a.nome.localeCompare(b.nome, "it"),
+    );
+  }, [items, categorie]);
+  const nomeCategoria =
+    category?.nome ??
+    categorieNavigabili.find((c) => c.id === categoriaId)?.nome ??
+    "Tutti i prodotti";
 
   return (
-    <div className="space-y-3">
-      {onBack && <div className="flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft className="mr-1 h-4 w-4" /> Categorie
+    <div className="flex h-full min-h-0 flex-col">
+      {onBack && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mb-2 self-start"
+          onClick={onBack}
+        >
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          Categorie
         </Button>
-        <span className="text-sm text-muted-foreground">›</span>
-        <span className="text-sm font-medium">{category?.nome ?? "Tutti i prodotti"}</span>
-      </div>}
-
-      <div className="sticky top-0 z-10 bg-background pb-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchRaw}
-            onChange={(e) => setSearchRaw(e.target.value)}
-            placeholder="Cerca prodotto, codice o marca…"
-            aria-label="Cerca nel catalogo prodotti"
-            className="pl-9"
-            autoFocus={!isMobile}
-          />
-        </div>
-        {/* Telefono: le categorie sono pillole su una riga che scorre; la
-            tendina chiedeva due tocchi e nascondeva le scelte. */}
-        {!category && categories.length > 0 && (
-          <div className="-mx-4 mt-2 flex gap-1.5 overflow-x-auto px-4 scrollbar-none sm:hidden" aria-label="Categorie">
-            {[{ id: "", nome: "Tutte" }, ...categories].map((cat) => {
-              const attiva = categoryFilter === cat.id;
-              return (
+      )}
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-xl border md:grid-cols-[210px_minmax(0,1fr)]">
+        {!category && (
+          <aside className="hidden min-h-0 overflow-y-auto border-r bg-muted/20 p-3 md:block">
+            <p className="mb-3 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Categorie e linee
+            </p>
+            <nav aria-label="Categorie dei prodotti" className="space-y-1">
+              {[
+                { id: "", nome: "Tutti i prodotti", conteggio: items.length },
+                ...categorieNavigabili,
+              ].map((c) => (
                 <button
-                  key={cat.id || "tutte"}
                   type="button"
-                  onClick={() => setCategoryFilter(cat.id)}
-                  aria-pressed={attiva}
+                  key={c.id || "all"}
+                  aria-pressed={categoriaId === c.id}
+                  aria-label={`${c.nome} ${c.conteggio}`}
+                  onClick={() => cambiaCategoria(c.id)}
                   className={cn(
-                    "tap-compact h-8 shrink-0 rounded-full border px-3 text-xs font-medium transition-colors",
-                    attiva ? "border-slate-900 bg-slate-900 text-white" : "border-border bg-background text-slate-700",
+                    "flex w-full items-start justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition hover:bg-muted",
+                    categoriaId === c.id &&
+                      "bg-primary/10 font-semibold text-primary",
                   )}
                 >
-                  {cat.nome}
+                  <span>{c.nome}</span>
+                  <span className="shrink-0 text-xs tabular-nums opacity-70">
+                    {c.conteggio}
+                  </span>
                 </button>
-              );
-            })}
-          </div>
+              ))}
+            </nav>
+          </aside>
         )}
-        {!category && (
-          <div className="mt-3 flex items-center gap-3 max-sm:hidden">
-            <select aria-label="Filtra per categoria" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-9 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm">
-              <option value="">Tutte le categorie</option>
-              {categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.nome}</option>)}
-            </select>
-            <span className="shrink-0 text-xs text-muted-foreground" aria-live="polite">{isLoading ? "Caricamento…" : `${items.length} prodotti`}</span>
-          </div>
-        )}
-      </div>
-
-      {error ? (
-        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">Il catalogo non è disponibile. Chiudi e riprova tra poco; puoi comunque inserire una riga libera.</p>
-      ) : isLoading ? (
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 w-full max-sm:h-12" />
-          ))}
-        </div>
-      ) : items.length === 0 ? (
-        // Telefono: una riga di testo, niente icona né link alle impostazioni.
-        <div className="rounded-md border border-dashed p-8 text-center max-sm:border-0 max-sm:p-4">
-          <Package className="mx-auto mb-3 h-10 w-10 text-muted-foreground max-sm:hidden" />
-          <p className="text-sm text-muted-foreground">
-            {searchDebounced
-              ? "Nessun prodotto corrisponde alla ricerca."
-              : "Nessun prodotto in questa categoria."}
-          </p>
-          {!searchDebounced && (
-            <LinkImpostazione
-              to="/azienda/impostazioni/listino"
-              className="mt-2 inline-block text-sm font-medium text-primary hover:underline max-sm:hidden"
-            >
-              Crea il primo prodotto
-            </LinkImpostazione>
+        <div
+          className={cn(
+            "flex min-h-0 min-w-0 flex-col",
+            category && "md:col-span-2",
           )}
-        </div>
-      ) : (
-        // Telefono: righe (foto piccola, nome, marca e prezzo su una riga);
-        // le schede con foto grande e descrizione ne mostravano quattro.
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 max-sm:gap-0 max-sm:divide-y max-sm:divide-border max-sm:overflow-hidden max-sm:rounded-lg max-sm:border">
-          {items.map((item) => (
-            <button
-              key={`${item.source}-${item.id}`}
-              type="button"
-              onClick={() => onSelectItem(item)}
-              className="group flex items-start gap-3 rounded-lg border bg-card p-3 text-left transition hover:border-primary hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring tap-compact max-sm:items-center max-sm:gap-2.5 max-sm:rounded-none max-sm:border-0 max-sm:px-3 max-sm:py-2"
-            >
-              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-md bg-muted max-sm:h-10 max-sm:w-10">
-                {item.source === "family" && haDisegno(item.family) ? (
-                  <div className="flex h-full w-full items-center justify-center bg-white p-1">
-                    <MiniaturaDisegnoFamiglia family={item.family} className="h-full w-full" />
-                  </div>
-                ) : item.immagine_url ? (
-                  <img
-                    src={item.immagine_url}
-                    alt={item.nome}
-                    loading="lazy"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <Package className="h-8 w-8 text-muted-foreground max-sm:h-4 max-sm:w-4" />
-                  </div>
-                )}
+        >
+          <div className="shrink-0 space-y-2 border-b bg-background p-3">
+            <div className="relative">
+              <Search
+                className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                aria-label="Cerca nel catalogo prodotti"
+                autoFocus={!isMobile && attivo}
+                placeholder="Cerca nome, codice, linea o marca…"
+                value={cerca}
+                onChange={(e) => {
+                  setCerca(e.target.value);
+                  setPagina(0);
+                }}
+                className="h-10 pl-9 pr-9"
+              />
+              {cerca && (
+                <button
+                  type="button"
+                  aria-label="Azzera ricerca prodotti"
+                  onClick={() => {
+                    setCerca("");
+                    setPagina(0);
+                  }}
+                  className="absolute right-3 top-3 text-muted-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {!category && (
+              <select
+                aria-label="Filtra per categoria"
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm md:hidden"
+                value={categoriaId}
+                onChange={(e) => cambiaCategoria(e.target.value)}
+              >
+                <option value="">Tutti i prodotti</option>
+                {categorieNavigabili.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nome} ({c.conteggio})
+                  </option>
+                ))}
+              </select>
+            )}
+            {categorieQuery.isError && (
+              <p role="alert" className="text-xs text-amber-800">
+                Categorie non disponibili: puoi cercare per nome o codice.{" "}
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs"
+                  onClick={() => void categorieQuery.refetch()}
+                >
+                  Riprova categorie
+                </Button>
+              </p>
+            )}
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span className="font-medium">
+                {nomeArea ? `${nomeArea} · ` : ""}
+                {nomeCategoria}
+              </span>
+              <span role="status">
+                {isLoading
+                  ? "Caricamento…"
+                  : `${filtrate.length} ${filtrate.length === 1 ? "prodotto" : "prodotti"}`}
+              </span>
+            </div>
+          </div>
+          <div
+            className="min-h-0 flex-1 overflow-y-auto p-3"
+            aria-label="Prodotti del catalogo"
+          >
+            {error ? (
+              <div role="alert" className="rounded-lg border p-5 text-sm">
+                <p>Il catalogo non è disponibile.</p>
+                <Button
+                  variant="outline"
+                  className="mt-3"
+                  size="sm"
+                  onClick={() => void refetch?.()}
+                >
+                  Riprova
+                </Button>
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="line-clamp-2 text-sm font-medium max-sm:line-clamp-1 max-sm:text-[13px]">{item.nome}</div>
-                  <Badge
-                    variant={item.source === "family" ? "default" : "secondary"}
-                    className="shrink-0 text-[10px] uppercase max-sm:hidden"
-                  >
-                    {item.source === "family" ? "Configurabile" : "Prodotto"}
-                  </Badge>
-                </div>
-                {item.source === "article" && (item.marca || item.sku) && <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">{[item.marca, item.sku].filter(Boolean).join(" · ")}</p>}
-                {item.descrizione && (
-                  <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground max-sm:hidden">
-                    {item.descrizione}
-                  </div>
-                )}
-                <div className="mt-1 text-xs font-medium max-sm:hidden">{formatPriceHint(item)}</div>
-                <div className="truncate text-[11px] text-muted-foreground sm:hidden">
-                  {[item.source === "article" ? item.marca : null, formatPriceHint(item)].filter(Boolean).join(" · ")}
-                </div>
+            ) : isLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }, (_, i) => (
+                  <Skeleton key={i} className="h-24" />
+                ))}
               </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground sm:hidden" aria-hidden />
-            </button>
-          ))}
+            ) : !filtrate.length ? (
+              <div className="p-8 text-center">
+                <Package className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  Nessun prodotto corrisponde a categoria e ricerca.
+                </p>
+                <Button
+                  variant="link"
+                  onClick={() => {
+                    setCerca("");
+                    cambiaCategoria("");
+                  }}
+                >
+                  Azzera i filtri
+                </Button>
+                <LinkImpostazione
+                  to="/azienda/impostazioni/listino"
+                  className="block text-sm text-primary"
+                >
+                  Apri il listino prodotti
+                </LinkImpostazione>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {visibili.map((item) => {
+                  const d = dettagliProdottoCatalogo(item, categorie);
+                  return (
+                    <button
+                      type="button"
+                      key={`${item.source}-${item.id}`}
+                      onClick={() =>
+                        onSelectItem(
+                          item,
+                          [d.categoria, d.linea, d.marca]
+                            .filter(Boolean)
+                            .join(" · "),
+                        )
+                      }
+                      className="group grid w-full grid-cols-[56px_minmax(0,1fr)] items-center gap-3 rounded-lg border bg-background p-3 text-left transition hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[56px_minmax(0,1fr)_160px_20px]"
+                    >
+                      <div className="h-14 w-14 overflow-hidden rounded-md bg-muted">
+                        {item.source === "family" &&
+                        item.family &&
+                        haDisegno(item.family) ? (
+                          <div className="h-full w-full bg-white p-1">
+                            <MiniaturaDisegnoFamiglia
+                              family={item.family}
+                              className="h-full w-full"
+                            />
+                          </div>
+                        ) : item.immagine_url ? (
+                          <img
+                            src={item.immagine_url}
+                            alt=""
+                            className="h-full w-full object-contain"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center">
+                            <Package className="h-6 w-6 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold leading-snug">
+                          {item.nome}
+                        </p>
+                        {[d.categoria, d.linea, d.marca].some(Boolean) && (
+                          <p className="mt-1 text-xs font-medium text-primary">
+                            {[d.categoria, d.linea, d.marca]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        )}
+                        {d.codice && (
+                          <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                            {d.codice}
+                          </p>
+                        )}
+                        {item.descrizione && (
+                          <p
+                            className="mt-1 line-clamp-1 text-xs text-muted-foreground"
+                            title={item.descrizione}
+                          >
+                            {item.descrizione}
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs font-medium sm:hidden">
+                          {prezzoProdottoCatalogo(item)}
+                        </p>
+                      </div>
+                      <div className="hidden text-right sm:block">
+                        <p
+                          className={cn(
+                            "text-sm font-semibold tabular-nums",
+                            !item.prezzo_base_vendita && "text-amber-700",
+                          )}
+                        >
+                          {prezzoProdottoCatalogo(item)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {item.source === "family"
+                            ? "Configura misure e varianti"
+                            : "Imposta la quantità"}
+                        </p>
+                      </div>
+                      <ArrowRight
+                        className="hidden h-4 w-4 text-muted-foreground group-hover:text-primary sm:block"
+                        aria-hidden
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center justify-between gap-2 border-t bg-background px-4 py-2">
+            <span className="text-xs text-muted-foreground">
+              {filtrate.length
+                ? `${paginaCorrente * DIMENSIONE_PAGINA + 1}–${Math.min((paginaCorrente + 1) * DIMENSIONE_PAGINA, filtrate.length)} di ${filtrate.length}`
+                : "0 prodotti"}
+            </span>
+            <div className="flex gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="Prodotti precedenti"
+                disabled={paginaCorrente === 0}
+                onClick={() => setPagina(paginaCorrente - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label="Prodotti successivi"
+                disabled={
+                  (paginaCorrente + 1) * DIMENSIONE_PAGINA >= filtrate.length
+                }
+                onClick={() => setPagina(paginaCorrente + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
-
 export default ProductPicker;

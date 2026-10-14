@@ -47,6 +47,7 @@ describe("Rapportini e presenze: i riquadri", () => {
       "Da dove vengono le ore di ognuno?",
       "Avviso se le ore non tornano",
       "In pratica, con queste scelte",
+      "Completa l’organizzazione del cantiere",
     ]);
   });
 
@@ -54,9 +55,10 @@ describe("Rapportini e presenze: i riquadri", () => {
     apri();
     expect(screen.queryByText("Qualunque sia la tua scelta:")).toBeNull();
     const inPratica = document.getElementById("in-pratica") as HTMLElement;
-    const righe = within(inPratica).getAllByRole("listitem");
-    expect(righe).toHaveLength(4);
-    expect(righe[3]).toHaveTextContent("Una persona non si conta mai due volte nello stesso giorno e cantiere");
+    const righe = within(inPratica).getAllByRole("listitem", { hidden: true });
+    expect(righe).toHaveLength(5);
+    expect(righe[3]).toHaveTextContent("il giornaliero personale non le ripropone");
+    expect(righe[4]).toHaveTextContent("L’approvazione resta all’ufficio");
   });
 
   it("i gruppi di scelte hanno un nome per chi usa il lettore di schermo", () => {
@@ -197,5 +199,80 @@ describe("Rapportini e presenze: la lettura", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Non riesco a leggere le impostazioni.");
     fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
     expect(state.ricarica).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe("Rapportini: anteprima fedele e preferenze conservate", () => {
+  it("il cambio di scenario è solo una prova e non accende il salvataggio", () => {
+    state.regole = { chiCompila: "capo", oreDalle: "timbrature", avvisoScostamentoMinuti: 30 };
+    apri();
+    expect(screen.getByRole("region", { name: "Cosa fa l’operaio" })).toHaveTextContent("Timbra entrata e uscita");
+    fireEvent.click(screen.getByRole("button", { name: "Senza responsabile" }));
+    expect(screen.getByRole("region", { name: "Cosa fa l’operaio" })).toHaveTextContent("Compila il proprio giornaliero");
+    expect(screen.queryByRole("region", { name: "Cosa fa il responsabile" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeDisabled();
+    expect(state.mutate).not.toHaveBeenCalled();
+  });
+  it("la bozza aggiorna subito la prova e annullare la ripristina", () => {
+    apri();
+    fireEvent.click(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ }));
+    expect(screen.getByText("Anteprima della bozza")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Cosa fa l’operaio" })).toHaveTextContent("Timbra entrata e uscita");
+    fireEvent.click(screen.getByRole("button", { name: "Annulla le modifiche" }));
+    expect(screen.getByRole("region", { name: "Cosa fa l’operaio" })).toHaveTextContent("Compila il proprio giornaliero");
+  });
+  it("il flusso misto conserva ore e soglia, ma non presenta come attivi i controlli di squadra", () => {
+    state.regole = { chiCompila: "capo", oreDalle: "timbrature", avvisoScostamentoMinuti: 45 };
+    apri();
+    fireEvent.click(screen.getByRole("radio", { name: /Il racconto al capo, le ore a ognuno/ }));
+    expect(screen.getByRole("radio", { name: /Dalle timbrature/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Dalle timbrature/ })).toBeDisabled();
+    expect(screen.getByRole("switch")).toBeChecked();
+    expect(screen.getByRole("switch")).toBeDisabled();
+    expect(screen.getByRole("combobox")).toBeDisabled();
+    expect(screen.queryByRole("region", { name: "Esempio del controllo ore" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Cosa fa il responsabile" })).toHaveTextContent("Conferma solo le proprie ore");
+    fireEvent.click(screen.getByRole("radio", { name: /Lo scrive il capocantiere/ }));
+    expect(screen.getByRole("combobox")).toHaveTextContent("45 min");
+    expect(screen.getByRole("switch")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeDisabled();
+  });
+  it("mostra una soglia personalizzata già salvata e non genera un avviso sul limite esatto", () => {
+    state.regole = { chiCompila: "capo", oreDalle: "capo", avvisoScostamentoMinuti: 20 };
+    const { unmount } = apri();
+    expect(screen.getByRole("combobox")).toHaveTextContent("20 min");
+    expect(screen.getByRole("region", { name: "Esempio del controllo ore" })).toHaveTextContent("Il capo vede un avviso");
+    unmount();
+    state.regole.avvisoScostamentoMinuti = 60;
+    apri();
+    expect(screen.getByRole("region", { name: "Esempio del controllo ore" })).toHaveTextContent("Nessun avviso");
+  });
+  it("durante il salvataggio blocca tutti i comandi che cambiano le regole", () => {
+    state.pending = true;
+    apri();
+    for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
+    expect(screen.getByRole("switch")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salva modifiche" })).toBeDisabled();
+  });
+  it("senza azienda non mostra regole apparentemente modificabili", () => {
+    state.azienda = "";
+    apri();
+    expect(screen.getByRole("alert")).toHaveTextContent("Seleziona un’azienda");
+    expect(screen.queryByRole("button", { name: "Salva modifiche" })).toBeNull();
+  });
+  it("i rimandi arrivano alle risorse canoniche e seguono i permessi", () => {
+    const { unmount } = apri();
+    expect(screen.getByRole("link", { name: /Operai e squadre/ })).toHaveAttribute("href", "/azienda/manodopera?tab=operai&vista=squadre");
+    expect(screen.getByRole("link", { name: /Commesse e rapportini/ })).toHaveAttribute("href", "/azienda/ordini");
+    unmount();
+    state.role = "staff";
+    apri();
+    expect(screen.queryByRole("link", { name: /Operai e squadre/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Commesse e rapportini/ })).toBeNull();
+  });
+  it("l’ancora nell’indirizzo apre e mette in evidenza il controllo delle ore", () => {
+    render(<MemoryRouter initialEntries={["/azienda/impostazioni/rapportini-cantiere#avviso"]}><RegoleCampoConfig /></MemoryRouter>);
+    expect(document.getElementById("avviso")).toHaveAttribute("data-evidenziata", "true");
   });
 });

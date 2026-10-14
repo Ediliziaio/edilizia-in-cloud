@@ -91,7 +91,7 @@ describe("menu e rotte", () => {
     expect(PERMESSO_DELLA_ROTTA.get("abbonamento")?.composto).toBe(true);
   });
 
-  it("ogni scheda di un gruppo (Listino, Modelli di preventivo, Firma e condizioni) vuole il permesso della sua rotta", () => {
+  it("ogni scheda di un gruppo (Listino, Modelli preventivi e contratti, Firma e condizioni) vuole il permesso della sua rotta", () => {
     let schede = 0;
     for (const gruppo of GRUPPI_IMPOSTAZIONI) {
       for (const scheda of gruppo.schede) {

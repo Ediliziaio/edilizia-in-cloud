@@ -40,8 +40,8 @@ describe("ricerca delle impostazioni: le funzioni del preventivo", () => {
     ["prefisso", "Numero del preventivo", "/azienda/impostazioni/margini#numerazione"],
     ["firma digitale", "PDF e firma del preventivo", "/azienda/impostazioni/margini#pdf-e-firma"],
     ["margine minimo", "Margini e spese generali", "/azienda/impostazioni/margini#margini"],
-    ["seconda firma", "Modelli di preventivo · Approvazioni", "/azienda/impostazioni/approvazioni"],
-    ["sconto massimo", "Modelli di preventivo · Sconti", "/azienda/impostazioni/scontistica"],
+    ["seconda firma", "Modelli preventivi e contratti · Approvazioni", "/azienda/impostazioni/approvazioni"],
+    ["sconto massimo", "Modelli preventivi e contratti · Sconti", "/azienda/impostazioni/scontistica"],
   ])("«%s» trova «%s» e apre %s", async (testo, titolo, url) => {
     await cerca(testo);
     const risultato = await screen.findByText(titolo);
@@ -57,7 +57,7 @@ describe("ricerca delle impostazioni: le funzioni del preventivo", () => {
 
   it("non esiste più «Margini e sconti» tra i risultati", async () => {
     await cerca("margini");
-    await screen.findByText("Modelli di preventivo · Prezzo e margini");
+    await screen.findByText("Modelli preventivi e contratti · Prezzo e margini");
     expect(screen.queryByText(/^Margini e sconti ·/)).toBeNull();
   });
 });

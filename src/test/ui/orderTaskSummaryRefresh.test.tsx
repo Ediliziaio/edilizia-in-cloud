@@ -24,14 +24,19 @@ describe("Aggiornamento riepilogo da attività collegate (API simulate)", () => 
   });
   it("aggiorna la testata anche quando si completa un'attività", async () => {
     mocks.rows = [{ id: "task", title: "Posa", status: "da_fare", priority: "normale" }];
-    const query = { update: vi.fn(), eq: vi.fn() };
+    const query = { update: vi.fn(), eq: vi.fn(), select: vi.fn(), maybeSingle: vi.fn() };
     query.update.mockReturnValue(query);
-    query.eq.mockReturnValueOnce(query).mockResolvedValueOnce({ error: null });
+    query.eq.mockReturnValue(query);
+    query.select.mockReturnValue(query);
+    query.maybeSingle.mockResolvedValue({ data: { id: "task", status: "completata" }, error: null });
     mocks.from.mockReturnValue(query);
     render(<LinkedTasks orderId="order" category="ordini" />);
     fireEvent.click(screen.getByRole("checkbox"));
     await waitFor(() => expect(mocks.invalidate).toHaveBeenCalledWith({ queryKey: ["order-next-task", "order"] }));
     expect(query.update).toHaveBeenCalledWith(expect.objectContaining({ status: "completata" }));
+    expect(query.eq).toHaveBeenCalledWith("company_id", "company");
+    expect(query.eq).toHaveBeenCalledWith("order_id", "order");
+    expect(query.select).toHaveBeenCalledWith("id,status");
   });
   it("non invalida riepiloghi commessa per task di altre entità", () => {
     render(<LinkedTasks stockItemId="stock" category="generale" />);

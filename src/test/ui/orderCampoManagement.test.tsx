@@ -45,9 +45,9 @@ const choose = (name: string) => {
   fireEvent.click(screen.getByRole("option", { name: new RegExp(name) }));
 };
 function builder(data: unknown = null, error: unknown = null) {
-  const result = { data, error }; const q = { insert: vi.fn(), update: vi.fn(), delete: vi.fn(), select: vi.fn(), eq: vi.fn(), limit: vi.fn(),
+  const result = { data, error }; const q = { insert: vi.fn(), update: vi.fn(), delete: vi.fn(), select: vi.fn(), eq: vi.fn(), in: vi.fn(), limit: vi.fn(),
     maybeSingle: vi.fn().mockResolvedValue(result), single: vi.fn().mockResolvedValue(result), then: Promise.resolve(result).then.bind(Promise.resolve(result)) };
-  for (const method of [q.insert, q.update, q.delete, q.select, q.eq, q.limit]) method.mockReturnValue(q);
+  for (const method of [q.insert, q.update, q.delete, q.select, q.eq, q.in, q.limit]) method.mockReturnValue(q);
   return q;
 }
 beforeEach(() => {
@@ -134,6 +134,44 @@ describe("Gestione Campo: protezioni e percorso semplice", () => {
 
 describe("Rapportini: permessi e aggiornamento del consuntivo", () => {
   const report = { id: "r", stato: "inviato", data_lavoro: "2026-09-24", ore_lavorate: 8, autore: { first_name: "Mario", last_name: "Rossi" }, costo_manodopera: 160 };
+  it("non approva né genera il PDF quando una fase appartiene a un'altra commessa", async () => {
+    state.reports = [report];
+    const target = builder({ id: "r", fasi_lavorate: [{ phase_id: "foreign", percentuale: 50 }], materiali_usati: [] });
+    const phases = builder([]);
+    state.from.mockImplementation(table => table === "campo_rapportini" ? target : phases);
+    render(<OrdineRapportiniCampo orderId="order" />);
+    fireEvent.click(screen.getByText(/Mario Rossi/)); fireEvent.click(screen.getByRole("button", { name: /Approva/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Conferma approvazione" }));
+    await waitFor(() => expect(state.error).toHaveBeenCalledWith(expect.stringContaining("non appartiene")));
+    expect(target.update).not.toHaveBeenCalled(); expect(phases.update).not.toHaveBeenCalled();
+    expect(state.success).not.toHaveBeenCalled(); expect(state.notifyPdf).not.toHaveBeenCalled();
+  });
+  it("non riscrive un avanzamento più recente già superiore alla proposta", async () => {
+    state.reports = [report];
+    const target = builder({ id: "r", fasi_lavorate: [{ phase_id: "p", percentuale: 50 }] });
+    const phases = builder([{ id: "p", order_id: "order", company_id: "company", percentuale: 80, status: "in_corso", updated_at: "fase-v2" }]);
+    state.from.mockImplementation(table => table === "campo_rapportini" ? target : phases);
+    render(<OrdineRapportiniCampo orderId="order" />);
+    fireEvent.click(screen.getByText(/Mario Rossi/)); fireEvent.click(screen.getByRole("button", { name: /Approva/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Conferma approvazione" }));
+    await waitFor(() => expect(state.success).toHaveBeenCalledWith("Rapportino approvato"));
+    expect(phases.update).not.toHaveBeenCalled();
+    expect(state.error).not.toHaveBeenCalled();
+  });
+  it("un conflitto nell'avanzamento non sovrascrive la revisione concorrente", async () => {
+    state.reports = [report];
+    const target = builder({ id: "r", fasi_lavorate: [{ phase_id: "p", percentuale: 75 }] });
+    const phases = builder([{ id: "p", order_id: "order", company_id: "company", percentuale: 30, status: "in_corso", updated_at: "fase-v2" }]);
+    phases.maybeSingle.mockResolvedValue({ data: null, error: null });
+    state.from.mockImplementation(table => table === "campo_rapportini" ? target : phases);
+    render(<OrdineRapportiniCampo orderId="order" />);
+    fireEvent.click(screen.getByText(/Mario Rossi/)); fireEvent.click(screen.getByRole("button", { name: /Approva/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Conferma approvazione" }));
+    await waitFor(() => expect(state.error).toHaveBeenCalledWith("Approvato, ma l'avanzamento fasi non è stato aggiornato", expect.objectContaining({ description: expect.stringContaining("cambiato durante") })));
+    expect(phases.eq).toHaveBeenCalledWith("updated_at", "fase-v2");
+    expect(phases.eq).toHaveBeenCalledWith("company_id", "company");
+    expect(phases.eq).toHaveBeenCalledWith("order_id", "order");
+  });
   it("non consente approvazione a staff senza modifica commesse", () => {
     state.canEdit = false; state.reports = [report]; render(<OrdineRapportiniCampo orderId="order" />);
     fireEvent.click(screen.getByText(/Mario Rossi/));

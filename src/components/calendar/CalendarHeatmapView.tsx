@@ -1,492 +1,423 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
-  format,
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
+  addMonths,
   eachDayOfInterval,
-  isSameMonth,
+  endOfMonth,
+  format,
   isSameDay,
   parseISO,
-  addMonths,
-  subMonths,
-  isWithinInterval,
-  getDay,
+  startOfMonth,
 } from "date-fns";
 import { it } from "date-fns/locale";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Hammer, Wrench, Users, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { hasLogisticRisk, getEmployeeInitials, WEEK_DAYS_IT } from "@/lib/calendarUtils";
-import type { CalendarAppointment, CalendarOrder } from "@/types/calendar";
+import { planningWorkloadOnDay } from "@/lib/calendar/planningTools";
+import {
+  planningResourceRows,
+  resourceCellCount,
+  workloadBands,
+  type PlanningResource,
+} from "@/lib/calendar/resourcePlanning";
+import { buildCalendarEvents } from "@/lib/calendar/events";
+import type { CalendarOrder, CalendarScope } from "@/types/calendar";
 
-interface Employee {
-  id: string;
-  first_name: string;
-  last_name: string;
-}
-
-interface CalendarHeatmapViewProps {
+import { CalendarDayDetailsDialog } from "./CalendarDayDetailsDialog";
+interface Props {
   orders: CalendarOrder[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
-  employees?: Employee[];
-  appointments?: CalendarAppointment[];
+  employees?: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+  }[];
+  teams?: PlanningResource[];
+  calendarScope?: CalendarScope;
 }
-
-interface DayWorkload {
-  orders: CalendarOrder[];
-  total: number;
-}
-
-interface EmployeeWorkload {
-  employeeId: string;
-  employeeName: string;
-  dayEvents: Map<string, Array<{ orderId: string; type: string; label: string }>>;
-  totalDays: number;
-}
-
-function getWorkloadForDay(
-  orders: CalendarOrder[],
-  day: Date
-): DayWorkload {
-  const filteredOrders = orders.filter((order) => {
-    const start = order.work_start_date ? parseISO(order.work_start_date) : null;
-    const end = order.work_end_date ? parseISO(order.work_end_date) : start;
-
-    // Check posa
-    if (order.expected_date && isSameDay(parseISO(order.expected_date), day)) {
-      return true;
-    }
-
-    // Check lavoro (range)
-    if (start && end) {
-      if (isWithinInterval(day, { start, end })) {
-        // Avoid double-counting if this day is already counted as posa
-        const isPosaDay = order.expected_date && isSameDay(parseISO(order.expected_date), day);
-        if (!isPosaDay) return true;
-      }
-    }
-
-    return false;
-  });
-
-  return {
-    orders: filteredOrders,
-    total: filteredOrders.length,
+const colors = [
+  "bg-muted/35 text-muted-foreground",
+  "bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
+  "bg-blue-100 text-blue-900 dark:bg-blue-900 dark:text-blue-100",
+  "bg-blue-200 text-blue-950 dark:bg-blue-800 dark:text-blue-100",
+  "bg-blue-600 text-white",
+];
+export function CalendarHeatmapView({
+  orders,
+  currentDate,
+  onDateChange,
+  employees = [],
+  teams = [],
+  calendarScope = "personal",
+}: Props) {
+  const p = usePermissions();
+  const [mode, setMode] = useState<"day" | "employee" | "team">("day");
+  const [search, setSearch] = useState("");
+  const [assignedOnly, setAssignedOnly] = useState(false);
+  const [selected, setSelected] = useState<{
+    date: string;
+    kind?: "employee" | "team";
+    resourceId?: string;
+  } | null>(null);
+  const days = useMemo(
+    () =>
+      eachDayOfInterval({
+        start: startOfMonth(currentDate),
+        end: endOfMonth(currentDate),
+      }),
+    [currentDate],
+  );
+  const workloads = useMemo(
+    () =>
+      days.map((day) =>
+        planningWorkloadOnDay(orders, format(day, "yyyy-MM-dd")),
+      ),
+    [days, orders],
+  );
+  const people = useMemo(
+    () =>
+      planningResourceRows(
+        orders,
+        days,
+        "employee",
+        employees.map((e) => ({
+          id: e.id,
+          name:
+            [e.first_name, e.last_name].filter(Boolean).join(" ") || "Persona",
+        })),
+      ),
+    [orders, days, employees],
+  );
+  const squads = useMemo(
+    () => planningResourceRows(orders, days, "team", teams),
+    [orders, days, teams],
+  );
+  const rows = (mode === "team" ? squads : people).filter(
+    (r) =>
+      (!assignedOnly || r.days > 0) &&
+      r.name
+        .toLocaleLowerCase("it")
+        .includes(search.trim().toLocaleLowerCase("it")),
+  );
+  const resourceMode = mode !== "day";
+  const counts = resourceMode
+    ? rows.flatMap((r) =>
+        days.map((d) =>
+          resourceCellCount(r.cells.get(format(d, "yyyy-MM-dd"))),
+        ),
+      )
+    : workloads.map((w) => w.length);
+  const peak = Math.max(0, ...counts),
+    bands = workloadBands(peak);
+  const intensity = (count: number) =>
+    colors[bands.find((b) => b.min <= count && b.max >= count)?.level || 0];
+  const activeDays = workloads.filter((w) => w.length > 0).length;
+  const activeOrders = new Set(
+    workloads.flatMap((w) => w.map((e) => e.order.id)),
+  ).size;
+  const selectedRow = selected?.resourceId
+    ? (selected.kind === "team" ? squads : people).find(
+        (r) => r.id === selected.resourceId,
+      )
+    : undefined;
+  const detailEvents = selected
+    ? selected.resourceId
+      ? selectedRow?.cells.get(selected.date) || []
+      : buildCalendarEvents([parseISO(selected.date)], {
+          orders,
+          hiddenEventTypes: new Set(["merce"]),
+        }).get(selected.date) || []
+    : [];
+  const validSelection =
+    selected && days.some((d) => format(d, "yyyy-MM-dd") === selected.date);
+  const changeDate = (date: Date) => {
+    setSelected(null);
+    onDateChange(date);
   };
-}
-
-function getHeatColor(count: number): string {
-  if (count === 0) return "bg-muted";
-  if (count <= 2) return "bg-green-200 dark:bg-green-900/40";
-  if (count <= 4) return "bg-yellow-200 dark:bg-yellow-900/40";
-  if (count <= 6) return "bg-orange-300 dark:bg-orange-900/40";
-  return "bg-red-400 dark:bg-red-900/50";
-}
-
-function getHeatTextColor(count: number): string {
-  if (count === 0) return "text-muted-foreground";
-  if (count <= 2) return "text-green-800 dark:text-green-300";
-  if (count <= 4) return "text-yellow-800 dark:text-yellow-300";
-  if (count <= 6) return "text-orange-800 dark:text-orange-300";
-  return "text-red-900 dark:text-red-200";
-}
-
-export function CalendarHeatmapView({ orders, currentDate, onDateChange, employees = [], appointments = [] }: CalendarHeatmapViewProps) {
-  const navigate = useNavigate();
-  const [heatmapMode, setHeatmapMode] = useState<"day" | "employee">("day");
-
-  const days = useMemo(() => {
-    const monthStart = startOfMonth(currentDate);
-    const monthEnd = endOfMonth(currentDate);
-    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-    return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
-  }, [currentDate]);
-
-  const dayWorkloads = useMemo(() => {
-    const map = new Map<string, DayWorkload>();
-    days.forEach((day) => {
-      map.set(format(day, "yyyy-MM-dd"), getWorkloadForDay(orders, day));
-    });
-    return map;
-  }, [days, orders]);
-
-  const stats = useMemo(() => {
-    const monthStart = startOfMonth(currentDate);
-    const monthEnd = endOfMonth(currentDate);
-    const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
-    const weekdays = monthDays.filter((d) => getDay(d) !== 0);
-
-    let totalWork = 0;
-    let peakCount = 0;
-    let peakDay: Date | null = null;
-    let emptyDays = 0;
-    let criticalDays = 0;
-
-    weekdays.forEach((day) => {
-      const key = format(day, "yyyy-MM-dd");
-      const count = dayWorkloads.get(key)?.total ?? 0;
-      totalWork += count;
-      if (count === 0) emptyDays++;
-      if (count >= 5) criticalDays++;
-      if (count > peakCount) {
-        peakCount = count;
-        peakDay = day;
-      }
-    });
-
-    return {
-      avg: weekdays.length > 0 ? (totalWork / weekdays.length).toFixed(1) : "0",
-      peakCount,
-      peakDay,
-      emptyDays,
-      criticalDays,
-      appointments: appointments.filter((appointment) => {
-        const date = parseISO(appointment.appointment_date);
-        return date >= monthStart && date <= monthEnd;
-      }).length,
-    };
-  }, [appointments, currentDate, dayWorkloads]);
-
-  const employeeWorkloads = useMemo((): EmployeeWorkload[] => {
-    const monthStart = startOfMonth(currentDate);
-    const monthEnd = endOfMonth(currentDate);
-    const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
-
-    return employees.map(emp => {
-      const dayEventsMap = new Map<string, Array<{ orderId: string; type: string; label: string }>>();
-      for (const day of monthDays) {
-        const key = format(day, "yyyy-MM-dd");
-        const events: Array<{ orderId: string; type: string; label: string }> = [];
-        for (const order of orders) {
-          const hasEmployee = order.order_employees?.some(ae => ae.employee.id === emp.id);
-          if (!hasEmployee) continue;
-          if (order.expected_date === key) {
-            events.push({ orderId: order.id, type: "posa", label: order.order_code || order.description?.slice(0, 20) || "Ordine" });
-          } else if (order.work_start_date) {
-            const start = parseISO(order.work_start_date);
-            const end = order.work_end_date ? parseISO(order.work_end_date) : start;
-            if (isWithinInterval(day, { start, end })) {
-              events.push({ orderId: order.id, type: "lavoro", label: order.order_code || order.description?.slice(0, 20) || "Ordine" });
-            }
-          }
-        }
-        if (events.length > 0) dayEventsMap.set(key, events);
-      }
-      return {
-        employeeId: emp.id,
-        employeeName: `${emp.first_name} ${emp.last_name}`,
-        dayEvents: dayEventsMap,
-        totalDays: dayEventsMap.size,
-      };
-    });
-  }, [employees, orders, currentDate]);
-
-  const monthDaysOnly = useMemo(() => {
-    const monthStart = startOfMonth(currentDate);
-    const monthEnd = endOfMonth(currentDate);
-    return eachDayOfInterval({ start: monthStart, end: monthEnd });
-  }, [currentDate]);
-
-  const weekDays = WEEK_DAYS_IT;
-
   return (
-    <div className="space-y-4">
-      <Card className="p-4">
-        <div className="flex items-center justify-between mb-4">
-          <Button variant="ghost" size="icon" onClick={() => onDateChange(subMonths(currentDate, 1))}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex items-center gap-3">
-            <div>
-              <h2 className="text-lg font-semibold capitalize">
-                {format(currentDate, "MMMM yyyy", { locale: it })}
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                {heatmapMode === "day" ? "Carico di lavoro giornaliero" : "Distribuzione per operaio"}
-              </p>
-            </div>
-            {employees.length > 0 && (
-              <div className="flex rounded-md border overflow-hidden text-xs">
-                <button
-                  className={cn("px-2 py-1 transition-colors", heatmapMode === "day" ? "bg-primary text-primary-foreground" : "hover:bg-muted")}
-                  onClick={() => setHeatmapMode("day")}
-                >
-                  Per giorno
-                </button>
-                <button
-                  className={cn("px-2 py-1 transition-colors border-l", heatmapMode === "employee" ? "bg-primary text-primary-foreground" : "hover:bg-muted")}
-                  onClick={() => setHeatmapMode("employee")}
-                >
-                  Per operaio
-                </button>
-              </div>
-            )}
+    <Card className="overflow-hidden" aria-label="Carico delle lavorazioni">
+      <div className="space-y-4 border-b p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Mese di carico precedente"
+              onClick={() => changeDate(addMonths(currentDate, -1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <h2 className="text-lg font-semibold capitalize">
+              {format(currentDate, "MMMM yyyy", { locale: it })}
+            </h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Mese di carico successivo"
+              onClick={() => changeDate(addMonths(currentDate, 1))}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => onDateChange(addMonths(currentDate, 1))}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-5">
-          <div className="rounded-lg border bg-card px-3 py-2">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Media</p>
-            <p className="text-lg font-bold">{stats.avg}</p>
-          </div>
-          <div className="rounded-lg border bg-card px-3 py-2">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Picco</p>
-            <p className="text-lg font-bold">{stats.peakCount || "0"}</p>
-          </div>
-          <div className="rounded-lg border bg-card px-3 py-2">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Critici</p>
-            <p className={cn("text-lg font-bold", stats.criticalDays > 0 && "text-destructive")}>{stats.criticalDays}</p>
-          </div>
-          <div className="rounded-lg border bg-card px-3 py-2">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Giorni vuoti</p>
-            <p className="text-lg font-bold">{stats.emptyDays}</p>
-          </div>
-          <div className="rounded-lg border bg-card px-3 py-2">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Appunt.</p>
-            <p className="text-lg font-bold">{stats.appointments}</p>
+          <div
+            className="flex rounded-lg bg-muted p-1"
+            aria-label="Distribuzione del carico"
+          >
+            {(
+              [
+                ["day", "Per giorno"],
+                ["employee", "Per persona"],
+                ["team", "Per squadra"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                type="button"
+                key={value}
+                aria-pressed={mode === value}
+                onClick={() => {
+                  setMode(value);
+                  setSearch("");
+                  setSelected(null);
+                }}
+                className={cn(
+                  "min-h-9 rounded-md px-3 text-xs",
+                  mode === value && "bg-background font-semibold shadow-sm",
+                )}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
-
-        {heatmapMode === "day" ? (
-          <>
-            <div className="grid grid-cols-7 gap-px bg-muted rounded-lg overflow-hidden">
-                {weekDays.map((day) => (
-                  <div key={day} className="bg-muted-foreground/5 p-2 text-center text-sm font-medium text-muted-foreground">
-                    {day}
-                  </div>
-                ))}
-
-                {days.map((day, idx) => {
-                  const key = format(day, "yyyy-MM-dd");
-                  const workload = dayWorkloads.get(key) ?? { orders: [], total: 0 };
-                  const count = workload.total;
-                  const isToday = isSameDay(day, new Date());
-                  const isCurrentMonth = isSameMonth(day, currentDate);
-
-                  const cellContent = (
-                    <div
-                      className={cn(
-                        "min-h-[80px] p-2 transition-colors flex flex-col items-center",
-                      isCurrentMonth ? getHeatColor(count) : "bg-muted/30",
-                        !isCurrentMonth && "opacity-40",
-                        isCurrentMonth && getDay(day) === 0 && "opacity-60 ring-1 ring-inset ring-muted-foreground/20",
-                        isCurrentMonth && count > 0 && "cursor-pointer hover:opacity-80"
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full mb-1",
-                          isToday && "bg-primary text-primary-foreground",
-                          !isToday && !isCurrentMonth && "text-muted-foreground"
-                        )}
-                      >
-                        {format(day, "d")}
-                      </div>
-                      {isCurrentMonth && count > 0 && (() => {
-                        const hasPosa = workload.orders.some(o => o.expected_date && isSameDay(parseISO(o.expected_date), day));
-                        const hasLavoro = workload.orders.some(o => o.work_start_date);
-                        return (
-                          <div className="flex flex-col items-center gap-0.5">
-                            <div className="flex items-center gap-1">
-                              <span className={cn("text-xl font-bold", getHeatTextColor(count))}>
-                                {count}
-                              </span>
-                              {count >= 5 && (
-                                <AlertTriangle className="h-4 w-4 text-red-500" />
-                              )}
-                            </div>
-                            <div className="flex gap-0.5">
-                              {hasPosa && <Hammer className="h-2.5 w-2.5 text-blue-500" />}
-                              {hasLavoro && <Wrench className="h-2.5 w-2.5 text-green-500" />}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  );
-
-                  if (!isCurrentMonth || count === 0) {
-                    return <div key={idx}>{cellContent}</div>;
-                  }
-
-                  return (
-                    <Popover key={idx}>
-                      <PopoverTrigger asChild>
-                        {cellContent}
-                      </PopoverTrigger>
-                      <PopoverContent side="right" align="start" className="w-72 p-0">
-                        <div className="px-4 py-3 border-b">
-                          <p className="font-semibold capitalize">
-                            {format(day, "EEEE d MMMM", { locale: it })}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {count} {count === 1 ? "attività" : "attività"} attive
-                          </p>
-                        </div>
-                        <ScrollArea className={count > 5 ? "h-60" : ""}>
-                          <div className="p-2 space-y-1">
-                            {workload.orders.map((order) => {
-                              const isPosa = order.expected_date && isSameDay(parseISO(order.expected_date), day);
-
-                              return (
-                                <button
-                                  key={order.id}
-                                  onClick={() => navigate(`/azienda/ordini/${order.id}`)}
-                                  className="w-full flex items-center gap-2 p-2 rounded-md text-left text-sm hover:bg-accent transition-colors"
-                                >
-                                  <div className="flex-shrink-0">
-                                    {isPosa ? (
-                                      <Hammer className="h-4 w-4 text-blue-500" />
-                                    ) : (
-                                      <Wrench className="h-4 w-4 text-green-500" />
-                                    )}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="font-medium truncate">
-                                      {order.order_code || "N/A"} — {order.customer.last_name}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground truncate">
-                                      {order.description}
-                                    </p>
-                                    {(() => {
-                                      const initials = getEmployeeInitials(order);
-                                      const extTeam = order.order_external_teams?.map(aet => aet.external_team.name).join(", ");
-                                      const risk = isPosa && hasLogisticRisk(order);
-                                      return (
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                          {initials && (
-                                            <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                                              <Users className="h-2.5 w-2.5" />{initials}
-                                            </span>
-                                          )}
-                                          {extTeam && (
-                                            <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                                              <UsersRound className="h-2.5 w-2.5" />{extTeam}
-                                            </span>
-                                          )}
-                                          {risk && (
-                                            <span className="text-[10px] text-amber-500 flex items-center gap-0.5">
-                                              <AlertTriangle className="h-2.5 w-2.5" />Rischio
-                                            </span>
-                                          )}
-                                        </div>
-                                      );
-                                    })()}
-                                  </div>
-                                  {order.status && (
-                                    <div
-                                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                      style={{ backgroundColor: order.status.color }}
-                                    />
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </ScrollArea>
-                      </PopoverContent>
-                    </Popover>
-                  );
-                })}
-              </div>
-
-            {/* Legenda */}
-            <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
-              {[
-                { label: "0", cls: "bg-muted" },
-                { label: "1-2", cls: "bg-green-200 dark:bg-green-900/40" },
-                { label: "3-4", cls: "bg-yellow-200 dark:bg-yellow-900/40" },
-                { label: "5-6", cls: "bg-orange-300 dark:bg-orange-900/40" },
-                { label: "7+", cls: "bg-red-400 dark:bg-red-900/50" },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center gap-1.5">
-                  <div className={cn("w-4 h-4 rounded border", item.cls)} />
-                  <span>{item.label}</span>
-                </div>
-              ))}
+        <dl className="grid grid-cols-3 gap-3">
+          {[
+            ["Cantieri nel mese", activeOrders],
+            ["Giorni con lavori", activeDays],
+            [
+              resourceMode
+                ? "Picco per risorsa e giorno"
+                : "Picco nello stesso giorno",
+              peak,
+            ],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg bg-muted/35 p-3">
+              <dt className="text-xs text-muted-foreground">{label}</dt>
+              <dd className="mt-1 text-xl font-semibold">{value}</dd>
             </div>
-          </>
-        ) : (
-          /* Per-employee view */
-          <div className="overflow-x-auto">
-            <div className="min-w-[600px]">
-              {/* Header row with day numbers */}
-              <div className="flex gap-px mb-px">
-                <div className="w-32 shrink-0 text-xs text-muted-foreground font-medium px-1">Operaio</div>
-                {monthDaysOnly.map(day => (
-                  <div key={format(day, "d")} className={cn("w-7 text-center text-[10px] text-muted-foreground", getDay(day) === 0 && "opacity-40")}>
-                    {format(day, "d")}
-                  </div>
-                ))}
-                <div className="w-12 text-center text-[10px] text-muted-foreground font-medium">Totale</div>
-              </div>
-              {/* Employee rows */}
-              {employeeWorkloads.length > 0 && employeeWorkloads.every(e => e.totalDays === 0) && (
-                <p className="text-sm text-muted-foreground text-center py-4">Nessun operaio ha lavori assegnati in questo mese.</p>
-              )}
-              {employeeWorkloads.map(emp => (
-                <div key={emp.employeeId} className="flex gap-px mb-px items-center">
-                  <div className="w-32 shrink-0 text-xs truncate pr-1">{emp.employeeName}</div>
-                  {monthDaysOnly.map(day => {
-                    const key = format(day, "yyyy-MM-dd");
-                    const events = emp.dayEvents.get(key) ?? [];
-                    const count = events.length;
-                    const isToday = isSameDay(day, new Date());
-                    return (
-                      <Popover key={key}>
-                        <PopoverTrigger asChild>
-                          <div className={cn(
-                            "w-7 h-7 rounded-sm flex items-center justify-center text-[10px] cursor-pointer transition-colors",
-                            count === 0 ? "bg-muted/40" : count === 1 ? "bg-green-200 dark:bg-green-900/40" : count >= 2 ? "bg-orange-300 dark:bg-orange-900/40" : "",
-                            isToday && "ring-1 ring-primary",
-                            getDay(day) === 0 && "opacity-40",
-                            count > 0 && "font-medium"
-                          )}>
-                            {count > 0 ? count : ""}
-                          </div>
-                        </PopoverTrigger>
-                        {count > 0 && (
-                          <PopoverContent side="right" align="start" className="w-48 p-2 text-xs space-y-1">
-                            <p className="font-semibold">{format(day, "d MMM", { locale: it })}</p>
-                            {events.map((evt, i) => (
-                              <div key={i} className="flex items-center gap-1">
-                                {evt.type === "posa" ? <Hammer className="h-3 w-3 text-blue-500 shrink-0" /> : <Wrench className="h-3 w-3 text-green-500 shrink-0" />}
-                                <span className="truncate">{evt.label}</span>
-                              </div>
-                            ))}
-                          </PopoverContent>
-                        )}
-                      </Popover>
-                    );
-                  })}
-                  <div className={cn("w-12 text-center text-xs font-medium", emp.totalDays >= 20 ? "text-red-500" : emp.totalDays >= 15 ? "text-orange-500" : "text-muted-foreground")}>
-                    {emp.totalDays}gg
-                  </div>
-                </div>
-              ))}
-              {employeeWorkloads.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-8">Nessun operaio nel filtro corrente.</p>
-              )}
+          ))}
+        </dl>
+        <p className="text-xs text-muted-foreground">
+          Cantieri dalle date effettive delle lavorazioni e della posa. Più fasi
+          della stessa commessa contano una sola volta al giorno. I colori
+          indicano il volume, non la disponibilità delle squadre.
+        </p>
+        {resourceMode && (
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative min-w-52 flex-1">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="h-9 pl-9"
+                aria-label="Cerca risorsa nel carico"
+                placeholder={
+                  mode === "team" ? "Cerca una squadra…" : "Cerca una persona…"
+                }
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
+            <Button
+              size="sm"
+              variant={assignedOnly ? "secondary" : "outline"}
+              aria-pressed={assignedOnly}
+              onClick={() => setAssignedOnly(!assignedOnly)}
+            >
+              {assignedOnly ? "Con assegnazioni" : "Tutte le risorse"}
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {rows.length} {mode === "team" ? "squadre" : "persone"}
+            </span>
           </div>
         )}
-      </Card>
-    </div>
+      </div>
+      {!resourceMode ? (
+        <div className="p-4">
+          <div className="grid grid-cols-7 gap-1.5">
+            {["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"].map((d) => (
+              <div
+                key={d}
+                className="py-2 text-center text-xs font-medium text-muted-foreground"
+              >
+                {d}
+              </div>
+            ))}
+            {Array.from({ length: (days[0].getDay() + 6) % 7 }, (_, i) => (
+              <div key={"empty-" + i} />
+            ))}
+            {days.map((day, i) => {
+              const count = workloads[i].length,
+                key = format(day, "yyyy-MM-dd");
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-label={
+                    format(day, "EEEE d MMMM yyyy", { locale: it }) +
+                    ": " +
+                    count +
+                    " cantieri"
+                  }
+                  onClick={() => setSelected({ date: key })}
+                  className={cn(
+                    "flex min-h-24 flex-col items-center justify-center gap-1 rounded-lg border border-transparent p-2 transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-primary",
+                    intensity(count),
+                    isSameDay(day, new Date()) && "ring-2 ring-primary",
+                  )}
+                >
+                  <span className="text-xs">{format(day, "d")}</span>
+                  <span className="text-2xl font-semibold tabular-nums">
+                    {count || "—"}
+                  </span>
+                  <span className="text-[10px]">
+                    {count === 1 ? "cantiere" : "cantieri"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : rows.length ? (
+        <div className="max-h-[65vh] overflow-auto">
+          <table className="w-full min-w-max text-left text-xs">
+            <caption className="sr-only">
+              Cantieri assegnati a ogni{" "}
+              {mode === "team" ? "squadra" : "persona"} per giorno
+            </caption>
+            <thead className="sticky top-0 z-20">
+              <tr>
+                <th className="sticky left-0 z-30 min-w-48 border-b bg-card p-3">
+                  {mode === "team" ? "Squadra" : "Persona"}
+                </th>
+                {days.map((day) => (
+                  <th
+                    key={format(day, "yyyy-MM-dd")}
+                    className={cn(
+                      "min-w-10 border-b bg-card p-1.5 text-center font-normal",
+                      day.getDay() % 6 === 0 && "bg-muted",
+                      isSameDay(day, new Date()) && "bg-primary/5",
+                    )}
+                  >
+                    <span className="block text-[9px] uppercase text-muted-foreground">
+                      {format(day, "EEEEE", { locale: it })}
+                    </span>
+                    {format(day, "d")}
+                  </th>
+                ))}
+                <th className="border-b bg-card p-3 text-center">
+                  Giorni assegnati
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((resource) => (
+                <tr key={resource.id}>
+                  <th
+                    scope="row"
+                    className="sticky left-0 z-10 border-b bg-card p-3 font-medium"
+                  >
+                    {resource.name}
+                    <span className="mt-1 block text-[10px] font-normal text-muted-foreground">
+                      {resource.orders} cantieri nel mese
+                    </span>
+                  </th>
+                  {days.map((day) => {
+                    const key = format(day, "yyyy-MM-dd"),
+                      count = resourceCellCount(resource.cells.get(key));
+                    return (
+                      <td
+                        key={key}
+                        className={cn(
+                          "border-b p-1",
+                          day.getDay() % 6 === 0 && "bg-muted/20",
+                        )}
+                      >
+                        <button
+                          type="button"
+                          aria-label={
+                            resource.name +
+                            " · " +
+                            format(day, "d MMM", { locale: it }) +
+                            ": " +
+                            count +
+                            " cantieri"
+                          }
+                          className={cn(
+                            "flex h-9 w-9 items-center justify-center rounded font-medium tabular-nums hover:ring-1 hover:ring-primary focus-visible:ring-2 focus-visible:ring-primary",
+                            intensity(count),
+                            isSameDay(day, new Date()) &&
+                              "ring-1 ring-primary/40",
+                          )}
+                          onClick={() =>
+                            setSelected({
+                              date: key,
+                              kind: mode === "team" ? "team" : "employee",
+                              resourceId: resource.id,
+                            })
+                          }
+                        >
+                          {count || "—"}
+                        </button>
+                      </td>
+                    );
+                  })}
+                  <td className="border-b p-3 text-center font-medium tabular-nums">
+                    {resource.days}/{days.length}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+          Nessuna {mode === "team" ? "squadra" : "persona"} nei filtri
+          selezionati.
+        </p>
+      )}
+      <div
+        className="flex flex-wrap items-center gap-3 border-t px-4 py-3 text-xs text-muted-foreground"
+        aria-label="Legenda del carico"
+      >
+        {bands.map((b) => (
+          <span key={b.level} className="flex items-center gap-1.5">
+            <span className={cn("h-3 w-3 rounded", colors[b.level])} />
+            {b.label} cantieri
+          </span>
+        ))}
+        <span className="ml-auto text-[10px]">
+          Scala sul picco visibile · seleziona un giorno per i dettagli
+        </span>
+      </div>
+      {validSelection && selected && (
+        <CalendarDayDetailsDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setSelected(null);
+          }}
+          date={parseISO(selected.date)}
+          events={detailEvents}
+          contextLabel={selectedRow?.name}
+          isMobile={false}
+          calendarScope={calendarScope}
+          readOnly
+          canEditOrders={p.canEditOrders}
+          canViewPayments={p.canViewScadenzario}
+          onCreateAppointment={() => {}}
+          onEditEvent={() => {}}
+        />
+      )}
+    </Card>
   );
 }

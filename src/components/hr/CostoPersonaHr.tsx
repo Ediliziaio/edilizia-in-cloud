@@ -5,7 +5,7 @@
  *
  * Non è un <form>: sta dentro il modulo della scheda, che ha il suo «Salva».
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Loader2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,39 +13,50 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { messaggioErroreOperai, useCostoPersona, useSalvaCostoPersona } from "@/hooks/useOperai";
 import { formatCurrency } from "@/lib/formatters";
+import { usePermissions } from "@/hooks/usePermissions";
+import { FullLaborCostCalculator } from "@/components/hr/FullLaborCostCalculator";
+import { HrLaborReconciliation } from "@/components/hr/HrLaborReconciliation";
+import type { HrCostSaveDraft } from "@/lib/personale/laborCostPlan";
 
 const testo = (n: number | null | undefined) => (n == null ? "" : String(n).replace(".", ","));
 
 export function CostoPersonaHr({ profiloId }: { profiloId: string }) {
   const { data, isLoading, error } = useCostoPersona(profiloId);
   const salva = useSalvaCostoPersona(profiloId);
-  const [v, setV] = useState({ costo_orario: "", stipendio_lordo: "", ore_mese: "", contributi_percento: "" });
-
-  useEffect(() => {
-    if (!data) return;
-    setV({
-      costo_orario: testo(data.costo_orario_scritto),
-      stipendio_lordo: testo(data.stipendio_lordo),
-      ore_mese: testo(data.ore_mese),
-      contributi_percento: testo(data.contributi_percento),
-    });
-  }, [data]);
+  const permissions = usePermissions();
+  const server = {
+    costo_orario: testo(data?.costo_orario_scritto), stipendio_lordo: testo(data?.stipendio_lordo),
+    ore_mese: testo(data?.ore_mese), contributi_percento: testo(data?.contributi_percento),
+  };
+  const [edit, setEdit] = useState<{ values: typeof server; baseline: typeof server } | null>(null);
+  const v = edit?.values ?? server;
+  const dirty = !!edit && JSON.stringify(edit.values) !== JSON.stringify(edit.baseline);
+  const remoteChange = !!edit && JSON.stringify(server) !== JSON.stringify(edit.baseline);
+  const canEdit = permissions.canViewPersone && !permissions.solaLettura && !permissions.isLoading;
+  const change = (key: keyof typeof server, value: string) => setEdit(old => ({ baseline: old?.baseline ?? server, values: { ...(old?.values ?? server), [key]: value } }));
 
   // Chi non vede il Personale non riceve il dato: niente riquadro.
-  if (error) return null;
+  if (!permissions.canViewPersone || permissions.isLoading) return null;
+  if (error) return <p role="alert" className="text-sm text-destructive">Costo della persona non disponibile. Chiudi e riapri la scheda per riprovare.</p>;
 
   const campo = (k: keyof typeof v) => ({
     id: `costo-${k}`,
     value: v[k],
     inputMode: "decimal" as const,
-    onChange: (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value })),
+    disabled: !canEdit || salva.isPending || isLoading,
+    onChange: (e: { target: { value: string } }) => change(k, e.target.value),
   });
 
-  const conferma = () =>
-    salva.mutate(v, {
-      onSuccess: () => toast.success("Costo aggiornato"),
+  const conferma = () => {
+    if (!canEdit || remoteChange || salva.isPending || !edit) return;
+    const patch: HrCostSaveDraft = {};
+    for (const key of Object.keys(v) as (keyof typeof v)[]) if (v[key] !== edit.baseline[key]) patch[key] = v[key];
+    if (!Object.keys(patch).length) { setEdit(null); return; }
+    salva.mutate(patch, {
+      onSuccess: () => { setEdit(null); toast.success("Costo aggiornato per i prossimi rapportini"); },
       onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito a salvare il costo. Riprova tra qualche secondo.")),
     });
+  };
 
   return (
     <div className="space-y-3 rounded-xl border bg-muted/30 p-3">
@@ -73,10 +84,15 @@ export function CostoPersonaHr({ profiloId }: { profiloId: string }) {
       </div>
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">Se scrivi il costo orario vale quello; altrimenti lo calcoliamo da lordo, contributi e ore.</p>
-        <Button type="button" size="sm" variant="outline" onClick={conferma} disabled={salva.isPending || isLoading} className="shrink-0 gap-1.5">
+        <Button type="button" size="sm" variant="outline" onClick={conferma} disabled={!canEdit || !dirty || remoteChange || salva.isPending || isLoading} className="shrink-0 gap-1.5">
           {salva.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}Salva il costo
         </Button>
       </div>
+      {remoteChange && <div role="alert" className="text-sm text-amber-800">Il costo è cambiato mentre scrivevi. La bozza è conservata; rileggi i dati aggiornati prima di salvare.
+        <Button type="button" variant="outline" size="sm" className="mt-2 block" onClick={() => setEdit(null)}>Rileggi e scarta la bozza</Button>
+      </div>}
+      <FullLaborCostCalculator disabled={!canEdit || salva.isPending || isLoading || remoteChange} onPropose={rate => change("costo_orario", testo(rate))} />
+      {permissions.canViewCosts && <HrLaborReconciliation profiloId={profiloId} />}
     </div>
   );
 }

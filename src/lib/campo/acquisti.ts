@@ -39,22 +39,44 @@ export const MODALITA: ReadonlyArray<{ key: ModalitaAcquisto; titolo: string; de
 
 export const tipoDocumentoDa = (m: ModalitaAcquisto) => (m === "pagato_da_me" ? "scontrino" : "bolla");
 
-const num = (v: unknown): number | null => {
-  if (v == null || v === "") return null;
-  const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
+/** Numeri del documento e del modulo: decimali italiani, senza coercire booleani o testo. */
+export const numeroDocumento = (v: unknown): number | null => {
+  if (typeof v !== "number" && typeof v !== "string") return null;
+  let t = typeof v === "string" ? v.trim().replace(/\s/g, "").replace(/(?:€|EUR)$/i, "") : String(v);
+  if (!t) return null;
+  if (t.includes(",")) {
+    if (!/^-?(?:\d+|\d{1,3}(?:\.\d{3})+),\d*$/.test(t)) return null;
+    t = t.replace(/\./g, "").replace(",", ".");
+  }
+  if (!/^-?\d+(?:\.\d*)?$/.test(t)) return null;
+  const n = Number(t);
   return Number.isFinite(n) ? n : null;
 };
+const num = numeroDocumento;
 const testo = (v: unknown, max = 200): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const dataIso = (v: unknown): string => {
   const t = testo(v, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return "";
+  const date = new Date(`${t}T12:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === t ? t : "";
 };
 const arrotonda = (n: number) => Math.round(n * 100) / 100;
 
 export function totaleRighe(righe: readonly RigaAcquisto[]): number | null {
-  const importi = righe.map(r => (r.importo != null ? r.importo : r.prezzo_unitario != null ? arrotonda(r.prezzo_unitario * (r.quantita || 1)) : null));
-  if (importi.length === 0 || importi.some(i => i == null)) return null;
+  const importi = righe.map(r => (r.importo != null ? r.importo : r.prezzo_unitario != null && r.quantita > 0 ? arrotonda(r.prezzo_unitario * r.quantita) : null));
+  if (importi.length === 0 || importi.some(i => i == null || !Number.isFinite(i) || i < 0)) return null;
   return arrotonda(importi.reduce<number>((s, i) => s + (i ?? 0), 0));
+}
+
+/** Una quantità corretta non deve portarsi dietro l'importo della quantità precedente. */
+export function cambiaQuantita(riga: RigaAcquisto, quantita: number): RigaAcquisto {
+  const valida = Number.isFinite(quantita) && quantita > 0;
+  return {
+    ...riga, quantita,
+    importo: !valida ? null : riga.prezzo_unitario != null && Number.isFinite(riga.prezzo_unitario) && riga.prezzo_unitario >= 0
+      ? arrotonda(riga.prezzo_unitario * quantita)
+      : quantita === riga.quantita ? riga.importo : null,
+  };
 }
 
 /**
@@ -67,7 +89,8 @@ export function mappaLetturaDocumento(ddt: unknown): LetturaDocumento {
     .map((r: Record<string, unknown>): RigaAcquisto => ({
       descrizione: testo(r?.descrizione),
       codice: testo(r?.codice_articolo, 60) || null,
-      quantita: num(r?.quantita) && (num(r?.quantita) as number) > 0 ? (num(r?.quantita) as number) : 1,
+      // Zero indica «non letta»: l'operaio deve confermarla, non inventiamo un pezzo.
+      quantita: (num(r?.quantita) ?? 0) > 0 ? num(r?.quantita)! : 0,
       unita: testo(r?.unita_misura, 12).toLowerCase() || null,
       prezzo_unitario: num(r?.prezzo_unitario_eur),
       importo: num(r?.importo_eur),
@@ -87,7 +110,9 @@ export function mappaLetturaDocumento(ddt: unknown): LetturaDocumento {
     totale,
     righe,
     confidenza,
-    daControllare: confidenza < 0.75 || righe.length === 0 || totale == null || fornitore === "",
+    daControllare: confidenza < 0.75 || righe.length === 0 || totale == null || totale < 0 || fornitore === ""
+      || righe.some(r => r.quantita <= 0 || r.quantita > 1000000 || (r.importo != null && r.importo < 0))
+      || dataIso(d.intestazione?.data_ddt) === "",
   };
 }
 

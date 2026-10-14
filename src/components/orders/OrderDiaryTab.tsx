@@ -93,10 +93,10 @@ function formatEventDescription(event: OrderEvent): string {
       const parts: string[] = [];
       if (p.data_lavoro) parts.push(format(parseISO(p.data_lavoro as string), "dd MMM yyyy", { locale: it }));
       if (p.descrizione_lavori) parts.push(String(p.descrizione_lavori).slice(0, 80) + (String(p.descrizione_lavori).length > 80 ? "…" : ""));
-      if (p.ore_lavorate != null) parts.push(`${p.ore_lavorate}h lavorate`);
-      if (p.percentuale_avanzamento != null) parts.push(`${p.percentuale_avanzamento}% avanzamento`);
+      if (!p.lavoro_completato && p.ore_lavorate != null) parts.push(`${p.ore_lavorate}h dichiarate all’invio`);
+      if (!p.lavoro_completato && p.percentuale_avanzamento != null) parts.push(`${p.percentuale_avanzamento}% proposto all’invio`);
       if (p.foto_count != null) parts.push(`${p.foto_count} foto`);
-      if (p.lavoro_completato) parts.push("completato");
+      if (p.lavoro_completato) parts.push("rapporto cliente");
       return parts.join(" · ") || "Rapportino campo";
     }
     case "allegato_caricato":

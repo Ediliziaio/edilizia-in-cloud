@@ -3,7 +3,8 @@
  * Gestisce approvazione, rifiuto con motivo, download PDF.
  * Usato nel tab "Campo" di OrderDetail.tsx.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { isClientReport } from "@/lib/campo/reportKind";
 import { cn } from "@/lib/utils";
 import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { RapportinoBlocchi } from "@/components/campo/RapportinoBlocchi";
@@ -33,6 +34,7 @@ import { SourceBadge } from "@/components/whatsapp/SourceBadge";
 import { LaborApprovalDialog } from "@/components/orders/LaborApprovalDialog";
 import { messaggioApprovazione } from "@/lib/campo/erroreApprovazione";
 import { recheckLaborApproval } from "@/lib/campo/loadLaborReview";
+import { validateReportPhaseLinks } from "@/lib/campo/validateReportPhaseLinks";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 interface Props { orderId: string; }
@@ -99,9 +101,16 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
   const { canEditOrders, canViewCosts } = usePermissions();
   const canApprove = canEditOrders && (role === "company_admin" || role === "company_staff" || role === "super_admin");
 
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [visibleCount, setVisibleCount] = useState(10);
-  useEffect(() => { setVisibleCount(10); setExpandedId(null); }, [orderId]);
+  // Stato della vista legato alla commessa: nessun frame con la pagina o il
+  // rapporto espanso della commessa precedente, né reset asincrono delle scelte.
+  const [expanded, setExpanded] = useState({ orderId, id: null as string | null });
+  const expandedId = expanded.orderId === orderId ? expanded.id : null;
+  const setExpandedId = (id: string | null) => setExpanded({ orderId, id });
+  const [page, setPage] = useState({ orderId, count: 10 });
+  const visibleCount = page.orderId === orderId ? page.count : 10;
+  const setVisibleCount = (value: number | ((previous: number) => number)) => setPage(previous => ({
+    orderId, count: typeof value === "function" ? value(previous.orderId === orderId ? previous.count : 10) : value,
+  }));
   const [approvalId, setApprovalId] = useState<string | null>(null);
   const [fotoModal, setFotoModal] = useState<string | null>(null);
   const [firmaModal, setFirmaModal] = useState<{ url: string; title: string } | null>(null);
@@ -112,6 +121,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
 
   const { data: rapportini = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["order-campo-rapportini", orderId, companyId],
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("campo_rapportini")
@@ -148,6 +158,15 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Sessione scaduta, riaccedi");
       const reviewed = await recheckLaborApproval({companyId, orderId, reportId: rapportinoId, showCosts: canViewCosts}, fingerprint, acknowledged);
+      // Prima di rendere il rapporto economicamente efficace, verifica tutti i
+      // riferimenti. Una fase estranea non va ignorata DOPO l'approvazione.
+      const { data: rapp, error: reportError } = await supabase.from("campo_rapportini")
+        .select("fasi_lavorate, materiali_usati, percentuale_avanzamento, lavoro_completato, firma_cliente_url")
+        .eq("id", rapportinoId).eq("order_id", orderId).eq("company_id", companyId)
+        .eq("updated_at", reviewed.updated_at).single();
+      if (reportError) throw reportError;
+      if (!rapp) throw new Error("Rapportino cambiato: aggiorna il controllo prima di approvare.");
+      await validateReportPhaseLinks(companyId, orderId, rapp);
       const approvalQuery = supabase
         .from("campo_rapportini")
         .update({
@@ -173,37 +192,48 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
       // viene detto, non nascosto.
       let erroreFasi: string | null = null;
       try {
-        const { data: rapp, error: reportError } = await supabase
-          .from("campo_rapportini")
-          .select("fasi_lavorate")
-          .eq("id", rapportinoId)
-          .eq("order_id", orderId)
-          .eq("company_id", companyId)
-          .single();
-        if (reportError) throw reportError;
         const fasi = (rapp?.fasi_lavorate ?? []) as Array<{ phase_id: string; percentuale: number }>;
+        // I vecchi rapporti con firma potevano contenere anche lavorazioni effettive.
+        // Restano approvabili; le nuove conferme cliente non portano fasi operative.
         if (fasi.length > 0) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const db = supabase as any;
           const { data: fresche, error: frescheErr } = await db
             .from("order_work_phases")
-            .select("id, status, percentuale")
+            .select("id, status, percentuale, updated_at")
             .in("id", fasi.map((f) => f.phase_id))
-            .eq("order_id", orderId);
+            .eq("order_id", orderId).eq("company_id", companyId);
           if (frescheErr) throw frescheErr;
           const byId = new Map(
-            ((fresche ?? []) as { id: string; status: string; percentuale: number | null }[])
+            ((fresche ?? []) as { id: string; status: string; percentuale: number | null; updated_at: string }[])
               .map((f) => [f.id, f]),
           );
           for (const dich of fasi) {
             const attuale = byId.get(dich.phase_id);
-            if (!attuale) continue;
+            if (!attuale) throw new Error("Una lavorazione non è più disponibile: verifica l'avanzamento in commessa.");
             const nuova = Math.max(Number(attuale.percentuale) || 0, Number(dich.percentuale) || 0);
             const patch: Record<string, unknown> = { percentuale: nuova, updated_at: new Date().toISOString() };
             if (nuova >= 100) patch.status = "completata";
             else if (nuova > 0 && attuale.status !== "completata") patch.status = "in_corso";
-            const { error: faseErr } = await db.from("order_work_phases").update(patch).eq("id", dich.phase_id);
+            if (nuova === (Number(attuale.percentuale) || 0) && (!patch.status || patch.status === attuale.status)) continue;
+            const { data: applied, error: faseErr } = await db.from("order_work_phases").update(patch)
+              .eq("id", dich.phase_id).eq("order_id", orderId).eq("company_id", companyId)
+              .eq("updated_at", attuale.updated_at).select("id").maybeSingle();
             if (faseErr) throw faseErr;
+            if (!applied) throw new Error("Avanzamento cambiato durante l'approvazione: ricarica e verifica la proposta.");
+          }
+        } else if (rapp && !isClientReport(rapp)) {
+          const proposta = Number(rapp.percentuale_avanzamento);
+          if (Number.isFinite(proposta) && proposta > 0 && proposta <= 100) {
+            const { data: ordine, error: ordineErr } = await supabase.from("orders")
+              .select("percentuale_avanzamento").eq("id", orderId).eq("company_id", companyId).single();
+            if (ordineErr) throw ordineErr;
+            if (proposta > (Number(ordine.percentuale_avanzamento) || 0)) {
+              const change = supabase.from("orders").update({ percentuale_avanzamento: proposta }).eq("id", orderId).eq("company_id", companyId);
+              const { data: applied, error: changeErr } = await (ordine.percentuale_avanzamento == null ? change.is("percentuale_avanzamento", null) : change.eq("percentuale_avanzamento", ordine.percentuale_avanzamento)).select("id").maybeSingle();
+              if (changeErr) throw changeErr;
+              if (!applied) throw new Error("Avanzamento cambiato durante l'approvazione: ricarica e verifica la proposta.");
+            }
           }
         }
       } catch (e) {
@@ -216,7 +246,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
       if (erroreFasi) {
         toast.error("Approvato, ma l'avanzamento fasi non è stato aggiornato", { description: erroreFasi });
       }
-      refreshWorkQueries(qc, orderId);
+      refreshWorkQueries(qc, orderId, companyId);
       void notifyRapportinoPdf(rapportinoId, orderId, qc);
       setApprovalId(null);
     },
@@ -248,7 +278,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
     },
     onSuccess: (_result, { id }) => {
       toast.success("Rapportino rifiutato");
-      refreshWorkQueries(qc, orderId);
+      refreshWorkQueries(qc, orderId, companyId);
       void notifyRapportinoPdf(id, orderId, qc);
       setRifiutaId(null);
       setMotivoRifiuto("");

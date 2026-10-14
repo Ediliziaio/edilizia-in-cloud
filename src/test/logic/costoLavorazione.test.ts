@@ -23,8 +23,10 @@ describe("Costo unitario lavorazioni", () => {
       expect(calcolaCostoLavorazione({ ...interno, risorse: [{ ...interno.risorse[0], ...patch }] }, 0).applicato).toBeNull();
     }
   });
-  it("supporta frazioni di ora per m² e arrotonda solo il totale", () => {
-    expect(calcolaCostoLavorazione({ ...interno, altri_costi_interni: 0, risorse: [{ ...interno.risorse[0], operatori: 1, ore: 0.15, costo_orario: 27.5 }] }, 0).applicato).toBe(4.13);
+  it("supporta frazioni di ora per m² e conserva la precisione del costo unitario", () => {
+    const costo = calcolaCostoLavorazione({ ...interno, altri_costi_interni: 0, risorse: [{ ...interno.risorse[0], operatori: 1, ore: 0.15, costo_orario: 27.5 }] }, 0).applicato;
+    expect(costo).toBe(4.125);
+    expect(costo! * 100).toBe(412.5);
   });
   it("mantiene costo storico e campi estranei, e conserva entrambi gli scenari", () => {
     const precedente = { _catalog_standard: { version: 1 }, nota: "conservare" };

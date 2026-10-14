@@ -17,6 +17,35 @@ afterEach(cleanup);
 const props = { open: true, onClose: vi.fn(), editing: base, companyId: base.company_id, isAdmin: true, currentVertical: "bagno", onSaved: vi.fn() };
 
 describe("Salvataggio costo senza rompere il listino esistente", () => {
+  it("conserva un costo di 0,0044 euro in tutti i campi senza arrotondarlo a zero", async () => {
+    render(<TariffaDialog {...props} editing={{ ...base, costo_interno: 0.0044, prezzo_costo: 0.0044 }} />);
+    expect(screen.getByLabelText("Costo diretto")).toHaveValue(0.0044);
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(api.single).toHaveBeenCalledOnce());
+    expect(api.update.mock.calls[0][0]).toMatchObject({ costo_interno: 0.0044, prezzo_costo: 0.0044, costo_default: 0.0044 });
+  });
+  it("corregge il nome di una voce regionale a margine zero mantenendo gli importi", async () => {
+    render(<TariffaDialog {...props} editing={{ ...base, prezzo_vendita: 80 }} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Nome *" }), { target: { value: "Posa lavabo aggiornata" } });
+    expect(screen.getByRole("button", { name: "Salva" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(api.single).toHaveBeenCalledOnce());
+    expect(api.update.mock.calls[0][0]).toMatchObject({ nome: "Posa lavabo aggiornata", prezzo_vendita: 80, costo_interno: 80 });
+  });
+  it("blocca un aumento del costo che peggiora il margine zero esistente", () => {
+    render(<TariffaDialog {...props} editing={{ ...base, prezzo_vendita: 80 }} />);
+    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "81" } });
+    expect(screen.getByRole("button", { name: "Salva" })).toBeDisabled();
+    expect(api.update).not.toHaveBeenCalled();
+  });
+  it("usa la soglia configurata e propone un prezzo che la raggiunge, solo nella bozza", () => {
+    render(<TariffaDialog {...props} sogliaMinima={30} editing={{ ...base, prezzo_vendita: 100 }} />);
+    expect(screen.getByText("Sotto la soglia minima (30%)")).toHaveClass("text-amber-600");
+    fireEvent.click(screen.getByRole("button", { name: "Usa questo prezzo" }));
+    expect(screen.getByLabelText(/Prezzo di vendita/)).toHaveValue(114.2858);
+    expect(screen.getByText("Margine sano")).toBeInTheDocument();
+    expect(api.update).not.toHaveBeenCalled();
+  });
   it("salva configurazione e costo in tutti i campi legacy con filtro azienda", async () => {
     render(<TariffaDialog {...props} />);
     fireEvent.click(screen.getByRole("button", { name: "Subappalto" }));

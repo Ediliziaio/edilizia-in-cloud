@@ -5,8 +5,8 @@ import {
 import { OrderWorkspaceNav } from "./OrderWorkspaceNav";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-/** Il Gantt è largo: da telefono la vista non c'è (06/10/2026). */
-export const VISTE_SOLO_SCHERMO_GRANDE: ReadonlySet<CantiereView> = new Set(["cronoprogramma"]);
+/** Cronoprogramma uses a phase agenda on mobile instead of a reduced Gantt. */
+export const VISTE_SOLO_SCHERMO_GRANDE: ReadonlySet<CantiereView> = new Set();
 
 export function CantiereViewNav({
   value,

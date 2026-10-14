@@ -321,6 +321,7 @@ export function parsePrezzarioRegionale(
 
     // unità di misura (opzionale)
     const unita_misura = at(vals, detected.unita_misura) || null;
+    if (!unita_misura) warnings.push("Unità di misura mancante: da recuperare dalla fonte prima di usare questa voce.");
 
     // incidenza manodopera (opzionale, % → frazione 0..1)
     let incidenza_manodopera_pct: number | null = null;

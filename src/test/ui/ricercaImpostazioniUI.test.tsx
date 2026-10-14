@@ -48,7 +48,7 @@ describe("a casella vuota", () => {
     const voci = within(gruppo).getAllByRole("option").map((o) => o.textContent ?? "");
     expect(voci).toHaveLength(8);
     expect(voci[0]).toContain("Prezzo scritto a mano");
-    expect(voci[1]).toContain("Modelli di preventivo · Sconti");
+    expect(voci[1]).toContain("Modelli preventivi e contratti · Sconti");
     // …e sotto c'è tutto il menu, con i nomi dei suoi gruppi
     expect(screen.getByText("Preventivi & Listino")).toBeInTheDocument();
     expect(screen.getByText("Profilo aziendale")).toBeInTheDocument();

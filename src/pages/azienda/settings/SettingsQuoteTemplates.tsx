@@ -16,7 +16,7 @@ import type {
 } from "@/types/quoteTemplate";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { useSettingsDraftGuard, confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +53,7 @@ import type {
   TemplateFormPayload, TemplateVisibilityKey,
 } from "./SettingsQuoteTemplates/helpers";
 import { ModuliVenditaPanel } from "./SettingsQuoteTemplates/ModuliVenditaPanel";
+import { VariationTemplatesPanel } from "./SettingsQuoteTemplates/VariationTemplatesPanel";
 import { ImportaCondizioniBar } from "@/components/quote-templates/ImportaCondizioniBar";
 import { CONDIZIONI_STANDARD_MD } from "@/lib/condizioniStandard";
 import { markdownSempliceToHtml, sembraMarkdown } from "@/lib/markdownSemplice";
@@ -953,7 +954,7 @@ export default function SettingsQuoteTemplates() {
     });
   };
 
-  if (isLoading && topTab !== "moduli-vendita") {
+  if (isLoading && topTab === "documenti") {
     return (
       <div role="status" aria-label="Caricamento dei modelli" className="flex items-center justify-center py-12">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
@@ -964,12 +965,12 @@ export default function SettingsQuoteTemplates() {
   return (
     <Tabs
       value={topTab}
-      onValueChange={(v) =>
-        setSearchParams((prev) => buildQuoteTemplatesTabParams(prev, v as QuoteTemplatesTopTab), { replace: true })
-      }
+      onValueChange={(v) => { if (confermaNavigazioneImpostazioni())
+        setSearchParams((prev) => buildQuoteTemplatesTabParams(prev, v as QuoteTemplatesTopTab), { replace: true });
+      }}
       className="space-y-4"
     >
-      <TabsList className="bg-slate-100">
+      <TabsList className="h-auto max-w-full flex-wrap bg-slate-100">
         <TabsTrigger value="documenti" className="gap-1.5">
           <FileText className="h-3.5 w-3.5" />
           Preventivo generico
@@ -979,7 +980,10 @@ export default function SettingsQuoteTemplates() {
           {/* Da telefono le due linguette non stanno in 375 px: resta «Moduli». */}
           Moduli<span className="max-sm:hidden"> (serramenti, fotovoltaico…)</span>
         </TabsTrigger>
+        <TabsTrigger value="varianti" className="gap-1.5">Varianti e lavori extra</TabsTrigger>
       </TabsList>
+
+      <TabsContent value="varianti"><VariationTemplatesPanel key={effectiveCompany?.id} companyId={effectiveCompany?.id} canEdit={puoModificare} /></TabsContent>
 
       <TabsContent value="moduli-vendita" className="space-y-4">
         <ModuliVenditaPanel initialModulo={moduloFromUrl} />

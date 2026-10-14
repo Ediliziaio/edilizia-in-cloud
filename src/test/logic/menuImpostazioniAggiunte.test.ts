@@ -107,9 +107,9 @@ describe("le schede dentro una pagina hanno i permessi loro", () => {
 });
 
 describe("la voce con le schede dice tutti gli indirizzi che può aprire", () => {
-  it("Listino, Modelli di preventivo e Firma e condizioni portano l'elenco delle loro schede", () => {
+  it("Listino, Modelli preventivi e contratti e Firma e condizioni portano l'elenco delle loro schede", () => {
     const gruppo = voci(permessi({ isAdmin: true })).find((g) => g.label === "Preventivi & Listino")!;
-    const modelli = gruppo.items.find((i) => i.label === "Modelli di preventivo")!;
+    const modelli = gruppo.items.find((i) => i.label === "Modelli preventivi e contratti")!;
     expect(modelli.indirizzi).toEqual([url("template-preventivi"), url("margini"), url("scontistica"), url("approvazioni")]);
     expect(gruppo.items.find((i) => i.label === "Listino")!.indirizzi).toEqual([url("listino"), url("tariffe"), url("bundle")]);
     expect(gruppo.items.find((i) => i.label === "Finanziamenti")!.indirizzi).toBeUndefined();

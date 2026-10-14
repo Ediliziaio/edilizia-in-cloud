@@ -11,6 +11,7 @@ import { ImgRiservata } from "@/components/common/ImgRiservata";
 import { RapportinoBlocchi } from "@/components/campo/RapportinoBlocchi";
 import { cn } from "@/lib/utils";
 import { ETICHETTA_STATO_OPERAIO, rapportinoDaRifare, statoRapportino, type StatoRapportino } from "@/lib/campo/rapportinoStato";
+import { isClientReport } from "@/lib/campo/reportKind";
 
 export interface RapportinoCardRiga {
   id: string;
@@ -26,6 +27,9 @@ export interface RapportinoCardRiga {
   fasi_lavorate?: unknown;
   pdf_url?: string | null;
   firma_operaio_url?: string | null;
+  lavoro_completato?: boolean | null;
+  firma_cliente_url?: string | null;
+  firma_cliente_nome?: string | null;
 }
 
 const CHIP: Record<StatoRapportino, { classe: string; icona: typeof Clock }> = {
@@ -52,8 +56,10 @@ export function RapportinoCardCampo({ r, pdfOccupato, onPdf, onFirma, onCorreggi
   const daRifare = rapportinoDaRifare(stato);
   const giorno = parseISO(r.data_lavoro);
   const foto = Array.isArray(r.foto_urls) ? r.foto_urls : [];
+  const cliente = isClientReport(r);
   return (
     <div className={cn("rounded-2xl border bg-muted p-4", stato === "rifiutato" ? "border-red-300" : "border-border")}>
+      <p className="mb-2 text-xs font-semibold text-muted-foreground">{cliente ? "Rapporto cliente · Fine lavori" : "Rapportino giornaliero"}</p>
       <div className="mb-1 flex items-start justify-between gap-2">
         <p className="font-semibold text-foreground">
           {Number.isNaN(giorno.getTime()) ? r.data_lavoro : format(giorno, "d MMM yyyy", { locale: it })}
@@ -77,6 +83,9 @@ export function RapportinoCardCampo({ r, pdfOccupato, onPdf, onFirma, onCorreggi
         {foto.length > 0 && <span>{foto.length} foto</span>}
       </div>
       {r.descrizione_lavori && <p className="mt-1 line-clamp-2 text-sm text-foreground">{r.descrizione_lavori}</p>}
+      {cliente && <p className="mt-2 text-sm font-semibold">{r.firma_cliente_url
+        ? `Firma cliente presente${r.firma_cliente_nome?.trim() ? ` · ${r.firma_cliente_nome.trim()}` : ""}`
+        : "Firma cliente non presente nell’archivio"}</p>}
 
       {/* Su che fasi si è lavorato, con quanti materiali e quante foto: una riga per fase */}
       <RapportinoBlocchi report={r} compatto nomiFasi={nomiFasi} className="mt-2 rounded-xl bg-background/70 px-3 py-1.5" />
@@ -105,12 +114,12 @@ export function RapportinoCardCampo({ r, pdfOccupato, onPdf, onFirma, onCorreggi
         {r.firma_operaio_url ? (
           <span className="flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-1 text-xs font-semibold text-green-700">
             <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
-            Firmato
+            La tua firma è presente
           </span>
         ) : !daRifare && (
           <button onClick={onFirma} className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-bold text-primary-foreground">
             <PenLine className="h-4 w-4" aria-hidden="true" />
-            Firma
+            Aggiungi la tua firma
           </button>
         )}
       </div>

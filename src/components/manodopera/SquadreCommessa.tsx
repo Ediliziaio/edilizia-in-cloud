@@ -320,13 +320,15 @@ export function SquadreFase({
   orderId,
   fase,
   modificabile,
+  mostraAggiungi = true,
 }: {
   orderId: string;
   fase: { id: string; name: string };
   modificabile: boolean;
+  mostraAggiungi?: boolean;
 }) {
   const { data = [] } = useSquadreCommessa(orderId);
-  const { data: tutte = [] } = useSquadre();
+  const { data: tutte = [] } = useSquadre(modificabile && mostraAggiungi);
   const metti = useSquadraSuCommessa();
   const togli = useTogliSquadraDaCommessa();
   const qui = data.filter((s) => s.phase_id === fase.id);
@@ -350,6 +352,7 @@ export function SquadreFase({
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white py-1 pl-2.5 pr-1 text-sm ring-1 ring-slate-200">
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.colore ?? "#94A3B8" }} aria-hidden="true" />
               <span className="font-medium text-slate-800">{s.nome}</span>
+              {s.responsabile && <span className="text-xs text-muted-foreground">· Caposquadra: {s.responsabile.nome} {s.responsabile.cognome}</span>}
               {!s.segue_fase && (s.dal || s.al) && <span className="text-xs text-muted-foreground">({periodoSquadra(s)})</span>}
               {modificabile ? (
                 <button
@@ -372,7 +375,7 @@ export function SquadreFase({
           </TooltipContent>
         </Tooltip>
       ))}
-      {modificabile && (
+      {modificabile && mostraAggiungi && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="sm" variant="outline" className={cn("tap-compact h-8 gap-1 rounded-full px-3", AZIONE_TENUE.squadra)} disabled={metti.isPending}>
@@ -398,4 +401,3 @@ export function SquadreFase({
     </div>
   );
 }
-

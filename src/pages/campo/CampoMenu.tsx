@@ -6,7 +6,7 @@
 import { useNavigate } from "react-router-dom";
 import {
   Clock, CalendarDays, Receipt, Mic,
-  ShieldCheck, CreditCard, FileText, Ticket, LogOut,
+  CreditCard, FileText, Ticket, LogOut,
   ClipboardCheck, CheckSquare, Package, ListChecks, Truck, ShoppingBag,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,7 +30,7 @@ interface AppSection {
 export default function CampoMenu() {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
-  const { isOperaio, isSubappaltatore } = useIsCampo();
+  const { isOperaio } = useIsCampo();
   // «Il mio mezzo» compare solo a chi ha un mezzo in carico: sul telefono il meno è meglio.
   const { data: mieiMezzi = [] } = useMieiMezzi(isOperaio);
 
@@ -44,13 +44,10 @@ export default function CampoMenu() {
       items: [
         { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
         { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
-        { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
         { icon: ListChecks, label: "Avanzamento", url: "/campo/avanzamento", color: "text-cyan-600 bg-cyan-50" },
         { icon: Package, label: "Magazzino", url: "/campo/magazzino", color: "text-amber-700 bg-amber-50" },
         { icon: ShoppingBag, label: "Merce presa", url: "/campo/merce", color: "text-orange-700 bg-orange-50" },
-        ...(mieiMezzi.length > 0
-          ? [{ icon: Truck, label: mieiMezzi.length > 1 ? "I miei mezzi" : "Il mio mezzo", url: "/campo/mezzi", color: "text-slate-700 bg-slate-100" }]
-          : []),
+        { icon: Truck, label: mieiMezzi.length ? "Mezzi e attrezzi" : "Scansiona attrezzo", url: mieiMezzi.length ? "/campo/mezzi" : "/campo/mezzi?scansiona=1", color: "text-slate-700 bg-slate-100" },
       ],
     },
     {
@@ -78,7 +75,6 @@ export default function CampoMenu() {
       items: [
         { icon: CheckSquare, label: "Attività", url: "/campo/attivita", color: "text-teal-600 bg-teal-50" },
         { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
-        { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
         { icon: ClipboardCheck, label: "Avanzamento", url: "/campo/avanzamento", color: "text-cyan-600 bg-cyan-50" },
       ],
     },

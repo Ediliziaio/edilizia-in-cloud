@@ -1,5 +1,5 @@
 /**
- * «Approvazioni» è una scheda di Modelli di preventivo (09/10/2026): prima era la linguetta «Regole e approvazioni»
+ * «Approvazioni» è una scheda di Modelli preventivi e contratti (09/10/2026): prima era la linguetta «Regole e approvazioni»
  * nascosta dentro la pagina Margini, sotto un'altra fila di linguette.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";

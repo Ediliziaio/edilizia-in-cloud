@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { crewShiftChanges, crewShiftError, overlappingShifts, shiftFingerprint, shiftHours, validShiftDate, type CrewShift, type CrewShiftDraft } from "@/lib/orders/internalTeamShift";
+import { crewShiftChanges, crewShiftError, overlappingShifts, replaceShiftParticipant, shiftFingerprint, shiftHours, validShiftDate, type CrewShift, type CrewShiftDraft } from "@/lib/orders/internalTeamShift";
 import { loadCrewShifts, saveCrewShift } from "@/lib/orders/internalTeamShiftApi";
 import type { CrewSnapshot } from "@/lib/orders/internalTeamRoster";
 
@@ -12,6 +12,15 @@ const config = { url: "http://127.0.0.1:58321", optIn: "true" };
 const command = { ...draft, companyId: "co", orderId: "o", teamId: "t", operationId: "op" };
 
 describe("Turni interni · modello", () => {
+  it("sostituisce solo una presenza, senza mutare bozza o squadra, e libera il referente assente", () => {
+    expect(replaceShiftParticipant(draft, "a", "c", snapshot)).toMatchObject({employeeIds: ["c", "b"], leaderEmployeeId: null});
+    expect(replaceShiftParticipant(draft, "b", "c", snapshot)).toMatchObject({employeeIds: ["a", "c"], leaderEmployeeId: "a"});
+    expect(draft.employeeIds).toEqual(["a", "b"]);
+    expect(snapshot.roster.employeeIds).toEqual(["a", "b"]);
+  });
+  it.each([["missing", "c"], ["a", "b"], ["a", "a"], ["a", "d"], ["a", "missing"]])("rifiuta cambio %s → %s non disponibile o duplicato", (absent, replacement) => {
+    expect(replaceShiftParticipant(draft, absent, replacement, snapshot)).toBeNull();
+  });
   it.each(["2026-02-29", "2026-09-31", "garbage", "2026-9-1", "1999-01-01", "2101-01-01"])("rifiuta data %s", date => expect(validShiftDate(date)).toBe(false));
   it("accetta data bisestile", () => expect(validShiftDate("2028-02-29")).toBe(true));
   it("calcola la fascia senza chiamarla consuntivo", () => expect(shiftHours({ startTime: "08:30", endTime: "12:45" })).toBe(4.25));

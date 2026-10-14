@@ -1,7 +1,7 @@
 import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, LifeBuoy, Lock } from "lucide-react";
+import { GripVertical, Trash2, LifeBuoy, Lock, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,15 @@ interface StatusItemProps {
   onUpdate: (id: string, updates: Partial<OrderStatus>) => void;
   onDelete: (id: string) => void;
   canDelete: boolean;
+  disabled?: boolean;
+  usedBy?: number;
+  deletionBlocked?: string;
+  onMove?: (id: string, direction: -1 | 1) => void;
+  isFirst?: boolean;
+  isLast?: boolean;
 }
 
-export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItemProps) {
+export function StatusItem({ status, onUpdate, onDelete, canDelete, disabled = false, usedBy, deletionBlocked, onMove, isFirst, isLast }: StatusItemProps) {
   const {
     attributes,
     listeners,
@@ -26,7 +32,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: status.id });
+  } = useSortable({ id: status.id, disabled });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -35,14 +41,14 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
 
   const isSupportPhase = status.is_support_phase === true;
   // Lo stato Assistenza non è eliminabile mai.
-  const deleteEnabled = canDelete && !isSupportPhase;
+  const deleteEnabled = canDelete && !isSupportPhase && !deletionBlocked && !disabled;
 
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex flex-wrap items-center gap-x-3 gap-y-2 p-3 rounded-lg border bg-card",
+        "flex flex-wrap items-center gap-x-1 gap-y-2 p-3 rounded-lg border bg-card sm:gap-x-3",
         isDragging && "shadow-lg opacity-90 z-50",
         isSupportPhase && "border-amber-400/60 bg-amber-50/50 dark:bg-amber-950/20"
       )}
@@ -50,6 +56,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
       {/* Drag handle */}
       <button
         type="button"
+        disabled={disabled}
         aria-label="Trascina per riordinare"
         className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors"
         {...attributes}
@@ -68,13 +75,21 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
 
       {/* Status name input */}
       <Input
+        disabled={disabled}
         value={status.name}
         onChange={(e) => onUpdate(status.id, { name: e.target.value })}
-        className="min-w-[8rem] flex-1 basis-40"
+        className="min-w-[8rem] flex-1 basis-32 sm:basis-40"
         placeholder="Nome stato"
         aria-label={`Nome dello stato ${(status.position ?? 0) + 1}`}
         maxLength={50}
       />
+
+      {usedBy != null && <Badge variant="secondary" className="text-[11px] font-normal">{usedBy} {usedBy === 1 ? "commessa" : "commesse"}</Badge>}
+
+      {onMove && <div className="flex items-center gap-0.5">
+        <Button size="icon" variant="ghost" className="h-8 w-8" disabled={disabled || isFirst} onClick={() => onMove(status.id, -1)} aria-label={`Sposta su ${status.name}`}><ArrowUp className="h-3.5 w-3.5" /></Button>
+        <Button size="icon" variant="ghost" className="h-8 w-8" disabled={disabled || isLast} onClick={() => onMove(status.id, 1)} aria-label={`Sposta giù ${status.name}`}><ArrowDown className="h-3.5 w-3.5" /></Button>
+      </div>}
 
       {isSupportPhase && (
         <TooltipProvider delayDuration={150}>
@@ -118,9 +133,9 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
                 size="icon"
                 onClick={() => deleteEnabled && onDelete(status.id)}
                 disabled={!deleteEnabled}
-                aria-label={isSupportPhase ? "Lo stato Assistenza non si può eliminare" : `Elimina lo stato ${status.name}`}
+              aria-label={isSupportPhase ? "Lo stato Assistenza non si può eliminare" : `Elimina lo stato ${status.name}`}
                 className={cn(
-                  "text-muted-foreground hover:text-destructive",
+                  "h-8 w-8 text-muted-foreground hover:text-destructive sm:h-10 sm:w-10",
                   !deleteEnabled && "opacity-50 cursor-not-allowed"
                 )}
               >
@@ -132,7 +147,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
             <TooltipContent side="top">
               {isSupportPhase
                 ? "Lo stato Assistenza è obbligatorio e non si può eliminare"
-                : "Servono almeno 2 stati"}
+                : deletionBlocked || "Servono almeno 2 stati"}
             </TooltipContent>
           )}
         </Tooltip>

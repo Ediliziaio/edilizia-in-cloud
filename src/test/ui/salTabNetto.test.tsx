@@ -8,6 +8,8 @@ const dati = vi.hoisted(() => ({ sal: [] as Array<Record<string, unknown>> }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/components/ui/confirm-dialog", () => ({ useConfirm: () => vi.fn() }));
 vi.mock("@/components/shared/PrintPreviewModal", () => ({ PrintPreviewModal: (): null => null }));
+vi.mock("@/hooks/useSalMatura",()=>({useSalMatura:()=>"emesso"}));
+vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({canEditOrders:true,canViewSettingsOrders:false})}));
 vi.mock("@/integrations/supabase/client", () => {
   const costruisci = (tabella: string) => {
     // Lettura: l'oggetto si può «attendere» a ogni passo della catena.
@@ -38,22 +40,22 @@ describe("SAL: meno SAL precedenti", () => {
   it("il secondo SAL dice quanto era già nei precedenti e quanto fatturare ora", async () => {
     dati.sal = [sal(2, "emesso", 16000), sal(1, "firmato", 10000)];
     disegna();
-    expect(await screen.findByText(/Già maturato nei SAL precedenti:\s*10\.000,00/)).toBeInTheDocument();
-    expect(screen.getByText(/Da fatturare con questo SAL:\s*6\.000,00/)).toBeInTheDocument();
+    expect(await screen.findByText(/Ultimo cumulativo precedente:\s*10\.000,00/)).toBeInTheDocument();
+    expect(screen.getByText(/Quota nuova del SAL:\s*6\.000,00/)).toBeInTheDocument();
     // il primo SAL non ha precedenti: la riga compare una volta sola
-    expect(screen.getAllByText(/Già maturato nei SAL precedenti/)).toHaveLength(1);
+    expect(screen.getAllByText(/Ultimo cumulativo precedente:/)).toHaveLength(1);
   });
 
   it("una bozza precedente non conta", async () => {
     dati.sal = [sal(2, "emesso", 16000), sal(1, "bozza", 10000)];
     disegna();
     await screen.findByText("SAL #2");
-    expect(screen.queryByText(/Già maturato nei SAL precedenti/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ultimo cumulativo precedente/)).not.toBeInTheDocument();
   });
 
   it("un netto negativo si chiama «Rettifica»", async () => {
     dati.sal = [sal(2, "emesso", 8000), sal(1, "firmato", 10000)];
     disegna();
-    expect(await screen.findByText(/Rettifica:\s*[-−]2\.000,00/)).toBeInTheDocument();
+    expect(await screen.findByText(/Rettifica da verificare:\s*[-−]2\.000,00/)).toBeInTheDocument();
   });
 });

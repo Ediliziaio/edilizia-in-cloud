@@ -86299,6 +86299,10 @@ export type Database = {
           barcode_prefix: string | null
           city: string | null
           company_id: string
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          contact_role: string | null
           country: string | null
           created_at: string
           credit_limit: number | null
@@ -86331,6 +86335,10 @@ export type Database = {
           barcode_prefix?: string | null
           city?: string | null
           company_id: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          contact_role?: string | null
           country?: string | null
           created_at?: string
           credit_limit?: number | null
@@ -86363,6 +86371,10 @@ export type Database = {
           barcode_prefix?: string | null
           city?: string | null
           company_id?: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          contact_role?: string | null
           country?: string | null
           created_at?: string
           credit_limit?: number | null

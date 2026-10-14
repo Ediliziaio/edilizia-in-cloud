@@ -16,6 +16,7 @@ import type { TablesUpdate } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { queryKeys } from "@/lib/queryKeys";
+import { isDashboardTaskOverdue, loadDashboardRows } from "@/lib/attivita/dashboardTasks";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -60,12 +61,14 @@ import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { logTaskActivity } from "@/lib/taskActivityLog";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import { useTaskLink } from "@/hooks/useTaskLink";
 import {
   buildTaskStatusUpdate,
   getNextTaskStatusForQuickAction,
   getTaskStatusEventType,
   getTaskStatusTransitionDescription,
   isTaskDoneStatus,
+  isTaskBlockedStatus,
   getTaskStatusLabel,
 } from "@/lib/taskStatuses";
 
@@ -104,7 +107,7 @@ const FILTRI_DEFAULT = { stato: "active", priorita: "all", categoria: "all", fon
 
 export default function UnifiedTasks({ embedded = false, initialTab = "myday" }: UnifiedTasksProps = {}) {
   const { effectiveCompany, user, isImpersonating, role } = useAuth() as any;
-  const { isAdmin, canViewTeamTasks, solaLettura, canEditSettingsCustomization } = usePermissions();
+  const { isAdmin, canViewTeamTasks, solaLettura, canEditSettingsCustomization, isLoading: permissionsLoading } = usePermissions();
   const isMobile = useIsMobile();
   // In sola lettura le attività si consultano: la policy RESTRICTIVE su tasks
   // rifiuterebbe l'inserimento, quindi i comandi di creazione sono spenti.
@@ -224,11 +227,12 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     }
   };
 
-  const { data: tasks = [], isLoading } = useQuery({
+  const { data: tasks = [], isLoading, isError, refetch } = useQuery({
     queryKey: [...queryKeys.tasks.all, "unified", companyId, seesTeamTasks, user?.id],
     queryFn: async () => {
       if (!companyId) return [];
       const archivedIds = await loadArchivedOrderIds(companyId);
+      const rawTasks = await loadDashboardRows((from, to) => {
       let q = supabase
         .from("tasks")
         .select(`
@@ -243,20 +247,22 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         .eq("company_id", companyId)
         .order("sort_order", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false })
-        .limit(5000);
+        .order("id").range(from, to);
       // Senza "Attività del team": scoping alle proprie (personal-first)
       if (!seesTeamTasks && user?.id) q = q.eq("assigned_to", user.id);
       q = excludeArchivedOrders(q, archivedIds, "order_id");
-      const { data, error } = await q;
-      if (error) throw error;
-      const rawTasks = data || [];
+      return q;
+      });
       const creatorIds = [...new Set(rawTasks.map((task: any) => task.created_by).filter(Boolean))];
       if (creatorIds.length === 0) return rawTasks;
 
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .in("id", creatorIds);
+      const profiles = [];
+      for (let offset = 0; offset < creatorIds.length; offset += 250) {
+        const { data, error } = await supabase.from("profiles").select("id, first_name, last_name")
+          .eq("company_id", companyId).in("id", creatorIds.slice(offset, offset + 250));
+        if (error) throw error;
+        profiles.push(...(data ?? []));
+      }
 
       const creators = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
       return rawTasks.map((task: any) => ({
@@ -264,8 +270,19 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
         creator_profile: creators.get(task.created_by) || null,
       }));
     },
-    enabled: !!companyId,
+    enabled: !!companyId && !!user?.id && !permissionsLoading,
   });
+
+  const requestedTaskId = searchParams.get("attivita");
+  const requestedTask = useTaskLink(tasks, requestedTaskId, setSelectedTask);
+  const clearRequestedTask = () => setSearchParams(previous => {
+    const next = new URLSearchParams(previous); next.delete("attivita"); return next;
+  }, { replace: true });
+
+  const openTask = (task: typeof requestedTask) => {
+    if (requestedTaskId && task?.id !== requestedTaskId) clearRequestedTask();
+    setSelectedTask(task);
+  };
 
   const observedStatuses = useMemo(
     () => Array.from(new Set(tasks.map((task: any) => task.status).filter(Boolean))),
@@ -296,7 +313,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [tasks, isImpersonating, role, user?.id]);
 
-  const now = new Date();
+  const now = startOfDay(new Date());
   const in48h = addHours(now, 48);
   const weekStart = startOfWeek(now, { locale: it });
 
@@ -304,8 +321,8 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     const isDone = (task: any) => isTaskDoneStatus(task.status, statusOptions);
     const active = tasks.filter((t) => !isDone(t)).length;
     const inReview = tasks.filter((t) => statusOptions.find((status) => status.value === t.status)?.stage === "review").length;
-    const expiring = tasks.filter((t) => !isDone(t) && t.due_date && isAfter(new Date(t.due_date), now) && isBefore(new Date(t.due_date), in48h)).length;
-    const overdue = tasks.filter((t) => !isDone(t) && t.due_date && isBefore(new Date(t.due_date), now)).length;
+    const expiring = tasks.filter((t) => !isDone(t) && !isTaskBlockedStatus(t.status, statusOptions) && t.due_date && !isBefore(parseISO(t.due_date.slice(0, 10)), now) && isBefore(new Date(t.due_date), in48h)).length;
+    const overdue = tasks.filter(t => isDashboardTaskOverdue(t, now, statusOptions)).length;
     const completedThisWeek = tasks.filter((t) => isDone(t) && t.completed_at && isAfter(new Date(t.completed_at), weekStart)).length;
     return { active, inReview, expiring, overdue, completedThisWeek };
   }, [tasks, statusOptions]);
@@ -344,17 +361,17 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
   }, [statusOptions]);
 
   const filteredTasks = useMemo(() => {
-    const now = new Date();
+    const now = startOfDay(new Date());
     const in48h = addHours(now, 48);
     return tasks.filter((t) => {
       const isDone = isTaskDoneStatus(t.status, statusOptions);
       if (filterStatus === "active" && isDone) return false;
       if (filterStatus === "overdue") {
-        if (isDone || !t.due_date || !isBefore(new Date(t.due_date), now)) return false;
+        if (!isDashboardTaskOverdue(t, now, statusOptions)) return false;
       } else if (filterStatus === "expiring") {
-        if (isDone || !t.due_date) return false;
-        const d = new Date(t.due_date);
-        if (!isAfter(d, now) || !isBefore(d, in48h)) return false;
+        if (isDone || isTaskBlockedStatus(t.status, statusOptions) || !t.due_date) return false;
+        const d = parseISO(t.due_date.slice(0, 10));
+        if (isBefore(d, now) || !isBefore(d, in48h)) return false;
       } else if (filterStatus !== "all" && filterStatus !== "active" && t.status !== filterStatus) return false;
       if (filterPriority !== "all" && t.priority !== filterPriority) return false;
       if (filterCategory !== "all" && t.category !== filterCategory) return false;
@@ -829,7 +846,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                   col conteggio: sotto i numeri andava su una riga da solo.
                   «Le mie» non c'è più: era la tendina Assegnatario col proprio nome. */}
               <div className="ml-auto flex items-center gap-2">
-                <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{filteredTasks.length} di {tasks.length}</span>
+                <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">{isError ? "Dati non disponibili" : `${filteredTasks.length} di ${tasks.length}`}</span>
                 {filtriAttivi && (
                   <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={azzeraFiltri}>
                     Azzera filtri
@@ -845,18 +862,19 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
               </div>
               </div>
               <div className="hidden sm:block">
-                <TaskStatCards
+                {!isLoading && !isError && <TaskStatCards
                   {...stats}
                   onFilterClick={handleStatFilterClick}
                   onStatusClick={(status) => {
                     setActiveTab("all");
                     setFilterStatus(status);
                   }}
-                />
+                />}
               </div>
             </div>
 
-            {isLoading ? (
+            {requestedTaskId && !isLoading && !isError && !requestedTask && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><p>L’attività richiesta non è disponibile per questa azienda o per i tuoi permessi.</p><Button size="sm" variant="outline" onClick={clearRequestedTask}>Chiudi collegamento</Button></div>}
+            {isError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 p-4 text-sm"><p>Non riesco a caricare le attività. Non significa che siano assenti.</p><Button size="sm" variant="outline" onClick={() => refetch()}>Riprova attività</Button></div> : isLoading ? (
               <Card>
                 <div className="divide-y">
                   {Array.from({ length: 6 }).map((_, i) => (
@@ -898,12 +916,12 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
             ) : vista === "agenda" ? (
               <TaskAgendaView
                 tasks={filteredTasks}
-                onTaskSelect={(task) => setSelectedTask(task)}
+                onTaskSelect={openTask}
               />
             ) : vista === "calendar" ? (
               <TaskCalendarView
                 tasks={filteredTasks}
-                onTaskSelect={(task) => setSelectedTask(task)}
+                onTaskSelect={openTask}
                 onNewTaskForDate={(date) => {
                   openNewTask({ assignedTo: user?.id ?? null, defaults: { due_date: date.toISOString().slice(0, 10) } });
                 }}
@@ -912,7 +930,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
               <TaskKanbanBoard
                 tasks={filteredTasks}
                 statusOptions={statusOptions}
-                onTaskSelect={(task) => setSelectedTask(task)}
+                onTaskSelect={openTask}
                 onAddTaskToColumn={(status) => {
                   openNewTask({ assignedTo: user?.id ?? null, defaults: { status } });
                 }}
@@ -924,7 +942,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                     key={task.id}
                     task={task}
                     statusOptions={statusOptions}
-                    onSelect={() => setSelectedTask(task)}
+                    onSelect={() => openTask(task)}
                     onToggleComplete={() => handleToggleComplete(task)}
                   />
                 ))}
@@ -970,7 +988,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                                 task={task}
                                 isSelected={selectedIds.has(task.id)}
                                 onToggleSelect={() => toggleSelect(task.id)}
-                                onSelect={() => setSelectedTask(task)}
+                                onSelect={() => openTask(task)}
                                 onToggleComplete={() => handleToggleComplete(task)}
                                 dragDisabled={isDragDisabled}
                                 statusOptions={statusOptions}
@@ -1066,7 +1084,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
 
       <TaskDetailPanel
         task={selectedTask}
-        onClose={() => setSelectedTask(null)}
+        onClose={() => { setSelectedTask(null); if (requestedTaskId) clearRequestedTask(); }}
       />
 
       <TaskStatusSettingsDialog

@@ -59,6 +59,19 @@ export function operaioSoloOre(regole: RegoleCampo, esisteCapo: boolean): boolea
   return regole.chiCompila === "ore_proprie" && esisteCapo;
 }
 
+/** Una sola decisione per tutti gli ingressi del rapportino, incluso il vocale. */
+export function flussoPersona(regole: RegoleCampo, ruolo: { isCapocantiere?: boolean; isCaposquadra?: boolean; esisteCapo?: boolean }, subappaltatore = false) {
+  const responsabile = !!(ruolo.isCapocantiere || ruolo.isCaposquadra);
+  // Le ditte rendicontano il proprio incarico: non ereditano le regole delle presenze dei dipendenti.
+  const delegato = !!ruolo.esisteCapo && !subappaltatore;
+  return {
+    responsabile,
+    soloTimbratura: delegato && !responsabile && regole.chiCompila === "capo",
+    soloOre: delegato && !responsabile && regole.chiCompila === "ore_proprie",
+    registraSquadra: responsabile && !(delegato && regole.chiCompila === "ore_proprie"),
+  };
+}
+
 /** 7,5 → «7h 30»; 8 → «8h»; 0,25 → «15 min». */
 export function oreInTesto(ore: number): string {
   const minuti = Math.round(Math.abs(ore) * 60);
@@ -75,7 +88,7 @@ export function oreInTesto(ore: number): string {
  */
 export function proponiOre(timbrate: number | null | undefined, ancoraDentro?: boolean): number | "" {
   if (ancoraDentro || timbrate == null || !Number.isFinite(timbrate) || timbrate <= 0) return "";
-  return Math.min(24, Math.round(timbrate * 10) / 10);
+  return Math.min(24, Math.round(timbrate * 100) / 100);
 }
 
 export interface Scostamento {

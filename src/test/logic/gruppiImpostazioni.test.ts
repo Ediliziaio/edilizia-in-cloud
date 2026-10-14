@@ -26,13 +26,13 @@ describe("Impostazioni dei preventivi raggruppate", () => {
 
   it("modelli, prezzo e margini, sconti e approvazioni insieme; condizioni e firma elettronica insieme", () => {
     for (const s of ["template-preventivi", "margini", "scontistica", "approvazioni"]) {
-      expect(gruppoDellaSezione(s)?.titolo, s).toBe("Modelli di preventivo");
+      expect(gruppoDellaSezione(s)?.titolo, s).toBe("Modelli preventivi e contratti");
     }
     expect(gruppoDellaSezione("firma-elettronica")?.titolo).toBe("Firma e condizioni");
   });
 
-  it("«Margini e sconti» non è più un gruppo a sé: le sue pagine sono schede di Modelli di preventivo", () => {
-    expect(GRUPPI_IMPOSTAZIONI.map((g) => g.titolo)).toEqual(["Listino", "Modelli di preventivo", "Firma e condizioni"]);
+  it("«Margini e sconti» non è più un gruppo a sé: le sue pagine sono schede di Modelli preventivi e contratti", () => {
+    expect(GRUPPI_IMPOSTAZIONI.map((g) => g.titolo)).toEqual(["Listino", "Modelli preventivi e contratti", "Firma e condizioni"]);
     expect(gruppo("modelli").schede.map((s) => [s.sezione, s.etichetta])).toEqual([
       ["template-preventivi", "Modelli"],
       ["margini", "Prezzo e margini"],
@@ -54,7 +54,7 @@ describe("Impostazioni dei preventivi raggruppate", () => {
     expect(schedeVisibili(gruppo("firma"), false, {})).toHaveLength(0);
   });
 
-  it("ogni scheda di Modelli di preventivo rispetta il suo permesso", () => {
+  it("ogni scheda di Modelli preventivi e contratti rispetta il suo permesso", () => {
     const g = gruppo("modelli");
     expect(schedeVisibili(g, true, {})).toHaveLength(4);
     expect(schedeVisibili(g, false, { canViewCosts: true }).map((s) => s.sezione)).toEqual(["margini", "approvazioni"]);

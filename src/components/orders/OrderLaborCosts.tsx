@@ -84,9 +84,10 @@ interface OrderLaborCostsProps {
   /** «ditte»: solo le ditte in subappalto (DURC e SAL), senza accessi all'app —
    *  chi vede il cantiere e il capocantiere stanno in «Lavori e squadre». */
   parte?: "tutto" | "ditte";
+  compact?: boolean;
 }
 
-export function OrderLaborCosts({ orderId, editable = true, embedded = false, parte = "tutto" }: OrderLaborCostsProps) {
+export function OrderLaborCosts({ orderId, editable = true, embedded = false, parte = "tutto", compact = false }: OrderLaborCostsProps) {
   const { effectiveCompany, role } = useAuth();
   const effectiveCompanyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -334,6 +335,10 @@ export function OrderLaborCosts({ orderId, editable = true, embedded = false, pa
 
   if (parte === "ditte") {
     if (!subError && !loadingSub && subappaltatori.length === 0) return null;
+    if (compact) {
+      const scaduti = durcAlerts.filter(a => a.level === "scaduto").length;
+      return <details className="rounded-lg border px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">Subappalti · contratti e DURC ({subError ? "non verificabili" : loadingSub ? "…" : subappaltatori.length}){durcAlerts.length > 0 && <span className="ml-2 inline-block rounded bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-900">{scaduti ? `${scaduti} DURC ${scaduti === 1 ? "scaduto" : "scaduti"}` : `${durcAlerts.length} DURC da verificare`}</span>}</summary><div className="mt-3">{ditte}</div></details>;
+    }
     return (
       <section aria-label="Ditte in subappalto" className="space-y-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ditte in subappalto · DURC e avanzamento del contratto</h3>

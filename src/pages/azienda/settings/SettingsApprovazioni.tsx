@@ -3,7 +3,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { GovernanceThresholdsCard } from "@/components/settings/GovernanceThresholdsCard";
 
 /**
- * Approvazioni e avvisi: scheda di «Modelli di preventivo».
+ * Approvazioni e avvisi: scheda di «Modelli preventivi e contratti».
  * Prima era la linguetta «Regole e approvazioni» dentro la pagina Margini, una
  * seconda fila di linguette sotto quella del gruppo, che nessuno apriva.
  */

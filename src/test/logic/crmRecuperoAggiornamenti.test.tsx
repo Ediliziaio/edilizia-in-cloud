@@ -32,6 +32,38 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllTimers(); vi.useRealTimers(); hidden(false); online(true); });
 
 describe("recupero CRM senza evento Realtime", () => {
+  it("gli errori distanziano le riletture, senza rallentare il primo aggiornamento sano", async () => {
+    const refresh = vi.fn().mockRejectedValue(new Error("unavailable"));
+    const queue = createLiveRefresh({ busy: () => false, refresh });
+    queue.request(); await vi.advanceTimersByTimeAsync(1000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    for(let i=0;i<20;i++) queue.request();
+    await vi.advanceTimersByTimeAsync(29_999); expect(refresh).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1); expect(refresh).toHaveBeenCalledTimes(2);
+    queue.dispose();
+  });
+  it("recupera un evento arrivato mentre la lettura precedente era in corso", async () => {
+    let finish!: () => void;
+    const refresh = vi.fn().mockImplementationOnce(() => new Promise<void>(r => { finish = r; })).mockResolvedValue(undefined);
+    const queue = createLiveRefresh({ busy: () => false, refresh });
+    queue.request(); await vi.advanceTimersByTimeAsync(1000);
+    queue.request(true);
+    // Only the heartbeat remains: events do not spin timeout callbacks while
+    // an existing request is waiting for the database.
+    expect(vi.getTimerCount()).toBe(1);
+    await vi.advanceTimersByTimeAsync(3000);
+    finish(); await vi.advanceTimersByTimeAsync(15_000);
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(refresh).toHaveBeenLastCalledWith(true);
+    queue.dispose();
+  });
+  it("una funzione di refresh che lancia prima di restituire una Promise non blocca la coda", async () => {
+    const refresh=vi.fn().mockImplementationOnce(()=>{throw new Error("sync error");}).mockResolvedValue(undefined);
+    const queue=createLiveRefresh({busy:()=>false,refresh});
+    queue.request();await vi.advanceTimersByTimeAsync(1000);
+    queue.request();await vi.advanceTimersByTimeAsync(30_000);
+    expect(refresh).toHaveBeenCalledTimes(2);queue.dispose();
+  });
   it("al ritorno rilegge anche senza aver ricevuto eventi mentre era nascosta", async () => {
     const refresh = vi.fn().mockResolvedValue(undefined);
     const queue = createLiveRefresh({ busy: () => false, refresh });
@@ -104,7 +136,7 @@ describe("contatti azienda e piattaforma", () => {
     live.events.find((e) => e.event === "INSERT")!.cb();
     await vi.advanceTimersByTimeAsync(1000);
     expect(invalidate).toHaveBeenCalledTimes(1);
-    expect(invalidate.mock.calls[0][1]).toEqual({ cancelRefetch: false });
+    expect(invalidate.mock.calls[0][1]).toEqual({ cancelRefetch: false, throwOnError: true });
     const predicate = invalidate.mock.calls[0][0]!.predicate!;
     const q = (queryKey: readonly unknown[]) => ({ queryKey }) as any;
     expect(predicate(q(["marketing-contacts", companyId, "Mario", 2]))).toBe(true);

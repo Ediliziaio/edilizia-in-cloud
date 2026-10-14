@@ -9,6 +9,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import type { Database } from "@/integrations/supabase/types";
+import { usePermissions } from "@/hooks/usePermissions";
+import { invalidaSquadreCollegate } from "@/lib/manodopera/cacheSquadre";
+import { normalizeHrCostSave, parseHrCostAmount, type HrCostSaveDraft } from "@/lib/personale/laborCostPlan";
 
 type Funzioni = Database["public"]["Functions"];
 export type OperaioElenco = Funzioni["manodopera_operai"]["Returns"][number];
@@ -267,16 +270,14 @@ export const COLORI_SQUADRA = ["#EA580C", "#2563EB", "#16A34A", "#9333EA", "#DB2
 type ArgsJson = Database["public"]["Functions"]["manodopera_salva_squadra"]["Args"]["p_dati"];
 
 function aggiornaDopoSquadre(qc: ReturnType<typeof useQueryClient>) {
-  qc.invalidateQueries({ queryKey: chiaviOperai.tutti });
+  void invalidaSquadreCollegate(qc);
   // Le note hanno i destinatari presi dalle squadre sulla commessa.
   qc.invalidateQueries({ queryKey: ["note-cantiere"] });
   // L'app di cantiere e la commessa leggono gli accessi dati dalla squadra.
   qc.invalidateQueries({ queryKey: ["order-campo-assignments"] });
-  qc.invalidateQueries({ queryKey: ["external_teams_active"] });
-  qc.invalidateQueries({ queryKey: ["external-teams-list"] });
 }
 
-export function useSquadre() {
+export function useSquadre(abilitato = true) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
     queryKey: chiaviOperai.squadre(companyId),
@@ -285,7 +286,7 @@ export function useSquadre() {
       if (error) throw error;
       return (data ?? []) as unknown as Squadra[];
     },
-    enabled: !!companyId,
+    enabled: !!companyId && abilitato,
     staleTime: 60_000,
   });
 }
@@ -474,32 +475,66 @@ export interface CostoPersona {
 }
 
 export function useCostoPersona(profiloId: string | undefined) {
+  const companyId = useEffectiveCompanyId();
+  const permissions = usePermissions();
   return useQuery({
-    queryKey: ["personale", "costo", profiloId],
+    queryKey: ["personale", "costo", profiloId, companyId],
     queryFn: async () => {
+      const { data: profile, error: profileError } = await supabase.from("hr_profili").select("id")
+        .eq("id", profiloId!).eq("company_id", companyId!).maybeSingle();
+      if (profileError) throw profileError;
+      if (!profile) throw new Error("Profilo non disponibile nell'azienda selezionata.");
       const { data, error } = await supabase.rpc("personale_costo", { p_profilo_id: profiloId! });
       if (error) throw error;
       return data as unknown as CostoPersona;
     },
-    enabled: !!profiloId,
+    enabled: !!profiloId && !!companyId && permissions.canViewPersone && !permissions.isLoading,
     staleTime: 60_000,
   });
 }
 
 export function useSalvaCostoPersona(profiloId: string) {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
+  const permissions = usePermissions();
   return useMutation({
-    mutationFn: async (dati: { costo_orario?: string; stipendio_lordo?: string; ore_mese?: string; contributi_percento?: string }) => {
+    mutationFn: async (draft: HrCostSaveDraft) => {
+      if (!companyId || permissions.isLoading || !permissions.canViewPersone || permissions.solaLettura) throw new Error("Non puoi modificare il costo di questa persona.");
+      const dati = normalizeHrCostSave(draft);
+      const { data: profile, error: profileError } = await supabase.from("hr_profili").select("id")
+        .eq("id", profiloId).eq("company_id", companyId).maybeSingle();
+      if (profileError) throw profileError;
+      if (!profile) throw new Error("Profilo non disponibile nell'azienda selezionata.");
       const { error } = await supabase.rpc("personale_salva_costo", {
         p_profilo_id: profiloId,
         p_dati: dati as unknown as ArgsJson,
       });
       if (error) throw error;
+      const { data: response, error: readError } = await supabase.rpc("personale_costo", { p_profilo_id: profiloId });
+      if (readError) throw new Error("Salvataggio inviato, ma la conferma non è disponibile. Ricarica il costo prima di riprovare.");
+      const saved = response as unknown as CostoPersona | null;
+      if (!saved?.ha_scheda_costo) throw new Error("Costo non confermato: ricarica la scheda.");
+      const fields = { costo_orario: "costo_orario_scritto", stipendio_lordo: "stipendio_lordo", ore_mese: "ore_mese", contributi_percento: "contributi_percento" } as const;
+      for (const key of Object.keys(dati) as (keyof HrCostSaveDraft)[]) {
+        const expected = dati[key] ? parseHrCostAmount(dati[key]!) : null;
+        const actual = saved[fields[key]];
+        if (!Object.prototype.hasOwnProperty.call(saved, fields[key])) throw new Error("Conferma incompleta: ricarica il costo prima di riprovare.");
+        const clearedRate = key === "costo_orario" && (expected == null || expected === 0);
+        if (clearedRate ? actual != null : Number(actual) !== expected || actual == null) throw new Error("Il costo riletto non corrisponde ai dati inviati: verifica la scheda prima di riprovare.");
+      }
+      return { saved, companyId, profiloId };
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["personale", "costo", profiloId] });
-      // Le commesse leggono il costo orario per la manodopera.
-      qc.invalidateQueries({ queryKey: ["employees_active"] });
+    onSuccess: ({ saved, companyId: savedCompany, profiloId: savedProfile }) => {
+      qc.setQueryData(["personale", "costo", savedProfile, savedCompany], saved);
+      qc.invalidateQueries({ predicate: ({ queryKey: k }) =>
+        (k[0] === "employees_active" && k[1] === savedCompany) ||
+        (k[0] === "assignment-hourly-cost" && k[1] === savedCompany) ||
+        (k[0] === "campo-labor-review" && k[1] === savedCompany) ||
+        (k[0] === "costi-personale-employees" && k[1] === savedCompany) ||
+        (k[0] === "order-labor-economics" && k[2] === savedCompany) ||
+        (k[0] === "hr-labor-reconciliation" && k[1] === savedCompany && k[2] === savedProfile) ||
+        (["hr-profili-all", "hr-profili", "hr-organigramma"].includes(String(k[0])) && k[1] === savedCompany)
+      });
     },
   });
 }
@@ -576,4 +611,3 @@ export function useEliminaNota(orderId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["note-cantiere", orderId] }),
   });
 }
-

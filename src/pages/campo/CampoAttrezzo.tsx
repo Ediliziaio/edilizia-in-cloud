@@ -98,11 +98,13 @@ export default function CampoAttrezzo() {
 
   const m = esito.mezzo;
   const aQuantita = m.gestione === "quantita";
+  const utilizzabile = m.stato === "in_servizio";
   const copertina = m.foto_path ? link?.get(m.foto_path) : undefined;
   const cantieri = esito.cantieri;
   const veicoli = esito.miei_veicoli;
 
   const esegui = async (input: Parameters<typeof azione.mutateAsync>[0]) => {
+    if (!utilizzabile && (input.azione === "prendo" || input.azione === "monta")) return;
     try {
       await azione.mutateAsync(input);
       setScelta(null);
@@ -157,7 +159,7 @@ export default function CampoAttrezzo() {
 
           {m.stato !== "in_servizio" && (
             <p className="flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
-              <AlertTriangle className="h-4 w-4 shrink-0" />{m.stato === "in_officina" ? "Risulta in officina." : "Risulta fuori servizio: non usarlo."}
+              <AlertTriangle className="h-4 w-4 shrink-0" />{m.stato === "in_officina" ? "Risulta in officina: non usarlo." : "Risulta fuori servizio: non usarlo."} Puoi segnalarlo o registrare il rientro.
             </p>
           )}
           {m.segnalazioni_aperte > 0 && (
@@ -174,7 +176,7 @@ export default function CampoAttrezzo() {
         </p>
       ) : aQuantita ? (
         <div className="space-y-3">
-          <Button className="h-14 w-full gap-2 text-base" onClick={() => setScelta({ tipo: "monta" })} disabled={azione.isPending || cantieri.length === 0 || (m.disponibile ?? 0) <= 0}>
+          <Button className="h-14 w-full gap-2 text-base" onClick={() => setScelta({ tipo: "monta" })} disabled={!utilizzabile || azione.isPending || cantieri.length === 0 || (m.disponibile ?? 0) <= 0}>
             <HardHat className="h-5 w-5" />Montati in cantiere
           </Button>
           {m.montaggi.length > 0 && (
@@ -210,7 +212,7 @@ export default function CampoAttrezzo() {
             icona={User}
             testo={m.con_me && m.dove === "persona" ? "Ce l'ho io" : "Lo prendo io"}
             attivo={m.con_me && m.dove === "persona"}
-            disabled={azione.isPending || !esito.ho_profilo || (m.con_me && m.dove === "persona")}
+            disabled={!utilizzabile || azione.isPending || !esito.ho_profilo || (m.con_me && m.dove === "persona")}
             onClick={() => esegui({ mezzoId: m.id, azione: "prendo" })}
           />
           <Bottone

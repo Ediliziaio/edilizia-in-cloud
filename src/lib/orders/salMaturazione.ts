@@ -23,6 +23,7 @@ export function salMaturaValido(valore: unknown): SalMatura {
 }
 
 /** Un verbale è maturato quando il suo stato ha raggiunto quello scelto dall'azienda. */
-export function salMaturato(regola: SalMatura, stato: string): boolean {
-  return regola === "approvato" ? stato === "approvato" || stato === "firmato" : stato !== "bozza";
+export function salMaturato(regola: SalMatura | null, stato: string): boolean {
+  if (regola === null) return false;
+  return regola === "approvato" ? stato === "approvato" || stato === "firmato" : ["emesso","approvato","firmato"].includes(stato);
 }

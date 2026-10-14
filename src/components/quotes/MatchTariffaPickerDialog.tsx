@@ -14,12 +14,19 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatCurrency } from "@/lib/formatters";
-import { costoTariffa } from "@/lib/listino/costoTariffa";
+import { costoTariffaConosciuto as costoTariffa, formatPrezzoUnitario as formatCurrency } from "@/lib/tariffe/economiaTariffa";
+import { unitaTariffa } from "@/lib/listino/costoTariffa";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
+import { testoErrore } from "@/lib/impostazioni/testoErrore";
 
 export interface ComputoTariffaCatalogItem {
   id: string;
   nome: string;
+  codice?: string | null;
+  descrizione?: string | null;
+  fonte?: string | null;
+  costo_default?: number | null;
+  custom_field_values?: unknown;
   tipo: string;
   unita: string | null;
   unita_fatturazione: string | null;
@@ -44,7 +51,7 @@ function normalize(value: string | null | undefined) {
 }
 
 function formatUnit(item: ComputoTariffaCatalogItem) {
-  return item.unita_fatturazione || item.unita || "pz";
+  return unitaTariffa(item);
 }
 
 function tipoLabel(tipo: string) {
@@ -53,7 +60,11 @@ function tipoLabel(tipo: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-export function MatchTariffaPickerDialog({
+export function MatchTariffaPickerDialog(props: Props) {
+  return <MatchTariffaPickerContent key={JSON.stringify([props.open, props.initialQuery])} {...props} />;
+}
+
+function MatchTariffaPickerContent({
   open,
   onOpenChange,
   initialQuery = "",
@@ -66,28 +77,20 @@ export function MatchTariffaPickerDialog({
   const [tipoFilter, setTipoFilter] = useState<string>("all");
 
   useEffect(() => {
-    if (!open) return;
-    setSearchRaw(initialQuery);
-    setSearchDebounced(initialQuery);
-    setTipoFilter("all");
-  }, [open, initialQuery]);
-
-  useEffect(() => {
     const t = setTimeout(() => setSearchDebounced(searchRaw), 180);
     return () => clearTimeout(t);
   }, [searchRaw]);
 
-  const { data: tariffe = [], isLoading } = useQuery({
+  const { data: tariffe = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["computo-tariffe-picker", companyId],
     enabled: open && !!companyId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const data = await loadCatalogPages<ComputoTariffaCatalogItem & { attiva: boolean | null; attivo: boolean | null }>((from, to) => supabase
         .from("tariffe_aziendali")
-        .select("id,nome,tipo,unita,unita_fatturazione,prezzo_vendita,costo_interno,prezzo_costo,vertical_associato,attiva,attivo")
+        .select("id,nome,codice,descrizione,fonte,tipo,unita,unita_fatturazione,prezzo_vendita,costo_interno,prezzo_costo,costo_default,custom_field_values,vertical_associato,attiva,attivo")
         .eq("company_id", companyId!)
         .order("tipo", { ascending: true })
-        .order("nome", { ascending: true });
-      if (error) throw error;
+        .order("nome", { ascending: true }).order("id").range(from, to));
       return (data ?? [])
         .filter((item) => item.attiva !== false && item.attivo !== false)
         .map(({ attiva: _attiva, attivo: _attivo, ...item }) => item) as ComputoTariffaCatalogItem[];
@@ -107,6 +110,9 @@ export function MatchTariffaPickerDialog({
       if (!q) return true;
       return normalize([
         tariffa.nome,
+        tariffa.codice,
+        tariffa.descrizione,
+        tariffa.fonte,
         tariffa.tipo,
         tariffa.unita,
         tariffa.unita_fatturazione,
@@ -190,7 +196,7 @@ export function MatchTariffaPickerDialog({
                 <Skeleton key={index} className="h-20 rounded-md" />
               ))}
             </div>
-          ) : filtered.length === 0 ? (
+          ) : isError ? <div role="alert" className="rounded-lg border p-6 text-sm"><p>{testoErrore(error, "Le tariffe non si sono caricate.")}</p><Button variant="outline" size="sm" className="mt-3" onClick={() => void refetch()}>Riprova</Button></div> : filtered.length === 0 ? (
             <div className="rounded-lg border border-dashed p-8 text-center">
               <Wrench className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
               <p className="text-sm font-medium">Nessuna tariffa trovata</p>
@@ -215,6 +221,7 @@ export function MatchTariffaPickerDialog({
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="truncate text-sm font-medium">{tariffa.nome}</span>
+                          {tariffa.codice && <span className="font-mono text-xs text-muted-foreground">{tariffa.codice}</span>}
                           <Badge variant="outline" className="text-[10px]">
                             {tipoLabel(tariffa.tipo)}
                           </Badge>

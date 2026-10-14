@@ -2,8 +2,6 @@
 // Route protetta in companyRoutes.tsx con withCompanyPermission("canViewSettingsOrders").
 // Il titolo e la frase della pagina li mette già il layout delle Impostazioni.
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -18,8 +16,11 @@ import { ArrowDown, ArrowUp, Archive, ArchiveRestore, Check, Folder, Loader2, Pe
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { useCartelleDocumenti, useRiordinaCartelle, useSalvaCartella } from "@/hooks/useCartelleDocumenti";
-import type { CartellaDocumenti } from "@/lib/commesse/documentiCommessa";
+import { useCartelleDocumenti, useDocumentiPerCartella, useRiordinaCartelle, useSalvaCartella } from "@/hooks/useCartelleDocumenti";
+import { cartelleMancanti, type CartellaDocumenti } from "@/lib/commesse/documentiCommessa";
+import { DocumentFoldersNavigation, TUTTI_DOCUMENTI } from "@/components/orders/DocumentFoldersNavigation";
+import { Badge } from "@/components/ui/badge";
+import { Link } from "react-router-dom";
 import { SpazioArchiviazioneCard } from "@/components/billing/SpazioArchiviazioneCard";
 import { SezioneImpostazione } from "@/components/impostazioni/SezioneImpostazione";
 import { AvvisoAreaClienti } from "@/components/impostazioni/AvvisoAreaClienti";
@@ -27,29 +28,13 @@ import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoS
 
 const messaggio = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** Quanti documenti stanno in ogni cartella, su tutte le commesse dell'azienda. */
-function useDocumentiPerCartella(ids: string[]) {
+export default function SettingsCartelleDocumenti() {
   const companyId = useEffectiveCompanyId();
-  return useQuery({
-    queryKey: ["cartelle-documenti-uso", companyId, [...ids].sort()],
-    enabled: !!companyId && ids.length > 0,
-    queryFn: async (): Promise<Record<string, number>> => {
-      const risultati = await Promise.all(
-        ids.map(async (id) => {
-          const { count, error } = await supabase
-            .from("order_attachments")
-            .select("id", { count: "exact", head: true })
-            .eq("folder_id" as never, id as never);
-          if (error) throw error;
-          return [id, count ?? 0] as const;
-        }),
-      );
-      return Object.fromEntries(risultati);
-    },
-  });
+  if (!companyId) return <Alert><AlertDescription>Seleziona un’azienda per consultare le cartelle delle commesse.</AlertDescription></Alert>;
+  return <CartelleDocumentiConfig key={companyId} />;
 }
 
-export default function SettingsCartelleDocumenti() {
+function CartelleDocumentiConfig() {
   const permissions = usePermissions();
   const { cartelle: tutte, isLoading, isError, refetch } = useCartelleDocumenti({ tutte: true });
   const salva = useSalvaCartella();
@@ -65,6 +50,8 @@ export default function SettingsCartelleDocumenti() {
   const canEdit = haPermessoDiModifica && !isLoading && !isError;
 
   const [nuova, setNuova] = useState("");
+  const [anteprima, setAnteprima] = useState<string>(TUTTI_DOCUMENTI);
+  const selezioneAnteprima = attive.some(c => c.id === anteprima) ? anteprima : TUTTI_DOCUMENTI;
   const [inModifica, setInModifica] = useState<{ id: string; nome: string } | null>(null);
   const [daArchiviare, setDaArchiviare] = useState<CartellaDocumenti | null>(null);
   const confermaUscita = useSettingsDraftGuard(!!nuova.trim() || !!inModifica || busy);
@@ -81,6 +68,8 @@ export default function SettingsCartelleDocumenti() {
 
   const salvaNome = () => {
     if (!inModifica || !canEdit || busy) return;
+    const nome = inModifica.nome.trim().replace(/\s+/g, " ");
+    if (!nome || nome === tutte.find(c => c.id === inModifica.id)?.nome) return;
     salva.mutate({ id: inModifica.id, nome: inModifica.nome }, {
       onSuccess: () => { setInModifica(null); toast.success("Nome aggiornato"); },
       onError: conErrore("Nome non aggiornato"),
@@ -102,13 +91,18 @@ export default function SettingsCartelleDocumenti() {
   };
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="w-full min-w-0 space-y-4" data-testid="cartelle-documenti-pagina">
+      <p className="hidden text-sm text-muted-foreground sm:block">Questo è l’elenco aziendale usato nella creazione e nei documenti delle commesse. Nomi e ordine sono condivisi: una modifica qui aggiorna le stesse cartelle.</p>
       {soloLettura && <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />}
 
+      <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)]">
+      <div className="min-w-0 space-y-4">
       <SezioneImpostazione
         id="cartelle"
         titolo="Cartelle dei documenti"
         descrizione="Le stesse cartelle valgono per tutte le commesse. Ogni modifica si salva subito."
+        ambito={!isLoading && !isError ? <Badge variant="secondary">{attive.length} attive</Badge> : undefined}
+        azione={busy ? <span role="status" className="inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />Salvataggio…</span> : undefined}
       >
         <div className="space-y-2 px-4 py-3 text-xs text-muted-foreground">
           <p>
@@ -116,11 +110,12 @@ export default function SettingsCartelleDocumenti() {
             nell&apos;area clienti. <strong className="font-medium text-foreground">Obbligatoria:</strong> la commessa segnala «Mancano»
             finché la cartella è vuota.
           </p>
+          <p>La visibilità è proposta per i nuovi file: i documenti già caricati conservano la scelta impostata sul singolo file.</p>
           <AvvisoAreaClienti />
           <details>
             <summary className="cursor-pointer">Come si sceglie la cartella di un file</summary>
             <p className="mt-2">
-              Quando carichi un file, la cartella viene proposta dal nome («fattura…» → Fatture, «visura…» → Catastali) e puoi cambiarla.
+              Quando carichi un file, la cartella viene proposta dal nome tra quelle attive dell’azienda («fattura…» cerca una cartella per le fatture). Puoi cambiarla: non viene creata una cartella nuova.
             </p>
           </details>
         </div>
@@ -134,6 +129,7 @@ export default function SettingsCartelleDocumenti() {
             <div>
               {erroreConteggi && <Alert className="mb-3"><AlertDescription>Conteggi non disponibili: non sono zero.<Button size="sm" variant="ghost" onClick={() => ricaricaConteggi()}>Ricalcola</Button></AlertDescription></Alert>}
               <table className="block w-full text-sm md:table">
+                <caption className="sr-only">Cartelle attive dell’azienda, nello stesso ordine delle commesse</caption>
                 <thead className="hidden md:table-header-group">
                   <tr className="text-xs text-muted-foreground border-b">
                     <th className="text-left font-medium py-2 pr-2">Cartella</th>
@@ -153,6 +149,7 @@ export default function SettingsCartelleDocumenti() {
                             <Input
                               id={`nome-cartella-${c.id}`}
                               autoFocus
+                              maxLength={80}
                               aria-label={`Nome cartella ${c.nome}`}
                               disabled={busy}
                               value={inModifica.nome}
@@ -195,7 +192,7 @@ export default function SettingsCartelleDocumenti() {
                             <fieldset disabled={busy} className="m-0 min-w-0 border-0 p-0 flex justify-end gap-1">
                               {modifica ? (
                                 <>
-                                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={salvaNome} disabled={salva.isPending} aria-label="Salva nome">
+                                  <Button size="icon" variant="ghost" className="h-8 w-8" onClick={salvaNome} disabled={salva.isPending || !inModifica.nome.trim() || inModifica.nome.trim().replace(/\s+/g, " ") === c.nome} aria-label="Salva nome">
                                     {salva.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                                   </Button>
                                   <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setInModifica(null)} aria-label="Annulla">
@@ -243,6 +240,7 @@ export default function SettingsCartelleDocumenti() {
               id="nuova-cartella-documenti"
               placeholder="Nuova cartella, es. Foto cantiere"
               aria-label="Nuova cartella"
+              maxLength={80}
               disabled={busy}
               value={nuova}
               onChange={(e) => setNuova(e.target.value)}
@@ -260,14 +258,14 @@ export default function SettingsCartelleDocumenti() {
         <SezioneImpostazione
           id="archiviate"
           titolo="Archiviate"
-          descrizione="Non si propongono più per i nuovi file; i documenti già dentro restano consultabili."
+          descrizione="Non si propongono più per i nuovi file. Restano visibili nelle commesse che contengono documenti in queste cartelle."
         >
           <ul className="divide-y px-4">
             {archiviate.map((c) => (
               <li key={c.id} className="flex items-center gap-3 py-2 text-sm">
                 <Folder className="h-4 w-4 text-muted-foreground" />
                 <span className="flex-1 text-muted-foreground">{c.nome}</span>
-                <span className="text-xs tabular-nums text-muted-foreground">{uso?.[c.id] ?? "–"} documenti</span>
+                <span className="text-xs tabular-nums text-muted-foreground">{erroreConteggi ? "–" : uso?.[c.id] ?? "–"} documenti</span>
                 {canEdit && (
                   <Button
                     size="sm"
@@ -289,23 +287,43 @@ export default function SettingsCartelleDocumenti() {
         </SezioneImpostazione>
       )}
 
-      {/* Lo spazio è del piano, non delle cartelle: sta in fondo. */}
-      <SpazioArchiviazioneCard compatta />
+      </div>
+      <aside className="min-w-0 space-y-4" aria-label="Anteprima delle cartelle nelle commesse">
+        {!isError && <SezioneImpostazione id="anteprima-cartelle" titolo="Nelle commesse"
+          descrizione="Esplorazione di una commessa vuota, con le cartelle attive dell’azienda."
+        >
+          <div className="space-y-3 p-4">
+            <DocumentFoldersNavigation cartelle={tutte} conteggi={{}} totale={0} senzaCartella={0}
+              mancanti={cartelleMancanti(tutte, []).map(c => c.id)} loading={isLoading}
+              selezione={selezioneAnteprima} onSelect={setAnteprima} />
+            {selezioneAnteprima !== TUTTI_DOCUMENTI && <p className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">Nella commessa, scegliendo «{attive.find(c => c.id === selezioneAnteprima)?.nome}» vedi i suoi file e puoi caricarne altri.</p>}
+            <p className="text-xs text-muted-foreground">«Tutti» e «Senza cartella» sono filtri dei documenti. Non aggiungono cartelle all’elenco. Le archiviate compaiono solo dove contengono file.</p>
+          </div>
+        </SezioneImpostazione>}
+        <div className="rounded-lg border bg-card p-4 text-xs text-muted-foreground space-y-2">
+          <p className="font-medium text-foreground">Cosa contano i documenti nell’elenco</p>
+          <p>File caricati in tutte le commesse dell’azienda. I documenti del cliente collegati alla commessa, senza copiarli, restano nella sua anagrafica e non entrano in questo conteggio.</p>
+          {(permissions.isAdmin || permissions.canViewOrders) && <Button asChild size="sm" variant="outline" className="mt-1"><Link to="/azienda/ordini">Apri le commesse</Link></Button>}
+        </div>
+        <SpazioArchiviazioneCard compatta />
+      </aside>
+      </div>
 
       <AlertDialog open={!!daArchiviare} onOpenChange={(o) => { if (!o) setDaArchiviare(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Archiviare «{daArchiviare?.nome}»?</AlertDialogTitle>
             <AlertDialogDescription>
-              Non comparirà più tra le cartelle in cui caricare.
-              {daArchiviare && (uso?.[daArchiviare.id] ?? 0) > 0
-                ? ` I ${uso?.[daArchiviare.id]} documenti che contiene restano nelle commesse, sotto «Senza cartella», finché non la ripristini o li sposti.`
+              Non comparirà più tra le cartelle in cui caricare nuovi file. I documenti già presenti restano nella cartella originale, consultabile nelle commesse che li contengono.
+              {daArchiviare && !erroreConteggi && (uso?.[daArchiviare.id] ?? 0) > 0
+                ? ` Al momento contiene ${uso?.[daArchiviare.id]} documenti caricati nelle commesse.`
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
+              disabled={!canEdit || busy}
               onClick={() => {
                 const c = daArchiviare;
                 if (!c || !canEdit || busy) return;

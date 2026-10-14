@@ -43,8 +43,9 @@ export function weatherCodeToEmoji(code: number): string {
   if (code <= 48) return "🌫️";
   if (code <= 67) return "🌧️";
   if (code <= 77) return "❄️";
-  if (code <= 82) return "⛈️";
-  if (code <= 99) return "⛈️";
+  if (code >= 80 && code <= 82) return "🌦️";
+  if (code === 85 || code === 86) return "🌨️";
+  if (code >= 95 && code <= 99) return "⛈️";
   return "🌤️";
 }
 
@@ -54,8 +55,10 @@ export function weatherCodeToLabel(code: number): string {
   if (code <= 48) return "Nebbia";
   if (code <= 67) return "Pioggia";
   if (code <= 77) return "Neve";
-  if (code <= 82) return "Temporale";
-  if (code <= 99) return "Forte temporale";
+  if (code >= 80 && code <= 82) return "Rovesci di pioggia";
+  if (code === 85 || code === 86) return "Rovesci di neve";
+  if (code === 95) return "Temporale";
+  if (code === 96 || code === 99) return "Temporale con grandine";
   return "Variabile";
 }
 

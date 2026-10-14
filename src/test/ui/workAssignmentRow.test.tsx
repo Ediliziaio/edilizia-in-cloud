@@ -15,6 +15,12 @@ afterEach(cleanup);
 beforeEach(() => { vi.clearAllMocks(); Object.assign(permissions, { canEditOrders: true, canViewCosts: true, canManagePayments: true }); update.mockResolvedValue(undefined); remove.mockResolvedValue(undefined); });
 
 describe("Assegnazione manodopera", () => {
+  it("nella vista compatta distingue ore non rilevate da zero registrato", () => {
+    const p = props(); const {rerender} = render(<WorkAssignmentRow {...p} compact assignment={assignment({hours: null})} />);
+    expect(screen.getByText("Ore da rilevare")).toBeInTheDocument();
+    rerender(<WorkAssignmentRow {...p} compact assignment={assignment({hours: 0})} />);
+    expect(screen.getByText("0 h registrate")).toBeInTheDocument();
+  });
   it("mostra identità e ore senza campi di costo in modifica immediata", () => {
     render(<WorkAssignmentRow {...props()} />);
     expect(screen.getByText("Dipendente")).toBeInTheDocument();

@@ -1,3 +1,42 @@
+export interface CalendarResourceBooking {
+  resourceId: string;
+  resourceName: string;
+  resourceType: "employee" | "team";
+  start_date: string;
+  end_date: string;
+  start_time?: string | null;
+  end_time?: string | null;
+  phase_name?: string | null;
+  phase_id?: string | null;
+}
+
+export interface CalendarWorkPhase {
+  id: string;
+  name: string;
+  start_date: string | null;
+  end_date: string | null;
+  status: string;
+  position: number;
+  notes?: string | null;
+  percentuale?: number | null;
+  completata_il?: string | null;
+}
+
+export interface CalendarWorkPeriod {
+  id: string;
+  phase_id?: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  start_time?: string | null;
+  end_time?: string | null;
+  status?: string;
+  resources: CalendarResourceBooking[];
+  phase_notes?: string | null;
+  progress?: number | null;
+  completed_date?: string | null;
+}
+
 export interface CalendarOrder {
   id: string;
   order_code: string | null;
@@ -13,6 +52,12 @@ export interface CalendarOrder {
   customer_id: string;
   current_status_id: string | null;
   indirizzo_lavori?: string | null;
+  work_address?: string | null;
+  work_lat?: number | null;
+  work_lng?: number | null;
+  distanza_sede_km?: number | null;
+  distanza_sede_minuti?: number | null;
+  distanza_sede_il?: string | null;
   customer: {
     first_name: string;
     last_name: string;
@@ -35,6 +80,10 @@ export interface CalendarOrder {
       color?: string | null;
     };
   }>;
+  /** Assegnazioni effettive, con le date delle fasi/squadre; separate dai nomi unici. */
+  resource_bookings?: CalendarResourceBooking[];
+  work_phases?: CalendarWorkPhase[];
+  planning_resource_filter?: { employeeIds: string[]; teamIds: string[] };
   /** Rate cliente non incassate (arricchito dal Calendar, non dal DB). */
   pagamenti_scoperti?: {
     acconto_eur: number;
@@ -56,7 +105,15 @@ export interface CustomerFilter {
 
 export type GanttZoom = "year" | "quarter" | "month";
 
-export type CalendarViewType = "month" | "week" | "day" | "gantt" | "heatmap";
+export type CalendarViewType =
+  | "month"
+  | "week"
+  | "day"
+  | "gantt"
+  | "heatmap"
+  | "agenda"
+  | "teams";
+export type CalendarScope = "personal" | "team";
 
 export interface GoogleBusySlot {
   id: string;
@@ -102,9 +159,26 @@ export interface CalendarIntervento {
   data_intervento_prevista: string | null;
   status: string;
   assigned_to: string | null;
+  order_id?: string | null;
+  indirizzo_intervento?: string | null;
+  lat_intervento?: number | null;
+  lng_intervento?: number | null;
+  durata_ore?: number | null;
+  note_tecnico?: string | null;
+  assigned_profile?: { first_name: string; last_name: string } | null;
 }
 
 export interface CalendarManutenzione {
+  impianto_id?: string | null;
+  order_id?: string | null;
+  impianto?: string;
+  indirizzo?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  frequenza_tipo?: string | null;
+  ultima_esecuzione?: string | null;
+  assigned_to?: string | null;
+  assigned_profile?: { first_name: string; last_name: string } | null;
   id: string;
   titolo: string;
   prossima_scadenza: string | null;
@@ -121,6 +195,7 @@ export interface CalendarAppointment {
   appointment_type: string;
   assigned_to: string | null;
   order_id: string | null;
+  calendar_id?: string | null;
   is_completed: boolean;
   company_id: string;
   created_by: string;

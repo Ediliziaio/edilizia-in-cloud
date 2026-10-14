@@ -497,7 +497,7 @@ export function useOpportunitiesLive(pipelineId: string | null) {
       busy: () => queryClient.isMutating() > 0 || queryClient.isFetching({ predicate: pipelineQuery }) > 0,
       refresh: (reconcile) => queryClient.invalidateQueries({
         predicate: (q) => pipelineQuery(q) || (reconcile && q.queryKey[0] === "marketing-pipelines" && q.queryKey[2] === companyId),
-      }, { cancelRefetch: false }),
+      }, { cancelRefetch: false, throwOnError: true }),
     });
     const programma = () => queue.request();
     // Arriva tutta l'azienda (il tempo reale accetta un solo filtro): conta la

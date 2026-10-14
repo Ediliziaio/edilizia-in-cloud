@@ -42,7 +42,9 @@ describe("Fine lavori — step firme in CampoRapportino", () => {
     // Redesign 2026-08-09: giornaliero in 2 step; il fine lavori aggiunge lo
     // step Firma cliente. La firma dell'autore vale su OGNI rapportino.
     expect(src).toContain("const TOTAL_STEPS = 2;");
-    expect(src).toContain("lavoro_completato ? 3 : TOTAL_STEPS");
+    expect(src).toContain("lavoro_completato ? 3 : semplice ? 1 : TOTAL_STEPS");
+    expect(src).not.toContain("setLavoroCompletato");
+    expect(src).toContain('tipo === "client"');
     expect(src).toContain("if (firmaOperaio) {");
     expect(src).toContain("/firme/");
     expect(src).toContain('from("campo-rapportini")');

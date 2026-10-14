@@ -49,7 +49,8 @@ function withConnectionTimeout<T>(promise: PromiseLike<T>, label: string): Promi
   });
 }
 
-export default function GoogleCalendarConnectionTab() {
+export default function GoogleCalendarConnectionTab({ ambito = "appuntamenti" }: { ambito?: "appuntamenti" | "lavori" }) {
+  const perLavori = ambito === "lavori";
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const userId = user?.id;
@@ -346,17 +347,17 @@ export default function GoogleCalendarConnectionTab() {
       <Card>
         <CardHeader>
           <CardTitle>Calendari collegati</CardTitle>
-          <CardDescription>Collega Google Calendar per sincronizzare appuntamenti e bloccare slot occupati.</CardDescription>
+          <CardDescription>{perLavori ? "Collega l’account aziendale, poi scegli i calendari per le squadre e per tutte le pose." : "Collega Google Calendar per sincronizzare appuntamenti e bloccare slot occupati."}</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <CalendarDays className="h-12 w-12 text-muted-foreground mb-4" />
+        <CardContent className={`flex flex-col items-center justify-center text-center ${perLavori ? "py-6" : "py-12"}`}>
+          <CalendarDays className={`${perLavori ? "h-8 w-8 mb-3" : "h-12 w-12 mb-4"} text-muted-foreground`} />
           <h3 className="text-lg font-medium mb-2">Nessun calendario collegato</h3>
           <p className="text-sm text-muted-foreground max-w-sm mb-6">
-            Collega il tuo account Google Calendar per vedere gli slot occupati e sincronizzare gli appuntamenti.
+            {perLavori ? "Dopo il collegamento, torna nella scheda Squadre per associare il calendario di ogni squadra." : "Collega il tuo account Google Calendar per vedere gli slot occupati e sincronizzare gli appuntamenti."}
           </p>
           <Button onClick={handleConnect} className="gap-2">
             <Plus className="h-4 w-4" />
-            Aggiungi nuovo
+            {perLavori ? "Collega account Google" : "Aggiungi nuovo"}
           </Button>
         </CardContent>
       </Card>

@@ -1,5 +1,5 @@
 /**
- * Impostazioni → Modelli di preventivo → scheda «Moduli»: la foto in testa a ogni area esiste davvero, e l'editor del
+ * Impostazioni → Modelli preventivi e contratti → scheda «Moduli»: la foto in testa a ogni area esiste davvero, e l'editor del
  * modello dell'area non si apre a chi non può modificare nemmeno scrivendo l'indirizzo a mano (`modello=generale`).
  */
 import { existsSync } from "node:fs";

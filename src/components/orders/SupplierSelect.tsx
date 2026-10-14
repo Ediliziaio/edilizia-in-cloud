@@ -5,9 +5,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -15,27 +18,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FornitoreEditor } from "@/components/suppliers/FornitoreEditor";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { VAT_RATES } from "@/lib/vatUtils";
-import { PAYMENT_METHODS } from "@/components/orders/OrderItemsList";
-
-interface Supplier {
-  id: string;
-  name: string;
-  vat_rate: number;
-  payment_method: string | null;
-}
+  payloadFornitore,
+  type Supplier,
+  type SupplierFormData,
+} from "@/lib/suppliers/anagraficaFornitore";
+import { invalidaFornitori } from "@/lib/suppliers/cacheFornitori";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 
 interface SupplierSelectProps {
   value?: string;
-  onValueChange: (value: string | undefined, supplierVatRate?: number, paymentMethod?: string) => void;
+  onValueChange: (
+    value: string | undefined,
+    supplierVatRate?: number,
+    paymentMethod?: string,
+  ) => void;
   placeholder?: string;
   /**
    * v8.6.34 — Fallback companyId per super_admin senza impersonation.
@@ -51,9 +50,6 @@ export function SupplierSelect({
   fallbackCompanyId,
 }: SupplierSelectProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newSupplierName, setNewSupplierName] = useState("");
-  const [newSupplierVatRate, setNewSupplierVatRate] = useState<number>(22);
-  const [newSupplierPaymentMethod, setNewSupplierPaymentMethod] = useState<string>("");
   const { effectiveCompany } = useAuth();
 
   const queryClient = useQueryClient();
@@ -61,169 +57,149 @@ export function SupplierSelect({
   const companyId = effectiveCompany?.id ?? fallbackCompanyId;
 
   // Fetch suppliers
-  const { data: suppliers = [] } = useQuery({
-    queryKey: ["suppliers", companyId],
+  const {
+    data: suppliers = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ["suppliers-for-orders", companyId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("id, name, vat_rate, payment_method")
-        .eq("company_id", companyId!)
-        .order("name");
-      if (error) throw error;
-      return data as Supplier[];
+      return loadCatalogPages<Supplier>((from, to) =>
+        supabase
+          .from("suppliers")
+          .select("*")
+          .eq("company_id", companyId!)
+          .order("name")
+          .order("id")
+          .range(from, to),
+      );
     },
     enabled: !!companyId,
   });
 
   // Create supplier mutation
   const createSupplierMutation = useMutation({
-    mutationFn: async ({ name, vatRate, paymentMethod }: { name: string; vatRate: number; paymentMethod: string }) => {
-      if (!companyId) throw new Error("Company ID non disponibile");
+    mutationFn: async (form: SupplierFormData) => {
+      if (!companyId) throw new Error("Azienda non disponibile.");
       const { data, error } = await supabase
         .from("suppliers")
-        .insert({
-          company_id: companyId,
-          name: name.trim(),
-          vat_rate: vatRate,
-          payment_method: paymentMethod || null,
-        })
+        .insert({ ...payloadFornitore(form), company_id: companyId })
         .select()
         .single();
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      onValueChange(data.id, data.vat_rate, data.payment_method || undefined);
+    onSuccess: async (data) => {
+      await invalidaFornitori(queryClient);
+      onValueChange(
+        data.id,
+        data.vat_rate ?? 22,
+        data.payment_method || undefined,
+      );
       setDialogOpen(false);
-      setNewSupplierName("");
-      setNewSupplierVatRate(22);
-      setNewSupplierPaymentMethod("");
-      toast.success("Fornitore creato", { description: `${data.name} è stato aggiunto ai fornitori.` });
+      toast.success("Fornitore creato", {
+        description: `${data.name} è stato aggiunto ai fornitori.`,
+      });
     },
-    onError: () => {
-      toast.error("Errore", { description: "Si è verificato un errore durante la creazione del fornitore." });
-    },
+    onError: (error) =>
+      toast.error("Fornitore non creato", {
+        description: userErrorMessage(
+          error,
+          "Non sono riuscito a salvare il fornitore. Riprova.",
+        ),
+      }),
   });
-
-  const handleCreateSupplier = () => {
-    if (!newSupplierName.trim()) return;
-    createSupplierMutation.mutate({ name: newSupplierName, vatRate: newSupplierVatRate, paymentMethod: newSupplierPaymentMethod });
-  };
 
   const handleSelectChange = (v: string) => {
     if (v === "none") {
       onValueChange(undefined, undefined, undefined);
     } else {
-      const supplier = suppliers.find(s => s.id === v);
-      onValueChange(v, supplier?.vat_rate, supplier?.payment_method || undefined);
+      const supplier = suppliers.find((s) => s.id === v);
+      onValueChange(
+        v,
+        supplier?.vat_rate ?? undefined,
+        supplier?.payment_method || undefined,
+      );
     }
   };
 
   return (
-    <div className="flex gap-2">
-      <Select
-        value={value || "none"}
-        onValueChange={handleSelectChange}
-      >
-        <SelectTrigger className="flex-1">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">
-            <span className="text-muted-foreground">Nessun fornitore</span>
-          </SelectItem>
-          {suppliers.map((supplier) => (
-            <SelectItem key={supplier.id} value={supplier.id}>
-              {supplier.name} ({supplier.vat_rate}%)
+    <div className="min-w-0 space-y-2">
+      <div className="flex gap-2">
+        <Select
+          disabled={isLoading || isError}
+          value={value || "none"}
+          onValueChange={handleSelectChange}
+        >
+          <SelectTrigger className="min-w-0 flex-1" aria-label="Fornitore">
+            <SelectValue placeholder={placeholder} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">
+              <span className="text-muted-foreground">Nessun fornitore</span>
             </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <TooltipProvider delayDuration={200}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={() => setDialogOpen(true)}
-              aria-label="Aggiungi nuovo fornitore"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">Aggiungi nuovo fornitore</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Nuovo Fornitore</DialogTitle>
-            <DialogDescription>
-              Aggiungi un nuovo fornitore all'elenco
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="supplier-name">Nome Fornitore *</Label>
-              <Input
-                id="supplier-name"
-                value={newSupplierName}
-                onChange={(e) => setNewSupplierName(e.target.value)}
-                placeholder="Es: ABC Serramenti"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Aliquota IVA Predefinita</Label>
-              <Select
-                value={newSupplierVatRate.toString()}
-                onValueChange={(v) => setNewSupplierVatRate(parseInt(v))}
+            {suppliers.map((supplier) => (
+              <SelectItem key={supplier.id} value={supplier.id}>
+                <span>
+                  {supplier.name} ({supplier.vat_rate ?? 22}%)
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setDialogOpen(true)}
+                aria-label="Aggiungi nuovo fornitore"
+                disabled={
+                  !companyId ||
+                  isLoading ||
+                  isError ||
+                  createSupplierMutation.isPending
+                }
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {VAT_RATES.map((rate) => (
-                    <SelectItem key={rate.value} value={rate.value.toString()}>
-                      {rate.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Modalità di Pagamento</Label>
-              <Select
-                value={newSupplierPaymentMethod || "none"}
-                onValueChange={(v) => setNewSupplierPaymentMethod(v === "none" ? "" : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleziona modalità..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nessuna</SelectItem>
-                  {PAYMENT_METHODS.map((m) => (
-                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Annulla
-            </Button>
-            <Button
-              onClick={handleCreateSupplier}
-              disabled={!newSupplierName.trim() || createSupplierMutation.isPending}
-            >
-              {createSupplierMutation.isPending ? "Creazione..." : "Crea"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Aggiungi nuovo fornitore</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+      {isError && (
+        <p role="alert" className="text-xs text-destructive">
+          Elenco fornitori non disponibile.{" "}
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            onClick={() => void refetch()}
+          >
+            Riprova fornitori
+          </Button>
+        </p>
+      )}
+      <FornitoreEditor
+        aperta={dialogOpen}
+        fornitore={null}
+        esteroIniziale={false}
+        fornitori={suppliers}
+        categorieEsistenti={[
+          ...new Set(
+            suppliers
+              .map((s) => s.product_category)
+              .filter((c): c is string => !!c),
+          ),
+        ]}
+        salvataggio={createSupplierMutation.isPending}
+        onChiudi={() => setDialogOpen(false)}
+        onSalva={(form) => createSupplierMutation.mutate(form)}
+      />
     </div>
   );
 }

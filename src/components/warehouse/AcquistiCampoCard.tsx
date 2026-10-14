@@ -20,8 +20,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MODALITA, euro, type ModalitaAcquisto, type RigaAcquisto, type StatoAcquisto, type StatoRimborso } from "@/lib/campo/acquisti";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { MODALITA, euro, numeroDocumento, type ModalitaAcquisto, type RigaAcquisto, type StatoAcquisto, type StatoRimborso } from "@/lib/campo/acquisti";
 import { messaggioErrore } from "@/lib/campo/messaggioErrore";
+import { refreshCampoAcquistoQueries } from "@/lib/orders/refreshCommessaCampoQueries";
 
 interface AcquistoUfficio {
   id: string;
@@ -43,6 +45,7 @@ interface AcquistoUfficio {
 interface OdaAperto { id: string; oda_number: string | null; status: string; suppliers: { name: string | null } | null }
 
 type RpcFn = (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+type AzioneAcquisto = { id: string; azione: "registra" | "rifiuta" | "rimborsato"; totale?: number | null; ordineAcquisto?: string | null; motivo?: string };
 const NESSUN_ORDINE = "__nessuno__";
 
 export function AcquistiCampoCard() {
@@ -51,7 +54,7 @@ export function AcquistiCampoCard() {
   const companyId = effectiveCompany?.id ?? null;
   const [aperto, setAperto] = useState<string | null>(null);
 
-  const { data: acquisti = [], isLoading } = useQuery({
+  const { data: acquisti = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["acquisti-campo-ufficio", companyId],
     enabled: !!companyId,
     staleTime: 15_000,
@@ -71,7 +74,8 @@ export function AcquistiCampoCard() {
   const daRimborsare = acquisti.filter(a => a.stato === "registrato" && a.rimborso_stato === "da_rimborsare");
 
   const azione = useMutation({
-    mutationFn: async (v: { id: string; azione: "registra" | "rifiuta" | "rimborsato"; totale?: number | null; ordineAcquisto?: string | null; motivo?: string }) => {
+    onMutate: (v: AzioneAcquisto) => ({ companyId, orderId: acquisti.find(a => a.id === v.id)?.order_id }),
+    mutationFn: async (v: AzioneAcquisto) => {
       const rpc = supabase.rpc.bind(supabase) as unknown as RpcFn;
       const { data, error } = await rpc("campo_acquisto_verifica", {
         p_id: v.id,
@@ -81,12 +85,11 @@ export function AcquistiCampoCard() {
         p_motivo: v.motivo ?? null,
       });
       if (error) throw error;
+      if (!data || typeof data !== "object" || !("ok" in data) || data.ok !== true) throw new Error("La registrazione non è stata confermata. Aggiorna l’elenco prima di riprovare.");
       return data as { messaggio?: string } | null;
     },
-    onSuccess: (data, v) => {
-      void qc.invalidateQueries({ queryKey: ["acquisti-campo-ufficio"] });
-      void qc.invalidateQueries({ queryKey: ["company-costs"] });
-      void qc.invalidateQueries({ queryKey: ["ordine-marginalita"] });
+    onSuccess: (data, v, context) => {
+      void refreshCampoAcquistoQueries(qc, context?.orderId, context?.companyId);
       setAperto(null);
       toast.success(v.azione === "registra" ? "Registrata" : v.azione === "rifiuta" ? "Rifiutata: l’operaio è avvisato" : "Rimborso segnato", {
         description: v.azione === "registra" ? data?.messaggio : undefined,
@@ -95,7 +98,7 @@ export function AcquistiCampoCard() {
     onError: (e: unknown) => toast.error("Operazione non riuscita", { description: messaggioErrore(e, "Riprova.") }),
   });
 
-  if (!isLoading && acquisti.length === 0) return null;
+  if (!isLoading && !isError && acquisti.length === 0) return null;
 
   return (
     <Card>
@@ -107,6 +110,7 @@ export function AcquistiCampoCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {isError && <p role="alert" className="text-sm text-destructive">Non riesco a caricare la merce da verificare. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button></p>}
         {isLoading ? (
           <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
         ) : (
@@ -150,13 +154,18 @@ function nomeOperaio(a: AcquistoUfficio) {
 function Testa({ a }: { a: AcquistoUfficio }) {
   const modalita = MODALITA.find(m => m.key === a.modalita)?.titolo ?? a.modalita;
   const [apertura, setApertura] = useState(false);
+  const [documento, setDocumento] = useState<string | null>(null);
   const vediFoto = async () => {
-    if (!a.foto_path) return;
+    if (!a.foto_path || apertura) return;
     setApertura(true);
-    const { data, error } = await supabase.storage.from("campo-rapportini").createSignedUrl(a.foto_path, 600);
-    setApertura(false);
-    if (error || !data?.signedUrl) { toast.error("Non riesco ad aprire la foto."); return; }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    try {
+      const { data, error } = await supabase.storage.from("campo-rapportini").createSignedUrl(a.foto_path, 600);
+      if (error || !data?.signedUrl) throw error ?? new Error("Documento non disponibile");
+      // Anteprima dentro l'app: i browser mobili bloccano window.open dopo una richiesta asincrona.
+      setDocumento(data.signedUrl);
+    } catch {
+      toast.error("Non riesco ad aprire la foto.");
+    } finally { setApertura(false); }
   };
   return (
     <>
@@ -187,6 +196,15 @@ function Testa({ a }: { a: AcquistoUfficio }) {
           {apertura ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <FileImage className="h-3 w-3" aria-hidden="true" />}Vedi il documento
         </button>
       )}
+      <Dialog open={!!documento} onOpenChange={open => { if (!open) setDocumento(null); }}>
+        <DialogContent className="max-h-[90dvh] max-w-3xl overflow-y-auto">
+          <DialogHeader><DialogTitle>Documento · {a.fornitore || "Negozio"}{a.numero_documento ? ` · ${a.numero_documento}` : ""}</DialogTitle></DialogHeader>
+          {documento && <>
+            <img src={documento} alt="Bolla o ricevuta allegata" className="h-auto w-full rounded-lg" />
+            <a href={documento} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-sm text-primary underline">Apri documento a dimensione intera</a>
+          </>}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -201,7 +219,7 @@ function Verifica({ a, aperto, onApri, occupato, onRegistra, onRifiuta }: {
   const [rifiuto, setRifiuto] = useState(false);
   const [motivo, setMotivo] = useState("");
 
-  const { data: ordini = [] } = useQuery({
+  const { data: ordini = [], isLoading: caricoOrdini, isError: erroreOrdini, refetch: ricaricaOrdini } = useQuery({
     queryKey: ["acquisti-campo-oda-aperti", a.order_id],
     enabled: aperto && a.modalita === "ritiro_ordine" && !!a.order_id,
     queryFn: async (): Promise<OdaAperto[]> => {
@@ -214,11 +232,11 @@ function Verifica({ a, aperto, onApri, occupato, onRegistra, onRifiuta }: {
       return (data ?? []) as unknown as OdaAperto[];
     },
   });
-  const importo = useMemo(() => {
-    const n = Number(totale.replace(",", "."));
-    return totale.trim() !== "" && Number.isFinite(n) ? n : null;
-  }, [totale]);
+  const importo = useMemo(() => numeroDocumento(totale), [totale]);
   const collegaOrdine = a.modalita === "ritiro_ordine" && ordine !== NESSUN_ORDINE;
+  const ordiniPronti = a.modalita !== "ritiro_ordine" || (!caricoOrdini && !erroreOrdini);
+  const ordineValido = !collegaOrdine || ordini.some(o => o.id === ordine) || ordine === a.purchase_order_id;
+  const totaleValido = collegaOrdine || (importo != null && importo > 0 && importo <= 1000000);
 
   return (
     <div className="rounded-xl border p-3">
@@ -231,10 +249,12 @@ function Verifica({ a, aperto, onApri, occupato, onRegistra, onRifiuta }: {
             <div className="space-y-1">
               <label htmlFor={`oda-${a.id}`} className="text-xs font-semibold">A quale ordine d’acquisto corrisponde?</label>
               <select id={`oda-${a.id}`} value={ordine} onChange={e => setOrdine(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2 text-sm">
-                <option value={NESSUN_ORDINE}>Nessuno: registra come costo diretto</option>
+                {!a.purchase_order_id && <option value={NESSUN_ORDINE}>Nessuno: registra come costo diretto</option>}
                 {ordini.map(o => <option key={o.id} value={o.id}>{o.oda_number ?? "Ordine"} · {o.suppliers?.name ?? "Fornitore"} · {o.status}</option>)}
                 {a.purchase_order_id && !ordini.some(o => o.id === a.purchase_order_id) && <option value={a.purchase_order_id}>Ordine proposto</option>}
               </select>
+              {caricoOrdini && <p role="status" className="text-xs">Carico gli ordini del cantiere…</p>}
+              {erroreOrdini && <p role="alert" className="text-xs text-destructive">Non riesco a leggere gli ordini: non registro un costo diretto per errore. <button type="button" className="underline" onClick={() => void ricaricaOrdini()}>Riprova</button></p>}
               {collegaOrdine && <p className="text-xs text-muted-foreground">Il costo è già nell’ordine: non si crea un costo nuovo. La merce si carica dall’arrivo merce dell’ordine.</p>}
             </div>
           )}
@@ -242,6 +262,7 @@ function Verifica({ a, aperto, onApri, occupato, onRegistra, onRifiuta }: {
             <div className="space-y-1">
               <label htmlFor={`tot-${a.id}`} className="text-xs font-semibold">Totale da registrare (€, IVA inclusa)</label>
               <input id={`tot-${a.id}`} inputMode="decimal" value={totale} onChange={e => setTotale(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-3 text-sm" />
+              {!totaleValido && <p className="text-xs text-destructive">Indica un totale maggiore di zero e non superiore a 1.000.000 €.</p>}
               <p className="text-xs text-muted-foreground">
                 {a.modalita === "pagato_da_me" ? "Diventa un costo del cantiere e il rimborso all’operaio nello scadenzario." : "Diventa un costo del cantiere, da pagare entro 30 giorni."}
               </p>
@@ -260,7 +281,7 @@ function Verifica({ a, aperto, onApri, occupato, onRegistra, onRifiuta }: {
               <Button size="sm" variant="outline" className="flex-1 gap-1.5 text-destructive" disabled={occupato} onClick={() => setRifiuto(true)}>
                 <X className="h-4 w-4" aria-hidden="true" />Rifiuta
               </Button>
-              <Button size="sm" className="flex-1 gap-1.5" disabled={occupato}
+              <Button size="sm" className="flex-1 gap-1.5" disabled={occupato || !ordiniPronti || !ordineValido || !totaleValido}
                 onClick={() => onRegistra(collegaOrdine ? null : importo, collegaOrdine ? ordine : null)}>
                 {occupato ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Check className="h-4 w-4" aria-hidden="true" />}Registra
               </Button>

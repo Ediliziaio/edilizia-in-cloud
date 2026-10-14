@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { CrewSnapshot } from "@/lib/orders/internalTeamRoster";
-import { crewShiftChanges, crewShiftError, overlappingShifts, shiftFingerprint, shiftHours, type CrewShift, type CrewShiftDraft } from "@/lib/orders/internalTeamShift";
+import { crewShiftChanges, crewShiftError, overlappingShifts, replaceShiftParticipant, shiftFingerprint, shiftHours, type CrewShift, type CrewShiftDraft } from "@/lib/orders/internalTeamShift";
 
 interface Props {
   snapshot: CrewSnapshot;
@@ -27,6 +27,8 @@ export function InternalTeamShiftEditor({ snapshot, phases, workDate, shifts, ca
     notes: "", status: "planned",
   }));
   const [search, setSearch] = useState("");
+  const [absentId, setAbsentId] = useState("");
+  const [replacementId, setReplacementId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const inFlight = useRef(false);
@@ -40,6 +42,8 @@ export function InternalTeamShiftEditor({ snapshot, phases, workDate, shifts, ca
   const baseIds = new Set(base.roster.employeeIds);
   const people = snapshot.employees.filter(e => (e.active || selected.has(e.id)) && e.name.toLocaleLowerCase("it").includes(search.toLocaleLowerCase("it")));
   const missing = draft.employeeIds.filter(id => !snapshot.employees.some(e => e.id === id));
+  const canReplace = !disabled && !!replaceShiftParticipant(draft, absentId, replacementId, snapshot);
+  const names = (ids: string[]) => ids.map(id => snapshot.employees.find(e => e.id === id)?.name ?? "Persona non più disponibile").join(", ");
   const patch = (next: Partial<CrewShiftDraft>) => { setDraft(d => ({ ...d, ...next })); setError(null); };
   const toggle = (id: string) => patch({ employeeIds: selected.has(id) ? draft.employeeIds.filter(e => e !== id) : [...draft.employeeIds, id], leaderEmployeeId: selected.has(id) && draft.leaderEmployeeId === id ? null : draft.leaderEmployeeId });
   const save = async () => {
@@ -69,6 +73,19 @@ export function InternalTeamShiftEditor({ snapshot, phases, workDate, shifts, ca
     <fieldset disabled={disabled} className="min-w-0 space-y-3">
       <legend className="text-sm font-semibold">Chi sarà presente · {selected.size} persone</legend>
       <p className="text-xs text-muted-foreground">Togli chi non partecipa. Seleziona un altro dipendente per aggiungere un sostituto: la squadra abituale non cambia.</p>
+      <details className="rounded-lg border p-3 text-sm">
+        <summary className="cursor-pointer font-medium">Sostituisci una persona solo in questo turno</summary>
+        <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
+          <div className="min-w-0 space-y-1"><Label htmlFor={`${uid}-absent`}>Chi non partecipa</Label><select className={selectClass} id={`${uid}-absent`} value={absentId} onChange={e => setAbsentId(e.target.value)}><option value="">Scegli una persona prevista</option>{snapshot.employees.filter(e => selected.has(e.id)).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></div>
+          <div className="min-w-0 space-y-1"><Label htmlFor={`${uid}-replacement`}>Chi viene al suo posto</Label><select className={selectClass} id={`${uid}-replacement`} value={replacementId} onChange={e => setReplacementId(e.target.value)}><option value="">Scegli il sostituto</option>{snapshot.employees.filter(e => e.active && !selected.has(e.id)).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></div>
+        </div>
+        <Button variant="outline" size="sm" className="mt-3" disabled={!canReplace} onClick={() => {
+          if (disabled) return;
+          const next = replaceShiftParticipant(draft, absentId, replacementId, snapshot);
+          if (next) { setDraft(next); setError(null); setAbsentId(""); setReplacementId(""); }
+        }}>Applica alla bozza</Button>
+        <p className="mt-2 text-xs text-muted-foreground">Poi conferma con Pianifica turno. Se escludi il referente, scegli chi lo sostituisce nel ruolo.</p>
+      </details>
       <Input aria-label="Cerca persona nel turno" placeholder="Cerca un dipendente…" value={search} onChange={e => setSearch(e.target.value)} />
       <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg border p-2">
         {people.map(e => <label key={e.id} className="flex min-h-12 cursor-pointer items-start gap-3 rounded-md p-2 hover:bg-muted/40">
@@ -79,6 +96,11 @@ export function InternalTeamShiftEditor({ snapshot, phases, workDate, shifts, ca
         {missing.map(id => <div className="flex flex-wrap items-center gap-2 p-2 text-sm" key={id}><span>Dipendente non più disponibile</span><Button variant="outline" size="sm" onClick={() => toggle(id)}>Rimuovi dalla selezione</Button></div>)}
       </div>
       <p className="text-xs text-muted-foreground" aria-live="polite">{changes.excluded.length} non previsti · {changes.replacements.length} sostituti / rinforzi · {changes.noAccount.length} senza account</p>
+      {(changes.excluded.length > 0 || changes.replacements.length > 0) && <div className="rounded-lg bg-muted/30 p-3 text-xs" aria-live="polite">
+        {changes.excluded.length > 0 && <p>Non partecipano: {names(changes.excluded)}</p>}
+        {changes.replacements.length > 0 && <p>Persone aggiunte: {names(changes.replacements)}</p>}
+        <p className="mt-1 text-muted-foreground">Solo questo turno: la squadra abituale resta invariata.</p>
+      </div>}
       <div className="space-y-1"><Label htmlFor={`${uid}-leader`}>Referente del turno</Label><select className={selectClass} id={`${uid}-leader`} value={draft.leaderEmployeeId ?? ""} onChange={e => patch({ leaderEmployeeId: e.target.value || null })}><option value="">Nessun referente</option>{snapshot.employees.filter(e => selected.has(e.id) && e.active).map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select><p className="text-xs text-muted-foreground">È un riferimento organizzativo: non diventa automaticamente capocantiere nell'app.</p></div>
       <div className="space-y-1"><Label htmlFor={`${uid}-notes`}>Indicazioni per il turno <span className="text-muted-foreground">(facoltative)</span></Label><Textarea id={`${uid}-notes`} maxLength={1000} value={draft.notes} onChange={e => patch({ notes: e.target.value })} placeholder="Es. ritrovo in deposito; materiale da portare" /></div>
     </fieldset>

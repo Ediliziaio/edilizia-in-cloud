@@ -9,7 +9,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { queryKeys } from "@/lib/queryKeys";
+import { invalidaSquadreCollegate } from "@/lib/manodopera/cacheSquadre";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import type { ExternalTeam } from "@/types/employees";
 import type {
@@ -34,12 +35,8 @@ export const calendariLavoriKeys = {
 };
 
 /** Tutto ciò che altrove mostra le squadre: la pagina calendario e la commessa usano chiavi proprie. */
-function invalidaSquadreOvunque(qc: ReturnType<typeof useQueryClient>, companyId: string | undefined) {
-  qc.invalidateQueries({ queryKey: calendariLavoriKeys.squadre(companyId) });
-  qc.invalidateQueries({ queryKey: queryKeys.externalTeams.all });
-  qc.invalidateQueries({ queryKey: ["external-teams-filter"] });
-  qc.invalidateQueries({ queryKey: ["external-teams-list"] });
-  qc.invalidateQueries({ queryKey: ["external_teams_active", companyId] });
+function invalidaSquadreOvunque(qc: ReturnType<typeof useQueryClient>) {
+  return invalidaSquadreCollegate(qc);
 }
 
 /**
@@ -69,13 +66,8 @@ export function useSquadre() {
     queryKey: calendariLavoriKeys.squadre(companyId),
     enabled: !!companyId,
     queryFn: async (): Promise<ExternalTeam[]> => {
-      const { data, error } = await supabase
-        .from("external_teams")
-        .select(SQUADRA_COLS)
-        .eq("company_id", companyId!)
-        .order("name");
-      if (error) throw error;
-      return (data ?? []) as unknown as ExternalTeam[];
+      return loadCatalogPages<ExternalTeam>((from, to) => supabase.from("external_teams")
+        .select(SQUADRA_COLS).eq("company_id", companyId!).order("name").order("id").range(from, to) as unknown as PromiseLike<{ data: ExternalTeam[] | null; error: { message: string } | null }>);
     },
   });
 }
@@ -88,13 +80,8 @@ export function useConnessioniGoogleAzienda() {
     enabled: !!companyId,
     staleTime: 60_000,
     queryFn: async (): Promise<ConnessioneGoogleAzienda[]> => {
-      const { data, error } = await supabase
-        .from("google_calendar_connections")
-        .select("id, user_id, google_account_email, status")
-        .eq("company_id", companyId!)
-        .order("google_account_email");
-      if (error) throw error;
-      return (data ?? []) as ConnessioneGoogleAzienda[];
+      return loadCatalogPages<ConnessioneGoogleAzienda>((from, to) => supabase.from("google_calendar_connections")
+        .select("id, user_id, google_account_email, status").eq("company_id", companyId!).order("google_account_email").order("id").range(from, to) as unknown as PromiseLike<{ data: ConnessioneGoogleAzienda[] | null; error: { message: string } | null }>);
     },
   });
 }
@@ -129,12 +116,8 @@ export function useCalendarLinks() {
     queryKey: calendariLavoriKeys.links(companyId),
     enabled: !!companyId,
     queryFn: async (): Promise<CompanyCalendarLink[]> => {
-      const { data, error } = await supabase
-        .from("company_calendar_links" as never)
-        .select("*")
-        .eq("company_id", companyId!);
-      if (error) throw error;
-      return (data ?? []) as unknown as CompanyCalendarLink[];
+      return loadCatalogPages<CompanyCalendarLink>((from, to) => supabase.from("company_calendar_links" as never)
+        .select("*").eq("company_id", companyId!).order("kind").order("id").range(from, to) as unknown as PromiseLike<{ data: CompanyCalendarLink[] | null; error: { message: string } | null }>);
     },
   });
 }
@@ -148,14 +131,8 @@ export function useSubappaltatoriAzienda() {
     enabled: !!companyId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("subappaltatori")
-        .select("id, ragione_sociale, user_id, user_email")
-        .eq("company_id", companyId!)
-        .eq("is_active", true)
-        .order("ragione_sociale");
-      if (error) throw error;
-      return (data ?? []) as Array<{ id: string; ragione_sociale: string; user_id: string | null; user_email: string | null }>;
+      return loadCatalogPages((from, to) => supabase.from("subappaltatori")
+        .select("id, ragione_sociale, user_id, user_email").eq("company_id", companyId!).eq("is_active", true).order("ragione_sociale").order("id").range(from, to));
     },
   });
 }
@@ -183,7 +160,7 @@ export function useSalvaSquadra() {
     mutationFn: async (input: SquadraInput) => {
       if (!companyId) throw new Error("Azienda non disponibile");
       const riga = {
-        name: input.name,
+        name: input.name.trim(),
         contact_name: input.contact_name || null,
         phone: input.phone || null,
         email: input.email || null,
@@ -192,7 +169,8 @@ export function useSalvaSquadra() {
         vat_rate: input.vat_rate,
         kind: input.kind,
         subappaltatore_id: input.subappaltatore_id || null,
-        leader_user_id: input.leader_user_id || null,
+        // Il responsabile delle interne è gestito dalla RPC operai, insieme al profilo HR.
+        ...(input.kind === "esterna" ? { leader_user_id: input.leader_user_id || null } : {}),
         color: input.color || null,
       };
       if (input.id) {
@@ -208,8 +186,8 @@ export function useSalvaSquadra() {
       if (error) throw error;
       return (data as { id: string }).id;
     },
-    onSuccess: (_id, input) => {
-      invalidaSquadreOvunque(qc, companyId);
+    onSuccess: async (_id, input) => {
+      await invalidaSquadreOvunque(qc);
       toast.success(input.id ? "Squadra aggiornata" : "Squadra creata");
     },
     onError: (e) => toast.error("Squadra non salvata", { description: userErrorMessage(e) }),
@@ -226,8 +204,8 @@ export function useEliminaSquadra() {
       const { error } = await supabase.from("external_teams").delete().eq("id", id).eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
-    onSuccess: () => {
-      invalidaSquadreOvunque(qc, companyId);
+    onSuccess: async () => {
+      await invalidaSquadreOvunque(qc);
       toast.success("Squadra eliminata");
     },
     onError: () =>
@@ -260,8 +238,8 @@ export function useCollegaCalendarioSquadra() {
         .eq("id", p.id).eq("company_id", companyId).select("id").single();
       if (error) throw error;
     },
-    onSuccess: (_r, p) => {
-      invalidaSquadreOvunque(qc, companyId);
+    onSuccess: async (_r, p) => {
+      await invalidaSquadreOvunque(qc);
       toast.success(p.google_calendar_id ? "Calendario collegato" : "Calendario scollegato");
       void registraCanaleCalendario(p.google_connection_id, p.google_calendar_id);
     },

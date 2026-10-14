@@ -45,8 +45,9 @@ describe("stato di un rapportino", () => {
 describe("il prossimo passo della giornata", () => {
   const base = { checklistFatta: true, statoRapportino: null as StatoRapportino | null, isOperaio: true, hasTimbrato: false, uscitaRegistrata: false };
 
-  it("prima la sicurezza", () => {
-    expect(prossimoPassoGiornata({ ...base, checklistFatta: false })).toBe("checklist");
+  it("la checklist sicurezza non è più un prerequisito della giornata", () => {
+    expect(prossimoPassoGiornata({ ...base, checklistFatta: false })).toBe("rapportino-vocale");
+    expect(prossimoPassoGiornata({ ...base, checklistFatta: false, statoRapportino: "inviato", isOperaio: false })).toBe("torna-ai-lavori");
   });
 
   it("poi il rapportino, anche senza timbratura: non è un prerequisito", () => {

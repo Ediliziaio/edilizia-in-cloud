@@ -481,6 +481,17 @@ describe("l'elenco delle pipeline", () => {
     expect(scritture("insert", "marketing_pipelines")).toHaveLength(1);
     expect(scritture("insert", "marketing_pipeline_stages")).toHaveLength(1);
   });
+  it("il modello commerciale fotovoltaico è selezionabile senza modificare le pipeline già salvate", async () => {
+    await apri(); fireEvent.click(screen.getByRole("button", {name: "Nuova pipeline"}));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.keyDown(within(dialog).getByLabelText("Parti da un modello"), {key:"ArrowDown"});
+    fireEvent.click(screen.getByRole("option", {name:"Vendita · Fotovoltaico"}));
+    expect(within(dialog).getByLabelText("Nome della pipeline")).toHaveValue("Vendita Fotovoltaico");
+    expect(within(dialog).getByDisplayValue("Analisi Esigenze e Consumi")).toBeInTheDocument();
+    expect(within(dialog).queryByDisplayValue("Installata, da Attivare")).not.toBeInTheDocument();
+    expect(scritture("insert", "marketing_pipelines")).toHaveLength(0);
+    expect(scritture("update", "marketing_pipeline_stages")).toHaveLength(0);
+  });
 
   it("un nome già usato è rifiutato in italiano, senza scrivere", async () => {
     await apri();

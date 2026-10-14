@@ -1,7 +1,8 @@
 // src/test/ui/cartelleDocumentiPagina.test.tsx
 // Impostazioni → Cartelle documenti: i due interruttori si capiscono (nome delle colonne, spiegazione sempre visibile),
 // la pagina non parla dell'area clienti come se funzionasse e chi può solo leggere lo vede scritto.
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,7 +19,8 @@ vi.mock("@/contexts/AuthContext", () => ({
 }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "company-1" }));
 vi.mock("@/components/billing/SpazioArchiviazioneCard", () => ({ SpazioArchiviazioneCard: () => <div data-testid="spazio-archiviazione">spazio</div> }));
-vi.mock("@/hooks/useCartelleDocumenti", () => ({
+vi.mock("@/hooks/useCartelleDocumenti", async (original) => ({
+  ...(await original<typeof import("@/hooks/useCartelleDocumenti")>()),
   useCartelleDocumenti: () => ({
     cartelle: [cartella("f1", "Contratti"), cartella("f2", "Fatture", { obbligatoria: true }), cartella("f3", "Vecchia", { archiviata_at: "2026-10-01T10:00:00Z" })],
     isLoading: false, isError: false, refetch: vi.fn(),
@@ -27,7 +29,7 @@ vi.mock("@/hooks/useCartelleDocumenti", () => ({
   useRiordinaCartelle: () => ({ mutate: state.mutate, isPending: false }),
 }));
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from: () => ({ select: () => ({ eq: async () => ({ count: 2, error: null as unknown }) }) }) },
+  supabase: { from: () => { const b = { select: () => b, eq: () => b, then: (ok: (r: unknown) => unknown) => Promise.resolve({ count: 2, error: null as unknown }).then(ok) }; return b; } },
 }));
 
 import SettingsCartelleDocumenti from "@/pages/azienda/settings/SettingsCartelleDocumenti";
@@ -35,7 +37,7 @@ import SettingsCartelleDocumenti from "@/pages/azienda/settings/SettingsCartelle
 const apri = () =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <SettingsCartelleDocumenti />
+      <MemoryRouter><SettingsCartelleDocumenti /></MemoryRouter>
     </QueryClientProvider>,
   );
 
@@ -76,7 +78,7 @@ describe("Cartelle documenti: si capisce cosa fanno i due interruttori", () => {
   it("nessun titolo di primo livello; i riquadri sono titoli di secondo livello", () => {
     apri();
     expect(screen.queryAllByRole("heading", { level: 1 })).toHaveLength(0);
-    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Cartelle dei documenti", "Archiviate"]);
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Cartelle dei documenti", "Archiviate", "Nelle commesse"]);
   });
 
   it("lo spazio di archiviazione è del piano, non delle cartelle: sta in fondo, dopo le archiviate", () => {
@@ -121,5 +123,43 @@ describe("Cartelle documenti: sola lettura onesta", () => {
     state.modifica = false; state.caricamentoPermessi = true;
     apri();
     expect(screen.queryByText(/Stai consultando queste impostazioni/)).toBeNull();
+  });
+});
+
+
+describe("Cartelle configurate e cartelle nelle commesse", () => {
+  it("l’anteprima usa solo le cartelle attive, negli stessi nomi e nello stesso ordine", () => {
+    apri();
+    const nav = screen.getByRole("navigation", { name: "Cartelle documenti" });
+    expect(within(nav).getAllByRole("button").map(b => b.getAttribute("aria-label"))).toEqual([
+      "Tutti: 0 documenti", "Contratti: 0 documenti", "Fatture: 0 documenti",
+    ]);
+    expect(within(nav).queryByText("Vecchia")).toBeNull();
+    expect(screen.getByText(/«Tutti» e «Senza cartella» sono filtri/)).toBeInTheDocument();
+  });
+  it("esplorare una cartella nella prova non modifica la configurazione", () => {
+    apri();
+    fireEvent.click(screen.getByRole("button", { name: "Fatture: 0 documenti" }));
+    expect(screen.getByRole("button", { name: "Fatture: 0 documenti" })).toHaveAttribute("aria-current", "true");
+    expect(state.mutate).not.toHaveBeenCalled();
+  });
+  it("archiviare mantiene i documenti nella cartella originale, senza promettere uno spostamento", () => {
+    apri();
+    fireEvent.click(screen.getByRole("button", { name: "Archivia «Contratti»" }));
+    const conferma = screen.getByRole("alertdialog");
+    expect(conferma).toHaveTextContent("I documenti già presenti restano nella cartella originale");
+    expect(conferma).not.toHaveTextContent("Senza cartella");
+    expect(state.mutate).not.toHaveBeenCalled();
+  });
+  it("non permette di salvare un nome vuoto o identico e limita la lunghezza a quella ammessa", () => {
+    apri();
+    fireEvent.click(screen.getByRole("button", { name: "Rinomina «Contratti»" }));
+    expect(screen.getByRole("button", { name: "Salva nome" })).toBeDisabled();
+    const nome = screen.getByRole("textbox", { name: "Nome cartella Contratti" });
+    expect(nome).toHaveAttribute("maxlength", "80");
+    fireEvent.change(nome, { target: { value: "   " } });
+    expect(screen.getByRole("button", { name: "Salva nome" })).toBeDisabled();
+    fireEvent.keyDown(nome, { key: "Enter" });
+    expect(state.mutate).not.toHaveBeenCalled();
   });
 });

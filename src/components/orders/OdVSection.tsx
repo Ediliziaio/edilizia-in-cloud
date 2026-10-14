@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOrderVariations } from "@/hooks/useOrderVariations";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -7,19 +7,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, GitBranch, Loader2, Copy, ExternalLink, CheckCircle, XCircle, Clock, Ban, ChevronDown, ChevronUp, Send } from "lucide-react";
-import { format } from "date-fns";
-import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
+import { usePermissions } from "@/hooks/usePermissions";
+import { emptyVariationDraft, prepareVariation, type VariationDraft } from "@/lib/orders/variationDraft";
+import { VariationEditor, type VariationContext } from "./VariationEditor";
+import {variationDocumentContext} from "@/lib/orders/variationDocumentContext";
+import { variationEventDate } from "@/lib/orders/pendingVariationDocument";
+import { PendingVariationPdf } from "./PendingVariationPdf";
+import { VariationTemplatePicker } from "./VariationTemplatePicker";
 
 interface OdVSectionProps {
   orderId: string;
   companyId: string;
+  context?: VariationContext;
+  onOpenDocuments?:()=>void;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; className: string; icon: React.ElementType }> = {
@@ -29,53 +33,49 @@ const STATUS_CONFIG: Record<string, { label: string; className: string; icon: Re
   annullato: { label: "Annullato", className: "bg-slate-100 text-slate-600 border-slate-200", icon: Ban },
 };
 
-interface OdVForm {
-  titolo: string;
-  descrizione: string;
-  motivazione: string;
-  impatto_economico: string;
-  impatto_giorni: string;
-  richiesto_da: string;
-  note_interne: string;
-}
-
-const EMPTY_FORM: OdVForm = {
-  titolo: "",
-  descrizione: "",
-  motivazione: "",
-  impatto_economico: "",
-  impatto_giorni: "0",
-  richiesto_da: "",
-  note_interne: "",
-};
-
-export function OdVSection({ orderId, companyId }: OdVSectionProps) {
+export function OdVSection({ orderId, companyId, context = {}, onOpenDocuments }: OdVSectionProps) {
+  const permissions = usePermissions();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState<OdVForm>(EMPTY_FORM);
+  const [form, setForm] = useState<VariationDraft>(emptyVariationDraft);
+  const [review, setReview] = useState(false);
+  const [formError, setFormError] = useState("");
+  const createLock = useRef(false);
+  const pdfLock=useRef(false);
+  const [deliveryMode,setDeliveryMode]=useState<"pdf"|"online">("pdf");
+  const [pdfBusy,setPdfBusy]=useState(false);
+  const [pdfReady,setPdfReady]=useState<{url:string;filename:string;snapshot:string}|null>(null);
+  const documentContext=variationDocumentContext(form,context);
+  const documentSnapshot=JSON.stringify([form,documentContext]);
+  const sending = useRef(new Set<string>());
   const [expandedOdvId, setExpandedOdvId] = useState<string | null>(null);
   const [invioEmailLoading, setInvioEmailLoading] = useState<string | null>(null);
 
   const { data: odvList = [], isLoading, isError, refetch } = useOrderVariations(orderId, companyId);
+  // Lightweight, tenant-scoped and loaded only while composing a variation.
+  const phases = useQuery({ queryKey: ["variation-phase-options",orderId,companyId], enabled: dialogOpen && !!orderId && !!companyId,
+    queryFn: async () => {
+      const {data,error} = await supabase.from("order_work_phases").select("id,name,end_date").eq("order_id",orderId).eq("company_id",companyId).order("position");
+      if (error) throw error;
+      return data ?? [];
+    }, staleTime: 30_000 });
 
   // Total approved variazioni
   const totaleApprovato = odvList
-    .filter((o: any) => o.status === "approvato")
-    .reduce((sum: number, o: any) => sum + Number(o.impatto_economico || 0), 0);
+    .filter(o => o.status === "approvato")
+    .reduce((sum, o) => sum + Number(o.impatto_economico || 0), 0);
 
   const createOdv = useMutation({
     mutationFn: async () => {
-      if (!form.titolo.trim()) throw new Error("Il titolo è obbligatorio");
-      if (!form.descrizione.trim()) throw new Error("La descrizione è obbligatoria");
-      const importo = parseFloat(form.impatto_economico);
-      if (!Number.isFinite(importo) || importo < 0) throw new Error("Importo non valido");
-      const giorni = Number(form.impatto_giorni || 0);
-      if (!Number.isInteger(giorni) || giorni < 0) throw new Error("Indica un numero intero di giorni, maggiore o uguale a zero");
+      if (deliveryMode!=="online" || !permissions.canEditOrders || !orderId || !companyId || !review) throw new Error("Non hai il permesso di creare questa variante.");
+      const prepared = prepareVariation(form);
+      if (context.currentNet !== undefined && context.currentNet + prepared.impatto_economico < 0)
+        throw new Error("La riduzione supera il valore del contratto: verifica l'importo.");
       if (isLoading || isError) throw new Error("Attendi il caricamento delle varianti prima di aggiungerne una");
 
       // Get next numero_odv
       const nextNumero = (odvList.length > 0
-        ? Math.max(...odvList.map((o: any) => o.numero_odv)) + 1
+        ? Math.max(...odvList.map(o => o.numero_odv)) + 1
         : 1);
 
       // Generate unique firma_token
@@ -91,13 +91,7 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
           company_id: companyId,
           order_id: orderId,
           numero_odv: nextNumero,
-          titolo: form.titolo.trim(),
-          descrizione: form.descrizione.trim(),
-          motivazione: form.motivazione.trim() || null,
-          impatto_economico: importo,
-          impatto_giorni: giorni,
-          richiesto_da: form.richiesto_da.trim() || null,
-          note_interne: form.note_interne.trim() || null,
+          ...prepared,
           firma_token: firmaToken,
           status: "in_attesa",
           created_by: userId,
@@ -105,7 +99,13 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
         .select()
         .single();
 
-      if (error) throw new Error(error.message);
+      if (error?.code === "23505") {
+        void refetch();
+        throw new Error("Un'altra variante è stata creata nel frattempo. Aggiorna l'elenco e riprova: la bozza è conservata.");
+      }
+      if (error) throw new Error("Non è stato possibile confermare il salvataggio. Controlla l'elenco prima di riprovare.");
+      if (!data?.id || data.order_id !== orderId || data.company_id !== companyId || data.firma_token !== firmaToken)
+        throw new Error("Risposta di salvataggio non verificabile: aggiorna l'elenco prima di riprovare.");
       return { odv: data, firmaToken };
     },
     onSuccess: ({ odv, firmaToken }) => {
@@ -115,30 +115,45 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
       queryClient.invalidateQueries({ queryKey: ["marginalita-cantieri"] });
       queryClient.invalidateQueries({ queryKey: ["marginalita-widget"] });
       setDialogOpen(false);
-      setForm(EMPTY_FORM);
+      setForm(emptyVariationDraft());
+      setReview(false);
       toast.success(`OdV #${odv.numero_odv} creato. Link firma generato.`, {
         description: firmaUrl,
         action: {
           label: "Copia link",
           onClick: () => {
-            navigator.clipboard.writeText(firmaUrl);
-            toast.success("Link copiato!");
+            void copyFirmaLink(firmaToken);
           },
         },
         duration: 10000,
       });
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => { setFormError(err.message); toast.error(err.message); },
+    onSettled: () => { createLock.current = false; },
   });
 
-  const copyFirmaLink = (token: string) => {
+  const copyFirmaLink = async (token: string) => {
     const url = `${window.location.origin}/firma-odv/${token}`;
-    navigator.clipboard.writeText(url);
-    toast.success("Link di firma copiato!");
+    try { await navigator.clipboard.writeText(url); toast.success("Link di firma copiato!"); }
+    catch { toast.error("Copia non riuscita. Apri il link e copialo dalla barra degli indirizzi."); }
   };
-
-  const f = (key: keyof OdVForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm(p => ({ ...p, [key]: e.target.value }));
+  const reviewDraft = () => {
+    try { const prepared = prepareVariation(form);
+      if (context.currentNet !== undefined && context.currentNet + prepared.impatto_economico < 0) throw new Error("La riduzione supera il valore del contratto.");
+      setFormError(""); setReview(true);
+    } catch (error) { setFormError(error instanceof Error ? error.message : "Controlla la bozza."); }
+  };
+  const prepareDocument=async()=>{
+    if(pdfLock.current || !permissions.canEditOrders || !review)return;
+    pdfLock.current=true;setPdfBusy(true);setFormError("");
+    try{
+      const prepared=prepareVariation(form);
+      const {variationProposalPdf,variationPdfFilename}=await import("@/lib/orders/variationPreviewPdf");
+      const doc=await variationProposalPdf(prepared,documentContext);
+      setPdfReady({url:doc.output("datauristring"),filename:variationPdfFilename(documentContext.orderCode,prepared.titolo),snapshot:documentSnapshot});
+    }catch(e){setFormError(e instanceof Error?e.message:"PDF non disponibile: la bozza è conservata.");}
+    finally{pdfLock.current=false;setPdfBusy(false);}
+  };
 
   return (
     <>
@@ -146,15 +161,15 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
         <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
           <CardTitle className="flex items-center gap-2 min-w-0 text-base">
             <GitBranch className="h-4 w-4 shrink-0 text-primary" />
-            <span className="truncate">Varianti di Commessa</span>
+            <span className="truncate">Lavori extra e varianti</span>
             {odvList.length > 0 && (
               <Badge variant="secondary" className="shrink-0 text-xs">{odvList.length}</Badge>
             )}
           </CardTitle>
-          <Button size="sm" className="shrink-0" disabled={isLoading || isError} onClick={() => setDialogOpen(true)}>
+          {permissions.canEditOrders && <Button size="sm" className="shrink-0" disabled={isLoading || isError} onClick={() => { setFormError(""); setReview(false);setDeliveryMode("pdf");setPdfReady(null);setForm({...emptyVariationDraft(),documentCompanyName:context.companyName,documentCompanyDetails:context.companyDetails,documentCustomerName:context.customerName,documentCustomerDetails:context.customerAddress}); setDialogOpen(true); }} aria-label="Nuova variante">
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline ml-1.5">Nuovo OdV</span>
-          </Button>
+            <span className="hidden sm:inline ml-1.5">Nuova variante</span>
+          </Button>}
         </CardHeader>
 
         <CardContent className="space-y-3">
@@ -165,11 +180,11 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
             </div>
           ) : odvList.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4 max-sm:py-2 max-sm:text-xs">
-              Nessuna variante registrata.<span className="max-sm:hidden"> I lavori extra richiedono un OdV firmato dal cliente.</span>
+              Nessuna variante registrata.<span className="max-sm:hidden"> Puoi preparare un PDF da inviare oppure usare la firma online.</span>
             </p>
           ) : (
             <div className="space-y-2">
-              {odvList.map((odv: any) => {
+              {odvList.map(odv => {
                 const cfg = STATUS_CONFIG[odv.status] || STATUS_CONFIG.in_attesa;
                 const StatusIcon = cfg.icon;
                 return (
@@ -215,13 +230,14 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
                         {odv.impatto_giorni > 0 && (
                           <span className="text-muted-foreground">+{odv.impatto_giorni}gg</span>
                         )}
-                        {odv.firmato_il && (
+                        {variationEventDate(odv.firmato_il) && (
                           <span className="text-muted-foreground">
-                            Firmato {format(new Date(odv.firmato_il), "dd/MM/yy", { locale: it })}
+                            {odv.status === "approvato" ? "Approvato" : odv.status === "rifiutato" ? "Rifiutato" : "Elaborato"} {variationEventDate(odv.firmato_il)}
                           </span>
                         )}
                       </div>
-                      {odv.status === "in_attesa" && odv.firma_token && (
+                      {permissions.canEditOrders && odv.status === "in_attesa" && <PendingVariationPdf variation={odv} orderId={orderId} companyId={companyId} context={context} onOpenDocuments={onOpenDocuments} />}
+                      {permissions.canEditOrders && odv.status === "in_attesa" && odv.firma_token && (
                         <div className="flex gap-1 flex-wrap">
                           <Button
                             variant="ghost"
@@ -237,17 +253,20 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
                             className="h-7 text-xs text-blue-600 hover:text-blue-700"
                             disabled={invioEmailLoading === odv.id}
                             onClick={async () => {
+                              if (sending.current.has(odv.id) || !permissions.canEditOrders) return;
+                              sending.current.add(odv.id);
                               setInvioEmailLoading(odv.id);
                               try {
-                                const { error } = await supabase.functions.invoke("invia-odv", {
+                                const { data, error } = await supabase.functions.invoke("invia-odv", {
                                   body: { odv_id: odv.id },
                                 });
-                                if (error) throw error;
+                                if (error || data?.success !== true) throw error || new Error("Invio non confermato");
                                 toast.success("Email inviata al cliente");
                                 queryClient.invalidateQueries({ queryKey: ["ordini-variazione", orderId] });
-                              } catch (e: any) {
-                                toast.error(e.message || "Errore nell'invio email");
+                              } catch (e: unknown) {
+                                toast.error(e instanceof Error ? e.message : "Errore nell'invio email");
                               } finally {
+                                sending.current.delete(odv.id);
                                 setInvioEmailLoading(null);
                               }
                             }}
@@ -273,7 +292,7 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
                 );
               })}
 
-              {totaleApprovato > 0 && (
+              {odvList.some(o => o.status === "approvato") && (
                 <div className="border-t pt-2 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Totale variazioni approvate</span>
                   <span className="font-semibold text-green-700">{formatCurrency(totaleApprovato)}</span>
@@ -284,99 +303,39 @@ export function OdVSection({ orderId, companyId }: OdVSectionProps) {
         </CardContent>
       </Card>
 
-      {/* ── Dialog Nuovo OdV ── */}
-      <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setForm(EMPTY_FORM); }}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <GitBranch className="h-5 w-5 text-primary" />
-              Nuova Variante di Commessa
-            </DialogTitle>
-            <DialogDescription>Descrivi i lavori e il prezzo. La creazione prepara il link: l'invio al cliente è un passaggio separato.</DialogDescription>
+      <Dialog open={dialogOpen} onOpenChange={open => { if (createLock.current || createOdv.isPending || pdfLock.current) return; setDialogOpen(open); if (!open) {setForm(emptyVariationDraft());setReview(false);setFormError("");setPdfReady(null);} }}>
+        <DialogContent className="flex max-h-[90dvh] flex-col overflow-hidden p-0 sm:max-w-2xl">
+          <DialogHeader className="shrink-0 border-b p-4 pr-10">
+            <DialogTitle>{review ? "Controlla la variante" : "Nuovi lavori extra o variante"}</DialogTitle>
+            <DialogDescription>{review ? "Scarica il documento e invialo come preferisci. La firma tramite link è facoltativa." : "Descrivi cosa cambia. Poi scegli PDF da inviare o firma online."}</DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="odv-title">Titolo *</Label>
-              <Input id="odv-title" placeholder="es. Aggiunta impianto di ventilazione" value={form.titolo} onChange={f("titolo")} />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="odv-description">Descrizione lavori extra *</Label>
-              <Textarea
-                id="odv-description"
-                placeholder="Descrivi dettagliatamente i lavori aggiuntivi non previsti nel contratto originale..."
-                value={form.descrizione}
-                onChange={f("descrizione")}
-                rows={4}
-                className="resize-none"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="odv-reason">Motivazione</Label>
-              <Textarea
-                id="odv-reason"
-                placeholder="Perché questi lavori sono necessari o richiesti dal cliente..."
-                value={form.motivazione}
-                onChange={f("motivazione")}
-                rows={2}
-                className="resize-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="odv-amount">Importo aggiuntivo, IVA esclusa (€) *</Label>
-                <Input
-                  id="odv-amount"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={form.impatto_economico}
-                  onChange={f("impatto_economico")}
-                />
+          <div className="min-h-0 overflow-y-auto p-4">
+            {!review && <VariationTemplatePicker companyId={companyId} draft={form} context={documentContext} disabled={createOdv.isPending || pdfBusy || !permissions.canEditOrders} onApply={draft => { setForm(draft); setFormError(""); setPdfReady(null); }} />}
+            {phases.isError && <p role="alert" className="mb-3 text-sm text-destructive">Lavorazioni non disponibili. Puoi riferire la variante a tutta la commessa. <Button size="sm" variant="ghost" onClick={() => void phases.refetch()}>Riprova</Button></p>}
+            <VariationEditor draft={form} setDraft={draft => {setForm(draft);setFormError("");setPdfReady(null);}} phases={phases.data ?? []} context={documentContext} busy={createOdv.isPending || pdfBusy || !permissions.canEditOrders} review={review} onBack={() => {setReview(false);setPdfReady(null);}} error={formError} showPdfPreview={false}/>
+            {review && <div className="mt-4 space-y-3 rounded-lg border p-3" aria-label="Come vuoi usare il documento">
+              <p className="text-sm font-medium">Come vuoi usarlo?</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="group" aria-label="Modalità documento">
+                <Button type="button" variant={deliveryMode==="pdf"?"default":"outline"} aria-pressed={deliveryMode==="pdf"} disabled={pdfBusy || createOdv.isPending} onClick={()=>setDeliveryMode("pdf")}>PDF da inviare</Button>
+                <Button type="button" variant={deliveryMode==="online"?"default":"outline"} aria-pressed={deliveryMode==="online"} disabled={pdfBusy || createOdv.isPending} onClick={()=>setDeliveryMode("online")}>Firma online · facoltativa</Button>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="odv-days">Giorni aggiuntivi</Label>
-                <Input
-                  id="odv-days"
-                  type="number"
-                  min="0"
-                  placeholder="0"
-                  value={form.impatto_giorni}
-                  onChange={f("impatto_giorni")}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="odv-requester">Richiesto da</Label>
-              <Input id="odv-requester" placeholder="Nome cliente o responsabile" value={form.richiesto_da} onChange={f("richiesto_da")} />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="odv-internal-notes">Note interne</Label>
-              <Input id="odv-internal-notes" placeholder="Note visibili solo internamente" value={form.note_interne} onChange={f("note_interne")} />
-            </div>
-
-            <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-950/20 dark:border-amber-700">
-              <GitBranch className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-700 dark:text-amber-400">
-                Verrà generato un link univoco di firma da inviare al cliente. I lavori dovranno essere approvati prima di iniziare.
-              </p>
-            </div>
+              <p className="text-xs text-muted-foreground">{deliveryMode==="pdf"?"Nessun link o invio automatico. Scarica il PDF, invialo per email o stampalo. La copia firmata può essere caricata nei Documenti della commessa." : "Confermando si registra l'OdV in attesa e si crea un link attivo. L'invio al cliente resta un passaggio separato."}</p>
+              {deliveryMode==="pdf" && pdfReady?.snapshot===documentSnapshot && <div className="space-y-2">
+                <p role="status" className="text-sm font-medium">PDF pronto. Scaricalo prima di chiudere.</p>
+                <p className="text-xs text-muted-foreground">Il PDF non è firmato né approvato. Caricare una copia nei Documenti non cambia automaticamente l'importo della commessa o lo stato della variante.</p>
+                {onOpenDocuments && <Button variant="outline" size="sm" onClick={()=>{setDialogOpen(false);setForm(emptyVariationDraft());setPdfReady(null);setReview(false);onOpenDocuments();}}>Apri Documenti commessa</Button>}
+              </div>}
+            </div>}
+            <p className="mt-4 text-xs text-muted-foreground">La bozza e gli appunti privati non vengono conservati chiudendo il modulo. Scarica il documento prima di uscire.</p>
           </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annulla</Button>
-            <Button onClick={() => createOdv.mutate()} disabled={createOdv.isPending}>
-              {createOdv.isPending
-                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Salvataggio...</>
-                : <><GitBranch className="h-4 w-4 mr-2" /> Crea link di approvazione</>
-              }
-            </Button>
+          <DialogFooter className="shrink-0 border-t p-4 gap-2">
+            <Button className="h-auto min-h-11 whitespace-normal px-3" variant="outline" disabled={createOdv.isPending || pdfBusy} onClick={() => {setDialogOpen(false);setForm(emptyVariationDraft());setReview(false);setPdfReady(null);}}>Chiudi</Button>
+            {review && deliveryMode==="pdf" && pdfReady?.snapshot===documentSnapshot ? <a href={pdfReady.url} download={pdfReady.filename} className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-center text-sm font-medium text-primary-foreground">Scarica PDF da inviare</a> : <Button className="h-auto min-h-11 whitespace-normal px-3" disabled={createOdv.isPending || pdfBusy || !permissions.canEditOrders || isLoading || isError} onClick={() => {
+              if (!review) {reviewDraft();return;}
+              if(deliveryMode==="pdf"){void prepareDocument();return;}
+              if (createLock.current) return;
+              createLock.current = true;setFormError("");createOdv.mutate();
+            }}>{pdfBusy ? "Preparo PDF…" : createOdv.isPending ? "Salvataggio…" : !review ? "Controlla riepilogo" : deliveryMode==="pdf" ? "Prepara PDF da inviare" : "Conferma e crea link"}</Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>

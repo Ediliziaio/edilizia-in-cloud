@@ -1,6 +1,7 @@
 import { Check } from "lucide-react";
 import type { OrderStatus } from "@/lib/orderUtils";
 import type { StatusHistoryItem } from "./OrderProgressTracker";
+import { statusVisits } from "@/lib/orders/statusHistory";
 
 interface OrdineStatusStripProps {
   statuses: OrderStatus[];
@@ -25,13 +26,11 @@ export function OrdineStatusStrip({
   onStatusChange,
 }: OrdineStatusStripProps) {
   const sorted = [...statuses].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-  const currentIndex = sorted.findIndex((s) => s.id === currentStatusId);
+  const visits = statusVisits(statusHistory);
 
   const getDate = (statusId: string): string | null => {
-    const h = statusHistory.find((h) => h.status_id === statusId);
-    if (!h) return null;
-    const changedAt = new Date(h.changed_at);
-    if (Number.isNaN(changedAt.getTime())) return null;
+    const changedAt = visits.get(statusId);
+    if (!changedAt) return null;
     return changedAt.toLocaleDateString("it-IT", {
       day: "2-digit",
       month: "short",
@@ -42,8 +41,8 @@ export function OrdineStatusStrip({
     <div className="w-full overflow-x-auto scrollbar-hide">
       <div className="flex items-center min-w-max px-1 py-2 gap-0">
         {sorted.map((status, index) => {
-          const isCompleted = index < currentIndex;
-          const isCurrent = index === currentIndex;
+          const isCurrent = status.id === currentStatusId;
+          const isCompleted = !isCurrent && visits.has(status.id);
           const date = getDate(status.id);
           const color = status.color || "#64748b";
 
@@ -68,7 +67,7 @@ export function OrdineStatusStrip({
 
           // Connector color
           const connectorStyle: React.CSSProperties = {
-            backgroundColor: index < currentIndex ? color : "#e2e8f0",
+            backgroundColor: (visits.has(status.id) || isCurrent) && (visits.has(sorted[index + 1]?.id) || sorted[index + 1]?.id === currentStatusId) ? color : "#e2e8f0",
           };
 
           return (
@@ -80,11 +79,13 @@ export function OrdineStatusStrip({
                 type="button"
                 disabled={!onStatusChange || isCurrent}
                 aria-current={isCurrent ? "step" : undefined}
+                data-status-visited={visits.has(status.id) ? "true" : "false"}
                 aria-label={isCurrent ? `Stato attuale: ${status.name}` : `Imposta stato "${status.name}"`}
                 className="group flex flex-col items-center gap-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default"
                 onClick={() => onStatusChange?.(status.id)}
                 title={isCurrent ? `Stato attuale: ${status.name}` : `Imposta stato "${status.name}"`}
               >
+                {isCompleted && <span className="sr-only">Passaggio registrato nello storico</span>}
                 <div
                   className="w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all text-xs font-medium group-hover:scale-110 group-hover:shadow-md"
                   style={circleStyle}

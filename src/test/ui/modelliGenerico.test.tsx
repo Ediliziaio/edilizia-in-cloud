@@ -1,5 +1,5 @@
 /**
- * Impostazioni → Modelli di preventivo → «Preventivo generico» (10/10/2026).
+ * Impostazioni → Modelli preventivi e contratti → «Preventivo generico» (10/10/2026).
  *
  * La scheda era una pila di riquadri uguali: un secondo titolo di pagina (h1) sotto quello del layout, un
  * riquadro «Il flusso delle offerte» con tre numeri e tre passi, la parola «template» ovunque, 14 riquadri

@@ -16,7 +16,7 @@ const conta = (testo: string, frammento: string) => testo.split(frammento).lengt
 
 const MANODOPERA = "Impostazioni → Listino → Manodopera e servizi";
 const KIT = "Impostazioni → Listino → Kit e pacchetti";
-const MODULO_SERRAMENTI = "Impostazioni → Modelli di preventivo → Moduli → Serramenti";
+const MODULO_SERRAMENTI = "Impostazioni → Modelli preventivi e contratti → Moduli → Serramenti";
 const TIPOLOGIE = "Impostazioni → Listino → Tipologie";
 
 /** Dove stanno i rimandi, e quante volte compare il nome di oggi (comprese le righe di commento). */
@@ -27,8 +27,8 @@ const RIMANDI: { file: string; nuovi: [string, number][] }[] = [
   { file: "src/components/marketing/preventivi/ApplyBundleDialog.tsx", nuovi: [[KIT, 1], ["installa i pacchetti di esempio", 1]] },
   { file: "src/components/serramenti/ListinoPickerDialog.tsx", nuovi: [["collegale da Impostazioni → Listino.", 1], ["(Impostazioni → Listino).", 1]] },
   { file: "src/components/listino/TariffaProdottiCollegati.tsx", nuovi: [["Vai in <strong>Listino → modifica un prodotto", 1], ["Vai al listino per collegarne altri", 1]] },
-  { file: "src/components/fotovoltaico/FotovoltaicoTemplateEditor.tsx", nuovi: [["Apri il listino", 1], ["Impostazioni → Modelli di preventivo", 1]] },
-  { file: "src/components/listino/MacroCategorieManager.tsx", nuovi: [["Impostazioni → Modelli di preventivo → Moduli → Serramenti (o Fotovoltaico)", 1], ["<strong>Listino</strong>", 1]] },
+  { file: "src/components/fotovoltaico/FotovoltaicoTemplateEditor.tsx", nuovi: [["Apri il listino", 1], ["Impostazioni → Modelli preventivi e contratti", 1]] },
+  { file: "src/components/listino/MacroCategorieManager.tsx", nuovi: [["Impostazioni → Modelli preventivi e contratti → Moduli → Serramenti (o Fotovoltaico)", 1], ["<strong>Listino</strong>", 1]] },
   { file: "src/components/listino/DynamicFieldsRenderer.tsx", nuovi: [[TIPOLOGIE, 1]] },
 ];
 
@@ -67,8 +67,8 @@ describe("Rimandi alle Impostazioni: i nomi di oggi esistono nel menu", () => {
     expect(schede("Listino")).toEqual(expect.arrayContaining(["Manodopera e servizi", "Kit e pacchetti"]));
   });
 
-  it("«Modelli di preventivo» ha la scheda Modelli, e dentro i Moduli (serramenti, fotovoltaico…)", () => {
-    expect(schede("Modelli di preventivo")).toContain("Modelli");
+  it("«Modelli preventivi e contratti» ha la scheda Modelli, e dentro i Moduli (serramenti, fotovoltaico…)", () => {
+    expect(schede("Modelli preventivi e contratti")).toContain("Modelli");
     expect(leggi("src/pages/azienda/settings/SettingsQuoteTemplates.tsx")).toMatch(/<TabsTrigger value="moduli-vendita"[\s\S]*?Moduli/);
   });
 

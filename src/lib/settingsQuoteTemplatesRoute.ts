@@ -1,4 +1,4 @@
-export type QuoteTemplatesTopTab = "documenti" | "moduli-vendita";
+export type QuoteTemplatesTopTab = "documenti" | "moduli-vendita" | "varianti";
 
 // Tutti i verticali che possono essere aperti nella griglia Moduli Vendita
 // devono essere validi anche nel deeplink. Prima qui erano ammessi soltanto
@@ -26,6 +26,7 @@ export function resolveQuoteTemplatesTopTab(
   tab: string | null | undefined,
   modulo: string | null | undefined,
 ): QuoteTemplatesTopTab {
+  if (tab === "varianti") return "varianti";
   if (isSalesModuleSlug(modulo)) return "moduli-vendita";
   return tab === "moduli-vendita" ? "moduli-vendita" : "documenti";
 }
@@ -33,6 +34,10 @@ export function resolveQuoteTemplatesTopTab(
 export function normalizeQuoteTemplatesParams(params: URLSearchParams): URLSearchParams | null {
   const next = new URLSearchParams(params);
   let changed = false;
+  if (next.get("tab") === "varianti") {
+    for (const key of ["modulo", "modello", "section"]) { if (next.has(key)) { next.delete(key); changed = true; } }
+    return changed ? next : null;
+  }
   const modulo = next.get("modulo");
 
   if (modulo && !isSalesModuleSlug(modulo)) {
@@ -55,7 +60,7 @@ export function buildQuoteTemplatesTabParams(
   const next = new URLSearchParams(params);
   next.set("tab", tab);
 
-  if (tab === "documenti") {
+  if (tab !== "moduli-vendita") {
     next.delete("modello");
     next.delete("modulo");
     next.delete("section");

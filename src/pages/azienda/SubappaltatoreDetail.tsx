@@ -410,6 +410,7 @@ export default function SubappaltatoreDetail() {
       const source = {
         ragione_sociale: sub.ragione_sociale ?? '',
         piva: sub.piva ?? '',
+        codice_fiscale: sub.codice_fiscale ?? '',
         indirizzo: sub.indirizzo ?? '',
         email: sub.email ?? '',
         pec: sub.pec ?? '',
@@ -588,6 +589,8 @@ export default function SubappaltatoreDetail() {
     onSuccess: () => {
       toast.success(contratto ? 'Contratto aggiornato' : 'Contratto creato');
       queryClient.invalidateQueries({ queryKey: ['contratto-sub', id] });
+      if (sub?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', sub.order_id, companyId] });
+      if (contratto?.order_id && contratto.order_id !== sub?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       setContrattoDialog(false);
     },
     onError: (err: Error) => toast.error(err.message),
@@ -660,6 +663,7 @@ export default function SubappaltatoreDetail() {
     },
     onSuccess: () => {
       toast.success('SAL aggiunto');
+      if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
       queryClient.invalidateQueries({ queryKey: ['ritenute-sub', contratto?.id] });
       setSalDialog(false);
@@ -698,6 +702,7 @@ export default function SubappaltatoreDetail() {
     },
     onSuccess: () => {
       toast.success("SAL approvato");
+      if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
     },
@@ -714,6 +719,7 @@ export default function SubappaltatoreDetail() {
     },
     onSuccess: () => {
       toast.success("SAL contestato");
+      if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       setContestaId(null);
       setContestaNote("");
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
@@ -748,6 +754,7 @@ export default function SubappaltatoreDetail() {
     },
     onSuccess: () => {
       toast.success('Pagamento registrato');
+      if (contratto?.order_id) void queryClient.invalidateQueries({ queryKey: ['order-subcontract-statistics', contratto.order_id, companyId] });
       queryClient.invalidateQueries({ queryKey: ['sal-sub', contratto?.id] });
       queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
       setPaymentSAL(null);

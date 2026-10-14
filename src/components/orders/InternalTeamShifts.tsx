@@ -15,6 +15,7 @@ import { InternalTeamShiftEditor } from "./InternalTeamShiftEditor";
 
 const config = { url: import.meta.env.VITE_SUPABASE_URL, optIn: import.meta.env.VITE_INTERNAL_TEAM_ROSTERS_LOCAL };
 const enabled = isLocalCrewBackend(config.url, config.optIn);
+export const internalTeamShiftsEnabled = enabled;
 const client = supabase as unknown as CrewRpcClient;
 interface Props { orderId: string; teams: { id: string; label: string; kind?: "interna" | "esterna" }[]; phases: { id: string; name: string }[]; canPlan: boolean }
 

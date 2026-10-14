@@ -304,7 +304,7 @@ export default function FirmaOdV() {
                 <div className="flex items-center gap-2">
                   <Euro className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-xs text-muted-foreground">Importo aggiuntivo, IVA esclusa</p>
+                    <p className="text-xs text-muted-foreground">Variazione del prezzo, IVA esclusa</p>
                     <p className="font-semibold text-sm">
                       {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(odv.impatto_economico)}
                     </p>

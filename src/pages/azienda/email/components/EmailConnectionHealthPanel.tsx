@@ -16,6 +16,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { emailSyncPending } from "@/lib/email/syncPending";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
@@ -222,8 +223,10 @@ export function EmailConnectionHealthPanel({
       invalidateEmail();
       const stored = Number(sync.emails_stored ?? 0);
       const processed = Number(triage.processed ?? 0);
-      toast.success("Email aggiornate", {
-        description: `${stored} nuove email salvate, ${processed} classificate dalla Regia AI.`,
+      const pending = emailSyncPending(sync);
+      const notify = pending ? toast.info : toast.success;
+      notify(pending ? "Recupero email in corso" : "Email aggiornate", {
+        description: `${stored} nuove email salvate, ${processed} classificate dalla Regia AI.${pending ? " Lo storico continua nei prossimi giri." : ""}`,
       });
     },
     onError: (error: Error) => {

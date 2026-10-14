@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { CatalogCategory, ConfiguredItem } from "@/types/catalogItem";
 
 vi.mock("@/hooks/useCatalogCategories", () => ({ useCatalogCategories: () => ({ data: [] as CatalogCategory[] }) }));
+vi.mock("@/hooks/useCatalogAree", () => ({ useCatalogAree: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/useCatalogItems", () => ({
   useCatalogItems: () => ({ items: [{ source: "article", id: "window", nome: "Finestra PVC", prezzo_base_vendita: 100, modalita_prezzo: "pz" }], isLoading: false }),
 }));
@@ -40,7 +41,7 @@ describe("preventivo classico: inserimento continuo", () => {
     expect(receive).toHaveBeenCalledTimes(2);
     expect(receive.mock.calls[1][1]).toBe(4);
     expect(receive.mock.calls[1][0][1].quote_item.parent_temp_id).toBe(receive.mock.calls[1][0][0].quote_item.client_temp_id);
-    expect(screen.getByRole("status")).toHaveTextContent("2 prodotti inseriti");
+    expect(screen.getByText(/2 voci inserite/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Fatto, torna al preventivo" }));
     expect(close).toHaveBeenCalledOnce();
   });

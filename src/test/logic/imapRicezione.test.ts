@@ -52,11 +52,11 @@ describe("Chi legge la posta anche altrove non la perde", () => {
 
   it("il cursore UID evita di ripescare ogni volta lo stesso periodo", () => {
     expect(poller).toContain("metaImap.last_imap_uid");
-    expect(poller).toContain("last_imap_uid: uidPiuAlto");
+    expect(poller).toContain("last_imap_uid:uidPiuAlto");
   });
 
   it("il cursore non calpesta il resto di provider_metadata", () => {
-    expect(poller).toContain("{ ...metaImap, last_imap_uid: uidPiuAlto }");
+    expect(poller).toContain("{ ...metadata,...(uidPiuAlto>0?{last_imap_uid:uidPiuAlto}:{}) }");
   });
 });
 

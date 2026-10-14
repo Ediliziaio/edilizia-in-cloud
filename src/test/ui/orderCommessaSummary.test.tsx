@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
@@ -17,7 +18,7 @@ describe("Riepilogo commessa condiviso", () => {
     mount({ statusName: "In lavorazione" });
     expect(screen.getByText("In lavorazione")).toBeVisible();
     expect(screen.getByText("Storico verificato")).not.toBeVisible();
-    fireEvent.click(screen.getByText("Stato e storico"));
+    fireEvent.click(screen.getByText("Stato generale e cronologia"));
     expect(screen.getByText("Storico verificato")).toBeVisible();
   });
   it("non inventa avanzamento o date se non ci sono dati", () => {
@@ -73,6 +74,14 @@ describe("Riepilogo commessa condiviso", () => {
 
 const statuses = [{ id: "1", name: "Aperta", color: "#64748b", position: 0 }, { id: "2", name: "In corso", color: "#123456", position: 1 }];
 describe("Stato in testata", () => {
+  it("non spunta passaggi saltati; visite e ritorni dipendono dallo storico, non dall'ordine", () => {
+    const all=[...statuses,{id:"3",name:"Consegnata",color:"#123456",position:2}];
+    render(<OrdineStatusStrip statuses={all} currentStatusId="3" statusHistory={[{status_id:"1",changed_at:"2026-01-01T12:00:00Z"}]} />);
+    expect(screen.getByRole("button",{name:'Imposta stato "Aperta"'})).toHaveAttribute("data-status-visited","true");
+    expect(screen.getByRole("button",{name:'Imposta stato "In corso"'})).toHaveAttribute("data-status-visited","false");
+    cleanup();render(<OrdineStatusStrip statuses={all} currentStatusId="1" statusHistory={[{status_id:"3",changed_at:"2026-01-01T12:00:00Z"}]} />);
+    expect(screen.getByRole("button",{name:'Imposta stato "Consegnata"'})).toHaveAttribute("data-status-visited","true");
+  });
   it("espone pulsanti accessibili e non ripete il cambio allo stato attuale", () => {
     const change = vi.fn();
     render(<OrdineStatusStrip statuses={statuses} currentStatusId="1" onStatusChange={change} />);

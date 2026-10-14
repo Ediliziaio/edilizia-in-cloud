@@ -3,6 +3,8 @@ import { useState } from "react";
 import { ListPlus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { PHASE_TEMPLATES } from "@/hooks/useOrderWorkPhases";
 import { useModelliFasi } from "@/hooks/useModelliFasi";
@@ -18,25 +20,36 @@ const TITOLO = "text-[11px] font-medium uppercase tracking-wide text-muted-foreg
 
 /** «Parti da un modello»: i modelli dell'azienda (con le sottofasi); finché non sono suoi, gli stessi di sempre. */
 export function ModelliFasiPicker({ onApplica, inCorso }: ModelliFasiPickerProps) {
-  const { modelli, inizializzati } = useModelliFasi();
+  const { modelli, inizializzati, isLoading, isError, refetch } = useModelliFasi();
+  const { canViewSettingsOrders } = usePermissions();
   const elenco = modelliDaOffrire(inizializzati, modelli, PHASE_TEMPLATES);
   const [sceltoId, setSceltoId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const visible = elenco.filter(m => `${m.nome} ${m.descrizione ?? ""}`.toLocaleLowerCase("it-IT").includes(search.trim().toLocaleLowerCase("it-IT")));
   const scelto = elenco.find((m) => m.id === sceltoId) ?? null;
   const nSotto = scelto ? totaleSottofasi(scelto) : 0;
 
   return (
     <div className="space-y-2">
-      <Label className={TITOLO}>Parti da un modello</Label>
+      <div className="flex flex-wrap items-center justify-between gap-2"><Label className={TITOLO}>Parti da un modello</Label>
+        {canViewSettingsOrders && <a href="/azienda/impostazioni/modelli-fasi#modelli" className="text-xs font-medium underline">Gestisci modelli</a>}
+      </div>
+      <p className="text-xs text-muted-foreground">{inizializzati ? "Modelli della tua azienda." : "Modelli standard e modelli salvati dall'azienda."} Aggiungono fasi e sottofasi, non persone, costi o date.</p>
+      {isLoading && <p role="status" className="text-xs">Caricamento modelli aziendali…</p>}
+      {isError && <div role="alert" className="text-xs text-amber-800">Modelli aziendali non disponibili. Non applico standard al loro posto. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova modelli</Button></div>}
+      {elenco.length > 5 && <Input aria-label="Cerca modello" value={search} onChange={e => {setSearch(e.target.value); setSceltoId(null);}} placeholder="Cerca un modello…" />}
       {elenco.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          Non hai modelli: preparali in Impostazioni → Fasi e avanzamento, oppure scrivi le fasi una alla volta qui sotto.
+          Non hai modelli: preparali in Impostazioni → Fasi e avanzamento, oppure torna a «Scrivi una fase».
         </p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
-          {elenco.map((m) => (
+          {visible.map((m) => (
             <button
               key={m.id}
               type="button"
+              aria-pressed={sceltoId === m.id}
+              disabled={inCorso || isLoading || isError}
               onClick={() => setSceltoId((k) => (k === m.id ? null : m.id))}
               className={cn(
                 "rounded-full border px-3 py-1 text-xs transition-colors",
@@ -48,6 +61,7 @@ export function ModelliFasiPicker({ onApplica, inCorso }: ModelliFasiPickerProps
           ))}
         </div>
       )}
+      {elenco.length > 0 && visible.length === 0 && <p className="text-xs text-muted-foreground">Nessun modello trovato.</p>}
 
       {scelto && (
         <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
@@ -65,7 +79,8 @@ export function ModelliFasiPicker({ onApplica, inCorso }: ModelliFasiPickerProps
               </span>
             ))}
           </div>
-          <Button size="sm" className="w-full" disabled={inCorso} onClick={() => onApplica(fasiPerCommessa(scelto), scelto)}>
+          <p className="text-xs text-muted-foreground">Si aggiungono alle fasi già presenti, senza sostituirle.</p>
+          <Button size="sm" className="w-full" disabled={inCorso || isLoading || isError} onClick={() => {if (!inCorso && !isLoading && !isError) onApplica(fasiPerCommessa(scelto), scelto);}}>
             {inCorso ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ListPlus className="mr-1 h-4 w-4" />}
             Aggiungi le {scelto.fasi.length} fasi
           </Button>

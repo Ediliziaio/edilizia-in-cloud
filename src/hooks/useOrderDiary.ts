@@ -1,9 +1,10 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { logger } from "@/utils/logger";
 import { toast } from "sonner";
+import { useCommessaCampoSync } from "@/hooks/useCommessaCampoSync";
+import { diaryReportSummary } from "@/lib/campo/diaryReportSummary";
 
 export type DiaryEntry =
   | { kind: "event"; data: OrderEvent }
@@ -72,6 +73,7 @@ function profileName(profile: { first_name?: string | null; last_name?: string |
 export function useOrderDiary(orderId: string | undefined) {
   const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
+  useCommessaCampoSync(orderId, effectiveCompany?.id);
 
   // ── Fetch events ──────────────────────────────────────────────────────────
   const {
@@ -92,6 +94,7 @@ export function useOrderDiary(orderId: string | undefined) {
     },
     enabled: !!orderId && !!effectiveCompany?.id,
     staleTime: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   // ── Fetch messages ────────────────────────────────────────────────────────
@@ -137,6 +140,7 @@ export function useOrderDiary(orderId: string | undefined) {
     isError: auditError,
   } = useQuery({
     queryKey: ["order-diary-audit", orderId, effectiveCompany?.id],
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const [
         attachmentsResult,
@@ -161,7 +165,7 @@ export function useOrderDiary(orderId: string | undefined) {
           .order("taken_at", { ascending: false }),
         supabase
           .from("campo_rapportini")
-          .select("id, user_id, role_type, data_lavoro, ore_lavorate, ore_straordinario, descrizione_lavori, foto_urls, lavoro_completato, percentuale_avanzamento, firma_cliente_at, firma_cliente_nome, created_at")
+          .select("id, user_id, role_type, data_lavoro, stato, approvato, presenze, ore_lavorate, ore_straordinario, descrizione_lavori, foto_urls, lavoro_completato, percentuale_avanzamento, firma_cliente_url, firma_cliente_at, firma_cliente_nome, created_at")
           .eq("order_id", orderId!)
           .eq("company_id", effectiveCompany!.id)
           .order("created_at", { ascending: false }),
@@ -232,25 +236,24 @@ export function useOrderDiary(orderId: string | undefined) {
         },
       }));
 
-      const rapportinoEntries: OrderDiaryAudit[] = (rapportiniResult.data ?? []).map((row) => ({
+      const rapportinoEntries: OrderDiaryAudit[] = (rapportiniResult.data ?? []).map((row) => {
+        const summary = diaryReportSummary(row);
+        return {
         id: `rapportino-${row.id}`,
         audit_type: "rapportino",
-        title: row.role_type === "subcontractor" ? "Aggiornamento subappaltatore" : "Aggiornamento operaio",
-        description: [
-          row.descrizione_lavori || "Rapportino campo",
-          row.ore_lavorate != null ? `${row.ore_lavorate}h lavorate` : null,
-          row.percentuale_avanzamento != null ? `${row.percentuale_avanzamento}% avanzamento` : null,
-          row.foto_urls?.length ? `${row.foto_urls.length} foto` : null,
-          row.lavoro_completato ? "lavoro completato" : null,
-        ].filter(Boolean).join(" · "),
+        title: summary.title,
+        description: summary.description,
         actor_id: row.user_id,
         actor_name: profileName(profileMap.get(row.user_id)),
         created_at: row.created_at || row.data_lavoro,
         metadata: {
           data_lavoro: row.data_lavoro,
+          stato: summary.state,
+          tipo: summary.client ? "cliente" : "giornaliero",
           firma_cliente: row.firma_cliente_at ? `${row.firma_cliente_nome || "Cliente"} · ${row.firma_cliente_at}` : null,
         },
-      }));
+        };
+      });
 
       const signatureEntries: OrderDiaryAudit[] = (signaturesResult.data ?? []).map((row) => ({
         id: `signature-${row.id}`,
@@ -301,48 +304,6 @@ export function useOrderDiary(orderId: string | undefined) {
     enabled: !!orderId && !!effectiveCompany?.id,
     staleTime: 60_000,
   });
-
-  // ── Supabase Realtime subscription ────────────────────────────────────────
-  useEffect(() => {
-    if (!orderId) return;
-    const channelName = `order-diary-${orderId}-${Math.random().toString(36).slice(2, 9)}`;
-    const channel = supabase.channel(channelName);
-
-    try {
-      channel
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "order_messages",
-            filter: `order_id=eq.${orderId}`,
-          },
-          () => { qc.invalidateQueries({ queryKey: ["order-messages", effectiveCompany?.id, orderId] }); }
-        )
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "order_events",
-            filter: `order_id=eq.${orderId}`,
-          },
-          () => { qc.invalidateQueries({ queryKey: ["order-events", effectiveCompany?.id, orderId] }); }
-        )
-        .subscribe((status, error) => {
-          if (error) {
-            logger.warn("Order diary realtime subscription failed", { orderId, status, error });
-          }
-        });
-    } catch (error) {
-      logger.warn("Order diary realtime setup failed", { orderId, error });
-    }
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [orderId, qc, effectiveCompany?.id]);
 
   // ── Timeline unificata (merge + sort) ─────────────────────────────────────
   const timeline: DiaryEntry[] = useMemo(() => {

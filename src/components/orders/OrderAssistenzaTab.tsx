@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TICKET_STATI, TICKET_STATI_CHIUSI, ticketStatoLabel } from "@/types/tickets";
 import { EmptyRow } from "./EmptyRow";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const TONO: Record<string, string> = {
   blue: "bg-blue-100 text-blue-700", amber: "bg-amber-100 text-amber-700",
@@ -29,28 +31,58 @@ interface TicketRiga {
   merce_richiesta: boolean | null;
 }
 
-export function OrderAssistenzaTab({ orderId }: { orderId: string }) {
-  const { data: tickets = [], isLoading } = useQuery({
-    queryKey: ["order-tickets", orderId],
+function useAssistenzeCommessa(orderId: string) {
+  const companyId = useEffectiveCompanyId();
+  const permissions = usePermissions();
+  return useQuery({
+    queryKey: ["order-tickets", orderId, companyId],
+    enabled: !!companyId && !!orderId && permissions.canViewTickets && !permissions.isLoading,
+    staleTime: 60_000,
     queryFn: async (): Promise<TicketRiga[]> => {
       const { data, error } = await supabase
         .from("tickets")
         .select("id, subject, status, priority, tipo, created_at, data_intervento_prevista, a_pagamento, pagato, importo_finale, importo_preventivato, merce_richiesta")
         .eq("order_id", orderId)
+        .eq("company_id", companyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
+      if ((data?.length ?? 0) >= 1000) throw new Error("Elenco assistenze incompleto: verifica nella sezione Assistenza.");
       return (data ?? []) as unknown as TicketRiga[];
     },
   });
+}
+
+/** Solo un avviso operativo; il pannello completo resta in Consegna e assistenza. */
+export function OrderAssistenzaAlert({ orderId, onOpen }: { orderId: string; onOpen: () => void }) {
+  const p = usePermissions();
+  const query = useAssistenzeCommessa(orderId);
+  if (!p.canViewTickets || p.isLoading) return null;
+  if (query.isError) return <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+    <span>Assistenze non disponibili: impossibile verificare gli interventi aperti.</span>
+    <Button type="button" variant="outline" size="sm" onClick={() => { void query.refetch(); }}>Riprova</Button>
+  </div>;
+  const open = (query.data ?? []).filter(t => !TICKET_STATI_CHIUSI.includes(t.status as never));
+  if (!open.length) return null;
+  return <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+    <span className="inline-flex items-center gap-2"><LifeBuoy className="h-4 w-4" />{open.length} {open.length === 1 ? "assistenza aperta" : "assistenze aperte"}</span>
+    <Button type="button" variant="outline" size="sm" onClick={onOpen}>Apri assistenza</Button>
+  </div>;
+}
+
+export function OrderAssistenzaTab({ orderId }: { orderId: string }) {
+  const permissions = usePermissions();
+  const { data: tickets = [], isLoading, isError, refetch } = useAssistenzeCommessa(orderId);
 
   const aperti = tickets.filter(t => !TICKET_STATI_CHIUSI.includes(t.status as never));
   const daIncassare = tickets
     .filter(t => t.a_pagamento && !t.pagato)
     .reduce((s, t) => s + Number(t.importo_finale ?? t.importo_preventivato ?? 0), 0);
 
+  if (!permissions.canViewTickets || permissions.isLoading) return <p className="text-sm text-muted-foreground">L'assistenza è disponibile ai ruoli autorizzati.</p>;
   if (isLoading) {
     return <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
   }
+  if (isError) return <div role="alert" className="space-y-2 text-sm text-destructive"><p>Impossibile caricare le assistenze. Non possiamo confermare che siano assenti.</p><Button type="button" size="sm" variant="outline" onClick={() => { void refetch(); }}>Riprova</Button></div>;
 
   return (
     <div className="space-y-4">
@@ -62,14 +94,14 @@ export function OrderAssistenzaTab({ orderId }: { orderId: string }) {
             <Badge className="bg-amber-100 text-amber-700">{aperti.length} aperte</Badge>
           )}
         </div>
-        <Button asChild size="sm" variant="outline">
+        {permissions.canEditTickets && !permissions.solaLettura && <Button asChild size="sm" variant="outline">
           <Link to={`/azienda/assistenza/nuovo?order=${orderId}&tipo=intervento`}>
             <Plus className="mr-1 h-3.5 w-3.5" /> Nuova assistenza
           </Link>
-        </Button>
+        </Button>}
       </div>
 
-      {daIncassare > 0 && (
+      {permissions.canViewOrderAmounts && daIncassare > 0 && (
         <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
           <Euro className="h-3.5 w-3.5 shrink-0" />
           <span>
@@ -105,7 +137,7 @@ export function OrderAssistenzaTab({ orderId }: { orderId: string }) {
                       <Package className="h-3 w-3" /> merce ordinata
                     </span>
                   )}
-                  {t.a_pagamento ? (
+                  {permissions.canViewOrderAmounts && (t.a_pagamento ? (
                     <span className={t.pagato ? "text-green-700" : "text-amber-700"}>
                       · {t.pagato ? "incassata" : "da incassare"}
                       {t.importo_finale || t.importo_preventivato
@@ -114,7 +146,7 @@ export function OrderAssistenzaTab({ orderId }: { orderId: string }) {
                     </span>
                   ) : (
                     <span>· in garanzia</span>
-                  )}
+                  ))}
                 </div>
               </Link>
             );

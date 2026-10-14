@@ -22,11 +22,15 @@ import GoogleCalendarConnectionTab from "@/components/settings/GoogleCalendarCon
 import { CalendariDelTeam } from "@/components/integrations/CompanyCalendarsOverview";
 import { SquadreTab } from "./SquadreTab";
 import { CalendariStandardTab } from "./CalendariStandardTab";
+import { RisorseCollegate } from "./RisorseCollegate";
 
 const TABS = ["squadre", "google"] as const;
 type Tab = (typeof TABS)[number];
 /** Le schede di prima: stesso contenuto, ora tutto in «Google Calendar». */
-const SCHEDE_DI_PRIMA: Record<string, Tab> = { standard: "google", collegamenti: "google" };
+const SCHEDE_DI_PRIMA: Record<string, Tab> = {
+  standard: "google",
+  collegamenti: "google",
+};
 
 function schedaDaIndirizzo(richiesto: string): Tab {
   if ((TABS as readonly string[]).includes(richiesto)) return richiesto as Tab;
@@ -34,75 +38,132 @@ function schedaDaIndirizzo(richiesto: string): Tab {
 }
 
 export default function CalendariLavoriConfig() {
+  const { effectiveCompany } = useAuth();
+  if (!effectiveCompany?.id) return <Alert><AlertDescription>Seleziona un’azienda per consultare squadre e calendari lavori.</AlertDescription></Alert>;
+  return <CalendariLavoriAzienda key={effectiveCompany.id} />;
+}
+
+function CalendariLavoriAzienda() {
   const { role } = useAuth();
   const permissions = usePermissions();
   // Stessa regola della RLS: admin o staff con la modifica delle impostazioni commesse.
-  const canManage = !permissions.isLoading && (role === "company_admin" || role === "super_admin" || permissions.canEditSettingsOrders);
+  const canManage =
+    !permissions.isLoading &&
+    (role === "company_admin" ||
+      role === "super_admin" ||
+      permissions.canEditSettingsOrders);
   const [params, setParams] = useSearchParams();
   const tab = schedaDaIndirizzo(params.get("tab") ?? "");
 
   return (
-    <div className="space-y-4">
-      {!permissions.isLoading && !canManage && <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />}
+    <div className="w-full min-w-0 space-y-4" data-testid="calendari-lavori-pagina">
+      {!permissions.isLoading && !canManage && (
+        <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />
+      )}
+      <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,2.15fr)_minmax(0,1fr)]">
 
-      <Tabs value={tab} onValueChange={(v) => setParams((prev) => { const next = new URLSearchParams(prev); next.set("tab", v); return next; })}>
+
+      <Tabs
+        value={tab}
+        onValueChange={(v) =>
+          setParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.set("tab", v);
+            return next;
+          })
+        }
+      >
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1">
-          <TabsTrigger value="squadre" className="min-w-0 gap-1 px-1 text-xs sm:gap-2 sm:text-sm">
+          <TabsTrigger
+            value="squadre"
+            className="min-w-0 gap-1 px-1 text-xs sm:gap-2 sm:text-sm"
+          >
             <HardHat className="h-4 w-4" />
             Squadre
           </TabsTrigger>
-          <TabsTrigger value="google" className="min-w-0 gap-1 px-1 text-xs sm:gap-2 sm:text-sm">
+          <TabsTrigger
+            value="google"
+            className="min-w-0 gap-1 px-1 text-xs sm:gap-2 sm:text-sm"
+          >
             <CalendarDays className="h-4 w-4" />
             Google Calendar
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="squadre" className="mt-4">
-          <SquadreTab canManage={canManage} />
+          <SquadreTab canManage={canManage} compact />
         </TabsContent>
 
-        <TabsContent value="google" className="mt-4 space-y-8">
-          <section aria-labelledby="google-account-titolo" className="space-y-3">
+        <TabsContent value="google" className="mt-4 space-y-4">
+          <div className="grid items-start gap-4">
+          <section
+            aria-labelledby="google-account-titolo"
+            className="space-y-3 rounded-lg border bg-card p-4"
+          >
             <div>
-              <h2 id="google-account-titolo" className="text-base font-semibold leading-tight">Account Google</h2>
+              <h2
+                id="google-account-titolo"
+                className="text-base font-semibold leading-tight"
+              >
+                Account Google
+              </h2>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                L&apos;account Google dell&apos;azienda per le squadre. Il tuo calendario personale si collega dal tuo profilo.
+                L&apos;account Google dell&apos;azienda per le squadre. Il tuo
+                calendario personale si collega dal tuo profilo.
               </p>
             </div>
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                L&apos;account Google con i calendari delle squadre va collegato con l&apos;utente <strong>titolare</strong>,
-                non con chi domani potrebbe non esserci: se quella persona esce o cambia password, la sincronizzazione
-                si ferma.
+                L&apos;account Google con i calendari delle squadre va collegato
+                con l&apos;utente <strong>titolare</strong>, non con chi domani
+                potrebbe non esserci: se quella persona esce o cambia password,
+                la sincronizzazione si ferma.
               </AlertDescription>
             </Alert>
-            <GoogleCalendarConnectionTab />
+            <GoogleCalendarConnectionTab ambito="lavori" />
           </section>
 
-          <section aria-labelledby="google-pose-titolo" className="space-y-3">
+          <section aria-labelledby="google-pose-titolo" className="space-y-3 rounded-lg border bg-card p-4">
             <div>
-              <h2 id="google-pose-titolo" className="text-base font-semibold leading-tight">Calendario di tutte le pose</h2>
+              <h2
+                id="google-pose-titolo"
+                className="text-base font-semibold leading-tight"
+              >
+                Calendario di tutte le pose
+              </h2>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Un solo calendario Google dove finiscono le pose di tutte le squadre. È facoltativo.
+                Un solo calendario Google dove finiscono le pose di tutte le
+                squadre. È facoltativo.
               </p>
             </div>
             <CalendariStandardTab canManage={canManage} />
           </section>
 
+          </div>
           <details className="rounded-lg border bg-card">
             <summary className="cursor-pointer px-4 py-3">
-              <h2 className="inline text-base font-semibold leading-tight">Calendari collegati dal team</h2>
+              <h2 className="inline text-base font-semibold leading-tight">
+                Calendari collegati dal team
+              </h2>
             </summary>
             <div className="space-y-2 border-t px-4 py-3">
               <p className="text-xs text-muted-foreground">
-                Ogni persona collega il proprio calendario dal suo profilo: qui vedi chi l&apos;ha fatto e con quale indirizzo.
+                Ogni persona collega il proprio calendario dal suo profilo: qui
+                vedi chi l&apos;ha fatto e con quale indirizzo.
               </p>
               <CalendariDelTeam />
             </div>
           </details>
         </TabsContent>
       </Tabs>
+      <aside className="min-w-0" aria-label="Collegamenti tra risorse e calendari">
+        <RisorseCollegate compact
+        vedeCalendario={!permissions.isLoading && permissions.canViewCalendar}
+        vedeCommesse={!permissions.isLoading && permissions.canViewOrders}
+      />
+      </aside>
+      </div>
     </div>
   );
 }

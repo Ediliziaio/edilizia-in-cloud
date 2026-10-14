@@ -8,6 +8,8 @@ const m = vi.hoisted(() => ({
   loading: false,
   mobile: false,
   refetch: vi.fn(),
+  tasks: [] as {id: string; title: string; status: string; priority: string}[],
+  mutationFn: null as null | ((args: {id: string; completed: boolean}) => Promise<unknown>),
 }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => m.mobile }));
 vi.mock("@/contexts/AuthContext", () => ({
@@ -21,7 +23,7 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: (config: { queryFn: () => Promise<unknown> }) => {
     m.queryFn = config.queryFn;
     return {
-      data: [] as unknown[],
+      data: m.tasks,
       isError: m.error,
       isLoading: m.loading,
       error: m.error ? new Error("Errore query") : null,
@@ -29,13 +31,14 @@ vi.mock("@tanstack/react-query", () => ({
     };
   },
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-  useMutation: () => ({ mutate: vi.fn() }),
+  useMutation: (config: {mutationFn: typeof m.mutationFn}) => {m.mutationFn = config.mutationFn; return { mutate: vi.fn() };},
 }));
 beforeEach(() => {
   vi.clearAllMocks();
   m.error = false;
   m.loading = false;
   m.mobile = false;
+  m.tasks = [];
 });
 afterEach(cleanup);
 const show = () => render(<LinkedTasks orderId="order" category="ordini" />);
@@ -123,5 +126,35 @@ describe("Attività nella commessa: una riga sola finché non ce ne sono (06/10/
     compatta();
     expect(screen.queryByText("Attività")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Aggiungi" })).not.toBeInTheDocument();
+  });
+  it("non apre un elenco invasivo e mantiene le completate dietro una seconda scelta", () => {
+    m.tasks = [{id: "done", title: "Attività chiusa", status: "completata", priority: "normale"}];
+    compatta();
+    expect(screen.queryByText("Attività chiusa")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name: "Mostra attività"}));
+    expect(screen.queryByText("Attività chiusa")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name: "Mostra completate (1)"}));
+    expect(screen.getByRole("button", {name: "Attività chiusa"})).toBeInTheDocument();
+  });
+  it("le attività aperte restano disponibili senza mescolarle allo storico", () => {
+    m.tasks = [{id: "open", title: "Verifica materiale", status: "da_fare", priority: "alta"}, {id: "done", title: "Attività chiusa", status: "completata", priority: "normale"}];
+    compatta(); expect(screen.getByText("1 da fare")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name: "Mostra attività"}));
+    expect(screen.getByRole("button", {name: "Verifica materiale"})).toBeInTheDocument();
+    expect(screen.queryByText("Attività chiusa")).not.toBeInTheDocument();
+  });
+  it("nella commessa in sola lettura non offre aggiunta o spunte modificabili", () => {
+    m.tasks = [{id: "open", title: "Verifica materiale", status: "da_fare", priority: "alta"}];
+    render(<LinkedTasks orderId="order" category="ordini" compatta editable={false} />);
+    expect(screen.queryByRole("button", {name: "Aggiungi"})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name: "Mostra attività"}));
+    expect(screen.getByRole("checkbox")).toBeDisabled();
+    expect(screen.getByRole("button", {name: "Verifica materiale"})).toBeDisabled();
+  });
+  it("non considera riuscita una spunta che il server non registra", async () => {
+    const q = {update: vi.fn(), eq: vi.fn(), select: vi.fn(), maybeSingle: vi.fn().mockResolvedValue({data: null, error: null})};
+    q.update.mockReturnValue(q); q.eq.mockReturnValue(q); q.select.mockReturnValue(q); m.from.mockReturnValue(q);
+    compatta(); await expect(m.mutationFn!({id: "task", completed: true})).rejects.toThrow("Attività non aggiornata");
+    expect(q.eq).toHaveBeenCalledWith("company_id", "company"); expect(q.eq).toHaveBeenCalledWith("order_id", "order");
   });
 });

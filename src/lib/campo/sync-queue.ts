@@ -29,6 +29,8 @@ export interface SyncItem<TPayload = unknown> {
   lastError?: string;
   /** Path del bucket (per upload file) oppure endpoint tabella */
   target?: string;
+  /** Identità stabile anche per gli elementi delle vecchie versioni. */
+  operationId?: string;
 }
 
 const DB_NAME = "campo-sync-queue";
@@ -36,6 +38,31 @@ const DB_VERSION = 1;
 const STORE_NAME = "items";
 const MAX_RETRY = 5;
 const BACKOFF_BASE_MS = 1000;
+const SYNC_LEASE_MS = 5 * 60_000;
+
+export class SyncPermanentError extends Error {}
+export class SyncDeferredError extends Error {}
+export function syncItemScope(item: SyncItem) {
+  const p = item.payload && typeof item.payload === "object" ? item.payload as Record<string, unknown> : {};
+  const row = (item.type === "foto" ? p.riga : p) as Record<string, unknown> | undefined;
+  const legacyAudio = item.type === "foto" && p.bucket === "campo-audio" && typeof p.path === "string";
+  const owner = row?.user_id ?? row?.operaio_id ?? row?.uploaded_by ?? (legacyAudio ? (p.path as string).split("/")[0] : undefined);
+  return { owner, companyId: row?.company_id, legacyAudio };
+}
+export function canProcessSyncItem(item: SyncItem, now = Date.now()): boolean {
+  if (item.status === "done" || item.retryCount >= MAX_RETRY) return false;
+  if (item.status === "syncing" && now - item.updatedAt < SYNC_LEASE_MS) return false;
+  return item.retryCount === 0 || now - item.updatedAt >= BACKOFF_BASE_MS * 2 ** (item.retryCount - 1);
+}
+
+export async function syncOperationId(item: SyncItem): Promise<string> {
+  if (item.operationId) return item.operationId;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.id)) return item.id;
+  // Anche due tab che recuperano una vecchia operazione scelgono la stessa chiave.
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("campo-sync:" + item.id));
+  const h = Array.from(new Uint8Array(digest)).slice(0, 16).map(b => b.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20)}`;
+}
 
 type QueueEvent = "change" | "processed" | "failed";
 type Listener = () => void;
@@ -77,17 +104,14 @@ function openDB(): Promise<IDBDatabase> {
       }
     };
   });
-  return dbPromise;
+  // Un'apertura fallita non deve avvelenare ogni successivo tentativo.
+  const opening = dbPromise;
+  void opening.catch(() => { if (dbPromise === opening) dbPromise = null; });
+  return opening;
 }
 
 function generateId(): string {
-  // UUID-like random, non-crypto ma sufficiente per coda locale
-  return (
-    "sq-" +
-    Date.now().toString(36) +
-    "-" +
-    Math.random().toString(36).slice(2, 10)
-  );
+  return crypto.randomUUID();
 }
 
 async function enqueue<T>(
@@ -98,6 +122,7 @@ async function enqueue<T>(
   const now = Date.now();
   const fullItem: SyncItem<T> = {
     id,
+    operationId: id,
     type: item.type,
     payload: item.payload,
     target: item.target,
@@ -128,7 +153,7 @@ async function getAll(): Promise<SyncItem[]> {
 
 async function getPending(): Promise<SyncItem[]> {
   const all = await getAll();
-  return all.filter((i) => i.status === "pending" || i.status === "failed");
+  return all.filter(i => canProcessSyncItem(i));
 }
 
 async function getQueueCount(): Promise<number> {
@@ -168,6 +193,13 @@ async function clearCompleted(): Promise<number> {
   return done.length;
 }
 
+async function retryFailed(eligible: (item: SyncItem) => boolean = () => true): Promise<void> {
+  for (const item of await getAll()) {
+    if (item.status !== "failed" || !eligible(item)) continue;
+    await updateItem({ ...item, status: "pending", retryCount: 0, lastError: undefined });
+  }
+}
+
 /**
  * Processore registrato dall'app — riceve un SyncItem e tenta l'upload verso Supabase.
  * Deve throware su errore per attivare il retry.
@@ -182,7 +214,7 @@ function registerProcessor(fn: SyncProcessor): void {
 
 let isProcessing = false;
 
-async function processQueue(): Promise<void> {
+async function processQueueUnlocked(): Promise<void> {
   if (isProcessing) return;
   if (!processor) {
     console.warn("[sync-queue] nessun processor registrato");
@@ -201,6 +233,7 @@ async function processQueue(): Promise<void> {
         if (elapsed < delay) continue;
       }
       item.status = "syncing";
+      item.operationId = await syncOperationId(item);
       await updateItem(item);
       try {
         await processor!(item);
@@ -211,7 +244,13 @@ async function processQueue(): Promise<void> {
         // Rimuovi subito quelli done (cleanup)
         await remove(item.id);
       } catch (error) {
+        if (error instanceof SyncDeferredError) {
+          item.status = "pending";
+          await updateItem(item);
+          continue;
+        }
         item.retryCount += 1;
+        if (error instanceof SyncPermanentError) item.retryCount = MAX_RETRY;
         item.lastError = error instanceof Error ? error.message : String(error);
         item.status = item.retryCount >= MAX_RETRY ? "failed" : "pending";
         await updateItem(item);
@@ -221,6 +260,14 @@ async function processQueue(): Promise<void> {
   } finally {
     isProcessing = false;
   }
+}
+
+async function processQueue(): Promise<void> {
+  if (typeof navigator !== "undefined" && navigator.locks) {
+    await navigator.locks.request("campo-sync-queue", { ifAvailable: true }, async lock => {
+      if (lock) await processQueueUnlocked();
+    });
+  } else await processQueueUnlocked();
 }
 
 function on(event: QueueEvent, listener: Listener): () => void {
@@ -235,6 +282,7 @@ export const syncQueue = {
   getQueueCount,
   remove,
   clearCompleted,
+  retryFailed,
   processQueue,
   registerProcessor,
   on,

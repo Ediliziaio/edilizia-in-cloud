@@ -97,6 +97,8 @@ interface Props {
   debounceMs?: number;
   /** Classe colore accent per il titolo (default arancio). */
   accentClass?: string;
+  downloadFileName?: string;
+  showDownloadOnMobile?: boolean;
 }
 
 export function PdfBlobLivePreviewPanel({
@@ -106,6 +108,8 @@ export function PdfBlobLivePreviewPanel({
   enabled = true,
   debounceMs = 500,
   accentClass = "text-orange-600",
+  downloadFileName = "anteprima-template.pdf",
+  showDownloadOnMobile = false,
 }: Props) {
   // Debounce, timeout, corsa tra generazioni e revoca dei blob: tutto nell'hook
   // condiviso, così ogni pannello (compreso il Fotovoltaico, che è HTML) eredita
@@ -316,7 +320,7 @@ export function PdfBlobLivePreviewPanel({
     if (!url) return;
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "anteprima-template.pdf";
+    anchor.download = downloadFileName;
     anchor.click();
   };
 
@@ -355,7 +359,7 @@ export function PdfBlobLivePreviewPanel({
           <Button size="icon" variant="ghost" onClick={() => url && window.open(url, "_blank")} disabled={!url} title="Apri in nuova scheda" className="h-7 w-7">
             <ExternalLink className="h-3.5 w-3.5" />
           </Button>
-          {!isMobile && (
+          {(!isMobile || showDownloadOnMobile) && (
             <Button size="icon" variant="ghost" onClick={handleDownload} disabled={!url} title="Scarica PDF" className="h-7 w-7">
               <Download className="h-3.5 w-3.5" />
             </Button>

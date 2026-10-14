@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type ComponentProps } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
-import { Save } from "lucide-react";
+import { Save, RotateCcw, Wallet, TrendingUp, Truck, Hash, FileText, ArrowUpRight, Check, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,8 +20,10 @@ import {
   SezioneImpostazione,
   type VoceIndice,
 } from "@/components/impostazioni/SezioneImpostazione";
+import { EsempioMargini, SchemaPdfPreventivo } from "@/components/impostazioni/AnteprimeRegolePreventivo";
 import { useVaiASezione } from "@/hooks/useVaiASezione";
 import { useImpostaPrezzoFinaleAMano, usePrezzoFinaleAMano } from "@/hooks/usePrezzoFinaleAMano";
+import { useSettingsFloatingBar } from "@/hooks/useSettingsFloatingBar";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { campiMarginiModificati, percentualeImpostazione } from "@/lib/impostazioni/salvataggioMargini";
 
@@ -74,6 +76,28 @@ const SEZIONI: VoceIndice[] = [
   { id: "pdf-e-firma", etichetta: "PDF e firma" },
 ];
 
+// Presentazione dedicata a questa pagina: mantiene àncore e nomi accessibili delle sezioni.
+const ICONE_SEZIONI: Record<string, LucideIcon> = { prezzo: Wallet, margini: TrendingUp, "posa-e-trasporto": Truck, numerazione: Hash, "pdf-e-firma": FileText };
+function SezioneRegola({ id, titolo, descrizione, ambito, azione, evidenziata, className, children }: ComponentProps<typeof SezioneImpostazione> & { className?: string }) {
+  const Icona = ICONE_SEZIONI[id];
+  const numero = SEZIONI.findIndex(s => s.id === id) + 1;
+  return (
+    <section id={id} aria-labelledby={`${id}-titolo`} data-evidenziata={evidenziata ? "true" : undefined}
+      className={cn("scroll-mt-36 overflow-hidden rounded-2xl border bg-card shadow-sm transition-shadow duration-500", evidenziata && "ring-2 ring-primary/40", className)}>
+      <header className="flex flex-wrap items-start gap-3 border-b bg-muted/15 px-5 py-5">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-background text-primary">{Icona && <Icona className="h-5 w-5" aria-hidden="true" />}</div>
+        <div className="min-w-0 flex-1">
+          <p className="mb-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Regola {String(numero).padStart(2, "0")}</p>
+          <h2 id={`${id}-titolo`} className="text-base font-semibold tracking-tight">{titolo}</h2>
+          {descrizione && <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{descrizione}</p>}
+          {(ambito || azione) && <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">{ambito}{azione}</div>}
+        </div>
+      </header>
+      <div className="divide-y divide-border/70">{children}</div>
+    </section>
+  );
+}
+
 // ─── Prezzo scritto a mano ────────────────────────────────────────────────────
 // Questa opzione si applica subito con una funzione dedicata del database;
 // non deve riscrivere le altre opzioni (posa automatica, sconti nel PDF…).
@@ -85,7 +109,7 @@ function PrezzoFinaleAManoRiga({ companyId }: { companyId: string }) {
       titolo="Scrivi a mano il prezzo del preventivo"
       htmlFor="prezzo-a-mano"
       ambito={<AmbitoImpostazione>Tutti i preventivatori</AmbitoImpostazione>}
-      descrizione="Per chi non carica i prezzi del listino: le voci restano a 0 € e il prezzo si scrive in Economia, IVA esclusa. Sconto e IVA si calcolano sopra."
+      descrizione="Attivalo per definire un importo complessivo in Economia, IVA esclusa. Le voci restano a 0 €; sconto e IVA si calcolano sul prezzo inserito."
       comando={
         <Switch
           id="prezzo-a-mano"
@@ -131,6 +155,7 @@ function PrezzoEMarginiForm({
   onDirtyChange: (dirty: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const { contenitore: contenitoreBarra, barra: elementoBarra, stile: stileBarra, altezza: altezzaBarra } = useSettingsFloatingBar();
   const [filtroCategorie, setFiltroCategorie] = useState("");
   const { data: imp, isError, isLoading, refetch } = useQuery({
     queryKey: ["preventivo-impostazioni", companyId],
@@ -165,9 +190,8 @@ function PrezzoEMarginiForm({
   const baselineRef = useRef<Record<string, unknown>>({});
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
 
-  // Populate from DB
-  useEffect(() => {
-    if (!imp || dirtyRef.current) return;
+  const ripristinaValori = useCallback((valori: PreventivoImpostazioni | null | undefined) => {
+    const imp = valori ?? { company_id: companyId };
     baselineRef.current = {
       overhead_percentuale: imp.overhead_percentuale ?? null,
       margine_minimo_percentuale: imp.margine_minimo_percentuale ?? null,
@@ -176,12 +200,12 @@ function PrezzoEMarginiForm({
       chiedi_piano_installazione: !!imp.chiedi_piano_installazione,
       chiedi_smaltimento: !!imp.chiedi_smaltimento,
       chiedi_trasporto: !!imp.chiedi_trasporto,
-      pdf_mostra_prezzi_per_riga: !!imp.pdf_mostra_prezzi_per_riga,
+      pdf_mostra_prezzi_per_riga: (imp.pdf_mostra_prezzi_per_riga ?? true),
       pdf_mostra_solo_totale: !!imp.pdf_mostra_solo_totale,
       pdf_mostra_sconti: !!imp.pdf_mostra_sconti,
-      pdf_mostra_immagini: !!imp.pdf_mostra_immagini,
+      pdf_mostra_immagini: (imp.pdf_mostra_immagini ?? true),
       pdf_includi_schede_tecniche: !!imp.pdf_includi_schede_tecniche,
-      firma_digitale_abilitata: !!imp.firma_digitale_abilitata,
+      firma_digitale_abilitata: (imp.firma_digitale_abilitata ?? true),
       numero_prefisso: imp.numero_prefisso || "OFF",
     };
     setOverheadPct(imp.overhead_percentuale != null ? String(imp.overhead_percentuale) : "");
@@ -191,14 +215,20 @@ function PrezzoEMarginiForm({
     setChiediPiano(!!imp.chiedi_piano_installazione);
     setChiediSmaltimento(!!imp.chiedi_smaltimento);
     setChiediTrasporto(!!imp.chiedi_trasporto);
-    setPdfPrezziRiga(!!imp.pdf_mostra_prezzi_per_riga);
+    setPdfPrezziRiga((imp.pdf_mostra_prezzi_per_riga ?? true));
     setPdfSoloTotale(!!imp.pdf_mostra_solo_totale);
     setPdfSconti(!!imp.pdf_mostra_sconti);
-    setPdfImmagini(!!imp.pdf_mostra_immagini);
+    setPdfImmagini((imp.pdf_mostra_immagini ?? true));
     setPdfSchedeTecniche(!!imp.pdf_includi_schede_tecniche);
-    setFirmaAbilitata(!!imp.firma_digitale_abilitata);
+    setFirmaAbilitata((imp.firma_digitale_abilitata ?? true));
     setNumeroPrefisso(imp.numero_prefisso || "OFF");
-  }, [imp]);
+    dirtyRef.current = false;
+    setDirty(false);
+  }, [companyId]);
+
+  useEffect(() => {
+    if (!dirtyRef.current) ripristinaValori(imp);
+  }, [imp, ripristinaValori]);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: Partial<PreventivoImpostazioni>) => {
@@ -252,14 +282,16 @@ function PrezzoEMarginiForm({
     if (!puoModificareListino || isLoading || isError || saveMutation.isPending) return;
     try {
       const payload = buildPayload();
-      if (payload.margine_minimo_percentuale != null && payload.margine_target_default != null && payload.margine_minimo_percentuale > payload.margine_target_default) {
+      if ((payload.margine_minimo_percentuale ?? 15) > (payload.margine_target_default ?? 25)) {
         throw new Error("Il margine minimo non può superare il margine target.");
       }
       const changes = campiMarginiModificati(payload as Record<string, unknown>, baselineRef.current);
       if (!Object.keys(changes).length) { dirtyRef.current = false; setDirty(false); return; }
       // Prima riga dell'azienda: la colonna ha come predefinito 20 e «Marginalità cantieri» la usa come ripiego del
       // margine obiettivo. La pagina non la mostra più, ma alla creazione la scrive vuota come ha sempre fatto.
-      saveMutation.mutate(imp ? changes : { ...changes, soglia_margine_visibile: null });
+      // Un'azienda senza riga deve salvare anche le scelte ereditate mostrate:
+      // altrimenti i default SQL (es. overhead 8%, posa attiva) cambiano campi non toccati.
+      saveMutation.mutate(imp ? changes : { ...payload, soglia_margine_visibile: null });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Controlla i valori inseriti.");
     }
@@ -271,7 +303,14 @@ function PrezzoEMarginiForm({
   };
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="w-full min-w-0 space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xl font-semibold tracking-tight">Le regole del tuo preventivo</p>
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">Definisci il prezzo, controlla la redditività e scegli cosa presentare al cliente.</p>
+        </div>
+        <span className="hidden items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs text-muted-foreground sm:flex"><Check className="h-3.5 w-3.5" aria-hidden="true" />Le soglie non riscrivono i preventivi salvati</span>
+      </div>
       {isError && (
         <Alert variant="destructive">
           <AlertDescription className="flex flex-wrap items-center gap-3">Non riesco a leggere le impostazioni. Nessuna modifica verrà salvata.<Button size="sm" variant="outline" onClick={() => refetch()}>Riprova</Button></AlertDescription>
@@ -284,101 +323,108 @@ function PrezzoEMarginiForm({
           </AlertDescription>
         </Alert>
       )}
-      {/* disabled su un fieldset spegne ogni campo e pulsante che contiene. */}
-      <fieldset disabled={!puoModificareListino || isLoading || isError || saveMutation.isPending} className="m-0 min-w-0 space-y-6 border-0 p-0">
-      {/* Indice e salvataggio restano in vista mentre si scorre: prima il pulsante era in cima e, cambiato un
-          interruttore in fondo, bisognava risalire per salvare. */}
-      <div className="sticky top-2 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
-        <IndiceSezioni voci={SEZIONI} onVai={vai} />
-        <div className="ml-auto flex shrink-0 items-center gap-3">
-          {/* A riposo lo stato lo legge solo il lettore di schermo: la barra serve alle scorciatoie e al pulsante. */}
-          <p role="status" className={cn("text-xs max-sm:sr-only", isLoading || saveMutation.isPending || dirty ? "text-muted-foreground" : "sr-only", dirty && !saveMutation.isPending && "font-medium text-amber-700 dark:text-amber-400")}>{isLoading ? "Caricamento…" : saveMutation.isPending ? "Salvataggio…" : dirty ? "Modifiche non salvate" : "Nessuna modifica da salvare"}</p>
-          <Button
-            size="sm"
-            onClick={handleManualSave}
-            disabled={saveMutation.isPending || !dirty}
-          >
-            <Save className="h-4 w-4 sm:mr-2" />
-            {/* Da telefono resta l'icona: la riga serve all'indice. Il nome lo legge comunque il lettore di schermo. */}
-            <span className="max-sm:sr-only">Salva modifiche</span>
-          </Button>
+      <div ref={contenitoreBarra} className="sticky top-2 z-20" style={{ height: altezzaBarra }}>
+      <div ref={elementoBarra} style={stileBarra} className="z-20 rounded-xl border bg-background/95 p-2.5 shadow-sm backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <IndiceSezioni voci={SEZIONI} onVai={vai} />
+          <div className="ml-auto flex items-center gap-2">
+            <Button type="button" size="sm" variant="ghost" aria-label="Annulla modifiche" onClick={() => ripristinaValori(imp)} disabled={!dirty || saveMutation.isPending || isLoading || isError || !puoModificareListino}>
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /><span className="hidden sm:inline">Annulla modifiche</span><span className="sm:hidden" aria-hidden="true">Annulla</span>
+            </Button>
+            <Button type="button" size="sm" onClick={handleManualSave} disabled={!puoModificareListino || isLoading || isError || saveMutation.isPending || !dirty}>
+              <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />{saveMutation.isPending ? "Salvataggio…" : "Salva modifiche"}
+            </Button>
+          </div>
         </div>
+        <p role="status" className={cn("mt-2 border-t px-1 pt-2 text-xs", !dirty && !isLoading && !saveMutation.isPending && "max-sm:sr-only", dirty ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>{isLoading ? "Caricamento…" : saveMutation.isPending ? "Salvataggio…" : dirty ? "Modifiche non salvate: salva per applicare le regole." : "Nessuna modifica da salvare"}</p>
       </div>
-
+      </div>
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <fieldset disabled={!puoModificareListino || isLoading || isError || saveMutation.isPending} className="m-0 min-w-0 space-y-6 border-0 p-0">
       {/* Prezzo: quello che si cerca di più sta per primo */}
-      <SezioneImpostazione
+      <SezioneRegola
         id="prezzo"
         titolo="Prezzo del preventivo"
         descrizione="Come si arriva al prezzo e chi può cambiarlo."
-        azione={<span>L'interruttore si salva subito</span>}
+        azione={<span className="rounded-full border border-primary/15 bg-primary/5 px-2 py-0.5 text-primary">Salvataggio immediato</span>}
         evidenziata={evidenziata === "prezzo"}
       >
         <PrezzoFinaleAManoRiga companyId={companyId} />
+        <div className="grid sm:grid-cols-2">
         {puoVedereSconti && (
           <RigaImpostazione
             titolo="Limiti di sconto"
             descrizione="Quanto sconto può fare ogni venditore, per importo e per categoria di cliente."
-            comando={<Button asChild variant="outline" size="sm"><Link to="/azienda/impostazioni/scontistica">Apri Sconti</Link></Button>}
+            comando={<Link className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline" to="/azienda/impostazioni/scontistica">Apri Sconti<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>}
           />
         )}
         <RigaImpostazione
           titolo="Seconda firma e avvisi"
           descrizione="Oltre quale importo serve una seconda approvazione, e quando una commessa segnala che costi o margine non tornano."
-          comando={<Button asChild variant="outline" size="sm"><Link to="/azienda/impostazioni/approvazioni">Apri Approvazioni</Link></Button>}
+          comando={<Link className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline" to="/azienda/impostazioni/approvazioni">Apri Approvazioni<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>}
         />
-      </SezioneImpostazione>
+        </div>
+      </SezioneRegola>
 
       {/* Margini */}
-      <SezioneImpostazione
+      <SezioneRegola
         id="margini"
         titolo="Margini"
-        descrizione="Le soglie dei semafori del preventivo e dell'analisi dei margini."
+        descrizione="Le soglie distinguono i preventivi da rivedere da quelli che raggiungono il tuo obiettivo."
         evidenziata={evidenziata === "margini"}
       >
-        <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-3">
-          <div>
-            <Label htmlFor="margini-overhead">Spese generali %</Label>
+        <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 sm:p-5">
+          <div className="col-span-2 rounded-xl border bg-muted/20 p-3 sm:col-span-1">
+            <Label htmlFor="margini-overhead" className="text-xs">Spese generali %</Label>
             <Input
               id="margini-overhead"
-              type="number" min="0" max="100" placeholder="5"
+              type="number" min="0" max="100" step="0.01" placeholder="0" className="mt-2 h-11 bg-background text-lg font-semibold tabular-nums" aria-describedby="overhead-aiuto"
               value={overheadPct}
               onChange={(e) => { setOverheadPct(e.target.value); markDirty(); }}
             />
-            <p className="text-xs text-muted-foreground mt-1">Aggiunte al costo di acquisto</p>
+            <p id="overhead-aiuto" className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Aggiunte al costo di acquisto. Vuoto: 0%.</p>
           </div>
-          <div>
-            <Label htmlFor="margini-minimo">Margine minimo %</Label>
+          <div className="rounded-xl border border-red-200/70 bg-red-50/40 p-3 dark:border-red-900 dark:bg-red-950/10">
+            <Label htmlFor="margini-minimo" className="block min-h-8 text-xs sm:min-h-0">Margine minimo %</Label>
             <Input
-              id="margini-minimo" type="number" min="0" max="99.99" step="0.01" placeholder="15"
+              id="margini-minimo" className="mt-2 h-11 bg-background text-lg font-semibold tabular-nums" aria-describedby="minimo-aiuto" type="number" min="0" max="99.99" step="0.01" placeholder="15"
               value={margineMin}
               onChange={(e) => { setMargineMin(e.target.value); markDirty(); }}
             />
-            <p className="text-xs text-muted-foreground mt-1">Semaforo rosso sotto questa soglia</p>
+            <p id="minimo-aiuto" className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Rosso sotto questa soglia. Vuoto: 15%.</p>
           </div>
-          <div>
-            <Label htmlFor="margini-target">Margine target default %</Label>
+          <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/40 p-3 dark:border-emerald-900 dark:bg-emerald-950/10">
+            <Label htmlFor="margini-target" className="block min-h-8 text-xs sm:min-h-0">Margine obiettivo %</Label>
             <Input
-              id="margini-target" type="number" min="0" max="99.99" step="0.01" placeholder="25"
+              id="margini-target" className="mt-2 h-11 bg-background text-lg font-semibold tabular-nums" aria-describedby="target-aiuto" type="number" min="0" max="99.99" step="0.01" placeholder="25"
               value={margineTarget}
               onChange={(e) => { setMargineTarget(e.target.value); markDirty(); }}
             />
-            <p className="text-xs text-muted-foreground mt-1">Semaforo verde sopra questo valore</p>
+            <p id="target-aiuto" className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Verde da questo valore. Vuoto: 25%.</p>
           </div>
         </div>
 
+        <div className="flex flex-wrap gap-x-4 gap-y-2 px-5 py-3 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />Sotto il minimo</span>
+          <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />Tra minimo e obiettivo</span>
+          <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />Obiettivo raggiunto</span>
+        </div>
+        {(margineMin.trim() ? Number(margineMin.replace(",", ".")) : 15) > (margineTarget.trim() ? Number(margineTarget.replace(",", ".")) : 25) && <p role="alert" className="px-5 py-3 text-xs text-destructive">Il margine minimo non può superare il margine obiettivo.</p>}
+
         {/* Margine per categoria */}
         {categorie.length > 0 && (
-          <details className="px-4 py-3">
+          <details className="group px-5 py-4">
             <summary className="cursor-pointer text-sm font-medium">Margine per categoria <span className="text-xs font-normal text-muted-foreground">({categorie.length})</span></summary>
             <div className="mt-3 space-y-3">
               <p className="text-sm text-muted-foreground">
-                Imposta un margine target specifico per categoria. Se vuoto, usa il default ({margineTarget || "25"}%). Le categorie si creano e si colorano dal{" "}
+                Imposta un margine target specifico per categoria. Se vuoto, usa l’obiettivo generale ({margineTarget || "25"}%). Le categorie si creano e si colorano dal{" "}
                 <Link to="/azienda/impostazioni/listino" className="text-primary underline">Listino</Link>.
               </p>
               <Input value={filtroCategorie} onChange={e => setFiltroCategorie(e.target.value)} placeholder="Cerca una categoria…" aria-label="Cerca una categoria" />
-              <p className="text-xs text-muted-foreground">Questi valori si salvano quando esci dal campo.</p>
+              <p className="rounded-lg bg-primary/5 px-3 py-2 text-xs text-primary">Salvataggio immediato: il margine di una categoria si salva quando esci dal campo.</p>
+              {!categorie.some(cat => cat.nome.toLowerCase().includes(filtroCategorie.trim().toLowerCase())) && <p className="py-3 text-sm text-muted-foreground">Nessuna categoria corrisponde alla ricerca.</p>}
               {categorie.filter(cat => cat.nome.toLowerCase().includes(filtroCategorie.trim().toLowerCase())).map((cat) => (
-                <div key={cat.id} className="flex items-center gap-3">
+                <div key={cat.id} className="flex items-center gap-3 rounded-lg bg-muted/25 px-3 py-2">
                   {cat.colore && (
                     <span
                       className="inline-block h-3 w-3 rounded-full flex-shrink-0"
@@ -419,7 +465,7 @@ function PrezzoEMarginiForm({
         )}
 
         {/* Come si leggono i numeri */}
-        <details className="px-4 py-3">
+        <details className="group px-5 py-4">
           <summary className="cursor-pointer text-sm font-medium">Margine, ricarico e spese generali: come leggerli</summary>
           <dl className="mt-3 space-y-2 text-xs text-muted-foreground">
             <div>
@@ -439,17 +485,26 @@ function PrezzoEMarginiForm({
             </div>
           </dl>
         </details>
-      </SezioneImpostazione>
+      </SezioneRegola>
 
+      </fieldset>
+      <aside className="min-w-0 space-y-4 xl:col-start-2 xl:row-start-1">
+        {!isLoading && !isError && <EsempioMargini overhead={overheadPct} minimo={margineMin} target={margineTarget} />}
+        <div className="rounded-xl border border-dashed p-4 text-xs leading-relaxed text-muted-foreground">
+          <p className="font-medium text-foreground">Quali preventivi seguono queste regole?</p>
+          <p className="mt-2">Ogni sezione indica il proprio ambito. Posa, numerazione e opzioni PDF sono del preventivo generico; i moduli specializzati hanno i loro modelli.</p>
+        </div>
+      </aside>
+      <fieldset disabled={!puoModificareListino || isLoading || isError || saveMutation.isPending} className="m-0 grid min-w-0 items-start gap-6 border-0 p-0 xl:col-span-2 xl:grid-cols-[minmax(0,1fr)_360px]">
       {/* Posa, trasporto, smaltimento */}
-      <SezioneImpostazione
+      <SezioneRegola
         id="posa-e-trasporto"
         titolo="Posa, trasporto e smaltimento"
         descrizione="Cosa aggiunge o chiede da solo il preventivo."
         ambito={<AmbitoImpostazione>Preventivo generico</AmbitoImpostazione>}
         evidenziata={evidenziata === "posa-e-trasporto"}
       >
-        <RigaInterruttore
+        <div className="grid sm:grid-cols-2 sm:divide-x"><RigaInterruttore
           id="posa-automatica"
           titolo="Aggiungi la posa automaticamente"
           descrizione="Aggiungendo un prodotto con posa separata, il preventivo aggiunge da solo la riga di posa."
@@ -476,30 +531,32 @@ function PrezzoEMarginiForm({
           descrizione="Il preventivo chiede la distanza del cantiere in km. Se il listino ha tariffe al km la chiede comunque."
           checked={chiediTrasporto}
           onCheckedChange={makeToggle(setChiediTrasporto)}
-        />
-      </SezioneImpostazione>
+        /></div>
+      </SezioneRegola>
 
       {/* Numerazione */}
-      <SezioneImpostazione
+      <SezioneRegola
         id="numerazione"
         titolo="Numero del preventivo"
         descrizione="Come si chiamano i preventivi: prefisso, anno e progressivo."
         ambito={<AmbitoImpostazione>Preventivo generico</AmbitoImpostazione>}
         evidenziata={evidenziata === "numerazione"}
       >
-        <div className="space-y-2 px-4 py-3">
-          <div className="flex items-center gap-3">
+        <div className="space-y-3 p-5">
+          <Label htmlFor="prefisso-preventivo">Prefisso</Label>
+          <div className="flex flex-wrap items-center gap-3">
             <Input
+              id="prefisso-preventivo"
               value={numeroPrefisso}
               maxLength={8}
-              className="w-32 font-mono uppercase"
+              className="w-24 font-mono uppercase"
               aria-label="Prefisso del numero preventivo"
               onChange={(e) => {
                 setNumeroPrefisso(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""));
                 markDirty();
               }}
             />
-            <span className="text-sm text-muted-foreground font-mono">
+            <span className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-sm font-mono"><span className="mr-2 font-sans text-xs text-muted-foreground">Esempio</span>
               {(numeroPrefisso || "OFF")}-{new Date().getFullYear()}-001
             </span>
           </div>
@@ -508,21 +565,25 @@ function PrezzoEMarginiForm({
             riusa mai un numero, nemmeno se un preventivo finisce nel cestino.
           </p>
         </div>
-      </SezioneImpostazione>
+      </SezioneRegola>
 
       {/* PDF e firma */}
-      <SezioneImpostazione
+      <SezioneRegola
         id="pdf-e-firma"
+        className="xl:col-span-2"
         titolo="PDF e firma"
         descrizione="Cosa mostra il PDF di un nuovo preventivo: nel singolo preventivo si può cambiare."
         ambito={<AmbitoImpostazione>Preventivo generico</AmbitoImpostazione>}
         evidenziata={evidenziata === "pdf-e-firma"}
       >
+        <div className="grid items-start gap-1 lg:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid divide-y divide-border/70 2xl:grid-cols-2 2xl:divide-y-0 2xl:[&>div]:border-b 2xl:[&>div]:border-border/70">
         <RigaInterruttore
           id="pdf-prezzi-riga"
           titolo="Mostra i prezzi di ogni riga"
           descrizione="Colonne prezzo, sconto e IVA su ogni riga. Se spento: solo nome, quantità e totale."
           checked={pdfPrezziRiga}
+          disabled={pdfSoloTotale}
           onCheckedChange={makeToggle(setPdfPrezziRiga)}
         />
         <RigaInterruttore
@@ -544,6 +605,7 @@ function PrezzoEMarginiForm({
           titolo="Mostra le immagini dei prodotti"
           descrizione="Una miniatura su ogni riga, se il prodotto ha la foto nel listino."
           checked={pdfImmagini}
+          disabled={pdfSoloTotale}
           onCheckedChange={makeToggle(setPdfImmagini)}
         />
         <RigaInterruttore
@@ -560,14 +622,22 @@ function PrezzoEMarginiForm({
           checked={firmaAbilitata}
           onCheckedChange={makeToggle(setFirmaAbilitata)}
         />
-        <p className="px-4 py-3 text-xs text-muted-foreground">
+        </div>
+        <div className="p-4">
+          <SchemaPdfPreventivo prezzi={pdfPrezziRiga} soloTotale={pdfSoloTotale} sconti={pdfSconti} immagini={pdfImmagini} schede={pdfSchedeTecniche} firma={firmaAbilitata} prefisso={numeroPrefisso} />
+        </div>
+        </div>
+        {pdfSoloTotale && <p className="px-5 py-3 text-xs text-muted-foreground">Con «Solo totale finale», i prezzi e le immagini delle singole righe non compaiono. Le preferenze restano conservate per quando riattivi il dettaglio.</p>}
+        <p className="px-5 py-4 text-xs leading-relaxed text-muted-foreground">
           I PDF di Serramenti, Bagni, Fotovoltaico e degli altri preventivatori si personalizzano in{" "}
           <Link to="/azienda/impostazioni/template-preventivi?tab=moduli-vendita" className="text-primary underline">Modelli → Moduli</Link>; clausole e firma
           elettronica sono in{" "}
           <Link to="/azienda/impostazioni/condizioni-firma" className="text-primary underline">Firma e condizioni</Link>.
         </p>
-      </SezioneImpostazione>
+      </SezioneRegola>
       </fieldset>
+
+      </div>
     </div>
   );
 }

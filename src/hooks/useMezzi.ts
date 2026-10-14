@@ -705,11 +705,11 @@ export function useDocumentiRegistrati() {
  * Importi di assicurazione e bollo e manutenzioni degli ultimi 12 mesi di tutti
  * i mezzi, per costo annuo e valore del parco nell'elenco.
  */
-export function useCostiParco() {
+export function useCostiParco(abilitato = true) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
     queryKey: chiavi.costiParco(companyId),
-    enabled: !!companyId,
+    enabled: !!companyId && abilitato,
     queryFn: async () => {
       const unAnnoFa = new Date(Date.now() - 366 * 864e5).toISOString().slice(0, 10);
       const [doc, man] = await Promise.all([

@@ -9,27 +9,25 @@
  *  4. Ferie        — saldo ferie/permessi e richieste
  *  5. Cedolini     — lista cedolini con download PDF
  */
-import { lazy, Suspense, useState, useMemo, useRef, useEffect, Fragment } from "react";
+import { lazy, Suspense, useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { flushSync } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import {
-  format, isToday, isBefore, startOfDay, startOfMonth, endOfMonth,
-  eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, addDays,
+  format, isToday, isBefore, startOfDay, addDays,
   parseISO,
 } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   Clock, ClipboardCheck, CheckCircle2, PlayCircle, PauseCircle, LogOut,
   CheckCircle, Loader2, ExternalLink, Palmtree, Receipt,
-  CloudSun, ChevronLeft, ChevronRight, CalendarDays, Droplets,
+  CloudSun, ChevronRight, CalendarDays, Droplets,
   MapPin, Plus, Pencil, Trash2, X, Filter,
   ArrowUpCircle, Circle, AlertCircle, MoreHorizontal, Tag, Users, Target, User as UserIcon,
   CalendarClock, Sparkles, ListChecks, ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -44,7 +42,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
@@ -75,6 +72,11 @@ import {
   type WeatherDay,
 } from "@/hooks/useWeatherForecast";
 import { TASK_CATEGORY_OPTIONS as CATEGORY_OPTIONS } from "@/lib/taskCategories";
+import { DashboardAgenda } from "@/components/attivita/DashboardAgenda";
+import { useDashboardTasks } from "@/hooks/useDashboardTasks";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import { dashboardTasksForAssignee, dashboardTaskStats, dashboardTaskDateGroup, filterDashboardTasks, type DashboardTaskFilter } from "@/lib/attivita/dashboardTasks";
+import { buildTaskStatusUpdate, getNextTaskStatusForQuickAction, getTaskStatusDefinition, getTaskStatusLabel, isTaskDoneStatus, isTaskBlockedStatus, TASK_STATUS_TONE_CLASSES } from "@/lib/taskStatuses";
 
 import { ConfermaQuantita, useConfermaQuantita } from "@/components/shared/ConfermaQuantita";
 // Lazy load delle sotto-pagine
@@ -93,27 +95,7 @@ const PRIORITY_CONFIG: Record<string, { label: string; dotClass: string; badgeCl
   bassa:   { label: "Bassa",   dotClass: "bg-slate-400", badgeClass: "bg-muted text-muted-foreground", icon: Circle },
 };
 
-const STATUS_CONFIG: Record<string, { label: string; className: string; next: string | null }> = {
-  da_fare:     { label: "Da fare",     className: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",     next: "in_corso" },
-  in_corso:    { label: "In corso",    className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",      next: "completata" },
-  in_revisione: { label: "In revisione", className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400", next: "completata" },
-  completata:  { label: "Completata",  className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",  next: null },
-};
-
-
-const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
-const ORE_GRIGLIA = Array.from({ length: 14 }, (_, i) => 7 + i); // 07:00 → 20:00
-
-// ── Calendar layer config ──────────────────────────────────────────────────
-const LAYER_CONFIG = {
-  commessa:     { label: "Commesse",     dotClass: "bg-emerald-500", chipOn: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",  chipOff: "border-border text-muted-foreground/60 hover:bg-muted/40" },
-  scadenza:     { label: "Scadenze",     dotClass: "bg-amber-500",   chipOn: "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100",           chipOff: "border-border text-muted-foreground/60 hover:bg-muted/40" },
-  appuntamento: { label: "Appuntamenti", dotClass: "bg-teal-500",    chipOn: "border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100",               chipOff: "border-border text-muted-foreground/60 hover:bg-muted/40" },
-  feria:        { label: "Ferie",        dotClass: "bg-orange-400",  chipOn: "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100",       chipOff: "border-border text-muted-foreground/60 hover:bg-muted/40" },
-} as const;
-type LayerId = keyof typeof LAYER_CONFIG;
-
-type TaskFilter = "tutte" | "oggi" | "scadute" | "settimana" | "completate";
+type TaskFilter = DashboardTaskFilter;
 type AddTaskRequest = { date: string; requestId: number };
 
 function InlineLoadError({
@@ -301,653 +283,6 @@ function MeteoWidget({ compatto = false }: { compatto?: boolean }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mini Calendario Mensile
-// ─────────────────────────────────────────────────────────────────────────────
-function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string) => void; onDateSelect?: (date: string | null) => void }) {
-  const { user, effectiveCompany } = useAuth();
-  const { canViewOrders, canViewScadenzario, canViewMarketingAppointments, canViewPersone, canViewAllTeamCalendar, isAdmin } = usePermissions();
-  // Calendario per ruolo: senza "Calendario del team" ognuno vede i PROPRI
-  // appuntamenti (il commerciale i suoi); i layer commesse/scadenze restano
-  // aziendali perché servono a coordinarsi (magazzino → prossimi lavori).
-  const seesTeamCalendar = isAdmin || canViewAllTeamCalendar;
-  const companyId = effectiveCompany?.id;
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
-
-  // Layer toggles — persisted in localStorage
-  const [enabledLayers, setEnabledLayers] = useState<Set<LayerId>>(() => {
-    try {
-      const stored = localStorage.getItem("cal-layers-v1");
-      if (stored) return new Set(JSON.parse(stored) as LayerId[]);
-    } catch { /* localStorage non disponibile/corrotto: uso default */ }
-    return new Set<LayerId>(["commessa", "scadenza", "appuntamento", "feria"]);
-  });
-  const toggleLayer = (id: LayerId) => {
-    setEnabledLayers(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      try { localStorage.setItem("cal-layers-v1", JSON.stringify([...next])); } catch { /* quota/private mode: ignora persistenza */ }
-      return next;
-    });
-  };
-
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
-  const monthStartStr = format(monthStart, "yyyy-MM-dd");
-  const monthEndStr = format(monthEnd, "yyyy-MM-dd");
-  const monthStr = format(monthStart, "yyyy-MM");
-
-  // ── 1. Tasks (proprie, sempre) ─────────────────────────────────────────
-  const { data: monthTasks = [] } = useQuery({
-    queryKey: ["calendar-tasks", user?.id, companyId, monthStr],
-    queryFn: async () => {
-      const archivedIds = await loadArchivedOrderIds(companyId!);
-      const { data, error } = await excludeArchivedOrders(supabase
-        .from("tasks")
-        .select("id, title, due_date, priority, status, category")
-        .eq("company_id", companyId!)
-        .eq("assigned_to", user!.id)
-        .gte("due_date", monthStartStr)
-        .lte("due_date", monthEndStr)
-        .order("due_date", { ascending: true }), archivedIds, "order_id");
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!user?.id && !!companyId,
-    staleTime: 60_000,
-  });
-
-  // ── 2. Nearest task (auto-jump) ────────────────────────────────────────
-  const { data: nearestTaskDate } = useQuery({
-    queryKey: ["nearest-task-date", user?.id, companyId],
-    queryFn: async () => {
-      const archivedIds = await loadArchivedOrderIds(companyId!);
-      const { data } = await excludeArchivedOrders(supabase
-        .from("tasks")
-        .select("due_date")
-        .eq("company_id", companyId!)
-        .eq("assigned_to", user!.id)
-        .not("due_date", "is", null)
-        .neq("status", "completata")
-        .order("due_date", { ascending: false })
-        .limit(1), archivedIds, "order_id").maybeSingle();
-      return (data as any)?.due_date as string | null ?? null;
-    },
-    enabled: !!user?.id && !!companyId,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // ── 3. Commesse (canViewOrders + layer on) ─────────────────────────────
-  const layerCommessaOn = enabledLayers.has("commessa") && canViewOrders;
-  const { data: monthOrders = [] } = useQuery({
-    queryKey: ["calendar-commesse", companyId, monthStr],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("orders")
-        .select("id, order_code, description, work_start_date, work_end_date, expected_date, warehouse_arrival_date")
-        .eq("company_id", companyId!)
-        .is("deleted_at", null)
-        .or(
-          `and(work_start_date.lte.${monthEndStr},work_end_date.gte.${monthStartStr}),` +
-          `and(work_start_date.gte.${monthStartStr},work_start_date.lte.${monthEndStr}),` +
-          `and(expected_date.gte.${monthStartStr},expected_date.lte.${monthEndStr}),` +
-          `and(warehouse_arrival_date.gte.${monthStartStr},warehouse_arrival_date.lte.${monthEndStr})`
-        );
-      return (data ?? []) as any[];
-    },
-    enabled: !!companyId && layerCommessaOn,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // ── 4. Scadenze (canViewScadenzario + layer on) ────────────────────────
-  const layerScadenzaOn = enabledLayers.has("scadenza") && canViewScadenzario;
-  const { data: monthScadenze = [] } = useQuery({
-    queryKey: ["calendar-scadenze", companyId, monthStr],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("scadenze")
-        .select("id, description, due_date, tipo, status")
-        .eq("company_id", companyId!)
-        .gte("due_date", monthStartStr)
-        .lte("due_date", monthEndStr)
-        .not("status", "eq", "annullata");
-      return (data ?? []) as any[];
-    },
-    enabled: !!companyId && layerScadenzaOn,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // ── 5. Appuntamenti mkt (canViewMarketingAppointments + layer on) ──────
-  const layerAppuntamentoOn = enabledLayers.has("appuntamento") && canViewMarketingAppointments;
-  const { data: monthAppuntamenti = [] } = useQuery({
-    queryKey: ["calendar-appuntamenti", user?.id, companyId, monthStr, seesTeamCalendar],
-    queryFn: async () => {
-      const archivedIds = await loadArchivedOrderIds(companyId!);
-      let q = supabase
-        .from("appointments")
-        .select("id, title, appointment_date, appointment_time, status")
-        .eq("company_id", companyId!)
-        .gte("appointment_date", monthStartStr)
-        .lte("appointment_date", monthEndStr);
-      if (!seesTeamCalendar) q = q.eq("assigned_to", user!.id);
-      q = excludeArchivedOrders(q, archivedIds, "order_id");
-      const { data } = await q;
-      return (data ?? []) as any[];
-    },
-    enabled: !!user?.id && !!companyId && layerAppuntamentoOn,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // ── 6. Employee id corrente (per scoping ferie proprie) ────────────────
-  const layerFeriaOn = enabledLayers.has("feria");
-  const { data: myEmployeeId } = useQuery({
-    queryKey: ["my-employee-id-cal", user?.id, companyId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("company_id", companyId!)
-        .eq("user_id", user!.id)
-        .maybeSingle();
-      return (data?.id as string | undefined) ?? null;
-    },
-    enabled: !!user?.id && !!companyId && layerFeriaOn,
-    staleTime: 10 * 60 * 1000,
-  });
-
-  // ── 7. Ferie/assenze approvate (proprie sempre; altrui solo se canViewPersone) ──
-  // Privacy: la RLS di leave_requests consente a CHIUNQUE in azienda di leggere
-  // tutte le richieste (branch company_id = get_my_company_id()). Quindi per i
-  // non-autorizzati filtriamo ESPLICITAMENTE alle proprie (employee_id).
-  const { data: monthFerie = [] } = useQuery({
-    queryKey: ["calendar-ferie", user?.id, companyId, monthStr, canViewPersone],
-    queryFn: async () => {
-      // Fonte UNICA assenze: hr_richieste approvate (leave_requests è il
-      // sistema legacy mai usato: questo layer era sempre vuoto).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let q = (supabase.from("hr_richieste") as any)
-        .select("id, tipo, data_inizio, data_fine, profilo:hr_profili!hr_richieste_profilo_id_fkey!inner(nome, cognome, user_id)")
-        .eq("company_id", companyId!)
-        .eq("stato", "approvata")
-        .lte("data_inizio", monthEndStr)
-        .gte("data_fine", monthStartStr);
-      if (!canViewPersone) {
-        // Privacy: i non autorizzati vedono solo le PROPRIE assenze.
-        q = q.eq("profilo.user_id", user!.id);
-      }
-      const { data, error } = await q;
-      if (error) return [];
-      return ((data ?? []) as any[]).map((r: any) => ({
-        id: r.id,
-        type: r.tipo,
-        start_date: r.data_inizio,
-        end_date: r.data_fine,
-        employee: r.profilo ? { first_name: r.profilo.nome, last_name: r.profilo.cognome } : null,
-      }));
-    },
-    enabled: !!companyId && layerFeriaOn && (canViewPersone || !!user?.id),
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // ── 8. Festività/chiusure aziendali (sempre visibili, no toggle) ───────
-  const { data: allFestivita = [] } = useQuery({
-    queryKey: ["hr-festivita-cal", companyId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("hr_festivita")
-        .select("id, data, descrizione, ricorrente")
-        .eq("company_id", companyId!);
-      return (data ?? []) as { id: string; data: string; descrizione: string; ricorrente: boolean }[];
-    },
-    enabled: !!companyId,
-    staleTime: 60 * 60 * 1000,
-  });
-
-  // ── Auto-jump al mese con task se il mese corrente è vuoto ────────────
-  const hasAutoJumped = useRef(false);
-  useEffect(() => {
-    if (hasAutoJumped.current || !nearestTaskDate || monthTasks.length > 0) return;
-    const nearestMonth = nearestTaskDate.slice(0, 7);
-    const currentMonthStr = format(currentMonth, "yyyy-MM");
-    if (nearestMonth !== currentMonthStr) {
-      hasAutoJumped.current = true;
-      setCurrentMonth(startOfMonth(parseISO(nearestTaskDate)));
-    }
-  }, [nearestTaskDate, monthTasks.length, currentMonth]);
-
-  // ── Build date maps ────────────────────────────────────────────────────
-  const { tasksByDate, eventsByDate, rangeByDate, festivitaByDate } = useMemo(() => {
-    type LayerEvent = { id: string; type: LayerId; label: string; dotClass: string; time?: string };
-
-    // Tasks
-    const tasksByDate = new Map<string, typeof monthTasks>();
-    for (const t of monthTasks) {
-      if (!t.due_date) continue;
-      const arr = tasksByDate.get(t.due_date) ?? [];
-      arr.push(t);
-      tasksByDate.set(t.due_date, arr);
-    }
-
-    // Multi-layer events
-    const eventsByDate = new Map<string, LayerEvent[]>();
-    const addEv = (date: string, ev: LayerEvent) => {
-      const arr = eventsByDate.get(date) ?? [];
-      arr.push(ev);
-      eventsByDate.set(date, arr);
-    };
-
-    // Scadenze
-    for (const s of monthScadenze) {
-      if (!s.due_date) continue;
-      addEv(s.due_date, { id: s.id, type: "scadenza", label: s.description ?? "Scadenza", dotClass: LAYER_CONFIG.scadenza.dotClass });
-    }
-
-    // Appuntamenti
-    for (const a of monthAppuntamenti) {
-      const d = (a.appointment_date as string | undefined)?.slice(0, 10);
-      if (!d) continue;
-      addEv(d, { id: a.id, type: "appuntamento", label: a.title ?? "Appuntamento", dotClass: LAYER_CONFIG.appuntamento.dotClass, time: (a.appointment_time as string | undefined)?.slice(0, 5) });
-    }
-
-    // Commesse milestones
-    for (const o of monthOrders) {
-      const code = (o.order_code as string | null) ?? "";
-      const desc = (o.description as string | null) ?? "";
-      const baseLabel = [code, desc].filter(Boolean).join(" · ").slice(0, 35);
-      const milestones: { date: string | null; suffix: string }[] = [
-        { date: o.work_start_date, suffix: "Inizio posa" },
-        { date: o.work_end_date,   suffix: "Fine posa" },
-        { date: o.expected_date,   suffix: "Consegna" },
-        { date: o.warehouse_arrival_date, suffix: "Arrivo mag." },
-      ];
-      for (const { date, suffix } of milestones) {
-        if (!date || date < monthStartStr || date > monthEndStr) continue;
-        addEv(date as string, { id: `${o.id}-${suffix}`, type: "commessa", label: `${suffix}${baseLabel ? ": " + baseLabel : ""}`, dotClass: LAYER_CONFIG.commessa.dotClass });
-      }
-    }
-
-    // Ferie — espandi range in giorni singoli
-    for (const f of monthFerie) {
-      const start = f.start_date as string;
-      const end = f.end_date as string;
-      if (!start || !end) continue;
-      const emp = f.employee as { first_name?: string; last_name?: string } | null;
-      const nome = emp ? `${emp.first_name ?? ""} ${emp.last_name ?? ""}`.trim() : "";
-      const label = nome || "Ferie";
-      const clampStart = start < monthStartStr ? monthStartStr : start;
-      const clampEnd = end > monthEndStr ? monthEndStr : end;
-      if (clampStart > clampEnd) continue;
-      for (const day of eachDayOfInterval({ start: parseISO(clampStart), end: parseISO(clampEnd) })) {
-        const d = format(day, "yyyy-MM-dd");
-        addEv(d, { id: `${f.id}-${d}`, type: "feria", label, dotClass: LAYER_CONFIG.feria.dotClass });
-      }
-    }
-
-    // Range commesse (sfondo verde per giorni fra inizio/fine posa)
-    const rangeByDate = new Set<string>();
-    for (const o of monthOrders) {
-      const ws = o.work_start_date as string | null;
-      const we = o.work_end_date as string | null;
-      if (!ws || !we || ws > we) continue;
-      const clampStart = ws < monthStartStr ? monthStartStr : ws;
-      const clampEnd = we > monthEndStr ? monthEndStr : we;
-      if (clampStart > clampEnd) continue;
-      for (const day of eachDayOfInterval({ start: parseISO(clampStart), end: parseISO(clampEnd) })) {
-        rangeByDate.add(format(day, "yyyy-MM-dd"));
-      }
-    }
-
-    // Festività — ricorrenti trasposte all'anno corrente
-    const currentYear = format(currentMonth, "yyyy");
-    const currentMonthNum = format(currentMonth, "MM");
-    const festivitaByDate = new Map<string, { id: string; descrizione: string }[]>();
-    for (const fv of allFestivita) {
-      if (!fv.data) continue;
-      let dateKey: string;
-      if (fv.ricorrente) {
-        const md = fv.data.slice(5); // "MM-DD"
-        if (!md.startsWith(currentMonthNum)) continue;
-        dateKey = `${currentYear}-${md}`;
-      } else {
-        if (fv.data.slice(0, 7) !== monthStr) continue;
-        dateKey = fv.data;
-      }
-      const arr = festivitaByDate.get(dateKey) ?? [];
-      arr.push({ id: fv.id, descrizione: fv.descrizione });
-      festivitaByDate.set(dateKey, arr);
-    }
-
-    return { tasksByDate, eventsByDate, rangeByDate, festivitaByDate };
-  }, [monthTasks, monthScadenze, monthAppuntamenti, monthOrders, monthFerie, allFestivita, monthStartStr, monthEndStr, monthStr, currentMonth]);
-
-  const days = useMemo(() => {
-    const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
-    let startDow = getDay(monthStart);
-    startDow = startDow === 0 ? 6 : startDow - 1;
-    return { allDays, padding: startDow };
-  }, [monthStart, monthEnd]);
-
-  const today = startOfDay(new Date());
-  const [calView, setCalView] = useState<"mese" | "settimana" | "giorno">("mese");
-  const weekDays = useMemo(() => {
-    const start = new Date(selectedDate ?? today);
-    start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // lunedì come primo giorno
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      return d;
-    });
-  }, [selectedDate, today]);
-
-  // Navigazione contestuale: ‹ › cambia mese / settimana / giorno secondo la vista attiva.
-  const goCalendario = (dir: -1 | 1) => {
-    if (calView === "mese") {
-      setCurrentMonth((m) => (dir === 1 ? addMonths(m, 1) : subMonths(m, 1)));
-      return;
-    }
-    const step = calView === "settimana" ? 7 : 1;
-    const next = addDays(selectedDate ?? today, dir * step);
-    setSelectedDate(next);
-    setCurrentMonth(startOfMonth(next));
-  };
-  const headerLabel =
-    calView === "mese"
-      ? format(currentMonth, "MMMM yyyy", { locale: it })
-      : calView === "settimana"
-        ? `${format(weekDays[0], "d", { locale: it })}–${format(weekDays[6], "d MMM", { locale: it })}`
-        : format(selectedDate ?? today, "EEE d MMM", { locale: it });
-
-  // Eventi di un giorno divisi tra "tutto il dì" e per ora (07–20).
-  const buildSchedule = (date: Date) => {
-    const k = format(date, "yyyy-MM-dd");
-    const allDay: { id: string; label: string; cls: string }[] = [];
-    const byHour: Record<number, { id: string; label: string; cls: string; time?: string }[]> = {};
-    (tasksByDate.get(k) ?? []).forEach((t: { id: string; title?: string }) =>
-      allDay.push({ id: t.id, label: t.title ?? "Attività", cls: "bg-primary/60" }));
-    (festivitaByDate.get(k) ?? []).forEach((f) =>
-      allDay.push({ id: f.id, label: f.descrizione, cls: "bg-red-400" }));
-    (eventsByDate.get(k) ?? []).forEach((e: { id: string; label: string; dotClass: string; time?: string }) => {
-      const m = e.time ? /^(\d{2}):/.exec(e.time) : null;
-      if (m) {
-        const h = Math.min(20, Math.max(7, parseInt(m[1], 10)));
-        (byHour[h] ??= []).push({ id: e.id, label: e.label, cls: e.dotClass, time: e.time });
-      } else {
-        allDay.push({ id: e.id, label: e.label, cls: e.dotClass });
-      }
-    });
-    return { allDay, byHour };
-  };
-
-  // Griglia oraria: colonne = giorni, righe = ore. Usata per Settimana e Giorno.
-  const renderTimeGrid = (gridDays: Date[]) => {
-    const sched = gridDays.map((d) => ({ date: d, key: format(d, "yyyy-MM-dd"), ...buildSchedule(d) }));
-    return (
-      <div className="mt-2 overflow-auto">
-        <div className="grid text-xs" style={{ gridTemplateColumns: `34px repeat(${gridDays.length}, minmax(64px, 1fr))` }}>
-          <div className="bg-card" />
-          {sched.map((s) => (
-            <div key={`hd-${s.key}`} className={cn("py-1 text-center text-[10px] font-semibold capitalize", isToday(s.date) && "text-primary")}>
-              {format(s.date, "EEE d", { locale: it })}
-            </div>
-          ))}
-          <div className="border-t bg-card py-0.5 pr-1 text-right text-[8px] text-muted-foreground">tutto il dì</div>
-          {sched.map((s) => (
-            <div key={`ad-${s.key}`} className="space-y-0.5 border-l border-t p-0.5">
-              {s.allDay.map((it) => (
-                <div key={it.id} className="flex items-center gap-1 rounded bg-muted/50 px-1 py-0.5">
-                  <span className={`h-1 w-1 shrink-0 rounded-full ${it.cls}`} />
-                  <span className="truncate text-[9px] leading-tight">{it.label}</span>
-                </div>
-              ))}
-            </div>
-          ))}
-          {ORE_GRIGLIA.map((h) => (
-            <Fragment key={`row-${h}`}>
-              <div className="border-t bg-card py-1 pr-1 text-right text-[9px] text-muted-foreground">
-                {String(h).padStart(2, "0")}:00
-              </div>
-              {sched.map((s) => (
-                <div key={`c-${s.key}-${h}`} className="min-h-[26px] space-y-0.5 border-l border-t p-0.5">
-                  {(s.byHour[h] ?? []).map((it) => (
-                    <div key={it.id} className="flex items-center gap-1 rounded bg-teal-50 px-1 py-0.5 dark:bg-teal-950/30">
-                      <span className="shrink-0 font-mono text-[8px] font-semibold text-teal-600">{it.time}</span>
-                      <span className="truncate text-[9px] leading-tight">{it.label}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </Fragment>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const selectedKey = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
-  const selectedTasks    = useMemo(() => selectedKey ? (tasksByDate.get(selectedKey)    ?? []) : [], [selectedKey, tasksByDate]);
-  const selectedEvents   = useMemo(() => selectedKey ? (eventsByDate.get(selectedKey)   ?? []) : [], [selectedKey, eventsByDate]);
-  const selectedFestivita = useMemo(() => selectedKey ? (festivitaByDate.get(selectedKey) ?? []) : [], [selectedKey, festivitaByDate]);
-
-  // Quali chip mostrare (solo se l'utente ha il permesso per quel layer)
-  const visibleChips: LayerId[] = [
-    ...(canViewOrders              ? ["commessa"]     as LayerId[] : []),
-    ...(canViewScadenzario         ? ["scadenza"]     as LayerId[] : []),
-    ...(canViewMarketingAppointments ? ["appuntamento"] as LayerId[] : []),
-    ...["feria"] as LayerId[],
-  ];
-  const hasFestivita = allFestivita.length > 0;
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <CalendarDays className="h-4 w-4" />Calendario
-          </CardTitle>
-          <div className="flex items-center gap-0.5 sm:gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => goCalendario(-1)} aria-label="Precedente"><ChevronLeft className="h-4 w-4" /></Button>
-            <span className="text-xs sm:text-sm font-medium min-w-[90px] sm:min-w-[120px] text-center capitalize">{headerLabel}</span>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => goCalendario(1)} aria-label="Successivo"><ChevronRight className="h-4 w-4" /></Button>
-          </div>
-        </div>
-        <div className="mt-1.5 flex items-center gap-1">
-          {(["mese", "settimana", "giorno"] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => { setCalView(v); if (v === "giorno") setSelectedDate(new Date()); }}
-              className={cn(
-                "h-6 rounded-md px-2 text-[11px] font-medium capitalize transition-colors",
-                calView === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
-              )}
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-        {visibleChips.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1">
-            {visibleChips.map(id => {
-              const cfg = LAYER_CONFIG[id];
-              const on = enabledLayers.has(id);
-              return (
-                <button
-                  key={id}
-                  onClick={() => toggleLayer(id)}
-                  className={cn(
-                    "inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border transition-colors",
-                    on ? cfg.chipOn : cfg.chipOff,
-                  )}
-                >
-                  <span className={cn("w-1.5 h-1.5 rounded-full", on ? cfg.dotClass : "bg-muted-foreground/30")} />
-                  {cfg.label}
-                </button>
-              );
-            })}
-            {hasFestivita && (
-              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-red-200 bg-red-50 text-red-700">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                Chiusure
-              </span>
-            )}
-          </div>
-        )}
-      </CardHeader>
-      <CardContent className="pb-3">
-        {calView === "mese" && (<>
-        <div className="grid grid-cols-7 mb-1">
-          {GIORNI_SETTIMANA.map(g => <div key={g} className="text-center text-[10px] font-semibold text-muted-foreground py-1 uppercase">{g}</div>)}
-        </div>
-        <div className="grid grid-cols-7 gap-px">
-          {Array.from({ length: days.padding }).map((_, i) => <div key={`pad-${i}`} className="aspect-square" />)}
-          {days.allDays.map(day => {
-            const key = format(day, "yyyy-MM-dd");
-            const dayTasks   = tasksByDate.get(key)    ?? [];
-            const dayEvents  = eventsByDate.get(key)   ?? [];
-            const isFestivita = festivitaByDate.has(key);
-            const isInRange   = rangeByDate.has(key);
-            const isSelected  = !!(selectedDate && isSameDay(day, selectedDate));
-            const isCurrentDay = isToday(day);
-            const isPast      = isBefore(day, today) && !isCurrentDay;
-
-            // Item con TITOLO da mostrare nelle celle (più informazioni dei pallini)
-            const cellItems: { label: string; cls: string }[] = [
-              ...dayTasks.map((t: { title?: string; priority?: string; status?: string }) => ({
-                label: String(t.title ?? "Attività"),
-                cls: t.status === "completata"
-                  ? "bg-green-400"
-                  : (PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale).dotClass,
-              })),
-              ...dayEvents.map((ev: { label: string; dotClass: string }) => ({ label: ev.label, cls: ev.dotClass })),
-            ];
-            const cellShown = cellItems.slice(0, 2);
-            const cellOverflow = cellItems.length - cellShown.length;
-
-            return (
-              <TooltipProvider key={key} delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={() => {
-                        const newSel = selectedDate && isSameDay(day, selectedDate) ? null : day;
-                        setSelectedDate(newSel);
-                        onDateSelect?.(newSel ? format(newSel, "yyyy-MM-dd") : null);
-                      }}
-                      className={cn(
-                        "relative min-h-[58px] sm:min-h-[72px] flex flex-col items-stretch justify-start rounded-md p-1 text-sm transition-all",
-                        isSelected
-                          ? "bg-primary text-primary-foreground font-bold shadow-sm hover:bg-primary/90"
-                          : isCurrentDay
-                          ? "bg-primary/10 font-semibold text-primary ring-1 ring-primary/30 hover:bg-primary/20"
-                          : isFestivita
-                          ? "bg-red-50 dark:bg-red-950/20 text-foreground hover:bg-red-100 dark:hover:bg-red-950/40"
-                          : isInRange
-                          ? "bg-emerald-50 dark:bg-emerald-950/20 text-foreground hover:bg-emerald-100 dark:hover:bg-emerald-950/40"
-                          : isPast
-                          ? "text-muted-foreground/60 hover:bg-muted/60"
-                          : "text-foreground hover:bg-muted/60",
-                      )}
-                    >
-                      <span className="text-xs leading-none mb-0.5">{format(day, "d")}</span>
-                      <div className="flex-1 w-full space-y-0.5 overflow-hidden text-left">
-                        {cellShown.map((it, i) => (
-                          <div key={i} className="flex items-center gap-1 leading-tight">
-                            <span className={`w-1 h-1 rounded-full shrink-0 ${it.cls}`} />
-                            <span className="truncate text-[9px]">{it.label}</span>
-                          </div>
-                        ))}
-                        {isFestivita && cellItems.length === 0 && (
-                          <div className="flex items-center gap-1 leading-tight">
-                            <span className="w-1 h-1 rounded-full shrink-0 bg-red-400" />
-                            <span className="truncate text-[9px] text-red-600">Festività</span>
-                          </div>
-                        )}
-                        {cellOverflow > 0 && (
-                          <span className="block text-[8px] leading-none text-muted-foreground">+{cellOverflow} altri</span>
-                        )}
-                      </div>
-                    </button>
-                  </TooltipTrigger>
-                  {(dayTasks.length > 0 || dayEvents.length > 0 || isFestivita) && (
-                    <TooltipContent side="bottom" className="max-w-[220px]">
-                      <p className="font-medium text-xs mb-1">{format(day, "d MMMM", { locale: it })}</p>
-                      {dayTasks.length > 0 && <p className="text-xs text-muted-foreground">🔵 {dayTasks.length} attività</p>}
-                      {dayEvents.filter((e: any) => e.type === "commessa").length > 0 && <p className="text-xs text-muted-foreground">🟢 {dayEvents.filter((e: any) => e.type === "commessa").length} commesse</p>}
-                      {dayEvents.filter((e: any) => e.type === "scadenza").length > 0 && <p className="text-xs text-muted-foreground">🟡 {dayEvents.filter((e: any) => e.type === "scadenza").length} scadenze</p>}
-                      {dayEvents.filter((e: any) => e.type === "appuntamento").length > 0 && <p className="text-xs text-muted-foreground">🩵 {dayEvents.filter((e: any) => e.type === "appuntamento").length} appuntamenti</p>}
-                      {dayEvents.filter((e: any) => e.type === "feria").length > 0 && <p className="text-xs text-muted-foreground">🟠 {dayEvents.filter((e: any) => e.type === "feria").length} ferie</p>}
-                      {isFestivita && festivitaByDate.get(key)!.map(fv => <p key={fv.id} className="text-xs text-red-600">🔴 {fv.descrizione}</p>)}
-                    </TooltipContent>
-                  )}
-                </Tooltip>
-              </TooltipProvider>
-            );
-          })}
-        </div>
-        </>)}
-        {calView === "settimana" && renderTimeGrid(weekDays)}
-        {calView === "giorno" && renderTimeGrid([selectedDate ?? today])}
-        {calView === "mese" && selectedDate && (
-          <div className="mt-3 border-t pt-3">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {isToday(selectedDate) ? "Oggi" : format(selectedDate, "d MMMM", { locale: it })}
-                {(selectedTasks.length + selectedEvents.length + selectedFestivita.length) > 0 &&
-                  ` — ${selectedTasks.length + selectedEvents.length + selectedFestivita.length} eventi`}
-              </p>
-              {onAddTask && !isBefore(selectedDate, today) && (
-                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1 text-primary" onClick={() => onAddTask(format(selectedDate!, "yyyy-MM-dd"))}>
-                  <Plus className="h-3 w-3" />Aggiungi
-                </Button>
-              )}
-            </div>
-            <div className="space-y-1.5 max-h-[160px] overflow-y-auto">
-              {selectedTasks.map((t: any) => {
-                const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
-                const isDone = t.status === "completata";
-                return (
-                  <div key={t.id} className={`flex items-center gap-2 text-xs rounded px-2 py-1.5 ${isDone ? "bg-green-50 dark:bg-green-950/20" : "bg-muted/50"}`}>
-                    <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isDone ? "bg-green-500" : cfg.dotClass}`} />
-                    <span className={`flex-1 truncate ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</span>
-                    <Badge className={`text-[9px] px-1 py-0 ${isDone ? "bg-green-100 text-green-700" : cfg.badgeClass}`}>{isDone ? "Fatto" : cfg.label}</Badge>
-                  </div>
-                );
-              })}
-              {selectedEvents.map((ev: { id: string; type: LayerId; label: string; dotClass: string; time?: string }) => (
-                <div key={ev.id} className="flex items-center gap-2 text-xs rounded px-2 py-1.5 bg-muted/40">
-                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${ev.dotClass}`} />
-                  {ev.time && <span className="font-mono text-[10px] font-semibold text-teal-600 shrink-0">{ev.time}</span>}
-                  <span className="flex-1 truncate">{ev.label}</span>
-                  <span className={cn("text-[9px] px-1 py-0 rounded font-medium",
-                    ev.type === "commessa"     ? "bg-emerald-100 text-emerald-700" :
-                    ev.type === "scadenza"     ? "bg-amber-100 text-amber-700" :
-                    ev.type === "appuntamento" ? "bg-teal-100 text-teal-700" :
-                                                "bg-orange-100 text-orange-700",
-                  )}>
-                    {LAYER_CONFIG[ev.type].label.replace(/e$/, "a")}
-                  </span>
-                </div>
-              ))}
-              {selectedFestivita.map(fv => (
-                <div key={fv.id} className="flex items-center gap-2 text-xs rounded px-2 py-1.5 bg-red-50 dark:bg-red-950/20">
-                  <div className="w-1.5 h-1.5 rounded-full shrink-0 bg-red-400" />
-                  <span className="flex-1 truncate text-red-700">{fv.descrizione}</span>
-                  <span className="text-[9px] px-1 py-0 rounded font-medium bg-red-100 text-red-700">Chiusura</span>
-                </div>
-              ))}
-              {selectedTasks.length === 0 && selectedEvents.length === 0 && selectedFestivita.length === 0 && (
-                <p className="text-xs text-muted-foreground italic">Nessun evento per questo giorno</p>
-              )}
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // TimbraturaSede
 // ─────────────────────────────────────────────────────────────────────────────
 function TimbraturaSede() {
@@ -1026,7 +361,7 @@ function TimbraturaSede() {
   );
 
   return (
-    <Card>
+    <Card role="region" aria-label="Priorità del team">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base"><Clock className="h-4 w-4" />Timbratura Sede</CardTitle>
@@ -1110,14 +445,13 @@ const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
   { value: "date", label: "Data" },
 ];
 
-function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { initialDueDate?: AddTaskRequest | null; calendarDate?: string | null; onCalendarDateClear?: () => void }) {
+export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear, openTaskRequest }: { initialDueDate?: AddTaskRequest | null; calendarDate?: string | null; onCalendarDateClear?: () => void; openTaskRequest?: { id: string; requestId: number } | null }) {
   const { user, effectiveCompany, role } = useAuth();
   const isAdmin = role === "company_admin";
-  const { canViewTeamTasks, solaLettura, canViewMarketingContacts, canViewMarketingOpportunities } = usePermissions();
+  const { canViewTeamTasks, solaLettura, canViewMarketingContacts, canViewMarketingOpportunities, canViewOrders } = usePermissions();
   const creaTitle = solaLettura ? "Sei in sola lettura" : undefined;
-  // "Attività del team": l'admin vede tutto; gli altri solo con il permesso
-  // esplicito can_view_team_tasks. La scrittura resta comunque limitata alle
-  // proprie task per i non-admin (guard nelle mutation).
+  // La lista è sempre personale. Il permesso team abilita il passaggio alla
+  // Regia, dove la lettura segue i permessi e la visibilità assegnata.
   const seesTeamTasks = isAdmin || canViewTeamTasks;
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -1136,7 +470,10 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     quickAddRef.current?.focus();
   };
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const filterKey = JSON.stringify([filter, searchQuery, calendarDate]);
+  const [selection, setSelection] = useState({ key: filterKey, ids: new Set<string>() });
+  const selectedIds = selection.key === filterKey ? selection.ids : new Set<string>();
+  const setSelectedIds = (next: Set<string> | ((previous: Set<string>) => Set<string>)) => setSelection(previous => ({ key: filterKey, ids: typeof next === "function" ? next(previous.key === filterKey ? previous.ids : new Set<string>()) : next }));
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const confermaBulk = useConfermaQuantita(selectedIds.size, bulkConfirmOpen);
@@ -1147,9 +484,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
   const [selectionMode, setSelectionMode] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const [filterAssignee, setFilterAssignee] = useState<string>("me");
-  // Mobile: «di chi» e «raggruppa» stanno in un pannello, non in due righe
-  // sopra la lista (vedi la testata della card).
+  // Mobile: le opzioni di raggruppamento stanno in un pannello.
   const [filtriAperti, setFiltriAperti] = useState(false);
 
   // ── Form state ──
@@ -1163,241 +498,163 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
   // A chi è attaccata l'attività: cliente o opportunità (23/09/2026).
   const [formCollegamento, setFormCollegamento] = useState<CollegamentoAttivita | null>(null);
 
-  useEffect(() => {
-    if (initialDueDate?.date) { setFormDueDate(initialDueDate.date); setDialogOpen(true); }
-  }, [initialDueDate?.requestId, initialDueDate?.date]);
+  const { data: teamMembers = [] } = useCompanyStaffUsers(isAdmin ? companyId : null);
 
-  const { data: teamMembers = [] } = useCompanyStaffUsers(seesTeamTasks ? companyId : null);
-
-  // ── Fetch tasks — team con permesso "Attività del team" (o admin), altrimenti solo le proprie ──
-  const { data: allTasks = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["my-tasks-all", user?.id, companyId, seesTeamTasks],
-    queryFn: async () => {
-      const archivedIds = await loadArchivedOrderIds(companyId!);
-      let q = supabase
-        .from("tasks")
-        .select(`id, title, notes, status, priority, due_date, category, assigned_to, created_by,
-          contact_id, opportunity_id,
-          order:orders!tasks_order_id_fkey(order_code),
-          stock_item:warehouse_stock!tasks_stock_item_id_fkey(name),
-          contatto:marketing_contacts!tasks_contact_id_fkey(id, first_name, last_name),
-          opportunita:marketing_opportunities!tasks_opportunity_id_fkey(id, name),
-          assignee:profiles!tasks_assigned_to_fkey(first_name, last_name)`)
-        .eq("company_id", companyId!)
-        .order("created_at", { ascending: false })
-        .limit(300);
-      if (!seesTeamTasks) q = q.eq("assigned_to", user!.id);
-      q = excludeArchivedOrders(q, archivedIds, "order_id");
-      const { data, error } = await q;
-      if (error) { logger.error("MieAttivita — errore:", error); throw error; }
-      return data ?? [];
-    },
-    enabled: !!user?.id && !!companyId,
-    staleTime: 30_000,
-  });
-
-  // ── Filtered + searched tasks ──
+  const { data: allTasks = [], isLoading, isError, error, refetch } = useDashboardTasks();
+  const observedStatuses = useMemo(() => [...new Set(allTasks.map(t => t.status))], [allTasks]);
+  const { statuses: taskStatuses } = useTaskStatuses(companyId, observedStatuses);
   const today = startOfDay(new Date());
   const weekEnd = addDays(today, 7);
-
-  // Auto-set "scadute" al primo carico se ci sono task in ritardo
-  const hasSetInitialFilter = useRef(false);
-
-  // Le attività «di chi» si sta guardando: le mie, tutto il team o una
-  // persona. Da qui partono SIA la lista SIA i numeri sui filtri — prima i
-  // numeri si contavano su tutto il team e la lista su una persona sola, e
-  // «Scadute (15)» mostrava una lista vuota.
-  const tasksDiChi = useMemo(() => {
-    if (!seesTeamTasks || filterAssignee === "all") return allTasks;
-    if (filterAssignee === "me") return allTasks.filter((t: any) => t.assigned_to === user?.id);
-    return allTasks.filter((t: any) => t.assigned_to === filterAssignee);
-  }, [allTasks, seesTeamTasks, filterAssignee, user?.id]);
-
-  const filteredTasks = useMemo(() => {
-    // Quando il calendario ha selezionato una data: mostra TUTTE le task di quel giorno
-    if (calendarDate) {
-      return allTasks.filter((t: any) => t.due_date?.slice(0, 10) === calendarDate);
-    }
-
-    let filtered = tasksDiChi;
-    switch (filter) {
-      case "oggi":
-        filtered = filtered.filter((t: any) => t.status !== "completata" && t.due_date && (isToday(new Date(t.due_date)) || isBefore(new Date(t.due_date), today)));
-        break;
-      case "scadute":
-        filtered = filtered.filter((t: any) => t.status !== "completata" && t.due_date && isBefore(new Date(t.due_date), today) && !isToday(new Date(t.due_date)));
-        break;
-      case "settimana":
-        filtered = filtered.filter((t: any) => t.status !== "completata" && t.due_date && isBefore(new Date(t.due_date), weekEnd));
-        break;
-      case "completate":
-        filtered = filtered.filter((t: any) => t.status === "completata");
-        break;
-      default:
-        filtered = filtered.filter((t: any) => t.status !== "completata");
-    }
-    // Search
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter((t: any) =>
-        t.title.toLowerCase().includes(q) ||
-        (t.notes && t.notes.toLowerCase().includes(q)) ||
-        (t.category && t.category.toLowerCase().includes(q))
-      );
-    }
-    return filtered;
-  }, [allTasks, tasksDiChi, filter, today, weekEnd, searchQuery, calendarDate]);
-
-  // Stats
-  const stats = useMemo(() => {
-    const active = tasksDiChi.filter((t: any) => t.status !== "completata");
-    const overdue = active.filter((t: any) => t.due_date && isBefore(new Date(t.due_date), today) && !isToday(new Date(t.due_date)));
-    const todayTasks = active.filter((t: any) => t.due_date && isToday(new Date(t.due_date)));
-    const completed = tasksDiChi.filter((t: any) => t.status === "completata");
-    const inProgress = active.filter((t: any) => t.status === "in_corso");
-    return { total: active.length, overdue: overdue.length, today: todayTasks.length, completed: completed.length, inProgress: inProgress.length };
-  }, [tasksDiChi, today]);
-
-  // Default al tab "scadute" alla prima apertura se ci sono task in ritardo
-  useEffect(() => {
-    if (hasSetInitialFilter.current || isLoading || allTasks.length === 0) return;
-    hasSetInitialFilter.current = true;
-    if (stats.overdue > 0) setFilter("scadute");
-  }, [isLoading, allTasks.length, stats.overdue]);
-
+  const tasksDiChi = useMemo(() => dashboardTasksForAssignee(allTasks, "me", user?.id), [allTasks, user?.id]);
+  const filteredTasks = useMemo(() => filterDashboardTasks(tasksDiChi, filter, today, searchQuery, calendarDate, taskStatuses), [tasksDiChi, filter, today, searchQuery, calendarDate, taskStatuses]);
+  const stats = useMemo(() => dashboardTaskStats(tasksDiChi, today, taskStatuses), [tasksDiChi, today, taskStatuses]);
+  const [pagination, setPagination] = useState({ key: filterKey, page: 1 });
+  const page = pagination.key === filterKey ? pagination.page : 1;
+  const setPage = (next: number) => setPagination({ key: filterKey, page: next });
+  const pageCount = Math.max(1, Math.ceil(filteredTasks.length / 20));
+  const currentPage = Math.min(page, pageCount);
+  const visibleTasks = filteredTasks.slice((currentPage - 1) * 20, currentPage * 20);
 
   // ── Grouping ──
   const groupedTasks = useMemo(() => {
     if (groupBy === "none") return null;
     const groups = new Map<string, any[]>();
-    for (const t of filteredTasks) {
+    for (const t of visibleTasks) {
       let key: string;
       if (groupBy === "priority") key = PRIORITY_CONFIG[t.priority ?? "normale"]?.label ?? "Normale";
       else if (groupBy === "category") key = CATEGORY_OPTIONS.find(c => c.value === t.category)?.label ?? "Altro";
-      else {
-        if (!t.due_date) key = "Senza scadenza";
-        else if (isToday(new Date(t.due_date))) key = "Oggi";
-        else if (isBefore(new Date(t.due_date), today)) key = "Scadute";
-        else if (isBefore(new Date(t.due_date), weekEnd)) key = "Questa settimana";
-        else key = "Più avanti";
-      }
+      else key = dashboardTaskDateGroup(t, today, taskStatuses);
       const arr = groups.get(key) ?? [];
       arr.push(t);
       groups.set(key, arr);
     }
     return groups;
-  }, [filteredTasks, groupBy, today, weekEnd]);
+  }, [visibleTasks, groupBy, today, taskStatuses]);
 
   // ── Mutations ──
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["my-tasks-all"] });
-    queryClient.invalidateQueries({ queryKey: ["my-tasks"] });
-    queryClient.invalidateQueries({ queryKey: ["calendar-tasks"] });
-    queryClient.invalidateQueries({ queryKey: ["team-tasks"] });
-    queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
-    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
-  };
+  const invalidate = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["my-tasks-all"] }),
+    queryClient.invalidateQueries({ queryKey: ["my-tasks"] }),
+    queryClient.invalidateQueries({ queryKey: ["calendar-tasks"] }),
+    queryClient.invalidateQueries({ queryKey: ["team-tasks"] }),
+    queryClient.invalidateQueries({ queryKey: ["team-task-pulse"] }),
+    queryClient.invalidateQueries({ queryKey: ["my-task-count"] }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all }),
+  ]);
+  const checkWrite = () => { if (!companyId || !user?.id || solaLettura) throw new Error("Non puoi modificare le attività in questo momento."); };
 
   const createTask = useMutation({
     mutationFn: async (task: { title: string; notes?: string; priority: string; due_date?: string; category: string; assigned_to?: string; collegamento?: CollegamentoAttivita | null }) => {
+      checkWrite();
       const { error } = await supabase.from("tasks").insert({
         company_id: companyId!, assigned_to: task.assigned_to || user!.id, created_by: user!.id,
         title: task.title, notes: task.notes || null,
         priority: task.priority, due_date: task.due_date || null,
         category: task.category, status: "da_fare",
         ...collegamentiDelModulo(task.collegamento),
-      } as any);
+      } as any).select("id").single();
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Attività creata"); invalidate(); },
-    onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
+    onSuccess: async () => { toast.success("Attività creata"); await invalidate(); },
+    onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); void invalidate(); },
   });
 
   const updateTask = useMutation({
     mutationFn: async ({ id, ...updates }: any) => {
-      let q = supabase.from("tasks").update(updates).eq("id", id);
+      checkWrite();
+      let q = supabase.from("tasks").update(updates).eq("id", id).eq("company_id", companyId!);
       if (!isAdmin) q = q.eq("assigned_to", user!.id);
-      else q = q.eq("company_id", companyId!);
-      const { error } = await q;
+
+      const { error } = await q.select("id").single();
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Attività aggiornata"); invalidate(); },
-    onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
+    onSuccess: async () => { toast.success("Attività aggiornata"); await invalidate(); },
+    onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); void invalidate(); },
   });
 
   const deleteTask = useMutation({
     mutationFn: async (taskId: string) => {
-      let q = supabase.from("tasks").delete().eq("id", taskId);
+      checkWrite();
+      let q = supabase.from("tasks").delete().eq("id", taskId).eq("company_id", companyId!);
       if (!isAdmin) q = q.eq("assigned_to", user!.id);
-      else q = q.eq("company_id", companyId!);
-      const { error } = await q;
+
+      const { error } = await q.select("id").single();
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Attività eliminata"); invalidate(); },
-    onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
+    onSuccess: async () => { toast.success("Attività eliminata"); await invalidate(); },
+    onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); void invalidate(); },
   });
 
   // Bulk update mutation
   const bulkUpdateStatus = useMutation({
     mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
-      const updates: any = { status };
-      if (status === "completata") updates.completed_at = new Date().toISOString();
-      let q = supabase.from("tasks").update(updates).in("id", ids);
+      checkWrite();
+      const updates = buildTaskStatusUpdate(status, taskStatuses);
+      let q = supabase.from("tasks").update(updates).in("id", ids).eq("company_id", companyId!);
       if (!isAdmin) q = q.eq("assigned_to", user!.id);
-      else q = q.eq("company_id", companyId!);
-      const { error } = await q;
+
+      const { data, error } = await q.select("id");
       if (error) throw error;
+      if (data?.length !== new Set(ids).size) throw new Error("Alcune attività non sono più modificabili. Aggiorna la lista prima di riprovare.");
     },
-    onSuccess: (_, { ids, status }) => {
-      const label = STATUS_CONFIG[status]?.label ?? status;
+    onSuccess: async (_, { ids, status }) => {
+      const label = getTaskStatusLabel(status, taskStatuses);
       toast.success(`${ids.length} attività → ${label}`);
       setSelectedIds(new Set());
-      invalidate();
+      await invalidate();
     },
-    onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
+    onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); void invalidate(); },
   });
 
   const bulkDelete = useMutation({
     mutationFn: async (ids: string[]) => {
-      let q = supabase.from("tasks").delete().in("id", ids);
+      checkWrite();
+      let q = supabase.from("tasks").delete().in("id", ids).eq("company_id", companyId!);
       if (!isAdmin) q = q.eq("assigned_to", user!.id);
-      else q = q.eq("company_id", companyId!);
-      const { error } = await q;
+
+      const { data, error } = await q.select("id");
       if (error) throw error;
+      if (data?.length !== new Set(ids).size) throw new Error("Alcune attività non sono più modificabili. Aggiorna la lista prima di riprovare.");
     },
-    onSuccess: (_, ids) => {
+    onSuccess: async (_, ids) => {
       toast.success(`${ids.length} attività eliminate`);
       setSelectedIds(new Set());
-      invalidate();
+      await invalidate();
     },
-    onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
+    onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); void invalidate(); },
   });
 
   const postponeMutation = useMutation({
     mutationFn: async ({ id, newDate }: { id: string; newDate: string }) => {
-      let q = supabase.from("tasks").update({ due_date: newDate }).eq("id", id);
+      checkWrite();
+      let q = supabase.from("tasks").update({ due_date: newDate }).eq("id", id).eq("company_id", companyId!);
       if (!isAdmin) q = q.eq("assigned_to", user!.id);
-      else q = q.eq("company_id", companyId!);
-      const { error } = await q;
+
+      const { error } = await q.select("id").single();
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Scadenza posticipata di 7 giorni"); invalidate(); },
-    onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
+    onSuccess: async () => { toast.success("Scadenza posticipata di 7 giorni"); await invalidate(); },
+    onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); void invalidate(); },
   });
 
+  const mutationBusy = createTask.isPending || updateTask.isPending || deleteTask.isPending || bulkUpdateStatus.isPending || bulkDelete.isPending || postponeMutation.isPending;
+  const readOnlyDialog = solaLettura || !!(editingTask && !isAdmin && editingTask.assigned_to !== user?.id);
+
+  const defaultAssignee = user?.id;
+
   // ── Helpers ──
-  const openCreate = (dueDate?: string) => {
+  const openCreate = useCallback((dueDate?: string) => {
     // In sola lettura la policy su tasks rifiuta l'inserimento: niente modulo.
     if (solaLettura) return;
     setEditingTask(null);
     setFormTitle(""); setFormNotes(""); setFormPriority("normale");
     setFormDueDate(dueDate ?? ""); setFormCategory("altro"); setFormStatus("da_fare");
-    setFormAssignedTo(user?.id ?? "");
+    setFormAssignedTo(defaultAssignee ?? "");
     setFormCollegamento(null);
     setDialogOpen(true);
-  };
+  }, [solaLettura, defaultAssignee, setEditingTask, setFormTitle, setFormNotes, setFormPriority, setFormDueDate, setFormCategory, setFormStatus, setFormAssignedTo, setFormCollegamento, setDialogOpen]);
 
-  const openEdit = (t: any) => {
+  const openEdit = useCallback((t: any) => {
     setEditingTask(t);
     setFormTitle(t.title); setFormNotes(t.notes ?? "");
     setFormPriority(t.priority ?? "normale");
@@ -1406,33 +663,52 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     setFormAssignedTo(t.assigned_to ?? user?.id ?? "");
     setFormCollegamento(collegamentoDelTask(t));
     setDialogOpen(true);
-  };
+  }, [user?.id, setEditingTask, setFormTitle, setFormNotes, setFormPriority, setFormDueDate, setFormCategory, setFormStatus, setFormAssignedTo, setFormCollegamento, setDialogOpen]);
+
+  const openedRequest = useRef<number | null>(null);
+  useEffect(() => {
+    if (!openTaskRequest || openedRequest.current === openTaskRequest.requestId) return;
+    const task = tasksDiChi.find(t => t.id === openTaskRequest.id);
+    if (!task) return;
+    let cancelled = false;
+    queueMicrotask(() => { if (!cancelled) { openedRequest.current = openTaskRequest.requestId; openEdit(task); } });
+    return () => { cancelled = true; };
+  }, [openTaskRequest, tasksDiChi, openEdit]);
+  useEffect(() => {
+    if (!initialDueDate?.date) return;
+    let cancelled = false;
+    queueMicrotask(() => { if (!cancelled) openCreate(initialDueDate.date); });
+    return () => { cancelled = true; };
+  }, [initialDueDate, openCreate]);
 
   const handleSave = () => {
+    if (readOnlyDialog || mutationBusy) return;
     if (!formTitle.trim()) { toast.error("Inserisci un titolo"); return; }
     if (editingTask) {
       const updates: any = { id: editingTask.id, title: formTitle.trim(), notes: formNotes.trim() || null, priority: formPriority, due_date: formDueDate || null, category: formCategory, status: formStatus, ...collegamentiDelModulo(formCollegamento) };
       if (isAdmin && formAssignedTo) updates.assigned_to = formAssignedTo;
-      if (formStatus === "completata" && editingTask.status !== "completata") updates.completed_at = new Date().toISOString();
-      updateTask.mutate(updates);
+      if (formStatus !== editingTask.status) Object.assign(updates, buildTaskStatusUpdate(formStatus, taskStatuses));
+      updateTask.mutate(updates, { onSuccess: () => setDialogOpen(false) });
     } else {
-      createTask.mutate({ title: formTitle.trim(), notes: formNotes.trim(), priority: formPriority, due_date: formDueDate || undefined, category: formCategory, assigned_to: isAdmin ? formAssignedTo : undefined, collegamento: formCollegamento });
+      createTask.mutate({ title: formTitle.trim(), notes: formNotes.trim(), priority: formPriority, due_date: formDueDate || undefined, category: formCategory, assigned_to: isAdmin ? formAssignedTo : undefined, collegamento: formCollegamento }, { onSuccess: () => setDialogOpen(false) });
     }
-    setDialogOpen(false);
   };
 
   const handleQuickAdd = () => {
-    if (!quickAddTitle.trim()) return;
-    createTask.mutate({ title: quickAddTitle.trim(), priority: "normale", category: "altro" });
-    setQuickAddTitle("");
+    if (!quickAddTitle.trim() || solaLettura || mutationBusy) return;
+    createTask.mutate({ title: quickAddTitle.trim(), priority: "normale", category: "altro", due_date: calendarDate || undefined, assigned_to: isAdmin ? defaultAssignee : undefined }, { onSuccess: () => { setQuickAddTitle(""); if (isMobile) setAggiuntaAperta(false); } });
   };
 
-  // Click = completa subito (intuitivo come checkbox)
+  // La stessa avanzata di stato della Regia: rispetta revisione e attività in attesa.
   const markDone = (t: any) => {
-    updateTask.mutate({ id: t.id, status: "completata", completed_at: new Date().toISOString() });
+    if (solaLettura || mutationBusy || isTaskBlockedStatus(t.status, taskStatuses)) return;
+    const next = getNextTaskStatusForQuickAction(t.status, taskStatuses);
+    updateTask.mutate({ id: t.id, ...buildTaskStatusUpdate(next.value, taskStatuses) });
   };
 
   const toggleSelect = (id: string) => {
+    const task = allTasks.find(t => t.id === id);
+    if (solaLettura || mutationBusy || !task || isTaskBlockedStatus(task.status, taskStatuses) || (!isAdmin && task.assigned_to !== user?.id)) return;
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -1444,7 +720,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     // Solo le task gestibili: chi ha la visione team (non admin) vede anche
     // task altrui in sola lettura — selezionarle gonfierebbe i conteggi bulk
     // mentre le mutation (assigned_to = me) le salterebbero in silenzio.
-    const selectable = filteredTasks.filter((t: any) => isAdmin || t.assigned_to === user?.id);
+    const selectable = visibleTasks.filter((t: any) => !solaLettura && !isTaskBlockedStatus(t.status, taskStatuses) && (isAdmin || t.assigned_to === user?.id));
     if (selectedIds.size === selectable.length && selectable.length > 0) setSelectedIds(new Set());
     else setSelectedIds(new Set(selectable.map((t: any) => t.id)));
   };
@@ -1457,24 +733,25 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     });
   };
 
-  // ── Separazione oggi / prossime (solo quando groupBy = none) ──
-  const taskOggi = filteredTasks.filter((t: any) => filter === "tutte" && groupBy === "none" && (!t.due_date || isBefore(new Date(t.due_date), addDays(today, 1))));
-  const taskFuture = filteredTasks.filter((t: any) => filter === "tutte" && groupBy === "none" && t.due_date && !isBefore(new Date(t.due_date), addDays(today, 1)));
-  const showDefaultSections = filter === "tutte" && groupBy === "none";
+  const showDefaultSections = filter === "tutte" && groupBy === "none" && !calendarDate && visibleTasks.length > 0;
+  const defaultGroups = ["Scadute", "Oggi", "Prossimi 7 giorni", "Più avanti", "Senza data", "In attesa", "Completate"].map(label => ({ label, tasks: visibleTasks.filter(t => dashboardTaskDateGroup(t, today, taskStatuses) === label) })).filter(group => group.tasks.length > 0);
 
   const hasSelection = selectedIds.size > 0;
 
   // ── Render task card ──
   const renderTask = (t: any) => {
     const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
-    const stCfg = STATUS_CONFIG[t.status] ?? STATUS_CONFIG.da_fare;
-    const scaduta = t.due_date && t.status !== "completata" && isBefore(new Date(t.due_date), today) && !isToday(new Date(t.due_date));
-    const isDone = t.status === "completata";
+    const definition = getTaskStatusDefinition(t.status, taskStatuses);
+    const stCfg = { label: definition.label, className: TASK_STATUS_TONE_CLASSES[definition.tone].badge };
+    const blocked = isTaskBlockedStatus(t.status, taskStatuses);
+    const nextStatus = getNextTaskStatusForQuickAction(t.status, taskStatuses);
+    const scaduta = t.due_date && !isTaskDoneStatus(t.status, taskStatuses) && !blocked && isBefore(parseISO(t.due_date.slice(0, 10)), today) && !isToday(parseISO(t.due_date.slice(0, 10)));
+    const isDone = isTaskDoneStatus(t.status, taskStatuses);
     const catLabel = CATEGORY_OPTIONS.find(c => c.value === t.category)?.label;
     const isSelected = selectedIds.has(t.id);
     // Chi ha solo la visione team (non admin) vede le task altrui in sola
     // lettura: le mutation lato client filtrano già assigned_to = me.
-    const canManage = isAdmin || t.assigned_to === user?.id;
+    const canManage = !solaLettura && !mutationBusy && (isAdmin || t.assigned_to === user?.id);
 
     const assigneeName = getAssigneeName(t);
     // A chi è attaccata: si legge dalla riga, senza aprirla, e si apre con un clic se si può vedere quella pagina.
@@ -1493,24 +770,24 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             <input
               type="checkbox"
               checked={isSelected}
+              disabled={blocked || mutationBusy}
               onChange={() => toggleSelect(t.id)}
               className="h-4 w-4 rounded border-muted-foreground/40 accent-primary shrink-0"
               aria-label={isSelected ? "Deseleziona attività" : "Seleziona attività"}
             />
           ) : (
             <button
-              onClick={() => !isDone && canManage && markDone(t)}
-              disabled={isDone || !canManage}
+              onClick={() => !isDone && !blocked && canManage && markDone(t)}
+              disabled={isDone || blocked || !canManage}
               className={`shrink-0 transition-colors ${isDone ? "text-green-500" : canManage ? "text-muted-foreground/30 hover:text-green-500" : "text-muted-foreground/20"}`}
-              title={isDone ? "Completata" : canManage ? "Segna come fatta" : "Attività di un collega (sola lettura)"}
+              aria-label={`${isDone ? "Attività completata" : blocked ? "Attività in attesa" : `Passa a ${nextStatus.label}`}: ${t.title}`}
+              title={isDone ? "Completata" : blocked ? "In attesa dell’attività precedente" : canManage ? `Passa a ${nextStatus.label}` : "Attività in sola lettura"}
             >
               {isDone ? <CheckCircle className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
             </button>
           )}
           {/* Title */}
-          <span className={`flex-1 truncate ${canManage ? "cursor-pointer" : ""} ${isDone ? "line-through text-muted-foreground" : ""}`} onClick={() => canManage && openEdit(t)}>
-            {t.title}
-          </span>
+          <button type="button" className={`flex-1 truncate text-left ${isDone ? "line-through text-muted-foreground" : ""}`} onClick={() => openEdit(t)}>{t.title}</button>
           {/* Assignee avatar */}
           {assigneeName && (
             <span className="text-[10px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 px-1.5 py-0.5 rounded-full shrink-0 font-medium">{assigneeName.split(" ").map((n: string) => n[0]).join("")}</span>
@@ -1519,8 +796,8 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
           <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dotClass}`} title={cfg.label} />
           {/* Due date */}
           {t.due_date && (
-            <span className={`text-[10px] shrink-0 ${scaduta ? "text-red-500 font-semibold" : isToday(new Date(t.due_date)) ? "text-amber-600" : "text-muted-foreground"}`}>
-              {isToday(new Date(t.due_date)) ? "Oggi" : format(new Date(t.due_date), "d/MM", { locale: it })}
+            <span className={`text-[10px] shrink-0 ${scaduta ? "text-red-500 font-semibold" : isToday(parseISO(t.due_date.slice(0, 10))) ? "text-amber-600" : "text-muted-foreground"}`}>
+              {isToday(parseISO(t.due_date.slice(0, 10))) ? "Oggi" : format(parseISO(t.due_date.slice(0, 10)), "d/MM", { locale: it })}
             </span>
           )}
           {/* Posticipa +7gg — visibile subito sulle scadute */}
@@ -1560,16 +837,18 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             <input
               type="checkbox"
               checked={isSelected}
+              disabled={blocked || mutationBusy}
               onChange={() => toggleSelect(t.id)}
               className="h-[18px] w-[18px] rounded border-muted-foreground/40 accent-primary"
               aria-label={isSelected ? "Deseleziona attività" : "Seleziona attività"}
             />
           ) : (
             <button
-              onClick={() => !isDone && canManage && markDone(t)}
-              disabled={isDone || !canManage}
+              onClick={() => !isDone && !blocked && canManage && markDone(t)}
+              disabled={isDone || blocked || !canManage}
               className={`tap-compact -m-1 p-1 transition-colors ${isDone ? "text-green-500" : canManage ? "text-muted-foreground/30 hover:text-green-500" : "text-muted-foreground/20"}`}
-              title={isDone ? "Completata" : canManage ? "Segna come fatta" : "Attività di un collega (sola lettura)"}
+              aria-label={`${isDone ? "Attività completata" : blocked ? "Attività in attesa" : `Passa a ${nextStatus.label}`}: ${t.title}`}
+              title={isDone ? "Completata" : blocked ? "In attesa dell’attività precedente" : canManage ? `Passa a ${nextStatus.label}` : "Attività in sola lettura"}
             >
               {isDone ? <CheckCircle className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
             </button>
@@ -1579,8 +858,8 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
         {/* Content — titolo leggibile su TUTTA la larghezza (fino a 2 righe) +
             una sola riga meta. La priorità è un pallino colorato: non ruba
             spazio al titolo e alleggerisce il testo. */}
-        <div className={`flex-1 min-w-0 ${canManage ? "cursor-pointer" : ""}`} onClick={() => canManage && openEdit(t)}>
-          <p className={`font-medium text-[13px] leading-snug line-clamp-2 ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</p>
+        <div className="flex-1 min-w-0">
+          <button type="button" onClick={() => openEdit(t)} className={`w-full text-left font-medium text-[13px] leading-snug line-clamp-2 ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</button>
           {/* Riga meta su UNA sola riga: priorità (pallino) · stato · scadenza.
               overflow-hidden: le voci meno importanti (categoria/assegnatario/
               ordine) si troncano invece di mandare a capo la card. */}
@@ -1588,13 +867,13 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
             <span className={`h-2 w-2 shrink-0 rounded-full ${cfg.dotClass}`} title={`Priorità ${cfg.label}`} />
             <Badge variant="outline" className={`text-[10px] px-1.5 py-0 shrink-0 ${stCfg.className}`}>{stCfg.label}</Badge>
             {t.due_date && (
-              <span className={`shrink-0 ${scaduta ? "text-red-500 font-semibold" : isDone ? "" : isToday(new Date(t.due_date)) ? "text-amber-600 font-medium" : ""}`}>
-                {isToday(new Date(t.due_date)) ? "Oggi" : format(new Date(t.due_date), "d MMM", { locale: it })}
+              <span className={`shrink-0 ${scaduta ? "text-red-500 font-semibold" : isDone ? "" : isToday(parseISO(t.due_date.slice(0, 10))) ? "text-amber-600 font-medium" : ""}`}>
+                {isToday(parseISO(t.due_date.slice(0, 10))) ? "Oggi" : format(parseISO(t.due_date.slice(0, 10)), t.due_date.slice(0, 4) === String(today.getFullYear()) ? "d MMM" : "d MMM yyyy", { locale: it })}
               </span>
             )}
             {catLabel && <span className="flex min-w-0 items-center gap-1"><Tag className="w-3 h-3 shrink-0" /><span className="truncate">{catLabel}</span></span>}
             {assigneeName && <span className="flex shrink-0 items-center gap-1 text-violet-600 dark:text-violet-400 font-medium"><Users className="w-3 h-3" />{assigneeName}</span>}
-            {t.order?.order_code && <Link to="/azienda/ordini" onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-1 hover:text-foreground transition-colors"><ExternalLink className="w-3 h-3" />{t.order.order_code}</Link>}
+            {t.order?.order_code && (canViewOrders && t.order_id ? <Link to={`/azienda/ordini/${t.order_id}`} onClick={(e) => e.stopPropagation()} className="flex shrink-0 items-center gap-1 hover:text-foreground transition-colors"><ExternalLink className="w-3 h-3" />{t.order.order_code}</Link> : <span>{t.order.order_code}</span>)}
             {collegata && (hrefCollegata ? (
               <Link
                 to={hrefCollegata}
@@ -1622,7 +901,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
           <DropdownMenuContent align="end" className="w-48">
             {/* Mobile: «Modifica» è il tocco sulla card e «Segna come fatta» il cerchio. */}
             {!isMobile && <DropdownMenuItem onClick={() => openEdit(t)}><Pencil className="h-3.5 w-3.5 mr-2" />Modifica</DropdownMenuItem>}
-            {!isDone && !isMobile && <DropdownMenuItem onClick={() => markDone(t)}><CheckCircle2 className="h-3.5 w-3.5 mr-2" />Segna come fatta</DropdownMenuItem>}
+            {!isDone && !blocked && !isMobile && <DropdownMenuItem onClick={() => markDone(t)}><CheckCircle2 className="h-3.5 w-3.5 mr-2" />Passa a {nextStatus.label}</DropdownMenuItem>}
             {scaduta && <DropdownMenuItem onClick={() => postponeMutation.mutate({ id: t.id, newDate: format(addDays(new Date(), 7), "yyyy-MM-dd") })}><CalendarClock className="h-3.5 w-3.5 mr-2" />Posticipa +7 giorni</DropdownMenuItem>}
             {t.status === "da_fare" && <DropdownMenuItem onClick={() => updateTask.mutate({ id: t.id, status: "in_corso" })}><PlayCircle className="h-3.5 w-3.5 mr-2" />Inizia (In corso)</DropdownMenuItem>}
             {(!isMobile || scaduta || t.status === "da_fare") && <DropdownMenuSeparator />}
@@ -1655,27 +934,16 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
     return a ? `${a.first_name || ""} ${a.last_name || ""}`.trim() : null;
   };
 
-  // «Di chi»: le mie, tutto il team, o una persona. Una lista sola per le
-  // pillole di desktop e per il pannello di mobile.
-  const opzioniChi = [
-    { key: "me", label: "Le mie" },
-    { key: "all", label: "Team" },
-    ...teamMembers.filter(m => m.id !== user?.id).map(m => ({
-      key: m.id, label: `${m.first_name?.[0] || ""}. ${m.last_name || ""}`.trim(),
-    })),
-  ];
-  const etichettaChi = opzioniChi.find(o => o.key === filterAssignee)?.label ?? "Le mie";
-
   return (
     <>
-      <Card>
+      <Card data-testid="dashboard-task-manager" role="region" aria-label="Gestione delle attività">
         <CardHeader className="p-3 sm:p-4 sm:pb-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
-              <CardTitle className="flex items-center gap-2 text-lg shrink-0">
-                <ClipboardCheck className="h-5 w-5 text-primary" />{seesTeamTasks ? "Attività" : "Le mie Attività"}
+              <h2 className="flex items-center gap-2 text-base font-semibold shrink-0">
+                <ClipboardCheck className="h-5 w-5 text-primary" />Le mie attività
                 {!calendarDate && stats.total > 0 && <Badge variant="secondary" className="text-xs">{stats.total}</Badge>}
-              </CardTitle>
+              </h2>
               {calendarDate && (
                 <button
                   onClick={() => { onCalendarDateClear?.(); }}
@@ -1683,7 +951,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                   title="Rimuovi filtro data"
                 >
                   <CalendarDays className="h-3 w-3" />
-                  {format(parseISO(calendarDate), "d MMM", { locale: it })}
+                  {format(parseISO(calendarDate), calendarDate.slice(0, 4) === String(today.getFullYear()) ? "d MMM" : "d MMM yyyy", { locale: it })}
                   <X className="h-3 w-3 opacity-60" />
                 </button>
               )}
@@ -1701,7 +969,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               {/* Desktop: «Nuova» apre la scheda completa. Mobile: apre la riga
                   di aggiunta veloce (titolo e invio). Silvio ha già il bottone
                   centrale in basso. */}
-              <Button size="sm" className="hidden sm:inline-flex h-8 gap-1.5" disabled={solaLettura} title={creaTitle} onClick={() => openCreate()}>
+              <Button size="sm" className="hidden sm:inline-flex h-8 gap-1.5" disabled={solaLettura || mutationBusy} title={creaTitle} onClick={() => openCreate(calendarDate || undefined)}>
                 <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">Nuova</span>
               </Button>
               <Button size="sm" className="tap-compact sm:hidden h-8 gap-1 px-3" disabled={solaLettura} title={creaTitle} onClick={apriAggiunta}>
@@ -1718,14 +986,15 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               scorrere di lato: col mouse l'ultima pillola restava tagliata. */}
           <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1 -mx-0.5 px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:gap-1 sm:overflow-visible">
             {([
-              { key: "tutte", label: "Tutte", count: stats.total },
-              { key: "oggi", label: "Oggi", count: stats.today + stats.overdue },
+              { key: "tutte", label: "Aperte", count: stats.total },
+              { key: "oggi", label: "Oggi", count: stats.today },
               { key: "scadute", label: "Scadute", count: stats.overdue },
-              { key: "settimana", label: "Settimana", count: null },
+              { key: "settimana", label: "7 giorni", count: stats.week },
+              { key: "senza-data", label: "Senza data", count: stats.undated },
               { key: "completate", label: "Completate", count: stats.completed },
             ] as const).map(f => (
-              <button key={f.key} onClick={() => { setFilter(f.key); setSelectedIds(new Set()); }}
-                className={`tap-compact inline-flex shrink-0 items-center gap-1 h-8 md:h-7 px-3 sm:px-2.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${filter === f.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
+              <button key={f.key} aria-pressed={!calendarDate && filter === f.key} onClick={() => { onCalendarDateClear?.(); setFilter(f.key); setSelectedIds(new Set()); }}
+                className={`tap-compact inline-flex shrink-0 items-center gap-1 h-8 md:h-7 px-3 sm:px-2.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors active:scale-95 ${!calendarDate && filter === f.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
                 {f.label}
                 {/* Il totale da tablet è già accanto al titolo: su «Tutte» era un doppione. */}
                 {f.count != null && f.count > 0 && <span className={`text-[10px] ${filter === f.key ? "opacity-80" : ""} ${f.key === "tutte" ? "sm:hidden" : ""}`}>({f.count})</span>}
@@ -1738,7 +1007,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
           <div className="flex flex-row items-center gap-2 mt-2">
             <div className="flex-1 min-w-0 relative">
               <Input
-                placeholder="Cerca attività..."
+                aria-label="Cerca attività" placeholder="Cerca attività..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="h-9 text-base md:text-sm pl-8"
@@ -1746,9 +1015,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground" aria-label="Pulisci ricerca"><X className="h-3 w-3" /></button>}
             </div>
-            {/* Mobile: il bottone dice DI CHI si stanno guardando le attività
-                (lo stato del filtro si legge senza aprirlo) e un pallino se
-                c'e' anche un raggruppamento attivo. */}
+            {/* Mobile: raggruppamento e opzioni della lista personale. */}
             <button
               type="button"
               onClick={() => setFiltriAperti(true)}
@@ -1756,20 +1023,11 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               aria-label="Filtri attività"
             >
               <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span className="truncate">{etichettaChi}</span>
+              <span className="truncate">Opzioni</span>
               {groupBy !== "none" && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />}
               <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </button>
             <div className="hidden sm:flex items-center gap-2">
-              {seesTeamTasks && teamMembers.length > 0 && (
-                <Select value={filterAssignee} onValueChange={setFilterAssignee}>
-                  <SelectTrigger className="h-9 w-[112px] shrink-0 text-xs" aria-label="Di chi">
-                    <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>{opzioniChi.map(o => <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>)}</SelectContent>
-                </Select>
-              )}
               {/* Raggruppa, vista compatta e selezione multipla: tre comandi
                   che si usano di rado, prima tre bottoni. Il pallino dice che
                   la vista non è quella di base. */}
@@ -1802,7 +1060,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
           {(hasSelection || selectionMode) && (
             <div className="flex flex-wrap items-center gap-2 mb-3 p-2 rounded-lg bg-primary/5 border border-primary/20">
               <div className="flex items-center gap-2 flex-1 min-w-0">
-                <input type="checkbox" checked={selectedIds.size > 0 && selectedIds.size === filteredTasks.length} onChange={selectAll} className="h-4 w-4 accent-primary shrink-0" aria-label="Seleziona tutte" />
+                <input type="checkbox" checked={selectedIds.size > 0 && selectedIds.size === visibleTasks.filter(t => !solaLettura && !isTaskBlockedStatus(t.status, taskStatuses) && (isAdmin || t.assigned_to === user?.id)).length} onChange={selectAll} className="h-4 w-4 accent-primary shrink-0" aria-label="Seleziona le attività gestibili di questa pagina" />
                 <span className="text-xs font-medium truncate">
                   {selectedIds.size > 0
                     ? `${selectedIds.size} ${selectedIds.size === 1 ? "selezionata" : "selezionate"}`
@@ -1811,16 +1069,16 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                 <button onClick={() => { setSelectedIds(new Set()); setSelectionMode(false); }} className="p-1 text-muted-foreground hover:text-foreground ml-auto sm:hidden" aria-label="Chiudi selezione"><X className="h-4 w-4" /></button>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto">
-                <Button size="sm" variant="outline" disabled={selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "completata" })}>
+                <Button size="sm" variant="outline" disabled={solaLettura || mutationBusy || selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "completata" })}>
                   <CheckCircle className="h-3.5 w-3.5" />Fatte
                 </Button>
-                <Button size="sm" variant="outline" disabled={selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "in_corso" })}>
+                <Button size="sm" variant="outline" disabled={solaLettura || mutationBusy || selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "in_corso" })}>
                   <PlayCircle className="h-3.5 w-3.5" />In corso
                 </Button>
-                <Button size="sm" variant="outline" disabled={selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "da_fare" })}>
+                <Button size="sm" variant="outline" disabled={solaLettura || mutationBusy || selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "da_fare" })}>
                   <Circle className="h-3.5 w-3.5" />Da fare
                 </Button>
-                <Button size="sm" variant="outline" disabled={selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none text-red-600 hover:text-red-700" onClick={() => setBulkConfirmOpen(true)}>
+                <Button size="sm" variant="outline" disabled={solaLettura || mutationBusy || selectedIds.size === 0} className="h-8 text-xs gap-1 flex-1 sm:flex-none text-red-600 hover:text-red-700" onClick={() => setBulkConfirmOpen(true)}>
                   <Trash2 className="h-3.5 w-3.5" />Elimina
                 </Button>
                 <button onClick={() => { setSelectedIds(new Set()); setSelectionMode(false); }} className="hidden sm:inline-flex p-1 text-muted-foreground hover:text-foreground ml-1" aria-label="Chiudi selezione"><X className="h-3.5 w-3.5" /></button>
@@ -1843,20 +1101,21 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               <div className="flex items-center gap-2">
                 <div className="flex-1 relative">
                   <Input ref={quickAddRef} placeholder={solaLettura ? "Sei in sola lettura" : "Aggiungi attività…"} value={quickAddTitle}
-                    disabled={solaLettura}
+                    disabled={solaLettura || mutationBusy}
                     onBlur={() => { if (isMobile && !quickAddTitle.trim()) setAggiuntaAperta(false); }}
                     onChange={e => setQuickAddTitle(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && !createTask.isPending) handleQuickAdd(); if (e.key === "Escape") { setQuickAddTitle(""); quickAddRef.current?.blur(); } }}
                     className="h-9 text-base md:text-sm pr-8" />
                   {quickAddTitle && <button onClick={() => setQuickAddTitle("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
                 </div>
-                <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={() => { handleQuickAdd(); if (isMobile) setAggiuntaAperta(false); }} disabled={solaLettura || !quickAddTitle.trim() || createTask.isPending} title={creaTitle}>
+                <Button variant="outline" size="sm" className="h-9 shrink-0" aria-label="Aggiungi attività rapida" onClick={handleQuickAdd} disabled={solaLettura || !quickAddTitle.trim() || mutationBusy} title={creaTitle}>
                   {createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 </Button>
               </div>
               )}
 
               {/* Grouped view */}
+              <div className="max-h-[560px] space-y-4 overflow-y-auto pr-1" aria-label="Elenco attività">
               {groupBy !== "none" && groupedTasks ? (
                 groupedTasks.size === 0 ? (
                   <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
@@ -1869,36 +1128,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                   </div>
                 )
               ) : showDefaultSections ? (
-                <>
-                  {/* Mobile: una sezione vuota non si mostra; se lo sono tutte e due, una riga. */}
-                  {isMobile && taskOggi.length === 0 && taskFuture.length === 0 && (
-                    <p className="text-sm text-muted-foreground">Niente in programma</p>
-                  )}
-                  {(!isMobile || taskOggi.length > 0) && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-amber-500" />
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Attività di oggi {taskOggi.length > 0 && `(${taskOggi.length})`}</p>
-                    </div>
-                    {/* Sezione vuota: una riga (queste sezioni vuote si vedono solo da tablet). */}
-                    {taskOggi.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">Nessuna attività per oggi</p>
-                    ) : <div className={compact ? "space-y-1" : "space-y-2"}>{taskOggi.map(renderTask)}</div>}
-                  </div>
-                  )}
-                  {(!isMobile || (taskOggi.length > 0 && taskFuture.length > 0)) && <div className="border-t" />}
-                  {(!isMobile || taskFuture.length > 0) && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-blue-500" />
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Prossime attività {taskFuture.length > 0 && `(${taskFuture.length})`}</p>
-                    </div>
-                    {taskFuture.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">Nessuna attività in programma</p>
-                    ) : <div className={compact ? "space-y-1" : "space-y-2"}>{taskFuture.map(renderTask)}</div>}
-                  </div>
-                  )}
-                </>
+                <div className="space-y-4">{defaultGroups.map(group => <section key={group.label} className="space-y-2" aria-label={`${group.label}: ${group.tasks.length} attività in questa pagina`}><h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label} <span className="font-normal">({group.tasks.length})</span></h3><div className={compact ? "space-y-1" : "space-y-2"}>{group.tasks.map(renderTask)}</div></section>)}</div>
               ) : filteredTasks.length === 0 ? (
                 <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
                   <Filter className="h-6 w-6 mx-auto mb-2 text-muted-foreground opacity-40" />
@@ -1907,14 +1137,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                       // Messaggio contestuale: dice ESATTAMENTE quale combinazione
                       // di filtri è vuota (es. "Nessuna attività scaduta di Mario
                       // Bianchi"), invece del generico "per questo filtro".
-                      const who = filterAssignee === "me"
-                        ? " assegnata a te"
-                        : filterAssignee !== "all"
-                          ? (() => {
-                              const m = teamMembers.find((t) => t.id === filterAssignee);
-                              return m ? ` di ${[m.first_name, m.last_name].filter(Boolean).join(" ")}` : "";
-                            })()
-                          : "";
+                      const who = " assegnata a te";
                       const what = filter === "scadute" ? " scaduta"
                         : filter === "oggi" ? " per oggi"
                           : filter === "settimana" ? " questa settimana"
@@ -1922,19 +1145,21 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                       return `Nessuna attività${what}${who}${searchQuery ? ` per «${searchQuery}»` : ""}`;
                     })()}
                   </p>
-                  {(filterAssignee !== "all" || filter !== "tutte" || !!searchQuery) && (
+                  {(filter !== "tutte" || !!searchQuery) && (
                     <button
                       type="button"
-                      onClick={() => { setFilterAssignee("all"); setFilter("tutte"); setSearchQuery(""); setSelectedIds(new Set()); }}
+                      onClick={() => { setFilter("tutte"); setSearchQuery(""); setSelectedIds(new Set()); }}
                       className="mt-2 text-xs font-semibold text-primary hover:underline"
                     >
-                      Mostra tutte le attività
+                      Mostra tutte le mie attività
                     </button>
                   )}
                 </div>
               ) : (
-                <div className={compact ? "space-y-1" : "space-y-2"}>{filteredTasks.map(renderTask)}</div>
+                <div className={compact ? "space-y-1" : "space-y-2"}>{visibleTasks.map(renderTask)}</div>
               )}
+              </div>
+              {filteredTasks.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3"><p role="status" className="text-xs text-muted-foreground">{(currentPage - 1) * 20 + 1}–{Math.min(currentPage * 20, filteredTasks.length)} di {filteredTasks.length} attività</p><div className="flex gap-1"><Button variant="outline" size="sm" className="h-8 text-xs" disabled={currentPage === 1} onClick={() => { setPage(currentPage - 1); setSelectedIds(new Set()); }}>Precedenti</Button><Button variant="outline" size="sm" className="h-8 text-xs" disabled={currentPage === pageCount} onClick={() => { setPage(currentPage + 1); setSelectedIds(new Set()); }}>Successive</Button></div></div>}
             </div>
           )}
         </CardContent>
@@ -1944,10 +1169,10 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto sm:max-w-[480px]">
           <DialogHeader>
-            <DialogTitle>{editingTask ? "Modifica attività" : "Nuova attività"}</DialogTitle>
+            <DialogTitle>{readOnlyDialog ? "Dettagli attività" : editingTask ? "Modifica attività" : "Nuova attività"}</DialogTitle>
             <DialogDescription className="sr-only">{editingTask ? "Modifica i dettagli dell'attività." : "Crea una nuova attività."}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <fieldset disabled={readOnlyDialog || mutationBusy} className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label htmlFor="task-title">Titolo *</Label>
               <Input id="task-title" placeholder="Cosa devi fare?" value={formTitle} onChange={e => setFormTitle(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && formTitle.trim()) handleSave(); }} autoFocus={!isMobile || !editingTask} />
@@ -2036,22 +1261,23 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               {editingTask && (
                 <div className="space-y-1.5">
                   <Label>Stato</Label>
-                  <Select value={formStatus} onValueChange={setFormStatus}>
+                  <Select disabled={!!editingTask && isTaskBlockedStatus(editingTask.status, taskStatuses)} value={formStatus} onValueChange={setFormStatus}>
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>{Object.entries(STATUS_CONFIG).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}</SelectContent>
+                    <SelectContent>{taskStatuses.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
               )}
             </div>
             </div>
-          </div>
+          </fieldset>
           <DialogFooter className="gap-2">
             {/* Mobile: chiude la X in alto, resta un bottone solo. */}
             <Button variant="outline" className="max-sm:hidden" onClick={() => setDialogOpen(false)}>Annulla</Button>
-            <Button onClick={handleSave} disabled={!formTitle.trim() || createTask.isPending || updateTask.isPending}>
+            {editingTask && seesTeamTasks && <Button asChild variant="outline" className="gap-1 text-xs"><Link to={`/azienda/attivita?tab=regia&attivita=${encodeURIComponent(editingTask.id)}`} onClick={() => setDialogOpen(false)}><ExternalLink className="h-3 w-3" />Gestione completa</Link></Button>}
+            {!readOnlyDialog && <Button onClick={handleSave} disabled={!formTitle.trim() || mutationBusy}>
               {(createTask.isPending || updateTask.isPending) && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               {editingTask ? "Salva" : "Crea"}
-            </Button>
+            </Button>}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2105,29 +1331,14 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Mobile: di chi guardare le attività e come raggrupparle. Due scelte,
-          un tocco ciascuna, al posto di due righe fisse sopra la lista. */}
+      {/* Le opzioni cambiano il raggruppamento, mai la visibilità personale. */}
       <Sheet open={filtriAperti} onOpenChange={setFiltriAperti}>
         <SheetContent side="bottom" className="rounded-t-2xl px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] max-h-[80dvh] overflow-y-auto">
           <SheetHeader className="text-left">
             <SheetTitle>Filtri</SheetTitle>
-            <SheetDescription>Di chi vedere le attività e come raggrupparle.</SheetDescription>
+            <SheetDescription>Come raggruppare le tue attività.</SheetDescription>
           </SheetHeader>
           <div className="mt-4 space-y-5">
-            {seesTeamTasks && teamMembers.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Di chi</p>
-                <div className="flex flex-wrap gap-2">
-                  {opzioniChi.map(f => (
-                    <button key={f.key} type="button"
-                      onClick={() => { setFilterAssignee(f.key); setFiltriAperti(false); }}
-                      className={`inline-flex items-center h-10 px-3.5 rounded-full text-sm font-medium transition-colors active:scale-95 ${filterAssignee === f.key ? "bg-violet-600 text-white" : "bg-muted text-foreground"}`}>
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Raggruppa per</p>
               <div className="grid grid-cols-2 gap-2">
@@ -2152,11 +1363,21 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
 // Tab content — Attività (Dashboard Widget)
 // ─────────────────────────────────────────────────────────────────────────────
 function TabAttivita() {
-  const { role } = useAuth();
+  const { user, effectiveCompany, role } = useAuth();
   const isAdmin = role === "company_admin";
   const isMobile = useIsMobile();
   const [addTaskDate, setAddTaskDate] = useState<AddTaskRequest | null>(null);
   const [calendarDate, setCalendarDate] = useState<string | null>(null);
+  const [openTaskRequest, setOpenTaskRequest] = useState<{ id: string; requestId: number } | null>(null);
+  const [mobileAgenda, setMobileAgenda] = useState(false);
+  const [mobileTeam, setMobileTeam] = useState(false);
+  const requestSequence = useRef(0);
+  const permissions = usePermissions();
+  const taskQuery = useDashboardTasks();
+  const observedStatuses = useMemo(() => [...new Set((taskQuery.data ?? []).map(t => t.status))], [taskQuery.data]);
+  const { statuses } = useTaskStatuses(effectiveCompany?.id, observedStatuses);
+  const agendaTasks = dashboardTasksForAssignee(taskQuery.data ?? [], "me", user?.id);
+  const seesTeam = !permissions.isLoading && (permissions.isAdmin || permissions.canViewTeamTasks);
 
   return (
     <div className="space-y-4">
@@ -2167,62 +1388,46 @@ function TabAttivita() {
           Da tablet due colonne con le attività a larghezza fissa: a un terzo
           di pagina, a 1024px, il pannello restava di 210px e tagliava
           ricerca e filtri; sotto i 1024 finiva in fondo, dopo il calendario. */}
-      <div className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="grid grid-cols-1 items-start gap-3 sm:gap-4 md:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="min-w-0 space-y-3 sm:space-y-4">
           <MeteoWidget compatto={isMobile} />
-          {/* Calendario mese: ingombrante e poco usato su mobile (la vista
-              "Oggi/Settimana" dei chip basta). Solo da tablet in su. */}
-          {!isMobile && (
-            <MiniCalendario
-              onAddTask={(date) => setAddTaskDate({ date, requestId: Date.now() })}
-              onDateSelect={(date) => setCalendarDate(date)}
-            />
-          )}
+          {isMobile && <Button variant="outline" className="w-full justify-between" onClick={() => setMobileAgenda(v => !v)} aria-expanded={mobileAgenda}><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />Agenda personale</span><ChevronDown className={cn("h-4 w-4", mobileAgenda && "rotate-180")} /></Button>}
+          {(!isMobile || mobileAgenda) && <DashboardAgenda
+            tasks={agendaTasks} tasksLoading={taskQuery.isLoading} tasksError={taskQuery.isError} onTasksRetry={() => taskQuery.refetch()}
+            statuses={statuses} selectedDate={calendarDate} onDateSelect={setCalendarDate}
+            onAddTask={date => setAddTaskDate({ date, requestId: ++requestSequence.current })}
+            onTaskOpen={id => setOpenTaskRequest({ id, requestId: ++requestSequence.current })}
+          />}
+
         </div>
+        <div className="min-w-0 space-y-4">
         <MieAttivita
           initialDueDate={addTaskDate}
           calendarDate={calendarDate}
           onCalendarDateClear={() => setCalendarDate(null)}
+          openTaskRequest={openTaskRequest}
         />
+        {seesTeam && (isMobile ? <div className="space-y-3"><Button variant="outline" className="w-full justify-between" onClick={() => setMobileTeam(v => !v)} aria-expanded={mobileTeam}><span className="flex items-center gap-2"><Users className="h-4 w-4" />Priorità del team</span><ChevronDown className={cn("h-4 w-4", mobileTeam && "rotate-180")} /></Button>{mobileTeam && <TeamTaskPulse compact />}</div> : <TeamTaskPulse compact />)}
+        </div>
       </div>
 
-      {/* Strumenti del team (solo admin). Su mobile NON montati (query pesanti
-          + scroll lungo): sono la vista desktop "Regia" — raggiungibile in 1
-          tap dal tab Regia. "Il troppo non va bene" sul telefono. */}
-      {isAdmin && !isMobile && <TeamTaskPulse />}
-      {/* Qui sotto c'era anche «Task del Team»: le stesse attività scadute di
-          «Priorità da guardare», in un secondo riquadro che scorreva dentro la
-          pagina. La lista completa, con i filtri per persona, è in «Regia». */}
-      {/* Su mobile qui c'era un bottone «Apri regia team»: faceva la stessa
-          cosa del tab «Regia» in cima alla pagina. Un modo solo. */}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Regia rapida — indicatori operativi per admin
+// Priorità del team — lettura solo con il permesso dedicato
 // ─────────────────────────────────────────────────────────────────────────────
-function TeamTaskPulse() {
+export function TeamTaskPulse({ compact = false }: { compact?: boolean }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const { data: tasks = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["team-task-pulse", companyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select(`id, title, status, priority, due_date, assigned_to, category,
-          assignee:profiles!tasks_assigned_to_fkey(first_name, last_name)`)
-        .eq("company_id", companyId!)
-        .neq("status", "completata")
-        .order("due_date", { ascending: true, nullsFirst: false })
-        .limit(200);
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!companyId,
-    staleTime: 60_000,
-  });
+  const permissions = usePermissions();
+  const seesTeam = !permissions.isLoading && (permissions.isAdmin || permissions.canViewTeamTasks);
+  const { data: pulseTasks = [], isLoading, isError, error, refetch } = useDashboardTasks("team");
+  const observed = useMemo(() => [...new Set(pulseTasks.map(t => t.status))], [pulseTasks]);
+  const { statuses } = useTaskStatuses(companyId, observed);
+  const tasks = pulseTasks.filter(t => !isTaskDoneStatus(t.status, statuses) && !isTaskBlockedStatus(t.status, statuses));
 
   const pulse = useMemo(() => {
     const today = startOfDay(new Date());
@@ -2258,12 +1463,14 @@ function TeamTaskPulse() {
     { label: "Senza assegnatario", value: pulse.unassigned.length, className: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300" },
   ];
 
+  if (!seesTeam) return null;
+
   return (
-    <Card>
+    <Card role="region" aria-label="Priorità del team">
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <ArrowUpCircle className="h-4 w-4" />Regia rapida
+            <ArrowUpCircle className="h-4 w-4" />{compact ? "Priorità del team" : "Regia rapida"}
           </CardTitle>
           <Button variant="outline" size="sm" className="h-8 gap-1.5" asChild>
             <Link to="/azienda/attivita?tab=regia">
@@ -2273,6 +1480,7 @@ function TeamTaskPulse() {
         </div>
       </CardHeader>
       <CardContent>
+        <p className="mb-3 text-xs text-muted-foreground">Attività del team che sei autorizzato a consultare. La tua agenda resta personale.</p>
         {isError ? (
           <InlineLoadError
             title="Errore nel caricamento della regia"
@@ -2281,7 +1489,7 @@ function TeamTaskPulse() {
           />
         ) : isLoading ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className={cn("grid grid-cols-2 gap-3", !compact && "md:grid-cols-4")}>
               {[1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-20 w-full" />)}
             </div>
             <Skeleton className="h-16 w-full" />
@@ -2290,7 +1498,7 @@ function TeamTaskPulse() {
           <p className="text-sm text-muted-foreground">Nessuna attività aperta da gestire</p>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className={cn("grid grid-cols-2 gap-3", !compact && "md:grid-cols-4")}>
               {metrics.map((metric) => (
                 <div key={metric.label} className={`rounded-lg border p-3 ${metric.className}`}>
                   <p className="text-xs font-medium opacity-80">{metric.label}</p>
@@ -2309,7 +1517,7 @@ function TeamTaskPulse() {
                 <p className="py-3 text-sm text-muted-foreground">Nessuna criticità immediata.</p>
               ) : (
                 <div className="divide-y border-y">
-                  {pulse.priorities.map((task: any) => {
+                  {pulse.priorities.slice(0, compact ? 3 : 6).map((task: any) => {
                     const priority = PRIORITY_CONFIG[task.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
                     const dueDate = task.due_date ? parseISO(task.due_date) : null;
                     const scaduta = dueDate && isBefore(dueDate, startOfDay(new Date())) && !isToday(dueDate);
@@ -2318,9 +1526,9 @@ function TeamTaskPulse() {
                     return (
                       <div key={task.id} className="flex flex-wrap items-center gap-2 px-1 py-2 text-sm">
                         <div className={`h-2 w-2 shrink-0 rounded-full ${priority.dotClass}`} />
-                        <span className="min-w-[180px] flex-1 truncate font-medium">{task.title}</span>
+                        <Link to={`/azienda/attivita?tab=regia&attivita=${encodeURIComponent(task.id)}`} className={cn("flex-1 font-medium text-primary hover:underline", compact ? "w-full basis-full line-clamp-2" : "min-w-[180px] truncate")}>{task.title}</Link>
                         <span className="text-xs text-muted-foreground">{assigneeName}</span>
-                        {task.category && <Badge variant="outline" className="text-[10px]">{task.category}</Badge>}
+                        {task.category && <Badge variant="outline" className="text-[10px]">{CATEGORY_OPTIONS.find(c => c.value === task.category)?.label || task.category}</Badge>}
                         {dueDate && (
                           <Badge variant="outline" className={`text-[10px] ${scaduta ? "border-red-200 bg-red-50 text-red-700" : isToday(dueDate) ? "border-amber-200 bg-amber-50 text-amber-700" : ""}`}>
                             {scaduta ? "Scaduta" : isToday(dueDate) ? "Oggi" : format(dueDate, "d MMM", { locale: it })}
@@ -2350,6 +1558,13 @@ function TabFallback() {
 // Pagina principale con Tabs
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AttivitaStaff() {
+  const { effectiveCompany, user } = useAuth();
+  if (!user?.id) return <p role="status">Caricamento attività…</p>;
+  if (!effectiveCompany?.id) return <Card><CardContent className="p-4">Seleziona un’azienda per consultare le attività.</CardContent></Card>;
+  return <AttivitaAzienda key={`${effectiveCompany.id}:${user?.id}`} />;
+}
+
+function AttivitaAzienda() {
   const { role } = useAuth();
   const isAdmin = role === "company_admin";
   // La Regia è lo strumento "di team": la vede l'admin e chi ha il permesso

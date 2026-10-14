@@ -16,11 +16,15 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Plus, Loader2, AlertTriangle, Save } from "lucide-react";
+import { Plus, Loader2, AlertTriangle, Save, ListChecks, Users, CalendarDays, ArrowUpRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
+import { useSettingsFloatingBar } from "@/hooks/useSettingsFloatingBar";
+import { useOrderStatusUsage } from "@/hooks/useOrderStatusUsage";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
+import { SQUADRE_OPERAI, CALENDARI_SQUADRE } from "@/lib/manodopera/collegamentiSquadre";
 import { useVaiASezione } from "@/hooks/useVaiASezione";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -37,77 +41,9 @@ import { AvvisoSolaLetturaImpostazioni } from "@/components/impostazioni/AvvisoS
 import { StatusItem } from "./StatusItem";
 import { OrderProgressTracker, type OrderStatus } from "@/components/orders/OrderProgressTracker";
 import { cn } from "@/lib/utils";
+import { ORDER_WORKFLOW_MODELS, addWorkflowStatuses } from "@/lib/orders/workflowModels";
 
-/** Elenchi pronti per tipo di lavoro. Applicarne uno sostituisce la LISTA
- *  LOCALE (anteprima inclusa): gli stati con lo stesso nome — e lo stato
- *  Assistenza — riusano gli UUID esistenti, quindi storico e commesse collegate
- *  restano intatti. Nulla tocca il DB finché non si preme «Salva modifiche»; la RPC
- *  save_order_statuses blocca comunque l'eliminazione di stati con commesse. */
-const PIPELINE_PRESETS: {
-  key: string;
-  label: string;
-  hint: string;
-  statuses: { name: string; icon: string; color: string }[];
-}[] = [
-  {
-    key: "serramenti",
-    label: "Serramenti / Infissi",
-    hint: "Flusso prodotto: produzione → consegna → posa",
-    statuses: [
-      { name: "Contratto Firmato", icon: "FileSignature", color: "#2563EB" },
-      { name: "Acconto Pagato", icon: "Euro", color: "#16A34A" },
-      { name: "Rilievo Tecnico", icon: "ClipboardCheck", color: "#D97706" },
-      { name: "In Produzione", icon: "Package", color: "#7C3AED" },
-      { name: "Produzione Finita", icon: "PackageCheck", color: "#0891B2" },
-      { name: "Merce in Magazzino", icon: "Truck", color: "#4F46E5" },
-      { name: "Posa Programmata", icon: "CalendarClock", color: "#DB2777" },
-      { name: "Posa Completata", icon: "CheckCircle2", color: "#16A34A" },
-      { name: "Assistenza", icon: "Wrench", color: "#64748B" },
-    ],
-  },
-  {
-    key: "fotovoltaico",
-    label: "Fotovoltaico",
-    hint: "Sopralluogo → pratiche → installazione → allaccio",
-    statuses: [
-      { name: "Contratto Firmato", icon: "FileSignature", color: "#2563EB" },
-      { name: "Acconto Pagato", icon: "Euro", color: "#16A34A" },
-      { name: "Sopralluogo Tecnico", icon: "ClipboardCheck", color: "#D97706" },
-      { name: "Pratiche e Autorizzazioni", icon: "FileText", color: "#7C3AED" },
-      { name: "Materiale Ordinato", icon: "Package", color: "#0891B2" },
-      { name: "Installazione", icon: "HardHat", color: "#DB2777" },
-      { name: "Allaccio e Collaudo", icon: "Zap", color: "#F59E0B" },
-      { name: "Assistenza", icon: "Wrench", color: "#64748B" },
-    ],
-  },
-  {
-    key: "ristrutturazioni",
-    label: "Ristrutturazioni",
-    hint: "Pochi passaggi: l'avanzamento vero lo vedi nelle fasi di lavoro del cantiere",
-    statuses: [
-      { name: "Contratto Firmato", icon: "FileSignature", color: "#2563EB" },
-      { name: "Acconto Pagato", icon: "Euro", color: "#16A34A" },
-      { name: "Cantiere in Corso", icon: "HardHat", color: "#D97706" },
-      { name: "SAL Intermedi", icon: "Banknote", color: "#7C3AED" },
-      { name: "Fine Lavori", icon: "CheckCircle2", color: "#0891B2" },
-      { name: "Collaudo e Consegna", icon: "ShieldCheck", color: "#16A34A" },
-      { name: "Assistenza", icon: "Wrench", color: "#64748B" },
-    ],
-  },
-  {
-    key: "impianti",
-    label: "Impianti",
-    hint: "Elettrico / idraulico / clima",
-    statuses: [
-      { name: "Contratto Firmato", icon: "FileSignature", color: "#2563EB" },
-      { name: "Acconto Pagato", icon: "Euro", color: "#16A34A" },
-      { name: "Sopralluogo", icon: "ClipboardCheck", color: "#D97706" },
-      { name: "Installazione", icon: "Hammer", color: "#7C3AED" },
-      { name: "Collaudo e Certificazione", icon: "ShieldCheck", color: "#0891B2" },
-      { name: "Assistenza", icon: "Wrench", color: "#64748B" },
-    ],
-  },
-];
+const PIPELINE_PRESETS = ORDER_WORKFLOW_MODELS;
 
 // Le sezioni, nell'ordine in cui compaiono: quello che si viene a fare (la lista degli stati) per primo.
 const SEZIONI: VoceIndice[] = [
@@ -143,6 +79,12 @@ function messaggioErroreSalvataggioStati(errore: unknown): string {
 
 export function OrderStatusConfig() {
   const { effectiveCompany } = useAuth();
+  if (!effectiveCompany?.id) return <Alert><AlertDescription>Seleziona un’azienda per consultare gli stati delle commesse.</AlertDescription></Alert>;
+  return <OrderStatusConfigCompany key={effectiveCompany.id} />;
+}
+
+function OrderStatusConfigCompany() {
+  const { effectiveCompany } = useAuth();
   const permissions = usePermissions();
   const company = effectiveCompany;
   const queryClient = useQueryClient();
@@ -155,11 +97,13 @@ export function OrderStatusConfig() {
   const [isSaving, setIsSaving] = useState(false);
   const [avvisoInCorso, setAvvisoInCorso] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
-  const hasChanges = bozza !== null;
-  useSettingsDraftGuard(hasChanges || isSaving);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const { contenitore, barra, stile, altezza } = useSettingsFloatingBar();
+  const vedeCommesse = Boolean(permissions.isAdmin || permissions.canViewOrders);
+  const uso = useOrderStatusUsage(company?.id, vedeCommesse);
 
   // Email al cliente a ogni cambio di stato (trigger trg_cliente_stato_commessa).
-  const { data: avvisaCliente = true } = useQuery({
+  const { data: avvisaCliente, isLoading: caricoAvviso, isError: erroreAvviso, refetch: rileggiAvviso } = useQuery({
     queryKey: ["company-avvisa-cliente-cambio-fase", company?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -168,13 +112,14 @@ export function OrderStatusConfig() {
         .eq("id", company!.id)
         .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error("Scelta delle email non disponibile");
       return (data as { avvisa_cliente_cambio_fase?: boolean } | null)?.avvisa_cliente_cambio_fase !== false;
     },
     enabled: !!company?.id,
     staleTime: 5 * 60 * 1000,
   });
   const cambiaAvvisoCliente = async (valore: boolean) => {
-    if (!company?.id || !puoModificare || avvisoInCorso) return;
+    if (!company?.id || !puoModificare || isSaving || avvisoInCorso || caricoAvviso || erroreAvviso || avvisaCliente == null) return;
     const chiave = ["company-avvisa-cliente-cambio-fase", company.id];
     const prima = avvisaCliente;
     queryClient.setQueryData(chiave, valore);
@@ -201,14 +146,8 @@ export function OrderStatusConfig() {
   const { data: queryData, isLoading, isError, refetch } = useQuery({
     queryKey: ["order-statuses-config", company?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_statuses")
-        .select("*")
-        .eq("company_id", company!.id)
-        .order("position");
-
-      if (error) throw error;
-      return data as OrderStatus[];
+      return loadCatalogPages<OrderStatus>((from, to) => supabase.from("order_statuses")
+        .select("*").eq("company_id", company!.id).order("position").order("id").range(from, to) as unknown as PromiseLike<{ data: OrderStatus[] | null; error: { message: string } | null }>);
     },
     enabled: !!company?.id,
     staleTime: 5 * 60 * 1000,
@@ -216,6 +155,16 @@ export function OrderStatusConfig() {
   const { evidenziata, vai } = useVaiASezione(!isLoading && !isError);
 
   const statuses = useMemo<OrderStatus[]>(() => bozza ?? queryData ?? [], [bozza, queryData]);
+  const configura = (lista: OrderStatus[]) => lista.map((r) => [r.id, r.name.trim(), r.icon ?? "Circle", r.color, r.is_support_phase === true]);
+  const hasChanges = bozza != null && JSON.stringify(configura(bozza)) !== JSON.stringify(configura(queryData ?? []));
+  const canChange = puoModificare && !isSaving && !isLoading && !isError;
+  useSettingsDraftGuard(hasChanges || isSaving || avvisoInCorso);
+  const impedimentoEliminazione = useCallback((s: OrderStatus) => {
+    if (s.id.startsWith("temp-")) return undefined;
+    if (!vedeCommesse) return undefined; // La RPC verifica comunque gli stati in uso.
+    if (uso.isLoading || !uso.data || uso.isError) return "Uso dello stato non disponibile: ricarica il conteggio prima di eliminarlo.";
+    return (uso.data[s.id] ?? 0) > 0 ? "Questo stato è usato da commesse: spostale su un altro stato prima di eliminarlo." : undefined;
+  }, [vedeCommesse, uso.isLoading, uso.data, uso.isError]);
   // Ogni modifica parte dalla lista che c'è in quel momento (la bozza, o quella salvata se non si è toccato niente).
   const modifica = useCallback(
     (cambia: (lista: OrderStatus[]) => OrderStatus[]) => setBozza((prima) => cambia(prima ?? queryData ?? [])),
@@ -232,7 +181,7 @@ export function OrderStatusConfig() {
   // Handle drag end
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    if (!puoModificare || !over || active.id === over.id) return;
+    if (!canChange || !over || active.id === over.id) return;
     modifica((lista) => {
       const oldIndex = lista.findIndex((i) => i.id === active.id);
       const newIndex = lista.findIndex((i) => i.id === over.id);
@@ -244,65 +193,47 @@ export function OrderStatusConfig() {
   // Update a single status
   const handleUpdateStatus = useCallback(
     (id: string, updates: Partial<OrderStatus>) => {
-      if (!puoModificare) return;
+      if (!canChange) return;
       modifica((lista) => lista.map((s) => (s.id === id ? { ...s, ...updates } : s)));
     },
-    [puoModificare, modifica],
+    [canChange, modifica],
   );
 
   // Delete a status — blocca eliminazione dello stato Assistenza
   const handleDeleteStatus = useCallback(
     (id: string) => {
-      if (!puoModificare) return;
+      if (!canChange) return;
       const target = statuses.find((s) => s.id === id);
+      if (target && impedimentoEliminazione(target)) return;
       if (target?.is_support_phase) {
         toast.error("Lo stato Assistenza non si può eliminare: la commessa ci passa da sola quando apri un ticket.");
         return;
       }
       modifica((lista) => lista.filter((s) => s.id !== id).map((s, index) => ({ ...s, position: index })));
     },
-    [puoModificare, statuses, modifica],
+    [canChange, statuses, modifica, impedimentoEliminazione],
   );
 
-  // Applica un elenco pronto: sostituisce la lista locale riusando gli UUID
-  // degli stati omonimi (e dello stato Assistenza) → niente perdita di storico.
-  // Diventa effettivo solo con «Salva modifiche».
+  // Aggiunge un modello senza cancellare stati, nemmeno quelli usati solo da automazioni.
   const applyPreset = useCallback(
     (presetKey: string) => {
       const preset = PIPELINE_PRESETS.find((p) => p.key === presetKey);
-      if (!preset || !puoModificare) return;
-      const byName = new Map(statuses.map((s) => [s.name.trim().toLowerCase(), s]));
-      const support = statuses.find((s) => s.is_support_phase);
-      setBozza(
-        preset.statuses.map((p, index) => {
-          const key = p.name.trim().toLowerCase();
-          const isSupport = key === "assistenza";
-          const existing = (isSupport && support) || byName.get(key);
-          return {
-            ...(existing ?? {}),
-            id: existing?.id ?? `temp-${Date.now()}-${index}`,
-            name: p.name,
-            icon: p.icon,
-            color: p.color,
-            position: index,
-            is_support_phase: isSupport || existing?.is_support_phase === true,
-          } as OrderStatus;
-        }),
-      );
+      if (!preset || !canChange) return;
+      setBozza(addWorkflowStatuses(statuses, preset, () => `temp-${crypto.randomUUID()}`));
       setSelectedPreset(presetKey);
-      toast.info(`Elenco «${preset.label}» caricato: controlla la lista e premi «Salva modifiche».`);
+      toast.info(`Modello «${preset.label}» aggiunto alla bozza. Gli stati esistenti restano invariati: controlla e salva.`);
     },
-    [puoModificare, statuses],
+    [canChange, statuses],
   );
 
   // Add a new status
   const handleAddStatus = useCallback(() => {
-    if (!puoModificare) return;
+    if (!canChange) return;
     modifica((lista) => [
       ...lista,
-      { id: `temp-${Date.now()}`, name: "Nuovo stato", icon: "Circle", color: "#2563EB", position: lista.length },
+      { id: `temp-${crypto.randomUUID()}`, name: "Nuovo stato", icon: "Circle", color: "#2563EB", position: lista.length },
     ]);
-  }, [puoModificare, modifica]);
+  }, [canChange, modifica]);
 
   const annullaModifiche = () => {
     setBozza(null);
@@ -312,7 +243,8 @@ export function OrderStatusConfig() {
   // Save all changes — usa RPC atomica save_order_statuses (non distruttiva,
   // preserva UUID, storico commesse e current_status_id delle commesse esistenti)
   async function handleSave() {
-    if (!puoModificare || isSaving) return;
+    if (!canChange || !hasChanges) return;
+    if (statuses.length < 2) { toast.error("Servono almeno 2 stati."); return; }
     if (!company?.id) {
       toast.error("Azienda non selezionata: impossibile salvare gli stati.");
       return;
@@ -333,7 +265,7 @@ export function OrderStatusConfig() {
       const payload = statuses.map((s, index) => ({
         // Mantieni UUID solo se è un ID reale (non "temp-*")
         id: s.id && !s.id.startsWith("temp-") ? s.id : undefined,
-        name: s.name,
+        name: s.name.trim(),
         icon: s.icon,
         color: s.color,
         position: index,
@@ -346,6 +278,7 @@ export function OrderStatusConfig() {
       });
 
       if (error) throw error;
+      if (!Array.isArray(data) || data.length < 2) throw new Error("Conferma del salvataggio non disponibile");
 
       // Quello che il database ha salvato diventa la lista di partenza: la bozza si chiude.
       if (data) queryClient.setQueryData(["order-statuses-config", company.id], data as OrderStatus[]);
@@ -356,6 +289,7 @@ export function OrderStatusConfig() {
       await queryClient.invalidateQueries({ queryKey: ["order-statuses", company.id] });
       await queryClient.invalidateQueries({ queryKey: ["orders"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      await queryClient.invalidateQueries({ queryKey: ["order-statuses-usage", company.id] });
       setBozza(null);
       setSelectedPreset(null);
       toast.success("Stati salvati");
@@ -390,17 +324,16 @@ export function OrderStatusConfig() {
   }
 
   const canDeleteStatus = statuses.length > 2;
-  const previewStatusId = statuses.length > 1 ? statuses[Math.floor(statuses.length / 2)]?.id : statuses[0]?.id;
+  const previewStatusId = statuses.some(s => s.id === previewId) ? previewId : statuses[0]?.id;
 
   return (
-    <div className="max-w-3xl space-y-4">
-      {!puoModificare && <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />}
-      {/* disabled su un fieldset spegne ogni campo e pulsante che contiene. */}
-      <fieldset disabled={!puoModificare || isSaving} className="m-0 min-w-0 space-y-4 border-0 p-0">
-        {/* Indice e salvataggio restano in vista mentre si scorre una lista lunga. */}
-        <div className="sticky top-2 z-20 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
+    <div className="w-full min-w-0 space-y-4 [&_section]:scroll-mt-44 sm:[&_section]:scroll-mt-32" data-testid="stati-commessa-pagina">
+      {!permissions.isLoading && !puoModificare && <AvvisoSolaLetturaImpostazioni permesso="Configurazione Ordini" />}
+      <p className="text-sm text-muted-foreground">Gli stati descrivono il percorso operativo della commessa. La pipeline delle Opportunità segue la vendita; le lavorazioni seguono l'avanzamento del cantiere. Pagamenti, materiali e assistenza restano distinti.</p>
+      <div ref={contenitore} className="sticky top-2 z-20" style={{ height: altezza }}>
+        <div ref={barra} style={stile} className="z-20 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card/95 px-3 py-2 shadow-sm backdrop-blur">
           <IndiceSezioni voci={SEZIONI} onVai={vai} />
-          <div className="ml-auto flex shrink-0 items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             {/* A riposo lo stato lo legge solo il lettore di schermo: la barra serve alle scorciatoie e ai pulsanti. */}
             <p
               role="status"
@@ -421,29 +354,43 @@ export function OrderStatusConfig() {
             <Button size="sm" onClick={handleSave} disabled={!hasChanges || isSaving}>
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin sm:mr-2" /> : <Save className="h-4 w-4 sm:mr-2" />}
               {/* Da telefono resta l'icona: il nome lo legge comunque il lettore di schermo. */}
-              <span className="max-sm:sr-only">Salva modifiche</span>
+              <span>Salva modifiche</span>
             </Button>
           </div>
         </div>
+      </div>
+      <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+      <fieldset disabled={!canChange} className="m-0 min-w-0 space-y-4 border-0 p-0">
+
 
         {/* La lista degli stati: è quello che si viene a fare */}
         <SezioneImpostazione
           id="stati"
           titolo="I tuoi stati"
-          descrizione="Trascina per riordinare. Ogni commessa nuova parte dal primo stato."
+          descrizione="Trascina per riordinare. Le nuove commesse mantengono il primo stato; scegliere un percorso non cambia lo stato attuale."
           evidenziata={evidenziata === "stati"}
         >
           <div className="space-y-3 px-4 py-4">
+            <p className="text-xs text-muted-foreground">Primo stato: <strong className="text-foreground">{statuses[0]?.name || "da definire"}</strong>. Per riordinare puoi usare anche le frecce. Gli stati in uso mantengono i collegamenti alle commesse.</p>
+            {vedeCommesse && uso.isError && <Alert><AlertDescription>Conteggi delle commesse non disponibili: non sono zero. <Button variant="ghost" size="sm" onClick={() => uso.refetch()}>Ricalcola</Button></AlertDescription></Alert>}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={statuses.map((s) => s.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
-                  {statuses.map((status) => (
+                  {statuses.map((status, index) => (
                     <StatusItem
                       key={status.id}
                       status={status}
                       onUpdate={handleUpdateStatus}
                       onDelete={handleDeleteStatus}
                       canDelete={canDeleteStatus}
+                      disabled={!canChange}
+                      usedBy={vedeCommesse && uso.data && !uso.isError ? (uso.data[status.id] ?? 0) : undefined}
+                      deletionBlocked={impedimentoEliminazione(status)}
+                      isFirst={index === 0} isLast={index === statuses.length - 1}
+                      onMove={(id, direction) => {
+                        if (!canChange) return;
+                        modifica(lista => { const from = lista.findIndex(s => s.id === id); const to = from + direction; return from < 0 || to < 0 || to >= lista.length ? lista : arrayMove(lista, from, to).map((s, i) => ({ ...s, position: i })); });
+                      }}
                     />
                   ))}
                 </div>
@@ -471,44 +418,15 @@ export function OrderStatusConfig() {
           </div>
         </SezioneImpostazione>
 
-        {/* Quello che riguarda il cliente: anteprima e avviso */}
-        <SezioneImpostazione
-          id="cliente"
-          titolo="Cosa vede il cliente"
-          descrizione="Gli stati compaiono nell'area clienti, e il cliente può essere avvisato a ogni cambio."
-          ambito={<AmbitoImpostazione>Area clienti</AmbitoImpostazione>}
-          azione={<span>L&apos;interruttore si salva subito</span>}
-          evidenziata={evidenziata === "cliente"}
-        >
-          <div className="space-y-2 px-4 py-4">
-            <AvvisoAreaClienti />
-            <div>
-              <p className="text-sm font-medium">Come lo vede il cliente</p>
-              <p className="text-xs text-muted-foreground">Un esempio, con lo stato a metà della lista.</p>
-            </div>
-            <div className="overflow-x-auto py-2">
-              <OrderProgressTracker statuses={statuses} currentStatusId={previewStatusId || null} />
-            </div>
-          </div>
-          <RigaInterruttore
-            id="avvisa-cliente-cambio-stato"
-            titolo="Avvisa il cliente a ogni cambio di stato"
-            descrizione="Il cliente con accesso all'area clienti riceve un'email con il nome del nuovo stato. Spegnilo se gli stati sono solo per l'ufficio o se mandi già tu le email dalle Automazioni."
-            checked={avvisaCliente}
-            onCheckedChange={cambiaAvvisoCliente}
-            disabled={avvisoInCorso}
-          />
-        </SezioneImpostazione>
 
-        {/* Si usa una volta sola, e sostituisce la lista: chiuso */}
+        {/* I modelli aggiungono le tappe mancanti, senza toccare stati e collegamenti esistenti. */}
         <details className="rounded-lg border bg-card">
           <summary className="cursor-pointer px-4 py-3">
             <h2 className="inline text-base font-semibold leading-tight">Parti da un elenco pronto</h2>
           </summary>
           <div className="space-y-2 border-t px-4 py-3">
             <p className="text-sm text-muted-foreground">
-              Sostituisce la lista con un elenco già pronto per il tuo tipo di lavoro. Gli stati con lo stesso nome (e lo stato
-              Assistenza) restano collegati alle commesse. Non cambia niente finché non premi «Salva modifiche».
+              Aggiunge solo gli stati mancanti per il tipo di lavoro. Non cancella né modifica quelli esistenti, anche se usati da automazioni o rate. Poi scegli il percorso nella singola commessa. Non cambia niente finché non premi «Salva modifiche».
             </p>
             <div className="flex flex-wrap gap-1.5">
               {PIPELINE_PRESETS.map((p) => (
@@ -536,6 +454,52 @@ export function OrderStatusConfig() {
           </div>
         </details>
       </fieldset>
+      <aside className="min-w-0 space-y-4" aria-label="Anteprima e collegamenti degli stati">
+        {/* Quello che riguarda il cliente: anteprima e avviso */}
+        <SezioneImpostazione
+          id="cliente"
+          titolo="Cosa vede il cliente"
+          descrizione="Gli stati compaiono nell'area clienti, e il cliente può essere avvisato a ogni cambio."
+          ambito={<AmbitoImpostazione>Area clienti</AmbitoImpostazione>}
+          azione={<span>L&apos;interruttore si salva subito</span>}
+          evidenziata={evidenziata === "cliente"}
+        >
+          <div className="space-y-2 px-4 py-4">
+            <AvvisoAreaClienti />
+            <div>
+              <p className="text-sm font-medium">Come lo vede il cliente</p>
+              <p className="text-xs text-muted-foreground">Scegli uno stato per provare l’anteprima. Non modifica una commessa.</p>
+            </div>
+            <label className="block text-xs font-medium">Stato da mostrare nell’anteprima
+              <select className="mt-1 h-10 w-full min-w-0 rounded-md border bg-background px-2 text-sm" value={previewStatusId ?? ""} onChange={e => setPreviewId(e.target.value)}>
+                {statuses.map(s => <option key={s.id} value={s.id}>{s.name || "Stato senza nome"}</option>)}
+              </select>
+            </label>
+            <div className="py-2">
+              <OrderProgressTracker statuses={statuses} currentStatusId={previewStatusId || null} layout="vertical" size="sm" />
+            </div>
+          </div>
+          {erroreAvviso && <Alert variant="destructive"><AlertDescription>Non riesco a leggere la scelta delle email al cliente. <Button variant="outline" size="sm" onClick={() => rileggiAvviso()}>Riprova lettura email</Button></AlertDescription></Alert>}
+          <RigaInterruttore
+            id="avvisa-cliente-cambio-stato"
+            titolo="Avvisa il cliente a ogni cambio di stato"
+            descrizione="Il cliente con accesso all'area clienti riceve un'email con il nome del nuovo stato. Spegnilo se gli stati sono solo per l'ufficio o se mandi già tu le email dalle Automazioni."
+            checked={avvisaCliente === true}
+            onCheckedChange={cambiaAvvisoCliente}
+            disabled={!puoModificare || avvisoInCorso || isSaving || caricoAvviso || erroreAvviso}
+          />
+        </SezioneImpostazione>
+
+        <div className="rounded-lg border bg-card p-4 space-y-3">
+          <h3 className="text-sm font-semibold">Dallo stato al lavoro in cantiere</h3>
+          {[
+            { titolo: "Fasi e avanzamento", testo: "I passaggi del lavoro e l’avanzamento si gestiscono nelle fasi della commessa.", to: "/azienda/impostazioni/modelli-fasi", Icona: ListChecks, visibile: true },
+            { titolo: "Squadre e calendari lavori", testo: "Collega i calendari alle risorse già presenti nell’azienda.", to: CALENDARI_SQUADRE, Icona: CalendarDays, visibile: true },
+            { titolo: "Operai e squadre interne", testo: "Componenti, responsabile e assegnazioni si gestiscono in Manodopera e Mezzi.", to: SQUADRE_OPERAI, Icona: Users, visibile: permissions.isAdmin || permissions.canViewOperai },
+          ].filter(c => c.visibile).map(({ titolo, testo, to, Icona }) => <Link key={to} to={to} className="flex items-start gap-2 rounded-md p-2 hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"><Icona className="mt-0.5 h-4 w-4 shrink-0 text-primary" /><span className="min-w-0 flex-1"><span className="block text-sm font-medium">{titolo}</span><span className="block text-xs text-muted-foreground mt-0.5">{testo}</span></span><ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" /></Link>)}
+        </div>
+      </aside>
+      </div>
     </div>
   );
 }

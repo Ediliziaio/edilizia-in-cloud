@@ -173,6 +173,7 @@ function VoceEditRow({ voce, onCommit, onDelete }: VoceEditRowProps) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            {!UNITA_OPZIONI.includes(unita) && <SelectItem value={unita}>{unita}</SelectItem>}
             {UNITA_OPZIONI.map((u) => (
               <SelectItem key={u} value={u} className="text-xs">
                 {u}

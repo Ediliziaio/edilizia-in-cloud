@@ -8,7 +8,7 @@
  * argomento e, dentro, le schede per passare da una pagina all'altra.
  *
  * 09/10/2026: «Margini e sconti» non è più una voce a sé. Prezzo e margini,
- * sconti e approvazioni sono schede di «Modelli di preventivo»: chi cerca
+ * sconti e approvazioni sono schede di «Modelli preventivi e contratti»: chi cerca
  * come si fa il prezzo, quanto sconto si può dare o quando serve una seconda
  * firma trova tutto dove sta il modello del preventivo.
  */
@@ -64,8 +64,8 @@ export const GRUPPI_IMPOSTAZIONI: GruppoImpostazioni[] = [
   },
   {
     id: "modelli",
-    titolo: "Modelli di preventivo",
-    descrizione: "Come è fatto il preventivo e le regole che segue: prezzo, margini, sconti e approvazioni",
+    titolo: "Modelli preventivi e contratti",
+    descrizione: "Modelli di preventivi, contratti e varianti; regole di prezzo, margini, sconti e approvazioni",
     schede: [
       { sezione: "template-preventivi", etichetta: "Modelli", to: `${BASE}/template-preventivi`, permesso: "canViewSettingsPricing" },
       { sezione: "margini", etichetta: "Prezzo e margini", to: `${BASE}/margini`, permesso: "canViewCosts" },

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import type { ExecutorOption, PhaseAssignment } from "@/hooks/useOrderWorkPhases";
 import { usePermissions } from "@/hooks/usePermissions";
 import { parseWorkAmount } from "@/lib/orders/workPlanning";
+import { assignmentName } from "@/lib/orders/teamWorkPlan";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -20,22 +21,16 @@ export type AssignmentPatch = Partial<Pick<PhaseAssignment,
 // «1.140,00 €» come nel resto della commessa (formatCurrency), non «1140,00 €».
 const eur = { format: formatCurrency };
 
-function resolveExecutorLabel(a: PhaseAssignment, employees: ExecutorOption[], teams: ExecutorOption[]) {
-  return a.executor_type === "interno"
-    ? employees.find(e => e.id === a.employee_id)?.label ?? "Dipendente non disponibile"
-    : teams.find(t => t.id === a.external_team_id)?.label ?? "Ditta non disponibile";
-}
-
 /**
  * Elenco di persone e ditte di una fase (06/10/2026): un riquadro solo, una
  * riga per assegnazione e i due costi in colonna sotto la loro intestazione,
  * invece di un riquadro per persona con i costi ripetuti in ognuno.
  */
-export function ElencoAssegnazioni({ children }: { children: ReactNode }) {
+export function ElencoAssegnazioni({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
   const { canEditOrders, canViewCosts } = usePermissions();
   return (
     <div className="divide-y overflow-hidden rounded-lg border bg-background">
-      {canViewCosts && (
+      {canViewCosts && !compact && (
         <div aria-hidden="true" className="flex items-center gap-3 bg-muted/40 px-3 py-1.5 text-[11px] font-medium text-muted-foreground max-sm:hidden">
           <span className="flex-1 pl-10">Persona o ditta</span>
           <span className="w-28 text-right">Costo previsto</span>
@@ -55,12 +50,13 @@ interface Props {
   phases: { id: string; name: string }[];
   onUpdate: (patch: AssignmentPatch) => Promise<unknown>;
   onDelete: () => Promise<unknown>;
+  compact?: boolean;
 }
 
-export function WorkAssignmentRow({ assignment: a, employees, externalTeams, phases, onUpdate, onDelete }: Props) {
+export function WorkAssignmentRow({ assignment: a, employees, externalTeams, phases, onUpdate, onDelete, compact = false }: Props) {
   const { canEditOrders, canViewCosts, canManagePayments } = usePermissions();
   const internal = a.executor_type === "interno";
-  const name = resolveExecutorLabel(a, employees, externalTeams);
+  const name = assignmentName(a, employees, externalTeams);
   // Chi è al lavoro vede la commessa nell'app nei giorni della fase: qui si
   // vede subito chi l'app non ce l'ha.
   const persona = internal ? employees.find(e => e.id === a.employee_id) : undefined;
@@ -118,14 +114,15 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
       <p className="break-words text-sm font-medium">{name}</p>
       {/* Testo che va a capo da sé: niente puntini rimasti soli in fondo alla riga */}
       <p className="text-xs text-muted-foreground">
-        <span>{internal ? "Dipendente" : "Ditta esterna"}</span>
-        {internal && <> · <span>{a.hours ?? 0} h registrate</span></>}
+        <span>{internal ? "Dipendente" : (a.executor_kind ?? externalTeams.find(t => t.id === a.external_team_id)?.kind) === "interna" ? "Squadra interna" : "Ditta esterna"}</span>
+        {a.executor_inactive && <span> · storico, non attivo</span>}
+        {internal && <> · <span>{compact && a.hours == null ? "Ore da rilevare" : `${a.hours ?? 0} h registrate`}</span></>}
         {senzaApp && <> · <span className="font-medium text-amber-700"><span className="sm:hidden">senza app</span><span className="max-sm:hidden">senza app: non vede la commessa</span></span></>}
         {!internal && canViewCosts && <span className="max-sm:hidden"> · {a.is_paid ? "pagamento registrato" : "pagamento da registrare"}</span>}
       </p>
-      {a.notes && <p className="mt-0.5 whitespace-pre-wrap break-words text-xs text-muted-foreground">{a.notes}</p>}
+      {a.notes && (compact ? <details className="mt-1 text-xs text-muted-foreground"><summary className="cursor-pointer">Note assegnazione</summary><p className="mt-1 whitespace-pre-wrap break-words">{a.notes}</p></details> : <p className="mt-0.5 whitespace-pre-wrap break-words text-xs text-muted-foreground">{a.notes}</p>)}
     </div>
-    {canViewCosts && <>
+    {canViewCosts && !compact && <>
       <span className="w-28 shrink-0 pt-0.5 text-right text-sm tabular-nums max-sm:hidden">
         <span className="sr-only">Costo previsto </span>{eur.format(a.cost_preventivo)}
       </span>

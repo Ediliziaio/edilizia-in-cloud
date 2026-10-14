@@ -528,19 +528,19 @@ export function PersonnelCostsTab({
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Personale</p>
-              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Le persone: ore vere, costo vero</h2>
+              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Personale: ore dichiarate e stima dei costi</h2>
             </div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-0 sm:gap-3 xl:grid-cols-4">
             <NavyStatCard
-              label="Costo personale"
+              label="Costo personale stimato"
               value={formatCurrency(totali.costoTotale)}
               sub={`${formatCurrency(totali.lordoTotale)} lordi + ${formatCurrency(totali.oneriTotali)} oneri`}
               icon={Users}
               tone="text-orange-100"
             />
             <NavyStatCard
-              label="Ore lavorate"
+              label="Ore dichiarate"
               value={fmtOre(totali.oreLavorate)}
               sub={`${totali.dipendentiConOre} su ${totali.dipendentiAttivi} dipendenti con rapportini`}
               icon={Clock}

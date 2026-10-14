@@ -781,7 +781,7 @@ export function MacroCategorieManager() {
                 usato sia come riepilogo negli elenchi/picker (troncato), sia
                 come contenuto della pagina dedicata nel PDF preventivo.
                 L'attivazione "pagina dedicata SI/NO" si fa in:
-                  Impostazioni → Modelli di preventivo → Moduli → Serramenti (o Fotovoltaico) →
+                  Impostazioni → Modelli preventivi e contratti → Moduli → Serramenti (o Fotovoltaico) →
                   card "Pagine dedicate macrocategoria".
                 Qui sotto è solo un hint informativo. */}
             {(

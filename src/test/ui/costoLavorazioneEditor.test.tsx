@@ -19,6 +19,7 @@ describe("Scelta del costo di esecuzione", () => {
     fireEvent.change(screen.getByLabelText("Ore per operatore 1"), { target: { value: "3" } });
     fireEvent.change(screen.getByLabelText("Costo orario operatore 1"), { target: { value: "25" } });
     expect(screen.getByRole("status")).toHaveTextContent("150,00");
+    fireEvent.click(screen.getByRole("button", { name: "Confronta le altre modalità" }));
     fireEvent.change(screen.getByLabelText("Costo subappalto"), { target: { value: "120" } });
     fireEvent.click(screen.getByRole("button", { name: "Subappalto" }));
     expect(screen.getByRole("status")).toHaveTextContent("120,00");

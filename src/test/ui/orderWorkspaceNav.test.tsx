@@ -45,9 +45,11 @@ describe("Viste materiali ed economia", () => {
     mount("?tab=finanza");
     fireEvent.click(screen.getByRole("button", { name: "Incassi e pagamenti" }));
     expect(screen.getByRole("button", { name: "Incassi e pagamenti" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByText(ECONOMIA_VIEWS[1].description)).toBeVisible();
+    expect(screen.getByText(ECONOMIA_VIEWS.find(view => view.value === "pagamenti")!.description)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Indietro" }));
     expect(screen.getByRole("button", { name: "Margini e costi" })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(screen.getByRole("button", { name: "Manodopera e subappalti" }));
+    expect(screen.getByText(ECONOMIA_VIEWS.find(view => view.value === "manodopera")!.description)).toBeVisible();
   });
   it("mostra il numero accanto alla vista solo se maggiore di zero", () => {
     render(<OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value="articoli" onChange={() => {}} counts={{ articoli: 7, acquisti: 0 }} />);

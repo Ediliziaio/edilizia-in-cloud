@@ -46,8 +46,8 @@ describe("testata delle impostazioni", () => {
   });
 
   it("le pagine con le schede hanno il titolo del gruppo, con la sua frase", () => {
-    expect(apri("/azienda/impostazioni/margini")).toBe("Modelli di preventivo");
-    expect(frase()).toMatch(/^Come è fatto il preventivo/);
+    expect(apri("/azienda/impostazioni/margini")).toBe("Modelli preventivi e contratti");
+    expect(frase()).toMatch(/^Modelli di preventivi, contratti e varianti/);
   });
 
   it("l'elenco delle impostazioni ha il titolo di sempre", () => {

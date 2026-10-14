@@ -16,6 +16,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { emailSyncPending } from "@/lib/email/syncPending";
 import { EmailSidebar } from "./components/EmailSidebar";
 import { EmailAiCommandCenter } from "./components/EmailAiCommandCenter";
 // EmailConnectionHealthPanel rimosso dalla center column 2026-05-26 → manteniamo
@@ -178,9 +179,12 @@ export function EmailLayout({
         return;
       }
       const reconciled = data?.reads_reconciled ?? 0;
-      toast.success("Sync completato", {
+      const pending = emailSyncPending(data);
+      const notify = pending ? toast.info : toast.success;
+      notify(pending ? "Recupero email in corso" : "Sync completato", {
         description: [
           stored === 0 ? "Nessuna nuova email." : `${stored} nuova email scaricata.`,
+          pending ? "Il recupero dello storico continua nei prossimi giri." : "",
           reconciled > 0 ? `${reconciled} segnate come lette (aperte altrove).` : "",
         ].filter(Boolean).join(" "),
       });

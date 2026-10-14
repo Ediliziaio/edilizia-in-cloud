@@ -39,16 +39,36 @@ describe("contratto di composizione del dettaglio commessa", () => {
   });
 
   it.each([
-    ["panoramica", ["CantiereDaOrganizzare", "OrdineCliente", "OrderSurveysCard", "OrderActivityFeed", "OrderAssistenzaTab", "OrderAttachments", "OrdineNote", "OrderCommunicationsCard", "ContrattoAIDialog", "AllocazioneOperaiAIDialog"]],
-    ["cantiere", ["OrderWorkPhases", "MezziCommessaCard", "OrdineTempistiche", "LinkedAppointments", "LinkedTasks", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav"]],
+    ["panoramica", ["CantiereDaOrganizzare", "OrdineCliente", "OrderAssistenzaAlert", "OrderAttachments", "OrdineNote", "OrderCommunicationsCard", "ContrattoAIDialog"]],
+    ["cantiere", ["OrderWorkPhases", "OrderSurveysCard", "OrderAssistenzaTab", "AllocazioneOperaiAIDialog", "MezziCommessaCard", "OrdineTempistiche", "LinkedAppointments", "LinkedTasks", "OrdineRapportiniCampo", "OrdineFotoCantiere", "WhatsAppActivityFeed", "TimelineCantiere", "OrderAcceptanceReports", "CantiereViewNav"]],
     ["articoli", ["OrderMeasureControl", "OrdineArticoli", "OrderProcurementTools", "OrderUsciteCard", "LinkedPurchaseOrdersCard", "OrderSerialsTrackingCard"]],
     ["finanza", ["OrderEconomicsSummary", "OrdineEconomico", "EsposizioneCommessa", "RitenuteTab", "OrdineVariazione", "SupplierPaymentsCard", "OrderErrors", "OrdineSAL"]],
   ] as const)("preserva ogni funzione una sola volta nell'area %s", (expected, components) => {
     for (const component of components) {
       const matches = named(component);
+      if (component === "MezziCommessaCard") {
+        expect(matches).toHaveLength(2);
+        expect(matches.map(tag => area(tag))).toEqual(["cantiere", "cantiere"]);
+        const conditions = matches.map(tag => {
+          for (let p: ts.Node | undefined = tag.parent; p; p = p.parent)
+            if (ts.isBinaryExpression(p) && p.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken && p.left.getText(source).startsWith("vistaCantiere ===")) return p.left.getText(source);
+        });
+        expect(conditions.sort()).toEqual(['vistaCantiere === "lavorazioni"', 'vistaCantiere === "squadra"']);
+        continue;
+      }
       expect(matches, component).toHaveLength(1);
       expect(area(matches[0]), component).toBe(expected);
     }
+  });
+
+  it("non duplica le comunicazioni e rimuove i contenitori ambigui", () => {
+    expect(named("OrderActivityFeed")).toHaveLength(0);
+    const overview = named("TabsContent").find(tag => value(tag, "value") === '"panoramica"')!.parent.getText(source);
+    expect(overview).not.toContain("Organizzazione del cantiere");
+    expect(overview).not.toContain("Note e strumenti della commessa");
+    expect(overview).not.toContain("Comunicazioni e storico");
+    expect(named("OrderCommunicationsCard")).toHaveLength(1);
+    expect(value(named("OrderAttachments")[0], "actions")).toContain("ContrattoAIDialog");
   });
 
   it("non scollega il piano rate dal SAL operativo", () => {
@@ -64,7 +84,7 @@ describe("contratto di composizione del dettaglio commessa", () => {
   });
 
   it("riepilogo, stato e azioni sono unici e precedono tutte le tab", () => {
-    for (const name of ["OrderCommessaSummary", "OrdineStatusStrip", "OrderQuickActions"]) {
+    for (const name of ["OrderCommessaSummary", "OrderStatusWorkflow", "OrderQuickActions"]) {
       expect(named(name)).toHaveLength(1);
       expect(area(named(name)[0])).toBeUndefined();
       expect(named(name)[0].pos).toBeLessThan(named("OrderDetailNavigation")[0].pos);
@@ -77,7 +97,9 @@ describe("contratto di composizione del dettaglio commessa", () => {
     expect(value(actions, "onCreateInvoice")).toContain("isNativeBilling && !permissions.solaLettura");
     expect(value(actions, "customer")).toContain("order.client_phone");
     expect(value(actions, "customer")).toContain("order.client_email");
-    expect(value(named("OrdineStatusStrip")[0], "onStatusChange")).toContain("permissions.canEditOrders");
+    expect(value(named("OrderStatusWorkflow")[0], "onStatusChange")).toContain("permissions.canEditOrders");
+    expect(value(named("OrderStatusWorkflow")[0], "modelKey")).toBe("{order.tipo_lavoro}");
+    expect(value(named("OrderStatusWorkflow")[0], "version")).toBe("{order.version}");
   });
 
   it("mantiene i dialoghi di firma, documenti e creazione fiscale fuori dalle tab", () => {
@@ -89,5 +111,18 @@ describe("contratto di composizione del dettaglio commessa", () => {
 
   it("gli allegati non diventano modificabili per chi non può editare la commessa", () => {
     expect(value(named("OrderAttachments")[0], "editable")).toBe("{permissions.canEditOrders}");
+  });
+  it("le fasi precedono la pianificazione visibile e le attività secondarie", () => {
+    expect(named("OrderWorkPhases")[0].pos).toBeLessThan(named("OrdineTempistiche")[0].pos);
+    expect(named("OrdineTempistiche")[0].pos).toBeLessThan(named("LinkedTasks")[0].pos);
+    expect(named("LinkedAppointments")[0].pos).toBeLessThan(named("LinkedTasks")[0].pos);
+    expect(value(named("LinkedTasks")[0], "editable")).toBe("{permissions.canEditOrders}");
+    expect(value(named("LinkedAppointments")[0], "editable")).toBe("{permissions.canEditOrders}");
+    expect(value(named("OrdineTempistiche")[0], "workStartTime")).toBe("{order.work_start_time}");
+    expect(value(named("OrdineTempistiche")[0], "updatedAt")).toBe("{order.updated_at}");
+    const planning = tags.find(tag => value(tag, "id") === '"section-pianificazione"')!;
+    expect(planning.tagName.getText(source)).toBe("section");
+    for (let parent = planning.parent; parent; parent = parent.parent)
+      if (ts.isJsxElement(parent)) expect(parent.openingElement.tagName.getText(source)).not.toBe("details");
   });
 });

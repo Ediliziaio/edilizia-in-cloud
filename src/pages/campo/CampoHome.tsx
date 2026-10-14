@@ -11,7 +11,7 @@ import { it } from "date-fns/locale";
 import {
   MapPin, ChevronRight, ChevronLeft,
   CheckCircle, Clock,
-  ShieldCheck, Mic, QrCode, MessageSquare, FileText,
+  Mic, QrCode, MessageSquare, FileText,
   CalendarDays, Receipt, ClipboardCheck,
   Ticket, CalendarDays as CalendarDaysIcon,
   Sparkles, Navigation, Send, FilePenLine, Users, ShoppingBag
@@ -319,7 +319,7 @@ function AssistenteCampoOperaio() {
     : prossimoTask
       ? "Parti dalla task più urgente, poi timbra sul cantiere e manda il rapportino a fine lavoro."
       : focusOrder
-        ? "Vai al cantiere, timbra collegando la commessa e a fine turno invia il rapportino vocale."
+        ? "Vai al cantiere e timbra collegando la commessa. Nel giornaliero trovi le indicazioni scelte dalla tua azienda: puoi scrivere o parlare."
         : "Nessun cantiere prioritario trovato: controlla calendario o chiedi indicazioni al responsabile.";
 
   const openMaps = () => {
@@ -434,17 +434,7 @@ function AssistenteCampoOperaio() {
               <Send className="h-4 w-4" />
               Invia
             </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="secondary"
-              className="h-10 gap-2"
-              onClick={() => navigate("/campo/sicurezza")}
-            >
-              <ShieldCheck className="h-4 w-4" />
-              Check
-            </Button>
-          )}
+          ) : null}
         </div>
 
         <div className="hidden md:flex flex-wrap gap-1.5">
@@ -897,7 +887,6 @@ function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; is
   // Telefono: le prime 4 a vista (il resto è nel menu App); da tablet in su tutte.
   const items = [
     ...(isOperaio ? [
-      { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
       { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
       { icon: ShoppingBag, label: "Merce", url: "/campo/merce", color: "text-orange-600 bg-orange-50" },
       { icon: CalendarDaysIcon, label: "Ferie", url: "/campo/ferie", color: "text-orange-600 bg-orange-50" },
@@ -908,7 +897,6 @@ function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; is
       { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-slate-600 bg-slate-50" },
     ] : []),
     ...(isSubappaltatore ? [
-      { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
       { icon: Mic, label: "Rapportino vocale", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
       { icon: ClipboardCheck, label: "Avanzamento", url: "/campo/avanzamento", color: "text-teal-600 bg-teal-50" },
       { icon: Ticket, label: "Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },

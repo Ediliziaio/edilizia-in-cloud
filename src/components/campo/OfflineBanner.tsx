@@ -5,39 +5,31 @@
  * Mostra anche info sulle bozze salvate localmente.
  */
 import { useEffect, useState } from "react";
-import { WifiOff, CloudUpload, Check, Save } from "lucide-react";
+import { WifiOff, CloudUpload, Save } from "lucide-react";
 import { useNetworkStatus } from "@/hooks/campo/useNetworkStatus";
 import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
 import { listDraftKeys } from "@/hooks/campo/useFormDraft";
+import { useAuth } from "@/contexts/AuthContext";
 import type { JSX } from "react";
 
 export default function OfflineBanner(): JSX.Element | null {
   const online = useNetworkStatus();
-  const { queueCount, isSyncing } = useOfflineSync();
-  const [showSyncedToast, setShowSyncedToast] = useState(false);
-  const [prevQueue, setPrevQueue] = useState(queueCount);
+  const { user, profile } = useAuth();
+  const { queueCount, isSyncing, failedCount, lastError, retry } = useOfflineSync();
   const [draftCount, setDraftCount] = useState(0);
 
   // Conta bozze salvate
   useEffect(() => {
-    const count = listDraftKeys().length;
-    setDraftCount(count);
+    const count = () => listDraftKeys().filter(k => k.startsWith(`rapportino:${profile?.company_id}:${user?.id}:`) || k.startsWith(`merce:${profile?.company_id}:${user?.id}:`)).length;
+    let active = true;
+    void Promise.resolve().then(() => { if (active) setDraftCount(count()); });
     // Aggiorna ogni 5s
     const interval = setInterval(() => {
-      setDraftCount(listDraftKeys().length);
+      setDraftCount(count());
     }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    return () => { active = false; clearInterval(interval); };
+  }, [profile?.company_id, user?.id]);
 
-  // Mostra brevemente "Sincronizzato" quando la coda passa da >0 a 0
-  useEffect(() => {
-    if (prevQueue > 0 && queueCount === 0 && online) {
-      setShowSyncedToast(true);
-      const timer = setTimeout(() => setShowSyncedToast(false), 2500);
-      return () => clearTimeout(timer);
-    }
-    setPrevQueue(queueCount);
-  }, [queueCount, prevQueue, online]);
 
   // Offline: banner giallo
   if (!online) {
@@ -49,7 +41,7 @@ export default function OfflineBanner(): JSX.Element | null {
       >
         <WifiOff className="w-4 h-4 shrink-0" />
         <span className="flex-1 leading-tight">
-          Sei offline — i dati vengono salvati localmente e sincronizzati al ritorno online
+          Sei offline. Le bozze restano sul telefono; non sono inviate. Solo le operazioni in coda verranno sincronizzate.
         </span>
         <span className="flex items-center gap-1.5 shrink-0">
           {draftCount > 0 && (
@@ -68,6 +60,8 @@ export default function OfflineBanner(): JSX.Element | null {
     );
   }
 
+  if (lastError || failedCount > 0) return <div role="alert" className="flex flex-wrap items-center gap-2 border-b bg-amber-100 px-4 py-2 text-sm text-amber-950"><span className="flex-1">{failedCount > 0 ? `${failedCount} operazioni da verificare. ` : ""}{lastError || "I dati sono conservati sul telefono."}</span><button type="button" disabled={isSyncing} className="min-h-11 underline" onClick={() => void retry()}>Riprova invio</button></div>;
+
   // Online + syncing: banner verde
   if (isSyncing || queueCount > 0) {
     return (
@@ -78,27 +72,13 @@ export default function OfflineBanner(): JSX.Element | null {
       >
         <CloudUpload className="w-4 h-4 shrink-0 animate-pulse" />
         <span className="flex-1 leading-tight">
-          Sincronizzazione in corso…
+          {isSyncing ? "Sincronizzazione in corso…" : "Operazioni in attesa di sincronizzazione…"}
         </span>
         {queueCount > 0 && (
           <span className="bg-emerald-900/90 text-[11px] font-bold px-2 py-0.5 rounded-full">
             {queueCount}
           </span>
         )}
-      </div>
-    );
-  }
-
-  // Toast "Sincronizzato" effimero
-  if (showSyncedToast) {
-    return (
-      <div
-        role="status"
-        aria-live="polite"
-        className="flex-none bg-emerald-600/95 text-white px-4 py-2 flex items-center gap-2 text-sm font-medium border-b border-emerald-800 animate-in slide-in-from-top duration-300"
-      >
-        <Check className="w-4 h-4 shrink-0" />
-        <span className="flex-1 leading-tight">Tutti i dati sincronizzati</span>
       </div>
     );
   }

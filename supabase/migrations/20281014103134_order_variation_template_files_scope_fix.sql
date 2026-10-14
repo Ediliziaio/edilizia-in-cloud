@@ -1,0 +1,33 @@
+-- Explicit outer Storage column: template names must never be interpreted as file paths.
+SET LOCAL lock_timeout='3s';
+SET LOCAL statement_timeout='30s';
+-- Restrictive guards prevent unrelated permissive Storage policies from widening access.
+DROP POLICY IF EXISTS variation_files_storage_scope ON storage.objects;
+CREATE POLICY variation_files_storage_scope ON storage.objects AS RESTRICTIVE FOR ALL TO authenticated
+ USING (bucket_id <> 'variation-template-files' OR (NOT (SELECT public.utente_bloccato()) AND NOT (SELECT public.utente_e_cliente_esterno()) AND EXISTS (SELECT 1 FROM public.order_variation_templates t WHERE t.id::text = (storage.foldername(objects.name))[2] AND t.company_id::text = (storage.foldername(objects.name))[1] AND t.is_active) AND name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}[.]pdf$'))
+ WITH CHECK (bucket_id <> 'variation-template-files' OR (NOT (SELECT public.utente_bloccato()) AND NOT (SELECT public.utente_e_cliente_esterno()) AND EXISTS (SELECT 1 FROM public.order_variation_templates t WHERE t.id::text = (storage.foldername(objects.name))[2] AND t.company_id::text = (storage.foldername(objects.name))[1] AND t.is_active) AND name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}[.]pdf$'));
+DROP POLICY IF EXISTS variation_files_storage_read ON storage.objects;
+CREATE POLICY variation_files_storage_read ON storage.objects FOR SELECT TO authenticated
+ USING (bucket_id = 'variation-template-files' AND (NOT (SELECT public.utente_bloccato()) AND NOT (SELECT public.utente_e_cliente_esterno()) AND EXISTS (SELECT 1 FROM public.order_variation_templates t WHERE t.id::text = (storage.foldername(objects.name))[2] AND t.company_id::text = (storage.foldername(objects.name))[1] AND t.is_active) AND name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}[.]pdf$'));
+DROP POLICY IF EXISTS variation_files_storage_insert_guard ON storage.objects;
+CREATE POLICY variation_files_storage_insert_guard ON storage.objects AS RESTRICTIVE FOR INSERT TO authenticated
+ WITH CHECK (bucket_id <> 'variation-template-files' OR (NOT (SELECT public.utente_bloccato()) AND NOT (SELECT public.utente_e_cliente_esterno()) AND EXISTS (SELECT 1 FROM public.order_variation_templates t WHERE t.id::text = (storage.foldername(objects.name))[2] AND t.company_id::text = (storage.foldername(objects.name))[1] AND t.is_active) AND name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}[.]pdf$' AND ((SELECT public.has_role((SELECT auth.uid()), 'super_admin'::public.app_role)) OR ((storage.foldername(objects.name))[1] = (SELECT public.get_user_company_id((SELECT auth.uid())))::text AND (storage.foldername(objects.name))[1] IN (SELECT unnest(public.aziende_con_permesso('can_edit_settings_pricing'))::text)))));
+DROP POLICY IF EXISTS variation_files_storage_insert ON storage.objects;
+CREATE POLICY variation_files_storage_insert ON storage.objects FOR INSERT TO authenticated
+ WITH CHECK (bucket_id = 'variation-template-files' AND (NOT (SELECT public.utente_bloccato()) AND NOT (SELECT public.utente_e_cliente_esterno()) AND EXISTS (SELECT 1 FROM public.order_variation_templates t WHERE t.id::text = (storage.foldername(objects.name))[2] AND t.company_id::text = (storage.foldername(objects.name))[1] AND t.is_active) AND name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}[.]pdf$' AND ((SELECT public.has_role((SELECT auth.uid()), 'super_admin'::public.app_role)) OR ((storage.foldername(objects.name))[1] = (SELECT public.get_user_company_id((SELECT auth.uid())))::text AND (storage.foldername(objects.name))[1] IN (SELECT unnest(public.aziende_con_permesso('can_edit_settings_pricing'))::text)))));
+DROP POLICY IF EXISTS variation_files_storage_no_overwrite ON storage.objects;
+CREATE POLICY variation_files_storage_no_overwrite ON storage.objects AS RESTRICTIVE FOR UPDATE TO authenticated
+ USING (bucket_id <> 'variation-template-files') WITH CHECK (bucket_id <> 'variation-template-files');
+-- Only compensate an unlinked upload. Normal removal is metadata archival, never file deletion.
+DROP POLICY IF EXISTS variation_files_storage_delete_guard ON storage.objects;
+CREATE POLICY variation_files_storage_delete_guard ON storage.objects AS RESTRICTIVE FOR DELETE TO authenticated
+ USING (bucket_id <> 'variation-template-files' OR ((NOT (SELECT public.utente_bloccato()) AND NOT (SELECT public.utente_e_cliente_esterno()) AND EXISTS (SELECT 1 FROM public.order_variation_templates t WHERE t.id::text = (storage.foldername(objects.name))[2] AND t.company_id::text = (storage.foldername(objects.name))[1] AND t.is_active) AND name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}[.]pdf$' AND ((SELECT public.has_role((SELECT auth.uid()), 'super_admin'::public.app_role)) OR ((storage.foldername(objects.name))[1] = (SELECT public.get_user_company_id((SELECT auth.uid())))::text AND (storage.foldername(objects.name))[1] IN (SELECT unnest(public.aziende_con_permesso('can_edit_settings_pricing'))::text)))) AND NOT EXISTS (SELECT 1 FROM public.order_variation_template_files f WHERE f.storage_path = name)));
+DROP POLICY IF EXISTS variation_files_storage_compensate ON storage.objects;
+CREATE POLICY variation_files_storage_compensate ON storage.objects FOR DELETE TO authenticated
+ USING (bucket_id = 'variation-template-files' AND (NOT (SELECT public.utente_bloccato()) AND NOT (SELECT public.utente_e_cliente_esterno()) AND EXISTS (SELECT 1 FROM public.order_variation_templates t WHERE t.id::text = (storage.foldername(objects.name))[2] AND t.company_id::text = (storage.foldername(objects.name))[1] AND t.is_active) AND name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}[.]pdf$' AND ((SELECT public.has_role((SELECT auth.uid()), 'super_admin'::public.app_role)) OR ((storage.foldername(objects.name))[1] = (SELECT public.get_user_company_id((SELECT auth.uid())))::text AND (storage.foldername(objects.name))[1] IN (SELECT unnest(public.aziende_con_permesso('can_edit_settings_pricing'))::text)))) AND NOT EXISTS (SELECT 1 FROM public.order_variation_template_files f WHERE f.storage_path = name));
+
+DROP POLICY IF EXISTS variation_files_storage_anon_guard ON storage.objects;
+CREATE POLICY variation_files_storage_anon_guard ON storage.objects AS RESTRICTIVE FOR ALL TO anon USING (bucket_id <> 'variation-template-files') WITH CHECK (bucket_id <> 'variation-template-files');
+
+ALTER TABLE public.order_variation_template_files DROP CONSTRAINT IF EXISTS order_variation_template_files_file_name_check;
+ALTER TABLE public.order_variation_template_files ADD CONSTRAINT order_variation_template_files_file_name_check CHECK (length(btrim(file_name)) BETWEEN 1 AND 180 AND file_name ~* '[.]pdf$');

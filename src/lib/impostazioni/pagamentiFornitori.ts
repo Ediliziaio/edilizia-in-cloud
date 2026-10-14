@@ -9,10 +9,16 @@ export const PAGAMENTI_FORNITORI = [
   { value: "bonifico_30gg", label: "Bonifico a 30 giorni" },
   { value: "bonifico_60gg", label: "Bonifico a 60 giorni" },
   { value: "bonifico_90gg", label: "Bonifico a 90 giorni" },
+  { value: "bonifico", label: "Bonifico" },
+  { value: "ri.ba", label: "Ri.Ba." },
+  { value: "assegno", label: "Assegno" },
+  { value: "carta", label: "Carta" },
 ] as const;
 
 export function etichettaPagamentoFornitore(value: string | null): string {
   if (!value) return "—";
-  return PAGAMENTI_FORNITORI.find(m => m.value === value)?.label
-    ?? value.replace(/_/g, " ");
+  return (
+    PAGAMENTI_FORNITORI.find((m) => m.value === value)?.label ??
+    value.replace(/_/g, " ")
+  );
 }

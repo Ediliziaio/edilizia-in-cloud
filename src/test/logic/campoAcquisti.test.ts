@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { descriviStato, mappaLetturaDocumento, tipoDocumentoDa, totaleRighe } from "@/lib/campo/acquisti";
+import { cambiaQuantita, descriviStato, mappaLetturaDocumento, numeroDocumento, tipoDocumentoDa, totaleRighe } from "@/lib/campo/acquisti";
 
 describe("Lettura della bolla o dello scontrino", () => {
   const ddt = {
@@ -36,10 +36,18 @@ describe("Lettura della bolla o dello scontrino", () => {
     expect(mappaLetturaDocumento({ ...ddt, confidence: 0.5 }).daControllare).toBe(true);
   });
 
-  it("una data non valida viene scartata, una quantità nulla vale 1", () => {
+  it("una data non valida viene scartata, una quantità non letta va confermata e non diventa un pezzo", () => {
     const l = mappaLetturaDocumento({ ...ddt, intestazione: { numero_ddt: "1", data_ddt: "03/10/2026" }, righe_merce: [{ descrizione: "Tubo", quantita: 0 }] });
     expect(l.data).toBe("");
-    expect(l.righe[0].quantita).toBe(1);
+    expect(l.righe[0].quantita).toBe(0);
+    expect(l.daControllare).toBe(true);
+  });
+
+  it("scarta date impossibili e non interpreta booleani come quantità", () => {
+    const l = mappaLetturaDocumento({ ...ddt, intestazione: { data_ddt: "2026-02-30" }, righe_merce: [{ descrizione: "Tubo", quantita: true }] });
+    expect(l.data).toBe("");
+    expect(l.righe[0].quantita).toBe(0);
+    expect(l.daControllare).toBe(true);
   });
 
   it("regge un documento vuoto o rotto senza esplodere", () => {
@@ -49,6 +57,20 @@ describe("Lettura della bolla o dello scontrino", () => {
 });
 
 describe("Totale dei prodotti", () => {
+  it("legge migliaia e decimali italiani senza accettare testo o numeri non finiti", () => {
+    expect(numeroDocumento("1.234,56")).toBe(1234.56);
+    expect(numeroDocumento(" 1 234,56 € ")).toBe(1234.56);
+    expect(numeroDocumento("2,5")).toBe(2.5);
+    expect(numeroDocumento("2.5")).toBe(2.5);
+    for (const v of [true, false, null, {}, "", "abc", "1.2.3", "1.2,3", Infinity, NaN]) expect(numeroDocumento(v)).toBeNull();
+  });
+  it("aggiorna il prezzo × quantità o scarta l'importo vecchio quando manca il prezzo unitario", () => {
+    expect(cambiaQuantita({ descrizione: "Tubo", quantita: 2, prezzo_unitario: 4, importo: 8 }, 3).importo).toBe(12);
+    expect(cambiaQuantita({ descrizione: "Tubo", quantita: 2, importo: 8 }, 3).importo).toBeNull();
+    expect(cambiaQuantita({ descrizione: "Tubo", quantita: 2, prezzo_unitario: 4 }, 0).importo).toBeNull();
+    expect(totaleRighe([{ descrizione: "Tubo", quantita: 0, prezzo_unitario: 4 }])).toBeNull();
+    expect(totaleRighe([{ descrizione: "Tubo", quantita: 1, importo: Infinity }])).toBeNull();
+  });
   it("somma gli importi, oppure prezzo × quantità, e non indovina se manca qualcosa", () => {
     expect(totaleRighe([{ descrizione: "a", quantita: 2, prezzo_unitario: 1.1 }, { descrizione: "b", quantita: 1, importo: 3 }])).toBe(5.2);
     expect(totaleRighe([{ descrizione: "a", quantita: 2 }, { descrizione: "b", quantita: 1, importo: 3 }])).toBeNull();

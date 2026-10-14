@@ -10,10 +10,12 @@ export async function compressImage(file: File, maxWidth = 1280, quality = 0.75)
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image();
-      const t = setTimeout(() => reject(new Error("image load timeout")), 10000);
-      el.onload = () => { clearTimeout(t); resolve(el); };
-      el.onerror = () => { clearTimeout(t); reject(new Error("image load error")); };
-      el.src = objectUrl;
+      const cleanup = () => { clearTimeout(t); el.onload = null; el.onerror = null; };
+      const t = setTimeout(() => { cleanup(); reject(new Error("image load timeout")); }, 10000);
+      el.onload = () => { cleanup(); resolve(el); };
+      el.onerror = () => { cleanup(); reject(new Error("image load error")); };
+      try { el.src = objectUrl; }
+      catch (error) { cleanup(); reject(error); }
     });
 
     const canvas = document.createElement("canvas");
@@ -23,8 +25,16 @@ export async function compressImage(file: File, maxWidth = 1280, quality = 0.75)
     if (!ctx) throw new Error("canvas 2d context unavailable");
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, "image/jpeg", quality);
+    const blob = await new Promise<Blob | null>((resolve, reject) => {
+      // Anche toBlob è asincrono: il solo timeout di caricamento non protegge
+      // da un canvas che non chiama mai il callback (memoria/rete del dispositivo).
+      const t = setTimeout(() => reject(new Error("image conversion timeout")), 10000);
+      try {
+        canvas.toBlob((result) => { clearTimeout(t); resolve(result); }, "image/jpeg", quality);
+      } catch (error) {
+        clearTimeout(t);
+        reject(error);
+      }
     });
     if (!blob) throw new Error("toBlob returned null");
     return blob;

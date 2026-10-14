@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CantiereViewNav } from "@/components/orders/CantiereViewNav";
 import { resolveCantiereView } from "@/lib/orders/detailNavigation";
 
-/** La vista «Cronoprogramma» del cantiere (06/10/2026): da computer sì, da telefono no. */
+/** Desktop Gantt and mobile phase agenda share the same route. */
 
 const schermo = vi.hoisted(() => ({ telefono: false }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => schermo.telefono }));
@@ -23,12 +23,16 @@ describe("vista Cronoprogramma", () => {
     expect(cambia).toHaveBeenCalledWith("cronoprogramma");
   });
 
-  it("da telefono non c'è nel menu delle viste", () => {
+  it("da telefono è disponibile e mantiene la selezione nel menu delle viste", () => {
     schermo.telefono = true;
-    render(<CantiereViewNav value="lavorazioni" onChange={vi.fn()} />);
+    const cambia = vi.fn();
+    render(<CantiereViewNav value="cronoprogramma" onChange={cambia} />);
     const voci = Array.from(screen.getByRole("combobox").querySelectorAll("option")).map((o) => o.textContent);
     expect(voci).toContain("Lavorazioni");
-    expect(voci).not.toContain("Cronoprogramma");
+    expect(voci).toContain("Cronoprogramma");
+    expect(screen.getByRole("combobox")).toHaveValue("cronoprogramma");
+    fireEvent.change(screen.getByRole("combobox"), {target: {value: "diario"}});
+    expect(cambia).toHaveBeenCalledWith("diario");
   });
 
   it("i collegamenti diretti la aprono", () => {

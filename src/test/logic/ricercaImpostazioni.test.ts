@@ -268,7 +268,7 @@ describe("il campo di ricerca del menu a sinistra", () => {
   const voceDi = (domanda: string) => filtraGruppiDelMenu(menu(), tutte, domanda).flatMap((g) => g.items.map((i) => i.label));
 
   it("accende la voce che contiene la funzione, non solo quelle che hanno la parola nel nome", () => {
-    expect(voceDi("prezzo")).toEqual(expect.arrayContaining(["Modelli di preventivo", "Listino"]));
+    expect(voceDi("prezzo")).toEqual(expect.arrayContaining(["Modelli preventivi e contratti", "Listino"]));
     expect(voceDi("iban")).toEqual(expect.arrayContaining(["Fatturazione", "Fornitori"]));
     expect(voceDi("password")).toContain("Il mio profilo");
     expect(voceDi("ore lavorate")).toEqual(["Rapportini e presenze"]);

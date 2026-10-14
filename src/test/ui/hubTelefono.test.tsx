@@ -36,15 +36,15 @@ describe("hub da telefono: cosa si vede", () => {
     for (const si of ["Il mio profilo", "Profilo aziendale", "Utenti e permessi", "Notifiche", "Sicurezza & Privacy", "Esporta i dati"]) {
       expect(nomi.some((n) => n.includes(si)), si).toBe(true);
     }
-    for (const no of ["Listino", "Modelli di preventivo", "Firma e condizioni", "Finanziamenti", "Integrazioni", "Piano abbonamento", "Stati commessa", "Sedi", "Marchio e colori"]) {
+    for (const no of ["Listino", "Modelli preventivi e contratti", "Firma e condizioni", "Finanziamenti", "Integrazioni", "Piano abbonamento", "Stati commessa", "Sedi", "Marchio e colori"]) {
       expect(nomi.some((n) => n.startsWith(no)), no).toBe(false);
     }
   });
 
-  it("si nasconde la voce, non l'indirizzo della prima scheda: chi ha solo «Sconti» non vede «Modelli di preventivo»", () => {
+  it("si nasconde la voce, non l'indirizzo della prima scheda: chi ha solo «Sconti» non vede «Modelli preventivi e contratti»", () => {
     state.permessi = { isAdmin: false, isLoading: false, canViewSettingsScontistica: true };
     apri();
-    expect(voci().some((n) => n.startsWith("Modelli di preventivo"))).toBe(false);
+    expect(voci().some((n) => n.startsWith("Modelli preventivi e contratti"))).toBe(false);
   });
 
   it("…e così chi ha solo «Kit e pacchetti» non vede «Listino», e chi ha solo «Integrazioni» non vede «Firma e condizioni»", () => {
@@ -61,7 +61,7 @@ describe("hub da telefono: cosa si vede", () => {
     state.mobile = false;
     state.permessi = { isAdmin: false, isLoading: false, canViewSettingsScontistica: true };
     apri();
-    expect(voci().some((n) => n.startsWith("Modelli di preventivo"))).toBe(true);
+    expect(voci().some((n) => n.startsWith("Modelli preventivi e contratti"))).toBe(true);
   });
 
   it("i titoli dei gruppi sono h2 (sopra c'è l'h1 della testata)", () => {

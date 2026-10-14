@@ -15,6 +15,7 @@ const stato = vi.hoisted(() => ({
   permessi: {
     canViewOperai: true, canEditOperai: true, canViewOrders: true, canViewSubappaltatori: true, canViewMezzi: false,
     isAdmin: false, solaLettura: false, isLoading: false,
+    canViewSettingsOrders: false,
   },
   schede: ["operai", "subappaltatori"] as string[],
   squadre: [] as unknown[],
@@ -185,5 +186,37 @@ describe("Manodopera e Mezzi", () => {
     expect(schede).toEqual(["Operai", "Subappaltatori"]);
     // «?tab=mezzi» senza il permesso dei mezzi apre la prima scheda disponibile.
     expect(screen.getByRole("tab", { name: "Operai" }).getAttribute("aria-selected")).toBe("true");
+  });
+});
+
+describe("Squadre: rimandi al calendario", () => {
+  function prepara() {
+    stato.permessi = { ...stato.permessi, canViewSettingsOrders: true, isAdmin: false, solaLettura: false };
+    stato.squadre = [
+      { id: "s1", nome: "Nord", componenti: [], commesse: [], responsabile: null },
+      { id: "s2", nome: "Sud", componenti: [], commesse: [], responsabile: null },
+    ];
+    stato.operai = []; stato.giornata = [];
+  }
+  it("apre la squadra indicata dalle impostazioni e torna al suo calendario", () => {
+    prepara();
+    render(<MemoryRouter initialEntries={["/azienda/manodopera?tab=operai&vista=squadre&squadra=s2"]}><OperaiTab /></MemoryRouter>);
+    expect(screen.queryByRole("article", { name: "Nord" })).toBeNull();
+    const squadra = screen.getByRole("article", { name: "Sud" });
+    expect(within(squadra).getByRole("link", { name: "Calendario Google della squadra" })).toHaveAttribute("href", "/azienda/impostazioni/calendari-lavori?tab=squadre&squadra=s2");
+    fireEvent.click(screen.getByRole("button", { name: "Mostra tutte le squadre" }));
+    expect(screen.getByRole("article", { name: "Nord" })).toBeInTheDocument();
+  });
+  it("non propone impostazioni a chi non può consultarle", () => {
+    prepara(); stato.permessi.canViewSettingsOrders = false;
+    render(<MemoryRouter initialEntries={["/azienda/manodopera?tab=operai&vista=squadre"]}><OperaiTab /></MemoryRouter>);
+    expect(screen.queryByRole("link", { name: "Calendari delle squadre" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Calendario Google della squadra" })).toBeNull();
+  });
+  it("un rimando non più valido non nasconde le squadre disponibili", () => {
+    prepara();
+    render(<MemoryRouter initialEntries={["/azienda/manodopera?tab=operai&vista=squadre&squadra=archiviata"]}><OperaiTab /></MemoryRouter>);
+    expect(screen.getByText("La squadra richiesta non è attiva o non è disponibile.")).toBeInTheDocument();
+    expect(screen.getAllByRole("article")).toHaveLength(2);
   });
 });

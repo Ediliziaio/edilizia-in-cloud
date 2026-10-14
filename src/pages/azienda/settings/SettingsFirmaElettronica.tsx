@@ -202,7 +202,7 @@ export default function SettingsFirmaElettronica() {
             <p className="mt-1">
               È il valore di partenza dei nuovi preventivi: nel singolo preventivo si può cambiare. Quando mandi un
               preventivo al cliente per la firma, la firma online c'è sempre. La stessa impostazione c'è anche in
-              Modelli di preventivo → Prezzo e margini.
+              Modelli preventivi e contratti → Prezzo e margini.
             </p>
           </details>
         </RigaInterruttore>

@@ -2,9 +2,34 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, Search, Users, UsersRound, Package, CalendarClock, Hammer, Wrench, Palmtree, AlertTriangle, Cloud, Settings, Target } from "lucide-react";
-import { DEFAULT_CALENDAR_EVENT_COLORS, orderColor, type CalendarEventColorKey, type CalendarEventColors, type CalendarColorMode, type CalendarAvvisiPagamento } from "@/lib/calendarUtils";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  ChevronDown,
+  Search,
+  Users,
+  UsersRound,
+  Package,
+  CalendarClock,
+  Hammer,
+  Wrench,
+  Palmtree,
+  AlertTriangle,
+  Cloud,
+  Settings,
+  Target,
+} from "lucide-react";
+import {
+  DEFAULT_CALENDAR_EVENT_COLORS,
+  orderColor,
+  type CalendarEventColorKey,
+  type CalendarEventColors,
+  type CalendarColorMode,
+  type CalendarAvvisiPagamento,
+} from "@/lib/calendarUtils";
 
 interface Employee {
   id: string;
@@ -31,7 +56,9 @@ interface CalendarLayerPanelProps {
   externalTeams: ExternalTeam[];
   visibleEmployees: Set<string>;
   visibleTeams: Set<string>;
-  scope?: "full" | "work";
+  allowCompanySources?: boolean;
+  allowInterventions?: boolean;
+  allowMaintenance?: boolean;
   showPosa: boolean;
   showLavoro: boolean;
   showAppuntamento: boolean;
@@ -77,7 +104,9 @@ export function CalendarLayerPanel({
   externalTeams,
   visibleEmployees,
   visibleTeams,
-  scope = "full",
+  allowCompanySources = true,
+  allowInterventions = true,
+  allowMaintenance = true,
   showPosa,
   showLavoro,
   showAppuntamento,
@@ -112,26 +141,38 @@ export function CalendarLayerPanel({
   onAvvisiPagamentoChange,
 }: CalendarLayerPanelProps) {
   const [search, setSearch] = useState("");
-  const isWorkScope = scope === "work";
 
-  const filteredEmployees = employees.filter(
-    (e) =>
-      `${e.first_name} ${e.last_name}`.toLowerCase().includes(search.toLowerCase())
+  const filteredEmployees = employees.filter((e) =>
+    `${e.first_name} ${e.last_name}`
+      .toLowerCase()
+      .includes(search.toLowerCase()),
   );
   const filteredTeams = externalTeams.filter((t) =>
-    t.name.toLowerCase().includes(search.toLowerCase())
+    t.name.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const allEmployeesVisible = employees.length > 0 && employees.every((e) => visibleEmployees.has(e.id));
-  const allTeamsVisible = externalTeams.length > 0 && externalTeams.every((t) => visibleTeams.has(t.id));
+  const allEmployeesVisible =
+    employees.length > 0 && employees.every((e) => visibleEmployees.has(e.id));
+  const allTeamsVisible =
+    externalTeams.length > 0 &&
+    externalTeams.every((t) => visibleTeams.has(t.id));
 
-  const allLayersHidden = isWorkScope
-    ? !showPosa && !showLavoro && !showAppuntamento && !showLeaves
-    : !showPosa && !showLavoro && !showAppuntamento && !showMerce && !showGoogleBusy && !showLeaves && !showInterventi && !showManutenzioni;
+  const allLayersHidden =
+    !showPosa &&
+    !showLavoro &&
+    !showAppuntamento &&
+    !showAppuntamentoCommerciale &&
+    !showMerce &&
+    !showGoogleBusy &&
+    !showLeaves &&
+    !showInterventi &&
+    !showManutenzioni;
 
   return (
-    <div className="w-64 shrink-0 border rounded-lg bg-card p-3 space-y-3">
-      <h3 className="text-sm font-semibold text-foreground">Gestisci visualizzazione</h3>
+    <div className="w-full min-w-0 rounded-lg bg-card p-1 space-y-3">
+      <h3 className="text-sm font-semibold text-foreground">
+        Contenuti e risorse
+      </h3>
 
       <div className="relative">
         <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -143,7 +184,7 @@ export function CalendarLayerPanel({
         />
       </div>
 
-      <ScrollArea className="max-h-[calc(100vh-300px)]">
+      <ScrollArea className="max-h-[65vh]">
         <div className="space-y-1">
           {/* Calendario Lavori */}
           <Collapsible defaultOpen>
@@ -159,21 +200,36 @@ export function CalendarLayerPanel({
               <LayerCheckbox
                 checked={showPosa}
                 onCheckedChange={onTogglePosa}
-                icon={<Hammer className="h-3 w-3" style={{ color: eventColors.posa }} />}
+                icon={
+                  <Hammer
+                    className="h-3 w-3"
+                    style={{ color: eventColors.posa }}
+                  />
+                }
                 label="Data Posa"
                 color={eventColors.posa}
               />
               <LayerCheckbox
                 checked={showLavoro}
                 onCheckedChange={onToggleLavoro}
-                icon={<Wrench className="h-3 w-3" style={{ color: eventColors.lavoro }} />}
+                icon={
+                  <Wrench
+                    className="h-3 w-3"
+                    style={{ color: eventColors.lavoro }}
+                  />
+                }
                 label="Lavori in corso"
                 color={eventColors.lavoro}
               />
               <LayerCheckbox
                 checked={showAppuntamento}
                 onCheckedChange={onToggleAppuntamento}
-                icon={<CalendarClock className="h-3 w-3" style={{ color: eventColors.appuntamento }} />}
+                icon={
+                  <CalendarClock
+                    className="h-3 w-3"
+                    style={{ color: eventColors.appuntamento }}
+                  />
+                }
                 label="Appuntamenti operativi"
                 color={eventColors.appuntamento}
               />
@@ -200,7 +256,9 @@ export function CalendarLayerPanel({
                       className="h-3.5 w-3.5"
                     />
                     <Users className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-[11px] font-medium text-muted-foreground">Squadra lavori</span>
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      Squadra lavori
+                    </span>
                   </div>
                   {(() => {
                     const grouped = new Map<string, Employee[]>();
@@ -209,23 +267,38 @@ export function CalendarLayerPanel({
                       if (!grouped.has(area)) grouped.set(area, []);
                       grouped.get(area)!.push(emp);
                     }
-                    const areaOrder = isWorkScope ? ["cantiere", "tecnico"] : ["cantiere", "commerciale", "tecnico", "amministrazione"];
+                    const areaOrder = [
+                      "cantiere",
+                      "commerciale",
+                      "tecnico",
+                      "amministrazione",
+                    ];
                     return areaOrder
-                      .filter(a => grouped.has(a))
-                      .map(area => {
+                      .filter((a) => grouped.has(a))
+                      .map((area) => {
                         const emps = grouped.get(area)!;
-                        const info = AREA_LABELS[area] || { label: area, emoji: "👤" };
+                        const info = AREA_LABELS[area] || {
+                          label: area,
+                          emoji: "👤",
+                        };
                         return (
                           <div key={area} className="pl-2 mt-1">
                             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1 py-0.5">
                               <span>{info.emoji}</span> {info.label}
-                              <span className="text-[9px] font-normal ml-auto">{emps.length}</span>
+                              <span className="text-[9px] font-normal ml-auto">
+                                {emps.length}
+                              </span>
                             </p>
                             {emps.map((emp) => (
-                              <div key={emp.id} className="flex items-center gap-1.5 py-0.5 pl-2">
+                              <div
+                                key={emp.id}
+                                className="flex items-center gap-1.5 py-0.5 pl-2"
+                              >
                                 <Checkbox
                                   checked={visibleEmployees.has(emp.id)}
-                                  onCheckedChange={() => onToggleEmployee(emp.id)}
+                                  onCheckedChange={() =>
+                                    onToggleEmployee(emp.id)
+                                  }
                                   className="h-3.5 w-3.5"
                                 />
                                 <span className="text-[11px] truncate">
@@ -238,7 +311,9 @@ export function CalendarLayerPanel({
                       });
                   })()}
                   {search && filteredEmployees.length === 0 && (
-                    <p className="text-[11px] text-muted-foreground pl-4 py-0.5">Nessun risultato</p>
+                    <p className="text-[11px] text-muted-foreground pl-4 py-0.5">
+                      Nessun risultato
+                    </p>
                   )}
                 </div>
               )}
@@ -253,21 +328,30 @@ export function CalendarLayerPanel({
                       className="h-3.5 w-3.5"
                     />
                     <UsersRound className="h-3 w-3 text-muted-foreground" />
-                    <span className="text-[11px] font-medium text-muted-foreground">Squadre esterne</span>
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      Squadre esterne
+                    </span>
                   </div>
                   {filteredTeams.map((team) => (
-                    <div key={team.id} className="flex items-center gap-1.5 py-0.5 pl-4">
+                    <div
+                      key={team.id}
+                      className="flex items-center gap-1.5 py-0.5 pl-4"
+                    >
                       <Checkbox
                         checked={visibleTeams.has(team.id)}
                         onCheckedChange={() => onToggleTeam(team.id)}
                         className="h-3.5 w-3.5"
                       />
-                      <span className="text-[11px] truncate flex-1">{team.name}</span>
+                      <span className="text-[11px] truncate flex-1">
+                        {team.name}
+                      </span>
                       {onTeamColorChange && (
                         <input
                           type="color"
                           value={team.color || orderColor(team.id)}
-                          onChange={(e) => onTeamColorChange(team.id, e.target.value)}
+                          onChange={(e) =>
+                            onTeamColorChange(team.id, e.target.value)
+                          }
                           className="h-4 w-5 shrink-0 cursor-pointer rounded border bg-transparent p-0"
                           title={`Colore squadra ${team.name}`}
                           aria-label={`Colore squadra ${team.name}`}
@@ -276,7 +360,9 @@ export function CalendarLayerPanel({
                     </div>
                   ))}
                   {search && filteredTeams.length === 0 && (
-                    <p className="text-[11px] text-muted-foreground pl-4 py-0.5">Nessun risultato</p>
+                    <p className="text-[11px] text-muted-foreground pl-4 py-0.5">
+                      Nessun risultato
+                    </p>
                   )}
                 </div>
               )}
@@ -295,65 +381,94 @@ export function CalendarLayerPanel({
             />
           </div>
 
-          {!isWorkScope && (
-            <>
-              {/* Calendario Magazzino */}
-              <Collapsible defaultOpen>
-                <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 text-xs font-semibold text-foreground hover:bg-muted/50 rounded">
-                  <div className="flex items-center gap-1.5">
-                    <Package className="h-3.5 w-3.5 text-orange-500" />
-                    <span>Calendario Magazzino</span>
-                  </div>
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pl-2 space-y-1 pt-1">
-                  <LayerCheckbox
-                    checked={showMerce}
-                    onCheckedChange={onToggleMerce}
-                    icon={<Package className="h-3 w-3" style={{ color: eventColors.merce }} />}
-                    label="Arrivo Merce"
-                    color={eventColors.merce}
-                  />
-                </CollapsibleContent>
-              </Collapsible>
-
-              <div className="pt-1">
+          <>
+            {/* Calendario Magazzino */}
+            <Collapsible defaultOpen>
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 text-xs font-semibold text-foreground hover:bg-muted/50 rounded">
+                <div className="flex items-center gap-1.5">
+                  <Package className="h-3.5 w-3.5 text-orange-500" />
+                  <span>Calendario Magazzino</span>
+                </div>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pl-2 space-y-1 pt-1">
                 <LayerCheckbox
-                  checked={showGoogleBusy}
-                  onCheckedChange={onToggleGoogleBusy}
-                  icon={<CalendarClock className="h-3 w-3 text-muted-foreground" />}
-                  label="Google Calendar"
-                  color={eventColors.google_busy}
+                  checked={showMerce}
+                  onCheckedChange={onToggleMerce}
+                  icon={
+                    <Package
+                      className="h-3 w-3"
+                      style={{ color: eventColors.merce }}
+                    />
+                  }
+                  label="Arrivo Merce"
+                  color={eventColors.merce}
                 />
-              </div>
+              </CollapsibleContent>
+            </Collapsible>
 
-              <Collapsible defaultOpen>
-                <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 text-xs font-semibold text-foreground hover:bg-muted/50 rounded">
-                  <div className="flex items-center gap-1.5">
-                    <Wrench className="h-3.5 w-3.5 text-orange-500" />
-                    <span>Assistenza</span>
-                  </div>
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pl-2 space-y-1 pt-1">
-                  <LayerCheckbox
-                    checked={showInterventi}
-                    onCheckedChange={onToggleInterventi}
-                    icon={<Wrench className="h-3 w-3" style={{ color: eventColors.intervento }} />}
-                    label="Interventi"
-                    color={eventColors.intervento}
-                  />
-                  <LayerCheckbox
-                    checked={showManutenzioni}
-                    onCheckedChange={onToggleManutenzioni}
-                    icon={<Settings className="h-3 w-3" style={{ color: eventColors.manutenzione }} />}
-                    label="Manutenzioni"
-                    color={eventColors.manutenzione}
-                  />
-                </CollapsibleContent>
-              </Collapsible>
-            </>
-          )}
+            <div className="pt-1">
+              <LayerCheckbox
+                checked={showGoogleBusy}
+                onCheckedChange={onToggleGoogleBusy}
+                icon={
+                  <CalendarClock className="h-3 w-3 text-muted-foreground" />
+                }
+                label="Google Calendar"
+                color={eventColors.google_busy}
+              />
+            </div>
+
+            <Collapsible defaultOpen>
+              <CollapsibleTrigger className="flex items-center justify-between w-full py-1.5 px-1 text-xs font-semibold text-foreground hover:bg-muted/50 rounded">
+                <div className="flex items-center gap-1.5">
+                  <Wrench className="h-3.5 w-3.5 text-orange-500" />
+                  <span>Assistenza</span>
+                </div>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pl-2 space-y-1 pt-1">
+                <LayerCheckbox
+                  checked={allowInterventions && showInterventi}
+                  disabled={!allowInterventions}
+                  onCheckedChange={onToggleInterventi}
+                  icon={
+                    <Wrench
+                      className="h-3 w-3"
+                      style={{ color: eventColors.intervento }}
+                    />
+                  }
+                  label={
+                    allowInterventions
+                      ? "Interventi"
+                      : "Interventi · accesso non abilitato"
+                  }
+                  color={eventColors.intervento}
+                />
+                <LayerCheckbox
+                  checked={
+                    allowMaintenance && allowCompanySources && showManutenzioni
+                  }
+                  disabled={!allowCompanySources || !allowMaintenance}
+                  onCheckedChange={onToggleManutenzioni}
+                  icon={
+                    <Settings
+                      className="h-3 w-3"
+                      style={{ color: eventColors.manutenzione }}
+                    />
+                  }
+                  label={
+                    !allowMaintenance
+                      ? "Manutenzioni · accesso non abilitato"
+                      : allowCompanySources
+                        ? "Manutenzioni"
+                        : "Manutenzioni · solo nel team"
+                  }
+                  color={eventColors.manutenzione}
+                />
+              </CollapsibleContent>
+            </Collapsible>
+          </>
 
           {/* Meteo */}
           <div className="pt-1">
@@ -374,9 +489,17 @@ export function CalendarLayerPanel({
             <CollapsibleContent className="space-y-1 pt-1">
               {colorMode && onColorModeChange && (
                 <div className="space-y-1 pb-1">
-                  <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Colora le barre per</p>
+                  <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Colora le barre per
+                  </p>
                   <div className="grid grid-cols-3 gap-1 px-1">
-                    {([["commessa", "Commessa"], ["squadra", "Squadra"], ["tipo", "Tipo"]] as const).map(([value, label]) => (
+                    {(
+                      [
+                        ["commessa", "Commessa"],
+                        ["squadra", "Squadra"],
+                        ["tipo", "Tipo"],
+                      ] as const
+                    ).map(([value, label]) => (
                       <button
                         key={value}
                         type="button"
@@ -388,15 +511,27 @@ export function CalendarLayerPanel({
                     ))}
                   </div>
                   <p className="px-1 text-[10px] text-muted-foreground">
-                    {colorMode === "commessa" ? "Ogni cantiere ha la sua tinta fissa." : colorMode === "squadra" ? "Il colore della squadra assegnata; grigio = senza squadra." : "I colori per tipo di evento qui sotto."}
+                    {colorMode === "commessa"
+                      ? "Ogni cantiere ha la sua tinta fissa."
+                      : colorMode === "squadra"
+                        ? "Il colore della squadra assegnata; grigio = senza squadra."
+                        : "I colori per tipo di evento qui sotto."}
                   </p>
                 </div>
               )}
               {avvisiPagamento && onAvvisiPagamentoChange && (
                 <div className="space-y-1 pb-1">
-                  <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Avvisi pagamento (€)</p>
+                  <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Avvisi pagamento (€)
+                  </p>
                   <div className="grid grid-cols-3 gap-1 px-1">
-                    {([["tutti", "Tutti"], ["rossi", "Solo rossi"], ["off", "Off"]] as const).map(([value, label]) => (
+                    {(
+                      [
+                        ["tutti", "Tutti"],
+                        ["rossi", "Solo rossi"],
+                        ["off", "Off"],
+                      ] as const
+                    ).map(([value, label]) => (
                       <button
                         key={value}
                         type="button"
@@ -408,20 +543,52 @@ export function CalendarLayerPanel({
                     ))}
                   </div>
                   <p className="px-1 text-[10px] text-muted-foreground">
-                    {avvisiPagamento === "tutti" ? "Acconti non incassati (rosso) e saldi a lavori chiusi (ambra)." : avvisiPagamento === "rossi" ? "Solo i lavori che partono senza acconto incassato." : "Nessun avviso € sulle barre."}
+                    {avvisiPagamento === "tutti"
+                      ? "Acconti non incassati (rosso) e saldi a lavori chiusi (ambra)."
+                      : avvisiPagamento === "rossi"
+                        ? "Solo i lavori che partono senza acconto incassato."
+                        : "Nessun avviso € sulle barre."}
                   </p>
                 </div>
               )}
-              <ColorRow label="Data posa" value={eventColors.posa} onChange={(color) => onEventColorChange?.("posa", color)} />
-              <ColorRow label="Lavori" value={eventColors.lavoro} onChange={(color) => onEventColorChange?.("lavoro", color)} />
-              <ColorRow label="Appuntamenti" value={eventColors.appuntamento} onChange={(color) => onEventColorChange?.("appuntamento", color)} />
-              {!isWorkScope && (
-                <>
-                  <ColorRow label="Arrivo merce" value={eventColors.merce} onChange={(color) => onEventColorChange?.("merce", color)} />
-                  <ColorRow label="Interventi" value={eventColors.intervento} onChange={(color) => onEventColorChange?.("intervento", color)} />
-                  <ColorRow label="Manutenzioni" value={eventColors.manutenzione} onChange={(color) => onEventColorChange?.("manutenzione", color)} />
-                </>
-              )}
+              <ColorRow
+                label="Data posa"
+                value={eventColors.posa}
+                onChange={(color) => onEventColorChange?.("posa", color)}
+              />
+              <ColorRow
+                label="Lavori"
+                value={eventColors.lavoro}
+                onChange={(color) => onEventColorChange?.("lavoro", color)}
+              />
+              <ColorRow
+                label="Appuntamenti"
+                value={eventColors.appuntamento}
+                onChange={(color) =>
+                  onEventColorChange?.("appuntamento", color)
+                }
+              />
+              <>
+                <ColorRow
+                  label="Arrivo merce"
+                  value={eventColors.merce}
+                  onChange={(color) => onEventColorChange?.("merce", color)}
+                />
+                <ColorRow
+                  label="Interventi"
+                  value={eventColors.intervento}
+                  onChange={(color) =>
+                    onEventColorChange?.("intervento", color)
+                  }
+                />
+                <ColorRow
+                  label="Manutenzioni"
+                  value={eventColors.manutenzione}
+                  onChange={(color) =>
+                    onEventColorChange?.("manutenzione", color)
+                  }
+                />
+              </>
               <button
                 type="button"
                 onClick={onResetEventColors}
@@ -436,12 +603,16 @@ export function CalendarLayerPanel({
 
       {/* Warning: all layers hidden */}
       {allLayersHidden && (
-        <p className="text-xs text-amber-600 font-medium px-1">⚠️ Tutti i layer sono nascosti</p>
+        <p className="text-xs text-amber-600 font-medium px-1">
+          ⚠️ Tutti i layer sono nascosti
+        </p>
       )}
 
       {/* Legenda colori */}
       <div className="pt-2 border-t border-border/50 space-y-1">
-        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-1">Legenda</p>
+        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-1">
+          Legenda
+        </p>
         {(() => {
           // Quando le barre sono colorate per commessa/squadra la tinta non
           // identifica più il tipo: qui campioni NEUTRI che mostrano lo STILE
@@ -454,93 +625,151 @@ export function CalendarLayerPanel({
           return (
             <>
               <div className="flex items-center gap-1.5 px-1">
-                <div className="h-3 w-6 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: cLavoro }}>
+                <div
+                  className="h-3 w-6 rounded flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: cLavoro }}
+                >
                   <Wrench className="h-2 w-2 text-white" />
                 </div>
-                <span className="text-[10px] text-muted-foreground">Lavori in corso — barra piena</span>
+                <span className="text-[10px] text-muted-foreground">
+                  Lavori in corso — barra piena
+                </span>
               </div>
               <div className="flex items-center gap-1.5 px-1">
-                <div className="h-3 w-6 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: `${cPosa}1F`, boxShadow: `inset 0 0 0 1.5px ${cPosa}` }}>
+                <div
+                  className="h-3 w-6 rounded flex items-center justify-center shrink-0"
+                  style={{
+                    backgroundColor: `${cPosa}1F`,
+                    boxShadow: `inset 0 0 0 1.5px ${cPosa}`,
+                  }}
+                >
                   <Hammer className="h-2 w-2" style={{ color: cPosa }} />
                 </div>
-                <span className="text-[10px] text-muted-foreground">Data posa — chiara bordata</span>
+                <span className="text-[10px] text-muted-foreground">
+                  Data posa — chiara bordata
+                </span>
               </div>
               <div className="flex items-center gap-1.5 px-1">
-                <div className="h-3 w-6 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: `${cMerce}14`, border: `1.5px dashed ${cMerce}` }}>
+                <div
+                  className="h-3 w-6 rounded flex items-center justify-center shrink-0"
+                  style={{
+                    backgroundColor: `${cMerce}14`,
+                    border: `1.5px dashed ${cMerce}`,
+                  }}
+                >
                   <Package className="h-2 w-2" style={{ color: cMerce }} />
                 </div>
-                <span className="text-[10px] text-muted-foreground">Arrivo merce — tratteggiata</span>
+                <span className="text-[10px] text-muted-foreground">
+                  Arrivo merce — tratteggiata
+                </span>
               </div>
               {!perTipo && (
-                <p className="px-1 text-[10px] text-muted-foreground/70">La tinta è {colorMode === "squadra" ? "della squadra" : "della commessa"}.</p>
+                <p className="px-1 text-[10px] text-muted-foreground/70">
+                  La tinta è{" "}
+                  {colorMode === "squadra" ? "della squadra" : "della commessa"}
+                  .
+                </p>
               )}
             </>
           );
         })()}
         <div className="flex items-center gap-1.5 px-1">
-          <div className="w-3 h-3 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: eventColors.appuntamento }}>
+          <div
+            className="w-3 h-3 rounded flex items-center justify-center shrink-0"
+            style={{ backgroundColor: eventColors.appuntamento }}
+          >
             <CalendarClock className="h-2 w-2 text-white" />
           </div>
-          <span className="text-[10px] text-muted-foreground">Appuntamenti</span>
+          <span className="text-[10px] text-muted-foreground">
+            Appuntamenti
+          </span>
         </div>
-        {!isWorkScope && (
-          <>
-            <div className="flex items-center gap-1.5 px-1">
-              <div className="w-3 h-3 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: eventColors.intervento }}>
-                <Wrench className="h-2 w-2 text-white" />
-              </div>
-              <span className="text-[10px] text-muted-foreground">Interventi</span>
+        <>
+          <div className="flex items-center gap-1.5 px-1">
+            <div
+              className="w-3 h-3 rounded flex items-center justify-center shrink-0"
+              style={{ backgroundColor: eventColors.intervento }}
+            >
+              <Wrench className="h-2 w-2 text-white" />
             </div>
-            <div className="flex items-center gap-1.5 px-1">
-              <div className="w-3 h-3 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: eventColors.manutenzione }}>
-                <Settings className="h-2 w-2 text-white" />
-              </div>
-              <span className="text-[10px] text-muted-foreground">Manutenzioni</span>
+            <span className="text-[10px] text-muted-foreground">
+              Interventi
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 px-1">
+            <div
+              className="w-3 h-3 rounded flex items-center justify-center shrink-0"
+              style={{ backgroundColor: eventColors.manutenzione }}
+            >
+              <Settings className="h-2 w-2 text-white" />
             </div>
-          </>
-        )}
+            <span className="text-[10px] text-muted-foreground">
+              Manutenzioni
+            </span>
+          </div>
+        </>
         <div className="flex items-center gap-1.5 px-1">
           <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
-          <span className="text-[10px] text-muted-foreground">Rischio logistico</span>
+          <span className="text-[10px] text-muted-foreground">
+            Rischio logistico
+          </span>
         </div>
         {avvisiPagamento !== "off" && (
           <div className="flex items-center gap-1.5 px-1">
-            <span className="shrink-0 rounded bg-red-600 px-1 text-[9px] font-bold text-white">€</span>
-            <span className="text-[10px] text-muted-foreground">Acconto non incassato</span>
+            <span className="shrink-0 rounded bg-red-600 px-1 text-[9px] font-bold text-white">
+              €
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              Acconto non incassato
+            </span>
           </div>
         )}
         {(avvisiPagamento ?? "tutti") === "tutti" && (
           <div className="flex items-center gap-1.5 px-1">
-            <span className="shrink-0 rounded bg-amber-500 px-1 text-[9px] font-bold text-white">€</span>
-            <span className="text-[10px] text-muted-foreground">Saldo da incassare (lavori chiusi)</span>
+            <span className="shrink-0 rounded bg-amber-500 px-1 text-[9px] font-bold text-white">
+              €
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              Saldo da incassare (lavori chiusi)
+            </span>
           </div>
         )}
         <div className="flex items-center gap-1.5 px-1">
-          <span className="shrink-0 rounded bg-red-500/80 px-1 text-[9px] font-bold text-white">!</span>
-          <span className="text-[10px] text-muted-foreground">Nessun operaio assegnato</span>
+          <span className="shrink-0 rounded bg-red-500/80 px-1 text-[9px] font-bold text-white">
+            !
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            Nessun operaio assegnato
+          </span>
         </div>
         <div className="flex items-center gap-1.5 px-1">
-          <span className="shrink-0 rounded bg-slate-400 px-1 text-[9px] font-semibold text-white">2op</span>
-          <span className="text-[10px] text-muted-foreground">Operai assegnati</span>
+          <span className="shrink-0 rounded bg-slate-400 px-1 text-[9px] font-semibold text-white">
+            2op
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            Operai assegnati
+          </span>
         </div>
-        {!isWorkScope && (
-          <div className="flex items-center gap-1.5 px-1">
-            <div className="w-3 h-3 rounded border border-dashed border-muted-foreground/40 bg-muted/60 shrink-0" />
-            <span className="text-[10px] text-muted-foreground">Google Calendar</span>
-          </div>
-        )}
+        <div className="flex items-center gap-1.5 px-1">
+          <div className="w-3 h-3 rounded border border-dashed border-muted-foreground/40 bg-muted/60 shrink-0" />
+          <span className="text-[10px] text-muted-foreground">
+            Google Calendar
+          </span>
+        </div>
       </div>
     </div>
   );
 }
 
 function LayerCheckbox({
+  disabled = false,
   checked,
   onCheckedChange,
   icon,
   label,
   color,
 }: {
+  disabled?: boolean;
   checked: boolean;
   onCheckedChange: (v: boolean) => void;
   icon: React.ReactNode;
@@ -551,17 +780,29 @@ function LayerCheckbox({
     <label className="flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-muted/30 rounded px-1">
       <Checkbox
         checked={checked}
+        disabled={disabled}
         onCheckedChange={(c) => onCheckedChange(!!c)}
         className="h-3.5 w-3.5"
       />
-      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+      <div
+        className="h-2 w-2 rounded-full"
+        style={{ backgroundColor: color }}
+      />
       {icon}
       <span className="text-[11px]">{label}</span>
     </label>
   );
 }
 
-function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (color: string) => void }) {
+function ColorRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (color: string) => void;
+}) {
   return (
     <label className="flex items-center justify-between gap-2 rounded px-1 py-0.5 hover:bg-muted/30">
       <span className="text-[11px] text-muted-foreground">{label}</span>

@@ -51,8 +51,9 @@ describe("Menu App: senza le voci già in barra e senza ricerca", () => {
   });
 
   it("le voci che servono ci sono ancora", () => {
-    for (const voce of ["Attività", "Rapportino vocale", "Sicurezza", "Avanzamento", "Presenze", "Cedolini", "Documenti", "Apri Ticket"]) {
+    for (const voce of ["Attività", "Rapportino vocale", "Avanzamento", "Presenze", "Cedolini", "Documenti", "Apri Ticket"]) {
       expect(menu, voce).toContain(`label: "${voce}"`);
     }
+    expect(menu).not.toContain('url: "/campo/sicurezza"');
   });
 });

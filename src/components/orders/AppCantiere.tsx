@@ -49,10 +49,17 @@ export function AppCantiere({
   orderId,
   modificabile,
   nomiSquadre,
+  compact = false,
+  gestione = false,
+  organizzazione,
 }: {
   orderId: string;
   modificabile: boolean;
   nomiSquadre: Map<string, string>;
+  compact?: boolean;
+  gestione?: boolean;
+  /** Same access read, a compact overview instead of an always-visible editor. */
+  organizzazione?: { aperta: boolean; riepilogo: string; onGestione: () => void; onTurni?: () => void };
 }) {
   const { data: accessi = [], isLoading, isError, refetch } = useAccessiCommessa(orderId);
   const scegli = useScegliCapocantiere(orderId);
@@ -60,8 +67,8 @@ export function AppCantiere({
   const [aperto, setAperto] = useState(false);
   const [daTogliere, setDaTogliere] = useState<AccessoCommessa | null>(null);
 
-  if (isLoading) return <Skeleton className="h-14 w-full rounded-xl" />;
-  if (isError) {
+  if (isLoading && !organizzazione) return <Skeleton className="h-14 w-full rounded-xl" />;
+  if (isError && !organizzazione) {
     return (
       <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
         Non riesco a leggere chi vede il cantiere nell'app.
@@ -77,10 +84,11 @@ export function AppCantiere({
   );
   const n = accessi.length;
 
-  return (
+  const contenuto = (
     // Verde solo quando c'è qualcuno che la vede. «Nessuno la vede ancora» è un
     // dato neutro, non un esito positivo: grigio, come le altre note di sezione.
     <section
+      id={`app-cantiere-panel-${orderId}`}
       aria-labelledby={`app-cantiere-${orderId}`}
       className={cn(
         "rounded-xl border p-3",
@@ -95,16 +103,16 @@ export function AppCantiere({
             id={`app-cantiere-${orderId}`}
             className={cn("text-sm font-semibold", n === 0 ? "text-slate-800 dark:text-slate-100" : "text-emerald-900 dark:text-emerald-100")}
           >
-            {n === 0 ? "Nell'app non la vede ancora nessuno" : `Nell'app la ${n === 1 ? "vede 1 persona" : `vedono ${n} persone`}`}
+            {gestione ? "Responsabile del cantiere" : compact ? `Accesso all'app · ${n === 0 ? "nessuno abilitato" : `${n} ${n === 1 ? "persona abilitata" : "persone abilitate"}`}` : n === 0 ? "Nell'app non la vede ancora nessuno" : `Nell'app la ${n === 1 ? "vede 1 persona" : `vedono ${n} persone`}`}
           </h3>
           <p className={cn("text-xs", n === 0 ? "text-slate-600 dark:text-slate-300/80" : "text-emerald-800/90 dark:text-emerald-200/80")}>
-            {n === 0
+            {gestione ? n === 0 ? "Assegna una persona con account Campo per scegliere il capocantiere. I capisquadra sono indicati nelle squadre." : `${n} accessi Campo · Il capocantiere coordina la commessa; ogni squadra mantiene il proprio caposquadra.` : compact ? n === 0 ? "Verifica account Campo e periodi di assegnazione." : "Controlla chi è abilitato e per quali giorni." : n === 0
               ? "Chi metti al lavoro su una fase la trova da solo sul telefono, nei giorni della fase."
               : "Ognuno nei giorni del suo lavoro. Cambi una fase o una squadra e si aggiorna da solo."}
           </p>
         </div>
 
-        {candidati.length > 0 && (
+        {(gestione || candidati.length > 0) && (
           <div className="flex items-center gap-2 max-sm:w-full">
             <Label htmlFor={`capocantiere-${orderId}`} className="shrink-0 text-xs font-semibold text-emerald-900 dark:text-emerald-100">
               Capocantiere
@@ -112,7 +120,7 @@ export function AppCantiere({
             <Select
               value={capo?.user_id ?? "nessuno"}
               onValueChange={(v) => scegli.mutate(v === "nessuno" ? null : v)}
-              disabled={!modificabile || scegli.isPending}
+              disabled={!modificabile || scegli.isPending || candidati.length === 0}
             >
               <SelectTrigger id={`capocantiere-${orderId}`} className="h-8 bg-background max-sm:flex-1 sm:w-52">
                 <SelectValue />
@@ -187,4 +195,13 @@ export function AppCantiere({
       </AlertDialog>
     </section>
   );
+  if (!organizzazione) return contenuto;
+  return <>
+    <section aria-label="Organizzazione del cantiere" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-slate-50/60 px-3 py-2.5">
+      <div className="min-w-0 flex-1"><h3 className="text-sm font-semibold">Organizzazione</h3><p className="mt-0.5 break-words text-xs text-muted-foreground">Capocantiere: <span className="text-foreground">{isLoading ? "caricamento…" : isError ? "dato non disponibile" : capo ? nomeAccesso(capo) : "da assegnare"}</span> · {organizzazione.riepilogo}</p></div>
+      <div className="flex flex-wrap gap-1.5"><Button size="sm" variant="outline" aria-expanded={organizzazione.aperta} aria-controls={`app-cantiere-panel-${orderId} organization-body-${orderId}`} onClick={organizzazione.onGestione}>{organizzazione.aperta ? "Chiudi organizzazione" : modificabile ? "Gestisci" : "Dettagli"}</Button>{organizzazione.onTurni && <Button size="sm" variant="ghost" onClick={organizzazione.onTurni}>Pianifica turni</Button>}</div>
+    </section>
+    {isError && <div role="alert" className="flex flex-wrap items-center gap-2 text-xs text-rose-700">Accessi Campo non disponibili. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova accessi</Button></div>}
+    {organizzazione.aperta && !isError && (isLoading ? <Skeleton className="h-14 w-full rounded-xl" /> : contenuto)}
+  </>;
 }

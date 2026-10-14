@@ -16,6 +16,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useSettingsDraftGuard, confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
 import { AvvisoSolaLettura } from "@/components/common/AvvisoSolaLettura";
 import { AUTO_STATUS_OPTIONS } from "@/types/opportunities";
+import { COMMERCIAL_WORKFLOW_TEMPLATES } from "@/lib/orders/commercialWorkflowModels";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -57,6 +58,7 @@ const PREFISSO_SEQUENZA_ESISTENTE = "esistente:";
 // per le squalifiche (fuori zona, non qualificato) — sono lead che non sono
 // mai diventati trattative, contarli come persi sporca il tasso di chiusura.
 const PIPELINE_TEMPLATES: PipelineTemplate[] = [
+  // The existing three templates stay first: no change to defaults or saved pipelines.
   {
     id: "standard",
     label: "Pipeline standard",
@@ -105,6 +107,7 @@ const PIPELINE_TEMPLATES: PipelineTemplate[] = [
       { name: "Preventivo Rifiutato", auto_status: "lost" },
     ],
   },
+  ...COMMERCIAL_WORKFLOW_TEMPLATES,
 ];
 
 function buildStagesFromTemplate(template: PipelineTemplate): CreateStage[] {

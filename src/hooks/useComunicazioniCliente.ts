@@ -56,6 +56,8 @@ export function useEmailCliente(customerId: string | null | undefined, companyId
         base().ilike("from_email", emailLookup!),
         base().ilike("to_email", emailLookup!),
       ]);
+      if (fromR.error) throw fromR.error;
+      if (toR.error) throw toR.error;
       const all = [...(fromR.data ?? []), ...(toR.data ?? [])] as EmailCliente[];
       const perConversazione = new Map<string, EmailCliente>();
       all.forEach((r) => {

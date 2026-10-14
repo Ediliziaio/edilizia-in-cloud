@@ -7,18 +7,19 @@ const state = vi.hoisted(() => ({
   acquisti: [] as Record<string, unknown>[],
   oda: [] as Record<string, unknown>[],
   rpc: vi.fn(), rpcError: null as unknown, error: vi.fn(), success: vi.fn(), signed: vi.fn(),
+  elencoError: null as unknown, odaError: null as unknown, risposta: { ok: true, messaggio: "Registrato come costo del cantiere." } as unknown,
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("sonner", () => ({ toast: { success: state.success, error: state.error } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   from: (table: string) => {
-    const result = () => ({ data: table === "campo_acquisti" ? state.acquisti : state.oda, error: null as null });
+    const result = () => ({ data: table === "campo_acquisti" ? state.acquisti : state.oda, error: table === "campo_acquisti" ? state.elencoError : state.odaError });
     const q: Record<string, unknown> = {};
     for (const m of ["select", "eq", "or", "order", "in"]) q[m] = () => q;
     q.then = (yes: (r: unknown) => unknown, no: (e: unknown) => unknown) => Promise.resolve(result()).then(yes, no);
     return q;
   },
-  rpc: async (fn: string, args: unknown) => { state.rpc(fn, args); return { data: { messaggio: "Registrato come costo del cantiere." }, error: state.rpcError }; },
+  rpc: async (fn: string, args: unknown) => { state.rpc(fn, args); return { data: state.risposta, error: state.rpcError }; },
   storage: { from: () => ({ createSignedUrl: async (path: string) => { state.signed(path); return { data: { signedUrl: "https://signed.local/doc" }, error: null as null }; } }) },
 } }));
 
@@ -30,7 +31,11 @@ const acquisto = (over: Record<string, unknown> = {}) => ({
 });
 const mostra = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><AcquistiCampoCard /></QueryClientProvider>);
 
-beforeEach(() => { vi.clearAllMocks(); state.acquisti = [acquisto()]; state.oda = []; state.rpcError = null; vi.spyOn(window, "open").mockImplementation(() => null); });
+beforeEach(() => {
+  vi.clearAllMocks(); state.acquisti = [acquisto()]; state.oda = []; state.rpcError = null;
+  state.elencoError = null; state.odaError = null; state.risposta = { ok: true, messaggio: "Registrato come costo del cantiere." };
+  vi.spyOn(window, "open").mockImplementation(() => null);
+});
 afterEach(cleanup);
 
 describe("Merce presa in negozio (ufficio)", () => {
@@ -75,6 +80,7 @@ describe("Merce presa in negozio (ufficio)", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Verifica" }));
     expect(await screen.findByText(/non si crea un costo nuovo/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Totale da registrare/)).toBeNull();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Registra" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Registra" }));
     await waitFor(() => expect(state.rpc).toHaveBeenCalledWith("campo_acquisto_verifica", expect.objectContaining({ p_azione: "registra", p_totale: null, p_purchase_order_id: "po1" })));
   });
@@ -84,6 +90,7 @@ describe("Merce presa in negozio (ufficio)", () => {
     mostra();
     fireEvent.click(await screen.findByRole("button", { name: "Verifica" }));
     expect(screen.getByLabelText(/Totale da registrare/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Registra" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Registra" }));
     await waitFor(() => expect(state.rpc).toHaveBeenCalledWith("campo_acquisto_verifica", expect.objectContaining({ p_totale: 45.5, p_purchase_order_id: null })));
   });
@@ -95,11 +102,47 @@ describe("Merce presa in negozio (ufficio)", () => {
     await waitFor(() => expect(state.rpc).toHaveBeenCalledWith("campo_acquisto_verifica", expect.objectContaining({ p_id: "a1", p_azione: "rimborsato" })));
   });
 
-  it("apre il documento con un indirizzo temporaneo", async () => {
+  it("mostra il documento nell'app con un indirizzo temporaneo, senza popup bloccati dal telefono", async () => {
     mostra();
     fireEvent.click(await screen.findByRole("button", { name: /Vedi il documento/ }));
-    await waitFor(() => expect(window.open).toHaveBeenCalledWith("https://signed.local/doc", "_blank", "noopener,noreferrer"));
+    expect(await screen.findByAltText("Bolla o ricevuta allegata")).toHaveAttribute("src", "https://signed.local/doc");
+    expect(screen.getByRole("link", { name: "Apri documento a dimensione intera" })).toHaveAttribute("href", "https://signed.local/doc");
+    expect(window.open).not.toHaveBeenCalled();
     expect(state.signed).toHaveBeenCalledWith("company/o1/acquisti/f.jpg");
+  });
+
+  it("un errore nel caricare la merce non viene presentato come elenco vuoto", async () => {
+    state.acquisti = []; state.elencoError = new Error("Offline"); mostra();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Non riesco a caricare la merce da verificare");
+  });
+
+  it("se non legge gli ordini blocca la registrazione, senza creare un costo diretto al loro posto", async () => {
+    state.acquisti = [acquisto({ modalita: "ritiro_ordine", rimborso_stato: "non_dovuto" })];
+    state.odaError = new Error("Offline"); mostra();
+    fireEvent.click(await screen.findByRole("button", { name: "Verifica" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Non riesco a leggere gli ordini");
+    expect(screen.getByRole("button", { name: "Registra" })).toBeDisabled();
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it("non offre lo scollegamento fittizio di un ordine già proposto dal server", async () => {
+    state.acquisti = [acquisto({ modalita: "ritiro_ordine", purchase_order_id: "po1" })]; mostra();
+    fireEvent.click(await screen.findByRole("button", { name: "Verifica" }));
+    expect(screen.queryByRole("option", { name: "Nessuno: registra come costo diretto" })).toBeNull();
+  });
+
+  it("una risposta senza conferma esplicita non mostra 'Registrata'", async () => {
+    state.risposta = null; mostra();
+    fireEvent.click(await screen.findByRole("button", { name: "Verifica" }));
+    fireEvent.click(screen.getByRole("button", { name: "Registra" }));
+    await waitFor(() => expect(state.error).toHaveBeenCalledWith("Operazione non riuscita", expect.objectContaining({ description: expect.stringContaining("non è stata confermata") })));
+    expect(state.success).not.toHaveBeenCalled();
+  });
+
+  it.each(["abc", "0", "-5", "1000001"])("blocca un importo non valido (%s) invece di registrare il totale precedente", async value => {
+    mostra(); fireEvent.click(await screen.findByRole("button", { name: "Verifica" }));
+    fireEvent.change(screen.getByLabelText(/Totale da registrare/), { target: { value } });
+    expect(screen.getByRole("button", { name: "Registra" })).toBeDisabled();
   });
 
   it("mostra la frase del database se l'operazione non è possibile, non il testo tecnico", async () => {

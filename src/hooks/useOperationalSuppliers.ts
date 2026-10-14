@@ -1,8 +1,11 @@
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
+import { invalidaFornitori } from "@/lib/suppliers/cacheFornitori";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import type { Database } from "@/integrations/supabase/types";
 
 export interface SupplierWithStats {
   id: string;
@@ -32,6 +35,11 @@ export interface SupplierWithStats {
   company_id: string;
   created_at: string;
   updated_at: string;
+  contact_name?: string | null;
+  contact_role?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  uses_gs1?: boolean | null;
   // aggregated
   oda_count?: number;
   oda_total?: number;
@@ -39,14 +47,19 @@ export interface SupplierWithStats {
   scadenze_importo?: number;
 }
 
-type SupplierBaseRow = Omit<SupplierWithStats, "oda_count" | "oda_total" | "scadenze_aperte" | "scadenze_importo">;
+type SupplierBaseRow = Omit<
+  SupplierWithStats,
+  "oda_count" | "oda_total" | "scadenze_aperte" | "scadenze_importo"
+>;
 
 interface SupplierOdaSummary {
+  id: string;
   supplier_id: string | null;
   total: number | string | null;
 }
 
 interface SupplierScadenzaSummary {
+  id: string;
   supplier_id: string | null;
   amount: number | string | null;
   paid_amount: number | string | null;
@@ -60,32 +73,36 @@ export function useOperationalSuppliers() {
   const suppliersQuery = useQuery({
     queryKey: ["operational-suppliers", companyId],
     queryFn: async () => {
-      // Run all three queries in parallel
-      const [suppliersRes, odaRes, scadRes] = await Promise.all([
-        supabase
-          .from("suppliers")
-          .select("id, name, email, phone, vat_number, fiscal_code, address, city, province, postal_code, country, website, payment_method, product_category, notes, is_foreign, vat_rate, lead_time_days, min_order_amount, credit_limit, rating, is_active, iban, bank_name, company_id, created_at, updated_at")
-          .eq("company_id", companyId!)
-          .order("name"),
-        supabase
-          .from("purchase_orders")
-          .select("supplier_id, total")
-          .eq("company_id", companyId!)
-          .neq("status", "annullato"),
-        supabase
-          .from("scadenze")
-          .select("supplier_id, amount, paid_amount, status")
-          .eq("company_id", companyId!)
-          .eq("tipo", "pagamento_fornitore")
-          .in("status", ["da_pagare", "parziale"]),
+      const [suppliers, odaStats, scadStats] = await Promise.all([
+        loadCatalogPages<SupplierBaseRow>((from, to) =>
+          supabase
+            .from("suppliers")
+            .select("*")
+            .eq("company_id", companyId!)
+            .order("name")
+            .order("id")
+            .range(from, to),
+        ),
+        loadCatalogPages<SupplierOdaSummary>((from, to) =>
+          supabase
+            .from("purchase_orders")
+            .select("id, supplier_id, total")
+            .eq("company_id", companyId!)
+            .neq("status", "annullato")
+            .order("id")
+            .range(from, to),
+        ),
+        loadCatalogPages<SupplierScadenzaSummary>((from, to) =>
+          supabase
+            .from("scadenze")
+            .select("id, supplier_id, amount, paid_amount, status")
+            .eq("company_id", companyId!)
+            .eq("tipo", "pagamento_fornitore")
+            .in("status", ["da_pagare", "parziale"])
+            .order("id")
+            .range(from, to),
+        ),
       ]);
-
-      if (suppliersRes.error) throw suppliersRes.error;
-      if (odaRes.error) throw odaRes.error;
-      if (scadRes.error) throw scadRes.error;
-      const suppliers = (suppliersRes.data ?? []) as SupplierBaseRow[];
-      const odaStats = (odaRes.data ?? []) as SupplierOdaSummary[];
-      const scadStats = (scadRes.data ?? []) as SupplierScadenzaSummary[];
 
       return suppliers.map((s) => {
         const myOda = odaStats.filter((o) => o.supplier_id === s.id);
@@ -95,7 +112,10 @@ export function useOperationalSuppliers() {
           oda_count: myOda.length,
           oda_total: myOda.reduce((sum, o) => sum + Number(o.total || 0), 0),
           scadenze_aperte: myScad.length,
-          scadenze_importo: myScad.reduce((sum, sc) => sum + (Number(sc.amount) - Number(sc.paid_amount)), 0),
+          scadenze_importo: myScad.reduce(
+            (sum, sc) => sum + (Number(sc.amount) - Number(sc.paid_amount)),
+            0,
+          ),
         } as SupplierWithStats;
       });
     },
@@ -105,23 +125,32 @@ export function useOperationalSuppliers() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (params: { id: string; updates: Record<string, unknown> }) => {
+    mutationFn: async (params: {
+      id: string;
+      updates: Database["public"]["Tables"]["suppliers"]["Update"];
+    }) => {
       if (!companyId) throw new Error("Azienda non selezionata");
       const { error } = await supabase
         .from("suppliers")
         .update(params.updates)
         .eq("id", params.id)
-        .eq("company_id", companyId);
+        .eq("company_id", companyId)
+        .select("id")
+        .single();
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await invalidaFornitori(queryClient);
       toast.success("Fornitore aggiornato");
-      queryClient.invalidateQueries({ queryKey: ["operational-suppliers"] });
     },
     // Mai il testo del database in un toast: la modifica rapida dice in italiano cosa è andato storto.
-    onError: (e) => toast.error("Fornitore non aggiornato", {
-      description: userErrorMessage(e, "Non sono riuscito a salvare il fornitore. Riprova tra poco."),
-    }),
+    onError: (e) =>
+      toast.error("Fornitore non aggiornato", {
+        description: userErrorMessage(
+          e,
+          "Non sono riuscito a salvare il fornitore. Riprova tra poco.",
+        ),
+      }),
   });
 
   return {
@@ -140,56 +169,71 @@ export function useSupplierDetail(supplierId: string | null) {
 
   const odaQuery = useQuery({
     queryKey: ["supplier-oda", companyId, supplierId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchase_orders")
-        .select("*")
-        .eq("company_id", companyId!)
-        .eq("supplier_id", supplierId!)
-        .order("issue_date", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () =>
+      loadCatalogPages<Database["public"]["Tables"]["purchase_orders"]["Row"]>(
+        (from, to) =>
+          supabase
+            .from("purchase_orders")
+            .select("*")
+            .eq("company_id", companyId!)
+            .eq("supplier_id", supplierId!)
+            .order("issue_date", { ascending: false })
+            .order("id")
+            .range(from, to),
+      ),
     enabled: !!companyId && !!supplierId,
   });
 
   const scadenzeQuery = useQuery({
     queryKey: ["supplier-scadenze", companyId, supplierId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("scadenze")
-        .select("*")
-        .eq("company_id", companyId!)
-        .eq("supplier_id", supplierId!)
-        .order("due_date", { ascending: true });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () =>
+      loadCatalogPages<Database["public"]["Tables"]["scadenze"]["Row"]>(
+        (from, to) =>
+          supabase
+            .from("scadenze")
+            .select("*")
+            .eq("company_id", companyId!)
+            .eq("supplier_id", supplierId!)
+            .order("due_date", { ascending: true })
+            .order("id")
+            .range(from, to),
+      ),
     enabled: !!companyId && !!supplierId,
   });
 
   const primaNotaQuery = useQuery({
     queryKey: ["supplier-prima-nota", companyId, supplierId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("prima_nota_entries")
-        .select("*")
-        .eq("company_id", companyId!)
-        .eq("supplier_id", supplierId!)
-        .order("entry_date", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () =>
+      loadCatalogPages<
+        Database["public"]["Tables"]["prima_nota_entries"]["Row"]
+      >((from, to) =>
+        supabase
+          .from("prima_nota_entries")
+          .select("*")
+          .eq("company_id", companyId!)
+          .eq("supplier_id", supplierId!)
+          .order("entry_date", { ascending: false })
+          .order("id")
+          .range(from, to),
+      ),
     enabled: !!companyId && !!supplierId,
   });
 
   return {
     oda: odaQuery.data || [],
     isOdaLoading: odaQuery.isLoading,
+    isOdaError: odaQuery.isError,
     scadenze: scadenzeQuery.data || [],
     isScadenzeLoading: scadenzeQuery.isLoading,
+    isScadenzeError: scadenzeQuery.isError,
     primaNota: primaNotaQuery.data || [],
     isPrimaNotaLoading: primaNotaQuery.isLoading,
+    isPrimaNotaError: primaNotaQuery.isError,
+    refetch: () =>
+      Promise.all([
+        odaQuery.refetch(),
+        scadenzeQuery.refetch(),
+        primaNotaQuery.refetch(),
+      ]),
   };
 }

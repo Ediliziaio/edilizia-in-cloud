@@ -235,7 +235,7 @@ export const AUTOMAZIONI_SECTIONS: PermissionSectionDef[] = [
 export const IMPOSTAZIONI_SECTIONS: PermissionSectionDef[] = [
   { label: "Profilo Aziendale",      viewKey: "can_view_settings_profile",        editKey: "can_edit_settings_profile", description: "Anagrafica, logo, dati fiscali e portale clienti" },
   { label: "Listino & Prezzi (tutto)", viewKey: "can_view_settings_pricing",      editKey: "can_edit_settings_pricing", description: "Listino, tariffe, modelli di preventivo e le tre voci sotto (Sconti, Finanziamenti, Kit e pacchetti). Per «Prezzo e margini» serve anche «Costi»." },
-  { label: "Modelli di preventivo · Sconti", viewKey: "can_view_settings_scontistica",    editKey: null, description: "Solo fasce sconto e limiti dei venditori, senza toccare il listino. Chi lo vede può anche modificarli." },
+  { label: "Modelli preventivi e contratti · Sconti", viewKey: "can_view_settings_scontistica",    editKey: null, description: "Solo fasce sconto e limiti dei venditori, senza toccare il listino. Chi lo vede può anche modificarli." },
   { label: "Finanziamenti",          viewKey: "can_view_settings_finanziamenti",  editKey: "can_edit_settings_finanziamenti", description: "Solo finanziarie, tassi e rate" },
   { label: "Listino · Kit e pacchetti", viewKey: "can_view_settings_bundle",         editKey: "can_edit_settings_bundle", description: "Solo kit e pacchetti chiavi in mano" },
   { label: "Personalizzazione",    viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization", description: "Branding, tag, campi personalizzati, sequenze, calendari, form builder e AI" },
@@ -299,7 +299,7 @@ export const PERMESSI_SENZA_EFFETTO: readonly { chiave: BooleanPermissionKey; et
   },
   {
     chiave: "can_edit_settings_scontistica",
-    etichetta: "Modelli di preventivo · Sconti: Modifica",
+    etichetta: "Modelli preventivi e contratti · Sconti: Modifica",
     perche: "Chi vede Sconti li può cambiare: le regole di scrittura del database guardano il permesso di vista.",
   },
 ];

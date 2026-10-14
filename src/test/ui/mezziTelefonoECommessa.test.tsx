@@ -17,7 +17,8 @@ const stato = vi.hoisted(() => ({
   mezzi: [] as unknown[],
   sulCantiere: [] as unknown[],
   costi: { documenti: [] as unknown[], manutenzioni: [] as unknown[] },
-  permessi: { canViewMezzi: true, canEditMezzi: true, isAdmin: false, solaLettura: false },
+  costReads: [] as boolean[],
+  permessi: { canViewMezzi: true, canEditMezzi: true, isAdmin: false, solaLettura: false, canViewCosts: true },
 }));
 
 vi.mock("@/hooks/useMezzi", () => {
@@ -30,7 +31,7 @@ vi.mock("@/hooks/useMezzi", () => {
     linkFileMezzo: vi.fn(),
     useMezzi: () => ({ data: stato.mezzi }),
     useMezziDellaCommessa: () => ({ data: stato.sulCantiere, isLoading: false, error: null as Error | null, refetch: vi.fn() }),
-    useCostiParco: () => ({ data: stato.costi }),
+    useCostiParco: (enabled = true) => {stato.costReads.push(enabled); return { data: stato.costi };},
     useAssegnaMezzoACommessa: mutazione,
     useMontaggiDellaCommessa: () => ({ data: [] as unknown[] }),
     useMezziDisponibilita: () => ({ data: new Map() }),
@@ -118,6 +119,18 @@ describe("Il mio mezzo, dal telefono", () => {
 describe("Mezzi sul cantiere, nella commessa", () => {
   const conRouter = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
+  it("nel riepilogo statistico anche un amministratore consulta ma non assegna né toglie", () => {
+    stato.permessi = {canViewMezzi: true, canEditMezzi: true, isAdmin: true, solaLettura: false, canViewCosts: true};
+    stato.mezzi = [{id: "m", nome: "Furgone", stato: "in_servizio", su_mezzo_id: null}];
+    stato.sulCantiere = [{mezzo_id: "m", nome: "Furgone", tipo: "furgone", rata_mensile: 0, periodi: [{dal: "2026-09-20", al: null}], adesso: true}];
+    conRouter(<MezziCommessaCard orderId="o1" readOnly />);
+    expect(screen.getByRole("heading", {name: /Utilizzo di mezzi e attrezzature/})).toBeInTheDocument();
+    expect(screen.getByText("Qui adesso")).toBeInTheDocument();
+    expect(screen.queryByRole("button", {name: /Assegna|Togli/})).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    stato.permessi.isAdmin = false;
+  });
+
   it("con parco vuoto indica dove registrare anche le attrezzature a noleggio", () => {
     stato.mezzi = [];
     stato.sulCantiere = [];
@@ -150,17 +163,29 @@ describe("Mezzi sul cantiere, nella commessa", () => {
   });
 
   it("chi non modifica i mezzi vede ma non sposta", () => {
-    stato.permessi = { canViewMezzi: true, canEditMezzi: false, isAdmin: false, solaLettura: false };
+    stato.permessi = { canViewMezzi: true, canEditMezzi: false, isAdmin: false, solaLettura: false, canViewCosts: false };
     conRouter(<MezziCommessaCard orderId="o1" />);
     expect(screen.getByText("Qui adesso")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Togli/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Assegna mezzo o attrezzo/ })).toBeNull();
+    expect(screen.queryByText(/90,41/)).not.toBeInTheDocument();
+    expect(stato.costReads.at(-1)).toBe(false);
+  });
+
+  it("la vista compatta separa lo storico senza perderlo o spostare mezzi", () => {
+    stato.permessi = {canViewMezzi: true, canEditMezzi: false, isAdmin: false, solaLettura: false, canViewCosts: false};
+    stato.sulCantiere = [{mezzo_id: "old", nome: "Mezzo storico", tipo: "furgone", targa: null, rata_mensile: 0, periodi: [{dal: "2026-09-01", al: "2026-09-05"}], adesso: false}];
+    conRouter(<MezziCommessaCard orderId="o1" compact />);
+    expect(screen.queryByRole("link", {name: "Mezzo storico"})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name: "Mostra storico (1)"}));
+    expect(screen.getByRole("link", {name: "Mezzo storico"})).toBeInTheDocument();
+    expect(screen.getByText("Storico utilizzo, viaggio").closest("details")).not.toHaveAttribute("open");
   });
 
   it("non mostra il parco a chi non ha il permesso di consultarlo", () => {
-    stato.permessi = { canViewMezzi: false, canEditMezzi: false, isAdmin: false, solaLettura: false };
+    stato.permessi = { canViewMezzi: false, canEditMezzi: false, isAdmin: false, solaLettura: false, canViewCosts: false };
     const { container } = conRouter(<MezziCommessaCard orderId="o1" />);
     expect(container).toBeEmptyDOMElement();
-    stato.permessi = { canViewMezzi: true, canEditMezzi: true, isAdmin: false, solaLettura: false };
+    stato.permessi = { canViewMezzi: true, canEditMezzi: true, isAdmin: false, solaLettura: false, canViewCosts: true };
   });
 });

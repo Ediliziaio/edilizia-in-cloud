@@ -16,6 +16,7 @@
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { termineDiRicerca } from "@/lib/ricercaPostgrest";
 import { buildSeedRows } from "@/lib/ristrutturazione/seedListino";
@@ -93,7 +94,7 @@ export function useListinoVoci(capitoloId?: string | null) {
     queryKey: K.voci(companyId, capitoloId),
     enabled: !!companyId,
     staleTime: 60_000,
-    queryFn: async () => {
+    queryFn: async () => loadCatalogPages(async (from, to) => {
       let q = sb()
         .from("rst_listino_voci")
         .select("*")
@@ -101,10 +102,9 @@ export function useListinoVoci(capitoloId?: string | null) {
       if (capitoloId) q = q.eq("capitolo_id", capitoloId);
       const { data, error } = await q
         .order("ordine", { ascending: true })
-        .order("created_at", { ascending: true });
-      if (error) throw new Error(error.message);
-      return (data ?? []) as RstListinoVoce[];
-    },
+        .order("created_at", { ascending: true }).order("id").range(from, to);
+      return { data: (data ?? []) as RstListinoVoce[], error };
+    }),
   });
 }
 

@@ -1,847 +1,570 @@
-import { useMemo, useRef, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@/lib/queryKeys";
-import { toast } from "sonner";
-import { logger } from "@/utils/logger";
 import {
   DndContext,
-  DragEndEvent,
   PointerSensor,
   useSensor,
   useSensors,
+  type DragEndEvent,
 } from "@dnd-kit/core";
 import {
-  format,
-  startOfYear,
-  endOfYear,
+  addDays,
+  addMonths,
   eachDayOfInterval,
   eachMonthOfInterval,
   differenceInDays,
-  parseISO,
-  isSameDay,
-  startOfQuarter,
-  endOfQuarter,
-  startOfMonth,
-  endOfMonth,
-  addYears,
-  subYears,
-  addMonths,
-  subMonths,
-  addDays,
-  isWeekend,
+  format,
   getISOWeek,
+  isSameDay,
+  isWeekend,
+  parseISO,
 } from "date-fns";
 import { it } from "date-fns/locale";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle, Wrench, Settings, CalendarRange } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarRange } from "lucide-react";
+import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { supabase } from "@/integrations/supabase/client";
+import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { cn } from "@/lib/utils";
 import { etichettaCommessa } from "@/lib/calendarUtils";
-import { supabase } from "@/integrations/supabase/client";
-import type { CalendarAppointment, CalendarOrder, GanttZoom, OrderStatus, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
+import { calendarPeriod } from "@/lib/calendar/planning";
+import {
+  canMoveCalendarWorkPeriod,
+  planningGanttRows,
+  planningWorkloadOnDay,
+} from "@/lib/calendar/planningTools";
+import { buildCalendarEvents, type CalendarEvent } from "@/lib/calendar/events";
+import { calendarEventKey } from "@/lib/calendar/eventDetails";
+import { calendarWorkLocation } from "@/lib/calendar/navigation";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { DraggableOrderBar } from "./DraggableOrderBar";
-import { LeadTimeStats, calculateLeadTime, getLeadTimeColor } from "./LeadTimeStats";
+import { CalendarDayDetailsDialog } from "./CalendarDayDetailsDialog";
+import type {
+  CalendarOrder,
+  CalendarScope,
+  CalendarWorkPeriod,
+  GanttZoom,
+} from "@/types/calendar";
 
-interface CalendarGanttViewProps {
+interface Props {
   orders: CalendarOrder[];
-  allOrders: CalendarOrder[];
-  statuses: OrderStatus[];
   currentDate: Date;
   onDateChange: (date: Date) => void;
-  interventi?: CalendarIntervento[];
-  manutenzioni?: CalendarManutenzione[];
-  appointments?: CalendarAppointment[];
   orderColorFn?: (order: CalendarOrder) => string;
+  zoom: GanttZoom;
+  onZoomChange: (zoom: GanttZoom) => void;
+  calendarScope?: CalendarScope;
 }
-
-const ZOOM_CONFIG: Record<GanttZoom, { dayWidth: number; minBarWidth: number; label: string }> = {
-  year: { dayWidth: 3.5, minBarWidth: 18, label: "Anno" },
-  quarter: { dayWidth: 10, minBarWidth: 24, label: "Trimestre" },
-  month: { dayWidth: 28, minBarWidth: 34, label: "Mese" },
+const CONFIG = {
+  month: { width: 28, step: 1 },
+  quarter: { width: 10, step: 3 },
+  year: { width: 3.5, step: 12 },
 };
-
-const ROW_HEIGHT = 54;
-const LEFT_COL_WIDTH = 250;
-
-function getOrderProgress(order: CalendarOrder): number | undefined {
-  if (!order.work_start_date || !order.work_end_date) return undefined;
-  const start = parseISO(order.work_start_date);
-  const end = parseISO(order.work_end_date);
-  const total = differenceInDays(end, start);
-  if (total <= 0) return undefined;
-  const elapsed = differenceInDays(new Date(), start);
-  return Math.max(0, Math.min(100, Math.round((elapsed / total) * 100)));
-}
+const LEFT_WIDTH = 260;
+const LANE_HEIGHT = 30;
 
 export function CalendarGanttView({
   orders,
-  allOrders,
-  statuses,
   currentDate,
   onDateChange,
-  interventi = [],
-  manutenzioni = [],
-  appointments = [],
   orderColorFn,
-}: CalendarGanttViewProps) {
-  const navigate = useNavigate();
+  zoom,
+  onZoomChange,
+  calendarScope = "personal",
+}: Props) {
+  const p = usePermissions();
+  const { user, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [zoom, setZoom] = useState<GanttZoom>("quarter");
-  const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
-
-  const { dayWidth: baseDayWidth, minBarWidth } = ZOOM_CONFIG[zoom];
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
-    })
+  const timeline = useRef<HTMLDivElement>(null);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const [selected, setSelected] = useState<{
+    date: Date;
+    event: CalendarEvent;
+  } | null>(null);
+  const period = useMemo(
+    () => calendarPeriod(currentDate, "gantt", zoom),
+    [currentDate, zoom],
   );
-
-  // Sort orders: by work_start_date (or expected_date), then by customer last_name. No dates = bottom.
-  const sortedOrders = useMemo(() => {
-    return [...orders].sort((a, b) => {
-      const dateA = a.work_start_date || a.expected_date || null;
-      const dateB = b.work_start_date || b.expected_date || null;
-      if (!dateA && !dateB) return a.customer.last_name.localeCompare(b.customer.last_name);
-      if (!dateA) return 1;
-      if (!dateB) return -1;
-      const cmp = dateA.localeCompare(dateB);
-      return cmp !== 0 ? cmp : a.customer.last_name.localeCompare(b.customer.last_name);
-    });
-  }, [orders]);
-
-  const { startDate, endDate, days, months } = useMemo(() => {
-    let start: Date;
-    let end: Date;
-
-    switch (zoom) {
-      case "year":
-        start = startOfYear(currentDate);
-        end = endOfYear(currentDate);
-        break;
-      case "quarter":
-        start = startOfQuarter(currentDate);
-        end = endOfQuarter(currentDate);
-        break;
-      case "month":
-        start = startOfMonth(currentDate);
-        end = endOfMonth(currentDate);
-        break;
-    }
-
-    const days = eachDayOfInterval({ start, end });
-    const months = eachMonthOfInterval({ start, end });
-
-    return { startDate: start, endDate: end, days, months };
-  }, [currentDate, zoom]);
-
-  const dayWidth = useMemo(() => {
-    if (!days.length || timelineViewportWidth <= 0) return baseDayWidth;
-    return Math.max(baseDayWidth, timelineViewportWidth / days.length);
-  }, [baseDayWidth, days.length, timelineViewportWidth]);
-
-  const timelineWidth = useMemo(
-    () => Math.max(days.length * dayWidth, timelineViewportWidth),
-    [dayWidth, days.length, timelineViewportWidth]
+  const start = parseISO(period.from),
+    end = parseISO(period.to);
+  const days = useMemo(
+    () =>
+      eachDayOfInterval({
+        start: parseISO(period.from),
+        end: parseISO(period.to),
+      }),
+    [period.from, period.to],
+  );
+  const months = useMemo(
+    () =>
+      eachMonthOfInterval({
+        start: parseISO(period.from),
+        end: parseISO(period.to),
+      }),
+    [period.from, period.to],
+  );
+  const rows = useMemo(
+    () => planningGanttRows(orders, period.from, period.to),
+    [orders, period.from, period.to],
+  );
+  const dayWidth = Math.max(CONFIG[zoom].width, viewportWidth / days.length);
+  const width = days.length * dayWidth;
+  const today = format(new Date(), "yyyy-MM-dd");
+  const todayOffset =
+    today >= period.from && today <= period.to
+      ? differenceInDays(parseISO(today), start) * dayWidth
+      : null;
+  const workload = useMemo(
+    () =>
+      days.map(
+        (day) =>
+          planningWorkloadOnDay(orders, format(day, "yyyy-MM-dd")).length,
+      ),
+    [days, orders],
+  );
+  const peak = Math.max(0, ...workload);
+  const phaseCount = rows.reduce((n, r) => n + r.bars.length, 0);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
   useEffect(() => {
-    const node = scrollContainerRef.current;
+    const node = timeline.current;
     if (!node) return;
-
-    const updateViewport = () => setTimelineViewportWidth(node.clientWidth);
-    updateViewport();
-
-    const observer = new ResizeObserver(updateViewport);
+    const update = () => setViewportWidth(node.clientWidth);
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(update);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [zoom]);
-
-  const todayOffset = useMemo(() => {
-    const today = new Date();
-    if (today < startDate || today > endDate) return null;
-    return differenceInDays(today, startDate) * dayWidth;
-  }, [startDate, endDate, dayWidth]);
-
-  // Scroll to today when todayOffset changes (mount, zoom change, period change)
+  }, [rows.length, zoom]);
   useEffect(() => {
-    if (scrollContainerRef.current && todayOffset !== null) {
-      const containerWidth = scrollContainerRef.current.clientWidth;
-      scrollContainerRef.current.scrollLeft = todayOffset - containerWidth / 2;
-    }
+    if (timeline.current && todayOffset !== null)
+      timeline.current.scrollLeft = Math.max(
+        0,
+        todayOffset - timeline.current.clientWidth / 2,
+      );
   }, [todayOffset]);
 
-  const handleGoToToday = () => {
-    onDateChange(new Date());
-  };
-
-  // Capacity: count active orders per day
-  const capacityPerDay = useMemo(() => {
-    return days.map((day) => {
-      let count = 0;
-      for (const order of sortedOrders) {
-        const s = order.work_start_date ? parseISO(order.work_start_date) : order.expected_date ? parseISO(order.expected_date) : null;
-        if (!s) continue;
-        const e = order.work_end_date ? parseISO(order.work_end_date) : s;
-        if (day >= s && day <= e) count++;
-      }
-      return count;
+  const openDetails = (order: CalendarOrder, work?: CalendarWorkPeriod) => {
+    const at = work
+      ? work.start_date < period.from
+        ? period.from
+        : work.start_date
+      : order.expected_date!;
+    setSelected({
+      date: parseISO(at),
+      event: work
+        ? { type: "lavoro", order, work, color: "" }
+        : { type: "posa", order, color: "" },
     });
-  }, [days, sortedOrders]);
-
-  const getOrderBar = (order: CalendarOrder) => {
-    const orderStart = order.work_start_date
-      ? parseISO(order.work_start_date)
-      : order.expected_date
-      ? parseISO(order.expected_date)
-      : null;
-
-    if (!orderStart) return null;
-
-    const orderEnd = order.work_end_date
-      ? parseISO(order.work_end_date)
-      : orderStart;
-
-    if (orderEnd < startDate || orderStart > endDate) return null;
-
-    const visibleStart = orderStart < startDate ? startDate : orderStart;
-    const visibleEnd = orderEnd > endDate ? endDate : orderEnd;
-
-    const left = differenceInDays(visibleStart, startDate) * dayWidth;
-    const width = (differenceInDays(visibleEnd, visibleStart) + 1) * dayWidth;
-
-    return { left, width, orderStart, orderEnd };
   };
-
-  const getOrderColor = (order: CalendarOrder) => {
-    // Modalità colore scelta nel pannello (per commessa / per squadra):
-    // vince sulla vecchia logica per stato, così il Gantt parla la stessa
-    // lingua delle altre viste.
-    const fromMode = orderColorFn?.(order);
-    if (fromMode) return fromMode;
-    if (order.status?.color) return order.status.color;
-    const today = new Date();
-    const orderStart = order.work_start_date
-      ? parseISO(order.work_start_date)
-      : order.expected_date
-      ? parseISO(order.expected_date)
-      : null;
-    if (!orderStart) return "#3B82F6";
-    return orderStart > today ? "#F59E0B" : "#3B82F6";
-  };
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, delta } = event;
-    if (!delta?.x || Math.abs(delta.x) < dayWidth / 2) return;
-
-    const orderData = active.data.current as { order: CalendarOrder; bar: { orderStart: Date; orderEnd: Date } };
-    const daysMoved = Math.round(delta.x / dayWidth);
-    if (daysMoved === 0) return;
-
-    const order = orderData.order;
-    const newStart = addDays(orderData.bar.orderStart, daysMoved);
-    const newEnd = addDays(orderData.bar.orderEnd, daysMoved);
-
+  const dragEnd = async (event: DragEndEvent) => {
+    if (
+      !user?.id ||
+      !effectiveCompany?.id ||
+      p.isLoading ||
+      !p.canEditOrders ||
+      p.solaLettura
+    )
+      return;
+    const data = event.active.data.current as
+      | { order: CalendarOrder; period?: CalendarWorkPeriod }
+      | undefined;
+    if (
+      !data ||
+      !canMoveCalendarWorkPeriod(data.order, data.period) ||
+      !rows.some((r) => r.order.id === data.order.id)
+    )
+      return;
+    const moved = Math.round(event.delta.x / dayWidth);
+    if (!moved) return;
+    const { order } = data;
     try {
-      const { error } = await supabase
+      const result = await supabase
         .from("orders")
         .update({
-          work_start_date: format(newStart, "yyyy-MM-dd"),
-          work_end_date: format(newEnd, "yyyy-MM-dd"),
+          work_start_date: format(
+            addDays(parseISO(order.work_start_date!), moved),
+            "yyyy-MM-dd",
+          ),
+          work_end_date: format(
+            addDays(
+              parseISO(order.work_end_date || order.work_start_date!),
+              moved,
+            ),
+            "yyyy-MM-dd",
+          ),
         })
-        .eq("id", order.id);
-
-      if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
-      toast.success("Date lavoro aggiornate");
-    } catch (error) {
-      logger.error("Error updating order dates:", error);
-      toast.error("Errore nell'aggiornamento delle date");
+        .eq("id", order.id)
+        .eq("company_id", effectiveCompany.id)
+        .select("id")
+        .single();
+      if (result.error) throw result.error;
+      refreshWorkQueries(queryClient, order.id, effectiveCompany.id);
+      toast.success("Date della commessa aggiornate");
+    } catch {
+      toast.error("Date non aggiornate. Verifica i tuoi accessi e riprova.");
     }
   };
-
-  const handlePrev = () => {
-    switch (zoom) {
-      case "year":
-        onDateChange(subYears(currentDate, 1));
-        break;
-      case "quarter":
-        onDateChange(subMonths(currentDate, 3));
-        break;
-      case "month":
-        onDateChange(subMonths(currentDate, 1));
-        break;
-    }
-  };
-
-  const handleNext = () => {
-    switch (zoom) {
-      case "year":
-        onDateChange(addYears(currentDate, 1));
-        break;
-      case "quarter":
-        onDateChange(addMonths(currentDate, 3));
-        break;
-      case "month":
-        onDateChange(addMonths(currentDate, 1));
-        break;
-    }
-  };
-
-  const getPeriodLabel = () => {
-    switch (zoom) {
-      case "year":
-        return format(currentDate, "yyyy");
-      case "quarter": {
-        const q = Math.floor(currentDate.getMonth() / 3) + 1;
-        return `Q${q} ${format(currentDate, "yyyy")}`;
-      }
-      case "month":
-        return format(currentDate, "MMMM yyyy", { locale: it });
-    }
-  };
-
-  // Unique week numbers for quarter view sub-header
-  const weekNumbers = useMemo(() => {
-    if (zoom !== "quarter") return [];
-    const seen = new Map<number, { start: number; count: number }>();
-    days.forEach((day, idx) => {
-      const wn = getISOWeek(day);
-      if (!seen.has(wn)) {
-        seen.set(wn, { start: idx, count: 0 });
-      }
-      seen.get(wn)!.count++;
+  const detailEvents = selected
+    ? buildCalendarEvents([selected.date], {
+        orders,
+        hiddenEventTypes: new Set(["merce"]),
+        orderColorFn,
+      }).get(format(selected.date, "yyyy-MM-dd")) || []
+    : [];
+  const weeks = new Map<string, { label: string; count: number }>();
+  days.forEach((day) => {
+    const key = format(day, "RRRR-II");
+    const old = weeks.get(key);
+    weeks.set(key, {
+      label: "S" + getISOWeek(day),
+      count: (old?.count || 0) + 1,
     });
-    return Array.from(seen.entries()).map(([wn, { start, count }]) => ({ wn, start, count }));
-  }, [days, zoom]);
-
-  const capacityColor = (count: number) => {
-    if (count === 0) return "bg-muted/30";
-    if (count <= 2) return "bg-green-500/60";
-    if (count <= 4) return "bg-yellow-500/60";
-    return "bg-red-500/60";
-  };
-
-  const ganttStats = useMemo(() => {
-    const visibleAppointmentCount = appointments.filter((appointment) => {
-      const date = parseISO(appointment.appointment_date);
-      return date >= startDate && date <= endDate;
-    }).length;
-    const peak = capacityPerDay.reduce((max, count) => Math.max(max, count), 0);
-    const overloadedDays = capacityPerDay.filter((count) => count >= 5).length;
-    return {
-      orders: sortedOrders.length,
-      appointments: visibleAppointmentCount,
-      peak,
-      overloadedDays,
-    };
-  }, [appointments, capacityPerDay, endDate, sortedOrders.length, startDate]);
+  });
 
   return (
-    <Card className="p-4 overflow-hidden">
-      <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+    <Card className="overflow-hidden p-4" aria-label="Gantt delle lavorazioni">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={handlePrev}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Periodo Gantt precedente"
+            onClick={() =>
+              onDateChange(addMonths(currentDate, -CONFIG[zoom].step))
+            }
+          >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="min-w-[180px] text-center">
-            <h2 className="text-lg font-semibold capitalize leading-tight">
-              {getPeriodLabel()}
+          <div className="text-center">
+            <h2 className="text-lg font-semibold capitalize">
+              {zoom === "month"
+                ? format(currentDate, "MMMM yyyy", { locale: it })
+                : zoom === "year"
+                  ? format(currentDate, "yyyy")
+                  : "Trimestre " +
+                    (Math.floor(currentDate.getMonth() / 3) + 1) +
+                    " · " +
+                    format(currentDate, "yyyy")}
             </h2>
-            <p className="text-[11px] text-muted-foreground">
-              {format(startDate, "d MMM", { locale: it })} - {format(endDate, "d MMM yyyy", { locale: it })}
+            <p className="text-xs text-muted-foreground">
+              {format(start, "d MMM", { locale: it })} —{" "}
+              {format(end, "d MMM yyyy", { locale: it })}
             </p>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleNext}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Periodo Gantt successivo"
+            onClick={() =>
+              onDateChange(addMonths(currentDate, CONFIG[zoom].step))
+            }
+          >
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Button
-            variant={todayOffset !== null ? "outline" : "default"}
-            size="sm"
-            onClick={handleGoToToday}
-            className="text-xs"
-          >
-            Oggi
-          </Button>
         </div>
-
-        {/* Commesse e appuntamenti sono già nei numeri in cima alla pagina:
-            qui restano i due dati che ha solo il Gantt, sulla stessa riga. */}
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span>Picco carico <b className="text-sm text-foreground tabular-nums">{ganttStats.peak}</b></span>
-          <span>Giorni saturi <b className={cn("text-sm tabular-nums", ganttStats.overloadedDays > 0 ? "text-destructive" : "text-foreground")}>{ganttStats.overloadedDays}</b></span>
-        </div>
-
         <ToggleGroup
           type="single"
+          aria-label="Periodo del Gantt"
           value={zoom}
-          onValueChange={(value) => value && setZoom(value as GanttZoom)}
-          className="bg-muted rounded-lg p-1"
+          onValueChange={(value) => value && onZoomChange(value as GanttZoom)}
+          className="rounded-lg bg-muted p-1"
         >
-          <ToggleGroupItem value="month" className="text-xs px-2">
-            <ZoomIn className="h-3 w-3 mr-1" />
+          <ToggleGroupItem value="month" className="text-xs">
             Mese
           </ToggleGroupItem>
-          <ToggleGroupItem value="quarter" className="text-xs px-2">
+          <ToggleGroupItem value="quarter" className="text-xs">
             Trimestre
           </ToggleGroupItem>
-          <ToggleGroupItem value="year" className="text-xs px-2">
-            <ZoomOut className="h-3 w-3 mr-1" />
+          <ToggleGroupItem value="year" className="text-xs">
             Anno
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
-
-      {sortedOrders.length === 0 ? (
-        <div className="flex items-center justify-center h-48 text-muted-foreground">
-          Nessun lavoro programmato
-        </div>
+      <div className="mb-4 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
+        <p>
+          Ogni barra segue una lavorazione della commessa. Clicca per dettagli,
+          presenze e SAL.
+        </p>
+        <p>
+          <b className="text-foreground">{phaseCount}</b> lavorazioni · picco{" "}
+          <b className="text-foreground">{peak}</b> cantieri
+        </p>
+      </div>
+      {!rows.length ? (
+        <p className="py-16 text-center text-sm text-muted-foreground">
+          Nessuna lavorazione o posa pianificata nel periodo e nei filtri
+          selezionati.
+        </p>
       ) : (
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <div className="flex overflow-hidden rounded-lg border bg-background">
-            {/* Fixed left column - Client names + Lead Time */}
+        <DndContext sensors={sensors} onDragEnd={dragEnd}>
+          <div className="flex overflow-hidden rounded-xl border">
             <div
-              className="flex-shrink-0 border-r bg-muted/30"
-              style={{ width: LEFT_COL_WIDTH }}
+              className="shrink-0 border-r bg-muted/15"
+              style={{ width: LEFT_WIDTH }}
             >
-              {/* Left header must match dual-level header height */}
-              <div className={cn("sticky top-0 z-30 border-b bg-muted/80 backdrop-blur flex", zoom === "month" || zoom === "quarter" ? "h-16" : "h-12")}>
-                <div className="flex-1 flex items-center px-3">
-                  <span className="text-sm font-semibold text-muted-foreground">
-                    Cliente / Ordine
-                  </span>
-                </div>
-                <div className="w-16 flex items-center justify-center border-l" title="Lead time: giorni dalla commessa alla fine dei lavori">
-                  <span className="text-xs font-medium text-muted-foreground">LT</span>
-                </div>
+              <div className="flex h-16 items-center border-b bg-muted/40 px-3 text-xs font-semibold">
+                Commessa e risorse pianificate
               </div>
-              {sortedOrders.map((order, idx) => {
-                const leadTime = calculateLeadTime(order);
-                const initials = order.order_employees
-                  ?.map((ae) => `${ae.employee?.first_name?.[0] ?? ""}${ae.employee?.last_name?.[0] ?? ""}`)
-                  .join(", ");
-                const extTeam = order.order_external_teams
-                  ?.map((aet) => aet.external_team.name)
-                  .join(", ");
-                return (
-                  <div
-                    key={order.id}
-                    className={cn(
-                      "border-b flex cursor-pointer hover:bg-muted/50 transition-colors",
-                      idx % 2 === 0 && "bg-muted/20"
-                    )}
-                    style={{ height: ROW_HEIGHT }}
-                    onClick={() => navigate(`/azienda/ordini/${order.id}`)}
+              {rows.map((row) => (
+                <Link
+                  key={row.order.id}
+                  to={calendarWorkLocation(row.order.id)}
+                  className="flex flex-col justify-center gap-1 border-b px-3 hover:bg-muted/50"
+                  style={{ height: Math.max(64, row.lanes * LANE_HEIGHT + 20) }}
+                >
+                  <span className="truncate text-sm font-semibold">
+                    {etichettaCommessa(row.order)}
+                  </span>
+                  <span className="truncate text-[11px] text-muted-foreground">
+                    {row.order.order_code} · {row.bars.length} lavorazioni
+                  </span>
+                  <span
+                    className="truncate text-[10px] text-muted-foreground"
+                    title={row.resources.join(", ")}
                   >
-                    <div className="flex-1 flex flex-col justify-center px-3 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        {order.status && (
-                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: order.status.color }} />
-                        )}
-                        <span className="text-sm font-semibold truncate">
-                          {etichettaCommessa(order) || order.customer.last_name}
-                        </span>
-                      </div>
-                      {/* Una riga sola, tagliata: con squadre esterne dai nomi lunghi
-                          andava a capo, usciva dai 54px della riga e copriva le
-                          commesse sopra e sotto. Il testo intero è nel tooltip. */}
-                      <div
-                        className="truncate text-[10px] text-muted-foreground"
-                        title={[order.order_code || "N/A", initials, extTeam].filter(Boolean).join(" | ")}
-                      >
-                        {order.order_code || "N/A"}
-                        {initials && ` | ${initials}`}
-                        {extTeam && ` | ${extTeam}`}
-                      </div>
-                    </div>
-                    <div className="w-16 flex items-center justify-center border-l">
-                      {leadTime !== null ? (
-                        <span className={cn("text-xs font-medium", getLeadTimeColor(leadTime))}>
-                          {leadTime}g
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              {/* Interventi labels */}
-              {interventi.length > 0 && (
-                <>
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border-y border-orange-200">
-                    <Wrench className="h-3.5 w-3.5 text-orange-600" />
-                    <span className="text-xs font-semibold text-orange-700">Interventi ({interventi.length})</span>
-                  </div>
-                  {interventi.map((iv) => (
-                    <div key={iv.id} className="border-b flex items-center px-3" style={{ height: ROW_HEIGHT }}>
-                      <span className="text-xs font-medium truncate text-orange-700">{iv.subject}</span>
-                    </div>
-                  ))}
-                </>
-              )}
-              {/* Manutenzioni labels */}
-              {manutenzioni.length > 0 && (
-                <>
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-y border-blue-200">
-                    <Settings className="h-3.5 w-3.5 text-blue-600" />
-                    <span className="text-xs font-semibold text-blue-700">Manutenzioni ({manutenzioni.length})</span>
-                  </div>
-                  {manutenzioni.map((mn) => (
-                    <div key={mn.id} className="border-b flex items-center px-3" style={{ height: ROW_HEIGHT }}>
-                      <span className="text-xs font-medium truncate text-blue-700">{mn.titolo}</span>
-                    </div>
-                  ))}
-                </>
-              )}
-              {/* Capacity row label */}
-              <div className="h-9 flex items-center px-3 bg-muted/40 border-t">
-                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Carico</span>
+                    {row.resources.join(", ") || "Risorse da assegnare"}
+                  </span>
+                </Link>
+              ))}
+              <div className="flex h-9 items-center px-3 text-[10px] font-medium">
+                CANTIERI PER GIORNO
               </div>
             </div>
-
-            {/* Scrollable timeline */}
             <div
-              ref={scrollContainerRef}
-              className="relative flex-1 overflow-x-auto overflow-y-hidden"
+              ref={timeline}
+              className="relative min-w-0 flex-1 overflow-x-auto"
             >
-              {/* Dual-level header */}
-              <div
-                className={cn("sticky top-0 z-20 border-b bg-muted/80 backdrop-blur", zoom === "month" || zoom === "quarter" ? "h-16" : "h-12")}
-                style={{ width: timelineWidth }}
-              >
-                {/* Level 1: Months or quarters */}
-                <div className="flex h-1/2">
-                  {zoom === "year"
-                    ? [0, 1, 2, 3].map((quarter) => {
-                        const quarterDays = days.filter((day) => Math.floor(day.getMonth() / 3) === quarter);
-                        return (
-                          <div
-                            key={`q-${quarter}`}
-                            className="border-r border-b flex items-center justify-center text-xs font-semibold text-muted-foreground"
-                            style={{ width: quarterDays.length * dayWidth }}
-                          >
-                            Q{quarter + 1} {format(currentDate, "yyyy")}
-                          </div>
-                        );
-                      })
-                    : months.map((month, idx) => {
-                        const monthDays = days.filter((d) => d.getMonth() === month.getMonth() && d.getFullYear() === month.getFullYear());
-                        const monthWidth = monthDays.length * dayWidth;
-                        return (
-                          <div
-                            key={idx}
-                            className="border-r border-b flex items-center justify-center text-xs font-semibold text-muted-foreground"
-                            style={{ width: monthWidth }}
-                          >
-                            {format(month, "MMMM yyyy", { locale: it })}
-                          </div>
-                        );
-                      })}
-                </div>
-                {/* Level 2: Days (month zoom) or Week numbers (quarter zoom) */}
-                {zoom === "month" && (
-                  <div className="flex h-1/2">
-                    {days.map((day, idx) => (
+              <div style={{ width }}>
+                <div className="h-16 border-b bg-muted/40">
+                  <div className="flex h-8">
+                    {months.map((month) => (
                       <div
-                        key={idx}
+                        key={format(month, "yyyy-MM")}
+                        className="flex shrink-0 items-center justify-center border-b border-r text-xs font-medium"
+                        style={{
+                          width:
+                            days.filter(
+                              (d) => d.getMonth() === month.getMonth(),
+                            ).length * dayWidth,
+                        }}
+                      >
+                        {format(month, zoom === "year" ? "MMM" : "MMMM yyyy", {
+                          locale: it,
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex h-8">
+                    {zoom === "month"
+                      ? days.map((day) => (
+                          <div
+                            key={format(day, "yyyy-MM-dd")}
+                            className={cn(
+                              "flex shrink-0 items-center justify-center border-r text-[10px]",
+                              isWeekend(day) && "bg-muted",
+                              isSameDay(day, new Date()) &&
+                                "font-bold text-primary",
+                            )}
+                            style={{ width: dayWidth }}
+                          >
+                            {format(day, "d")}
+                          </div>
+                        ))
+                      : zoom === "quarter"
+                        ? [...weeks].map(([key, week]) => (
+                            <div
+                              key={key}
+                              className="flex shrink-0 items-center justify-center border-r text-[10px] text-muted-foreground"
+                              style={{ width: week.count * dayWidth }}
+                            >
+                              {week.label}
+                            </div>
+                          ))
+                        : months.map((month) => (
+                            <div
+                              key={format(month, "yyyy-MM")}
+                              className="shrink-0 border-r text-center text-[10px] text-muted-foreground"
+                              style={{
+                                width:
+                                  days.filter(
+                                    (d) => d.getMonth() === month.getMonth(),
+                                  ).length * dayWidth,
+                              }}
+                            >
+                              {Math.floor(month.getMonth() / 3) + 1}° trim.
+                            </div>
+                          ))}
+                  </div>
+                </div>
+                <div className="relative">
+                  <div
+                    className="pointer-events-none absolute inset-0 flex"
+                    aria-hidden="true"
+                  >
+                    {days.map((day) => (
+                      <div
+                        key={format(day, "yyyy-MM-dd")}
                         className={cn(
-                          "border-r flex items-center justify-center text-[10px]",
-                          isWeekend(day) && "bg-muted/60 text-muted-foreground/60",
-                          isSameDay(day, new Date()) && "bg-primary/15 font-bold text-primary"
+                          "shrink-0 border-r border-border/40",
+                          isWeekend(day) && zoom !== "year" && "bg-muted/30",
                         )}
                         style={{ width: dayWidth }}
-                      >
-                        {format(day, "d")}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {zoom === "quarter" && (
-                  <div className="flex h-1/2">
-                    {weekNumbers.map(({ wn, start, count }) => (
-                      <div
-                        key={`w${wn}-${start}`}
-                        className="border-r flex items-center justify-center text-[10px] text-muted-foreground"
-                        style={{ width: count * dayWidth }}
-                      >
-                        W{wn}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {zoom === "year" && (
-                  <div className="flex h-1/2">
-                    {months.map((month, idx) => {
-                      const monthDays = days.filter((d) => d.getMonth() === month.getMonth() && d.getFullYear() === month.getFullYear());
-                      return (
-                        <div
-                          key={`year-${idx}`}
-                          className="border-r flex items-center justify-center text-[10px] text-muted-foreground/70"
-                          style={{ width: monthDays.length * dayWidth }}
-                        >
-                          {format(month, "MMM", { locale: it })}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Rows with bars */}
-              <div className="relative" style={{ width: timelineWidth }}>
-                {/* Today indicator */}
-                {todayOffset !== null && (
-                  <div
-                    className="absolute top-0 bottom-0 z-20 w-0.5 bg-destructive shadow-[0_0_0_1px_rgba(255,255,255,0.65)]"
-                    style={{ left: todayOffset + dayWidth / 2 }}
-                  />
-                )}
-
-                {/* Day grid lines + weekend shading */}
-                {(zoom === "month" || zoom === "quarter" || zoom === "year") && (
-                  <div className="absolute inset-0 flex">
-                    {days.map((day, idx) => (
-                      <div
-                        key={idx}
-                        className={cn(
-                          "flex-shrink-0 border-r",
-                          idx === 0 || day.getDate() === 1 ? "border-r-border" : "border-muted/45",
-                          isWeekend(day) && zoom !== "year" && "bg-muted/40 border-r-muted-foreground/20",
-                          isSameDay(day, new Date()) && "bg-primary/5"
-                        )}
-                        style={{ width: dayWidth, height: (sortedOrders.length * ROW_HEIGHT) + 32 }}
                       />
                     ))}
                   </div>
-                )}
-
-                {sortedOrders.map((order, idx) => {
-                  const bar = getOrderBar(order);
-                  const progress = getOrderProgress(order);
-
-                  // Milestone positions
-                  const expectedPos = order.expected_date
-                    ? differenceInDays(parseISO(order.expected_date), startDate) * dayWidth
-                    : null;
-                  const warehousePos = order.warehouse_arrival_date
-                    ? differenceInDays(parseISO(order.warehouse_arrival_date), startDate) * dayWidth
-                    : null;
-                  const totalWidth = days.length * dayWidth;
-
-                  return (
+                  {todayOffset !== null && (
                     <div
-                      key={order.id}
-                      className={cn(
-                        "border-b relative hover:bg-muted/30 transition-colors",
-                        idx % 2 === 0 && "bg-muted/20"
-                      )}
-                      style={{ height: ROW_HEIGHT }}
+                      className="pointer-events-none absolute inset-y-0 z-20 w-px bg-destructive"
+                      style={{ left: todayOffset + dayWidth / 2 }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  {rows.map((row) => (
+                    <div
+                      key={row.order.id}
+                      className="relative border-b"
+                      style={{
+                        height: Math.max(64, row.lanes * LANE_HEIGHT + 20),
+                      }}
                     >
-                      {bar && (
-                        <DraggableOrderBar
-                          order={order}
-                          bar={bar}
-                          dayWidth={dayWidth}
-                          minBarWidth={minBarWidth}
-                          color={getOrderColor(order)}
-                          progress={progress}
+                      {row.bars.map(({ period: work, lane }) => {
+                        const from =
+                            work.start_date < period.from
+                              ? period.from
+                              : work.start_date,
+                          to =
+                            work.end_date > period.to
+                              ? period.to
+                              : work.end_date;
+                        const bar = {
+                          left:
+                            differenceInDays(parseISO(from), start) * dayWidth,
+                          width:
+                            (differenceInDays(parseISO(to), parseISO(from)) +
+                              1) *
+                            dayWidth,
+                          orderStart: parseISO(work.start_date),
+                          orderEnd: parseISO(work.end_date),
+                        };
+                        const phaseOrder = {
+                          ...row.order,
+                          order_external_teams:
+                            row.order.order_external_teams?.filter((t) =>
+                              work.resources.some(
+                                (b) =>
+                                  b.resourceType === "team" &&
+                                  b.resourceId === t.external_team.id,
+                              ),
+                            ),
+                        };
+                        return (
+                          <DraggableOrderBar
+                            key={work.id}
+                            order={row.order}
+                            period={work}
+                            bar={bar}
+                            dayWidth={dayWidth}
+                            minBarWidth={0}
+                            top={10 + lane * LANE_HEIGHT}
+                            height={24}
+                            color={
+                              orderColorFn?.(phaseOrder) ||
+                              row.order.status?.color ||
+                              "#2563eb"
+                            }
+                            progress={work.progress}
+                            onSelect={() => openDetails(row.order, work)}
+                          />
+                        );
+                      })}
+                      {row.installation && (
+                        <button
+                          type="button"
+                          aria-label={
+                            "Dettagli posa " +
+                            row.order.order_code +
+                            " del " +
+                            row.installation
+                          }
+                          className="absolute bottom-1.5 z-10 h-3 w-3 rotate-45 rounded-sm border-2 border-background bg-blue-500 focus:ring-2 focus:ring-primary"
+                          title={"Posa prevista · " + row.installation}
+                          style={{
+                            left:
+                              differenceInDays(
+                                parseISO(row.installation),
+                                start,
+                              ) *
+                                dayWidth +
+                              dayWidth / 2 -
+                              6,
+                          }}
+                          onClick={() => openDetails(row.order)}
                         />
                       )}
-                      {/* Milestone: expected_date (blue diamond) */}
-                      {expectedPos !== null && expectedPos >= 0 && expectedPos <= totalWidth && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div
-                              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border-2 border-background z-10"
-                              style={{ left: expectedPos + dayWidth / 2 - 6 }}
-                            />
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="text-xs">
-                            <p className="font-medium">Data posa prevista</p>
-                            <p>{format(parseISO(order.expected_date!), "d MMMM yyyy", { locale: it })}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                      {/* Milestone: warehouse_arrival_date (amber dot) */}
-                      {warehousePos !== null && warehousePos >= 0 && warehousePos <= totalWidth && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div
-                              className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-amber-500 border-2 border-background z-10"
-                              style={{ left: warehousePos + dayWidth / 2 - 6 }}
-                            />
-                          </TooltipTrigger>
-                          <TooltipContent side="top" className="text-xs">
-                            <p className="font-medium">Arrivo merce</p>
-                            <p>{format(parseISO(order.warehouse_arrival_date!), "d MMMM yyyy", { locale: it })}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* ── Sezione Interventi ──────────────────────────────── */}
-                {interventi.length > 0 && (
-                  <>
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border-y border-orange-200">
-                      <Wrench className="h-3.5 w-3.5 text-orange-600" />
-                      <span className="text-xs font-semibold text-orange-700">Interventi ({interventi.length})</span>
-                    </div>
-                    {interventi.map((iv) => {
-                      if (!iv.data_intervento_prevista) return null;
-                      const ivDate = parseISO(iv.data_intervento_prevista);
-                      const dayOffset = differenceInDays(ivDate, days[0]);
-                      if (dayOffset < 0 || dayOffset >= days.length) return null;
-                      return (
-                        <div key={iv.id} className="relative border-b border-muted" style={{ height: ROW_HEIGHT }}>
-                          <div
-                            className="absolute top-1/2 -translate-y-1/2 flex items-center gap-1"
-                            style={{ left: dayOffset * dayWidth }}
-                          >
-                            <div className={`h-5 px-2 rounded text-[10px] font-semibold text-white flex items-center gap-1 ${iv.tipo === "emergenza" ? "bg-red-500" : "bg-orange-500"}`}>
-                              <Wrench className="h-2.5 w-2.5" />
-                              {iv.tipo === "emergenza" ? "Urg." : "Int."}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-                {/* ── Sezione Manutenzioni ────────────────────────────── */}
-                {manutenzioni.length > 0 && (
-                  <>
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-y border-blue-200">
-                      <Settings className="h-3.5 w-3.5 text-blue-600" />
-                      <span className="text-xs font-semibold text-blue-700">Manutenzioni in scadenza ({manutenzioni.length})</span>
-                    </div>
-                    {manutenzioni.map((mn) => {
-                      if (!mn.prossima_scadenza) return null;
-                      const mnDate = parseISO(mn.prossima_scadenza);
-                      const dayOffset = differenceInDays(mnDate, days[0]);
-                      if (dayOffset < 0 || dayOffset >= days.length) return null;
-                      return (
-                        <div key={mn.id} className="relative border-b border-muted" style={{ height: ROW_HEIGHT }}>
-                          <div
-                            className="absolute top-1/2 -translate-y-1/2"
-                            style={{ left: dayOffset * dayWidth }}
-                          >
-                            <div className="h-5 px-2 rounded bg-blue-500 text-[10px] font-semibold text-white flex items-center gap-1">
-                              <Settings className="h-2.5 w-2.5" />
-                              Manut.
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
-                {/* Capacity row */}
-                <div className="flex h-9 border-t bg-muted/20">
-                  {capacityPerDay.map((count, idx) => (
-                    <div
-                      key={idx}
-                      className={cn(
-                        "flex-shrink-0 flex items-center justify-center text-[9px] font-semibold border-r border-muted/30",
-                        capacityColor(count),
-                        count > 0 && "text-foreground"
-                      )}
-                      style={{ width: dayWidth }}
-                    >
-                      {count > 0 && (zoom !== "year" ? count : "")}
                     </div>
                   ))}
+                  <div className="flex h-9 bg-muted/20">
+                    {workload.map((count, index) => (
+                      <div
+                        key={index}
+                        title={
+                          format(days[index], "d MMM", { locale: it }) +
+                          ": " +
+                          count +
+                          " cantieri"
+                        }
+                        className={cn(
+                          "flex shrink-0 items-center justify-center border-r text-[9px]",
+                          count > 0 && "bg-primary/15 font-medium",
+                        )}
+                        style={{ width: dayWidth }}
+                      >
+                        {zoom !== "year" && count > 0 ? count : ""}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </DndContext>
       )}
-
-      {/* Legend with actual order statuses */}
-      <div className="mt-4 flex flex-wrap gap-4 text-sm">
-        <div className="flex items-center gap-2 font-medium text-muted-foreground">
-          <CalendarRange className="h-4 w-4" />
-          <span>{ZOOM_CONFIG[zoom].label}</span>
-        </div>
-        {statuses.slice(0, 5).map((status) => (
-          <div key={status.id} className="flex items-center gap-2">
-            <div
-              className="w-3 h-3 rounded"
-              style={{ backgroundColor: status.color }}
-            />
-            <span className="text-muted-foreground">{status.name}</span>
-          </div>
-        ))}
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-blue-500 border-2 border-background" />
-          <span className="text-muted-foreground">Data posa</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-amber-500 border-2 border-background" />
-          <span className="text-muted-foreground">Arrivo merce</span>
-        </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <div className="w-0.5 h-4 bg-destructive" />
-          <span className="text-muted-foreground">Oggi</span>
-        </div>
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+        <CalendarRange className="h-4 w-4" />
+        <span>
+          Avanzamento registrato nelle lavorazioni, quando disponibile.
+        </span>
+        <span>◆ Posa prevista</span>
+        <span>
+          Il carico conta i cantieri, senza stimare la disponibilità delle
+          squadre.
+        </span>
       </div>
-
-      <LeadTimeStats orders={sortedOrders} />
-
-      {/* Unplanned orders section */}
-      {(() => {
-        const unplannedOrders = allOrders.filter(
-          (order) => !order.work_start_date && !order.expected_date
-        );
-        if (unplannedOrders.length === 0) return null;
-
-        return (
-          <div className="mt-6 p-4 bg-muted/50 rounded-lg border border-dashed">
-            <div className="flex items-center gap-2 text-muted-foreground mb-3">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              <span className="font-medium">Ordini non pianificati ({unplannedOrders.length})</span>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {unplannedOrders.slice(0, 6).map((order) => (
-                <button
-                  key={order.id}
-                  onClick={() => navigate(`/azienda/ordini/${order.id}`)}
-                  className="flex items-center gap-2 p-2 bg-background rounded border hover:border-primary transition-colors text-left"
-                >
-                  <div
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: order.status?.color || "#6B7280" }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">
-                      {order.order_code || "N/A"} - {order.customer.last_name}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {order.description}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-            {unplannedOrders.length > 6 && (
-              <p className="text-xs text-muted-foreground mt-2">
-                +{unplannedOrders.length - 6} altri ordini non pianificati
-              </p>
-            )}
-          </div>
-        );
-      })()}
+      {selected && (
+        <CalendarDayDetailsDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setSelected(null);
+          }}
+          date={selected.date}
+          events={detailEvents}
+          initialEventKey={calendarEventKey(selected.event)}
+          isMobile={false}
+          calendarScope={calendarScope}
+          readOnly
+          canEditOrders={p.canEditOrders}
+          canViewPayments={p.canViewScadenzario}
+          onCreateAppointment={() => {}}
+          onEditEvent={() => {}}
+        />
+      )}
     </Card>
   );
 }

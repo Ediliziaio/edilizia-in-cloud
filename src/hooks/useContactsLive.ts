@@ -27,7 +27,7 @@ export function useContactsLive() {
       busy: () => client.isMutating() > 0 || client.isFetching({ predicate }) > 0,
       refresh: (reconcile) => client.invalidateQueries({
         predicate: (query) => predicate(query) || (reconcile && query.queryKey[0] === "marketing-pipelines" && query.queryKey[2] === companyId),
-      }, { cancelRefetch: false }),
+      }, { cancelRefetch: false, throwOnError: true }),
     });
     let subscribed = false;
     let disposed = false;

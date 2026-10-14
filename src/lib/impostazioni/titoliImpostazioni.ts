@@ -4,7 +4,7 @@
  * Il titolo è il nome che la pagina ha nel menu: stesso nome nel menu, nella ricerca, nella palette e nella
  * testata. La frase dice a cosa serve, in parole di cantiere e di ufficio.
  *
- * Le pagine con le schede (Listino, Modelli di preventivo, Firma e condizioni) hanno il titolo del gruppo
+ * Le pagine con le schede (Listino, Modelli preventivi e contratti, Firma e condizioni) hanno il titolo del gruppo
  * (gruppiImpostazioni.ts): per loro qui non serve niente. Gli indirizzi che reindirizzano altrove
  * (venditori, staff, privacy, fatturazione-nativa…) non hanno mai una testata propria e non stanno qui.
  * Il test titoliImpostazioni.test.ts controlla che ogni pagina abbia il suo titolo e che nessuna riga sia

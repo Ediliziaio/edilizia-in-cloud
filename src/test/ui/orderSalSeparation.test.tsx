@@ -10,6 +10,8 @@ vi.mock("@tanstack/react-query", () => ({
   useMutation: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({canEditOrders:true,canViewSettingsOrders:false})}));
+vi.mock("@/hooks/useSalMatura",()=>({useSalMatura:()=>"emesso"}));
 vi.mock("@/components/ui/confirm-dialog", () => ({ useConfirm: () => vi.fn() }));
 vi.mock("@/components/shared/PrintPreviewModal", () => ({ PrintPreviewModal: (): null => null }));
 

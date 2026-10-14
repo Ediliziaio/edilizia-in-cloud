@@ -95,7 +95,7 @@ export type TemplateVisibilityKey =
 /**
  * L'indirizzo pubblico di un'immagine del modello; undefined se non c'è.
  * Senza il controllo, un modello «offerta» senza copertina (quasi tutti)
- * mandava in crash l'intera pagina Modelli di preventivo: `null.replace`
+ * mandava in crash l'intera pagina Modelli preventivi e contratti: `null.replace`
  * (Ener Italia, 25/09/2026). Come templateAssetUrl del QuoteBuilder.
  */
 export const getLogoPublicUrl = (path: string | null | undefined): string | undefined => {

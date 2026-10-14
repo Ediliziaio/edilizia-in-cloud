@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { matchesWorkFilter, parseWorkAmount, phaseNeedsAttention, summarizeWork, validWorkDates, wouldDuplicateAssignment } from "@/lib/orders/workPlanning";
+import { matchesWorkFilter, parseWorkAmount, phaseNeedsAttention, phasePlanningIssues, summarizeWork, validWorkDates, wouldDuplicateAssignment } from "@/lib/orders/workPlanning";
 import { assignment, phase } from "../fixtures/workPlanning";
 
 describe("Pianificazione cantiere", () => {
+  it("avvisi con destinazioni precise, senza allarmi operativi per fasi concluse", () => {
+    expect(phasePlanningIssues(phase({assignments: [], start_date: null}), false, 2)).toEqual([
+      {section: "dates", label: "Completa le date"}, {section: "people", label: "Assegna chi lavora"}, {section: "materials", label: "2 materiali da ordinare"},
+    ]);
+    expect(phasePlanningIssues(phase({status: "completata", assignments: [], start_date: null}), false, 2)).toEqual([]);
+    expect(phasePlanningIssues(phase({assignments: []}), true)).toEqual([]);
+    expect(phasePlanningIssues(phase(), false, 1)).toEqual([{section: "materials", label: "1 materiale da ordinare"}]);
+  });
+  it.each(["2026-02-29", "2026-09-31", "invalid", "2026-9-1"])("non accetta date impossibili %s", value => {
+    expect(validWorkDates(value, null)).toBe(false);
+    expect(phasePlanningIssues(phase({start_date: value}), true)[0]).toEqual({section: "dates", label: "Controlla le date"});
+  });
   const today = "2026-09-24";
   it("conta persone e squadre, non righe duplicate su più fasi", () => {
     const team = assignment({ id: "t1", source: "team", executor_type: "esterno", employee_id: null, external_team_id: "s1" });

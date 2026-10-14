@@ -56,6 +56,7 @@ export default function CampoRoutesContainer() {
         <Route path="lavoro/:orderId/*">
           <Route index element={<CampoLavoroDetail />} />
           <Route path="rapportino" element={<CampoRapportino />} />
+          <Route path="rapporto-fine-lavori" element={<CampoRapportino tipo="client" />} />
           <Route path="foto" element={<CampoFotoCantiere />} />
           {/* La route "rapportino/:rapportinoId" NON è una modifica: il
               componente ignorava l'id e CREAVA un secondo rapportino. Redirect

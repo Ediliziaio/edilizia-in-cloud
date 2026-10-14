@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
-import { Plus, CheckSquare, CalendarDays, AlertTriangle, Lock, Building2, Wallet } from "lucide-react";
+import { Plus, CheckSquare, CalendarDays, AlertTriangle, Lock, Building2, Wallet, ChevronDown } from "lucide-react";
 import { format, isPast, parseISO } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { TaskDialog } from "./TaskDialog";
 import { aggiornaAgendaSchede } from "@/lib/opportunitaAgenda";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { toast } from "sonner";
 
 interface LinkedTasksProps {
   orderId?: string;
@@ -28,6 +29,7 @@ interface LinkedTasksProps {
   /** Una riga sola finché non ci sono attività: «Attività · nessuna · Aggiungi».
    *  L'elenco compare sotto solo quando c'è qualcosa (commessa, Lavorazioni). */
   compatta?: boolean;
+  editable?: boolean;
 }
 
 // Il passo che deve chiudersi prima (flusso di lavoro commessa): serve il
@@ -53,7 +55,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   urgente: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 };
 
-export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportunityId, ticketId, category, companyId: propCompanyId, embedded, compatta }: LinkedTasksProps) {
+export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportunityId, ticketId, category, companyId: propCompanyId, embedded, compatta, editable = true }: LinkedTasksProps) {
   const { effectiveCompany } = useAuth();
   const companyId = propCompanyId || effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -61,11 +63,13 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   const filterKey = orderId ? `order-${orderId}` : stockItemId ? `stock-${stockItemId}` : costId ? `cost-${costId}` : contactId ? `contact-${contactId}` : opportunityId ? `opp-${opportunityId}` : ticketId ? `ticket-${ticketId}` : "none";
 
   const { data: tasks = [], isLoading, isError, error, refetch } = useQuery({
-    queryKey: queryKeys.tasks.linked(filterKey),
+    queryKey: [...queryKeys.tasks.linked(filterKey), companyId],
     queryFn: async () => {
       if (!companyId) return [];
 
@@ -159,7 +163,8 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
   const toggleMutation = useMutation({
     mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
       if (!companyId) throw new Error("Missing company_id");
-      const { error } = await supabase
+      if (!editable) throw new Error("Sola lettura");
+      let query = supabase
         .from("tasks")
         .update({
           status: completed ? "completata" : "da_fare",
@@ -167,7 +172,10 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         })
         .eq("id", id)
         .eq("company_id", companyId);
+      if (orderId) query = query.eq("order_id", orderId);
+      const { data, error } = await query.select("id,status").maybeSingle();
       if (error) throw error;
+      if (!data || data.status !== (completed ? "completata" : "da_fare")) throw new Error("Attività non aggiornata");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
@@ -175,6 +183,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
       if (opportunityId || contactId) aggiornaAgendaSchede(queryClient);
       if (orderId) queryClient.invalidateQueries({ queryKey: ["order-next-task", orderId] });
     },
+    onError: () => toast.error("Attività non aggiornata. Riprova."),
   });
 
   const activeTasks = tasks.filter((t: any) => t.status !== "completata");
@@ -187,11 +196,13 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
   });
 
   const handleAddTask = () => {
+    if (!editable) return;
     setEditingTask(null);
     setDialogOpen(true);
   };
 
   const handleEditTask = (task: any) => {
+    if (!editable) return;
     setEditingTask({
       id: task.id,
       title: task.title,
@@ -246,7 +257,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
       </p>
     ) : (
       <div className={embedded ? "space-y-1" : "space-y-2"}>
-        {tasksOrdinate.map((task: any) => {
+        {tasksOrdinate.filter(task => !compatta || showCompleted || task.status !== "completata").map((task: any) => {
           const isCompleted = task.status === "completata";
           // Passo del flusso non ancora sbloccato: esiste, ma tocca a qualcun
           // altro prima. Si sblocca da solo (trigger DB sblocca_task_a_catena),
@@ -270,16 +281,17 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
                   className="mt-0.5"
                   onClick={(e) => {
                     e.stopPropagation();
-                    toggleMutation.mutate({ id: task.id, completed: !isCompleted });
+                    if (editable && !toggleMutation.isPending) toggleMutation.mutate({ id: task.id, completed: !isCompleted });
                   }}
                 >
-                  <Checkbox checked={isCompleted} />
+                  <Checkbox checked={isCompleted} disabled={!editable || toggleMutation.isPending} aria-label={`Completa attività ${task.title}`} />
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className={`font-medium truncate ${embedded ? "text-xs" : "text-sm"} ${isCompleted ? "line-through text-muted-foreground" : ""}`}>
+                <button type="button" disabled={!editable} onClick={event => {event.stopPropagation(); handleEditTask(task);}}
+                  className={`block w-full break-words text-left font-medium ${embedded ? "text-xs" : "text-sm"} ${isCompleted ? "line-through text-muted-foreground" : ""}`}>
                   {task.title}
-                </p>
+                </button>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <Badge className={`text-[10px] px-1.5 py-0 ${PRIORITY_COLORS[task.priority] || ""}`}>
                     {task.priority}
@@ -348,7 +360,7 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
         // Una riga sola: il riquadro grande con «Nessuna attività collegata» al
         // centro era quasi tutto spazio vuoto in cima alle lavorazioni.
         <Card>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 sm:px-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 sm:px-4">
             <span className="flex items-center gap-2 text-sm font-semibold">
               <CheckSquare className="h-4 w-4 shrink-0" aria-hidden="true" />
               Attività
@@ -358,12 +370,20 @@ export function LinkedTasks({ orderId, stockItemId, costId, contactId, opportuni
             )}
             {!isLoading && !isError && tasks.length === 0 && <span className="text-sm text-muted-foreground">nessuna</span>}
             {!isLoading && !isError && tasks.length > 0 && activeTasks.length === 0 && <span className="text-sm text-emerald-700">tutte fatte</span>}
-            <Button variant="ghost" size="sm" onClick={handleAddTask} className="ml-auto h-8 font-semibold text-blue-950 max-sm:min-h-11">
+            {tasks.length > 0 && <Button type="button" variant="ghost" size="sm" className="ml-auto min-h-10" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>
+              {expanded ? "Nascondi attività" : "Mostra attività"}<ChevronDown className="ml-1 h-3.5 w-3.5" />
+            </Button>}
+            {editable && <Button variant="ghost" size="sm" onClick={handleAddTask} className="ml-auto h-8 font-semibold text-blue-950 max-sm:min-h-11">
               <Plus className="h-4 w-4" aria-hidden="true" />
               <span className="ml-1">Aggiungi</span>
-            </Button>
+            </Button>}
           </div>
-          {(isError || tasks.length > 0) && <div className="border-t px-2 py-1.5 sm:px-3">{taskList}</div>}
+          {(isError || isLoading || expanded) && <div className="border-t px-2 py-1.5 sm:px-3">
+            {taskList}
+            {expanded && !isError && !isLoading && tasks.length > activeTasks.length && <Button type="button" variant="ghost" size="sm" className="mt-1 min-h-10" aria-expanded={showCompleted} onClick={() => setShowCompleted(value => !value)}>
+              {showCompleted ? "Nascondi completate" : `Mostra completate (${tasks.length - activeTasks.length})`}
+            </Button>}
+          </div>}
         </Card>
       ) : (
         <Card>

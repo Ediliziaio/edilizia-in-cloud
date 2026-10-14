@@ -61,6 +61,29 @@ const VOCI = [
   voce({ id: "t5", nome: "Vecchia voce archiviata", attivo: false, prezzo_vendita: 10, prezzo_costo: 5, costo_interno: 5 }),
 ];
 
+describe("Manodopera e servizi: voci da prezziario regionale", () => {
+  it("trova il codice e la fonte, e filtra la categoria conservata nell'importazione", async () => {
+    state.tabelle.tariffe_aziendali = VOCI.map(v => v.id === "t1" ? { ...v, codice: "REG.001", fonte: "Molise 2026", custom_field_values: { _prezzario: { capitolo_nome: "A · Demolizioni" } } } : v);
+    apri(); await caricata();
+    fireEvent.change(screen.getByRole("textbox", { name: "Cerca tra le voci" }), { target: { value: "REG.001" } });
+    expect(screen.getByText("Posa finestra")).toBeInTheDocument(); expect(screen.queryByText("Trasporto cantiere")).toBeNull();
+    fireEvent.change(screen.getByRole("textbox", { name: "Cerca tra le voci" }), { target: { value: "Molise 2026" } });
+    expect(screen.getByText("Posa finestra")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Cerca tra le voci" }), { target: { value: "" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Filtra per categoria regionale" }), { target: { value: "A · Demolizioni" } });
+    expect(screen.queryByText("Trasporto cantiere")).toBeNull();
+    expect(screen.getByText("Categoria regionale: A · Demolizioni")).toBeInTheDocument();
+  });
+  it("una selezione per azioni in blocco si azzera al cambio di categoria", async () => {
+    state.tabelle.tariffe_aziendali = VOCI.map(v => v.id === "t1" ? { ...v, custom_field_values: { _prezzario: { capitolo_nome: "A · Demolizioni" } } } : v);
+    apri(); await caricata();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Seleziona Posa finestra" }));
+    expect(screen.getByText("1 voce selezionata")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Filtra per categoria regionale" }), { target: { value: "A · Demolizioni" } });
+    expect(screen.queryByText("1 voce selezionata")).toBeNull();
+  });
+});
+
 const AMMINISTRATORE = { isAdmin: true, canEditSettingsPricing: true, canViewSettingsPricing: true, canViewCosts: true, canViewEmployees: false };
 const SOLO_LETTURA = { isAdmin: false, canEditSettingsPricing: false, canViewSettingsPricing: true, canViewCosts: false, canViewEmployees: false };
 
@@ -142,6 +165,42 @@ describe("Manodopera e servizi: una sola testata", () => {
 });
 
 describe("Manodopera e servizi: i numeri e l'avviso delle basi in una riga", () => {
+  it("l'editor copia anche il costo orario calcolato dall'anagrafica", async () => {
+    state.permissions.canViewEmployees = true;
+    state.tabelle.employees = [{ id: "e1", first_name: "Marco", last_name: "Calcolato", costo_orario: null, gross_salary: 2000, monthly_hours: 160, inps_rate: 28 }];
+    apri(); await caricata();
+    fireEvent.click(screen.getByRole("button", { name: "Nuova voce" }));
+    fireEvent.click(screen.getByRole("button", { name: "Squadra interna" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi operatore / qualifica" }));
+    await waitFor(() => expect(screen.getByRole("option", { name: /Marco Calcolato.*16,00.*calcolato/ })).toBeInTheDocument());
+    fireEvent.change(screen.getByRole("combobox", { name: "Dipendente per operatore 1" }), { target: { value: "e1" } });
+    expect(screen.getByRole("spinbutton", { name: "Costo orario operatore 1" })).toHaveValue(16);
+    expect(screen.getByText(/Costo copiato: Lordo e aliquota INPS/)).toBeInTheDocument();
+  });
+  it("il margine medio esclude le voci archiviate", async () => {
+    apri(); await caricata();
+    expect(screen.getByText("8,3%")).toBeInTheDocument();
+    expect(screen.getByText("su 3 attive con costi")).toBeInTheDocument();
+  });
+  it("i pulsanti di completamento mostrano le voci attive effettivamente prive di costo o prezzo", async () => {
+    state.tabelle.tariffe_aziendali = VOCI.map(v => v.id === "t2" ? { ...v, costo_interno: 0, prezzo_costo: 0 } : v.id === "t3" ? { ...v, prezzo_vendita: 0 } : v);
+    apri(); await caricata();
+    fireEvent.change(screen.getByRole("textbox", { name: "Cerca tra le voci" }), { target: { value: "Posa finestra" } });
+    fireEvent.click(screen.getByRole("button", { name: "1 senza costo" }));
+    expect(screen.getByText("Trasporto cantiere")).toBeInTheDocument();
+    expect(screen.queryByText("Posa finestra")).toBeNull();
+    expect(screen.queryByText("Base di posa")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "1 senza prezzo" }));
+    expect(screen.getByText("Smaltimento serramento")).toBeInTheDocument();
+    expect(screen.queryByText("Trasporto cantiere")).toBeNull();
+  });
+  it("mostra i prezzi unitari con quattro decimali invece di arrotondarli a zero", async () => {
+    state.tabelle.tariffe_aziendali = VOCI.map(v => v.id === "t1" ? { ...v, prezzo_vendita: 0.0066, costo_interno: 0.0044, prezzo_costo: 0.0044 } : v);
+    apri(); await caricata();
+    const riga = screen.getByText("Posa finestra").closest("tr")!;
+    expect(riga).toHaveTextContent("0,0066");
+    expect(riga).toHaveTextContent("0,0044");
+  });
   it("quante voci, margine medio, sotto soglia e basi da completare stanno nello stesso riquadro", async () => {
     apri(); await caricata();
     const completa = screen.getByRole("button", { name: "Completa le basi" });
@@ -229,7 +288,7 @@ describe("Manodopera e servizi: l'area di lavoro si sceglie una volta sola", () 
 describe("Manodopera e servizi: il testo sul semaforo del margine dice la verità di oggi", () => {
   it("dice quale soglia legge la tabella, con il link per cambiarla", async () => {
     apri(); await caricata();
-    expect(testoPagina()).toContain("Il margine è (vendita − costo) / vendita. Il semaforo della tabella usa il «Margine minimo delle commesse» di Approvazioni: ora 18%.");
+    expect(testoPagina()).toContain("Il margine è (vendita − costo) / vendita. Editor, riepilogo e tabella usano il «Margine minimo delle commesse» di Approvazioni: ora 18%.");
     expect(screen.getByRole("link", { name: "Cambia" })).toHaveAttribute("href", "/azienda/impostazioni/approvazioni");
   });
 
@@ -258,9 +317,10 @@ describe("Manodopera e servizi: il testo sul semaforo del margine dice la verit�
     expect(testo).not.toContain("<0%");
   });
 
-  it("il blocco vero: costo uguale o più alto del prezzo (anche a margine 0%)", async () => {
+  it("spiega il blocco degli importi e permette le correzioni descrittive delle voci esistenti", async () => {
     apri(); await caricata();
-    expect(testoPagina()).toContain("Se il costo è uguale o più alto del prezzo di vendita, la voce non si salva.");
+    expect(testoPagina()).toContain("le modifiche agli importi richiedono un margine maggiore di zero");
+    expect(testoPagina()).toContain("Puoi correggere i dati descrittivi di una voce già presente mantenendo gli importi");
     expect(testoPagina()).toContain("rosso, sotto lo 0%");
   });
 

@@ -1,260 +1,29 @@
-/**
- * Pagina rapportino vocale: registra messaggio audio → AI trascrive →
- * form pre-compilato → operaio conferma.
- */
-import { useMemo, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { ChevronLeft, HardHat, Loader2, MapPin, Mic } from "lucide-react";
-import CampoAudioRecorder from "@/components/campo/CampoAudioRecorder";
-import CampoRapportinoForm from "@/components/campo/CampoRapportinoForm";
-import {
-  useRapportinoVocale,
-  type RapportinoVocaleDraft,
-} from "@/hooks/campo/useRapportinoVocale";
-import { supabase } from "@/integrations/supabase/client";
+/** Ingresso vocale: sceglie il cantiere e apre lo STESSO modulo del giornaliero. */
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useCampoAssignments } from "@/hooks/campo/useCampoAssignments";
 import { cantieriAperti } from "@/lib/campo/cantieriAperti";
-import type { JSX } from "react";
-import { isOnline } from "@/lib/campo/network-status";
 
-export default function CampoRapportinoVoce(): JSX.Element {
-  const navigate = useNavigate();
+export default function CampoRapportinoVoce() {
   const { orderId } = useParams<{ orderId?: string }>();
-  const [searchParams] = useSearchParams();
-  const fallbackOrderCode = searchParams.get("order_code");
-  const fallbackOrderTitle = searchParams.get("order_title");
-  const fallbackOrderAddress = searchParams.get("order_address");
-  const {
-    uploading,
-    transcribing,
-    draft,
-    error,
-    processAudio,
-    confirmRapportino,
-    resetDraft,
-  } = useRapportinoVocale();
-  const [localDraft, setLocalDraft] = useState<RapportinoVocaleDraft | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  // Dal menu e dalla Home il rapportino vocale si apre senza cantiere. Con più cantieri aperti il server non
-  // sa a quale appartiene: la nota restava solo nel registro vocale e il toast diceva «salvato». Quindi si sceglie
-  // PRIMA di registrare: con un cantiere solo è quello, con più cantieri lo dice l'operaio.
-  const { data: assegnazioni = [], isLoading: assegnazioniInCorso } = useCampoAssignments();
-  const aperti = useMemo(() => (orderId ? [] : cantieriAperti(assegnazioni)), [orderId, assegnazioni]);
-  const [sceltaOrdine, setSceltaOrdine] = useState<string | null>(null);
-  const orderIdEffettivo = orderId ?? (aperti.length === 1 ? aperti[0].order_id : sceltaOrdine);
-  const dovrebbeScegliere = !orderId && aperti.length >= 2 && !sceltaOrdine;
-  // Finché non si sa quanti cantieri ci sono, niente registratore: poi comparirebbe la scelta e lo toglierebbe da sotto le mani.
-  const cercaCantieri = !orderId && assegnazioniInCorso;
-  const cantiereScelto = !orderId ? aperti.find(a => a.order_id === orderIdEffettivo)?.order ?? null : null;
-
-  const { data: linkedOrder, isLoading: linkedOrderLoading } = useQuery({
-    queryKey: ["campo-rapportino-vocale-order", orderId],
-    queryFn: async () => {
-      return await Promise.race([
-        supabase
-          .from("orders")
-          .select("id, order_code, description, indirizzo_lavori")
-          .eq("id", orderId!)
-          .maybeSingle()
-          .then(({ data, error }) => {
-            if (error) throw error;
-            return data;
-          }),
-        new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 3500)),
-      ]);
-    },
-    enabled: !!orderId,
-    staleTime: 60_000,
-  });
-  const fallbackLinkedOrder = orderId && (fallbackOrderCode || fallbackOrderTitle || fallbackOrderAddress)
-    ? {
-        id: orderId,
-        order_code: fallbackOrderCode ?? "Cantiere selezionato",
-        description: fallbackOrderTitle,
-        indirizzo_lavori: fallbackOrderAddress,
-      }
-    : null;
-  const linkedOrderContext = orderId ? (linkedOrder ?? fallbackLinkedOrder) : cantiereScelto;
-
-  const handleAudioConfirm = async (
-    blob: Blob,
-    durationSec: number,
-    mimeType: string,
-  ): Promise<void> => {
-    const result = await processAudio(blob, durationSec, mimeType, orderIdEffettivo ?? null);
-    if (result) {
-      setLocalDraft(result);
-      // Trascrizione ok ma estrazione vuota (es. crediti AI esauriti):
-      // senza avviso l'operaio si trovava il form vuoto senza capire perché.
-      if (result.trascrizione && Object.keys(result.dati_estratti ?? {}).length === 0) {
-        toast.info("Trascrizione pronta, ma l'AI non ha compilato i campi: controlla ore e materiali a mano.");
-      }
-    } else if (error) {
-      toast.error(error);
-    }
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const assegnazioni = useCampoAssignments();
+  const aperti = cantieriAperti(assegnazioni.data ?? []);
+  const url = (id: string) => {
+    const next = new URLSearchParams(); next.set("input", "voce");
+    const giorno = params.get("data"); if (giorno) next.set("data", giorno);
+    return "/campo/lavoro/" + encodeURIComponent(id) + "/rapportino?" + next;
   };
-
-  const handleConfirm = async (): Promise<void> => {
-    if (!localDraft) return;
-    setSaving(true);
-    const ok = await confirmRapportino(localDraft, orderIdEffettivo ?? null);
-    setSaving(false);
-    if (ok) {
-      if (isOnline()) toast.success(orderIdEffettivo ? "Rapportino salvato e commessa aggiornata" : "Nota vocale salvata. Non è legata a nessun cantiere: l'ufficio non la vede tra i rapportini.", { duration: orderIdEffettivo ? 2500 : 6000 });
-      else toast.info("Nota vocale in coda locale: il rapportino di commessa non è ancora inviato. Riconnettiti entro il giorno successivo al lavoro.", { duration: 6000 });
-      setTimeout(() => navigate("/campo"), 800);
-    } else {
-      toast.error(error ?? "Errore salvataggio rapportino");
-    }
-  };
-
-  const handleReset = (): void => {
-    setLocalDraft(null);
-    resetDraft();
-  };
-
-  const activeDraft = localDraft ?? draft;
-
-  return (
-    <div className="flex flex-col gap-4 p-4">
-      {/* Header di pagina rimosso: la top-bar della shell campo fornisce già
-          branding + freccia indietro. Qui il titolo vive dentro l'area di
-          registrazione (stato iniziale) e il "Registra di nuovo" sostituisce
-          il vecchio back con reset del draft. */}
-
-      {dovrebbeScegliere && !activeDraft && (
-        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-          <p className="text-base font-bold text-foreground">Per quale cantiere è il rapportino?</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">Scegli prima di registrare: il rapportino va sul cantiere che indichi.</p>
-          <div className="mt-3 space-y-2">
-            {aperti.map(a => (
-              <button key={a.order_id} type="button" onClick={() => setSceltaOrdine(a.order_id)}
-                className="flex w-full items-center gap-3 rounded-xl border bg-background px-3 py-2.5 text-left active:scale-[0.99]">
-                <HardHat className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-bold text-foreground">{a.order.order_code ?? "Cantiere"}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{a.order.description ?? a.order.indirizzo_lavori ?? ""}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {orderIdEffettivo && (
-        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-          {linkedOrderLoading && !linkedOrderContext ? (
-            <div className="flex items-center gap-3 text-sm font-semibold text-primary">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Carico il cantiere collegato...
-            </div>
-          ) : linkedOrderContext ? (
-            <div className="flex items-start gap-3">
-              <div className="rounded-xl bg-primary/10 p-2 text-primary">
-                <HardHat className="h-5 w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold uppercase tracking-wide text-primary">
-                  Rapportino collegato
-                </p>
-                <p className="truncate text-base font-bold text-foreground">
-                  {linkedOrderContext.order_code}
-                </p>
-                <p className="line-clamp-2 text-sm text-muted-foreground">
-                  {linkedOrderContext.description ?? "Cantiere selezionato"}
-                </p>
-                {linkedOrderContext.indirizzo_lavori && (
-                  <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
-                    <MapPin className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{linkedOrderContext.indirizzo_lavori}</span>
-                  </p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-start gap-3">
-              <div className="rounded-xl bg-amber-100 p-2 text-amber-700">
-                <HardHat className="h-5 w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold uppercase tracking-wide text-amber-800">
-                  Rapportino collegato
-                </p>
-                <p className="text-sm font-semibold text-amber-900">Cantiere selezionato</p>
-                <p className="mt-1 text-xs text-amber-800">
-                  Il rapportino restera associato al lavoro aperto anche se il nome non e disponibile.
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Error */}
-      {error && !activeDraft && (
-        <div
-          role="alert"
-          className="rounded-xl bg-red-50 border border-red-500 p-3 text-sm text-red-600"
-        >
-          {error}
-        </div>
-      )}
-
-      {/* Stato iniziale: mic centrato per riempire lo spazio (niente vuoto).
-          Guida in una riga invece del box istruzioni ridondante. */}
-      {cercaCantieri && !activeDraft && (
-        <div role="status" className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Carico i tuoi cantieri…
-        </div>
-      )}
-
-      {!activeDraft && !transcribing && !uploading && !dovrebbeScegliere && !cercaCantieri && (
-        <div className="flex min-h-[68vh] flex-col items-center justify-center gap-6 text-center">
-          <div className="space-y-1">
-            <h1 className="flex items-center justify-center gap-2 text-lg font-bold text-foreground">
-              <Mic className="h-5 w-5 text-primary" />
-              Rapportino Vocale
-            </h1>
-            <p className="mx-auto max-w-[17rem] text-sm text-muted-foreground">
-              Racconta il lavoro — ore, lavorazione, materiali, note. L&apos;AI compila, tu confermi.
-            </p>
-          </div>
-          <CampoAudioRecorder onConfirm={handleAudioConfirm} />
-        </div>
-      )}
-
-      {(uploading || transcribing || activeDraft) && (
-        <>
-          {activeDraft && !transcribing && !uploading && (
-            <button
-              type="button"
-              onClick={handleReset}
-              className="flex items-center gap-1 self-start rounded-lg px-1.5 py-1 text-sm font-medium text-muted-foreground active:scale-95"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Registra di nuovo
-            </button>
-          )}
-          <CampoRapportinoForm
-          draft={
-            activeDraft ?? {
-              trascrizione: "",
-              dati_estratti: {},
-              audio_duration_sec: 0,
-            }
-          }
-          transcribing={transcribing || uploading}
-          onChange={(d) => setLocalDraft(d)}
-          onConfirm={handleConfirm}
-          saving={saving}
-          orderLinked={!!orderIdEffettivo}
-          />
-        </>
-      )}
-    </div>
-  );
+  if (orderId) return <Navigate to={url(orderId)} replace />;
+  if (assegnazioni.isLoading) return <p role="status" className="p-4">Carico i tuoi cantieri…</p>;
+  if (assegnazioni.isError) return <div role="alert" className="space-y-2 p-4"><p>Non riesco a leggere i cantieri. Non creo una nota scollegata.</p><button className="min-h-11 text-primary underline" onClick={() => void assegnazioni.refetch()}>Riprova</button></div>;
+  if (aperti.length === 1) return <Navigate to={url(aperti[0].order_id)} replace />;
+  return <div className="mx-auto max-w-lg space-y-3 p-4">
+    <h1 className="text-xl font-bold">Rapportino di oggi</h1>
+    <p className="text-sm text-muted-foreground">Per quale cantiere? Puoi parlare o scrivere: il rapportino è sempre lo stesso.</p>
+    {aperti.map(a => <button key={a.order_id} className="min-h-14 w-full rounded-xl border bg-background p-3 text-left" onClick={() => navigate(url(a.order_id))}>
+      <span className="block font-semibold">{a.order.order_code || "Cantiere"}</span><span className="block text-sm text-muted-foreground">{a.order.description || a.order.indirizzo_lavori}</span>
+    </button>)}
+    {!aperti.length && <p role="status">Nessun cantiere aperto assegnato. Chiedi all’ufficio.</p>}
+  </div>;
 }

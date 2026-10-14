@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { cancellaSessioniSalvate } from "@/integrations/supabase/authStorage";
+import { cancellaSessioniSalvate, sessioneSalvataPresente } from "@/integrations/supabase/authStorage";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import type { AppRole, Profile, Company, AuthState, MultiCompanyAccess } from "@/types/auth";
 import { logger } from "@/utils/logger";
@@ -21,9 +21,9 @@ import { userErrorMessage } from "@/lib/userErrorMessage";
 
 /**
  * Velocity Protocol — V1/V2
- * Timeout sulla critical path di auth: se Supabase è in cold-start (free tier
- * ibernato → 10-15s), preferiamo dare all'utente uno stato "non autenticato"
- * ritentabile piuttosto che spinner infinito.
+ * Timeout sulla critical path di auth: una sessione salvata resta in verifica
+ * finché Supabase ne conferma l'esito. ProtectedRoute offre «Riprova» dopo
+ * 25 s: una risposta lenta non deve diventare un falso logout.
  */
 // 2026-05-28 Velocity tuning: ridotti i timeout per dare feedback più rapido
 // all'utente in caso di cold-start. Prima: 20s critical + 12s watchdog +
@@ -479,11 +479,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [state.role, queryClient]);
 
   const fetchUserData = useCallback(async (userId: string, userEmail: string | null | undefined) => {
-    // Velocity — V1: timeout sulla critical path di auth.
-    // Se Supabase è in cold-start (free tier ibernato) o la rete dell'utente in
-    // cantiere è pessima, l'attesa può essere >15s → spinner infinito. Con
-    // AbortController a 10s, in caso di timeout restituiamo "non autenticato"
-    // e i route guards mandano a /login (riprovabile) invece che bloccare.
+    // Il timeout interrompe una lettura lenta. Chi chiama distingue un dato
+    // non leggibile (transient) da un ruolo assente e può riprovare senza
+    // trasformare un problema di rete in un logout.
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), AUTH_CRITICAL_FETCH_TIMEOUT_MS);
     try {
@@ -641,6 +639,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // If a SIGNED_IN / TOKEN_REFRESHED event fired while we were waiting,
       // that handler already set the correct state — do not override it.
       if (myGen !== authGenRef.current) return;
+      if (sessionResult.error) throw sessionResult.error;
 
       const user = sessionResult.data.session?.user ?? null;
 
@@ -695,6 +694,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           company: userData.company,
           isLoading: false,
         });
+      } else if (sessioneSalvataPresente()) {
+        // Un rinnovo temporaneamente fallito può restituire session:null
+        // lasciando il refresh token nello storage per il prossimo tentativo.
+        // La presenza del token non autentica: si resta in verifica.
+        setState(prev => prev.user !== null ? prev : { ...prev, isLoading: true });
       } else {
         setState({
           user: null,
@@ -706,21 +710,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } catch (err) {
+      // Anche un errore può arrivare dopo un evento auth più recente.
+      if (myGen !== authGenRef.current) return;
       if (isInvalidRefreshTokenError(err)) {
         recoverInvalidAuthSession("refreshAuth", err);
         return;
       }
 
-      // getSession timed out or threw — show login form.
-      // IMPORTANT: do NOT clear localStorage here. Doing so would destroy the
-      // refresh token that Supabase needs to auto-renew the session in the background.
-      // Supabase will fire TOKEN_REFRESHED when the renewal succeeds, or SIGNED_OUT
-      // if it fails — both are handled in onAuthStateChange below.
+      // Un timeout non prova che l'accesso sia scaduto. Non si cancellano i
+      // token e non si mostra il login finché c'è una sessione da verificare.
+      // TOKEN_REFRESHED e SIGNED_OUT porteranno l'esito effettivo.
       logger.warn("refreshAuth timed out or failed:", err);
       authGenRef.current++;
-      // Only reset to logged-out if a SIGNED_IN event has NOT already authenticated
-      // the user while getSession() was hanging. Use functional update to check.
-      setState(prev => prev.user !== null ? prev : {
+      const sessioneDaVerificare = sessioneSalvataPresente();
+      setState(prev => prev.user !== null ? prev : sessioneDaVerificare
+        ? { ...prev, isLoading: true }
+        : {
         user: null,
         profile: null,
         role: null,
@@ -806,6 +811,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let authSettled = false;
     const authBootstrapWatchdog = window.setTimeout(() => {
       if (authSettled) return;
+      const sessioneSalvata = sessioneSalvataPresente();
+      if (sessioneSalvata || hasValidCrossSubdomainHandoff) {
+        // Al rientro del mattino il token breve può essere scaduto: Supabase
+        // rinnova l'accesso prima di INITIAL_SESSION, e la rete può impiegare
+        // più di 8 s. Si resta in verifica, senza invalidare l'evento atteso.
+        logger.warn("[auth] INITIAL_SESSION in ritardo: sessione ancora in verifica");
+        captureVelocityError("auth.bootstrap_session_pending", new Error("Initial session verification timeout"), {
+          timeoutMs: AUTH_INITIAL_SESSION_WATCHDOG_MS,
+          hasSavedSession: sessioneSalvata,
+          hasCrossSubdomainHandoff: hasValidCrossSubdomainHandoff,
+        });
+        return;
+      }
       authGenRef.current++;
       logger.warn("[auth] INITIAL_SESSION watchdog: sblocco spinner e ritorno a stato non autenticato");
       setState(prev => prev.isLoading
@@ -1104,8 +1122,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // fires with session=null BEFORE setSession() completes.  If we set user:null here
           // ProtectedRoute would redirect to /login instantly (blank page flash).
           // Guard: keep isLoading:true and wait for the SIGNED_IN that setSession() will fire.
-          if (event === "INITIAL_SESSION" && hasValidCrossSubdomainHandoff) {
-            logger.info("INITIAL_SESSION null during cross-subdomain handoff — keeping isLoading:true, waiting for SIGNED_IN");
+          if (event === "INITIAL_SESSION" && (hasValidCrossSubdomainHandoff || sessioneSalvataPresente())) {
+            // Supabase può emettere INITIAL_SESSION:null dopo un errore di
+            // rete senza rimuovere la sessione salvata. Si attende il rinnovo
+            // o un SIGNED_OUT esplicito; lo storage non concede l'accesso.
+            logger.info("INITIAL_SESSION null con sessione da ripristinare — accesso ancora in verifica");
             return;
           }
           settleAuthBootstrap();

@@ -9,6 +9,14 @@ import {
 } from "@/lib/orders/detailNavigation";
 
 describe("Navigazione unica della commessa", () => {
+  it("i vecchi link alle assegnazioni montano Lavorazioni, non il riepilogo", () => {
+    for (const section of ["section-squadra", "section-mezzi"]) {
+      expect(resolveCantiereView("?vista_cantiere=squadra", section)).toBe("lavorazioni");
+      expect(resolveOrderDetailDestination("?tab=panoramica", `#${section}`).tab).toBe("cantiere");
+    }
+    expect(resolveCantiereView("?vista_cantiere=squadra")).toBe("squadra");
+    expect(resolveCantiereView("?vista_cantiere=lavorazioni", "section-statistiche")).toBe("squadra");
+  });
   it("recupera le sezioni nei vecchi link di controllo e le elimina cambiando vista", () => {
     expect(resolveOrderDetailDestination("?tab=finanza&section=section-attivita")).toEqual({ tab: "cantiere", section: "section-attivita" });
     expect(resolveOrderDetailDestination("?section=section-attivita", "#section-pagamenti")).toEqual({ tab: "finanza", section: "section-pagamenti" });
@@ -18,7 +26,7 @@ describe("Navigazione unica della commessa", () => {
   });
   it.each([
     ["section-pagamenti", "pagamenti"], ["section-ritenute", "pagamenti"], ["esposizione-commessa", "pagamenti"],
-    ["section-sal", "documenti"], ["section-varianti", "documenti"], ["section-fatturazione", "documenti"], ["section-conto-economico", "margini"],
+    ["section-sal", "documenti"], ["section-varianti", "documenti"], ["section-fatturazione", "documenti"], ["section-conto-economico", "margini"], ["section-manodopera-costi", "manodopera"],
   ])("l'ancora economica %s monta la vista corretta", (section, view) => {
     expect(resolveEconomiaView("?vista_economia=altra", section)).toBe(view);
     expect(resolveOrderDetailDestination("?tab=panoramica", `#${section}`).tab).toBe("finanza");
@@ -45,7 +53,7 @@ describe("Navigazione unica della commessa", () => {
     ["stato", "panoramica", "section-stato"],
     ["campo", "cantiere", "section-rapportini"],
     ["sal", "finanza", "section-sal"],
-    ["assistenza", "panoramica", "section-assistenza"],
+    ["assistenza", "cantiere", "section-assistenza"],
     ["altro", "panoramica", "section-note"],
     ["ritenute", "finanza", "section-ritenute"],
     ["manodopera", "cantiere", "section-lavorazioni"],
@@ -84,6 +92,9 @@ describe("Navigazione unica della commessa", () => {
     expect(resolveCantiereView("?vista_cantiere=diario", "section-attivita")).toBe("lavorazioni");
     expect(resolveCantiereView("?vista_cantiere=__proto__")).toBe("lavorazioni");
     expect(resolveCantiereView("?vista_cantiere=collaudo")).toBe("collaudo");
+    expect(resolveCantiereView("?vista_cantiere=squadra", "section-assistenza")).toBe("collaudo");
+    expect(resolveCantiereView("?vista_cantiere=diario", "section-sopralluoghi")).toBe("lavorazioni");
+    expect(resolveOrderDetailDestination("?tab=panoramica", "#section-assistenza")).toEqual({tab: "cantiere", section: "section-assistenza"});
   });
   it("cambia vista eliminando l'ancora precedente senza perdere i parametri estranei", () => {
     expect(orderDetailLocation("?tab=cantiere&source=agenda", {tab:"cantiere",cantiereView:"diario"})).toEqual({search:"?tab=cantiere&source=agenda&vista_cantiere=diario",hash:""});

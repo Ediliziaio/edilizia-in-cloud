@@ -106,6 +106,7 @@ describe("nella commessa la stessa regola", () => {
   });
 
   it("la scheda la vede chi vede gli importi della commessa o ha «Fatturazione»", () => {
-    expect(pagina).toContain("{(permissions.canViewOrderAmounts || permissions.canViewBilling) && (\n            <QuoteCard");
+    // La protezione ora è sul contenitore della vista dedicata, prima della card.
+    expect(pagina).toMatch(/\{activeEconomiaView === "documenti" && \(permissions\.canViewOrderAmounts \|\| permissions\.canViewBilling\) && <div id="section-fatturazione"/);
   });
 });

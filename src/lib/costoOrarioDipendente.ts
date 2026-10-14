@@ -13,6 +13,8 @@
  * contrattuali del mese.
  */
 
+import { reviewHourlyCost } from "@/lib/campo/laborCostReview";
+
 /** Aliquota INPS usata quando il dipendente non ne ha una sua. */
 export const ALIQUOTA_INPS_DEFAULT = 28;
 /** Ore mensili usate quando il contratto non le specifica (40 h × 4,33). */
@@ -40,17 +42,10 @@ export function oreContrattualiMese(e: DatiCostoOrario): number {
   );
 }
 
-/** Costo orario aziendale, arrotondato al centesimo. 0 solo se manca lo stipendio. */
+/** Compatibilità con il contratto numerico del DB: 0 se il costo non è determinabile.
+ * Per distinguere uno zero da dati mancanti, le schermate usano reviewHourlyCost.
+ * Le ore presunte di oreContrattualiMese servono alla pianificazione, NON al costo.
+ */
 export function costoOrarioDipendente(e: DatiCostoOrario): number {
-  const manuale = num(e.costo_orario);
-  if (manuale > 0) return manuale;
-
-  const lordo = num(e.gross_salary);
-  if (lordo <= 0) return 0;
-
-  const aliquota = num(e.inps_rate) || ALIQUOTA_INPS_DEFAULT;
-  const ore = oreContrattualiMese(e);
-  if (ore <= 0) return 0;
-
-  return Math.round(((lordo * (1 + aliquota / 100)) / ore) * 100) / 100;
+  return reviewHourlyCost({ ...e, id: "", user_id: null }).amount ?? 0;
 }

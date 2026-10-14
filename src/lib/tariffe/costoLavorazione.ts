@@ -16,6 +16,7 @@ export interface CostoLavorazione {
   altri_costi_interni: number | null;
   /** Snapshot: rileva modifiche del costo da importazioni o analisi prezzi. */
   costo_applicato?: number;
+  costo_diretto_impostato?: boolean;
 }
 export const MODALITA_COSTO_LABEL = { manuale: "Costo diretto", interna: "Squadra interna", subappalto: "Subappalto" };
 export function oggettoCampi(value: unknown): Record<string, unknown> {
@@ -27,7 +28,7 @@ export function numeroCosto(value: string): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 const valido = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n >= 0;
-const arrotonda = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+const arrotonda = (n: number) => Math.round((n + Number.EPSILON) * 1e4) / 1e4;
 export function leggiCostoLavorazione(campi: unknown): CostoLavorazione {
   const c = oggettoCampi(oggettoCampi(campi)._costo_lavorazione);
   return {
@@ -36,6 +37,7 @@ export function leggiCostoLavorazione(campi: unknown): CostoLavorazione {
     subappalto: valido(c.subappalto) ? c.subappalto : null,
     altri_costi_interni: valido(c.altri_costi_interni) ? c.altri_costi_interni : null,
     costo_applicato: valido(c.costo_applicato) ? c.costo_applicato : undefined,
+    ...(typeof c.costo_diretto_impostato === "boolean" ? { costo_diretto_impostato: c.costo_diretto_impostato } : {}),
     risorse: Array.isArray(c.risorse) ? c.risorse.map((value, index) => {
       const r = oggettoCampi(value);
       return { id: typeof r.id === "string" ? r.id : String(index), nome: typeof r.nome === "string" ? r.nome : "Operatore",
@@ -46,7 +48,7 @@ export function leggiCostoLavorazione(campi: unknown): CostoLavorazione {
   };
 }
 export function costoLavorazioneModificato(c: CostoLavorazione, costoAttuale: number) {
-  return c.modalita !== "manuale" && c.costo_applicato != null && Math.abs(c.costo_applicato - costoAttuale) > 0.005;
+  return c.modalita !== "manuale" && c.costo_applicato != null && Math.abs(c.costo_applicato - costoAttuale) > 0.00005;
 }
 export function calcolaCostoLavorazione(c: CostoLavorazione, manuale: number | null) {
   const risorseValide = c.risorse.length > 0 && c.risorse.every(r =>
