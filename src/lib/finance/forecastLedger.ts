@@ -357,14 +357,20 @@ export function buildForecastLedger(
   const orderMap = new Map(s.orders.map((o) => [o.id, o]));
   const invoices = new Map(s.invoices.map((i) => [i.id, i]));
   const invoiceDeadlines = new Set(
-    s.deadlines.filter((d) => d.invoice_id).map((d) => d.invoice_id),
+    s.deadlines
+      .filter((d) => d.invoice_id && !closed(d.status))
+      .map((d) => d.invoice_id),
   );
   const costDeadlines = new Set(
     s.deadlines.filter((d) => d.cost_id).map((d) => d.cost_id),
   );
-  const itemDeadlines = new Set(
-    s.deadlines.filter((d) => d.order_item_id).map((d) => d.order_item_id),
-  );
+  const itemDeadlines = new Map<string, DeadlineRow[]>();
+  for (const d of s.deadlines)
+    if (d.order_item_id)
+      itemDeadlines.set(d.order_item_id, [
+        ...(itemDeadlines.get(d.order_item_id) ?? []),
+        d,
+      ]);
   const nativeDeadlines = new Set(
     s.deadlines.flatMap((d) =>
       [...(d.notes ?? "").matchAll(/\[DOC:([0-9a-f-]+)\]/gi)].map((m) => m[1]),
@@ -668,13 +674,7 @@ export function buildForecastLedger(
     });
   }
   for (const i of s.items) {
-    if (
-      i.is_paid ||
-      i.order?.deleted_at ||
-      covered.has(i.id) ||
-      itemDeadlines.has(i.id)
-    )
-      continue;
+    if (i.is_paid || i.order?.deleted_at || covered.has(i.id)) continue;
     const total = toCents(i.purchase_price) * (i.quantity ?? 1);
     const split = ["50_50", "30_70"].includes(i.payment_method ?? "");
     const vat = Math.max(0, Number(i.supplier?.vat_rate) || 0) / 100;
@@ -690,14 +690,41 @@ export function buildForecastLedger(
       i.balance_amount == null
         ? Math.max(0, total - deposit)
         : toCents(i.balance_amount);
-    const emit = (part: string, cents: number, date: string | null) =>
+    const linked = itemDeadlines.get(i.id) ?? [];
+    if (
+      total > 0 &&
+      linked.some((d) => toCents(d.amount) === Math.round(total * (1 + vat)))
+    )
+      continue;
+    const consumed = new Set<string>();
+    const emit = (part: string, cents: number, date: string | null) => {
+      const amount = Math.round(cents * (1 + vat));
+      const match = linked.find((d) => {
+        if (consumed.has(d.id)) return false;
+        const tagged = /acconto/i.test(d.description)
+          ? "Acconto"
+          : /saldo/i.test(d.description)
+            ? "Saldo"
+            : null;
+        if (tagged) return tagged === part;
+        return (
+          !closed(d.status) &&
+          !!date &&
+          validDay(d.due_date) === validDay(date) &&
+          toCents(d.amount) === amount
+        );
+      });
+      if (match) {
+        consumed.add(match.id);
+        return;
+      }
       add({
         id: `articolo:${i.id}:${part}`,
         description: `${part} · ${i.name}`,
         counterparty: i.supplier?.name ?? "",
         category: "fornitori",
         direction: "out",
-        cents: Math.round(cents * (1 + vat)),
+        cents: amount,
         date,
         source: "Pagamento fornitore",
         href: orderHref(i.order_id),
@@ -705,6 +732,7 @@ export function buildForecastLedger(
         estimated: true,
         note: "Importo da articolo; conferma condizioni e aliquota del fornitore.",
       });
+    };
     if (split) {
       if (!i.deposit_paid) emit("Acconto", deposit, i.deposit_expected_date);
       if (!i.balance_paid) emit("Saldo", balance, i.balance_expected_date);

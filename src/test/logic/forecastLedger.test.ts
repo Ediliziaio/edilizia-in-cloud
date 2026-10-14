@@ -244,6 +244,66 @@ describe("a single cash forecast", () => {
 });
 
 describe("source amounts and exact duplicate links", () => {
+  it("a linked partial supplier deposit does not suppress the other future installment", () => {
+    const s = emptyForecastSources();
+    s.items = [
+      {
+        id: "i",
+        name: "Materiale",
+        purchase_price: 10000,
+        quantity: 1,
+        payment_method: "50_50",
+        deposit_amount: 5000,
+        balance_amount: 5000,
+        deposit_paid: false,
+        balance_paid: false,
+        deposit_expected_date: today,
+        balance_expected_date: "2026-11-20",
+        is_paid: false,
+        order_id: "o",
+        supplier: { name: "Fornitore", vat_rate: 0 },
+      },
+    ];
+    s.deadlines = [
+      {
+        id: "d",
+        description: "Acconto materiale",
+        order_item_id: "i",
+        amount: 5000,
+        paid_amount: 2000,
+        due_date: today,
+        direction: "uscita",
+        status: "parziale",
+      },
+    ];
+    const rows = buildForecastLedger(s, today).movements;
+    expect(rows.map((m) => m.cents)).toEqual([300000, 500000]);
+  });
+  it("a closed deadline does not mask an invoice with a remaining recorded balance", () => {
+    const s = emptyForecastSources();
+    s.invoices = [
+      {
+        id: "f",
+        total: 1000,
+        paid_amount: 400,
+        due_date: today,
+        status: "partial",
+      },
+    ];
+    s.deadlines = [
+      {
+        id: "d",
+        description: "Scadenza precedente",
+        amount: 400,
+        paid_amount: 400,
+        due_date: today,
+        direction: "entrata",
+        status: "pagata",
+        invoice_id: "f",
+      },
+    ];
+    expect(buildForecastLedger(s, today).movements[0].cents).toBe(60000);
+  });
   it("subtracts only registered payroll, retaining the other wages", () => {
     const s = emptyForecastSources();
     s.employees = [
