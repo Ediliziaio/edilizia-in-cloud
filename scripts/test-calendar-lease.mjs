@@ -6,8 +6,7 @@ import { resolve } from "node:path";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 
-if (!process.env.PGLITE_TEST_ROOT) throw new Error("Set PGLITE_TEST_ROOT to the temporary test runtime");
-const requireTest = createRequire(resolve(process.env.PGLITE_TEST_ROOT,"package.json"));
+const requireTest = createRequire(resolve(process.env.PGLITE_TEST_ROOT || ".","package.json"));
 const { PGlite } = requireTest("@electric-sql/pglite");
 const db = new PGlite();
 try {
@@ -23,7 +22,7 @@ try {
     CREATE UNIQUE INDEX uq_gcal_busy_slots_event ON public.google_calendar_busy_slots(company_id,user_id,google_event_id);
     ALTER TABLE public.google_calendar_busy_slots ENABLE ROW LEVEL SECURITY;
     GRANT ALL ON public.google_calendar_busy_slots TO service_role;`);
-  const sql=readFileSync("supabase/migrations-pending/calendario_occupazioni_presa_in_carico.sql","utf8");
+  const sql=readFileSync("supabase/migrations/20281014130000_gcal_busy_lease_preparazione.sql","utf8") + readFileSync("supabase/migrations-pending/calendario_occupazioni_identita_calendario.sql","utf8");
   await db.exec(sql); await db.exec(sql); // Idempotence as well as syntax.
   await db.exec("SET ROLE service_role");
   const company="11111111-1111-4111-8111-111111111111",user="22222222-2222-4222-8222-222222222222";

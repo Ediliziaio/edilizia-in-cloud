@@ -1,9 +1,10 @@
+import "@testing-library/jest-dom/vitest";
 import {cleanup, renderHook} from "@testing-library/react";
 import {afterEach, beforeEach, expect, it, vi} from "vitest";
 import {useOrderWorkPhases} from "@/hooks/useOrderWorkPhases";
 const m = vi.hoisted(() => ({company: "c", configs: [] as {queryKey: unknown[]; queryFn: () => Promise<unknown>}[], calls: [] as {table: string; select: string; filters: Record<string, unknown>}[]}));
 vi.mock("@/contexts/AuthContext", () => ({useAuth: () => ({effectiveCompany: {id: m.company}, user: {id: "u"}})}));
-vi.mock("@tanstack/react-query", () => ({useQuery: (config: {queryKey: unknown[]; queryFn: () => Promise<unknown>}) => {m.configs.push(config); return {data: undefined};}, useQueryClient: () => ({invalidateQueries: vi.fn()}), useMutation: () => ({mutate: vi.fn(), mutateAsync: vi.fn()})}));
+vi.mock("@tanstack/react-query", () => ({useQuery: (config: {queryKey: unknown[]; queryFn: () => Promise<unknown>}) => {m.configs.push(config); return {data: undefined as undefined};}, useQueryClient: () => ({invalidateQueries: vi.fn()}), useMutation: () => ({mutate: vi.fn(), mutateAsync: vi.fn()})}));
 vi.mock("@/integrations/supabase/client", () => ({supabase: {from: (table: string) => {
   const call = {table, select: "", filters: {} as Record<string, unknown>}; m.calls.push(call);
   const data = table === "order_work_phases" ? [{id: "p", order_id: "o", name: "Posa", status: "completata"}] : table === "order_employees" ? [{id: "a", employee_id: "archived", phase_id: "p", employee: {first_name: "Mario", last_name: "Storico", is_active: false}, total_cost: 80}] : [];

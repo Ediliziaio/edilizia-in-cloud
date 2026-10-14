@@ -79,8 +79,9 @@ export function CalendarTeamWeekView({
         days,
         kind,
         kind === "team" ? teams : employees,
+        orderColorFn,
       ),
-    [orders, days, kind, teams, employees],
+    [orders, days, kind, teams, employees, orderColorFn],
   );
   const visible = rows.filter(
     (r) =>
@@ -114,7 +115,7 @@ export function CalendarTeamWeekView({
       className="overflow-hidden rounded-xl border bg-card"
       aria-label="Pianificazione settimanale delle risorse"
     >
-      <div className="space-y-4 border-b p-4">
+      <div className="space-y-3 border-b p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Button
@@ -140,6 +141,21 @@ export function CalendarTeamWeekView({
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
+          <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+            {[
+              [
+                "Risorse con assegnazioni",
+                visible.filter((r) => r.days).length,
+              ],
+              ["Cantieri assegnati", activeOrders],
+              ["Giorni pianificati", plannedDays],
+            ].map(([label, value]) => (
+              <div key={label} className="flex items-baseline gap-1.5">
+                <dt className="text-muted-foreground">{label}</dt>
+                <dd className="text-sm font-semibold tabular-nums">{value}</dd>
+              </div>
+            ))}
+          </dl>
           <div
             className="flex rounded-lg bg-muted p-1"
             aria-label="Tipo di risorsa"
@@ -186,28 +202,16 @@ export function CalendarTeamWeekView({
             size="sm"
             variant={assignedOnly ? "secondary" : "outline"}
             aria-pressed={assignedOnly}
+            title={
+              assignedOnly
+                ? "Mostra anche le risorse senza assegnazioni"
+                : "Mostra solo le risorse con assegnazioni"
+            }
             onClick={() => setAssignedOnly(!assignedOnly)}
           >
             {assignedOnly ? "Con assegnazioni" : "Tutte le risorse"}
           </Button>
         </div>
-        <dl className="grid grid-cols-3 gap-3 text-xs">
-          {[
-            ["Risorse con assegnazioni", visible.filter((r) => r.days).length],
-            ["Cantieri assegnati", activeOrders],
-            ["Giorni pianificati", plannedDays],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-lg bg-muted/35 px-3 py-2">
-              <dt className="text-muted-foreground">{label}</dt>
-              <dd className="mt-1 text-lg font-semibold">{value}</dd>
-            </div>
-          ))}
-        </dl>
-        <p className="text-xs text-muted-foreground">
-          Assegnazioni dalle lavorazioni e dalla posa delle commesse. Gli spazi
-          vuoti indicano nessuna assegnazione registrata; gli orari mancanti
-          restano da definire.
-        </p>
       </div>
       {visible.length ? (
         <div className="max-h-[65vh] overflow-auto">
@@ -232,7 +236,8 @@ export function CalendarTeamWeekView({
                       className={cn(
                         "border-b border-l bg-card p-2 font-medium",
                         day.getDay() % 6 === 0 && "bg-muted",
-                        isSameDay(day, new Date()) && "bg-primary/5",
+                        isSameDay(day, new Date()) &&
+                          "bg-blue-50 dark:bg-blue-950",
                       )}
                     >
                       <button
@@ -260,7 +265,7 @@ export function CalendarTeamWeekView({
                     scope="row"
                     className="sticky left-0 z-10 border-b bg-card p-3 align-top font-medium"
                   >
-                    <div className="flex items-start gap-2">
+                    <div className="sticky top-16 flex items-start gap-2">
                       {kind === "team" ? (
                         <Users className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                       ) : (
@@ -302,24 +307,7 @@ export function CalendarTeamWeekView({
                               <div
                                 key={calendarEventKey(event)}
                                 className="rounded-md border border-l-[3px] bg-card p-2 shadow-sm"
-                                style={{
-                                  borderLeftColor:
-                                    orderColorFn?.({
-                                      ...order,
-                                      order_external_teams:
-                                        order.order_external_teams?.filter(
-                                          (t) =>
-                                            event.work?.resources.some(
-                                              (b) =>
-                                                b.resourceType === "team" &&
-                                                b.resourceId ===
-                                                  t.external_team.id,
-                                            ),
-                                        ),
-                                    }) ||
-                                    order.status?.color ||
-                                    "#2563eb",
-                                }}
+                                style={{ borderLeftColor: event.color }}
                               >
                                 <button
                                   type="button"
@@ -333,7 +321,7 @@ export function CalendarTeamWeekView({
                                   }
                                   className="block w-full text-left font-medium leading-snug hover:text-primary focus-visible:ring-2 focus-visible:ring-primary"
                                 >
-                                  {title}
+                                  {event.work ? title : "Posa"}
                                 </button>
                                 <p
                                   className="mt-1 truncate text-[10px] text-muted-foreground"
@@ -344,9 +332,16 @@ export function CalendarTeamWeekView({
                                 <Link
                                   to={calendarWorkLocation(order.id)}
                                   aria-label={`Apri lavorazioni ${title} · ${order.order_code}`}
-                                  className="mt-1 block text-[10px] text-primary hover:underline"
+                                  title={order.order_code || undefined}
+                                  className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] tracking-tight text-primary hover:underline"
                                 >
-                                  {order.order_code}
+                                  {order.order_code &&
+                                  order.order_code.length > 12
+                                    ? order.order_code
+                                        .split("-")
+                                        .slice(-2)
+                                        .join("-")
+                                    : order.order_code}
                                 </Link>
                                 <span className="mt-1 block text-[10px] text-muted-foreground">
                                   {time
@@ -390,6 +385,11 @@ export function CalendarTeamWeekView({
           periodo e nei filtri selezionati.{search && " Prova un altro nome."}
         </p>
       )}
+      <p className="border-t px-4 py-2 text-[11px] text-muted-foreground">
+        Assegnazioni dalle lavorazioni e dalla posa delle commesse. Gli spazi
+        vuoti indicano nessuna assegnazione registrata; gli orari mancanti
+        restano da definire.
+      </p>
       {validSelection && selected && (
         <CalendarDayDetailsDialog
           open

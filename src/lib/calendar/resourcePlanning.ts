@@ -16,6 +16,7 @@ export function planningResourceRows(
   days: Date[],
   kind: "employee" | "team",
   catalog: PlanningResource[] = [],
+  orderColorFn?: (order: CalendarOrder) => string,
 ): ResourcePlanningRow[] {
   const rows = new Map<
     string,
@@ -25,6 +26,7 @@ export function planningResourceRows(
     rows.set(resource.id, { ...resource, cells: new Map() });
   const events = buildCalendarEvents(days, {
     orders,
+    orderColorFn,
     hiddenEventTypes: new Set(["merce"]),
   });
   for (const [day, entries] of events) {
@@ -102,13 +104,15 @@ export function resourceDayEvents(rows: ResourcePlanningRow[], date: Date) {
 }
 
 /** Fasce relative al picco visibile: un mese intenso non diventa un unico colore. */
-export function workloadBands(peak: number) {
-  const levels = Math.min(4, Math.max(0, peak));
+export function workloadBands(peak: number, minimum = 1) {
+  const first = minimum < peak ? Math.max(1, minimum) : 1;
+  const range = peak - first + 1;
+  const levels = Math.min(4, Math.max(0, range));
   return [
     { min: 0, max: 0, label: "0", level: 0 },
     ...Array.from({ length: levels }, (_, i) => {
-      const min = Math.ceil((peak * i) / levels) + 1,
-        max = Math.ceil((peak * (i + 1)) / levels);
+      const min = i === 0 ? 1 : first + Math.ceil((range * i) / levels),
+        max = first - 1 + Math.ceil((range * (i + 1)) / levels);
       return {
         min,
         max,

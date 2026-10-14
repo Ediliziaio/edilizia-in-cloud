@@ -134,7 +134,7 @@ describe("Modelli di pagamento: le sezioni", () => {
     apri();
     const sal = document.getElementById("sal") as HTMLElement;
     expect(within(sal).getByText("Tutte le commesse")).toBeInTheDocument();
-    expect(within(sal).getByText("Si salva subito")).toBeInTheDocument();
+    expect(within(sal).getByRole("status")).toHaveTextContent("Salvataggio con conferma");
     expect(sal).toHaveTextContent(
       "La scelta vale per tutte le commesse dell'azienda, anche per quelle già aperte.",
     );

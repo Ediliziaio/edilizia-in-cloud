@@ -37,6 +37,7 @@ interface Props {
   }[];
   teams?: PlanningResource[];
   calendarScope?: CalendarScope;
+  orderColorFn?: (order: CalendarOrder) => string;
 }
 const colors = [
   "bg-muted/35 text-muted-foreground",
@@ -52,6 +53,7 @@ export function CalendarHeatmapView({
   employees = [],
   teams = [],
   calendarScope = "personal",
+  orderColorFn,
 }: Props) {
   const p = usePermissions();
   const [mode, setMode] = useState<"day" | "employee" | "team">("day");
@@ -88,12 +90,13 @@ export function CalendarHeatmapView({
           name:
             [e.first_name, e.last_name].filter(Boolean).join(" ") || "Persona",
         })),
+        orderColorFn,
       ),
-    [orders, days, employees],
+    [orders, days, employees, orderColorFn],
   );
   const squads = useMemo(
-    () => planningResourceRows(orders, days, "team", teams),
-    [orders, days, teams],
+    () => planningResourceRows(orders, days, "team", teams, orderColorFn),
+    [orders, days, teams, orderColorFn],
   );
   const rows = (mode === "team" ? squads : people).filter(
     (r) =>
@@ -111,7 +114,10 @@ export function CalendarHeatmapView({
       )
     : workloads.map((w) => w.length);
   const peak = Math.max(0, ...counts),
-    bands = workloadBands(peak);
+    bands = workloadBands(
+      peak,
+      Math.min(...counts.filter((count) => count > 0)),
+    );
   const intensity = (count: number) =>
     colors[bands.find((b) => b.min <= count && b.max >= count)?.level || 0];
   const activeDays = workloads.filter((w) => w.length > 0).length;
@@ -128,6 +134,7 @@ export function CalendarHeatmapView({
       ? selectedRow?.cells.get(selected.date) || []
       : buildCalendarEvents([parseISO(selected.date)], {
           orders,
+          orderColorFn,
           hiddenEventTypes: new Set(["merce"]),
         }).get(selected.date) || []
     : [];
@@ -139,7 +146,7 @@ export function CalendarHeatmapView({
   };
   return (
     <Card className="overflow-hidden" aria-label="Carico delle lavorazioni">
-      <div className="space-y-4 border-b p-4">
+      <div className="space-y-3 border-b p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Button
@@ -192,7 +199,7 @@ export function CalendarHeatmapView({
             ))}
           </div>
         </div>
-        <dl className="grid grid-cols-3 gap-3">
+        <dl className="flex flex-wrap items-center gap-x-6 gap-y-2">
           {[
             ["Cantieri nel mese", activeOrders],
             ["Giorni con lavori", activeDays],
@@ -203,9 +210,9 @@ export function CalendarHeatmapView({
               peak,
             ],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-lg bg-muted/35 p-3">
+            <div key={label} className="flex items-baseline gap-2">
               <dt className="text-xs text-muted-foreground">{label}</dt>
-              <dd className="mt-1 text-xl font-semibold">{value}</dd>
+              <dd className="text-lg font-semibold tabular-nums">{value}</dd>
             </div>
           ))}
         </dl>
@@ -232,6 +239,11 @@ export function CalendarHeatmapView({
               size="sm"
               variant={assignedOnly ? "secondary" : "outline"}
               aria-pressed={assignedOnly}
+              title={
+                assignedOnly
+                  ? "Mostra anche le risorse senza assegnazioni"
+                  : "Mostra solo le risorse con assegnazioni"
+              }
               onClick={() => setAssignedOnly(!assignedOnly)}
             >
               {assignedOnly ? "Con assegnazioni" : "Tutte le risorse"}
@@ -271,7 +283,7 @@ export function CalendarHeatmapView({
                   }
                   onClick={() => setSelected({ date: key })}
                   className={cn(
-                    "flex min-h-24 flex-col items-center justify-center gap-1 rounded-lg border border-transparent p-2 transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-primary",
+                    "flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border border-transparent p-2 transition-colors hover:border-primary focus-visible:ring-2 focus-visible:ring-primary",
                     intensity(count),
                     isSameDay(day, new Date()) && "ring-2 ring-primary",
                   )}
@@ -306,7 +318,8 @@ export function CalendarHeatmapView({
                     className={cn(
                       "min-w-10 border-b bg-card p-1.5 text-center font-normal",
                       day.getDay() % 6 === 0 && "bg-muted",
-                      isSameDay(day, new Date()) && "bg-primary/5",
+                      isSameDay(day, new Date()) &&
+                        "bg-blue-50 dark:bg-blue-950",
                     )}
                   >
                     <span className="block text-[9px] uppercase text-muted-foreground">
@@ -397,7 +410,7 @@ export function CalendarHeatmapView({
           </span>
         ))}
         <span className="ml-auto text-[10px]">
-          Scala sul picco visibile · seleziona un giorno per i dettagli
+          Scala sui valori visibili · seleziona un giorno per i dettagli
         </span>
       </div>
       {validSelection && selected && (

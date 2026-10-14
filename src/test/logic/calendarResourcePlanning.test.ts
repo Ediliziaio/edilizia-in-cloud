@@ -45,6 +45,25 @@ const order = {
   ],
 } as CalendarOrder;
 describe("Squadre e Carico condividono assegnazioni e posa", () => {
+  it("il popup conserva gli stessi colori delle lavorazioni del calendario", () => {
+    const rows = planningResourceRows(
+      [order],
+      days,
+      "employee",
+      [],
+      () => "#123456",
+    );
+    expect(rows[0].cells.get("2026-10-14")![0].color).toBe("#123456");
+  });
+  it("distingue i giorni anche quando tutto il mese è molto occupato", () => {
+    expect(workloadBands(17, 11).map((b) => b.label)).toEqual([
+      "0",
+      "1–12",
+      "13–14",
+      "15–16",
+      "17",
+    ]);
+  });
   it("ogni persona e squadra occupa soltanto la data della prenotazione", () => {
     const people = planningResourceRows([order], days, "employee");
     expect(people[0].days).toBe(1);
@@ -69,7 +88,7 @@ describe("Squadre e Carico condividono assegnazioni e posa", () => {
     expect(rows.find((r) => r.id === "empty")!.cells.size).toBe(0);
   });
   it("le squadre assegnate alla sola posa non scompaiono dalla settimana", () => {
-    const install = {
+    const install: CalendarOrder = {
       ...order,
       work_start_date: null,
       work_end_date: null,
@@ -122,7 +141,7 @@ describe("Squadre e Carico condividono assegnazioni e posa", () => {
     expect(planningResourceRows([shifted], days, "employee")).toHaveLength(0);
   });
   it("rispetta il filtro delle risorse anche sulla posa", () => {
-    const filtered = {
+    const filtered: CalendarOrder = {
       ...order,
       expected_date: "2026-10-14",
       planning_resource_filter: { employeeIds: [], teamIds: ["team"] },

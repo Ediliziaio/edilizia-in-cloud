@@ -2720,6 +2720,7 @@ function CalendarInner() {
               orders={scheduledOrders}
               currentDate={currentDate}
               onDateChange={setCurrentDate}
+              orderColorFn={orderColorFn}
               employees={workEmployees.filter(
                 (e) =>
                   effectiveWorkVisibleEmployeeIds.has(e.id) &&

@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom/vitest";
 import {cleanup, fireEvent, render, screen, within} from "@testing-library/react";
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import {CronoprogrammaCommessa} from "@/components/orders/CronoprogrammaCommessa";
@@ -6,7 +7,7 @@ vi.mock("@/hooks/use-mobile", () => ({useIsMobile: () => m.mobile}));
 vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canViewCosts: m.costs, canViewOrderAmounts: m.amounts})}));
 vi.mock("@/hooks/useOrderWorkPhases", () => ({useOrderWorkPhases: () => ({phases: m.phases, materials: [] as unknown[], allAssignments: [] as unknown[], isLoading: m.loading, isError: m.phaseError, refetch: m.refetchPhases})}));
 vi.mock("@/hooks/useCronoprogramma", () => ({useCronoprogramma: () => ({rapportini: m.reports, firmaPreventivo: null as null, isLoading: false, isError: m.reportError, refetch: m.refetchReports})}));
-vi.mock("@/hooks/useCostiMaterialiFasi", () => ({useCostiMaterialiFasi: () => ({data: undefined})}));
+vi.mock("@/hooks/useCostiMaterialiFasi", () => ({useCostiMaterialiFasi: () => ({data: undefined as undefined})}));
 vi.mock("@/hooks/useAvanzamentoCommessa", () => ({useAvanzamentoCommessa: () => ({daMostrare: (n: number) => n})}));
 const order = {created_at: "2025-12-15", work_start_date: "2025-03-25", work_end_date: "2025-05-10", expected_date: "2026-03-15"};
 const phase = (extra = {}) => ({id: "f", name: "Allestimento e demolizioni", status: "completata", percentuale: 0, start_date: "2025-03-25", end_date: "2025-03-30", completata_il: "2026-10-09", ...extra});
