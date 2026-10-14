@@ -8,7 +8,11 @@ const dati = vi.hoisted(() => ({ rapportino: null as unknown, fasi: [] as unknow
 vi.mock("@/integrations/supabase/client", () => {
   const catena = (tabella: string) => {
     dati.chiamate += 1;
-    const righe = () => (tabella === "order_work_phases" ? dati.fasi : tabella === "order_work_subphases" ? dati.sottofasi : []);
+    // Le sottofasi arrivano annidate nelle fasi della commessa («sottofasi»).
+    const conSottofasi = () => (dati.fasi as Array<{ id: string }>).map((f) => ({
+      ...f, sottofasi: (dati.sottofasi as Array<{ phase_id: string }>).filter((s) => s.phase_id === f.id),
+    }));
+    const righe = () => (tabella === "order_work_phases" ? conSottofasi() : []);
     const q: Record<string, unknown> = {
       then: (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve({ data: righe(), error: null }).then(ok, ko),
       maybeSingle: async () => ({ data: tabella === "campo_rapportini" ? dati.rapportino : null, error: null as null }),
@@ -32,7 +36,7 @@ afterEach(cleanup);
 describe("AvanzamentoDaApprovare", () => {
   it("se il rapportino non dichiara fasi non mostra niente", async () => {
     const { container } = disegna();
-    await waitFor(() => expect(dati.chiamate).toBeGreaterThanOrEqual(3));
+    await waitFor(() => expect(dati.chiamate).toBeGreaterThanOrEqual(2));
     await new Promise((r) => setTimeout(r, 0));
     expect(container).toBeEmptyDOMElement();
   });

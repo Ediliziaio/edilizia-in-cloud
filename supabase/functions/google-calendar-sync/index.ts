@@ -151,6 +151,63 @@ async function avvisaConnessioneScaduta(
 }
 
 type DirezioneSync = "both" | "to_google" | "from_google";
+type PreferenzeUtente = { sync_enabled?: boolean | null; sync_direction?: string | null };
+
+// Il giro del cron legge impostazioni e preferenze di tutte le connessioni con
+// una query per tabella, all'inizio, e le passa ai passi che le usano (pull,
+// ritorno da Google, recupero degli appuntamenti). Fuori dal giro ogni passo le
+// legge da sé, come sempre.
+interface LettureGiro {
+  /** Per `${company_id}:${user_id}`; null = l'utente non ha impostazioni. */
+  impostazioni: Map<string, any>;
+  /** Per user_id; null = l'utente non ha preferenze. */
+  preferenze: Map<string, PreferenzeUtente | null>;
+}
+
+async function letturePerIlGiro(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  connessioni: Array<{ user_id: string; company_id: string }>,
+): Promise<LettureGiro | undefined> {
+  const utenti = [...new Set(connessioni.map((c) => c.user_id))];
+  if (utenti.length === 0) return undefined;
+  try {
+    const [imp, pref] = await Promise.all([
+      admin.from("google_calendar_settings").select("*").in("user_id", utenti),
+      admin.from("user_calendar_preferences").select("user_id, sync_enabled, sync_direction").in("user_id", utenti),
+    ]);
+    // Se una delle due letture non riesce, ogni passo legge da sé.
+    if (imp.error || pref.error) return undefined;
+    const letture: LettureGiro = { impostazioni: new Map(), preferenze: new Map() };
+    for (const c of connessioni) {
+      letture.impostazioni.set(`${c.company_id}:${c.user_id}`, null);
+      letture.preferenze.set(c.user_id, null);
+    }
+    for (const r of (imp.data ?? []) as Array<{ company_id: string; user_id: string }>) {
+      letture.impostazioni.set(`${r.company_id}:${r.user_id}`, r);
+    }
+    for (const r of (pref.data ?? []) as Array<PreferenzeUtente & { user_id: string }>) {
+      letture.preferenze.set(r.user_id, { sync_enabled: r.sync_enabled, sync_direction: r.sync_direction });
+    }
+    return letture;
+  } catch (e) {
+    console.error("[google-calendar-sync] letture del giro:", e instanceof Error ? e.message : String(e));
+    return undefined;
+  }
+}
+
+async function leggiPreferenze(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  userId: string,
+  giro?: LettureGiro,
+): Promise<PreferenzeUtente | null> {
+  if (giro?.preferenze.has(userId)) return giro.preferenze.get(userId) ?? null;
+  const { data } = await admin
+    .from("user_calendar_preferences")
+    .select("sync_enabled, sync_direction")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data as PreferenzeUtente | null;
+}
 
 // Le due schede che parlano di sincronizzazione (Mio profilo → Preferenze sync e
 // Utenti → Calendari) scrivevano in due tabelle diverse, e per meta' delle voci
@@ -160,16 +217,12 @@ async function preferenzeSync(
   admin: ReturnType<typeof getSupabaseAdmin>,
   userId: string,
   companyId: string,
+  giro?: LettureGiro,
 ): Promise<{ attiva: boolean; direzione: DirezioneSync }> {
-  const [prefRes, settings] = await Promise.all([
-    admin
-      .from("user_calendar_preferences")
-      .select("sync_enabled, sync_direction")
-      .eq("user_id", userId)
-      .maybeSingle(),
-    getSettings(admin, userId, companyId),
+  const [pref, settings] = await Promise.all([
+    leggiPreferenze(admin, userId, giro),
+    getSettings(admin, userId, companyId, giro),
   ]);
-  const pref = prefRes.data as { sync_enabled?: boolean | null; sync_direction?: string | null } | null;
   if (pref) {
     return {
       attiva: pref.sync_enabled !== false,
@@ -192,7 +245,9 @@ async function getConnection(admin: ReturnType<typeof getSupabaseAdmin>, userId:
   return data;
 }
 
-async function getSettings(admin: ReturnType<typeof getSupabaseAdmin>, userId: string, companyId: string) {
+async function getSettings(admin: ReturnType<typeof getSupabaseAdmin>, userId: string, companyId: string, giro?: LettureGiro) {
+  const chiave = `${companyId}:${userId}`;
+  if (giro?.impostazioni.has(chiave)) return giro.impostazioni.get(chiave);
   const { data } = await admin
     .from("google_calendar_settings")
     .select("*")
@@ -238,7 +293,16 @@ async function calendariAgganciati(
 }
 
 // ---- PULL BUSY SLOTS ----
-async function pullBusySlots(userId: string, companyId: string): Promise<Response> {
+//
+// I periodi occupati si scrivono solo quando cambiano (12/10/2026): una lettura
+// di quelli salvati, una scrittura con i nuovi o spostati, una cancellazione
+// per quelli spariti. Riscrivere a ogni giro ogni evento, uno per richiesta,
+// voleva dire circa 460 scritture ogni 15 minuti quasi tutte identiche, e la
+// tabella e' pubblicata in Realtime (il calendario si aggiorna da solo):
+// ognuna passava anche da li'. Le regole restano quelle di sempre, e alla fine
+// del giro i periodi sono gli stessi.
+
+async function pullBusySlots(userId: string, companyId: string, giro?: LettureGiro): Promise<Response> {
   const admin = getSupabaseAdmin();
   const conn = await getConnection(admin, userId, companyId);
   if (!conn) return json({ error: "Not connected to Google Calendar" }, 404);
@@ -246,7 +310,7 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
   const accessToken = await getValidAccessToken(admin, conn);
   if (!accessToken) return json({ error: "Token expired, reconnect required" }, 401);
 
-  const settings = await getSettings(admin, userId, companyId);
+  const settings = await getSettings(admin, userId, companyId, giro);
   // 2026-05-27 (FIX CRITICO UX): prima leggeva SOLO conflict_calendar_ids.
   // Se l'utente non aveva esplicitamente aggiunto calendari ai "conflict"
   // (default vuoto post-OAuth), la sync ritornava 0 senza importare nulla.
@@ -353,6 +417,7 @@ async function risolviBersaglio(
   apt: { calendar_id?: string | null; assigned_to?: string | null },
   fallbackUserId: string,
   companyId: string,
+  giro?: LettureGiro,
 ): Promise<{ ok: true; bersaglio: BersaglioAppuntamento } | { ok: false; errore: string; status: number }> {
   if (apt.calendar_id) {
     const { data: cal } = await admin
@@ -370,7 +435,7 @@ async function risolviBersaglio(
           errore: `L'account Google agganciato al calendario "${c.name ?? ""}" non e' disponibile: ricollegalo, o scegline un altro dalle impostazioni del calendario.`,
         };
       }
-      const settingsAgg = await getSettings(admin, conn.user_id, companyId);
+      const settingsAgg = await getSettings(admin, conn.user_id, companyId, giro);
       const calendarId = settingsAgg?.primary_calendar_id && eIlPrincipale(c.external_calendar_id, settingsAgg.primary_calendar_id, conn.google_account_email)
         ? settingsAgg.primary_calendar_id
         : c.external_calendar_id;
@@ -386,13 +451,13 @@ async function risolviBersaglio(
       errore: userId !== fallbackUserId ? `Responsabile (${userId}) non ha collegato Google Calendar` : "Not connected",
     };
   }
-  const settings = await getSettings(admin, userId, companyId);
+  const settings = await getSettings(admin, userId, companyId, giro);
   if (!settings?.primary_calendar_id) return { ok: false, status: 400, errore: "No primary calendar configured" };
   return { ok: true, bersaglio: { conn, userId, calendarId: settings.primary_calendar_id, marketingCalendarId: apt.calendar_id ?? null } };
 }
 
 // ---- PUSH EVENT ----
-async function pushEvent(userId: string, companyId: string, appointmentId: string): Promise<Response> {
+async function pushEvent(userId: string, companyId: string, appointmentId: string, giro?: LettureGiro): Promise<Response> {
   const admin = getSupabaseAdmin();
 
   // Fetch appointment PRIMA della connessione: serve per risolvere owner_id
@@ -406,11 +471,11 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
   if (appointmentError && appointmentError.code !== "PGRST116") throw new Error("Lettura appuntamento non riuscita");
   if (!apt) return json({ error: "Appointment not found" }, 404);
 
-  const esito = await risolviBersaglio(admin, apt, userId, companyId);
+  const esito = await risolviBersaglio(admin, apt, userId, companyId, giro);
   if (!esito.ok) return json({ error: esito.errore }, esito.status);
   const { conn, userId: effectiveUserId, calendarId: calendarioDestinazione } = esito.bersaglio;
 
-  const prefPush = await preferenzeSync(admin, effectiveUserId, companyId);
+  const prefPush = await preferenzeSync(admin, effectiveUserId, companyId, giro);
   if (!prefPush.attiva || prefPush.direzione === "from_google") {
     return json({ skipped: true, motivo: prefPush.attiva ? "solo Google → EiC" : "sincronizzazione in pausa" });
   }
@@ -778,7 +843,7 @@ async function reconcileCalendario(
 }
 
 // ---- RECONCILE PRIMARY (Two-Way Sync) ----
-async function reconcilePrimary(userId: string, companyId: string): Promise<{ created: number; updated: number; removed: number }> {
+async function reconcilePrimary(userId: string, companyId: string, giro?: LettureGiro): Promise<{ created: number; updated: number; removed: number }> {
   const admin = getSupabaseAdmin();
 
   // Check platform policy
@@ -788,11 +853,11 @@ async function reconcilePrimary(userId: string, companyId: string): Promise<{ cr
     return { created: 0, updated: 0, removed: 0 };
   }
 
-  const settings = await getSettings(admin, userId, companyId);
+  const settings = await getSettings(admin, userId, companyId, giro);
   if (!settings?.primary_calendar_id) return { created: 0, updated: 0, removed: 0 };
   // Gli eventi di Google entrano in EiC solo se l'utente lo ha chiesto:
   // bidirezionale, oppure "solo Google → EiC".
-  const prefRec = await preferenzeSync(admin, userId, companyId);
+  const prefRec = await preferenzeSync(admin, userId, companyId, giro);
   if (!prefRec.attiva || prefRec.direzione === "to_google") {
     return { created: 0, updated: 0, removed: 0 };
   }
@@ -1514,6 +1579,7 @@ async function recuperaAppuntamentiSenzaEvento(
   admin: ReturnType<typeof getSupabaseAdmin>,
   userId: string,
   companyId: string,
+  giro?: LettureGiro,
 ): Promise<number> {
   const oggi = new Date().toISOString().slice(0, 10);
   const { data: futuri } = await admin
@@ -1554,7 +1620,7 @@ async function recuperaAppuntamentiSenzaEvento(
   let spinti = 0;
   for (const id of ids.filter((x) => !gia.has(x)).slice(0, 10)) {
     try {
-      const res = await pushEvent(userId, companyId, id);
+      const res = await pushEvent(userId, companyId, id, giro);
       if (res.status === 200) spinti++;
     } catch (e) {
       console.error("recuperaAppuntamentiSenzaEvento:", e instanceof Error ? e.message : String(e));
@@ -1613,9 +1679,10 @@ async function cronFullSync(): Promise<Response> {
 
     let inPausa = 0;
     let inCorso = 0;
+    const letture = await letturePerIlGiro(admin, connections!);
     for (const conn of connections!) {
       try {
-        const pref = await preferenzeSync(admin, conn.user_id, conn.company_id);
+        const pref = await preferenzeSync(admin, conn.user_id, conn.company_id, letture);
         if (!pref.attiva) {
           // "Sincronizzazione attiva" spenta nella scheda dell'utente: fino a
           // oggi quell'interruttore non fermava proprio niente.
@@ -1623,7 +1690,7 @@ async function cronFullSync(): Promise<Response> {
           continue;
         }
         console.log(`cronFullSync: syncing user=${conn.user_id} company=${conn.company_id}`);
-        const pullRes = await pullBusySlots(conn.user_id, conn.company_id);
+        const pullRes = await pullBusySlots(conn.user_id, conn.company_id, letture);
         const pullData = await pullRes.json();
         if(pullRes.status===409){
           inCorso++;
@@ -1631,10 +1698,10 @@ async function cronFullSync(): Promise<Response> {
           continue;
         }
         if (!pullRes.ok) throw new Error("Sincronizzazione occupazioni incompleta; riprova al prossimo giro");
-        const reconcileResult = await reconcilePrimary(conn.user_id, conn.company_id);
+        const reconcileResult = await reconcilePrimary(conn.user_id, conn.company_id, letture);
         const recuperati = pref.direzione === "from_google"
           ? 0
-          : await recuperaAppuntamentiSenzaEvento(admin, conn.user_id, conn.company_id);
+          : await recuperaAppuntamentiSenzaEvento(admin, conn.user_id, conn.company_id, letture);
         results.push({
           userId: conn.user_id,
           companyId: conn.company_id,

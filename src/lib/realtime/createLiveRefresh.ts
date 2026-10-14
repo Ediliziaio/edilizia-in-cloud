@@ -1,9 +1,15 @@
 /** Coda comune CRM: eventi ravvicinati accorpati, niente refetch sovrapposti,
  * pausa in background/offline e riconciliazione anche se Realtime perde eventi.
- * Non riattiva globalmente refetchOnWindowFocus per tutte le query dell'app. */
+ * Non riattiva globalmente refetchOnWindowFocus per tutte le query dell'app.
+ *
+ * 12/10/2026: la usano anche Conversazioni e il cervello AI. `heartbeat` dice
+ * ogni quanto rileggere senza eventi (2 minuti; null = solo eventi e ritorno):
+ * le Conversazioni la usano come polling, perché email, SMS e social non
+ * arrivano dal tempo reale, e anche quel polling rallenta col database. */
 export function createLiveRefresh(options: {
   busy: () => boolean;
   refresh: (reconcile: boolean) => Promise<unknown>;
+  heartbeat?: number | null;
 }) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let disposed = false;
@@ -49,7 +55,7 @@ export function createLiveRefresh(options: {
   const resume = () => { request(true); };
   // Realtime non è una consegna garantita; questo recupera anche eventi persi,
   // record fuori dalla pagina caricata e tabelle non pubblicate in Realtime.
-  const heartbeat = setInterval(resume, 120_000);
+  const heartbeat = options.heartbeat === null ? undefined : setInterval(resume, options.heartbeat ?? 120_000);
   document.addEventListener("visibilitychange", resume);
   window.addEventListener("focus", resume);
   window.addEventListener("online", resume);

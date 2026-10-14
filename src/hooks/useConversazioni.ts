@@ -1,6 +1,9 @@
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { chiaveDettaglio, type DettaglioInvio } from "@/lib/conversazioni/presentazione";
+import { createLiveRefresh } from "@/lib/realtime/createLiveRefresh";
+import { subscribeChannel } from "@/lib/realtime/subscribeChannel";
 
 export type CanaleConversazione = "email" | "sms" | "whatsapp" | "nota" | "instagram" | "messenger";
 export type DirezioneMessaggio = "in" | "out";
@@ -48,16 +51,16 @@ function callRpc<T>(fn: string, args: Record<string, unknown>): Promise<RpcResul
   return rpc(fn, args);
 }
 
-/** Lista conversazioni dell'azienda (sidebar inbox) — contatti + clienti. */
+/**
+ * Lista conversazioni dell'azienda (sidebar inbox) — contatti + clienti.
+ * Le ricariche (tempo reale, giro ogni 25 secondi, ritorno sulla scheda) le
+ * decide useConversazioniTempoReale, una alla volta.
+ */
 export function useConversazioniList(companyId: string | null | undefined) {
   return useQuery<ConversazioneListItem[]>({
     queryKey: ["conversazioni-lista", companyId],
     enabled: !!companyId,
     staleTime: 30_000,
-    // Inbox "viva" senza realtime sulle tabelle sorgente (richiederebbe ALTER
-    // PUBLICATION): refetch al rientro sulla tab + polling leggero mentre è aperta.
-    refetchOnWindowFocus: true,
-    refetchInterval: 25_000,
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await callRpc<ConversazioneListItem[]>("conversazioni_lista", {
@@ -89,6 +92,77 @@ export function useConversazioneTimeline(
       return data ?? [];
     },
   });
+}
+
+/** Ogni quanto si rilegge la lista anche senza eventi: email, SMS e social non arrivano dal tempo reale. */
+export const CONVERSAZIONI_GIRO_MS = 25_000;
+
+/**
+ * Inbox viva: tempo reale più un giro ogni 25 secondi, una ricarica alla volta.
+ *
+ * L'08/10/2026 un solo browser sulla lista conversazioni ha fatto 808 richieste
+ * e 298 secondi di database in 20 minuti, con 73 conversazioni_lista annullate
+ * per timeout: ogni evento (un WhatsApp nuovo, ogni passaggio della consegna,
+ * una conversazione segnata letta) faceva ripartire lista e filo, e la
+ * richiesta annullata nel browser continuava sul database. Ora gli eventi
+ * passano dalla coda comune (createLiveRefresh), come contatti e opportunità:
+ *  - una raffica di eventi diventa una ricarica sola, dopo un secondo;
+ *  - non ne parte una mentre la precedente è in corso, e non si annullano le
+ *    richieste già partite (cancelRefetch: false);
+ *  - tra una e l'altra almeno 15 secondi, o cinque volte quanto è durata
+ *    l'ultima, fino a 2 minuti: un database lento riceve meno richieste;
+ *  - con la scheda nascosta nessuna richiesta, si rilegge al ritorno.
+ * Il filo aperto si rilegge solo se nel frattempo è arrivato un evento: un
+ * evento lo segna da rileggere, la coda lo ricarica insieme alla lista (e al
+ * ritorno sulla scheda lo ricarica la sua query, che non è più fresca).
+ */
+export function useConversazioniTempoReale(companyId: string | null | undefined) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!companyId) return;
+    const lista = ["conversazioni-lista", companyId];
+    const filo = ["conversazione-timeline"];
+    const queue = createLiveRefresh({
+      heartbeat: CONVERSAZIONI_GIRO_MS,
+      busy: () => qc.isFetching({ queryKey: lista }) > 0 || qc.isFetching({ queryKey: filo }) > 0,
+      refresh: () => Promise.all([
+        qc.invalidateQueries({ queryKey: lista }, { cancelRefetch: false }),
+        qc.refetchQueries(
+          { queryKey: filo, type: "active", predicate: (q) => q.state.isInvalidated },
+          { cancelRefetch: false },
+        ),
+      ]),
+    });
+    const evento = () => {
+      void qc.invalidateQueries({ queryKey: filo, refetchType: "none" });
+      queue.request();
+    };
+    let agganciato = false;
+    let disposed = false;
+    const canale = supabase
+      .channel(`conversazioni-inbox-${companyId}-${Math.random().toString(36).slice(2, 9)}`)
+      // Stato, assegnazione e letture fatti dagli altri operatori.
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversazioni", filter: `company_id=eq.${companyId}` }, evento)
+      // messaging_messages non ha company_id da filtrare: per quale azienda sia
+      // lo sa solo la conversazione, e la lista si rilegge comunque con calma.
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messaging_messages" }, evento)
+      // WhatsApp dei numeri collegati a Meta: messaggi nei due sensi ed esito
+      // della consegna (whatsapp_messages è nel tempo reale dal 24/09/2026).
+      .on("postgres_changes", { event: "*", schema: "public", table: "whatsapp_messages", filter: `company_id=eq.${companyId}` }, evento);
+    subscribeChannel(canale, "conversazioni-inbox", {
+      // Dopo una riconnessione, quello che è cambiato intanto non l'ha mandato nessuno.
+      onSubscribed: () => {
+        if (disposed) return;
+        if (agganciato) queue.request(true);
+        agganciato = true;
+      },
+    });
+    return () => {
+      disposed = true;
+      queue.dispose();
+      void supabase.removeChannel(canale);
+    };
+  }, [companyId, qc]);
 }
 
 /** Da quale numero/indirizzo è partito ogni messaggio (RPC conversazione_dettagli_invio). */

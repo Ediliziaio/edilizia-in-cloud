@@ -43,7 +43,7 @@ import { compressImage } from "@/lib/campo/compressImage";
 import { useCampoDayTime } from "@/hooks/campo/useCampoDayTime";
 import { campoReportHours } from "@/lib/campo/timeSummary";
 import { SottofasiRapportino } from "@/components/campo/SottofasiRapportino";
-import { fasiLavorateDelRapportino, sottofaseDaRiga, sottofasiPerFase, sottofasiSpuntate, type Sottofase } from "@/lib/orders/sottofasi";
+import { fasiLavorateDelRapportino, SOTTOFASI_NELLA_FASE, sottofasiDalleFasi, sottofasiPerFase, sottofasiSpuntate, type Sottofase } from "@/lib/orders/sottofasi";
 import { validateRapportinoHours, type CampoHoursDraft } from "@/lib/campo/rapportinoHours";
 import { useRegoleCampoOrdine } from "@/hooks/useRegoleCampo";
 import { REGOLE_COME_OGGI, flussoPersona, giaCoperto, oreInTesto, proponiOre, scostamento } from "@/lib/campo/regoleCampo";
@@ -191,12 +191,11 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
     queryFn: async (): Promise<Sottofase[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
-        .from("order_work_subphases")
-        .select("id, phase_id, name, position, peso, fatta, fatta_il, fase:order_work_phases!inner(order_id)")
-        .eq("fase.order_id", orderId)
-        .order("position", { ascending: true });
+        .from("order_work_phases")
+        .select(`id, ${SOTTOFASI_NELLA_FASE}`)
+        .eq("order_id", orderId);
       if (error) return [];
-      return ((data ?? []) as Record<string, unknown>[]).map(sottofaseDaRiga);
+      return sottofasiDalleFasi(data as Record<string, unknown>[] | null);
     },
   });
   const sottofasiDi = useMemo(() => sottofasiPerFase(sottofasiCommessa), [sottofasiCommessa]);

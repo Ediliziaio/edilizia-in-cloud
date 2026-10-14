@@ -8,7 +8,9 @@ import {
   fasiLavorateDelRapportino,
   messaggioErrore,
   riepilogoSottofasi,
+  SOTTOFASI_NELLA_FASE,
   sottofaseDaRiga,
+  sottofasiDalleFasi,
   sottofasiPerFase,
   sottofasiSpuntate,
   statoFaseDaAvanzamento,
@@ -96,6 +98,27 @@ describe("sottofaseDaRiga", () => {
     expect(sottofaseDaRiga({ id: "s1", phase_id: "p1" })).toEqual({
       id: "s1", phase_id: "p1", name: "", position: 0, peso: 1, fatta: false, fatta_il: null,
     });
+  });
+});
+
+describe("sottofasiDalleFasi", () => {
+  it("raccoglie le sottofasi annidate nelle fasi, in ordine di posizione", () => {
+    const fasi = [
+      { id: "p1", sottofasi: [{ id: "s2", phase_id: "p1", name: "Cavi", position: 1, peso: 1, fatta: false, fatta_il: null }] },
+      { id: "p2", sottofasi: [] },
+      { id: "p3", sottofasi: [{ id: "s1", phase_id: "p3", name: "Tracce", position: 0, peso: 2, fatta: true, fatta_il: "2026-10-12T08:00:00Z" }] },
+    ];
+    expect(sottofasiDalleFasi(fasi).map((x) => x.id)).toEqual(["s1", "s2"]);
+    expect(sottofasiDalleFasi(fasi)[0]).toEqual({
+      id: "s1", phase_id: "p3", name: "Tracce", position: 0, peso: 2, fatta: true, fatta_il: "2026-10-12T08:00:00Z",
+    });
+  });
+  it("senza fasi o senza sottofasi dà un elenco vuoto", () => {
+    expect(sottofasiDalleFasi(null)).toEqual([]);
+    expect(sottofasiDalleFasi([{ id: "p1" }])).toEqual([]);
+  });
+  it("la lettura parte dalle fasi con le sottofasi annidate", () => {
+    expect(SOTTOFASI_NELLA_FASE).toBe("sottofasi:order_work_subphases(id, phase_id, name, position, peso, fatta, fatta_il)");
   });
 });
 

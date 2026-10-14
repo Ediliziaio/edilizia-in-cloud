@@ -26,9 +26,10 @@ import type {
   PointerEvent as ReactPointerEvent,
   WheelEvent as ReactWheelEvent,
 } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBrainGraphLive } from "@/hooks/useBrainGraphLive";
 import { useSearchParams } from "react-router-dom";
 import { isDemoCompanyId } from "@/lib/constants/demoCompany";
 import {
@@ -37,6 +38,7 @@ import {
   isOrchestratorPersonaKey,
   resolveDemoPersonaKey,
 } from "./brainGraphDemoMemories";
+import { scriviMemorieDemo } from "./brainGraphDemoSeed";
 import { BrainStarfield } from "./BrainStarfield";
 import { BrainInsightFeed } from "./BrainInsightFeed";
 import { BrainSemanticSearch } from "./BrainSemanticSearch";
@@ -1663,12 +1665,11 @@ interface AIBrainGraphProps {
 }
 
 export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = {}) {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const isAdmin = scope === "admin";
   // Per i cross-link verso gli altri tab dell'hub (?tab=chat / ?tab=memoria);
   // in scope admin i bottoni che lo usano sono nascosti.
   const [, setSearchParams] = useSearchParams();
-  const qc = useQueryClient();
   const graphRef = useRef<BrainGraphCanvasHandle | null>(null);
   // Vista: 2D piatto | 3D libero | Nucleo rotante (3D + camera orbit auto)
   const [viewDim, setViewDim] = useState<"2d" | "3d" | "core">("2d");
@@ -1924,46 +1925,25 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
   );
 
   // ── #4: Real-time subscription ────────────────────────────────────────────
+  // Ogni evento accende l'indicatore LIVE; quando rileggere lo decide la coda
+  // di useBrainGraphLive (una ricarica alla volta, mai durante il popolamento).
 
-  useEffect(() => {
-    if (!isAdmin && !effectiveCompany?.id) return;
-    const channelName = isAdmin
-      ? "brain-graph-rt-admin"
-      : `brain-graph-rt-${effectiveCompany!.id}`;
-    const table = isAdmin ? "silvio_persona_memory" : "ai_persona_memory";
-    const ch = supabase
-      .channel(channelName)
-      .on(
-        "postgres_changes",
-        isAdmin
-          ? { event: "*", schema: "public", table }
-          : {
-              event: "*",
-              schema: "public",
-              table,
-              filter: `company_id=eq.${effectiveCompany!.id}`,
-            },
-        () => {
-          // Pulse the LIVE indicator briefly + bump event counter
-          setRecentEventsCount((n) => n + 1);
-          setLivePulse(true);
-          if (livePulseTimeoutRef.current !== null) window.clearTimeout(livePulseTimeoutRef.current);
-          livePulseTimeoutRef.current = window.setTimeout(() => {
-            setLivePulse(false);
-            livePulseTimeoutRef.current = null;
-          }, 1500);
-          void qc.invalidateQueries({ queryKey: ["brain-graph-memories"] });
-        },
-      )
-      .subscribe();
-    return () => {
-      if (livePulseTimeoutRef.current !== null) {
-        window.clearTimeout(livePulseTimeoutRef.current);
-        livePulseTimeoutRef.current = null;
-      }
-      void supabase.removeChannel(ch);
-    };
-  }, [effectiveCompany?.id, isAdmin, qc]);
+  const handleLiveEvent = useCallback(() => {
+    setRecentEventsCount((n) => n + 1);
+    setLivePulse(true);
+    if (livePulseTimeoutRef.current !== null) window.clearTimeout(livePulseTimeoutRef.current);
+    livePulseTimeoutRef.current = window.setTimeout(() => {
+      setLivePulse(false);
+      livePulseTimeoutRef.current = null;
+    }, 1500);
+  }, []);
+  const live = useBrainGraphLive({ isAdmin, companyId: effectiveCompany?.id, onEvento: handleLiveEvent });
+  useEffect(() => () => {
+    if (livePulseTimeoutRef.current !== null) {
+      window.clearTimeout(livePulseTimeoutRef.current);
+      livePulseTimeoutRef.current = null;
+    }
+  }, []);
 
   // ── Build graph ───────────────────────────────────────────────────────────
 
@@ -2382,56 +2362,34 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
   // ── Seed demo: popola memorie realistiche per Demo Azienda ──────────────
   // Mappa ogni persona_key demo a un persona_key reale presente nel sistema.
   // Salta solo le memorie senza un match valido nel catalogo attivo.
+  // Le memorie partono a blocchi (brainGraphDemoSeed); mentre si scrive, gli
+  // eventi del tempo reale non rileggono il grafo, e alla fine lo si rilegge una volta.
+  const seedCompanyId = effectiveCompany?.id;
+  const seedUserId = user?.id ?? null;
   const handleSeedDemo = useCallback(async () => {
-    if (!effectiveCompany?.id || !isDemoCompany) return;
+    if (!seedCompanyId || !isDemoCompany) return;
     setIsSeeding(true);
+    live.sospendi();
     try {
-      const availableKeys = new Set(personas.map((p) => p.persona_key));
-
-      let inserted = 0;
-      let skipped = 0;
-
-      for (const mem of DEMO_MEMORIES) {
-        const targetKey = resolveDemoPersonaKey(mem.persona_key, availableKeys);
-        if (!targetKey) { skipped++; continue; }
-
-        const { error } = await brainSupabase.rpc("record_persona_memory", {
-          p_company_id: effectiveCompany.id,
-          p_user_id: null,
-          p_persona_key: targetKey,
-          p_memory_type: mem.memory_type,
-          p_content: mem.content,
-          p_source: "demo_seed",
-          p_confidence: mem.confidence,
-        });
-
-        if (!error) {
-          inserted++;
-          // Boost hits_count to simulate usage
-          if (mem.hits_count > 0) {
-            await brainSupabase
-              .from("ai_persona_memory")
-              .update({ hits_count: mem.hits_count })
-              .eq("company_id", effectiveCompany.id)
-              .eq("persona_key", targetKey)
-              .eq("content", mem.content);
-          }
-        } else {
-          skipped++;
-        }
-      }
-
-      toast.success(`Cervello popolato — ${inserted} memorie create`, {
-        description: skipped > 0 ? `${skipped} skippate (persona non trovata)` : "Il grafo si aggiornerà tra un istante.",
+      const esito = await scriviMemorieDemo({
+        companyId: seedCompanyId,
+        userId: seedUserId,
+        personeDisponibili: new Set(personas.map((p) => p.persona_key)),
       });
-
-      void qc.invalidateQueries({ queryKey: ["brain-graph-memories"] });
+      const note = [
+        esito.giaPresenti > 0 ? `${esito.giaPresenti} già presenti` : null,
+        esito.senzaPersona > 0 ? `${esito.senzaPersona} saltate (persona non trovata)` : null,
+      ].filter(Boolean);
+      toast.success(`Cervello popolato — ${esito.inserite} memorie create`, {
+        description: note.length > 0 ? note.join(" · ") : "Il grafo si aggiornerà tra un istante.",
+      });
     } catch (err) {
       toast.error("Errore popolamento demo", { description: String((err as Error).message ?? err) });
     } finally {
+      live.riprendi();
       setIsSeeding(false);
     }
-  }, [effectiveCompany?.id, isDemoCompany, personas, qc]);
+  }, [seedCompanyId, isDemoCompany, live, personas, seedUserId]);
 
   // ── Fullscreen ────────────────────────────────────────────────────────────
 
