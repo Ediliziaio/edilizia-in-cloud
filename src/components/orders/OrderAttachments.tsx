@@ -52,7 +52,7 @@ import {
 } from "lucide-react";
 import { FileThumb } from "./filePreview";
 import { useUrlMiniature, toStoragePath, fmtBytes, fileKind, KIND_LABEL, KIND_TINT,
-         scaricaAllegato, type PreviewableFile } from "./filePreviewUtils";
+         scaricaAllegato, attachmentStorage, type PreviewableFile } from "./filePreviewUtils";
 import { CaricaDocumentiDialog } from "./CaricaDocumentiDialog";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
@@ -107,9 +107,10 @@ function getFileIcon(fileType: string) {
 
 /** Generate a signed URL (1h) from a relative file path */
 async function getSignedUrl(filePath: string): Promise<string | null> {
+  const target = attachmentStorage(filePath);
   const { data, error } = await supabase.storage
-    .from("order-attachments")
-    .createSignedUrl(filePath, 3600);
+    .from(target.bucket)
+    .createSignedUrl(target.path, 3600);
   if (error) {
     logger.error("Signed URL error:", error);
     return null;
@@ -256,6 +257,7 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions }: OrderAttac
 
   const deleteAttachmentMutation = useMutation({
     mutationFn: async (attachment: OrderAttachment) => {
+      if(attachment.file_url.startsWith("order-variation-documents/")) throw new Error("Originale conservato: annulla la proposta senza eliminare i documenti.");
       const { error } = await supabase
         .from("order_attachments")
         .delete()
@@ -652,7 +654,7 @@ function AzioniDocumento({
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setConfermaElimina(true)}>
+              <DropdownMenuItem disabled={attachment.file_url.startsWith("order-variation-documents/")} className="text-destructive focus:text-destructive" onSelect={() => setConfermaElimina(true)}>
                 <Trash2 className="h-4 w-4 mr-2" /> Elimina
               </DropdownMenuItem>
             </DropdownMenuContent>

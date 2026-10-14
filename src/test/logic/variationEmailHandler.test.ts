@@ -7,7 +7,7 @@ import {pendingVariation,escapeVariationHtml,variationEmailAmount} from "../../.
 function harness(options: {status?: string; permission?: boolean; providerOk?: boolean; token?: string | null; tokenConflict?: boolean} = {}) {
   let handler!: (req: Request) => Promise<Response>;
   const send=vi.fn().mockResolvedValue({ok:options.providerOk ?? true});const update=vi.fn();
-  const odv={id:"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",company_id:"company",status:options.status ?? "in_attesa",firma_token:options.token === undefined ? "existing-token" : options.token,titolo:'Extra <img src="x">',descrizione:"Prima riga\nSeconda riga",impatto_economico:-100,numero_odv:1,order:{company_id:"company",customer:{email:"test@example.invalid",full_name:"Cliente <x>"}}};
+  const odv={id:"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",company_id:"company",created_at:new Date().toISOString(),status:options.status ?? "in_attesa",firma_token:options.token === undefined ? "existing-token" : options.token,titolo:'Extra <img src="x">',descrizione:"Prima riga\nSeconda riga",impatto_economico:-100,numero_odv:1,order:{company_id:"company",customer:{email:"test@example.invalid",full_name:"Cliente <x>"}}};
   const admin={rpc:vi.fn().mockResolvedValue({data:options.permission ?? true,error:null as null}),from:(table:string)=>{
     let updating=false;let token="";
     const builder={select:()=>builder,eq:()=>builder,is:()=>builder,

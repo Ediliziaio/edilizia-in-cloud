@@ -6,7 +6,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   // Cantieri & Lavori
   can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
   can_view_order_amounts: true,
-  can_approve_orders: false, can_delete_orders: false,
+  can_approve_orders: false, can_approve_variations: false, can_delete_orders: false,
   can_view_warehouse: false, can_edit_warehouse: false, can_manage_warehouse_items: false,
   can_view_mezzi: false, can_edit_mezzi: false,
   can_view_operai: false, can_edit_operai: false,
@@ -137,7 +137,7 @@ export const SOLA_LETTURA_BLOCKED_KEYS: readonly BooleanPermissionKey[] = [
   "can_edit_settings_finanziamenti", "can_edit_settings_bundle", "can_edit_settings_suppliers",
   "can_edit_settings_integrations",
   "can_manage_payments", "can_manage_suppliers", "can_manage_warehouse_items", "can_manage_portal",
-  "can_approve_orders", "can_approve_discounts", "can_delete_orders",
+  "can_approve_orders", "can_approve_variations", "can_approve_discounts", "can_delete_orders",
 ];
 
 export function isBlockedBySolaLettura(key: BooleanPermissionKey): boolean {
@@ -171,6 +171,7 @@ export const CRUSCOTTO_SECTIONS: PermissionSectionDef[] = [
 ];
 
 export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
+  {label:"Registra approvazioni varianti",viewKey:"can_approve_variations",editKey:null,description:"Può confermare una copia firmata ricevuta dal cliente. Richiede anche il permesso di modifica commesse."},
   { label: "Dashboard",              viewKey: "can_view_dashboard",          editKey: null, description: "Visualizza la dashboard principale" },
   { label: "Ordini e Commesse",      viewKey: "can_view_orders",             editKey: null, description: "Vede, crea e modifica le commesse (e registra il cliente da intestare), salvo «Sola lettura»" },
   { label: "Importi di vendita",     viewKey: "can_view_order_amounts",      editKey: null, description: "Vede importi e prezzi di vendita in commesse e preventivi" },

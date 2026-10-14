@@ -15,6 +15,12 @@ import { toast } from "sonner";
 
 export const ATTACHMENTS_BUCKET = "order-attachments";
 const MARKER = `/${ATTACHMENTS_BUCKET}/`;
+export function attachmentStorage(fileUrl: string, bucket = ATTACHMENTS_BUCKET) {
+  const prefix = "order-variation-documents/";
+  return bucket === ATTACHMENTS_BUCKET && fileUrl.startsWith(prefix)
+    ? { bucket: "order-variation-documents", path: fileUrl.slice(prefix.length) }
+    : { bucket, path: toStoragePath(fileUrl) };
+}
 
 /** File minimo che sappiamo mostrare in anteprima. */
 export interface PreviewableFile {
@@ -35,9 +41,10 @@ export function toStoragePath(fileUrl: string): string {
 
 /** Apre un allegato in una scheda nuova via signed URL. */
 export async function openAttachmentInTab(fileUrl: string, bucket: string = ATTACHMENTS_BUCKET) {
+  const target = attachmentStorage(fileUrl, bucket);
   const { data, error } = await supabase.storage
-    .from(bucket)
-    .createSignedUrl(toStoragePath(fileUrl), 3600);
+    .from(target.bucket)
+    .createSignedUrl(target.path, 3600);
   if (error || !data?.signedUrl) { toast.error("Impossibile aprire il file"); return; }
   window.open(data.signedUrl, "_blank", "noopener");
 }
@@ -85,12 +92,14 @@ export function useSignedUrls(files: PreviewableFile[], enabled: boolean, bucket
     enabled: enabled && paths.length > 0,
     staleTime: 45 * 60 * 1000, // gli URL durano un'ora: non rifirmare a ogni apertura
     queryFn: async (): Promise<Record<string, string>> => {
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .createSignedUrls(paths, 3600);
-      if (error) return {};
       const map: Record<string, string> = {};
-      (data ?? []).forEach((r) => { if (r.signedUrl && r.path) map[r.path] = r.signedUrl; });
+      const groups = new Map<string, {key:string;path:string}[]>();
+      for(const key of paths) {const target=attachmentStorage(key,bucket);groups.set(target.bucket,[...(groups.get(target.bucket)??[]),{key,path:target.path}]);}
+      await Promise.all([...groups].map(async([id,items])=>{
+        const {data,error}=await supabase.storage.from(id).createSignedUrls(items.map(item=>item.path),3600);
+        if(error)return;
+        for(const row of data??[]){const item=items.find(item=>item.path===row.path);if(item&&row.signedUrl)map[item.key]=row.signedUrl;}
+      }));
       return map;
     },
   });
@@ -118,9 +127,10 @@ export function useUrlMiniature(percorsi: (string | null | undefined)[], enabled
 
 /** Scarica davvero il file (con il suo nome), invece di aprirlo in una scheda. */
 export async function scaricaAllegato(fileUrl: string, nome: string, bucket: string = ATTACHMENTS_BUCKET) {
+  const target = attachmentStorage(fileUrl, bucket);
   const { data, error } = await supabase.storage
-    .from(bucket)
-    .createSignedUrl(toStoragePath(fileUrl), 300, { download: nome });
+    .from(target.bucket)
+    .createSignedUrl(target.path, 300, { download: nome });
   if (error || !data?.signedUrl) { toast.error("Impossibile scaricare il file"); return; }
   const a = document.createElement("a");
   a.href = data.signedUrl;

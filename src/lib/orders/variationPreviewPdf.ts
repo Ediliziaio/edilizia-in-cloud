@@ -2,7 +2,7 @@ import type { prepareVariation } from "./variationDraft";
 import { variationImpact } from "./variationDraft";
 import { variationEventDate } from "./pendingVariationDocument";
 type PublicVariation=Pick<ReturnType<typeof prepareVariation>,"titolo"|"descrizione"|"motivazione"|"richiesto_da"|"impatto_economico"> & {impatto_giorni?:number};
-export interface VariationPdfContext {orderCode?:string;customerName?:string;currentNet?:number;vatRate?:number;companyName?:string;companyDetails?:string;customerAddress?:string;siteAddress?:string;proposalNumber?:number;proposalRegisteredAt?:string;documentHeading?:string;primaryColor?:string}
+export interface VariationPdfContext {orderCode?:string;customerName?:string;currentNet?:number;vatRate?:number;companyName?:string;companyDetails?:string;customerAddress?:string;siteAddress?:string;proposalNumber?:number;proposalRegisteredAt?:string;documentHeading?:string;primaryColor?:string;archivedOriginal?:boolean}
 export function variationPdfFilename(orderCode:string|undefined,title:string){
   const part=(value:string)=>value.normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,65);
   return `variante-${part(orderCode||"commessa")}-${part(title)||"lavori-extra"}.pdf`;
@@ -50,13 +50,18 @@ async function buildVariationPdf(variation:PublicVariation,context:VariationPdfC
   write(context.documentHeading?.trim().slice(0,120) || (mode==="proposta" ? "PROPOSTA DI VARIAZIONE - LAVORI EXTRA" : "LAVORI EXTRA E VARIANTI"),true);
   write(mode==="proposta" ? "DA APPROVARE - Documento non firmato" : "ANTEPRIMA BOZZA - Non salvata, non inviata, non firmata");
   write(`PDF generato il: ${new Date().toLocaleDateString("it-IT",{timeZone:"Europe/Rome"})}`);
-  if (context.orderCode) write(`Commessa di riferimento: ${context.orderCode}`);
+  if (context.orderCode && !context.archivedOriginal) write(`Commessa di riferimento: ${context.orderCode}`);
   if (context.proposalNumber !== undefined) {
     if (!Number.isSafeInteger(context.proposalNumber) || context.proposalNumber < 1) throw new Error("Numero OdV non valido.");
-    write(`Variante registrata: OdV #${context.proposalNumber}`);
     const registeredDate=variationEventDate(context.proposalRegisteredAt);
-    write(registeredDate ? `Proposta registrata il: ${registeredDate}` : "Data di registrazione non disponibile.");
-    write("Ristampa della proposta dai dati registrati e dall'anagrafica attuale. Non e' una copia dell'originale inviato, ne' un documento firmato.");
+    if(context.archivedOriginal) {
+      write(`OdV #${context.proposalNumber} | Commessa ${context.orderCode ?? "-"} | Registrata ${registeredDate ?? "data non disponibile"}`);
+      write("Originale conservato in commessa con gli allegati di questa versione.");
+    } else {
+      write(`Variante registrata: OdV #${context.proposalNumber}`);
+      write(registeredDate ? `Proposta registrata il: ${registeredDate}` : "Data di registrazione non disponibile.");
+      write("Ristampa della proposta dai dati registrati e dall'anagrafica attuale. Non e' una copia dell'originale inviato, ne' un documento firmato.");
+    }
   }
   if(mode==="proposta"){
     write("Impresa",true);write([context.companyName,context.companyDetails].filter(Boolean).join("\n"));

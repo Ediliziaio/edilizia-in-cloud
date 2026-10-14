@@ -11,6 +11,7 @@ export interface Permissions {
   canViewDashboard: boolean;
   canViewOrders: boolean;
   canEditOrders: boolean;
+  canApproveVariations: boolean;
   /** Vede gli importi di VENDITA in commesse/preventivi (importo, prezzi, acconti). Default true. */
   canViewOrderAmounts: boolean;
   canViewWarehouse: boolean;
@@ -160,6 +161,7 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
   "can_view_dashboard",
   "can_view_orders",
   "can_edit_orders",
+  "can_approve_variations",
   "can_view_order_amounts",
   "can_view_warehouse",
   "can_edit_warehouse",
@@ -258,7 +260,7 @@ export const STAFF_PERMISSIONS_SELECT_KEYS = [
 const STAFF_PERMISSIONS_SELECT = STAFF_PERMISSIONS_SELECT_KEYS.join(",");
 
 const ALL_PERMISSIONS: Permissions = {
-  canViewDashboard: true, canViewOrders: true, canEditOrders: true,
+  canViewDashboard: true, canViewOrders: true, canEditOrders: true, canApproveVariations:true,
   canViewOrderAmounts: true,
   canViewWarehouse: true, canEditWarehouse: true, canViewCalendar: true,
   canViewMezzi: true, canEditMezzi: true,
@@ -310,7 +312,7 @@ const ALL_PERMISSIONS: Permissions = {
 };
 
 const NO_PERMISSIONS: Permissions = {
-  canViewDashboard: false, canViewOrders: false, canEditOrders: false,
+  canViewDashboard: false, canViewOrders: false, canEditOrders: false, canApproveVariations:false,
   canViewOrderAmounts: false,
   canViewWarehouse: false, canEditWarehouse: false, canViewCalendar: false,
   canViewMezzi: false, canEditMezzi: false,
@@ -372,7 +374,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewCruscotto: true,
   canViewControlloGestione: true,
   // Cantieri & Lavori
-  canViewOrders: true, canEditOrders: false,
+  canViewOrders: true, canEditOrders: false, canApproveVariations:false,
   canViewOrderAmounts: true,
   canViewWarehouse: true, canEditWarehouse: false,
   // Il parco mezzi è gestione interna dell'impresa: al commercialista no.
@@ -466,6 +468,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewDashboard:  g("can_view_dashboard"),
     canViewOrders:     g("can_view_orders"),
     canEditOrders:     g("can_edit_orders"),
+    canApproveVariations: g("can_approve_variations"),
     // Default VISIBILE: importi mostrati salvo esplicito false (retrocompat).
     canViewOrderAmounts: r["can_view_order_amounts"] !== false,
     canViewWarehouse:  g("can_view_warehouse"),

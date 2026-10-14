@@ -33,6 +33,7 @@ Deno.serve(async (req) => {
     if (permissionError || allowed !== true) return errorResponse("Non hai il permesso di inviare varianti",403,corsH);
     // Sending is NOT a lifecycle transition: never reopen an approved/rejected/cancelled document.
     if (!pendingVariation(odv)) return errorResponse("La variante non è in attesa di approvazione o la commessa non corrisponde",409,corsH);
+    if (odv.link_revoked_at || new Date(odv.link_expires_at ?? new Date(new Date(odv.created_at).getTime()+30*86400000).toISOString()).getTime() <= Date.now()) return errorResponse("Link scaduto o revocato: prepara una nuova proposta prima dell'invio",409,corsH);
 
     // Recupera dati azienda
     const { data: company } = await supabaseAdmin

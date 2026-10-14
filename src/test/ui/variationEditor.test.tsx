@@ -6,62 +6,54 @@ import {QueryClient,QueryClientProvider} from "@tanstack/react-query";
 import {OdVSection} from "@/components/orders/OdVSection";
 import {VariationEditor} from "@/components/orders/VariationEditor";
 import {emptyVariationDraft} from "@/lib/orders/variationDraft";
-const mock=vi.hoisted(()=>({canEdit:true,insert:vi.fn(),invoke:vi.fn(),refetch:vi.fn(),rows:[] as unknown[],session:vi.fn(),query:vi.fn()}));
+const mock=vi.hoisted(()=>({request:vi.fn(),open:vi.fn(),canEdit:true,insert:vi.fn(),invoke:vi.fn(),refetch:vi.fn(),rows:[] as unknown[],session:vi.fn(),query:vi.fn()}));
 vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({canEditOrders:mock.canEdit})}));
 vi.mock("@/hooks/useVariationTemplates",()=>({useVariationTemplates:()=>({data:[] as unknown[],isError:false,refetch:vi.fn()})}));
 vi.mock("@/hooks/useOrderVariations",()=>({useOrderVariations:()=>({data:mock.rows,isLoading:false,isError:false,refetch:mock.refetch})}));
 vi.mock("@/components/shared/EntityCustomFieldsSection",()=>({EntityCustomFieldsSection:(): null =>null}));
-vi.mock("@/integrations/supabase/client",()=>({supabase:{auth:{getSession:()=>mock.session()},functions:{invoke:mock.invoke},from:(table:string)=> table === "ordini_variazione" ? {insert:(payload:unknown)=>{mock.insert(payload);return {select:()=>({single:()=>mock.query(payload)})};}} : {select:()=>({eq:()=>({eq:()=>({order:async()=>({data:[{id:"phase",name:"Opere murarie"}],error:null as null})})})})}}}));
+vi.mock("@/integrations/supabase/client",()=>({supabase:{rpc:async()=>({data:false,error:null as null}),auth:{getSession:()=>mock.session()},functions:{invoke:mock.invoke},from:(table:string)=> table === "ordini_variazione" ? {insert:(payload:unknown)=>{mock.insert(payload);return {select:()=>({single:()=>mock.query(payload)})};}} : {select:()=>({eq:()=>({eq:()=>({order:async()=>({data:[{id:"phase",name:"Opere murarie"}],error:null as null})})})})}}}));
+vi.mock("@/hooks/useVariationWorkflow",()=>({useVariationWorkflow:()=>({request:mock.request,open:mock.open})}));
+vi.mock("@/components/shared/PdfBlobLivePreviewPanel",()=>({PdfBlobLivePreviewPanel:()=> <div>PDF conservato</div>}));
 beforeEach(()=>{vi.clearAllMocks();mock.canEdit=true;mock.rows=[];mock.session.mockResolvedValue({data:{session:{user:{id:"user"}}}});mock.query.mockImplementation(async payload=>({data:{id:"created",...payload},error:null as null}));});
 afterEach(cleanup);
 const draw=()=>render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><OdVSection orderId="order" companyId="company" context={{currentNet:1000,vatRate:10,customerName:"Mario",companyName:"Impresa DEMO",orderCode:"ORD-DEMO"}}/></QueryClientProvider>);
 const fill=()=>{fireEvent.change(screen.getByLabelText("Titolo *"),{target:{value:"TEST extra"}});fireEvent.change(screen.getByLabelText("Lavori e condizioni *"),{target:{value:"TEST modifica"}});fireEvent.change(screen.getByLabelText(/IVA esclusa/),{target:{value:"120,50"}});};
 describe("Composizione della variante",()=>{
-  it("separa anteprima e creazione, protegge il doppio clic e verifica il contenuto",async()=>{
+  it("salva una bozza sul server senza creare link né inviare email",async()=>{
+    mock.request.mockImplementation(async(id,action,payload)=>({success:true,variation:{id,status:"bozza",numero_odv:1},workspace:{revision:1,content:payload.content},document:null}));
     draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();
-    fireEvent.click(screen.getAllByRole("button",{name:"Controlla riepilogo"}).at(-1)!);
-    expect(mock.insert).not.toHaveBeenCalled();expect(screen.getByLabelText("Anteprima per il cliente")).toHaveTextContent("TEST modifica");
-    expect(screen.getByLabelText("Impatto economico")).toHaveTextContent("1.120,50");
-    fireEvent.click(screen.getByRole("button",{name:"Firma online · facoltativa"}));fireEvent.click(screen.getByRole("button",{name:"Conferma e crea link"}));
-    await waitFor(()=>expect(mock.insert).toHaveBeenCalledOnce());expect(mock.insert.mock.calls[0][0]).toMatchObject({company_id:"company",order_id:"order",status:"in_attesa",impatto_economico:120.5});expect(mock.invoke).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText(/Note interne/),{target:{value:"INTERNO"}});
+    fireEvent.click(screen.getByRole("button",{name:"Salva bozza"}));
+    await waitFor(()=>expect(mock.request).toHaveBeenCalledOnce());
+    expect(mock.request.mock.calls[0][1]).toBe("save");
+    expect(mock.request.mock.calls[0][2].content).toMatchObject({title:"TEST extra",internalNotes:"INTERNO",amount:"120,50"});
+    expect(mock.insert).not.toHaveBeenCalled();expect(mock.invoke).not.toHaveBeenCalled();
+    expect(await screen.findByRole("status")).toHaveTextContent("Bozza salvata");
   });
   it("permessi di sola lettura non espongono la creazione",()=>{mock.canEdit=false;draw();expect(screen.queryByRole("button",{name:"Nuova variante"})).not.toBeInTheDocument();});
-  it("blocca la riduzione oltre il valore del contratto",()=>{
-    draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();fireEvent.change(screen.getByLabelText("Cosa cambia"),{target:{value:"riduzione"}});fireEvent.change(screen.getByLabelText(/IVA esclusa/),{target:{value:"1200"}});
-    fireEvent.click(screen.getAllByRole("button",{name:"Controlla riepilogo"}).at(-1)!);expect(screen.getByRole("alert")).toHaveTextContent("supera");expect(mock.insert).not.toHaveBeenCalled();
-  });
-  it("conflitto conserva la bozza e aggiorna la numerazione senza invio",async()=>{
-    mock.query.mockResolvedValue({data:null as null,error:{code:"23505"}});draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();fireEvent.click(screen.getAllByRole("button",{name:"Controlla riepilogo"}).at(-1)!);fireEvent.click(screen.getByRole("button",{name:"Firma online · facoltativa"}));fireEvent.click(screen.getByRole("button",{name:"Conferma e crea link"}));
-    expect(await screen.findByRole("alert")).toHaveTextContent("nel frattempo");expect(mock.refetch).toHaveBeenCalledOnce();expect(screen.getByLabelText("Anteprima per il cliente")).toHaveTextContent("TEST extra");
-  });
-  it("richiede sessione valida prima dell'inserimento",async()=>{
-    mock.session.mockResolvedValue({data:{session:null}});draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();fireEvent.click(screen.getAllByRole("button",{name:"Controlla riepilogo"}).at(-1)!);fireEvent.click(screen.getByRole("button",{name:"Firma online · facoltativa"}));fireEvent.click(screen.getByRole("button",{name:"Conferma e crea link"}));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Sessione scaduta");expect(mock.insert).not.toHaveBeenCalled();
-  });
-  it("un invio fallito non è un successo e non modifica lo stato",async()=>{
-    mock.rows=[{id:"odv",status:"in_attesa",titolo:"Extra",descrizione:"Lavori",impatto_economico:50,numero_odv:1,firma_token:"token"}];mock.invoke.mockResolvedValue({data:{success:false},error:null as null});draw();fireEvent.click(screen.getByRole("button",{name:"Invia per email"}));await waitFor(()=>expect(mock.invoke).toHaveBeenCalledOnce());expect(mock.insert).not.toHaveBeenCalled();
-  });
-  it("il percorso predefinito scarica un PDF non firmato senza link, sessione, invio o registrazione",async()=>{
+  it("un conflitto mantiene i dati digitati e non prepara il PDF",async()=>{
+    mock.request.mockRejectedValue(new Error("Bozza modificata da un altro utente. Riaprila"));
     draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();
-    fireEvent.change(screen.getByLabelText("Pagamento dei lavori extra"),{target:{value:"Saldo alla consegna concordata"}});
-    fireEvent.change(screen.getByLabelText(/Appunti privati/),{target:{value:"SEGRETO_PRIVATO"}});
-    fireEvent.click(screen.getByRole("button",{name:"Controlla riepilogo"}));
-    expect(screen.getByRole("button",{name:"PDF da inviare"})).toHaveAttribute("aria-pressed","true");
-    expect(screen.queryByRole("button",{name:"Conferma e crea link"})).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button",{name:"Prepara PDF da inviare"}));
-    const link=await screen.findByRole("link",{name:"Scarica PDF da inviare"});
-    const pdf=atob(link.getAttribute("href")!.split(",")[1]);
-    expect(pdf).toContain("DA APPROVARE");expect(pdf).toContain("Impresa DEMO");expect(pdf).toContain("Mario");expect(pdf).toContain("Saldo alla consegna concordata");expect(pdf).not.toContain("SEGRETO_PRIVATO");
-    expect(link.getAttribute("download")).toMatch(/^variante-ORD-DEMO-/);
-    expect(mock.insert).not.toHaveBeenCalled();expect(mock.invoke).not.toHaveBeenCalled();expect(mock.session).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button",{name:"Modifica bozza"}));
-    expect(screen.queryByRole("link",{name:"Scarica PDF da inviare"})).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("altro utente");
+    expect(screen.getByLabelText("Titolo *")).toHaveValue("TEST extra");
+    expect(mock.open).not.toHaveBeenCalled();expect(mock.insert).not.toHaveBeenCalled();
   });
-  it("un'identità cancellata non viene sostituita silenziosamente nel PDF",async()=>{
-    draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();
-    fireEvent.change(screen.getByLabelText("Impresa / ragione sociale"),{target:{value:""}});
-    fireEvent.click(screen.getByRole("button",{name:"Controlla riepilogo"}));fireEvent.click(screen.getByRole("button",{name:"Prepara PDF da inviare"}));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Completa impresa e cliente");expect(mock.insert).not.toHaveBeenCalled();
+  it("il doppio clic non produce due salvataggi concorrenti",async()=>{
+    mock.request.mockReturnValue(new Promise(()=>{}));draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fill();
+    fireEvent.click(screen.getByRole("button",{name:"Salva bozza"}));fireEvent.click(screen.getByRole("button",{name:"Salva bozza"}));
+    expect(mock.request).toHaveBeenCalledOnce();expect(screen.getAllByRole("button",{name:"Chiudi"}).some(button=>(button as HTMLButtonElement).disabled)).toBe(true);
+  });
+  it("rifiuta una proposta incompleta prima di inviare al server",async()=>{
+    draw();fireEvent.click(screen.getByRole("button",{name:"Nuova variante"}));fireEvent.click(screen.getByRole("button",{name:"Prepara PDF da inviare"}));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();expect(mock.request).not.toHaveBeenCalled();
+  });
+  it("le bozze già salvate si riaprono senza alterare lo stato",async()=>{
+    mock.rows=[{id:"draft",status:"bozza",titolo:"Bozza salvata",descrizione:"Extra",impatto_economico:50,numero_odv:1}];
+    mock.request.mockResolvedValue({success:true,variation:{id:"draft",status:"bozza",numero_odv:1},workspace:{revision:2,content:{...emptyVariationDraft(),title:"Bozza salvata",description:"Extra",amount:"50"}},document:null});
+    draw();fireEvent.click(screen.getByRole("button",{name:"Riprendi bozza"}));
+    await waitFor(()=>expect(screen.getByLabelText("Titolo *")).toHaveValue("Bozza salvata"));
+    expect(mock.request).toHaveBeenCalledExactlyOnceWith("draft","load");expect(mock.insert).not.toHaveBeenCalled();
   });
   it("una proposta già registrata si scarica anche senza token, senza alcuna scrittura o invio",async()=>{
     mock.rows=[{id:"odv",order_id:"order",company_id:"company",status:"in_attesa",titolo:"Extra registrato",descrizione:"Opere extra",motivazione:null,impatto_economico:75,impatto_giorni:2,numero_odv:4,firma_token:null,created_at:"2026-10-09T08:30:00Z",note_interne:"SEGRETO",firma_cliente:null}];

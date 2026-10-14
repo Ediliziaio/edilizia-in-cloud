@@ -29,6 +29,7 @@ export interface StaffPermissions {
   can_edit_orders: boolean;
   can_view_order_amounts: boolean;
   can_approve_orders: boolean;
+  can_approve_variations: boolean;
   can_delete_orders: boolean;
   can_view_warehouse: boolean;
   can_edit_warehouse: boolean;

@@ -46,6 +46,9 @@ interface OdVData {
   richiesto_da: string | null;
   richiesto_il: string | null;
   status: string;
+  document_hash: string;
+  has_document?: boolean;
+  attachments?: {id:string;name:string}[];
 }
 
 export default function FirmaOdV() {
@@ -55,12 +58,16 @@ export default function FirmaOdV() {
   const [firmatoDa, setFirmatoDa] = useState("");
   const [hasDrawn, setHasDrawn] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [documentBusy,setDocumentBusy] = useState(false);
+  const loadEpoch = useRef(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
 
   useEffect(() => {
     if (!token) { setPageStatus("error"); return; }
-    loadOdv();
+    setOdv(null);setAccepted(false);setHasDrawn(false);setFirmatoDa("");setPageStatus("loading");
+    void loadOdv();
+    return () => {loadEpoch.current++;};
   }, [token]);
 
   // Si passa dalla RPC e non dalla tabella: la policy anon che permetteva la
@@ -68,15 +75,25 @@ export default function FirmaOdV() {
   // attesa, non solo la propria — la RLS non vede il .eq() del client. Stesso
   // schema dei SAL (sal_view_by_token).
   const loadOdv = async () => {
+    const epoch = ++loadEpoch.current;
     const { data, error } = await supabase.rpc("odv_view_by_token" as never, {
       p_token: token!,
     } as never);
 
     const res = data as { valid?: boolean; gia_firmato?: boolean } | null;
+    if(epoch!==loadEpoch.current)return;
     if (error || !res?.valid) { setPageStatus("error"); return; }
     if (res.gia_firmato) { setPageStatus("already_done"); return; }
     setOdv(res as unknown as OdVData);
     setPageStatus("ready");
+  };
+  const openPublicDocument = async (fileId = "proposal") => {
+    if(documentBusy || !token)return;
+    setDocumentBusy(true);
+    try {const {data,error}=await supabase.functions.invoke("variante-commessa",{body:{action:"public_open",token,file_id:fileId}});
+      if(error || data?.success!==true || typeof data.url!=="string" || new URL(data.url).origin!==new URL(import.meta.env.VITE_SUPABASE_URL).origin)throw new Error("Documento non disponibile o link scaduto.");
+      const link=document.createElement("a");link.href=data.url;link.target="_blank";link.rel="noopener";link.textContent=data.name;document.body.appendChild(link);link.click();link.remove();
+    }catch(e){toast.error(e instanceof Error?e.message:"Documento non disponibile");}finally{setDocumentBusy(false);}
   };
 
   // ── Canvas drawing ────────────────────────────────────────────
@@ -153,6 +170,8 @@ export default function FirmaOdV() {
         token,
         firma_data_base64: firmaData,
         firmato_da: firmatoDa.trim() || null,
+        accepted: true,
+        document_hash: odv.document_hash,
       },
     });
 
@@ -286,6 +305,7 @@ export default function FirmaOdV() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {odv.has_document && <div className="space-y-2 rounded-md border p-3"><p className="text-sm font-medium">Documenti della proposta</p><Button variant="outline" disabled={documentBusy} onClick={()=>void openPublicDocument()}>Apri / scarica PDF originale</Button>{odv.attachments?.map(file=><Button key={file.id} variant="outline" disabled={documentBusy} onClick={()=>void openPublicDocument(file.id)}>Allegato: {file.name}</Button>)}</div>}
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Descrizione lavori</p>
                 <p className="text-sm whitespace-pre-wrap">{odv.descrizione}</p>
@@ -306,7 +326,7 @@ export default function FirmaOdV() {
                   <div>
                     <p className="text-xs text-muted-foreground">Variazione del prezzo, IVA esclusa</p>
                     <p className="font-semibold text-sm">
-                      {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(odv.impatto_economico)}
+                      {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true }).format(odv.impatto_economico)}
                     </p>
                   </div>
                 </div>
@@ -408,7 +428,7 @@ export default function FirmaOdV() {
                 <AlertDialogTitle>Conferma rifiuto</AlertDialogTitle>
                 <AlertDialogDescription>
                   Stai rifiutando l'ordine di variazione <strong>"{odv?.titolo}"</strong> da{" "}
-                  {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(odv?.impatto_economico || 0)}.
+                  {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true }).format(odv?.impatto_economico || 0)}.
                   L'azienda sarà notificata e i lavori non potranno procedere.
                 </AlertDialogDescription>
               </AlertDialogHeader>

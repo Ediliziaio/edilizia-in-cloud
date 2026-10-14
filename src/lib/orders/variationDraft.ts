@@ -2,6 +2,7 @@ export type VariationKind = "aggiunta" | "modifica" | "riduzione";
 export interface VariationLine { id: string; description: string; quantity: string; price: string }
 export interface VariationDraft {
   kind: VariationKind; title: string; description: string; phase: string;
+  phaseId?: string;
   pricing: "corpo" | "voci"; amount: string; lines: VariationLine[];
   days: string; dayUnit: "calendario" | "lavorativi";
   reason: string; requester: string; internalNotes: string; estimatedCost: string;
@@ -9,6 +10,7 @@ export interface VariationDraft {
   documentCompanyName?: string; documentCompanyDetails?: string;
   documentCustomerName?: string; documentCustomerDetails?: string;
   documentHeading?: string; documentColor?: string; documentIntro?: string; additionalTerms?: string;
+  templateId?: string; templateRevision?: number; attachmentIds?: string[];
 }
 export const VARIATION_KINDS: Record<VariationKind, string> = {
   aggiunta: "Lavori aggiuntivi", modifica: "Modifica o sostituzione", riduzione: "Riduzione dei lavori",

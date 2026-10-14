@@ -30,6 +30,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   can_view_dashboard: "Dashboard",
   can_view_orders: "Ordini",
   can_edit_orders: "Modifica Ordini",
+  can_approve_variations: "Registra approvazioni varianti",
   can_view_customers: "Clienti",
   can_edit_customers: "Modifica Clienti",
   can_view_warehouse: "Magazzino",

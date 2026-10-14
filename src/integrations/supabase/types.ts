@@ -83909,6 +83909,7 @@ export type Database = {
         Row: {
           can_approve_discounts: boolean
           can_approve_orders: boolean
+          can_approve_variations: boolean
           can_delete_orders: boolean
           can_edit_customers: boolean | null
           can_edit_giornale_lavori: boolean
@@ -84014,6 +84015,7 @@ export type Database = {
         Insert: {
           can_approve_discounts?: boolean
           can_approve_orders?: boolean
+          can_approve_variations?: boolean
           can_delete_orders?: boolean
           can_edit_customers?: boolean | null
           can_edit_giornale_lavori?: boolean
@@ -84119,6 +84121,7 @@ export type Database = {
         Update: {
           can_approve_discounts?: boolean
           can_approve_orders?: boolean
+          can_approve_variations?: boolean
           can_delete_orders?: boolean
           can_edit_customers?: boolean | null
           can_edit_giornale_lavori?: boolean

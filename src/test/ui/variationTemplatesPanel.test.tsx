@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VariationTemplatesPanel } from "@/pages/azienda/settings/SettingsQuoteTemplates/VariationTemplatesPanel";
 import { VariationTemplatePicker } from "@/components/orders/VariationTemplatePicker";
 import { emptyVariationDraft } from "@/lib/orders/variationDraft";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const mock = vi.hoisted(() => ({ save: vi.fn(), archive: vi.fn() }));
 vi.mock("@/hooks/useVariationTemplates", () => ({ useVariationTemplates: () => ({ data: [] as unknown[], isError: false, isLoading: false, save: { mutateAsync: mock.save, isPending: false }, archive: { mutateAsync: mock.archive, isPending: false } }) }));
 vi.mock("@/components/shared/PdfBlobLivePreviewPanel", () => ({ PdfBlobLivePreviewPanel: () => <div data-testid="live-pdf-preview">Anteprima PDF</div> }));
@@ -36,7 +37,7 @@ describe("Libreria varianti", () => {
     const link = await screen.findByRole("link", { name: "Scarica esempio PDF" }); expect(atob(link.getAttribute("href")!.split(",")[1])).toContain("DEMO"); expect(mock.save).not.toHaveBeenCalled();
   });
   it("scegliere il modello non modifica nulla prima di applicarlo", async () => {
-    const apply = vi.fn(); render(<VariationTemplatePicker companyId="company" draft={{ ...emptyVariationDraft(), amount: "123" }} context={{ orderCode: "ORD-1" }} disabled={false} onApply={apply} />);
+    const apply = vi.fn(); render(<QueryClientProvider client={new QueryClient()}><VariationTemplatePicker companyId="company" draft={{ ...emptyVariationDraft(), amount: "123" }} context={{ orderCode: "ORD-1" }} disabled={false} onApply={apply} /></QueryClientProvider>);
     fireEvent.change(screen.getByLabelText("Modello di variante"), { target: { value: "example-0" } }); expect(apply).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Usa questo modello" })); await waitFor(() => expect(apply).toHaveBeenCalledOnce()); expect(apply.mock.calls[0][0].amount).toBe("123");
   });

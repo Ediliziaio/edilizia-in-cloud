@@ -8,7 +8,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return errorResponse("Metodo non consentito", 405, corsH);
   try {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const result = await signVariation(await req.json(), (args) => admin.rpc("odv_sign_with_token", args));
+    const result = await signVariation(await req.json(), (args) => admin.rpc("variation_sign_verified", args));
     return result.success
       ? jsonResponse({ success: true }, 200, corsH)
       : errorResponse(result.message, result.status, corsH);

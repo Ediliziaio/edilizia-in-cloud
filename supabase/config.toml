@@ -1128,3 +1128,7 @@ verify_jwt = false
 # col JWT dell'utente: requireAuth.
 [functions.get-openrouter-models]
 verify_jwt = false
+
+# Token-scoped proposal download; all other actions call requireAuth + scoped permissions.
+[functions.variante-commessa]
+verify_jwt = false

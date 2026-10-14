@@ -8,9 +8,9 @@ import { prepareVariation, variationImpact, variationDecimal, variationDatePrevi
 
 import type {VariationContext} from "@/lib/orders/variationDocumentContext";
 export type {VariationContext} from "@/lib/orders/variationDocumentContext";
-export function VariationEditor({ draft, setDraft, phases, context, busy, review, onBack, error,showPdfPreview=true }: {
+export function VariationEditor({ draft, setDraft, phases, context, busy, review, onBack, error,showPdfPreview=true,persistentDraft=false }: {
   draft: VariationDraft; setDraft: (draft: VariationDraft) => void; phases: {id: string; name: string; end_date?: string | null}[];
-  context: VariationContext; busy: boolean; review: boolean; onBack: () => void; error?: string;showPdfPreview?:boolean;
+  context: VariationContext; busy: boolean; review: boolean; onBack: () => void; error?: string;showPdfPreview?:boolean;persistentDraft?:boolean;
 }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState("");
@@ -19,7 +19,7 @@ export function VariationEditor({ draft, setDraft, phases, context, busy, review
   try { prepared = prepareVariation(draft); } catch { /* Validation appears on review, not on each keystroke. */ }
   const impact = prepared ? variationImpact(context.currentNet, prepared.impatto_economico, context.vatRate) : null;
   const cost = draft.estimatedCost?.trim() ? variationDecimal(draft.estimatedCost) : null;
-  const phaseEnd = phases.find(p => p.name === draft.phase)?.end_date;
+  const phaseEnd = (draft.phaseId ? phases.find(p => p.id === draft.phaseId) : phases.filter(p => p.name === draft.phase).length === 1 ? phases.find(p => p.name === draft.phase) : undefined)?.end_date;
   const projectedEnd = variationDatePreview(phaseEnd,draft.days,draft.dayUnit);
   const pdfSnapshot = prepared ? JSON.stringify([prepared.titolo,prepared.descrizione,prepared.motivazione,prepared.richiesto_da,prepared.impatto_economico,context]) : "";
   const set = <K extends keyof VariationDraft>(key: K, value: VariationDraft[K]) => setDraft({...draft, [key]: value});
@@ -56,8 +56,8 @@ export function VariationEditor({ draft, setDraft, phases, context, busy, review
       </div>
       <div className="space-y-1.5"><Label htmlFor="variation-title">Titolo *</Label><Input id="variation-title" value={draft.title} onChange={input("title")} placeholder="Es. Sostituzione pavimento cucina" /></div>
       <div className="space-y-1.5"><Label htmlFor="variation-phase">Lavorazione di riferimento</Label>
-        <select id="variation-phase" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft.phase} onChange={e => set("phase", e.target.value)}>
-          <option value="">Tutta la commessa</option>{phases.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+        <select id="variation-phase" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={draft.phaseId ?? ""} onChange={e => { const phase = phases.find(p => p.id === e.target.value); setDraft({ ...draft, phaseId: phase?.id, phase: phase?.name ?? "" }); }}>
+          <option value="">Tutta la commessa</option>{phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select><p className="text-xs text-muted-foreground">Il riferimento compare nel documento; non cambia assegnazioni o costi della fase.</p>
       </div>
       <div className="space-y-1.5"><Label htmlFor="variation-description">Lavori e condizioni *</Label><Textarea id="variation-description" rows={3} value={draft.description} onChange={input("description")} placeholder="Cosa viene aggiunto, sostituito o eliminato?" /></div>
@@ -94,9 +94,9 @@ export function VariationEditor({ draft, setDraft, phases, context, busy, review
         <p className="text-xs text-muted-foreground">Una richiesta di tempo in più non sposta automaticamente le date del cantiere.</p>
         <Label htmlFor="variation-reason">Motivazione</Label><Textarea id="variation-reason" rows={2} value={draft.reason} onChange={input("reason")} />
         <Label htmlFor="variation-requester">Richiesto da</Label><Input id="variation-requester" list="variation-requesters" value={draft.requester} onChange={input("requester")} /><datalist id="variation-requesters">{context.customerName && <option value={context.customerName}/>}<option value="Direzione lavori"/><option value="Impresa"/></datalist>
-        <Label htmlFor="variation-notes">Appunti privati della bozza · non salvati</Label><Textarea id="variation-notes" rows={2} value={draft.internalNotes} onChange={input("internalNotes")} />
+        <Label htmlFor="variation-notes">{persistentDraft ? "Note interne · non visibili al cliente" : "Appunti privati della bozza · non salvati"}</Label><Textarea id="variation-notes" rows={2} value={draft.internalNotes} onChange={input("internalNotes")} />
         <Label htmlFor="variation-estimated-cost">Variazione costo previsto (€) · solo interna</Label><Input id="variation-estimated-cost" inputMode="decimal" value={draft.estimatedCost} onChange={e=>set("estimatedCost",e.target.value)} placeholder="Facoltativa, es. 350,00"/>
-        <p className="text-xs text-muted-foreground">Positivo = costo in più; negativo = risparmio. Solo per questa anteprima: non si salva e non registra un costo consuntivo.</p>
+        <p className="text-xs text-muted-foreground">Positivo = costo in più; negativo = risparmio. {persistentDraft ? "Si conserva nella bozza, ma non registra un costo consuntivo." : "Solo per questa anteprima: non si salva e non registra un costo consuntivo."}</p>
       </div></details>
     </fieldset>}
     {impact && <div className="rounded-lg border p-3 text-sm space-y-1" aria-label="Impatto economico">
@@ -105,7 +105,7 @@ export function VariationEditor({ draft, setDraft, phases, context, busy, review
       {impact.revisedNet !== null && <p className="flex justify-between gap-2 border-t pt-2">Nuovo contratto netto, se approvata <strong>{formatCurrency(impact.revisedNet)}</strong></p>}
       <p className="text-xs text-muted-foreground">Stima con l'IVA della commessa. Verifica l'aliquota dei lavori extra prima dell'invio; eventuali aliquote diverse vanno specificate nelle condizioni.</p>
     </div>}
-    {impact && cost !== null && <p className="rounded-lg border p-3 text-sm">Solo per l'impresa · variazione margine prevista: <strong>{formatCurrency(impact.delta-cost)}</strong>. Non salvata e non inclusa nel PDF per il cliente.</p>}
+    {impact && cost !== null && <p className="rounded-lg border p-3 text-sm">Solo per l'impresa · variazione margine prevista: <strong>{formatCurrency(impact.delta-cost)}</strong>. {persistentDraft ? "Conservata nella bozza; esclusa dal PDF per il cliente." : "Non salvata e non inclusa nel PDF per il cliente."}</p>}
     {projectedEnd && Number(draft.days)>0 && <p className="rounded-lg border p-3 text-xs text-muted-foreground">Ipotesi fine della fase: {phaseEnd?.split("-").reverse().join("/")} → {projectedEnd.split("-").reverse().join("/")}. {draft.dayUnit === "lavorativi" ? "Esclusi sabato e domenica; festività e chiusure aziendali non considerate. " : ""}Nessuna data viene modificata; dopo l'approvazione aggiorna il cronoprogramma.</p>}
   </div>;
 }

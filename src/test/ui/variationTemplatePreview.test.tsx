@@ -10,8 +10,8 @@ vi.mock("@/lib/orders/variationTemplateExample", async importOriginal => {
   return { ...original, variationTemplateExamplePdf: mock.build };
 });
 vi.mock("@/components/shared/PdfBlobLivePreviewPanel", () => ({ PdfBlobLivePreviewPanel: ({ renderBlobUrl, depsKey, downloadFileName, showDownloadOnMobile }: { renderBlobUrl: () => Promise<string>; depsKey: string; downloadFileName: string; showDownloadOnMobile: boolean }) => {
-  const [url, setUrl] = useState(""); mock.mountedKeys.push(depsKey);
-  return <><button onClick={async () => setUrl(await renderBlobUrl())}>Generate preview</button>{url && <a href={url} download={downloadFileName}>Download current</a>}<span>{showDownloadOnMobile ? "mobile-download" : "desktop-only"}</span></>;
+  const [result, setResult] = useState<{url:string;key:string}|null>(null); mock.mountedKeys.push(depsKey);
+  return <><button onClick={async () => setResult({url:await renderBlobUrl(),key:depsKey})}>Generate preview</button>{result?.url && result.key===depsKey && <a href={result.url} download={downloadFileName}>Download current</a>}<span>{showDownloadOnMobile ? "mobile-download" : "desktop-only"}</span></>;
 } }));
 beforeEach(() => {
   vi.clearAllMocks(); mock.mountedKeys = []; mock.create.mockReturnValue("blob:current");
@@ -31,7 +31,8 @@ describe("Anteprima visiva del modello", () => {
     const view = render(<VariationTemplatePreview content={content} scope="company" />);
     fireEvent.click(screen.getByRole("button", { name: "Generate preview" })); await screen.findByRole("link", { name: "Download current" });
     view.rerender(<VariationTemplatePreview content={{ ...content, conditions_text: "Nuove condizioni" }} scope="company" />);
-    expect(screen.queryByRole("link", { name: "Download current" })).not.toBeInTheDocument(); expect(mock.revoke).toHaveBeenCalledWith("blob:current");
+    expect(screen.queryByRole("link", { name: "Download current" })).not.toBeInTheDocument();
+    view.unmount();expect(mock.revoke).toHaveBeenCalledWith("blob:current");
   });
   it("una generazione completata dopo cambio modello non crea un URL fuori contesto", async () => {
     let finish!: (value: unknown) => void; mock.build.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));

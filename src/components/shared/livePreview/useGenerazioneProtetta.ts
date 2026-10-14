@@ -26,6 +26,7 @@ export interface GenerazioneProtetta<T> {
   caricamento: boolean;
   errore: string | null;
   rigenera: () => void;
+  aggiornato: boolean;
 }
 
 /**
@@ -49,6 +50,8 @@ export function useGenerazioneProtetta<T>(
   const [risultato, setRisultato] = useState<T | null>(null);
   const [caricamento, setCaricamento] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
+  const [generatedKey,setGeneratedKey] = useState<string | null>(null);
+  const keyRef=useRef(depsKey);keyRef.current=depsKey;
 
   // Ref per le funzioni: cambiano identità ad ogni render del parent, ma
   // l'effetto deve dipendere SOLO da depsKey (altrimenti si rigenera all'infinito).
@@ -63,6 +66,7 @@ export function useGenerazioneProtetta<T>(
 
   const esegui = useCallback(() => {
     const mia = ++generazioneRef.current;
+    const key = keyRef.current;
     setCaricamento(true);
     setErrore(null);
     void (async () => {
@@ -93,6 +97,7 @@ export function useGenerazioneProtetta<T>(
           if (correnteRef.current != null) onScartaRef.current?.(correnteRef.current);
           correnteRef.current = esito;
           setRisultato(esito);
+          setGeneratedKey(key);
           setCaricamento(false);
           return;
         } catch (e) {
@@ -119,7 +124,7 @@ export function useGenerazioneProtetta<T>(
     if (!abilitato) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(esegui, debounceMs);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    return () => { ++generazioneRef.current; if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [depsKey, abilitato, debounceMs, esegui]);
 
   // Smontaggio: libera l'ultimo risultato (i blob URL restano in memoria finché
@@ -136,5 +141,5 @@ export function useGenerazioneProtetta<T>(
     esegui();
   }, [esegui]);
 
-  return { risultato, caricamento, errore, rigenera };
+  return { risultato, caricamento, errore, rigenera, aggiornato:abilitato && generatedKey===depsKey && !caricamento };
 }

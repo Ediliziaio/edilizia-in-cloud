@@ -120,7 +120,7 @@ export function PdfBlobLivePreviewPanel({
     // falso "Failed to fetch" quando si cambia modulo rapidamente.
     window.setTimeout(() => URL.revokeObjectURL(u), BLOB_REVOKE_DELAY_MS);
   }, []);
-  const { risultato: url, caricamento: loading, errore: error, rigenera: forceRegen } =
+  const { risultato: url, caricamento: loading, errore: error, rigenera: forceRegen, aggiornato } =
     useGenerazioneProtetta<string>(renderBlobUrl, depsKey, {
       abilitato: enabled,
       debounceMs,
@@ -317,7 +317,7 @@ export function PdfBlobLivePreviewPanel({
   }, []);
 
   const handleDownload = () => {
-    if (!url) return;
+    if (!url || !aggiornato) return;
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = downloadFileName;
@@ -356,11 +356,11 @@ export function PdfBlobLivePreviewPanel({
           <Button size="icon" variant="ghost" onClick={forceRegen} disabled={loading || !enabled} title="Aggiorna ora" className="h-7 w-7">
             <RefreshCw className={"h-3.5 w-3.5 " + (loading ? "animate-spin" : "")} />
           </Button>
-          <Button size="icon" variant="ghost" onClick={() => url && window.open(url, "_blank")} disabled={!url} title="Apri in nuova scheda" className="h-7 w-7">
+          <Button size="icon" variant="ghost" onClick={() => aggiornato && url && window.open(url, "_blank")} disabled={!url || !aggiornato} title="Apri in nuova scheda" className="h-7 w-7">
             <ExternalLink className="h-3.5 w-3.5" />
           </Button>
           {(!isMobile || showDownloadOnMobile) && (
-            <Button size="icon" variant="ghost" onClick={handleDownload} disabled={!url} title="Scarica PDF" className="h-7 w-7">
+            <Button size="icon" variant="ghost" onClick={handleDownload} disabled={!url || !aggiornato} title="Scarica PDF" className="h-7 w-7">
               <Download className="h-3.5 w-3.5" />
             </Button>
           )}

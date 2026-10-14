@@ -3,12 +3,12 @@ import { readFileSync } from "node:fs";
 import { signVariation } from "../../../supabase/functions/firma-odv-webhook/sign";
 import { missingCampoDocument } from "../../../supabase/functions/_shared/campoDocumentGuard";
 
-const input = { token: "00000000-0000-4000-a000-000000000000", firmato_da: "TEST DEMO", firma_data_base64: "data:image/png;base64,iVBORw0KGgoAAA==" };
+const input = { token: "00000000-0000-4000-a000-000000000000", firmato_da: "TEST DEMO", accepted:true,document_hash:"a".repeat(64), firma_data_base64: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWZkAAAAASUVORK5CYII=" };
 describe("Approva extra una sola volta", () => {
   it("usa solo la transizione RPC e richiede successo esplicito", async () => {
     const rpc = vi.fn().mockResolvedValue({ data: { success: true }, error: null });
     expect(await signVariation(input, rpc)).toEqual({ success: true });
-    expect(rpc).toHaveBeenCalledExactlyOnceWith({ p_token: input.token, p_firma_base64: input.firma_data_base64, p_firmato_da: input.firmato_da });
+    expect(rpc).toHaveBeenCalledExactlyOnceWith({ p_token: input.token, p_firma_base64: input.firma_data_base64, p_firmato_da: input.firmato_da,p_document_hash:input.document_hash,p_accepted:true });
   });
   it.each([{ success: false }, null, {}])("non spaccia %j per successo", async data => {
     expect(await signVariation(input, vi.fn().mockResolvedValue({ data, error: null }))).toMatchObject({ success: false, status: 409 });
@@ -25,8 +25,9 @@ describe("Approva extra una sola volta", () => {
     const source = readFileSync("supabase/functions/firma-odv-webhook/index.ts", "utf8");
     expect(source).not.toContain("increment_order_total");
     expect(source).not.toContain('"approvata"');
-    expect(source).toContain('admin.rpc("odv_sign_with_token"');
+    expect(source).toContain('admin.rpc("variation_sign_verified"');
   });
+  it.each([{accepted:false},{document_hash:""},{firma_data_base64:"data:image/png;base64,iVBORw0KGgoAAA=="}])("rifiuta firma senza consenso, hash o PNG completo %j",async override=>{const rpc=vi.fn();expect(await signVariation({...input,...override},rpc)).toMatchObject({success:false,status:400});expect(rpc).not.toHaveBeenCalled();});
 });
 describe("Collaudo: nessuna firma su un titolo vuoto", () => {
   it.each(["collaudo_finale", "verbale_consegna", "accettazione_lavori"])("blocca %s collegato solo all'ordine", categoria => {
