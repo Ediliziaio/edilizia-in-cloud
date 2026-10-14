@@ -21,7 +21,7 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   const [busy, setBusy] = useState(existing);
   const [error, setError] = useState("");
   const [view, setView] = useState(false);
-  const [pdf, setPdf] = useState<{url: string; name: string} | null>(null);
+  const [pdf, setPdf] = useState<{url: string; name: string;downloadUrl:string} | null>(null);
   const [evidence, setEvidence] = useState<WorkflowEvidence[]>([]);
   const [selectedEvidence, setSelectedEvidence] = useState("");
   const [signer, setSigner] = useState("");
@@ -61,7 +61,7 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   const showDocument = async (fileId = "proposal") => {
     const result = await workflow.open(id,fileId);
     const url = URL.createObjectURL(result.blob); urls.current.add(url);
-    if(alive.current) { setPdf({url,name:result.name}); setView(true); } else { URL.revokeObjectURL(url); urls.current.delete(url); }
+    if(alive.current) { setPdf({url,name:result.name,downloadUrl:result.url}); setView(true); } else { URL.revokeObjectURL(url); urls.current.delete(url); }
   };
   const render = useCallback(async () => pdf?.url ?? "", [pdf]);
   const close = () => { if(busy || lock.current) return; if(dirty && editable && !window.confirm("La bozza contiene modifiche non salvate. Chiudere senza salvarle?")) return; onClose(); };
@@ -81,6 +81,7 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
         {receipt?.workspace && <p role="status" className="text-xs text-muted-foreground">{dirty ? "Modifiche da salvare" : `Bozza salvata · versione ${receipt.workspace.revision}`}. Appunti e costi stimati restano interni.</p>}
       </> : <>
         {pdf && <div className="h-[65dvh] min-h-[380px]"><PdfBlobLivePreviewPanel key={pdf.url} renderBlobUrl={render} depsKey={pdf.url} debounceMs={0} downloadFileName={pdf.name} showDownloadOnMobile /></div>}
+        {pdf && <div className="flex flex-wrap items-center gap-3"><a href={pdf.downloadUrl} download={pdf.name} target="_blank" rel="noopener" className="inline-flex min-h-11 items-center rounded-md border px-4 text-sm font-medium">Scarica file PDF</a><p className="text-xs text-muted-foreground">Download diretto del file verificato. Se il collegamento scade, riapri il PDF.</p></div>}
         {receipt?.document?.attachments.map(file => <div key={file.id} className="flex items-center justify-between gap-2 rounded-md border p-3"><span className="text-sm break-all">{file.name}</span><Button variant="outline" disabled={busy} onClick={() => void run(() => showDocument(file.id))}>Apri / scarica</Button></div>)}
         {receipt?.variation.status === "approvato" && <div className="rounded-md border p-3 space-y-2"><p className="text-sm">Approvazione {receipt.variation.approval_channel === "offline" ? "ricevuta fuori dal sistema" : "registrata online"}{receipt.variation.firmato_da ? ` · ${receipt.variation.firmato_da}` : ""}. Il PDF originale resta distinto dalla prova di approvazione.</p>{evidence.map(item=><Button key={item.id} variant="outline" disabled={busy} onClick={()=>void run(()=>showDocument(item.id))}>Copia caricata: {item.file_name}</Button>)}</div>}
         <p className="text-xs text-muted-foreground">L'originale e gli allegati sono conservati anche nei Documenti della commessa. Una modifica alla bozza richiede un nuovo PDF; i documenti precedenti non vengono sovrascritti.</p>
