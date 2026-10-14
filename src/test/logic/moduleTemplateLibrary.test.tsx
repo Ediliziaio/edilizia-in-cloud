@@ -62,8 +62,8 @@ vi.mock("@/hooks/usePermissions", () => ({
 }));
 vi.mock("@/lib/moduli-vendita", () => ({
   useModuliVisibilita: () => ({
-    isModuloVisibile: () => true,
-    setModuloVisibile: state.remoteWrite,
+    isAreaVisibile: () => true,
+    setAreaVisibile: state.remoteWrite,
     isSaving: false,
     isLoading: false,
   }),

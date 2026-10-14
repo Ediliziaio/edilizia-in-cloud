@@ -27,7 +27,7 @@ vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({ canEditSettingsPricing: state.canEdit, isLoading: state.permessiInCaricamento }),
 }));
 vi.mock("@/lib/moduli-vendita", () => ({
-  useModuliVisibilita: () => ({ isModuloVisibile: () => true, setModuloVisibile: state.scrittura, isSaving: false, isLoading: false }),
+  useModuliVisibilita: () => ({ isAreaVisibile: () => true, setAreaVisibile: state.scrittura, isSaving: false, isLoading: false }),
 }));
 // I modelli dell'azienda stanno anche online; qui il database non c'è e non serve.
 vi.mock("@/lib/moduli-vendita/archivioModelli", async (importOriginal) => ({
@@ -126,7 +126,21 @@ describe("Moduli: in cima dice a cosa servono gli interruttori", () => {
     const interruttori = screen.getAllByRole("switch", { name: "Area nel menu Nuovo preventivo" });
     expect(interruttori).toHaveLength(SALES_AREAS.length - 1);
     fireEvent.click(interruttori[0]);
-    expect(state.scrittura).toHaveBeenCalledWith("serramenti", false);
+    expect(state.scrittura).toHaveBeenCalledWith(expect.objectContaining({ id: "serramenti" }), false);
+  });
+
+  it.each(SALES_AREAS.filter(a => a.id !== "facciate"))("l'interruttore $title salva l'area e non il motore condiviso", area => {
+    apri();
+    const card = screen.getByRole("button", { name: `Apri area ${area.title}` }).closest("article")!;
+    fireEvent.click(within(card).getByRole("switch"));
+    expect(state.scrittura).toHaveBeenCalledExactlyOnceWith(area, false);
+  });
+
+  it("il dettaglio Pergole salva Pergole e non Ristrutturazioni", () => {
+    apri("&modulo=ristrutturazione&area=pergole");
+    const details = screen.getByText("Modello dell'area e visibilità").closest("details")!;
+    fireEvent.click(within(details).getByRole("switch"));
+    expect(state.scrittura).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: "pergole" }), false);
   });
 
   it("il percorso per tornare indietro si chiama «Moduli», come la scheda (non «Libreria moduli»)", () => {

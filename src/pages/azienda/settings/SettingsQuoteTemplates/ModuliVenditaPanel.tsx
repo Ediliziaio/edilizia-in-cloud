@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { useModuliVisibilita } from "@/lib/moduli-vendita";
+import { findSalesArea } from "@/lib/moduli-vendita/areas";
 import { buildQuoteTemplatesModuleParams } from "@/lib/settingsQuoteTemplatesRoute";
 
 // PERF: lazy-load editor pesanti (Serramenti ~150KB, Fotovoltaico ~120KB)
@@ -235,7 +236,7 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
     setLastInitial(initialFromUrl);
     setActiveSlug(initialFromUrl);
   }
-  const { isModuloVisibile, setModuloVisibile, isSaving } = useModuliVisibilita();
+  const { isModuloVisibile, setModuloVisibile, isAreaVisibile, setAreaVisibile, isSaving, isLoading: visibilityLoading } = useModuliVisibilita();
   const active = activeSlug ? MODULI_VENDITA.find((m) => m.slug === activeSlug) : null;
 
   // Sincronizzo l'URL quando l'utente cambia modulo (così back/forward + share funzionano)
@@ -318,7 +319,8 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
           {MODULI_VENDITA.map((m) => {
             const Icon = m.icon;
             const isDisabled = !m.available;
-            const visibile = isModuloVisibile(m.slug);
+            const salesArea = findSalesArea(m.slug);
+            const visibile = salesArea ? isAreaVisibile(salesArea) : isModuloVisibile(m.slug);
             return (
               <div
                 key={m.slug}
@@ -366,8 +368,8 @@ function LegacyModuliVenditaPanel({ initialModulo }: { initialModulo?: string })
                       {/* on/off per-modulo: visibilità del preventivatore per la squadra */}
                       <Switch
                         checked={visibile}
-                        disabled={isDisabled || isSaving}
-                        onCheckedChange={(v) => setModuloVisibile(m.slug, v)}
+                        disabled={isDisabled || isSaving || visibilityLoading}
+                        onCheckedChange={(v) => salesArea ? setAreaVisibile(salesArea, v) : setModuloVisibile(m.slug, v)}
                         aria-label={`${visibile ? "Spegni" : "Accendi"} l'area ${m.nome} nel menu Nuovo preventivo`}
                       />
                     </div>

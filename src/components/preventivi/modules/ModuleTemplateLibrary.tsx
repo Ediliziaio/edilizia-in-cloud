@@ -200,7 +200,7 @@ export default function ModuleTemplateLibrary({
   // L'avviso di sola lettura (e il perché dei pulsanti spenti) non compare mentre i permessi si caricano.
   const mostraAvvisoSolaLettura = !canEdit && !permessi.isLoading;
   const spiegaSolaLettura = !canEdit ? ID_AVVISO_SOLA_LETTURA_MODULI : undefined;
-  const { isModuloVisibile, setModuloVisibile, isSaving, isLoading } =
+  const { isAreaVisibile, setAreaVisibile, isSaving, isLoading } =
     useModuliVisibilita();
   // I modelli sono dell'azienda (modelli_libreria_azienda): all'apertura le copie
   // online più recenti tornano nel browser e quelle rimaste qui vanno online.
@@ -558,11 +558,11 @@ export default function ModuleTemplateLibrary({
                   </label>
                   <Switch
                     id={`area-active-${a.id}`}
-                    checked={isModuloVisibile(a.sourceModule)}
+                    checked={isAreaVisibile(a)}
                     disabled={!canEdit || !companyId || isLoading || isSaving}
                     aria-describedby={spiegaSolaLettura}
                     onCheckedChange={(v) =>
-                      setModuloVisibile(a.sourceModule, v)
+                      setAreaVisibile(a, v)
                     }
                   />
                 </div>
@@ -593,10 +593,10 @@ export default function ModuleTemplateLibrary({
             <div className="flex items-center gap-3">
               <Switch
                 id="area-active-detail"
-                checked={isModuloVisibile(area.sourceModule)}
+                checked={isAreaVisibile(area)}
                 disabled={!canEdit || !companyId || isLoading || isSaving}
                 aria-describedby={spiegaSolaLettura}
-                onCheckedChange={(v) => setModuloVisibile(area.sourceModule, v)}
+                onCheckedChange={(v) => setAreaVisibile(area, v)}
               />
               <label htmlFor="area-active-detail" className="text-xs">
                 Area visibile nel menu Nuovo preventivo · impostazione online

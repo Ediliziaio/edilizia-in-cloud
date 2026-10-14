@@ -6,10 +6,11 @@ import { NewQuoteDialog } from "@/components/marketing/preventivi/moduli/NewQuot
 import { MODULI_VENDITA, deriveModuloStato } from "@/lib/moduli-vendita/config";
 import type { ModuloVenditaView } from "@/lib/moduli-vendita/useModuliVendita";
 import Preventivi from "@/pages/azienda/marketing/Preventivi";
+import type { SalesArea } from "@/lib/moduli-vendita/areas";
 
 const state = vi.hoisted(() => ({ views: [] as ModuloVenditaView[], hidden: new Set<string>(), loading: false, error: false, visibleLoading: false,
   support: { supported: true, isLoading: false, isError: false }, permissions: { canEditPreventivi: true, canEditMarketingOpportunities: true } }));
-vi.mock("@/lib/moduli-vendita", () => ({ useModuliVendita: () => ({ moduli: state.views, isLoading: state.loading, isError: state.error }), useModuliVisibilita: () => ({ isModuloVisibile: (slug: string) => !state.hidden.has(slug), isLoading: state.visibleLoading }) }));
+vi.mock("@/lib/moduli-vendita", () => ({ useModuliVendita: () => ({ moduli: state.views, isLoading: state.loading, isError: state.error }), useModuliVisibilita: () => ({ isAreaVisibile: (area: SalesArea) => !state.hidden.has(`area:${area.id}`) && !state.hidden.has(area.sourceModule), isLoading: state.visibleLoading }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
 vi.mock("@/hooks/useSerramentiModelSupport", () => ({ useSerramentiModelSupport: () => state.support }));
 vi.mock("@/hooks/useTettiModelSupport", () => ({ useTettiModelSupport: () => state.support }));
@@ -69,6 +70,17 @@ describe("popup unico di creazione preventivi", () => {
     state.views.find(view => view.modulo.slug === "serramenti")!.isError = true;
     mount();
     for (const title of ["Tetti", "Bagni", "Serramenti"]) expect(screen.queryByRole("button", { name: `Scegli area ${title}` })).not.toBeInTheDocument();
+  });
+  it.each([
+    ["pergole", "Pergole e tende", ["Pareti e soffitti", "Ristrutturazioni", "Facciate e isolamento"]],
+    ["giardini", "Giardini e verde", ["Pavimenti e rivestimenti"]],
+    ["ristrutturazioni", "Ristrutturazioni", ["Pergole e tende", "Pareti e soffitti"]],
+  ] as const)("nasconde solo %s anche nella creazione preventivo", (id, title, siblings) => {
+    state.hidden.add(`area:${id}`); mount();
+    expect(screen.queryByRole("button", { name: `Scegli area ${title}` })).not.toBeInTheDocument();
+    for (const sibling of siblings) expect(screen.getByRole("button", { name: `Scegli area ${sibling}` })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: title } });
+    expect(screen.queryByRole("link", { name: /^Apri preventivatore/ })).not.toBeInTheDocument();
   });
   it("non espone moduli marketing a chi può creare soltanto classico e fotovoltaico", () => {
     state.permissions.canEditMarketingOpportunities = false;

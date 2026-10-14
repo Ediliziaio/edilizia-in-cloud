@@ -19,7 +19,7 @@ vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({ canEditSettingsPricing: state.canEdit, isLoading: false }),
 }));
 vi.mock("@/lib/moduli-vendita", () => ({
-  useModuliVisibilita: () => ({ isModuloVisibile: () => true, setModuloVisibile: vi.fn(), isSaving: false, isLoading: false }),
+  useModuliVisibilita: () => ({ isAreaVisibile: () => true, setAreaVisibile: vi.fn(), isSaving: false, isLoading: false }),
 }));
 // I modelli dell'azienda stanno anche online; qui il database non c'è e non serve.
 vi.mock("@/lib/moduli-vendita/archivioModelli", async (importOriginal) => ({

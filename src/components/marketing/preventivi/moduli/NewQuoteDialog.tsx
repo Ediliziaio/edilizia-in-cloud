@@ -48,7 +48,7 @@ function InterventionImage({ area, modelId }: { area: SalesArea; modelId: string
 function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect: () => void }) {
   const permissions = usePermissions();
   const { moduli, isLoading, isError } = useModuliVendita();
-  const { isModuloVisibile, isLoading: visibilityLoading } = useModuliVisibilita();
+  const { isAreaVisibile, isLoading: visibilityLoading } = useModuliVisibilita();
   const srSupport = useSerramentiModelSupport();
   const tetSupport = useTettiModelSupport();
   const modelliSupport = useSupportoModelliPreventivo(MODULI_CON_MODELLI_E_FV);
@@ -56,7 +56,7 @@ function QuoteChooser({ params, onSelect }: { params: URLSearchParams; onSelect:
   const [query, setQuery] = useState("");
   const heading = useRef<HTMLHeadingElement>(null);
   const canCreate = (area: SalesArea) => area.sourceModule === "fotovoltaico" ? permissions.canEditPreventivi : permissions.canEditMarketingOpportunities;
-  const areas = SALES_AREAS.filter(area => canCreate(area) && isModuloVisibile(area.sourceModule) && hasAreaAccess(moduli.find(view => view.modulo.slug === area.sourceModule)));
+  const areas = SALES_AREAS.filter(area => canCreate(area) && isAreaVisibile(area) && hasAreaAccess(moduli.find(view => view.modulo.slug === area.sourceModule)));
   const area = areas.find(item => item.id === areaId);
   const searching = query.trim().length > 0;
   const results = (area ? [area] : areas).flatMap(item => item.interventions.filter(intervention => matchesIntervention(item, intervention, query)).map(intervention => ({ area: item, intervention })));

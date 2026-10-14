@@ -84,6 +84,18 @@ jobs:
           src/test/logic/forecastDataset.test.ts
           src/test/ui/forecastWorkspace.test.tsx
 
+      - name: Run independent sales area visibility regression tests
+        run: >-
+          bunx vitest run --maxWorkers=1
+          src/test/logic/moduleVisibility.test.tsx
+          src/test/logic/newQuoteDialog.test.tsx
+          src/test/logic/moduleTemplateLibrary.test.tsx
+          src/test/ui/modelliModuli.test.tsx
+          src/test/ui/modelliAreaFotoEPermessi.test.tsx
+          src/test/logic/salesSelectorTemplates.test.ts
+          src/test/logic/moduliVenditaPromesse.test.ts
+          src/test/ui/moduliVerita.test.tsx
+
   # ─────────────────────────────────────────────────────────────────────────
   # 3. Deploy changed edge functions (main only, after checks pass)
   # ─────────────────────────────────────────────────────────────────────────
