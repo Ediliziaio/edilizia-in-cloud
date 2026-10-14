@@ -117,7 +117,7 @@ export function MarginTab() {
     if (highRevLowMargin.length > 0) {
       list.push({
         icon: <Lightbulb className="h-5 w-5" />,
-        text: `${highRevLowMargin.length} commess${highRevLowMargin.length === 1 ? "a" : "e"} con fatturato alto ma margine < 15%`,
+        text: `${highRevLowMargin.length} commess${highRevLowMargin.length === 1 ? "a" : "e"} con valore alto ma margine < 15%`,
         action: "Verifica se il prezzo copre i costi reali e riallinea i listini",
         severity: "warn",
       });
@@ -153,6 +153,8 @@ export function MarginTab() {
     }),
     [orders, threshold]
   );
+
+  if (data.isError) return <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Marginalità non disponibile: una fonte non risponde. Ricarica i dati; i valori mancanti non vengono interpretati come zero.</div>;
 
   if (isLoading) {
     return (
@@ -396,10 +398,10 @@ export function MarginTab() {
                     <XAxis
                       type="number"
                       dataKey="x"
-                      name="Fatturato"
+                      name="Valore commessa"
                       tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                       tickFormatter={formatCurrencyCompact}
-                      label={{ value: "Fatturato", position: "insideBottom", offset: -5, fontSize: 11 }}
+                      label={{ value: "Valore commessa", position: "insideBottom", offset: -5, fontSize: 11 }}
                     />
                     <YAxis
                       type="number"
@@ -416,7 +418,7 @@ export function MarginTab() {
                         return (
                           <div className="rounded-lg border bg-background p-2 shadow-md text-xs">
                             <p className="font-semibold">{d.label}</p>
-                            <p>Fatturato: {formatCurrency(d.x)}</p>
+                            <p>Valore commessa: {formatCurrency(d.x)}</p>
                             <p>Margine: {d.y.toFixed(1)}%</p>
                           </div>
                         );
@@ -487,7 +489,7 @@ export function MarginTab() {
                 />
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Fatturato target mensile €</label>
+                <label className="text-sm text-muted-foreground">Valore commesse target mensile €</label>
                 <Input
                   type="number"
                   value={simRevenueTarget}
@@ -535,7 +537,7 @@ export function MarginTab() {
               </div>
               <Separator />
               <div className={`p-3 rounded-lg ${simCashFlowDelta >= 0 ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-red-50 dark:bg-red-950/30"}`}>
-                <p className="text-sm text-muted-foreground">Impatto su cash flow vs attuale</p>
+                <p className="text-sm text-muted-foreground">Variazione del risultato economico stimato</p>
                 <p className={`text-xl font-bold ${simCashFlowDelta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                   {simCashFlowDelta >= 0 ? "+" : ""}{formatCurrency(simCashFlowDelta)}
                 </p>
