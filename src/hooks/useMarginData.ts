@@ -37,6 +37,7 @@ export interface FixedCostBreakdown {
 
 export interface MarginData {
   isLoading: boolean;
+  isError: boolean;
   orders: OrderMargin[];
   // KPIs
   avgMarginEur: number;
@@ -81,7 +82,7 @@ export function useMarginData(): MarginData {
   const companyId = effectiveCompany?.id || null;
 
   // 1. Marginalità per commessa dalla vista condivisa (ultimi 24 mesi)
-  const { data: ordersRaw, isLoading: loadingOrders } = useQuery({
+  const { data: ordersRaw, isLoading: loadingOrders, isError: errOrders } = useQuery({
     queryKey: queryKeys.margin.orders(companyId),
     queryFn: async (): Promise<MarginViewRow[]> => {
       const cutoff = new Date();
@@ -102,17 +103,18 @@ export function useMarginData(): MarginData {
   });
 
   // 2. Fixed company costs (amount è GIÀ imponibile: niente scorporo)
-  const { data: fixedCostsRaw, isLoading: loadingFixedCosts } = useQuery({
+  const { data: fixedCostsRaw, isLoading: loadingFixedCosts, isError: errFixedCosts } = useQuery({
     queryKey: queryKeys.margin.fixedCosts(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_costs")
-        .select("amount, category, recurrence")
+        .select("amount, category, recurrence, recurrence_end_date")
         .eq("company_id", companyId!)
         .eq("cost_type", "fixed")
         // Un costo con order_id è già nel consuntivo diretto della commessa:
         // ripeterlo nel break-even/struttura lo conterebbe due volte.
-        .is("order_id", null);
+        .is("order_id", null)
+        .or(`recurrence_end_date.is.null,recurrence_end_date.gte.${new Date().toLocaleDateString("en-CA")}`);
       if (error) throw error;
       return data;
     },
@@ -121,7 +123,7 @@ export function useMarginData(): MarginData {
   });
 
   // 3. Active employees (salaries + oneri, come nel resto dell'app)
-  const { data: employees, isLoading: loadingEmployees } = useQuery({
+  const { data: employees, isLoading: loadingEmployees, isError: errEmployees } = useQuery({
     queryKey: queryKeys.margin.employees(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -137,6 +139,7 @@ export function useMarginData(): MarginData {
   });
 
   const isLoading = loadingOrders || loadingFixedCosts || loadingEmployees;
+  const isError = errOrders || errFixedCosts || errEmployees;
 
   // --- Calculations ---
 
@@ -259,6 +262,7 @@ export function useMarginData(): MarginData {
 
   return {
     isLoading,
+    isError,
     orders,
     avgMarginEur,
     avgMarginPercent,
