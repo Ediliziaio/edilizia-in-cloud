@@ -1132,3 +1132,8 @@ verify_jwt = false
 # Token-scoped proposal download; all other actions call requireAuth + scoped permissions.
 [functions.variante-commessa]
 verify_jwt = false
+
+# Il cliente firma dal token della proposta, senza un account della piattaforma.
+# Consenso, impronta del documento, PNG, stato e scadenza sono verificati server-side.
+[functions.firma-odv-webhook]
+verify_jwt = false
