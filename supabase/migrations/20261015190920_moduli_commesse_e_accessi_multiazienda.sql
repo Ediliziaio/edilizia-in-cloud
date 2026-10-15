@@ -36,7 +36,7 @@ BEGIN
     AND NOT public.utente_e_cliente_esterno()
     AND EXISTS (SELECT 1 FROM public.multi_company_access m
       WHERE m.user_id=v_caller_id AND m.company_id=v_company_id
-        AND m.is_active AND (m.expires_at IS NULL OR m.expires_at > now()))
+        AND m.status = 'active' AND (m.expires_at IS NULL OR m.expires_at > now()))
     AND public.has_permission_for_company(v_caller_id, 'can_edit_orders', v_company_id) IS TRUE THEN
     NULL; -- Non usare i permessi dell'azienda primaria o della sessione precedente.
   ELSE
@@ -261,7 +261,7 @@ begin
   if azienda is distinct from public.get_user_company_id(auth.uid())
      and not public.has_role(auth.uid(),'super_admin'::public.app_role)
      and not exists(select 1 from public.multi_company_access m where m.user_id=auth.uid()
-       and m.company_id=azienda and m.is_active and (m.expires_at is null or m.expires_at>now())) then
+       and m.company_id=azienda and m.status = 'active' and (m.expires_at is null or m.expires_at>now())) then
     raise exception 'Accesso azienda scaduto o revocato.' using errcode='42501';
   end if;
   if nullif(q->>'ordine_id','') is not null then
@@ -301,7 +301,7 @@ begin
         'status','da_ordinare','position',jsonb_array_length(materiali),'vat_rate',aliquota));
     end loop;
     for r in select value from jsonb_array_elements(servizi) loop
-      quantita:=coalesce((r->>'quantita')::numeric,0);
+      quantita:=coalesce((r->>'quantita')::numeric,1);
       if quantita<=0 then esclusi:=esclusi+1; continue; end if;
       fasi:=fasi||jsonb_build_array(jsonb_build_object('name',coalesce(nullif(r->>'descrizione',''),nullif(r->>'tipo',''),'Servizio'),
         'notes',concat_ws(E'\n',nullif(r->>'tipo',''),quantita||' unità')));

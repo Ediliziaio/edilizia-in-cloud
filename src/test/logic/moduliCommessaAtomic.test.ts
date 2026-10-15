@@ -13,7 +13,7 @@ async function convert(modulo='rst',group=false){const p=await rpc(modulo,true,n
 async function rows(table:string){return (await db.query<any>(`select * from ${table}`)).rows;}
 async function secondary(active=true,expired=false,permission=true){await db.exec(`
  update profiles set company_id='${B}' where id='${U}';
- insert into multi_company_access values('${U}','${A}',${active},${expired?"now()-interval '1 day'":'null'},'company_staff');
+ insert into multi_company_access values('${U}','${A}',${active?"'active'":"'revoked'"},${expired?"now()-interval '1 day'":'null'},'company_staff');
  insert into staff_permissions values('${U}','${A}',${permission});`);}
 describe('conversione moduli sul motore PostgreSQL reale',()=>{
  it('anteprima non scrive commesse o fasi',async()=>{const p=await rpc();expect(p.materiali).toEqual([]);expect(p.fasi).toHaveLength(2);expect(p.imponibile).toBe(4333.5);expect(await rows('orders')).toHaveLength(0);});
@@ -22,6 +22,7 @@ describe('conversione moduli sul motore PostgreSQL reale',()=>{
   const o=(await rows('orders'))[0];expect(Number(o.total_amount)).toBe(4333.5);expect(Number(o.vat_rate)).toBe(22);expect(o.client_name).toBe('Mario Rossi');expect(o.work_address).toContain('Via Roma 1');expect(o.rst_progetto_id).toBe(Q);expect((await rows('rst_progetti'))[0].ordine_id).toBe(o.id);
  });
  it('FV: solo componenti negli acquisti; pratiche e ore nelle fasi',async()=>{await convert('fv');const m=await rows('order_items');expect(m).toHaveLength(1);expect(m[0].name).toBe('Marca 450');expect(Number(m[0].quantity)).toBe(12);expect(Number(m[0].unit_price)).toBe(140);expect(Number(m[0].purchase_price)).toBe(100);const f=await rows('order_work_phases');expect(f.map(x=>x.name)).toEqual(['Pratica di connessione','Posa impianto']);expect(f[1].notes).toContain('7.5 h');expect(Number((await rows('orders'))[0].total_amount)).toBe(10000);});
+ it('servizio storico con quantità nulla mantiene la singola prestazione, zero resta escluso',async()=>{await db.exec('update fv_servizi_progetto set quantita=null');const p=await rpc('fv');expect(p.fasi.map((f:any)=>f.name)).toContain('Pratica di connessione');});
  it('FV: prezzo manuale imponibile e IVA zero restano invariati, nessun articolo di rettifica',async()=>{await db.exec('update fv_progetti set prezzo_vendita_manuale=8765.43,iva_aliquota=0');const p=await convert('fv');expect(p.imponibile).toBe(8765.43);expect(p.aliquota).toBe(0);expect(p.totale).toBe(8765.43);expect(p.materiali).toHaveLength(1);});
  it('RST: capitoli raggruppati senza perdere descrizioni e misure',async()=>{await db.exec("update rst_computo_voci set capitolo_nome='Opere'");const p=await convert('rst',true);expect(p.fasi).toHaveLength(1);expect(p.fasi[0].notes).toContain('Rimozione pavimento');expect(p.fasi[0].notes).toContain('85.5 mq');});
  it('quantità zero o negative escluse, nessun falso acquisto di riepilogo',async()=>{await db.exec('update fv_componenti_progetto set quantita=0; update fv_servizi_progetto set quantita=-1;update fv_manodopera_progetto set ore=0');const p=await convert('fv');expect(p.esclusi).toBe(3);expect(p.materiali).toEqual([]);expect(p.fasi).toEqual([]);expect(await rows('order_items')).toHaveLength(0);});

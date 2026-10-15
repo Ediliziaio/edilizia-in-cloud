@@ -140,7 +140,7 @@ BEGIN
     AND NOT public.utente_e_cliente_esterno()
     AND EXISTS (SELECT 1 FROM public.multi_company_access m
       WHERE m.user_id=v_caller_id AND m.company_id=v_company_id
-        AND m.is_active AND (m.expires_at IS NULL OR m.expires_at > now()))
+        AND m.status = 'active' AND (m.expires_at IS NULL OR m.expires_at > now()))
     AND public.has_permission_for_company(v_caller_id, 'can_edit_orders', v_company_id) IS TRUE THEN
     NULL; -- Non usare i permessi dell'azienda primaria o della sessione precedente.
   ELSE

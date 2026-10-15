@@ -19,7 +19,7 @@ create role anon; create role authenticated;
 create type app_role as enum ('super_admin','company_admin','company_staff');
 create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.user',true),'')::uuid$$;
 create table profiles(id uuid primary key,company_id uuid);
-create table multi_company_access(user_id uuid,company_id uuid,is_active boolean,expires_at timestamptz,access_role text);
+create table multi_company_access(user_id uuid,company_id uuid,status text,expires_at timestamptz,access_role text);
 create table staff_permissions(user_id uuid,company_id uuid,can_edit_orders boolean);
 create function has_role(u uuid,r app_role) returns boolean language sql stable as $$select
  case when r='super_admin' then current_setting('test.super',true)='true'
@@ -30,11 +30,8 @@ create function utente_bloccato() returns boolean language sql stable as $$selec
 create function utente_e_cliente_esterno() returns boolean language sql stable as $$select coalesce(current_setting('test.customer',true),'false')='true'$$;
 create function solo_assegnati_attivo() returns boolean language sql stable as $$select current_setting('test.assigned',true)='true'$$;
 create function check_staff_visibility(u uuid,c uuid) returns boolean language sql stable as $$select current_setting('test.assigned',true) is distinct from 'true' or u=c$$;
-create function has_permission_for_company(u uuid,p text,c uuid) returns boolean language sql stable as $$select
- coalesce(has_role(u,'super_admin') or (has_role(u,'company_admin') and c=get_user_company_id(u))
- or exists(select 1 from multi_company_access m where user_id=u and company_id=c and is_active
-   and (expires_at is null or expires_at>now()) and access_role='company_admin')
- or exists(select 1 from staff_permissions where user_id=u and company_id=c and can_edit_orders),false)$$;
+create function chiamante_anonimo() returns boolean language sql stable as $$select auth.uid() is null$$;
+${readFileSync('src/test/fixtures/moduleCompanyPermission.sql','utf8')}
 create function assert_permesso(p text,a text) returns void language plpgsql as $$begin
  if not has_permission_for_company(auth.uid(),p,get_effective_company_id()) then raise exception 'Permesso negato' using errcode='42501'; end if;
 end$$;
