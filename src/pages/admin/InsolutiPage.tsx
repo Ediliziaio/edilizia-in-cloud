@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { AlertTriangle, Euro, Gift, ExternalLink } from "lucide-react";
+import { AlertTriangle, Gift, ExternalLink, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
+import { formatInsolutiEuro as euro, paymentStatusLabel, reminderStatusLabel, paymentFailureLabel, plannedRecoveryAction } from "@/lib/adminInsoluti";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,11 +40,6 @@ const COLORE_FASCIA: Record<string, string> = {
   "oltre 30 giorni": "bg-red-200 text-red-900 dark:bg-red-900 dark:text-red-100",
 };
 
-function euro(centesimi: number | null | undefined): string {
-  const v = (centesimi ?? 0) / 100;
-  return v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
-}
-
 /**
  * Cruscotto insoluti (F2-08).
  *
@@ -52,8 +48,8 @@ function euro(centesimi: number | null | undefined): string {
  * succede adesso.
  */
 export default function InsolutiPage() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["admin-insoluti"],
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
+    queryKey: ["admin-insoluti", "readable-v2"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("v_insoluti" as never)
@@ -69,12 +65,12 @@ export default function InsolutiPage() {
   const daRecuperare = righe.filter((r) => !r.in_omaggio);
   const totaleDovuto = daRecuperare.reduce((s, r) => s + (r.importo_dovuto ?? 0), 0);
   const inSospensione = daRecuperare.filter((r) =>
-    r.prossima_azione.startsWith("sospensione automatica"),
+    r.prossima_azione?.startsWith("sospensione automatica"),
   ).length;
 
   return (
     <div className="p-3 md:p-6 space-y-4">
-      <div className="hidden md:flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <AlertTriangle className="h-6 w-6 text-amber-500" />
         <div>
           <h1 className="text-xl font-semibold">Insoluti</h1>
@@ -82,34 +78,37 @@ export default function InsolutiPage() {
             Chi non ha pagato, quanto deve, da quanto tempo e cosa succede adesso
           </p>
         </div>
+        <Button variant="outline" className="sm:ml-auto gap-2" onClick={() => refetch()} disabled={isFetching}>
+          <RefreshCw className={isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Aggiorna
+        </Button>
       </div>
 
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+      <div aria-busy={isLoading} className="grid gap-3 grid-cols-2 md:grid-cols-4">
         <div className="rounded-lg border bg-card p-3">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Da recuperare</p>
-          <p className="text-2xl font-semibold tabular-nums text-destructive">{euro(totaleDovuto)}</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Da recuperare</p>
+          <p className="text-2xl font-semibold tabular-nums text-destructive">{isLoading ? "…" : error ? "—" : euro(totaleDovuto)}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {daRecuperare.length} {daRecuperare.length === 1 ? "azienda" : "aziende"}
+            {isLoading ? "Caricamento posizioni…" : error ? "Dati non disponibili" : `${daRecuperare.length} ${daRecuperare.length === 1 ? "azienda" : "aziende"}`}
           </p>
         </div>
         <div className="rounded-lg border bg-card p-3">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">In sospensione</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Sospensione prevista</p>
           <p className={`text-2xl font-semibold tabular-nums ${inSospensione > 0 ? "text-amber-600" : ""}`}>
-            {inSospensione}
+            {isLoading ? "…" : error ? "—" : inSospensione}
           </p>
-          <p className="text-xs text-muted-foreground mt-0.5">alla prossima notte</p>
+          <p className="text-xs text-muted-foreground mt-0.5">secondo le regole di recupero</p>
         </div>
         <div className="rounded-lg border bg-card p-3">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Oltre 30 giorni</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Oltre 30 giorni</p>
           <p className="text-2xl font-semibold tabular-nums">
-            {daRecuperare.filter((r) => r.fascia_anzianita === "oltre 30 giorni").length}
+            {isLoading ? "…" : error ? "—" : daRecuperare.filter((r) => r.fascia_anzianita === "oltre 30 giorni").length}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">credito più anziano</p>
         </div>
         <div className="rounded-lg border bg-card p-3">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">In omaggio</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">In omaggio</p>
           <p className="text-2xl font-semibold tabular-nums text-muted-foreground">
-            {righe.filter((r) => r.in_omaggio).length}
+            {isLoading ? "…" : error ? "—" : righe.filter((r) => r.in_omaggio).length}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">escluse dal recupero</p>
         </div>
@@ -118,12 +117,12 @@ export default function InsolutiPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            {isLoading ? "Caricamento…" : `${righe.length} posizioni`}
+            {isLoading ? "Caricamento…" : error ? "Posizioni non disponibili" : `${righe.length} ${righe.length === 1 ? "posizione" : "posizioni"}`}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           {error && (
-            <p className="text-sm text-destructive p-6">Errore: {(error as Error).message}</p>
+            <div role="alert" className="p-6 space-y-3"><p className="text-sm text-destructive">Impossibile caricare le posizioni insolute.</p><Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>Riprova</Button></div>
           )}
 
           {isLoading && (
@@ -134,11 +133,11 @@ export default function InsolutiPage() {
 
           {!isLoading && !error && righe.length === 0 && (
             <p className="text-sm text-muted-foreground px-6 pb-6">
-              Nessun insoluto. Tutti gli abbonamenti attivi risultano in regola.
+              Nessuna posizione insoluta segnalata dal sistema.
             </p>
           )}
 
-          {!isLoading && righe.length > 0 && (
+          {!isLoading && !error && righe.length > 0 && (
             <Table className="min-w-[820px]">
               <TableHeader>
                 <TableRow>
@@ -148,7 +147,7 @@ export default function InsolutiPage() {
                   <TableHead>Scaduto da</TableHead>
                   <TableHead>Stato pagamento</TableHead>
                   <TableHead>Cosa succede</TableHead>
-                  <TableHead />
+                  <TableHead><span className="sr-only">Apri azienda</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -163,7 +162,7 @@ export default function InsolutiPage() {
                       {r.canone_mensile != null && (
                         <span className="block text-xs text-muted-foreground">
                           {Number(r.canone_mensile).toLocaleString("it-IT", {
-                            style: "currency", currency: "EUR", maximumFractionDigits: 0,
+                            style: "currency", currency: "EUR",
                           })}/mese
                         </span>
                       )}
@@ -178,7 +177,7 @@ export default function InsolutiPage() {
                     </TableCell>
                     <TableCell>
                       {r.giorni_scaduto != null ? (
-                        <Badge variant="secondary" className={`text-[10px] ${COLORE_FASCIA[r.fascia_anzianita] ?? ""}`}>
+                        <Badge variant="secondary" className={`text-xs ${COLORE_FASCIA[r.fascia_anzianita] ?? ""}`}>
                           {r.giorni_scaduto} {r.giorni_scaduto === 1 ? "giorno" : "giorni"}
                         </Badge>
                       ) : (
@@ -191,15 +190,17 @@ export default function InsolutiPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-xs">
-                      <span className="font-mono">{r.stato_stripe ?? "—"}</span>
+                      <p className="font-medium">{paymentStatusLabel(r.stato_stripe)}</p>
                       {r.stato_solleciti && r.stato_solleciti !== "none" && (
-                        <span className="block text-muted-foreground">solleciti: {r.stato_solleciti}</span>
+                        <p className="text-muted-foreground mt-1">{reminderStatusLabel(r.stato_solleciti)}</p>
                       )}
-                      {r.motivo_fallimento && (
-                        <span className="block text-muted-foreground truncate max-w-[180px]" title={r.motivo_fallimento}>
-                          {r.motivo_fallimento}
-                        </span>
-                      )}
+                      {r.motivo_fallimento && <p className="text-muted-foreground mt-1 max-w-[220px]">{paymentFailureLabel(r.motivo_fallimento)}</p>}
+                      <details className="mt-2 text-muted-foreground max-w-[240px]">
+                        <summary className="cursor-pointer focus-visible:outline focus-visible:outline-2">Dettagli pagamento</summary>
+                        <p className="mt-1 break-words">Stripe: {r.stato_stripe ?? "non disponibile"} · Solleciti: {r.stato_solleciti ?? "non disponibile"}</p>
+                        {r.motivo_fallimento && <p className="mt-1 break-words">{r.motivo_fallimento}</p>}
+                        {r.pagamenti_falliti != null && <p className="mt-1">Tentativi falliti: {r.pagamenti_falliti}</p>}
+                      </details>
                     </TableCell>
                     <TableCell className="text-xs">
                       {r.in_omaggio ? (
@@ -208,15 +209,15 @@ export default function InsolutiPage() {
                         </span>
                       ) : (
                         <span className={
-                          r.prossima_azione.startsWith("sospensione") ? "text-destructive font-medium" : ""
+                          r.prossima_azione?.startsWith("sospensione") ? "text-destructive font-medium" : ""
                         }>
-                          {r.prossima_azione}
+                          {plannedRecoveryAction(r.prossima_azione)}
                         </span>
                       )}
                     </TableCell>
                     <TableCell>
                       <Button asChild variant="ghost" size="sm">
-                        <Link to={`/admin/aziende/${r.azienda_id}`}>
+                        <Link aria-label={`Apri azienda ${r.azienda}`} to={`/admin/aziende/${r.azienda_id}`}>
                           <ExternalLink className="h-4 w-4" />
                         </Link>
                       </Button>
@@ -230,8 +231,8 @@ export default function InsolutiPage() {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        La sospensione automatica scatta 14 giorni dopo il primo pagamento fallito.
-        Chi torna a pagare viene riattivato la notte stessa, senza intervento manuale.
+        Gli importi derivano dalle fatture aperte. Le azioni indicate sono quelle previste dalle regole di recupero:
+        verifica lo stato effettivo nella scheda azienda e l’esecuzione delle automazioni in Operazioni.
       </p>
     </div>
   );
