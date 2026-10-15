@@ -12,6 +12,7 @@ interface BreadcrumbSegment {
 const ROUTE_MAP: Record<string, string> = {
   "/admin": "Dashboard",
   "/admin/aziende": "Aziende",
+  "/admin/utenti": "Utenti",
   "/admin/aziende/nuova": "Nuova Azienda",
   "/admin/ticket": "Assistenza",
   "/admin/lifecycle": "Lifecycle",
@@ -78,7 +79,7 @@ export function AdminBreadcrumb() {
   const isMobile = useIsMobile();
 
   const segments = useMemo(() => {
-    const path = location.pathname;
+    const path = location.pathname.replace(/\/+$/, "") || "/";
     const result: BreadcrumbSegment[] = [];
 
     // Always start with Dashboard

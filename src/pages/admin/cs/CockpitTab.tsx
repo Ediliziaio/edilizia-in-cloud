@@ -10,6 +10,8 @@
  *   - Action queue (cosa approvare)
  *   - Workflow stats (sistema in salute?)
  */
+import { cockpitPortfolio, type CockpitProfile } from "@/lib/customer-os/cockpitPortfolio";
+import type { AdminRevenueCompanyLike } from "@/lib/adminRevenue";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -67,30 +69,22 @@ export function CockpitTab() {
   // ─── 0) KPI portafoglio: una sola lettura minimale della view (poche
   // centinaia di clienti) → conteggi ESATTI + somme MRR. Le card sotto usano
   // questi totali, non la lunghezza delle liste troncate dal limit.
-  const { data: portfolio } = useQuery({
-    queryKey: ["cockpit-portfolio-kpi"],
+  const { data: portfolio, isError: portfolioError } = useQuery({
+    queryKey: ["cockpit-portfolio-kpi", "paying-v2"],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sp = supabase as any;
-      const { data, error } = await sp
-        .from("customer_profile")
-        .select("company_id, plan_price_monthly, is_at_risk, is_upsell_candidate, health_label_latest, company_status")
-        .limit(5000);
-      if (error) throw error;
-      const rows = (data ?? []) as Array<{
-        plan_price_monthly: number | null; is_at_risk: boolean; is_upsell_candidate: boolean;
-        health_label_latest: string | null; company_status: string;
-      }>;
-      const mrr = (r: { plan_price_monthly: number | null }) => Number(r.plan_price_monthly) || 0;
-      return {
-        total: rows.length,
-        mrrTotal: rows.reduce((s, r) => s + mrr(r), 0),
-        atRisk: rows.filter((r) => r.is_at_risk).length,
-        mrrAtRisk: rows.filter((r) => r.is_at_risk).reduce((s, r) => s + mrr(r), 0),
-        upsell: rows.filter((r) => r.is_upsell_candidate).length,
-        champions: rows.filter((r) => r.health_label_latest === "champion" || r.health_label_latest === "engaged").length,
-        scored: rows.filter((r) => r.health_label_latest != null).length,
-      };
+      const [profiles, companies] = await Promise.all([
+        sp.from("customer_profile")
+          .select("company_id,is_at_risk,is_upsell_candidate,health_label_latest")
+          .limit(5000),
+        supabase.from("companies")
+          .select("id,status,payment_method,stripe_customer_id,stripe_subscription_status,is_platform_admin_company,subscription_plans:subscription_plan_id(price_monthly,price_yearly),company_subscriptions(status,stripe_subscription_id,billing_period)")
+          .eq("is_platform_admin_company", false),
+      ]);
+      if (profiles.error) throw profiles.error;
+      if (companies.error) throw companies.error;
+      return cockpitPortfolio((profiles.data ?? []) as CockpitProfile[], (companies.data ?? []) as AdminRevenueCompanyLike[]);
     },
     staleTime: 5 * 60_000,
   });
@@ -201,13 +195,13 @@ export function CockpitTab() {
     <div className="space-y-4">
       {/* KPI portafoglio */}
       {portfolio && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-5">
           {[
             { label: "Clienti", value: String(portfolio.total), icon: Users, cls: "" },
-            { label: "MRR", value: fmtEur(portfolio.mrrTotal), icon: Euro, cls: "" },
-            { label: "At-risk", value: String(portfolio.atRisk), icon: AlertTriangle, cls: portfolio.atRisk > 0 ? "text-rose-600 dark:text-rose-400" : "" },
-            { label: "MRR a rischio", value: fmtEur(portfolio.mrrAtRisk), icon: Euro, cls: portfolio.mrrAtRisk > 0 ? "text-rose-600 dark:text-rose-400" : "" },
-            { label: "Sani (champion+engaged)", value: `${portfolio.champions}${portfolio.scored ? `/${portfolio.scored}` : ""}`, icon: Heart, cls: "text-emerald-600 dark:text-emerald-400" },
+            { label: "MRR pagante", value: fmtEur(portfolio.mrrTotal), icon: Euro, cls: "" },
+            { label: "Rischio Customer OS", value: String(portfolio.atRisk), icon: AlertTriangle, cls: portfolio.atRisk > 0 ? "text-rose-600 dark:text-rose-400" : "" },
+            { label: "MRR pagante a rischio", value: fmtEur(portfolio.mrrAtRisk), icon: Euro, cls: portfolio.mrrAtRisk > 0 ? "text-rose-600 dark:text-rose-400" : "" },
+            { label: "Clienti coinvolti", value: `${portfolio.champions}${portfolio.scored ? `/${portfolio.scored}` : ""}`, icon: Heart, cls: "text-emerald-600 dark:text-emerald-400" },
           ].map((k) => {
             const Icon = k.icon;
             return (
@@ -215,8 +209,8 @@ export function CockpitTab() {
                 <CardContent className="flex items-center gap-2.5 p-3">
                   <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
                   <div className="min-w-0">
-                    <p className={cn("text-lg font-bold leading-none truncate", k.cls)}>{k.value}</p>
-                    <p className="text-[11px] text-muted-foreground truncate">{k.label}</p>
+                    <p className={cn("text-lg font-bold leading-tight tabular-nums break-words", k.cls)}>{k.value}</p>
+                    <p className="text-xs text-muted-foreground">{k.label}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -225,13 +219,18 @@ export function CockpitTab() {
         </div>
       )}
 
+      {portfolioError && <p role="alert" className="text-sm text-destructive">Dati del portafoglio non disponibili. Riprova aggiornando la pagina.</p>}
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        Il rischio Customer OS usa un modello distinto dal punteggio di utilizzo della scheda azienda.
+        L’MRR include solo aziende paganti, con gli stessi criteri della pagina Fatturato.
+      </p>
       {/* Daily Brief Beatrice */}
       <Card className="border-orange-200 bg-gradient-to-br from-orange-50/60 via-background to-amber-50/40 dark:border-orange-900/60 dark:from-orange-950/30 dark:via-background dark:to-amber-950/20">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Sparkles className="h-5 w-5 text-orange-500" />
-              Daily Brief — Beatrice CFO
+              Riepilogo giornaliero — Beatrice
             </CardTitle>
             <Button variant="ghost" size="sm" onClick={() => refetchBrief()} className="h-7">
               <RefreshCw className="h-3 w-3 mr-1" /> Aggiorna
@@ -247,7 +246,7 @@ export function CockpitTab() {
               icon={Brain}
               size="sm"
               title="Beatrice non ha ancora generato il primo brief"
-              description="Il primo brief arriverà domani mattina alle 06:30, oppure trigger manuale workflow"
+              description="Nessun riepilogo disponibile. Aggiorna la lettura o verifica lo stato dei workflow in Operazioni."
             />
           ) : (
             <BriefDisplay brief={latestBrief} />
@@ -262,7 +261,7 @@ export function CockpitTab() {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <AlertTriangle className="h-5 w-5 text-rose-500" />
-              Clienti at-risk ({portfolio?.atRisk ?? atRiskCustomers.length})
+              Clienti a rischio Customer OS ({portfolio?.atRisk ?? atRiskCustomers.length})
             </CardTitle>
             <CardDescription>Salute deteriorata · richiede intervento Florin</CardDescription>
           </CardHeader>
@@ -274,7 +273,7 @@ export function CockpitTab() {
                 icon={CheckCircle2}
                 tone="success"
                 size="sm"
-                title="Nessun cliente at-risk"
+                title="Nessun cliente a rischio Customer OS"
                 description="Tutti i clienti sono engaged"
               />
             ) : (
@@ -515,7 +514,7 @@ function AtRiskRow({ customer }: { customer: CustomerProfile }) {
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-foreground truncate">{customer.name}</p>
         <p className="text-[11px] text-muted-foreground">
-          Score {customer.health_score_latest ?? "?"} · {customer.plan_name ?? "—"} · €{customer.plan_price_monthly ?? 0}/mese
+          Indice Customer OS {customer.health_score_latest ?? "?"} · {customer.plan_name ?? "—"} · listino €{customer.plan_price_monthly ?? 0}/mese
         </p>
       </div>
       <Badge variant="outline" className={cn("text-[10px] shrink-0", style.bg, style.color)}>

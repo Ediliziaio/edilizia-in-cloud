@@ -97,6 +97,7 @@ interface AdminNavItem {
 // shortcut in fondo, riducendo il "mix accordion/flat" che confonde.
 const adminSubcategories: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   // ── 1. Accordion (≥2 voci) ───────────────────────────────────────────
+  { id: "sa_clienti", label: "Clienti e aziende", icon: Building },
   { id: "sa_revenue", label: "Fatturato", icon: Wallet },
   { id: "sa_prodotto", label: "Prodotto", icon: Blocks },
   // Librerie/listini curati dal super-admin e condivisi con le aziende.
@@ -116,9 +117,10 @@ const adminMarketingSubcategories: Array<{ id: string; label: string; icon: Reac
 ];
 
 // Smart defaults: aperte le sezioni più usate quotidianamente.
-// Fatturato (= lista aziende + revenue + piani) sempre aperto: use-case primario
+// Clienti e aziende e Fatturato aperti: gestione clienti e controllo ricavi.
 // Customer Success per gestire lifecycle, ticket, onboarding
 const ADMIN_SIDEBAR_DEFAULTS: Record<string, boolean> = {
+  sa_clienti: true,
   sa_revenue: true,
   sa_ai: false,
   sa_customer_success: true,
@@ -133,13 +135,13 @@ const ADMIN_SIDEBAR_DEFAULTS: Record<string, boolean> = {
 
 const allNavItems: AdminNavItem[] = [
   // Dashboard rimosso da qui — pinned in cima accanto ad Attività/Chat
-  // ─── FATTURATO (sa_revenue) — lista clienti + revenue + piani uniti ───
+  // ─── CLIENTI E AZIENDE — anagrafiche separate dai ricavi ───
   // Aziende è l'item primario perché è la lista dei clienti/paganti
-  { title: "Aziende", url: "/admin/aziende", icon: Building, permission: "super_admin", subcategory: "sa_revenue" },
+  { title: "Aziende", url: "/admin/aziende", icon: Building, permission: "super_admin", subcategory: "sa_clienti" },
   // Utenti: voce mancante fino alla Fase 2 del piano di risalita. Senza di
   // essa il SuperAdmin non poteva cercare una persona su tutta la piattaforma,
   // vederne sessioni e dispositivi, bloccarla o resettarne la password.
-  { title: "Utenti", url: "/admin/utenti", icon: Users, permission: "super_admin", subcategory: "sa_revenue" },
+  { title: "Utenti", url: "/admin/utenti", icon: Users, permission: "super_admin", subcategory: "sa_clienti" },
   // ⚡ Hub Fatturato — 5 tab in alto sostituiscono 5 voci sidebar separate
   // (Revenue · Piani · Fatture · Promo · Dunning). Pulisce visualmente la
   // navigazione mantenendo l'accesso a tutti i sotto-strumenti con 1 click.
