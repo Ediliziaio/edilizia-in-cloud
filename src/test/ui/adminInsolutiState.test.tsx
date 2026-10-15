@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import InsolutiPage from "@/pages/admin/InsolutiPage";
 import { AdminBreadcrumb } from "@/components/admin/header/AdminBreadcrumb";
 const state = vi.hoisted(() => ({ loading: false, error: null as Error | null, refetch: vi.fn() }));
-vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: undefined, isLoading: state.loading, error: state.error, refetch: state.refetch, isFetching: false }) }));
+vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: undefined as unknown, isLoading: state.loading, error: state.error, refetch: state.refetch, isFetching: false }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 afterEach(() => { cleanup(); state.loading = false; state.error = null; state.refetch.mockClear(); });
