@@ -17,6 +17,9 @@
 - Acquisire la sorgente prima degli import; ignorare generazioni obsolete.
 - Dichiarare l'anteprima aggiornata soltanto dopo il disegno del documento corrente.
   Un errore non diventa più un falso successo; liberare anche i risultati dopo timeout.
+- Anche allegati e documenti delle varianti usano la sorgente Blob condivisa.
+  Il pulsante di aggiornamento non revoca una sorgente statica ancora in uso;
+  il documento conservato della variante produce un URL nuovo a ogni apertura.
 - Allineare le policy delle righe al ruolo superadmin già previsto sulle testate.
   Conservare isolamento aziendale degli utenti normali, permesso preventivi,
   visibilità staff e blocco clienti esterni. Controllare sempre che azienda
@@ -39,3 +42,14 @@ Nessuna modifica ai preventivi reali, nessun invio, firma o modifica dei listini
   Tutte le pagine renderizzate e ispezionate.
 - La precedente testata QA parziale OFF-2026-003 resta riconoscibile come test;
   non è stata cancellata automaticamente.
+- Produzione dopo il deploy 91cdef47d: copertina PDF caricata nuovamente,
+  canvas di tutte e tre le pagine visibili, modifiche rapide del footer risolte
+  nell'ultima versione. Download corrispondente verificato su tutte le pagine.
+  Zoom e aggiornamento manuale completati senza errori live-preview in console.
+- Controlli CI 91cdef47d: Cloudflare Pages, Supabase Preview, Critical tests
+  e TypeScript check riusciti. Le verifiche locali complete build/typecheck
+  sono state interrotte dopo lunga contesa di risorse; non dichiarate superate.
+- Suite mirate eseguite separatamente: 27 test più 8 del canvas e 11 del renderer
+  nativo passati. Un'attesa UI sotto carico è stata riprovata isolatamente
+  senza modificare il codice del componente. Ulteriore suite varianti,
+  sorgenti e timeout: 28 test passati con timeout di test di 15 secondi.

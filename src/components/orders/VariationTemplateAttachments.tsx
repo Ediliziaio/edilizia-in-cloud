@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPdfPreviewUrl, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
@@ -79,7 +80,7 @@ export function VariationTemplateAttachments({ company, template, content, canEd
 function AttachmentPreview({ row, company, template }: { row: VariationTemplateFile; company: string; template: string }) {
   const alive = useRef(true);
   const urls = useRef(new Set<string>());
-  useEffect(() => { alive.current = true; const owned = urls.current; return () => { alive.current = false; for (const url of owned) URL.revokeObjectURL(url); owned.clear(); }; }, []);
-  const render = useCallback(async () => { const blob = await downloadVariationFile(row, company, template); if (!alive.current) return ""; const url = URL.createObjectURL(blob); urls.current.add(url); return url; }, [row, company, template]);
+  useEffect(() => { alive.current = true; const owned = urls.current; return () => { alive.current = false; for (const url of owned) revokePdfPreviewUrl(url); owned.clear(); }; }, []);
+  const render = useCallback(async () => { const blob = await downloadVariationFile(row, company, template); if (!alive.current) return ""; const url = createPdfPreviewUrl(blob); urls.current.add(url); return url; }, [row, company, template]);
   return <PdfBlobLivePreviewPanel renderBlobUrl={render} depsKey={`${company}:${template}:${row.id}`} downloadFileName={variationPackageName(row.file_name, 1)} showDownloadOnMobile />;
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useVariationWorkflow, type WorkflowResponse, type WorkflowEvidence } from "@/hooks/useVariationWorkflow";
@@ -21,14 +22,13 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   const [busy, setBusy] = useState(existing);
   const [error, setError] = useState("");
   const [view, setView] = useState(false);
-  const [pdf, setPdf] = useState<{url: string; name: string;downloadUrl:string} | null>(null);
+  const [pdf, setPdf] = useState<{key: string; blob: Blob; name: string;downloadUrl:string} | null>(null);
   const [evidence, setEvidence] = useState<WorkflowEvidence[]>([]);
   const [selectedEvidence, setSelectedEvidence] = useState("");
   const [signer, setSigner] = useState("");
   const [signedOn, setSignedOn] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const lock = useRef(false), alive = useRef(true);
-  const urls = useRef(new Set<string>());
   const dirty = JSON.stringify(form) !== saved;
   const editable = canEdit && (!receipt || receipt.variation.status === "bozza");
   const absorb = (data: WorkflowResponse) => {
@@ -41,7 +41,7 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   useEffect(() => {
     alive.current = true;
     if (existing) void workflow.request(id, "load").then(data => { if (alive.current) absorb(data); }).catch(e => { if (alive.current) setError(e.message); }).finally(() => { if (alive.current) setBusy(false); });
-    return () => { alive.current = false; for (const url of urls.current) URL.revokeObjectURL(url); urls.current.clear(); };
+    return () => { alive.current = false; };
     // Dialog is keyed by company/order/id; no background reload can overwrite edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, order, company]);
@@ -60,10 +60,9 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
   };
   const showDocument = async (fileId = "proposal") => {
     const result = await workflow.open(id,fileId);
-    const url = URL.createObjectURL(result.blob); urls.current.add(url);
-    if(alive.current) { setPdf({url,name:result.name,downloadUrl:result.url}); setView(true); } else { URL.revokeObjectURL(url); urls.current.delete(url); }
+    if(alive.current) { setPdf({key:crypto.randomUUID(),blob:result.blob,name:result.name,downloadUrl:result.url}); setView(true); }
   };
-  const render = useCallback(async () => pdf?.url ?? "", [pdf]);
+  const render = useCallback(async () => pdf ? createPdfPreviewUrl(pdf.blob) : "", [pdf]);
   const close = () => { if(busy || lock.current) return; if(dirty && editable && !window.confirm("La bozza contiene modifiche non salvate. Chiudere senza salvarle?")) return; onClose(); };
   const fresh = !!receipt?.document && !dirty && receipt.document.source_revision === receipt.workspace?.revision;
   const pending = receipt?.variation.status === "in_attesa";
@@ -80,7 +79,7 @@ export function VariationLifecycleDialog({ id, existing, order, company, context
         <VariationEditor draft={form} setDraft={draft => {setForm(draft);setPdf(null);}} phases={phases.data ?? []} context={variationDocumentContext(form,context)} busy={busy || !editable} review={false} onBack={()=>setView(false)} persistentDraft showPdfPreview={false} error="" />
         {receipt?.workspace && <p role="status" className="text-xs text-muted-foreground">{dirty ? "Modifiche da salvare" : `Bozza salvata · versione ${receipt.workspace.revision}`}. Appunti e costi stimati restano interni.</p>}
       </> : <>
-        {pdf && <div className="h-[65dvh] min-h-[380px]"><PdfBlobLivePreviewPanel key={pdf.url} renderBlobUrl={render} depsKey={pdf.url} debounceMs={0} downloadFileName={pdf.name} showDownloadOnMobile /></div>}
+        {pdf && <div className="h-[65dvh] min-h-[380px]"><PdfBlobLivePreviewPanel key={pdf.key} renderBlobUrl={render} depsKey={pdf.key} debounceMs={0} downloadFileName={pdf.name} showDownloadOnMobile /></div>}
         {pdf && <div className="flex flex-wrap items-center gap-3"><a href={pdf.downloadUrl} download={pdf.name} target="_blank" rel="noopener" className="inline-flex min-h-11 items-center rounded-md border px-4 text-sm font-medium">Scarica file PDF</a><p className="text-xs text-muted-foreground">Download diretto del file verificato. Se il collegamento scade, riapri il PDF.</p></div>}
         {receipt?.document?.attachments.map(file => <div key={file.id} className="flex items-center justify-between gap-2 rounded-md border p-3"><span className="text-sm break-all">{file.name}</span><Button variant="outline" disabled={busy} onClick={() => void run(() => showDocument(file.id))}>Apri / scarica</Button></div>)}
         {receipt?.variation.status === "approvato" && <div className="rounded-md border p-3 space-y-2"><p className="text-sm">Approvazione {receipt.variation.approval_channel === "offline" ? "ricevuta fuori dal sistema" : "registrata online"}{receipt.variation.firmato_da ? ` · ${receipt.variation.firmato_da}` : ""}. Il PDF originale resta distinto dalla prova di approvazione.</p>{evidence.map(item=><Button key={item.id} variant="outline" disabled={busy} onClick={()=>void run(()=>showDocument(item.id))}>Copia caricata: {item.file_name}</Button>)}</div>}

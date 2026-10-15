@@ -100,7 +100,7 @@ export function useGenerazioneProtetta<T>(
             onScartaRef.current?.(esito);
             return;
           }
-          if (correnteRef.current != null) onScartaRef.current?.(correnteRef.current);
+          if (correnteRef.current != null && correnteRef.current !== esito) onScartaRef.current?.(correnteRef.current);
           correnteRef.current = esito;
           setRisultato(esito);
           setGeneratedKey(key);
