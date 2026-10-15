@@ -895,7 +895,7 @@ export default function AdminAttivita() {
             <LayoutDashboard className="h-4 w-4" />
             <span>Dashboard</span>
           </TabsTrigger>
-          <TabsTrigger value="tutte" className="gap-1.5 text-xs sm:text-sm py-2">
+          <TabsTrigger value="tutte" aria-label="Tutte le attività" className="gap-1.5 text-xs sm:text-sm py-2">
             <ListChecks className="h-4 w-4" />
             <span className="truncate"><span className="hidden sm:inline">Tutte le </span>attività</span>
           </TabsTrigger>
