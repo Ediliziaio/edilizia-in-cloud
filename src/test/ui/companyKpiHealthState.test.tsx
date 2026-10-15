@@ -1,8 +1,9 @@
+import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { CompaniesKPIStrip } from "@/components/admin/company/CompaniesKPIStrip";
 afterEach(cleanup);
-const companies = [{ id: "company", status: "active", subscription_plans: null }];
+const companies: ComponentProps<typeof CompaniesKPIStrip>["companies"] = [{ id: "company", status: "active", subscription_plans: null }];
 describe("Stato delle valutazioni nei KPI", () => {
   it("non presenta un errore di caricamento come zero aziende a rischio", () => {
     const click = vi.fn();
