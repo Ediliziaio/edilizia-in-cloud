@@ -4,6 +4,7 @@ import { Eye, LogOut, PenTool } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { applyBrandTheme, clearBrandTheme } from "@/lib/brandTheme";
+import { applyBrandFavicon } from "@/lib/brandFavicon";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useCustomCSS } from "@/hooks/useCustomCSS";
 import { usePreviewToken } from "@/hooks/usePreviewToken";
@@ -83,22 +84,18 @@ export function CustomerLayout() {
 
   // Applica i colori brand al design system (--primary, --accent, sidebar)
   useEffect(() => {
+    const restoreFavicon = applyBrandFavicon(effectiveBrand.isWhiteLabel ? effectiveBrand.faviconUrl : null);
     if (effectiveBrand.isWhiteLabel) {
       applyBrandTheme({
         primaryColor: effectiveBrand.primaryColor,
         accentColor: effectiveBrand.accentColor,
         textOnPrimary: effectiveBrand.textOnPrimary,
       });
-      if (effectiveBrand.faviconUrl) {
-        let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
-        if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
-        link.href = effectiveBrand.faviconUrl;
-      }
       if (effectiveBrand.platformName) document.title = effectiveBrand.platformName;
     } else {
       clearBrandTheme();
     }
-    return () => clearBrandTheme();
+    return () => { clearBrandTheme(); restoreFavicon(); };
   }, [effectiveBrand]);
 
   // Cliente bloccato = portale clienti non attivo per la sua azienda (regola nel

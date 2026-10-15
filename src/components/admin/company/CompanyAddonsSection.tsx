@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Gem, Palette, MessageSquare, History, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIncludedWhitelabel } from "@/hooks/useIncludedWhitelabel";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -24,6 +25,7 @@ interface CompanyAddonsSectionProps {
 
 export function CompanyAddonsSection({ company }: CompanyAddonsSectionProps) {
   const { user } = useAuth();
+  const { isIncluded: includedInPlan, planName } = useIncludedWhitelabel(company.subscription_plan_id);
   const queryClient = useQueryClient();
   const [activateDialog, setActivateDialog] = useState(false);
   const [deactivateDialog, setDeactivateDialog] = useState(false);
@@ -171,8 +173,8 @@ export function CompanyAddonsSection({ company }: CompanyAddonsSectionProps) {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-medium">White Label</span>
-                    {company.white_label_enabled && (
-                      <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-200">ATTIVO</Badge>
+                    {(includedInPlan || company.white_label_enabled) && (
+                      <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-200">{includedInPlan ? "INCLUSO NEL PIANO" : "ATTIVO"}</Badge>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -181,7 +183,8 @@ export function CompanyAddonsSection({ company }: CompanyAddonsSectionProps) {
                 </div>
               </div>
               <Switch
-                checked={company.white_label_enabled}
+                checked={includedInPlan || company.white_label_enabled}
+                disabled={includedInPlan}
                 onCheckedChange={(checked) => {
                   if (checked) setActivateDialog(true);
                   else setDeactivateDialog(true);
@@ -189,7 +192,8 @@ export function CompanyAddonsSection({ company }: CompanyAddonsSectionProps) {
               />
             </div>
 
-            {company.white_label_enabled && (
+            {includedInPlan && <p className="text-sm text-muted-foreground">White Label incluso nel piano {planName}, senza attivazione manuale o supplemento.</p>}
+            {company.white_label_enabled && !includedInPlan && (
               <>
                 <Separator />
                 <div className="flex items-center gap-4 text-sm">
@@ -220,7 +224,7 @@ export function CompanyAddonsSection({ company }: CompanyAddonsSectionProps) {
               </>
             )}
 
-            {!company.white_label_enabled && (
+            {!company.white_label_enabled && !includedInPlan && (
               <Button variant="ghost" size="sm" className="gap-2" onClick={() => setHistoryDialog(true)}>
                 <History className="h-4 w-4" /> Storico attivazioni
               </Button>

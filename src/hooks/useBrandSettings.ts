@@ -42,9 +42,10 @@ export function useBrandSettings(companyId?: string) {
   const { effectiveCompany } = useAuth();
   const id = companyId ?? effectiveCompany?.id;
   const queryClient = useQueryClient();
+  const settingsKey = [...queryKeys.branding.settings(id), effectiveCompany?.subscription_plan_id] as const;
 
   const { data: brand, isLoading, isError, refetch } = useQuery({
-    queryKey: queryKeys.branding.settings(id),
+    queryKey: settingsKey,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
@@ -72,7 +73,8 @@ export function useBrandSettings(companyId?: string) {
       if (error) throw error;
       return data as unknown as BrandSettings;
     },
-    onSuccess: () => {
+    onSuccess: (savedBrand) => {
+      queryClient.setQueryData(settingsKey, savedBrand);
       queryClient.invalidateQueries({ queryKey: queryKeys.branding.settings(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.companyDetail(id) });
     },

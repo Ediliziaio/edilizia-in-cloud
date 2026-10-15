@@ -20846,6 +20846,7 @@ export type Database = {
           sms_sender_name: string | null
           subdomain: string | null
           updated_at: string
+          whitelabel_manual_tier: string
           whitelabel_tier: string
         }
         Insert: {
@@ -20887,6 +20888,7 @@ export type Database = {
           sms_sender_name?: string | null
           subdomain?: string | null
           updated_at?: string
+          whitelabel_manual_tier?: string
           whitelabel_tier?: string
         }
         Update: {
@@ -20928,6 +20930,7 @@ export type Database = {
           sms_sender_name?: string | null
           subdomain?: string | null
           updated_at?: string
+          whitelabel_manual_tier?: string
           whitelabel_tier?: string
         }
         Relationships: [

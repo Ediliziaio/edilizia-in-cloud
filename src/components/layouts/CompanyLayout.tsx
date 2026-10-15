@@ -14,6 +14,7 @@ import { useSchedeManodopera } from "@/hooks/useSchedeManodopera";
 import { useBranding } from "@/hooks/useBranding";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { applyBrandTheme, clearBrandTheme } from "@/lib/brandTheme";
+import { applyBrandFavicon } from "@/lib/brandFavicon";
 import { useCustomCSS } from "@/hooks/useCustomCSS";
 import { useBreadcrumb } from "@/hooks/useBreadcrumb";
 import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
@@ -998,24 +999,20 @@ const CompanySidebar = memo(function CompanySidebar() {
 
   // Applica i colori brand al design system (--primary, --accent, sidebar)
   useEffect(() => {
+    const restoreFavicon = applyBrandFavicon(effectiveBrand.isWhiteLabel ? effectiveBrand.faviconUrl : null);
     if (effectiveBrand.isWhiteLabel) {
       applyBrandTheme({
         primaryColor: effectiveBrand.primaryColor,
         accentColor: effectiveBrand.accentColor,
         textOnPrimary: effectiveBrand.textOnPrimary,
       });
-      if (effectiveBrand.faviconUrl) {
-        let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
-        if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
-        link.href = effectiveBrand.faviconUrl;
-      }
       if (effectiveBrand.platformName) {
         document.title = effectiveBrand.platformName;
       }
     } else {
       clearBrandTheme();
     }
-    return () => clearBrandTheme();
+    return () => { clearBrandTheme(); restoreFavicon(); };
   }, [effectiveBrand]);
   
   const handleLogoutOrExit = useCallback(async () => {

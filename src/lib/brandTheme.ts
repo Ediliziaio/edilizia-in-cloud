@@ -57,6 +57,13 @@ export function hexToHslComponents(hex: string): string | null {
   return `${hDeg} ${sPct}% ${lPct}%`;
 }
 
+/** La palette precompilata non è una scelta dell'azienda: resta il tema CSS. */
+export function usesPlatformColors(colors: BrandThemeColors): boolean {
+  return hexToHslComponents(colors.primaryColor) === hexToHslComponents("#1E40AF")
+    && hexToHslComponents(colors.accentColor) === hexToHslComponents("#DBEAFE")
+    && hexToHslComponents(colors.textOnPrimary) === hexToHslComponents("#FFFFFF");
+}
+
 /** Luminosità percepita 0–1 (per scegliere testo chiaro/scuro su un fondo). */
 function perceivedLightness(hex: string): number {
   let value = hex.trim().slice(1);
@@ -126,6 +133,11 @@ export function coloriApplicati(colors: BrandThemeColors): {
  * sporchi nel DB (es. stringhe HSL salvate al posto dell'hex).
  */
 export function applyBrandTheme(colors: BrandThemeColors): void {
+  // Abilitare il white-label sblocca la personalizzazione, senza imporre
+  // la palette blu precompilata. Ripulire prima evita residui tra aziende.
+  clearBrandTheme();
+  if (usesPlatformColors(colors)) return;
+
   const root = document.documentElement;
   const c = coloriApplicati(colors);
 

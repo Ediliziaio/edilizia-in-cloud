@@ -5,6 +5,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIncludedWhitelabel } from "@/hooks/useIncludedWhitelabel";
 
 export interface WhitelabelTierCapabilities {
   slug: string;
@@ -28,6 +29,7 @@ export interface WhitelabelGate extends WhitelabelTierCapabilities {
   tier: string;
   isLoading: boolean;
   isWhiteLabel: boolean;
+  isIncludedInPlan: boolean;
 }
 
 const NO_CAPABILITIES: WhitelabelTierCapabilities = {
@@ -51,10 +53,11 @@ const NO_CAPABILITIES: WhitelabelTierCapabilities = {
 export function useWhitelabelGate(): WhitelabelGate {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const included = useIncludedWhitelabel(effectiveCompany?.subscription_plan_id);
 
   // 1. Legge il tier della company corrente da company_branding
   const { data: brandingTier, isLoading: loadingBranding } = useQuery({
-    queryKey: ["wl-branding-tier", companyId],
+    queryKey: ["wl-branding-tier", companyId, effectiveCompany?.subscription_plan_id],
     queryFn: async ({ signal }) => {
       if (!companyId) return "none";
       const { data } = await (supabase as any)
@@ -126,6 +129,7 @@ export function useWhitelabelGate(): WhitelabelGate {
     tier,
     isLoading,
     isWhiteLabel: tier !== "none",
+    isIncludedInPlan: included.isIncluded,
     ...resolved,
   };
 }

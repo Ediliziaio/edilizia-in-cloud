@@ -237,7 +237,8 @@ describe("Marchio: le parole sono in italiano e i campi hanno il loro nome", () 
     expect(screen.getByLabelText("Colore del marchio")).toHaveValue("#1E40AF");
     expect(screen.getByLabelText("Sfondo delle voci attive")).toHaveValue("#DBEAFE");
     expect(screen.getByLabelText("Testo sui bottoni")).toHaveValue("#FFFFFF");
-    expect(screen.getByRole("button", { name: "Usa il colore #1E40AF" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("radio", { name: /Colori standard/ })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Usa il colore #1E40AF" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "Usa il colore #0F766E" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("group", { name: "Oppure parti da uno di questi" })).toBeInTheDocument();
   });
@@ -312,6 +313,7 @@ describe("Marchio: gli errori dicono il motivo", () => {
 
   it("un colore scritto male nomina il campo come lo vede chi lo ha scritto", async () => {
     apri();
+    fireEvent.click(screen.getByRole("radio", { name: /Colori personalizzati/ }));
     fireEvent.click(screen.getByText("Regola i dettagli"));
     fireEvent.change(screen.getByLabelText("Sfondo delle voci attive"), { target: { value: "#12" } });
     expect(screen.getByLabelText("Sfondo delle voci attive")).toHaveAttribute("aria-invalid", "true");

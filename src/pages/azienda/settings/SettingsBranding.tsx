@@ -31,7 +31,7 @@ import {
   useVerifyCustomDomain,
   useRemoveCustomDomain,
 } from "@/hooks/useBrandingByDomain";
-import { isValidHexColor, coloriApplicati } from "@/lib/brandTheme";
+import { isValidHexColor, coloriApplicati, usesPlatformColors } from "@/lib/brandTheme";
 import { coloreDelLogo, paletteDaColore, rampaBrand, hexValido } from "@/lib/brandPalette";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -43,6 +43,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -75,6 +76,13 @@ const isValidSubdomain = (v: string): boolean => {
 
 const buildLoginBackgroundValue = (url: string): string =>
   `url("${url.replace(/"/g, "%22")}") center / cover no-repeat`;
+
+const STANDARD_COLORS = {
+  brand_primary_color: "#1E40AF",
+  brand_secondary_color: "#3B82F6",
+  brand_accent_color: "#DBEAFE",
+  brand_text_on_primary: "#FFFFFF",
+};
 
 async function copyText(value: string) {
   try {
@@ -180,9 +188,10 @@ function AnteprimaPiattaforma({
 }) {
   const [vista, setVista] = useState<"piattaforma" | "accesso">("piattaforma");
   const c = coloriApplicati({ primaryColor: primary, accentColor: accent, textOnPrimary });
-  const p = c.primary ?? "#1E40AF";
-  const att = c.sidebarAccent ?? "#DBEAFE";
-  const attTesto = c.accentText ?? p;
+  const standard = usesPlatformColors({ primaryColor: primary, accentColor: accent, textOnPrimary });
+  const p = standard ? "hsl(214 80% 50%)" : c.primary ?? "#1E40AF";
+  const att = standard ? "hsl(214 50% 96%)" : c.sidebarAccent ?? "#DBEAFE";
+  const attTesto = standard ? "hsl(214 25% 15%)" : c.accentText ?? p;
   const scurito = isValidHexColor(primary) && c.primary && c.primary.toLowerCase() !== primary.toLowerCase();
   const rampa = hexValido(p) ? rampaBrand(p) : null;
   const scuro = rampa ? `rgb(${rampa.navy.split(" ").join(",")})` : "#1E3A5F";
@@ -333,13 +342,24 @@ export default function SettingsBranding() {
   };
   const [saving, setSaving] = useState(false);
   const [syncNeeded, setSyncNeeded] = useState(false);
-  const canEdit = permissions.isAdmin && !isLoading && !isError && !saving;
   const [uploading, setUploading] = useState<string | null>(null);
-  const [subdomain, setSubdomain] = useState("");
-  const [customDomain, setCustomDomain] = useState("");
+  const [addressDraft, setAddressDraft] = useState<{ companyId?: string; subdomain?: string; customDomain?: string }>({});
+  const savedSubdomain = companyBranding?.subdomain || "";
+  const savedCustomDomain = companyBranding?.custom_domain || "";
+  const subdomain = addressDraft.companyId === companyId ? addressDraft.subdomain ?? savedSubdomain : savedSubdomain;
+  const customDomain = addressDraft.companyId === companyId ? addressDraft.customDomain ?? savedCustomDomain : savedCustomDomain;
+  const setAddress = (field: "subdomain" | "customDomain", value: string) => setAddressDraft(d => ({
+    ...(d.companyId === companyId ? d : {}), companyId, [field]: value,
+  }));
+  const setSubdomain = (value: string) => setAddress("subdomain", value);
+  const setCustomDomain = (value: string) => setAddress("customDomain", value);
+  const addressesDirty = subdomain !== savedSubdomain || customDomain !== savedCustomDomain;
+  const [pendingImageSync, setPendingImageSync] = useState<{ companyId: string; patch: Record<string, unknown> } | null>(null);
+  const imageSyncPatch = pendingImageSync && pendingImageSync.companyId === companyId ? pendingImageSync.patch : null;
   const [confirmRemoveSub, setConfirmRemoveSub] = useState(false);
   const [confirmResetSystem, setConfirmResetSystem] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const canEdit = permissions.isAdmin && !isLoading && !isError && !saving && !resetting && !uploading;
   const [leggendoLogo, setLeggendoLogo] = useState(false);
   const [apriAttivazione, setApriAttivazione] = useState(false);
 
@@ -360,22 +380,12 @@ export default function SettingsBranding() {
     }
   };
 
-  // Sync subdomain/domain from DB
-  useEffect(() => {
-    if (companyBranding) {
-      setSubdomain(companyBranding.subdomain || "");
-      setCustomDomain(companyBranding.custom_domain || "");
-    }
-  }, [companyBranding]);
-
   const [form, setForm] = useState({
-    brand_primary_color: "#1E40AF",
-    brand_secondary_color: "#3B82F6",
-    brand_accent_color: "#DBEAFE",
-    brand_text_on_primary: "#FFFFFF",
+    ...STANDARD_COLORS,
     brand_platform_name: "",
     brand_hide_powered_by: false,
   });
+  const customColorsDraft = useRef<{ companyId?: string; colors: typeof STANDARD_COLORS } | null>(null);
 
   const buildFormFromBrand = (b: typeof brand) => ({
     brand_primary_color: b?.brand_primary_color || "#1E40AF",
@@ -391,7 +401,7 @@ export default function SettingsBranding() {
   const dirtyRef = useRef(false);
   const isDirty = baseline !== null && JSON.stringify(form) !== JSON.stringify(baseline);
   useEffect(() => { dirtyRef.current = isDirty; }, [isDirty]);
-  useSettingsDraftGuard((permissions.isAdmin && isDirty) || saving);
+  useSettingsDraftGuard((permissions.isAdmin && (isDirty || addressesDirty)) || saving || resetting || !!uploading);
 
   useEffect(() => {
     if (hydratedCompany.current !== companyId) {
@@ -465,6 +475,7 @@ export default function SettingsBranding() {
                 : companyBranding?.login_bg_color || null,
               is_active: true,
               updated_at: new Date().toISOString(),
+              ...imageSyncPatch,
             } as never,
             { onConflict: "company_id" } as never,
           )
@@ -500,6 +511,7 @@ export default function SettingsBranding() {
       dirtyRef.current = false;
       setForm(savedForm);
       setSyncNeeded(syncFailed);
+      if (!syncFailed) setPendingImageSync(null);
       if (syncFailed) toast.warning("Marchio salvato, ma la pagina di accesso non è stata aggiornata. Riprova.");
       else toast.success("Marchio aggiornato");
     } catch (err) {
@@ -509,8 +521,7 @@ export default function SettingsBranding() {
     }
   };
 
-  /** Riporta l'aspetto della piattaforma alle impostazioni di sistema:
-      colori, nome e powered-by ai default + tema custom disattivato.
+  /** Ripristina l'aspetto senza disattivare il servizio white-label.
       Logo, favicon, subdomain e dominio NON vengono toccati. */
   const handleResetToSystem = async () => {
     if (!canEdit) {
@@ -520,18 +531,13 @@ export default function SettingsBranding() {
     setConfirmResetSystem(false);
     setResetting(true);
     const DEFAULTS = {
-      brand_primary_color: "#1E40AF",
-      brand_secondary_color: "#3B82F6",
-      brand_accent_color: "#DBEAFE",
-      brand_text_on_primary: "#FFFFFF",
+      ...STANDARD_COLORS,
       brand_platform_name: null as string | null,
       brand_hide_powered_by: false,
     };
     try {
-      await saveBrand.mutateAsync({
-        ...DEFAULTS,
-        white_label_enabled: false,
-      } as Partial<typeof brand>);
+      const savedBrand = await saveBrand.mutateAsync(DEFAULTS);
+      let syncFailed = false;
 
       if (companyId) {
         await supabase
@@ -549,14 +555,21 @@ export default function SettingsBranding() {
             { onConflict: "company_id" } as never,
           )
           .then((r) => {
-            if (r.error) console.warn("Sync company_branding skipped:", r.error.message);
+            if (r.error) syncFailed = true;
+          }, () => {
+            syncFailed = true;
           });
       }
 
-      setForm({ ...DEFAULTS, brand_platform_name: "" });
+      const savedForm = buildFormFromBrand(savedBrand);
+      setBaseline(savedForm);
+      dirtyRef.current = false;
+      setForm(savedForm);
+      setSyncNeeded(syncFailed);
       queryClient.invalidateQueries({ queryKey: ["company-branding"] });
       queryClient.invalidateQueries({ queryKey: ["branding-by-domain"] });
-      toast.success("Aspetto standard ripristinato");
+      if (syncFailed) toast.warning("Aspetto standard ripristinato, ma la pagina di accesso non è stata aggiornata. Riprova.");
+      else toast.success("Aspetto standard ripristinato");
     } catch (err) {
       toast.error("Aspetto non ripristinato", { description: motivoSalvataggio(err) });
     } finally {
@@ -572,6 +585,19 @@ export default function SettingsBranding() {
     brand_accent_color: p.accent,
     brand_text_on_primary: p.textOnPrimary,
   });
+
+  const changeColorMode = (value: string) => {
+    if (value === "standard") {
+      customColorsDraft.current = { companyId, colors: {
+        brand_primary_color: form.brand_primary_color, brand_secondary_color: form.brand_secondary_color,
+        brand_accent_color: form.brand_accent_color, brand_text_on_primary: form.brand_text_on_primary,
+      } };
+      setForm(f => ({ ...f, ...STANDARD_COLORS }));
+    } else {
+      const colors = customColorsDraft.current && customColorsDraft.current.companyId === companyId ? customColorsDraft.current.colors : coloriDaPalette(paletteDaColore(form.brand_primary_color));
+      setForm(f => ({ ...f, ...colors }));
+    }
+  };
 
   /** Prende la tinta dominante del logo e ne ricava la palette (poi si salva col bottone «Salva marchio»). */
   const usaColoriDelLogo = async () => {
@@ -591,7 +617,60 @@ export default function SettingsBranding() {
     }
   };
 
-  const handleFileUpload = async (file: File, field: string, path: string) => {
+  type ImageField = "brand_favicon_url" | "brand_login_bg_url" | "brand_logo_dark_url";
+
+  const syncImages = async (patch: Record<string, unknown>) => {
+    if (!companyId) throw new Error("Nessuna azienda associata");
+    try {
+      const { error } = await supabase.from("company_branding").upsert({
+        company_id: companyId, ...patch, updated_at: new Date().toISOString(),
+      } as never, { onConflict: "company_id" });
+      if (error) throw error;
+      setPendingImageSync(null);
+      return true;
+    } catch {
+      setPendingImageSync({ companyId, patch });
+      return false;
+    }
+  };
+
+  const saveImage = async (field: ImageField, url: string | null) => {
+    await saveBrand.mutateAsync({ [field]: url });
+    const patch: Record<string, unknown> = { ...imageSyncPatch };
+    if (field === "brand_favicon_url") patch.favicon_url = url;
+    if (field === "brand_login_bg_url") patch.login_bg_color = url ? buildLoginBackgroundValue(url) : null;
+    const synced = Object.keys(patch).length === 0 || await syncImages(patch);
+    queryClient.invalidateQueries({ queryKey: ["effective-company"] });
+    queryClient.invalidateQueries({ queryKey: ["company-branding"] });
+    queryClient.invalidateQueries({ queryKey: ["branding-by-domain"] });
+    return synced;
+  };
+
+  const handleRemoveImage = async (field: ImageField) => {
+    if (!canEdit) return;
+    setUploading(field);
+    try {
+      const synced = await saveImage(field, null);
+      if (synced) toast.success("Immagine rimossa");
+      else toast.warning("Immagine rimossa, ma la pagina di accesso non è stata aggiornata. Riprova la sincronizzazione.");
+    } catch (err) {
+      toast.error("Immagine non rimossa", { description: motivoSalvataggio(err) });
+    } finally { setUploading(null); }
+  };
+
+  const retryImageSync = async () => {
+    if (!canEdit || !imageSyncPatch) return;
+    setUploading("sync");
+    try {
+      if (await syncImages(imageSyncPatch)) {
+        queryClient.invalidateQueries({ queryKey: ["company-branding"] });
+        queryClient.invalidateQueries({ queryKey: ["branding-by-domain"] });
+        toast.success("Immagini sincronizzate");
+      } else toast.warning("Pagina di accesso non aggiornata. Riprova tra poco.");
+    } finally { setUploading(null); }
+  };
+
+  const handleFileUpload = async (file: File, field: ImageField, path: string) => {
     if (!canEdit) {
       toast.error(NIENTE_PERMESSI);
       return;
@@ -604,30 +683,9 @@ export default function SettingsBranding() {
     setUploading(field);
     try {
       const url = await uploadBrandFile(file, path);
-      await saveBrand.mutateAsync({ [field]: url } as Partial<typeof brand>);
-      if (companyId) {
-        const companyBrandingPatch: Record<string, unknown> = {
-          company_id: companyId,
-          is_active: true,
-          updated_at: new Date().toISOString(),
-        };
-        if (field === "brand_favicon_url") {
-          companyBrandingPatch.favicon_url = url;
-        }
-        if (field === "brand_login_bg_url") {
-          companyBrandingPatch.login_bg_color = buildLoginBackgroundValue(url);
-        }
-        await supabase
-          .from("company_branding" as never)
-          .upsert(companyBrandingPatch as never, { onConflict: "company_id" } as never)
-          .then((r) => {
-            if (r.error) console.warn("Sync company_branding skipped:", r.error.message);
-          });
-      }
-      queryClient.invalidateQueries({ queryKey: ["effective-company"] });
-      queryClient.invalidateQueries({ queryKey: ["company-branding"] });
-      queryClient.invalidateQueries({ queryKey: ["branding-by-domain"] });
-      toast.success("Immagine caricata");
+      const synced = await saveImage(field, url);
+      if (synced) toast.success("Immagine caricata");
+      else toast.warning("Immagine caricata, ma la pagina di accesso non è stata aggiornata. Riprova la sincronizzazione.");
     } catch (err) {
       toast.error("Immagine non caricata", { description: motivoSalvataggio(err) });
     } finally {
@@ -713,6 +771,7 @@ export default function SettingsBranding() {
   const canLoginPage = !wlGate.isWhiteLabel || wlGate.canChangeLoginPage !== false;
   const canCustomDomain = !wlGate.isWhiteLabel || wlGate.canCustomDomain !== false;
   const canHidePoweredBy = !wlGate.isWhiteLabel || wlGate.canHidePoweredBy !== false;
+  const standardColors = usesPlatformColors({ primaryColor: form.brand_primary_color, accentColor: form.brand_accent_color, textOnPrimary: form.brand_text_on_primary });
   // La barra «Salva marchio» da telefono compare solo quando c'è qualcosa da salvare: occupa uno schermo piccolo.
   const barraInUso = isDirty || syncNeeded || saving;
 
@@ -810,10 +869,14 @@ export default function SettingsBranding() {
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <Palette className="h-5 w-5" aria-hidden="true" /> Marchio personalizzato
             </h2>
-            <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-200">Attivo</Badge>
+            <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-200">{wlGate.isIncludedInPlan ? "Incluso nel piano" : "Attivo"}</Badge>
           </div>
 
           <Tabs value={scheda} onValueChange={cambiaScheda} className="space-y-6">
+            {imageSyncPatch && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+              <span>Immagini salvate nell'azienda. La pagina di accesso deve ancora essere aggiornata.</span>
+              <Button size="sm" variant="outline" disabled={!canEdit} onClick={retryImageSync}>Riprova sincronizzazione immagini</Button>
+            </AlertDescription></Alert>}
             <TabsList>
               <TabsTrigger value="aspetto">Aspetto</TabsTrigger>
               <TabsTrigger value="indirizzo">Indirizzo web</TabsTrigger>
@@ -855,8 +918,9 @@ export default function SettingsBranding() {
                       <Palette className="h-4 w-4 text-muted-foreground" aria-hidden="true" /> Colori
                     </TitoloRiquadro>
                     <CardDescription>
-                      Scegli il colore del tuo marchio: bottoni, link e voci attive della piattaforma
-                      si adattano da soli, restando sempre leggibili.
+                      I colori standard restano invariati finché non scegli e salvi quelli della tua azienda.
+                      Scegli il colore del tuo marchio: bottoni, link e voci attive si adattano da soli,
+                      restando sempre leggibili.
                     </CardDescription>
                     {!canChangeColors && (
                       <CardDescription className="text-amber-600">
@@ -865,6 +929,24 @@ export default function SettingsBranding() {
                     )}
                   </CardHeader>
                   <CardContent className="space-y-5">
+                    <RadioGroup
+                      aria-label="Modalità colori"
+                      value={standardColors ? "standard" : "personalizzati"}
+                      disabled={!canEdit || !canChangeColors}
+                      onValueChange={changeColorMode}
+                      className="grid gap-3 sm:grid-cols-2"
+                    >
+                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3" htmlFor="bnd-colori-standard">
+                        <RadioGroupItem id="bnd-colori-standard" value="standard" />
+                        <span><span className="block font-medium text-sm">Colori standard</span><span className="text-xs text-muted-foreground">Aspetto originale di EdiliziaInCloud</span></span>
+                      </label>
+                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3" htmlFor="bnd-colori-personalizzati">
+                        <RadioGroupItem id="bnd-colori-personalizzati" value="personalizzati" />
+                        <span><span className="block font-medium text-sm">Colori personalizzati</span><span className="text-xs text-muted-foreground">Scegli i colori della tua azienda</span></span>
+                      </label>
+                    </RadioGroup>
+                    {standardColors && <p className="text-sm text-muted-foreground">Sono selezionati i colori standard. Scegli «Colori personalizzati» per modificarli, poi salva il marchio.</p>}
+                    <fieldset disabled={standardColors || !canEdit || !canChangeColors} className="space-y-5 disabled:opacity-60" aria-label="Personalizzazione colori">
                     <div className="flex flex-wrap items-end gap-4">
                       <HexColorInput
                         id="bnd-colore-marchio"
@@ -890,7 +972,7 @@ export default function SettingsBranding() {
                         variant="ghost"
                         size="sm"
                         disabled={!canEdit || !canChangeColors}
-                        onClick={() => setForm((f) => ({ ...f, ...coloriDaPalette(paletteDaColore("#1E40AF")) }))}
+                        onClick={() => setForm((f) => ({ ...f, ...STANDARD_COLORS }))}
                       >
                         Colori di EdiliziaInCloud
                       </Button>
@@ -900,7 +982,7 @@ export default function SettingsBranding() {
                       <p id="bnd-colori-pronti" className="text-xs font-medium leading-none">Oppure parti da uno di questi</p>
                       <div className="flex flex-wrap gap-2">
                         {COLORI_SUGGERITI.map((hex) => {
-                          const scelto = form.brand_primary_color.toUpperCase() === hex;
+                          const scelto = !standardColors && form.brand_primary_color.toUpperCase() === hex;
                           return (
                             <button
                               key={hex}
@@ -941,6 +1023,7 @@ export default function SettingsBranding() {
                         />
                       </div>
                     </details>
+                    </fieldset>
                   </CardContent>
                 </Card>
 
@@ -988,6 +1071,7 @@ export default function SettingsBranding() {
                           accept="image/png,image/svg+xml,image/webp"
                           disabled={!canEdit}
                         />
+                        {brand.brand_logo_dark_url && <Button variant="ghost" size="sm" disabled={!canEdit} onClick={() => handleRemoveImage("brand_logo_dark_url")} aria-label="Rimuovi il logo chiaro">Rimuovi</Button>}
                       </div>
 
                       <div className="space-y-2">
@@ -1008,6 +1092,7 @@ export default function SettingsBranding() {
                           accept="image/png,image/x-icon,image/svg+xml"
                           disabled={!canEdit}
                         />
+                        {brand.brand_favicon_url && <Button variant="ghost" size="sm" disabled={!canEdit} onClick={() => handleRemoveImage("brand_favicon_url")} aria-label="Rimuovi l'icona del browser">Rimuovi</Button>}
                       </div>
 
                       <div className="space-y-2">
@@ -1027,6 +1112,7 @@ export default function SettingsBranding() {
                           onUpload={(f) => handleFileUpload(f, "brand_login_bg_url", "login-bg")}
                           disabled={!canEdit || !canLoginPage}
                         />
+                        {brand.brand_login_bg_url && <Button variant="ghost" size="sm" disabled={!canEdit || !canLoginPage} onClick={() => handleRemoveImage("brand_login_bg_url")} aria-label="Rimuovi lo sfondo della pagina di accesso">Rimuovi</Button>}
                         {!canLoginPage && <p className="text-[10px] text-amber-600">Non incluso nel tuo piano</p>}
                       </div>
                     </div>
@@ -1087,6 +1173,10 @@ export default function SettingsBranding() {
             </TabsContent>
 
             <TabsContent value="indirizzo" className="mt-0 space-y-6">
+              {addressesDirty && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                <span>Indirizzi modificati e non salvati. Usa il pulsante del singolo indirizzo per confermare.</span>
+                <Button size="sm" variant="outline" disabled={!canEdit || saveSubdomainMut.isPending || requestVerifMut.isPending} onClick={() => setAddressDraft({})}>Annulla modifiche agli indirizzi</Button>
+              </AlertDescription></Alert>}
               {/* Sottodominio */}
               <Card>
                 <CardHeader>
@@ -1107,7 +1197,7 @@ export default function SettingsBranding() {
                         maxLength={63}
                         aria-invalid={subdomain.length > 0 && !isValidSubdomain(subdomain)}
                         className={`max-w-48 ${subdomain.length > 0 && !isValidSubdomain(subdomain) ? "border-destructive" : ""}`}
-                        disabled={!canEdit}
+                        disabled={!canEdit || saveSubdomainMut.isPending}
                       />
                       <span className="text-sm text-muted-foreground">.ediliziaincloud.com</span>
                     </div>
@@ -1155,9 +1245,9 @@ export default function SettingsBranding() {
                     <Alert>
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                       <AlertDescription className="flex items-center justify-between gap-2 flex-wrap">
-                        <span><strong>{customDomain}</strong> è verificato e attivo.</span>
+                        <span><strong>{savedCustomDomain}</strong> è verificato e attivo.</span>
                         <span className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => window.open(`https://${customDomain}`, "_blank", "noopener,noreferrer")}>
+                          <Button variant="ghost" size="sm" onClick={() => window.open(`https://${savedCustomDomain}`, "_blank", "noopener,noreferrer")}>
                             Apri ↗
                           </Button>
                           <Button
@@ -1184,7 +1274,7 @@ export default function SettingsBranding() {
                             placeholder="crm.tuaazienda.it"
                             aria-invalid={customDomainInvalid}
                             className={`max-w-64 ${customDomainInvalid ? "border-destructive" : ""}`}
-                            disabled={!canEdit || !canCustomDomain}
+                            disabled={!canEdit || !canCustomDomain || requestVerifMut.isPending || removeDomainMut.isPending}
                           />
                           <Button
                             size="sm"
@@ -1218,10 +1308,10 @@ export default function SettingsBranding() {
                               </div>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-muted-foreground w-16 shrink-0">Nome:</span>
-                                <code className="bg-muted px-2 py-0.5 rounded text-xs break-all">{customDomain}</code>
+                                <code className="bg-muted px-2 py-0.5 rounded text-xs break-all">{savedCustomDomain}</code>
                                 <Button
                                   variant="ghost" size="icon" aria-label="Copia nome CNAME" className="h-9 w-9 md:h-6 md:w-6"
-                                  onClick={() => copyText(customDomain)}
+                                  onClick={() => copyText(savedCustomDomain)}
                                 >
                                   <Copy className="h-3 w-3" />
                                 </Button>
@@ -1285,7 +1375,7 @@ export default function SettingsBranding() {
           <AlertDialogHeader>
             <AlertDialogTitle>Rimuovere il dominio personalizzato?</AlertDialogTitle>
             <AlertDialogDescription>
-              <strong>{customDomain || companyBranding?.custom_domain}</strong> non sarà più collegato alla
+              <strong>{savedCustomDomain}</strong> non sarà più collegato alla
               piattaforma: chi lo usava dovrà entrare dall'indirizzo standard. Potrai configurare un nuovo dominio
               quando vuoi.
             </AlertDialogDescription>
@@ -1308,6 +1398,7 @@ export default function SettingsBranding() {
               Colori, nome della piattaforma e «Powered by» tornano a quelli di EdiliziaInCloud, per tutti gli utenti
               della tua azienda. Logo, icona del browser, sottodominio e dominio personalizzato restano come sono.
               Potrai rimettere i tuoi colori quando vuoi.
+              Il White-Label resta attivo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
