@@ -92,6 +92,7 @@ jobs:
           src/test/logic/adminInsoluti.test.ts
           src/test/ui/adminInsolutiState.test.tsx
           src/test/ui/adminAttivitaNavigation.test.tsx
+          src/test/ui/adminTaskCompanyLinks.test.tsx
 
       - name: Run cash forecast regression tests
         run: >-
