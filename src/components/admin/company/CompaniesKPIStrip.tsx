@@ -78,7 +78,7 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
   }> = [
     {
       key: "active",
-      label: "Accessi Attivi",
+      label: "Aziende attive",
       value: activeCount.toLocaleString("it-IT"),
       sub: `${revenue.totalCompanies} totali`,
       icon: Building2,
@@ -100,7 +100,7 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
     },
     {
       key: "mrr",
-      label: "MRR Pagante",
+      label: "Canone mensile",
       value: formatCurrency(totalMRR),
       sub: payingCount > 0 ? `media ${formatCurrency(totalMRR / payingCount)}/azienda` : "—",
       icon: DollarSign,
@@ -111,9 +111,9 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
     },
     {
       key: "excluded",
-      label: "MRR Escluso",
-      value: formatCurrency(excludedMRR),
-      sub: compedCount > 0 ? `${compedCount} regalate` : "nessuna comp",
+      label: "Accessi regalati",
+      value: compedCount.toLocaleString("it-IT"),
+      sub: `Listino ${formatCurrency(excludedMRR)}/mese`,
       icon: Gift,
       accent: excludedMRR > 0 ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground",
       grad: excludedMRR > 0 ? "from-orange-500 to-eic-amber" : "from-slate-400 to-slate-300",

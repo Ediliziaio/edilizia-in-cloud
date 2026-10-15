@@ -128,10 +128,10 @@ const ALL_COLUMNS: { key: ColKey; label: string }[] = [
   { key: "orders", label: "Ordini" },
   { key: "lastAccess", label: "Ultimo Accesso" },
   { key: "trial", label: "Trial / Scadenza" },
-  { key: "health", label: "Health" },
+  { key: "health", label: "Attività" },
   { key: "tags", label: "Tag" },
 ];
-const DEFAULT_COLS: ColKey[] = ["sector", "plan", "mrr", "users", "orders", "lastAccess", "trial", "health", "tags"];
+const DEFAULT_COLS: ColKey[] = ["plan", "mrr", "users", "lastAccess", "health"];
 const VALID_COLS = new Set<ColKey>(ALL_COLUMNS.map((column) => column.key));
 // Valori che indicano "azienda attiva/trial SENZA metodo di pagamento reale"
 // (segnale di billing da rivedere). NB: i metodi "regalo" (comped + sinonimi
@@ -145,7 +145,7 @@ const STATUS_LABELS_MAP: Record<string, string> = {
   expired: "Scaduto",
 };
 const HEALTH_LABELS_MAP: Record<string, string> = {
-  healthy: "Healthy",
+  healthy: "In salute",
   at_risk: "A rischio",
   critical: "Critico",
   attenzione: "A rischio + critico",
@@ -584,12 +584,13 @@ export default function CompaniesList() {
 
       // Server-side filters
       if (statusFilter !== "all") query = query.eq("status", statusFilter);
-      if (sectorFilter !== "all") query = query.eq("sector", sectorFilter);
+      const selectedSector = sectors.find((sector) => sector.value === sectorFilter);
+      if (selectedSector) query = query.eq("sector", selectedSector.value);
       if (planFilter !== "all") query = query.eq("subscription_plan_id", planFilter);
       // Filtro Tipo: "rivenditore" (ha un produttore padre) | "diretta" (nessun padre).
       // Usa gli ID rivenditori precalcolati (parent_company_id non è nei tipi generati).
       if (tipoFilter === "rivenditore") {
-        if (resellerIds.length === 0) return { data: [], totalCount: 0 };
+        if (resellerIds.length === 0) return { data: [] as never[], totalCount: 0, ordinatoDalServer: true };
         query = query.in("id", resellerIds);
       } else if (tipoFilter === "diretta" && resellerIds.length > 0) {
         query = query.not("id", "in", `(${resellerIds.join(",")})`);
@@ -608,19 +609,19 @@ export default function CompaniesList() {
       // (allCompaniesSummary) classificandoli con la fonte di verità
       // `getAdminRevenueState`. Il filtro lavora server-side via .in("id", …).
       if (revenueFilter !== "all" && revenueFilterIds !== null) {
-        if (revenueFilterIds.length === 0) return { data: [], totalCount: 0 };
+        if (revenueFilterIds.length === 0) return { data: [] as never[], totalCount: 0 };
         query = query.in("id", revenueFilterIds);
       }
 
       if (healthFilter !== "all") {
         if (isHealthRowsError) throw new Error("Impossibile calcolare la salute delle aziende.");
-        if (healthFilterIds === null || healthFilterIds.length === 0) return { data: [], totalCount: 0 };
+        if (healthFilterIds === null || healthFilterIds.length === 0) return { data: [] as never[], totalCount: 0 };
         query = query.in("id", healthFilterIds);
       }
 
       // Filtro "Inattive" (preset): ID precalcolati da summary + last access.
       if (inactiveFilter) {
-        if (inactiveIds === null || inactiveIds.length === 0) return { data: [], totalCount: 0 };
+        if (inactiveIds === null || inactiveIds.length === 0) return { data: [] as never[], totalCount: 0 };
         query = query.in("id", inactiveIds);
       }
 
@@ -686,7 +687,7 @@ export default function CompaniesList() {
           company_id: string; posizione: number; totale: number;
         }>;
         if (righe.length === 0) {
-          return { data: [], totalCount: 0, ordinatoDalServer: true };
+          return { data: [] as never[], totalCount: 0, ordinatoDalServer: true };
         }
 
         const idsPagina = righe.map((r) => r.company_id);
@@ -961,9 +962,10 @@ export default function CompaniesList() {
       return days >= 0 && days <= 7;
     }).length;
 
-    const atRiskCount = Object.values(healthData).filter(
-      (h) => h && (h.health === "at_risk" || h.health === "critical")
-    ).length;
+    const atRiskCount = allCompaniesSummary.filter((company) => {
+      const health = healthData[company.id]?.health;
+      return health === "at_risk" || health === "critical";
+    }).length;
 
     const noPayment = allCompaniesSummary.filter(isNoPaymentAccessCompany).length;
 
@@ -1050,11 +1052,6 @@ export default function CompaniesList() {
     ];
   }, [allCompaniesSummary, healthData, lastAccessData, setInputSearch, setSearchParams]);
 
-  const priorityPresets = useMemo(
-    () => filterPresets.filter((preset) => ["at_risk", "no_payment", "stripe_issue", "inactive"].includes(preset.key)),
-    [filterPresets]
-  );
-
   const clearAllFilters = useCallback(() => {
     setInputSearch("");
     setSearchParams(new URLSearchParams(), { replace: true });
@@ -1068,7 +1065,7 @@ export default function CompaniesList() {
     { key: "sector", label: "Settore", value: sectorFilter === "all" ? "all" : (sectorLabels[sectorFilter] || sectorFilter), onClear: () => setFilter({ sector: null }) },
     { key: "plan", label: "Piano", value: planFilter === "all" ? "all" : (uniquePlans.find((p) => p.id === planFilter)?.name || planFilter), onClear: () => setFilter({ plan: null }) },
     { key: "tipo", label: "Tipo", value: tipoFilter === "all" ? "all" : (tipoFilter === "rivenditore" ? "Rivenditori" : "Dirette"), onClear: () => setFilter({ tipo: null }) },
-    { key: "health", label: "Health", value: healthFilter === "all" ? "all" : (HEALTH_LABELS_MAP[healthFilter] || healthFilter), onClear: () => setFilter({ health: null }) },
+    { key: "health", label: "Attività", value: healthFilter === "all" ? "all" : (HEALTH_LABELS_MAP[healthFilter] || healthFilter), onClear: () => setFilter({ health: null }) },
     { key: "noPayment", label: "Senza pagamento", value: noPaymentFilter ? "attivo" : "all", onClear: () => setFilter({ noPayment: null }) },
     { key: "inactive", label: "Inattive", value: inactiveFilter ? "14+ giorni senza accesso" : "all", onClear: () => setFilter({ inactive: null }) },
     { key: "revenue", label: "Tipo cliente", value: revenueFilter === "all" ? "all" : REVENUE_LABELS_MAP[revenueFilter], onClear: () => setFilter({ revenue: null }) },
@@ -1262,7 +1259,7 @@ export default function CompaniesList() {
       <AdminHeroHeader
         icon={Building2}
         title="Aziende"
-        subtitle="Lista clienti piattaforma · health score, billing, lifecycle e accesso quick login."
+        subtitle="Clienti, abbonamenti e attività: individua le aziende che richiedono attenzione."
         inlineBadge={
           <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
             {allCompaniesSummary.length} aziende
@@ -1323,58 +1320,19 @@ export default function CompaniesList() {
         }}
       />
 
-      <Card className="border-primary/15 bg-gradient-to-r from-primary/5 via-background to-orange-50/60">
-        <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="border-primary/25 bg-background text-primary">
-                Centro operativo
-              </Badge>
-              <span className="text-xs text-muted-foreground">
-                {allCompaniesSummary.length} aziende monitorate
-              </span>
-            </div>
-            <h2 className="mt-2 text-base font-semibold">Priorità da controllare ora</h2>
-            <p className="text-sm text-muted-foreground">
-              Apri subito i segmenti più delicati: billing, rischio utilizzo e aziende ferme.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[520px]">
-            {priorityPresets.map((preset) => {
-              const Icon = preset.icon;
-              return (
-                <Button
-                  key={preset.key}
-                  variant={activePreset === preset.key ? "default" : "outline"}
-                  className="h-auto justify-start gap-2 px-3 py-2 text-left"
-                  onClick={preset.apply}
-                  disabled={preset.count === 0}
-                  title={preset.description}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span className="min-w-0">
-                    <span className="block truncate text-xs font-semibold">{preset.label}</span>
-                    <span className="block text-xs opacity-75">{preset.count} aziende</span>
-                  </span>
-                </Button>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      <section aria-label="Priorità aziende" className="rounded-xl border bg-card p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">Da controllare</h2>
+          <span className="text-xs text-muted-foreground">Seleziona una priorità per filtrare l’elenco</span>
+        </div>
+        <CompanyFilterPresets activePreset={activePreset} onClearPreset={clearAllFilters} presets={filterPresets} />
+      </section>
 
       {/* Bulk Actions Bar */}
       <BulkActionsBar
         selectedIds={selectedIds}
         companies={pagedCompanies}
         onClearSelection={() => setSelectedIds(new Set())}
-      />
-
-      {/* Smart Filter Presets */}
-      <CompanyFilterPresets
-        activePreset={activePreset}
-        onClearPreset={clearAllFilters}
-        presets={filterPresets}
       />
 
       {/* Saved Views */}
@@ -1466,11 +1424,11 @@ export default function CompaniesList() {
               </SelectContent>
             </Select>
             <Select value={healthFilter} onValueChange={(v) => { setFilter({ health: v }); setActivePreset(null); }}>
-              <SelectTrigger className="w-full sm:w-[130px]"><SelectValue placeholder="Health" /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[130px]"><SelectValue placeholder="Attività" /></SelectTrigger>
               <SelectContent>
                 {/* "Tutti" da solo era ambiguo nel trigger chiuso (5 select in fila) */}
-                <SelectItem value="all">Health: tutti</SelectItem>
-                <SelectItem value="healthy">Healthy</SelectItem>
+                <SelectItem value="all">Attività: tutte</SelectItem>
+                <SelectItem value="healthy">In salute</SelectItem>
                 <SelectItem value="at_risk">A rischio</SelectItem>
                 <SelectItem value="critical">Critico</SelectItem>
                 <SelectItem value="attenzione">A rischio + critico</SelectItem>
@@ -1553,6 +1511,7 @@ export default function CompaniesList() {
               <div className="relative flex-1 min-w-0">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  aria-label="Cerca azienda per nome o email"
                   placeholder="Cerca per nome o email..."
                   value={inputSearch}
                   onChange={(e) => { setInputSearch(e.target.value); setActivePreset(null); }}
@@ -1597,15 +1556,15 @@ export default function CompaniesList() {
                 </SheetContent>
               </Sheet>
 
+              <div className="hidden sm:flex items-center gap-2">{exportBtn}{columnsBtn}</div>
               {viewToggle}
             </div>
 
             {/* DESKTOP: tutti i filtri inline come prima */}
-            <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
-              {filterSelects}
-              {exportBtn}
-              {columnsBtn}
-            </div>
+            <details className="hidden sm:block rounded-lg border bg-card p-3">
+              <summary className="cursor-pointer text-sm font-medium">Filtri aziende {activeFilterCount > 0 ? `· ${activeFilterCount} attivi` : "· stato, piano, settore e attività"}</summary>
+              <div className="mt-3 flex flex-wrap gap-3">{filterSelects}</div>
+            </details>
 
             {/* MOBILE: niente Export (regola no-export mobile) né "Colonne
                 visibili" (inutile nella vista a card): i filtri stanno nel Sheet
@@ -1700,6 +1659,10 @@ export default function CompaniesList() {
               <Card
                 key={company.id}
                 className="active:scale-[0.99] transition-transform cursor-pointer"
+                role="link"
+                tabIndex={0}
+                aria-label={`Apri azienda ${company.name}`}
+                onKeyDown={(event) => { if (event.key === "Enter") navigate(`/admin/aziende/${company.id}`); }}
                 onClick={() => navigate(`/admin/aziende/${company.id}`)}
               >
                 <CardContent className="p-3">
@@ -1734,16 +1697,15 @@ export default function CompaniesList() {
                             hd.health === "at_risk" ? "border-amber-500/30 text-amber-700 bg-amber-50" :
                             "border-red-500/30 text-red-700 bg-red-50"
                           }`}>
-                            {hd.score}
+                            {HEALTH_LABELS_MAP[hd.health]} · {hd.score}
                           </Badge>
                         )}
                       </div>
                       {/* Ultimo accesso — info chiave per "ferme da X giorni" check rapido */}
-                      {company.last_login_at && (
-                        <p className="text-[10px] text-muted-foreground mt-1.5">
-                          Ultimo accesso {formatDistanceToNow(new Date(company.last_login_at), { locale: it, addSuffix: true })}
-                        </p>
-                      )}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+                        <span>Ultimo accesso</span>
+                        <LastAccessBadge lastAccess={lastAccessData[company.id] ?? null} />
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -1897,7 +1859,7 @@ export default function CompaniesList() {
           {/* DESKTOP VIEW (>=md): tabella completa con scroll orizzontale */}
           <Card className="hidden md:block">
           <CardContent className="p-0 overflow-x-auto">
-            <Table className="min-w-[900px]">
+            <Table aria-label="Elenco aziende" className="min-w-[900px]">
               <TableHeader className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur supports-[backdrop-filter]:bg-slate-50/80 dark:bg-slate-900/70 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-slate-500 dark:[&_th]:text-slate-400">
                 <TableRow className="border-b-2 border-slate-200 hover:bg-transparent dark:border-slate-700">
                   <TableHead className="w-10 px-2">
@@ -1907,7 +1869,7 @@ export default function CompaniesList() {
                       title={`Seleziona tutte le ${pagedCompanies.length} aziende in questa pagina`}
                     />
                   </TableHead>
-                  <TableHead className="w-10" />
+                  <TableHead className="w-10"><span className="sr-only">Espandi dettagli</span></TableHead>
                   <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("name")}>
                     <span className="inline-flex items-center">Azienda<SortIcon col="name" /></span>
                   </TableHead>
@@ -1922,7 +1884,7 @@ export default function CompaniesList() {
                   {col("orders") && <TableHead className="text-center cursor-pointer select-none" onClick={() => toggleSort("orders")}><span className="inline-flex items-center">Ordini<SortIcon col="orders" /></span></TableHead>}
                   {col("lastAccess") && <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("lastAccess")}><span className="inline-flex items-center">Ultimo Accesso<SortIcon col="lastAccess" /></span></TableHead>}
                   {col("trial") && <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("trial")}><span className="inline-flex items-center">Trial / Scadenza<SortIcon col="trial" /></span></TableHead>}
-                  {col("health") && <TableHead className="text-center"><span className="inline-flex items-center"><Heart className="h-3 w-3 mr-1" />Health</span></TableHead>}
+                  {col("health") && <TableHead className="text-center"><span className="inline-flex items-center"><Heart className="h-3 w-3 mr-1" />Attività</span></TableHead>}
                   {col("tags") && <TableHead>Tag</TableHead>}
                   <TableHead className="text-right">Azioni</TableHead>
                 </TableRow>
@@ -1943,11 +1905,12 @@ export default function CompaniesList() {
                         <TableCell className="w-10 px-2" onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             checked={selectedIds.has(company.id)}
+                            aria-label={`Seleziona ${company.name}`}
                             onCheckedChange={() => toggleSelect(company.id)}
                           />
                         </TableCell>
                         <TableCell className="w-10 px-2">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setExpandedId(isExpanded ? null : company.id); }}>
+                          <Button variant="ghost" size="icon" aria-label={`${isExpanded ? "Comprimi" : "Espandi"} dettagli ${company.name}`} aria-expanded={isExpanded} className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setExpandedId(isExpanded ? null : company.id); }}>
                             <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
                           </Button>
                         </TableCell>
@@ -2018,7 +1981,7 @@ export default function CompaniesList() {
                             const hd = healthData[company.id];
                             if (!hd) return <span className="text-xs text-muted-foreground">—</span>;
                             const colors: Record<string, string> = { healthy: "bg-green-500/10 text-green-700 border-green-500/30", at_risk: "bg-amber-500/10 text-amber-700 border-amber-500/30", critical: "bg-red-500/10 text-red-700 border-red-500/30" };
-                            const labels: Record<string, string> = { healthy: "Healthy", at_risk: "At Risk", critical: "Critical" };
+                            const labels: Record<string, string> = { healthy: "In salute", at_risk: "A rischio", critical: "Critico" };
                             return <Badge variant="outline" className={`text-xs ${colors[hd.health]}`}>{labels[hd.health]} {hd.score}</Badge>;
                           })()}
                         </TableCell>}

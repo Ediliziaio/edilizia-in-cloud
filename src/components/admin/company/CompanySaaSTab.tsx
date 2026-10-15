@@ -31,7 +31,11 @@ interface Props {
   onNavigateToTab?: (tab: string) => void;
 }
 const limit = (value: number | undefined) =>
-  value == null || value < 0 ? "Illimitati" : value.toLocaleString("it-IT");
+  value == null
+    ? "Non specificato"
+    : value === -1
+      ? "Illimitati"
+      : value.toLocaleString("it-IT");
 export function CompanySaaSTab({
   currentPlan,
   stats,
@@ -71,9 +75,11 @@ export function CompanySaaSTab({
               Spazio incluso nel piano
             </p>
             <p className="mt-1 text-2xl font-semibold">
-              {currentPlan?.max_storage_mb != null
-                ? `${(currentPlan.max_storage_mb / 1024).toLocaleString("it-IT", { maximumFractionDigits: 1 })} GB`
-                : "Non specificato"}
+              {currentPlan?.max_storage_mb === -1
+                ? "Illimitato"
+                : currentPlan?.max_storage_mb != null
+                  ? `${(currentPlan.max_storage_mb / 1024).toLocaleString("it-IT", { maximumFractionDigits: 1 })} GB`
+                  : "Non specificato"}
             </p>
             <p className="text-sm text-muted-foreground">
               Capacità disponibile, non spazio utilizzato
@@ -92,7 +98,11 @@ export function CompanySaaSTab({
           <Badge
             variant={company?.white_label_enabled ? "default" : "secondary"}
           >
-            {included.isIncluded
+            {included.isLoading
+              ? "Verifica del piano…"
+              : included.isError
+                ? "Inclusione nel piano non verificabile"
+                : included.isIncluded
               ? `Incluso nel piano ${included.planName}`
               : company?.white_label_enabled
                 ? "Attivo per concessione manuale"

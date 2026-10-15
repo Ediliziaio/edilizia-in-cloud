@@ -83,11 +83,11 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
   // Usage calculations
   const orderCount = orderStats?.count || 0;
   const maxOrders = planLimits?.max_orders;
-  const orderUsagePct = maxOrders ? Math.min(Math.round((orderCount / maxOrders) * 100), 100) : null;
+  const orderUsagePct = maxOrders != null && maxOrders > 0 ? Math.min(Math.round((orderCount / maxOrders) * 100), 100) : null;
 
   const userCount = hd?.user_count || 0;
   const maxUsers = planLimits?.max_users;
-  const userUsagePct = maxUsers ? Math.min(Math.round((userCount / maxUsers) * 100), 100) : null;
+  const userUsagePct = maxUsers != null && maxUsers > 0 ? Math.min(Math.round((userCount / maxUsers) * 100), 100) : null;
 
   // Status badge
   const statusBadge = statusBadgeConfig[status] || statusBadgeConfig.trial;
@@ -181,7 +181,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
                 <span className={`text-xs font-medium ${getUsageTextColor(orderUsagePct)}`}>{orderCount}/{maxOrders}</span>
               </div>
             ) : (
-              <p className="text-sm font-semibold">{orderCount} <span className="text-xs text-muted-foreground font-normal">/ ∞</span></p>
+              <p className="text-sm font-semibold">{orderCount} <span className="text-xs text-muted-foreground font-normal">/ {maxOrders === -1 ? "Illimitati" : maxOrders === 0 ? "0 · bloccati" : "Limite non specificato"}</span></p>
             )}
           </div>
         </div>
@@ -201,7 +201,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
                 <span className={`text-xs font-medium ${getUsageTextColor(userUsagePct)}`}>{userCount}/{maxUsers}</span>
               </div>
             ) : (
-              <p className="text-sm font-semibold">{userCount} <span className="text-xs text-muted-foreground font-normal">/ ∞</span></p>
+              <p className="text-sm font-semibold">{userCount} <span className="text-xs text-muted-foreground font-normal">/ {maxUsers === -1 ? "Illimitati" : maxUsers === 0 ? "0 · bloccati" : "Limite non specificato"}</span></p>
             )}
           </div>
         </div>

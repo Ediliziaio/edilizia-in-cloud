@@ -77,7 +77,7 @@ import { cn } from "@/lib/utils";
  * risolto contro plan_feature_defaults + plans_included[] + default_value.
  *
  * Ogni riga consente:
- *   - Toggle rapido ON/OFF (upsert override `is_enabled`)
+ *   - Cambio ON/OFF con riepilogo e salvataggio esplicito
  *   - Editor avanzato (limit_value, expires_at, override_reason, price_override)
  *   - Reset override (DELETE → cade sul default del piano)
  *
@@ -91,6 +91,23 @@ import { cn } from "@/lib/utils";
  *   - Supporta `limit_value` e `price_override` oltre a `is_enabled` + `expires_at`
  *   - Audit log automatico (old vs new)
  */
+
+const CATEGORY_LABELS: Record<string, string> = {
+  addon: "Componenti aggiuntivi",
+  beta: "In sperimentazione",
+  analytics: "Analisi",
+  marketing: "Marketing",
+  verticale: "Settori",
+  orders: "Commesse",
+  finanza: "Amministrazione",
+  productivity: "Produttività",
+  modulo_vendita: "Moduli di vendita",
+  operativo: "Operatività",
+  operativa: "Gestione operativa",
+  documents: "Documenti",
+  core: "Funzioni principali",
+};
+const categoryLabel = (category: string) => CATEGORY_LABELS[category] ?? category;
 
 interface Props {
   companyId: string;
@@ -309,45 +326,6 @@ export function CompanyFeatureOverridesCard({
     });
   };
 
-  // Toggle rapido: upsert override `is_enabled` (preserva limit/expires/reason/price)
-  const toggleMutation = useMutation({
-    mutationFn: async (args: { row: MergedRow; newEnabled: boolean }) => {
-      if (!user?.id) throw new Error("Utente non autenticato");
-      const { row, newEnabled } = args;
-      const payload = {
-        company_id: companyId,
-        feature_key: row.flag.key,
-        is_enabled: newEnabled,
-        limit_value: row.override?.limit_value ?? null,
-        expires_at: row.override?.expires_at ?? null,
-        override_reason: row.override?.override_reason ?? null,
-        price_override: row.override?.price_override ?? null,
-        notes: row.override?.notes ?? null,
-        override_by: user.id,
-        set_by: user.id,
-        set_by_email: user.email ?? null,
-      };
-      const { error } = await supabase
-        .from("company_feature_overrides")
-        .upsert(payload, { onConflict: "company_id,feature_key" });
-      if (error) throw error;
-
-      await insertAuditLog({
-        featureKey: row.flag.key,
-        oldValue: row.override
-          ? { is_enabled: row.override.is_enabled, source: row.source }
-          : { is_enabled: row.effectiveEnabled, source: row.source },
-        newValue: { is_enabled: newEnabled, source: "override" },
-        reason: `Toggle rapido ${newEnabled ? "ON" : "OFF"} da tab Abbonamento`,
-      });
-    },
-    onSuccess: () => {
-      invalidateAll();
-      toast.success("Override aggiornato");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   // Reset override: DELETE → cade sul plan_default / plans_included / default_value
   const resetMutation = useMutation({
     mutationFn: async (row: MergedRow) => {
@@ -419,18 +397,18 @@ export function CompanyFeatureOverridesCard({
           : Number(editorForm.limit_value);
       if (
         limit !== null &&
-        (!Number.isFinite(limit) || !Number.isInteger(limit))
+        (!Number.isFinite(limit) || !Number.isInteger(limit) || limit < -1)
       ) {
         throw new Error(
-          "limit_value deve essere un intero (vuoto = illimitato)",
+          "Il limite deve essere un intero: -1 senza limite, 0 bloccato, vuoto eredita dal piano",
         );
       }
       const price =
         editorForm.price_override.trim() === ""
           ? null
           : Number(editorForm.price_override);
-      if (price !== null && !Number.isFinite(price)) {
-        throw new Error("price_override deve essere numerico");
+      if (price !== null && (!Number.isFinite(price) || price < 0)) {
+        throw new Error("Il prezzo deve essere un importo non negativo");
       }
       const expires =
         editorForm.expires_at.trim() === ""
@@ -492,6 +470,9 @@ export function CompanyFeatureOverridesCard({
 
   const activeCount = overrides.length;
   const totalCount = flags.length;
+  const enabledCount = rows.filter((row) => row.available && row.effectiveEnabled).length;
+  const disabledCount = rows.filter((row) => row.available && !row.effectiveEnabled).length;
+  const unavailableCount = rows.filter((row) => !row.available).length;
 
   // ── Filtering / search state ─────────────────────────────────────────
   const [search, setSearch] = useState("");
@@ -629,7 +610,7 @@ export function CompanyFeatureOverridesCard({
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant="outline" className="gap-1">
               <Layers className="h-3 w-3" />
-              {activeCount}/{totalCount} override attivi
+              {activeCount} personalizzazioni manuali
             </Badge>
             {overrideStats.expired > 0 && (
               <Badge variant="destructive" className="gap-1 text-[10px]">
@@ -650,12 +631,19 @@ export function CompanyFeatureOverridesCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Riepilogo funzionalità">
+          {[["Attive", enabledCount], ["Disattive", disabledCount], ["In arrivo / non disponibili", unavailableCount], ["Nel catalogo", totalCount]].map(([label, value]) => (
+            <div key={label} className="rounded-lg border bg-muted/30 p-3"><p className="text-lg font-semibold">{value}</p><p className="text-xs text-muted-foreground">{label}</p></div>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">Tutte le funzionalità del catalogo sono elencate qui. Il white label è gestito nella scheda dedicata. Ogni modifica apre un riepilogo prima del salvataggio.</p>
         {/* Toolbar: search + filtri + bulk reset */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative flex-1 min-w-[180px] max-w-xs">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Cerca per nome, key o descrizione..."
+              aria-label="Cerca funzionalità"
+              placeholder="Cerca una funzionalità..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-xs"
@@ -671,7 +659,7 @@ export function CompanyFeatureOverridesCard({
                 <SelectItem value="all">Tutte categorie</SelectItem>
                 {categories.map((c) => (
                   <SelectItem key={c} value={c}>
-                    {c}
+                    {categoryLabel(c)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -756,7 +744,7 @@ export function CompanyFeatureOverridesCard({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-[220px]">Feature</TableHead>
+                  <TableHead className="min-w-[220px]">Funzionalità</TableHead>
                   <TableHead className="w-[110px]">Stato</TableHead>
                   <TableHead className="w-[90px] text-right">Limite</TableHead>
                   <TableHead className="w-[150px]">Scadenza</TableHead>
@@ -779,7 +767,9 @@ export function CompanyFeatureOverridesCard({
                     effectiveLimit != null
                       ? effectiveLimit === 0
                         ? "bloccato"
-                        : effectiveLimit.toString()
+                        : effectiveLimit === -1
+                          ? "Illimitato"
+                          : effectiveLimit.toString()
                       : "—";
                   const expiresLabel = override?.expires_at
                     ? format(
@@ -825,7 +815,7 @@ export function CompanyFeatureOverridesCard({
                                 variant="outline"
                                 className="text-[0.6rem] px-1"
                               >
-                                {flag.category}
+                                {categoryLabel(flag.category)}
                               </Badge>
                             )}
                             {isExpired && (
@@ -857,12 +847,17 @@ export function CompanyFeatureOverridesCard({
                       <TableCell>
                         <Switch
                           checked={effectiveEnabled}
-                          disabled={toggleMutation.isPending || !available}
+                          disabled={saveMutation.isPending || !available}
                           aria-label={`Disponibilità ${flag.name}`}
-                          onCheckedChange={(checked) =>
-                            toggleMutation.mutate({ row, newEnabled: checked })
-                          }
+                          onCheckedChange={(checked) => {
+                            openEditor(row);
+                            setEditorForm((form) => ({
+                              ...form,
+                              is_enabled: checked,
+                            }));
+                          }}
                         />
+                        <span className="block mt-1 text-xs text-muted-foreground">{!available ? "Non disponibile" : effectiveEnabled ? "Attiva" : "Disattiva"}</span>
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs">
                         {limitLabel}
@@ -951,16 +946,22 @@ export function CompanyFeatureOverridesCard({
               {companyName}
             </DialogTitle>
             <DialogDescription>
-              Imposta abilitazione, limite numerico, scadenza e prezzo custom
-              per questa azienda. L&apos;override ha priorità su{" "}
-              <code>plan_default</code> e <code>plans_included[]</code>. Lascia
-              vuoti i campi per usare il valore del piano.
+              Personalizza disponibilità, limite e scadenza per questa azienda.
+              Le modifiche personali prevalgono sul piano. I campi vuoti
+              ereditano il valore del piano.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            <p className="rounded-md border p-3 text-sm" role="status">
+              Dopo il salvataggio:{" "}
+              {editorForm.is_enabled
+                ? "funzionalità disponibile"
+                : "funzionalità bloccata"}{" "}
+              per {companyName}.
+            </p>
             <div className="flex items-center justify-between gap-4 rounded-md border p-3">
               <div>
-                <Label className="text-sm">Feature abilitata</Label>
+                <Label className="text-sm">Funzionalità abilitata</Label>
                 <p className="text-xs text-muted-foreground">
                   Se spento, la feature viene bloccata per questa azienda anche
                   se inclusa nel piano.
@@ -975,9 +976,13 @@ export function CompanyFeatureOverridesCard({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Limit value (intero)</Label>
+                <Label htmlFor="feature-editor-limit" className="text-xs">
+                  Limite personalizzato
+                </Label>
                 <Input
+                  id="feature-editor-limit"
                   type="number"
+                  min={-1}
                   step="1"
                   placeholder="vuoto = piano"
                   value={editorForm.limit_value}
@@ -989,7 +994,7 @@ export function CompanyFeatureOverridesCard({
                   }
                 />
                 <p className="text-[0.65rem] text-muted-foreground">
-                  0 = bloccato, vuoto = eredita dal piano
+                  -1 = illimitato, 0 = bloccato, vuoto = eredita dal piano
                 </p>
                 {/* Preset limiti tipici */}
                 <div className="flex gap-1 flex-wrap">
@@ -1023,9 +1028,13 @@ export function CompanyFeatureOverridesCard({
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Price override (EUR/mese)</Label>
+                <Label htmlFor="feature-editor-price" className="text-xs">
+                  Prezzo personalizzato (EUR/mese)
+                </Label>
                 <Input
+                  id="feature-editor-price"
                   type="number"
+                  min={0}
                   step="0.01"
                   placeholder="vuoto = piano"
                   value={editorForm.price_override}
@@ -1037,8 +1046,9 @@ export function CompanyFeatureOverridesCard({
                   }
                 />
                 <p className="text-[0.65rem] text-muted-foreground">
-                  Se valorizzato, fattura questo importo invece del piano
-                  standard
+                  Registra il prezzo personale della funzionalità. Il
+                  salvataggio non genera un addebito e non modifica
+                  l’abbonamento Stripe.
                 </p>
               </div>
             </div>
