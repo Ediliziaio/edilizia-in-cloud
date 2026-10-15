@@ -45,10 +45,9 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
       if (laborFilter !== "all") {
         const isTeam = laborFilter.startsWith("team-");
         const realId = laborFilter.replace(/^(emp-|team-)/, "");
-        const laborOrders = await readAllOrderRows((start, end) => supabase
-          .from(isTeam ? "order_external_teams" : "order_employees")
-          .select("order_id")
-          .eq(isTeam ? "external_team_id" : "employee_id", realId).order("id").range(start, end));
+        const laborOrders = isTeam
+          ? await readAllOrderRows((start,end) => supabase.from("order_external_teams").select("order_id").eq("external_team_id",realId).order("id").range(start,end))
+          : await readAllOrderRows((start,end) => supabase.from("order_employees").select("order_id").eq("employee_id",realId).order("id").range(start,end));
         const ids = (laborOrders || []).map(r => r.order_id);
         if (ids.length === 0) return { orders: [] as OrderWithDetails[], totalCount: 0 };
         allowedOrderIds = allowedOrderIds
@@ -78,8 +77,9 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
         for (const prefix of ["emp-", "team-"]) {
           const selected = sf.laborIds.filter(id => id.startsWith(prefix)).map(id => id.slice(prefix.length));
           if (!selected.length) continue;
-          const data = await readAllOrderRows((start, end) => supabase.from(prefix === "emp-" ? "order_employees" : "order_external_teams")
-            .select("order_id").in(prefix === "emp-" ? "employee_id" : "external_team_id", selected).order("id").range(start, end));
+          const data = prefix === "emp-"
+            ? await readAllOrderRows((start,end) => supabase.from("order_employees").select("order_id").in("employee_id",selected).order("id").range(start,end))
+            : await readAllOrderRows((start,end) => supabase.from("order_external_teams").select("order_id").in("external_team_id",selected).order("id").range(start,end));
           (data ?? []).forEach(row => ids.add(row.order_id));
         }
         intersect([...ids]);

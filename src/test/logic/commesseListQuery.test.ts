@@ -1,12 +1,12 @@
 import {beforeEach,describe,expect,it,vi} from "vitest";
-const mock=vi.hoisted(()=>({from:vi.fn(),calls:[] as Array<[string,...unknown[]]>,rows:[] as Array<{id:string;current_status_id:string;company_id:string}>,error:null as Error|null}));
+const mock=vi.hoisted(()=>({from:vi.fn(),calls:[] as Array<[string,...unknown[]]>,rows:[] as Array<{id:string;current_status_id:string;company_id:string}>,links:{} as Record<string,Array<Record<string,string>>>,error:null as Error|null}));
 vi.mock("@/integrations/supabase/client",()=>({supabase:{from:mock.from}}));
 import {readOrdersPage,type OrdersReaderFilters} from "@/lib/orders/listQuery";
 const filters:OrdersReaderFilters={companyId:"company-a",focusIds:null,paymentIds:null,salespersonFilter:"all",laborFilter:"all",supplierFilter:"all",sidebarFilters:{dateFrom:"",dateTo:"",createdFrom:"",createdTo:"",orderSearch:"",includeStatuses:[],excludeStatuses:[],paymentStatus:"all",amountMin:"",amountMax:"",salespersonId:"",laborIds:[]},customerFilter:"all",debouncedSearch:"",statusFilter:"all",supportStatusId:"support",lastStatusId:"done",hideCompleted:false,amountMin:"",amountMax:"",isYearCorrente:false,monthFilter:"all",currentYear:2026,hasSelectedYear:false,selectedYear:null,contractDateRange:{from:undefined,to:undefined},warehouseDateRange:{from:undefined,to:undefined},expectedDateRange:{from:undefined,to:undefined},sortField:"id",sortDir:"asc"};
 beforeEach(()=>{
-  mock.calls=[];mock.error=null;mock.rows=Array.from({length:65},(_,i)=>({id:String(i).padStart(3,"0"),current_status_id:i<30?"open":"risk",company_id:"company-a"}));
+  mock.calls=[];mock.error=null;mock.links={};mock.rows=Array.from({length:65},(_,i)=>({id:String(i).padStart(3,"0"),current_status_id:i<30?"open":"risk",company_id:"company-a"}));
   mock.from.mockImplementation((table:string)=>{
-    let rows=[...mock.rows],start=0,end=1000;
+    let rows:Array<Record<string,string>>=table==="orders"?[...mock.rows]:[...(mock.links[table]??[])],start=0,end=1000;
     const query={
       select:vi.fn().mockReturnThis(),
       eq:vi.fn((key:string,value:string)=>{mock.calls.push(["eq",key,value]);rows=rows.filter(row=>row[key as keyof typeof row]===value);return query;}),
@@ -43,6 +43,18 @@ describe("Filtri prima della paginazione delle commesse",()=>{
     const result=await readOrdersPage({...filters,focusIds:selected},20,39);
     expect(result.totalCount).toBe(375);expect(result.orders).toHaveLength(20);expect(result.orders[0].id).toBe("041");
     expect(mock.calls.some(call=>call[0]==="in")).toBe(false);
+  });
+  it("risolve separatamente dipendenti e squadre senza confondere le colonne",async()=>{
+    mock.links.order_employees=[{id:"link-e",employee_id:"e1",order_id:"043"}];
+    mock.links.order_external_teams=[{id:"link-t",external_team_id:"t1",order_id:"062"}];
+    expect((await readOrdersPage({...filters,laborFilter:"emp-e1"},0,19)).orders.map(row=>row.id)).toEqual(["043"]);
+    expect((await readOrdersPage({...filters,laborFilter:"team-t1"},0,19)).orders.map(row=>row.id)).toEqual(["062"]);
+  });
+  it("i filtri avanzati combinano più dipendenti e squadre sull’intero elenco",async()=>{
+    mock.links.order_employees=[{id:"link-e",employee_id:"e1",order_id:"043"}];
+    mock.links.order_external_teams=[{id:"link-t",external_team_id:"t1",order_id:"062"}];
+    const result=await readOrdersPage({...filters,sidebarFilters:{...filters.sidebarFilters,laborIds:["emp-e1","team-t1"]}},0,19);
+    expect(result.totalCount).toBe(2);expect(result.orders.map(row=>row.id)).toEqual(["043","062"]);
   });
   it("propaga un errore invece di mostrare un elenco vuoto",async()=>{
     mock.error=new Error("timeout");await expect(readOrdersPage(filters,0,19)).rejects.toThrow("timeout");
