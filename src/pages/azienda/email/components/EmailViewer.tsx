@@ -1,3 +1,4 @@
+import { readPersonalEmailThread } from "@/lib/email/personalThread";
 /**
  * EmailViewer — visualizza un thread con tutti i messaggi
  *
@@ -155,6 +156,7 @@ interface EmailActionProposalLite {
 
 interface EmailViewerProps {
   threadId: string;
+  scopedAccountIds?: string[];
   onBack: () => void;
   onClose: () => void;
   onReply?: (
@@ -410,7 +412,7 @@ function predictiveFromMessages(messages: MessageRow[] | undefined): PredictiveE
   });
 }
 
-export function EmailViewer({ threadId, onBack, onClose, onReply, onAiDraftReady }: EmailViewerProps) {
+export function EmailViewer({ threadId, scopedAccountIds, onBack, onClose, onReply, onAiDraftReady }: EmailViewerProps) {
   const qc = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
@@ -419,17 +421,9 @@ export function EmailViewer({ threadId, onBack, onClose, onReply, onAiDraftReady
   const [aiSuggestions, setAiSuggestions] = useState<Array<{ tone: string; label: string; body: string }> | null>(null);
 
   const { data: messages, isLoading, isError, error: messagesError, refetch: refetchMessages } = useQuery({
-    queryKey: ["email-thread-messages", threadId],
-    queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from("email_inbox")
-        .select("id, thread_id, message_id, oauth_connection_id, from_email, from_name, to_email, cc_emails, subject, received_at, raw_html, raw_text, attachments, headers, ai_category, ai_priority, ai_summary, ai_extracted, ai_suggested_action, ai_processed_at, is_read, is_starred, is_pec, pec_tipo, pec_stato")
-        .eq("thread_id", threadId)
-        .order("received_at", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as MessageRow[];
-    },
+    queryKey: ["email-thread-messages", threadId, user?.id, scopedAccountIds?.join("|") ?? "all"],
+    enabled: !!user?.id,
+    queryFn: async () => (await readPersonalEmailThread(threadId, user?.id, scopedAccountIds)) as MessageRow[],
   });
 
   // 2026-05-26: collaborazione email — chi nella company ha aperto/risposto.

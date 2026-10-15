@@ -15,11 +15,13 @@
  */
 import { lazy, Suspense } from "react";
 import { PlatformCompanyProvider } from "@/components/admin/PlatformCompanyProvider";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { Loader2 } from "lucide-react";
 
 const EmailClientPage = lazy(() => import("@/pages/azienda/email/EmailClientPage"));
 
 export default function AdminEmailClientPage() {
+  const { permissions } = useSuperAdminPermissions();
   return (
     <PlatformCompanyProvider>
       {/* Questa pagina è SOLO il client di posta personale del team admin.
@@ -36,6 +38,7 @@ export default function AdminEmailClientPage() {
             settingsPath="/admin/impostazioni/mio-profilo?tab=email"
             emptyStateSettingsPath="/admin/impostazioni/mio-profilo?tab=email"
             emailContext="admin"
+            aiSettingsPath={permissions.super_admin ? "/admin/email/ai" : null}
           />
         </Suspense>
       </div>

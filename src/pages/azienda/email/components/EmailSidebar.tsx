@@ -63,6 +63,7 @@ interface EmailSidebarProps {
   connections: Array<EmailConnectionSummary | { id: string; provider: string; email_address: string; status: string }>;
   /** Path impostazioni email — passato dal layout (azienda vs admin). */
   settingsPath?: string;
+  aiSettingsPath?: string | null;
 }
 
 function syncLabelFor(value: string | null | undefined): string {
@@ -145,7 +146,7 @@ function providerLabel(provider: string): string {
   return provider || "Email";
 }
 
-export function EmailSidebar({ filter, onFilterChange, onCompose, connections, settingsPath = "/azienda/impostazioni/mio-profilo" }: EmailSidebarProps) {
+export function EmailSidebar({ filter, onFilterChange, onCompose, connections, settingsPath = "/azienda/impostazioni/mio-profilo", aiSettingsPath = "/azienda/email/ai" }: EmailSidebarProps) {
   const { user } = useAuth();
   const userId = user?.id;
   const [openFolders, setOpenFolders] = useState<Record<SystemFolderKey, boolean>>({
@@ -166,7 +167,7 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
   // Counter sincronizzati per cartella/account. La view è RLS-safe e personale.
 	  const { data: counts } = useQuery({
 	    queryKey: ["email-folder-counts", userId, connections.map((c) => c.id).join("|")],
-	    enabled: !!userId,
+	    enabled: !!userId && connections.length > 0,
 	    refetchInterval: 60_000,
 	    queryFn: async () => {
 	      const next = createEmptyCounts();
@@ -187,16 +188,20 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
 	      }
 
 	      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-	      const { data: inboxRows } = await (supabase as any)
+	      const { data: inboxRows, error: inboxError } = await (supabase as any)
 	        .from("v_my_email_inbox")
         .select("mailbox_folder, oauth_connection_id, is_read, is_starred, is_archived, is_trashed, status")
+        .in("oauth_connection_id", accountIds)
         .limit(5000);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: draftRows } = await (supabase as any)
+      const { data: draftRows, error: draftError } = await (supabase as any)
         .from("email_outbox")
         .select("oauth_connection_id")
         .eq("user_id", userId!)
+        .in("oauth_connection_id", accountIds)
         .eq("status", "draft");
+      if (inboxError) throw inboxError;
+      if (draftError) throw draftError;
 
       for (const row of (inboxRows ?? []) as Array<Record<string, unknown>>) {
         const accountId = typeof row.oauth_connection_id === "string" ? row.oauth_connection_id : null;
@@ -267,7 +272,7 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
             <span className="min-w-0 flex-1 text-left">
               <span className="block truncate font-semibold">Tutte le caselle</span>
               <span className="block truncate text-[10px] text-slate-500">
-                {connections.length > 0 ? `${connections.length} account collegati` : "Nessun account collegato"}
+                {connections.length > 0 ? `${connections.length} ${connections.length === 1 ? "account collegato" : "account collegati"}` : "Nessun account collegato"}
               </span>
             </span>
           </button>
@@ -391,8 +396,8 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
           <SyncStatusPanel connections={connections} settingsPath={settingsPath} />
         )}
 
-        <Link
-          to="/azienda/email/ai"
+        {aiSettingsPath && <Link
+          to={aiSettingsPath}
           className="block rounded-2xl border border-orange-100 bg-orange-50/70 p-3 transition-colors hover:bg-orange-100/70"
           title="Apprendimento e regole di instradamento"
         >
@@ -400,7 +405,7 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
             <Mail className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1 text-xs font-semibold text-orange-900">
-                AI email attiva
+                AI della casella
                 <ChevronRight className="h-3.5 w-3.5 text-orange-500" />
               </p>
               <p className="mt-0.5 text-[11px] leading-snug text-orange-800/80">
@@ -408,7 +413,7 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
               </p>
             </div>
           </div>
-        </Link>
+        </Link>}
       </div>
     </ScrollArea>
   );

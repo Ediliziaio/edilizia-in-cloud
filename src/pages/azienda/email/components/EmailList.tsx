@@ -10,6 +10,7 @@
  *
  * Mostra empty states diversi per cartella (Inbox vuoto vs Sent vuoto).
  */
+import { emailReadErrorMessage } from "@/lib/email/clientStatus";
 import { useMemo } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { format, isToday, isYesterday } from "date-fns";
@@ -473,7 +474,7 @@ export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelect
             <div>
               <p className="font-semibold">Errore caricamento email</p>
               <p className="mt-0.5 text-rose-600">
-                {error instanceof Error ? error.message : "Riprova tra poco."}
+                {emailReadErrorMessage(error)}
               </p>
             </div>
           </div>

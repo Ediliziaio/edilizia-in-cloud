@@ -101,6 +101,16 @@ jobs:
           src/test/ui/adminAttivitaNavigation.test.tsx
           src/test/ui/adminTaskCompanyLinks.test.tsx
 
+      - name: Run superadmin email and chat regression tests
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/emailClientStatus.test.ts
+          src/test/logic/personalEmailThread.test.ts
+          src/test/ui/adminEmailScope.test.tsx
+          src/test/ui/adminChatPreparation.test.tsx
+          src/test/ui/chatHubNavigation.test.tsx
+          src/test/ui/emailLayoutState.test.tsx
+
       - name: Run cash forecast regression tests
         run: >-
           TZ=Europe/Rome bunx vitest run

@@ -85,6 +85,7 @@ const Announcements = lazy(() => import("@/pages/admin/Announcements"));
 // AdminCSTasks non è più importato qui: vive come tab dentro AdminAttivita.
 // La route /admin/cs-tasks redirige al tab per backward-compat.
 const AdminAttivita = lazy(() => import("@/pages/admin/AdminAttivita"));
+const AdminEmailAiPage = lazy(() => import("@/pages/admin/AdminEmailAiPage"));
 const AdminEmailClientPage = lazy(() => import("@/pages/admin/AdminEmailClientPage"));
 const AdminMioProfilo = lazy(() => import("@/pages/admin/impostazioni/AdminMioProfilo"));
 const AdminEmailOAuthCallback = lazy(() => import("@/pages/admin/impostazioni/AdminEmailOAuthCallback"));
@@ -368,6 +369,7 @@ export default function AdminRoutesContainer() {
             La vecchia /email-triage è rimossa: era una vista duplicata,
             tutto il triage AI è ora dentro il client 3-pane. */}
         <Route path="email" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminEmailClientPage /></RequireAdminPermission>} />
+        <Route path="email/ai" element={<RequireSuperAdmin><AdminEmailAiPage /></RequireSuperAdmin>} />
         <Route path="email-triage" element={<Navigate to="/admin/email" replace />} />
         <Route path="cs-tasks" element={<Navigate to="/admin/attivita?tab=tutte" replace />} />
         <Route path="chat" element={<RequireAdminPermission permission="can_manage_companies"><AdminTeamChat /></RequireAdminPermission>} />
