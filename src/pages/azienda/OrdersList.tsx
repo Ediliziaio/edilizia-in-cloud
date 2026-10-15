@@ -1,5 +1,5 @@
 import {OrdersAnnualScope, OrdersCarryoverSummary} from "@/components/orders/OrdersAnnualScope";
-import {currentManagementScope, orderEconomics, orderYear, previousOrderReasons, orderScopeGroupIds, type OrderScopeGroup} from "@/lib/orders/annualScope";
+import {currentManagementScope, orderEconomics, orderYear, previousOrderReasons, orderScopeGroupIds, orderWorkflowCounts, type OrderScopeGroup} from "@/lib/orders/annualScope";
 import {TICKET_STATI_CHIUSI} from "@/types/tickets";
 import {OrdersPeriodSummary} from "@/components/orders/OrdersPeriodSummary";
 import {readOrdersPage} from "@/lib/orders/listQuery";
@@ -316,6 +316,10 @@ function OrdersListInner() {
     [scopeOrders, paymentFilter, sidebarFilters.paymentStatus]);
   const scopeOrderIds = useMemo(() => scopeOrders.map(order => order.id), [scopeOrders]);
   const listScopeIds = useMemo(() => orderScopeGroupIds(scopeOrders,scopeGroup,currentYear), [scopeOrders,scopeGroup,currentYear]);
+  const listScopeCounts = useMemo(() => {
+    const ids = new Set(isYearCorrente ? listScopeIds : scopeOrderIds);
+    return orderWorkflowCounts(scopeOrders.filter(order=>ids.has(order.id)),lastStatusId,supportStatusId,new Set(globalStats?.supportOrderIds ?? []));
+  },[scopeOrders,listScopeIds,scopeOrderIds,isYearCorrente,lastStatusId,supportStatusId,globalStats?.supportOrderIds]);
   const {data: scopeMargins, isPending: scopeMarginsPending, isError: scopeMarginsError, refetch: retryScopeMargins} = useQuery({
     queryKey: ["orders-margin-scope", effectiveCompany?.id, scopeOrderIds],
     enabled: !!effectiveCompany?.id && !!globalStats && (orderPerms.canViewMargins || orderPerms.canViewCosts),
@@ -332,7 +336,7 @@ function OrdersListInner() {
     },
     staleTime: 2 * 60 * 1000,
   });
-  const marginGroups = useMemo(() => orderMarginGroups(scopeOrderIds, scopeMargins ?? []), [scopeOrderIds, scopeMargins]);
+  const marginGroups = useMemo(() => orderMarginGroups(isYearCorrente ? listScopeIds : scopeOrderIds, scopeMargins ?? []), [scopeOrderIds, listScopeIds, isYearCorrente, scopeMargins]);
   const focusIds = useMemo(() => {
     if (controlFocus === "all") return null;
     if (!orderPerms.canViewMargins) return [];
@@ -1729,7 +1733,7 @@ function OrdersListInner() {
           )}
         </div>
       </section>
-      <OrdersPeriodSummary counts={{toComplete:stats.countDaCompletare,completed:stats.countCompletati,support:globalStats?.supportOrderIds.length ?? 0}}
+      <OrdersPeriodSummary counts={listScopeCounts}
         loading={isWorkflowStatsLoading} failed={isGlobalStatsError || isStatusesError} status={statusFilter} onStatus={setStatusFilter}
         showMargins={orderPerms.canViewMargins} margins={marginGroups} marginLoading={scopeMarginsPending} marginFailed={scopeMarginsError}
         focus={controlFocus} onFocus={setControlFocus} onRetry={() => {void retryStatuses();void retryScopeMargins();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}} />
