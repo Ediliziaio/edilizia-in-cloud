@@ -1,0 +1,111 @@
+import type { EconomicsReport } from "@/lib/companyEconomics";
+import type { DatabaseFootprint } from "@/lib/companyConsumption";
+export const report: EconomicsReport = {
+  measured_at: "2026-10-15T09:00:00Z",
+  period_start: "2026-10-12T00:00:00Z",
+  period_end: "2026-11-12T00:00:00Z",
+  storage_measured_at: "2026-10-15T09:30:00Z",
+  companies: [
+    {
+      id: "a",
+      name: "Azienda Alfa",
+      status: "active",
+      payment_method: "comped",
+      created_at: "2026-01-01",
+      plan_name: "Pro",
+      plan_monthly_eur: 247,
+      custom_monthly_eur: null,
+      override_expires_at: null,
+    },
+    {
+      id: "b",
+      name: "Azienda Beta",
+      status: "active",
+      payment_method: "stripe",
+      created_at: "2026-01-01",
+      plan_name: "Pro",
+      plan_monthly_eur: 247,
+      custom_monthly_eur: null,
+      override_expires_at: null,
+    },
+  ],
+  costs: [
+    {
+      company_id: "a",
+      kind: "ai",
+      events: 10,
+      recorded_eur: 5,
+      estimated_events: 2,
+      missing_events: 1,
+    },
+    {
+      company_id: "b",
+      kind: "ai",
+      events: 2,
+      recorded_eur: 10,
+      estimated_events: 0,
+      missing_events: 0,
+    },
+    {
+      company_id: null,
+      kind: "ai",
+      events: 1,
+      recorded_eur: 100,
+      estimated_events: 0,
+      missing_events: 0,
+    },
+  ],
+  storage: [
+    { company_id: "a", bytes: 900, exports_bytes: 800, files: 2 },
+    { company_id: "b", bytes: 100, exports_bytes: 0, files: 1 },
+    { company_id: null, bytes: 5000, exports_bytes: 0, files: 1 },
+  ],
+  providers: [
+    {
+      id: "supabase",
+      label: "Supabase",
+      kind: "cycle",
+      observed_at: "2026-10-15T09:00:00Z",
+      period_start: "2026-10-12T00:00:00Z",
+      period_end: "2026-11-12T00:00:00Z",
+      current_amount: 20,
+      forecast_amount: 80,
+      currency: "EUR",
+      eur_per_unit: 1,
+      fx_date: null,
+      source_url: "https://supabase.com/dashboard",
+      last_invoice_amount: null,
+      last_invoice_date: null,
+      note: "",
+    },
+  ],
+  legacy_ai: { events: 0, recorded_eur: 0, note: "" },
+};
+export const footprint: DatabaseFootprint = {
+  measured_at: "2026-10-15T09:45:00Z",
+  database_bytes: 10000,
+  eligible_tables: 50,
+  eligible_bytes: 8000,
+  method: "largest_company_tables_v1",
+  query_load_available: false,
+  tables: [
+    {
+      name: "contacts",
+      total_bytes: 1000,
+      companies: [
+        { company_id: "a", records: 20 },
+        { company_id: "b", records: 60 },
+        { company_id: null, records: 10 },
+        { company_id: "orphan", records: 10 },
+      ],
+    },
+    {
+      name: "emails",
+      total_bytes: 2000,
+      companies: [
+        { company_id: "a", records: 3 },
+        { company_id: "b", records: 1 },
+      ],
+    },
+  ],
+};

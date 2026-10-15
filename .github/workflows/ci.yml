@@ -117,9 +117,16 @@ jobs:
           src/test/logic/creditiSiRicaricanoSoloPagando.test.ts
           src/test/ui/creditiUnaTestataEUnaRicarica.test.tsx
 
+      - name: Run company economics and consumption regression tests
+        run: |
+          bunx vitest run --maxWorkers=2 src/test/logic/companyConsumption.test.ts src/test/ui/companyConsumption.test.tsx src/test/logic/companyEconomics.test.ts src/test/ui/companyEconomics.test.tsx src/test/ui/companyAdminReorganization.test.tsx
+          node scripts/test-company-economics.mjs
+          node scripts/test-company-consumption.mjs
+
   # ─────────────────────────────────────────────────────────────────────────
   # 3. Deploy changed edge functions (main only, after checks pass)
   # ─────────────────────────────────────────────────────────────────────────
+
   deploy-functions:
     name: Deploy edge functions
     runs-on: ubuntu-latest

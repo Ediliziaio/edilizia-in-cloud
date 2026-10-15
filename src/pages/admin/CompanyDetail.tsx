@@ -1,3 +1,4 @@
+import { CompanyEconomicsTab } from "@/components/admin/company/CompanyEconomicsTab";
 import { countCompanyLoginAccounts } from "@/lib/companyAdminState";
 import { confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
 import { useEffect, useState } from "react";
@@ -406,7 +407,9 @@ export default function CompanyDetail() {
     <div className="space-y-6">
       <CompanyDetailHeader
         company={h.company}
-        onBack={() => navigate("/admin/aziende")}
+        onBack={() => {
+          if (confermaNavigazioneImpostazioni()) navigate("/admin/aziende");
+        }}
         onImpersonate={handleImpersonate}
         onEdit={() => selectTab("dettagli")}
         onSuspend={() =>
@@ -465,23 +468,6 @@ export default function CompanyDetail() {
 
       {/* Next Best Actions — onboarding calcolato dai numeri reali (prima
           era hardcoded 0 e suggeriva sempre "completa onboarding"). */}
-      <CompanyNextActions
-        status={h.company.status}
-        trialEndsAt={h.company.trial_ends_at}
-        onboardingPct={getOnboardingPct(
-          h.stats
-            ? {
-                order_count: h.stats.ordersCount,
-                user_count: totalTeam,
-                has_customers: h.stats.customersCount > 0,
-                has_staff: totalTeam > 0,
-              }
-            : undefined,
-        )}
-        daysSinceLastOrder={h.daysSinceLastOrder}
-        paymentMethod={h.company.payment_method || "none"}
-        onNavigateToTab={selectTab}
-      />
 
       <Tabs value={activeTab} onValueChange={selectTab} className="space-y-4">
         <CompanyDetailNavigation value={activeTab} onChange={selectTab} />
@@ -490,7 +476,25 @@ export default function CompanyDetail() {
             visitato almeno una volta (visitedTabs Set). Una volta visitato,
             resta montato in cache → switching back/forward gratis. Questo
             riduce le query parallele iniziali da ~15 a 1-2 (-90%). */}
-        <TabsContent value="panoramica">
+        <TabsContent value="panoramica" className="space-y-4">
+          <CompanyNextActions
+            status={h.company.status}
+            trialEndsAt={h.company.trial_ends_at}
+            onboardingPct={getOnboardingPct(
+              h.stats
+                ? {
+                    order_count: h.stats.ordersCount,
+                    user_count: totalTeam,
+                    has_customers: h.stats.customersCount > 0,
+                    has_staff: totalTeam > 0,
+                  }
+                : undefined,
+            )}
+            daysSinceLastOrder={h.daysSinceLastOrder}
+            paymentMethod={h.company.payment_method || "none"}
+            onNavigateToTab={selectTab}
+          />
+
           {isTabMounted("panoramica") && (
             <CompanyOverviewTab
               companyId={h.company.id}
@@ -603,6 +607,15 @@ export default function CompanyDetail() {
         <TabsContent value="attivita">
           {isTabMounted("attivita") && (
             <CompanyActivityTab companyId={h.company.id} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="economia">
+          {isTabMounted("economia") && (
+            <CompanyEconomicsTab
+              companyId={h.company.id}
+              onNavigateToTab={selectTab}
+            />
           )}
         </TabsContent>
 
@@ -740,11 +753,24 @@ export default function CompanyDetail() {
         onOpenChange={h.setCreateSalespersonOpen}
         salesperson={null}
         onSave={(data) => {
-          if (!data.first_name?.trim() || !data.last_name?.trim() || !data.commission_type || data.commission_value == null) {
+          if (
+            !data.first_name?.trim() ||
+            !data.last_name?.trim() ||
+            !data.commission_type ||
+            data.commission_value == null
+          ) {
             toast.error("Completa nome, cognome e provvigione del venditore.");
             return;
           }
-          h.handleCreateSalesperson({ first_name: data.first_name, last_name: data.last_name, email: data.email, phone: data.phone, commission_type: data.commission_type, commission_value: data.commission_value, is_active: data.is_active });
+          h.handleCreateSalesperson({
+            first_name: data.first_name,
+            last_name: data.last_name,
+            email: data.email,
+            phone: data.phone,
+            commission_type: data.commission_type,
+            commission_value: data.commission_value,
+            is_active: data.is_active,
+          });
         }}
         isLoading={h.savingSalesperson}
       />

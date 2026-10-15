@@ -17,13 +17,13 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 afterEach(cleanup);
 
 describe("Scheda azienda in sei aree", () => {
-  it("mantiene tutte le 16 destinazioni precedenti senza duplicati", () => {
+  it("mantiene le 16 destinazioni precedenti più la nuova economia senza duplicati", () => {
     expect(COMPANY_AREAS).toHaveLength(6);
     const sections = COMPANY_AREAS.flatMap((area) =>
       area.sections.map((section) => section.id),
     );
-    expect(sections).toHaveLength(16);
-    expect(COMPANY_SECTIONS.size).toBe(16);
+    expect(sections).toHaveLength(17);
+    expect(COMPANY_SECTIONS.size).toBe(17);
     expect(companyAreaFor("onboarding").id).toBe("relazione");
     expect(companyAreaFor("whitelabel").id).toBe("piano");
     expect(companyAreaFor("billing").id).toBe("consumi");
@@ -46,7 +46,7 @@ describe("Scheda azienda in sei aree", () => {
       { button: 0, ctrlKey: false },
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Riepilogo", exact: true }),
+      screen.getByRole("button", { name: "Riepilogo" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Relazione cliente" }));
     expect(
@@ -92,10 +92,10 @@ describe("Scheda azienda in sei aree", () => {
 });
 
 describe("Tariffe servizio: salvataggio unico", () => {
-  const props = () => ({
+  const props = (): import("react").ComponentProps<typeof ServiceControlRow> => ({
     service: "ai_agents",
     label: "Agenti AI",
-    icon: () => null,
+    icon: (): import("react").ReactElement | null => null,
     override: null,
     planDefaults: {
       price_per_unit_eur: null,

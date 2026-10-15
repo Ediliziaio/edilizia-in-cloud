@@ -30,9 +30,10 @@ export const COMPANY_AREAS = [
   },
   {
     id: "consumi",
-    label: "Consumi e addebiti",
-    description: "Wallet, tariffe e utilizzo dei servizi",
+    label: "Economia e consumi",
+    description: "Costi della piattaforma, margine e crediti del cliente",
     sections: [
+      { id: "economia", label: "Costi e margine" },
       { id: "billing", label: "Crediti e tariffe" },
       { id: "email", label: "Quote email" },
     ],
