@@ -1,8 +1,9 @@
+import type { AnteprimaConversioneModulo } from "@/lib/moduli/convertiInCommessa";
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const rpc=vi.hoisted(()=>vi.fn());
 vi.mock('@/integrations/supabase/client',()=>({supabase:{rpc}}));
 import { anteprimaConversioneModulo,convertiFvInCommessa,convertiRstInCommessa } from '@/lib/moduli/convertiInCommessa';
-const preview={materiali:[{name:'Pannello',quantity:12,unit_price:140,description:null}],fasi:[{name:'Posa',notes:'7.5 h'}],imponibile:10000,aliquota:10,totale:11000,impronta:'versione-1',esclusi:0,descrizione:'Impianto'};
+const preview: AnteprimaConversioneModulo={materiali:[{name:'Pannello',quantity:12,unit_price:140,description:null}],fasi:[{name:'Posa',notes:'7.5 h'}],imponibile:10000,aliquota:10,totale:11000,impronta:'versione-1',esclusi:0,descrizione:'Impianto'};
 beforeEach(()=>{rpc.mockReset();rpc.mockImplementation(async(fn:string,args:any)=>({data:fn==='commessa_avvia'?{fasi:0,rate:2}:{...preview,...(!args.p_anteprima?{id:'o1'}:{})},error:null}));});
 describe('client conversione atomica dei moduli',()=>{
  it('anteprima non chiede alcuna scrittura né passa prezzi dal browser',async()=>{expect(await anteprimaConversioneModulo('fv','p1')).toEqual(preview);expect(rpc).toHaveBeenCalledExactlyOnceWith('converti_modulo_commessa_atomic',{p_modulo:'fv',p_progetto_id:'p1',p_raggruppa_capitoli:false,p_anteprima:true,p_impronta:null});});

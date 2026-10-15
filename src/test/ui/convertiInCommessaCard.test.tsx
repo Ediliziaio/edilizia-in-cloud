@@ -1,3 +1,4 @@
+import type { AnteprimaConversioneModulo } from "@/lib/moduli/convertiInCommessa";
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest';
 const stato=vi.hoisted(()=>({preview:vi.fn(),rst:vi.fn(),fv:vi.fn(),navigate:vi.fn()}));
@@ -6,7 +7,7 @@ vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>({user:{id:'u1'}})}));
 vi.mock('react-router-dom',()=>({useNavigate:()=>stato.navigate}));
 vi.mock('sonner',()=>({toast:{success:vi.fn(),warning:vi.fn(),error:vi.fn()}}));
 import { ConvertiInCommessaCard } from '@/components/moduli/ConvertiInCommessaCard';
-const preview={materiali:[],fasi:[{name:'Posa pavimento',notes:'85.5 mq'}],imponibile:1000,aliquota:22,totale:1220,impronta:'v1',esclusi:1,descrizione:'Casa'};
+const preview: AnteprimaConversioneModulo={materiali:[],fasi:[{name:'Posa pavimento',notes:'85.5 mq'}],imponibile:1000,aliquota:22,totale:1220,impronta:'v1',esclusi:1,descrizione:'Casa'};
 beforeEach(()=>{vi.clearAllMocks();stato.preview.mockResolvedValue(preview);stato.rst.mockResolvedValue({orderId:'o1',righe:0,lavorazioni:1});stato.fv.mockResolvedValue({orderId:'o1',righe:0,lavorazioni:1});});
 afterEach(cleanup);
 const apri=async()=>{fireEvent.click(screen.getByRole('button',{name:/Controlla e crea/}));await screen.findByRole('dialog');};
