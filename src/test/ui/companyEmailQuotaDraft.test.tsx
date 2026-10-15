@@ -17,8 +17,8 @@ const state = vi.hoisted(() => ({
     plan_price_eur: 0.0012,
     effective_limit: 0,
     effective_price_eur: 0.0012,
-    override_limit: null,
-    override_price_eur: null,
+    override_limit: null as number | null,
+    override_price_eur: null as number | null,
     is_free: false,
     sent_this_month: 0,
     remaining: 0,
@@ -35,11 +35,11 @@ vi.mock("@/integrations/supabase/client", () => ({
       data:
         name === "get_company_email_quota"
           ? { ...state.quota }
-          : { per_month: [], per_stream_current_month: [] },
-      error: null,
+          : { per_month: [] as unknown[], per_stream_current_month: [] as unknown[] },
+      error: null as Error | null,
     }),
     functions: {
-      invoke: async () => ({ data: { domain: null }, error: null }),
+      invoke: async () => ({ data: { domain: null as string | null }, error: null as Error | null }),
     },
     from: () => {
       const q: any = {
@@ -47,7 +47,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         eq: () => q,
         order: () => q,
         limit: () => q,
-        then: (fn: any) => Promise.resolve({ data: [], error: null }).then(fn),
+        then: (fn: any) => Promise.resolve({ data: [], error: null as Error | null }).then(fn),
       };
       return q;
     },

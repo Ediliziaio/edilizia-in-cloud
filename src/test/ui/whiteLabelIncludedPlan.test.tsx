@@ -6,7 +6,7 @@ import type { Company } from "@/types/auth";
 
 const state = vi.hoisted(() => ({ included: true }));
 vi.mock("@/hooks/useIncludedWhitelabel", () => ({ useIncludedWhitelabel: () => ({ isIncluded: state.included, planName: state.included ? "Pro" : "Starter" }) }));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: null }) }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: null as { id: string } | null }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: vi.fn() } }));
 afterEach(cleanup);
 function open(included: boolean) {

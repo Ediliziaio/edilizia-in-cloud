@@ -14,7 +14,7 @@ import { createFullPscTemplate, FULL_PSC_MODULES } from '@/lib/moduli-vendita/fu
 const text = '<h2>ART. 1 OGGETTO</h2><p>Condizioni aziendali configurate</p>';
 const base = { id: 'online', company_id: 'qa', condizioni_legali_testo: text, condizioni_legali_attivo: true,
   modulo_recesso_attivo: false, default_iva_pct: 22 };
-const check = (model: ReturnType<typeof ereditaCondizioniModello>) => {
+const check = (model: Parameters<typeof ereditaCondizioniModello>[0]) => {
   expect(model.condizioni_legali_testo).toBe(text);
   expect(model.condizioni_legali_attivo).toBe(true);
   expect(model.modulo_recesso_attivo).toBe(false);

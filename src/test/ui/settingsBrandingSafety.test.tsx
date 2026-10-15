@@ -140,7 +140,7 @@ describe("Branding: salvataggio e sincronizzazione", () => {
     open();
     fireEvent.change(screen.getByLabelText("Nome della piattaforma"), { target: { value: "Bozza da scartare" } });
     fireEvent.click(screen.getByRole("button", { name: "Ripristina aspetto standard" }));
-    fireEvent.click(screen.getByRole("button", { name: "Ripristina", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Ripristina" }));
     await waitFor(() => expect(state.success).toHaveBeenCalledOnce());
     expect(state.brand.white_label_enabled).toBe(true);
     expect(state.saves[0]).not.toHaveProperty("white_label_enabled");
@@ -152,7 +152,7 @@ describe("Branding: salvataggio e sincronizzazione", () => {
     state.syncError = true;
     open();
     fireEvent.click(screen.getByRole("button", { name: "Ripristina aspetto standard" }));
-    fireEvent.click(screen.getByRole("button", { name: "Ripristina", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Ripristina" }));
     expect(await screen.findByRole("button", { name: "Riprova sincronizzazione" })).toBeEnabled();
     expect(state.warning).toHaveBeenCalledOnce();
     expect(state.success).not.toHaveBeenCalled();

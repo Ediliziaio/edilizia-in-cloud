@@ -45,7 +45,7 @@ vi.mock("@/integrations/supabase/client", () => ({
                 },
               ]
             : [],
-        error: null,
+        error: null as Error | null,
       };
       const query: any = {
         select: () => query,

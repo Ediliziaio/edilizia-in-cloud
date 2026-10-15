@@ -18,7 +18,7 @@ vi.mock("@/hooks/useHealthScores", () => ({
   }),
 }));
 vi.mock("@/hooks/useCompanyPlanPriceOverride", () => ({
-  useCompanyPlanPriceOverride: () => ({ data: null }),
+  useCompanyPlanPriceOverride: () => ({ data: null as unknown }),
 }));
 vi.mock("@/lib/customer-os/customerProfile", () => ({
   useCustomerProfile: () => ({
@@ -33,7 +33,7 @@ vi.mock("@/lib/customer-os/customerProfile", () => ({
     isLoading: false,
   }),
   useCustomerContext: () => ({
-    data: { recent_interactions: [], recent_events: [] },
+    data: { recent_interactions: [] as unknown[], recent_events: [] as unknown[] },
     isLoading: false,
   }),
 }));
@@ -45,7 +45,7 @@ vi.mock("@/integrations/supabase/client", () => ({
           table === "health_score_history"
             ? [{ score: 8, calculated_at: "2026-10-15T08:00:00Z" }]
             : [],
-        error: null,
+        error: null as Error | null,
       };
       const q: any = {
         select: () => q,

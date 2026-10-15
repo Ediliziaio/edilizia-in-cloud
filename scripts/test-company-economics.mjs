@@ -23,7 +23,7 @@ insert into ai_model_usage_log values('00000000-0000-4000-a000-000000000001','20
 insert into email_delivery_log values('00000000-0000-4000-a000-000000000002','2026-10-13',0);
 insert into render_sessions values('00000000-0000-4000-a000-000000000001','2026-10-13',1,5,'{}');
 insert into storage.objects values('company-exports','00000000-0000-4000-a000-000000000001/backup.json','{"size":50}'),('documents','00000000-0000-4000-a000-000000000001/document.pdf','{"size":10}'),('documents','unassigned/a.pdf','{"size":8}');`);
-const sql=readFileSync(new URL('../supabase/migrations/20261015091144_company_economics_local.sql',import.meta.url),'utf8');
+const sql=readFileSync(new URL('../supabase/migrations/20261015100655_company_economics_local.sql',import.meta.url),'utf8');
 await db.exec(sql);await db.exec(sql);
 let tests=1;
 await db.exec(`set role anon`);

@@ -19,7 +19,7 @@ vi.mock("@/integrations/supabase/client", () => ({
               : table === "sms_wallet"
                 ? { crediti: 0 }
                 : { balance_eur: 0 },
-          error: null,
+          error: null as Error | null,
         }),
       };
       return q;
@@ -46,7 +46,6 @@ describe("Wallet azienda", () => {
     await screen.findByRole("heading", { name: "Gestione Crediti" });
     const deduct = screen.getAllByRole("button", {
       name: "Deduci",
-      exact: true,
     });
     expect(deduct).toHaveLength(5);
     expect(deduct[0]).toBeDisabled();

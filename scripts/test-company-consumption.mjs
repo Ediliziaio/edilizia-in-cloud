@@ -11,7 +11,7 @@ insert into public."odd'name" values('00000000-0000-4000-a000-000000000001','PRI
 create table public.wrong_type(company_id text,secret text);
 create schema private;create table private.never_read(company_id uuid);
 insert into private.never_read values(null);`);
-const sql=readFileSync(new URL('../supabase/migrations/20261015094322_company_consumption_ranking_local.sql',import.meta.url),'utf8');
+const sql=readFileSync(new URL('../supabase/migrations/20261015100703_company_consumption_ranking_local.sql',import.meta.url),'utf8');
 await db.exec(sql);await db.exec(sql);let checks=1;
 await db.exec('set role anon');await assert.rejects(db.query('select public.admin_company_database_footprint()'),/permission denied/);checks++;
 await db.exec("reset role;set role authenticated;set test.uid='00000000-0000-4000-a000-000000000001';set test.sa='false'");

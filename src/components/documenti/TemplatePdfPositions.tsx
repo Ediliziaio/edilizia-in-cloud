@@ -40,7 +40,7 @@ export function TemplatePdfPositions({ template, fields, onPosition, busy }: Pro
       setError('');
       pdfjs.GlobalWorkerOptions.workerSrc = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default;
       if (disposed) return;
-      const task = pdfjs.getDocument({ data: file.data.slice(), isEvalSupported: false });
+      const task = pdfjs.getDocument({ data: file.data.slice() });
       loading = task;
       const doc = await task.promise;
       if (disposed) return;

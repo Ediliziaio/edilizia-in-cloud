@@ -38,12 +38,12 @@ vi.mock("@/integrations/supabase/client", () => ({
       let values: Record<string, unknown> | null = null;
       const result = () => {
         if (state.fail === table)
-          return { data: null, error: new Error("Errore di rete") };
+          return { data: null as unknown, error: new Error("Errore di rete") };
         if (values) {
           state.mutations.push({ table, values });
           if (table === "whitelabel_audit_log")
             return {
-              data: null,
+              data: null as unknown,
               error: state.auditFailure
                 ? new Error("Audit non disponibile")
                 : null,
