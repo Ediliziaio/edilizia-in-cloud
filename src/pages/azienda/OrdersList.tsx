@@ -87,6 +87,10 @@ function OrdersListInner() {
   const appaltatoreEnabled = useAppaltatoreModuleEnabled();
   const [showOrderTypeDialog, setShowOrderTypeDialog] = useState(false);
   const queryClient = useQueryClient();
+  const refreshOrderScope = useCallback(() => {
+    for (const key of ["orders", "orders-global-stats", "orders-pipeline", "orders-monthly-sales-chart"])
+      void queryClient.invalidateQueries({queryKey:[key]});
+  }, [queryClient]);
   const { params: urlFilters, setParam: setURLParam, setParams: setURLParams } = useURLFilters({
     searchQuery: { key: "q", defaultValue: "" },
     statusFilter: { key: "status", defaultValue: "all" },
@@ -298,6 +302,8 @@ function OrdersListInner() {
       return { totalOrders: rows.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows, annual, previous, reasons, previousReasons, supportOrderIds };
     },
     enabled: !!effectiveCompany?.id && !isLoadingStatuses && !isStatusesError && !orderPerms.isLoading,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
     staleTime: 5 * 60 * 1000,
   });
 
@@ -687,7 +693,7 @@ function OrdersListInner() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      refreshOrderScope();
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       toast({ title: "Stato aggiornato", description: "La commessa è stata spostata al nuovo stato" });
     },
@@ -713,7 +719,7 @@ function OrdersListInner() {
       return deleteOrderCascading(orderId, companyId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      refreshOrderScope();
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       toast({ title: "Commessa eliminata", description: "La commessa è stata eliminata con successo" });
     },
@@ -745,7 +751,7 @@ function OrdersListInner() {
       );
       const failed = results.filter((r) => r.status === "rejected").length;
       const ok = results.length - failed;
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      refreshOrderScope();
       if (failed === 0) {
         toast({
           title: "Stato aggiornato",
@@ -786,7 +792,7 @@ function OrdersListInner() {
       );
       const failed = results.filter((r) => r.status === "rejected").length;
       const ok = results.length - failed;
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      refreshOrderScope();
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
       if (failed === 0) {
         toast({
@@ -1293,9 +1299,9 @@ function OrdersListInner() {
       }
     }
 
-    queryClient.invalidateQueries({ queryKey: ["orders"] });
+    refreshOrderScope();
     return { success, errors };
-  }, [effectiveCompany, queryClient]);
+  }, [effectiveCompany, queryClient, refreshOrderScope]);
 
   const hasStatsError = isStatusesError || (isGlobalStatsError && !globalStats) || (isMonthlyOrdersError && monthlyOrders.length === 0);
   const isEconomicStatsLoading = !!effectiveCompany?.id && !hasStatsError && (
