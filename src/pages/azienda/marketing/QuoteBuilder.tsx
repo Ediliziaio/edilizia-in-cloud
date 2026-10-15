@@ -1,3 +1,4 @@
+import { QuoteLineKindFields } from "@/components/marketing/preventivi/QuoteLineKindFields";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { descrizioneCommerciale, prezziVenditaCompleti } from "@/lib/preventivi/configurazioneSemplice";
 import { campiContratto, erroriCampiContratto, leggiValoriContratto, formattaValoriContratto } from '../../../../supabase/functions/_shared/campiContratto';
@@ -1057,28 +1058,6 @@ export default function QuoteBuilder() {
     return prodotto?.item_category === "prodotto" && Number.isFinite(iva) ? iva : ivaPredefinita();
   };
 
-  const addItem = (type: string = "product") => {
-    setItems([
-      ...items,
-      {
-        item_type: type,
-        name: "",
-        description: "",
-        quantity: 1,
-        unit_price: 0,
-        discount_percent: 0,
-        vat_rate: ivaPredefinita(),
-        unit_of_measure: "pz",
-        sort_order: items.length,
-        // P03 defaults
-        item_category: "prodotto" as QuoteItemPro["item_category"],
-        prezzo_acquisto: 0,
-        mostra_nel_pdf: true,
-        is_optional: false,
-      } as QuoteItemPro,
-    ]);
-  };
-
   const addItemPro = (category: string) => {
     setItems((prev) => [
       ...prev,
@@ -1091,7 +1070,7 @@ export default function QuoteBuilder() {
         unit_price: 0,
         discount_percent: 0,
         vat_rate: ivaPredefinita(),
-        unit_of_measure: "pz",
+        unit_of_measure: category === "posa" ? "corpo" : "pz",
         sort_order: prev.length,
         prezzo_acquisto: 0,
         mostra_nel_pdf: true,
@@ -2735,8 +2714,8 @@ export default function QuoteBuilder() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                          <DropdownMenuItem onClick={() => addItem("product")}>
-                            <Plus className="h-4 w-4 mr-2" /> Riga libera
+                          <DropdownMenuItem onClick={() => addItemPro("posa")}>
+                            <Plus className="h-4 w-4 mr-2" /> Lavorazione libera
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setBundleOpen(true)}>
                             <Layers className="h-4 w-4 mr-2" /> Bundle
@@ -2797,9 +2776,9 @@ export default function QuoteBuilder() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => addItem("product")}
+                        onClick={() => addItemPro("posa")}
                       >
-                        <Plus className="h-4 w-4 mr-1" /> Riga libera
+                        <Plus className="h-4 w-4 mr-1" /> Lavorazione libera
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -2910,7 +2889,7 @@ export default function QuoteBuilder() {
                 {items.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground max-sm:py-5">
                     <Package className="h-12 w-12 mx-auto mb-3 opacity-30 max-sm:hidden" />
-                    <p className="font-medium max-sm:text-[13px]">Nessun prodotto</p>
+                    <p className="font-medium max-sm:text-[13px]">Nessuna voce</p>
                     <p className="text-sm max-sm:hidden">
                       Aggiungi dal listino o crea una riga libera
                     </p>
@@ -3026,7 +3005,8 @@ export default function QuoteBuilder() {
                                     </div>
                                   );
                                 })()}
-                                <div className="flex-1">
+                                <div className="flex-1 min-w-0">
+                              {!isSconto && <QuoteLineKindFields item={item} onChange={patch => setItems(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))} />}
                               {/* Nome a larghezza piena: i campi numerici restano leggibili anche con l'anteprima a destra. */}
                               <div className="grid grid-cols-12 gap-2 items-end">
                                 <div className="col-span-12">
@@ -3434,7 +3414,7 @@ export default function QuoteBuilder() {
                   </div>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground">Nessun prodotto</p>
+                <p className="text-sm text-muted-foreground">Nessuna voce</p>
               )}
             </div>
 
@@ -4120,7 +4100,7 @@ export default function QuoteBuilder() {
               return base;
             });
           }}
-          onAddFreeLine={() => addItem("product")}
+          onAddFreeLine={() => addItemPro("posa")}
           onAddDiscount={() => addItemPro("sconto")}
           onAddSubtotal={() => addItemPro("subtotale")}
         />

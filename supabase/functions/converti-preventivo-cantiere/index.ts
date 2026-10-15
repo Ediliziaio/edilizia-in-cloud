@@ -1,3 +1,5 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { separaVoci, contrattoPreventivo } from "../_shared/destinazioneVocePreventivo.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { righeCommessaDaPreventivo } from "../_shared/righeCommessaDaPreventivo.ts";
@@ -11,7 +13,7 @@ Deno.serve(async (req) => {
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, corsH);
 
-    const { quote_id } = await req.json();
+    const { quote_id, expected_version } = await req.json();
     if (!quote_id) return errorResponse("quote_id richiesto");
 
     // 1. Carica il preventivo
@@ -48,6 +50,10 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (expected_version != null && Number(expected_version) !== Number(quote.version)) {
+      return errorResponse("Il preventivo è cambiato: riaprilo e controlla le voci prima di continuare.", 409);
+    }
+
     // 3. Verifica stato preventivo
     if (quote.status !== "accettata") {
       return errorResponse(
@@ -77,16 +83,7 @@ Deno.serve(async (req) => {
     // Nella commessa total_amount è l'IMPONIBILE: l'elenco lo chiama così e il
     // PDF della commessa ci aggiunge l'IVA di vat_rate. Prima ci finiva il totale
     // IVA inclusa del preventivo, e l'IVA si contava due volte.
-    const totaleIvato = round2(Number(quote.total ?? 0));
-    const conSubtotale = Number(quote.subtotal ?? 0) > 0;
-    const imponibile = conSubtotale
-      ? round2(Number(quote.subtotal) - Number(quote.discount_amount ?? 0))
-      : totaleIvato;
-    // Un'aliquota sola sulla commessa: quella media del preventivo, così
-    // imponibile × aliquota ridà l'IVA del preventivo anche con aliquote miste.
-    const aliquotaMedia = conSubtotale && imponibile > 0
-      ? round2((Number(quote.vat_amount ?? 0) / imponibile) * 100)
-      : 0;
+    const { totaleIvato, imponibile, aliquotaMedia } = contrattoPreventivo(quote);
     const orderData: Record<string, unknown> = {
       company_id:     quote.company_id,
       quote_id:       quote.id,
@@ -130,122 +127,31 @@ Deno.serve(async (req) => {
       orderData.tipo_lavoro = quoteRecord.tipo_lavoro ?? null;
     }
 
-    const { data: order, error: insertErr } = await supabaseAdmin
-      .from("orders")
-      .insert(orderData)
-      .select("id")
-      .single();
-    if (insertErr || !order) {
-      console.error("Errore creazione cantiere:", insertErr);
-      return errorResponse(`Errore creazione cantiere: ${insertErr?.message || "errore sconosciuto"}`, 500);
-    }
-
-    // 5a. Piano dei pagamenti del preventivo → rate della commessa.
-    // La card del builder promette "riportate automaticamente nella commessa":
-    // qui invece arrivava acconto 0 e saldo = totale. Il trigger
-    // sync_installments_to_order_columns allinea le colonne legacy di orders.
-    const fasiPagamento = Array.isArray(quote.payment_phases)
-      ? (quote.payment_phases as Array<Record<string, unknown>>).filter((p) => p && typeof p === "object")
-      : [];
-    if (fasiPagamento.length > 0) {
-      const tipiRata = new Set(["deposit", "balance", "financing"]);
-      // Le fasi del preventivo sono sul totale IVA inclusa; le rate della
-      // commessa stanno sull'imponibile, come nelle altre commesse: si riportano
-      // in proporzione e l'ultima prende i centesimi di arrotondamento.
-      const fattore = totaleIvato > 0 ? imponibile / totaleIvato : 1;
-      let assegnato = 0;
-      const rate = fasiPagamento.map((p, idx) => {
-        const tipo = tipiRata.has(String(p.type)) ? String(p.type) : (idx === fasiPagamento.length - 1 ? "balance" : "deposit");
-        const ultima = idx === fasiPagamento.length - 1;
-        const importo = ultima && fattore !== 1
-          ? round2(imponibile - assegnato)
-          : round2((Number(p.amount) || 0) * fattore);
-        assegnato = round2(assegnato + importo);
-        return {
-          order_id: order.id,
-          position: idx,
-          label: String(p.label ?? "").trim() || (tipo === "balance" ? "Saldo" : `Acconto ${idx + 1}`),
-          type: tipo,
-          amount: importo,
-          is_paid: false,
-        };
-      });
-      const { error: rateErr } = await supabaseAdmin.from("order_installments").insert(rate);
-      if (rateErr) console.error("Rate preventivo→commessa non copiate:", rateErr);
-    }
-
-    // 5b. Copia le RIGHE del preventivo (quote_items) → order_items.
-    // Senza questo la commessa nasceva col solo totale aggregato, priva di
-    // articoli/prezzi/IVA per riga → impossibili distinta materiali, margini per
-    // riga e ordini fornitore. Il conto delle righe (categorie non-articolo,
-    // opzionali, quantità decimali, spina misure, sconto riga) sta in
-    // _shared/righeCommessaDaPreventivo.ts, lo stesso di «Crea commessa (rivedi)»
-    // (useQuotePrefill): le due strade producono la stessa commessa.
-    let righeAvviso: string | null = null;
-    const { data: quoteItems, error: qiErr } = await supabaseAdmin
-      .from("quote_items")
-      .select("*")
-      .eq("quote_id", quote_id)
-      .order("sort_order", { ascending: true });
-    if (qiErr) {
-      console.error("Errore lettura righe preventivo:", qiErr);
-    } else if (quoteItems && quoteItems.length > 0) {
-      // NB: order_items NON ha company_id (l'azienda si legge dalla commessa):
-      // passarlo faceva fallire in silenzio l'intera copia delle righe.
-      const rows = righeCommessaDaPreventivo(quoteItems as Array<Record<string, unknown>>).map((r, idx) => ({
-        order_id: order.id,
-        ...r,
-        status: "da_ordinare",
-        position: idx,
-      }));
-
-      // Col prezzo scritto a mano le righe copiate sono a 0€ (chi non carica il
-      // listino): non sommano più all'imponibile della commessa. Una riga di
-      // aggiustamento fa tornare i conti, come nei preventivatori di mestiere
-      // (src/lib/moduli/convertiInCommessa.ts).
-      if (Number(quote.prezzo_manuale ?? 0) > 0 && rows.length > 0) {
-        const sommaRighe = round2(rows.reduce((s, r) => s + (Number(r.unit_price) || 0) * (Number(r.quantity) || 1), 0));
-        const differenza = round2(imponibile - sommaRighe);
-        if (Math.abs(differenza) >= 0.01) {
-          rows.push({
-            order_id:          order.id,
-            name:              differenza > 0 ? "Prezzo a corpo" : "Sconto commerciale",
-            description:       "Differenza tra il prezzo scritto a mano nel preventivo e le righe di dettaglio.",
-            quantity:          1,
-            status:            "da_ordinare",
-            position:          rows.length,
-            unit_price:        differenza,
-            purchase_price:    0,
-            vat_rate:          aliquotaMedia,
-            discount_percent:  null,
-            family_id:         null,
-            axis_selections:   null,
-            misure_preventivo: null,
-            measure_status:    null,
-          });
-        }
-      }
-
-      if (rows.length > 0) {
-        const { error: itemsErr } = await supabaseAdmin.from("order_items").insert(rows);
-        if (itemsErr) {
-          // Non blocchiamo: il cantiere esiste già; ma lo diciamo al chiamante,
-          // prima la risposta era success:true con la commessa vuota.
-          console.error("Errore copia righe preventivo→commessa:", itemsErr);
-          righeAvviso = `Righe non copiate: ${itemsErr.message}`;
-        }
-      }
-    }
-
-    // 6. Aggiorna stato preventivo a 'convertita'
-    const { error: updateErr } = await supabaseAdmin
-      .from("quotes")
-      .update({ status: "convertita", updated_at: new Date().toISOString() })
-      .eq("id", quote_id);
-    if (updateErr) {
-      console.error("Errore aggiornamento stato preventivo:", updateErr);
-      // Non blocchiamo: il cantiere è già stato creato
-    }
+    const { data: quoteItems, error: qiErr } = await supabaseAdmin.from("quote_items").select("*").eq("quote_id", quote_id).order("sort_order", {ascending:true});
+    if (qiErr) return errorResponse("Non riesco a verificare le voci del preventivo.", 500);
+    if (separaVoci(quoteItems ?? []).daVerificare.length) return errorResponse("Ci sono voci da classificare: rivedi il preventivo.", 409);
+    const rows = righeCommessaDaPreventivo(quoteItems ?? []).map((r, position) => ({...r, status:"da_ordinare",position}));
+    // Stessi importi e stessa proporzione del flusso precedente: cambia soltanto la transazione.
+    const fasiPagamento = Array.isArray(quote.payment_phases) ? quote.payment_phases : [];
+    let assegnato = 0;
+    const fattore = totaleIvato > 0 ? imponibile / totaleIvato : 1;
+    const rate = fasiPagamento.map((p: Record<string, unknown>, idx: number) => {
+      const ultima = idx === fasiPagamento.length-1;
+      const amount = ultima && fattore !== 1 ? round2(imponibile-assegnato) : round2((Number(p.amount)||0)*fattore);
+      assegnato = round2(assegnato+amount);
+      return {position:idx,label:String(p.label ?? "").trim() || (ultima ? "Saldo" : `Acconto ${idx+1}`),
+        type:["deposit","balance","financing"].includes(String(p.type)) ? p.type : ultima ? "balance" : "deposit",amount,is_paid:false};
+    });
+    // La RPC conserva il JWT del chiamante: gli stessi permessi della creazione ordinaria.
+    const utente = createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global:{headers:{Authorization:req.headers.get("Authorization")!}},auth:{persistSession:false,autoRefreshToken:false}
+    });
+    const {data: result,error: conversionError} = await utente.rpc("crea_commessa_preventivo_atomic", {
+      p_quote_id:quote_id,p_order_data:orderData,p_items:rows,p_installments:rate,p_quote_version:quote.version
+    });
+    if (conversionError || !result?.id) return errorResponse(conversionError?.message || "Creazione commessa non riuscita.",409);
+    const order = {id:result.id};
+    const righeAvviso: string | null = null;
 
     // 7. Chiude la catena commerciale: se il preventivo era legato a un
     // deal, la commessa lo ricorda (orders.opportunity_id) e l'opportunità

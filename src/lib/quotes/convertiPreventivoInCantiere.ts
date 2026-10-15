@@ -16,9 +16,9 @@ export interface EsitoConversionePreventivo {
   avviso: string | null;
 }
 
-export async function convertiPreventivoInCantiere(quoteId: string): Promise<EsitoConversionePreventivo> {
+export async function convertiPreventivoInCantiere(quoteId: string, expectedVersion?: number): Promise<EsitoConversionePreventivo> {
   const { data, error } = await supabase.functions.invoke("converti-preventivo-cantiere", {
-    body: { quote_id: quoteId },
+    body: { quote_id: quoteId, ...(expectedVersion == null ? {} : { expected_version: expectedVersion }) },
   });
   if (error) throw new Error(await edgeErrorMessage(error, "Errore durante la conversione"));
   const risposta = (data ?? {}) as { order_id?: unknown; avviso?: unknown };

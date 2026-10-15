@@ -33,7 +33,7 @@ describe("righeCommessaDaPreventivo", () => {
       riga({ item_category: "sconto", name: "Sconto", unit_price: -50 }), riga({ name: "Opzione", is_optional: true }),
       riga({ name: "Niente", quantity: 0 }), riga({ name: "Posa", item_category: "posa" }),
     ]);
-    expect(r.map((x) => x.name)).toEqual(["Finestra", "Posa"]);
+    expect(r.map((x) => x.name)).toEqual(["Finestra"]);
   });
 
   it("lo sconto di riga viaggia con la riga", () => {
@@ -84,9 +84,9 @@ describe("«Crea commessa (rivedi)» e «Converti in Cantiere»: stesse righe", 
 
   it("la strada «rivedi» dà le righe giuste: niente opzionali, sconto di riga, decimali a 1 × totale", () => {
     const items = righePreventivoPerCommessa(preventivoRighe);
-    expect(items.map((i) => i.name)).toEqual(["Finestra PVC", "Posa", "Intonaco"]);
+    expect(items.map((i) => i.name)).toEqual(["Finestra PVC", "Intonaco"]);
     expect(items[0]).toMatchObject({ quantity: 4, unit_price: 850, discount_percent: 5, vat_rate: 10, status: "da_ordinare", position: 0, measure_status: "da_rilevare" });
-    expect(items[2]).toMatchObject({ quantity: 1, unit_price: 2052, purchase_price: 983.25 });
+    expect(items[1]).toMatchObject({ quantity: 1, unit_price: 2052, purchase_price: 983.25 });
     // Quello che CreateOrder manda a create_order_atomic: tutte le quantità sono intere.
     expect(items.every((i) => Number.isInteger(i.quantity))).toBe(true);
   });
@@ -95,6 +95,7 @@ describe("«Crea commessa (rivedi)» e «Converti in Cantiere»: stesse righe", 
     beforeEach(() => {
       condiviso.db = new DbMinimo();
       condiviso.db.rpcs.has_permission_for_company = () => true;
+      condiviso.db.rpcs.crea_commessa_preventivo_atomic = () => ({id:"o1"});
       condiviso.db.tabelle.quotes = [{
         id: "q-1", company_id: "c-1", status: "accettata", quote_number: "OFF-2026-042", title: "Serramenti", source: null,
         subtotal: 6000, discount_amount: 0, vat_amount: 760, total: 6760, prezzo_manuale: null, payment_phases: [], contact_id: null, opportunity_id: null,
@@ -118,7 +119,8 @@ describe("«Crea commessa (rivedi)» e «Converti in Cantiere»: stesse righe", 
       const esito = await r.json() as { success?: boolean; order_id?: string; avviso?: string | null };
       expect(esito.success).toBe(true);
       expect(esito.avviso).toBeNull();
-      const scritto = condiviso.db.scritture.find((s) => s.tabella === "order_items")!.dati as Array<Record<string, unknown>>;
+      const chiamata = condiviso.db.rpcChiamate.find(r => r.nome === "crea_commessa_preventivo_atomic")!;
+      const scritto = chiamata.args.p_items as Array<Record<string, unknown>>;
       const senzaOrdine = scritto.map(({ order_id: _o, ...resto }) => resto);
       expect(senzaOrdine).toEqual(righePreventivoPerCommessa(preventivoRighe).map((i) => ({
         // L'edge scrive null dove la pagina lascia il campo vuoto.
@@ -126,9 +128,9 @@ describe("«Crea commessa (rivedi)» e «Converti in Cantiere»: stesse righe", 
         unit_price: i.unit_price ?? null, purchase_price: i.purchase_price, vat_rate: i.vat_rate ?? null, discount_percent: i.discount_percent ?? null,
         family_id: i.family_id ?? null, axis_selections: i.axis_selections ?? null, misure_preventivo: i.misure_preventivo ?? null, measure_status: i.measure_status ?? null,
       })));
-      // Il preventivo risulta convertito e la commessa ha l'imponibile.
-      expect(condiviso.db.tabelle.quotes[0].status).toBe("convertita");
-      expect(condiviso.db.tabelle.orders[0]).toMatchObject({ total_amount: 6000, quote_id: "q-1" });
+      expect(chiamata.args.p_order_data).toMatchObject({total_amount:6000,quote_id:"q-1"});
+      expect(condiviso.db.scritture).toEqual([]); // Tutte le scritture sono nella transazione della RPC.
+
     });
   });
 });

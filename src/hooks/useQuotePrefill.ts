@@ -1,3 +1,4 @@
+import { separaVoci, contrattoPreventivo } from "../../supabase/functions/_shared/destinazioneVocePreventivo";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { OrderItem } from "@/components/orders/OrderItemsList";
@@ -17,8 +18,6 @@ import { righeCommessaDaPreventivo } from "../../supabase/functions/_shared/righ
  *  - MODALITÀ di pagamento;
  *  - dati CLIENTE del preventivo (per creare/collegare l'anagrafica in commessa).
  */
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Le righe del preventivo come righe di commessa: lo stesso conto della
@@ -45,40 +44,6 @@ export function righePreventivoPerCommessa(rows: Array<Record<string, unknown>>)
   }));
 }
 
-/**
- * Prezzo scritto a mano (21/09/2026): le righe del preventivo restano a 0€
- * per chi non carica il listino, quindi non sommano più all'imponibile vero.
- * Il form di /azienda/ordini/nuovo non precompila mai `total_amount` da
- * questa importazione (lo scrive sempre chi crea la commessa): questa
- * funzione dà comunque un riferimento corretto nella lista voci, invece di
- * righe tutte a 0€ senza spiegazione — stessa riga di aggiustamento della
- * conversione automatica (`converti-preventivo-cantiere`) e dei moduli edili
- * (`convertiInCommessa.ts`). Pura e testabile: nessun accesso a rete.
- */
-export function rigaAggiustamentoPrezzoManuale(
-  orderItems: Pick<OrderItem, "unit_price" | "quantity">[],
-  quote: { prezzo_manuale?: unknown; prezzo_manuale_iva_pct?: unknown; subtotal?: unknown; discount_amount?: unknown },
-): OrderItem | null {
-  const manuale = Number(quote.prezzo_manuale ?? 0);
-  if (!(manuale > 0) || orderItems.length === 0) return null;
-  const imponibile = round2(Number(quote.subtotal ?? 0) - Number(quote.discount_amount ?? 0));
-  const sommaRighe = round2(
-    orderItems.reduce((s, r) => s + (Number(r.unit_price) || 0) * (Number(r.quantity) || 1), 0),
-  );
-  const differenza = round2(imponibile - sommaRighe);
-  if (Math.abs(differenza) < 0.01) return null;
-  return {
-    name: differenza > 0 ? "Prezzo a corpo" : "Sconto commerciale",
-    description: "Differenza tra il prezzo scritto a mano nel preventivo e le righe di dettaglio.",
-    quantity: 1,
-    status: "da_ordinare",
-    position: orderItems.length,
-    unit_price: differenza,
-    purchase_price: 0,
-    vat_rate: Number(quote.prezzo_manuale_iva_pct ?? 0),
-  };
-}
-
 export interface QuotePrefillClient {
   name: string;
   email: string;
@@ -92,6 +57,10 @@ export interface QuotePrefillClient {
 
 export interface QuotePrefill {
   description: string;
+  totalAmount: number;
+  vatRate: number;
+  version: number;
+  workLines: Array<{ name: string; quantity: number; unit_of_measure?: string | null }>;
   quoteNumber: string | null;
   orderItems: OrderItem[];
   paymentMethod: string | null;
@@ -128,12 +97,9 @@ export function useQuotePrefill(quoteId: string | null | undefined) {
       const orderItems: OrderItem[] = righePreventivoPerCommessa((rows ?? []) as Array<Record<string, unknown>>);
 
       const q = quote as Record<string, unknown>;
+      const contratto = contrattoPreventivo(q);
 
-      // Prezzo scritto a mano: le righe sopra sono a 0€, questa riga dà un
-      // riferimento corretto (vedi commento sulla funzione più sopra).
-      const rigaAggiustamento = rigaAggiustamentoPrezzoManuale(orderItems, q);
-      if (rigaAggiustamento) orderItems.push(rigaAggiustamento);
-
+      // Il prezzo a corpo resta sul contratto: non genera un materiale fittizio.
       // ── Fasi di pagamento del preventivo → rate della commessa ──
       const installments: Installment[] = parseQuotePaymentPhases(q.payment_phases).map((p, idx) => ({
         position: idx,
@@ -147,6 +113,7 @@ export function useQuotePrefill(quoteId: string | null | undefined) {
       const bonusLines = parseBonusLines(q.bonus_lines);
 
       const quoteTyped = quote as {
+        title?: string | null;
         description?: string | null;
         quote_number?: string | null;
         client_name?: string | null;
@@ -160,7 +127,11 @@ export function useQuotePrefill(quoteId: string | null | undefined) {
       };
 
       return {
-        description: quoteTyped.description ?? "",
+        description: quoteTyped.title || quoteTyped.description || quoteTyped.quote_number || "",
+        totalAmount: contratto.imponibile,
+        vatRate: contratto.aliquotaMedia,
+        version: Number(q.version ?? 1),
+        workLines: separaVoci(rows ?? []).lavorazioni,
         quoteNumber: quoteTyped.quote_number ?? null,
         orderItems,
         paymentMethod,

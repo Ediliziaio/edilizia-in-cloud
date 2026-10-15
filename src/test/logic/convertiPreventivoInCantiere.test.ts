@@ -93,7 +93,7 @@ describe("QuoteDetail.handleConvertToCantiere (il testo vero dell'handler)", () 
     const setConverting = vi.fn();
     const invalidateQueries = vi.fn();
     const handler = handlerVero("handleConvertToCantiere", {
-      Error, id: "q1", toast, navigate, setConverting, converting: false,
+      Error, id: "q1", quote: { version: 1 }, toast, navigate, setConverting, converting: false,
       // Le chiavi vere (non un finto che l'handler può superare): l'handler invalida il preventivo e la sua commessa collegata.
       queryClient: { invalidateQueries }, queryKeys,
       // Il vecchio handler chiamava direttamente supabase: lo stesso finto, così il test dice cosa vede l'utente.

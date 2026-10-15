@@ -636,7 +636,7 @@ function AddItemContent({
                 }}
               >
                 <Plus className="mr-1 h-4 w-4" />
-                Riga libera
+                Lavorazione libera
               </Button>
             )}
             {onAddDiscount && (
