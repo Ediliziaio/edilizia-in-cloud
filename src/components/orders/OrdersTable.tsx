@@ -51,6 +51,7 @@ interface OrdersTableProps {
   onDelete: (orderId: string) => void;
   isDeleting: boolean;
   orderCosts: Map<string, OrderCosts>;
+  costsState?: "ready" | "loading" | "error";
   statuses?: OrderStatus[];
   onBulkStatusChange?: (orderIds: string[], statusId: string) => void;
   onBulkDelete?: (orderIds: string[]) => void;
@@ -66,6 +67,7 @@ export const OrdersTable = React.memo(function OrdersTable({
   onDelete,
   isDeleting,
   orderCosts,
+  costsState = "ready",
   statuses = [],
   onBulkStatusChange,
   onBulkDelete,
@@ -432,13 +434,13 @@ export const OrdersTable = React.memo(function OrdersTable({
                   {visibleColumns.has("variableCosts") && (
                     <TableCell className="hidden 2xl:table-cell text-right">
                       <span className="text-muted-foreground">
-                        {formatCurrency(variableCosts)}
+                        {costsState === "loading" ? "…" : costsState === "error" ? "—" : formatCurrency(variableCosts)}
                       </span>
                     </TableCell>
                   )}
                   {visibleColumns.has("margin") && (
                     <TableCell className="hidden lg:table-cell text-right">
-                      {marginReliable ? (
+                      {costsState !== "ready" ? <span className="text-xs text-muted-foreground">{costsState === "loading" ? "Verifica margine…" : "Margine non disponibile"}</span> : marginReliable ? (
                         <span className={`font-medium ${
                           grossMargin < 0 ? "text-destructive" : marginPercent < 20 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
                         }`}>

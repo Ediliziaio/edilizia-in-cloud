@@ -127,6 +127,7 @@ jobs:
           src/test/ui/ordersActiveFilters.test.tsx
           src/test/ui/ordersFilterCount.test.tsx
           src/test/ui/ordersPeriodSummary.test.tsx
+          src/test/ui/ordersUnavailableCosts.test.tsx
           src/test/ui/useURLFiltersPiuSetterDiFila.test.tsx
 
       - name: Run cash forecast regression tests

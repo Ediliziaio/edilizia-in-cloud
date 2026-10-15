@@ -109,7 +109,7 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
         .eq("company_id", companyId)
         .is("deleted_at", null);
 
-      if (allowedOrderIds !== null && allowedOrderIds.length <= 200) query = query.in("id", allowedOrderIds);
+      if (allowedOrderIds !== null && allowedOrderIds.length <= 100) query = query.in("id", allowedOrderIds);
       if (sf.includeStatuses.length) query = query.in("current_status_id", sf.includeStatuses);
       if (sf.excludeStatuses.length) query = query.or(`current_status_id.not.in.(${sf.excludeStatuses.join(",")}),current_status_id.is.null`);
       if (sf.orderSearch.trim()) {
@@ -183,7 +183,7 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
 
       // Avoid oversized IN URLs. The less common large-id case reads bounded
       // pages in the same database order, intersects, then paginates the result.
-      if ((allowedOrderIds !== null && allowedOrderIds.length > 200) || to === Infinity) {
+      if ((allowedOrderIds !== null && allowedOrderIds.length > 100) || to === Infinity) {
         const rows = await readAllOrderRows((start, end) => query.range(start, end));
         const allowed = allowedOrderIds === null ? null : new Set(allowedOrderIds);
         const matching = allowed ? rows.filter(row => allowed.has(row.id)) : rows;

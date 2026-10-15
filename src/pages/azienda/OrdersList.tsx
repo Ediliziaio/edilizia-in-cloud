@@ -301,10 +301,10 @@ function OrdersListInner() {
     enabled: !!effectiveCompany?.id && !!globalStats && (orderPerms.canViewMargins || orderPerms.canViewCosts),
     queryFn: async () => {
       const rows: OrderMarginRow[] = [];
-      for (let from = 0; from < scopeOrderIds.length; from += 200) {
+      for (let from = 0; from < scopeOrderIds.length; from += 100) {
         const {data, error} = await supabase.from("v_ordine_marginalita")
           .select("id, preventivo_totale, consuntivo, margine, margine_perc")
-          .eq("company_id", effectiveCompany!.id).in("id", scopeOrderIds.slice(from, from + 200));
+          .eq("company_id", effectiveCompany!.id).in("id", scopeOrderIds.slice(from, from + 100));
         if (error) throw error;
         rows.push(...(data ?? []));
       }
@@ -1022,9 +1022,9 @@ function OrdersListInner() {
     const exportCostsMap = new Map<string, {variableCosts:number;grossMargin:number;marginPercent:number;marginReliable:boolean}>();
     if (orderPerms.canViewMargins || orderPerms.canViewCosts) {
       const marginRows: OrderMarginRow[] = [];
-      for (let from=0;from<allOrders.length;from+=200) {
+      for (let from=0;from<allOrders.length;from+=100) {
         const {data,error} = await supabase.from("v_ordine_marginalita").select("id, preventivo_totale, consuntivo, margine, margine_perc")
-          .eq("company_id",effectiveCompany.id).in("id",allOrders.slice(from,from+200).map(order=>order.id));
+          .eq("company_id",effectiveCompany.id).in("id",allOrders.slice(from,from+100).map(order=>order.id));
         if (error) throw error;
         marginRows.push(...(data??[]));
       }
@@ -2002,6 +2002,7 @@ function OrdersListInner() {
                 onDelete={(id) => deleteOrderMutation.mutate(id)}
                 isDeleting={deleteOrderMutation.isPending}
                 orderCosts={orderCostsMap}
+                costsState={scopeMarginsError || isGlobalStatsError ? "error" : scopeMarginsPending ? "loading" : "ready"}
                 statuses={statuses}
                 onBulkStatusChange={handleBulkStatusChange}
                 onBulkDelete={handleBulkDelete}
