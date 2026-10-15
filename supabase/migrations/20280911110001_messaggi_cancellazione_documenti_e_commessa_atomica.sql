@@ -131,19 +131,21 @@ BEGIN
     RAISE EXCEPTION 'create_order_atomic: utente non autenticato';
   END IF;
 
-  IF NOT (
-    has_role(v_caller_id, 'super_admin'::app_role)
-    OR (
-      EXISTS (
-        SELECT 1 FROM public.profiles
-        WHERE id = v_caller_id AND company_id = v_company_id
-      )
-    )
-  ) THEN
-    RAISE EXCEPTION 'create_order_atomic: non autorizzato per la company %', v_company_id;
+  -- L'accesso secondario vale solo per il chiamante autenticato, se ancora
+  -- attivo e con il permesso già concesso dall'azienda destinataria.
+  IF has_role(v_caller_id, 'super_admin'::app_role)
+     OR EXISTS (SELECT 1 FROM public.profiles WHERE id=v_caller_id AND company_id=v_company_id) THEN
+    PERFORM public.assert_permesso('can_edit_orders', 'creare una commessa');
+  ELSIF auth.uid() = v_caller_id AND NOT public.utente_bloccato()
+    AND NOT public.utente_e_cliente_esterno()
+    AND EXISTS (SELECT 1 FROM public.multi_company_access m
+      WHERE m.user_id=v_caller_id AND m.company_id=v_company_id
+        AND m.status = 'active' AND (m.expires_at IS NULL OR m.expires_at > now()))
+    AND public.has_permission_for_company(v_caller_id, 'can_edit_orders', v_company_id) IS TRUE THEN
+    NULL; -- Non usare i permessi dell'azienda primaria o della sessione precedente.
+  ELSE
+    RAISE EXCEPTION 'Non hai il permesso di creare commesse in questa azienda.' USING ERRCODE='42501';
   END IF;
-
-  PERFORM public.assert_permesso('can_edit_orders', 'creare una commessa');
 
   v_total_amount := COALESCE((p_order_data->>'total_amount')::numeric, 0);
 
