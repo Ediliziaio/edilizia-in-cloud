@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { avvisiDoppieVoci, haManodoperaConfigurata, stessoProdotto } from "@/lib/preventivi/avvisiInserimento";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import type { CatalogItem } from "@/types/catalogItem";
-const prodotto = { item_type: "product", item_category: "prodotto", name: "Finestra", family_id: "f1", quantity: 1, unit_of_measure: "pz", axis_selections: { colore: "bianco", modello: "A" }, misura_x: 1000, misura_y: 1200 } as QuoteItemPro;
+const prodotto: QuoteItemPro = { item_type: "product", item_category: "prodotto", name: "Finestra", description: "", family_id: "f1", quantity: 1, unit_of_measure: "pz", axis_selections: { colore: "bianco", modello: "A" }, misura_x: 1000, misura_y: 1200, unit_price: 200, prezzo_acquisto: 100, discount_percent: 0, vat_rate: 22, sort_order: 0, mostra_nel_pdf: true, is_optional: false };
 const posa = { item_type: "service", item_category: "posa", name: "Montaggio", tariffa_id: "t1", quantity: 1, unit_of_measure: "pz", parent_temp_id: "parent-1" } as QuoteItemPro;
 describe("Avvisi doppie voci nel preventivo", () => {
   it("riconosce lo stesso prodotto anche con ordine delle varianti diverso", () => {
