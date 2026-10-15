@@ -1,3 +1,4 @@
+import { DuplicaLavoroDialog } from "@/components/orders/DuplicaLavoroDialog";
 import { useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -650,38 +651,6 @@ function OrderDetailInner() {
       toast.error("Errore nell'eliminazione della commessa.", {
         description: error instanceof Error ? error.message : undefined,
       });
-    },
-  });
-
-  // Duplicate order mutation
-  const duplicateOrderMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("duplicate-order", {
-        body: { source_order_id: id },
-      });
-      if (error) {
-        let errBody: { error?: string; message?: string } | null = null;
-        try {
-          const ctx = (error as { context?: unknown }).context;
-          if (ctx instanceof Response) {
-            errBody = (await ctx.json()) as { error?: string; message?: string };
-          }
-        } catch {
-          errBody = null;
-        }
-        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
-      }
-      if (data?.error) throw new Error(data.error);
-      return data as { id: string; order_code: string };
-    },
-    onSuccess: (data) => {
-      setDuplicateDialogOpen(false);
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
-      toast.success(`Commessa duplicata con codice ${data.order_code}`);
-      navigate(`/azienda/ordini/${data.id}`);
-    },
-    onError: () => {
-      toast.error("Errore nella duplicazione della commessa.");
     },
   });
 
@@ -2315,29 +2284,11 @@ function OrderDetailInner() {
         </DialogContent>
       </Dialog>
 
-      {/* Duplicate Order Dialog */}
-      <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Duplica commessa</DialogTitle>
-            <DialogDescription>
-              Duplicare la commessa {order.order_code ? `#${order.order_code}` : ""}? La nuova commessa
-              verrà creata come bozza senza pagamenti incassati.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>
-              Annulla
-            </Button>
-            <Button
-              onClick={() => duplicateOrderMutation.mutate()}
-              disabled={duplicateOrderMutation.isPending}
-            >
-              {duplicateOrderMutation.isPending ? "Duplicazione..." : "Duplica"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DuplicaLavoroDialog tipo="commessa" sourceId={id!} open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}
+        onDuplicato={(nuovoId) => {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
+          navigate(`/azienda/ordini/${nuovoId}`);
+        }} />
 
       {/* Crea Fattura Dialog — smart prefill from order installments */}
       <CreaFatturaDialog

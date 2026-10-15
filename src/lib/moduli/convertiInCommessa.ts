@@ -6,7 +6,7 @@ import { avviaCommessa } from "@/lib/orders/avviaCommessa";
 
 export interface AnteprimaConversioneModulo {
   materiali: Array<{ name: string; description: string | null; quantity: number; unit_price: number }>;
-  fasi: Array<{ name: string; notes: string }>;
+  fasi: Array<{ name: string; notes: string; sottofasi?: Array<{ name: string; peso: number }> }>;
   imponibile: number;
   aliquota: number;
   totale: number;

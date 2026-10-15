@@ -30,9 +30,10 @@ interface Props {
   onConvertito?: (orderId: string) => void;
   /** Ristrutturazione: quanti capitoli ha il computo. Da due in su si offre «una fase per capitolo». */
   capitoli?: number;
+  fasiPianificate?: number;
 }
 
-export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMotivo, onConvertito, capitoli = 0 }: Props) {
+export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMotivo, onConvertito, capitoli = 0, fasiPianificate = 0 }: Props) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [inCorso, setInCorso] = useState(false);
@@ -41,7 +42,7 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
   const [errore, setErrore] = useState("");
   // Di partenza sì: i capitoli del computo sono già il modo in cui il lavoro è diviso.
   const [fasiCapitoli, setFasiCapitoli] = useState(true);
-  const offriFasi = modulo === "rst" && capitoli >= 2;
+  const offriFasi = modulo === "rst" && capitoli >= 2 && fasiPianificate === 0;
 
   const mostraRiepilogo = async () => {
     setInCorso(true); setErrore("");
@@ -107,6 +108,7 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
           <p className="text-xs text-orange-800/80 dark:text-orange-300/80 max-md:hidden">
             {bloccoMotivo ?? "Controlla le lavorazioni e i materiali prima di creare la commessa. Il contratto mantiene il suo importo."}
           </p>
+          {fasiPianificate > 0 && <p className="mt-1 text-xs">Mantiene le {fasiPianificate} fasi pianificate nel preventivo, con le loro sottofasi.</p>}
           {offriFasi && !bloccoMotivo && (
             <label className="mt-1.5 flex items-center gap-2 text-xs text-orange-900 dark:text-orange-200">
               <Checkbox checked={fasiCapitoli} onCheckedChange={(v) => setFasiCapitoli(v === true)} aria-label="Una fase per ogni capitolo" />
