@@ -1,3 +1,4 @@
+import {orderPaymentTiming} from "@/lib/orders/listPayments";
 import React, { useState, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Link, useNavigate } from "react-router-dom";
@@ -50,6 +51,7 @@ interface OrdersTableProps {
   onDelete: (orderId: string) => void;
   isDeleting: boolean;
   orderCosts: Map<string, OrderCosts>;
+  costsState?: "ready" | "loading" | "error";
   statuses?: OrderStatus[];
   onBulkStatusChange?: (orderIds: string[], statusId: string) => void;
   onBulkDelete?: (orderIds: string[]) => void;
@@ -65,6 +67,7 @@ export const OrdersTable = React.memo(function OrdersTable({
   onDelete,
   isDeleting,
   orderCosts,
+  costsState = "ready",
   statuses = [],
   onBulkStatusChange,
   onBulkDelete,
@@ -308,7 +311,7 @@ export const OrdersTable = React.memo(function OrdersTable({
               {visibleColumns.has("totalIvato") && <SortableTableHead column="totalIvato" label="Tot. Ivato" sortConfig={sortConfig} onSort={toggleSort} className="hidden sm:table-cell text-right" />}
               {visibleColumns.has("imponibile") && <SortableTableHead column="total_amount" label="Imponibile" sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
               {visibleColumns.has("collected") && <SortableTableHead column="collected" label="Incassato" sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
-              {visibleColumns.has("due") && <SortableTableHead column="due" label="Da Ricevere" sortConfig={sortConfig} onSort={toggleSort} className="hidden md:table-cell text-right" />}
+              {visibleColumns.has("due") && <SortableTableHead column="due" label="Da incassare" sortConfig={sortConfig} onSort={toggleSort} className="hidden md:table-cell text-right" />}
               {visibleColumns.has("variableCosts") && <SortableTableHead column="variableCosts" label="Costi Var." sortConfig={sortConfig} onSort={toggleSort} className="hidden 2xl:table-cell text-right" />}
               {visibleColumns.has("margin") && <SortableTableHead column="grossMargin" label="Margine" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />}
               {visibleColumns.has("deposit") && <SortableTableHead column="deposit" label="Acconti" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell text-right" />}
@@ -334,6 +337,7 @@ export const OrdersTable = React.memo(function OrdersTable({
               const due = getAmountDue(order);
               const collected = getAmountCollected(order);
               const pending = getPendingPayments(order);
+              const timing = orderPaymentTiming(order);
               const vatRate = order.vat_rate ?? 22;
               const totalIvato = order.total_amount * (1 + vatRate / 100);
               const costs = orderCosts.get(order.id);
@@ -383,8 +387,8 @@ export const OrdersTable = React.memo(function OrdersTable({
                       {format(new Date(order.created_at), "dd/MM/yyyy")}
                     </TableCell>
                   )}
-                  <TableCell className="max-w-[120px] sm:max-w-[150px] lg:max-w-[170px] xl:max-w-[220px] 2xl:max-w-[240px] truncate" title={order.description ?? undefined}>
-                    {order.description}
+                  <TableCell className="min-w-[160px] max-w-[240px] xl:max-w-[300px]" title={order.description ?? undefined}>
+                    <span className="line-clamp-2 whitespace-normal text-sm font-medium leading-5 text-slate-800">{order.description}</span>
                     {visibleColumns.has("customer") && order.customer && (
                       <span className="block truncate text-xs text-muted-foreground 2xl:hidden">
                         {order.customer.first_name} {order.customer.last_name}
@@ -422,24 +426,23 @@ export const OrdersTable = React.memo(function OrdersTable({
                       <span className={due > 0 ? "text-orange-600 dark:text-orange-400 font-medium" : "text-emerald-600 dark:text-emerald-400"}>
                         {formatCurrency(due)}
                       </span>
+                      {due > 0.01 && <span className={`mt-0.5 block text-xs ${timing.overdueDays ? "font-medium text-red-700" : "text-muted-foreground"}`}>
+                        {timing.overdueDays ? `Scaduto da ${timing.overdueDays} gg` : timing.nextDate ? `Scadenza ${format(new Date(`${timing.nextDate}T00:00:00`), "dd/MM/yyyy")}` : "Scadenza non indicata"}
+                      </span>}
                     </TableCell>
                   )}
                   {visibleColumns.has("variableCosts") && (
                     <TableCell className="hidden 2xl:table-cell text-right">
                       <span className="text-muted-foreground">
-                        {formatCurrency(variableCosts)}
+                        {costsState === "loading" ? "…" : costsState === "error" ? "—" : formatCurrency(variableCosts)}
                       </span>
                     </TableCell>
                   )}
                   {visibleColumns.has("margin") && (
                     <TableCell className="hidden lg:table-cell text-right">
-                      {marginReliable ? (
+                      {costsState !== "ready" ? <span className="text-xs text-muted-foreground">{costsState === "loading" ? "Verifica margine…" : "Margine non disponibile"}</span> : marginReliable ? (
                         <span className={`font-medium ${
-                          marginPercent >= 30
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : marginPercent >= 15
-                              ? "text-amber-600 dark:text-amber-400"
-                              : "text-destructive"
+                          grossMargin < 0 ? "text-destructive" : marginPercent < 20 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
                         }`}>
                           {formatCurrency(grossMargin)} ({marginPercent.toFixed(1)}%)
                         </span>
@@ -508,15 +511,9 @@ export const OrdersTable = React.memo(function OrdersTable({
                   )}
                   {visibleColumns.has("payments") && (
                     <TableCell className="hidden xl:table-cell">
-                      {pending.length === 0 ? (
-                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-0">
-                          OK
-                        </Badge>
-                      ) : (
-                        <Badge className="max-w-[150px] bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border-0" title={pending.join(", ")}>
-                          <span className="truncate">{pending.join(", ")}</span>
-                        </Badge>
-                      )}
+                      <Badge className={due <= 0.01 ? "bg-green-100 text-green-800 border-0" : timing.overdueDays ? "bg-red-100 text-red-800 border-0" : "bg-orange-100 text-orange-800 border-0"}>
+                        {totalIvato <= 0 ? "Importo da definire" : due <= 0.01 ? "Saldato" : timing.overdueDays ? "Rate scadute" : "Da incassare"}
+                      </Badge>
                     </TableCell>
                   )}
                   <TableCell>

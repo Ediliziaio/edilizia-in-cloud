@@ -1,4 +1,11 @@
+import {OrdersPeriodSummary} from "@/components/orders/OrdersPeriodSummary";
+import {readOrdersPage} from "@/lib/orders/listQuery";
+import { parseOrderAdvancedFilters } from "@/lib/orders/advancedFilters";
+import { OrdersActiveFilters, type OrderFilterChip } from "@/components/orders/OrdersActiveFilters";
 import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
+import { matchesOrderPayment } from "@/lib/orders/listPayments";
+import { readAllOrderRows, orderMarginKind, orderMarginGroups, ORDER_FOCUS_LABELS, type OrderFocus, type OrderMarginRow } from "@/lib/orders/listScope";
+import "./OrdersList/orders-list.css";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -64,12 +71,12 @@ import { OrderTypeChoiceDialog } from "@/components/orders/OrderTypeChoiceDialog
 import {
   type DateRange,
   ORDER_IMPORT_FIELDS,
-  PENDING_PAYMENTS_FILTER,
   EMPTY_ORDERS,
 } from "./OrdersList/constants";
 
 function OrdersListInner() {
   const { user, effectiveCompany } = useAuth();
+  const orderPerms = usePermissions();
   const { toast } = useToast();
   const { remainingOrders, currentPlan } = useSubscriptionLimits();
   const [searchParams] = useSearchParams();
@@ -77,7 +84,7 @@ function OrdersListInner() {
   const appaltatoreEnabled = useAppaltatoreModuleEnabled();
   const [showOrderTypeDialog, setShowOrderTypeDialog] = useState(false);
   const queryClient = useQueryClient();
-  const { params: urlFilters, setParam: setURLParam } = useURLFilters({
+  const { params: urlFilters, setParam: setURLParam, setParams: setURLParams } = useURLFilters({
     searchQuery: { key: "q", defaultValue: "" },
     statusFilter: { key: "status", defaultValue: "all" },
     paymentFilter: { key: "payment", defaultValue: "all" },
@@ -93,6 +100,10 @@ function OrdersListInner() {
     laborFilter: { key: "manodopera", defaultValue: "all" },
     supplierFilter: { key: "fornitore", defaultValue: "all" },
     controlFocus: { key: "focus", defaultValue: "all" },
+    advancedFilters: { key: "avanzati", defaultValue: "" },
+    contractFrom: {key:"contratto_dal", defaultValue:""}, contractTo: {key:"contratto_al", defaultValue:""},
+    warehouseFrom: {key:"merce_dal", defaultValue:""}, warehouseTo: {key:"merce_al", defaultValue:""},
+    expectedFrom: {key:"posa_dal", defaultValue:""}, expectedTo: {key:"posa_al", defaultValue:""},
     hideCompleted: { key: "nascondi_completati", defaultValue: true, serialize: (v) => v ? "1" : "0", deserialize: (v) => v === "1" },
   });
 
@@ -101,8 +112,8 @@ function OrdersListInner() {
   const setSearchQuery = useCallback((v: string) => setURLParam("searchQuery", v), [setURLParam]);
   const statusFilter = urlFilters.statusFilter;
   const setStatusFilter = useCallback((v: string) => setURLParam("statusFilter", v), [setURLParam]);
-  const paymentFilter = urlFilters.paymentFilter as "all" | "pending" | "paid";
-  const setPaymentFilter = useCallback((v: "all" | "pending" | "paid") => setURLParam("paymentFilter", v), [setURLParam]);
+  const paymentFilter = urlFilters.paymentFilter as "all" | "pending" | "paid" | "overdue";
+  const setPaymentFilter = useCallback((v: "all" | "pending" | "paid" | "overdue") => setURLParam("paymentFilter", v), [setURLParam]);
   // Su mobile la pipeline (kanban drag) non è usabile e il toggle è hidden sm:flex:
   // un link condiviso ?view=pipeline (o il localStorage del desktop) lasciava il
   // telefono inchiodato sulla pipeline senza via d'uscita → forziamo la tabella.
@@ -125,24 +136,24 @@ function OrdersListInner() {
   const setLaborFilter = useCallback((v: string) => setURLParam("laborFilter", v), [setURLParam]);
   const supplierFilter = urlFilters.supplierFilter;
   const setSupplierFilter = useCallback((v: string) => setURLParam("supplierFilter", v), [setURLParam]);
-  const controlFocus = urlFilters.controlFocus as "all" | "low_margin" | "missing_data";
-  const setControlFocus = useCallback((v: "all" | "low_margin" | "missing_data") => setURLParam("controlFocus", v), [setURLParam]);
+  const controlFocus = (urlFilters.controlFocus in ORDER_FOCUS_LABELS ? urlFilters.controlFocus : "all") as OrderFocus;
+  const setControlFocus = useCallback((v: OrderFocus) => setURLParam("controlFocus", v), [setURLParam]);
   const hideCompleted = urlFilters.hideCompleted;
   const setHideCompleted = useCallback((v: boolean) => setURLParam("hideCompleted", v), [setURLParam]);
-  const [contractDateRange, setContractDateRange] = useState<DateRange>(() => {
-    // Deep-link (drill-down dai grafici trend): con ?mese=N[&anno=YYYY] il
-    // range date deve valere anche al primo load — prima lo impostavano solo
-    // gli handler interattivi, quindi il link diretto non filtrava nulla.
-    const month = parseInt(urlFilters.monthFilter);
-    if (urlFilters.monthFilter !== "all" && Number.isInteger(month) && month >= 0 && month <= 11) {
-      const annoNum = Number(urlFilters.yearFilter);
-      const year = urlFilters.yearFilter !== "all" && Number.isInteger(annoNum) ? annoNum : new Date().getFullYear();
-      return { from: new Date(year, month, 1), to: new Date(year, month + 1, 0) };
-    }
-    return { from: undefined, to: undefined };
-  });
-  const [warehouseDateRange, setWarehouseDateRange] = useState<DateRange>({ from: undefined, to: undefined });
-  const [expectedDateRange, setExpectedDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const dateFromURL = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) ? new Date(`${value}T00:00:00`) : undefined;
+  const month = Number(monthFilter);
+  const monthYear = /^\d{4}$/.test(yearFilter) ? Number(yearFilter) : new Date().getFullYear();
+  const hasMonth = monthFilter !== "all" && Number.isInteger(month) && month >= 0 && month <= 11;
+  const contractDateRange: DateRange = {
+    from: dateFromURL(urlFilters.contractFrom) ?? (hasMonth ? new Date(monthYear,month,1) : undefined),
+    to: dateFromURL(urlFilters.contractTo) ?? (hasMonth ? new Date(monthYear,month+1,0) : undefined),
+  };
+  const warehouseDateRange: DateRange = {from:dateFromURL(urlFilters.warehouseFrom),to:dateFromURL(urlFilters.warehouseTo)};
+  const expectedDateRange: DateRange = {from:dateFromURL(urlFilters.expectedFrom),to:dateFromURL(urlFilters.expectedTo)};
+  const encodeDate = (value: Date | undefined) => value ? format(value,"yyyy-MM-dd") : "";
+  const setContractDateRange = (range: DateRange) => setURLParams({monthFilter:"all",contractFrom:encodeDate(range.from),contractTo:encodeDate(range.to)});
+  const setWarehouseDateRange = (range: DateRange) => setURLParams({warehouseFrom:encodeDate(range.from),warehouseTo:encodeDate(range.to)});
+  const setExpectedDateRange = (range: DateRange) => setURLParams({expectedFrom:encodeDate(range.from),expectedTo:encodeDate(range.to)});
   const [amountMin, setAmountMin] = useState<string>("");
   const [amountMax, setAmountMax] = useState<string>("");
   const [importOpen, setImportOpen] = useState(false);
@@ -159,7 +170,8 @@ function OrdersListInner() {
       return next;
     });
   }, []);
-  const [sidebarFilters, setSidebarFilters] = useState<OrdersFilterState>(INITIAL_FILTER_STATE);
+  const sidebarFilters = useMemo(() => parseOrderAdvancedFilters(urlFilters.advancedFilters, INITIAL_FILTER_STATE), [urlFilters.advancedFilters]);
+  const setSidebarFilters = (value: OrdersFilterState) => setURLParam("advancedFilters", countActiveFilters(value) ? JSON.stringify(value) : "");
 
   const [page, setPage] = useState(1);
   const pageSize = 20;
@@ -203,12 +215,13 @@ function OrdersListInner() {
     try { localStorage.setItem("orders-sort-dir", sortDir); } catch { /* noop */ }
   }, [sortDir]);
   const isYearCorrente = yearFilter === "corrente";
+  const periodLabel = yearFilter === "corrente" ? `${new Date().getFullYear()} e aperte precedenti` : yearFilter === "all" ? "Tutti gli anni" : yearFilter;
   const currentYear = new Date().getFullYear();
   const selectedYear = !isYearCorrente && yearFilter !== "all" ? Number(yearFilter) : null;
   const hasSelectedYear = Number.isInteger(selectedYear);
 
-  // Gli stati servono per i filtri workflow, ma non devono bloccare i KPI economici.
-  const { data: statuses = [], isLoading: isLoadingStatuses } = useQuery({
+  // Gli stati definiscono anche il perimetro anno corrente + commesse aperte.
+  const { data: statuses = [], isLoading: isLoadingStatuses, isError: isStatusesError, refetch: retryStatuses } = useQuery({
     queryKey: ["order-statuses", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -234,165 +247,17 @@ function OrdersListInner() {
     ? workflowStatuses.reduce((max, s) => s.position > max.position ? s : max, workflowStatuses[0]).id
     : null;
 
-  const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, error: ordersError, refetch: refetchOrders } = useQuery({
-    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir],
-    queryFn: async () => {
-      if (!effectiveCompany?.id) return { orders: [] as OrderWithDetails[], totalCount: 0 };
-
-      // B1 — subquery per filtri che richiedono join
-      let allowedOrderIds: string[] | null = null;
-
-      if (salespersonFilter !== "all") {
-        const { data: spOrders } = await supabase
-          .from("order_salespeople")
-          .select("order_id")
-          .eq("salesperson_id", salespersonFilter);
-        const ids = (spOrders || []).map(r => r.order_id);
-        if (ids.length === 0) return { orders: [] as OrderWithDetails[], totalCount: 0 };
-        allowedOrderIds = ids;
-      }
-
-      if (laborFilter !== "all") {
-        const isTeam = laborFilter.startsWith("team-");
-        const realId = laborFilter.replace(/^(emp-|team-)/, "");
-        const { data: laborOrders } = await supabase
-          .from(isTeam ? "order_external_teams" : "order_employees")
-          .select("order_id")
-          .eq(isTeam ? "external_team_id" : "employee_id", realId);
-        const ids = (laborOrders || []).map(r => r.order_id);
-        if (ids.length === 0) return { orders: [] as OrderWithDetails[], totalCount: 0 };
-        allowedOrderIds = allowedOrderIds
-          ? allowedOrderIds.filter(id => ids.includes(id))
-          : ids;
-      }
-
-      if (supplierFilter !== "all") {
-        const { data: suppOrders } = await supabase
-          .from("order_items")
-          .select("order_id")
-          .eq("supplier_id", supplierFilter);
-        const ids = [...new Set((suppOrders || []).map(r => r.order_id))];
-        if (ids.length === 0) return { orders: [] as OrderWithDetails[], totalCount: 0 };
-        allowedOrderIds = allowedOrderIds
-          ? allowedOrderIds.filter(id => ids.includes(id))
-          : ids;
-      }
-
-      if (allowedOrderIds !== null && allowedOrderIds.length === 0) {
-        return { orders: [] as OrderWithDetails[], totalCount: 0 };
-      }
-
-      let query = supabase
-        .from("orders")
-        .select(`
-          id, order_code, description, total_amount, deposit_amount, balance_amount,
-          vat_rate, created_at, expected_date, work_start_date, work_end_date,
-          warehouse_arrival_date, customer_id, current_status_id, payment_type,
-          financing_amount, financing_cost, deposit_2_amount, has_building_bonus,
-          deposit_paid, deposit_2_paid, balance_paid, financing_paid,
-          order_type,
-          customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
-          status:order_statuses!orders_current_status_id_fkey(name, color),
-          installments:order_installments(position, type, amount, is_paid)
-        `, { count: "exact" })
-        .eq("company_id", effectiveCompany.id)
-        .is("deleted_at", null);
-
-      if (allowedOrderIds !== null) query = query.in("id", allowedOrderIds);
-      // B1 — customerFilter e paymentFilter applicati server-side
-      if (customerFilter !== "all") query = query.eq("customer_id", customerFilter);
-      if (paymentFilter === "pending") {
-        query = query.or(PENDING_PAYMENTS_FILTER);
-      } else if (paymentFilter === "paid") {
-        query = query
-          .eq("deposit_paid", true)
-          .eq("balance_paid", true)
-          .or("deposit_2_amount.is.null,deposit_2_amount.eq.0,deposit_2_paid.eq.true")
-          .or("financing_amount.is.null,financing_amount.eq.0,financing_paid.eq.true");
-      }
-      if (debouncedSearch) {
-        // Sanitize: PostgREST `.or()` interpreta virgole/parentesi come separatori → safer escape
-        const safe = debouncedSearch.replace(/[(),]/g, " ").trim();
-        if (safe) {
-          query = query.or(
-            `description.ilike.%${safe}%,order_code.ilike.%${safe}%,client_name.ilike.%${safe}%`
-          );
-        }
-      }
-      if (statusFilter === "__da_completare__") {
-        // Sentinel "Da completare": esclude ordini in Assistenza e Completati
-        const excl = [supportStatusId, lastStatusId].filter(Boolean) as string[];
-        if (excl.length) query = query.not("current_status_id", "in", `(${excl.join(",")})`);
-      } else if (statusFilter === "__assistenza__") {
-        // Sentinel "Assistenza": solo ordini in fase Assistenza
-        if (supportStatusId) query = query.eq("current_status_id", supportStatusId);
-      } else if (statusFilter === "__completati__") {
-        if (lastStatusId) query = query.eq("current_status_id", lastStatusId);
-      } else if (statusFilter !== "all") {
-        query = query.eq("current_status_id", statusFilter);
-      }
-      if (hideCompleted && statusFilter === "all" && lastStatusId) {
-        query = query.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
-      }
-      if (amountMin) query = query.gte("total_amount", parseFloat(amountMin));
-      if (amountMax) query = query.lte("total_amount", parseFloat(amountMax));
-      if (isYearCorrente && monthFilter === "all") {
-        // Anno corrente + non chiuse dei precedenti: una commessa 2025 ancora
-        // aperta è lavoro vivo, non deve sparire col cambio d'anno.
-        const inizioAnno = new Date(currentYear, 0, 1).toISOString();
-        if (lastStatusId) {
-          query = query.or(`created_at.gte.${inizioAnno},current_status_id.neq.${lastStatusId},current_status_id.is.null`);
-        } else {
-          query = query.gte("created_at", inizioAnno);
-        }
-      } else if (hasSelectedYear && selectedYear && monthFilter === "all") {
-        query = query
-          .gte("created_at", new Date(selectedYear, 0, 1).toISOString())
-          .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
-      }
-      if (contractDateRange.from) query = query.gte("created_at", contractDateRange.from.toISOString());
-      if (contractDateRange.to) query = query.lte("created_at", new Date(contractDateRange.to.getTime() + 86400000 - 1).toISOString());
-      if (warehouseDateRange.from) query = query.gte("warehouse_arrival_date", warehouseDateRange.from.toISOString().split("T")[0]);
-      if (warehouseDateRange.to) query = query.lte("warehouse_arrival_date", new Date(warehouseDateRange.to.getTime() + 86400000 - 1).toISOString().split("T")[0]);
-      if (expectedDateRange.from) query = query.gte("expected_date", expectedDateRange.from.toISOString().split("T")[0]);
-      if (expectedDateRange.to) query = query.lte("expected_date", new Date(expectedDateRange.to.getTime() + 86400000 - 1).toISOString().split("T")[0]);
-
-      // 🛠️ Server-side sort: usa sortField/sortDir dal state (default
-      // created_at desc). NULL last per scadenze/date così le commesse
-      // senza data programmata finiscono in fondo (UX più chiara).
-      const isDateSort = ["expected_date", "warehouse_arrival_date", "work_start_date", "work_end_date"].includes(sortField);
-      query = query
-        .range((page - 1) * pageSize, page * pageSize - 1)
-        .order(sortField, {
-          ascending: sortDir === "asc",
-          nullsFirst: isDateSort ? false : (sortDir === "asc"),
-        });
-
-      const { data, error, count } = await query;
-      if (error) throw error;
-      return { orders: data as OrderWithDetails[], totalCount: count ?? 0 };
-    },
-    enabled: !!effectiveCompany?.id,
-    placeholderData: (previousData) => previousData,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-  });
-
-  const rawOrders = ordersResult?.orders ?? EMPTY_ORDERS;
-  const totalCount = ordersResult?.totalCount ?? 0;
-  const isOrdersLoading = !!effectiveCompany?.id && !isOrdersError && (isLoadingOrders || !ordersResult);
-
   // KPI stats principali: reagiscono solo all'annualità, non ai filtri operativi
   // come stato, ricerca, pagamento o vista. Così restano numeri di controllo,
   // ma possono essere letti per anno quando serve.
   const { data: globalStats, isLoading: isLoadingGlobalStats, isError: isGlobalStatsError } = useQuery({
-    queryKey: ["orders-global-stats", effectiveCompany?.id, yearFilter, lastStatusId, supportStatusId],
+    queryKey: ["orders-global-stats", "complete-v2", effectiveCompany?.id, yearFilter, lastStatusId, supportStatusId],
     queryFn: async () => {
-      const EMPTY = { totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0 };
+      const EMPTY = { totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0, scopeRows: [] as OrderWithDetails[] };
       if (!effectiveCompany?.id) return EMPTY;
       let query = supabase
         .from("orders")
-        .select("id, total_amount, vat_rate, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_cost, financing_paid, payment_type, current_status_id, installments:order_installments(position, type, amount, is_paid)")
+        .select("id, customer_id, expected_date, work_start_date, total_amount, vat_rate, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_cost, financing_paid, payment_type, current_status_id, deposit_expected_date, deposit_2_expected_date, balance_expected_date, financing_expected_date, installments:order_installments(position, type, amount, is_paid, expected_date)")
         .eq("company_id", effectiveCompany.id)
         .is("deleted_at", null);
       if (isYearCorrente) {
@@ -408,9 +273,8 @@ function OrdersListInner() {
           .gte("created_at", new Date(selectedYear, 0, 1).toISOString())
           .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
       }
-      const { data, error } = await query;
-      if (error) throw error;
-      const rows = data || [];
+      query = query.order("id");
+      const rows = await readAllOrderRows((from, to) => query.range(from, to));
       const totalGross = rows.reduce((sum, o) => sum + (o.total_amount || 0) * (1 + ((o.vat_rate ?? 22) / 100)), 0);
       const collected = rows.reduce((sum, o) => sum + getAmountCollected(o as any), 0);
       const pending = rows.reduce((sum, o) => sum + getAmountDue(o as any), 0);
@@ -421,12 +285,69 @@ function OrdersListInner() {
         else if (o.current_status_id && lastStatusId && o.current_status_id === lastStatusId) countCompletati++;
       }
       const countDaCompletare = rows.length - countAssistenza - countCompletati;
-      return { totalOrders: rows.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare };
+      return { totalOrders: rows.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows as unknown as OrderWithDetails[] };
     },
-    enabled: !!effectiveCompany?.id,
-    placeholderData: (previousData) => previousData,
+    enabled: !!effectiveCompany?.id && !isLoadingStatuses && !isStatusesError,
     staleTime: 5 * 60 * 1000,
   });
+
+  const scopeOrders = globalStats?.scopeRows ?? EMPTY_ORDERS;
+  const paymentIds = useMemo(() => paymentFilter === "all" && sidebarFilters.paymentStatus === "all" ? null :
+    scopeOrders.filter(order => matchesOrderPayment(order, paymentFilter) && matchesOrderPayment(order, sidebarFilters.paymentStatus)).map(order => order.id),
+    [scopeOrders, paymentFilter, sidebarFilters.paymentStatus]);
+  const scopeOrderIds = useMemo(() => scopeOrders.map(order => order.id), [scopeOrders]);
+  const {data: scopeMargins, isPending: scopeMarginsPending, isError: scopeMarginsError, refetch: retryScopeMargins} = useQuery({
+    queryKey: ["orders-margin-scope", effectiveCompany?.id, scopeOrderIds],
+    enabled: !!effectiveCompany?.id && !!globalStats && (orderPerms.canViewMargins || orderPerms.canViewCosts),
+    queryFn: async () => {
+      const rows: OrderMarginRow[] = [];
+      for (let from = 0; from < scopeOrderIds.length; from += 100) {
+        const {data, error} = await supabase.from("v_ordine_marginalita")
+          .select("id, preventivo_totale, consuntivo, margine, margine_perc")
+          .eq("company_id", effectiveCompany!.id).in("id", scopeOrderIds.slice(from, from + 100));
+        if (error) throw error;
+        rows.push(...(data ?? []));
+      }
+      return rows;
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+  const marginGroups = useMemo(() => orderMarginGroups(scopeOrderIds, scopeMargins ?? []), [scopeOrderIds, scopeMargins]);
+  const focusIds = useMemo(() => {
+    if (controlFocus === "all") return null;
+    if (!orderPerms.canViewMargins) return [];
+    if (controlFocus === "missing_data") {
+      const missingCosts = new Set(marginGroups.missing_costs);
+      return scopeOrders.filter(order => !order.customer_id || !order.current_status_id ||
+        (!order.expected_date && !order.work_start_date) || missingCosts.has(order.id)).map(order => order.id);
+    }
+    return marginGroups[controlFocus];
+  }, [controlFocus, marginGroups, scopeOrders, orderPerms.canViewMargins]);
+  const needsScope = controlFocus !== "all" || paymentFilter !== "all" || sidebarFilters.paymentStatus !== "all";
+  const focusReady = (controlFocus === "all" || (!isLoadingGlobalStats && !scopeMarginsPending)) && (paymentIds === null || !!globalStats);
+
+  function filterReaderKey() {
+    return JSON.stringify([debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, monthFilter,
+      amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId,
+      contractDateRange, warehouseDateRange, expectedDateRange, sidebarFilters, focusIds, paymentIds]);
+  }
+
+  const fetchOrderRows = (from: number, to: number) => readOrdersPage({
+    companyId:effectiveCompany?.id, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
+  },from,to);
+
+  const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, isFetching: isOrdersFetching, error: ordersError, refetch: refetchOrders } = useQuery({
+    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds],
+    queryFn: () => fetchOrderRows((page - 1) * pageSize, page * pageSize - 1),
+    enabled: !!effectiveCompany?.id && focusReady && !isLoadingStatuses && !isStatusesError,
+    placeholderData: (previousData, previousQuery) => previousQuery?.queryKey[1] === effectiveCompany?.id ? previousData : undefined,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
+
+  const rawOrders = ordersResult?.orders ?? EMPTY_ORDERS;
+  const totalCount = ordersResult?.totalCount ?? 0;
+  const isOrdersLoading = !!effectiveCompany?.id && !isOrdersError && (isLoadingOrders || !ordersResult || !focusReady);
 
   const { data: availableYears = [] } = useQuery({
     queryKey: ["orders-available-years", effectiveCompany?.id],
@@ -501,84 +422,17 @@ function OrdersListInner() {
   // che NON reagisce ai filtri. Se in futuro serviranno statistiche della vista
   // corrente, vanno derivate da `rawOrders` o da una nuova query dedicata.)
 
-  // B3 — query indipendente per la vista Pipeline (tutti gli ordini, nessuna paginazione)
-  const { data: allOrdersForPipeline = [] } = useQuery({
-    queryKey: ["orders-pipeline", effectiveCompany?.id, statusFilter, yearFilter, hideCompleted, lastStatusId, supportStatusId, debouncedSearch, customerFilter],
-    queryFn: async () => {
-      if (!effectiveCompany?.id || viewMode !== "pipeline") return [] as OrderWithDetails[];
-      let q = supabase
-        .from("orders")
-        .select(`
-          id, order_code, description, total_amount, deposit_amount, balance_amount,
-          vat_rate, created_at, expected_date, work_start_date, work_end_date,
-          warehouse_arrival_date, indirizzo_lavori, customer_id, current_status_id, payment_type,
-          financing_amount, financing_cost, deposit_2_amount, has_building_bonus,
-          deposit_paid, deposit_2_paid, balance_paid, financing_paid,
-          order_type,
-          customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
-          status:order_statuses!orders_current_status_id_fkey(name, color),
-          installments:order_installments(position, type, amount, is_paid),
-          order_items(id, status, quantity),
-          order_employees(employee:employees(id, first_name, last_name)),
-          order_external_teams(external_team:external_teams(id, name))
-        `)
-        .eq("company_id", effectiveCompany.id)
-        .order("created_at", { ascending: false });
-      q = q.is("deleted_at", null);
-      if (debouncedSearch) q = q.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
-      if (statusFilter === "__da_completare__") {
-        const excl = [supportStatusId, lastStatusId].filter(Boolean) as string[];
-        if (excl.length) q = q.not("current_status_id", "in", `(${excl.join(",")})`);
-      } else if (statusFilter === "__assistenza__") {
-        if (supportStatusId) q = q.eq("current_status_id", supportStatusId);
-      } else if (statusFilter === "__completati__") {
-        if (lastStatusId) q = q.eq("current_status_id", lastStatusId);
-      } else if (statusFilter !== "all") q = q.eq("current_status_id", statusFilter);
-      if (hideCompleted && statusFilter === "all" && lastStatusId) q = q.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
-      if (customerFilter !== "all") q = q.eq("customer_id", customerFilter);
-      if (isYearCorrente) {
-        const inizioAnno = new Date(currentYear, 0, 1).toISOString();
-        if (lastStatusId) {
-          q = q.or(`created_at.gte.${inizioAnno},current_status_id.neq.${lastStatusId},current_status_id.is.null`);
-        } else {
-          q = q.gte("created_at", inizioAnno);
-        }
-      } else if (hasSelectedYear && selectedYear) {
-        q = q
-          .gte("created_at", new Date(selectedYear, 0, 1).toISOString())
-          .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
-      }
-      // Cap pipeline to 200 most recent orders to prevent performance issues with large datasets
-      q = q.limit(200);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data || []) as OrderWithDetails[];
-    },
-    enabled: !!effectiveCompany?.id && viewMode === "pipeline",
+  const {data: allOrdersForPipeline = [], isPending: pipelinePending, isError: pipelineError, refetch: retryPipeline} = useQuery({
+    queryKey: ["orders-pipeline", effectiveCompany?.id, filterReaderKey(), sortField, sortDir],
+    enabled: !!effectiveCompany?.id && viewMode === "pipeline" && focusReady,
+    queryFn: async () => (await fetchOrderRows(0, Infinity)).orders,
     staleTime: 3 * 60 * 1000,
   });
 
   // Batch queries for cost calculations — use rawOrders IDs to avoid circular dep with salespeopleMap
   const orderIds = useMemo(() => rawOrders.map(o => o.id), [rawOrders]);
 
-  // Una sola fonte per i numeri economici: e' la stessa vista usata nel
-  // dettaglio commessa e nel Controllo di Gestione. Evita che la lista mostri
-  // un margine del 100% quando, in realta', i costi non sono ancora inseriti.
-  const { data: canonicalMargins = [], isLoading: isCanonicalMarginsLoading } = useQuery({
-    queryKey: ["orders-canonical-margins", effectiveCompany?.id, orderIds],
-    queryFn: async () => {
-      if (orderIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("v_ordine_marginalita")
-        .select("id, preventivo_totale, consuntivo, margine, margine_perc")
-        .in("id", orderIds);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: orderIds.length > 0,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-  });
+  const canonicalMargins = scopeMargins ?? [];
 
   const { data: itemCosts = [] } = useQuery({
     queryKey: ["order-items-costs", effectiveCompany?.id, orderIds],
@@ -712,99 +566,31 @@ function OrdersListInner() {
     return map;
   }, [itemCosts, supplierProfiles]);
 
-  // Unique lists for filter dropdowns
-  const uniqueSalespeople = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const sp of salespeopleData) {
-      const p = (sp as any).salesperson;
-      if (p) map.set(p.id, `${p.first_name} ${p.last_name}`);
-    }
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [salespeopleData]);
-
-  const uniqueLabor = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const e of employeeCosts) {
-      const emp = (e as any).employee;
-      if (emp) map.set(`emp-${emp.id}`, `${emp.first_name} ${emp.last_name}`);
-    }
-    for (const t of externalTeamCosts) {
-      const team = (t as any).external_team;
-      if (team) map.set(`team-${team.id}`, team.name);
-    }
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [employeeCosts, externalTeamCosts]);
-
-  const uniqueSuppliers = useMemo(() => {
-    return supplierProfiles.map(s => ({ id: s.id, name: s.name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [supplierProfiles]);
-
-  // Apply sidebar client-side filters — placed here so salespeopleMap/laborMap/unique* are available
-  const orders = useMemo(() => {
-    let result = rawOrders;
-    const sf = sidebarFilters;
-
-    if (sf.dateFrom) {
-      const from = new Date(sf.dateFrom);
-      result = result.filter(o => o.created_at && new Date(o.created_at) >= from);
-    }
-    if (sf.dateTo) {
-      const to = new Date(sf.dateTo);
-      to.setHours(23, 59, 59, 999);
-      result = result.filter(o => o.created_at && new Date(o.created_at) <= to);
-    }
-    if (sf.orderSearch) {
-      const q = sf.orderSearch.toLowerCase();
-      result = result.filter(o =>
-        (o.order_code || "").toLowerCase().includes(q) ||
-        (o.description || "").toLowerCase().includes(q)
-      );
-    }
-    if (sf.includeStatuses.length > 0) {
-      result = result.filter(o => sf.includeStatuses.includes(o.current_status_id || ""));
-    }
-    if (sf.excludeStatuses.length > 0) {
-      result = result.filter(o => !sf.excludeStatuses.includes(o.current_status_id || ""));
-    }
-    if (sf.paymentStatus === "paid") {
-      result = result.filter(o => o.deposit_paid && o.balance_paid);
-    } else if (sf.paymentStatus === "unpaid" || sf.paymentStatus === "overdue") {
-      result = result.filter(o => !o.deposit_paid || !o.balance_paid);
-    }
-    if (sf.amountMin) {
-      result = result.filter(o => (o.total_amount || 0) >= parseFloat(sf.amountMin));
-    }
-    if (sf.amountMax) {
-      result = result.filter(o => (o.total_amount || 0) <= parseFloat(sf.amountMax));
-    }
-    if (sf.createdFrom) {
-      const from = new Date(sf.createdFrom);
-      result = result.filter(o => o.created_at && new Date(o.created_at) >= from);
-    }
-    if (sf.createdTo) {
-      const to = new Date(sf.createdTo);
-      to.setHours(23, 59, 59, 999);
-      result = result.filter(o => o.created_at && new Date(o.created_at) <= to);
-    }
-    if (sf.salespersonId) {
-      const orderIdsWithSp = new Set(
-        salespeopleData
-          .filter((sp: any) => sp.salesperson_id === sf.salespersonId)
-          .map((sp: any) => sp.order_id)
-      );
-      result = result.filter(o => orderIdsWithSp.has(o.id));
-    }
-    if (sf.laborIds.length > 0) {
-      const empIds = sf.laborIds.filter(id => id.startsWith("emp-")).map(id => id.slice(4));
-      const teamIds = sf.laborIds.filter(id => id.startsWith("team-")).map(id => id.slice(5));
-      const orderIdsWithLabor = new Set([
-        ...employeeCosts.filter((e: any) => empIds.includes(e.employee_id)).map((e: any) => e.order_id),
-        ...externalTeamCosts.filter((t: any) => teamIds.includes(t.external_team_id)).map((t: any) => t.order_id),
+  // Options are company-wide; a person on page 3 must be selectable on page 1.
+  const {data: filterOptions, isError: filterOptionsError, refetch: retryFilterOptions} = useQuery({
+    queryKey:["orders-filter-options",effectiveCompany?.id],
+    enabled:!!effectiveCompany?.id && sidebarOpen,
+    staleTime:5 * 60 * 1000,
+    queryFn:async () => {
+      const [salespeople,employees,teams,suppliers] = await Promise.all([
+        readAllOrderRows((from,to) => supabase.from("salespeople").select("id, first_name, last_name").eq("company_id",effectiveCompany!.id).order("id").range(from,to)),
+        readAllOrderRows((from,to) => supabase.from("employees").select("id, first_name, last_name").eq("company_id",effectiveCompany!.id).order("id").range(from,to)),
+        readAllOrderRows((from,to) => supabase.from("external_teams").select("id, name").eq("company_id",effectiveCompany!.id).order("id").range(from,to)),
+        readAllOrderRows((from,to) => supabase.from("suppliers").select("id, name").eq("company_id",effectiveCompany!.id).order("id").range(from,to)),
       ]);
-      result = result.filter(o => orderIdsWithLabor.has(o.id));
-    }
-    return result;
-  }, [rawOrders, sidebarFilters, salespeopleData, employeeCosts, externalTeamCosts]);
+      const byName = (a:{name:string},b:{name:string}) => a.name.localeCompare(b.name,"it");
+      return {
+        salespeople:salespeople.map(person=>({id:person.id,name:`${person.first_name} ${person.last_name}`})).sort(byName),
+        labor:[...employees.map(person=>({id:`emp-${person.id}`,name:`${person.first_name} ${person.last_name}`})),...teams.map(team=>({id:`team-${team.id}`,name:team.name}))].sort(byName),
+        suppliers:suppliers.map(supplier=>({id:supplier.id,name:supplier.name})).sort(byName),
+      };
+    },
+  });
+  const uniqueSalespeople = filterOptions?.salespeople ?? [];
+  const uniqueLabor = filterOptions?.labor ?? [];
+  const uniqueSuppliers = filterOptions?.suppliers ?? [];
+
+  const orders = rawOrders;
 
   // Column visibility state
   const OPTIONAL_COLUMNS = [
@@ -841,7 +627,6 @@ function OrdersListInner() {
 
   // ── Visibilità finanziaria: nasconde colonne/KPI monetari per chi non è
   // autorizzato. Importi→canViewOrderAmounts, costi→canViewCosts, margine→canViewMargins.
-  const orderPerms = usePermissions();
   const AMOUNT_COL_KEYS = new Set(["totalIvato", "imponibile", "collected", "due", "deposit", "balance", "payments"]);
   const COST_COL_KEYS = new Set(["variableCosts", "labor"]);
   const isColumnAllowed = (key: string) =>
@@ -877,7 +662,7 @@ function OrdersListInner() {
         variableCosts,
         grossMargin: Number(row.margine || 0),
         marginPercent: Number(row.margine_perc || 0),
-        marginReliable: revenue > 0 && variableCosts > 0,
+        marginReliable: orderMarginKind(row) !== "missing_costs",
       });
     }
 
@@ -1029,7 +814,7 @@ function OrdersListInner() {
   const hasAnyFilter = !!(hasDateFilters || searchQuery || statusFilter !== "all" ||
     paymentFilter !== "all" || customerFilter !== "all" || yearFilter !== "corrente" || amountMin || amountMax ||
     salespersonFilter !== "all" || laborFilter !== "all" || supplierFilter !== "all" ||
-    controlFocus !== "all" || !hideCompleted);
+    controlFocus !== "all" || !hideCompleted || countActiveFilters(sidebarFilters) > 0);
 
   // 2026-05-27 (perfezione iter 11): dropdown clienti server-side.
   // PRIMA: uniqueCustomers derivato da `orders` (= 20 righe pagina corrente).
@@ -1086,6 +871,7 @@ function OrdersListInner() {
   }, [allCustomersWithOrders, orders]);
 
   const clearAllFilters = () => {
+    setSidebarFilters({...INITIAL_FILTER_STATE});
     setSearchQuery("");
     setStatusFilter("all");
     setPaymentFilter("all");
@@ -1105,38 +891,36 @@ function OrdersListInner() {
     setPage(1);
   };
 
+  const activeFilterChips: OrderFilterChip[] = [];
+  const chip = (key: string, label: string, remove: () => void) => activeFilterChips.push({key, label, remove});
+  if (searchQuery) chip("search", `Ricerca: ${searchQuery}`, () => setSearchQuery(""));
+  if (statusFilter !== "all") chip("status", ({__da_completare__:"Da completare",__completati__:"Completati",__assistenza__:"In assistenza"} as Record<string,string>)[statusFilter] ?? statuses.find(status => status.id === statusFilter)?.name ?? "Stato selezionato", () => setStatusFilter("all"));
+  if (paymentFilter !== "all") chip("payment", paymentFilter === "paid" ? "Saldato" : paymentFilter === "overdue" ? "Rate scadute" : "Da incassare", () => setPaymentFilter("all"));
+  if (customerFilter !== "all") chip("customer", uniqueCustomers.find(customer => customer.id === customerFilter)?.name ?? "Cliente selezionato", () => setCustomerFilter("all"));
+  if (yearFilter !== "corrente") chip("year", periodLabel, () => handleYearChange("corrente"));
+  if (monthFilter !== "all") chip("month", `Mese: ${Number(monthFilter) + 1}`, () => handleMonthChange("all"));
+  if (amountMin || amountMax) chip("amount", "Intervallo importo", () => {setAmountMin("");setAmountMax("");});
+  if (salespersonFilter !== "all") chip("salesperson", "Venditore selezionato", () => setSalespersonFilter("all"));
+  if (laborFilter !== "all") chip("labor", "Manodopera selezionata", () => setLaborFilter("all"));
+  if (supplierFilter !== "all") chip("supplier", "Fornitore selezionato", () => setSupplierFilter("all"));
+  if (!hideCompleted) chip("completed", "Completati inclusi", () => setHideCompleted(true));
+  if (monthFilter === "all" && (contractDateRange.from || contractDateRange.to)) chip("contractRange", "Data contratto", () => {setContractDateRange({from:undefined,to:undefined});setMonthFilter("all");});
+  if (warehouseDateRange.from || warehouseDateRange.to) chip("warehouseRange", "Arrivo merce", () => setWarehouseDateRange({from:undefined,to:undefined}));
+  if (expectedDateRange.from || expectedDateRange.to) chip("expectedRange", "Data posa", () => setExpectedDateRange({from:undefined,to:undefined}));
+  if (controlFocus !== "all") chip("focus", ORDER_FOCUS_LABELS[controlFocus], () => setControlFocus("all"));
+  if (countActiveFilters(sidebarFilters)) chip("advanced", `${countActiveFilters(sidebarFilters)} filtri avanzati`, () => setSidebarFilters({...INITIAL_FILTER_STATE}));
+
   const handleMonthChange = (value: string) => {
-    setMonthFilter(value);
-    if (value === "all") {
-      setContractDateRange({ from: undefined, to: undefined });
-    } else {
-      const year = hasSelectedYear && selectedYear ? selectedYear : new Date().getFullYear();
-      const month = parseInt(value);
-      const from = new Date(year, month, 1);
-      const to = new Date(year, month + 1, 0);
-      setContractDateRange({ from, to });
-    }
+    setURLParams({monthFilter:value,contractFrom:"",contractTo:""});
     setPage(1);
   };
-
   const handleYearChange = (value: string) => {
     setYearFilter(value);
-    const parsedYear = value !== "all" ? Number(value) : null;
-    if (monthFilter !== "all" && Number.isInteger(parsedYear)) {
-      const month = parseInt(monthFilter);
-      const from = new Date(parsedYear as number, month, 1);
-      const to = new Date(parsedYear as number, month + 1, 0);
-      setContractDateRange({ from, to });
-    } else if (monthFilter !== "all") {
-      const month = parseInt(monthFilter);
-      const year = new Date().getFullYear();
-      setContractDateRange({ from: new Date(year, month, 1), to: new Date(year, month + 1, 0) });
-    }
     setPage(1);
   };
 
   // Reset page to 1 when any filter changes
-  const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${customerFilter}|${yearFilter}|${amountMin}|${amountMax}|${monthFilter}|${salespersonFilter}|${laborFilter}|${supplierFilter}|${controlFocus}|${hideCompleted}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}`;
+  const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${customerFilter}|${yearFilter}|${amountMin}|${amountMax}|${monthFilter}|${salespersonFilter}|${laborFilter}|${supplierFilter}|${controlFocus}|${hideCompleted}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}|${JSON.stringify(sidebarFilters)}`;
   // Il reset e' intenzionale: evita di lasciare l'utente su una pagina vuota
   // quando un filtro server-side riduce il numero totale di risultati.
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1162,126 +946,10 @@ function OrdersListInner() {
       : 0,
   }), [globalStats]);
 
-  const controlRoom = useMemo(() => {
-    const orderSignals = orders.map((order) => {
-      const amountDue = getAmountDue(order);
-      const costs = orderCostsMap.get(order.id);
-      const marginLevel = !costs?.marginReliable
-        ? "missing"
-        : costs.grossMargin < 0
-          ? "negative"
-          : costs.marginPercent < 20
-            ? "low"
-            : "good";
-      const isSupport = Boolean(supportStatusId && order.current_status_id === supportStatusId);
-      const isCompleted = Boolean(lastStatusId && order.current_status_id === lastStatusId);
-      const isUnplanned = !order.expected_date && !order.work_start_date;
-      let score = 0;
-      let reason = "Da monitorare";
-      let tone: "red" | "orange" | "blue" | "emerald" = "blue";
-      let amount = amountDue;
-
-      if (marginLevel === "missing") {
-        score += 72;
-        reason = "Costi da completare";
-        tone = "orange";
-        amount = 0;
-      } else if (costs && marginLevel === "negative") {
-        score += 90;
-        reason = "Margine negativo";
-        tone = "red";
-        amount = Math.abs(costs.grossMargin);
-      } else if (costs && marginLevel === "low") {
-        score += 62;
-        reason = "Margine basso";
-        tone = "orange";
-        amount = Math.max(0, (order.total_amount || 0) * 0.2 - costs.grossMargin);
-      }
-
-      if (amountDue > 0) {
-        score += Math.min(42, amountDue / 10000);
-        if (reason === "Da monitorare") {
-          reason = "Da incassare";
-          tone = "orange";
-          amount = amountDue;
-        }
-      }
-
-      if (isSupport) {
-        score += 24;
-        if (reason === "Da monitorare") {
-          reason = "In assistenza";
-          tone = "orange";
-        }
-      }
-
-      if (isUnplanned && !isCompleted) {
-        score += 14;
-        if (reason === "Da monitorare") {
-          reason = "Da pianificare";
-          tone = "blue";
-        }
-      }
-
-      return { order, amountDue, costs, marginLevel, isSupport, isCompleted, isUnplanned, score, reason, tone, amount };
-    });
-
-    const lowMargin = orderSignals.filter((item) => item.marginLevel === "negative" || item.marginLevel === "low");
-    const missingFinancials = orderSignals.filter((item) => item.marginLevel === "missing");
-    const support = orderSignals.filter((item) => item.isSupport);
-    const toComplete = orderSignals.filter((item) => !item.isCompleted && !item.isSupport);
-    const unplanned = orderSignals.filter((item) => item.isUnplanned && !item.isCompleted);
-    const missingCustomer = orderSignals.filter((item) => !item.order.customer);
-    const missingStatus = orderSignals.filter((item) => !item.order.current_status_id);
-    const missingDataCount = new Set([
-      ...unplanned.map((item) => item.order.id),
-      ...missingCustomer.map((item) => item.order.id),
-      ...missingStatus.map((item) => item.order.id),
-      ...missingFinancials.map((item) => item.order.id),
-    ]).size;
-    const priorities = orderSignals
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3);
-
-    const insight = priorities[0]
-      ? `${priorities[0].reason}: ${priorities[0].order.order_code || priorities[0].order.description || "commessa"} e altre ${Math.max(0, priorities.length - 1)} priorità.`
-      : "Nessuna priorità critica nella vista corrente.";
-
-    return {
-      lowMarginCount: lowMargin.length,
-      missingFinancialCount: missingFinancials.length,
-      supportCount: stats.countAssistenza || support.length,
-      toCompleteCount: stats.countDaCompletare || toComplete.length,
-      unplannedCount: unplanned.length,
-      missingCustomerCount: missingCustomer.length,
-      missingStatusCount: missingStatus.length,
-      missingDataCount,
-      priorities,
-      insight,
-    };
-  }, [orders, orderCostsMap, supportStatusId, lastStatusId, stats.countAssistenza, stats.countDaCompletare]);
-
-  const visibleOrders = useMemo(() => {
-    if (controlFocus === "low_margin") {
-      return orders.filter((order) => {
-        const costs = orderCostsMap.get(order.id);
-        if (!costs?.marginReliable) return false;
-        return costs.grossMargin < 0 || costs.marginPercent < 20;
-      });
-    }
-    if (controlFocus === "missing_data") {
-      return orders.filter((order) => {
-        const costs = orderCostsMap.get(order.id);
-        return !order.customer || !order.current_status_id || (!order.expected_date && !order.work_start_date) || !costs?.marginReliable;
-      });
-    }
-    return orders;
-  }, [orders, orderCostsMap, controlFocus]);
-
-  const visibleTotalCount = controlFocus === "all" ? totalCount : visibleOrders.length;
-  const visibleShowingFrom = controlFocus === "all" ? showingFrom : (visibleOrders.length > 0 ? 1 : 0);
-  const visibleShowingTo = controlFocus === "all" ? showingTo : visibleOrders.length;
+  const visibleOrders = orders;
+  const visibleTotalCount = totalCount;
+  const visibleShowingFrom = showingFrom;
+  const visibleShowingTo = showingTo;
 
   const monthlySalesChart = useMemo(() => {
     const months = Array.from({ length: 12 }, (_, index) => {
@@ -1343,101 +1011,22 @@ function OrdersListInner() {
 
   // Export CSV
   // M2 — Export CSV con tutti i filtri attivi (non solo i 20 della pagina corrente)
-  const prepareExportData = useCallback(async () => {
+  const prepareExportData = async () => {
     if (!effectiveCompany?.id) return null;
     toast({ title: "Esportazione in corso..." });
 
-    // Subquery join filters (stesso pattern di B1)
-    let allowedExportIds: string[] | null = null;
-    if (salespersonFilter !== "all") {
-      const { data: r } = await supabase.from("order_salespeople").select("order_id").eq("salesperson_id", salespersonFilter);
-      const ids = (r || []).map(x => x.order_id);
-      if (!ids.length) { toast({ title: "Nessuna commessa da esportare" }); return null; }
-      allowedExportIds = ids;
-    }
-    if (laborFilter !== "all") {
-      const isTeam = laborFilter.startsWith("team-");
-      const realId = laborFilter.replace(/^(emp-|team-)/, "");
-      const { data: r } = await supabase
-        .from(isTeam ? "order_external_teams" : "order_employees")
-        .select("order_id")
-        .eq(isTeam ? "external_team_id" : "employee_id", realId);
-      const ids = (r || []).map(x => x.order_id);
-      if (!ids.length) { toast({ title: "Nessuna commessa da esportare" }); return null; }
-      allowedExportIds = allowedExportIds ? allowedExportIds.filter(id => ids.includes(id)) : ids;
-    }
-    if (supplierFilter !== "all") {
-      const { data: r } = await supabase.from("order_items").select("order_id").eq("supplier_id", supplierFilter);
-      const ids = [...new Set((r || []).map(x => x.order_id))];
-      if (!ids.length) { toast({ title: "Nessuna commessa da esportare" }); return null; }
-      allowedExportIds = allowedExportIds ? allowedExportIds.filter(id => ids.includes(id)) : ids;
-    }
+    try {
+    const allOrders = (await fetchOrderRows(0, Infinity)).orders;
+    if (!allOrders.length) { toast({title:"Nessuna commessa da esportare"}); return null; }
 
-    let query = supabase
-      .from("orders")
-      .select(`
-        id, order_code, description, total_amount, deposit_amount, balance_amount,
-        deposit_2_amount, vat_rate, created_at, expected_date, warehouse_arrival_date,
-        payment_type, financing_amount, financing_cost, financing_paid, deposit_paid, deposit_2_paid, balance_paid,
-        customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
-        status:order_statuses!orders_current_status_id_fkey(name),
-        installments:order_installments(position, type, amount, is_paid)
-      `)
-      .eq("company_id", effectiveCompany.id)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
-
-    if (allowedExportIds !== null) query = query.in("id", allowedExportIds);
-    if (customerFilter !== "all") query = query.eq("customer_id", customerFilter);
-    if (paymentFilter === "pending") query = query.or(PENDING_PAYMENTS_FILTER);
-    else if (paymentFilter === "paid") {
-      query = query
-        .eq("deposit_paid", true)
-        .eq("balance_paid", true)
-        .or("deposit_2_amount.is.null,deposit_2_amount.eq.0,deposit_2_paid.eq.true")
-        .or("financing_amount.is.null,financing_amount.eq.0,financing_paid.eq.true");
-    }
-    if (debouncedSearch) query = query.or(`description.ilike.%${debouncedSearch}%,order_code.ilike.%${debouncedSearch}%`);
-    if (statusFilter === "__da_completare__") {
-      const excl = [supportStatusId, lastStatusId].filter(Boolean) as string[];
-      if (excl.length) query = query.not("current_status_id", "in", `(${excl.join(",")})`);
-    } else if (statusFilter === "__assistenza__") {
-      if (supportStatusId) query = query.eq("current_status_id", supportStatusId);
-    } else if (statusFilter === "__completati__") {
-      if (lastStatusId) query = query.eq("current_status_id", lastStatusId);
-    } else if (statusFilter !== "all") query = query.eq("current_status_id", statusFilter);
-    if (hideCompleted && statusFilter === "all" && lastStatusId) query = query.or(`current_status_id.neq.${lastStatusId},current_status_id.is.null`);
-    if (amountMin) query = query.gte("total_amount", parseFloat(amountMin));
-    if (amountMax) query = query.lte("total_amount", parseFloat(amountMax));
-    if (hasSelectedYear && selectedYear && monthFilter === "all") {
-      query = query
-        .gte("created_at", new Date(selectedYear, 0, 1).toISOString())
-        .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
-    }
-    if (contractDateRange.from) query = query.gte("created_at", contractDateRange.from.toISOString());
-    if (contractDateRange.to) query = query.lte("created_at", new Date(contractDateRange.to.getTime() + 86400000 - 1).toISOString());
-    if (warehouseDateRange.from) query = query.gte("warehouse_arrival_date", warehouseDateRange.from.toISOString().split("T")[0]);
-    if (warehouseDateRange.to) query = query.lte("warehouse_arrival_date", new Date(warehouseDateRange.to.getTime() + 86400000 - 1).toISOString().split("T")[0]);
-    if (expectedDateRange.from) query = query.gte("expected_date", expectedDateRange.from.toISOString().split("T")[0]);
-    if (expectedDateRange.to) query = query.lte("expected_date", new Date(expectedDateRange.to.getTime() + 86400000 - 1).toISOString().split("T")[0]);
-
-    const { data: allOrders, error } = await query;
-    if (error) { toast({ title: "Errore export", variant: "destructive" }); return null; }
-    const exportOrderIds = (allOrders || []).map((o) => o.id);
-    const exportCostsMap = new Map<string, {
-      variableCosts: number;
-      grossMargin: number;
-      marginPercent: number;
-      marginReliable: boolean;
-    }>();
-    if (exportOrderIds.length > 0) {
-      const { data: marginRows, error: marginError } = await supabase
-        .from("v_ordine_marginalita")
-        .select("id, preventivo_totale, consuntivo, margine, margine_perc")
-        .in("id", exportOrderIds);
-      if (marginError) {
-        toast({ title: "Export non disponibile", description: "Non riesco a leggere i dati economici ufficiali, riprova tra poco.", variant: "destructive" });
-        return null;
+    const exportCostsMap = new Map<string, {variableCosts:number;grossMargin:number;marginPercent:number;marginReliable:boolean}>();
+    if (orderPerms.canViewMargins || orderPerms.canViewCosts) {
+      const marginRows: OrderMarginRow[] = [];
+      for (let from=0;from<allOrders.length;from+=100) {
+        const {data,error} = await supabase.from("v_ordine_marginalita").select("id, preventivo_totale, consuntivo, margine, margine_perc")
+          .eq("company_id",effectiveCompany.id).in("id",allOrders.slice(from,from+100).map(order=>order.id));
+        if (error) throw error;
+        marginRows.push(...(data??[]));
       }
       for (const row of marginRows || []) {
         if (!row.id) continue;
@@ -1447,7 +1036,7 @@ function OrdersListInner() {
           variableCosts,
           grossMargin: Number(row.margine || 0),
           marginPercent: Number(row.margine_perc || 0),
-          marginReliable: revenue > 0 && variableCosts > 0,
+          marginReliable: orderMarginKind(row) !== "missing_costs",
         });
       }
     }
@@ -1475,6 +1064,11 @@ function OrdersListInner() {
       { key: "expected_date", label: "Data Posa" },
       { key: "payment_status", label: "Stato Pagamenti" },
     ];
+    const financialColumns = new Set(["total_amount","vat_amount","total_gross","collected","due","deposit_amount","deposit_2_amount","financing_amount","balance_amount","payment_status"]);
+    const costColumns = new Set(["variable_costs"]);
+    const marginColumns = new Set(["gross_margin","margin_percent","economic_quality"]);
+    const permittedColumns = columns.filter(column => (!financialColumns.has(column.key) || orderPerms.canViewOrderAmounts) &&
+      (!costColumns.has(column.key) || orderPerms.canViewCosts) && (!marginColumns.has(column.key) || orderPerms.canViewMargins));
     const rows = (allOrders || []).map((o) => {
       const pending = getPendingPayments(o as any);
       const vatRate = o.vat_rate ?? 22;
@@ -1507,10 +1101,12 @@ function OrdersListInner() {
         payment_status: pending.length > 0 ? pending.join(", ") : "Tutto pagato",
       };
     });
-    return { rows, columns, count: allOrders?.length ?? 0 };
-  }, [effectiveCompany?.id, salespersonFilter, laborFilter, supplierFilter, customerFilter,
-      paymentFilter, debouncedSearch, statusFilter, yearFilter, hasSelectedYear, selectedYear, monthFilter, hideCompleted, lastStatusId,
-      supportStatusId, amountMin, amountMax, contractDateRange, warehouseDateRange, expectedDateRange, toast]);
+    return { rows, columns:permittedColumns, count: allOrders?.length ?? 0 };
+    } catch {
+      toast({title:"Esportazione non riuscita",description:"Non è stato possibile leggere tutte le commesse. Riprova.",variant:"destructive"});
+      return null;
+    }
+  };
 
   const exportOrdersCSV = useCallback(async () => {
     const result = await prepareExportData();
@@ -1551,7 +1147,7 @@ function OrdersListInner() {
         { key: "created_at", label: "Contratto", w: 70 },
         { key: "expected_date", label: "Posa", w: 70 },
         { key: "payment_status", label: "Pagamenti", w: 110 },
-      ];
+      ].filter(column => result.columns.some(permitted => permitted.key === column.key));
       let y = 80;
       let x = 40;
 
@@ -1693,7 +1289,7 @@ function OrdersListInner() {
     return { success, errors };
   }, [effectiveCompany, queryClient]);
 
-  const hasStatsError = (isGlobalStatsError && !globalStats) || (isMonthlyOrdersError && monthlyOrders.length === 0);
+  const hasStatsError = isStatusesError || (isGlobalStatsError && !globalStats) || (isMonthlyOrdersError && monthlyOrders.length === 0);
   const isEconomicStatsLoading = !!effectiveCompany?.id && !hasStatsError && (
     isLoadingGlobalStats ||
     isLoadingMonthlyOrders ||
@@ -1703,7 +1299,7 @@ function OrdersListInner() {
 
   return (
     // pb-20 rimosso: la bottom nav mobile non è più overlay (è sotto il main) — erano 160px di vuoto
-    <div className="flex flex-col gap-4 sm:gap-6 max-sm:gap-3">
+    <div className="orders-workspace flex flex-col gap-4 max-sm:gap-3">
       {/* Header — titolo a sinistra e comandi a destra sulla stessa riga, tutti
           alti 32 px e col testo piccolo (23/09/2026, Florin: prima «Nuova
           Commessa» andava a capo e la testata occupava due righe). Si va a capo
@@ -1890,10 +1486,11 @@ function OrdersListInner() {
           apre una volta e la ritrova aperta. */}
       <section className="order-1 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm sm:order-none max-sm:px-3 max-sm:py-2 max-sm:text-[13px]">
         <div className="flex items-baseline gap-1.5">
-          <span className="text-lg font-bold leading-none tabular-nums">{isEconomicStatsLoading ? "…" : stats.totalOrders}</span>
-          <span className="text-muted-foreground">commesse</span>
+          <span className="text-lg font-bold leading-none tabular-nums">{isGlobalStatsError || isStatusesError ? "—" : isEconomicStatsLoading ? "…" : stats.totalOrders}</span>
+          <span className="text-muted-foreground">commesse nel periodo</span>
+          <span className="hidden text-xs text-muted-foreground lg:inline">· {periodLabel}</span>
         </div>
-        {orderPerms.canViewOrderAmounts && !analisiAperta && !isEconomicStatsLoading && (
+        {orderPerms.canViewOrderAmounts && !analisiAperta && !isEconomicStatsLoading && !isGlobalStatsError && !isStatusesError && (
           <>
             <div className="hidden h-4 w-px bg-border sm:block" aria-hidden />
             <div className="hidden items-baseline gap-1.5 sm:flex">
@@ -1929,7 +1526,7 @@ function OrdersListInner() {
           è l'unico pezzo azionabile del blocco. empty:hidden — se il componente
           non ha nulla da dire (rende null), sparisce anche la cornice scura. */}
       {!analisiAperta && orderPerms.canViewOrderAmounts && orderPerms.canViewCosts && (
-        <div className="order-1 rounded-2xl bg-eic-navy-deep px-3 pb-3 empty:hidden sm:order-none [&:not(:has(*))]:hidden max-sm:p-1.5">
+        <div className="order-1 rounded-xl bg-eic-navy-deep px-2 pb-2 empty:hidden sm:order-none [&:not(:has(*))]:hidden max-sm:p-1.5">
           <EsposizioneFlotta
             companyId={effectiveCompany?.id}
             excludeStatusIds={[lastStatusId]}
@@ -2191,45 +1788,18 @@ function OrdersListInner() {
       </section>
       )}
 
-      {/* Audit UX 2026-09: erano 4 card da 225px con hover da bottone ma SENZA
-          click (affordance ingannevole). Stessi numeri in una riga da ~44px,
-          senza fingere di essere cliccabili. */}
-      {/* Mobile no: quattro numeri non cliccabili su due righe, che la lista
-          e il filtro «In corso» dicono già. */}
-      <section className="order-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm shadow-sm sm:order-none max-sm:hidden">
-        <span className="inline-flex items-center gap-1.5">
-          <Hammer className="h-3.5 w-3.5 text-orange-600" />
-          <span className="text-muted-foreground">Da completare</span>
-          {isWorkflowStatsLoading ? <Skeleton className="h-4 w-7" /> : <span className="font-bold tabular-nums">{stats.countDaCompletare ?? 0}</span>}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-          <span className="text-muted-foreground">Completati</span>
-          {isWorkflowStatsLoading ? <Skeleton className="h-4 w-7" /> : <span className="font-bold tabular-nums">{stats.countCompletati ?? 0}</span>}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <LifeBuoy className="h-3.5 w-3.5 text-orange-600" />
-          <span className="text-muted-foreground">In assistenza</span>
-          {isWorkflowStatsLoading ? <Skeleton className="h-4 w-7" /> : <span className="font-bold tabular-nums">{stats.countAssistenza ?? 0}</span>}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <AlertTriangle className="h-3.5 w-3.5 text-orange-600" />
-          <span className="text-muted-foreground">Margine da verificare</span>
-          {isOrdersLoading || isCanonicalMarginsLoading ? (
-            <Skeleton className="h-4 w-7" />
-          ) : (
-            <span className="font-bold tabular-nums text-orange-700">
-              {controlRoom.lowMarginCount + controlRoom.missingFinancialCount}
-            </span>
-          )}
-        </span>
-      </section>
+      <OrdersPeriodSummary counts={{toComplete:stats.countDaCompletare,completed:stats.countCompletati,support:stats.countAssistenza}}
+        loading={isWorkflowStatsLoading} failed={isGlobalStatsError || isStatusesError} status={statusFilter} onStatus={setStatusFilter}
+        showMargins={orderPerms.canViewMargins} margins={marginGroups} marginLoading={scopeMarginsPending} marginFailed={scopeMarginsError}
+        focus={controlFocus} onFocus={setControlFocus} onRetry={() => {void retryStatuses();void retryScopeMargins();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}} />
 
       <OrdersFilterSidebar
         filters={sidebarFilters}
         onFiltersChange={setSidebarFilters}
         statuses={statuses}
-        ordersCount={visibleOrders.length}
+        ordersCount={isOrdersFetching || isOrdersLoading ? null : visibleTotalCount}
+        optionsError={filterOptionsError}
+        onRetryOptions={() => void retryFilterOptions()}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         salespeople={uniqueSalespeople}
@@ -2271,14 +1841,21 @@ function OrdersListInner() {
             }}
           />
 
+          <OrdersActiveFilters filters={activeFilterChips} onReset={clearAllFilters} />
+
+          <div role="status" aria-live="polite" className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-slate-600">
+            <span><strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati con i filtri attuali</span>
+            {(isOrdersFetching || isOrdersLoading) && <span className="text-xs">Aggiornamento elenco…</span>}
+          </div>
+
           {controlFocus !== "all" && (
             <div className="flex flex-col gap-2 rounded-xl border border-orange-200 bg-orange-50/70 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
               <div className="text-orange-900">
                 <span className="font-semibold">
-                  {controlFocus === "low_margin" ? "Filtro Margine basso attivo" : "Filtro Dati mancanti attivo"}
+                  {ORDER_FOCUS_LABELS[controlFocus]}
                 </span>
                 <span className="ml-1 text-orange-800/80">
-                  Stai vedendo {visibleOrders.length} commess{visibleOrders.length === 1 ? "a" : "e"} nella pagina corrente.
+                  {visibleTotalCount} commess{visibleTotalCount === 1 ? "a" : "e"} corrispondenti in tutto il periodo.
                 </span>
               </div>
               <Button variant="outline" size="sm" className="border-orange-200 bg-white" onClick={() => setControlFocus("all")}>
@@ -2288,7 +1865,9 @@ function OrdersListInner() {
           )}
 
           {/* Content */}
-          {isOrdersError ? (
+          {isStatusesError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare gli stati delle commesse. <Button onClick={() => void retryStatuses()}>Riprova</Button></div>) : needsScope && ((controlFocus !== "all" && scopeMarginsError) || isGlobalStatsError) ? (
+            <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4">Impossibile verificare i dati necessari per questi filtri. <Button variant="outline" onClick={() => {void retryScopeMargins(); void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</Button></div>
+          ) : isOrdersError ? (
             <Card className="border-red-200 bg-red-50/70">
               <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
@@ -2361,7 +1940,7 @@ function OrdersListInner() {
                 )}
               </CardContent>
             </Card>
-          ) : viewMode === "pipeline" ? (
+          ) : viewMode === "pipeline" && pipelineError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare la pipeline. <Button onClick={() => void retryPipeline()}>Riprova</Button></div>) : viewMode === "pipeline" && pipelinePending ? (<p role="status">Caricamento pipeline…</p>) : viewMode === "pipeline" ? (
             <OrdersPipelineView
               orders={allOrdersForPipeline}
               statuses={statuses}
@@ -2423,6 +2002,7 @@ function OrdersListInner() {
                 onDelete={(id) => deleteOrderMutation.mutate(id)}
                 isDeleting={deleteOrderMutation.isPending}
                 orderCosts={orderCostsMap}
+                costsState={scopeMarginsError || isGlobalStatsError ? "error" : scopeMarginsPending ? "loading" : "ready"}
                 statuses={statuses}
                 onBulkStatusChange={handleBulkStatusChange}
                 onBulkDelete={handleBulkDelete}

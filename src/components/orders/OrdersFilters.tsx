@@ -32,8 +32,8 @@ interface OrdersFiltersProps {
   yearFilter: string;
   onYearFilterChange: (value: string) => void;
   availableYears: number[];
-  paymentFilter: "all" | "pending" | "paid";
-  onPaymentFilterChange: (value: "all" | "pending" | "paid") => void;
+  paymentFilter: "all" | "pending" | "paid" | "overdue";
+  onPaymentFilterChange: (value: "all" | "pending" | "paid" | "overdue") => void;
   monthFilter: string;
   onMonthFilterChange: (value: string) => void;
   hasAnyFilter: boolean;
@@ -129,7 +129,7 @@ export function OrdersFilters({
       {/* Filtri avanzati: collapsed mobile (controllato), sempre visibili desktop */}
       <div className={cn("grid grid-cols-2 gap-2 mt-2 sm:contents", !advancedOpen && "max-sm:hidden")}>
           <Select value={statusFilter} onValueChange={onStatusFilterChange}>
-            <SelectTrigger className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[160px]">
+            <SelectTrigger aria-label="Stato commessa" className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[160px]">
               <SelectValue placeholder="Stato" />
             </SelectTrigger>
             <SelectContent>
@@ -150,18 +150,19 @@ export function OrdersFilters({
               ))}
             </SelectContent>
           </Select>
-          <Select value={paymentFilter} onValueChange={(val) => onPaymentFilterChange(val as "all" | "pending" | "paid")}>
-            <SelectTrigger className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[160px]">
+          <Select value={paymentFilter} onValueChange={(val) => onPaymentFilterChange(val as "all" | "pending" | "paid" | "overdue")}>
+            <SelectTrigger aria-label="Stato pagamento" className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[160px]">
               <SelectValue placeholder="Pagamenti" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti i pagamenti</SelectItem>
-              <SelectItem value="pending">In Sospeso</SelectItem>
-              <SelectItem value="paid">Tutto Pagato</SelectItem>
+              <SelectItem value="pending">Da incassare</SelectItem>
+              <SelectItem value="paid">Saldato</SelectItem>
+              <SelectItem value="overdue">Rate scadute</SelectItem>
             </SelectContent>
           </Select>
           <Select value={yearFilter} onValueChange={onYearFilterChange}>
-            <SelectTrigger className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-auto">
+            <SelectTrigger aria-label="Periodo commesse" className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-auto">
               <CalendarDays className="h-4 w-4 mr-1 shrink-0 text-slate-400" />
               <SelectValue placeholder="Anno" />
             </SelectTrigger>
@@ -176,7 +177,7 @@ export function OrdersFilters({
             </SelectContent>
           </Select>
           <Select value={monthFilter} onValueChange={onMonthFilterChange}>
-            <SelectTrigger className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[140px]">
+            <SelectTrigger aria-label="Mese commesse" className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-9 sm:w-[140px]">
               <CalendarDays className="h-4 w-4 mr-1 shrink-0 text-slate-400" />
               <SelectValue placeholder="Mese" />
             </SelectTrigger>

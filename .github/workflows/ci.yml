@@ -117,6 +117,19 @@ jobs:
           src/test/ui/chatHubNavigation.test.tsx
           src/test/ui/emailLayoutState.test.tsx
 
+      - name: Run commesse scope and filter regressions
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/commesseListScope.test.ts
+          src/test/logic/commesseListQuery.test.ts
+          src/test/logic/commessePaymentFilters.test.ts
+          src/test/logic/commesseIncassatoDaRate.test.ts
+          src/test/ui/ordersActiveFilters.test.tsx
+          src/test/ui/ordersFilterCount.test.tsx
+          src/test/ui/ordersPeriodSummary.test.tsx
+          src/test/ui/ordersUnavailableCosts.test.tsx
+          src/test/ui/useURLFiltersPiuSetterDiFila.test.tsx
+
       - name: Run cash forecast regression tests
         run: >-
           TZ=Europe/Rome bunx vitest run
