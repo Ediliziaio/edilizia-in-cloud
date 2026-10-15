@@ -22,6 +22,7 @@ const ROUTE_MAP: Record<string, string> = {
   "/admin/cs-tasks": "Attività", // alias retrocompat (redirige a /admin/attivita?tab=tutte)
   "/admin/piani": "Piani",
   "/admin/fatturato": "Fatturato",
+  "/admin/insoluti": "Insoluti",
   "/admin/revenue": "Revenue",
   "/admin/fatture": "Fatture",
   "/admin/promo-codes": "Promo",

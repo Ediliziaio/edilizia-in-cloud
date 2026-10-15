@@ -1,6 +1,8 @@
-import { Fragment, useCallback, useMemo, useState } from "react";
+import { Fragment, useEffect, useCallback, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { adminTasksQueryKey, fetchAdminTasks, type AdminTask as CSTask } from "@/lib/adminTasks";
+import { adminTaskStatusPatch, matchesAdminTaskStatus } from "@/lib/adminTaskState";
 import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,20 +26,6 @@ import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { NewTaskDialog, getTaskTypeConfig } from "@/components/admin/tasks/NewTaskDialog";
 
-interface CSTask {
-  id: string;
-  company_id: string;
-  assigned_to: string | null;
-  title: string;
-  description: string | null;
-  task_type: string;
-  priority: string;
-  status: string;
-  due_date: string | null;
-  completed_at: string | null;
-  created_at: string;
-}
-
 type DateRangePreset = "all" | "overdue" | "today" | "tomorrow" | "week" | "nodate";
 type GroupBy = "none" | "company" | "priority" | "duedate";
 
@@ -49,7 +37,7 @@ export default function AdminCSTasks() {
 
   // Filters
   const [showNew, setShowNew] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<string>("open");
+  const [filterStatus, setFilterStatus] = useState<string>("active");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [filterDate, setFilterDate] = useState<DateRangePreset>("all");
   const [filterCompany, setFilterCompany] = useState<string>("all");
@@ -62,19 +50,8 @@ export default function AdminCSTasks() {
   // ─── Queries ──────────────────────────────────────────────
 
   const { data: tasks = [], isLoading, isError, refetch } = useQuery({
-    queryKey: queryKeys.csTasks.list(filterStatus),
-    queryFn: async () => {
-      let query = supabase
-        .from("cs_tasks" as never)
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (filterStatus !== "all") {
-        query = query.eq("status", filterStatus as never);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as unknown as CSTask[];
-    },
+    queryKey: adminTasksQueryKey,
+    queryFn: fetchAdminTasks,
     enabled: canManageTasks,
     staleTime: 2 * 60 * 1000,
   });
@@ -98,8 +75,7 @@ export default function AdminCSTasks() {
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const updates: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
-      if (status === "completed") updates.completed_at = new Date().toISOString();
+      const updates = adminTaskStatusPatch(status);
       const { error } = await supabase
         .from("cs_tasks" as never)
         .update(updates as never)
@@ -108,6 +84,7 @@ export default function AdminCSTasks() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.csTasks.all });
+      queryClient.invalidateQueries({ queryKey: ["admin-sidebar-badges"] });
       toast.success("Task aggiornato");
     },
     onError: (error) => toast.error(error.message || "Impossibile aggiornare"),
@@ -116,8 +93,7 @@ export default function AdminCSTasks() {
   // Bulk: update status per N task in una volta
   const bulkUpdateStatus = useMutation({
     mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
-      const updates: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
-      if (status === "completed") updates.completed_at = new Date().toISOString();
+      const updates = adminTaskStatusPatch(status);
       const { error } = await supabase
         .from("cs_tasks" as never)
         .update(updates as never)
@@ -127,6 +103,7 @@ export default function AdminCSTasks() {
     },
     onSuccess: (n) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.csTasks.all });
+      queryClient.invalidateQueries({ queryKey: ["admin-sidebar-badges"] });
       toast.success(`${n} task aggiornati`);
       setSelected(new Set());
     },
@@ -144,6 +121,7 @@ export default function AdminCSTasks() {
     },
     onSuccess: (n) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.csTasks.all });
+      queryClient.invalidateQueries({ queryKey: ["admin-sidebar-badges"] });
       toast.success(`Priorità aggiornata su ${n} task`);
       setSelected(new Set());
     },
@@ -161,6 +139,7 @@ export default function AdminCSTasks() {
     },
     onSuccess: (n) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.csTasks.all });
+      queryClient.invalidateQueries({ queryKey: ["admin-sidebar-badges"] });
       toast.success(`${n} task eliminati`);
       setSelected(new Set());
     },
@@ -170,7 +149,7 @@ export default function AdminCSTasks() {
   // ─── Helpers ──────────────────────────────────────────────
 
   const companyMap = useMemo(() => new Map(companies.map((c) => [c.id, c.name])), [companies]);
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = format(new Date(), "yyyy-MM-dd");
   const isOverdue = useCallback((task: CSTask) =>
     task.status !== "completed" && !!task.due_date && task.due_date.slice(0, 10) < todayKey,
   [todayKey]);
@@ -181,6 +160,7 @@ export default function AdminCSTasks() {
     const start = startOfDay(new Date());
     const endWeek = addDays(start, 7);
     return tasks.filter((t) => {
+      if (!matchesAdminTaskStatus(t.status, filterStatus)) return false;
       if (filterPriority !== "all" && t.priority !== filterPriority) return false;
       if (filterCompany !== "all" && t.company_id !== filterCompany) return false;
       // Date range
@@ -195,12 +175,12 @@ export default function AdminCSTasks() {
       if (filterDate === "nodate" && t.due_date) return false;
       // Text search
       if (q) {
-        const hay = `${t.title} ${t.description ?? ""} ${companyMap.get(t.company_id) ?? ""}`.toLowerCase();
+        const hay = `${t.title} ${t.description ?? ""} ${companyMap.get(t.company_id ?? "") ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [tasks, filterPriority, filterCompany, filterDate, search, companyMap, isOverdue]);
+  }, [tasks, filterStatus, filterPriority, filterCompany, filterDate, search, companyMap, isOverdue]);
 
   const taskStats = useMemo(() => {
     const open = tasks.filter((t) => t.status === "open").length;
@@ -212,13 +192,16 @@ export default function AdminCSTasks() {
     return { open, inProgress, urgent, overdue, dueToday, unassigned };
   }, [tasks, isOverdue]);
 
+  // Evita azioni collettive su righe nascoste dopo un cambio filtro.
+  useEffect(() => { setSelected(new Set()); }, [filterStatus, filterPriority, filterDate, filterCompany, search]);
+
   // Group tasks by selected key
   const groupedTasks = useMemo(() => {
     if (groupBy === "none") return [{ key: "", label: "", tasks: visibleTasks }];
     const groups = new Map<string, CSTask[]>();
     for (const t of visibleTasks) {
       let key = "";
-      if (groupBy === "company") key = companyMap.get(t.company_id) ?? "—";
+      if (groupBy === "company") key = companyMap.get(t.company_id ?? "") ?? "—";
       else if (groupBy === "priority") key = t.priority ?? "medium";
       else if (groupBy === "duedate") {
         if (!t.due_date) key = "Senza scadenza";
@@ -286,9 +269,9 @@ export default function AdminCSTasks() {
       <NewTaskDialog open={showNew} onOpenChange={setShowNew} />
 
       {/* KPI — 6 card cliccabili come filtri rapidi */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 2xl:grid-cols-6">
         <KpiCard
-          label="Aperti"
+          label="Da fare"
           value={taskStats.open}
           icon={<AlertCircle className="h-4 w-4" />}
           accent="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
@@ -364,7 +347,8 @@ export default function AdminCSTasks() {
             <SelectTrigger className="w-[140px] h-9"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti gli stati</SelectItem>
-              <SelectItem value="open">Aperti</SelectItem>
+              <SelectItem value="active">Aperte</SelectItem>
+              <SelectItem value="open">Da fare</SelectItem>
               <SelectItem value="in_progress">In Corso</SelectItem>
               <SelectItem value="completed">Completati</SelectItem>
             </SelectContent>
@@ -507,7 +491,7 @@ export default function AdminCSTasks() {
                       task={task}
                       selected={selected.has(task.id)}
                       onToggleSelect={() => toggleOne(task.id)}
-                      companyName={companyMap.get(task.company_id) ?? "—"}
+                      companyName={companyMap.get(task.company_id ?? "") ?? "—"}
                       statusIcon={statusIcon(task.status)}
                       priorityBadge={priorityBadge(task.priority)}
                       isOverdue={isOverdue(task)}
@@ -571,7 +555,7 @@ export default function AdminCSTasks() {
                         </TableCell>
                         <TableCell>
                           {(() => {
-                            const cfg = getTaskTypeConfig(task.task_type);
+                            const cfg = getTaskTypeConfig(task.task_type ?? "manual");
                             const Icon = cfg.icon;
                             return (
                               <span
@@ -588,14 +572,14 @@ export default function AdminCSTasks() {
                           })()}
                         </TableCell>
                         <TableCell className="text-sm">
-                          <Link
+                          {task.company_id ? <Link
                             to={`/admin/aziende/${task.company_id}`}
                             className="inline-flex items-center gap-1 text-primary hover:underline"
                             title="Apri scheda azienda"
                           >
-                            {companyMap.get(task.company_id) ?? "—"}
+                            {companyMap.get(task.company_id ?? "") ?? "—"}
                             <ExternalLink className="h-3 w-3 opacity-60" />
-                          </Link>
+                          </Link> : <span className="text-muted-foreground">Attività interna</span>}
                         </TableCell>
                         <TableCell>{priorityBadge(task.priority)}</TableCell>
                         <TableCell className={cn(
@@ -668,7 +652,7 @@ function KpiCard({
       <CardContent className="p-3 flex items-start gap-2.5">
         <div className={cn("p-1.5 rounded-lg shrink-0", accent)}>{icon}</div>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wide truncate">{label}</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">{label}</p>
           <p className="text-xl font-bold leading-tight mt-0.5">{value}</p>
           {active && <p className="text-[10px] text-primary mt-0.5">Filtro attivo</p>}
         </div>
@@ -703,9 +687,9 @@ function MobileRow({
         {priorityBadge}
       </div>
       <div className="flex items-center justify-between text-xs text-muted-foreground pl-10">
-        <Link to={`/admin/aziende/${task.company_id}`} className="text-primary hover:underline">
+        {task.company_id ? <Link to={`/admin/aziende/${task.company_id}`} className="text-primary hover:underline">
           {companyName}
-        </Link>
+        </Link> : <span>Attività interna</span>}
         <span className={overdue ? "text-destructive font-medium" : ""}>
           {task.due_date ? format(new Date(task.due_date), "dd/MM/yy") : ""}
         </span>

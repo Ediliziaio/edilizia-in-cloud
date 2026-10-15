@@ -84,6 +84,15 @@ jobs:
           node scripts/test-company-admin-cs.mjs
           node scripts/test-white-label-plan.mjs
 
+      - name: Run superadmin operations regression tests
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/adminTaskState.test.ts
+          src/test/logic/adminTasksPagination.test.ts
+          src/test/logic/adminInsoluti.test.ts
+          src/test/ui/adminInsolutiState.test.tsx
+          src/test/ui/adminAttivitaNavigation.test.tsx
+
       - name: Run cash forecast regression tests
         run: >-
           TZ=Europe/Rome bunx vitest run

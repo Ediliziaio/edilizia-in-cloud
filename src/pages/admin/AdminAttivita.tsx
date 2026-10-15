@@ -65,6 +65,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { adminTasksQueryKey, fetchAdminTasks, type AdminTask as CSTask } from "@/lib/adminTasks";
+import { adminTaskStatusPatch } from "@/lib/adminTaskState";
+import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
 
 // Lazy load del gestore completo task — evita di pagare il bundle iniziale
@@ -79,7 +82,7 @@ const PRIORITY_CONFIG: Record<string, { label: string; dotClass: string; badgeCl
 };
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-  todo:        { label: "Da fare",    className: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" },
+  open:        { label: "Da fare",    className: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" },
   in_progress: { label: "In corso",   className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
   completed:   { label: "Completata", className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
 };
@@ -91,20 +94,6 @@ const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const DEFAULT_LAT = 45.4654;
 const DEFAULT_LNG = 9.1859;
 const DEFAULT_CITY = "Milano";
-
-interface CSTask {
-  id: string;
-  title: string;
-  description: string | null;
-  status: string;
-  priority: string;
-  due_date: string | null;
-  assigned_to: string | null;
-  company_id: string | null;
-  completed_at: string | null;
-  created_at: string;
-  task_type: string | null;
-}
 
 // ─── Header ───────────────────────────────────────────────────────────────
 function AdminAttivitaHeader() {
@@ -235,16 +224,16 @@ function AdminMiniCalendario({ tasks, onAddTask }: { tasks: CSTask[]; onAddTask?
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
-            <CalendarDays className="h-4 w-4" />Calendario
+            <CalendarDays className="h-4 w-4" />Le mie scadenze
           </CardTitle>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCurrentMonth((m) => subMonths(m, 1))}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Mese precedente" onClick={() => setCurrentMonth((m) => subMonths(m, 1))}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <span className="text-sm font-medium min-w-[120px] text-center capitalize">
               {format(currentMonth, "MMMM yyyy", { locale: it })}
             </span>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCurrentMonth((m) => addMonths(m, 1))}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Mese successivo" onClick={() => setCurrentMonth((m) => addMonths(m, 1))}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
@@ -273,7 +262,7 @@ function AdminMiniCalendario({ tasks, onAddTask }: { tasks: CSTask[]; onAddTask?
                     <button
                       onClick={() => setSelectedDate(day)}
                       className={cn(
-                        "relative aspect-square flex flex-col items-center justify-center rounded-md text-sm transition-all hover:bg-muted/60",
+                        "relative aspect-square flex flex-col items-center justify-center rounded-md text-sm transition-colors hover:bg-muted/60",
                         isSelected ? "bg-primary text-primary-foreground font-bold shadow-sm"
                         : isCurrentDay ? "bg-primary/10 font-semibold text-primary ring-1 ring-primary/30"
                         : isPast ? "text-muted-foreground/60" : "text-foreground"
@@ -382,7 +371,7 @@ function MieAttivitaAdmin({
   }, [tasks, filter, today]);
 
   return (
-    <Card>
+    <Card className="min-w-0 xl:col-span-2 xl:order-1">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -399,7 +388,7 @@ function MieAttivitaAdmin({
               <Plus className="h-3 w-3" /> <span className="hidden sm:inline">Nuovo</span>
             </Button>
             <Select value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
-              <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label="Filtra le mie attività" className="h-8 w-[140px] text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="open">Aperte</SelectItem>
                 <SelectItem value="today">Oggi</SelectItem>
@@ -425,7 +414,7 @@ function MieAttivitaAdmin({
           <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
             {filtered.map((t) => {
               const cfg = PRIORITY_CONFIG[t.priority] ?? PRIORITY_CONFIG.medium;
-              const stCfg = STATUS_CONFIG[t.status] ?? STATUS_CONFIG.todo;
+              const stCfg = STATUS_CONFIG[t.status] ?? STATUS_CONFIG.open;
               const scaduta = t.due_date && isBefore(new Date(t.due_date), today) && !isToday(new Date(t.due_date));
               const isDone = t.status === "completed";
               return (
@@ -439,7 +428,7 @@ function MieAttivitaAdmin({
                   <button
                     onClick={() => !isDone && onComplete(t.id)}
                     className={cn(
-                      "shrink-0 w-4 h-4 rounded-full border-2 transition-colors flex items-center justify-center",
+                      "shrink-0 w-7 h-7 rounded-full border-2 transition-colors flex items-center justify-center",
                       isDone ? "bg-green-500 border-green-500" : "border-muted-foreground/40 hover:border-primary"
                     )}
                     aria-label={isDone ? "Già completata" : "Segna come completata"}
@@ -448,12 +437,12 @@ function MieAttivitaAdmin({
                   </button>
                   <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", cfg.dotClass)} />
                   <div className="flex-1 min-w-0">
-                    <p className={cn("font-medium text-sm truncate", isDone && "line-through text-muted-foreground")}>{t.title}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <p className={cn("font-medium text-sm break-words leading-relaxed", isDone && "line-through text-muted-foreground")}>{t.title}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
                       <Badge variant="outline" className={cn("text-[9px] px-1 py-0", stCfg.className)}>{stCfg.label}</Badge>
                       {t.due_date && (
                         <span className={cn(
-                          "text-[10px]",
+                          "text-xs",
                           scaduta && !isDone ? "text-red-500 font-semibold"
                           : isToday(new Date(t.due_date)) ? "text-amber-600"
                           : "text-muted-foreground"
@@ -466,7 +455,7 @@ function MieAttivitaAdmin({
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 text-muted-foreground hover:text-foreground transition-opacity p-1 rounded"
+                        className="shrink-0 text-muted-foreground hover:text-foreground p-2 rounded focus-visible:ring-2 focus-visible:ring-ring"
                         aria-label="Azioni attività"
                       >
                         <MoreHorizontal className="h-4 w-4" />
@@ -476,8 +465,8 @@ function MieAttivitaAdmin({
                       <DropdownMenuItem onClick={() => onEdit(t)}>
                         <Pencil className="h-3.5 w-3.5 mr-2" /> Modifica
                       </DropdownMenuItem>
-                      {t.status !== "todo" && (
-                        <DropdownMenuItem onClick={() => onSetStatus(t.id, "todo")}>
+                      {t.status !== "open" && (
+                        <DropdownMenuItem onClick={() => onSetStatus(t.id, "open")}>
                           <Circle className="h-3.5 w-3.5 mr-2" /> Segna da fare
                         </DropdownMenuItem>
                       )}
@@ -547,7 +536,7 @@ function TaskTeamAdmin({
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Users className="h-4 w-4" />Task del Team
+            <Users className="h-4 w-4" />Attività degli altri membri
             {filtered.length > 0 && <Badge variant="secondary" className="text-xs">{filtered.length}</Badge>}
           </CardTitle>
           <div className="flex items-center gap-2">
@@ -561,7 +550,7 @@ function TaskTeamAdmin({
               <span className="sm:hidden">Nuovo</span>
             </Button>
             <Select value={filterUser} onValueChange={setFilterUser}>
-              <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue placeholder="Tutti" /></SelectTrigger>
+              <SelectTrigger aria-label="Filtra per membro del team" className="h-8 w-[140px] text-xs"><SelectValue placeholder="Tutti" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti i membri</SelectItem>
                 {teamMembers.map((m) => (
@@ -576,7 +565,7 @@ function TaskTeamAdmin({
         {filtered.length === 0 ? (
           <div className="text-center py-6 text-muted-foreground">
             <ClipboardCheck className="h-8 w-8 mx-auto mb-2 opacity-40" />
-            <p className="text-sm mb-3">Nessuna attività assegnata al team</p>
+            <p className="text-sm mb-3">Nessuna attività aperta assegnata agli altri membri</p>
             <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={onCreateTask}>
               <Plus className="h-3 w-3" /> Assegna task al team
             </Button>
@@ -585,7 +574,7 @@ function TaskTeamAdmin({
           <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
             {filtered.map((t) => {
               const cfg = PRIORITY_CONFIG[t.priority] ?? PRIORITY_CONFIG.medium;
-              const stCfg = STATUS_CONFIG[t.status] ?? STATUS_CONFIG.todo;
+              const stCfg = STATUS_CONFIG[t.status] ?? STATUS_CONFIG.open;
               const scaduta = t.due_date && isBefore(new Date(t.due_date), today) && !isToday(new Date(t.due_date));
               const assignee = t.assigned_to ? profilesById.get(t.assigned_to) : null;
               const assigneeName = [assignee?.first_name, assignee?.last_name].filter(Boolean).join(" ") || "Non assegnato";
@@ -599,15 +588,15 @@ function TaskTeamAdmin({
                 >
                   <div className={cn("w-2 h-2 rounded-full shrink-0", cfg.dotClass)} />
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{t.title}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <p className="font-medium text-sm break-words leading-relaxed">{t.title}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
                       <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                         <Circle className="h-2.5 w-2.5" />{assigneeName}
                       </span>
                       <Badge variant="outline" className={cn("text-[9px] px-1 py-0", stCfg.className)}>{stCfg.label}</Badge>
                       {t.due_date && (
                         <span className={cn(
-                          "text-[10px]",
+                          "text-xs",
                           scaduta ? "text-red-500 font-semibold"
                           : isToday(new Date(t.due_date)) ? "text-amber-600"
                           : "text-muted-foreground"
@@ -686,16 +675,8 @@ function AttivitaDashboardTab() {
 
   // Tutte le cs_tasks (verranno splittate in "mie" e "team")
   const { data: allTasks = [], isLoading, isError, refetch, isRefetching } = useQuery({
-    queryKey: ["admin-attivita-tasks"],
-    queryFn: async (): Promise<CSTask[]> => {
-      const { data, error } = await supabase
-        .from("cs_tasks" as never)
-        .select("id, title, description, status, priority, due_date, assigned_to, company_id, completed_at, created_at, task_type")
-        .order("due_date", { ascending: true, nullsFirst: false })
-        .limit(500);
-      if (error) throw error;
-      return (data ?? []) as unknown as CSTask[];
-    },
+    queryKey: adminTasksQueryKey,
+    queryFn: fetchAdminTasks,
     staleTime: 60_000,
   });
 
@@ -737,16 +718,13 @@ function AttivitaDashboardTab() {
   // Mutation: cambia stato (completa / in corso / da fare)
   const setStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const patch: Record<string, unknown> =
-        status === "completed"
-          ? { status, completed_at: new Date().toISOString() }
-          : { status, completed_at: null };
+      const patch = adminTaskStatusPatch(status);
       const { error } = await supabase.from("cs_tasks" as never).update(patch as never).eq("id", id as never);
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
       toast.success(vars.status === "completed" ? "Attività completata" : "Stato aggiornato");
-      queryClient.invalidateQueries({ queryKey: ["admin-attivita-tasks"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.csTasks.all });
       queryClient.invalidateQueries({ queryKey: ["admin-sidebar-badges"] });
     },
     onError: (err: Error) => toast.error("Errore: " + err.message),
@@ -761,7 +739,7 @@ function AttivitaDashboardTab() {
     onSuccess: () => {
       toast.success("Attività eliminata");
       setDeletingTask(null);
-      queryClient.invalidateQueries({ queryKey: ["admin-attivita-tasks"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.csTasks.all });
       queryClient.invalidateQueries({ queryKey: ["admin-sidebar-badges"] });
     },
     onError: (err: Error) => toast.error("Errore: " + err.message),
@@ -773,8 +751,8 @@ function AttivitaDashboardTab() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
-          <div className="lg:col-span-2 space-y-3 sm:space-y-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 sm:gap-6">
+          <div className="space-y-3 sm:space-y-6 xl:order-2">
             <Skeleton className="h-16 w-full rounded-xl" />
             <Skeleton className="h-72 w-full rounded-xl" />
           </div>
@@ -806,16 +784,9 @@ function AttivitaDashboardTab() {
 
   return (
     <div className="space-y-6">
-      {/* Sinistra: Meteo + Calendario impilati (2/3) · Destra: le mie attività
-          (1/3). Stesso layout di /azienda/attivita (AttivitaStaff › TabAttivita). */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
-        <div className="lg:col-span-2 space-y-3 sm:space-y-6">
-          <AdminMeteoWidget />
-          <AdminMiniCalendario
-            tasks={myTasks}
-            onAddTask={(date) => setDialogState({ mode: "new", prefill: { assignedTo: user?.id, dueDate: date } })}
-          />
-        </div>
+      {/* Le attività hanno priorità; calendario e meteo rimangono di supporto. */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 sm:gap-6">
+
         <MieAttivitaAdmin
           tasks={myTasks}
           onComplete={completeTask}
@@ -824,10 +795,20 @@ function AttivitaDashboardTab() {
           onDelete={(task) => setDeletingTask(task)}
           onSetStatus={(id, status) => setStatusMutation.mutate({ id, status })}
         />
+        <div className="space-y-3 sm:space-y-6 xl:order-2">
+          <AdminMeteoWidget />
+          <AdminMiniCalendario
+            tasks={myTasks}
+            onAddTask={(date) => setDialogState({ mode: "new", prefill: { assignedTo: user?.id, dueDate: date } })}
+          />
+        </div>
       </div>
 
       {/* Strumenti del team, a tutta larghezza sotto (come la "Regia" azienda) */}
-      <TeamPulseAdmin tasks={allTeamTasks} />
+      <section aria-label="Riepilogo degli altri membri del team" className="space-y-3">
+        <div><h2 className="font-semibold">Altri membri del team</h2><p className="text-sm text-muted-foreground">Questi conteggi escludono le tue attività e quelle senza responsabile.</p></div>
+        <TeamPulseAdmin tasks={allTeamTasks} />
+      </section>
       <TaskTeamAdmin
         tasks={teamTasks}
         profilesById={profilesById}
@@ -892,14 +873,12 @@ function TabFallback() {
 export default function AdminAttivita() {
   const { permissions } = useSuperAdminPermissions();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialTab = searchParams.get("tab") === "tutte" ? "tutte" : "dashboard";
-  const [activeTab, setActiveTab] = useState<"dashboard" | "tutte">(initialTab);
+  const activeTab = searchParams.get("tab") === "tutte" ? "tutte" : "dashboard";
 
   if (!permissions.can_manage_companies) return <AccessDenied />;
 
   const handleTabChange = (value: string) => {
     const next = value as "dashboard" | "tutte";
-    setActiveTab(next);
     // Sincronizza URL — utile per deep-link e browser back/forward
     const newParams = new URLSearchParams(searchParams);
     if (next === "tutte") newParams.set("tab", "tutte");
@@ -916,7 +895,7 @@ export default function AdminAttivita() {
             <LayoutDashboard className="h-4 w-4" />
             <span>Dashboard</span>
           </TabsTrigger>
-          <TabsTrigger value="tutte" className="gap-1.5 text-xs sm:text-sm py-2">
+          <TabsTrigger value="tutte" aria-label="Tutte le attività" className="gap-1.5 text-xs sm:text-sm py-2">
             <ListChecks className="h-4 w-4" />
             <span className="truncate"><span className="hidden sm:inline">Tutte le </span>attività</span>
           </TabsTrigger>
