@@ -1,4 +1,6 @@
 import React from "react";
+import type { ServerHealthScore } from "@/hooks/useHealthScores";
+import { companyHealthFactors } from "@/lib/companyHealthConsistency";
 import { useNavigate } from "react-router-dom";
 import { DollarSign, CheckCircle2, StickyNote, Phone, Mail, Activity, CreditCard, ShieldAlert, Package, Users, TrendingUp, Zap, Banknote, CircleDollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
-import { getOnboardingPct, getHealthBreakdown } from "@/lib/companyUtils";
+import { getOnboardingPct } from "@/lib/companyUtils";
 import { getNextActions } from "./CompanyNextActions";
 import { CompanyTagsCell } from "./CompanyTagsCell";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -27,7 +29,7 @@ interface CompanyExpandedRowProps {
     payment_method?: string;
   };
   orderStats?: { count: number; totalValue: number; lastOrderDate: string | null };
-  healthData?: { score: number; health: string; lastOrderDate: string | null; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean };
+  healthData?: { score: number; health: string; lastOrderDate: string | null; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean; serverHealth?: ServerHealthScore };
   planLimits?: { max_orders: number | null; max_users: number | null };
   planInfo?: { name: string; price_monthly: number; monthly_revenue?: number; counts_as_revenue?: boolean };
   latestNote?: { content: string; created_at: string; authorName: string };
@@ -68,7 +70,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
   const lastDate = orderStats?.lastOrderDate ? new Date(orderStats.lastOrderDate) : null;
   const daysSince = lastDate ? differenceInDays(new Date(), lastDate) : null;
   const onboardingPct = getOnboardingPct(hd);
-  const healthBreakdown = getHealthBreakdown(hd);
+  const healthBreakdown = companyHealthFactors(hd?.serverHealth);
 
   const status = company.status || "trial";
   const paymentMethod = company.payment_method || "none";
@@ -251,12 +253,12 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
       )}
 
       {/* Health Score Breakdown + Onboarding */}
-      {hd ? healthBreakdown.length > 0 && (
+      {hd && healthBreakdown.length > 0 ? (
         <div className="rounded-lg border bg-card p-3">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium">Health Score</span>
-              <Badge variant="outline" className="text-xs">{hd.score}/90</Badge>
+              <Badge variant="outline" className="text-xs">{hd.score}/100</Badge>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
@@ -269,7 +271,7 @@ export const CompanyExpandedRow = React.memo(function CompanyExpandedRow({
               {healthBreakdown.map((factor, i) => (
                 <Tooltip key={i}>
                   <TooltipTrigger asChild>
-                    <div className={`${factor.color} transition-all cursor-help`} style={{ width: `${(factor.maxScore / 90) * 100}%`, opacity: factor.score > 0 ? 1 : 0.2 }} />
+                    <div className={`${factor.color} transition-all cursor-help`} style={{ width: `${(factor.maxScore / 100) * 100}%`, opacity: factor.score > 0 ? 1 : 0.2 }} />
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs">
                     <p className="font-medium">{factor.label}</p>

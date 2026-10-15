@@ -12,6 +12,8 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
+import type { CompanyLastAccess } from "@/types/adminRpc";
 import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -74,28 +76,25 @@ export function useCompanyCreditsSnapshot(companyId: string | undefined) {
   });
 }
 
-/** Last login — ritorna il membro con last_login_at più recente. */
+/** Stessa fonte e cache dell'elenco: comprende anche gli account collegati all'azienda. */
 export function useCompanyLastActivity(companyId: string | undefined) {
   return useQuery({
-    queryKey: ["company-overview-last-activity", companyId],
+    queryKey: queryKeys.admin.companiesLastAccess,
     enabled: !!companyId,
-    queryFn: async (): Promise<LastActivityInfo> => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("first_name, last_name, last_login_at")
-        .eq("company_id", companyId!)
-        .not("last_login_at", "is", null)
-        .order("last_login_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!data) return { last_login_at: null, last_login_user_name: null };
-      const name = `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim() || null;
-      return {
-        last_login_at: data.last_login_at,
-        last_login_user_name: name,
-      };
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_company_last_access");
+      if (error) throw error;
+      const map: Record<string, string | null> = {};
+      ((data || []) as CompanyLastAccess[]).forEach((row) => {
+        map[row.company_id] = row.last_access || null;
+      });
+      return map;
     },
-    staleTime: 2 * 60 * 1000,
+    select: (access): LastActivityInfo => ({
+      last_login_at: companyId ? access[companyId] ?? null : null,
+      last_login_user_name: null,
+    }),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
