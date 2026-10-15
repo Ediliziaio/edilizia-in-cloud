@@ -458,7 +458,6 @@ export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelect
   // rappresentativo (filtriamo dopo il fetch) → mostriamo solo i thread visibili.
   const hasClientFilter = !!filter.category || !!filter.unreadOnly || !!filter.priorityOnly;
   const totalCount = hasClientFilter ? null : pages.find((page) => page.totalCount !== null)?.totalCount ?? null;
-  const usingFallback = pages.some((page) => page.source === "fallback");
   const isEmpty = !isLoading && threads.length === 0;
 
   return (
@@ -509,12 +508,6 @@ export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelect
               </span>
             )}
           </div>
-
-          {usingFallback && (
-            <div className="mx-2 mb-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 max-sm:hidden">
-              Ricerca compatibile attiva: applica la migration email per conteggi e storico ancora più veloci.
-            </div>
-          )}
 
           {filter.category && (
             <div className="mx-2 mb-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] text-blue-800 max-sm:hidden">
