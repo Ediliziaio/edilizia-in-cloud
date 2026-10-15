@@ -1019,11 +1019,12 @@ export function ListinoPickerDialog({
             {calcolo?.fuoriRange && (
               <Card className="border-rose-300 bg-rose-50 p-4">
                 <p className="text-sm font-bold text-rose-800 mb-1 flex items-center gap-1.5">
-                  <AlertCircle className="h-4 w-4" /> Misura non producibile
+                  <AlertCircle className="h-4 w-4" /> {griglia.length === 0 ? "Griglia prezzi mancante" : "Misura non producibile"}
                 </p>
                 <p className="text-xs text-rose-700 leading-relaxed">
-                  La misura inserita ({calcolo.larghezza}×{calcolo.altezza} mm) e' fuori dal range disponibile per questo articolo.
-                  Modifica le misure entro l'intervallo indicato sopra.
+                  {griglia.length === 0
+                    ? "Non è presente una griglia prezzi per questo articolo. Il prezzo non è determinabile: completa il listino prima di aggiungerlo al preventivo. Questo non indica che la misura non sia producibile."
+                    : <>La misura inserita ({calcolo.larghezza}×{calcolo.altezza} mm) è fuori dal range disponibile per questo articolo. Modifica le misure entro l'intervallo indicato sopra.</>}
                 </p>
               </Card>
             )}
