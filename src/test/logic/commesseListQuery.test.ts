@@ -20,6 +20,18 @@ beforeEach(()=>{
   });
 });
 describe("Filtri prima della paginazione delle commesse",()=>{
+  it("usa il perimetro annuale completo prima di contare, paginare ed esportare",async()=>{
+    const scoped={...filters,isYearCorrente:true,periodIds:["004","023","064"]};
+    expect((await readOrdersPage(scoped,0,1)).orders.map(row=>row.id)).toEqual(["004","023"]);
+    expect((await readOrdersPage(scoped,0,Infinity)).totalCount).toBe(3);
+  });
+  it("filtra l’assistenza anche per ticket aperti su lavori completati",async()=>{
+    const result=await readOrdersPage({...filters,statusFilter:"__assistenza__",supportOrderIds:["043","062"]},0,19);
+    expect(result.orders.map(row=>row.id)).toEqual(["043","062"]);
+  });
+  it("non sostituisce un perimetro annuale non disponibile con una lista parziale",async()=>{
+    await expect(readOrdersPage({...filters,isYearCorrente:true},0,19)).rejects.toThrow("Perimetro annuale non disponibile");
+  });
   it("trova gli stati anche fuori dalle prime venti righe e conta tutti i risultati",async()=>{
     const result=await readOrdersPage({...filters,sidebarFilters:{...filters.sidebarFilters,includeStatuses:["risk"]}},0,19);
     expect(result.totalCount).toBe(35);expect(result.orders).toHaveLength(20);expect(result.orders[0].id).toBe("030");

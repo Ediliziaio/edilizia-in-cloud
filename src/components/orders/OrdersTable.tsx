@@ -48,6 +48,7 @@ export interface OrderCosts {
 
 interface OrdersTableProps {
   orders: OrderWithDetails[];
+  previousReasons?: Record<string,string[]>;
   onDelete: (orderId: string) => void;
   isDeleting: boolean;
   orderCosts: Map<string, OrderCosts>;
@@ -64,6 +65,7 @@ interface OrdersTableProps {
 
 export const OrdersTable = React.memo(function OrdersTable({
   orders,
+  previousReasons = {},
   onDelete,
   isDeleting,
   orderCosts,
@@ -191,6 +193,7 @@ export const OrdersTable = React.memo(function OrdersTable({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground">{order.order_code || "—"}</span>
+                  {previousReasons[order.id]?.length > 0 && <span className="text-[10px] text-amber-800">Anno {new Date(order.created_at).getFullYear()} · {previousReasons[order.id].join(" · ")}</span>}
                   {order.order_type === "appaltatore_lavoro" && (
                     <HardHat className="h-3 w-3 shrink-0 text-amber-600" aria-label="Lavoro per appaltatore" />
                   )}
@@ -367,6 +370,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                       <Link to={`/azienda/ordini/${order.id}`} className="text-primary hover:underline cursor-pointer">
                         {order.order_code || "—"}
                       </Link>
+                      {previousReasons[order.id]?.length > 0 && <span className="text-[10px] text-amber-800" title={previousReasons[order.id].join(" · ")}>Anno {new Date(order.created_at).getFullYear()} · {previousReasons[order.id].join(" · ")}</span>}
                       {order.order_type === "appaltatore_lavoro" && (
                         <Badge
                           variant="outline"

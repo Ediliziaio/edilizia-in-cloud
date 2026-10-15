@@ -1,3 +1,6 @@
+import {OrdersAnnualScope} from "@/components/orders/OrdersAnnualScope";
+import {currentManagementScope, orderEconomics, orderYear, previousOrderReasons} from "@/lib/orders/annualScope";
+import {TICKET_STATI_CHIUSI} from "@/types/tickets";
 import {OrdersPeriodSummary} from "@/components/orders/OrdersPeriodSummary";
 import {readOrdersPage} from "@/lib/orders/listQuery";
 import { parseOrderAdvancedFilters } from "@/lib/orders/advancedFilters";
@@ -90,10 +93,7 @@ function OrdersListInner() {
     paymentFilter: { key: "payment", defaultValue: "all" },
     viewMode: { key: "view", defaultValue: (() => { try { return localStorage.getItem("orders-view-mode") || "table"; } catch { return "table"; } })() },
     customerFilter: { key: "cliente", defaultValue: "all" },
-    // "corrente" = anno in corso + commesse NON chiuse degli anni precedenti
-    // (standard 2026-09, richiesta utente): aprendo la pagina si vede il
-    // lavoro di quest'anno senza mai perdere una commessa vecchia ancora
-    // aperta. Il pregresso resta a un click (anni singoli o "Tutti").
+    // Annualità corrente completa + pregresso con lavori, assistenza o saldo aperti.
     yearFilter: { key: "anno", defaultValue: "corrente" },
     monthFilter: { key: "mese", defaultValue: "all" },
     salespersonFilter: { key: "venditore", defaultValue: "all" },
@@ -104,7 +104,7 @@ function OrdersListInner() {
     contractFrom: {key:"contratto_dal", defaultValue:""}, contractTo: {key:"contratto_al", defaultValue:""},
     warehouseFrom: {key:"merce_dal", defaultValue:""}, warehouseTo: {key:"merce_al", defaultValue:""},
     expectedFrom: {key:"posa_dal", defaultValue:""}, expectedTo: {key:"posa_al", defaultValue:""},
-    hideCompleted: { key: "nascondi_completati", defaultValue: true, serialize: (v) => v ? "1" : "0", deserialize: (v) => v === "1" },
+    hideCompleted: { key: "nascondi_completati", defaultValue: false, serialize: (v) => v ? "1" : "0", deserialize: (v) => v === "1" },
   });
 
   const searchQuery = urlFilters.searchQuery;
@@ -215,7 +215,7 @@ function OrdersListInner() {
     try { localStorage.setItem("orders-sort-dir", sortDir); } catch { /* noop */ }
   }, [sortDir]);
   const isYearCorrente = yearFilter === "corrente";
-  const periodLabel = yearFilter === "corrente" ? `${new Date().getFullYear()} e aperte precedenti` : yearFilter === "all" ? "Tutti gli anni" : yearFilter;
+  const periodLabel = yearFilter === "corrente" ? `${new Date().getFullYear()} + precedenti da gestire` : yearFilter === "all" ? "Tutti gli anni" : yearFilter;
   const currentYear = new Date().getFullYear();
   const selectedYear = !isYearCorrente && yearFilter !== "all" ? Number(yearFilter) : null;
   const hasSelectedYear = Number.isInteger(selectedYear);
@@ -251,33 +251,43 @@ function OrdersListInner() {
   // come stato, ricerca, pagamento o vista. Così restano numeri di controllo,
   // ma possono essere letti per anno quando serve.
   const { data: globalStats, isLoading: isLoadingGlobalStats, isError: isGlobalStatsError } = useQuery({
-    queryKey: ["orders-global-stats", "complete-v2", effectiveCompany?.id, yearFilter, lastStatusId, supportStatusId],
+    queryKey: ["orders-global-stats", "annual-management-v3", effectiveCompany?.id, yearFilter, currentYear, lastStatusId, supportStatusId, orderPerms.canViewTickets],
     queryFn: async () => {
-      const EMPTY = { totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0, scopeRows: [] as OrderWithDetails[] };
+      const EMPTY = { totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0, scopeRows: [] as OrderWithDetails[], annual: orderEconomics([]), previous: orderEconomics([]), reasons: {work:0,support:0,payment:0}, previousReasons: {} as Record<string,string[]>, supportOrderIds: [] as string[] };
       if (!effectiveCompany?.id) return EMPTY;
       let query = supabase
         .from("orders")
-        .select("id, customer_id, expected_date, work_start_date, total_amount, vat_rate, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_cost, financing_paid, payment_type, current_status_id, deposit_expected_date, deposit_2_expected_date, balance_expected_date, financing_expected_date, installments:order_installments(position, type, amount, is_paid, expected_date)")
+        .select("id, created_at, customer_id, expected_date, work_start_date, total_amount, vat_rate, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_cost, financing_paid, payment_type, current_status_id, deposit_expected_date, deposit_2_expected_date, balance_expected_date, financing_expected_date, installments:order_installments(position, type, amount, is_paid, expected_date)")
         .eq("company_id", effectiveCompany.id)
         .is("deleted_at", null);
-      if (isYearCorrente) {
-        // Stesso perimetro della lista: anno corrente + non chiuse precedenti.
-        const inizioAnno = new Date(currentYear, 0, 1).toISOString();
-        if (lastStatusId) {
-          query = query.or(`created_at.gte.${inizioAnno},current_status_id.neq.${lastStatusId},current_status_id.is.null`);
-        } else {
-          query = query.gte("created_at", inizioAnno);
-        }
-      } else if (hasSelectedYear && selectedYear) {
+      if (isYearCorrente) query = query.lt("created_at",new Date(currentYear + 1,0,1).toISOString());
+      if (!isYearCorrente && hasSelectedYear && selectedYear) {
         query = query
           .gte("created_at", new Date(selectedYear, 0, 1).toISOString())
           .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
       }
       query = query.order("id");
-      const rows = await readAllOrderRows((from, to) => query.range(from, to));
-      const totalGross = rows.reduce((sum, o) => sum + (o.total_amount || 0) * (1 + ((o.vat_rate ?? 22) / 100)), 0);
-      const collected = rows.reduce((sum, o) => sum + getAmountCollected(o as any), 0);
-      const pending = rows.reduce((sum, o) => sum + getAmountDue(o as any), 0);
+      const allRows = await readAllOrderRows((from, to) => query.range(from, to)) as unknown as OrderWithDetails[];
+      const tickets = orderPerms.canViewTickets ? await readAllOrderRows((from,to) => supabase.from("tickets")
+        .select("id, order_id, status").eq("company_id",effectiveCompany.id).not("order_id","is",null)
+        .not("status","in",`(${TICKET_STATI_CHIUSI.join(",")})`).order("id").range(from,to)) : [];
+      const ticketIds = new Set(tickets.flatMap(ticket => ticket.order_id ? [ticket.order_id] : []));
+      const rows = isYearCorrente ? currentManagementScope(allRows,currentYear,lastStatusId,supportStatusId,ticketIds) : allRows;
+      const annualRows = isYearCorrente ? rows.filter(order => orderYear(order) === currentYear) : rows;
+      const previousRows = isYearCorrente ? rows.filter(order => orderYear(order) < currentYear) : [];
+      const annual = orderEconomics(annualRows);
+      const previous = orderEconomics(previousRows);
+      const previousReasons = Object.fromEntries(previousRows.map(order => [order.id,previousOrderReasons(order,currentYear,lastStatusId,supportStatusId,ticketIds)]));
+      const reasons = {work:0,support:0,payment:0};
+      Object.values(previousReasons).forEach(values => {
+        if (values.includes("Lavori aperti")) reasons.work++;
+        if (values.includes("Assistenza aperta")) reasons.support++;
+        if (values.includes("Saldo da incassare")) reasons.payment++;
+      });
+      const supportOrderIds = rows.filter(order => (!!supportStatusId && order.current_status_id === supportStatusId) || ticketIds.has(order.id)).map(order => order.id);
+      const totalGross = annual.sold;
+      const collected = annual.collected;
+      const pending = annual.pending;
       let countAssistenza = 0;
       let countCompletati = 0;
       for (const o of rows) {
@@ -285,9 +295,9 @@ function OrdersListInner() {
         else if (o.current_status_id && lastStatusId && o.current_status_id === lastStatusId) countCompletati++;
       }
       const countDaCompletare = rows.length - countAssistenza - countCompletati;
-      return { totalOrders: rows.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows as unknown as OrderWithDetails[] };
+      return { totalOrders: rows.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows, annual, previous, reasons, previousReasons, supportOrderIds };
     },
-    enabled: !!effectiveCompany?.id && !isLoadingStatuses && !isStatusesError,
+    enabled: !!effectiveCompany?.id && !isLoadingStatuses && !isStatusesError && !orderPerms.isLoading,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -323,21 +333,21 @@ function OrdersListInner() {
     }
     return marginGroups[controlFocus];
   }, [controlFocus, marginGroups, scopeOrders, orderPerms.canViewMargins]);
-  const needsScope = controlFocus !== "all" || paymentFilter !== "all" || sidebarFilters.paymentStatus !== "all";
-  const focusReady = (controlFocus === "all" || (!isLoadingGlobalStats && !scopeMarginsPending)) && (paymentIds === null || !!globalStats);
+  const needsScope = isYearCorrente || statusFilter === "__assistenza__" || controlFocus !== "all" || paymentFilter !== "all" || sidebarFilters.paymentStatus !== "all";
+  const focusReady = (!(isYearCorrente || statusFilter === "__assistenza__") || !!globalStats) && (controlFocus === "all" || (!isLoadingGlobalStats && !scopeMarginsPending)) && (paymentIds === null || !!globalStats);
 
   function filterReaderKey() {
     return JSON.stringify([debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, monthFilter,
       amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId,
-      contractDateRange, warehouseDateRange, expectedDateRange, sidebarFilters, focusIds, paymentIds]);
+      contractDateRange, warehouseDateRange, expectedDateRange, sidebarFilters, focusIds, paymentIds, scopeOrderIds, globalStats?.supportOrderIds]);
   }
 
   const fetchOrderRows = (from: number, to: number) => readOrdersPage({
-    companyId:effectiveCompany?.id, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
+    companyId:effectiveCompany?.id, periodIds:isYearCorrente ? scopeOrderIds : null, supportOrderIds:globalStats?.supportOrderIds, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
   },from,to);
 
   const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, isFetching: isOrdersFetching, error: ordersError, refetch: refetchOrders } = useQuery({
-    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds],
+    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, scopeOrderIds, globalStats?.supportOrderIds],
     queryFn: () => fetchOrderRows((page - 1) * pageSize, page * pageSize - 1),
     enabled: !!effectiveCompany?.id && focusReady && !isLoadingStatuses && !isStatusesError,
     placeholderData: (previousData, previousQuery) => previousQuery?.queryKey[1] === effectiveCompany?.id ? previousData : undefined,
@@ -378,15 +388,16 @@ function OrdersListInner() {
   });
 
   const { data: monthlyOrders = [], isLoading: isLoadingMonthlyOrders, isError: isMonthlyOrdersError } = useQuery({
-    queryKey: ["orders-monthly-sales-chart", effectiveCompany?.id, yearFilter],
+    queryKey: ["orders-monthly-sales-chart", "annual-v3", effectiveCompany?.id, yearFilter, currentYear],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       const from = new Date();
       let to: Date | null = null;
-      if (hasSelectedYear && selectedYear) {
-        from.setFullYear(selectedYear, 0, 1);
+      if (isYearCorrente || (hasSelectedYear && selectedYear)) {
+        const chartYear = isYearCorrente ? currentYear : selectedYear!;
+        from.setFullYear(chartYear, 0, 1);
         from.setHours(0, 0, 0, 0);
-        to = new Date(selectedYear, 11, 31, 23, 59, 59, 999);
+        to = new Date(chartYear, 11, 31, 23, 59, 59, 999);
       } else {
         from.setMonth(from.getMonth() - 11);
         from.setDate(1);
@@ -407,14 +418,11 @@ function OrdersListInner() {
         .gte("created_at", from.toISOString());
       query = query.is("deleted_at", null);
       if (to) query = query.lte("created_at", to.toISOString());
-      const { data, error } = await query
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return data ?? [];
+      return readAllOrderRows((from,to) => query.order("created_at", {ascending:true}).order("id").range(from,to));
     },
     // Grafico 12 mesi non mostrato su mobile → non scaricare i dati lì.
     enabled: !!effectiveCompany?.id && !isMobile,
-    placeholderData: (previousData) => previousData,
+
     staleTime: 5 * 60 * 1000,
   });
 
@@ -814,7 +822,7 @@ function OrdersListInner() {
   const hasAnyFilter = !!(hasDateFilters || searchQuery || statusFilter !== "all" ||
     paymentFilter !== "all" || customerFilter !== "all" || yearFilter !== "corrente" || amountMin || amountMax ||
     salespersonFilter !== "all" || laborFilter !== "all" || supplierFilter !== "all" ||
-    controlFocus !== "all" || !hideCompleted || countActiveFilters(sidebarFilters) > 0);
+    controlFocus !== "all" || hideCompleted || countActiveFilters(sidebarFilters) > 0);
 
   // 2026-05-27 (perfezione iter 11): dropdown clienti server-side.
   // PRIMA: uniqueCustomers derivato da `orders` (= 20 righe pagina corrente).
@@ -884,7 +892,7 @@ function OrdersListInner() {
     setLaborFilter("all");
     setSupplierFilter("all");
     setControlFocus("all");
-    setHideCompleted(true);
+    setHideCompleted(false);
     setContractDateRange({ from: undefined, to: undefined });
     setWarehouseDateRange({ from: undefined, to: undefined });
     setExpectedDateRange({ from: undefined, to: undefined });
@@ -903,7 +911,7 @@ function OrdersListInner() {
   if (salespersonFilter !== "all") chip("salesperson", "Venditore selezionato", () => setSalespersonFilter("all"));
   if (laborFilter !== "all") chip("labor", "Manodopera selezionata", () => setLaborFilter("all"));
   if (supplierFilter !== "all") chip("supplier", "Fornitore selezionato", () => setSupplierFilter("all"));
-  if (!hideCompleted) chip("completed", "Completati inclusi", () => setHideCompleted(true));
+  if (hideCompleted) chip("completed", "Completati nascosti", () => setHideCompleted(false));
   if (monthFilter === "all" && (contractDateRange.from || contractDateRange.to)) chip("contractRange", "Data contratto", () => {setContractDateRange({from:undefined,to:undefined});setMonthFilter("all");});
   if (warehouseDateRange.from || warehouseDateRange.to) chip("warehouseRange", "Arrivo merce", () => setWarehouseDateRange({from:undefined,to:undefined}));
   if (expectedDateRange.from || expectedDateRange.to) chip("expectedRange", "Data posa", () => setExpectedDateRange({from:undefined,to:undefined}));
@@ -941,8 +949,8 @@ function OrdersListInner() {
     countAssistenza: globalStats?.countAssistenza ?? 0,
     countCompletati: globalStats?.countCompletati ?? 0,
     countDaCompletare: globalStats?.countDaCompletare ?? 0,
-    averageGross: (globalStats?.totalOrders ?? 0) > 0
-      ? (globalStats?.totalGross ?? 0) / (globalStats?.totalOrders ?? 1)
+    averageGross: (globalStats?.annual.count ?? 0) > 0
+      ? (globalStats?.totalGross ?? 0) / (globalStats?.annual.count ?? 1)
       : 0,
   }), [globalStats]);
 
@@ -953,10 +961,10 @@ function OrdersListInner() {
 
   const monthlySalesChart = useMemo(() => {
     const months = Array.from({ length: 12 }, (_, index) => {
-      const date = hasSelectedYear && selectedYear
-        ? new Date(selectedYear, index, 1)
+      const date = isYearCorrente || (hasSelectedYear && selectedYear)
+        ? new Date(isYearCorrente ? currentYear : selectedYear!, index, 1)
         : new Date();
-      if (!(hasSelectedYear && selectedYear)) {
+      if (!(isYearCorrente || (hasSelectedYear && selectedYear))) {
         date.setMonth(date.getMonth() - (11 - index));
       }
       date.setDate(1);
@@ -986,7 +994,7 @@ function OrdersListInner() {
     });
 
     return months;
-  }, [monthlyOrders, hasSelectedYear, selectedYear]);
+  }, [monthlyOrders, hasSelectedYear, selectedYear, isYearCorrente, currentYear]);
 
   const monthlySalesTotals = useMemo(() => {
     return monthlySalesChart.reduce(
@@ -1322,7 +1330,7 @@ function OrdersListInner() {
         </div>
         <div className="flex items-center gap-1.5 flex-wrap justify-start sm:justify-end">
           {/* Qui c'era anche il selettore dell'anno: lo stesso della riga dei
-              filtri sotto (dove ora ha anche «{anno} + aperte precedenti»). */}
+              filtri sotto (dove ora ha anche «{anno} + precedenti da gestire»). */}
           {/* Filtri avanzati */}
           <Button
             variant="outline"
@@ -1487,22 +1495,22 @@ function OrdersListInner() {
       <section className="order-1 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm sm:order-none max-sm:px-3 max-sm:py-2 max-sm:text-[13px]">
         <div className="flex items-baseline gap-1.5">
           <span className="text-lg font-bold leading-none tabular-nums">{isGlobalStatsError || isStatusesError ? "—" : isEconomicStatsLoading ? "…" : stats.totalOrders}</span>
-          <span className="text-muted-foreground">commesse nel periodo</span>
+          <span className="text-muted-foreground">commesse nella vista</span>
           <span className="hidden text-xs text-muted-foreground lg:inline">· {periodLabel}</span>
         </div>
         {orderPerms.canViewOrderAmounts && !analisiAperta && !isEconomicStatsLoading && !isGlobalStatsError && !isStatusesError && (
           <>
             <div className="hidden h-4 w-px bg-border sm:block" aria-hidden />
             <div className="hidden items-baseline gap-1.5 sm:flex">
-              <span className="text-muted-foreground">Venduto</span>
+              <span className="text-muted-foreground">Venduto {isYearCorrente ? currentYear : "periodo"}</span>
               <span className="font-bold tabular-nums">{stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}</span>
             </div>
             <div className="hidden items-baseline gap-1.5 sm:flex">
-              <span className="text-muted-foreground">Incassato</span>
+              <span className="text-muted-foreground">Incassato sulle commesse {isYearCorrente ? currentYear : "del periodo"}</span>
               <span className="font-bold tabular-nums text-emerald-700">{stats.collected.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}</span>
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-muted-foreground">Da incassare</span>
+              <span className="text-muted-foreground">Da incassare {isYearCorrente ? currentYear : "periodo"}</span>
               <span className="font-bold tabular-nums text-amber-700">{stats.pending.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}</span>
             </div>
             {/* Venduto, Incassato e Da incassare sono tutti IVA inclusa, come la
@@ -1548,7 +1556,7 @@ function OrdersListInner() {
                   <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-orange-100">Riepilogo commesse</p>
                   <h2 className="mt-0.5 sm:mt-1 text-base sm:text-xl font-semibold text-white">Vista economica e operativa</h2>
                   <p className="hidden sm:block mt-1 max-w-xl text-sm leading-6 text-blue-50/85">
-                    Numeri principali sempre visibili, senza azioni automatiche sui filtri.
+                    {isYearCorrente ? `Valori economici delle sole commesse ${currentYear}. Pregresso separato nel riepilogo sotto.` : "Valori delle commesse nel periodo selezionato, indipendenti dai filtri sotto."}
                   </p>
                 </div>
               </div>
@@ -1560,7 +1568,7 @@ function OrdersListInner() {
                     <ShoppingBag className="h-4 w-4" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Commesse totali</span>
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{isYearCorrente ? `Commesse ${currentYear}` : "Commesse del periodo"}</span>
                     {isEconomicStatsLoading ? (
                       <>
                         <Skeleton className="mt-1 h-7 w-14 bg-white/20" />
@@ -1568,7 +1576,7 @@ function OrdersListInner() {
                       </>
                     ) : (
                       <>
-                        <span className="block truncate text-xl font-bold text-white">{stats.totalOrders}</span>
+                        <span className="block truncate text-xl font-bold text-white">{isYearCorrente ? globalStats?.annual.count ?? 0 : stats.totalOrders}</span>
                         <span className="mt-0.5 block text-xs text-blue-50/70">
                           media mese {monthlySalesAverages.ordersPerMonth.toLocaleString("it-IT", { maximumFractionDigits: 1 })}
                         </span>
@@ -1588,7 +1596,7 @@ function OrdersListInner() {
                     <Euro className="h-4 w-4" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Totale venduto</span>
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Venduto sulle commesse {isYearCorrente ? currentYear : "del periodo"}</span>
                     {isEconomicStatsLoading ? (
                       <>
                         <Skeleton className="mt-1 h-7 w-28 bg-white/20" />
@@ -1600,7 +1608,7 @@ function OrdersListInner() {
                           {stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
                         </span>
                         <span className="mt-0.5 block text-xs text-blue-50/70">
-                          media commessa {monthlySalesAverages.soldPerOrder.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
+                          media commessa {stats.averageGross.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
                         </span>
                       </>
                     )}
@@ -1614,7 +1622,7 @@ function OrdersListInner() {
                     <TrendingUp className="h-4 w-4" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Incassato</span>
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Incassato sulle commesse {isYearCorrente ? currentYear : "del periodo"}</span>
                     {isEconomicStatsLoading ? (
                       <>
                         <Skeleton className="mt-1 h-7 w-28 bg-white/20" />
@@ -1640,7 +1648,7 @@ function OrdersListInner() {
                     <AlertCircle className="h-4 w-4" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Da incassare</span>
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Da incassare {isYearCorrente ? currentYear : "periodo"}</span>
                     {isEconomicStatsLoading ? (
                       <>
                         <Skeleton className="mt-1 h-7 w-28 bg-white/20" />
@@ -1676,9 +1684,9 @@ function OrdersListInner() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase text-slate-500">
-                  Andamento 12 mesi{hasSelectedYear ? ` · ${selectedYear}` : ""}
+                  {isYearCorrente ? `Anno ${currentYear}` : hasSelectedYear ? `Anno ${selectedYear}` : "Ultimi 12 mesi"}
                 </p>
-                <h3 className="mt-1 text-base font-semibold text-slate-950">Venduto, incassato e commesse</h3>
+                <h3 className="mt-1 text-base font-semibold text-slate-950">Commesse per mese di creazione</h3>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-3 text-xs">
                 <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-blue-500" /> Venduto</span>
@@ -1788,7 +1796,9 @@ function OrdersListInner() {
       </section>
       )}
 
-      <OrdersPeriodSummary counts={{toComplete:stats.countDaCompletare,completed:stats.countCompletati,support:stats.countAssistenza}}
+      {isYearCorrente && globalStats && !isGlobalStatsError && <OrdersAnnualScope year={currentYear} annual={globalStats.annual} previous={globalStats.previous}
+        reasons={globalStats.reasons} showAmounts={orderPerms.canViewOrderAmounts} />}
+      <OrdersPeriodSummary counts={{toComplete:stats.countDaCompletare,completed:stats.countCompletati,support:globalStats?.supportOrderIds.length ?? 0}}
         loading={isWorkflowStatsLoading} failed={isGlobalStatsError || isStatusesError} status={statusFilter} onStatus={setStatusFilter}
         showMargins={orderPerms.canViewMargins} margins={marginGroups} marginLoading={scopeMarginsPending} marginFailed={scopeMarginsError}
         focus={controlFocus} onFocus={setControlFocus} onRetry={() => {void retryStatuses();void retryScopeMargins();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}} />
@@ -1998,6 +2008,7 @@ function OrdersListInner() {
               </div>
 
               <OrdersTable
+                previousReasons={isYearCorrente ? globalStats?.previousReasons : undefined}
                 orders={visibleOrders}
                 onDelete={(id) => deleteOrderMutation.mutate(id)}
                 isDeleting={deleteOrderMutation.isPending}
