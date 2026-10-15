@@ -16,6 +16,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { emailClientStatus } from "@/lib/email/clientStatus";
 import { emailSyncPending } from "@/lib/email/syncPending";
 import { EmailSidebar } from "./components/EmailSidebar";
 import { EmailAiCommandCenter } from "./components/EmailAiCommandCenter";
@@ -94,6 +95,7 @@ interface EmailLayoutProps {
   initialFilter?: FolderFilter;
   companyIdOverride?: string | null;
   settingsPath?: string;
+  aiSettingsPath?: string | null;
   scopedAccountIds?: string[];
 }
 
@@ -102,6 +104,7 @@ export function EmailLayout({
   companyIdOverride,
   settingsPath = "/azienda/impostazioni/mio-profilo",
   scopedAccountIds,
+  aiSettingsPath,
 }: EmailLayoutProps = {}) {
   const { user, effectiveCompany } = useAuth();
   const [searchParams] = useSearchParams();
@@ -286,24 +289,23 @@ export function EmailLayout({
   }, [userId, qc]);
 
   // Connessioni email dell'utente
-  const { data: connections } = useQuery({
+  const { data: connections, isLoading: connectionsLoading, isError: connectionsFailed, refetch: retryConnections } = useQuery({
     queryKey: ["email-client-connections", userId, companyId],
     enabled: !!userId && !!companyId,
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("v_email_oauth_connections_meta")
         .select("id, provider, provider_label, email_address, status, last_synced_at, last_sync_error, consecutive_errors, emails_fetched_total, poll_enabled, poll_interval_minutes, expires_at, last_test_ok, last_test_error")
         .eq("company_id", companyId!)
         .eq("user_id", userId!);
-      return (data ?? []) as Array<{
-        id: string;
-        provider: string;
-        email_address: string;
-        status: string;
-      }>;
+      if (error) throw error;
+      return (data ?? []) as EmailConnectionSummary[];
     },
   });
+
+  const visibleConnections = filter.accountId ? (connections ?? []).filter(c => c.id === filter.accountId) : (connections ?? []);
+  const syncState = emailClientStatus(visibleConnections, connectionsLoading, connectionsFailed, forceSync.isPending, forceSync.isError);
 
   const handleSelectThread = (threadId: string) => {
     setSelectedThreadId(threadId);
@@ -366,6 +368,7 @@ export function EmailLayout({
           <p className="text-sm font-semibold leading-tight truncate">
             <FolderTitle filter={filter.folder} />
           </p>
+          <p role="status" className="text-xs text-muted-foreground">{syncState.label}</p>
           {/* Sotto il titolo solo la casella scelta; «2 caselle» non serviva. */}
           {connections && connections.length > 0 && filter.accountId && (
             <p className="truncate text-[10px] text-slate-500">
@@ -395,19 +398,17 @@ export function EmailLayout({
           </Button>
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <p className="truncate text-lg font-bold text-slate-950">
               <FolderTitle filter={filter.folder} />
             </p>
-            <span
+            <span role="status"
               className={cn(
-                "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                forceSync.isPending
-                  ? "bg-blue-50 text-blue-700"
-                  : "bg-emerald-50 text-emerald-700",
+                "rounded-full px-2 py-0.5 text-xs font-medium",
+                syncState.warning ? "bg-amber-50 text-amber-800" : "bg-slate-100 text-slate-600",
               )}
             >
-              {forceSync.isPending ? "Aggiorno…" : "Aggiornata"}
+              {syncState.label}
             </span>
           </div>
           {connections && connections.length > 0 && (
@@ -455,12 +456,19 @@ export function EmailLayout({
         initialValue={queryCustomerEmail}
         onSearch={(q) => setFilter((f) => ({ ...f, search: q }))}
       />
+      {connectionsFailed ? (
+        <div role="alert" className="m-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
+          <p>Non è stato possibile verificare le caselle collegate.</p>
+          <Button variant="outline" size="sm" className="mt-2" onClick={() => void retryConnections()}>Riprova caselle</Button>
+        </div>
+      ) : connectionsLoading ? <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento caselle…</p> : (
       <EmailList
         filter={filter}
         scopedAccountIds={scopedAccountIds ?? (companyIdOverride ? (connections ?? []).map((connection) => connection.id) : undefined)}
         selectedThreadId={selectedThreadId}
         onSelectThread={handleSelectThread}
       />
+      )}
     </>
   );
 
@@ -506,6 +514,7 @@ export function EmailLayout({
           onCompose={() => openCompose({ mode: "new" })}
           connections={connections ?? []}
           settingsPath={settingsPath}
+          aiSettingsPath={aiSettingsPath}
         />
       </aside>
 
@@ -537,6 +546,7 @@ export function EmailLayout({
           >
             <EmailViewer
               threadId={selectedThreadId}
+              scopedAccountIds={scopedAccountIds ?? (companyIdOverride ? (connections ?? []).map(c => c.id) : undefined)}
               onBack={() => setMobilePane("list")}
               onClose={() => {
                 setSelectedThreadId(null);

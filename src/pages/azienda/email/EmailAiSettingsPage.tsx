@@ -19,12 +19,12 @@ import { SequenzeManager } from "@/components/email-ai/SequenzeManager";
 import { SilvioHub } from "@/components/silvio/SilvioHub";
 import { EmailPipelineStatus } from "@/components/email-ai/EmailPipelineStatus";
 
-export default function EmailAiSettingsPage() {
+export default function EmailAiSettingsPage({ backPath = "/azienda/email" }: { backPath?: string } = {}) {
   return (
     <div className="mx-auto w-full max-w-5xl px-3 py-4 sm:px-4 sm:py-6">
       <div className="mb-4 flex items-center gap-3">
         <Link
-          to="/azienda/email"
+          to={backPath}
           className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-blue-100 text-blue-700 transition-colors hover:bg-blue-50"
           aria-label="Torna alla casella"
         >
@@ -39,7 +39,7 @@ export default function EmailAiSettingsPage() {
       </div>
 
       <Tabs defaultValue="giornata" className="w-full">
-        <TabsList className="mb-4 grid w-full max-w-4xl grid-cols-4 sm:grid-cols-8">
+        <TabsList className="mb-4 grid h-auto w-full max-w-4xl grid-cols-2 gap-1 sm:grid-cols-4 xl:grid-cols-8">
           <TabsTrigger value="giornata" className="gap-1.5">
             <Sun className="h-4 w-4" /> Giornata
           </TabsTrigger>

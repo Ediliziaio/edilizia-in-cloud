@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MessagesSquare, Users } from "lucide-react";
@@ -23,10 +22,14 @@ export default function ChatHub({ companyIdOverride }: ChatHubProps = {}) {
   // 20270704000000 non è applicata; diventerà default quando l'inbox sarà attivo.
   // `?tab=conversazioni` apre direttamente l'inbox: lo usano gli avvisi «ti ha
   // risposto per email», che devono portare al filo e non alla chat del team.
-  const [params] = useSearchParams();
-  const [tab, setTab] = useState<"conversazioni" | "team">(
-    params.get("tab") === "conversazioni" ? "conversazioni" : "team",
-  );
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") === "conversazioni" ? "conversazioni" : "team";
+  const setTab = (value: string) => {
+    const next = new URLSearchParams(params);
+    if (value === "conversazioni") next.set("tab", "conversazioni");
+    else next.delete("tab");
+    setParams(next, { replace: true });
+  };
 
   // h-full riempie il content-box di <main> (che ha altezza bloccata e scroll
   // proprio) → dentro la chat NON si scrolla la pagina: ogni colonna ha la sua
@@ -37,7 +40,7 @@ export default function ChatHub({ companyIdOverride }: ChatHubProps = {}) {
     <div data-chat-hub className="h-full min-h-0 overflow-hidden flex flex-col -mx-3 -mb-24 sm:mx-0 sm:mb-0">
       <Tabs
         value={tab}
-        onValueChange={(v) => setTab(v as "conversazioni" | "team")}
+        onValueChange={setTab}
         className="flex flex-col flex-1 min-h-0"
       >
         <TabsList data-chat-hub-tabs className="shrink-0 self-start mb-2 md:mx-3 md:mt-2">

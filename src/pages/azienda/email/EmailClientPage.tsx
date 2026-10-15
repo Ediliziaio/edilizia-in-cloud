@@ -360,12 +360,14 @@ interface EmailClientPageProps {
   emptyStateSettingsPath?: string;
   /** Contesto applicativo — influenza il testo dello stato vuoto/loading. */
   emailContext?: "azienda" | "admin";
+  aiSettingsPath?: string | null;
 }
 
 export default function EmailClientPage({
   settingsPath,
   emptyStateSettingsPath,
   emailContext = "azienda",
+  aiSettingsPath,
 }: EmailClientPageProps = {}) {
   const { user, effectiveCompany } = useAuth();
   const userId = user?.id;
@@ -463,7 +465,7 @@ export default function EmailClientPage({
     );
   }
 
-  return <EmailLayout settingsPath={settingsPath} />;
+  return <EmailLayout settingsPath={settingsPath} companyIdOverride={emailContext === "admin" ? companyId : undefined} aiSettingsPath={emailContext === "admin" && aiSettingsPath === undefined ? "/admin/email/ai" : aiSettingsPath} />;
 }
 
 // ───────────────────────────────────────────────────────────────────────────

@@ -59,6 +59,7 @@ const ROUTE_MAP: Record<string, string> = {
   "/admin/impostazioni/preferenze-email": "Preferenze email",
   "/admin/impostazioni/dominio-email": "Dominio email",
   "/admin/email": "Email",
+  "/admin/email/ai": "AI della casella email",
   "/admin/impostazioni/piattaforma": "Piattaforma",
   "/admin/impostazioni/sequenze": "Pipeline di vendita",
   "/admin/impostazioni/notifiche": "Notifiche",
