@@ -7,6 +7,8 @@ import {format} from "date-fns";
 
 export interface OrdersReaderFilters {
   companyId: string | undefined;
+  periodIds?: string[] | null;
+  supportOrderIds?: string[];
   focusIds: string[] | null;
   paymentIds: string[] | null;
   salespersonFilter: string; laborFilter: string; supplierFilter: string;
@@ -27,9 +29,11 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
       if (!companyId) return { orders: [] as OrderWithDetails[], totalCount: 0 };
 
       // Join filters are resolved before the main order query and pagination.
-      let allowedOrderIds: string[] | null = focusIds;
+      let allowedOrderIds: string[] | null = filters.periodIds ?? null;
       const intersect = (ids: string[]) => { allowedOrderIds = allowedOrderIds === null ? ids : allowedOrderIds.filter(id => ids.includes(id)); };
 
+      if (focusIds !== null) intersect(focusIds);
+      if (statusFilter === "__assistenza__" && filters.supportOrderIds) intersect(filters.supportOrderIds);
       if (paymentIds !== null) intersect(paymentIds);
 
       if (salespersonFilter !== "all") {
@@ -137,7 +141,8 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
         if (excl.length) query = query.or(`current_status_id.not.in.(${excl.join(",")}),current_status_id.is.null`);
       } else if (statusFilter === "__assistenza__") {
         // Sentinel "Assistenza": solo ordini in fase Assistenza
-        if (supportStatusId) query = query.eq("current_status_id", supportStatusId);
+        if (filters.supportOrderIds) { /* resolved tickets and workflow scope above */ }
+        else if (supportStatusId) query = query.eq("current_status_id", supportStatusId);
         else return {orders:[],totalCount:0};
       } else if (statusFilter === "__completati__") {
         if (lastStatusId) query = query.eq("current_status_id", lastStatusId);
@@ -151,14 +156,7 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
       if (amountMin) query = query.gte("total_amount", parseFloat(amountMin));
       if (amountMax) query = query.lte("total_amount", parseFloat(amountMax));
       if (isYearCorrente && monthFilter === "all") {
-        // Anno corrente + non chiuse dei precedenti: una commessa 2025 ancora
-        // aperta è lavoro vivo, non deve sparire col cambio d'anno.
-        const inizioAnno = new Date(currentYear, 0, 1).toISOString();
-        if (lastStatusId) {
-          query = query.or(`created_at.gte.${inizioAnno},current_status_id.neq.${lastStatusId},current_status_id.is.null`);
-        } else {
-          query = query.gte("created_at", inizioAnno);
-        }
+        if (!filters.periodIds) throw new Error("Perimetro annuale non disponibile");
       } else if (hasSelectedYear && selectedYear && monthFilter === "all") {
         query = query
           .gte("created_at", new Date(selectedYear, 0, 1).toISOString())

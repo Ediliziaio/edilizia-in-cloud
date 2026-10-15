@@ -64,7 +64,7 @@ export function OrdersFilters({
   const advancedFiltersCount = [
     statusFilter !== "all",
     paymentFilter !== "all",
-    // «corrente» (anno in corso + aperte precedenti) è il valore di partenza,
+    // «corrente» (anno in corso + precedenti da gestire) è il valore di partenza,
     // non un filtro scelto: contato come attivo, su mobile i filtri si
     // aprivano da soli e il badge diceva sempre «1».
     yearFilter !== "all" && yearFilter !== "corrente",
@@ -113,11 +113,12 @@ export function OrdersFilters({
           size="sm"
           onClick={() => onHideCompletedChange(!hideCompleted)}
           className="tap-compact h-10 shrink-0 max-sm:h-9 max-sm:w-9 max-sm:p-0 sm:order-last sm:h-9"
-          aria-label="Mostra solo commesse in corso"
-          title="In Corso"
+          aria-label="Nascondi commesse con lavori completati"
+          aria-pressed={hideCompleted}
+          title="Nascondi commesse con lavori completati"
         >
           <CheckCircle2 className="h-4 w-4 sm:mr-2" />
-          <span className="hidden sm:inline">In Corso</span>
+          <span className="hidden sm:inline">Nascondi completate</span>
         </Button>
         {hasAnyFilter && (
           <Button variant="ghost" size="icon" onClick={onClearAllFilters} className="tap-compact h-10 w-10 text-muted-foreground/60 hover:text-muted-foreground shrink-0 max-sm:h-9 max-sm:w-7 sm:order-last sm:h-9 sm:w-9" aria-label="Cancella tutti i filtri">
@@ -169,7 +170,7 @@ export function OrdersFilters({
             <SelectContent>
               {/* La scelta di partenza della pagina: senza questa voce, col
                   valore «corrente» il campo restava vuoto (solo l'icona). */}
-              <SelectItem value="corrente">{new Date().getFullYear()} + aperte precedenti</SelectItem>
+              <SelectItem value="corrente">{new Date().getFullYear()} + precedenti da gestire</SelectItem>
               <SelectItem value="all">Tutti gli anni</SelectItem>
               {availableYears.map((year) => (
                 <SelectItem key={year} value={String(year)}>{year}</SelectItem>
