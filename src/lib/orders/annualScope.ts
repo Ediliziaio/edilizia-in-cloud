@@ -26,3 +26,8 @@ export function orderEconomics(orders: OrderWithDetails[]) {
     pending: total.pending + getAmountDue(order),
   }), {count: 0, sold: 0, collected: 0, pending: 0});
 }
+
+export type OrderScopeGroup = "all" | "annual" | "previous";
+export function orderScopeGroupIds(orders: OrderWithDetails[], group: OrderScopeGroup, year: number): string[] {
+  return orders.filter(order => group === "all" || (group === "annual" ? orderYear(order) === year : orderYear(order) < year)).map(order => order.id);
+}

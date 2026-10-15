@@ -1,17 +1,30 @@
-import {afterEach,describe,expect,it} from "vitest";
-import {cleanup,render,screen} from "@testing-library/react";
-import {OrdersAnnualScope} from "@/components/orders/OrdersAnnualScope";
+import {afterEach,describe,expect,it,vi} from "vitest";
+import {cleanup,fireEvent,render,screen} from "@testing-library/react";
+import {OrdersAnnualScope,OrdersCarryoverSummary} from "@/components/orders/OrdersAnnualScope";
 afterEach(cleanup);
-const props={year:2026,annual:{count:80,sold:1000,collected:600,pending:400},previous:{count:14,sold:200,collected:100,pending:100},reasons:{work:10,support:5,payment:6},showAmounts:true};
-describe("Distinzione annuale e pregresso",()=>{
-  it("spiega conteggi distinti e motivi sovrapposti senza sommarli",()=>{
-    render(<OrdersAnnualScope {...props}/>);
-    const section=screen.getByRole("region",{name:"Anno corrente e precedenti da gestire"});
-    expect(section).toHaveTextContent("2026: 80");expect(section).toHaveTextContent("Anni precedenti da gestire: 14");expect(section).toHaveTextContent("Totale nella vista: 94");
-    expect(section).toHaveTextContent("viene contata una volta sola");expect(section).toHaveTextContent("non i movimenti di cassa avvenuti nell’anno");
+const previous={count:15,sold:200,collected:100,pending:100};
+describe("Navigazione annuale senza riepiloghi duplicati",()=>{
+  it("seleziona anno, pregresso e totale con stato accessibile",()=>{
+    const onChange=vi.fn();render(<OrdersAnnualScope year={2026} annualCount={82} previousCount={15} selected="all" onChange={onChange}/>);
+    expect(screen.getByRole("button",{name:"Totale 97"})).toHaveAttribute("aria-pressed","true");
+    fireEvent.click(screen.getByRole("button",{name:"2026 82"}));expect(onChange).toHaveBeenLastCalledWith("annual");
+    fireEvent.click(screen.getByRole("button",{name:"Pregresso 15"}));expect(onChange).toHaveBeenLastCalledWith("previous");
+    fireEvent.click(screen.getByRole("button",{name:"Totale 97"}));expect(onChange).toHaveBeenLastCalledWith("all");
+    expect(screen.queryByText(/Venduto/)).not.toBeInTheDocument();
   });
-  it("non espone importi ai ruoli senza permesso",()=>{
-    render(<OrdersAnnualScope {...props} showAmounts={false}/>);
-    expect(screen.queryByText(/IVA inclusa/)).not.toBeInTheDocument();expect(screen.getByText(/Totale nella vista/)).toBeInTheDocument();
+  it("non presenta uno zero cliccabile quando i conteggi non sono disponibili",()=>{
+    render(<OrdersAnnualScope year={2026} annualCount={0} previousCount={0} selected="all" onChange={vi.fn()} failed/>);
+    expect(screen.getByRole("button",{name:"2026 —"})).toBeDisabled();expect(screen.getByRole("button",{name:"Pregresso —"})).toBeDisabled();
+  });
+  it("mantiene i dettagli economici del pregresso nel pannello espandibile",()=>{
+    render(<OrdersCarryoverSummary previous={previous} reasons={{work:0,support:12,payment:3}} showAmounts/>);
+    const summary=screen.getByText(/Pregresso da gestire/).closest("summary")!;
+    expect(summary).toHaveTextContent("15 commesse");expect(summary).toHaveTextContent("12 assistenze");expect(summary).toHaveTextContent("Da incassare");
+    expect(summary.parentElement).not.toHaveAttribute("open");fireEvent.click(summary);expect(summary.parentElement).toHaveAttribute("open");
+    expect(screen.getByText(/Venduto/)).toBeVisible();
+  });
+  it("non espone importi nel pregresso ai ruoli senza permesso",()=>{
+    render(<OrdersCarryoverSummary previous={previous} reasons={{work:0,support:12,payment:3}} showAmounts={false}/>);
+    expect(screen.queryByText(/Da incassare/)).not.toBeInTheDocument();expect(screen.queryByText(/Venduto/)).not.toBeInTheDocument();
   });
 });

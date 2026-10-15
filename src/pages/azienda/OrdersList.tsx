@@ -1,5 +1,5 @@
-import {OrdersAnnualScope} from "@/components/orders/OrdersAnnualScope";
-import {currentManagementScope, orderEconomics, orderYear, previousOrderReasons} from "@/lib/orders/annualScope";
+import {OrdersAnnualScope, OrdersCarryoverSummary} from "@/components/orders/OrdersAnnualScope";
+import {currentManagementScope, orderEconomics, orderYear, previousOrderReasons, orderScopeGroupIds, type OrderScopeGroup} from "@/lib/orders/annualScope";
 import {TICKET_STATI_CHIUSI} from "@/types/tickets";
 import {OrdersPeriodSummary} from "@/components/orders/OrdersPeriodSummary";
 import {readOrdersPage} from "@/lib/orders/listQuery";
@@ -104,6 +104,7 @@ function OrdersListInner() {
     laborFilter: { key: "manodopera", defaultValue: "all" },
     supplierFilter: { key: "fornitore", defaultValue: "all" },
     controlFocus: { key: "focus", defaultValue: "all" },
+    scopeGroup: {key:"gruppo",defaultValue:"all"},
     advancedFilters: { key: "avanzati", defaultValue: "" },
     contractFrom: {key:"contratto_dal", defaultValue:""}, contractTo: {key:"contratto_al", defaultValue:""},
     warehouseFrom: {key:"merce_dal", defaultValue:""}, warehouseTo: {key:"merce_al", defaultValue:""},
@@ -142,6 +143,8 @@ function OrdersListInner() {
   const setSupplierFilter = useCallback((v: string) => setURLParam("supplierFilter", v), [setURLParam]);
   const controlFocus = (urlFilters.controlFocus in ORDER_FOCUS_LABELS ? urlFilters.controlFocus : "all") as OrderFocus;
   const setControlFocus = useCallback((v: OrderFocus) => setURLParam("controlFocus", v), [setURLParam]);
+  const scopeGroup: OrderScopeGroup = urlFilters.scopeGroup === "annual" || urlFilters.scopeGroup === "previous" ? urlFilters.scopeGroup : "all";
+  const setScopeGroup = (group: OrderScopeGroup) => setURLParam("scopeGroup",group);
   const hideCompleted = urlFilters.hideCompleted;
   const setHideCompleted = useCallback((v: boolean) => setURLParam("hideCompleted", v), [setURLParam]);
   const dateFromURL = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) ? new Date(`${value}T00:00:00`) : undefined;
@@ -312,6 +315,7 @@ function OrdersListInner() {
     scopeOrders.filter(order => matchesOrderPayment(order, paymentFilter) && matchesOrderPayment(order, sidebarFilters.paymentStatus)).map(order => order.id),
     [scopeOrders, paymentFilter, sidebarFilters.paymentStatus]);
   const scopeOrderIds = useMemo(() => scopeOrders.map(order => order.id), [scopeOrders]);
+  const listScopeIds = useMemo(() => orderScopeGroupIds(scopeOrders,scopeGroup,currentYear), [scopeOrders,scopeGroup,currentYear]);
   const {data: scopeMargins, isPending: scopeMarginsPending, isError: scopeMarginsError, refetch: retryScopeMargins} = useQuery({
     queryKey: ["orders-margin-scope", effectiveCompany?.id, scopeOrderIds],
     enabled: !!effectiveCompany?.id && !!globalStats && (orderPerms.canViewMargins || orderPerms.canViewCosts),
@@ -345,15 +349,15 @@ function OrdersListInner() {
   function filterReaderKey() {
     return JSON.stringify([debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, monthFilter,
       amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId,
-      contractDateRange, warehouseDateRange, expectedDateRange, sidebarFilters, focusIds, paymentIds, scopeOrderIds, globalStats?.supportOrderIds]);
+      contractDateRange, warehouseDateRange, expectedDateRange, sidebarFilters, focusIds, paymentIds, listScopeIds, globalStats?.supportOrderIds]);
   }
 
   const fetchOrderRows = (from: number, to: number) => readOrdersPage({
-    companyId:effectiveCompany?.id, periodIds:isYearCorrente ? scopeOrderIds : null, supportOrderIds:globalStats?.supportOrderIds, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
+    companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:globalStats?.supportOrderIds, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
   },from,to);
 
   const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, isFetching: isOrdersFetching, error: ordersError, refetch: refetchOrders } = useQuery({
-    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, scopeOrderIds, globalStats?.supportOrderIds],
+    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, listScopeIds, globalStats?.supportOrderIds],
     queryFn: () => fetchOrderRows((page - 1) * pageSize, page * pageSize - 1),
     enabled: !!effectiveCompany?.id && focusReady && !isLoadingStatuses && !isStatusesError,
     placeholderData: (previousData, previousQuery) => previousQuery?.queryKey[1] === effectiveCompany?.id ? previousData : undefined,
@@ -828,7 +832,7 @@ function OrdersListInner() {
   const hasAnyFilter = !!(hasDateFilters || searchQuery || statusFilter !== "all" ||
     paymentFilter !== "all" || customerFilter !== "all" || yearFilter !== "corrente" || amountMin || amountMax ||
     salespersonFilter !== "all" || laborFilter !== "all" || supplierFilter !== "all" ||
-    controlFocus !== "all" || hideCompleted || countActiveFilters(sidebarFilters) > 0);
+    controlFocus !== "all" || (isYearCorrente && scopeGroup !== "all") || hideCompleted || countActiveFilters(sidebarFilters) > 0);
 
   // 2026-05-27 (perfezione iter 11): dropdown clienti server-side.
   // PRIMA: uniqueCustomers derivato da `orders` (= 20 righe pagina corrente).
@@ -898,6 +902,7 @@ function OrdersListInner() {
     setLaborFilter("all");
     setSupplierFilter("all");
     setControlFocus("all");
+    setScopeGroup("all");
     setHideCompleted(false);
     setContractDateRange({ from: undefined, to: undefined });
     setWarehouseDateRange({ from: undefined, to: undefined });
@@ -917,6 +922,7 @@ function OrdersListInner() {
   if (salespersonFilter !== "all") chip("salesperson", "Venditore selezionato", () => setSalespersonFilter("all"));
   if (laborFilter !== "all") chip("labor", "Manodopera selezionata", () => setLaborFilter("all"));
   if (supplierFilter !== "all") chip("supplier", "Fornitore selezionato", () => setSupplierFilter("all"));
+  if (isYearCorrente && scopeGroup !== "all") chip("scopeGroup",scopeGroup === "annual" ? `Solo ${currentYear}` : "Solo pregresso da gestire",()=>setScopeGroup("all"));
   if (hideCompleted) chip("completed", "Completati nascosti", () => setHideCompleted(false));
   if (monthFilter === "all" && (contractDateRange.from || contractDateRange.to)) chip("contractRange", "Data contratto", () => {setContractDateRange({from:undefined,to:undefined});setMonthFilter("all");});
   if (warehouseDateRange.from || warehouseDateRange.to) chip("warehouseRange", "Arrivo merce", () => setWarehouseDateRange({from:undefined,to:undefined}));
@@ -930,11 +936,12 @@ function OrdersListInner() {
   };
   const handleYearChange = (value: string) => {
     setYearFilter(value);
+    setScopeGroup("all");
     setPage(1);
   };
 
   // Reset page to 1 when any filter changes
-  const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${customerFilter}|${yearFilter}|${amountMin}|${amountMax}|${monthFilter}|${salespersonFilter}|${laborFilter}|${supplierFilter}|${controlFocus}|${hideCompleted}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}|${JSON.stringify(sidebarFilters)}`;
+  const filterKey = `${searchQuery}|${statusFilter}|${paymentFilter}|${customerFilter}|${yearFilter}|${amountMin}|${amountMax}|${monthFilter}|${salespersonFilter}|${laborFilter}|${supplierFilter}|${controlFocus}|${scopeGroup}|${hideCompleted}|${contractDateRange.from}|${contractDateRange.to}|${warehouseDateRange.from}|${warehouseDateRange.to}|${expectedDateRange.from}|${expectedDateRange.to}|${JSON.stringify(sidebarFilters)}`;
   // Il reset e' intenzionale: evita di lasciare l'utente su una pagina vuota
   // quando un filtro server-side riduce il numero totale di risultati.
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -1016,12 +1023,12 @@ function OrdersListInner() {
   const monthlySalesAverages = useMemo(() => {
     const months = Math.max(1, monthlySalesChart.length);
     return {
-      ordersPerMonth: monthlySalesTotals.commesse / months,
+      ordersPerMonth: (isYearCorrente || hasSelectedYear ? globalStats?.annual.count ?? 0 : monthlySalesTotals.commesse) / months,
       soldPerOrder: monthlySalesTotals.commesse > 0 ? monthlySalesTotals.venduto / monthlySalesTotals.commesse : 0,
-      collectedPerMonth: monthlySalesTotals.incassato / months,
+      collectedPerMonth: (isYearCorrente || hasSelectedYear ? stats.collected : monthlySalesTotals.incassato) / months,
       pendingRatio: stats.totalGross > 0 ? (stats.pending / stats.totalGross) * 100 : 0,
     };
-  }, [monthlySalesChart.length, monthlySalesTotals, stats.pending, stats.totalGross]);
+  }, [monthlySalesChart.length, monthlySalesTotals, stats.pending, stats.totalGross, stats.collected, isYearCorrente, hasSelectedYear, globalStats?.annual.count]);
 
   // Export CSV
   // M2 — Export CSV con tutti i filtri attivi (non solo i 20 della pagina corrente)
@@ -1303,10 +1310,9 @@ function OrdersListInner() {
     return { success, errors };
   }, [effectiveCompany, queryClient, refreshOrderScope]);
 
-  const hasStatsError = isStatusesError || (isGlobalStatsError && !globalStats) || (isMonthlyOrdersError && monthlyOrders.length === 0);
+  const hasStatsError = isStatusesError || (isGlobalStatsError && !globalStats);
   const isEconomicStatsLoading = !!effectiveCompany?.id && !hasStatsError && (
     isLoadingGlobalStats ||
-    isLoadingMonthlyOrders ||
     !globalStats
   );
   const isWorkflowStatsLoading = isEconomicStatsLoading || (!!effectiveCompany?.id && isLoadingStatuses);
@@ -1492,68 +1498,11 @@ function OrdersListInner() {
         />
       )}
 
-      {/* Audit UX 2026-09: la prima commessa stava a ~1.655px dall'alto perché
-          il blocco analitico (KPI scuri + grafico 12 mesi) veniva PRIMA della
-          lista, ogni volta. Ora: striscia con i numeri chiave sempre visibile,
-          blocco ricco a richiesta con stato ricordato. Chi apre la pagina per
-          TROVARE una commessa non paga più il pedaggio; chi vuole l'analisi la
-          apre una volta e la ritrova aperta. */}
-      <section className="order-1 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm shadow-sm sm:order-none max-sm:px-3 max-sm:py-2 max-sm:text-[13px]">
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-lg font-bold leading-none tabular-nums">{isGlobalStatsError || isStatusesError ? "—" : isEconomicStatsLoading ? "…" : stats.totalOrders}</span>
-          <span className="text-muted-foreground">commesse nella vista</span>
-          <span className="hidden text-xs text-muted-foreground lg:inline">· {periodLabel}</span>
-        </div>
-        {orderPerms.canViewOrderAmounts && !analisiAperta && !isEconomicStatsLoading && !isGlobalStatsError && !isStatusesError && (
-          <>
-            <div className="hidden h-4 w-px bg-border sm:block" aria-hidden />
-            <div className="hidden items-baseline gap-1.5 sm:flex">
-              <span className="text-muted-foreground">Venduto {isYearCorrente ? currentYear : "periodo"}</span>
-              <span className="font-bold tabular-nums">{stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}</span>
-            </div>
-            <div className="hidden items-baseline gap-1.5 sm:flex">
-              <span className="text-muted-foreground">Incassato sulle commesse {isYearCorrente ? currentYear : "del periodo"}</span>
-              <span className="font-bold tabular-nums text-emerald-700">{stats.collected.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}</span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-muted-foreground">Da incassare {isYearCorrente ? currentYear : "periodo"}</span>
-              <span className="font-bold tabular-nums text-amber-700">{stats.pending.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}</span>
-            </div>
-            {/* Venduto, Incassato e Da incassare sono tutti IVA inclusa, come la
-                colonna "Tot. Ivato" della tabella: così i tre numeri si leggono
-                sulla stessa base. */}
-            <span className="hidden text-[11px] text-muted-foreground sm:inline">IVA inclusa</span>
-          </>
-        )}
-        <button
-          type="button"
-          onClick={toggleAnalisi}
-          className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground max-sm:hidden"
-        >
-          <PieChart className="h-3.5 w-3.5" />
-          {analisiAperta ? "Nascondi analisi" : "Analisi"}
-          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${analisiAperta ? "rotate-180" : ""}`} />
-        </button>
-      </section>
-
-      {/* A striscia chiusa, l'allerta "cantieri che finanzi tu" resta visibile:
-          è l'unico pezzo azionabile del blocco. empty:hidden — se il componente
-          non ha nulla da dire (rende null), sparisce anche la cornice scura. */}
-      {!analisiAperta && orderPerms.canViewOrderAmounts && orderPerms.canViewCosts && (
-        <div className="order-1 rounded-xl bg-eic-navy-deep px-2 pb-2 empty:hidden sm:order-none [&:not(:has(*))]:hidden max-sm:p-1.5">
-          <EsposizioneFlotta
-            companyId={effectiveCompany?.id}
-            excludeStatusIds={[lastStatusId]}
-          />
-        </div>
-      )}
-
-      {analisiAperta && (
       <section className="order-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
         {/* 50/50: a 0.58fr il pannello blu strozzava i numeri ("1.794.1…"). */}
-        <div className="grid gap-0 xl:grid-cols-2">
+        <div className={`grid gap-0 ${analisiAperta && orderPerms.canViewOrderAmounts && !isMobile ? "xl:grid-cols-2" : ""}`}>
           <div className="bg-eic-navy-deep p-3 sm:p-5 md:p-6 text-white">
-            <div className="flex items-start gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
                 <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
                   <Target className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -1562,12 +1511,19 @@ function OrdersListInner() {
                   <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-orange-100">Riepilogo commesse</p>
                   <h2 className="mt-0.5 sm:mt-1 text-base sm:text-xl font-semibold text-white">Vista economica e operativa</h2>
                   <p className="hidden sm:block mt-1 max-w-xl text-sm leading-6 text-blue-50/85">
-                    {isYearCorrente ? `Valori economici delle sole commesse ${currentYear}. Pregresso separato nel riepilogo sotto.` : "Valori delle commesse nel periodo selezionato, indipendenti dai filtri sotto."}
+                    {isYearCorrente ? `Valori delle commesse ${currentYear} · IVA inclusa. Pregresso separato qui sotto.` : "Valori delle commesse nel periodo selezionato, indipendenti dai filtri sotto."}
                   </p>
                 </div>
               </div>
+              {orderPerms.canViewOrderAmounts && !isMobile && <button type="button" onClick={toggleAnalisi}
+                aria-expanded={analisiAperta} aria-controls="orders-annual-chart"
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/20 px-3 py-2 text-xs text-blue-50 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">
+                <PieChart className="h-3.5 w-3.5" />{analisiAperta ? "Nascondi andamento" : "Mostra andamento"}
+                <ChevronDown className={`h-3.5 w-3.5 ${analisiAperta ? "rotate-180" : ""}`} />
+              </button>}
             </div>
-            <div className="mt-3 sm:mt-6 grid gap-2 sm:gap-3 grid-cols-2">
+            {(isGlobalStatsError || isStatusesError) && <div role="alert" className="mt-3 rounded-lg border border-amber-300/40 p-3 text-sm text-amber-100">Riepilogo non disponibile. <button type="button" className="underline" onClick={()=>{void retryStatuses();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</button></div>}
+            {!isGlobalStatsError && !isStatusesError && <div className={`mt-3 grid gap-2 sm:gap-3 grid-cols-2 ${analisiAperta ? "" : "lg:grid-cols-4"}`}>
               <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
@@ -1674,7 +1630,13 @@ function OrdersListInner() {
                 </div>
               </div>
               </>)}
-            </div>
+            </div>}
+            {isYearCorrente && globalStats && !isGlobalStatsError && !isStatusesError && <OrdersCarryoverSummary
+              previous={globalStats.previous} reasons={globalStats.reasons} showAmounts={orderPerms.canViewOrderAmounts} />}
+            <details className="mt-3 text-xs text-blue-100">
+              <summary className="cursor-pointer rounded py-1 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">Come vengono calcolati?</summary>
+              <p className="mt-2 max-w-3xl leading-relaxed">L’anno della commessa è quello di creazione. Il riepilogo annuale include anche le completate e rimane indipendente dai filtri dell’elenco. Gli importi sono IVA inclusa. “Incassato” indica quanto riscosso su quelle commesse, non i movimenti di cassa avvenuti nell’anno. I motivi del pregresso possono sovrapporsi senza duplicare le commesse.</p>
+            </details>
             {/* Cantieri finanziati dall'azienda: appare solo quando esiste il
                 problema (saldo cassa negativo su commesse aperte). */}
             {orderPerms.canViewOrderAmounts && orderPerms.canViewCosts && (
@@ -1685,8 +1647,8 @@ function OrdersListInner() {
             )}
           </div>
 
-          {orderPerms.canViewOrderAmounts && !isMobile && (
-          <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-3 sm:p-5 xl:border-l xl:border-t-0">
+          {analisiAperta && orderPerms.canViewOrderAmounts && !isMobile && (
+          <aside id="orders-annual-chart" className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-3 sm:p-5 xl:border-l xl:border-t-0">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase text-slate-500">
@@ -1701,41 +1663,8 @@ function OrdersListInner() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-blue-100 bg-white px-3 py-2 shadow-sm">
-                <p className="text-[10px] font-semibold uppercase text-slate-500">Venduto periodo</p>
-                {isEconomicStatsLoading ? (
-                  <Skeleton className="mt-1 h-5 w-20" />
-                ) : (
-                  <p className="mt-0.5 text-base font-bold text-slate-950">
-                    {monthlySalesTotals.venduto.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
-                  </p>
-                )}
-              </div>
-              <div className="rounded-xl border border-orange-100 bg-white px-3 py-2 shadow-sm">
-                <p className="text-[10px] font-semibold uppercase text-slate-500">Incassato periodo</p>
-                {isEconomicStatsLoading ? (
-                  <Skeleton className="mt-1 h-5 w-20" />
-                ) : (
-                  <p className="mt-0.5 text-base font-bold text-orange-600">
-                    {monthlySalesTotals.incassato.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
-                  </p>
-                )}
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-                <p className="text-[10px] font-semibold uppercase text-slate-500">Commesse periodo</p>
-                {isEconomicStatsLoading ? (
-                  <Skeleton className="mt-1 h-5 w-12" />
-                ) : (
-                  <p className="mt-0.5 text-base font-bold text-slate-950">
-                    {monthlySalesTotals.commesse.toLocaleString("it-IT")}
-                  </p>
-                )}
-              </div>
-            </div>
-
             <div className="mt-4 h-[240px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
-              {isEconomicStatsLoading ? (
+              {isMonthlyOrdersError ? <div role="alert" className="p-4 text-sm text-amber-800">Andamento non disponibile. <Button variant="outline" size="sm" onClick={()=>void queryClient.invalidateQueries({queryKey:["orders-monthly-sales-chart"]})}>Riprova grafico</Button></div> : isLoadingMonthlyOrders ? (
                 <div className="flex h-full items-end gap-2 px-2 pb-4">
                   {[60, 92, 48, 130, 78, 155, 105, 184].map((height, index) => (
                     <Skeleton key={index} className="flex-1 rounded-t-md" style={{ height }} />
@@ -1800,10 +1729,6 @@ function OrdersListInner() {
           )}
         </div>
       </section>
-      )}
-
-      {isYearCorrente && globalStats && !isGlobalStatsError && <OrdersAnnualScope year={currentYear} annual={globalStats.annual} previous={globalStats.previous}
-        reasons={globalStats.reasons} showAmounts={orderPerms.canViewOrderAmounts} />}
       <OrdersPeriodSummary counts={{toComplete:stats.countDaCompletare,completed:stats.countCompletati,support:globalStats?.supportOrderIds.length ?? 0}}
         loading={isWorkflowStatsLoading} failed={isGlobalStatsError || isStatusesError} status={statusFilter} onStatus={setStatusFilter}
         showMargins={orderPerms.canViewMargins} margins={marginGroups} marginLoading={scopeMarginsPending} marginFailed={scopeMarginsError}
@@ -1858,6 +1783,9 @@ function OrdersListInner() {
           />
 
           <OrdersActiveFilters filters={activeFilterChips} onReset={clearAllFilters} />
+          {isYearCorrente && <OrdersAnnualScope year={currentYear} annualCount={globalStats?.annual.count ?? 0} previousCount={globalStats?.previous.count ?? 0}
+            selected={scopeGroup} onChange={setScopeGroup} loading={isLoadingGlobalStats || isLoadingStatuses || !globalStats}
+            failed={isGlobalStatsError || isStatusesError} />}
 
           <div role="status" aria-live="polite" className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-slate-600">
             <span><strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati con i filtri attuali</span>
