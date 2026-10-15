@@ -10,6 +10,8 @@
  * dell'azienda non compare niente: il blocco esiste solo quando c'è il
  * problema.
  */
+import { useState } from "react";
+import {readAllOrderRows} from "@/lib/orders/listScope";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,36 +33,36 @@ export function EsposizioneFlotta({
   /** Stati da escludere (tipicamente la posizione "completato"). */
   excludeStatusIds?: (string | null | undefined)[];
 }) {
-  const { data: righe = [] } = useQuery({
-    queryKey: ["esposizione-flotta", companyId],
+  const [expanded, setExpanded] = useState(false);
+  const { data: righe = [], isError, refetch } = useQuery({
+    queryKey: ["esposizione-flotta", "complete-v2", companyId],
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<RigaEsposizione[]> => {
       // Vista fuori dai tipi generati (migration recente)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      const query = (supabase as any)
         .from("v_ordine_esposizione")
         .select("id, order_code, description, saldo, current_status_id")
         .eq("company_id", companyId!)
         .lt("saldo", -0.5)
-        .order("saldo", { ascending: true })
-        .limit(30);
-      if (error) throw error;
-      return (data ?? []) as RigaEsposizione[];
+        .order("saldo", { ascending: true }).order("id");
+      return readAllOrderRows<RigaEsposizione>((from, to) => query.range(from, to));
     },
   });
 
   const exclude = new Set(excludeStatusIds.filter(Boolean) as string[]);
   const aperte = righe.filter((r) => !r.current_status_id || !exclude.has(r.current_status_id));
+  if (isError) return <div role="alert" className="p-3 text-sm text-white">Esposizione cantieri non disponibile. <button type="button" onClick={() => void refetch()} className="underline">Riprova</button></div>;
   if (aperte.length === 0) return null;
 
   const totale = aperte.reduce((s, r) => s + Math.abs(Number(r.saldo) || 0), 0);
-  const peggiori = aperte.slice(0, 3);
+  const peggiori = expanded ? aperte : aperte.slice(0, 3);
 
   return (
     // Telefono: una riga sola — «Finanzi tu» e la cifra a sinistra, i cantieri
     // (toccabili) che scorrono di lato. Era un riquadro di 120px sopra l'elenco.
-    <div className="mt-2 sm:mt-3 rounded-xl border border-red-400/30 bg-red-500/10 p-2.5 sm:p-3 max-sm:mt-0 max-sm:flex max-sm:items-center max-sm:gap-2 max-sm:p-2">
+    <div className="mt-2 rounded-lg border border-red-400/30 bg-red-500/10 p-2.5 max-sm:mt-0 max-sm:flex max-sm:items-center max-sm:gap-2 max-sm:p-2">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 max-sm:shrink-0 max-sm:flex-col max-sm:gap-0">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-red-200 max-sm:text-[10px]">
           <span className="max-sm:hidden">Cantieri che stai finanziando tu</span>
@@ -71,7 +73,7 @@ export function EsposizioneFlotta({
       {/* Mobile: titolo, cifra e cantieri bastano; la spiegazione no. */}
       <p className="mt-0.5 text-xs text-blue-50/70 max-sm:hidden">
         {aperte.length === 1 ? "1 commessa aperta ha" : `${aperte.length} commesse aperte hanno`} pagato più di
-        quanto incassato — soldi tuoi nel cantiere.
+        quanto incassato. Tutte le commesse aperte, indipendentemente dai filtri.
       </p>
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 max-sm:mt-0 max-sm:min-w-0 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden">
         {peggiori.map((r) => (
@@ -85,8 +87,10 @@ export function EsposizioneFlotta({
             <span className="font-semibold text-red-200">−{formatCurrencyCompact(Math.abs(Number(r.saldo) || 0))}</span>
           </Link>
         ))}
-        {aperte.length > peggiori.length && (
-          <span className="text-[11px] text-blue-50/70 max-sm:shrink-0">+{aperte.length - peggiori.length} altre</span>
+        {aperte.length > 3 && (
+          <button type="button" aria-expanded={expanded} onClick={() => setExpanded(value => !value)} className="rounded px-2 py-1 text-xs font-medium text-white underline underline-offset-2 focus-visible:outline focus-visible:outline-2 max-sm:shrink-0">
+            {expanded ? "Mostra meno" : `Vedi tutte le ${aperte.length} commesse`}
+          </button>
         )}
       </div>
     </div>

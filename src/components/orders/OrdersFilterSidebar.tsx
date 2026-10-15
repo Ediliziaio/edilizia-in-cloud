@@ -73,7 +73,9 @@ interface OrdersFilterSidebarProps {
   filters: OrdersFilterState;
   onFiltersChange: (filters: OrdersFilterState) => void;
   statuses: Array<{ id: string; name: string; color: string }>;
-  ordersCount: number;
+  ordersCount: number | null;
+  optionsError?: boolean;
+  onRetryOptions?: () => void;
   isOpen: boolean;
   onClose: () => void;
   salespeople?: Array<{ id: string; name: string }>;
@@ -308,6 +310,8 @@ function SidebarContent({
   onFiltersChange,
   statuses,
   ordersCount,
+  optionsError,
+  onRetryOptions,
   onClose,
   salespeople = [],
   laborList = [],
@@ -383,7 +387,7 @@ function SidebarContent({
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground font-medium">
-            {ordersCount} ordin{ordersCount === 1 ? "e" : "i"}
+            {ordersCount === null ? "Aggiornamento…" : `${ordersCount} commess${ordersCount === 1 ? "a" : "e"}`}
           </span>
           <button
             type="button"
@@ -395,6 +399,8 @@ function SidebarContent({
           </button>
         </div>
       </div>
+
+      {optionsError && <div role="alert" className="bg-amber-50 p-3 text-sm text-amber-900">Impossibile caricare gli elenchi di persone e fornitori. <button type="button" className="underline" onClick={onRetryOptions}>Riprova elenchi</button></div>}
 
       {/* Scrollable filter content */}
       <div className="flex-1 overflow-y-auto">
@@ -677,6 +683,8 @@ export function OrdersFilterSidebar({
   onFiltersChange,
   statuses,
   ordersCount,
+  optionsError,
+  onRetryOptions,
   isOpen,
   onClose,
   salespeople,
@@ -696,7 +704,7 @@ export function OrdersFilterSidebar({
 }: OrdersFilterSidebarProps) {
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="p-0 w-80 max-w-full flex flex-col">
+      <SheetContent side="right" className="p-0 w-80 max-w-full flex flex-col data-[state=open]:duration-200 data-[state=closed]:duration-150 motion-reduce:animate-none">
         <SheetHeader className="sr-only">
           <SheetTitle>Filtri avanzati</SheetTitle>
         </SheetHeader>
@@ -705,6 +713,8 @@ export function OrdersFilterSidebar({
           onFiltersChange={onFiltersChange}
           statuses={statuses}
           ordersCount={ordersCount}
+          optionsError={optionsError}
+          onRetryOptions={onRetryOptions}
           onClose={onClose}
           salespeople={salespeople}
           laborList={laborList}
