@@ -11,15 +11,16 @@ interface Props {
 }
 export function OrdersPeriodSummary(props:Props) {
   return <section aria-label="Riepilogo del periodo" className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm">
-    <span className="mr-1 text-xs text-muted-foreground">Nel periodo:</span>
+    <span className="mr-1 text-xs text-muted-foreground">Nella vista:</span>
     {[
       {value:"__da_completare__",label:"Da completare",count:props.counts.toComplete},
       {value:"__completati__",label:"Completati",count:props.counts.completed},
-      {value:"__assistenza__",label:"In assistenza",count:props.counts.support},
+      {value:"__assistenza__",label:"Assistenza aperta",count:props.counts.support},
     ].map(item=><button key={item.value} type="button" className="orders-stat-chip" aria-pressed={props.status===item.value}
       disabled={props.loading || props.failed} onClick={()=>props.onStatus(props.status===item.value?"all":item.value)}>
       {item.label} <strong className="tabular-nums">{props.failed?"—":props.loading?"…":item.count}</strong>
     </button>)}
+    <span className="text-xs text-muted-foreground">Gli stati dei lavori e le assistenze possono sovrapporsi.</span>
     {props.showMargins && ((props.marginFailed || props.failed)?<div role="alert" className="flex items-center gap-2 text-amber-800">
       Margini non disponibili <Button variant="outline" size="sm" onClick={props.onRetry}>Riprova margini</Button>
     </div>:(["negative_margin","low_margin","missing_costs"] as const).map(kind=><button key={kind} type="button" className="orders-stat-chip"
