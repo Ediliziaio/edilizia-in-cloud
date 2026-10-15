@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-export const moduleMigration = readFileSync('supabase/migrations/20261015193502_moduli_commesse_e_accessi_multiazienda.sql', 'utf8');
+export const moduleMigration = readFileSync('supabase/migrations/20261015193502_moduli_commesse_e_accessi_multiazienda.sql', 'utf8') + '\n' + readFileSync('supabase/migrations/20261015193901_moduli_quantita_componenti_intere.sql', 'utf8');
 export const A='20000000-0000-0000-0000-000000000001', B='20000000-0000-0000-0000-000000000002';
 export const U='10000000-0000-0000-0000-000000000001', Q='30000000-0000-0000-0000-000000000001';
 const uuid = new Set('company_id customer_id current_status_id assigned_to order_id status_id changed_by supplier_id stock_item_id family_id trigger_status_id salesperson_id performed_by order_item_id'.split(' '));
@@ -54,7 +54,7 @@ create table rst_progetti(id uuid primary key,company_id uuid,created_by uuid,co
  cliente_nome text,cliente_cognome text,cliente_email text,cliente_telefono text,cantiere_indirizzo text,cantiere_citta text,cantiere_cap text,cantiere_provincia text,
  totale numeric,totale_imponibile numeric,iva_pct numeric,prezzo_manuale numeric,ordine_id uuid);
 create table fv_componenti_progetto(id uuid default gen_random_uuid(),progetto_id uuid,categoria text,descrizione text,marca text,modello text,
- quantita numeric,prezzo_unitario_netto numeric,prezzo_unitario_vendita numeric,ordinamento integer);
+ quantita numeric(14,2),prezzo_unitario_netto numeric,prezzo_unitario_vendita numeric,ordinamento integer);
 create table fv_servizi_progetto(id uuid default gen_random_uuid(),progetto_id uuid,tipo text,descrizione text,quantita numeric,prezzo_netto numeric,prezzo_vendita numeric,ordinamento integer);
 create table fv_manodopera_progetto(id uuid default gen_random_uuid(),progetto_id uuid,descrizione text,ore numeric,tariffa_oraria_netta numeric,tariffa_oraria_vendita numeric,ordinamento integer);
 create table rst_computo_voci(id uuid default gen_random_uuid(),progetto_id uuid,capitolo_nome text,descrizione text,unita_misura text,quantita numeric,
