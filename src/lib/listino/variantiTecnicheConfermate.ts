@@ -35,3 +35,16 @@ export function riepilogoVariantiTecniche(
     return scelto ? [`${v.nome}: ${scelto.nome}`] : [];
   });
 }
+
+/** Snapshot separato da valori_assi: le specifiche non diventano maggiorazioni. */
+export function snapshotVariantiTecniche(varianti: readonly VarianteTecnicaConfermata[], selezione: Record<string,string>): Record<string,string> {
+  return Object.fromEntries(varianti.flatMap(v => v.valori.some(x => x.codice === selezione[v.codice]) ? [[v.codice, selezione[v.codice]]] : []));
+}
+export function riprendiVariantiTecniche(snapshot: string | undefined): Record<string,string> {
+  if (!snapshot) return {};
+  try {
+    const valori: unknown = JSON.parse(snapshot);
+    return valori && typeof valori === 'object' && !Array.isArray(valori)
+      ? Object.fromEntries(Object.entries(valori).filter((voce): voce is [string,string] => typeof voce[1] === 'string')) : {};
+  } catch { return {}; }
+}

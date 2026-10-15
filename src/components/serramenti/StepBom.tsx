@@ -243,7 +243,7 @@ export function StepBom({ progettoId, detail, modelId }: Props) {
         // «Note tecniche». Il conto del prezzo non è una nota: finiva nel PDF in
         // formato inglese («1.68 m² × €600.00/m²») e restava vecchio appena si
         // cambiavano linea, colore o misure, accanto a un prezzo diverso.
-        note: null,
+        note: item.note_tecniche?.join("\n") || null,
       },
       { onSuccess: (created) => setExpanded(created.id) },
     );
