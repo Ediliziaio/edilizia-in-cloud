@@ -1,3 +1,6 @@
+import { QuoteConversionSummary } from "@/components/marketing/preventivi/QuoteConversionSummary";
+import { separaVoci } from "../../../../supabase/functions/_shared/destinazioneVocePreventivo";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -64,6 +67,7 @@ export default function QuoteDetail() {
   const [generating, setGenerating] = useState(false);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [conversionOpen, setConversionOpen] = useState(false);
   const [duplicando, setDuplicando] = useState(false);
 
   const { sendForSignature, openWhatsApp, copySignatureLink } = useSignatureActions(id);
@@ -93,7 +97,7 @@ export default function QuoteDetail() {
     if (!id) return;
     setConverting(true);
     try {
-      const esito = await convertiPreventivoInCantiere(id);
+      const esito = await convertiPreventivoInCantiere(id, quote?.version);
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.linkedOrder(id) });
       // La commessa c'è ma le righe no: dirlo, non «convertito con successo» davanti a una commessa vuota.
@@ -204,7 +208,7 @@ export default function QuoteDetail() {
     },
   });
 
-  const { data: items = [] } = useQuery({
+  const { data: items = [], isFetching: loadingItems, isError: itemsError } = useQuery({
     queryKey: queryKeys.quotes.items(id),
     enabled: !!id,
     queryFn: async () => {
@@ -421,12 +425,20 @@ export default function QuoteDetail() {
               </button>
             )}
 
+            <Dialog open={conversionOpen} onOpenChange={open => { if (!converting) setConversionOpen(open); }}>
+              <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+                <DialogHeader><DialogTitle>Crea la commessa</DialogTitle><DialogDescription>Controlla cosa diventerà lavoro da eseguire e cosa materiale da approvvigionare.</DialogDescription></DialogHeader>
+                {itemsError ? <p role="alert">Non riesco a verificare le voci. Riapri il preventivo prima di continuare.</p> : loadingItems ? <p>Verifica delle voci…</p> : <QuoteConversionSummary items={items} total={Number(quote.total ?? 0)} />}
+                <p className="text-xs text-muted-foreground">La distinzione usa il tipo dichiarato su ogni voce, senza interpretare la descrizione. Controlla in particolare le vecchie righe libere e le voci di fornitura e posa.</p>
+                <DialogFooter><Button variant="outline" disabled={converting} onClick={() => setConversionOpen(false)}>Annulla</Button><Button disabled={converting || loadingItems || itemsError || separaVoci(items).daVerificare.length > 0} onClick={handleConvertToCantiere}>{converting ? "Creazione…" : "Conferma e crea commessa"}</Button></DialogFooter>
+              </DialogContent>
+            </Dialog>
             {/* Una commessa sola per preventivo: «Crea commessa (rivedi)» non cambia lo stato e non controlla, quindi
                 con la commessa già collegata («Vai alla commessa» qui sotto) le due strade non si offrono più. */}
             {quote.status === "accettata" && !rigaDiModulo && puoCreareCommessa && !linkedOrder && (
               <button
                 type="button"
-                onClick={handleConvertToCantiere}
+                onClick={() => setConversionOpen(true)}
                 disabled={converting || controlloCommessa}
                 className="inline-flex flex-1 sm:flex-none justify-center items-center gap-2 px-4 py-2 text-sm font-bold rounded-md text-white transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:-translate-y-px hover:shadow-[0_6px_16px_rgba(16,185,129,0.4)] disabled:opacity-50 h-9"
               >

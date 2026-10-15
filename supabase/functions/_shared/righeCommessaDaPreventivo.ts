@@ -1,5 +1,6 @@
+import { destinazioneVoce } from "./destinazioneVocePreventivo.ts";
 /**
- * Le righe di un preventivo come diventano righe di commessa: UNA sola
+ * Solo i MATERIALI di un preventivo diventano articoli di commessa: UNA sola
  * funzione per le due strade («Converti in Cantiere», edge
  * converti-preventivo-cantiere, e «Crea commessa (rivedi)», useQuotePrefill),
  * che prima avevano ognuna la sua copia del conto e divergevano:
@@ -32,14 +33,11 @@ export type RigaCommessa = {
   measure_status: "da_rilevare" | null;
 };
 
-/** Le categorie che non sono articoli: subtotali, sconti in riga (già nel totale), note. */
-export const CATEGORIE_NON_ARTICOLO = new Set(["subtotale", "sconto", "nota"]);
-
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export function righeCommessaDaPreventivo(righe: Array<Record<string, unknown>>): RigaCommessa[] {
   return righe
-    .filter((r) => !CATEGORIE_NON_ARTICOLO.has(String(r.item_category ?? "")))
+    .filter((r) => destinazioneVoce(r) === "materiale")
     // Le righe OPZIONALI sono proposte che il cliente non ha scelto.
     .filter((r) => r.is_optional !== true)
     // Quantità 0: la riga non vende niente (null o non numerica sì: vale 1, come prima).

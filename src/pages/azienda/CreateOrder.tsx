@@ -340,7 +340,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     if (appliedQuoteRef.current === selectedQuoteId) return; // una volta per preventivo scelto
     appliedQuoteRef.current = selectedQuoteId;
     if (quotePrefill.description) setValue("description", quotePrefill.description);
-    if (quotePrefill.orderItems.length > 0) setOrderItems(quotePrefill.orderItems);
+    setValue("total_amount", String(quotePrefill.totalAmount));
+    setValue("vat_rate", String(quotePrefill.vatRate));
+    setOrderItems(quotePrefill.orderItems);
     // Fasi di pagamento del preventivo → rate della commessa (già compilate).
     if (quotePrefill.installments.length > 0) setInstallments(prefillExpectedDates(quotePrefill.installments));
     // Preventivo con finanziamento → commessa in modalità finanziamento (il "Costo
@@ -876,14 +878,14 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       }));
 
       const createOrderAtomic = supabase.rpc.bind(supabase) as unknown as (
-        fn: "create_order_atomic",
+        fn: "create_order_atomic" | "crea_commessa_preventivo_atomic",
         args: Record<string, unknown>
       ) => Promise<{ data: { order_id: string } | null; error: { message: string } | null }>;
-      const { data, error } = await createOrderAtomic("create_order_atomic", {
+      const { data, error } = await createOrderAtomic(selectedQuoteId ? "crea_commessa_preventivo_atomic" : "create_order_atomic", {
         p_order_data: orderData,
         p_items: itemsPayload,
         p_salesperson: salespersonPayload,
-        p_user_id: user!.id,
+        ...(selectedQuoteId ? { p_quote_id: selectedQuoteId, p_quote_version: quotePrefill?.version } : { p_user_id: user!.id }),
         p_installments: installmentsPayload,
       });
 
@@ -976,7 +978,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
       // Le fasi scelte nel modulo (o quelle di partenza dell'azienda): fasi e sottofasi in un colpo
       // solo, dal server. Come le altre scritture dopo la RPC, un errore non fa sparire la commessa.
-      if (fasiDaCreare.length && result.id) {
+      if (!selectedQuoteId && fasiDaCreare.length && result.id) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fasiErr = await salvaFasiDiPartenza(result.id, fasiDaCreare, (nome, args) => (supabase as any).rpc(nome, args));
         if (fasiErr) {
@@ -1114,7 +1116,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const onSubmit = (values: OrderFormValues) => {
     // Enter sul form bypassa il disabled del bottone submit: guardia esplicita
     if (createOrderMutation.isPending || createdOrderIdRef.current) return;
-    if (fasiDaCreare.some((fase) => !fase.nome.trim() || fase.sottofasi.some((sotto) => !sotto.nome.trim()))) {
+    if (!selectedQuoteId && fasiDaCreare.some((fase) => !fase.nome.trim() || fase.sottofasi.some((sotto) => !sotto.nome.trim()))) {
       toast.error("Completa i nomi delle fasi", { description: "Dai un nome a ogni fase oppure rimuovi quelle che non servono." });
       return;
     }
@@ -1550,14 +1552,15 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             erroreFine={errors.work_end_date?.message}
           />
           {/* Fasi di lavoro: facoltative, di partenza quelle scelte dall'azienda nelle Impostazioni. */}
-          <div className="min-w-0 border-t border-slate-100 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+          {!selectedQuoteId && <div className="min-w-0 border-t border-slate-100 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
             <div className="max-w-md"><FasiDiPartenzaSelect offerti={fasiDiPartenza.offerti} valore={fasiDiPartenza.scelta} onChange={(id) => { fasiDiPartenza.scegli(id); setFasiPersonalizzate(null); }} /></div>
             <AnteprimaFasiCommessa modello={fasiDiPartenza.modello} fasi={fasiDaCreare} personalizzate={fasiPersonalizzate !== null} onChange={setFasiPersonalizzate} onRipristina={() => setFasiPersonalizzate(null)} />
-          </div>
+          </div>}
           </div>
         </QuoteCard>
 
         {/* Order Items */}
+        {quotePrefill && <div className="mb-4 rounded-lg border bg-muted/20 p-4 text-sm"><strong>{quotePrefill.workLines.length} lavorazioni dal preventivo</strong><p className="mt-1 text-muted-foreground">Verranno create come fasi in Cantiere. Qui sotto trovi soltanto i materiali; il totale contrattuale resta quello del preventivo.</p><ul className="mt-2 list-inside list-disc">{quotePrefill.workLines.map((r,i)=><li key={i}>{r.name}</li>)}</ul></div>}
         <OrderItemsList
           items={orderItems}
           onItemsChange={setOrderItems}

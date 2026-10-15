@@ -67,6 +67,15 @@ jobs:
       - name: Run critical tests
         run: bun run test:critical
 
+      - name: Run quote to worksite classification regression tests
+        run: >-
+          bunx vitest run --maxWorkers=1 --testTimeout=15000
+          src/test/logic/quoteConversionAtomic.test.ts
+          src/test/logic/righeCommessaDaPreventivo.test.ts
+          src/test/logic/quotePrefillPrezzoManuale.test.ts
+          src/test/logic/convertiPreventivoInCantiere.test.ts
+          src/test/ui/quoteLineKindFields.test.tsx
+
       - name: Run sidebar preview regression tests
         run: >-
           bunx vitest run --maxWorkers=1
