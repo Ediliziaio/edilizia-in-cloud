@@ -10,6 +10,7 @@ import { etichettaRuoloAzienda, puoScegliereSettore } from "@/lib/auth/ruoloAzie
 import { usePermissions, type Permissions } from "@/hooks/usePermissions";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useStatoPiano } from "@/hooks/useStatoPiano";
+import { isConfirmedModulePreview } from "@/lib/sidebarPreview";
 import { useSchedeManodopera } from "@/hooks/useSchedeManodopera";
 import { useBranding } from "@/hooks/useBranding";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
@@ -883,14 +884,15 @@ const CompanySidebar = memo(function CompanySidebar() {
     isLimitedPlan,
   } = useStatoPiano();
 
-  /** Modulo in modalità demo: non incluso ma piano è "limited" (o no plan) → preview. */
+  /** L'assenza del piano (anche dopo un errore) non conferma un'anteprima. */
   const isModuleDemo = (moduleKey: string): boolean => {
-    if (isSuperAdminViewer) return false; // super_admin non vede mai badge DEMO
-    if (isDemoBaseline) return false;     // Demo Azienda = vetrina, no badge DEMO
-    if (isModuleEnabled(moduleKey as never)) return false;
-    // v8.6.95: fail-open senza plan → marca come DEMO finché non c'è chiarezza
-    if (!currentPlan && !limitsLoading) return true;
-    return isLimitedPlan;
+    return isConfirmedModulePreview({
+      planResolved: !!currentPlan,
+      loading: limitsLoading,
+      limitedPlan: isLimitedPlan,
+      moduleIncluded: isModuleEnabled(moduleKey as never),
+      bypass: isSuperAdminViewer || isDemoBaseline,
+    });
   };
   // Mostriamo skeleton finché plan + feature flags non sono risolti: con
   // `isModuleEnabled` fail-closed, altrimenti la sidebar flickererebbe a vuoto.

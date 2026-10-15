@@ -67,6 +67,12 @@ jobs:
       - name: Run critical tests
         run: bun run test:critical
 
+      - name: Run sidebar preview regression tests
+        run: >-
+          bunx vitest run --maxWorkers=1
+          src/test/logic/sidebarPreview.test.ts
+          src/test/logic/sidebarMenuStability.test.ts
+
       - name: Run confirmed catalogue variants regression tests
         run: >-
           bunx vitest run --maxWorkers=1
