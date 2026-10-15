@@ -48,7 +48,7 @@ export function variantiBestInfissi(famiglia: FamilyWithAxes, modello = modelloB
 }
 
 export function avvisiVariantiBestInfissi(famiglia: FamilyWithAxes): string[] {
-  if (famiglia.company_id !== BEST_INFISSI || famiglia.vertical !== 'serramenti') return [];
+  if (famiglia.company_id !== BEST_INFISSI || !['serramenti', 'serramentista'].includes(famiglia.vertical)) return [];
   const avvisi = verificaVarianti(famiglia).map(p => p.messaggio);
   if (/slide|scorrevole|traslante|portoncino|^COSTRUZIONE /i.test(famiglia.nome)) {
     avvisi.push('Sistema specifico, schema di apertura e limiti dimensionali da confermare con il fornitore. Le varianti documentate per le finestre non sono estese automaticamente a questo prodotto.');

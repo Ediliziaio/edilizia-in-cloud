@@ -5,6 +5,12 @@ import {variantiTecnicheVisibili,riepilogoVariantiTecniche,snapshotVariantiTecni
 import {calcolaPrezzoFamiglia} from '@/hooks/useFamilyPricing';
 const f=(nome='Finestra 1 Anta')=>({company_id:'421f4929-04bc-406d-b0fd-3ff4d57a64ee',nome,id:'famiglia',axes:[],modalita_prezzo_base:'mq',prezzo_base_mode:'vendita',prezzo_base_vendita:400,prezzo_base_acquisto:200,unit_of_measure:'mq'}) as unknown as FamilyWithAxes;
 describe('varianti confermate Best Infissi',()=>{
+ it('mantiene gli avvisi anche per la classificazione originale serramentista dei prodotti AnGer',()=>{
+  const family={...f('Finestra legno-alluminio Anger Social'),vertical:'serramentista'};
+  expect(avvisiVariantiBestInfissi(family).join(' ')).toContain('restano da verificare');
+  expect(avvisiVariantiBestInfissi(family)).toEqual(avvisiVariantiBestInfissi({...family,vertical:'serramenti'}));
+  expect(avvisiVariantiBestInfissi({...family,company_id:'altra-azienda'})).toEqual([]);
+ });
  it('riconosce il modello online dal suo identificativo senza dipendere dall’anteprima',()=>{
   const family={...f(),vertical:'serramenti',macrocategoria_id:'5066bc5e-0bc7-4826-8c27-dd81e014767d'};
   expect(variantiBestInfissi(family).map(v=>v.codice)).toEqual(['profilo','composizione_vetrocamera']);
