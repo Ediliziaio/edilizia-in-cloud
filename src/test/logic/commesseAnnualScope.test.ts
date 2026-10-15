@@ -1,12 +1,24 @@
 import {describe,expect,it,vi} from "vitest";
 vi.mock("@/integrations/supabase/client",()=>({supabase:{}}));
-import {currentManagementScope,orderEconomics,previousOrderReasons} from "@/lib/orders/annualScope";
+import {currentManagementScope,orderEconomics,previousOrderReasons,orderScopeGroupIds,orderWorkflowCounts} from "@/lib/orders/annualScope";
 import type {OrderWithDetails} from "@/lib/orderUtils";
 const order=(id:string,year:number,status:string|null,paid=true):OrderWithDetails => ({
   id,created_at:`${year}-06-15T10:00:00Z`,current_status_id:status,total_amount:100,vat_rate:22,
   installments:[{position:1,type:"balance",amount:122,is_paid:paid}],
 } as OrderWithDetails);
 describe("Anno corrente e pregresso ancora da gestire",()=>{
+  it("ricalcola stati e assistenze sul gruppo scelto senza sommare motivi sovrapposti",()=>{
+    const rows=[order("current",2026,"done"),order("old-work",2025,"open"),order("old-ticket",2024,"done")];
+    const ids=new Set(orderScopeGroupIds(rows,"previous",2026));
+    expect(orderWorkflowCounts(rows.filter(row=>ids.has(row.id)),"done","support",new Set(["old-ticket"]))).toEqual({toComplete:1,completed:1,support:1});
+  });
+  it("i gruppi cliccabili partizionano il perimetro senza ripescare commesse archiviate",()=>{
+    const rows=[order("current",2026,"done"),order("previous",2025,"open"),order("archived",2024,"done")];
+    const scope=currentManagementScope(rows,2026,"done","support",new Set());
+    expect(orderScopeGroupIds(scope,"annual",2026)).toEqual(["current"]);
+    expect(orderScopeGroupIds(scope,"previous",2026)).toEqual(["previous"]);
+    expect(orderScopeGroupIds(scope,"all",2026)).toEqual(["current","previous"]);
+  });
   it("include tutte le commesse dell’anno, anche completate e saldate; esclude quelle future",()=>{
     const rows=[order("current-done",2026,"done"),order("current-open",2026,"open"),order("future",2027,"open")];
     expect(currentManagementScope(rows,2026,"done","support",new Set()).map(row=>row.id)).toEqual(["current-done","current-open"]);

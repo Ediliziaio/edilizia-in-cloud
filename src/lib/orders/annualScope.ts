@@ -26,3 +26,16 @@ export function orderEconomics(orders: OrderWithDetails[]) {
     pending: total.pending + getAmountDue(order),
   }), {count: 0, sold: 0, collected: 0, pending: 0});
 }
+
+export type OrderScopeGroup = "all" | "annual" | "previous";
+export function orderScopeGroupIds(orders: OrderWithDetails[], group: OrderScopeGroup, year: number): string[] {
+  return orders.filter(order => group === "all" || (group === "annual" ? orderYear(order) === year : orderYear(order) < year)).map(order => order.id);
+}
+
+export function orderWorkflowCounts(orders: OrderWithDetails[], completedId: string | null, supportId: string | null, supportOrderIds: ReadonlySet<string>) {
+  return {
+    toComplete: orders.filter(order => (!completedId || order.current_status_id !== completedId) && (!supportId || order.current_status_id !== supportId)).length,
+    completed: completedId ? orders.filter(order => order.current_status_id === completedId).length : 0,
+    support: orders.filter(order => (!!supportId && order.current_status_id === supportId) || supportOrderIds.has(order.id)).length,
+  };
+}
