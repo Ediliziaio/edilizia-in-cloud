@@ -3,19 +3,36 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  CreditCard, Plus, Minus, Loader2, Mail, Bot, MessageSquare, Palette,
-  AlertTriangle, History,
+  CreditCard,
+  Plus,
+  Minus,
+  Loader2,
+  Mail,
+  Bot,
+  MessageSquare,
+  Palette,
+  AlertTriangle,
+  History,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { useAuth } from "@/contexts/AuthContext";
@@ -39,7 +56,7 @@ import { cn } from "@/lib/utils";
  * RPC dell'altra tab per evitare divergenze.
  */
 
-type WalletKey = "email" | "ai_agents" | "whatsapp" | "render";
+type WalletKey = "email" | "ai_agents" | "whatsapp" | "render" | "sms";
 
 interface WalletDef {
   key: WalletKey;
@@ -56,11 +73,17 @@ interface Props {
 }
 
 async function getFunctionErrorMessage(error: unknown): Promise<string> {
-  const fallback = error instanceof Error ? error.message : "Errore durante l'aggiornamento crediti";
+  const fallback =
+    error instanceof Error
+      ? error.message
+      : "Errore durante l'aggiornamento crediti";
   const context = (error as { context?: unknown } | null)?.context;
   if (context instanceof Response) {
     try {
-      const payload = await context.clone().json() as { error?: string; message?: string };
+      const payload = (await context.clone().json()) as {
+        error?: string;
+        message?: string;
+      };
       return payload.error || payload.message || fallback;
     } catch {
       try {
@@ -72,81 +95,6 @@ async function getFunctionErrorMessage(error: unknown): Promise<string> {
     }
   }
   return fallback;
-}
-
-async function fallbackAdjustRenderCredits(params: {
-  companyId: string;
-  delta: number;
-  reason: string;
-  userId?: string;
-}) {
-  const { companyId, delta, reason, userId } = params;
-  const { data: row, error: readError } = await supabase
-    .from("render_credits")
-    .select("balance,total_purchased,total_used")
-    .eq("company_id", companyId)
-    .maybeSingle();
-
-  if (readError) throw readError;
-
-  const balanceBefore = Number((row as { balance?: number } | null)?.balance ?? 0);
-  const balanceAfter = Math.max(0, balanceBefore + delta);
-  const deltaApplied = balanceAfter - balanceBefore;
-  const totalPurchased = Number((row as { total_purchased?: number } | null)?.total_purchased ?? 0) + Math.max(deltaApplied, 0);
-  const totalUsed = Number((row as { total_used?: number } | null)?.total_used ?? 0);
-  const payload = {
-    balance: balanceAfter,
-    total_purchased: totalPurchased,
-    total_used: totalUsed,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (row) {
-    const { error } = await supabase
-      .from("render_credits")
-      .update(payload)
-      .eq("company_id", companyId);
-    if (error) throw error;
-  } else {
-    const { error } = await supabase
-      .from("render_credits")
-      .insert({ company_id: companyId, ...payload });
-    if (error) throw error;
-  }
-
-  const { error: ledgerError } = await supabase
-    .from("render_credit_ledger" as never)
-    .insert({
-      company_id: companyId,
-      delta: deltaApplied,
-      balance_after: balanceAfter,
-      reason: "adjust_admin",
-      user_id: userId ?? null,
-      metadata: {
-        reason_text: reason,
-        delta_requested: delta,
-        fallback: "client-render-credit-adjust",
-      },
-    } as never);
-  if (ledgerError) console.warn("[CreditManagerCard] Render ledger fallback insert failed:", ledgerError.message);
-
-  const { error: auditError } = await supabase
-    .from("admin_credit_adjustments" as never)
-    .insert({
-      company_id: companyId,
-      service: "render",
-      amount_eur: deltaApplied,
-      reason,
-      created_by: userId ?? null,
-    } as never);
-  if (auditError) console.warn("[CreditManagerCard] Render audit fallback insert failed:", auditError.message);
-
-  return {
-    balance_before: balanceBefore,
-    balance_after: balanceAfter,
-    delta_applied: deltaApplied,
-    wallet: "render" as const,
-  };
 }
 
 export function CreditManagerCard({ companyId }: Props) {
@@ -166,7 +114,7 @@ export function CreditManagerCard({ companyId }: Props) {
       label: "Email",
       icon: Mail,
       kind: "eur",
-      queryKey: queryKeys.admin.emailCredits(companyId),
+      queryKey: ["company-wallet-balance", companyId, "email"],
       table: "email_credits",
     },
     {
@@ -174,7 +122,7 @@ export function CreditManagerCard({ companyId }: Props) {
       label: "Agenti AI",
       icon: Bot,
       kind: "eur",
-      queryKey: queryKeys.admin.aiCreditsAdmin(companyId),
+      queryKey: ["company-wallet-balance", companyId, "ai_agents"],
       table: "ai_credits",
     },
     {
@@ -182,7 +130,7 @@ export function CreditManagerCard({ companyId }: Props) {
       label: "WhatsApp",
       icon: MessageSquare,
       kind: "eur",
-      queryKey: queryKeys.admin.waCredits(companyId),
+      queryKey: ["company-wallet-balance", companyId, "whatsapp"],
       table: "whatsapp_credits",
     },
     {
@@ -190,8 +138,16 @@ export function CreditManagerCard({ companyId }: Props) {
       label: "Render AI",
       icon: Palette,
       kind: "integer",
-      queryKey: ["admin-render-credits", companyId] as const,
+      queryKey: ["company-wallet-balance", companyId, "render"],
       table: "render_credits",
+    },
+    {
+      key: "sms",
+      label: "SMS",
+      icon: MessageSquare,
+      kind: "eur",
+      queryKey: ["company-wallet-balance", companyId, "sms"],
+      table: "sms_wallet",
     },
   ];
 
@@ -199,9 +155,12 @@ export function CreditManagerCard({ companyId }: Props) {
   const email = useQuery({
     queryKey: wallets[0].queryKey,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("email_credits").select("balance_eur")
-        .eq("company_id", companyId).maybeSingle();
+      const { data, error } = await supabase
+        .from("email_credits")
+        .select("balance_eur")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error) throw error;
       return (data as { balance_eur: number } | null)?.balance_eur ?? 0;
     },
     staleTime: 30 * 1000,
@@ -210,9 +169,12 @@ export function CreditManagerCard({ companyId }: Props) {
   const ai = useQuery({
     queryKey: wallets[1].queryKey,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("ai_credits").select("balance_eur")
-        .eq("company_id", companyId).maybeSingle();
+      const { data, error } = await supabase
+        .from("ai_credits")
+        .select("balance_eur")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error) throw error;
       return (data as { balance_eur: number } | null)?.balance_eur ?? 0;
     },
     staleTime: 30 * 1000,
@@ -221,9 +183,12 @@ export function CreditManagerCard({ companyId }: Props) {
   const wa = useQuery({
     queryKey: wallets[2].queryKey,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("whatsapp_credits").select("balance_eur")
-        .eq("company_id", companyId).maybeSingle();
+      const { data, error } = await supabase
+        .from("whatsapp_credits")
+        .select("balance_eur")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error) throw error;
       return (data as { balance_eur: number } | null)?.balance_eur ?? 0;
     },
     staleTime: 30 * 1000,
@@ -232,19 +197,36 @@ export function CreditManagerCard({ companyId }: Props) {
   const render = useQuery({
     queryKey: wallets[3].queryKey,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("render_credits").select("balance")
-        .eq("company_id", companyId).maybeSingle();
+      const { data, error } = await supabase
+        .from("render_credits")
+        .select("balance")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error) throw error;
       return (data as { balance: number } | null)?.balance ?? 0;
     },
     staleTime: 30 * 1000,
   });
 
+  const sms = useQuery({
+    queryKey: wallets[4].queryKey,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sms_wallet" as never)
+        .select("crediti")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error) throw error;
+      return Number((data as { crediti?: number } | null)?.crediti ?? 0);
+    },
+    staleTime: 30_000,
+  });
   const balanceByKey: Record<WalletKey, number> = {
     email: email.data ?? 0,
     ai_agents: ai.data ?? 0,
     whatsapp: wa.data ?? 0,
     render: render.data ?? 0,
+    sms: sms.data ?? 0,
   };
 
   // Warning aggregato: anche un solo wallet negativo è un problema
@@ -254,7 +236,7 @@ export function CreditManagerCard({ companyId }: Props) {
         ([, balance]) => balance < 0,
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [email.data, ai.data, wa.data, render.data],
+    [email.data, ai.data, wa.data, render.data, sms.data],
   );
   const lowWallets = useMemo(
     () =>
@@ -267,7 +249,7 @@ export function CreditManagerCard({ companyId }: Props) {
         },
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [email.data, ai.data, wa.data, render.data],
+    [email.data, ai.data, wa.data, render.data, sms.data],
   );
 
   // Scroll alla tabella storico (presente nello stesso tab Abbonamento, sotto)
@@ -279,7 +261,10 @@ export function CreditManagerCard({ companyId }: Props) {
       if (c.textContent?.includes("Storico Transazioni Crediti")) target = c;
     });
     if (target) {
-      (target as HTMLElement).scrollIntoView({ behavior: "smooth", block: "start" });
+      (target as HTMLElement).scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
       // Suggerimento: l'utente può poi filtrare per tipo wallet manualmente.
       // (Una integrazione più stretta richiederebbe di passare un filtro
       // tramite props/context, per ora teniamo semplice.)
@@ -306,7 +291,10 @@ export function CreditManagerCard({ companyId }: Props) {
       if (!amount || amount <= 0) throw new Error("Importo non valido");
       if (!adjustReason.trim()) throw new Error("Motivazione obbligatoria");
       const wallet = adjustDialog.wallet as WalletKey;
-      const signedAmount = adjustDialog.direction === "deduct" ? -amount : amount;
+      if (adjustDialog.direction === "deduct" && amount > balanceByKey[wallet])
+        throw new Error("L’importo supera il saldo disponibile.");
+      const signedAmount =
+        adjustDialog.direction === "deduct" ? -amount : amount;
 
       if (wallet === "render") {
         // Render è intero: passa dall'edge function con service role.
@@ -315,26 +303,26 @@ export function CreditManagerCard({ companyId }: Props) {
         if (!Number.isInteger(amount)) {
           throw new Error("Per render i crediti devono essere interi");
         }
-        const { data, error } = await supabase.functions.invoke("admin-adjust-credits", {
-          body: {
-            company_id: companyId,
-            service: "render",
-            amount: signedAmount,
-            reason: adjustReason.trim(),
+        const { data, error } = await supabase.functions.invoke(
+          "admin-adjust-credits",
+          {
+            body: {
+              company_id: companyId,
+              service: "render",
+              amount: signedAmount,
+              reason: adjustReason.trim(),
+            },
           },
-        });
+        );
 
         if (error || (data as { error?: string } | null)?.error) {
           const message = error
             ? await getFunctionErrorMessage(error)
-            : (data as { error?: string } | null)?.error || "Ricarica render non disponibile";
-          console.warn("[CreditManagerCard] Render edge adjust failed, using client fallback:", message);
-          return fallbackAdjustRenderCredits({
-            companyId,
-            delta: signedAmount,
-            reason: adjustReason.trim(),
-            userId: user?.id,
-          });
+            : (data as { error?: string } | null)?.error ||
+              "Ricarica render non disponibile";
+          throw new Error(
+            `${message}. Verifica lo storico prima di riprovare.`,
+          );
         }
 
         const payload = data as {
@@ -347,43 +335,97 @@ export function CreditManagerCard({ companyId }: Props) {
         if (payload?.error) throw new Error(payload.error);
         return {
           balance_before: payload?.balance_before ?? 0,
-          balance_after:  payload?.balance_after  ?? 0,
+          balance_after: payload?.balance_after ?? 0,
           wallet: "render" as const,
         };
       }
 
       // Wallet EUR → edge function (legacy param `amount_eur`)
-      const { data, error } = await supabase.functions.invoke("admin-adjust-credits", {
-        body: {
-          company_id: companyId,
-          service: wallet,
-          amount_eur: signedAmount,
-          reason: adjustReason.trim(),
+      const { data, error } = await supabase.functions.invoke(
+        "admin-adjust-credits",
+        {
+          body: {
+            company_id: companyId,
+            service: wallet,
+            amount_eur: signedAmount,
+            reason: adjustReason.trim(),
+          },
         },
-      });
+      );
       if (error) throw new Error(await getFunctionErrorMessage(error));
-      if ((data as { error?: string })?.error) throw new Error((data as { error?: string }).error!);
-      return { ...(data as { balance_before: number; balance_after: number }), wallet };
+      if ((data as { error?: string })?.error)
+        throw new Error((data as { error?: string }).error!);
+      return {
+        ...(data as { balance_before: number; balance_after: number }),
+        wallet,
+      };
     },
     onSuccess: (result) => {
       const wallet = result.wallet as WalletKey;
-      const w = wallets.find(x => x.key === wallet)!;
-      const fmt = (v: number) => w.kind === "integer" ? String(v) : formatCurrency(v);
-      toast.success(`Crediti ${w.label} aggiornati: ${fmt(result.balance_before)} → ${fmt(result.balance_after)}`);
+      const w = wallets.find((x) => x.key === wallet)!;
+      const fmt = (v: number) =>
+        w.kind === "integer" ? String(v) : formatCurrency(v);
+      toast.success(
+        `Crediti ${w.label} aggiornati: ${fmt(result.balance_before)} → ${fmt(result.balance_after)}`,
+      );
       setAdjustDialog({ open: false, wallet: "", direction: "add" });
       setAdjustAmount("");
       setAdjustReason("");
+      for (const key of [
+        queryKeys.admin.emailCredits(companyId),
+        queryKeys.admin.aiCreditsAdmin(companyId),
+        queryKeys.admin.waCredits(companyId),
+        ["admin-render-credits", companyId],
+        ["company-email-quota", companyId],
+        ["company-overview-credits", companyId],
+      ])
+        void queryClient.invalidateQueries({ queryKey: key });
       // Invalida tutte le query dei wallet
-      wallets.forEach(x => queryClient.invalidateQueries({ queryKey: x.queryKey }));
+      wallets.forEach((x) =>
+        queryClient.invalidateQueries({ queryKey: x.queryKey }),
+      );
+      void queryClient.invalidateQueries({ queryKey: ["admin-credit-transactions-kpi", companyId] });
       // Invalida anche lo storico transazioni (se la view viene letta in parallelo)
-      queryClient.invalidateQueries({ queryKey: ["admin-credit-transactions-unified", companyId] });
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.creditAdjustments(companyId) });
+      queryClient.invalidateQueries({
+        queryKey: ["admin-credit-transactions-unified", companyId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.admin.creditAdjustments(companyId),
+      });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const currentWallet = wallets.find(w => w.key === adjustDialog.wallet);
+  const currentWallet = wallets.find((w) => w.key === adjustDialog.wallet);
 
+  const walletQueries = [email, ai, wa, render, sms];
+  if (walletQueries.some((query) => query.isLoading))
+    return (
+      <Card>
+        <CardContent className="pt-6" role="status">
+          Caricamento saldi…
+        </CardContent>
+      </Card>
+    );
+  if (walletQueries.some((query) => query.isError))
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p role="alert">
+            Impossibile caricare tutti i saldi. Le rettifiche sono
+            temporaneamente disabilitate.
+          </p>
+          <Button
+            variant="outline"
+            onClick={() =>
+              walletQueries.forEach((query) => void query.refetch())
+            }
+          >
+            Riprova
+          </Button>
+        </CardContent>
+      </Card>
+    );
   return (
     <Card className="lg:col-span-2">
       <CardHeader>
@@ -391,11 +433,8 @@ export function CreditManagerCard({ companyId }: Props) {
           <CreditCard className="h-5 w-5" /> Gestione Crediti
         </CardTitle>
         <CardDescription>
-          Saldo corrente per wallet. Usa <strong>Aggiungi</strong> per ricaricare un bonus,
-          <strong> Deduci</strong> per stornare: i movimenti EUR sono atomici (FOR UPDATE) e loggati in
-          <code className="text-[0.7rem] mx-1">admin_credit_adjustments</code>; i render usano
-          <code className="text-[0.7rem] mx-1">render_credit_ledger</code> (fallback client-side,
-          evita adjust render simultanei sulla stessa azienda).
+          Saldi Email, AI, WhatsApp e SMS in euro; Render in crediti. Ogni
+          rettifica richiede un motivo ed è registrata nello storico.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -433,12 +472,15 @@ export function CreditManagerCard({ companyId }: Props) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {wallets.map(({ key, label, icon: Icon, kind }) => {
             const balance = balanceByKey[key];
-            const balanceLabel = kind === "integer"
-              ? `${balance} crediti`
-              : formatCurrency(balance);
+            const balanceLabel =
+              kind === "integer"
+                ? `${balance} crediti`
+                : formatCurrency(balance);
             const isNegative = balance < 0;
             const isLow =
-              !isNegative && (kind === "integer" ? balance < 10 : balance < 5) && balance > 0;
+              !isNegative &&
+              (kind === "integer" ? balance < 10 : balance < 5) &&
+              balance > 0;
             const isZero = balance === 0;
 
             return (
@@ -447,7 +489,8 @@ export function CreditManagerCard({ companyId }: Props) {
                 className={cn(
                   "border rounded-lg p-4 space-y-3",
                   isNegative && "border-destructive bg-destructive/5",
-                  isLow && "border-amber-300 bg-amber-50/30 dark:bg-amber-950/20",
+                  isLow &&
+                    "border-amber-300 bg-amber-50/30 dark:bg-amber-950/20",
                 )}
               >
                 <div className="flex items-center justify-between">
@@ -477,9 +520,15 @@ export function CreditManagerCard({ companyId }: Props) {
                 </p>
                 <div className="flex gap-2">
                   <Button
-                    size="sm" variant="outline" className="flex-1"
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
                     onClick={() => {
-                      setAdjustDialog({ open: true, wallet: key, direction: "add" });
+                      setAdjustDialog({
+                        open: true,
+                        wallet: key,
+                        direction: "add",
+                      });
                       setAdjustAmount("");
                       setAdjustReason("");
                     }}
@@ -487,11 +536,19 @@ export function CreditManagerCard({ companyId }: Props) {
                     <Plus className="h-3 w-3 mr-1" /> Aggiungi
                   </Button>
                   <Button
-                    size="sm" variant="outline" className="flex-1"
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
                     disabled={balance <= 0}
-                    title={balance <= 0 ? "Saldo già a zero" : "Stuorno crediti"}
+                    title={
+                      balance <= 0 ? "Saldo già a zero" : "Stuorno crediti"
+                    }
                     onClick={() => {
-                      setAdjustDialog({ open: true, wallet: key, direction: "deduct" });
+                      setAdjustDialog({
+                        open: true,
+                        wallet: key,
+                        direction: "deduct",
+                      });
                       setAdjustAmount("");
                       setAdjustReason("");
                     }}
@@ -517,7 +574,8 @@ export function CreditManagerCard({ companyId }: Props) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {adjustDialog.direction === "add" ? "Aggiungi" : "Deduci"} crediti — {currentWallet?.label ?? adjustDialog.wallet}
+              {adjustDialog.direction === "add" ? "Aggiungi" : "Deduci"} crediti
+              — {currentWallet?.label ?? adjustDialog.wallet}
             </DialogTitle>
             <DialogDescription>
               {currentWallet?.kind === "integer"
@@ -600,16 +658,22 @@ export function CreditManagerCard({ companyId }: Props) {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setAdjustDialog({ open: false, wallet: "", direction: "add" })}
+              onClick={() =>
+                setAdjustDialog({ open: false, wallet: "", direction: "add" })
+              }
               disabled={adjust.isPending}
             >
               Annulla
             </Button>
             <Button
               onClick={() => adjust.mutate()}
-              disabled={adjust.isPending || !adjustAmount || !adjustReason.trim()}
+              disabled={
+                adjust.isPending || !adjustAmount || !adjustReason.trim()
+              }
             >
-              {adjust.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              {adjust.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              )}
               Conferma
             </Button>
           </DialogFooter>

@@ -1,18 +1,26 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Card, CardContent, CardHeader, CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { escapeCsvCell } from "@/lib/csvExport";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  Activity, ClipboardList, CreditCard, MessageSquare, Bell, Loader2,
-  ChevronDown, Download,
+  Activity,
+  ClipboardList,
+  CreditCard,
+  MessageSquare,
+  Bell,
+  Loader2,
+  ChevronDown,
+  Download,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -23,7 +31,14 @@ interface CompanyActivityTabProps {
   companyId: string;
 }
 
-type EventType = "all" | "audit" | "subscription" | "order" | "ticket" | "notification";
+type EventType =
+  | "all"
+  | "audit"
+  | "subscription"
+  | "order"
+  | "ticket"
+  | "notification"
+  | "communication";
 
 interface TimelineEvent {
   id: string;
@@ -36,94 +51,305 @@ interface TimelineEvent {
 }
 
 const PAGE_SIZE = 20;
+const ACTION_LABELS: Record<string, string> = {
+  impersonation_start: "Accesso amministrativo all’azienda",
+  impersonation_end: "Fine accesso amministrativo",
+  plan_changed: "Cambio piano",
+  tier_changed: "Livello white label modificato",
+  update_company: "Dati azienda modificati",
+  create_company: "Azienda creata",
+  update_status: "Stato azienda modificato",
+};
 
 export function CompanyActivityTab({ companyId }: CompanyActivityTabProps) {
   const [filter, setFilter] = useState<EventType>("all");
   const [limit, setLimit] = useState(PAGE_SIZE);
 
-  const { data: events = [], isLoading } = useQuery({
+  const {
+    data: feed,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["company-activity-feed", companyId],
     queryFn: async () => {
       // allSettled: una singola fonte che fallisce (es. errore di rete) non
       // deve azzerare l'intera timeline — mostriamo le fonti riuscite.
       const settled = await Promise.allSettled([
-        supabase.from("admin_audit_log").select("id, action, details, created_at, target_type").eq("target_id", companyId).order("created_at", { ascending: false }).limit(50),
-        supabase.from("subscription_logs").select("id, event_type, notes, created_at, old_status, new_status").eq("company_id", companyId).order("created_at", { ascending: false }).limit(50),
-        supabase.from("orders").select("id, description, order_code, created_at, total_amount").eq("company_id", companyId).order("created_at", { ascending: false }).limit(50),
-        supabase.from("tickets").select("id, subject, status, created_at").eq("company_id", companyId).order("created_at", { ascending: false }).limit(50),
-        supabase.from("lifecycle_notifications").select("id, notification_type, message, created_at").eq("company_id", companyId).order("created_at", { ascending: false }).limit(50),
+        supabase
+          .from("admin_audit_log")
+          .select("id, action, details, created_at, target_type")
+          .eq("target_id", companyId)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("subscription_logs")
+          .select("id, event_type, notes, created_at, old_status, new_status")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("orders")
+          .select("id, description, order_code, created_at, total_amount")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("tickets")
+          .select("id, subject, status, created_at")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("lifecycle_notifications")
+          .select("id, notification_type, message, created_at")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("company_flag_audit_log")
+          .select("id,field_name,created_at")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("whitelabel_audit_log")
+          .select("id,action,created_at")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("email_delivery_log")
+          .select("id,subject,status,sent_at")
+          .eq("company_id", companyId)
+          .order("sent_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("superadmin_comunicazioni" as never)
+          .select("id,oggetto,tipo,created_at")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .limit(50),
       ]);
+      const failedSources = settled
+        .map((entry, index) =>
+          entry.status === "rejected" ||
+          (entry.status === "fulfilled" && entry.value.error)
+            ? [
+                "Operazioni amministrative",
+                "Abbonamento",
+                "Ordini",
+                "Ticket",
+                "Notifiche",
+                "Modifiche configurazione",
+                "White label",
+                "Invii email",
+                "Contatti manuali",
+              ][index]
+            : null,
+        )
+        .filter(Boolean);
+      if (failedSources.length === settled.length)
+        throw new Error("Nessuna fonte del registro disponibile");
       const pick = <T,>(i: number): { data: T[] | null } =>
         settled[i].status === "fulfilled"
           ? (settled[i] as PromiseFulfilledResult<{ data: T[] | null }>).value
           : { data: null };
-      const auditRes = pick<{ id: string; action: string; details: unknown; created_at: string }>(0);
-      const subLogsRes = pick<{ id: string; event_type: string; notes: string | null; created_at: string; old_status: string; new_status: string }>(1);
-      const ordersRes = pick<{ id: string; description: string | null; order_code: string | null; created_at: string }>(2);
-      const ticketsRes = pick<{ id: string; subject: string; created_at: string }>(3);
-      const notifRes = pick<{ id: string; notification_type: string; message: string | null; created_at: string }>(4);
+      const auditRes = pick<{
+        id: string;
+        action: string;
+        details: unknown;
+        created_at: string;
+      }>(0);
+      const subLogsRes = pick<{
+        id: string;
+        event_type: string;
+        notes: string | null;
+        created_at: string;
+        old_status: string;
+        new_status: string;
+      }>(1);
+      const ordersRes = pick<{
+        id: string;
+        description: string | null;
+        order_code: string | null;
+        created_at: string;
+      }>(2);
+      const ticketsRes = pick<{
+        id: string;
+        subject: string;
+        created_at: string;
+      }>(3);
+      const notifRes = pick<{
+        id: string;
+        notification_type: string;
+        message: string | null;
+        created_at: string;
+      }>(4);
 
       const timeline: TimelineEvent[] = [];
+      for (const entry of pick<{
+        id: string;
+        field_name: string;
+        created_at: string;
+      }>(5).data ?? [])
+        timeline.push({
+          id: `config-${entry.id}`,
+          type: "audit",
+          action: "Configurazione modificata",
+          details:
+            entry.field_name === "feature_overrides"
+              ? "Disponibilità o limiti di una funzionalità"
+              : entry.field_name,
+          date: entry.created_at,
+          icon: Activity,
+          color: "text-blue-600",
+        });
+      for (const entry of pick<{
+        id: string;
+        action: string;
+        created_at: string;
+      }>(6).data ?? [])
+        timeline.push({
+          id: `brand-${entry.id}`,
+          type: "audit",
+          action: ACTION_LABELS[entry.action] ?? "White label modificato",
+          details: "Marchio e dominio",
+          date: entry.created_at,
+          icon: Activity,
+          color: "text-blue-600",
+        });
+      for (const entry of pick<{
+        id: string;
+        subject: string;
+        status: string;
+        sent_at: string;
+      }>(7).data ?? [])
+        if (entry.sent_at)
+          timeline.push({
+            id: `email-${entry.id}`,
+            type: "communication",
+            action: "Invio email della piattaforma",
+            details: entry.subject || "Senza oggetto",
+            date: entry.sent_at,
+            icon: MessageSquare,
+            color: "text-amber-600",
+          });
+      for (const entry of pick<{
+        id: string;
+        oggetto: string;
+        tipo: string;
+        created_at: string;
+      }>(8).data ?? [])
+        timeline.push({
+          id: `contact-${entry.id}`,
+          type: "communication",
+          action: "Contatto annotato",
+          details: entry.oggetto || entry.tipo,
+          date: entry.created_at,
+          icon: MessageSquare,
+          color: "text-amber-600",
+        });
 
       (auditRes.data || []).forEach((e) => {
         const det = e.details as Record<string, any> | null;
         timeline.push({
-          id: `audit-${e.id}`, type: "audit", action: e.action,
-          details: det?.company_name ? `${e.action} — ${det.company_name}` : e.action,
-          date: e.created_at, icon: Activity, color: "text-blue-600",
+          id: `audit-${e.id}`,
+          type: "audit",
+          action: ACTION_LABELS[e.action] ?? e.action,
+          details: det?.company_name
+            ? `${ACTION_LABELS[e.action] ?? e.action} — ${det.company_name}`
+            : (ACTION_LABELS[e.action] ?? e.action),
+          date: e.created_at,
+          icon: Activity,
+          color: "text-blue-600",
         });
       });
 
       (subLogsRes.data || []).forEach((e) => {
         timeline.push({
-          id: `sub-${e.id}`, type: "subscription", action: e.event_type,
+          id: `sub-${e.id}`,
+          type: "subscription",
+          action: ACTION_LABELS[e.event_type] ?? e.event_type,
           details: e.notes || `${e.old_status} → ${e.new_status}`,
-          date: e.created_at, icon: CreditCard, color: "text-violet-600",
+          date: e.created_at,
+          icon: CreditCard,
+          color: "text-violet-600",
         });
       });
 
       (ordersRes.data || []).forEach((e) => {
         timeline.push({
-          id: `order-${e.id}`, type: "order", action: "Ordine creato",
+          id: `order-${e.id}`,
+          type: "order",
+          action: "Ordine creato",
           details: `${e.order_code || ""} ${e.description || ""}`.trim(),
-          date: e.created_at, icon: ClipboardList, color: "text-green-600",
+          date: e.created_at,
+          icon: ClipboardList,
+          color: "text-green-600",
         });
       });
 
       (ticketsRes.data || []).forEach((e) => {
         timeline.push({
-          id: `ticket-${e.id}`, type: "ticket", action: "Ticket",
-          details: e.subject, date: e.created_at, icon: MessageSquare, color: "text-amber-600",
+          id: `ticket-${e.id}`,
+          type: "ticket",
+          action: "Ticket",
+          details: e.subject,
+          date: e.created_at,
+          icon: MessageSquare,
+          color: "text-amber-600",
         });
       });
 
       (notifRes.data || []).forEach((e) => {
         timeline.push({
-          id: `notif-${e.id}`, type: "notification", action: e.notification_type,
+          id: `notif-${e.id}`,
+          type: "notification",
+          action: e.notification_type,
           details: e.message || e.notification_type,
-          date: e.created_at, icon: Bell, color: "text-red-600",
+          date: e.created_at,
+          icon: Bell,
+          color: "text-red-600",
         });
       });
 
-      return timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return {
+        failedSources,
+        events: timeline.sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+        ),
+      };
     },
     enabled: !!companyId,
     staleTime: 2 * 60 * 1000,
   });
 
-  const filtered = filter === "all" ? events : events.filter((e) => e.type === filter);
+  const events = feed?.events ?? [];
+  const filtered =
+    filter === "all" ? events : events.filter((e) => e.type === filter);
   const visible = filtered.slice(0, limit);
 
   const typeLabels: Record<EventType, string> = {
-    all: "Tutti", audit: "Audit", subscription: "Abbonamento",
-    order: "Ordini", ticket: "Ticket", notification: "Notifiche",
+    all: "Tutti",
+    audit: "Audit",
+    subscription: "Abbonamento",
+    order: "Ordini",
+    ticket: "Ticket",
+    notification: "Notifiche",
+    communication: "Comunicazioni",
   };
 
   // Conta per tipo (KPI strip)
   const counts = useMemo(() => {
     const acc: Record<EventType, number> = {
-      all: events.length, audit: 0, subscription: 0,
-      order: 0, ticket: 0, notification: 0,
+      all: events.length,
+      audit: 0,
+      subscription: 0,
+      order: 0,
+      ticket: 0,
+      notification: 0,
+      communication: 0,
     };
     events.forEach((e) => {
       acc[e.type] = (acc[e.type] ?? 0) + 1;
@@ -145,7 +371,9 @@ export function CompanyActivityTab({ companyId }: CompanyActivityTabProps) {
       ].join(","),
     );
     const csv = [headers.join(","), ...rows].join("\r\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\uFEFF" + csv], {
+      type: "text/csv;charset=utf-8;",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -157,6 +385,23 @@ export function CompanyActivityTab({ companyId }: CompanyActivityTabProps) {
 
   return (
     <div className="space-y-4">
+      {isError && (
+        <p role="alert">
+          Impossibile caricare il registro.{" "}
+          <Button variant="link" onClick={() => void refetch()}>
+            Riprova
+          </Button>
+        </p>
+      )}
+      {!!feed?.failedSources.length && (
+        <p role="alert" className="text-sm text-amber-700">
+          Registro parziale: fonti non disponibili (
+          {feed.failedSources.join(", ")}).{" "}
+          <Button variant="link" onClick={() => void refetch()}>
+            Riprova
+          </Button>
+        </p>
+      )}
       {/* KPI strip — count per tipo, cliccabili per filtrare */}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
         {(Object.keys(typeLabels) as EventType[]).map((type) => {
@@ -186,86 +431,107 @@ export function CompanyActivityTab({ companyId }: CompanyActivityTabProps) {
         })}
       </div>
 
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Activity className="h-4 w-4 text-primary" />
-            Attività Recente
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <Select
-              value={filter}
-              onValueChange={(v) => {
-                setFilter(v as EventType);
-                setLimit(PAGE_SIZE);
-              }}
-            >
-              <SelectTrigger className="w-[150px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(typeLabels).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>
-                    {v}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 hidden sm:inline-flex"
-              onClick={handleExportCsv}
-              disabled={filtered.length === 0}
-            >
-              <Download className="h-3.5 w-3.5 mr-1.5" />
-              CSV
-            </Button>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" />
+              Attività Recente
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Select
+                value={filter}
+                onValueChange={(v) => {
+                  setFilter(v as EventType);
+                  setLimit(PAGE_SIZE);
+                }}
+              >
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(typeLabels).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 hidden sm:inline-flex"
+                onClick={handleExportCsv}
+                disabled={filtered.length === 0}
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                CSV
+              </Button>
+            </div>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : visible.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">Nessuna attività registrata</p>
-        ) : (
-          <div className="space-y-1">
-            {visible.map((event) => {
-              const Icon = event.icon;
-              return (
-                <div key={event.id} className="flex items-start gap-3 py-2.5 border-b last:border-0">
-                  <div className={`mt-0.5 ${event.color}`}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium truncate">{event.action}</span>
-                      <Badge variant="outline" className="text-xs shrink-0">{typeLabels[event.type]}</Badge>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : isError ? (
+            <p className="text-sm text-muted-foreground py-8">
+              Registro non disponibile: riprova il caricamento.
+            </p>
+          ) : visible.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              Nessuna attività registrata
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {visible.map((event) => {
+                const Icon = event.icon;
+                return (
+                  <div
+                    key={event.id}
+                    className="flex items-start gap-3 py-2.5 border-b last:border-0"
+                  >
+                    <div className={`mt-0.5 ${event.color}`}>
+                      <Icon className="h-4 w-4" />
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{event.details}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium truncate">
+                          {event.action}
+                        </span>
+                        <Badge variant="outline" className="text-xs shrink-0">
+                          {typeLabels[event.type]}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {event.details}
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {format(new Date(event.date), "dd/MM/yy HH:mm", {
+                        locale: it,
+                      })}
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">
-                    {format(new Date(event.date), "dd/MM/yy HH:mm", { locale: it })}
-                  </span>
+                );
+              })}
+              {visible.length < filtered.length && (
+                <div className="pt-3 text-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setLimit((l) => l + PAGE_SIZE)}
+                  >
+                    <ChevronDown className="h-4 w-4 mr-1" />
+                    Mostra altri ({filtered.length - visible.length} rimanenti)
+                  </Button>
                 </div>
-              );
-            })}
-            {visible.length < filtered.length && (
-              <div className="pt-3 text-center">
-                <Button variant="ghost" size="sm" onClick={() => setLimit((l) => l + PAGE_SIZE)}>
-                  <ChevronDown className="h-4 w-4 mr-1" />
-                  Mostra altri ({filtered.length - visible.length} rimanenti)
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

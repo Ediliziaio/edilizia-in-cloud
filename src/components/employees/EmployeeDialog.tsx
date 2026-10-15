@@ -40,10 +40,10 @@ const employeeSchema = z.object({
   email: z.string().email("Email non valida").optional().or(z.literal("")),
   phone: z.string().optional(),
   phone_whatsapp: z.string().optional(),
-  gross_salary: z.coerce.number().min(0, "Deve essere >= 0"),
-  net_salary: z.coerce.number().min(0, "Deve essere >= 0"),
-  monthly_hours: z.coerce.number().min(1, "Deve essere >= 1").max(744, "Max 744 ore"),
-  costo_orario: z.coerce.number().min(0, "Deve essere >= 0").optional(),
+  gross_salary: z.coerce.number<number>().min(0, "Deve essere >= 0"),
+  net_salary: z.coerce.number<number>().min(0, "Deve essere >= 0"),
+  monthly_hours: z.coerce.number<number>().min(1, "Deve essere >= 1").max(744, "Max 744 ore"),
+  costo_orario: z.coerce.number<number>().min(0, "Deve essere >= 0").optional(),
   is_active: z.boolean(),
   area: z.enum(["cantiere", "commerciale", "amministrazione", "tecnico"]).default("cantiere"),
 });
@@ -66,6 +66,8 @@ interface EmployeeDialogProps {
     is_active: boolean;
     role_type?: string;
     area?: string | null;
+    costo_orario?: number | null;
+    inps_rate?: number | null;
   } | null;
   onSave: (data: EmployeeFormData) => void;
   isSaving: boolean;
@@ -83,7 +85,7 @@ export function EmployeeDialog({
   const effectiveRoleType = employee?.role_type || roleType;
   const isStaffInterno = effectiveRoleType === 'staff_interno';
   const entityLabel = isStaffInterno ? 'Staff' : 'Operaio';
-  const form = useForm<EmployeeFormData>({
+  const form = useForm<z.input<typeof employeeSchema>, unknown, EmployeeFormData>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
       first_name: "",
@@ -112,7 +114,7 @@ export function EmployeeDialog({
         monthly_hours: employee.monthly_hours,
         costo_orario: employee.costo_orario ?? undefined,
         is_active: employee.is_active,
-        area: employee.area || (employee.role_type === "staff_interno" ? "amministrazione" : "cantiere"),
+        area: employeeSchema.shape.area.removeDefault().safeParse(employee.area).data ?? (employee.role_type === "staff_interno" ? "amministrazione" : "cantiere"),
       });
     } else {
       form.reset({
@@ -132,7 +134,7 @@ export function EmployeeDialog({
 
   const grossSalary = form.watch("gross_salary");
   const monthlyHours = form.watch("monthly_hours");
-  const inpsRate = form.watch("inps_rate");
+  const inpsRate = employee?.inps_rate;
   // Stesso calcolo del database: il numero suggerito qui è ESATTAMENTE quello
   // che finirà in commessa se il campo resta vuoto. Prima il placeholder
   // mostrava il lordo diviso le ore, senza oneri: un valore che il sistema

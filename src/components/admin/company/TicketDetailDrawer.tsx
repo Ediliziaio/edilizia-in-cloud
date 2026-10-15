@@ -149,7 +149,8 @@ export function TicketDetailDrawer({
       });
       if (error) throw error;
       const sp = String(data?.suggested_priority ?? "");
-      if (!(SUPPORT_PRIORITIES as readonly string[]).includes(sp)) {
+      const priority = SUPPORT_PRIORITIES.find(value => value === sp);
+      if (!priority) {
         toast.info("Analisi AI completata: nessun cambio di priorità suggerito.");
         return;
       }
@@ -159,7 +160,7 @@ export function TicketDetailDrawer({
       }
       const { error: upErr } = await supabase
         .from("tickets")
-        .update({ priority: sp, priorita: sp })
+        .update({ priority, priorita: priority })
         .eq("id", ticket.id);
       if (upErr) throw upErr;
       queryClient.invalidateQueries({ queryKey: ["ticket-azienda", ticket.company_id] });

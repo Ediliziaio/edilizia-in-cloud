@@ -1,6 +1,13 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Lightbulb, AlertTriangle, Clock, CreditCard, ListChecks, UserX } from "lucide-react";
+import {
+  Lightbulb,
+  AlertTriangle,
+  Clock,
+  CreditCard,
+  ListChecks,
+  UserX,
+} from "lucide-react";
 import { differenceInDays } from "date-fns";
 
 interface CompanyNextActionsProps {
@@ -9,6 +16,7 @@ interface CompanyNextActionsProps {
   onboardingPct: number;
   daysSinceLastOrder: number | null;
   paymentMethod: string;
+  onNavigateToTab?: (tab: string) => void;
 }
 
 interface Action {
@@ -18,7 +26,11 @@ interface Action {
 }
 
 export function getNextActions({
-  status, trialEndsAt, onboardingPct, daysSinceLastOrder, paymentMethod,
+  status,
+  trialEndsAt,
+  onboardingPct,
+  daysSinceLastOrder,
+  paymentMethod,
 }: CompanyNextActionsProps): Action[] {
   const actions: Action[] = [];
   const hasPayment = paymentMethod !== "none" && paymentMethod !== "";
@@ -27,31 +39,59 @@ export function getNextActions({
   if (status === "trial" && trialEndsAt) {
     const daysLeft = differenceInDays(new Date(trialEndsAt), new Date());
     if (daysLeft <= 3 && daysLeft >= 0) {
-      actions.push({ icon: AlertTriangle, message: `Trial scade tra ${daysLeft}gg — Proponi piano Pro`, priority: "high" });
+      actions.push({
+        icon: AlertTriangle,
+        message: `Trial scade tra ${daysLeft}gg — Proponi piano Pro`,
+        priority: "high",
+      });
     } else if (daysLeft <= 7) {
-      actions.push({ icon: Clock, message: `Trial scade tra ${daysLeft}gg — Invia reminder upgrade`, priority: "medium" });
+      actions.push({
+        icon: Clock,
+        message: `Trial scade tra ${daysLeft}gg — Invia reminder upgrade`,
+        priority: "medium",
+      });
     }
   }
 
   // Onboarding incomplete
   if (onboardingPct < 100) {
     const prio = onboardingPct < 40 ? "high" : "medium";
-    actions.push({ icon: ListChecks, message: `Onboarding incompleto (${onboardingPct}%) — Invia checklist`, priority: prio });
+    actions.push({
+      icon: ListChecks,
+      message: `Configurazione piattaforma (${onboardingPct}%) — Apri percorso di avvio`,
+      priority: prio,
+    });
   }
 
   // No payment method
   if (!hasPayment && (status === "trial" || status === "active")) {
-    actions.push({ icon: CreditCard, message: "Nessun metodo pagamento — Genera link checkout", priority: "medium" });
+    actions.push({
+      icon: CreditCard,
+      message: "Nessun metodo pagamento — Genera link checkout",
+      priority: "medium",
+    });
   }
 
   // Inactive
-  if (daysSinceLastOrder !== null && daysSinceLastOrder > 14 && status === "active") {
-    actions.push({ icon: UserX, message: `Inattiva da ${daysSinceLastOrder}gg — Schedula follow-up`, priority: daysSinceLastOrder > 30 ? "high" : "medium" });
+  if (
+    daysSinceLastOrder !== null &&
+    daysSinceLastOrder > 14 &&
+    status === "active"
+  ) {
+    actions.push({
+      icon: UserX,
+      message: `Inattiva da ${daysSinceLastOrder}gg — Schedula follow-up`,
+      priority: daysSinceLastOrder > 30 ? "high" : "medium",
+    });
   }
 
   // Expired
   if (status === "expired") {
-    actions.push({ icon: AlertTriangle, message: "Trial scaduto — Contatta per conversione o estensione", priority: "high" });
+    actions.push({
+      icon: AlertTriangle,
+      message: "Trial scaduto — Contatta per conversione o estensione",
+      priority: "high",
+    });
   }
 
   return actions.sort((a, b) => {
@@ -76,7 +116,9 @@ export function CompanyNextActions(props: CompanyNextActionsProps) {
         <div className="flex items-center gap-2 mb-2">
           <Lightbulb className="h-4 w-4 text-amber-600" />
           <span className="text-sm font-semibold">Azioni suggerite</span>
-          <Badge variant="secondary" className="text-xs">{actions.length}</Badge>
+          <Badge variant="secondary" className="text-xs">
+            {actions.length}
+          </Badge>
         </div>
         <div className="space-y-1.5">
           {actions.map((action, i) => {
@@ -87,7 +129,26 @@ export function CompanyNextActions(props: CompanyNextActionsProps) {
                 <div className={`p-1 rounded ${colors}`}>
                   <Icon className="h-3.5 w-3.5" />
                 </div>
-                <span>{action.message}</span>
+                {props.onNavigateToTab ? (
+                  <button
+                    type="button"
+                    className="text-left underline-offset-4 hover:underline"
+                    onClick={() =>
+                      props.onNavigateToTab?.(
+                        action.message.startsWith("Configurazione")
+                          ? "onboarding"
+                          : action.message.includes("pagamento") ||
+                              action.message.includes("Trial")
+                            ? "abbonamento"
+                            : "supporto",
+                      )
+                    }
+                  >
+                    {action.message}
+                  </button>
+                ) : (
+                  <span>{action.message}</span>
+                )}
               </div>
             );
           })}

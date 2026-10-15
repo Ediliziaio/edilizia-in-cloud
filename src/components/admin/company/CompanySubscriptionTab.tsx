@@ -1,3 +1,4 @@
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,11 +34,6 @@ import type { Company, CompanyStatus } from "@/types/auth";
 import { statusConfig } from "@/lib/companyUtils";
 import { eventTypeLabels, eventTypeIcons } from "@/lib/adminConstants";
 import { PaymentMethodCard } from "./PaymentMethodCard";
-import { CreditTransactionsTable } from "./CreditTransactionsTable";
-import { CreditManagerCard } from "./CreditManagerCard";
-import { CompanyFeatureOverridesCard } from "./CompanyFeatureOverridesCard";
-import { CompanyModuliVendutaSection } from "./CompanyModuliVendutaSection";
-import { CompanyOverrideAuditLogCard } from "./CompanyOverrideAuditLogCard";
 import {
   getEffectivePaymentStatus, getEffectiveMRR, PAYMENT_STATUS_META,
 } from "@/lib/paymentStatus";
@@ -111,6 +107,7 @@ export function CompanySubscriptionTab({
   isGeneratingCheckout,
   checkoutUrl,
 }: CompanySubscriptionTabProps) {
+  const confirm = useConfirm();
   const companyStatus = (company.status || "trial") as CompanyStatus;
   const statusCfg = statusConfig[companyStatus] || statusConfig.trial;
 
@@ -375,7 +372,7 @@ export function CompanySubscriptionTab({
               isCurrentlyComped={effectiveStatus === "comped"}
             />
             {companyStatus !== "suspended" ? (
-              <Button variant="outline" size="sm" disabled={isUpdatingStatus} onClick={onSuspend}>
+              <Button variant="outline" size="sm" disabled={isUpdatingStatus} onClick={async () => { if (await confirm({ title: `Sospendere ${company.name}?`, description: "L’azienda perderà temporaneamente l’accesso alla piattaforma. Potrai riattivarla da questa pagina.", confirmLabel: "Sospendi azienda", variant: "destructive" })) onSuspend(); }}>
                 {isUpdatingStatus ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Pause className="h-3 w-3 mr-1" />}Sospendi
               </Button>
             ) : (
@@ -421,29 +418,6 @@ export function CompanySubscriptionTab({
           Apri configuratore →
         </a>
       </div>
-
-      {/* Sezione dedicata Moduli Vendita Verticali (categoria modulo_vendita) */}
-      <CompanyModuliVendutaSection
-        companyId={company.id}
-        companyName={company.name}
-      />
-
-      {/* Override feature inline (sblocco/blocco + limiti + scadenze + prezzi custom) */}
-      <CompanyFeatureOverridesCard
-        companyId={company.id}
-        companyName={company.name}
-        planId={currentPlan?.id ?? null}
-        planSlug={currentPlan?.slug ?? null}
-      />
-
-      {/* Storico modifiche override (audit log) */}
-      <CompanyOverrideAuditLogCard companyId={company.id} />
-
-      {/* Gestione crediti multi-wallet (SuperAdmin) */}
-      <CreditManagerCard companyId={company.id} />
-
-      {/* Storico transazioni crediti (ai/email/whatsapp/render) — view unificata */}
-      <CreditTransactionsTable companyId={company.id} />
 
       {/* Storico */}
       <Card className="lg:col-span-2">

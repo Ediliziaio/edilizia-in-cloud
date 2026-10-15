@@ -29,21 +29,20 @@ export interface OnboardingTemplate {
 export function useOnboardingTask(companyId: string | undefined) {
   const queryClient = useQueryClient();
 
-  const { data: tasks, isLoading, isError, error } = useQuery({
+  const {
+    data: tasks,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ["onboarding-tasks", companyId],
     queryFn: async (): Promise<OnboardingTask[]> => {
       if (!companyId) return [];
       const { data, error } = await supabase
-        // `as never`: la tabella onboarding_task NON esiste in produzione — la
-        // migration non e' mai stata applicata. Il cast e' l'unico modo di
-        // scrivere una query verso una tabella che i tipi (giustamente) non
-        // conoscono; l'errore vero arriva a runtime ed e' esposto da isError,
-        // quindi la tab mostra un guasto e non un elenco vuoto. Stesso schema
-        // di useComunicazioniAzienda. Da togliere il giorno in cui la tabella
-        // viene creata davvero.
+        // Tipi generati da aggiornare dopo la pubblicazione della migrazione CS.
         .from("onboarding_task" as never)
         .select(
-          "id, company_id, template_id, titolo, descrizione, stato, assegnato_a_nome, scadenza, completato_at, note, created_at"
+          "id, company_id, template_id, titolo, descrizione, stato, assegnato_a_nome, scadenza, completato_at, note, created_at",
         )
         .eq("company_id", companyId)
         .order("created_at", { ascending: true });
@@ -54,26 +53,51 @@ export function useOnboardingTask(companyId: string | undefined) {
   });
 
   const aggiornaStato = useMutation({
-    mutationFn: async ({ taskId, stato, note }: { taskId: string; stato: OnboardingTask["stato"]; note?: string }) => {
-      const update: Record<string, unknown> = { stato };
-      if (stato === "completato") update.completato_at = new Date().toISOString();
+    mutationFn: async ({
+      taskId,
+      stato,
+      note,
+    }: {
+      taskId: string;
+      stato: OnboardingTask["stato"];
+      note?: string;
+    }) => {
+      if (!companyId) throw new Error("Azienda non selezionata");
+      const update: Record<string, unknown> = {
+        stato,
+        completato_at: stato === "completato" ? new Date().toISOString() : null,
+      };
       if (note !== undefined) update.note = note;
-      const { error } = await supabase.from("onboarding_task" as never).update(update as never).eq("id", taskId);
+      const { error } = await supabase
+        .from("onboarding_task" as never)
+        .update(update as never)
+        .eq("id", taskId)
+        .eq("company_id", companyId)
+        .select("id")
+        .single();
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
       toast.success("Task aggiornato");
-      queryClient.invalidateQueries({ queryKey: ["onboarding-tasks", companyId] });
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-tasks", companyId],
+      });
     },
-    onError: (err: Error) => toast.error("Errore aggiornamento task", { description: err.message }),
+    onError: (err: Error) =>
+      toast.error("Errore aggiornamento task", { description: err.message }),
   });
 
   const creaTask = useMutation({
-    mutationFn: async (payload: { titolo: string; descrizione?: string; scadenza?: string; assegnato_a_nome?: string }) => {
+    mutationFn: async (payload: {
+      titolo: string;
+      descrizione?: string;
+      scadenza?: string;
+      assegnato_a_nome?: string;
+    }) => {
       if (!companyId) throw new Error("companyId mancante");
       const { error } = await supabase.from("onboarding_task" as never).insert({
         company_id: companyId,
-        titolo: payload.titolo,
+        titolo: payload.titolo.trim(),
         descrizione: payload.descrizione ?? null,
         scadenza: payload.scadenza ?? null,
         assegnato_a_nome: payload.assegnato_a_nome ?? null,
@@ -82,18 +106,31 @@ export function useOnboardingTask(companyId: string | undefined) {
     },
     onSuccess: () => {
       toast.success("Task creato");
-      queryClient.invalidateQueries({ queryKey: ["onboarding-tasks", companyId] });
+      queryClient.invalidateQueries({
+        queryKey: ["onboarding-tasks", companyId],
+      });
     },
-    onError: (err: Error) => toast.error("Errore creazione task", { description: err.message }),
+    onError: (err: Error) =>
+      toast.error("Errore creazione task", { description: err.message }),
   });
 
   const completionePct = tasks
     ? Math.round(
-        (tasks.filter((t) => t.stato === "completato").length / Math.max(tasks.length, 1)) * 100
+        (tasks.filter((t) => t.stato === "completato").length /
+          Math.max(tasks.length, 1)) *
+          100,
       )
     : 0;
 
   // isError/error esposti: senza, un fetch fallito (es. tabella onboarding_task
   // non ancora migrata in prod) appariva come "nessun task" — dato falso.
-  return { tasks: tasks ?? [], isLoading, isError, error, aggiornaStato, creaTask, completionePct };
+  return {
+    tasks: tasks ?? [],
+    isLoading,
+    isError,
+    error,
+    aggiornaStato,
+    creaTask,
+    completionePct,
+  };
 }

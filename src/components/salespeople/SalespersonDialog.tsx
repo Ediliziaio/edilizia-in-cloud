@@ -36,9 +36,9 @@ const salespersonSchema = z.object({
   email: z.string().email("Email non valida").optional().or(z.literal("")),
   phone: z.string().optional(),
   compensation_mode: z.enum(["only_commission", "fixed_plus_commission", "fixed_only"]),
-  fixed_monthly_eur: z.coerce.number().min(0, "Il fisso non può essere negativo").default(0),
+  fixed_monthly_eur: z.coerce.number<number>().min(0, "Il fisso non può essere negativo").default(0),
   commission_type: z.enum(["fixed", "percentage_sold", "percentage_collected"]),
-  commission_value: z.coerce.number().min(0, "Il valore non può essere negativo"),
+  commission_value: z.coerce.number<number>().min(0, "Il valore non può essere negativo"),
 });
 
 type SalespersonFormData = z.infer<typeof salespersonSchema>;
@@ -71,7 +71,7 @@ export function SalespersonDialog({
   onSave,
   isLoading,
 }: SalespersonDialogProps) {
-  const form = useForm<SalespersonFormData>({
+  const form = useForm<z.input<typeof salespersonSchema>, unknown, SalespersonFormData>({
     resolver: zodResolver(salespersonSchema),
     defaultValues: {
       first_name: "",

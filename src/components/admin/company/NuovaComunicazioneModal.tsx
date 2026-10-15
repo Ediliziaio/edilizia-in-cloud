@@ -1,13 +1,22 @@
 import { useEffect, useState } from "react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Info } from "lucide-react";
@@ -32,7 +41,10 @@ interface NuovaComunicazioneModalProps {
 const INITIAL_TIPO: NuovaComunicazione["tipo"] = "email";
 
 export function NuovaComunicazioneModal({
-  open, onOpenChange, onSubmit, isLoading,
+  open,
+  onOpenChange,
+  onSubmit,
+  isLoading,
 }: NuovaComunicazioneModalProps) {
   const [tipo, setTipo] = useState<NuovaComunicazione["tipo"]>(INITIAL_TIPO);
   const [oggetto, setOggetto] = useState("");
@@ -92,9 +104,10 @@ export function NuovaComunicazioneModal({
     >
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nuova Comunicazione</DialogTitle>
+          <DialogTitle>Registra un contatto già avvenuto</DialogTitle>
           <DialogDescription>
-            Invia una comunicazione manuale a questa azienda.
+            Annota una comunicazione già effettuata. Il salvataggio aggiorna lo
+            storico e non invia messaggi.
           </DialogDescription>
         </DialogHeader>
 
@@ -135,7 +148,9 @@ export function NuovaComunicazioneModal({
                 <span
                   className={cn(
                     "text-[10px]",
-                    oggettoOver ? "text-destructive font-bold" : "text-muted-foreground",
+                    oggettoOver
+                      ? "text-destructive font-bold"
+                      : "text-muted-foreground",
                   )}
                 >
                   {oggetto.length}/{EMAIL_OGGETTO_MAX}
@@ -179,7 +194,9 @@ export function NuovaComunicazioneModal({
                 <span
                   className={cn(
                     "text-[10px]",
-                    corpoOver ? "text-destructive font-bold" : "text-muted-foreground",
+                    corpoOver
+                      ? "text-destructive font-bold"
+                      : "text-muted-foreground",
                   )}
                 >
                   {corpoLen}/{CORPO_MAX}

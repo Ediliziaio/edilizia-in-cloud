@@ -64,5 +64,15 @@ checks++;
 await db.exec(`update company_branding set primary_color='#7E22CE' where company_id='${id(13)}';`);
 await db.exec('reset role');
 await expectState(13, {whitelabel_tier:'basic',whitelabel_manual_tier:'basic',primary_color:'#7E22CE'});
+// La console aggiorna la concessione mantenendo il tier come target UPDATE OF.
+// Questo fa eseguire il trigger che sincronizza il flag runtime dopo il BEFORE.
+await db.exec(`update company_branding set whitelabel_manual_tier='full', whitelabel_tier=whitelabel_tier, is_active=true where company_id='${id(16)}';`);
+await expectState(16, {white_label_enabled:true,whitelabel_tier:'full',whitelabel_manual_tier:'full',is_active:true,brand_primary_color:'#1E40AF'});
+await db.exec(`update company_branding set whitelabel_manual_tier='none', whitelabel_tier=whitelabel_tier, is_active=false where company_id='${id(16)}';`);
+await expectState(16, {white_label_enabled:false,whitelabel_tier:'none',whitelabel_manual_tier:'none',is_active:false});
+await db.exec(`update company_branding set whitelabel_manual_tier='agency', whitelabel_tier=whitelabel_tier, is_active=true where company_id='${id(15)}';`);
+await expectState(15, {white_label_enabled:true,whitelabel_tier:'agency',whitelabel_manual_tier:'agency'});
+await db.exec(`update company_branding set whitelabel_manual_tier='none', whitelabel_tier=whitelabel_tier, is_active=true where company_id='${id(15)}';`);
+await expectState(15, {white_label_enabled:true,whitelabel_tier:'full',whitelabel_manual_tier:'none',brand_primary_color:'#1E40AF'});
 await db.close();
 console.log(`${checks} verifiche PostgreSQL superate: attivazione, upgrade, downgrade, diritti manuali, colori e protezione del tier.`);

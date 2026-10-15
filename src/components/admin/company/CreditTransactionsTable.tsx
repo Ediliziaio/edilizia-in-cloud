@@ -2,24 +2,45 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import { escapeCsvCell } from "@/lib/csvExport";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  Receipt, ArrowDown, ArrowUp, ChevronLeft, ChevronRight,
-  Download, Search, TrendingDown, TrendingUp, Wallet,
+  Receipt,
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Search,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
@@ -66,11 +87,11 @@ const TYPE_LABELS: Record<CreditType, string> = {
 };
 
 const TYPE_BADGE: Record<UnifiedRow["credit_type"], string> = {
-  ai:       "bg-purple-100 text-purple-700 border-purple-200",
-  email:    "bg-blue-100 text-blue-700 border-blue-200",
+  ai: "bg-purple-100 text-purple-700 border-purple-200",
+  email: "bg-blue-100 text-blue-700 border-blue-200",
   whatsapp: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  render:   "bg-amber-100 text-amber-700 border-amber-200",
-  sms:      "bg-sky-100 text-sky-700 border-sky-200",
+  render: "bg-amber-100 text-amber-700 border-amber-200",
+  sms: "bg-sky-100 text-sky-700 border-sky-200",
 };
 
 interface Props {
@@ -95,10 +116,22 @@ function rangeToCutoff(r: DateRange): string | null {
  * KPI aggregati delle transazioni nel periodo (TUTTE, non solo la pagina corrente).
  * Hook separato così il KPI strip non re-fetcha quando cambia solo la pagina.
  */
-function useKPIs(companyId: string, type: CreditType, dateRange: DateRange,
-  customFrom: string, customTo: string) {
+function useKPIs(
+  companyId: string,
+  type: CreditType,
+  dateRange: DateRange,
+  customFrom: string,
+  customTo: string,
+) {
   return useQuery({
-    queryKey: ["admin-credit-transactions-kpi", companyId, type, dateRange, customFrom, customTo],
+    queryKey: [
+      "admin-credit-transactions-kpi",
+      companyId,
+      type,
+      dateRange,
+      customFrom,
+      customTo,
+    ],
     queryFn: async () => {
       let q = supabase
         .from("credit_transactions_unified")
@@ -124,8 +157,10 @@ function useKPIs(companyId: string, type: CreditType, dateRange: DateRange,
       let countIn = 0;
       let countOut = 0;
       // Render e SMS sono wallet a UNITÀ (non EUR): esclusi dalla somma in euro
-      for (const row of (data ?? []) as Array<Pick<UnifiedRow, "direction" | "amount" | "credit_type">>) {
-        if (row.credit_type === "render" || row.credit_type === "sms") continue;
+      for (const row of (data ?? []) as Array<
+        Pick<UnifiedRow, "direction" | "amount" | "credit_type">
+      >) {
+        if (row.credit_type === "render") continue;
         if (row.direction === "in") {
           totalIn += row.amount;
           countIn++;
@@ -162,7 +197,12 @@ export function CreditTransactionsTable({ companyId }: Props) {
   const { data, isLoading } = useQuery({
     queryKey: [
       "admin-credit-transactions-unified",
-      companyId, type, page, dateRange, customFrom, customTo,
+      companyId,
+      type,
+      page,
+      dateRange,
+      customFrom,
+      customTo,
     ],
     queryFn: async () => {
       let q = supabase
@@ -184,7 +224,10 @@ export function CreditTransactionsTable({ companyId }: Props) {
 
       const { data, error, count } = await q;
       if (error) throw error;
-      return { rows: (data ?? []) as unknown as UnifiedRow[], total: count ?? 0 };
+      return {
+        rows: (data ?? []) as unknown as UnifiedRow[],
+        total: count ?? 0,
+      };
     },
     enabled: !!companyId,
     staleTime: 30 * 1000,
@@ -243,11 +286,19 @@ export function CreditTransactionsTable({ companyId }: Props) {
         return;
       }
 
-      const escape = (v: string | number | null | undefined) => escapeCsvCell(v, ",");
+      const escape = (v: string | number | null | undefined) =>
+        escapeCsvCell(v, ",");
 
       const headers = [
-        "Data", "Wallet", "Direzione", "Tipo movimento", "Importo",
-        "Saldo prima", "Saldo dopo", "Descrizione", "Riferimento",
+        "Data",
+        "Wallet",
+        "Direzione",
+        "Tipo movimento",
+        "Importo",
+        "Saldo prima",
+        "Saldo dopo",
+        "Descrizione",
+        "Riferimento",
       ];
       const csvRows = rows.map((r) =>
         [
@@ -259,11 +310,17 @@ export function CreditTransactionsTable({ companyId }: Props) {
           escape(r.balance_before ?? ""),
           escape(r.balance_after ?? ""),
           escape(r.description ?? ""),
-          escape(r.reference_kind ? `${r.reference_kind}:${r.reference_id ?? ""}` : ""),
+          escape(
+            r.reference_kind
+              ? `${r.reference_kind}:${r.reference_id ?? ""}`
+              : "",
+          ),
         ].join(","),
       );
       const csv = [headers.join(","), ...csvRows].join("\r\n");
-      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const blob = new Blob(["\uFEFF" + csv], {
+        type: "text/csv;charset=utf-8;",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -293,8 +350,8 @@ export function CreditTransactionsTable({ companyId }: Props) {
               Storico Transazioni Crediti
             </CardTitle>
             <CardDescription>
-              Movimenti unificati da AI, Email, WhatsApp, Render — sorgente{" "}
-              <code className="text-[0.7rem]">credit_transactions_unified</code>
+              Movimenti Email, AI, WhatsApp e SMS in euro; Render in crediti. I
+              totali monetari escludono i crediti Render.
             </CardDescription>
           </div>
         </div>
@@ -311,7 +368,9 @@ export function CreditTransactionsTable({ companyId }: Props) {
               <p className="text-lg font-bold text-emerald-600 mt-0.5">
                 {formatCurrency(k.totalIn)}
               </p>
-              <p className="text-[10px] text-muted-foreground">{k.countIn} movimenti</p>
+              <p className="text-[10px] text-muted-foreground">
+                {k.countIn} movimenti
+              </p>
             </div>
             <div className="rounded-lg border p-3">
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -321,7 +380,9 @@ export function CreditTransactionsTable({ companyId }: Props) {
               <p className="text-lg font-bold text-destructive mt-0.5">
                 {formatCurrency(k.totalOut)}
               </p>
-              <p className="text-[10px] text-muted-foreground">{k.countOut} movimenti</p>
+              <p className="text-[10px] text-muted-foreground">
+                {k.countOut} movimenti
+              </p>
             </div>
             <div className="rounded-lg border p-3">
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -331,13 +392,19 @@ export function CreditTransactionsTable({ companyId }: Props) {
               <p
                 className={cn(
                   "text-lg font-bold mt-0.5",
-                  k.net > 0 ? "text-emerald-600" : k.net < 0 ? "text-destructive" : "",
+                  k.net > 0
+                    ? "text-emerald-600"
+                    : k.net < 0
+                      ? "text-destructive"
+                      : "",
                 )}
               >
                 {k.net > 0 ? "+" : ""}
                 {formatCurrency(k.net)}
               </p>
-              <p className="text-[10px] text-muted-foreground">solo wallet EUR</p>
+              <p className="text-[10px] text-muted-foreground">
+                solo wallet EUR
+              </p>
             </div>
             <div className="rounded-lg border p-3">
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -347,7 +414,9 @@ export function CreditTransactionsTable({ companyId }: Props) {
               <p className="text-lg font-bold mt-0.5">
                 {(k.totalRows ?? 0).toLocaleString("it-IT")}
               </p>
-              <p className="text-[10px] text-muted-foreground">transazioni nel periodo</p>
+              <p className="text-[10px] text-muted-foreground">
+                transazioni nel periodo
+              </p>
             </div>
           </div>
         )}
@@ -466,7 +535,7 @@ export function CreditTransactionsTable({ companyId }: Props) {
                   {rows.map((row) => {
                     const isOut = row.direction === "out";
                     // Render e SMS = wallet a unità intere, non euro
-                    const isIntegerWallet = row.credit_type === "render" || row.credit_type === "sms";
+                    const isIntegerWallet = row.credit_type === "render";
                     const amountLabel = isIntegerWallet
                       ? `${isOut ? "-" : "+"}${row.amount}`
                       : `${isOut ? "-" : "+"}${formatCurrency(row.amount)}`;
@@ -485,7 +554,10 @@ export function CreditTransactionsTable({ companyId }: Props) {
                           })}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={TYPE_BADGE[row.credit_type]}>
+                          <Badge
+                            variant="outline"
+                            className={TYPE_BADGE[row.credit_type]}
+                          >
                             {TYPE_LABELS[row.credit_type as CreditType]}
                           </Badge>
                         </TableCell>
@@ -514,7 +586,9 @@ export function CreditTransactionsTable({ companyId }: Props) {
                           title={row.description ?? undefined}
                         >
                           {row.description || (
-                            <span className="text-muted-foreground italic">—</span>
+                            <span className="text-muted-foreground italic">
+                              —
+                            </span>
                           )}
                         </TableCell>
                       </TableRow>

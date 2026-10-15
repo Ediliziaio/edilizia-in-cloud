@@ -77,6 +77,12 @@ jobs:
           src/test/logic/sessioneCondivisaSottodomini.test.ts
           src/test/logic/sessioneCookieDominio.test.ts
 
+      - name: Run company administration regression tests
+        run: |
+          bunx vitest run --maxWorkers=1 --testTimeout=15000 src/test/ui/companyAdminReorganization.test.tsx src/test/ui/companyEffectiveFeatures.test.tsx src/test/ui/companyAIConsistency.test.tsx src/test/ui/companyWalletBalances.test.tsx src/test/ui/companyActivitySources.test.tsx src/test/ui/companyEmailQuotaDraft.test.tsx src/test/ui/adminWhiteLabel.test.tsx
+          node scripts/test-company-admin-cs.mjs
+          node scripts/test-white-label-plan.mjs
+
       - name: Run cash forecast regression tests
         run: >-
           TZ=Europe/Rome bunx vitest run

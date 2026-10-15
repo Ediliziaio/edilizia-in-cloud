@@ -219,9 +219,10 @@ export function useFeatureAccess(
         ).abortSignal(timeout.signal);
         if (error) throw error;
         // La RPC ritorna SETOF RECORD → client normalizza ad array o singolo.
-        const row: ResolveRow | null = Array.isArray(data)
-          ? ((data[0] as ResolveRow | undefined) ?? null)
-          : ((data as ResolveRow | null) ?? null);
+        const payload: unknown = data;
+        const row: ResolveRow | null = Array.isArray(payload)
+          ? ((payload[0] as ResolveRow | undefined) ?? null)
+          : ((payload as ResolveRow | null) ?? null);
         return row;
       } finally {
         timeout.dispose();

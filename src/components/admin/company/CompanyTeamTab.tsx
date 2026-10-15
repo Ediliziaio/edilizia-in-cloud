@@ -1,3 +1,4 @@
+import { isCompanyMemberInactive } from "@/lib/companyAdminState";
 import { useState, useMemo } from "react";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
@@ -149,8 +150,7 @@ function matchesSearch(member: PersonFields, query: string): boolean {
 
 /** True se `last_login_at` è > N giorni fa (o assente). */
 function isInactive(member: PersonFields, daysThreshold = 30): boolean {
-  if (!member.last_login_at) return true;
-  return differenceInDays(new Date(), new Date(member.last_login_at)) > daysThreshold;
+  return isCompanyMemberInactive(member, daysThreshold);
 }
 
 /** Email cliccabile mailto */
@@ -708,12 +708,7 @@ export function CompanyTeamTab({
               <TableBody>
                 {filtered.staff.map((member) => {
                   const perms = getActivePermissions(member.permissions);
-                  const defaultPerms: StaffPermissions = { ...DEFAULT_PERMISSIONS };
-                  (Object.keys(DEFAULT_PERMISSIONS) as Array<keyof StaffPermissions>).forEach(
-                    (key) => {
-                      defaultPerms[key] = member.permissions?.[key] ?? false;
-                    },
-                  );
+                  const defaultPerms: StaffPermissions = { ...DEFAULT_PERMISSIONS, ...member.permissions };
                   return (
                     <TableRow key={member.id}>
                       <TableCell className="font-medium">

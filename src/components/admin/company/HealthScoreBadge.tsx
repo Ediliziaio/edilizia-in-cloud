@@ -56,11 +56,11 @@ export function HealthScoreBadge({ companyId, healthScore, className }: Props) {
 
   const breakdown = healthScore
     ? [
-        { label: "Login", value: healthScore.login_score, max: 30 },
+        { label: "Login", value: healthScore.login_score, max: 25 },
         { label: "Ordini", value: healthScore.orders_score, max: 25 },
-        { label: "Features", value: healthScore.features_score, max: 25 },
-        { label: "Team", value: healthScore.team_score, max: 10 },
-        { label: "Engagement", value: healthScore.engagement_score, max: 10 },
+        { label: "Funzionalità", value: healthScore.features_score, max: 20 },
+        { label: "Team", value: healthScore.team_score, max: 15 },
+        { label: "Engagement", value: healthScore.engagement_score, max: 15 },
       ]
     : [];
 

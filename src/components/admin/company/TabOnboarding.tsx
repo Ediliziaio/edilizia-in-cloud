@@ -1,17 +1,41 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { CheckCircle2, Circle, Clock, Play, SkipForward, Plus, AlertCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  Circle,
+  Clock,
+  Play,
+  SkipForward,
+  Plus,
+  AlertCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useOnboardingTask, type OnboardingTask } from "@/hooks/useOnboardingTask";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  useOnboardingTask,
+  type OnboardingTask,
+} from "@/hooks/useOnboardingTask";
 
 interface TabOnboardingProps {
   companyId: string;
@@ -21,10 +45,22 @@ const statoConfig: Record<
   OnboardingTask["stato"],
   { label: string; icon: React.ElementType; className: string }
 > = {
-  da_fare: { label: "Da fare", icon: Circle, className: "text-muted-foreground" },
+  da_fare: {
+    label: "Da fare",
+    icon: Circle,
+    className: "text-muted-foreground",
+  },
   in_corso: { label: "In corso", icon: Play, className: "text-blue-600" },
-  completato: { label: "Completato", icon: CheckCircle2, className: "text-green-600" },
-  saltato: { label: "Saltato", icon: SkipForward, className: "text-orange-500" },
+  completato: {
+    label: "Completato",
+    icon: CheckCircle2,
+    className: "text-green-600",
+  },
+  saltato: {
+    label: "Saltato",
+    icon: SkipForward,
+    className: "text-orange-500",
+  },
 };
 
 function TaskItem({
@@ -41,36 +77,51 @@ function TaskItem({
   const isCompleted = task.stato === "completato";
 
   return (
-    <div className={`flex items-start gap-3 py-3 border-b last:border-b-0 ${isCompleted ? "opacity-60" : ""}`}>
+    <div
+      className={`flex items-start gap-3 py-3 border-b last:border-b-0 ${isCompleted ? "opacity-60" : ""}`}
+    >
       <button
         className={`mt-0.5 flex-shrink-0 ${cfg.className} hover:scale-110 transition-transform`}
-        onClick={() => !isCompleted && onChangeStato("completato")}
-        disabled={isLoading || isCompleted}
-        title={isCompleted ? "Completato" : "Segna come completato"}
+        onClick={() => onChangeStato(isCompleted ? "da_fare" : "completato")}
+        disabled={isLoading}
+        title={isCompleted ? "Riapri attività" : "Segna come completato"}
+        aria-label={`${isCompleted ? "Riapri" : "Completa"}: ${task.titolo}`}
       >
         <Icon className="h-5 w-5" />
       </button>
 
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium ${isCompleted ? "line-through" : ""}`}>
+        <p
+          className={`text-sm font-medium ${isCompleted ? "line-through" : ""}`}
+        >
           {task.titolo}
         </p>
         {task.descrizione && (
-          <p className="text-xs text-muted-foreground mt-0.5">{task.descrizione}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {task.descrizione}
+          </p>
         )}
         <div className="flex items-center gap-2 flex-wrap mt-1">
           {task.scadenza && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="h-3 w-3" />
-              <span>Scadenza: {format(new Date(task.scadenza), "dd/MM/yyyy", { locale: it })}</span>
+              <span>
+                Scadenza:{" "}
+                {format(new Date(task.scadenza), "dd/MM/yyyy", { locale: it })}
+              </span>
             </div>
           )}
           {task.assegnato_a_nome && (
-            <span className="text-xs text-muted-foreground">· {task.assegnato_a_nome}</span>
+            <span className="text-xs text-muted-foreground">
+              · {task.assegnato_a_nome}
+            </span>
           )}
           {task.completato_at && (
             <span className="text-xs text-green-600">
-              Completato il {format(new Date(task.completato_at), "dd/MM/yyyy", { locale: it })}
+              Completato il{" "}
+              {format(new Date(task.completato_at), "dd/MM/yyyy", {
+                locale: it,
+              })}
             </span>
           )}
         </div>
@@ -86,10 +137,18 @@ function TaskItem({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="da_fare" className="text-xs">Da fare</SelectItem>
-            <SelectItem value="in_corso" className="text-xs">In corso</SelectItem>
-            <SelectItem value="completato" className="text-xs">Completato</SelectItem>
-            <SelectItem value="saltato" className="text-xs">Saltato</SelectItem>
+            <SelectItem value="da_fare" className="text-xs">
+              Da fare
+            </SelectItem>
+            <SelectItem value="in_corso" className="text-xs">
+              In corso
+            </SelectItem>
+            <SelectItem value="completato" className="text-xs">
+              Completato
+            </SelectItem>
+            <SelectItem value="saltato" className="text-xs">
+              Saltato
+            </SelectItem>
           </SelectContent>
         </Select>
       )}
@@ -98,8 +157,15 @@ function TaskItem({
 }
 
 export function TabOnboarding({ companyId }: TabOnboardingProps) {
-  const { tasks, isLoading, isError, error, aggiornaStato, creaTask, completionePct } =
-    useOnboardingTask(companyId);
+  const {
+    tasks,
+    isLoading,
+    isError,
+    error,
+    aggiornaStato,
+    creaTask,
+    completionePct,
+  } = useOnboardingTask(companyId);
   const [nuovoOpen, setNuovoOpen] = useState(false);
   const [nuovoTitolo, setNuovoTitolo] = useState("");
   const [nuovoDescrizione, setNuovoDescrizione] = useState("");
@@ -120,19 +186,25 @@ export function TabOnboarding({ companyId }: TabOnboardingProps) {
           setNuovoScadenza("");
           setNuovoOpen(false);
         },
-      }
+      },
     );
   };
 
-  const pending = tasks.filter((t) => t.stato !== "completato" && t.stato !== "saltato");
-  const completed = tasks.filter((t) => t.stato === "completato" || t.stato === "saltato");
+  const pending = tasks.filter(
+    (t) => t.stato !== "completato" && t.stato !== "saltato",
+  );
+  const completed = tasks.filter(
+    (t) => t.stato === "completato" || t.stato === "saltato",
+  );
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-medium">Onboarding Playbook</h3>
-          <p className="text-xs text-muted-foreground">Task CS per questa azienda</p>
+          <p className="text-xs text-muted-foreground">
+            Task CS per questa azienda
+          </p>
         </div>
         <Button size="sm" onClick={() => setNuovoOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -144,12 +216,15 @@ export function TabOnboarding({ companyId }: TabOnboardingProps) {
       {tasks.length > 0 && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Completamento onboarding</span>
+            <span className="text-muted-foreground">
+              Completamento onboarding
+            </span>
             <span className="font-medium">{completionePct}%</span>
           </div>
           <Progress value={completionePct} className="h-2" />
           <p className="text-xs text-muted-foreground">
-            {tasks.filter((t) => t.stato === "completato").length} di {tasks.length} task completati
+            {tasks.filter((t) => t.stato === "completato").length} di{" "}
+            {tasks.length} task completati
           </p>
         </div>
       )}
@@ -173,7 +248,9 @@ export function TabOnboarding({ companyId }: TabOnboardingProps) {
             // ancora migrata in prod) veniva mostrato come "nessun task".
             <div className="py-8 text-center">
               <AlertCircle className="h-10 w-10 text-destructive mx-auto mb-3" />
-              <p className="text-sm font-medium">Impossibile caricare i task onboarding</p>
+              <p className="text-sm font-medium">
+                Impossibile caricare i task onboarding
+              </p>
               <p className="text-xs text-muted-foreground mt-1">
                 {error instanceof Error ? error.message : "Errore sconosciuto"}
               </p>
@@ -185,9 +262,15 @@ export function TabOnboarding({ companyId }: TabOnboardingProps) {
                 Nessun task onboarding per questa azienda
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                I task si aggiungono a mano: nessuno viene creato in automatico alla registrazione
+                I task si aggiungono a mano: nessuno viene creato in automatico
+                alla registrazione
               </p>
-              <Button variant="outline" size="sm" className="mt-3" onClick={() => setNuovoOpen(true)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={() => setNuovoOpen(true)}
+              >
                 <Plus className="h-4 w-4 mr-1" /> Aggiungi il primo task
               </Button>
             </div>
@@ -200,7 +283,9 @@ export function TabOnboarding({ companyId }: TabOnboardingProps) {
                     <TaskItem
                       key={t.id}
                       task={t}
-                      onChangeStato={(stato) => aggiornaStato.mutate({ taskId: t.id, stato })}
+                      onChangeStato={(stato) =>
+                        aggiornaStato.mutate({ taskId: t.id, stato })
+                      }
                       isLoading={aggiornaStato.isPending}
                     />
                   ))}
@@ -217,7 +302,9 @@ export function TabOnboarding({ companyId }: TabOnboardingProps) {
                     <TaskItem
                       key={t.id}
                       task={t}
-                      onChangeStato={(stato) => aggiornaStato.mutate({ taskId: t.id, stato })}
+                      onChangeStato={(stato) =>
+                        aggiornaStato.mutate({ taskId: t.id, stato })
+                      }
                       isLoading={aggiornaStato.isPending}
                     />
                   ))}
@@ -233,7 +320,9 @@ export function TabOnboarding({ companyId }: TabOnboardingProps) {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Nuovo Task</DialogTitle>
-            <DialogDescription>Aggiungi un task di onboarding manuale</DialogDescription>
+            <DialogDescription>
+              Aggiungi un task di onboarding manuale
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1.5">
@@ -269,8 +358,13 @@ export function TabOnboarding({ companyId }: TabOnboardingProps) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNuovoOpen(false)}>Annulla</Button>
-            <Button onClick={handleCreate} disabled={!nuovoTitolo.trim() || creaTask.isPending}>
+            <Button variant="outline" onClick={() => setNuovoOpen(false)}>
+              Annulla
+            </Button>
+            <Button
+              onClick={handleCreate}
+              disabled={!nuovoTitolo.trim() || creaTask.isPending}
+            >
               Aggiungi
             </Button>
           </DialogFooter>

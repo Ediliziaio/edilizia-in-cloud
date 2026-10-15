@@ -3,9 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { escapeCsvCell } from "@/lib/csvExport";
-import {
-  Card, CardContent, CardHeader, CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,33 +12,67 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
 
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  Mail, Bot, MessageSquare, Phone, CreditCard, Plus, Minus, Loader2,
-  Settings2, ShieldAlert, Download, AlertTriangle, Wallet, RotateCcw,
-  Search, Filter, Info, X,
+  Mail,
+  Bot,
+  MessageSquare,
+  Phone,
+  CreditCard,
+  Plus,
+  Minus,
+  Loader2,
+  Settings2,
+  ShieldAlert,
+  Download,
+  AlertTriangle,
+  Wallet,
+  RotateCcw,
+  Search,
+  Filter,
+  Info,
+  X,
 } from "lucide-react";
+import { CreditManagerCard } from "./CreditManagerCard";
+import { CreditTransactionsTable } from "./CreditTransactionsTable";
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { cn } from "@/lib/utils";
 
 const SERVICES = [
-  { key: "email", label: "Email Marketing", icon: Mail },
   { key: "ai_agents", label: "Agenti AI", icon: Bot },
   { key: "whatsapp", label: "WhatsApp", icon: MessageSquare },
   { key: "sms", label: "SMS", icon: MessageSquare },
@@ -73,11 +105,17 @@ interface AdjustDialog {
 const PAGE_SIZE = 50;
 
 async function getFunctionErrorMessage(error: unknown): Promise<string> {
-  const fallback = error instanceof Error ? error.message : "Errore durante l'aggiornamento crediti";
+  const fallback =
+    error instanceof Error
+      ? error.message
+      : "Errore durante l'aggiornamento crediti";
   const context = (error as { context?: unknown } | null)?.context;
   if (context instanceof Response) {
     try {
-      const payload = await context.clone().json() as { error?: string; message?: string };
+      const payload = (await context.clone().json()) as {
+        error?: string;
+        message?: string;
+      };
       return payload.error || payload.message || fallback;
     } catch {
       try {
@@ -105,17 +143,26 @@ async function getFunctionErrorMessage(error: unknown): Promise<string> {
  *   Ora se override null, l'input mostra il default come hint inline.
  * - RESET: bottone per cancellare l'override per quel servizio (DELETE row).
  */
-function ServiceControlRow({
-  service, label, icon: Icon,
-  override, planDefaults,
-  onSave, onReset,
-  isSaving, isResetting,
+export function ServiceControlRow({
+  service,
+  label,
+  icon: Icon,
+  override,
+  planDefaults,
+  onSave,
+  onReset,
+  isSaving,
+  isResetting,
 }: {
   service: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   override: BillingOverride | null;
-  planDefaults: { price_per_unit_eur: number | null; markup_multiplier: number | null; monthly_fee_eur: number | null };
+  planDefaults: {
+    price_per_unit_eur: number | null;
+    markup_multiplier: number | null;
+    monthly_fee_eur: number | null;
+  };
   onSave: (payload: Partial<BillingOverride> & { service: string }) => void;
   onReset: () => void;
   isSaving: boolean;
@@ -123,21 +170,14 @@ function ServiceControlRow({
 }) {
   const [isEnabled, setIsEnabled] = useState(override?.is_enabled ?? true);
   const [isFree, setIsFree] = useState(override?.is_free ?? false);
-  const [price, setPrice] = useState(override?.price_per_unit_eur?.toString() ?? "");
-  const [markup, setMarkup] = useState(override?.markup_multiplier?.toString() ?? "");
+  const [price, setPrice] = useState(
+    override?.price_per_unit_eur?.toString() ?? "",
+  );
+  const [markup, setMarkup] = useState(
+    override?.markup_multiplier?.toString() ?? "",
+  );
   const [fee, setFee] = useState(override?.monthly_fee_eur?.toString() ?? "");
   const [notes, setNotes] = useState(override?.custom_notes ?? "");
-
-  // Sync con override quando cambia (es. dopo refetch successivo a save)
-  // FIX: prima `defaultValue` era one-shot al mount → input restava stale.
-  useEffect(() => {
-    setIsEnabled(override?.is_enabled ?? true);
-    setIsFree(override?.is_free ?? false);
-    setPrice(override?.price_per_unit_eur?.toString() ?? "");
-    setMarkup(override?.markup_multiplier?.toString() ?? "");
-    setFee(override?.monthly_fee_eur?.toString() ?? "");
-    setNotes(override?.custom_notes ?? "");
-  }, [override]);
 
   // Detect "dirty" (l'utente ha modificato qualcosa)
   const isDirty =
@@ -148,6 +188,8 @@ function ServiceControlRow({
     fee !== (override?.monthly_fee_eur?.toString() ?? "") ||
     notes !== (override?.custom_notes ?? "");
 
+  useSettingsDraftGuard(isDirty);
+
   const parseNumber = (s: string): number | null => {
     if (!s.trim()) return null;
     const n = parseFloat(s);
@@ -155,6 +197,18 @@ function ServiceControlRow({
   };
 
   const handleSave = () => {
+    if (
+      [price, fee].some(
+        (v) => v.trim() && (!Number.isFinite(Number(v)) || Number(v) < 0),
+      ) ||
+      (markup.trim() &&
+        (!Number.isFinite(Number(markup)) || Number(markup) < 1))
+    ) {
+      toast.error(
+        "Inserisci importi validi e non negativi; il moltiplicatore deve essere almeno 1.",
+      );
+      return;
+    }
     onSave({
       service,
       is_enabled: isEnabled,
@@ -170,11 +224,9 @@ function ServiceControlRow({
   // (operazioni "binary" senza ambiguità — meritano scrittura immediata)
   const toggleEnabled = (checked: boolean) => {
     setIsEnabled(checked);
-    onSave({ service, is_enabled: checked });
   };
   const toggleFree = (checked: boolean) => {
     setIsFree(checked);
-    onSave({ service, is_free: checked });
   };
 
   return (
@@ -200,7 +252,10 @@ function ServiceControlRow({
             </Badge>
           )}
           {override && (
-            <Badge variant="outline" className="text-[10px] gap-1 border-amber-300 text-amber-700">
+            <Badge
+              variant="outline"
+              className="text-[10px] gap-1 border-amber-300 text-amber-700"
+            >
               <ShieldAlert className="h-2.5 w-2.5" />
               Override attivo
             </Badge>
@@ -228,7 +283,9 @@ function ServiceControlRow({
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Prezzo unitario (€)</Label>
+          <Label className="text-xs text-muted-foreground">
+            Prezzo unitario (€)
+          </Label>
           <Input
             type="number"
             step="0.0001"
@@ -260,7 +317,9 @@ function ServiceControlRow({
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Fee mensile (€)</Label>
+          <Label className="text-xs text-muted-foreground">
+            Fee mensile (€)
+          </Label>
           <Input
             type="number"
             step="1"
@@ -331,25 +390,31 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { permissions } = useSuperAdminPermissions();
-  const [adjustDialog, setAdjustDialog] = useState<AdjustDialog>({ open: false, service: "", direction: "add" });
+  const [adjustDialog, setAdjustDialog] = useState<AdjustDialog>({
+    open: false,
+    service: "",
+    direction: "add",
+  });
   const [adjustAmount, setAdjustAmount] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
   const [adjustmentsPage, setAdjustmentsPage] = useState(0);
+  const [rowVersions, setRowVersions] = useState<Record<string, number>>({});
   const [customMaxOrders, setCustomMaxOrders] = useState<string>("");
 
   // Filtri storico aggiustamenti (nuovi)
-  const [adjustmentsServiceFilter, setAdjustmentsServiceFilter] = useState<string>("all");
+  const [adjustmentsServiceFilter, setAdjustmentsServiceFilter] =
+    useState<string>("all");
   const [adjustmentsSearch, setAdjustmentsSearch] = useState("");
 
   // Plan pricing override
   const { data: planOverride, refetch: refetchOverride } = useQuery({
-    queryKey: ['company-plan-override', companyId],
+    queryKey: ["company-plan-override", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('company_billing_overrides' as never)
-        .select('*')
-        .eq('company_id' as never, companyId as never)
-        .eq('service' as never, 'plan' as never)
+        .from("company_billing_overrides" as never)
+        .select("*")
+        .eq("company_id" as never, companyId as never)
+        .eq("service" as never, "plan" as never)
         .maybeSingle();
       if (error) throw new Error(await getFunctionErrorMessage(error));
       return data as {
@@ -361,9 +426,9 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
     enabled: !!companyId && permissions.pricing_override,
   });
 
-  const [overridePrice, setOverridePrice] = useState('');
-  const [overrideNotes, setOverrideNotes] = useState('');
-  const [overrideExpiry, setOverrideExpiry] = useState('');
+  const [overridePrice, setOverridePrice] = useState("");
+  const [overrideNotes, setOverrideNotes] = useState("");
+  const [overrideExpiry, setOverrideExpiry] = useState("");
 
   // Sync planOverride → form locale (FIX: prima il form era sempre vuoto al primo render)
   const planOverrideSyncRef = useRef(false);
@@ -397,26 +462,35 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
         throw new Error("Prezzo non valido");
       }
       const { error } = await supabase
-        .from('company_billing_overrides' as never)
-        .upsert({
-          company_id: companyId,
-          service: 'plan',
-          custom_plan_price_eur: priceNum,
-          override_notes: overrideNotes || null,
-          override_expires_at: expiryIso,
-          is_enabled: true,
-          updated_at: new Date().toISOString(),
-        } as never, { onConflict: 'company_id,service' } as never);
+        .from("company_billing_overrides" as never)
+        .upsert(
+          {
+            company_id: companyId,
+            service: "plan",
+            custom_plan_price_eur: priceNum,
+            override_notes: overrideNotes || null,
+            override_expires_at: expiryIso,
+            is_enabled: true,
+            updated_at: new Date().toISOString(),
+          } as never,
+          { onConflict: "company_id,service" } as never,
+        );
       if (error) throw new Error(await getFunctionErrorMessage(error));
     },
     onSuccess: () => {
-      toast.success('Override prezzo salvato');
+      toast.success("Override prezzo salvato");
       // FIX: invalidation completa (prima solo refetchOverride)
       void refetchOverride();
-      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.detail(companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.companyDetail.detail(companyId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.admin.companiesFull,
+      });
       // MRR di Panoramica/Abbonamento (prezzo effettivo con override)
-      queryClient.invalidateQueries({ queryKey: ["company-plan-price-override", companyId] });
+      queryClient.invalidateQueries({
+        queryKey: ["company-plan-price-override", companyId],
+      });
       planOverrideSyncRef.current = false; // permette re-sync con nuovi dati
     },
     onError: (e: Error) => toast.error(e.message),
@@ -426,10 +500,10 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const removeOverrideMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
-        .from('company_billing_overrides' as never)
+        .from("company_billing_overrides" as never)
         .delete()
-        .eq('company_id', companyId)
-        .eq('service' as never, 'plan' as never);
+        .eq("company_id", companyId)
+        .eq("service" as never, "plan" as never);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -438,9 +512,15 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       setOverrideNotes("");
       setOverrideExpiry("");
       void refetchOverride();
-      queryClient.invalidateQueries({ queryKey: queryKeys.companyDetail.detail(companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
-      queryClient.invalidateQueries({ queryKey: ["company-plan-price-override", companyId] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.companyDetail.detail(companyId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.admin.companiesFull,
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["company-plan-price-override", companyId],
+      });
       planOverrideSyncRef.current = false;
     },
     onError: (e: Error) => toast.error(e.message),
@@ -489,7 +569,10 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   // FIX: validazione parseInt — accetta anche "-1" (illimitato) ma non NaN
   const saveLimitsOverride = useMutation({
     mutationFn: async (maxOrders: number | null) => {
-      if (maxOrders !== null && (!Number.isFinite(maxOrders) || !Number.isInteger(maxOrders))) {
+      if (
+        maxOrders !== null &&
+        (!Number.isFinite(maxOrders) || !Number.isInteger(maxOrders))
+      ) {
         throw new Error("Limite ordini deve essere intero (-1 = illimitato)");
       }
       if (maxOrders !== null && maxOrders < -1) {
@@ -498,13 +581,24 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       const { error } = await supabase
         .from("company_billing_overrides" as never)
         .upsert(
-          { company_id: companyId, service: "_limits", custom_max_orders: maxOrders, updated_at: new Date().toISOString(), updated_by: user?.id } as never,
-          { onConflict: "company_id,service" }
+          {
+            company_id: companyId,
+            service: "_limits",
+            custom_max_orders: maxOrders,
+            updated_at: new Date().toISOString(),
+            updated_by: user?.id,
+          } as never,
+          { onConflict: "company_id,service" },
         );
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [...queryKeys.billingOverrides.byCompany(companyId), "_limits"] });
+      queryClient.invalidateQueries({
+        queryKey: [
+          ...queryKeys.billingOverrides.byCompany(companyId),
+          "_limits",
+        ],
+      });
       toast.success("Limite ordini personalizzato salvato");
     },
     onError: (e: Error) => toast.error("Errore: " + e.message),
@@ -520,9 +614,15 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
         .eq("service" as never, service as never);
       if (error) throw error;
     },
-    onSuccess: (_data, service) => {
+    onSuccess: async (_data, service) => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.billingOverrides.byCompany(companyId),
+      });
+      setRowVersions((current) => ({
+        ...current,
+        [service]: (current[service] ?? 0) + 1,
+      }));
       toast.success(`Override ${service} rimosso`);
-      queryClient.invalidateQueries({ queryKey: queryKeys.billingOverrides.byCompany(companyId) });
     },
     onError: (e: Error) => toast.error("Errore reset: " + e.message),
   });
@@ -531,7 +631,11 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const { data: emailCredits } = useQuery({
     queryKey: queryKeys.admin.emailCredits(companyId),
     queryFn: async () => {
-      const { data } = await supabase.from("email_credits").select("balance_eur").eq("company_id", companyId).maybeSingle();
+      const { data } = await supabase
+        .from("email_credits")
+        .select("balance_eur")
+        .eq("company_id", companyId)
+        .maybeSingle();
       return data;
     },
   });
@@ -539,7 +643,11 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const { data: aiCredits } = useQuery({
     queryKey: queryKeys.admin.aiCreditsAdmin(companyId),
     queryFn: async () => {
-      const { data } = await supabase.from("ai_credits" as never).select("balance_eur").eq("company_id", companyId).maybeSingle();
+      const { data } = await supabase
+        .from("ai_credits" as never)
+        .select("balance_eur")
+        .eq("company_id", companyId)
+        .maybeSingle();
       return data as { balance_eur: number } | null;
     },
   });
@@ -547,7 +655,11 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const { data: waCredits } = useQuery({
     queryKey: queryKeys.admin.waCredits(companyId),
     queryFn: async () => {
-      const { data } = await supabase.from("whatsapp_credits" as never).select("balance_eur").eq("company_id", companyId).maybeSingle();
+      const { data } = await supabase
+        .from("whatsapp_credits" as never)
+        .select("balance_eur")
+        .eq("company_id", companyId)
+        .maybeSingle();
       return data as { balance_eur: number } | null;
     },
   });
@@ -557,14 +669,22 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const { data: smsWallet } = useQuery({
     queryKey: queryKeys.admin.smsWallet(companyId),
     queryFn: async () => {
-      const { data } = await supabase.from("sms_wallet" as never).select("crediti, crediti_riservati").eq("company_id", companyId).maybeSingle();
+      const { data } = await supabase
+        .from("sms_wallet" as never)
+        .select("crediti, crediti_riservati")
+        .eq("company_id", companyId)
+        .maybeSingle();
       return data as { crediti: number; crediti_riservati: number } | null;
     },
   });
 
   // Fetch adjustments history with pagination
   const { data: adjustments, isLoading: adjustmentsLoading } = useQuery({
-    queryKey: [...queryKeys.admin.creditAdjustments(companyId), adjustmentsPage, adjustmentsServiceFilter],
+    queryKey: [
+      ...queryKeys.admin.creditAdjustments(companyId),
+      adjustmentsPage,
+      adjustmentsServiceFilter,
+    ],
     queryFn: async () => {
       // count SEMPRE "exact": con "planned" sulle pagine >0 Supabase ritorna
       // count=null → total=0 → adjustmentsTotalPages=1 → l'intero controllo di
@@ -575,7 +695,10 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
         .select("*", { count: "exact" })
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
-        .range(adjustmentsPage * PAGE_SIZE, (adjustmentsPage + 1) * PAGE_SIZE - 1);
+        .range(
+          adjustmentsPage * PAGE_SIZE,
+          (adjustmentsPage + 1) * PAGE_SIZE - 1,
+        );
       if (adjustmentsServiceFilter !== "all") {
         q = q.eq("service" as never, adjustmentsServiceFilter as never);
       }
@@ -583,7 +706,12 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       if (error) throw error;
       return {
         rows: (data ?? []) as unknown as Array<{
-          id: string; service: string; amount_eur: number; reason: string; created_by: string; created_at: string;
+          id: string;
+          service: string;
+          amount_eur: number;
+          reason: string;
+          created_by: string;
+          created_at: string;
         }>,
         total: count ?? 0,
       };
@@ -603,22 +731,38 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
 
   // FIX: pagination corretta usando count (non length === PAGE_SIZE che dà falso positivo)
   const adjustmentsTotal = adjustments?.total ?? 0;
-  const adjustmentsTotalPages = Math.max(1, Math.ceil(adjustmentsTotal / PAGE_SIZE));
+  const adjustmentsTotalPages = Math.max(
+    1,
+    Math.ceil(adjustmentsTotal / PAGE_SIZE),
+  );
 
   // Upsert override
   const upsertOverride = useMutation({
-    mutationFn: async (payload: Partial<BillingOverride> & { service: string }) => {
+    mutationFn: async (
+      payload: Partial<BillingOverride> & { service: string },
+    ) => {
       const { error } = await supabase
         .from("company_billing_overrides" as never)
         .upsert(
-          { company_id: companyId, ...payload, updated_at: new Date().toISOString(), updated_by: user?.id } as never,
-          { onConflict: "company_id,service" }
+          {
+            company_id: companyId,
+            ...payload,
+            updated_at: new Date().toISOString(),
+            updated_by: user?.id,
+          } as never,
+          { onConflict: "company_id,service" },
         );
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.billingOverrides.byCompany(companyId) });
-      toast.success("Override salvato");
+    onSuccess: async (_data, payload) => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.billingOverrides.byCompany(companyId),
+      });
+      setRowVersions((current) => ({
+        ...current,
+        [payload.service]: (current[payload.service] ?? 0) + 1,
+      }));
+      toast.success("Impostazioni del servizio salvate");
     },
     onError: (e: Error) => toast.error("Errore: " + e.message),
   });
@@ -631,35 +775,55 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       if (!adjustReason.trim()) throw new Error("Motivazione obbligatoria");
       if (!adjustDialog.service) throw new Error("Servizio non selezionato");
 
-      const finalAmount = adjustDialog.direction === "deduct" ? -amount : amount;
+      const finalAmount =
+        adjustDialog.direction === "deduct" ? -amount : amount;
 
-      const { data, error } = await supabase.functions.invoke("admin-adjust-credits", {
-        body: {
-          company_id: companyId,
-          service: adjustDialog.service,
-          amount_eur: finalAmount,
-          reason: adjustReason.trim(),
+      const { data, error } = await supabase.functions.invoke(
+        "admin-adjust-credits",
+        {
+          body: {
+            company_id: companyId,
+            service: adjustDialog.service,
+            amount_eur: finalAmount,
+            reason: adjustReason.trim(),
+          },
         },
-      });
+      );
       if (error) throw new Error(await getFunctionErrorMessage(error));
       if (data?.error) throw new Error(data.error);
       return data;
     },
     onSuccess: (data) => {
-      toast.success(`Crediti aggiornati: ${formatCurrency(data.balance_before)} → ${formatCurrency(data.balance_after)}`);
+      toast.success(
+        `Crediti aggiornati: ${formatCurrency(data.balance_before)} → ${formatCurrency(data.balance_after)}`,
+      );
       setAdjustDialog({ open: false, service: "", direction: "add" });
       setAdjustAmount("");
       setAdjustReason("");
       // FIX: reset alla prima pagina per vedere il nuovo record + invalidate complete
       setAdjustmentsPage(0);
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.emailCredits(companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.aiCreditsAdmin(companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.waCredits(companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.smsWallet(companyId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.creditAdjustments(companyId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.admin.emailCredits(companyId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.admin.aiCreditsAdmin(companyId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.admin.waCredits(companyId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.admin.smsWallet(companyId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.admin.creditAdjustments(companyId),
+      });
       // Anche storico transazioni unificato (se montato)
-      queryClient.invalidateQueries({ queryKey: ["admin-credit-transactions-unified", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-credit-transactions-kpi", companyId] });
+      queryClient.invalidateQueries({
+        queryKey: ["admin-credit-transactions-unified", companyId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["admin-credit-transactions-kpi", companyId],
+      });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -672,7 +836,8 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   }, [overrides]);
 
   // Saldo SMS disponibile = crediti − riservati
-  const smsBalance = (smsWallet?.crediti ?? 0) - (smsWallet?.crediti_riservati ?? 0);
+  const smsBalance =
+    (smsWallet?.crediti ?? 0) - (smsWallet?.crediti_riservati ?? 0);
 
   const getBalance = (service: string) => {
     if (service === "email") return emailCredits?.balance_eur ?? 0;
@@ -695,8 +860,15 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   // Export CSV degli aggiustamenti correnti (filtrati)
   const handleExportAdjustmentsCsv = () => {
     if (filteredAdjustments.length === 0) return;
-    const escape = (v: string | number | null | undefined) => escapeCsvCell(v, ",");
-    const headers = ["Data", "Servizio", "Importo (EUR)", "Motivazione", "Creato da"];
+    const escape = (v: string | number | null | undefined) =>
+      escapeCsvCell(v, ",");
+    const headers = [
+      "Data",
+      "Servizio",
+      "Importo (EUR)",
+      "Motivazione",
+      "Creato da",
+    ];
     const rows = filteredAdjustments.map((a) =>
       [
         escape(format(new Date(a.created_at), "yyyy-MM-dd HH:mm")),
@@ -707,7 +879,9 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       ].join(","),
     );
     const csv = [headers.join(","), ...rows].join("\r\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\uFEFF" + csv], {
+      type: "text/csv;charset=utf-8;",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -723,64 +897,11 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Banner saldo totale + warning */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Wallet className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                  Saldo totale crediti
-                </p>
-                <p
-                  className={`text-2xl font-bold ${
-                    hasNegativeBalance ? "text-destructive" : ""
-                  }`}
-                >
-                  {formatCurrency(totalCreditsBalance)}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {CREDIT_SERVICES.map((svc) => {
-                const balance = getBalance(svc);
-                const labels: Record<string, string> = {
-                  email: "Email",
-                  ai_agents: "AI",
-                  whatsapp: "WA",
-                  sms: "SMS",
-                };
-                return (
-                  <Badge
-                    key={svc}
-                    variant="outline"
-                    className={
-                      balance < 0
-                        ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border-rose-300"
-                        : ""
-                    }
-                  >
-                    {labels[svc]}: {formatCurrency(balance)}
-                  </Badge>
-                );
-              })}
-            </div>
-          </div>
-          {hasNegativeBalance && (
-            <div className="flex items-center gap-2 mt-3 p-2 rounded-md bg-destructive/10 border border-destructive/20">
-              <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
-              <p className="text-xs text-destructive">
-                <strong>Saldo negativo</strong> su uno o più servizi. L'azienda potrebbe
-                non poter più usarli finché non si aggiusta il saldo.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
+      <p className="text-sm text-muted-foreground">
+        Modifica disponibilità, gratuità e tariffe, poi salva tutte le
+        impostazioni del servizio insieme. Le quote email si gestiscono nella
+        sezione «Quote email».
+      </p>
       {/* Service Controls */}
       <Card>
         <CardHeader>
@@ -792,10 +913,8 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                   <Info className="h-3 w-3 text-muted-foreground cursor-help" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs text-xs">
-                  Per ogni servizio puoi: abilitare/disabilitare (lock immediato),
-                  marcare come gratuito (no fatturazione), customizzare prezzo
-                  unitario, markup e fee mensile. Le modifiche numeriche richiedono
-                  click "Salva" per evitare race condition.
+                  Tutti i campi, compresi gli interruttori, si applicano insieme
+                  con «Salva modifiche».
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -806,7 +925,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
             const override = overrideByService.get(key) ?? null;
             return (
               <ServiceControlRow
-                key={key}
+                key={`${key}:${rowVersions[key] ?? 0}`}
                 service={key}
                 label={label}
                 icon={icon}
@@ -841,7 +960,9 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
             <div className="flex-1 space-y-1.5 min-w-[180px]">
               <Label className="text-xs text-muted-foreground">
                 Limite ordini personalizzato
-                <span className="ml-1 text-xs text-muted-foreground/60">(vuoto = piano)</span>
+                <span className="ml-1 text-xs text-muted-foreground/60">
+                  (vuoto = piano)
+                </span>
               </Label>
               <Input
                 type="number"
@@ -872,7 +993,9 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
               }}
               className="h-9"
             >
-              {saveLimitsOverride.isPending && <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />}
+              {saveLimitsOverride.isPending && (
+                <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+              )}
               Salva
             </Button>
             {customMaxOrders && (
@@ -892,7 +1015,8 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
             )}
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Sovrascrive il limite ordini del piano. Imposta a <code>-1</code> per illimitato.
+            Sovrascrive il limite ordini del piano. Imposta a <code>-1</code>{" "}
+            per illimitato.
           </p>
         </CardContent>
       </Card>
@@ -927,26 +1051,40 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
           <CardContent className="space-y-3">
             {planOverride?.custom_plan_price_eur != null && (
               <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant="outline" className="text-amber-700 border-amber-400">
-                  Override attivo: {formatCurrency(planOverride.custom_plan_price_eur)}/mese
+                <Badge
+                  variant="outline"
+                  className="text-amber-700 border-amber-400"
+                >
+                  Override attivo:{" "}
+                  {formatCurrency(planOverride.custom_plan_price_eur)}/mese
                 </Badge>
                 {planOverride.override_expires_at && (
                   <span className="text-xs text-muted-foreground">
-                    Scade: {format(new Date(planOverride.override_expires_at), 'dd/MM/yyyy', { locale: it })}
+                    Scade:{" "}
+                    {format(
+                      new Date(planOverride.override_expires_at),
+                      "dd/MM/yyyy",
+                      { locale: it },
+                    )}
                   </span>
                 )}
               </div>
             )}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs">Prezzo mensile personalizzato (€)</Label>
+                <Label className="text-xs">
+                  Prezzo mensile personalizzato (€)
+                </Label>
                 <Input
                   type="number"
                   min="0"
                   step="0.01"
                   value={overridePrice}
                   onChange={(e) => setOverridePrice(e.target.value)}
-                  placeholder={planOverride?.custom_plan_price_eur?.toString() ?? "Es. 49.00"}
+                  placeholder={
+                    planOverride?.custom_plan_price_eur?.toString() ??
+                    "Es. 49.00"
+                  }
                 />
               </div>
               <div>
@@ -982,68 +1120,8 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
         </Card>
       )}
 
-      {/* Credit Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <CreditCard className="h-4 w-4" /> Gestione Crediti
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {CREDIT_SERVICES.map((svc) => {
-              const labels: Record<string, string> = { email: "Email", ai_agents: "AI", whatsapp: "WhatsApp", sms: "SMS" };
-              const balance = getBalance(svc);
-              const isNegative = balance < 0;
-              return (
-                <div
-                  key={svc}
-                  className={cn(
-                    "border rounded-lg p-4 space-y-3",
-                    isNegative && "border-destructive bg-destructive/5",
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{labels[svc]}</span>
-                    <span
-                      className={cn(
-                        "text-lg font-bold",
-                        isNegative && "text-destructive",
-                      )}
-                    >
-                      {formatCurrency(balance)}
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() =>
-                        setAdjustDialog({ open: true, service: svc, direction: "add" })
-                      }
-                    >
-                      <Plus className="h-3 w-3 mr-1" /> Aggiungi
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      disabled={balance <= 0}
-                      title={balance <= 0 ? "Saldo a zero, nulla da dedurre" : undefined}
-                      onClick={() =>
-                        setAdjustDialog({ open: true, service: svc, direction: "deduct" })
-                      }
-                    >
-                      <Minus className="h-3 w-3 mr-1" /> Deduci
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      <CreditManagerCard companyId={companyId} />
+      <CreditTransactionsTable companyId={companyId} />
 
       {/* Adjustments History — search + filter + export */}
       <Card>
@@ -1138,14 +1216,20 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                     {filteredAdjustments.map((adj) => (
                       <TableRow key={adj.id}>
                         <TableCell className="font-mono text-xs whitespace-nowrap">
-                          {format(new Date(adj.created_at), "dd/MM/yy HH:mm", { locale: it })}
+                          {format(new Date(adj.created_at), "dd/MM/yy HH:mm", {
+                            locale: it,
+                          })}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary" className="text-xs">{adj.service}</Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            {adj.service}
+                          </Badge>
                         </TableCell>
                         <TableCell
                           className={`font-mono font-semibold ${
-                            adj.amount_eur >= 0 ? "text-emerald-600" : "text-destructive"
+                            adj.amount_eur >= 0
+                              ? "text-emerald-600"
+                              : "text-destructive"
                           }`}
                         >
                           {adj.amount_eur >= 0 ? "+" : ""}
@@ -1177,7 +1261,9 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                       size="sm"
                       className="h-7"
                       disabled={adjustmentsPage === 0}
-                      onClick={() => setAdjustmentsPage((p) => Math.max(0, p - 1))}
+                      onClick={() =>
+                        setAdjustmentsPage((p) => Math.max(0, p - 1))
+                      }
                     >
                       Precedente
                     </Button>
@@ -1203,13 +1289,15 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
         open={adjustDialog.open}
         onOpenChange={(open) => {
           if (!open && adjustCredits.isPending) return; // blocca chiusura durante mutation
-          if (!open) setAdjustDialog({ open: false, service: "", direction: "add" });
+          if (!open)
+            setAdjustDialog({ open: false, service: "", direction: "add" });
         }}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {adjustDialog.direction === "add" ? "Aggiungi" : "Deduci"} Crediti — {adjustDialog.service}
+              {adjustDialog.direction === "add" ? "Aggiungi" : "Deduci"} Crediti
+              — {adjustDialog.service}
             </DialogTitle>
             <DialogDescription>
               Inserisci l'importo e una motivazione obbligatoria.
@@ -1279,15 +1367,21 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
             <Button
               variant="outline"
               disabled={adjustCredits.isPending}
-              onClick={() => setAdjustDialog({ open: false, service: "", direction: "add" })}
+              onClick={() =>
+                setAdjustDialog({ open: false, service: "", direction: "add" })
+              }
             >
               Annulla
             </Button>
             <Button
               onClick={() => adjustCredits.mutate()}
-              disabled={adjustCredits.isPending || !adjustAmount || !adjustReason.trim()}
+              disabled={
+                adjustCredits.isPending || !adjustAmount || !adjustReason.trim()
+              }
             >
-              {adjustCredits.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {adjustCredits.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
               Conferma
             </Button>
           </DialogFooter>

@@ -66,7 +66,7 @@ export function TabLifecycle({ companyId }: TabLifecycleProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-medium">Cronologia Lifecycle</h3>
+          <h3 className="text-sm font-medium">Storico abbonamento</h3>
           <p className="text-xs text-muted-foreground">
             Tutti gli eventi di abbonamento registrati per questa azienda
           </p>

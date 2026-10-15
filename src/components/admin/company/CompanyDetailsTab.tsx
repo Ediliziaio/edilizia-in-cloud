@@ -596,9 +596,9 @@ export function CompanyDetailsTab({
               <CardHeader className="pb-4">
                 <CardTitle className="text-base flex items-center gap-2">
                   <StickyNote className="h-4 w-4 text-primary" />
-                  Note Interne
+                  Annotazioni amministrative
                 </CardTitle>
-                <CardDescription>Visibili solo al Super Admin</CardDescription>
+                <CardDescription>Accordi e informazioni amministrative riservate. Per contatti e follow-up usa Note CRM.</CardDescription>
               </CardHeader>
               <CardContent>
                 <FormField control={form.control} name="notes" render={({ field }) => (

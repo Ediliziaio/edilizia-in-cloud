@@ -249,7 +249,7 @@ export function AuditLogTab({ companyId }: AuditLogTabProps) {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Shield className="h-4 w-4" />
-            Storico modifiche flag
+            Modifiche alla configurazione
             {entries.length > 0 && (
               <Badge variant="secondary" className="text-xs ml-1">
                 {entries.length}
@@ -342,7 +342,7 @@ export function AuditLogTab({ companyId }: AuditLogTabProps) {
 
         {!isLoading && !error && entries.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-8">
-            Nessuna modifica registrata
+            Nessuna modifica alla configurazione registrata. Gli accessi amministrativi e gli eventi operativi sono in «Tutti gli eventi».
           </p>
         )}
 

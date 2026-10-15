@@ -1,31 +1,24 @@
-/**
- * TabWhiteLabel — SuperAdmin tab per gestire il tier white-label
- * e visualizzare/modificare le impostazioni branding di un'azienda.
- */
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { caricaProfiliPerId } from "@/lib/profilesLookup";
-import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
+import { useIncludedWhitelabel } from "@/hooks/useIncludedWhitelabel";
+import { caricaProfiliPerId, nomeProfilo } from "@/lib/profilesLookup";
+import { usesPlatformColors, isValidHexColor } from "@/lib/brandTheme";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { Loader2, Palette, Globe, Crown, Shield, Clock } from "lucide-react";
-
-interface Props {
-  companyId: string;
-}
-
-const TIER_COLORS: Record<string, string> = {
-  none: "bg-gray-100 text-gray-700",
-  basic: "bg-blue-100 text-blue-700",
-  full: "bg-purple-100 text-purple-700",
-  agency: "bg-amber-100 text-amber-700",
-};
+import { toast } from "sonner";
 
 const TIER_LABELS: Record<string, string> = {
   none: "Nessuno",
@@ -33,13 +26,25 @@ const TIER_LABELS: Record<string, string> = {
   full: "Full",
   agency: "Agency",
 };
+function auditTier(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const payload = value as Record<string, unknown>;
+  const tier = payload.manual_tier ?? payload.tier;
+  return typeof tier === "string" ? (TIER_LABELS[tier] ?? tier) : null;
+}
+const errorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Riprova tra qualche istante.";
 
-export function TabWhiteLabel({ companyId }: Props) {
+export function TabWhiteLabel({ companyId }: { companyId: string }) {
+  // Un cambio azienda deve scartare anche un eventuale editor ancora aperto.
+  return <WhiteLabelCompany key={companyId} companyId={companyId} />;
+}
+
+function WhiteLabelCompany({ companyId }: { companyId: string }) {
   const queryClient = useQueryClient();
-  const [editMode, setEditMode] = useState(false);
-
-  // Fetch branding data
-  const { data: branding, isLoading } = useQuery({
+  const { user } = useAuth();
+  const [manualDraft, setManualDraft] = useState<string | null>(null);
+  const brandingQuery = useQuery({
     queryKey: ["admin", "whitelabel", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -51,9 +56,23 @@ export function TabWhiteLabel({ companyId }: Props) {
       return data;
     },
   });
-
-  // Fetch tier capabilities
-  const { data: tiers } = useQuery({
+  // La piattaforma legge il marchio da companies: il riepilogo usa la stessa fonte.
+  const companyQuery = useQuery({
+    queryKey: ["admin", "whitelabel-company", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("companies")
+        .select(
+          "name, subscription_plan_id, white_label_enabled, logo_url, brand_platform_name, brand_primary_color, brand_accent_color, brand_text_on_primary, brand_hide_powered_by, brand_favicon_url",
+        )
+        .eq("id", companyId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const plan = useIncludedWhitelabel(companyQuery.data?.subscription_plan_id);
+  const tiersQuery = useQuery({
     queryKey: ["whitelabel-tiers"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -65,13 +84,9 @@ export function TabWhiteLabel({ companyId }: Props) {
     },
     staleTime: 30 * 60 * 1000,
   });
-
-  // Fetch audit log
-  const { data: auditLog } = useQuery({
+  const auditQuery = useQuery({
     queryKey: ["admin", "whitelabel-audit", companyId],
     queryFn: async () => {
-      // actor_id non ha una FK verso profiles: l'embed `profiles!…` rispondeva
-      // 400 e l'audit log restava vuoto. Profili con una seconda query.
       const { data, error } = await supabase
         .from("whitelabel_audit_log")
         .select("*")
@@ -79,345 +94,452 @@ export function TabWhiteLabel({ companyId }: Props) {
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;
-      const righe = (data || []) as Array<Record<string, unknown> & { actor_id?: string | null }>;
-      const profili = await caricaProfiliPerId(righe.map((r) => r.actor_id));
-      return righe.map((r) => ({ ...r, actor: (r.actor_id && profili.get(r.actor_id)) || null }));
+      const profiles = await caricaProfiliPerId(
+        (data ?? []).map((row) => row.actor_id),
+      );
+      return (data ?? []).map((row) => ({
+        ...row,
+        actor: row.actor_id ? profiles.get(row.actor_id) : null,
+      }));
     },
   });
+  const branding = brandingQuery.data;
+  const company = companyQuery.data;
+  const manualTier = branding?.whitelabel_manual_tier ?? "none";
+  const effectiveTier = branding?.whitelabel_tier ?? "none";
+  useBeforeUnload(manualDraft !== null && manualDraft !== manualTier);
+  const previewTier =
+    manualDraft === "agency"
+      ? "agency"
+      : plan.isIncluded
+        ? "full"
+        : (manualDraft ?? effectiveTier);
+  const currentTier = tiersQuery.data?.find(
+    (tier) => tier.slug === effectiveTier,
+  );
 
-  // Form state
-  const [form, setForm] = useState({
-    whitelabel_tier: "none",
-    platform_name: "",
-    primary_color: "",
-    secondary_color: "",
-    accent_color: "",
-    custom_domain: "",
-    custom_domain_verified: false,
-    hide_platform_branding: false,
-    powered_by_text: "",
-    custom_css: "",
-    email_from_name: "",
-    pwa_name: "",
-    pwa_short_name: "",
-    pwa_theme_color: "",
-  });
-
-  // FIX: se l'utente sta editando, NON sovrascrivere il form con i dati del
-  // server (es. refetch in background su focus window) — perderebbe le modifiche.
-  // Prima il sync avveniva sempre, ora solo quando editMode=false.
-  useEffect(() => {
-    if (!branding || editMode) return;
-    setForm({
-      whitelabel_tier: (branding as any).whitelabel_tier || "none",
-      platform_name: (branding as any).platform_name || "",
-      primary_color: (branding as any).primary_color || "",
-      secondary_color: (branding as any).secondary_color || "",
-      accent_color: (branding as any).accent_color || "",
-      custom_domain: (branding as any).custom_domain || "",
-      custom_domain_verified: (branding as any).custom_domain_verified || false,
-      hide_platform_branding: (branding as any).hide_platform_branding || false,
-      powered_by_text: (branding as any).powered_by_text || "",
-      custom_css: (branding as any).custom_css || "",
-      email_from_name: (branding as any).email_from_name || "",
-      pwa_name: (branding as any).pwa_name || "",
-      pwa_short_name: (branding as any).pwa_short_name || "",
-      pwa_theme_color: (branding as any).pwa_theme_color || "",
-    });
-  }, [branding, editMode]);
-
-  // Save mutation
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const updates = {
-        whitelabel_tier: form.whitelabel_tier,
-        platform_name: form.platform_name || null,
-        primary_color: form.primary_color || null,
-        secondary_color: form.secondary_color || null,
-        accent_color: form.accent_color || null,
-        hide_platform_branding: form.hide_platform_branding,
-        powered_by_text: form.powered_by_text || null,
-        custom_css: form.custom_css || null,
-        email_from_name: form.email_from_name || null,
-        pwa_name: form.pwa_name || null,
-        pwa_short_name: form.pwa_short_name || null,
-        pwa_theme_color: form.pwa_theme_color || null,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (branding) {
-        const { error } = await supabase
-          .from("company_branding")
-          .update(updates as never)
-          .eq("company_id", companyId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("company_branding")
-          .insert({ ...updates, company_id: companyId } as never);
-        if (error) throw error;
+  const save = useMutation({
+    mutationFn: async (requestedTier: string) => {
+      if (!user) throw new Error("Sessione scaduta. Accedi di nuovo.");
+      // Il tier effettivo invariato attiva anche il trigger UPDATE OF che sincronizza
+      // companies.white_label_enabled; il BEFORE trigger ricalcola il tier dalla concessione.
+      // All'inserimento il trigger ricava la concessione dal tier richiesto.
+      const request = branding
+        ? supabase
+            .from("company_branding")
+            .update({
+              whitelabel_manual_tier: requestedTier,
+              whitelabel_tier: effectiveTier,
+              is_active: plan.isIncluded || requestedTier !== "none",
+            })
+            .eq("company_id", companyId)
+            .eq("whitelabel_manual_tier", manualTier)
+        : supabase.from("company_branding").insert({
+            company_id: companyId,
+            whitelabel_tier: requestedTier,
+            is_active: plan.isIncluded || requestedTier !== "none",
+          });
+      const { data, error } = await request
+        .select("whitelabel_tier, whitelabel_manual_tier")
+        .single();
+      if (error) {
+        if (error.code === "PGRST116") {
+          throw new Error(
+            "La concessione è cambiata o non è più modificabile. Ricarica la scheda e riprova.",
+          );
+        }
+        throw new Error(error.message);
       }
-
-      // Audit log
-      await supabase.from("whitelabel_audit_log").insert({
+      const audit = await supabase.from("whitelabel_audit_log").insert({
         company_id: companyId,
+        actor_id: user.id,
         action: "tier_changed",
-        new_value: { tier: form.whitelabel_tier },
-      } as never);
+        old_value: { tier: effectiveTier, manual_tier: manualTier },
+        new_value: {
+          tier: data.whitelabel_tier,
+          manual_tier: data.whitelabel_manual_tier,
+        },
+      });
+      return { ...data, auditError: audit.error };
     },
-    onSuccess: () => {
-      toast.success("Impostazioni white-label salvate");
-      queryClient.invalidateQueries({ queryKey: ["admin", "whitelabel", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "whitelabel-audit", companyId] });
-      setEditMode(false);
+    onSuccess: (data) => {
+      setManualDraft(null);
+      if (data.auditError)
+        toast.warning("Livello salvato, ma lo storico non è stato aggiornato.");
+      else
+        toast.success(
+          `White label ${TIER_LABELS[data.whitelabel_tier] ?? data.whitelabel_tier} salvato`,
+        );
+      for (const queryKey of [
+        ["admin", "whitelabel", companyId],
+        ["admin", "whitelabel-company", companyId],
+        ["admin", "whitelabel-audit", companyId],
+        ["company-detail", companyId],
+        ["brand-settings", companyId],
+        ["company-branding"],
+        ["wl-branding-tier", companyId],
+      ])
+        void queryClient.invalidateQueries({ queryKey });
     },
-    onError: (err: any) => {
-      toast.error(err?.message || "Errore nel salvataggio");
-    },
+    onError: (error) => toast.error(errorMessage(error)),
   });
 
-  const currentTier = tiers?.find(t => (t as any).slug === form.whitelabel_tier);
-
-  if (isLoading) {
+  if (brandingQuery.isLoading || companyQuery.isLoading || plan.isLoading)
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div role="status" className="flex items-center gap-2 py-12">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        Caricamento white label…
       </div>
     );
-  }
+  if (brandingQuery.isError || companyQuery.isError || plan.isError)
+    return (
+      <Card>
+        <CardContent className="space-y-3 pt-6">
+          <p role="alert">
+            Impossibile caricare il white label. Nessuna modifica disponibile
+            finché i dati non sono aggiornati.
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              void brandingQuery.refetch();
+              void companyQuery.refetch();
+              void plan.refetch();
+            }}
+          >
+            Riprova
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  if (!company) return null;
+  const standardColors = usesPlatformColors({
+    primaryColor: company.brand_primary_color ?? "#1E40AF",
+    accentColor: company.brand_accent_color ?? "#DBEAFE",
+    textOnPrimary: company.brand_text_on_primary ?? "#FFFFFF",
+  });
+  const active = company.white_label_enabled && effectiveTier !== "none";
+  const capabilities: ReadonlyArray<readonly [boolean, string]> = currentTier
+    ? ([
+        [currentTier.can_change_logo, "Logo aziendale"],
+        [currentTier.can_change_colors, "Colori personalizzati"],
+        [currentTier.can_custom_domain, "Dominio personalizzato"],
+        [currentTier.can_hide_powered_by, "Rimozione Powered by"],
+        [currentTier.can_custom_email_branding, "Marchio nelle email"],
+        [currentTier.can_custom_pdf_branding, "Marchio nei PDF"],
+        [currentTier.can_custom_pwa, "App con marchio aziendale"],
+        [currentTier.can_custom_css, "CSS personalizzato"],
+        [currentTier.can_resell, "Rivendita"],
+      ] as const)
+    : [];
 
   return (
     <div className="space-y-6">
-      {/* Tier Selection */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Crown className="h-5 w-5 text-amber-500" />
-            Piano White-Label
+            White label dell’azienda
           </CardTitle>
           <CardDescription>
-            Gestisci il livello di personalizzazione disponibile per questa azienda.
+            Disponibilità, origine del diritto e concessioni manuali.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Label className="min-w-24">Tier attuale</Label>
-            <Badge className={TIER_COLORS[form.whitelabel_tier] || TIER_COLORS.none}>
-              {TIER_LABELS[form.whitelabel_tier] || form.whitelabel_tier}
+        <CardContent className="space-y-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={active ? "default" : "secondary"}>
+              {active ? "Attivo" : "Non attivo"}
             </Badge>
-            {!editMode && (
-              <Button variant="outline" size="sm" onClick={() => setEditMode(true)}>
-                Modifica
+            <Badge variant="outline">
+              Livello effettivo: {TIER_LABELS[effectiveTier] ?? effectiveTier}
+            </Badge>
+            {plan.isIncluded && (
+              <Badge className="bg-emerald-100 text-emerald-800">
+                Incluso nel piano {plan.planName}
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {plan.isIncluded
+              ? `Il piano ${plan.planName} include Full automaticamente, senza supplemento White Label. Una concessione Agency mantiene le funzionalità aggiuntive.`
+              : `Il piano ${plan.planName ?? "attuale"} non include il white label. L’accesso dipende dalla concessione manuale.`}
+          </p>
+          <div className="rounded-lg border bg-muted/30 p-4 text-sm space-y-2">
+            <p className="font-medium">I colori standard restano invariati</p>
+            <p className="text-muted-foreground">
+              Attivare il white label o cambiare livello non modifica il
+              marchio. I colori cambiano solo quando l’azienda li personalizza e
+              li salva.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm">
+              Concessione manuale:{" "}
+              <strong>{TIER_LABELS[manualTier] ?? manualTier}</strong>
+            </p>
+            {manualDraft === null && (
+              <Button
+                variant="outline"
+                onClick={() => setManualDraft(manualTier)}
+              >
+                Gestisci concessione
               </Button>
             )}
           </div>
-
-          {editMode && (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {tiers?.map((tier: any) => (
-                  <button
-                    key={tier.slug}
-                    onClick={() => setForm(f => ({ ...f, whitelabel_tier: tier.slug }))}
-                    className={`p-3 rounded-lg border-2 text-left transition-all ${
-                      form.whitelabel_tier === tier.slug
-                        ? "border-primary bg-primary/5"
-                        : "border-muted hover:border-muted-foreground/30"
-                    }`}
+          {manualDraft !== null && (
+            <div className="space-y-4 border-t pt-4">
+              <p className="text-sm text-muted-foreground">
+                La concessione non modifica il piano né gli addebiti. Resta
+                valida anche passando a un piano che non include il white label.
+                «Nessuno» rimuove soltanto la concessione manuale; il Full
+                incluso in Pro o Enterprise resta disponibile.
+              </p>
+              {tiersQuery.isError ? (
+                <p role="alert">
+                  Livelli non disponibili.{" "}
+                  <Button
+                    variant="link"
+                    onClick={() => void tiersQuery.refetch()}
                   >
-                    <div className="font-semibold text-sm">{TIER_LABELS[tier.slug] || tier.slug}</div>
-                    <div className="text-xs text-muted-foreground mt-1">€{tier.price_monthly}/mese</div>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {tier.can_change_logo && <Badge variant="outline" className="text-xs">Logo</Badge>}
-                      {tier.can_change_colors && <Badge variant="outline" className="text-xs">Colori</Badge>}
-                      {tier.can_custom_domain && <Badge variant="outline" className="text-xs">Dominio</Badge>}
-                      {tier.can_hide_powered_by && <Badge variant="outline" className="text-xs">No badge</Badge>}
-                      {tier.can_resell && <Badge variant="outline" className="text-xs">Resell</Badge>}
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              <Separator />
-
-              {/* Branding Fields */}
-              <div className="space-y-4">
-                <h4 className="text-sm font-semibold flex items-center gap-2">
-                  <Palette className="h-4 w-4" /> Branding Override
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Nome piattaforma</Label>
-                    <Input
-                      value={form.platform_name}
-                      onChange={e => setForm(f => ({ ...f, platform_name: e.target.value }))}
-                      placeholder="Es. GestEdil Pro"
-                    />
-                  </div>
-                  <div>
-                    <Label>Email from name</Label>
-                    <Input
-                      value={form.email_from_name}
-                      onChange={e => setForm(f => ({ ...f, email_from_name: e.target.value }))}
-                      placeholder="Es. GestEdil"
-                    />
-                  </div>
-                  <div>
-                    <Label>Colore primario</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={form.primary_color}
-                        onChange={e => setForm(f => ({ ...f, primary_color: e.target.value }))}
-                        placeholder="#1E40AF"
-                      />
-                      {form.primary_color && (
-                        <div className="w-10 h-10 rounded border" style={{ backgroundColor: form.primary_color }} />
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Colore secondario</Label>
-                    <Input
-                      value={form.secondary_color}
-                      onChange={e => setForm(f => ({ ...f, secondary_color: e.target.value }))}
-                      placeholder="#3B82F6"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label>PWA Name</Label>
-                    <Input
-                      value={form.pwa_name}
-                      onChange={e => setForm(f => ({ ...f, pwa_name: e.target.value }))}
-                      placeholder="Area Campo"
-                    />
-                  </div>
-                  <div>
-                    <Label>PWA Short Name</Label>
-                    <Input
-                      value={form.pwa_short_name}
-                      onChange={e => setForm(f => ({ ...f, pwa_short_name: e.target.value }))}
-                      placeholder="Campo"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <Switch
-                    checked={form.hide_platform_branding}
-                    onCheckedChange={v => setForm(f => ({ ...f, hide_platform_branding: v }))}
-                  />
-                  <Label>Nascondi "Powered by" badge</Label>
-                </div>
-
-                {!form.hide_platform_branding && (
-                  <div>
-                    <Label>Testo "Powered by" personalizzato</Label>
-                    <Input
-                      value={form.powered_by_text}
-                      onChange={e => setForm(f => ({ ...f, powered_by_text: e.target.value }))}
-                      placeholder="Powered by EdiliziaInCloud"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <Separator />
-
-              {/* Custom Domain Status */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-semibold flex items-center gap-2">
-                  <Globe className="h-4 w-4" /> Custom Domain
-                </h4>
-                {form.custom_domain ? (
-                  <div className="flex items-center gap-3">
-                    <code className="text-sm bg-muted px-2 py-1 rounded">{form.custom_domain}</code>
-                    <Badge variant={form.custom_domain_verified ? "default" : "secondary"}>
-                      {form.custom_domain_verified ? "✓ Verificato" : "⏳ In attesa DNS"}
-                    </Badge>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Nessun dominio personalizzato configurato.</p>
-                )}
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-                  {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Salva modifiche
+                    Riprova
+                  </Button>
+                </p>
+              ) : (
+                <RadioGroup
+                  aria-label="Concessione manuale white label"
+                  value={manualDraft}
+                  onValueChange={setManualDraft}
+                  disabled={save.isPending}
+                  className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+                >
+                  {["none", "basic", "full", "agency"].map((slug) => (
+                    <Label
+                      key={slug}
+                      htmlFor={`wl-${slug}`}
+                      className="flex items-center gap-2 rounded-lg border p-4 cursor-pointer"
+                    >
+                      <RadioGroupItem id={`wl-${slug}`} value={slug} />
+                      {TIER_LABELS[slug]}
+                    </Label>
+                  ))}
+                </RadioGroup>
+              )}
+              <p className="text-sm" role="status">
+                Livello dopo il salvataggio:{" "}
+                <strong>{TIER_LABELS[previewTier]}</strong>. I colori salvati
+                restano invariati.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={() => save.mutate(manualDraft)}
+                  disabled={
+                    save.isPending ||
+                    manualDraft === manualTier ||
+                    tiersQuery.isError ||
+                    tiersQuery.isLoading
+                  }
+                >
+                  {save.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Salva concessione
                 </Button>
-                <Button variant="outline" onClick={() => setEditMode(false)}>
+                <Button
+                  variant="outline"
+                  disabled={save.isPending}
+                  onClick={() => setManualDraft(null)}
+                >
                   Annulla
                 </Button>
               </div>
-            </>
+            </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Tier Capabilities Overview */}
-      {currentTier && (
+      <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Shield className="h-4 w-4" /> Funzionalità incluse nel piano {TIER_LABELS[form.whitelabel_tier]}
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Palette className="h-4 w-4" />
+              Marchio salvato
             </CardTitle>
+            <CardDescription>
+              Gli stessi dati usati dalla piattaforma aziendale.
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
-              {[
-                [(currentTier as any).can_change_logo, "Cambio logo"],
-                [(currentTier as any).can_change_colors, "Cambio colori"],
-                [(currentTier as any).can_custom_domain, "Dominio custom"],
-                [(currentTier as any).can_hide_powered_by, "Nascondi badge"],
-                [(currentTier as any).can_custom_email_branding, "Email branded"],
-                [(currentTier as any).can_custom_pdf_branding, "PDF branded"],
-                [(currentTier as any).can_custom_pwa, "PWA branded"],
-                [(currentTier as any).can_custom_css, "CSS custom"],
-                [(currentTier as any).can_resell, "Rivendita"],
-              ].map(([enabled, label]) => (
-                <div key={label as string} className="flex items-center gap-2">
-                  <span className={enabled ? "text-green-600" : "text-muted-foreground/40"}>
-                    {enabled ? "✓" : "✗"}
+          <CardContent className="space-y-4 text-sm">
+            <dl className="grid grid-cols-2 gap-3">
+              <dt className="text-muted-foreground">Nome piattaforma</dt>
+              <dd className="break-words">
+                {company.brand_platform_name || "EdiliziaInCloud"}
+              </dd>
+              <dt className="text-muted-foreground">Colori</dt>
+              <dd>
+                {standardColors ? "Colori standard" : "Colori personalizzati"}
+                {!standardColors &&
+                  isValidHexColor(company.brand_primary_color) && (
+                    <span
+                      className="ml-2 inline-block h-3 w-3 rounded-full border"
+                      style={{ backgroundColor: company.brand_primary_color }}
+                    />
+                  )}
+              </dd>
+              <dt className="text-muted-foreground">Logo aziendale</dt>
+              <dd>{company.logo_url ? "Caricato" : "Logo standard"}</dd>
+              <dt className="text-muted-foreground">Icona browser</dt>
+              <dd>
+                {company.brand_favicon_url ? "Personalizzata" : "Standard"}
+              </dd>
+              <dt className="text-muted-foreground">Powered by</dt>
+              <dd>{company.brand_hide_powered_by ? "Nascosto" : "Visibile"}</dd>
+            </dl>
+            {!active && (
+              <p className="text-muted-foreground">
+                Colori, nome e preferenza Powered by sono conservati e verranno
+                applicati quando il white label sarà attivo.
+              </p>
+            )}
+            <p className="border-t pt-3 text-muted-foreground">
+              Per modificare logo, colori e nome usa «Accedi come Admin» nella
+              scheda azienda, poi Impostazioni → Marchio e colori.
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Globe className="h-4 w-4" />
+              Indirizzo web
+            </CardTitle>
+            <CardDescription>
+              Stato del dominio, disponibile anche senza aprire l’editor.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {branding?.custom_domain ? (
+              <>
+                <p className="break-all font-medium">
+                  {branding.custom_domain}
+                </p>
+                <Badge
+                  variant={
+                    branding.custom_domain_verified ? "default" : "secondary"
+                  }
+                >
+                  {branding.custom_domain_verified
+                    ? "Dominio verificato"
+                    : "In attesa di verifica DNS"}
+                </Badge>
+                {branding.custom_domain_cname && (
+                  <p className="break-all text-muted-foreground">
+                    Destinazione CNAME:{" "}
+                    <code>{branding.custom_domain_cname}</code>
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-muted-foreground">
+                Nessun dominio personalizzato configurato.
+              </p>
+            )}
+            <p className="text-muted-foreground">
+              La verifica DNS conferma la proprietà del dominio; il collegamento
+              e il certificato devono essere operativi prima dell’uso.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Shield className="h-4 w-4" />
+            Funzionalità del livello{" "}
+            {TIER_LABELS[effectiveTier] ?? effectiveTier}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {tiersQuery.isError ? (
+            <p role="alert">
+              Impossibile caricare le funzionalità.{" "}
+              <Button variant="link" onClick={() => void tiersQuery.refetch()}>
+                Riprova
+              </Button>
+            </p>
+          ) : tiersQuery.isLoading ? (
+            <p>Caricamento funzionalità…</p>
+          ) : currentTier ? (
+            <div className="grid gap-3 sm:grid-cols-3">
+              {capabilities.map(([enabled, label]) => (
+                <p
+                  key={label}
+                  className={`text-sm ${enabled ? "" : "text-muted-foreground"}`}
+                >
+                  <span className={enabled ? "text-emerald-600" : ""}>
+                    {enabled ? "✓" : "—"}
+                  </span>{" "}
+                  {label}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Nessuna funzionalità white label disponibile per questo livello.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Clock className="h-4 w-4" />
+            Storico White Label
+          </CardTitle>
+          <CardDescription>Ultime 20 operazioni registrate.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {auditQuery.isLoading ? (
+            <p className="text-sm">Caricamento storico…</p>
+          ) : auditQuery.isError ? (
+            <p role="alert">
+              Storico non disponibile.{" "}
+              <Button variant="link" onClick={() => void auditQuery.refetch()}>
+                Riprova
+              </Button>
+            </p>
+          ) : !auditQuery.data?.length ? (
+            <p className="text-sm text-muted-foreground">
+              Nessuna operazione registrata.
+            </p>
+          ) : (
+            <div className="divide-y">
+              {auditQuery.data.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex flex-wrap items-center gap-3 py-3 text-sm"
+                >
+                  <Badge variant="outline">
+                    {entry.action === "tier_changed"
+                      ? "Livello modificato"
+                      : entry.action}
+                  </Badge>
+                  {auditTier(entry.new_value) && (
+                    <span>
+                      {auditTier(entry.old_value) ?? "—"} →{" "}
+                      {auditTier(entry.new_value)}
+                    </span>
+                  )}
+                  <span>
+                    {nomeProfilo(entry.actor, "Operatore non disponibile")}
                   </span>
-                  <span className={enabled ? "" : "text-muted-foreground/60"}>{label as string}</span>
+                  <time className="text-muted-foreground sm:ml-auto">
+                    {new Date(entry.created_at).toLocaleString("it-IT")}
+                  </time>
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Audit Log */}
-      {auditLog && auditLog.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="h-4 w-4" /> Audit Log White-Label
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {auditLog.map((entry: any) => (
-                <div key={entry.id} className="flex items-center gap-3 text-sm py-1.5 border-b last:border-0">
-                  <Badge variant="outline" className="text-xs shrink-0">{entry.action}</Badge>
-                  <span className="text-muted-foreground">
-                    {(entry.actor as any)?.first_name} {(entry.actor as any)?.last_name}
-                  </span>
-                  <span className="text-xs text-muted-foreground ml-auto">
-                    {new Date(entry.created_at).toLocaleDateString("it-IT", {
-                      day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
-                    })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

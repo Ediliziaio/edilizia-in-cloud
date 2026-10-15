@@ -109,10 +109,10 @@ export function CompanyOverrideAuditLogCard({ companyId, limit = 15 }: Props) {
           <div>
             <CardTitle className="text-base flex items-center gap-2">
               <History className="h-4 w-4 text-primary" />
-              Storico Override Feature
+              Modifiche alle funzionalità
             </CardTitle>
             <CardDescription>
-              Ultimi {limit} eventi di modifica override dalla tab Abbonamento. Include sblocchi,
+              Ultime {limit} modifiche manuali alle funzionalità. Include sblocchi,
               blocchi, modifiche di limite, scadenza, prezzo custom.
             </CardDescription>
           </div>

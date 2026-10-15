@@ -18,5 +18,7 @@ export function useIncludedWhitelabel(planId: string | null | undefined) {
     isIncluded: query.data?.slug === "pro" || query.data?.slug === "enterprise",
     planName: query.data?.name ?? null,
     isLoading: query.isLoading,
+    isError: query.isError,
+    refetch: query.refetch,
   };
 }

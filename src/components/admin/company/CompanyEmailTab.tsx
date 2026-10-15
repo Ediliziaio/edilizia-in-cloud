@@ -1,3 +1,4 @@
+import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 /**
  * SuperAdmin → CompanyDetail → "Email" tab.
  *
@@ -103,13 +104,13 @@ interface Props {
 }
 
 const fmtEur = (n: number | null | undefined) =>
-  `€${(Number(n ?? 0)).toLocaleString("it-IT", {
+  `€${Number(n ?? 0).toLocaleString("it-IT", {
     minimumFractionDigits: 4,
     maximumFractionDigits: 4,
   })}`;
 
 const fmtEurShort = (n: number | null | undefined) =>
-  `€${(Number(n ?? 0)).toLocaleString("it-IT", {
+  `€${Number(n ?? 0).toLocaleString("it-IT", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -121,12 +122,24 @@ const fmtLimit = (n: number | null | undefined) =>
   n === -1 ? "Illimitato" : n == null ? "—" : fmtInt(n);
 
 const statusBadge = (s: string) => {
-  const map: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode }> = {
-    sent:      { variant: "default",     icon: <CheckCircle2 className="h-3 w-3" /> },
-    delivered: { variant: "default",     icon: <CheckCircle2 className="h-3 w-3" /> },
-    queued:    { variant: "secondary",   icon: <Clock className="h-3 w-3" /> },
-    failed:    { variant: "destructive", icon: <XCircle className="h-3 w-3" /> },
-    bounced:   { variant: "destructive", icon: <AlertTriangle className="h-3 w-3" /> },
+  const map: Record<
+    string,
+    {
+      variant: "default" | "secondary" | "destructive" | "outline";
+      icon: React.ReactNode;
+    }
+  > = {
+    sent: { variant: "default", icon: <CheckCircle2 className="h-3 w-3" /> },
+    delivered: {
+      variant: "default",
+      icon: <CheckCircle2 className="h-3 w-3" />,
+    },
+    queued: { variant: "secondary", icon: <Clock className="h-3 w-3" /> },
+    failed: { variant: "destructive", icon: <XCircle className="h-3 w-3" /> },
+    bounced: {
+      variant: "destructive",
+      icon: <AlertTriangle className="h-3 w-3" />,
+    },
   };
   const cfg = map[s] ?? { variant: "outline" as const, icon: null };
   return (
@@ -152,7 +165,7 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase.rpc(
         "get_company_email_quota" as never,
-        { p_company_id: companyId } as never
+        { p_company_id: companyId } as never,
       );
       if (error) throw error;
       return data as EmailQuota;
@@ -166,10 +179,13 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase.rpc(
         "get_company_email_usage_breakdown" as never,
-        { p_company_id: companyId, p_months: 3 } as never
+        { p_company_id: companyId, p_months: 3 } as never,
       );
       if (error) throw error;
-      return (data ?? { per_month: [], per_stream_current_month: [] }) as UsageBreakdown;
+      return (data ?? {
+        per_month: [],
+        per_stream_current_month: [],
+      }) as UsageBreakdown;
     },
     staleTime: 60_000,
   });
@@ -178,9 +194,12 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
   const { data: domainData, refetch: refetchDomain } = useQuery({
     queryKey: ["company-email-domain", companyId],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("manage-email-domain", {
-        body: { action: "get_status", company_id: companyId },
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "manage-email-domain",
+        {
+          body: { action: "get_status", company_id: companyId },
+        },
+      );
       if (error) throw error;
       return data as {
         domain: null | {
@@ -205,9 +224,12 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
 
   const reverifyDomainMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("manage-email-domain", {
-        body: { action: "verify_domain", company_id: companyId },
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "manage-email-domain",
+        {
+          body: { action: "verify_domain", company_id: companyId },
+        },
+      );
       if (error) throw error;
       return data;
     },
@@ -230,7 +252,9 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
       if (error) throw error;
     },
     onSuccess: (_, active) => {
-      toast.success(active ? "Dominio custom riattivato" : "Dominio custom disattivato");
+      toast.success(
+        active ? "Dominio custom riattivato" : "Dominio custom disattivato",
+      );
       refetchDomain();
     },
     onError: (err: unknown) => {
@@ -241,9 +265,12 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
 
   const removeDomainMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("manage-email-domain", {
-        body: { action: "remove_domain", company_id: companyId },
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "manage-email-domain",
+        {
+          body: { action: "remove_domain", company_id: companyId },
+        },
+      );
       if (error) throw error;
       return data;
     },
@@ -263,7 +290,9 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_delivery_log")
-        .select("id, recipient, subject, status, provider, template_type, sent_at, error_message")
+        .select(
+          "id, recipient, subject, status, provider, template_type, sent_at, error_message",
+        )
         .eq("company_id", companyId)
         .order("sent_at", { ascending: false })
         .limit(20);
@@ -278,19 +307,31 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
   const [customLimit, setCustomLimit] = useState<string>("");
   const [customPrice, setCustomPrice] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [baseline, setBaseline] = useState<EmailQuota | null>(null);
+  const dirty =
+    !!baseline &&
+    (isFree !== baseline.is_free ||
+      customLimit !==
+        (baseline.override_limit == null
+          ? ""
+          : String(baseline.override_limit)) ||
+      customPrice !==
+        (baseline.override_price_eur == null
+          ? ""
+          : String(baseline.override_price_eur)));
+  useSettingsDraftGuard(dirty || saving);
 
   useEffect(() => {
-    if (!quota) return;
+    if (!quota || baseline?.company_id === companyId) return;
+    setBaseline({ ...quota, company_id: companyId });
     setIsFree(quota.is_free);
     setCustomLimit(
-      quota.override_limit == null ? "" : String(quota.override_limit)
+      quota.override_limit == null ? "" : String(quota.override_limit),
     );
     setCustomPrice(
-      quota.override_price_eur == null
-        ? ""
-        : String(quota.override_price_eur)
+      quota.override_price_eur == null ? "" : String(quota.override_price_eur),
     );
-  }, [quota]);
+  }, [quota, baseline?.company_id, companyId]);
 
   // ── Mutation: upsert override into company_billing_overrides ─────────────
   const saveMutation = useMutation({
@@ -303,7 +344,10 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
       }
       const parsedPrice =
         customPrice.trim() === "" ? null : Number(customPrice);
-      if (parsedPrice != null && Number.isNaN(parsedPrice)) {
+      if (
+        parsedPrice != null &&
+        (!Number.isFinite(parsedPrice) || parsedPrice < 0)
+      ) {
         throw new Error("Prezzo per email non valido");
       }
 
@@ -311,18 +355,21 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
         company_id: companyId,
         service: "email",
         is_enabled: true,
-        is_free:  isFree,
+        is_free: isFree,
         custom_monthly_email_limit: parsedLimit,
-        price_per_unit_eur:         parsedPrice,
+        price_per_unit_eur: parsedPrice,
         updated_by: user.id,
         updated_at: new Date().toISOString(),
       };
 
       const { error } = await supabase
         .from("company_billing_overrides" as never)
-        .upsert(payload as never, {
-          onConflict: "company_id,service",
-        } as never);
+        .upsert(
+          payload as never,
+          {
+            onConflict: "company_id,service",
+          } as never,
+        );
       if (error) throw error;
 
       // Audit trail
@@ -339,14 +386,21 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
       });
     },
     onMutate: () => setSaving(true),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Override email salvato");
-      queryClient.invalidateQueries({ queryKey: ["company-email-quota", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["company-email-usage-breakdown", companyId] });
+      await queryClient.invalidateQueries({
+        queryKey: ["company-email-quota", companyId],
+      });
+      setBaseline(null);
+      queryClient.invalidateQueries({
+        queryKey: ["company-email-usage-breakdown", companyId],
+      });
       // La mutation scrive anche su company_flag_audit_log: aggiorna il tab
       // Audit e la card override-audit senza aspettare il prossimo remount.
       queryClient.invalidateQueries({ queryKey: ["audit-log", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["admin-company-flag-audit-log", companyId] });
+      queryClient.invalidateQueries({
+        queryKey: ["admin-company-flag-audit-log", companyId],
+      });
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "Errore sconosciuto";
@@ -367,7 +421,9 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
     onSuccess: () => {
       toast.success("Override rimosso — l'azienda torna al piano standard");
       refetchQuota();
-      queryClient.invalidateQueries({ queryKey: ["company-email-quota", companyId] });
+      queryClient.invalidateQueries({
+        queryKey: ["company-email-quota", companyId],
+      });
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : "Errore sconosciuto";
@@ -387,7 +443,9 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
     return (
       <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
-        <AlertDescription>Impossibile caricare la quota email per questa azienda.</AlertDescription>
+        <AlertDescription>
+          Impossibile caricare la quota email per questa azienda.
+        </AlertDescription>
       </Alert>
     );
   }
@@ -401,8 +459,8 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
     quota.effective_limit === -1
       ? 0
       : quota.effective_limit > 0
-      ? Math.min(100, (quota.sent_this_month / quota.effective_limit) * 100)
-      : 0;
+        ? Math.min(100, (quota.sent_this_month / quota.effective_limit) * 100)
+        : 0;
 
   return (
     <div className="space-y-6">
@@ -415,14 +473,19 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
                 <Mail className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-lg">Sistema Email — {companyName}</CardTitle>
+                <CardTitle className="text-lg">
+                  Sistema Email — {companyName}
+                </CardTitle>
                 <CardDescription className="text-sm">
                   Gestione limiti mensili, prezzo overage e log di consegna.
                 </CardDescription>
               </div>
             </div>
             {hasActiveOverride && (
-              <Badge variant="outline" className="border-amber-400 text-amber-700">
+              <Badge
+                variant="outline"
+                className="border-amber-400 text-amber-700"
+              >
                 <Shield className="h-3 w-3 mr-1" />
                 Override attivi
               </Badge>
@@ -461,7 +524,9 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
                   fmtEur(quota.effective_price_eur)
                 )}
                 {!quota.is_free && (
-                  <span className="text-xs text-muted-foreground font-normal ml-1">/email</span>
+                  <span className="text-xs text-muted-foreground font-normal ml-1">
+                    /email
+                  </span>
                 )}
               </div>
             </div>
@@ -493,67 +558,101 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
         <CardContent className="space-y-3">
           <div className="flex items-baseline justify-between">
             <div>
-              <span className="text-2xl font-bold">{fmtInt(quota.sent_this_month)}</span>
+              <span className="text-2xl font-bold">
+                {fmtInt(quota.sent_this_month)}
+              </span>
               <span className="text-sm text-muted-foreground ml-2">
-                /{" "}
-                {quota.effective_limit === -1
-                  ? "∞"
-                  : fmtInt(quota.effective_limit)}{" "}
+                {quota.effective_limit === 0 ? "" : "/ "}
+                {quota.effective_limit === 0
+                  ? ""
+                  : quota.effective_limit === -1
+                    ? "∞"
+                    : fmtInt(quota.effective_limit)}{" "}
                 email inviate
               </span>
             </div>
-            {quota.over_quota && (
-              <Badge variant="destructive" className="gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                Oltre quota — addebito attivo
-              </Badge>
-            )}
+            {quota.over_quota &&
+              quota.effective_limit > 0 &&
+              !quota.is_free && (
+                <Badge variant="destructive" className="gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Oltre quota — addebito attivo
+                </Badge>
+              )}
           </div>
-          {quota.effective_limit !== -1 && (
+          {quota.effective_limit > 0 && (
             <Progress
               value={usagePct}
-              className={usagePct >= 90 ? "bg-red-100" : usagePct >= 70 ? "bg-amber-100" : ""}
+              className={
+                usagePct >= 90
+                  ? "bg-red-100"
+                  : usagePct >= 70
+                    ? "bg-amber-100"
+                    : ""
+              }
             />
           )}
           <div className="text-xs text-muted-foreground">
-            {quota.effective_limit === -1 ? (
+            {quota.is_free ? (
+              <>
+                Invii gratuiti per concessione aziendale: nessun addebito sul
+                wallet.
+              </>
+            ) : quota.effective_limit === -1 ? (
               <>Piano con email transazionali illimitate.</>
+            ) : quota.effective_limit === 0 ? (
+              <>
+                Nessuna email inclusa nella quota mensile. Gli invii sono a
+                consumo: <strong>{fmtEur(quota.effective_price_eur)}</strong>{" "}
+                per email. Il piano gratuito o regalato non rende
+                automaticamente gratuiti i consumi.
+              </>
             ) : quota.over_quota ? (
               <>
                 Quota esaurita. Ogni ulteriore email costa{" "}
-                <strong>{fmtEur(quota.effective_price_eur)}</strong> e viene addebitata sul wallet.
+                <strong>{fmtEur(quota.effective_price_eur)}</strong> e viene
+                addebitata sul wallet.
               </>
             ) : (
               <>
-                Restano <strong>{fmtInt(quota.remaining)}</strong> email gratuite questo mese.
+                Restano <strong>{fmtInt(quota.remaining)}</strong> email
+                gratuite questo mese.
               </>
             )}
           </div>
 
           {/* Per-stream breakdown */}
-          {breakdown?.per_stream_current_month && breakdown.per_stream_current_month.length > 0 && (
-            <div className="pt-2">
-              <Separator className="mb-3" />
-              <div className="text-xs font-medium mb-2">Per tipologia (mese corrente)</div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {breakdown.per_stream_current_month.map((s) => (
-                  <div key={s.stream} className="rounded border p-2 bg-background">
-                    <div className="text-xs text-muted-foreground capitalize">
-                      {s.stream === "transactional"
-                        ? "Transazionali"
-                        : s.stream === "marketing"
-                        ? "Marketing"
-                        : s.stream}
+          {breakdown?.per_stream_current_month &&
+            breakdown.per_stream_current_month.length > 0 && (
+              <div className="pt-2">
+                <Separator className="mb-3" />
+                <div className="text-xs font-medium mb-2">
+                  Per tipologia (mese corrente)
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {breakdown.per_stream_current_month.map((s) => (
+                    <div
+                      key={s.stream}
+                      className="rounded border p-2 bg-background"
+                    >
+                      <div className="text-xs text-muted-foreground capitalize">
+                        {s.stream === "transactional"
+                          ? "Transazionali"
+                          : s.stream === "marketing"
+                            ? "Marketing"
+                            : s.stream}
+                      </div>
+                      <div className="text-sm font-semibold">
+                        {fmtInt(s.total)}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {fmtEurShort(s.charged_eur)} addebitati
+                      </div>
                     </div>
-                    <div className="text-sm font-semibold">{fmtInt(s.total)}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {fmtEurShort(s.charged_eur)} addebitati
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
         </CardContent>
       </Card>
 
@@ -565,8 +664,9 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
             Override SuperAdmin
           </CardTitle>
           <CardDescription className="text-xs">
-            Sovrascrivi il limite mensile e il prezzo per email di questa azienda.
-            Lascia vuoto un campo per ripristinare il default del piano.
+            Sovrascrivi il limite mensile e il prezzo per email di questa
+            azienda. Lascia vuoto un campo per ripristinare il default del
+            piano.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -574,10 +674,15 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
             <div>
               <div className="text-sm font-medium flex items-center gap-2">
                 Email gratuite
-                {isFree && <Badge className="bg-emerald-100 text-emerald-800">Attivo</Badge>}
+                {isFree && (
+                  <Badge className="bg-emerald-100 text-emerald-800">
+                    Attivo
+                  </Badge>
+                )}
               </div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                Nessun addebito anche al superamento della quota (utile per demo / trial).
+                Nessun addebito anche al superamento della quota (utile per demo
+                / trial).
               </div>
             </div>
             <Switch checked={isFree} onCheckedChange={setIsFree} />
@@ -593,7 +698,9 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
               </Label>
               <Input
                 type="number"
-                placeholder={quota.plan_limit != null ? String(quota.plan_limit) : "500"}
+                placeholder={
+                  quota.plan_limit != null ? String(quota.plan_limit) : "500"
+                }
                 value={customLimit}
                 onChange={(e) => setCustomLimit(e.target.value)}
                 className="h-9"
@@ -613,7 +720,9 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
                 type="number"
                 step="0.0001"
                 placeholder={
-                  quota.plan_price_eur != null ? String(quota.plan_price_eur) : "0.0015"
+                  quota.plan_price_eur != null
+                    ? String(quota.plan_price_eur)
+                    : "0.0015"
                 }
                 value={customPrice}
                 onChange={(e) => setCustomPrice(e.target.value)}
@@ -628,11 +737,8 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
           <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
             <Info className="h-4 w-4 text-blue-700" />
             <AlertDescription className="text-xs text-blue-900 dark:text-blue-200">
-              Le modifiche entrano in vigore immediatamente. L'override viene salvato su{" "}
-              <code className="text-[11px] bg-blue-100 dark:bg-blue-900 px-1 rounded">
-                company_billing_overrides (service='email')
-              </code>{" "}
-              e tracciato nell'audit log.
+              Le modifiche si applicano dopo «Salva override» e vengono
+              registrate nello storico.
             </AlertDescription>
           </Alert>
 
@@ -644,7 +750,9 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
               disabled={!hasActiveOverride || resetMutation.isPending || saving}
               className="text-muted-foreground hover:text-destructive"
             >
-              {resetMutation.isPending && <Loader2 className="h-3 w-3 mr-2 animate-spin" />}
+              {resetMutation.isPending && (
+                <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+              )}
               Rimuovi override
             </Button>
             <Button onClick={() => saveMutation.mutate()} disabled={saving}>
@@ -674,37 +782,43 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
                 Dominio email custom
               </CardTitle>
               <CardDescription className="text-xs">
-                Il cliente invia email dal proprio dominio (es. <code className="text-[11px]">noreply@tuaazienda.it</code>)
-                una volta verificati i record DNS su Elastic Email + SendGrid.
+                Il cliente invia email dal proprio dominio (es.{" "}
+                <code className="text-[11px]">noreply@tuaazienda.it</code>) una
+                volta verificati i record DNS su Elastic Email + SendGrid.
               </CardDescription>
             </div>
-            {domainData?.domain && (
-              domainData.domain.is_verified && domainData.domain.is_active ? (
+            {domainData?.domain &&
+              (domainData.domain.is_verified && domainData.domain.is_active ? (
                 <Badge className="bg-green-600 hover:bg-green-700 gap-1">
                   <CheckCircle2 className="h-3 w-3" /> Attivo
                 </Badge>
               ) : domainData.domain.is_verified ? (
                 <Badge variant="outline">Verificato, disattivato</Badge>
               ) : (
-                <Badge variant="outline" className="text-amber-700 border-amber-400">
+                <Badge
+                  variant="outline"
+                  className="text-amber-700 border-amber-400"
+                >
                   <Clock className="h-3 w-3 mr-1" /> Verifica DNS pendente
                 </Badge>
-              )
-            )}
+              ))}
           </div>
         </CardHeader>
         <CardContent>
           {!domainData?.domain ? (
             <div className="text-xs text-muted-foreground">
-              Nessun dominio custom configurato. L'azienda può registrarne uno dalla sezione{" "}
-              <em>Impostazioni → Dominio Email</em> del proprio portale.
+              Nessun dominio custom configurato. L'azienda può registrarne uno
+              dalla sezione <em>Impostazioni → Dominio Email</em> del proprio
+              portale.
             </div>
           ) : (
             <div className="space-y-3">
               <div className="rounded-lg border p-3 bg-muted/20 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                 <div>
                   <div className="text-muted-foreground mb-0.5">Dominio</div>
-                  <div className="font-mono font-semibold">{domainData.domain.domain}</div>
+                  <div className="font-mono font-semibold">
+                    {domainData.domain.domain}
+                  </div>
                 </div>
                 <div>
                   <div className="text-muted-foreground mb-0.5">Mittente</div>
@@ -717,21 +831,29 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-                {([
-                  ["EE SPF", domainData.domain.ee_spf_verified],
-                  ["EE DKIM", domainData.domain.ee_dkim_verified],
-                  ["EE Track", domainData.domain.ee_tracking_verified],
-                  ["SG CNAME 1", domainData.domain.sg_cname_1_valid],
-                  ["SG CNAME 2", domainData.domain.sg_cname_2_valid],
-                  ["SG CNAME 3", domainData.domain.sg_cname_3_valid],
-                ] as Array<[string, boolean]>).map(([label, ok]) => (
+                {(
+                  [
+                    ["EE SPF", domainData.domain.ee_spf_verified],
+                    ["EE DKIM", domainData.domain.ee_dkim_verified],
+                    ["EE Track", domainData.domain.ee_tracking_verified],
+                    ["SG CNAME 1", domainData.domain.sg_cname_1_valid],
+                    ["SG CNAME 2", domainData.domain.sg_cname_2_valid],
+                    ["SG CNAME 3", domainData.domain.sg_cname_3_valid],
+                  ] as Array<[string, boolean]>
+                ).map(([label, ok]) => (
                   <div
                     key={label}
                     className={`rounded border px-2 py-1.5 flex items-center gap-1.5 ${
-                      ok ? "bg-green-50 border-green-200 text-green-900" : "bg-amber-50 border-amber-200 text-amber-900"
+                      ok
+                        ? "bg-green-50 border-green-200 text-green-900"
+                        : "bg-amber-50 border-amber-200 text-amber-900"
                     }`}
                   >
-                    {ok ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                    {ok ? (
+                      <CheckCircle2 className="h-3 w-3" />
+                    ) : (
+                      <XCircle className="h-3 w-3" />
+                    )}
                     <span className="text-[11px]">{label}</span>
                   </div>
                 ))}
@@ -742,8 +864,13 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
                   <Label className="text-xs flex items-center gap-2">
                     <Switch
                       checked={domainData.domain.is_active}
-                      onCheckedChange={(v) => toggleDomainActiveMutation.mutate(v)}
-                      disabled={!domainData.domain.is_verified || toggleDomainActiveMutation.isPending}
+                      onCheckedChange={(v) =>
+                        toggleDomainActiveMutation.mutate(v)
+                      }
+                      disabled={
+                        !domainData.domain.is_verified ||
+                        toggleDomainActiveMutation.isPending
+                      }
                     />
                     Dominio attivo
                   </Label>
@@ -822,7 +949,9 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
                         year: "numeric",
                       })}
                     </TableCell>
-                    <TableCell className="text-right">{fmtInt(row.total)}</TableCell>
+                    <TableCell className="text-right">
+                      {fmtInt(row.total)}
+                    </TableCell>
                     <TableCell className="text-right text-emerald-700">
                       {fmtInt(row.delivered)}
                     </TableCell>
@@ -872,37 +1001,45 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentLog.map((row: {
-                  id: string;
-                  recipient: string;
-                  subject: string | null;
-                  status: string;
-                  provider: string | null;
-                  template_type: string | null;
-                  sent_at: string;
-                  error_message: string | null;
-                }) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(row.sent_at).toLocaleString("it-IT", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </TableCell>
-                    <TableCell className="text-xs max-w-[200px] truncate" title={row.recipient}>
-                      {row.recipient}
-                    </TableCell>
-                    <TableCell className="text-xs max-w-[260px] truncate" title={row.subject ?? ""}>
-                      {row.subject ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {row.template_type ?? "—"}
-                    </TableCell>
-                    <TableCell>{statusBadge(row.status)}</TableCell>
-                  </TableRow>
-                ))}
+                {recentLog.map(
+                  (row: {
+                    id: string;
+                    recipient: string;
+                    subject: string | null;
+                    status: string;
+                    provider: string | null;
+                    template_type: string | null;
+                    sent_at: string;
+                    error_message: string | null;
+                  }) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(row.sent_at).toLocaleString("it-IT", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </TableCell>
+                      <TableCell
+                        className="text-xs max-w-[200px] truncate"
+                        title={row.recipient}
+                      >
+                        {row.recipient}
+                      </TableCell>
+                      <TableCell
+                        className="text-xs max-w-[260px] truncate"
+                        title={row.subject ?? ""}
+                      >
+                        {row.subject ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {row.template_type ?? "—"}
+                      </TableCell>
+                      <TableCell>{statusBadge(row.status)}</TableCell>
+                    </TableRow>
+                  ),
+                )}
               </TableBody>
             </Table>
           )}

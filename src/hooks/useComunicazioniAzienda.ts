@@ -1,3 +1,4 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -20,25 +21,27 @@ export interface NuovaComunicazione {
   inviato_da_nome?: string;
 }
 
-/**
- * NB: la tabella `superadmin_comunicazioni` è definita nella migration
- * 20260821000001 ma al 2026-07-09 NON risulta applicata in produzione
- * (verificato via to_regclass → null). Finché non viene applicata il modulo
- * è dormiente: la graceful degradation qui sotto mostra storico vuoto e
- * l'insert dal modal fallisce con messaggio esplicito.
+/** Contatti manuali annotati, distinti dagli invii di email_delivery_log.
+ * Una tabella non disponibile è un errore di caricamento, non uno storico vuoto.
  */
 
 // Codici errore Postgres che indicano "tabella non esiste"
 const TABLE_MISSING_CODES = new Set(["42P01", "PGRST205"]);
 
-function isTableMissingError(error: { code?: string; message?: string }): boolean {
+function isTableMissingError(error: {
+  code?: string;
+  message?: string;
+}): boolean {
   if (error.code && TABLE_MISSING_CODES.has(error.code)) return true;
   // PostgREST può rispondere con messaggi tipo "Could not find the table 'public.X'"
-  return /could not find.*table|relation.*does not exist/i.test(error.message ?? "");
+  return /could not find.*table|relation.*does not exist/i.test(
+    error.message ?? "",
+  );
 }
 
 export function useComunicazioniAzienda(companyId: string | undefined) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["comunicazioni-azienda", companyId],
@@ -49,7 +52,9 @@ export function useComunicazioniAzienda(companyId: string | undefined) {
       // funziona, altrimenti intercettiamo l'errore.
       const result = await (supabase
         .from("superadmin_comunicazioni" as never)
-        .select("id, tipo, oggetto, corpo, inviato_da_nome, stato, is_automatica, created_at")
+        .select(
+          "id, tipo, oggetto, corpo, inviato_da_nome, stato, is_automatica, created_at",
+        )
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
         .limit(100) as unknown as Promise<{
@@ -58,15 +63,9 @@ export function useComunicazioniAzienda(companyId: string | undefined) {
       }>);
 
       if (result.error) {
-        if (isTableMissingError(result.error)) {
-          // Graceful: tabella non disponibile, ritorna empty senza propagare
-          console.info(
-            "[useComunicazioniAzienda] Tabella superadmin_comunicazioni non presente. " +
-              "Storico vuoto. Crea la tabella per attivare il modulo.",
-          );
-          return [];
-        }
-        throw new Error("Impossibile caricare le comunicazioni: " + result.error.message);
+        throw new Error(
+          "Impossibile caricare le comunicazioni: " + result.error.message,
+        );
       }
       return result.data ?? [];
     },
@@ -76,18 +75,23 @@ export function useComunicazioniAzienda(companyId: string | undefined) {
   });
 
   const inviaComunicazione = useMutation({
-    mutationFn: async (payload: NuovaComunicazione & { company_id: string }) => {
+    mutationFn: async (
+      payload: NuovaComunicazione & { company_id: string },
+    ) => {
       const result = await (supabase
         .from("superadmin_comunicazioni" as never)
         .insert({
           company_id: payload.company_id,
+          inviato_da: user?.id ?? null,
           tipo: payload.tipo,
           oggetto: payload.oggetto ?? null,
           corpo: payload.corpo,
           inviato_da_nome: payload.inviato_da_nome ?? null,
           stato: "inviato",
           is_automatica: false,
-        }) as unknown as Promise<{ error: { code?: string; message?: string } | null }>);
+        } as never) as unknown as Promise<{
+        error: { code?: string; message?: string } | null;
+      }>);
 
       if (result.error) {
         if (isTableMissingError(result.error)) {
@@ -104,8 +108,12 @@ export function useComunicazioniAzienda(companyId: string | undefined) {
       toast.success("Comunicazione registrata", {
         description: "Salvata nello storico azienda.",
       });
-      queryClient.invalidateQueries({ queryKey: ["comunicazioni-azienda", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["company-detail", companyId] });
+      queryClient.invalidateQueries({
+        queryKey: ["comunicazioni-azienda", companyId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["company-detail", companyId],
+      });
     },
     onError: (err: Error) => {
       toast.error("Errore comunicazione", { description: err.message });
