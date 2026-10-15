@@ -17,11 +17,12 @@ interface HistoryRow {
   calculated_at: string;
 }
 
-function getScoreConfig(score: number | null | undefined) {
+function getScoreConfig(score: number | null | undefined, health: string | undefined) {
   if (score == null) return { color: "text-muted-foreground", bg: "bg-muted/50", stroke: "stroke-muted-foreground/30", label: "N/D" };
-  if (score >= 80) return { color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10", stroke: "stroke-emerald-500", label: "Sano" };
-  if (score >= 50) return { color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10", stroke: "stroke-amber-500", label: "A Rischio" };
-  return { color: "text-destructive", bg: "bg-destructive/10", stroke: "stroke-destructive", label: "Critico" };
+  if (health === "healthy") return { color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10", stroke: "stroke-emerald-500", label: "In salute" };
+  if (health === "at_risk") return { color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10", stroke: "stroke-amber-500", label: "A Rischio" };
+  if (health === "critical") return { color: "text-destructive", bg: "bg-destructive/10", stroke: "stroke-destructive", label: "Critico" };
+  return { color: "text-muted-foreground", bg: "bg-muted/50", stroke: "stroke-muted-foreground/30", label: "N/D" };
 }
 
 export function HealthScoreBadge({ companyId, healthScore, className }: Props) {
@@ -44,7 +45,7 @@ export function HealthScoreBadge({ companyId, healthScore, className }: Props) {
   });
 
   const score = healthScore?.score ?? null;
-  const cfg = getScoreConfig(score);
+  const cfg = getScoreConfig(score, healthScore?.health);
   const oldScore = history?.[0]?.score ?? null;
   const delta = score != null && oldScore != null ? score - oldScore : null;
 
