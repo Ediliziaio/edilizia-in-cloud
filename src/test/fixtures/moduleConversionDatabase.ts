@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-export const moduleMigration = readFileSync('supabase/migrations/20261015190920_moduli_commesse_e_accessi_multiazienda.sql', 'utf8');
+export const moduleMigration = readFileSync('supabase/migrations/20261015193502_moduli_commesse_e_accessi_multiazienda.sql', 'utf8');
 export const A='20000000-0000-0000-0000-000000000001', B='20000000-0000-0000-0000-000000000002';
 export const U='10000000-0000-0000-0000-000000000001', Q='30000000-0000-0000-0000-000000000001';
 const uuid = new Set('company_id customer_id current_status_id assigned_to order_id status_id changed_by supplier_id stock_item_id family_id trigger_status_id salesperson_id performed_by order_item_id'.split(' '));
