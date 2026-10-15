@@ -11,6 +11,7 @@
  *
  * Coerenza UX: stesso pattern di /azienda/ordini (Commesse).
  */
+import { monthlyMrrSeries, formatMrrAxis, type MrrSnapshot } from "@/lib/adminRevenueHistory";
 import { lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -76,8 +77,12 @@ const fmtCurrency = (n: number) =>
 /** Riepilogo top-level fatturato — versione "leggera" del dashboard revenue. */
 function useFatturatoSnapshot() {
   return useQuery({
-    queryKey: ["admin-fatturato-snapshot"],
+    queryKey: ["admin-fatturato-snapshot", "monthly-v2"],
     queryFn: async () => {
+      const since = new Date();
+      since.setDate(1);
+      since.setMonth(since.getMonth() - 11);
+      const fromDate = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, "0")}-01`;
       const [subsRes, snapshotsRes] = await Promise.all([
         supabase
           .from("companies")
@@ -87,8 +92,9 @@ function useFatturatoSnapshot() {
         (supabase as any)
           .from("mrr_snapshots")
           .select("data, mrr_stripe_cents, mrr_interno_cents, aziende_attive_stripe")
+          .gte("data", fromDate)
           .order("data", { ascending: false })
-          .limit(12),
+          .limit(400),
       ]);
 
       if (subsRes.error) throw subsRes.error;
@@ -104,21 +110,7 @@ function useFatturatoSnapshot() {
       // silente: prima finiva mascherato da "Nessun snapshot MRR disponibile"
       // come fosse un dato reale.
       const chartError = !!snapshotsRes.error;
-      const snapshots = (snapshotsRes.data ?? []) as Array<{
-        data: string;
-        mrr_stripe_cents: number;
-        mrr_interno_cents: number;
-        aziende_attive_stripe: number;
-      }>;
-      const chart = snapshots
-        .slice()
-        .reverse()
-        .map((s) => ({
-          mese: new Date(s.data).toLocaleDateString("it-IT", { month: "short", year: "2-digit" }),
-          mrrStripe: Math.round(s.mrr_stripe_cents / 100),
-          mrrInterno: Math.round(s.mrr_interno_cents / 100),
-          aziende: s.aziende_attive_stripe,
-        }));
+      const chart = monthlyMrrSeries((snapshotsRes.data ?? []) as MrrSnapshot[]);
 
       return {
         mrr,
@@ -148,7 +140,7 @@ export default function AdminFatturatoHub() {
   const tabs = [
     {
       id: "revenue" as const,
-      label: "Revenue",
+      label: "Ricavi",
       icon: LineChartIcon,
       show: permissions.billing_read,
       description: "KPI ARR, MRR, churn",
@@ -183,7 +175,7 @@ export default function AdminFatturatoHub() {
     },
     {
       id: "dunning" as const,
-      label: "Dunning",
+      label: "Recupero pagamenti",
       icon: Settings2,
       show: permissions.billing_write,
       description: "Recupero crediti & solleciti",
@@ -212,7 +204,7 @@ export default function AdminFatturatoHub() {
       <AdminHeroHeader
         icon={Wallet}
         title="Fatturato"
-        subtitle="Revenue, piani, fatture, promo e dunning in un'unica vista."
+        subtitle="Ricavi, piani, fatture, promozioni e recupero pagamenti in un'unica vista."
         actions={
           <>
             <Button
@@ -277,7 +269,7 @@ export default function AdminFatturatoHub() {
                 tone: "orange",
               },
             ]}
-            chartEyebrow="Andamento 12 mesi"
+            chartEyebrow="Storico mensile disponibile · fino a 12 mesi"
             chartTitle="MRR Stripe + interno"
             chartLegend={[
               { label: "MRR Stripe", color: "blue" },
@@ -344,7 +336,7 @@ export default function AdminFatturatoHub() {
                     axisLine={false}
                     fontSize={10}
                     stroke="#94a3b8"
-                    tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
+                    tickFormatter={(value) => formatMrrAxis(Number(value))}
                   />
                   <YAxis
                     yAxisId="count"

@@ -1,3 +1,4 @@
+import { nomeRuolo } from "@/lib/permessi/ruoliUtente";
 import { useState } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -87,7 +88,7 @@ function SchedaUtente({
                 <p className="text-xs text-muted-foreground">Ruoli</p>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {(utente.ruoli ?? []).map((r) => (
-                    <Badge key={r} variant="secondary" className="text-[10px]">{r}</Badge>
+                    <Badge key={r} variant="secondary" className="text-[10px]">{nomeRuolo(r)}</Badge>
                   ))}
                   {(!utente.ruoli || utente.ruoli.length === 0) && (
                     <span className="text-sm text-muted-foreground">nessun ruolo assegnato</span>
@@ -302,7 +303,7 @@ export default function UsersList() {
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {(u.ruoli ?? []).slice(0, 2).map((r) => (
-                        <Badge key={r} variant="secondary" className="text-[10px]">{r}</Badge>
+                        <Badge key={r} variant="secondary" className="text-[10px]">{nomeRuolo(r)}</Badge>
                       ))}
                       {(u.ruoli?.length ?? 0) > 2 && (
                         <Badge variant="outline" className="text-[10px]">+{u.ruoli!.length - 2}</Badge>
@@ -312,7 +313,7 @@ export default function UsersList() {
                   <TableCell className="text-sm whitespace-nowrap">
                     {quandoDa(u.ultimo_accesso)}
                     {u.sessioni_attive > 0 && (
-                      <span className="ml-1.5 text-xs text-emerald-600">· {u.sessioni_attive} attive</span>
+                      <span className="ml-1.5 text-xs text-emerald-600">· {u.sessioni_attive} {u.sessioni_attive === 1 ? "sessione attiva" : "sessioni attive"}</span>
                     )}
                   </TableCell>
                   <TableCell>

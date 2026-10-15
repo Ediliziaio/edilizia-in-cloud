@@ -12,6 +12,7 @@ interface BreadcrumbSegment {
 const ROUTE_MAP: Record<string, string> = {
   "/admin": "Dashboard",
   "/admin/aziende": "Aziende",
+  "/admin/utenti": "Utenti",
   "/admin/aziende/nuova": "Nuova Azienda",
   "/admin/ticket": "Assistenza",
   "/admin/lifecycle": "Lifecycle",

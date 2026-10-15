@@ -80,6 +80,7 @@ jobs:
       - name: Run company administration regression tests
         run: |
           bunx vitest run --maxWorkers=1 --testTimeout=15000 src/test/ui/companyAdminReorganization.test.tsx src/test/ui/companyEffectiveFeatures.test.tsx src/test/ui/companyListQuickDetails.test.tsx src/test/ui/companyAIConsistency.test.tsx src/test/ui/companyWalletBalances.test.tsx src/test/ui/companyActivitySources.test.tsx src/test/ui/companyEmailQuotaDraft.test.tsx src/test/ui/adminWhiteLabel.test.tsx
+          bunx vitest run --maxWorkers=2 src/test/logic/companyHealthConsistency.test.ts src/test/ui/companyLastAccessConsistency.test.tsx src/test/ui/companyKpiHealthState.test.tsx src/test/logic/adminRevenueHistory.test.ts src/test/logic/cockpitPortfolioRevenue.test.ts src/test/ui/adminUsersReadability.test.tsx
           node scripts/test-company-admin-cs.mjs
           node scripts/test-white-label-plan.mjs
 
