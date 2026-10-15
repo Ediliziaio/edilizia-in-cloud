@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle2, ArrowRight, ChevronLeft, FileText } from 'lucide-react';
 import { TemplateUploader } from '@/components/documenti/TemplateUploader';
 import { TemplateFieldEditor } from '@/components/documenti/TemplateFieldEditor';
-import { useDocumentoTemplates } from '@/hooks/useDocumentoTemplates';
+import { useDocumentoTemplates, useTemplateFields } from '@/hooks/useDocumentoTemplates';
+import { TemplateDocumentUse } from '@/components/documenti/TemplateDocumentUse';
 import { useAuth } from '@/contexts/AuthContext';
 
 type WizardStep = 1 | 2 | 3;
@@ -19,7 +20,7 @@ export default function NuovoTemplate() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { effectiveCompany } = useAuth();
-  const { templates, uploadTemplate } = useDocumentoTemplates();
+  const { templates, uploadTemplate, isLoading: modelliInCaricamento, error: erroreModelli, refetch: ricaricaModelli } = useDocumentoTemplates();
   const [step, setStep] = useState<WizardStep>(1);
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [templateNome, setTemplateNome] = useState('');
@@ -39,6 +40,9 @@ export default function NuovoTemplate() {
   // Quando si arriva da "Usa", il template è quello e il passo utile è il 2.
   const templateCorrente = templateId ?? templateDaUrl?.id ?? null;
   const nomeCorrente = templateNome || templateDaUrl?.nome || '';
+  const fileCorrente = templates.find(t => t.id === templateCorrente);
+  const { fields: campiCorrenti, isLoading: campiInCaricamento, error: erroreCampi } = useTemplateFields(templateCorrente);
+  const campiDaPosizionare = fileCorrente?.file_type === 'pdf' && campiCorrenti.some(f => f.obbligatorio && !f.posizioni_pdf?.length);
   const passoCorrente: WizardStep = templateDaUrl && step === 1 ? 2 : step;
 
   const handleUpload = async (
@@ -56,7 +60,7 @@ export default function NuovoTemplate() {
   return (
     // Da tablet in su il margine lo dà già il layout, e il modulo parte da
     // sinistra come il titolo delle altre pagine invece di restare al centro.
-    <div className="p-6 max-w-2xl mx-auto space-y-6 sm:mx-0 sm:max-w-3xl sm:p-0">
+    <div className="p-6 max-w-5xl space-y-6 sm:p-0">
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button
@@ -114,22 +118,30 @@ export default function NuovoTemplate() {
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-slate-800">Configura i campi personalizzati</h2>
             <p className="text-sm text-slate-500">
-              Aggiungi i campi che verranno compilati prima di inviare il documento per la firma.
-              Usa i segnaposto (es. <code className="bg-slate-100 px-1 rounded">{'{{nome_cliente}}'}</code>) nel documento originale.
+              Aggiungi i dati variabili del modello. Nei PDF scegli dove stamparli cliccando sulla pagina.
+              Nei DOCX inserisci i segnaposto (es. <code className="bg-slate-100 px-1 rounded">{'{{nome_cliente}}'}</code>) nel file originale.
             </p>
-            <TemplateFieldEditor
+            {erroreModelli ? <div role="alert" className="space-y-2 text-sm text-red-700">
+              <p>Impossibile caricare il modello. I campi restano salvati: riprova prima di continuare.</p>
+              <Button variant="outline" onClick={() => void ricaricaModelli()}>Riprova</Button>
+            </div> : !fileCorrente ? <p role="status" className="text-sm text-slate-500">
+              {modelliInCaricamento ? 'Caricamento del modello…' : 'Modello non disponibile per questa azienda. Riaprilo dall’elenco dei documenti.'}
+            </p> : <TemplateFieldEditor
               templateId={templateCorrente}
               companyId={effectiveCompany.id}
-            />
+              template={fileCorrente}
+            />}
             <div className="pt-4 flex justify-end">
               <Button
                 className="gap-2 bg-orange-500 hover:bg-orange-600 text-white"
                 onClick={() => setStep(3)}
+                disabled={!fileCorrente || !!erroreModelli || campiInCaricamento || !!erroreCampi || !!campiDaPosizionare}
               >
-                Continua
+                Salva e prova compilazione
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
+            {campiDaPosizionare && <p className="text-sm text-amber-700">Posiziona sul PDF tutti i campi obbligatori prima di continuare.</p>}
           </div>
         )}
 
@@ -140,12 +152,13 @@ export default function NuovoTemplate() {
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-800">
-                {templateDaUrl ? 'Template pronto' : 'Template creato!'}
+                Modello salvato
               </h2>
               <p className="text-slate-500 text-sm mt-2">
-                Il template <strong>{nomeCorrente}</strong> è pronto per essere utilizzato.
+                Il modello <strong>{nomeCorrente}</strong> è salvato. Prova i valori e controlla l’anteprima prima dell’uso.
               </p>
             </div>
+            {fileCorrente && <TemplateDocumentUse key={fileCorrente.id} template={fileCorrente} />}
             <div className="flex flex-col gap-3">
               <Button
                 className="gap-2 bg-orange-500 hover:bg-orange-600 text-white"

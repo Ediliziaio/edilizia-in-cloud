@@ -13,7 +13,7 @@ import { Loader2, Upload, FileText, X } from 'lucide-react';
 import type { DocumentoTipo } from '@/types/fea';
 
 interface TemplateUploaderProps {
-  onUpload: (file: File, nome: string, descrizione: string, tipo_doc: string) => void;
+  onUpload: (file: File, nome: string, descrizione: string, tipo_doc: string) => Promise<unknown>;
   isLoading?: boolean;
 }
 
@@ -84,10 +84,12 @@ export function TemplateUploader({ onUpload, isLoading }: TemplateUploaderProps)
     if (selected) handleFile(selected);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !nome) return;
-    onUpload(file, nome, descrizione, tipoDoc);
+    setFileError('');
+    try { await onUpload(file, nome, descrizione, tipoDoc); }
+    catch (error) { setFileError(error instanceof Error ? error.message : 'Caricamento non riuscito. Verifica azienda, file e permessi e riprova.'); }
   };
 
   return (
@@ -138,7 +140,7 @@ export function TemplateUploader({ onUpload, isLoading }: TemplateUploaderProps)
         )}
       </div>
 
-      {fileError && <p className="text-sm text-red-600">{fileError}</p>}
+      {fileError && <p role="alert" className="text-sm text-red-600">{fileError}</p>}
 
       {/* Nome template */}
       <div className="space-y-1.5">

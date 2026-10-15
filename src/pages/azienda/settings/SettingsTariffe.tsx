@@ -136,6 +136,7 @@ const UM_FATTURAZIONE: { value: UnitaFatturazione; label: string; hint: string }
   { value: "mc", label: "mc", hint: "Al metro cubo" },
   { value: "kg", label: "kg", hint: "Al chilo" },
   { value: "gg", label: "gg", hint: "A giornata lavorativa" },
+  { value: "mese", label: "mese", hint: "Canone mensile × numero di mesi" },
   { value: "h", label: "h", hint: "All'ora" },
   { value: "a_corpo", label: "a corpo", hint: "Importo fisso totale" },
   { value: "km", label: "km", hint: "Al chilometro" },
@@ -174,6 +175,7 @@ function legacyUnitaFrom(u: UnitaFatturazione): string {
     case "a_corpo": return "fisso";
     case "gg": return "h";
     case "kg": return "pz";
+    case "mese": return "fisso";
   }
 }
 

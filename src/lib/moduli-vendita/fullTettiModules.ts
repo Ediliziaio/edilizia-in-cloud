@@ -1,3 +1,4 @@
+import { ereditaCondizioniModello } from "./condizioniModello";
 import type { TetListItem, TetTemplatePdf } from "@/types/tetti";
 import { CAPITOLI_EDILI } from "@/components/preventivi/pdf/ordineCapitoli";
 import type { ContenutoBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
@@ -47,7 +48,7 @@ export function createFullTettiTemplate(base: TetTemplatePdf, id: TettiTemplateM
     cover_title_size: 38, cover_subtitle_size: 13,
     color_primary: base.color_primary || "#563e32", color_accent: base.color_accent || "#b66b42",
     show_chi_siamo: !!base.chi_siamo?.trim(),
-    condizioni_legali_testo: null, condizioni_legali_attivo: false, modulo_recesso_attivo: false,
+    ...ereditaCondizioniModello(base),
     esigenze: entries([
       ["Capire dove intervenire", "Individuare tegole spostate, elementi rotti e raccordi critici, distinguendo i difetti visibili dalle condizioni degli strati sottostanti."],
       ["Conservare il materiale recuperabile", "Valutare stato, compatibilità e disponibilità dei ricambi prima di stabilire le quantità da sostituire."],

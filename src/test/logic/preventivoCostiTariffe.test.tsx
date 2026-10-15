@@ -53,6 +53,17 @@ async function tariffeLette(righe: unknown[]): Promise<TariffaPro[]> {
 }
 
 describe("Tariffe: costo e unità con la regola unica", () => {
+  it("calcola due mesi di nolo senza usare la legacy fisso o una conversione a giorni", async () => {
+    const [mensile] = await tariffeLette([
+      { id: "mensile", nome: "Nolo mensile", tipo: "nolo", prezzo_vendita: 152.88,
+        costo_interno: 100, unita: "fisso", unita_fatturazione: "mese" },
+    ]);
+    expect(mensile.unita_fatturazione).toBe("mese");
+    const { result } = renderHook(() => usePreventivoCosti("az-1"));
+    expect(result.current.calcolaTariffaAutomatica(mensile, 2)).toEqual({
+      prezzo_vendita: 305.76, prezzo_acquisto: 200,
+    });
+  });
   it("legge anche la tariffa regionale oltre il limite REST di mille righe", async () => {
     const righe = Array.from({ length: 1050 }, (_, i) => ({ id: `t${i}`, nome: `Tariffa ${i}`, tipo: "manodopera", prezzo_vendita: 0.0066, costo_interno: 0.0044, codice: `REG-${i}`, unita: "kg", unita_fatturazione: "kg" }));
     const tariffe = await tariffeLette(righe);

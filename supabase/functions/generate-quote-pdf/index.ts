@@ -6,16 +6,17 @@ import { preventivoVisibile } from "../_shared/preventivoVisibile.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { PDFDocument, rgb, StandardFonts, degrees } from "https://esm.sh/pdf-lib@1.17.1";
 // Libreria template componibile: carica i blocchi linkati + sostituisce merge tag
-import { fondoPerTestoBianco, scurisci, schiarisci, testoSuChiaro, testoSuScuro, normalizzaHex } from "../_shared/temaColori.ts";
-import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, substituteMergeTags, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
+import { fondoPerTestoBianco, scurisci, schiarisci, testoSuChiaro, testoSuScuro, normalizzaHex, testoSopra } from "../_shared/temaColori.ts";
+import { loadTemplateWithBlocks, attachLinkedBlocks, applyMergeTagsToTemplate, buildMergeContext, substituteMergeTags, TemplateCompositionError, type ComposedTemplate } from "../_shared/quoteTemplateComposer.ts";
 import { condizioniStandard, MODULO_RECESSO } from "../_shared/condizioniStandard.ts";
 import { testoPerPdf } from "../_shared/testoPerPdf.ts";
 import { formatoImmagine, leggiLogo, logoDiRiserva } from "../_shared/logoAzienda.ts";
-import { COLORE_ACCENTO_DI_FABBRICA, coloreCopertina, coloreDelBlocco, colorePreventivo, contattiImpresa, titoliMarkdown } from "../_shared/blocchiModelloPreventivo.ts";
-import { componiRighe, logoDelModello, nomeLeggibile, paroleDelTitolo, percorsoDellAzienda, pezziConGrassetto, senzaSezioneClausole, sezioneClausole, titoloGenerico, type ParolaTitolo, type Pezzo } from "../_shared/impaginaPreventivo.ts";
+import { COLORE_ACCENTO_DI_FABBRICA, coloreCopertina, coloreDelBlocco, colorePreventivo, contattiImpresa } from "../_shared/blocchiModelloPreventivo.ts";
+import { componiRighe, logoDelModello, nomeLeggibile, paroleDelTitolo, percorsoDellAzienda, pezziConGrassetto, sezioneClausole, titoloGenerico, type ParolaTitolo, type Pezzo } from "../_shared/impaginaPreventivo.ts";
 import { agevolazioniPreventivo, riepilogoPrezzi } from "../_shared/prezziPreventivo.ts";
 import { dataItalianaBreve, dataItalianaLunga } from "../_shared/dataItaliana.ts";
 import { righeRiepilogoIva } from "../_shared/riepilogoIvaPreventivo.ts";
+import { campiContratto, erroriCampiContratto, leggiValoriContratto } from '../_shared/campiContratto.ts';
 
 // ─── Helpers ───
 function hexToRgb(hex: string) {
@@ -42,20 +43,8 @@ async function getFont(pdfDoc: any, family: string, style: "normal" | "bold" | "
   return pdfDoc.embedFont(familyMap[style] || familyMap.normal);
 }
 
-function normalizeTemplateText(value: unknown): string {
-  return String(value ?? "")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<\/h[1-6]>/gi, "\n\n")
-    .replace(/<li>/gi, "- ")
-    .replace(/<\/li>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .trim();
-}
+import { normalizzaTestoTemplatePdf as normalizeTemplateText } from '../_shared/testoTemplatePdf.ts';
+import { contrattoInHtml, leggiTestoRiccoContratto, separaFirmeContratto } from '../_shared/testoRiccoContratto.ts';
 
 // Importi in formato italiano: 1.234,56 € (WinAnsi-safe per pdf-lib)
 // «always»: il CLDR italiano toglie il punto delle migliaia sotto le cinque
@@ -212,22 +201,26 @@ Deno.serve(async (req) => {
         try {
           await requireCompanyAccess(supabaseAdmin, userId, aziendaDelModello, corsH);
           aziendaAnteprima = aziendaDelModello;
-        } catch { /* niente accesso a quell'azienda: resta la sua */ }
+        } catch { return errorResponse("Non puoi generare l’anteprima per questa azienda.", 403, corsH); }
       }
-      if (profile?.company_id) {
+      if (aziendaAnteprima) {
         t = await attachLinkedBlocks(
           supabaseAdmin,
-          { ...t, company_id: profile.company_id } as ComposedTemplate,
-          profile.company_id,
+          { ...t, company_id: aziendaAnteprima } as ComposedTemplate,
+          aziendaAnteprima,
         );
       }
+      const { data: previewBrand } = aziendaAnteprima ? await supabaseAdmin.from('companies')
+        .select('logo_url,brand_logo_dark_url,business_name,email,phone,vat_number,legal_address,legal_city,legal_postal_code,legal_province').eq('id', aziendaAnteprima).maybeSingle() : { data: null };
       company = {
         name: company_name || "La Tua Azienda Srl",
-        email: "info@azienda-esempio.it",
-        phone: "+39 02 1234567",
-        address: "Via Roma 1, 20100 Milano (MI)",
-        vat_number: "IT01234567890",
-        logo_url: null,
+        business_name: previewBrand?.business_name ?? null,
+        email: previewBrand?.email ?? "info@azienda-esempio.it",
+        phone: previewBrand?.phone ?? "+39 02 1234567",
+        address: [previewBrand?.legal_address,previewBrand?.legal_postal_code,previewBrand?.legal_city,previewBrand?.legal_province].filter(Boolean).join(', ') || "Via Roma 1, 20100 Milano (MI)",
+        vat_number: previewBrand?.vat_number ?? "IT01234567890",
+        logo_url: previewBrand?.logo_url ?? null,
+        brand_logo_dark_url: previewBrand?.brand_logo_dark_url ?? null,
       };
       Object.assign(company, contattiImpresa(t, company));
       quote = {
@@ -276,7 +269,9 @@ Deno.serve(async (req) => {
           t.show_legal_terms = true;
         }
       }
-      t = applyMergeTagsToTemplate(t as ComposedTemplate, buildMergeContext({ quote, company, template: t }));
+      const previewContext = buildMergeContext({ quote, company, template: t });
+      previewContext.contratto = Object.fromEntries(campiContratto(t.contractual_terms_text, t.legal_terms_text).map(f => [f.nome, `[${f.etichetta}]`]));
+      t = applyMergeTagsToTemplate(t as ComposedTemplate, previewContext);
     } else {
       // ─── NORMAL MODE ───
       if (!quote_id) return errorResponse("quote_id richiesto", 400, corsH);
@@ -350,7 +345,7 @@ Deno.serve(async (req) => {
         supabaseAdmin.from("preventivo_impostazioni" as any).select("*").eq("company_id", quote.company_id).maybeSingle(),
         supabaseAdmin
           .from("companies")
-          .select("name, email, phone, legal_address, legal_city, logo_url, vat_number, brand_primary_color")
+          .select("name, business_name, email, phone, legal_address, legal_city, legal_province, legal_postal_code, logo_url, brand_logo_dark_url, vat_number, brand_primary_color")
           .eq("id", quote.company_id)
           .single(),
         getBrandingForCompany(supabaseAdmin, quote.company_id),
@@ -443,6 +438,9 @@ Deno.serve(async (req) => {
       }
       try {
         // Contact già prefetchato nel batch parallelo
+        const customFields = opzione('pdf_mostra_condizioni') ? campiContratto(t.contractual_terms_text, t.legal_terms_text) : [];
+        const customErrors = erroriCampiContratto(customFields, leggiValoriContratto(quote?.custom_field_values?._template_values));
+        if (customErrors.length) return errorResponse(`Completa i dati contrattuali: ${customErrors.join('; ')}`, 400, corsH);
         const mergeCtx = buildMergeContext({ quote, company, contact: prefetchedContact, template: t });
         t = applyMergeTagsToTemplate(t as ComposedTemplate, mergeCtx);
       } catch (e) {
@@ -553,6 +551,7 @@ Deno.serve(async (req) => {
 
     // ─── Logo embed ───
     let logoEmbed: any = null;
+    let logoChiaroEmbed: any = null;
     // Il logo del modello, se è un percorso, solo dalla cartella dell'azienda; se no
     // (o se non passa) quello aziendale, che oggi è sempre un indirizzo dello storage
     // pubblico e, se un giorno fosse un percorso, passa dalla stessa regola.
@@ -576,6 +575,16 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.warn("Logo not loaded:", e);
       }
+    }
+    const logoChiaroPath = logoDelModello(company?.brand_logo_dark_url, aziendaDeiFile);
+    if (t.show_logo && logoChiaroPath) {
+      try {
+        const bytes = await leggiLogo(supabaseAdmin, logoChiaroPath, {
+          supabaseUrl: Deno.env.get('SUPABASE_URL') ?? '', bucket: ['quote-template-assets', 'company-assets'],
+        });
+        if (bytes && formatoImmagine(bytes) === 'png') logoChiaroEmbed = await pdfDoc.embedPng(bytes);
+        else if (bytes && formatoImmagine(bytes) === 'jpg') logoChiaroEmbed = await pdfDoc.embedJpg(bytes);
+      } catch { /* The normal logo is printed on a white plate instead. */ }
     }
     // La dimensione del logo scelta nel modello (Piccola, Media, Grande): il
     // classico la ignorava e il logo usciva sempre piccolo (25/09/2026).
@@ -633,13 +642,16 @@ Deno.serve(async (req) => {
     // Il testo che va a capo misurato con il carattere vero (componiRighe): prima si
     // contavano i caratteri e le righe finivano a tre quarti della pagina.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    type StileTesto = { f: any; size: number; c: any };
+    type StileTesto = { f: any; size: number; c: any; underline?: boolean; strike?: boolean };
     const misuraStile = (testo: string, st: StileTesto) => st.f.widthOfTextAtSize(winAnsiSafe(testo), st.size);
     const righeDi = (pezzi: Array<Pezzo<StileTesto>>, larghezza: number, primaRiga?: number) =>
       componiRighe(pezzi.map((p) => ({ testo: winAnsiSafe(p.testo), stile: p.stile })), larghezza, misuraStile, primaRiga);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const disegnaRiga = (pg: any, riga: Array<{ testo: string; stile: StileTesto; x: number }>, x: number, yy: number) => {
-      for (const tr of riga) pg.drawText(tr.testo, { x: x + tr.x, y: yy, size: tr.stile.size, font: tr.stile.f, color: tr.stile.c });
+      for (const tr of riga) {
+        pg.drawText(tr.testo, { x: x + tr.x, y: yy, size: tr.stile.size, font: tr.stile.f, color: tr.stile.c });
+        for(const offset of [tr.stile.underline ? -1.5 : null,tr.stile.strike ? tr.stile.size*.3 : null]) if(offset!=null) pg.drawLine({start:{x:x+tr.x,y:yy+offset},end:{x:x+tr.x+misuraStile(tr.testo,tr.stile),y:yy+offset},thickness:.5,color:tr.stile.c});
+      }
     };
     // Il titolino di una parte: maiuscoletto spaziato, un filetto e un tratto nel
     // colore dell'azienda. Se l'etichetta è più larga della colonna si stringe.
@@ -714,16 +726,18 @@ Deno.serve(async (req) => {
     }
 
     // Helper: draw logo on page
-    function drawLogo(page: any, y: number, leftX = margin) {
-      if (!logoEmbed || !t.show_logo) return y;
+    function drawLogo(page: any, y: number, leftX = margin, fondoScuro = false) {
+      const image = fondoScuro ? (logoChiaroEmbed || logoEmbed) : logoEmbed;
+      if (!image || !t.show_logo) return y;
       const maxH = t.logo_size === "small" ? 30 : t.logo_size === "large" ? 60 : 45;
-      const scale = Math.min(maxH / logoEmbed.height, 150 / logoEmbed.width);
-      const w = logoEmbed.width * scale;
-      const h = logoEmbed.height * scale;
+      const scale = Math.min(maxH / image.height, 150 / image.width);
+      const w = image.width * scale;
+      const h = image.height * scale;
       let x = leftX;
       if (t.logo_position === "center") x = (pageWidth - w) / 2;
       else if (t.logo_position === "right") x = pageWidth - margin - w;
-      page.drawImage(logoEmbed, { x, y: y - h, width: w, height: h });
+      if (fondoScuro && !logoChiaroEmbed) page.drawRectangle({ x: x - 4, y: y - h - 3, width: w + 8, height: h + 6, color: rgb(1,1,1) });
+      page.drawImage(image, { x, y: y - h, width: w, height: h });
       return y - h - 10;
     }
 
@@ -838,15 +852,16 @@ Deno.serve(async (req) => {
       const margineC = 48;
       const largoC = pageWidth - margineC * 2;
       const topC = pageHeight - 44;
-      const conLogoC = !!(logoEmbed && t.show_logo);
+      const logoCopertina = logoChiaroEmbed || logoEmbed;
+      const conLogoC = !!(logoCopertina && t.show_logo);
       let largoTarghetta = 0;
       if (conLogoC) {
-        const sc = Math.min((58 * scalaLogo) / logoEmbed.height, (210 * scalaLogo) / logoEmbed.width);
-        const lw = logoEmbed.width * sc, lh = logoEmbed.height * sc;
+        const sc = Math.min((58 * scalaLogo) / logoCopertina.height, (210 * scalaLogo) / logoCopertina.width);
+        const lw = logoCopertina.width * sc, lh = logoCopertina.height * sc;
         const padX = 16, padY = 12;
         largoTarghetta = lw + padX * 2;
-        arrotondato(cover, margineC, topC - lh - padY * 2, largoTarghetta, lh + padY * 2, biancoC, 8);
-        cover.drawImage(logoEmbed, { x: margineC + padX, y: topC - lh - padY, width: lw, height: lh });
+        if (!logoChiaroEmbed) arrotondato(cover, margineC, topC - lh - padY * 2, largoTarghetta, lh + padY * 2, biancoC, 8);
+        cover.drawImage(logoCopertina, { x: margineC + padX, y: topC - lh - padY, width: lw, height: lh });
       }
       const contattiC = [company?.email, company?.phone ? `Tel. ${company.phone}` : null].filter(Boolean).join("  ·  ");
       // Col logo, i contatti a destra, mai sopra la targhetta; senza logo il nome
@@ -1068,6 +1083,45 @@ Deno.serve(async (req) => {
       const normale: StileTesto = { f: fontB, size: corpo, c: textC };
       const grassetto: StileTesto = { f: fontBoldB, size: corpo, c: textC };
       const rimando: StileTesto = { f: fontBoldB, size: corpo, c: titoliC };
+      if (/<(?:p|h[1-6]|span|div)\b/i.test(String(body))) {
+        const rich=separaFirmeContratto(leggiTestoRiccoContratto(String(body))).righe;
+        const fonts=new Map<string,any>();
+        for (const [index,r] of rich.entries()) {
+          const heading=r.tipo==='h1'||r.tipo==='h2';
+          if(index===0&&r.tipo==='h1'&&opts.titoloDalTesto) continue;
+          const sizeDefault=heading?r.tipo==='h1'?14:11:10;
+          const pieces:Array<Pezzo<StileTesto>>=[];
+          if(r.tipo==='li'&&!/^\d+\./.test(r.testo)) pieces.push({testo:'• ',stile:normale});
+          for(const p of r.parti??[{testo:r.testo,stile:{}}]) {
+            const s=p.stile; const family=s.famiglia??famBlocco??'helvetica';
+            const bold=s.grassetto??heading; const italic=s.corsivo===true;
+            const key=`${family}:${bold}:${italic}`;
+            if(!fonts.has(key)) {
+              const f=family==='times'?bold?italic?StandardFonts.TimesRomanBoldItalic:StandardFonts.TimesRomanBold:italic?StandardFonts.TimesRomanItalic:StandardFonts.TimesRoman
+                :family==='courier'?bold?italic?StandardFonts.CourierBoldOblique:StandardFonts.CourierBold:italic?StandardFonts.CourierOblique:StandardFonts.Courier
+                :bold?italic?StandardFonts.HelveticaBoldOblique:StandardFonts.HelveticaBold:italic?StandardFonts.HelveticaOblique:StandardFonts.Helvetica;
+              fonts.set(key,await pdfDoc.embedFont(f));
+            }
+            pieces.push({testo:p.testo,stile:{f:fonts.get(key),size:s.dimensione??sizeDefault,c:s.colore?hexToRgb(s.colore):heading?titoliC:textC,underline:s.sottolineato,strike:s.barrato}});
+          }
+          const size=Math.max(sizeDefault,...pieces.map(p=>p.stile.size));
+          const leading=Math.max(size+2,size*(r.interlinea??1.45));
+          const lines=righeDi(pieces,larghezza);
+          if(heading) y-=index?9:0;
+          ensureSpace(heading?leading*3:leading*Math.min(2,lines.length)+6,title);
+          for(const [li,line] of lines.entries()) {
+            ensureSpace(leading*(li===lines.length-2?2:1)+4,title);
+            const width=line.reduce((w,p)=>Math.max(w,p.x+misuraStile(p.testo,p.stile)),0);
+            let xx=x;
+            if(r.allineamento==='center')xx+=(larghezza-width)/2;
+            if(r.allineamento==='right')xx+=larghezza-width;
+            const extra=r.allineamento==='justify'&&li<lines.length-1&&line.length>1?(larghezza-width)/(line.length-1):0;
+            disegnaRiga(page,line.map((p,i)=>({...p,x:p.x+extra*i})),xx,y);y-=leading;
+          }
+          y-=r.spazioDopo??(heading?4:5);
+        }
+        y-=8;return title;
+      }
       let precedenteEraHeading = true; // in testa alla pagina niente spazio extra
       let precedenteEraVoce = false;
       for (const rawLine of text.split(/\n+/)) {
@@ -1249,7 +1303,7 @@ Deno.serve(async (req) => {
       page.drawRectangle({ x: 0, y: pageHeight - headerH, width: pageWidth, height: headerH, color: primaryC });
       let hy = pageHeight - 40;
       if (logoEmbed && t.show_logo) {
-        hy = drawLogo(page, hy);
+        hy = drawLogo(page, hy, margin, testoSopra(primarioHex) === '#FFFFFF');
       } else {
         // Col logo il nome dell'azienda non si ripete (il logo lo porta già: richiesta di Renova, 05/10/2026).
         page.drawText(company?.name || "Azienda", { x: margin, y: hy, size: 14, font: fontBold, color: headerTextC });
@@ -2381,6 +2435,8 @@ Deno.serve(async (req) => {
           y -= 16;
         }
 
+        // Con le condizioni, le firme seguono gli articoli, nella pagina dedicata.
+        if (t.show_contractual_terms === false && !t.show_legal_terms) {
         // Riquadri firma (più alti col timbro dell'impresa)
         newPageIfNeeded(timbroEmbed ? 170 : 150);
         // «ACCETTAZIONE PROPOSTA»: lo stesso titolo in tutti i PDF dei preventivi (richiesta di Renova, 05/10/2026).
@@ -2428,6 +2484,7 @@ Deno.serve(async (req) => {
         // Sotto la riga dell'impresa anche chi firma, se il modello lo dice.
         sigBox(margin + sigW + 14, "PER L'IMPRESA", [company?.name, t.firmatario_impresa].map((v) => String(v ?? "").trim()).filter(Boolean).join(" — "));
         y -= sigH + 12;
+        }
       }
 
       drawWatermark(page);
@@ -2448,8 +2505,8 @@ Deno.serve(async (req) => {
     // viene stampato di seguito nella stessa sezione.
     const scritteDallAzienda = [
       // I titoli HTML restano titoli (e il riquadro dell'art. 1341 li trova): vedi titoliMarkdown.
-      t.show_contractual_terms && opzione("pdf_mostra_condizioni") ? normalizeTemplateText(titoliMarkdown(t.contractual_terms_text)) : "",
-      t.show_legal_terms && opzione("pdf_mostra_condizioni") ? normalizeTemplateText(titoliMarkdown(t.legal_terms_text)) : "",
+      t.show_contractual_terms && opzione("pdf_mostra_condizioni") ? String(t.contractual_terms_text??'') : "",
+      t.show_legal_terms && opzione("pdf_mostra_condizioni") ? String(t.legal_terms_text??'') : "",
     ].filter(Boolean).join("\n\n");
     // Nessuna delle venti aziende aveva scritto una riga di condizioni: il
     // preventivo si firmava senza niente su tempi, varianti, garanzie e recesso.
@@ -2462,9 +2519,12 @@ Deno.serve(async (req) => {
     if (condizioniETermini) {
       // Le clausole che vogliono una firma a parte (art. 1341 c.c.): si leggono
       // dal testo, quindi valgono anche per le condizioni scritte dall'azienda.
-      const clausole = sezioneClausole(condizioniETermini);
+      const condizioniPlain=separaFirmeContratto(leggiTestoRiccoContratto(condizioniETermini)).righe.map(r=>`${r.tipo==='h1'?'# ':r.tipo==='h2'?'## ':r.tipo==='li'?'- ':''}${r.testo}`).join('\n');
+      const clausole = sezioneClausole(condizioniPlain);
       // L'elenco sta nel riquadro della seconda firma: nel testo sarebbe ripetuto.
-      const testoCondizioni = clausole ? senzaSezioneClausole(condizioniETermini) : condizioniETermini;
+      const righeRicche=separaFirmeContratto(leggiTestoRiccoContratto(condizioniETermini)).righe;
+      const sectionAt=righeRicche.findIndex(r=>(r.tipo==='h1'||r.tipo==='h2')&&/1341|approvare specificamente/i.test(r.testo));
+      const testoCondizioni = clausole && sectionAt>=0 ? contrattoInHtml(righeRicche.slice(0,sectionAt)) : condizioniETermini;
       // Il titolo della pagina è quello del testo («Condizioni generali di
       // fornitura»), se c'è: prima un titolo fisso e sotto, barrato dal filetto, quello del testo.
       const titoloCondizioni = await drawRichTextBlock("Condizioni contrattuali e termini legali", testoCondizioni, {
@@ -2473,6 +2533,25 @@ Deno.serve(async (req) => {
         // Condizioni e legali stanno in una sezione sola: vale il colore delle condizioni, se no dei legali.
         colore: coloreDelBlocco(t.composed_terms?.primary_color) ?? coloreDelBlocco(t.composed_legal?.primary_color),
       });
+      startContentPage('Accettazione proposta');
+      const firmaX=contentLeftX(); const firmaW=contentMaxWidth();
+      const statement='Il Committente dichiara di aver ricevuto, letto e accettato il preventivo e le condizioni contrattuali che lo accompagnano.';
+      for(const line of wrapText(statement,95)) {page.drawText(winAnsiSafe(line),{x:firmaX,y,size:9,font,color:textC});y-=14;}
+      y-=18;
+      for(const [label,value] of [['IMPRESA',company?.business_name||company?.name||''],['COMMITTENTE',quote.client_name||''],['PREVENTIVO',quote.quote_number||''],['IMPORTO',fmtEur(Number(quote.total)||0)]]) {
+        page.drawText(label,{x:firmaX,y,size:7,font:fontBold,color:grayC});
+        page.drawText(winAnsiSafe(String(value)),{x:firmaX+100,y,size:9,font,color:textC,maxWidth:firmaW-100}); y-=21;
+      }
+      y-=54;
+      const firmaCol=(firmaW-32)/3;
+      const firmaDati=normalizeTemplateText(condizioniETermini).match(/Luogo ([^\n]{1,160}?), data ([^\n]{1,160}?) Firma del cliente/i);
+      [['LUOGO E DATA',firmaDati?`${firmaDati[1]} · ${firmaDati[2]}`:''],["PER L'IMPRESA",t.firmatario_impresa||company?.business_name||company?.name||''],['FIRMA DEL COMMITTENTE',quote.client_name||'']].forEach(([label,value],i)=>{
+        const fx=firmaX+i*(firmaCol+16);
+        page.drawLine({start:{x:fx,y},end:{x:fx+firmaCol,y},thickness:.7,color:textC});
+        page.drawText(label,{x:fx,y:y-12,size:6.2,font,color:grayC});
+        for(const [j,line] of wrapText(String(value),28).slice(0,2).entries())page.drawText(winAnsiSafe(line),{x:fx,y:y-25-j*11,size:8,font,color:textC});
+      });
+      y-=60;
       if (clausole) {
         // Il riquadro della seconda firma, tutto su una pagina: le frasi dell'azienda
         // prima e dopo l'elenco (se non ne ha scritte, una di base), le clausole,
@@ -2777,6 +2856,7 @@ Deno.serve(async (req) => {
     }, 200, corsH);
   } catch (e) {
     if (e instanceof Response) return e;
+    if (e instanceof TemplateCompositionError) return errorResponse(e.message, 422, corsH);
     console.error("generate-quote-pdf error:", e);
     return errorResponse("Errore interno", 500, corsH);
   }

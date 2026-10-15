@@ -13,11 +13,14 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Plus, Trash2, GripVertical } from 'lucide-react';
 import { useTemplateFields } from '@/hooks/useDocumentoTemplates';
-import type { FieldTipo } from '@/types/fea';
+import type { DocumentoTemplate, FieldTipo } from '@/types/fea';
+import { slugCampo } from '@/lib/documenti/templateCompilazione';
+import { TemplatePdfPositions } from './TemplatePdfPositions';
 
 interface TemplateFieldEditorProps {
   templateId: string;
   companyId: string;
+  template?: DocumentoTemplate;
 }
 
 const TIPI_CAMPO: { value: FieldTipo; label: string }[] = [
@@ -31,14 +34,11 @@ const TIPI_CAMPO: { value: FieldTipo; label: string }[] = [
 ];
 
 function toSlug(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_|_$/g, '');
+  return slugCampo(s);
 }
 
-export function TemplateFieldEditor({ templateId, companyId }: TemplateFieldEditorProps) {
-  const { fields, isLoading, addField, removeField } = useTemplateFields(templateId);
+export function TemplateFieldEditor({ templateId, companyId, template }: TemplateFieldEditorProps) {
+  const { fields, isLoading, error: fieldsError, refetch, addField, removeField, updatePositions } = useTemplateFields(templateId);
   const confirm = useConfirm();
 
   const [nome, setNome] = useState('');
@@ -46,23 +46,29 @@ export function TemplateFieldEditor({ templateId, companyId }: TemplateFieldEdit
   const [tipo, setTipo] = useState<FieldTipo>('testo');
   const [obbligatorio, setObbligatorio] = useState(true);
   const [opzioniRaw, setOpzioniRaw] = useState('');
+  const [nomeManuale, setNomeManuale] = useState(false);
+  const [errore, setErrore] = useState('');
 
   const handleEtichettaChange = (v: string) => {
     setEtichetta(v);
-    if (!nome) setNome(toSlug(v));
+    if (!nomeManuale) setNome(toSlug(v));
   };
 
   const handleNomeChange = (v: string) => {
     setNome(toSlug(v));
+    setNomeManuale(true);
   };
 
   const segnaposto = nome ? `{{${nome}}}` : '';
 
   const handleAdd = () => {
     if (!nome || !etichetta) return;
+    if (fields.some(f => f.nome.toLowerCase() === nome.toLowerCase())) { setErrore('Esiste già un campo con questo nome.'); return; }
     const opzioniScelta = tipo === 'scelta'
       ? opzioniRaw.split(',').map((s) => s.trim()).filter(Boolean)
       : null;
+    if (tipo === 'scelta' && !opzioniScelta?.length) { setErrore('Inserisci almeno un’opzione per il campo scelta.'); return; }
+    setErrore('');
 
     addField.mutate({
       template_id: templateId,
@@ -75,6 +81,7 @@ export function TemplateFieldEditor({ templateId, companyId }: TemplateFieldEdit
       obbligatorio,
       valore_default: null,
       ordinamento: fields.length,
+      posizioni_pdf: [],
     }, {
       onSuccess: () => {
         setNome('');
@@ -82,12 +89,14 @@ export function TemplateFieldEditor({ templateId, companyId }: TemplateFieldEdit
         setTipo('testo');
         setObbligatorio(true);
         setOpzioniRaw('');
+        setNomeManuale(false);
       },
     });
   };
 
   return (
     <div className="space-y-6">
+      {fieldsError && <p role="alert" className="text-sm text-red-700">Impossibile caricare i campi. <button className="underline" onClick={() => void refetch()}>Riprova</button></p>}
       {/* Lista campi esistenti */}
       {!isLoading && fields.length > 0 && (
         <div className="space-y-2">
@@ -203,13 +212,16 @@ export function TemplateFieldEditor({ templateId, companyId }: TemplateFieldEdit
         <Button
           type="button"
           onClick={handleAdd}
-          disabled={!nome || !etichetta || addField.isPending}
+          disabled={!nome || !etichetta || addField.isPending || !!fieldsError || isLoading}
           className="gap-2 bg-orange-500 hover:bg-orange-600 text-white"
         >
           <Plus className="h-4 w-4" />
           Aggiungi campo
         </Button>
+        {errore && <p role="alert" className="text-sm text-red-700">{errore}</p>}
       </div>
+      {template?.file_type === 'pdf' && <TemplatePdfPositions template={template} fields={fields}
+        busy={updatePositions.isPending} onPosition={(id, posizioni_pdf) => updatePositions.mutate({ id, posizioni_pdf })} />}
     </div>
   );
 }

@@ -47,6 +47,7 @@ export const quoteDraftSchema = z.object({
   selectedMaterials: z.array(text),
   renderUrl: nullableText, renderSessionId: nullableText, renderOriginalUrl: nullableText,
   selectedTemplateId: nullableText,
+  templateValues: z.record(z.string(), z.string()).optional(),
   layoutOverride: z.enum(["classic", "modern", "minimal", "bold"]).nullable(),
   financingProposal: z.object({
     table_id: text, amount: number, num_installments: number,

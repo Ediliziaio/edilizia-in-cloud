@@ -8,6 +8,8 @@
  */
 
 import { MODULO_RECESSO } from "./condizioniStandard.ts";
+import { substituteMergeTags } from './quoteTemplateComposer.ts';
+import { contrattoInHtml, leggiTestoRiccoContratto, separaFirmeContratto, segmentaRigaContratto } from './testoRiccoContratto.ts';
 import { isFvAccumulo, isFvLocalIntervention, fvInterventionLabel, FV_ACCUMULO_PAGINE_NON_APPLICABILI } from "./fvIntervento.ts";
 import { eFotoDiSerie, leggiBlocco, leggiFotoPagina, PAGINE_BLOCCO, type PaginaBlocco } from "./blocchiPreventivo.ts";
 import { iconaSvg } from "./iconePreventivo.ts";
@@ -669,6 +671,8 @@ table .saving-zero { color: #64748B; }
 .firma-riga.importo > span:last-child { font-family: 'Outfit', sans-serif; font-size: 12pt; font-weight: 800; color: #1E3A5F; }
 .cond-clausole.due-colonne { column-count: 2; column-gap: 8mm; }
 .cond-testo { column-count: 2; column-gap: 7mm; font-size: 8.2pt; color: #475569; line-height: 1.5; margin-top: 3mm; }
+.cond-testo h1 { font-size:14pt; break-after:avoid; margin:2mm 0 1mm; }
+.cond-testo h2 { font-size:11pt; break-after:avoid; margin:2mm 0 1mm; }
 .cond-testo .cond-art { font-size: 8.6pt; color: #1E3A5F; font-weight: 700; margin: 2.5mm 0 1mm; break-after: avoid; }
 .cond-testo p { margin-bottom: 1.5mm; }
 .cond-testo ul { margin: 0 0 1.5mm 4mm; }
@@ -2450,7 +2454,20 @@ function hasRealMapImages(d: FvPdfTemplateData): boolean {
 function condizioniInBlocchi(testo: string): { blocchi: string[]; clausole: string[] } {
   const grezzo = testo.trim();
   if (!grezzo) return { blocchi: [], clausole: [] };
-  if (/<(p|h[1-6]|ul|ol|li)\b/i.test(grezzo)) return { blocchi: [safeRichText(grezzo)], clausole: [] };
+  const rich=separaFirmeContratto(leggiTestoRiccoContratto(grezzo)).righe;
+  if (rich.length) {
+    const blocchi:string[]=[];const clausole:string[]=[];let inClausole=false;
+    for(const [i,r] of rich.entries()) {
+      if(r.tipo==='h1'||r.tipo==='h2') inClausole=/1341|approvare specificamente/i.test(r.testo);
+      if(inClausole){if(r.tipo==='li')clausole.push(r.testo);continue;}
+      if(i===0&&r.tipo==='h1'&&/condizioni generali/i.test(r.testo))continue;
+      if(/<(?:p|h[1-6]|span)\b/i.test(grezzo)) r.parti=r.parti?.map(p=>({...p,stile:{...p.stile,dimensione:p.stile.dimensione??(r.tipo==='h1'?14:r.tipo==='h2'?11:10)}}));
+      const size=Math.max(8.2,...(r.parti??[]).map(p=>p.stile.dimensione??8.2));
+      const capacity=Math.max(150,Math.floor(1800*(10/size)**2*1.5/(r.interlinea??1.5)));
+      for(const part of segmentaRigaContratto(r,capacity))blocchi.push(contrattoInHtml([part]));
+    }
+    return {blocchi,clausole};
+  }
   const clausole: string[] = [];
   const blocchi: string[] = [];
   let corrente: string[] = [];
@@ -2492,7 +2509,8 @@ function impaginaCondizioni(blocchi: string[]): string[][] {
   let corrente: string[] = [];
   let quanti = 0;
   for (const b of blocchi) {
-    const peso = b.replace(/<[^>]+>/g, "").length + 120; // i titoli costano più dei caratteri
+    const rows=leggiTestoRiccoContratto(b);
+    const peso=rows.reduce((sum,r)=>sum+(r.parti??[{testo:r.testo,stile:{}}]).reduce((n,p)=>n+p.testo.length*((p.stile.dimensione??8.2)/8.2)**2,0)*(r.interlinea??1.5)/1.5+120,0);
     if (corrente.length > 0 && quanti + peso > PIENA) { pagine.push(corrente); corrente = []; quanti = 0; }
     corrente.push(b);
     quanti += peso;
@@ -2656,6 +2674,14 @@ export function applicaTemaFv(html: string, template: FvPdfTemplateData["templat
 }
 
 export function renderFvPdfHtml(d: FvPdfTemplateData): string {
+  // Live editor and server export must resolve the same contract fields.
+  // On the server these may already be resolved; substitution is idempotent.
+  if(d.template?.condizioni_legali_testo) d={...d,template:{...d.template,condizioni_legali_testo:substituteMergeTags(d.template.condizioni_legali_testo,{
+    cliente:{nome:d.cliente.nome,cognome:d.cliente.cognome,nome_completo:`${d.cliente.nome} ${d.cliente.cognome}`.trim()},
+    azienda:{ragione_sociale:d.azienda.name,email:d.azienda.email??'',telefono:d.azienda.phone??''},
+    cantiere:{indirizzo:indirizzoCompleto(d.cliente)},
+    preventivo:{numero:d.progetto.numero,data:fmtData(d.progetto.creato_il),totale:fmtEur(d.costi.prezzo_vendita_iva_inclusa),piano_pagamenti:plainText((d.template as {condizioni_pagamento_testo?:string}).condizioni_pagamento_testo)||'come da piano di pagamento concordato'},
+  })}};
   const macroPages = dedicatedMacroPages(d);
   const orderedPages = pagineDaDisegnare(d);
   const TOTAL = getFvPdfRenderedPagesCount(d);

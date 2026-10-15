@@ -1,3 +1,4 @@
+import { ereditaCondizioniModello } from "./condizioniModello";
 import { completeModulePhotography } from "./modulePhotography";
 import type { FvTemplate } from "@/components/fotovoltaico/FotovoltaicoTemplateEditor";
 import { FV_PDF_PAGES_META } from "@/lib/fotovoltaico/pdfPages";
@@ -67,7 +68,7 @@ export function createFullFvTemplate(base: FvTemplate, companyId: string, id: Fu
     ],
     pdf_cta_finale_titolo: "Confermiamo la\nconfigurazione giusta.",
     pdf_cta_finale_testo: "<p>Prima della conferma, controlliamo insieme impianto esistente, capacità e potenza della batteria, eventuale backup, componenti inclusi e condizioni dell'offerta.</p>",
-    condizioni_legali_attivo: false, condizioni_legali_testo: "", modulo_recesso_attivo: false,
+    ...ereditaCondizioniModello(base),
     urgenza_attiva: false, urgenza_titolo: "", urgenza_descrizione: "", noleggio_operativo_attivo: false, noleggio_note_legali: "",
     pdf_pages_order: FV_PDF_PAGES_META.map(p => ({ id: p.id, visible: !FV_ACCUMULO_PAGINE_NON_APPLICABILI.has(p.id) })),
     pdf_blocchi: {

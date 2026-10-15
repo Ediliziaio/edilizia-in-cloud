@@ -1,3 +1,4 @@
+import { ereditaCondizioniModello } from "./condizioniModello";
 import { completeModulePhotography } from "./modulePhotography";
 import type { RstTemplatePdf, RstComputoVoce, RstProgetto, RstProgettoMedia } from "@/types/ristrutturazione";
 import type { RstCoverPatch } from "@/components/ristrutturazione/coverPresets";
@@ -53,7 +54,7 @@ export function createFullRstTemplate(base: RstTemplatePdf, id: FullRstModuleId)
     pdf_cover_logo_position: "top_left",
     color_primary: base.color_primary || "#563e32", color_accent: base.color_accent || "#b0794e",
     show_chi_siamo: !!base.chi_siamo?.trim(), show_margine: false, show_cronoprogramma: true, show_percorso: true, show_garanzie: true,
-    condizioni_legali_testo: null, condizioni_legali_attivo: false, modulo_recesso_attivo: false,
+    ...ereditaCondizioniModello(base),
     default_detrazione_pct: 0, default_iva_pct: base.default_iva_pct ?? 22,
     testimonianze: [], gallery_lavori: [], finanziamento_promo: null, pdf_pagine_libere: [],
     esigenze: items(c.needs), soluzione: items(c.solution), usp: items(c.usp), percorso: items(c.journey), garanzie: items(c.guarantees),

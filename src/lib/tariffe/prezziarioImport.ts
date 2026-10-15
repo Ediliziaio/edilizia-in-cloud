@@ -32,7 +32,7 @@ export const TIPO_TARIFFA_VALUES = [
 export type TipoTariffa = (typeof TIPO_TARIFFA_VALUES)[number];
 
 export const UNITA_FATT_VALUES = [
-  "pz", "mq", "ml", "mc", "kg", "gg", "h", "a_corpo", "km", "piano",
+  "pz", "mq", "ml", "mc", "kg", "gg", "mese", "h", "a_corpo", "km", "piano",
 ] as const;
 export type UnitaFatturazione = (typeof UNITA_FATT_VALUES)[number];
 
@@ -66,6 +66,7 @@ export function legacyUnitaFrom(u: UnitaFatturazione): string {
     case "a_corpo": return "fisso";
     case "gg": return "h";
     case "kg": return "pz";
+    case "mese": return "fisso";
   }
 }
 
@@ -224,6 +225,7 @@ const UNITA_SYNONYMS: Record<string, UnitaFatturazione> = {
   mc: "mc", m3: "mc", "metro cubo": "mc", "metri cubi": "mc",
   kg: "kg", chilo: "kg", chili: "kg", kilogrammo: "kg",
   gg: "gg", giorno: "gg", giorni: "gg", giornata: "gg", giornate: "gg", g: "gg",
+  mese: "mese", mesi: "mese", mensile: "mese",
   h: "h", ora: "h", ore: "h",
   "a corpo": "a_corpo", corpo: "a_corpo", forfait: "a_corpo", fisso: "a_corpo",
   acorpo: "a_corpo", "a forfait": "a_corpo",

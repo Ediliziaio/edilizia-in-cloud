@@ -49,7 +49,7 @@ interface Props {
   nomeArea?: string;
 }
 const unitaLeggibile = (t: TariffaPro) =>
-  ({ mq: "m²", mc: "m³", a_corpo: "a corpo", h: "ore", gg: "giorni" })[
+  ({ mq: "m²", mc: "m³", a_corpo: "a corpo", h: "ore", gg: "giorni", mese: "mesi" })[
     unitaTariffa(t)
   ] ?? unitaTariffa(t);
 const PAGINA = 30;

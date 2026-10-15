@@ -26,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { logger } from "@/utils/logger";
 import { sanitizeCustomerInput } from "@/lib/customerDataSanitizer";
+import { matchCustomerImportHeaders } from "@/lib/clienti/customerImportMapping";
 
 /* ─── Field schema ──────────────────────────────────────────────── */
 export interface CustomerImportField {
@@ -58,47 +59,31 @@ type Step = "source" | "upload" | "preview" | "mapping" | "options" | "importing
 const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
 
 /* ─── Normalizers ───────────────────────────────────────────────── */
-const normalizeHeader = (s: string) => s.toLowerCase().replace(/[^a-z0-9àèéìòù]/g, "");
 const cleanCell = (s: string | null | undefined) =>
   (s ?? "").toString().replace(/[\u200B-\u200D\uFEFF]/g, "").replace(/\s+/g, " ").trim();
 
 function autoMatch(fileHeaders: string[], fields: CustomerImportField[]): Record<string, string> {
-  const mapping: Record<string, string> = {};
-  fileHeaders.forEach((header) => {
-    const norm = normalizeHeader(header);
     // Hardcoded synonyms IT/EN for better auto-match
     const syn: Record<string, string[]> = {
       business_name: ["ragionesociale", "nomeazienda", "azienda", "societa", "società", "denominazione"],
       first_name: ["nome", "firstname", "nomecliente", "given", "nomepersona"],
       last_name: ["cognome", "lastname", "cognomecliente", "surname", "family"],
-      email: ["email", "mail", "posta", "emailaddress", "pec"],
+      email: ["email", "mail", "posta", "emailaddress"],
       phone: ["telefono", "cellulare", "cell", "mobile", "phone", "tel", "numero"],
-      fiscal_code: ["codicefiscale", "cf", "piva", "partitaiva", "vat", "fiscalcode"],
+      fiscal_code: ["codicefiscale", "cf", "fiscalcode"],
+      vat_number: ["piva", "partitaiva", "vat", "vatnumber", "pivataxid"],
       address: ["indirizzo", "residenza", "sede", "address", "via", "location"],
       postal_code: ["cap", "zipcode", "postalcode", "codicepostale"],
       city: ["citta", "città", "comune", "city"],
       province: ["provincia", "prov", "pr", "province"],
+      country: ["paese", "country", "nazione"],
       site_address: ["cantiere", "indirizzocantiere", "worksite", "site"],
       site_postal_code: ["capcantiere", "capdelcantiere", "worksitezip", "sitepostalcode"],
       site_city: ["cittacantiere", "cittàcantiere", "comunecantiere", "worksitecity", "sitecity"],
       site_province: ["provinciacantiere", "provinciaalavori", "worksiteprovince", "siteprovince"],
       notes: ["note", "notes", "annotazioni", "descrizione"],
     };
-    for (const field of fields) {
-      const alts = syn[field.key] ?? [];
-      const labelNorm = normalizeHeader(field.label);
-      const keyNorm = normalizeHeader(field.key);
-      if (
-        norm === labelNorm ||
-        norm === keyNorm ||
-        alts.some((a) => norm === a || norm.includes(a))
-      ) {
-        mapping[header] = field.key;
-        break;
-      }
-    }
-  });
-  return mapping;
+  return matchCustomerImportHeaders(fileHeaders, fields, syn);
 }
 
 /* ─── File parsers ──────────────────────────────────────────────── */
@@ -285,7 +270,7 @@ export function CustomerImportDialog({
       setAiBusy(false);
       setAiProgress("");
     }
-  }, [user?.id]);
+  }, [user]);
 
   /* ─── File handling ───────────────────────────────────── */
   const handleFile = useCallback(async (file: File) => {
@@ -384,10 +369,12 @@ export function CustomerImportDialog({
         email: sanitized.email,
         phone: sanitized.phone ?? "",
         fiscal_code: sanitized.fiscal_code ?? "",
+        vat_number: cleanCell(raw.vat_number),
         address: sanitized.address ?? "",
         postal_code: cleanCell(raw.postal_code),
         city: cleanCell(raw.city),
         province: cleanCell(raw.province).toUpperCase(),
+        country: cleanCell(raw.country),
         site_address: sanitized.site_address ?? "",
         site_postal_code: cleanCell(raw.site_postal_code),
         site_city: cleanCell(raw.site_city),

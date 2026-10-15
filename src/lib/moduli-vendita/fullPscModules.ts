@@ -1,3 +1,4 @@
+import { ereditaCondizioniModello } from "./condizioniModello";
 import type { PisTemplatePdf, PisProgetto, PisComputoVoce, PisProgettoMedia } from "@/types/piscine";
 import { CAPITOLI_EDILI } from "@/components/preventivi/pdf/ordineCapitoli";
 import { PSC_EDITORIAL, type PscEditorialPair } from "./pscEditorialContent";
@@ -61,7 +62,7 @@ export function createFullPscTemplate(base: PisTemplatePdf, id: FullPscModuleId)
     cover_title: c.hero, cover_subtitle: c.subtitle, cover_image_url: c.cover,
     cover_text_color: "#FFFFFF", cover_overlay_opacity: 0.65, cover_title_size: 35, cover_text_align: "left", cover_logo_position: "top_left",
     pdf_cover_overlay_style: "gradient", pdf_cover_text_vertical: "bottom", pdf_cover_decoration_style: "none", pdf_cover_show_decoration: false, pdf_cover_show_client_card: true, pdf_cover_eyebrow_size: 10, pdf_cover_subtitle_size: 13,
-    condizioni_legali_attivo: false, condizioni_legali_testo: null, modulo_recesso_attivo: false,
+    ...ereditaCondizioniModello(base),
     default_iva_pct: 22, default_detrazione_pct: 0, default_validita_giorni: 30,
     show_chi_siamo: !!base.chi_siamo?.trim(), show_margine: false, show_garanzie: true, show_percorso: true, show_cronoprogramma: true,
     esigenze: items(c.specs.slice(0, 2)), soluzione: items(c.specs.slice(2)),

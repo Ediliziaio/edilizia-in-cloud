@@ -62,7 +62,18 @@ export interface DocumentoTemplateField {
   obbligatorio: boolean;
   valore_default: string | null;
   ordinamento: number;
+  posizioni_pdf?: PosizioneCampoPdf[];
   created_at: string;
+}
+
+/** Coordinates are normalized from the page's top-left, independent of zoom. */
+export interface PosizioneCampoPdf {
+  pagina: number;
+  x: number;
+  y: number;
+  larghezza: number;
+  altezza: number;
+  font_size: number;
 }
 
 export interface DocumentoSessione {

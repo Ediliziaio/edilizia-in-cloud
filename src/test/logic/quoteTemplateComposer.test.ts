@@ -12,6 +12,13 @@ const quote = { quote_number: "PRV-2026-520", total: 28816.4, subtotal: 23620, v
 const company = { name: "Demo Azienda 2 S.r.l." };
 
 describe("merge tag preventivo", () => {
+  it('espone l’imponibile netto senza alterare il significato del subtotale lordo', () => {
+    const ctx = buildMergeContext({ quote: { subtotal: 6526, discount_amount: 326.30, vat_amount: 1363.93, total: 7563.63 } });
+    expect(ctx.preventivo.imponibile).toBe('6.199,70 €');
+    expect(ctx.preventivo.subtotale).toBe('6.526,00 €');
+    expect(buildMergeContext({ quote: { subtotal: 100, discount_amount: 10 } }).preventivo.imponibile).toBe('90,00 €');
+    expect(buildMergeContext({ quote: {} }).preventivo.imponibile).toBe('');
+  });
   it("gli importi hanno il formato del resto del PDF: punto migliaia, virgola decimali, euro dopo", () => {
     const ctx = buildMergeContext({ quote, company });
     expect(ctx.preventivo.totale).toBe("28.816,40 €");

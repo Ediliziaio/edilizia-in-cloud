@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { descrizioneCommerciale, prezziVenditaCompleti } from "@/lib/preventivi/configurazioneSemplice";
+import { campiContratto, erroriCampiContratto, leggiValoriContratto, formattaValoriContratto } from '../../../../supabase/functions/_shared/campiContratto';
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -537,6 +538,7 @@ export default function QuoteBuilder() {
     [templates],
   );
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [templateValues, setTemplateValues] = useState<Record<string, string>>({});
   // Mobile: lo step Cliente aveva 18 campi in colonna. Pagamento e dettagli lavoro
   // restano disponibili, ma chiusi finché non servono.
   const [dettagliLavoroAperti, setDettagliLavoroAperti] = useState(false);
@@ -561,6 +563,10 @@ export default function QuoteBuilder() {
   const effectiveTemplate = resolveQuoteTemplatePreview(layoutOverride
     ? { ...selectedTemplate, layout: layoutOverride }
     : (selectedTemplate ?? {}), templates, effectiveCompany?.brand_primary_color);
+  const contractFields = pdfCondizioni ? campiContratto(effectiveTemplate.contractual_terms_text, effectiveTemplate.legal_terms_text) : [];
+  const contractErrors = erroriCampiContratto(contractFields, templateValues);
+  const formattedContractValues = formattaValoriContratto(templateValues);
+  const contractPreviewValues = Object.fromEntries(contractFields.map(f => [f.nome, formattedContractValues[f.nome] || '[Da compilare]']));
 
   // P03: load impostazioni, tariffe, articoli, categorie
   const {
@@ -815,6 +821,8 @@ export default function QuoteBuilder() {
   useEffect(() => {
     if (!existingQuote || !isEdit) return;
     const q = existingQuote as unknown as Record<string, unknown>;
+    const custom = q.custom_field_values as Record<string, unknown> | null;
+    setTemplateValues(leggiValoriContratto(custom?._template_values));
     if (q.pdf_mostra_prezzi_per_riga != null) setPdfPrezziRiga(q.pdf_mostra_prezzi_per_riga as boolean);
     if (q.pdf_mostra_solo_totale != null) setPdfSoloTotale(q.pdf_mostra_solo_totale as boolean);
     if (q.pdf_mostra_sconti != null) setPdfSconti(q.pdf_mostra_sconti as boolean);
@@ -1710,7 +1718,7 @@ export default function QuoteBuilder() {
     notes, internalNotes, tipoLavoro, indirizzoLavori, pianoInstallazione, kmCantiere,
     salespersonId, sedeId, discountPercent, prezzoManuale, prezzoManualeIvaPct, provvigionePct,
     items, paymentMethod, paymentPhases, bonusLines, selectedRenders, selectedMaterials,
-    renderUrl, renderSessionId, renderOriginalUrl, selectedTemplateId, layoutOverride, financingProposal,
+    renderUrl, renderSessionId, renderOriginalUrl, selectedTemplateId, templateValues, layoutOverride, financingProposal,
     pdfPrezziRiga, pdfSoloTotale, pdfSconti, pdfImmagini, pdfSchedeTecniche, pdfFirma,
     pdfMisure, pdfAttributi, pdfNoteCliente, pdfCondizioni, pdfWatermarkText, pdfCopiaDestinatario,
   };
@@ -1796,6 +1804,7 @@ export default function QuoteBuilder() {
     if (d.renderSessionId !== undefined) setRenderSessionId(d.renderSessionId);
     if (d.renderOriginalUrl !== undefined) setRenderOriginalUrl(d.renderOriginalUrl);
     if (d.selectedTemplateId !== undefined) setSelectedTemplateId(d.selectedTemplateId);
+    if (d.templateValues !== undefined) setTemplateValues(d.templateValues);
     if (d.layoutOverride !== undefined) setLayoutOverride(d.layoutOverride);
     if (d.financingProposal !== undefined) setFinancingProposal(d.financingProposal as FinancingProposal | null);
     if (d.pdfPrezziRiga !== undefined) setPdfPrezziRiga(d.pdfPrezziRiga);
@@ -1885,6 +1894,10 @@ export default function QuoteBuilder() {
   // Save
   const handleSave = async (status: string = "bozza", opts?: { anteprima?: boolean; autosave?: boolean; complete?: boolean }) => {
     if (!companyId || !user) return;
+    if ((opts?.anteprima || opts?.complete || status !== 'bozza') && contractErrors.length) {
+      toast.error('Completa i dati contrattuali', { description: contractErrors.slice(0, 3).join(' · ') });
+      return;
+    }
     if ((opts?.anteprima || opts?.complete || status !== "bozza") && !prezziVenditaCompleti(items, prezzoManuale)) {
       toast.error("Completa i prezzi di vendita", { description: "I costi d’acquisto non sono prezzi cliente. Puoi comunque salvare una bozza." });
       return;
@@ -1949,6 +1962,10 @@ export default function QuoteBuilder() {
         // L'autore resta chi l'ha creato: le notifiche di firma e scadenza vanno a lui.
         ...(isEdit ? {} : { created_by: user.id }),
         template_id: effectiveSelectedTemplateId || null,
+        ...((Object.keys(templateValues).length || contractFields.length) ? { custom_field_values: {
+          ...((existingQuote?.custom_field_values && typeof existingQuote.custom_field_values === 'object' && !Array.isArray(existingQuote.custom_field_values)) ? existingQuote.custom_field_values : {}),
+          _template_values: templateValues,
+        } as Json } : {}),
         tipo_lavoro: tipoLavoro || null,
         indirizzo_lavori: indirizzoLavori || null,
         piano_installazione: pianoInstallazione || null,
@@ -3299,6 +3316,18 @@ export default function QuoteBuilder() {
               </div>
             )}
             {/* Client summary */}
+            {contractFields.length > 0 && <section className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/40 p-4">
+              <h3 className="font-semibold">Dati per le condizioni contrattuali</h3>
+              <p className="text-sm text-slate-600">Questi valori vengono inseriti nel contratto allegato al preventivo. Puoi salvare una bozza anche se mancano dati.</p>
+              <div className="grid gap-3 sm:grid-cols-2">{contractFields.map(field => <div key={field.nome} className="space-y-1">
+                <Label htmlFor={`contract-${field.nome}`}>{field.etichetta} *</Label>
+                <Input id={`contract-${field.nome}`} type={field.tipo === 'data' ? 'date' : 'text'}
+                  inputMode={field.tipo === 'numero' ? 'decimal' : undefined}
+                  value={templateValues[field.nome] ?? ''}
+                  onChange={e => setTemplateValues(v => ({ ...v, [field.nome]: e.target.value }))} />
+              </div>)}</div>
+              {contractErrors.length > 0 && <p role="status" className="text-sm text-amber-800">{contractErrors.length} campi da completare prima di generare il PDF.</p>}
+            </section>}
             <div>
               <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
                 <User className="h-3.5 w-3.5 text-orange-500" /> Cliente
@@ -3469,7 +3498,7 @@ export default function QuoteBuilder() {
                           <button type="button" key={tmpl.id} aria-pressed={effectiveSelectedTemplateId === tmpl.id}
                             onClick={() => { setSelectedTemplateId(tmpl.id); setLayoutOverride(null); }}
                             className={`flex flex-col items-center gap-3 rounded-xl border-2 p-4 text-left transition max-sm:gap-1 max-sm:p-3 ${effectiveSelectedTemplateId === tmpl.id ? "border-orange-500 bg-orange-50/50" : "border-slate-200 bg-slate-50 hover:border-orange-300"}`}>
-                            <div className="pointer-events-none max-sm:hidden" aria-hidden="true"><QuoteTemplatePreview template={preview} companyName={effectiveCompany?.name} logoSrc={templateAssetUrl(tmpl.logo_url)} coverSrc={templateAssetUrl(preview.cover_image_url)} scale={0.25} /></div>
+                            <div className="pointer-events-none max-sm:hidden" aria-hidden="true"><QuoteTemplatePreview template={preview} companyName={effectiveCompany?.name} logoSrc={templateAssetUrl(tmpl.logo_url)} logoLightSrc={effectiveCompany?.brand_logo_dark_url ?? undefined} coverSrc={templateAssetUrl(preview.cover_image_url)} scale={0.25} /></div>
                             <span className="w-full text-sm font-semibold">{tmpl.name}{tmpl.is_default ? " · Predefinito" : ""}</span>
                             {tmpl.description && <span className="line-clamp-2 w-full text-xs text-muted-foreground max-sm:hidden">{tmpl.description}</span>}
                           </button>
@@ -3498,6 +3527,7 @@ export default function QuoteBuilder() {
                           template={{ ...selectedTemplate, layout }}
                           companyName={effectiveCompany?.name}
                           logoSrc={templateAssetUrl(selectedTemplate?.logo_url)}
+                          logoLightSrc={effectiveCompany?.brand_logo_dark_url ?? undefined}
                           page="detail"
                           scale={0.16}
                         />
@@ -3807,7 +3837,8 @@ export default function QuoteBuilder() {
       <aside className="order-first min-w-0 lg:order-last lg:sticky lg:top-4 max-sm:hidden">
         <div className="hidden lg:block"><QuoteLivePreviewPanel
               template={effectiveTemplate}
-              companyName={effectiveCompany?.name || "La tua azienda"}
+              mergeContext={{ contratto: contractPreviewValues }}
+              companyName={effectiveCompany?.business_name || effectiveCompany?.name || "La tua azienda"}
               clientName={clientName} clientAddress={clientAddress}
               title={title} description={description} siteAddress={indirizzoLavori}
               validityDays={validityDays} items={items}
@@ -3826,7 +3857,8 @@ export default function QuoteBuilder() {
           <summary className="cursor-pointer text-sm font-semibold">Mostra anteprima live · {formatCurrency(total)}</summary>
           <div className="mt-3"><QuoteLivePreviewPanel
               template={effectiveTemplate}
-              companyName={effectiveCompany?.name || "La tua azienda"}
+              mergeContext={{ contratto: contractPreviewValues }}
+              companyName={effectiveCompany?.business_name || effectiveCompany?.name || "La tua azienda"}
               clientName={clientName} clientAddress={clientAddress}
               title={title} description={description} siteAddress={indirizzoLavori}
               validityDays={validityDays} items={items}

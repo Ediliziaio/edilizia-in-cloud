@@ -1,3 +1,4 @@
+import { ereditaCondizioniModello } from "./condizioniModello";
 import type { PavTemplatePdf, PavProgetto, PavComputoVoce, PavProgettoMedia } from "@/types/pavimenti";
 import type { CoverPresetPatch } from "@/components/pavimenti/coverPresets";
 import { CAPITOLI_EDILI } from "@/components/preventivi/pdf/ordineCapitoli";
@@ -57,7 +58,7 @@ export function createFullPavTemplate(base: Partial<PavTemplatePdf> & Pick<PavTe
     pdf_cover_image_url: c.cover, pdf_cover_eyebrow: c.title.toUpperCase(), pdf_cover_bg_color: "#563e32", pdf_cover_text_color: "#ffffff",
     pdf_cover_overlay_opacity: 65, pdf_cover_overlay_style: "gradient", pdf_cover_text_vertical: "bottom", pdf_cover_text_align: "left",
     pdf_cover_title_size: 35, pdf_cover_subtitle_size: 13, pdf_cover_eyebrow_size: 10, pdf_cover_decoration_style: "none", pdf_cover_logo_position: "top_left", pdf_cover_show_decoration: false, pdf_cover_show_client_card: true,
-    condizioni_legali_attivo: false, condizioni_legali_testo: null, modulo_recesso_attivo: false,
+    ...ereditaCondizioniModello(base),
     default_iva_pct: 22, default_detrazione_pct: 0, default_validita_giorni: 30,
     show_chi_siamo: !!base.chi_siamo?.trim(), show_margine: false, show_garanzie: true, show_percorso: true, show_cronoprogramma: true,
     esigenze: items(c.specs.slice(0, 3)), soluzione: items(c.specs.slice(1)),

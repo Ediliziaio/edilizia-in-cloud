@@ -1,4 +1,6 @@
 import { TemplateSectionNavigation } from "@/components/preventivi/TemplateSectionNavigation";
+import { EditorContratto } from '@/components/preventivi/EditorContratto';
+import { CopiaCondizioni } from '@/components/preventivi/CopiaCondizioni';
 import { SerramentiCoverLayoutPicker } from "./SerramentiCoverLayoutPicker";
 import { orderedSectionExcluded } from "@/components/preventivi/templateNavigationState";
 import { TemplateCoverDesignControls, COVER_DESIGN_CHOICES } from "@/components/preventivi/TemplateCoverDesignControls";
@@ -2710,7 +2712,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               checked={form.condizioni_legali_attivo !== false}
               onCheckedChange={(checked) => update("condizioni_legali_attivo", checked)}
             />
-            <span className="text-sm font-medium">Mostra la pagina &ldquo;Condizioni&rdquo; nel PDF</span>
+            <span className="text-sm font-medium">Clausole contrattuali e firma nel PDF</span>
           </label>
           {form.condizioni_legali_attivo !== false && (
             <>
@@ -2733,19 +2735,8 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               >
                 <Sparkles className="h-3.5 w-3.5 mr-1" /> Inserisci modello standard serramentista
               </Button>}
-              <Textarea
-                value={form.condizioni_legali_testo ?? ""}
-                onChange={(e) => update("condizioni_legali_testo", e.target.value || null)}
-                placeholder={
-                  "Es.\n1. PAGAMENTO — 30% acconto alla firma, saldo alla consegna.\n" +
-                  "2. TEMPI — Consegna stimata in X giorni lavorativi.\n" +
-                  "3. GARANZIA — 10 anni prodotto, 10 anni posa (UNI 11673).\n" +
-                  "4. RECESSO — entro 14 giorni (D.Lgs. 206/2005), salvo beni su misura.\n" +
-                  "5. FORO COMPETENTE — Foro della sede legale."
-                }
-                rows={16}
-                className="text-xs font-mono"
-              />
+              <CopiaCondizioni companyId={companyId} value={form.condizioni_legali_testo ?? ''} onChange={html=>update('condizioni_legali_testo',html)} />
+              <EditorContratto value={form.condizioni_legali_testo ?? ''} onChange={html=>update('condizioni_legali_testo',html)} />
               <PlaceholderChips
                 value={form.condizioni_legali_testo ?? ""}
                 onChange={(v) => update("condizioni_legali_testo", v || null)}

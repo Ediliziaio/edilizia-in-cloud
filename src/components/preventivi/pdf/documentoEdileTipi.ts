@@ -182,7 +182,7 @@ export interface DocEdileModello {
   mostraMargine: boolean;
   finanziamentoPromo: unknown;
   /** Già con i merge tag risolti: righe tipizzate pronte da impaginare. */
-  condizioniLegali: Array<{ tipo: "h1" | "h2" | "li" | "p"; testo: string }>;
+  condizioniLegali: import('../../../../supabase/functions/_shared/testoRiccoContratto').RigaContratto[];
   /** Le clausole che il cliente approva con una seconda firma (art. 1341 c.c.). */
   clausoleDaApprovare: string[];
   /** L'azienda allega il modulo di recesso (interruttore nel modello, spento di serie). */

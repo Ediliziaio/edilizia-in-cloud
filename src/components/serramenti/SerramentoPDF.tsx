@@ -19,6 +19,7 @@
  * fallisce (CORS, network) il renderer fa fallback automatico a Helvetica.
  */
 import * as React from "react";
+import { TestoContrattoPdf } from '../preventivi/pdf/TestoContrattoPdf';
 import { ensurePdfBufferCompatibility } from "@/lib/pdf/ensurePdfBufferCompatibility";
 import { disegnaPagine, srSectionAnchor, withSrSectionAnchor } from "./srSemanticPreview";
 import { Document, Page, Text, View, StyleSheet, Image, Link, Svg, Path, Rect, Circle, G, Font, Defs, LinearGradient, RadialGradient, Stop } from "@react-pdf/renderer";
@@ -4875,13 +4876,8 @@ export function SerramentoPDF(propsGrezze: SerramentoPDFProps) {
                     della seconda firma, non ripetute nel testo. */}
                 <View style={{ marginTop: 14 }}>
                   {perArticoli(righeDaStampare(righeCondizioni, { conRiquadroFirma: clausoleSeconda.length > 0 })).map((gruppo, g) => (
-                    <View key={g} wrap={gruppo.length > 14} minPresenceAhead={36}>
-                      {gruppo.map((r, i) =>
-                        r.tipo === "h1" ? <Text key={i} style={{ fontFamily: FF, fontWeight: 700, fontSize: 11, color: C.ink, marginTop: g === 0 ? 0 : 12, marginBottom: 4 }}>{r.testo}</Text>
-                        : r.tipo === "h2" ? <Text key={i} style={{ fontFamily: FF, fontWeight: 700, fontSize: 9.5, color: C.gray900, marginTop: g === 0 ? 0 : 9, marginBottom: 3 }}>{r.testo}</Text>
-                        : r.tipo === "li" ? <Text key={i} style={[styles.condizioniText, { marginLeft: 10, marginBottom: 2 }]}>{`- ${r.testo}`}</Text>
-                        : <Text key={i} style={[styles.condizioniText, { marginBottom: 5 }]}>{r.testo}</Text>,
-                      )}
+                    <View key={g} wrap minPresenceAhead={36}>
+                      {gruppo.map((r, i) => <TestoContrattoPdf key={i} riga={r} prima={g===0&&i===0} colore={r.tipo==='h1'?C.ink:C.gray900} />)}
                     </View>
                   ))}
                 </View>

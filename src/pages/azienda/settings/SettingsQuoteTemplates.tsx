@@ -4,6 +4,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
+import { QuotePdfLivePreview } from '@/components/quotes/QuotePdfLivePreview';
+import { CopiaCondizioni } from '@/components/preventivi/CopiaCondizioni';
+import { fontiCondizioni } from '@/lib/preventivi/fontiCondizioni';
 import { resolveQuoteTemplatePreview } from "@/lib/quoteTemplatePreview";
 import {
   COLOR_PALETTES, DEFAULT_TEMPLATE, FONT_SIZE_PRESETS, LINE_HEIGHT_PRESETS,
@@ -298,6 +301,7 @@ interface TemplateCardProps {
   kindMeta: typeof KIND_META[QuoteTemplateKind];
   logoSrcFor: (t: Partial<QuoteTemplate>) => string | undefined;
   effectiveCompanyName?: string;
+  logoLightSrc?: string;
   /** Il colore del marchio dell'azienda: nelle anteprime vale come nel PDF. */
   brandColor?: string | null;
   templates: QuoteTemplate[];
@@ -325,14 +329,14 @@ function AnteprimaTimbro({ percorso }: { percorso: string }) {
   return <img src={link} alt="Timbro e firma dell'impresa" className="h-16 max-w-[200px] rounded-md border bg-white object-contain p-1" />;
 }
 
-function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, brandColor, templates, puoModificare, idAvvisoSolaLettura, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
+function TemplateCard({ tmpl, kindMeta, logoSrcFor, logoLightSrc, effectiveCompanyName, brandColor, templates, puoModificare, idAvvisoSolaLettura, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
   const kind = (tmpl.kind as QuoteTemplateKind | undefined) ?? 'offerta';
 
   // Anteprima specifica per kind
   const renderPreview = () => {
     if (kind === 'offerta') {
       const preview = resolveQuoteTemplatePreview(tmpl, templates, brandColor);
-      return <QuoteTemplatePreview template={preview} companyName={effectiveCompanyName} logoSrc={logoSrcFor(tmpl)} coverSrc={getLogoPublicUrl(preview.cover_image_url)} scale={0.42} />;
+      return <QuoteTemplatePreview template={preview} companyName={effectiveCompanyName} logoSrc={logoSrcFor(tmpl)} logoLightSrc={logoLightSrc} coverSrc={getLogoPublicUrl(preview.cover_image_url)} scale={0.42} />;
     }
     if (kind === 'copertina' && tmpl.cover_image_url) {
       return (
@@ -1153,6 +1157,7 @@ export default function SettingsQuoteTemplates() {
                     tmpl={tmpl}
                     kindMeta={KIND_META[((tmpl.kind as QuoteTemplateKind | undefined) ?? 'offerta')]}
                     logoSrcFor={logoSrcFor}
+                    logoLightSrc={effectiveCompany?.brand_logo_dark_url ?? undefined}
                     effectiveCompanyName={effectiveCompany?.name}
                     brandColor={effectiveCompany?.brand_primary_color}
                     templates={templates}
@@ -1355,22 +1360,7 @@ export default function SettingsQuoteTemplates() {
                       setTimeout(() => openNewTemplate('copertina'), 50);
                     }}
                   />
-                  <BlockLinkSelector
-                    label="📜 Condizioni e termini legali"
-                    value={form.linked_terms_id ?? form.linked_legal_id ?? null}
-                    // I vecchi blocchi "legali" restano selezionabili qui: è lo stesso posto nel PDF.
-                    options={[...templatesByKind('condizioni'), ...templatesByKind('legali')]}
-                    onChange={(id) => {
-                      // Il DB valida il tipo per colonna: un vecchio blocco "legali" va in linked_legal_id.
-                      const eLegacyLegali = !!id && templatesByKind('legali').some((t) => t.id === id);
-                      updateForm(eLegacyLegali ? { linked_legal_id: id, linked_terms_id: null } : { linked_terms_id: id, linked_legal_id: null });
-                    }}
-                    onCreate={() => {
-                      if (!handleCancel()) return;
-                      setActiveKind('condizioni');
-                      setTimeout(() => openNewTemplate('condizioni'), 50);
-                    }}
-                  />
+                  <p className="text-xs text-muted-foreground">Le condizioni si modificano nella sezione «Condizioni»: puoi scriverle o copiarle da un altro modello.</p>
                   <MultiBlockSelector
                     label="🛒 Schede prodotto da includere"
                     values={form.linked_product_ids ?? []}
@@ -1455,8 +1445,8 @@ export default function SettingsQuoteTemplates() {
                   </p>
                   {(formKind === 'condizioni' || formKind === 'legali') && (
                     <div className="mt-3 rounded-md border border-orange-200 bg-orange-50/50 px-3 py-2 text-xs text-orange-950">
-                      Questo blocco è condiviso: dopo il salvataggio potrai inserirlo anche nei modelli di Serramenti, dalla sezione
-                      <span className="font-semibold"> Condizioni e disclaimer</span>. Lo stesso testo creato nei Serramenti può essere salvato qui e riusato nei preventivi standard.
+                      Salva qui il tuo testo di base. Nei modelli usa «Copia da…», poi adattalo: ogni copia resta indipendente.
+                      Le offerte già collegate a questo blocco continuano a usarlo finché non scegli di renderle indipendenti.
                     </div>
                   )}
                 </CardHeader>
@@ -1486,12 +1476,14 @@ export default function SettingsQuoteTemplates() {
                     ))}
                   </div>
                   <div role="group" aria-labelledby="modello-blocco-testo">
+                    {(formKind === 'condizioni' || formKind === 'legali') && <CopiaCondizioni companyId={effectiveCompany?.id} value={form.body_html ?? ''} disabled={!puoModificare} onChange={html => updateForm({ body_html: html, body_format: 'html' })} />}
                     <div className="flex items-center justify-between mb-1">
                       <Label id="modello-blocco-testo" className="text-xs text-muted-foreground">Testo (titoli, grassetto, elenchi come negli altri modelli)</Label>
                       <MergeTagInserter targetRef={bodyHtmlRef} currentValue={form.body_html ?? ""} onInsert={(v) => updateForm({ body_html: v, body_format: 'html' })} />
                     </div>
                     <RichTextEditor
                       readOnly={!puoModificare}
+                      documentMode={formKind === 'condizioni' || formKind === 'legali'}
                       value={sembraMarkdown(form.body_html ?? "") ? markdownSempliceToHtml(form.body_html ?? "") : (form.body_html ?? "")}
                       onChange={(html) => updateForm({ body_html: html, body_format: 'html' })}
                       placeholder={
@@ -1540,7 +1532,7 @@ export default function SettingsQuoteTemplates() {
                       }`}
                     >
                       <div className="mb-2 flex justify-center">
-                        <QuoteTemplatePreview template={{ ...form, layout: l.key }} companyName={effectiveCompany?.name} logoSrc={logoSrcFor(form)} page="detail" scale={0.08} />
+                        <QuoteTemplatePreview template={{ ...form, layout: l.key }} companyName={effectiveCompany?.name} logoSrc={logoSrcFor(form)} logoLightSrc={effectiveCompany?.brand_logo_dark_url ?? undefined} page="detail" scale={0.08} />
                       </div>
                       <p className="font-medium">{l.label}</p>
                       <p className="text-xs text-muted-foreground mt-1">{l.desc}</p>
@@ -2219,8 +2211,7 @@ export default function SettingsQuoteTemplates() {
                   Condizioni contrattuali e termini legali
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Garanzia, varianti, penali, e poi privacy GDPR, diritto di recesso, foro competente: tutto in un'unica sezione in coda al PDF.
-                  Se hai già un blocco "Condizioni e termini legali" nella libreria, collegalo sopra in "Componi l'offerta": vince su questo testo.
+                  Scrivi le clausole qui, oppure copiale da condizioni generali o da un modello salvato. Poi adattale a questa offerta senza cambiare gli altri modelli.
                 </p>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -2242,13 +2233,23 @@ export default function SettingsQuoteTemplates() {
                         onInsert={(v) => updateForm({ contractual_terms_text: v })}
                       />
                     </div>
-                    <RichTextEditor
+                    <CopiaCondizioni companyId={effectiveCompany?.id} value={form.contractual_terms_text || ((form.linked_terms_id || form.linked_legal_id) ? 'Condizioni collegate' : '')} disabled={!puoModificare}
+                      onChange={html => updateForm({ contractual_terms_text: html, linked_terms_id: null, linked_legal_id: null, legal_terms_text: null, show_legal_terms: false })} />
+                    {(form.linked_terms_id || form.linked_legal_id) ? <div className="rounded-lg border bg-blue-50/40 p-3 space-y-2">
+                      <p className="text-xs">Questo modello usa ancora condizioni condivise della libreria. Per modificarle solo qui, crea una copia indipendente.</p>
+                      <Button type="button" variant="outline" size="sm" disabled={!puoModificare || [form.linked_terms_id, form.linked_legal_id].filter(Boolean).some(id => !templates.some(t => t.id === id))} onClick={() => {
+                        const copied = fontiCondizioni(effectiveCompany!.id, [...templates.filter(t => t.id !== form.id), { ...form, company_id: effectiveCompany!.id, id: 'current-draft' }], []).find(s => s.id === 'classico:current-draft');
+                        if (!copied) return;
+                        updateForm({ contractual_terms_text: copied.testo, linked_terms_id: null, linked_legal_id: null, legal_terms_text: null, show_legal_terms: false });
+                      }}>Modifica una copia in questo modello</Button>
+                    </div> : <RichTextEditor
+                      documentMode
                       value={form.contractual_terms_text ?? ''}
                       onChange={(html) => updateForm({ contractual_terms_text: html })}
                       placeholder="1. OGGETTO — {{azienda.ragione_sociale}} si impegna a eseguire i lavori presso {{cantiere.indirizzo}}…&#10;2. GARANZIA — 24 mesi dalla consegna…&#10;3. VARIANTI — concordate per iscritto…&#10;PRIVACY (GDPR Reg. UE 2016/679) — i dati di {{cliente.nome_completo}} sono trattati per…&#10;DIRITTO DI RECESSO — entro 14 giorni (art. 52 D.lgs 206/2005)…&#10;FORO COMPETENTE — Foro di [città azienda]."
                       minHeight={220}
                       readOnly={!puoModificare}
-                    />
+                    />}
                     {/* Il modulo di recesso è una scelta dell'azienda, spenta di serie (21/09/2026). */}
                     <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border px-3 py-2">
                       <div className="min-w-0">
@@ -2337,6 +2338,9 @@ export default function SettingsQuoteTemplates() {
                 </p>
               </CardHeader>
               <CardContent className="flex flex-col items-center gap-3 bg-slate-100 p-4">
+                {(formKind==='offerta'||formKind==='condizioni'||formKind==='legali')&&<QuotePdfLivePreview template={form} kind={formKind} companyId={effectiveCompany?.id} companyName={effectiveCompany?.name} />}
+                <details className="w-full">
+                <summary className="cursor-pointer text-xs text-muted-foreground">Schema rapido dello stile</summary>
                 <div className="w-full overflow-auto rounded-lg bg-slate-200/80 p-4 shadow-inner">
                   <div className="flex min-w-max justify-center">
                     {formKind === 'offerta' ? (
@@ -2344,6 +2348,7 @@ export default function SettingsQuoteTemplates() {
                         template={resolveQuoteTemplatePreview(form, templates, effectiveCompany?.brand_primary_color)}
                         companyName={effectiveCompany?.name}
                         logoSrc={logoSrcFor(form)}
+                        logoLightSrc={effectiveCompany?.brand_logo_dark_url ?? undefined}
                         coverSrc={getLogoPublicUrl(resolveQuoteTemplatePreview(form, templates).cover_image_url)}
                         page={previewPage}
                         scale={0.45}
@@ -2363,6 +2368,7 @@ export default function SettingsQuoteTemplates() {
                     </Button>
                   </div>
                 )}
+                </details>
                 {/* Niente export su telefono. */}
                 {!isMobile && (
                   <Button

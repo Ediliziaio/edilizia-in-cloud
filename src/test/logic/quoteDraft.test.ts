@@ -20,7 +20,7 @@ describe("bozza completa preventivo classico", () => {
       aliquotaDetrazione: null, causale: "", note: null }],
     selectedRenders: [{ id: "render", result_url: "/render.webp", render_type: "interno", session_table: "render_sessions" }],
     selectedMaterials: ["scheda-a", "scheda-b"], renderUrl: "/render.webp", renderSessionId: "render",
-    renderOriginalUrl: null, selectedTemplateId: "modello", layoutOverride: "modern",
+    renderOriginalUrl: null, selectedTemplateId: "modello", templateValues: { data_inizio: '2026-10-20' }, layoutOverride: "modern",
     financingProposal: { table_id: "table", amount: 100, num_installments: 12,
       monthly_rate: 10, total_due: 120, calculation: {
         importo_richiesto: 100, numero_rate: 12, modalita: "esatto", rata_completa: 10,

@@ -332,6 +332,7 @@ export function PdfBlobLivePreviewPanel({
           <span className={"text-[11px] font-semibold uppercase tracking-wide truncate " + accentClass}>
             Anteprima live PDF
           </span>
+          <span role="status" aria-live="polite" className="text-[10px] text-muted-foreground" data-preview-state={aggiornato?'ready':loading?'rendering':'pending'}>{aggiornato?'Aggiornata automaticamente':loading?'Aggiorno il PDF…':'Modifiche in attesa di anteprima'}</span>
           {loading && (
             <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" /> aggiorno…

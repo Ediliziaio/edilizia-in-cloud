@@ -1,3 +1,4 @@
+import { ereditaCondizioniModello } from "./condizioniModello";
 import { completeModulePhotography } from "./modulePhotography";
 import type { TetTemplatePdf } from "@/types/tetti";
 import type { ContenutoBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
@@ -33,7 +34,7 @@ export function completeTettiEdition(seed: TetTemplatePdf, base: TetTemplatePdf,
     cover_title_size: 36, cover_subtitle_size: 13,
     color_primary: base.color_primary || "#31565a", color_accent: base.color_accent || "#b0794e",
     show_chi_siamo: !!base.chi_siamo?.trim(),
-    condizioni_legali_testo: null, condizioni_legali_attivo: false, modulo_recesso_attivo: false,
+    ...ereditaCondizioniModello(base),
     esigenze: items(content.needs), soluzione: items(content.solution), usp: items(content.usp),
     percorso: items(content.journey), garanzie: items(content.guarantees),
     cronoprogramma: content.schedule.map(([fase, descrizione]) => ({ fase, durata: "Da concordare", descrizione })),

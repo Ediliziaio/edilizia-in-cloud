@@ -1,3 +1,4 @@
+import { ereditaCondizioniModello } from "./condizioniModello";
 import { SR_PDF_PAGES_META, type SrTemplatePdfRow, type SrProgettoDetail } from "@/types/serramenti";
 
 /** Independent PDF models. Quote-builder workflows remain a separate feature. */
@@ -96,7 +97,7 @@ export function createSerramentiModuleTemplate(base: Partial<SrTemplatePdfRow>, 
     testimonianze_default: [], recensioni_attivo: false, garanzie: [], gallery_lavori: [],
     certificazioni: [], bonus_aggiuntivi: [], confronto_attivo: false, confronto_righe: [],
     urgenza_attiva: false, early_bird_attivo: false, pdf_perche_noi_metriche: [],
-    condizioni_legali_attivo: false, condizioni_legali_testo: "", modulo_recesso_attivo: false,
+    ...ereditaCondizioniModello(base),
     pdf_mostra_firma_online: false, pdf_mostra_rata_mensile: false,
     pdf_mostra_recupero_fiscale: false, pdf_mostra_tabella_ecobonus: false, pdf_pagine_articolo_dedicate: false,
     pdf_show_revision_footer: true, pdf_show_legal_footer: false, brand_footer_attivo: false,

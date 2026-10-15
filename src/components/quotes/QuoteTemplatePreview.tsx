@@ -1,6 +1,7 @@
 import React from 'react';
 import type { QuoteTemplate, TextAlignment } from '@/types/quoteTemplate';
 import { quoteTemplateSampleData, type AnteprimaModello } from '@/lib/quoteTemplatePreview';
+import { testoSopra } from '../../../supabase/functions/_shared/temaColori';
 
 interface Props {
   /** Il modello, anche già risolto coi blocchi collegati (colore della copertina compreso). */
@@ -9,6 +10,7 @@ interface Props {
   page?: 'cover' | 'detail';
   scale?: number;
   logoSrc?: string;
+  logoLightSrc?: string;
   coverSrc?: string;
 }
 
@@ -60,6 +62,7 @@ export function QuoteTemplatePreview({
   page = 'cover',
   scale = 0.4,
   logoSrc,
+  logoLightSrc,
   coverSrc,
 }: Props) {
   const t = quoteTemplateSampleData(template, companyName);
@@ -69,6 +72,7 @@ export function QuoteTemplatePreview({
   const headerText = t.header_text_color ?? '#FFFFFF';
   const textColor = t.text_color ?? '#111827';
   const layout = t.layout ?? 'classic';
+  const useLightLogo = !!logoLightSrc && testoSopra(primary) === '#FFFFFF';
   const fontFamily = t.font_family === 'times' ? 'Georgia, serif'
     : t.font_family === 'courier' ? '"Courier New", monospace'
     : 'Helvetica, Arial, sans-serif';
@@ -102,7 +106,7 @@ export function QuoteTemplatePreview({
           color: textColor,
         }}
       >
-        {hasCover && <OfferCover template={t} companyName={companyName} primary={template.colore_copertina ?? primary} logoSrc={logoSrc} coverSrc={coverSrc} />}
+        {hasCover && <OfferCover template={t} companyName={companyName} primary={template.colore_copertina ?? primary} logoSrc={logoLightSrc || logoSrc} logoTransparent={!!logoLightSrc} coverSrc={coverSrc} />}
         {!hasCover && layout === 'classic' && (
           <ClassicLayout
             primary={primary} secondary={secondary} accent={accent}
@@ -115,7 +119,7 @@ export function QuoteTemplatePreview({
           <ModernLayout
             primary={primary} secondary={secondary} accent={accent}
             headerText={headerText} textColor={textColor}
-            companyName={companyName} t={t} page={page} logoSrc={logoSrc}
+            companyName={companyName} t={t} page={page} logoSrc={useLightLogo ? logoLightSrc : logoSrc} logoTransparent={useLightLogo}
             marginPx={marginPx} type={type} alignment={alignment}
           />
         )}
@@ -131,7 +135,7 @@ export function QuoteTemplatePreview({
           <BoldLayout
             primary={primary} secondary={secondary} accent={accent}
             headerText={headerText} textColor={textColor}
-            companyName={companyName} t={t} page={page} logoSrc={logoSrc}
+            companyName={companyName} t={t} page={page} logoSrc={useLightLogo ? logoLightSrc : logoSrc} logoTransparent={useLightLogo}
             marginPx={marginPx} type={type} alignment={alignment}
           />
         )}
@@ -163,8 +167,8 @@ export function QuoteTemplatePreview({
 }
 
 /** Copertina dedicata del generatore PDF, con dati dimostrativi. */
-function OfferCover({ template: t, companyName, primary, logoSrc, coverSrc }: {
-  template: Partial<QuoteTemplate>; companyName: string; primary: string; logoSrc?: string; coverSrc?: string;
+function OfferCover({ template: t, companyName, primary, logoSrc, coverSrc, logoTransparent }: {
+  template: Partial<QuoteTemplate>; companyName: string; primary: string; logoSrc?: string; coverSrc?: string; logoTransparent?: boolean;
 }) {
   const [failedPhoto, setFailedPhoto] = React.useState<string | null>(null);
   const photo = t.show_cover_image && coverSrc !== failedPhoto ? coverSrc : undefined;
@@ -176,7 +180,7 @@ function OfferCover({ template: t, companyName, primary, logoSrc, coverSrc }: {
       {!photo && <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px)', backgroundSize: '35px 35px' }} />}
       {!photo && <div style={{ position: 'absolute', width: 380, height: 380, top: 60, right: -65, border: '1px solid rgba(255,255,255,.18)', borderRadius: '50%' }} />}
       <div style={{ position: 'relative' }}>
-        {logoSrc && t.show_logo !== false ? <img src={logoSrc} alt="" style={{ maxWidth: 175, height: 56, objectFit: 'contain', padding: '8px 12px', background: '#fff' }} /> : <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', overflowWrap: 'anywhere' }}>{companyName}</div>}
+        {logoSrc && t.show_logo !== false ? <img src={logoSrc} alt="" style={{ maxWidth: 175, height: 56, objectFit: 'contain', padding: '8px 12px', background: logoTransparent ? 'transparent' : '#fff' }} /> : <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', overflowWrap: 'anywhere' }}>{companyName}</div>}
       </div>
       <div style={{ position: 'relative', marginTop: 'auto', marginBottom: 40 }}>
         <div style={{ fontSize: 9, letterSpacing: 3, marginBottom: 20, color: '#dbeafe' }}>PROPOSTA COMMERCIALE</div>
@@ -205,6 +209,7 @@ interface LayoutProps {
   t: Partial<QuoteTemplate>;
   page: 'cover' | 'detail';
   logoSrc?: string;
+  logoTransparent?: boolean;
   marginPx: number;
   type: ReturnType<typeof buildTypographyScale>;
   alignment: TextAlignment;
@@ -227,11 +232,13 @@ function PreviewLogo({
   logoSrc,
   primary,
   headerText,
+  transparent = false,
 }: {
   t: Partial<QuoteTemplate>;
   logoSrc?: string;
   primary: string;
   headerText?: string;
+  transparent?: boolean;
 }) {
   if (t.show_logo === false) return null;
 
@@ -247,9 +254,9 @@ function PreviewLogo({
           height: size,
           objectFit: 'contain',
           borderRadius: 8,
-          backgroundColor: 'rgba(255,255,255,0.94)',
+          backgroundColor: transparent ? 'transparent' : 'rgba(255,255,255,0.94)',
           padding: 5,
-          border: '1px solid rgba(148,163,184,0.28)',
+          border: transparent ? 'none' : '1px solid rgba(148,163,184,0.28)',
         }}
       />
     );
@@ -317,7 +324,7 @@ function ClassicLayout({ primary, accent, textColor, companyName, t, page, logoS
   );
 }
 
-function ModernLayout({ primary, accent, headerText, textColor, companyName, t, page, logoSrc, marginPx, type, alignment }: LayoutProps) {
+function ModernLayout({ primary, accent, headerText, textColor, companyName, t, page, logoSrc, logoTransparent, marginPx, type, alignment }: LayoutProps) {
   const copy = previewCopy(t);
   return (
     <>
@@ -328,7 +335,7 @@ function ModernLayout({ primary, accent, headerText, textColor, companyName, t, 
         textAlign: alignment,
       }}>
         <div style={{ display: 'flex', justifyContent: logoJustify(t.logo_position), marginBottom: 12 }}>
-          <PreviewLogo t={t} logoSrc={logoSrc} primary={primary} headerText={headerText} />
+          <PreviewLogo t={t} logoSrc={logoSrc} primary={primary} headerText={headerText} transparent={logoTransparent} />
         </div>
         <div style={{ fontSize: type.body + 2, fontWeight: 650, marginBottom: 6 }}>{companyName}</div>
         {t.show_quote_number !== false && <div style={{ fontSize: type.small, opacity: 0.8, marginBottom: 14 }}>OFFERTA N. OFF-2026-001 · 09/03/2026</div>}
@@ -374,7 +381,7 @@ function MinimalLayout({ primary, accent, textColor, companyName, t, page, logoS
   );
 }
 
-function BoldLayout({ primary, accent, headerText, textColor, companyName, t, page, logoSrc, marginPx, type, alignment }: LayoutProps) {
+function BoldLayout({ primary, accent, headerText, textColor, companyName, t, page, logoSrc, logoTransparent, marginPx, type, alignment }: LayoutProps) {
   const copy = previewCopy(t);
   return (
     <div style={{ display: 'flex', height: '100%' }}>
@@ -384,7 +391,7 @@ function BoldLayout({ primary, accent, headerText, textColor, companyName, t, pa
         paddingTop: marginPx,
         paddingBottom: marginPx * 2,
       }}>
-        <PreviewLogo t={t} logoSrc={logoSrc} primary={primary} headerText={headerText} />
+        <PreviewLogo t={t} logoSrc={logoSrc} primary={primary} headerText={headerText} transparent={logoTransparent} />
         <div style={{
           transform: 'rotate(-90deg)', transformOrigin: 'center',
           whiteSpace: 'nowrap', color: headerText,

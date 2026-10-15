@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { useState } from 'react';
 import { it } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,6 +8,8 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { FileText, Eye, FilePlus, Trash2, Loader2 } from 'lucide-react';
 import { useDocumentoTemplates } from '@/hooks/useDocumentoTemplates';
 import type { DocumentoTemplate, DocumentoTipo } from '@/types/fea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { TemplateDocumentUse } from './TemplateDocumentUse';
 
 interface DocumentiListProps {
   onSelect?: (template: DocumentoTemplate) => void;
@@ -25,8 +28,10 @@ const tipoBadgeColor: Record<DocumentoTipo, string> = {
 };
 
 export function DocumentiList({ onSelect }: DocumentiListProps) {
-  const { templates, isLoading, deleteTemplate } = useDocumentoTemplates();
+  const { templates, isLoading, error, refetch, deleteTemplate } = useDocumentoTemplates();
+  const [selected, setSelected] = useState<DocumentoTemplate | null>(null);
   const confirm = useConfirm();
+  if (error) return <div role="alert" className="rounded-xl border border-red-200 p-4 text-red-700">Impossibile caricare i modelli. Verifica azienda e permessi. <Button variant="outline" onClick={() => void refetch()}>Riprova</Button></div>;
 
   if (isLoading) {
     return (
@@ -48,7 +53,7 @@ export function DocumentiList({ onSelect }: DocumentiListProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {templates.map((template) => (
         <Card key={template.id} className="hover:shadow-md transition-shadow">
           <CardContent className="p-4 space-y-3">
@@ -57,9 +62,9 @@ export function DocumentiList({ onSelect }: DocumentiListProps) {
                 <FileText className="h-5 w-5 text-orange-500" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-slate-800 truncate">{template.nome}</p>
+                <p className="font-semibold text-slate-800 break-words">{template.nome}</p>
                 {template.descrizione && (
-                  <p className="text-xs text-slate-500 truncate mt-0.5">{template.descrizione}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 whitespace-pre-line">{template.descrizione}</p>
                 )}
               </div>
             </div>
@@ -88,16 +93,16 @@ export function DocumentiList({ onSelect }: DocumentiListProps) {
                 onClick={() => onSelect?.(template)}
               >
                 <Eye className="h-3.5 w-3.5" />
-                Visualizza
+                Configura campi
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 className="flex-1 gap-1.5 text-orange-600 border-orange-200 hover:bg-orange-50"
-                onClick={() => onSelect?.(template)}
+                onClick={() => setSelected(template)}
               >
                 <FilePlus className="h-3.5 w-3.5" />
-                Usa
+                Compila
               </Button>
               <Button
                 variant="ghost"
@@ -108,7 +113,7 @@ export function DocumentiList({ onSelect }: DocumentiListProps) {
                   if (
                     await confirm({
                       title: 'Eliminare il template documento?',
-                      description: `Il template "${template.nome}" verrà rimosso definitivamente.`,
+                      description: `Il template "${template.nome}" verrà disattivato. I documenti già generati non saranno modificati.`,
                       confirmLabel: 'Elimina',
                       variant: 'destructive',
                     })
@@ -125,5 +130,11 @@ export function DocumentiList({ onSelect }: DocumentiListProps) {
         </Card>
       ))}
     </div>
+    <Dialog open={!!selected} onOpenChange={open => { if (!open) setSelected(null); }}>
+      <DialogContent className="max-h-[90dvh] max-w-5xl overflow-y-auto">
+        <DialogHeader><DialogTitle>{selected?.nome}</DialogTitle><DialogDescription>Compila i campi e controlla il documento prima di utilizzarlo.</DialogDescription></DialogHeader>
+        {selected && <TemplateDocumentUse key={selected.id} template={selected} />}
+      </DialogContent>
+    </Dialog></>
   );
 }

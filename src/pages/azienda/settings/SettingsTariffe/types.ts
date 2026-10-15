@@ -11,7 +11,7 @@ export type TipoTariffa =
   | "altro";
 
 export type UnitaFatturazione =
-  | "pz" | "mq" | "ml" | "mc" | "kg" | "gg" | "h" | "a_corpo" | "km" | "piano";
+  | "pz" | "mq" | "ml" | "mc" | "kg" | "gg" | "mese" | "h" | "a_corpo" | "km" | "piano";
 
 export interface Tariffa {
   id: string;

@@ -10,9 +10,12 @@
  */
 
 import { annoItaliano, dataItalianaBreve } from "./dataItaliana.ts";
+import { leggiValoriContratto, formattaValoriContratto } from './campiContratto.ts';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any;
+
+export class TemplateCompositionError extends Error {}
 
 export interface QuoteTemplateRow {
   id: string;
@@ -116,16 +119,21 @@ export async function attachLinkedBlocks(
     return { ...template, composed_products: [], composed_sections: [] };
   }
 
-  const { data: blocks } = await supabase
+  const { data: blocks, error } = await supabase
     .from("quote_templates")
     .select("*")
     .in("id", idsToFetch)
     .eq("company_id", companyId)
     .eq("is_active", true);
 
+  if (error) throw new TemplateCompositionError("Impossibile caricare i blocchi del modello. Riprova prima di generare il PDF.");
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const byId = new Map<string, any>();
   for (const b of (blocks ?? [])) byId.set(b.id, b);
+  if (idsToFetch.some(id => !byId.has(id))) {
+    throw new TemplateCompositionError("Un blocco collegato al modello non è disponibile per questa azienda. Verifica copertina e condizioni nelle impostazioni.");
+  }
 
   return {
     ...template,
@@ -142,6 +150,7 @@ export async function attachLinkedBlocks(
 // ──────────────────────────────────────────────────────────────────────────
 
 export interface MergeContext {
+  contratto?: Record<string, string>;
   cliente?: {
     nome?: string;
     cognome?: string;
@@ -171,6 +180,7 @@ export interface MergeContext {
     scadenza?: string;
     totale?: string;
     subtotale?: string;
+    imponibile?: string;
     iva?: string;
     piano_pagamenti?: string;
     /** La frase intera sui pagamenti per le condizioni di base: cita il piano solo se c'è (non è nell'elenco dei tag dell'editor). */
@@ -332,17 +342,18 @@ export function buildMergeContext(args: {
   })();
 
   return {
+    contratto: formattaValoriContratto(leggiValoriContratto(quote?.custom_field_values?._template_values)),
     cliente: {
       nome,
       cognome,
       nome_completo: nomeCompleto,
       email: contact?.email ?? quote?.client_email ?? "",
       telefono: contact?.phone ?? quote?.client_phone ?? "",
-      codice_fiscale: quote?.client_fiscal_code ?? contact?.codice_fiscale ?? "",
+      codice_fiscale: quote?.client_fiscal_code ?? contact?.fiscal_code ?? contact?.codice_fiscale ?? "",
       indirizzo: quote?.client_address ?? contact?.address ?? "",
-      cap: contact?.cap ?? "",
+      cap: contact?.postal_code ?? contact?.cap ?? "",
       citta: contact?.city ?? "",
-      provincia: contact?.provincia ?? "",
+      provincia: contact?.province ?? contact?.provincia ?? "",
       ragione_sociale: quote?.client_company ?? contact?.company_name ?? "",
       partita_iva: quote?.client_vat_number ?? contact?.vat_number ?? "",
       sede_legale: contact?.sede_legale ?? "",
@@ -351,7 +362,7 @@ export function buildMergeContext(args: {
       codice_destinatario: contact?.codice_destinatario ?? "",
     },
     cantiere: {
-      indirizzo: cantiere?.indirizzo ?? quote?.client_address ?? "",
+      indirizzo: cantiere?.indirizzo ?? quote?.indirizzo_lavori ?? quote?.client_address ?? "",
       citta: cantiere?.citta ?? contact?.city ?? "",
       note: cantiere?.note ?? "",
     },
@@ -361,6 +372,10 @@ export function buildMergeContext(args: {
       scadenza: fmtDate(quote?.expires_at),
       totale: fmtMoney(quote?.total),
       subtotale: fmtMoney(quote?.subtotal),
+      // Diverso dal subtotale lordo: le clausole devono includere gli sconti.
+      imponibile: fmtMoney(quote?.total != null && quote?.vat_amount != null
+        ? Number(quote.total) - Number(quote.vat_amount)
+        : quote?.subtotal != null ? Number(quote.subtotal) - Number(quote.discount_amount ?? 0) : null),
       iva: fmtMoney(quote?.vat_amount),
       // Piano pagamenti strutturato (modalità + fasi) su una riga, disponibile nei
       // template PDF via {{preventivo.piano_pagamenti}} → il cliente lo firma. Senza piano il tag
@@ -374,9 +389,9 @@ export function buildMergeContext(args: {
         : "Il pagamento avviene secondo le modalità concordate tra le parti.",
     },
     azienda: {
-      ragione_sociale: company?.name ?? "",
+      ragione_sociale: company?.business_name?.trim() || company?.name || "",
       partita_iva: company?.vat_number ?? "",
-      indirizzo: company?.address ?? "",
+      indirizzo: [company?.legal_address, company?.legal_postal_code, company?.legal_city, company?.legal_province].filter(Boolean).join(', ') || company?.address || "",
       email: company?.email ?? "",
       telefono: company?.phone ?? "",
     },

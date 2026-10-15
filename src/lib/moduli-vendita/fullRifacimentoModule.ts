@@ -1,4 +1,5 @@
 import { completeModulePhotography } from "./modulePhotography";
+import { ereditaCondizioniModello } from "./condizioniModello";
 import type { TetTemplatePdf } from "@/types/tetti";
 import type { ContenutoBlocco } from "../../../supabase/functions/_shared/blocchiPreventivo";
 import { CAPITOLI_EDILI } from "@/components/preventivi/pdf/ordineCapitoli";
@@ -25,7 +26,7 @@ export function completeRifacimentoTemplate(seed: TetTemplatePdf, base: TetTempl
     cover_bg_color: "#392e28", cover_overlay_opacity: 0.74, cover_title_size: 36, cover_subtitle_size: 13,
     color_primary: base.color_primary || "#563e32", color_accent: base.color_accent || "#b66b42",
     show_chi_siamo: !!base.chi_siamo?.trim(),
-    condizioni_legali_testo: null, condizioni_legali_attivo: false, modulo_recesso_attivo: false,
+    ...ereditaCondizioniModello(base),
     esigenze: list([
       ["Conoscere il tetto esistente", "Distinguere lo stato del manto, degli strati e del supporto, indicando le parti accessibili e gli approfondimenti necessari."],
       ["Definire la nuova copertura", "Confrontare materiali, finiture e stratigrafia previsti dal progetto, senza attribuire prestazioni al solo aspetto delle tegole."],

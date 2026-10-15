@@ -114,6 +114,23 @@ function basePdfData(): FvPdfTemplateData {
 }
 
 describe("fotovoltaico PDF template", () => {
+  it('mantiene la formattazione locale delle clausole e separa le righe firma',()=>{
+    const data=basePdfData();
+    data.template={...data.template,condizioni_legali_attivo:true,condizioni_legali_testo:'<h2>ART. 1 PROVA STILI</h2><p>Testo <span style="font-size:8pt;font-family:Courier New, monospace;color:#123456">NOTA PICCOLA</span> <span style="font-size:18pt">TITOLO GRANDE</span></p><p>Luogo e data __________ Firma del cliente __________ Il Legale Rappresentante __________</p>'};
+    const html=renderFvPdfHtml(data);
+    expect(html).toContain('font-size:8pt');expect(html).toContain('font-size:18pt');
+    expect(html).toContain('Courier New, monospace');expect(html).toContain('NOTA PICCOLA');
+    expect(html).not.toContain('Il Legale Rappresentante __________');
+    expect(html).toContain('Firma del committente');
+  });
+  it('risolve i campi del contratto anche nell’anteprima locale senza invocare il server',()=>{
+    const data=basePdfData();
+    data.template={...data.template,condizioni_legali_attivo:true,condizioni_legali_testo:'<p>Cliente {{cliente.nome_completo}} · Preventivo {{preventivo.numero}}</p>'};
+    const html=renderFvPdfHtml(data);
+    expect(html).not.toContain('{{cliente.nome_completo}}');
+    expect(html).not.toContain('{{preventivo.numero}}');
+    expect(html).toContain(`${data.cliente.nome} ${data.cliente.cognome}`);
+  });
   it("renders a screen-only action bar for printing or saving the PDF", () => {
     const html = renderFvPdfHtml(basePdfData());
 

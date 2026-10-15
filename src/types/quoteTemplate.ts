@@ -128,10 +128,19 @@ export interface QuoteTemplate {
 export interface MergeTag {
   tag: string;          // es. "cliente.nome"
   descrizione: string;
-  group: "cliente" | "cantiere" | "preventivo" | "azienda" | "data";
+  group: "cliente" | "cantiere" | "preventivo" | "azienda" | "data" | "contratto";
 }
 
 export const MERGE_TAGS: MergeTag[] = [
+  { tag: 'contratto.data_inizio', descrizione: 'Data prevista di inizio lavori', group: 'contratto' },
+  { tag: 'contratto.data_fine', descrizione: 'Data prevista di fine lavori', group: 'contratto' },
+  { tag: 'contratto.durata_giorni', descrizione: 'Durata in giorni lavorativi', group: 'contratto' },
+  { tag: 'contratto.penale_dal_giorno', descrizione: 'Decorrenza della penale concordata', group: 'contratto' },
+  { tag: 'contratto.catasto_foglio', descrizione: 'Foglio catastale', group: 'contratto' },
+  { tag: 'contratto.catasto_particella', descrizione: 'Particella catastale', group: 'contratto' },
+  { tag: 'contratto.catasto_subalterno', descrizione: 'Subalterno catastale', group: 'contratto' },
+  { tag: 'contratto.pratica_edilizia', descrizione: 'Estremi della pratica edilizia', group: 'contratto' },
+  { tag: 'contratto.tecnico_pratica', descrizione: 'Tecnico incaricato della pratica', group: 'contratto' },
   // Cliente — persona fisica
   { tag: "cliente.nome", descrizione: "Nome del cliente", group: "cliente" },
   { tag: "cliente.cognome", descrizione: "Cognome del cliente", group: "cliente" },
@@ -160,6 +169,7 @@ export const MERGE_TAGS: MergeTag[] = [
   { tag: "preventivo.scadenza", descrizione: "Scadenza offerta", group: "preventivo" },
   { tag: "preventivo.totale", descrizione: "Totale offerta", group: "preventivo" },
   { tag: "preventivo.subtotale", descrizione: "Subtotale (imponibile)", group: "preventivo" },
+  { tag: "preventivo.imponibile", descrizione: "Imponibile netto dopo gli sconti", group: "preventivo" },
   { tag: "preventivo.iva", descrizione: "Importo IVA", group: "preventivo" },
   { tag: "preventivo.piano_pagamenti", descrizione: "Piano dei pagamenti (modalità e fasi)", group: "preventivo" },
   // Azienda (la tua)

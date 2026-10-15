@@ -20,6 +20,7 @@
 import { useEffect, useState, useRef, forwardRef, useImperativeHandle } from "react";
 import DOMPurify from "dompurify";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import { Extension, Node } from '@tiptap/core';
 import { StarterKit } from "@tiptap/starter-kit";
 import { Underline } from "@tiptap/extension-underline";
 // In TipTap 3.x i sub-pacchetti @tiptap/extension-color e @tiptap/extension-font-family
@@ -57,6 +58,7 @@ export interface RichTextEditorProps {
   className?: string;
   /** Modalità readonly (anteprima). */
   readOnly?: boolean;
+  documentMode?: boolean;
 }
 
 /** API imperativa esposta via ref (per inserire variabili al cursore, ecc.). */
@@ -69,6 +71,7 @@ export interface RichTextEditorHandle {
 
 const FONT_SIZES = [
   { value: "8pt",  label: "8pt — Piccolissimo" },
+  { value: "9pt", label: "9pt — Nota" },
   { value: "10pt", label: "10pt — Piccolo (condizioni)" },
   { value: "11pt", label: "11pt — Normale" },
   { value: "12pt", label: "12pt — Leggermente più grande" },
@@ -76,6 +79,35 @@ const FONT_SIZES = [
   { value: "18pt", label: "18pt — Titolo" },
   { value: "24pt", label: "24pt — Titolo grande" },
 ];
+
+const DocumentSpacing = Extension.create({
+  name: 'documentSpacing',
+  addGlobalAttributes() { return [{ types: ['paragraph','heading'], attributes: {
+    lineHeight: { default:null, parseHTML:el=>el.style.lineHeight||null, renderHTML:a=>a.lineHeight?{style:`line-height:${a.lineHeight}`} : {} },
+    spaceAfter: { default:null, parseHTML:el=>el.style.marginBottom||null, renderHTML:a=>a.spaceAfter?{style:`margin-bottom:${a.spaceAfter}`} : {} },
+  }}]; },
+});
+const MergeField = Node.create({
+  name:'mergeField', inline:true, group:'inline', atom:true, selectable:true,
+  addAttributes() { return { value:{default:'',parseHTML:el=>el.getAttribute('data-merge-field')??el.textContent} }; },
+  parseHTML() { return [{tag:'span[data-merge-field]'}]; },
+  renderHTML({node}) { return ['span', {'data-merge-field':node.attrs.value,contenteditable:'false',class:'rounded bg-sky-50 px-1 text-sky-800'},node.attrs.value]; },
+  renderText({node}) { return node.attrs.value; },
+});
+function protectFields(html: string): string {
+  const doc=new DOMParser().parseFromString(sanitize(html),'text/html');
+  const texts:Text[]=[];
+  const walker=doc.createTreeWalker(doc.body,4);
+  while(walker.nextNode()) if(!(walker.currentNode.parentElement?.closest('[data-merge-field]'))) texts.push(walker.currentNode as Text);
+  for(const text of texts) {
+    const value=text.textContent??''; const re=/\{\{[a-zA-Z_][\w.]*\}\}/g;
+    if(!re.test(value)) continue;
+    re.lastIndex=0; const fragment=doc.createDocumentFragment(); let pos=0; let m:RegExpExecArray|null;
+    while((m=re.exec(value))) { fragment.append(doc.createTextNode(value.slice(pos,m.index)));const span=doc.createElement('span');span.setAttribute('data-merge-field',m[0]);span.textContent=m[0];fragment.append(span);pos=re.lastIndex; }
+    fragment.append(doc.createTextNode(value.slice(pos)));text.replaceWith(fragment);
+  }
+  return doc.body.innerHTML;
+}
 
 const FONT_FAMILIES = [
   { value: "Inter, system-ui, sans-serif",       label: "Sans (predefinito)" },
@@ -90,20 +122,24 @@ function sanitize(html: string): string {
       "p", "br", "strong", "b", "em", "i", "u", "s", "strike",
       "h1", "h2", "h3", "ul", "ol", "li", "a", "span", "div",
     ],
-    ALLOWED_ATTR: ["href", "target", "rel", "style"],
+    ALLOWED_ATTR: ["href", "target", "rel", "style", "data-merge-field"],
     // Stili consentiti: tipografia + box semplice (per i bottoni CTA delle email).
     // Tutte proprietà sicure (nessun rischio di iniezione).
     ALLOWED_CSS_PROPERTIES: [
-      "color", "font-size", "font-family", "text-align", "font-weight", "font-style", "text-decoration",
+      "color", "font-size", "font-family", "text-align", "font-weight", "font-style", "text-decoration", "line-height", "margin-bottom",
       "background", "background-color", "padding", "margin", "border", "border-radius", "display",
     ],
   });
 }
 
 export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(function RichTextEditor({
-  value, onChange, placeholder, minHeight = 120, className, readOnly = false,
+  value, onChange, placeholder, minHeight = 120, className, readOnly = false, documentMode = false,
 }, ref) {
   const [linkUrl, setLinkUrl] = useState("");
+  // Record the sanitized emission before the parent echoes it back. Merge-field
+  // DOM contains presentation attributes deliberately stripped by sanitize(),
+  // so comparing getHTML() alone would reset the caret on every keystroke.
+  const lastEmitRef = useRef<string>("");
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -117,6 +153,8 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
         heading: { levels: [1, 2, 3] },
       }),
       Underline,
+      DocumentSpacing,
+      ...(documentMode ? [MergeField] : []),
       TextStyle,
       FontSize,
       FontFamily.configure({ types: ["textStyle"] }),
@@ -127,10 +165,12 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
         HTMLAttributes: { rel: "noopener noreferrer", target: "_blank", class: "text-orange-600 underline" },
       }),
     ],
-    content: value ?? "",
+    content: documentMode ? protectFields(value ?? '') : value ?? "",
     editable: !readOnly,
     onUpdate: ({ editor }) => {
-      onChange(sanitize(editor.getHTML()));
+      const html = sanitize(editor.getHTML());
+      lastEmitRef.current = html;
+      onChange(html);
     },
     editorProps: {
       attributes: {
@@ -140,7 +180,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
           "[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5",
           "[&_a]:text-orange-600 [&_a]:underline",
         ),
-        style: `min-height: ${minHeight}px;`,
+        style: `min-height: ${minHeight}px;${documentMode?'font-family:Helvetica,Arial,sans-serif;font-size:10pt;line-height:1.5;':''}`,
         "data-placeholder": placeholder ?? "",
       },
     },
@@ -149,16 +189,15 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   // Sync esterno: se il `value` prop cambia dall'esterno (es. reset form, hydration
   // da server), aggiorniamo l'editor SOLO se HTML differisce. Senza questa guard
   // ogni keystroke ri-setterebbe il content perdendo il caret.
-  const lastEmitRef = useRef<string>("");
   useEffect(() => {
     if (!editor) return;
     const incoming = value ?? "";
     if (incoming === lastEmitRef.current) return;
     const current = editor.getHTML();
     if (current === incoming) return;
-    editor.commands.setContent(incoming, { emitUpdate: false });
+    editor.commands.setContent(documentMode ? protectFields(incoming) : incoming, { emitUpdate: false });
     lastEmitRef.current = incoming;
-  }, [value, editor]);
+  }, [value, editor, documentMode]);
 
   // API imperativa per i wrapper (es. inserimento variabili al cursore).
   useImperativeHandle(ref, () => ({
@@ -177,9 +216,9 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className={cn("rounded-md border border-slate-200 bg-white overflow-hidden", className)}>
+      <div className={cn("rounded-md border border-slate-200 bg-white overflow-hidden", documentMode&&'max-h-[65vh] overflow-y-auto', className)}>
         {!readOnly && (
-          <Toolbar editor={editor} linkUrl={linkUrl} setLinkUrl={setLinkUrl} />
+          <Toolbar editor={editor} linkUrl={linkUrl} setLinkUrl={setLinkUrl} documentMode={documentMode} />
         )}
         <EditorContent editor={editor} />
       </div>
@@ -190,9 +229,9 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
 /* ─── Toolbar ─────────────────────────────────────────────────────────────── */
 
 function Toolbar({
-  editor, linkUrl, setLinkUrl,
-}: { editor: Editor; linkUrl: string; setLinkUrl: (v: string) => void }) {
-  const currentSize = editor.getAttributes("textStyle").fontSize ?? "11pt";
+  editor, linkUrl, setLinkUrl, documentMode = false,
+}: { editor: Editor; linkUrl: string; setLinkUrl: (v: string) => void; documentMode?: boolean }) {
+  const currentSize = editor.getAttributes("textStyle").fontSize ?? (documentMode?'10pt':'11pt');
   const currentFamily = editor.getAttributes("textStyle").fontFamily ?? FONT_FAMILIES[0].value;
 
   const setFontSize = (size: string) => {
@@ -221,7 +260,17 @@ function Toolbar({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-slate-200 bg-slate-50/60">
+    <div className={cn('flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-slate-200 bg-slate-50',documentMode&&'sticky top-0 z-10')} role="toolbar" aria-label="Formattazione del testo">
+      {documentMode&&<>
+        <select aria-label="Stile del paragrafo" className="h-8 max-w-36 rounded border bg-white px-2 text-xs" value="" onChange={e=>{
+          const v=e.target.value; if(!v)return;
+          if(v==='articolo'||v==='titolo') editor.chain().focus().setHeading({level:v==='titolo'?1:2}).setFontSize(v==='titolo'?'14pt':'11pt').run();
+          else editor.chain().focus().setParagraph().setFontSize(v==='nota'?'9pt':'10pt').run();
+        }}><option value="">Stili del testo</option><option value="titolo">Titolo</option><option value="articolo">Articolo</option><option value="testo">Testo</option><option value="nota">Nota piccola</option></select>
+        <select aria-label="Interlinea" className="h-8 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().updateAttributes(editor.isActive('heading')?'heading':'paragraph',{lineHeight:e.target.value}).run();}}><option value="">Interlinea</option>{['1.15','1.3','1.5','1.8','2'].map(v=><option key={v} value={v}>{v}</option>)}</select>
+        <select aria-label="Spazio dopo il paragrafo" className="h-8 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().updateAttributes(editor.isActive('heading')?'heading':'paragraph',{spaceAfter:e.target.value}).run();}}><option value="">Spaziatura</option>{['0pt','4pt','8pt','12pt','18pt'].map(v=><option key={v} value={v}>{v}</option>)}</select>
+        <select aria-label="Inserisci campo automatico" className="h-8 max-w-44 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().insertContent({type:'mergeField',attrs:{value:`{{${e.target.value}}}`}}).run();}}><option value="">Inserisci campo…</option>{['cliente.nome_completo','azienda.ragione_sociale','preventivo.numero','preventivo.data','preventivo.totale','preventivo.piano_pagamenti','cantiere.indirizzo'].map(v=><option key={v} value={v}>{v}</option>)}</select>
+      </>}
       {/* Font size */}
       <Select value={currentSize} onValueChange={setFontSize}>
         <SelectTrigger className="h-7 w-[150px] text-[11px] gap-1">

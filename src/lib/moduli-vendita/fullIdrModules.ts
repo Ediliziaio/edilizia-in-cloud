@@ -1,3 +1,4 @@
+import { ereditaCondizioniModello } from "./condizioniModello";
 import { completeModulePhotography } from "./modulePhotography";
 import type { IdrTemplatePdf, IdrProgetto, IdrComputoVoce, IdrProgettoMedia } from "@/types/termoidraulico";
 import type { IdrCoverFields } from "@/components/termoidraulico/coverPresets";
@@ -51,7 +52,7 @@ export function createFullIdrTemplate(base: IdrTemplatePdf, id: FullIdrModuleId)
     pdf_cover_overlay_opacity: 70, pdf_cover_overlay_style: "gradient", pdf_cover_text_vertical: "bottom", pdf_cover_text_align: "left",
     pdf_cover_title_size: 35, pdf_cover_subtitle_size: 13, pdf_cover_eyebrow_size: 10, pdf_cover_decoration_style: "none", pdf_cover_logo_position: "top_left", pdf_cover_show_decoration: false, pdf_cover_show_client_card: true,
     color_primary: base.color_primary || "#264d4a", color_accent: base.color_accent || "#a77943",
-    condizioni_legali_attivo: false, condizioni_legali_testo: null, modulo_recesso_attivo: false,
+    ...ereditaCondizioniModello(base),
     default_iva_pct: 22, default_detrazione_pct: 0, default_validita_giorni: 30,
     show_chi_siamo: !!base.chi_siamo?.trim(), show_margine: false, show_garanzie: true, show_percorso: true, show_cronoprogramma: true,
     esigenze: items(c.specs.slice(0, 3)), soluzione: items(c.specs.slice(1)),

@@ -16,6 +16,9 @@ vi.mock("@/hooks/useQuoteTemplates", () => ({
     ],
   }),
 }));
+// This suite checks import/toggle state, independently of the lazy TipTap bundle.
+vi.mock('@/components/ui/rich-text-editor-safe',()=>({RichTextEditorSafe:({value,onChange}:{value:string;onChange:(v:string)=>void})=><textarea value={value} onChange={e=>onChange(e.target.value)} />}));
+vi.mock('@/components/preventivi/CopiaCondizioni', () => ({ CopiaCondizioni: () => <button>Copia da…</button> }));
 
 import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
 
@@ -62,21 +65,18 @@ describe("editor: condizioni generali di contratto", () => {
     const conferma = vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<Editor />);
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "Le mie condizioni" } });
+    fireEvent.click(screen.getByText('Altre opzioni: importa un file o usa un testo di base'));
     fireEvent.click(screen.getByRole("button", { name: /Parti dal testo del settore/ }));
     expect(conferma).toHaveBeenCalled();
-    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Le mie condizioni");
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toContain("Le mie condizioni");
     conferma.mockRestore();
   });
 
-  it("si riusa un blocco della libreria Template offerte (solo quelli di condizioni)", () => {
+  it("mette la modifica diretta e la copia prima delle opzioni avanzate", () => {
     render(<Editor />);
-    const select = screen.getByRole("combobox") as HTMLSelectElement;
-    expect([...select.options].map((o) => o.textContent)).toEqual([
-      "Riusa un blocco dalla libreria Template offerte…", "Le nostre condizioni 2026",
-    ]);
-    fireEvent.change(select, { target: { value: "b1" } });
-    fireEvent.click(screen.getByRole("button", { name: "Sostituisci" }));
-    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toContain("Quello che diciamo noi.");
+    expect(screen.getByRole('button', { name: 'Copia da…' })).toBeTruthy();
+    expect(screen.getByRole('textbox').compareDocumentPosition(screen.getByText('Altre opzioni: importa un file o usa un testo di base')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Aggiungi in coda' })).toBeNull();
   });
 
   it("l'interruttore spento nasconde il campo e lo salva spento", () => {

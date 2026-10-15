@@ -45,10 +45,14 @@ describe("Shared module workspace", () => {
     expect(chooser).toHaveAttribute("aria-expanded", "false");
   });
   it("uses consistent desktop proportions and wrapping controls", () => {
-    expect(templateEditorLayout.navigation).toContain("xl:col-span-2");
-    expect(templateEditorLayout.content).toContain("xl:col-span-6");
-    expect(templateEditorLayout.preview).toContain("xl:col-span-4");
+    expect(templateEditorLayout.navigation).toContain("lg:col-span-2");
+    expect(templateEditorLayout.content).toContain("lg:col-span-6");
+    expect(templateEditorLayout.preview).toContain("lg:col-span-4");
     expect(templateEditorLayout.saveBar).toContain("[&>div]:flex-wrap");
+  });
+  it('does not float the compact view controls over the document',()=>{
+    render(<TemplateEditorWorkspace><div /></TemplateEditorWorkspace>);
+    expect(screen.getByRole('group',{name:'Vista del modello'})).not.toHaveClass('sticky');
   });
   it.each(["bagni", "climatizzazione", "elettrico", "pavimenti", "piscine", "ristrutturazione", "termoidraulico", "tetti"])("%s adopts the shared workspace and forwards the selected page", area => {
     const name = area[0].toUpperCase() + area.slice(1);

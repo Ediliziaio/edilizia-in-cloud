@@ -262,7 +262,8 @@ export const CONDIZIONI_STANDARD_MD = condizioniStandard("generico");
 
 // ─── Leggere le condizioni: dal markdown povero alle righe da impaginare ─────
 
-export type RigaCondizioni = { tipo: "h1" | "h2" | "li" | "p"; testo: string };
+import { leggiTestoRiccoContratto, separaFirmeContratto, type RigaContratto } from './testoRiccoContratto.ts';
+export type RigaCondizioni = RigaContratto;
 
 /**
  * Le condizioni riga per riga: `#` sezione, `##` articolo, `-` elenco, il resto
@@ -270,18 +271,8 @@ export type RigaCondizioni = { tipo: "h1" | "h2" | "li" | "p"; testo: string };
  * così: un motore che stampava il testo com'era mostrava «## Art. 1» al cliente.
  */
 export function righeDelleCondizioni(testo: string): RigaCondizioni[] {
-  return String(testo ?? "")
-    .replace(/\r\n/g, "\n")
-    .split("\n")
-    .map((r) => r.trim())
-    .filter(Boolean)
-    .map((r): RigaCondizioni => {
-      const h = /^(#{1,4})\s+(.+)$/.exec(r);
-      if (h) return { tipo: h[1].length === 1 ? "h1" : "h2", testo: h[2].trim() };
-      const li = /^[-*•]\s+(.+)$/.exec(r);
-      if (li) return { tipo: "li", testo: li[1].trim() };
-      return { tipo: "p", testo: r };
-    });
+  return separaFirmeContratto(leggiTestoRiccoContratto(testo)).righe.map(r =>
+    r.parti?.every(p=>Object.keys(p.stile).length===0) ? { ...r, parti: undefined } : r);
 }
 
 const eIlTitoloDelleClausole = (r: RigaCondizioni) =>

@@ -1,6 +1,7 @@
 import type { QuoteTemplate } from "@/types/quoteTemplate";
 import { substituteMergeTags, type MergeContext } from "../../supabase/functions/_shared/quoteTemplateComposer";
 import { coloreCopertina, colorePreventivo } from "../../supabase/functions/_shared/blocchiModelloPreventivo";
+import { campiContratto } from '../../supabase/functions/_shared/campiContratto';
 
 /** Il modello pronto per le anteprime, coi blocchi collegati già al loro posto. */
 export type AnteprimaModello = Partial<QuoteTemplate> & {
@@ -38,12 +39,14 @@ export function quoteTemplateSampleData(template: Partial<QuoteTemplate>, compan
   // Un piano d'esempio: senza, il tag dell'Art. 4 delle condizioni di base (la frase intera sui pagamenti) restava vuoto nell'anteprima.
   const pianoPagamenti = "Acconto alla firma 30%, saldo a fine lavori 70%";
   const context: MergeContext = {
+    contratto: Object.fromEntries(campiContratto(template.contractual_terms_text, template.legal_terms_text).map(f => [f.nome, `[${f.etichetta}]`])),
     cliente: { nome: "Mario", cognome: "Rossi", nome_completo: "Mario Rossi", email: "mario.rossi@email.it", indirizzo: "Via Garibaldi 10, Roma" },
     cantiere: { indirizzo: "Via Garibaldi 10, Roma", citta: "Roma" },
     azienda: { ragione_sociale: companyName, indirizzo: "Via Roma 1, Milano", email: "info@azienda.it" },
     preventivo: {
       numero: "OFF-2026-001", data: "09/03/2026", scadenza: "08/04/2026",
       piano_pagamenti: pianoPagamenti,
+      subtotale: '6.526,00 €', imponibile: '6.199,70 €', iva: '1.363,93 €', totale: '7.563,63 €',
       frase_pagamenti: `Il pagamento avviene secondo il piano concordato: ${pianoPagamenti}`,
     },
     data: { oggi: "09/03/2026", anno: "2026" },

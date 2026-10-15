@@ -103,6 +103,12 @@ describe("normalizeUnita", () => {
 });
 
 describe("legacyUnitaFrom", () => {
+  it("conserva il mese nell'unità canonica senza convertirlo in giorni", () => {
+    expect(normalizeUnita("Mese", "nolo")).toEqual({ unita: "mese", matched: true });
+    expect(normalizeUnita("mesi", "nolo")).toEqual({ unita: "mese", matched: true });
+    expect(normalizeUnita("mensile", "nolo")).toEqual({ unita: "mese", matched: true });
+    expect(legacyUnitaFrom("mese")).toBe("fisso");
+  });
   it("mappa sui valori legacy del CHECK DB", () => {
     expect(legacyUnitaFrom("a_corpo")).toBe("fisso");
     expect(legacyUnitaFrom("gg")).toBe("h");

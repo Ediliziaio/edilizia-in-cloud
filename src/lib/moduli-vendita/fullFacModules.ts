@@ -1,3 +1,4 @@
+import { ereditaCondizioniModello } from "./condizioniModello";
 import type { RstTemplatePdf } from "@/types/ristrutturazione";
 import { CAPITOLI_EDILI } from "@/components/preventivi/pdf/ordineCapitoli";
 import { costruisciDatiEdile, type VoceComune } from "@/components/preventivi/pdf/adattatoreEdile";
@@ -16,7 +17,7 @@ export const FAC_MODULE_COVERS = Object.fromEntries(FULL_FAC_MODULES.map(id => [
 export const isFullFacModuleId = (id: string): id is FullFacModuleId => (FULL_FAC_MODULES as readonly string[]).includes(id);
 export const FAC_FIXTURE_NOTICE = "Dati, quantità e prezzi dimostrativi, non un'offerta. IVA di esempio, da verificare per il singolo intervento.";
 export const FAC_IMAGE_NOTICE = "Immagine illustrativa generata con AI: non documenta lavori aziendali e non sostituisce il progetto o la specifica tecnica dell'intervento.";
-export type FacBranding = Partial<Pick<RstTemplatePdf, "company_id" | "ragione_sociale" | "indirizzo_completo" | "telefono" | "email" | "partita_iva" | "logo_url" | "cover_logo_url" | "color_primary" | "color_secondary" | "color_accent" | "font_family" | "chi_siamo">>;
+export type FacBranding = Partial<Pick<RstTemplatePdf, "company_id" | "ragione_sociale" | "indirizzo_completo" | "telefono" | "email" | "partita_iva" | "logo_url" | "cover_logo_url" | "color_primary" | "color_secondary" | "color_accent" | "font_family" | "chi_siamo" | "condizioni_legali_testo" | "condizioni_legali_attivo" | "modulo_recesso_attivo">>;
 export type FullFacTemplate = RstTemplatePdf & {
   pdf_cover_eyebrow: string | null;
   pdf_cover_image_url: string | null;
@@ -121,7 +122,7 @@ export function createFullFacTemplate(base: FacBranding & { company_id: string }
     payment_terms_text: "Modalità, importi e scadenze da concordare prima della conferma dell'offerta.", validity_text: FAC_FIXTURE_NOTICE,
     footer_text: "Esempio dimostrativo - non un'offerta", show_footer_version: false, show_footer_legal: false,
     default_iva_pct: 22, default_detrazione_pct: 0, default_validita_giorni: null,
-    condizioni_legali_testo: null, condizioni_legali_attivo: false, modulo_recesso_attivo: false,
+    ...ereditaCondizioniModello(base),
     pdf_ordine_capitoli: CAPITOLI_EDILI.map(p => ({ chiave: p.chiave, visibile: !["recensioni", "lavori", "foto"].includes(p.chiave) })),
     pdf_pagine_libere: [], pdf_blocchi: blocks,
   };

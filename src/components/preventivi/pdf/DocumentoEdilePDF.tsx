@@ -40,6 +40,7 @@ import { BLOCCHI, type ChiaveBlocco } from "../../../../supabase/functions/_shar
 import { MODULO_RECESSO } from "../../../../supabase/functions/_shared/condizioniStandard";
 import type { PaginaConTestata } from "../../../../supabase/functions/_shared/testatePagine";
 import { giorniDellaDurata, perArticoli, senzaNumeroDavanti, spezzaAccento } from "./testoDocumento";
+import { TestoContrattoPdf } from './TestoContrattoPdf';
 import { altezzaTesto, righeDiTesto, testoDaHtml, type FamigliaPdf } from "./misuraTesto";
 import type {
   DocEdileBlocco, DocEdileCapitolo, DocEdileDati, DocEdileFase, DocEdileFoto, DocEdileFotoBlocco, DocEdileVoceElenco,
@@ -1877,13 +1878,8 @@ export function DocumentoEdilePDF({ dati }: { dati: DocEdileDati }) {
             {/* Un articolo per volta: il titolo non resta mai in fondo a una pagina
                 senza il suo testo, e l'elenco delle clausole da firmare non si spezza. */}
             {perArticoli(modello.condizioniLegali, { senzaClausoleDaFirmare: modello.clausoleDaApprovare.length > 0 }).map((gruppo, g) => (
-              <View key={g} wrap={gruppo.length > 14} minPresenceAhead={36}>
-                {gruppo.map((r, i) =>
-                  r.tipo === "h1" ? <Text key={i} style={{ fontFamily: tema.caratteri.forte, fontSize: 11, color: tema.inchiostroMarca, marginTop: g === 0 ? 0 : 14, marginBottom: 5 }}>{r.testo}</Text>
-                  : r.tipo === "h2" ? <Text key={i} style={{ fontFamily: tema.caratteri.forte, fontSize: 10, color: tema.inchiostro, marginTop: g === 0 ? 0 : 10, marginBottom: 3 }}>{r.testo}</Text>
-                  : r.tipo === "li" ? <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio, lineHeight: 1.5, marginLeft: 10, marginBottom: 2 }}>{`- ${r.testo}`}</Text>
-                  : <Text key={i} style={{ fontFamily: tema.caratteri.testo, fontSize: 9.5, color: tema.grigio, lineHeight: 1.5, marginBottom: 5 }}>{r.testo}</Text>,
-                )}
+              <View key={g} wrap minPresenceAhead={36}>
+                {gruppo.map((r, i) => <TestoContrattoPdf key={i} riga={r} prima={g===0&&i===0} font={tema.caratteri.testo} colore={r.tipo==='h1'||r.tipo==='h2'?tema.inchiostro:tema.grigio} />)}
               </View>
             ))}
           </View>

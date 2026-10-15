@@ -1,4 +1,6 @@
 import { TemplateSectionNavigation } from "@/components/preventivi/TemplateSectionNavigation";
+import { EditorContratto } from '@/components/preventivi/EditorContratto';
+import { CopiaCondizioni } from '@/components/preventivi/CopiaCondizioni';
 import { orderedSectionExcluded } from "@/components/preventivi/templateNavigationState";
 import { TemplateCoverDesignControls, COVER_DESIGN_CHOICES } from "@/components/preventivi/TemplateCoverDesignControls";
 import { TemplateImageFieldView } from "@/components/preventivi/TemplateImageFieldView";
@@ -2563,7 +2565,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
               <span>Mostra condizioni commerciali e legali nel PDF</span>
             </label>
             <div className="col-span-12">
-              <Label className="text-xs">Condizioni commerciali / legali</Label>
+              <Label className="text-xs">Clausole contrattuali e firma</Label>
               <ImportaCondizioniBar
                 localOnly={!!localModule}
                 soloImport={!!localModule}
@@ -2572,13 +2574,10 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 testoAttuale={String(form.condizioni_legali_testo ?? "")}
                 onTesto={(md) => update("condizioni_legali_testo", md)}
               />
-              <Textarea
-                value={form.condizioni_legali_testo ?? ""}
-                onChange={(e) => update("condizioni_legali_testo", e.target.value)}
-                placeholder="Validita offerta, acconto, saldo, pratiche incluse, esclusioni, sopralluogo e gestione varianti."
-                rows={3}
-                disabled={!form.condizioni_legali_attivo}
-              />
+              {form.condizioni_legali_attivo !== false && <>
+                <CopiaCondizioni companyId={companyId} value={form.condizioni_legali_testo ?? ''} onChange={html=>update('condizioni_legali_testo',html)} />
+                <EditorContratto value={form.condizioni_legali_testo ?? ''} onChange={html=>update('condizioni_legali_testo',html)} />
+              </>}
             </div>
             {/* Il modulo di recesso è una scelta dell'azienda, spenta di serie (21/09/2026). */}
             <label className="col-span-12 flex items-start gap-2 text-sm cursor-pointer">

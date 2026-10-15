@@ -6,15 +6,14 @@ import { cn } from "@/lib/utils";
 /** Shared visual contract. Sector editors keep their own data and save handlers. */
 export const templateEditorLayout = {
   grid: "grid grid-cols-12 items-start gap-4",
-  // Da md a xl il toggle «Modifica/Anteprima» è sticky a 68px: la sidebar deve
-  // incollarsi SOTTO di esso (68 header + ~56 toggle), altrimenti i due si
-  // sovrappongono. Da xl in su il toggle sparisce e la sidebar torna a 68px.
-  navigation: "col-span-12 md:col-span-3 xl:col-span-2 min-w-0 md:sticky md:top-[124px] xl:top-[68px] md:self-start",
+  // Compact view controls stay in document flow. The sidebar and preview leave
+  // room for the app header/impersonation banner, without covering the editor.
+  navigation: "col-span-12 md:col-span-3 lg:col-span-2 min-w-0 md:sticky md:top-[112px] md:self-start",
   navigationPanel: "rounded-xl border bg-card p-2 max-h-[calc(100vh-90px)] overflow-y-auto",
-  content: "col-span-12 md:col-span-9 xl:col-span-6 min-w-0 space-y-4",
+  content: "col-span-12 md:col-span-9 lg:col-span-6 min-w-0 space-y-4",
   // Sticky belongs on the grid item, not a child constrained by a short parent.
-  preview: "col-span-12 xl:col-span-4 min-w-0 xl:sticky xl:top-[68px] xl:self-start",
-  previewPanel: "xl:h-[calc(100vh-96px)] h-[75vh] min-h-[360px]",
+  preview: "col-span-12 lg:col-span-4 min-w-0 lg:sticky lg:top-[112px] lg:self-start",
+  previewPanel: "lg:h-[calc(100vh-140px)] h-[75vh] min-h-[360px]",
   // La barra di salvataggio non è più fissa: sta in cima al pannello del modulo
   // e scorre con la pagina (scelta del titolare). Mantiene il layout flex e gli
   // stessi selettori sui figli (stato a tutta larghezza, bottoni a destra).
@@ -42,13 +41,13 @@ export function TemplateEditorWorkspace({ children, moduleId }: { children: Reac
       preview?.focus({ preventScroll: true });
     });
   }}>
-    <div role="group" aria-label="Vista del modello" className="sticky top-[68px] z-20 flex gap-2 rounded-xl border bg-card/95 p-1.5 backdrop-blur xl:hidden">
+    <div role="group" aria-label="Vista del modello" className="flex w-fit max-w-full gap-1 rounded-lg border bg-card p-1 lg:hidden">
       <Button type="button" variant={view === "edit" ? "default" : "ghost"} aria-pressed={view === "edit"} onClick={() => setView("edit")} className="flex-1 gap-2"><Pencil className="h-4 w-4" />Modifica</Button>
       <Button type="button" variant={view === "preview" ? "default" : "ghost"} aria-pressed={view === "preview"} onClick={() => setView("preview")} className="flex-1 gap-2"><Eye className="h-4 w-4" />Anteprima</Button>
     </div>
     <div className={cn(templateEditorLayout.grid, view === "edit"
-      ? "[&>[data-template-preview]]:hidden xl:[&>[data-template-preview]]:block"
-      : "[&>[data-template-navigation]]:hidden xl:[&>[data-template-navigation]]:block [&>[data-template-content]]:hidden xl:[&>[data-template-content]]:block")}>{children}</div>
+      ? "[&>[data-template-preview]]:hidden lg:[&>[data-template-preview]]:block"
+      : "[&>[data-template-navigation]]:hidden lg:[&>[data-template-navigation]]:block [&>[data-template-content]]:hidden lg:[&>[data-template-content]]:block")}>{children}</div>
   </div></LocalModuleContext.Provider>;
 }
 

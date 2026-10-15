@@ -1145,8 +1145,9 @@ if (field === "dynamicSubtitle") { set("pdf_cover_subhero_template", (value ?? "
 
           {/* Condizioni */}
           {activeSection === "page_condizioni" && (
-            <SectionCard icon={FileText} title="Condizioni e validità" description="Testi legali e di pagamento in coda al PDF.">
+            <SectionCard icon={FileText} title="Condizioni e firma" description="Imposta pagamenti e validità, poi le clausole e il blocco di accettazione.">
               <div className="space-y-3">
+                <h3 className="text-sm font-semibold">Pagamenti e validità</h3>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Modalità di pagamento</Label>
                   <RichTextEditorSafe
@@ -1162,14 +1163,6 @@ if (field === "dynamicSubtitle") { set("pdf_cover_subhero_template", (value ?? "
                     value={form.validity_text ?? ""}
                     onChange={(e) => set("validity_text", e.target.value)}
                     placeholder="Preventivo valido 30 giorni dalla data di emissione."
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Nota a piè di pagina</Label>
-                  <Input
-                    value={form.footer_text ?? ""}
-                    onChange={(e) => set("footer_text", e.target.value)}
-                    placeholder="Testo aggiuntivo nel footer (opzionale)"
                   />
                 </div>
 
@@ -1228,6 +1221,10 @@ if (field === "dynamicSubtitle") { set("pdf_cover_subhero_template", (value ?? "
           {activeSection === "opzioni" && (
             <>
               <SectionCard icon={BadgeEuro} title="Opzioni PDF" description="Impostazioni di visibilità del documento.">
+                <div className="mb-4 space-y-1.5">
+                  <Label className="text-xs">Nota a piè di pagina</Label>
+                  <Input value={form.footer_text ?? ""} onChange={e=>set("footer_text",e.target.value)} placeholder="Testo aggiuntivo nel footer (opzionale)" />
+                </div>
                 <label className="flex items-center justify-between gap-3 rounded-lg border p-3">
                   <div>
                     <p className="text-sm font-medium">Mostra i margini nel PDF</p>

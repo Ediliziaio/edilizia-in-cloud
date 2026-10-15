@@ -26,6 +26,7 @@ interface Props {
   minHeight?: number;
   className?: string;
   readOnly?: boolean;
+  documentMode?: boolean;
 }
 
 export function RichTextEditorSafe(props: Props) {

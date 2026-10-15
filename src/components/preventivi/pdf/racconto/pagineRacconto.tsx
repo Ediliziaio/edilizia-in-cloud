@@ -13,6 +13,7 @@ import type { DocEdileCapitolo, DocEdileFoto } from "@/components/preventivi/pdf
 import type { TemaDocumento } from "@/components/preventivi/pdf/temaDocumento";
 import { ParoleDeiClienti, SchedeGaranzie, VotiOnline } from "@/components/preventivi/pdf/provaSocialePdf";
 import { perArticoli } from "@/components/preventivi/pdf/testoDocumento";
+import { TestoContrattoPdf } from '../TestoContrattoPdf';
 import { MODULO_RECESSO } from "../../../../../supabase/functions/_shared/condizioniStandard";
 import { Foto, Intestazione, Kpi, Nota, Pagina, Spinta, TestoRicco, TitoletoSezione, type DatiRacconto } from "./baseRacconto";
 import { BASE, H, LARGHEZZA, MARGINE, W, conEuro, dataLunga, soldi, soldiCent, type Palette, type Tono } from "./temaRacconto";
@@ -268,13 +269,8 @@ export function Condizioni({ d, c }: { d: DatiRacconto; c: Palette }) {
     <Pagina d={d} c={c}>
       <Intestazione c={c} occhiello="Allegato" titolo="Condizioni " evidenza="contrattuali." />
       {perArticoli(m.condizioniLegali, { senzaClausoleDaFirmare: m.clausoleDaApprovare.length > 0 }).map((gruppo, g) => (
-        <View key={g} wrap={gruppo.length > 14} minPresenceAhead={36}>
-          {gruppo.map((r, i) =>
-            r.tipo === "h1" ? <Text key={i} style={{ fontFamily: "Helvetica-Bold", fontSize: 10.5, color: c.navy, marginTop: g === 0 ? 0 : 12, marginBottom: 5 }}>{r.testo}</Text>
-            : r.tipo === "h2" ? <Text key={i} style={{ fontFamily: "Helvetica-Bold", fontSize: 10, color: BASE.ink, marginTop: g === 0 ? 0 : 9, marginBottom: 3 }}>{r.testo}</Text>
-            : r.tipo === "li" ? <Text key={i} style={{ fontSize: 9, color: BASE.testo, lineHeight: 1.5, marginLeft: 10, marginBottom: 2 }}>{`- ${conEuro(r.testo)}`}</Text>
-            : <Text key={i} style={{ fontSize: 9, color: BASE.testo, lineHeight: 1.5, marginBottom: 5 }}>{conEuro(r.testo)}</Text>,
-          )}
+        <View key={g} wrap minPresenceAhead={36}>
+          {gruppo.map((r, i) => <TestoContrattoPdf key={i} riga={r} prima={g===0&&i===0} dimensione={9} colore={r.tipo==='h1'?c.navy:BASE.testo} />)}
         </View>
       ))}
     </Pagina>

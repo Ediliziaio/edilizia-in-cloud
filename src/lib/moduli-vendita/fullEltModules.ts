@@ -1,3 +1,4 @@
+import { ereditaCondizioniModello } from "./condizioniModello";
 import type { EleTemplatePdf, EleProgetto, EleComputoVoce, EleProgettoMedia } from "@/types/elettrico";
 import type { EleCoverFields } from "@/components/elettrico/coverPresets";
 import { CAPITOLI_EDILI } from "@/components/preventivi/pdf/ordineCapitoli";
@@ -53,7 +54,7 @@ export function createFullEltTemplate(base: EleTemplatePdf, id: FullEltModuleId)
     pdf_cover_title_size: 34, pdf_cover_subtitle_size: 13, pdf_cover_eyebrow_size: 10,
     pdf_cover_decoration_style: "none", pdf_cover_logo_position: "top_left", pdf_cover_logo_size: 100, pdf_cover_show_decoration: false, pdf_cover_show_client_card: true,
     color_primary: base.color_primary || "#263648", color_accent: base.color_accent || "#a87137",
-    condizioni_legali_attivo: false, condizioni_legali_testo: null, modulo_recesso_attivo: false,
+    ...ereditaCondizioniModello(base),
     default_iva_pct: 22, default_detrazione_pct: 0, default_validita_giorni: 30,
     show_chi_siamo: !!base.chi_siamo?.trim(), show_margine: false, show_garanzie: true, show_percorso: true, show_cronoprogramma: true,
     esigenze: items(c.specs.slice(0, 2)), soluzione: items(c.specs.slice(2)),

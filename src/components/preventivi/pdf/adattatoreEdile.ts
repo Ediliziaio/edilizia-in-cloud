@@ -9,6 +9,7 @@
  * deve sapere da quale modulo arrivano i dati.
  */
 import { applicaMergeTagModulo } from "@/lib/mergeTagsModuli";
+import { leggiTestoRiccoContratto, separaFirmeContratto } from '../../../../supabase/functions/_shared/testoRiccoContratto';
 import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderTemplateText";
 import { coloreDelDocumento as coloreDocumento } from "../../../../supabase/functions/_shared/temaColori";
 import { condizioniStandard, type SettoreCondizioni } from "@/lib/condizioniStandard";
@@ -144,7 +145,7 @@ export function leggiModello(
     || condizioniStandard(contesto.settore ?? "generico");
   const condizioniLegali = !condizioniAttive
     ? []
-    : applicaMergeTagModulo(testoCondizioni, {
+    : separaFirmeContratto(leggiTestoRiccoContratto(applicaMergeTagModulo(testoCondizioni, {
         companyName: azienda?.ragione_sociale ?? azienda?.name ?? null,
         companyVat: azienda?.partita_iva ?? null,
         clienteNome: p.cliente_nome,
@@ -160,18 +161,7 @@ export function leggiModello(
         companyEmail: stringa(t.email) || azienda?.email || null,
         companyPhone: stringa(t.telefono) || azienda?.telefono || null,
         companyAddress: stringa(t.indirizzo_completo) || azienda?.indirizzo || null,
-      })
-        .replace(/\r\n/g, "\n")
-        .split("\n")
-        .map((riga) => riga.trim())
-        .filter(Boolean)
-        .map((riga) => {
-          const h = /^(#{1,3})\s+(.+)$/.exec(riga);
-          if (h) return { tipo: h[1].length === 1 ? ("h1" as const) : ("h2" as const), testo: h[2] };
-          const li = /^[-*]\s+(.+)$/.exec(riga);
-          if (li) return { tipo: "li" as const, testo: li[1] };
-          return { tipo: "p" as const, testo: riga };
-        });
+      }))).righe;
 
   return {
     tipografia: tipografiaDaModello(t.font_family),

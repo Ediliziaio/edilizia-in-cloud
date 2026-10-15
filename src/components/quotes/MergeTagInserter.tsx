@@ -20,6 +20,7 @@ const GROUP_LABELS: Record<string, string> = {
   preventivo: "📋 Preventivo",
   azienda: "🏢 Azienda",
   data: "📅 Data",
+  contratto: 'Dati contrattuali personalizzati',
 };
 
 interface Props {
@@ -48,7 +49,9 @@ export function MergeTagInserter({ targetRef, onInsert, currentValue, trigger }:
     return acc;
   }, {});
 
-  const insertTag = (tag: string) => {
+  const insertTag = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const tag = event.currentTarget.dataset.tag;
+    if (!tag) return;
     const placeholder = `{{${tag}}}`;
     const ta = targetRef?.current;
     if (ta && typeof ta.selectionStart === "number") {
@@ -116,7 +119,8 @@ export function MergeTagInserter({ targetRef, onInsert, currentValue, trigger }:
                     <button
                       key={t.tag}
                       type="button"
-                      onClick={() => insertTag(t.tag)}
+                      data-tag={t.tag}
+                      onClick={insertTag}
                       className={cn(
                         "w-full flex items-start justify-between gap-2 px-2 py-1.5 rounded-md text-left",
                         "hover:bg-orange-50 transition-colors group",
