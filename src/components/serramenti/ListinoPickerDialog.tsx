@@ -23,6 +23,9 @@
  * La posa configurata sulla famiglia è inglobata nel totale ma NON esposta al
  * commerciale (UX policy).
  */
+import { VariantiTecnicheProdotto } from "@/components/listino/VariantiTecnicheProdotto";
+import { variantiBestInfissi } from "@/lib/listino/bestInfissiVarianti";
+import { variantiTecnicheVisibili, riepilogoVariantiTecniche, snapshotVariantiTecniche, riprendiVariantiTecniche } from "@/lib/listino/variantiTecnicheConfermate";
 import { MisureForma, chiedeMisureForma, type MisureFormaValori } from "@/components/serramenti/MisureForma";
 import { AnteprimaDisegnoFamiglia, MiniaturaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
 import { type DisegnoConfig, configDaFamiglia, disegnoDaConfig, haDisegno, misureTipiche } from "@/lib/serramenti/disegnoDaFamiglia";
@@ -102,6 +105,7 @@ export interface ListinoPickResult {
   supplier_catalog_id?: string | null;
   supplier_product_line_id?: string | null;
   note?: string | null;
+  note_tecniche?: string[];
   /** Snapshot scelte sugli ASSI (variabili prodotto) della family.
    *  Mappa { axis_codice -> axis_value_id }. Se l'azienda modifica le
    *  maggiorazioni dopo, il preventivo gia' inviato non cambia. */
@@ -225,6 +229,7 @@ export function ListinoPickerDialog({
   // Parte dalla linea della scheda scelta, poi dalle scelte dell'ultima
   // posizione del preventivo, poi dai valori di serie.
   const [axisSelection, setAxisSelection] = useState<AxisSelection>({});
+  const [specificheTecniche, setSpecificheTecniche] = useState<Record<string,string>>({});
   // La voce scelta dentro il valore (il colore di una fascia), per asse.
   const [vociScelte, setVociScelte] = useState<Record<string, string>>({});
   // Le misure in più della sagoma (arco, trapezio).
@@ -247,6 +252,7 @@ export function ListinoPickerDialog({
       setTipologiaChiave(null); setLineaChiave(null); setRiga(null);
       setLarghezza(""); setAltezza(""); setQuantita("1"); setFormaExtra({});
       setAxisSelection({});
+      setSpecificheTecniche({});
       setVociScelte({});
       setColori(null);
       setSelectedSupplierProductLineId(null);
@@ -291,6 +297,7 @@ export function ListinoPickerDialog({
   // Solo le varianti che si vedono con le scelte fatte (il monoblocco accende altezza cassonetto, tapparella…).
   const familyWithAxes = useMemo(() => conAssiVisibili(famigliaRiga, axisSelection), [famigliaRiga, axisSelection]);
   const selectedFamily = useMemo(() => (riga ? comeListinoFamily(riga.famiglia) : null), [riga]);
+  const specificheVisibili = famigliaRiga ? variantiTecnicheVisibili(variantiBestInfissi(famigliaRiga), famigliaRiga, axisSelection) : [];
 
   const { data: griglia = [], isLoading: loadingGriglia } = useListinoGriglia(selectedFamily?.id);
   const { lines: supplierLines = [], isLoading: loadingSupplierLines } = useSupplierProductLines({
@@ -479,6 +486,7 @@ export function ListinoPickerDialog({
   };
 
   const scegliRiga = (r: RigaListino, t: TipologiaListino, l: LineaListino) => {
+    setSpecificheTecniche({});
     setTipologiaChiave(t.chiave);
     setLineaChiave(l.chiave);
     setRiga(r);
@@ -536,6 +544,7 @@ export function ListinoPickerDialog({
         scegliTipologia(t);
       } else {
         scegliRiga(prodotto.r, t, prodotto.l);
+        setSpecificheTecniche(riprendiVariantiTecniche(partenza.voci?._specifiche_tecniche));
         if (partenza.valori) {
           const ordinate = normalizzaSelezione(prodotto.r.famiglia.axes ?? [], { ...partenza.valori }, { ...(partenza.voci ?? {}) });
           setAxisSelection(ordinate.valori);
@@ -569,10 +578,11 @@ export function ListinoPickerDialog({
       supplier_catalog_id: calcolo.supplierCatalogId,
       supplier_product_line_id: calcolo.supplierProductLineId,
       note: calcolo.note,
+      note_tecniche: riepilogoVariantiTecniche(specificheVisibili, specificheTecniche),
       // Snapshot scelte assi: salvato sulla riga BOM in modo che modifiche
       // future al listino NON cambino i preventivi gia' inviati.
       valori_assi: { ...selezione, ...(colori ? snapshotColori(colori, coloriTesti ?? undefined) : {}) },
-      scelte_assi: { ...vociEffettive },
+      scelte_assi: { ...vociEffettive, ...(riepilogoVariantiTecniche(specificheVisibili, specificheTecniche).length ? {_specifiche_tecniche: JSON.stringify(snapshotVariantiTecniche(specificheVisibili, specificheTecniche))} : {}) },
       // Il disegno si congela con la riga: un listino cambiato dopo non cambia il PDF di questo preventivo.
       disegno_config: configDaFamiglia(familyWithAxes, { ...selezione, ...(colori ? snapshotColori(colori, coloriTesti ?? undefined) : {}) }, { coloreInterno: coloriTesti?.interno, coloreEsterno: coloriTesti?.esterno, voci: vociEffettive, forma: formaExtra }),
       // I due colori si scrivono sempre dalle due tendine, anche se uguali: il PDF e il disegno leggono quelli.
@@ -964,6 +974,8 @@ export function ListinoPickerDialog({
                 </div>
               </Card>
             )}
+
+            {famigliaRiga && <VariantiTecnicheProdotto famiglia={famigliaRiga} selezione={axisSelection} specifiche={specificheTecniche} onChange={setSpecificheTecniche} />}
 
             {/* La scheda della linea scelta: cosa si sta proponendo al cliente. */}
             {schedaLinea && <SchedaLineaCompatta scheda={schedaLinea} />}

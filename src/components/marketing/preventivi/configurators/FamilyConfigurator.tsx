@@ -46,9 +46,14 @@ import { useColoriFamiglia } from "@/hooks/useColoriFamiglia";
 import { SceltaColoriDentroFuori } from "@/components/serramenti/SceltaColoriDentroFuori";
 import { configDaFamiglia, disegnoDaConfig } from "@/lib/serramenti/disegnoDaFamiglia";
 import { applicaPrezzoOpzioni } from "@/lib/listino/prezzoOpzioni";
+import { variantiTecnicheVisibili, riepilogoVariantiTecniche, type VarianteTecnicaConfermata } from "@/lib/listino/variantiTecnicheConfermate";
+import { variantiBestInfissi, modelloBestInfissi } from "@/lib/listino/bestInfissiVarianti";
+
+import { VariantiTecnicheProdotto } from "@/components/listino/VariantiTecnicheProdotto";
 
 interface FamilyConfiguratorProps {
   confirmLabel?: string;
+  variantiTecniche?: readonly VarianteTecnicaConfermata[];
   item: CatalogItemFamily;
   tariffe: TariffaPro[];
   currentSortOrder: number;
@@ -89,6 +94,7 @@ function uuid(): string {
 
 export function FamilyConfigurator({
   confirmLabel = "Aggiungi al preventivo",
+  variantiTecniche,
   item,
   tariffe,
   currentSortOrder,
@@ -96,6 +102,8 @@ export function FamilyConfigurator({
   onAddItems,
 }: FamilyConfiguratorProps) {
   const famigliaCompleta = item.family;
+  const modello = modelloBestInfissi(famigliaCompleta);
+  const [specificheTecniche, setSpecificheTecniche] = useState<Record<string, string>>({});
   const [larghezza, setLarghezza] = useState<string>("1200");
   const [altezza, setAltezza] = useState<string>("1400");
   const [quantita, setQuantita] = useState<string>("1");
@@ -124,6 +132,8 @@ export function FamilyConfigurator({
   });
   const selezioneEffettiva = colori.selezione;
   const family = conAssiVisibili(famigliaCompleta, selezioneEffettiva);
+  const specificheVisibili = variantiTecnicheVisibili(variantiTecniche ?? variantiBestInfissi(famigliaCompleta), famigliaCompleta, selezioneEffettiva);
+  const riepilogoSpecifiche = riepilogoVariantiTecniche(specificheVisibili, specificheTecniche);
 
   const pricing = useMemo(() => {
     return calcolaPrezzoFamiglia(
@@ -227,7 +237,7 @@ export function FamilyConfigurator({
       item_type: "product",
       item_category: "prodotto",
       name: family.nome,
-      description: [descrizioneCommerciale(family.descrizione), colori.testi?.interno && `Colore interno: ${colori.testi.interno}`, colori.testi?.esterno && `Colore esterno: ${colori.testi.esterno}`, ...(colori.stato?.avvisi ?? [])].filter(Boolean).join("\n"),
+      description: [descrizioneCommerciale(family.descrizione), modello && !family.descrizione?.includes(`Modello: ${modello}`) && `Modello: ${modello}`, colori.testi?.interno && `Colore interno: ${colori.testi.interno}`, colori.testi?.esterno && `Colore esterno: ${colori.testi.esterno}`, ...riepilogoSpecifiche, ...(colori.stato?.avvisi ?? [])].filter(Boolean).join("\n"),
       quantity: qty,
       unit_price: pricing.unit_price_vendita,
       discount_percent: 0,
@@ -377,6 +387,8 @@ export function FamilyConfigurator({
           })}
         </div>
       )}
+
+      <VariantiTecnicheProdotto famiglia={famigliaCompleta} selezione={selezioneEffettiva} varianti={variantiTecniche} specifiche={specificheTecniche} onChange={setSpecificheTecniche} />
 
       {disegno && <AnteprimaDisegnoFamiglia disegno={disegno} />}
 

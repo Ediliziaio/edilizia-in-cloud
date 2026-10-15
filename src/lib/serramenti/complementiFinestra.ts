@@ -384,6 +384,7 @@ export function complementoPerFinestra(opts: {
 
 /** Il prodotto scelto nel listino, come arriva da «Aggiungi dal listino». */
 interface SceltaDalListino {
+  note_tecniche?: string[];
   family_id: string;
   family_nome: string;
   larghezza_mm: number | null;
@@ -414,6 +415,7 @@ export function complementoDaScelta(
     : Number((posaEsclusa ? scelta.prezzo_unitario - (scelta.prezzo_posa ?? 0) : scelta.prezzo_unitario).toFixed(2));
   return {
     tipo: tipoComplemento(tipologia, scelta.family_nome),
+    ...(scelta.note_tecniche?.length ? {note: scelta.note_tecniche.join("\n")} : {}),
     descrizione: scelta.family_nome,
     quantita: scelta.quantita,
     larghezza_mm: scelta.larghezza_mm,
