@@ -1,3 +1,4 @@
+import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * useElettricoPDF — download/preview del PDF cliente del preventivo
  * Elettrico (Task 21).
@@ -324,7 +325,7 @@ export async function renderElePreviewBlobUrl(opts: ElePdfPayload): Promise<stri
   ]);
   const element = React.createElement(ElettricoPDF, enriched);
   const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
-  return URL.createObjectURL(blob);
+  return createPdfPreviewUrl(blob);
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────────

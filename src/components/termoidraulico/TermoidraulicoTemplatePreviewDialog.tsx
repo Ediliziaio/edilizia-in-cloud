@@ -1,3 +1,4 @@
+import { revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * TermoidraulicoTemplatePreviewDialog — anteprima LIVE del PDF cliente in un
  * dialog. Rigenera il PDF (debounced ~450ms) ad ogni modifica del template e lo
@@ -83,8 +84,8 @@ export function TermoidraulicoTemplatePreviewDialog({
             media: [],
             template,
           });
-          if (cancelled) { URL.revokeObjectURL(blobUrl); return; }
-          if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+          if (cancelled) { revokePdfPreviewUrl(blobUrl); return; }
+          if (urlRef.current) revokePdfPreviewUrl(urlRef.current);
           urlRef.current = blobUrl;
           setUrl(blobUrl);
         } catch (e) {
@@ -99,7 +100,7 @@ export function TermoidraulicoTemplatePreviewDialog({
 
   // Revoca l'ultimo blob al unmount.
   useEffect(() => () => {
-    if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
+    if (urlRef.current) { revokePdfPreviewUrl(urlRef.current); urlRef.current = null; }
   }, []);
 
   return (

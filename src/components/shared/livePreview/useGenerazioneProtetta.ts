@@ -81,11 +81,17 @@ export function useGenerazioneProtetta<T>(
       let ultimoErrore: unknown = null;
       for (let tentativo = 1; tentativo <= TENTATIVI; tentativo++) {
         let timer: ReturnType<typeof setTimeout> | undefined;
+        let expired = false;
         try {
           const esito = await Promise.race([
-            generaRef.current(),
+            generaRef.current().then(value => {
+              // A timed-out renderer can still finish. Release its Blob instead
+              // of leaking it or letting an obsolete generation replace the UI.
+              if (expired) onScartaRef.current?.(value);
+              return value;
+            }),
             new Promise<never>((_, reject) => {
-              timer = setTimeout(() => reject(new Error(MESSAGGIO_TIMEOUT)), timeoutMs);
+              timer = setTimeout(() => { expired = true; reject(new Error(MESSAGGIO_TIMEOUT)); }, timeoutMs);
             }),
           ]);
           if (timer) clearTimeout(timer);
@@ -141,5 +147,5 @@ export function useGenerazioneProtetta<T>(
     esegui();
   }, [esegui]);
 
-  return { risultato, caricamento, errore, rigenera, aggiornato:abilitato && generatedKey===depsKey && !caricamento };
+  return { risultato, caricamento, errore, rigenera, aggiornato:abilitato && generatedKey===depsKey && !caricamento && !errore };
 }

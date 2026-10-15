@@ -16,13 +16,13 @@ import { Loader2, RefreshCw, ExternalLink, Eye, AlertCircle, Download, ZoomIn, Z
 import { Button } from "@/components/ui/button";
 import { useGenerazioneProtetta } from "./livePreview/useGenerazioneProtetta";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { readPdfPreview, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { edileEditorDestinations, resolveEdileSectionPage, type SectionDestinationDocument } from "@/components/preventivi/pdf/sectionDestinations";
 
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 2.5;
 const ZOOM_STEP = 0.25;
 const A4_WIDTH_PT = 595;
-const BLOB_REVOKE_DELAY_MS = 1200;
 
 type PdfDocumentHandle = SectionDestinationDocument & {
   numPages: number;
@@ -115,10 +115,7 @@ export function PdfBlobLivePreviewPanel({
   // condiviso, così ogni pannello (compreso il Fotovoltaico, che è HTML) eredita
   // le stesse protezioni invece di riscriverle — o dimenticarle.
   const scartaBlob = useCallback((u: string) => {
-    // La generazione successiva può partire mentre pdf.js sta ancora facendo
-    // fetch/render del blob corrente. Revocarlo nello stesso tick produce un
-    // falso "Failed to fetch" quando si cambia modulo rapidamente.
-    window.setTimeout(() => URL.revokeObjectURL(u), BLOB_REVOKE_DELAY_MS);
+    revokePdfPreviewUrl(u);
   }, []);
   const { risultato: url, caricamento: loading, errore: error, rigenera: forceRegen, aggiornato } =
     useGenerazioneProtetta<string>(renderBlobUrl, depsKey, {
@@ -128,6 +125,7 @@ export function PdfBlobLivePreviewPanel({
     });
   const isMobile = useIsMobile();
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [paintedUrl, setPaintedUrl] = useState<string | null>(null);
   const [pageCount, setPageCount] = useState(0);
   const [renderNonce, setRenderNonce] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -136,6 +134,7 @@ export function PdfBlobLivePreviewPanel({
   const [sectionStatus, setSectionStatus] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pdfDocRef = useRef<PdfDocumentHandle | null>(null);
+  const documentUrlRef = useRef<string | null>(null);
   const renderTokenRef = useRef(0);
   const navigationTokenRef = useRef(0);
   const invalidateNavigation = useCallback(() => { ++navigationTokenRef.current; }, []);
@@ -170,6 +169,8 @@ export function PdfBlobLivePreviewPanel({
     const token = ++renderTokenRef.current;
     let cancelled = false;
     let ownedDocument: PdfDocumentHandle | null = null;
+    // Capture the Blob BEFORE lazy imports or a newer generation revokes its URL.
+    const source = readPdfPreview(url);
 
     (async () => {
       try {
@@ -179,14 +180,13 @@ export function PdfBlobLivePreviewPanel({
         await Promise.resolve();
         if (cancelled) return;
         setPdfError(null);
-        const [pdfjsLib, workerModule] = await Promise.all([
+        const [pdfjsLib, workerModule, data] = await Promise.all([
           import("pdfjs-dist"),
           import("pdfjs-dist/build/pdf.worker.min.mjs?url"),
+          source,
         ]);
+        if (cancelled) return;
         pdfjsLib.GlobalWorkerOptions.workerSrc = workerModule.default as string;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`PDF non disponibile (${response.status})`);
-        const data = await response.arrayBuffer();
         const doc = await pdfjsLib.getDocument({ data }).promise;
         ownedDocument = doc as PdfDocumentHandle;
 
@@ -195,6 +195,7 @@ export function PdfBlobLivePreviewPanel({
           return;
         }
         pdfDocRef.current = doc as PdfDocumentHandle;
+        documentUrlRef.current = url;
         // Capture before React removes any pages from a shorter next document.
         if (containerRef.current) pendingPositionRef.current = containerRef.current.clientWidth > 0
           ? capturePosition(containerRef.current) : lastVisiblePositionRef.current;
@@ -268,6 +269,7 @@ export function PdfBlobLivePreviewPanel({
         if (cancelled || pdfDocRef.current !== pdfDocument) return;
         context.drawImage(buffer, 0, 0);
       }
+      if (!cancelled && pdfDocRef.current === pdfDocument) setPaintedUrl(documentUrlRef.current);
     })().catch((err) => {
       if (!cancelled) {
         console.error("[live-preview] errore render pagine:", err);
@@ -316,6 +318,8 @@ export function PdfBlobLivePreviewPanel({
     disposePdfDocument(pdfDocRef.current);
   }, []);
 
+  const previewReady = aggiornato && paintedUrl === url && !error && !pdfError;
+  const previewFailed = !!error || !!pdfError;
   const handleDownload = () => {
     if (!url || !aggiornato) return;
     const anchor = document.createElement("a");
@@ -332,7 +336,7 @@ export function PdfBlobLivePreviewPanel({
           <span className={"text-[11px] font-semibold uppercase tracking-wide truncate " + accentClass}>
             Anteprima live PDF
           </span>
-          <span role="status" aria-live="polite" className="text-[10px] text-muted-foreground" data-preview-state={aggiornato?'ready':loading?'rendering':'pending'}>{aggiornato?'Aggiornata automaticamente':loading?'Aggiorno il PDF…':'Modifiche in attesa di anteprima'}</span>
+          <span role="status" aria-live="polite" className="text-[10px] text-muted-foreground" data-preview-state={previewFailed?'error':previewReady?'ready':loading || aggiornato?'rendering':'pending'}>{previewFailed?'Anteprima non disponibile':previewReady?'Aggiornata automaticamente':loading || aggiornato?'Aggiorno il PDF…':'Modifiche in attesa di anteprima'}</span>
           {loading && (
             <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" /> aggiorno…

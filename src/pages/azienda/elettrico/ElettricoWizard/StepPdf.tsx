@@ -1,3 +1,4 @@
+import { revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * StepPdf — step "PDF" del wizard Elettrico (Task 22).
  *
@@ -213,7 +214,7 @@ export default function StepPdf({ progetto, computo, media, onIndietro, onVaiAlP
           generaPdfBlob={async () => {
             const url = await renderElePreviewBlobUrl(payload);
             const blob = await (await fetch(url)).blob();
-            URL.revokeObjectURL(url);
+            revokePdfPreviewUrl(url);
             return blob;
           }}
         />

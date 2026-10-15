@@ -1,3 +1,4 @@
+import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * usePavimentiPDF — download/preview del PDF cliente del preventivo
  * Pavimenti (Task 21).
@@ -311,7 +312,7 @@ export async function renderPavPreviewBlobUrl(opts: PavPdfPayload): Promise<stri
   ]);
   const element = React.createElement(PavimentiPDF, enriched);
   const blob = await pdf(element as ReactElement<DocumentProps>).toBlob();
-  return URL.createObjectURL(blob);
+  return createPdfPreviewUrl(blob);
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────────

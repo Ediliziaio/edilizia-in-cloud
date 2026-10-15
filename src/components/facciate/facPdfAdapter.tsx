@@ -1,3 +1,4 @@
+import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import React from "react";
 import { DocumentoEdilePDF } from "@/components/preventivi/pdf/DocumentoEdilePDF";
 import type { DocEdileDati } from "@/components/preventivi/pdf/documentoEdileTipi";
@@ -67,5 +68,5 @@ export async function renderFacPreviewBlobUrl(companyId: string, template: FullF
   const dati = await inlineFacPdfImages(buildFacModulePreview(companyId, template, id));
   const { pdf } = await import("@react-pdf/renderer");
   const blob = await pdf(<FacciatePDF dati={dati} />).toBlob();
-  return URL.createObjectURL(blob);
+  return createPdfPreviewUrl(blob);
 }

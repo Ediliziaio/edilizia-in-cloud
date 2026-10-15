@@ -1,3 +1,4 @@
+import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * useRistrutturazionePDF — download/preview del PDF cliente del preventivo
  * Ristrutturazione (Task 21).
@@ -296,7 +297,7 @@ export async function renderRstPreviewBlobUrl(opts: RstPdfPayload): Promise<stri
   ]);
   const element = React.createElement(RistrutturazionePDF, enriched);
   const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
-  return URL.createObjectURL(blob);
+  return createPdfPreviewUrl(blob);
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────────

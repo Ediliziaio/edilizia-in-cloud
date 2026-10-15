@@ -1,3 +1,4 @@
+import { revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { buildPscModulePreview, type FullPscModuleId } from "@/lib/moduli-vendita/fullPscModules";
 /**
  * PiscineTemplatePreviewDialog — anteprima LIVE del PDF cliente in un
@@ -82,8 +83,8 @@ export function PiscineTemplatePreviewDialog({
             media: [],
             template,
           });
-          if (cancelled) { URL.revokeObjectURL(blobUrl); return; }
-          if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+          if (cancelled) { revokePdfPreviewUrl(blobUrl); return; }
+          if (urlRef.current) revokePdfPreviewUrl(urlRef.current);
           urlRef.current = blobUrl;
           setUrl(blobUrl);
         } catch (e) {
@@ -98,7 +99,7 @@ export function PiscineTemplatePreviewDialog({
 
   // Revoca l'ultimo blob al unmount.
   useEffect(() => () => {
-    if (urlRef.current) { URL.revokeObjectURL(urlRef.current); urlRef.current = null; }
+    if (urlRef.current) { revokePdfPreviewUrl(urlRef.current); urlRef.current = null; }
   }, []);
 
   return (

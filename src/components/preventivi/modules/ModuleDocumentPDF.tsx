@@ -1,3 +1,4 @@
+import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import React from "react";
 import {
   Document,
@@ -209,7 +210,7 @@ export async function renderModuleDocument(d: ModuleDocument): Promise<string> {
     const { toDataUrl } = await import("@/lib/serramenti/pdfImageUtils");
     image = await toDataUrl(image);
   }
-  return URL.createObjectURL(
+  return createPdfPreviewUrl(
     await pdf(<ModuleDocumentPDF document={{ ...d, image }} />).toBlob(),
   );
 }

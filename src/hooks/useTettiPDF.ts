@@ -1,3 +1,4 @@
+import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * useTettiPDF — download/preview del PDF cliente del preventivo
  * Tetti (Task 21).
@@ -296,7 +297,7 @@ export async function renderTetPreviewBlobUrl(opts: TetPdfPayload): Promise<stri
   ]);
   const element = React.createElement(TettiPDF, enriched);
   const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
-  return URL.createObjectURL(blob);
+  return createPdfPreviewUrl(blob);
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────────

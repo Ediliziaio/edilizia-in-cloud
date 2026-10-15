@@ -1,3 +1,4 @@
+import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * useTermoidraulicoPDF — download/preview del PDF cliente del preventivo
  * Termoidraulico (Task 21).
@@ -328,7 +329,7 @@ export async function renderIdrPreviewBlobUrl(opts: IdrPdfPayload): Promise<stri
   const { pdf } = await import("@react-pdf/renderer");
   const element = await elementoPdf(enriched);
   const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
-  return URL.createObjectURL(blob);
+  return createPdfPreviewUrl(blob);
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { PdfBlobLivePreviewPanel } from '@/components/shared/PdfBlobLivePreviewPanel';
 import { supabase } from '@/integrations/supabase/client';
 import type { QuoteTemplate, QuoteTemplateKind } from '@/types/quoteTemplate';
@@ -17,7 +18,7 @@ export function QuotePdfLivePreview({template,kind,companyId,companyName}: {
     if(error)throw new Error('Impossibile aggiornare il PDF. Le modifiche restano nell’editor: riprova.');
     if(!data?.pdf_base64)throw new Error('Il generatore non ha restituito il documento.');
     const binary=atob(data.pdf_base64);const bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
-    return URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+    return createPdfPreviewUrl(new Blob([bytes],{type:'application/pdf'}));
   };
   return <div className="h-[70vh] min-h-[420px] w-full" aria-label="PDF classico aggiornato automaticamente">
     <PdfBlobLivePreviewPanel renderBlobUrl={render} depsKey={JSON.stringify([draft,companyName])} enabled={!!companyId} debounceMs={900} downloadFileName="anteprima-preventivo.pdf" />

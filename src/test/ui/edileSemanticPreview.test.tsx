@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
+import { Blob as NodeBlob } from "node:buffer";
+import { createPdfPreviewUrl, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 
 const state = vi.hoisted(() => ({ url: "blob:first", doc: null as any, getDocument: vi.fn(), generate: vi.fn() }));
 vi.mock("@/components/shared/livePreview/useGenerazioneProtetta", () => ({ useGenerazioneProtetta: (...args: unknown[]) => {
   state.generate(...args);
-  return { risultato: state.url, caricamento: false, errore: null as null, rigenera: vi.fn() };
+  return { risultato: state.url, caricamento: false, errore: null as null, rigenera: vi.fn(), aggiornato: true };
 } }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("pdfjs-dist", () => ({ GlobalWorkerOptions: {}, getDocument: (...args: unknown[]) => {
@@ -46,6 +48,29 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("shared semantic PDF preview, including Facciate direct consumer", () => {
+  it("renders a registered PDF with production CSP blocking fetch(blob:) and reports ready only after paint", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:production");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    state.url = createPdfPreviewUrl(new NodeBlob(["%PDF-source"]) as unknown as Blob);
+    const view = render(<PdfBlobLivePreviewPanel {...props} />);
+    // Generation readiness alone is not rendering readiness.
+    expect(document.querySelector('[data-preview-state="ready"]')).toBeNull();
+    await screen.findByLabelText("Pagina 9 di 9");
+    await waitFor(() => expect(document.querySelector('[data-preview-state="ready"]')).not.toBeNull());
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.queryByText("Failed to fetch")).not.toBeInTheDocument();
+    view.unmount();
+    revokePdfPreviewUrl(state.url);
+  });
+  it("does not claim an updated preview when the PDF cannot be read", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    render(<PdfBlobLivePreviewPanel {...props} />);
+    await screen.findByText("Failed to fetch");
+    expect(document.querySelector('[data-preview-state="ready"]')).toBeNull();
+    expect(document.querySelector('[data-preview-state="error"]')).not.toBeNull();
+  });
   it("uses native destinations without regenerating, text lookup or window scroll", async () => {
     const { rerender } = render(<PdfBlobLivePreviewPanel {...props} activeSection="page_controlli" />);
     await screen.findByText("Sezione selezionata · pagina 5 di 9");

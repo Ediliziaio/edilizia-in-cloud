@@ -26,6 +26,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
+import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { AcceptanceTaskActions } from "./AcceptanceTaskActions";
 import {
   emptyAcceptance,
@@ -87,7 +88,7 @@ export function OrderAcceptanceReports({
       throw new Error(
         "Anteprima scaduta o non disponibile. Premi Apri PDF per rinnovarla.",
       );
-    return URL.createObjectURL(await response.blob());
+    return createPdfPreviewUrl(await response.blob());
   }, [preview]);
   useEffect(() => {
     setOpen(false);

@@ -1,3 +1,4 @@
+import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * useClimatizzazionePDF — download/preview del PDF cliente del preventivo
  * Climatizzazione (Task 21).
@@ -299,7 +300,7 @@ export async function renderClmPreviewBlobUrl(opts: ClmPdfPayload): Promise<stri
   ]);
   const element = React.createElement(ClimatizzazionePDF, enriched);
   const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
-  return URL.createObjectURL(blob);
+  return createPdfPreviewUrl(blob);
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────────

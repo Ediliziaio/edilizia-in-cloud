@@ -1,3 +1,4 @@
+import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 /**
  * useBagniPDF — download/preview del PDF cliente del preventivo
  * Bagni (Task 21).
@@ -296,7 +297,7 @@ export async function renderBgnPreviewBlobUrl(opts: BgnPdfPayload): Promise<stri
   ]);
   const element = React.createElement(BagniPDF, enriched);
   const blob = await pdf(element as unknown as ReactElement<DocumentProps>).toBlob();
-  return URL.createObjectURL(blob);
+  return createPdfPreviewUrl(blob);
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────────
