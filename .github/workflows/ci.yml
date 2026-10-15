@@ -67,6 +67,13 @@ jobs:
       - name: Run critical tests
         run: bun run test:critical
 
+      - name: Run confirmed catalogue variants regression tests
+        run: >-
+          bunx vitest run --maxWorkers=1
+          src/test/logic/variantiTecnicheConfermate.test.ts
+          src/test/logic/verificaVarianti.test.ts
+          src/test/logic/manodoperaEsplicita.test.ts
+
       - name: Run auth session regression tests
         run: >-
           bunx vitest run

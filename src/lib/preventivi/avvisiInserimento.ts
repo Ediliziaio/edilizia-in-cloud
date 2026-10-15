@@ -2,11 +2,14 @@ import type { CatalogItem } from "@/types/catalogItem";
 import type { QuoteItemPro } from "@/types/quoteItem";
 
 export function haManodoperaConfigurata(item: CatalogItem): boolean {
-  return item.source === "article"
-    ? item.ha_montaggio_automatico || !!item.article?.montaggio_tariffa_id
-    : item.ha_posa_automatica ||
-        ["manuale", "tariffa"].includes(item.family?.manodopera_modalita) ||
-        !!item.family?.posa_tariffa_default_id;
+  if (item.source === "article") {
+    return item.ha_montaggio_automatico || !!item.article?.montaggio_tariffa_id;
+  }
+  // Una scelta esplicita prevale sui vecchi riferimenti alla tariffa rimasti salvati.
+  if (item.family?.manodopera_modalita === "nessuna") return false;
+  return item.ha_posa_automatica ||
+    ["manuale", "tariffa"].includes(item.family?.manodopera_modalita) ||
+    !!item.family?.posa_tariffa_default_id;
 }
 
 const collegata = (item: QuoteItemPro) =>
