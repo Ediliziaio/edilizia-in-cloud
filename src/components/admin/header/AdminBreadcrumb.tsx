@@ -79,7 +79,7 @@ export function AdminBreadcrumb() {
   const isMobile = useIsMobile();
 
   const segments = useMemo(() => {
-    const path = location.pathname;
+    const path = location.pathname.replace(/\/+$/, "") || "/";
     const result: BreadcrumbSegment[] = [];
 
     // Always start with Dashboard
