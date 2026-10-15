@@ -174,6 +174,7 @@ export function ListinoAIImport({ onComplete }: ListinoAIImportProps) {
     setProgress(10);
     try {
       const payload = {
+        company_id: companyId,
         object_type: objectType,
         rows: validRows.map((r) => ({
           ...(objectType === "tariffa"

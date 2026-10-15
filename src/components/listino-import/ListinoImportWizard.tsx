@@ -7,8 +7,7 @@
  *  3. Controllo delle righe
  *  4. Conferma → chiamata Edge Function catalog-import-batch
  *
- * Il tipo che parte preselezionato è «Catalogo articoli» (decisione D1 di Florin ancora aperta): in ogni passo si
- * dice dove vanno i dati davvero (vedi `destinazioniImport.ts`).
+ * Parte dai prodotti del Listino visibile; il catalogo legacy resta una scelta esplicita.
  */
 import { useMemo, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -40,6 +39,9 @@ import {
   nomiColonneNonLette,
 } from "@/lib/catalogo/destinazioniImport";
 import { testoErrore } from "@/lib/impostazioni/testoErrore";
+import { prezziPerImport } from '@/lib/catalogo/prezziImport';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   parseListinoFile,
   summarizeParsedRows,
@@ -57,7 +59,9 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
   const companyId = effectiveCompany?.id;
 
   const [step, setStep] = useState<Step>(1);
-  const [objectType, setObjectType] = useState<CatalogObjectType>("product");
+  const [objectType, setObjectType] = useState<CatalogObjectType>("family");
+  const [importaVendita, setImportaVendita] = useState(false);
+  const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -129,9 +133,10 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
     setProgress(5);
     try {
       const payload = {
+        company_id: companyId,
         object_type: objectType,
         rows: validRows.map((r) => ({
-          ...r.normalized,
+          ...prezziPerImport(r.normalized, importaVendita),
           custom_field_values: r.customFieldValues,
         })),
       };
@@ -174,6 +179,7 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
       } else {
         toast.success(okLabel);
       }
+      await queryClient.invalidateQueries({ predicate: q => /famil|articl|listino|tariff/i.test(String(q.queryKey[0])) });
       onComplete?.(inserted + updated);
       // Reset
       setStep(1);
@@ -185,7 +191,7 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
       setSubmitting(false);
       setTimeout(() => setProgress(0), 1500);
     }
-  }, [rows, objectType, companyId, onComplete]);
+  }, [rows, objectType, companyId, onComplete, importaVendita, queryClient]);
 
   /* ────────────────── Navigation guards ────────────────── */
   const canNext =
@@ -253,6 +259,10 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
               </p>
             </div>
 
+            <label className="flex items-start gap-2 rounded-md border p-3 text-sm">
+              <Checkbox checked={importaVendita} onCheckedChange={v => setImportaVendita(v === true)} />
+              <span>Importa anche i prezzi di vendita dal file<span className="block text-xs text-muted-foreground">Disattivato: carico solo i costi d'acquisto. I prezzi di vendita già presenti restano invariati.</span></span>
+            </label>
             <div className="flex flex-wrap gap-2">
               <Button onClick={handleDownloadXlsx}>
                 <Download className="h-4 w-4 mr-2" />
@@ -392,6 +402,7 @@ export function ListinoImportWizard({ onComplete }: ListinoImportWizardProps) {
         {/* ════════ STEP 4 ════════ */}
         {step === 4 && (
           <div className="space-y-4">
+            <p className="rounded-md border p-3 text-sm font-medium">{importaVendita ? "Costi e prezzi di vendita: uso le rispettive colonne del file." : "Solo costi d'acquisto: non creo né modifico prezzi di vendita."}</p>
             <Alert>
               <CheckCircle2 className="h-4 w-4" />
               <AlertTitle>Conferma</AlertTitle>

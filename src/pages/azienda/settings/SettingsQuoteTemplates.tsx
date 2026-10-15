@@ -91,7 +91,7 @@ function KindPreview({ form, kind }: { form: Partial<QuoteTemplate>; kind: Quote
       <div className={A4}>
         {form.cover_image_url ? (
           <div className="flex-1 bg-slate-100 overflow-hidden">
-            <img loading="lazy" src={getLogoPublicUrl(form.cover_image_url)} alt="cover" className="w-full h-full object-cover" />
+            {form.cover_image_url.endsWith('.pdf') ? <p className="p-6 text-center text-sm">Copertina PDF personalizzata. Apri l'anteprima PDF per vedere la grafica originale.</p> : <img loading="lazy" src={getLogoPublicUrl(form.cover_image_url)} alt="cover" className="w-full h-full object-cover" />}
           </div>
         ) : (
           <div className={`flex-1 ${meta.bgColor} flex items-center justify-center`}>
@@ -341,7 +341,7 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, logoLightSrc, effectiveCompa
     if (kind === 'copertina' && tmpl.cover_image_url) {
       return (
         <div className="aspect-[4/5] w-full max-w-[160px] rounded border border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center">
-          <img loading="lazy" src={getLogoPublicUrl(tmpl.cover_image_url)} alt="cover" className="w-full h-full object-cover" />
+          {tmpl.cover_image_url.endsWith('.pdf') ? <FileText className="h-10 w-10 text-slate-500" aria-label="Copertina PDF" /> : <img loading="lazy" src={getLogoPublicUrl(tmpl.cover_image_url)} alt="cover" className="w-full h-full object-cover" />}
         </div>
       );
     }
@@ -731,7 +731,7 @@ export default function SettingsQuoteTemplates() {
       description: blueprint.description,
       // Le condizioni standard restano inline: l'offerta è autonoma e non
       // dipende da una scheda separata per poter essere usata nel preventivatore.
-      contractual_terms_text: CONDIZIONI_STANDARD_MD,
+      contractual_terms_text: blueprint.key === 'vuoto' ? '' : CONDIZIONI_STANDARD_MD,
       body_format: 'markdown',
     });
     setIsDirty(true);
@@ -861,14 +861,19 @@ export default function SettingsQuoteTemplates() {
     const file = e.target.files?.[0];
     if (!file || !effectiveCompany?.id) return;
     if (file.size > 5 * 1024 * 1024) { toast.error("Max 5MB"); return; }
-    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
-      toast.error("Carica un'immagine PNG o JPG");
+    if (!ALLOWED_LOGO_TYPES.has(file.type) && file.type !== 'application/pdf') {
+      toast.error("Carica una copertina PDF, PNG o JPG");
       e.target.value = "";
       return;
     }
     setCoverUploading(true);
     try {
-      const ext = file.type === "image/png" ? "png" : "jpg";
+      if (file.type === 'application/pdf') {
+        const { PDFDocument } = await import('pdf-lib');
+        const documento = await PDFDocument.load(await file.arrayBuffer());
+        if (documento.getPageCount() !== 1) throw new Error('La copertina deve essere un PDF di una sola pagina. Esporta solo la pagina di copertina dal tuo modello.');
+      }
+      const ext = file.type === 'application/pdf' ? 'pdf' : file.type === "image/png" ? "png" : "jpg";
       const path = `${effectiveCompany.id}/template-cover-${Date.now()}.${ext}`;
       const { error } = await supabase.storage.from("quote-template-assets").upload(path, file, { upsert: true });
       if (error) throw error;
@@ -1393,7 +1398,7 @@ export default function SettingsQuoteTemplates() {
                     <div className="mt-1 flex items-start gap-3">
                       <div className="h-24 w-24 shrink-0 rounded-lg border-2 border-dashed border-pink-300 bg-white overflow-hidden flex items-center justify-center">
                         {form.cover_image_url ? (
-                          <img loading="lazy" src={getLogoPublicUrl(form.cover_image_url)} alt="" className="h-full w-full object-cover" />
+                          form.cover_image_url.endsWith('.pdf') ? <FileText className="h-8 w-8 text-pink-600" aria-label="Copertina PDF" /> : <img loading="lazy" src={getLogoPublicUrl(form.cover_image_url)} alt="" className="h-full w-full object-cover" />
                         ) : (
                           <ImageIcon className="h-6 w-6 text-pink-300" />
                         )}
@@ -1401,17 +1406,17 @@ export default function SettingsQuoteTemplates() {
                       <div className="flex-1 space-y-2">
                         <Button type="button" variant="outline" size="sm" onClick={() => coverFileInputRef.current?.click()} disabled={coverUploading} className="w-full gap-2">
                           {coverUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                          {form.cover_image_url ? "Sostituisci immagine" : "Carica immagine"}
+                          {form.cover_image_url ? "Sostituisci copertina" : "Carica PDF o immagine"}
                         </Button>
                         {form.cover_image_url && (
                           <Button type="button" variant="ghost" size="sm" onClick={() => updateForm({ cover_image_url: null })} className="w-full text-red-600 hover:text-red-700">
                             <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
                           </Button>
                         )}
-                        <p className="text-[10px] text-muted-foreground">PNG/JPG · max 5 MB · ottimale 1200×800</p>
+                        <p className="text-[10px] text-muted-foreground">PDF di 1 pagina, PNG/JPG · max 5 MB. Il PDF mantiene tutta la grafica originale, senza sovrapporre titoli.</p>
                       </div>
                     </div>
-                    <input ref={coverFileInputRef} type="file" accept="image/png,image/jpeg" onChange={handleCoverUpload} className="hidden" />
+                    <input ref={coverFileInputRef} type="file" accept="application/pdf,image/png,image/jpeg" onChange={handleCoverUpload} className="hidden" />
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -2034,7 +2039,7 @@ export default function SettingsQuoteTemplates() {
                       <div className="mt-1 flex items-start gap-3">
                         <div className="h-24 w-24 shrink-0 rounded-lg border-2 border-dashed border-orange-300 bg-white overflow-hidden flex items-center justify-center">
                           {form.cover_image_url ? (
-                            <img loading="lazy" src={getLogoPublicUrl(form.cover_image_url)} alt="Cover" className="h-full w-full object-cover" />
+                            form.cover_image_url.endsWith('.pdf') ? <FileText className="h-8 w-8 text-orange-600" aria-label="Copertina PDF" /> : <img loading="lazy" src={getLogoPublicUrl(form.cover_image_url)} alt="Cover" className="h-full w-full object-cover" />
                           ) : (
                             <ImageIcon className="h-6 w-6 text-orange-300" />
                           )}
@@ -2049,7 +2054,7 @@ export default function SettingsQuoteTemplates() {
                             className="w-full gap-2"
                           >
                             {coverUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                            {form.cover_image_url ? "Sostituisci immagine" : "Carica immagine"}
+                            {form.cover_image_url ? "Sostituisci copertina" : "Carica PDF o immagine"}
                           </Button>
                           {form.cover_image_url && (
                             <Button
@@ -2062,13 +2067,13 @@ export default function SettingsQuoteTemplates() {
                               <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
                             </Button>
                           )}
-                          <p className="text-[10px] text-muted-foreground">PNG/JPG · max 5 MB · ottimale 1200×800</p>
+                          <p className="text-[10px] text-muted-foreground">PDF di 1 pagina, PNG/JPG · max 5 MB. Il PDF mantiene tutta la grafica originale, senza sovrapporre titoli.</p>
                         </div>
                       </div>
                       <input
                         ref={coverFileInputRef}
                         type="file"
-                        accept="image/png,image/jpeg"
+                        accept="application/pdf,image/png,image/jpeg"
                         onChange={handleCoverUpload}
                         className="hidden"
                       />
@@ -2450,6 +2455,9 @@ export default function SettingsQuoteTemplates() {
           </DialogHeader>
           {!showAdvancedCreateTypes ? (
             <>
+              <Button type="button" variant="outline" className="justify-start gap-2" onClick={() => openCompleteOffer({ key: 'vuoto', name: 'Nuovo modello personalizzato', description: 'Creato da zero', patch: { cover_title: '', cover_subtitle: '', cover_tagline: '', footer_text: '', payment_terms_text: '', delivery_terms_text: '', show_contractual_terms: false, show_legal_terms: false, show_cover_image: false } })}>
+                <FileText className="h-4 w-4" /> Crea da zero — testi e copertina tuoi
+              </Button>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 mt-2">
                 {COMPLETE_OFFER_BLUEPRINTS.map((blueprint) => {
                   const blueprintLayout = blueprint.patch.layout ?? "classic";

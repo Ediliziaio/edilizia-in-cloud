@@ -63,12 +63,12 @@ describe("Importa listino: dove vanno i dati", () => {
     expect(frasi).toContain("senza linea");
   });
 
-  it("il modello di «Prodotti del Listino» non ha le colonne che il server saprebbe leggere (prezzo, costo, IVA, unità): il testo dice che i prodotti nascono a 0 €", () => {
+  it("il modello del Listino porta costo, vendita, IVA e unità in colonne distinte", () => {
     const nelModello = new Set(FIXED_COLUMNS.family.map((c) => c.key));
     const mancanti = ["base_price", "list_price", "cost", "vat_rate", "unit"];
     for (const chiave of mancanti) {
       expect(chiaviLette("family").has(chiave), `il server non legge più ${chiave}`).toBe(true);
-      expect(nelModello.has(chiave), `il modello ora ha la colonna ${chiave}: aggiorna il testo di «Prodotti del Listino»`).toBe(false);
+      expect(nelModello.has(chiave), chiave).toBe(true);
     }
     expect(importatori.family).toContain("prezzo_base_vendita ?? 0");
     expect(importatori.family).toContain("vat_rate ?? 22");
@@ -86,7 +86,7 @@ describe("Importa listino: le colonne del modello che nessuno legge", () => {
   }
 
   it("nel testo compaiono con il nome che il titolare vede nel modello", () => {
-    expect(nomiColonneNonLette("family")).toEqual(["Codice", "Famiglia Padre", "Margine Default %", "Ricarico Default %"]);
+    expect(nomiColonneNonLette("family")).toEqual(["Famiglia Padre", "Margine Default %", "Ricarico Default %"]);
     expect(nomiColonneNonLette("tariffa")).toEqual(["Codice", "Margine %", "Ore/Giorno", "Valida Dal (AAAA-MM-GG)", "Valida Al (AAAA-MM-GG)"]);
     expect(nomiColonneNonLette("product")).toEqual([]);
   });

@@ -21,9 +21,19 @@ describe("listinoParser — colonne obbligatorie nell'header", () => {
     expect(() => parseCsv(csv, { objectType: "product" })).toThrow(/Codice/);
   });
 
-  it("lancia se manca 'Nome Famiglia' per objectType=family", () => {
+  it("accetta il vecchio modello articoli nel Listino senza perdere il nome", () => {
     const csv = "Codice,Descrizione\nFAM1,Serramenti PVC";
-    expect(() => parseCsv(csv, { objectType: "family" })).toThrow(/Nome Famiglia/);
+    const [riga] = parseCsv(csv, { objectType: "family" });
+    expect(riga.normalized.name).toBe('Serramenti PVC');
+    expect(riga.errors).toEqual([]);
+  });
+  it('non accetta un vecchio articolo senza descrizione', () => {
+    expect(parseCsv('Codice,Descrizione\nA1,', { objectType:'family' })[0].errors).not.toEqual([]);
+  });
+  it('legge acquisto e vendita separati anche nel vecchio modello', () => {
+    const [r] = parseCsv('Codice;Descrizione;Costo;Prezzo Base;Prezzo Listino;UM;IVA %\nA1;Collante;39,935;60;65;pz;22', {objectType:'family'});
+    expect(r.normalized).toMatchObject({name:'Collante',cost:39.935,base_price:60,list_price:65,unit:'pz',vat_rate:22});
+    expect(r.errors).toEqual([]);
   });
 
   it("lancia se manca 'Nome' per objectType=tariffa", () => {

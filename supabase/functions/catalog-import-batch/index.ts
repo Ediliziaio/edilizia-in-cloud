@@ -18,7 +18,7 @@
  *
  * Dedup su re-import:
  *   - product → match su sku (se presente) o name esistente → UPDATE, non insert
- *   - family  → match su nome (stesso scope dell'indice parziale) → UPDATE campi da file
+ *   - family  → codice importato o nome univoco, anche già classificato → UPDATE campi da file
  *   - tariffa → match su nome → UPDATE prezzi/descrizione
  *   Gli UPDATE scrivono solo i campi che il file valorizza (vedi soloValorizzati).
  *   Righe duplicate nello stesso file vengono scartate (skipped + errore visibile).
@@ -29,11 +29,13 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { indiceProdottiImport } from '../_shared/riconosciProdottoImport.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ImportPayload {
+  company_id?: string;
   object_type: "product" | "family" | "tariffa";
   rows: Array<Record<string, unknown>>;
 }
@@ -304,28 +306,32 @@ async function importFamilies(
   const supplierMap = await loadSupplierMap(supabaseAdmin, companyId);
   const res: ImportResult = { inserted: 0, updated: 0, skipped: 0, errors: [] };
 
-  // Famiglie esistenti nello stesso scope dell'indice parziale
-  // (company, vertical=generico, attive, non cancellate, senza categoria):
-  // senza pre-match l'insert violava l'unique e scartava l'intero chunk.
-  const { data: existing, error: exErr } = await supabaseAdmin
-    .from("article_families")
-    .select("id, nome, custom_field_values")
-    .eq("company_id", companyId)
-    .eq("vertical", "generico")
-    .eq("attivo", true)
-    .is("deleted_at", null)
-    .is("categoria_id", null);
-  if (exErr) throw exErr;
-  const byNome = new Map<string, string>();
+  // Cerca anche tra i prodotti già classificati: limitarsi a categoria NULL
+  // duplicava un listino non appena veniva organizzato per tipologia.
+  const existing: Array<{ id:string; nome:string; custom_field_values:unknown }> = [];
+  for (let da = 0; ; da += 500) {
+    const { data, error } = await supabaseAdmin
+      .from("article_families")
+      .select("id, nome, custom_field_values")
+      .eq("company_id", companyId)
+      .eq("vertical", "generico")
+      .is("deleted_at", null)
+      .order("id")
+      .range(da, da + 499);
+    if (error) throw error;
+    existing.push(...(data ?? []));
+    if (!data || data.length < 500) break;
+  }
+  const riconosci = indiceProdottiImport(existing ?? []);
   const campiById = new Map<string, unknown>();
   for (const e of existing ?? []) {
-    if (e.nome) byNome.set(String(e.nome).toLowerCase().trim(), e.id);
     campiById.set(e.id, e.custom_field_values);
   }
 
   const inserts: any[] = [];
   const updates: Array<{ row: number; run: () => Promise<{ error: { message: string } | null }> }> = [];
   const seenInFile = new Set<string>();
+  const codiciNelFile = new Set<string>();
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const nome = str(r.name);
@@ -335,18 +341,18 @@ async function importFamilies(
       continue;
     }
     const nomeKey = nome.toLowerCase().trim();
-    if (seenInFile.has(nomeKey)) {
+    const codice = str(r.code);
+    const codiceKey = codice?.toLowerCase();
+    if (seenInFile.has(nomeKey) || (codiceKey && codiciNelFile.has(codiceKey))) {
       res.skipped++;
       res.errors.push({ row: i + 1, error: `duplicato nel file: "${nome}" — riga ignorata` });
       continue;
     }
     seenInFile.add(nomeKey);
+    if (codiceKey) codiciNelFile.add(codiceKey);
 
     const supplierName = str(r.supplier);
-    // Prezzi, IVA e unità quando il file li porta: il modello «famiglie» non
-    // li ha, le righe dell'import AI sì (stesse colonne dei prodotti:
-    // list_price/base_price, cost, vat_rate, unit). Prima non si scriveva
-    // nessun prezzo e la famiglia nasceva a 0 € (05/10/2026).
+    // Costi e vendita in colonne distinte. Celle vuote = nessuna modifica.
     const dalFile: Record<string, unknown> = {
       descrizione: str(r.description),
       supplier_id: supplierName ? supplierMap.get(supplierName.toLowerCase()) ?? null : null,
@@ -355,15 +361,22 @@ async function importFamilies(
       vat_rate: num(r.vat_rate),
       unit_of_measure: str(r.unit),
     };
-    const existingId = byNome.get(nomeKey);
+    const match = riconosci(nome, codice);
+    if (match.ambiguo) {
+      res.skipped++;
+      res.errors.push({ row:i+1, error:`Prodotto ambiguo: "${codice ?? nome}". Controlla codice e nome nel Listino prima di importare.` });
+      continue;
+    }
+    const existingId = match.id;
+    const campiDalFile = { ...oggetto(r.custom_field_values), ...(codice ? { catalog_import_sku: codice } : {}) };
     if (existingId) {
       // Aggiorna solo i campi che arrivano dal file — non tocca
       // modalita_prezzo_base (potrebbe essere una famiglia a griglia)
       const payload = soloValorizzati(dalFile);
-      const campi = campiPersonalizzatiAggiornati(campiById.get(existingId), r.custom_field_values);
+      const campi = campiPersonalizzatiAggiornati(campiById.get(existingId), campiDalFile);
       if (campi) payload.custom_field_values = campi;
       accodaAggiornamento(updates, res, i + 1, payload,
-        (p) => supabaseAdmin.from("article_families").update(p).eq("id", existingId));
+        (p) => supabaseAdmin.from("article_families").update(p).eq("id", existingId).eq("company_id", companyId));
     } else {
       // "pz", non "fisso": il CHECK su modalita_prezzo_base ammette solo
       // pz/mq/griglia/misura_libera, e "fisso" faceva fallire ogni blocco di
@@ -383,7 +396,7 @@ async function importFamilies(
         modalita_prezzo_base: "pz",
         vertical: "generico",
         attivo: true,
-        custom_field_values: oggetto(r.custom_field_values),
+        custom_field_values: campiDalFile,
       });
     }
   }
@@ -517,12 +530,13 @@ serve(async (req: Request) => {
 
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, corsHeaders);
-    const companyId = await resolveCompanyId(supabaseAdmin as any, userId);
+    const payload = (await req.json()) as ImportPayload;
+    const companyId = str(payload?.company_id) ?? await resolveCompanyId(supabaseAdmin as any, userId);
     if (!companyId) {
       return errorResponse("Nessuna azienda associata all'utente", 400, corsHeaders);
     }
 
-    const payload = (await req.json()) as ImportPayload;
+    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
     if (!payload || !Array.isArray(payload.rows) || !payload.object_type) {
       return errorResponse("Payload non valido", 400, corsHeaders);
     }

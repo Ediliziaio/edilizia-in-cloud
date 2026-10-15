@@ -38,6 +38,11 @@ export const FIXED_COLUMNS: Record<CatalogObjectType, { key: string; label: stri
     { key: "default_margin_pct", label: "Margine Default %" },
     { key: "default_markup_pct", label: "Ricarico Default %" },
     { key: "description", label: "Descrizione" },
+    { key: "unit", label: "UM", hint: "es. pz, kg, m" },
+    { key: "cost", label: "Costo", hint: "Solo costo d'acquisto" },
+    { key: "base_price", label: "Prezzo Base", hint: "Prezzo di vendita, non costo" },
+    { key: "list_price", label: "Prezzo Listino", hint: "Prezzo di vendita, non costo" },
+    { key: "vat_rate", label: "IVA %" },
   ],
   tariffa: [
     { key: "nome", label: "Nome", required: true },

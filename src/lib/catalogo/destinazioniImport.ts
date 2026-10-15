@@ -6,11 +6,10 @@
  *                 voci dei kit. NON è il Listino (i prodotti del Listino stanno in `article_families`) e non c'è una
  *                 pagina in cui rivederli o cancellarli;
  *  - `family`   → `article_families`, cioè i prodotti del Listino, sempre «a pezzo» (`modalita_prezzo_base: "pz"`),
- *                 senza tipologia né linea, a 0 € se il file non dice il prezzo (e il modello non ha le colonne);
+ *                 senza tipologia né linea se nuovi; conserva classificazione e prezzi non compilati se già presenti;
  *  - `tariffa`  → `tariffe_aziendali`, «Manodopera e servizi», voci a ore.
  *
- * Il tipo che parte preselezionato resta `product` (decisione D1 di Florin ancora aperta): qui si dice solo la verità su
- * ognuno. `destinazioniImport.test.ts` confronta questi testi con la edge function e col modello: se uno dei due cambia,
+ * Il tipo preselezionato è `family`, il Listino visibile. `destinazioniImport.test.ts` confronta questi testi con la edge function e col modello: se uno dei due cambia,
  * il test lo dice.
  */
 import type { CatalogObjectType } from "@/hooks/useCompanyCustomFields";
@@ -47,10 +46,10 @@ export const DESTINAZIONI_IMPORT: Record<CatalogObjectType, DestinazioneImport> 
     dove: "Va nel Listino, tra i prodotti: li trovi nell'area «Generale», alla voce «Senza tipologia».",
     attenzione: [
       "Il file non dice come si vende né in che tipologia sta: ogni prodotto nuovo entra «a pezzo», senza tipologia e senza linea. Finché non gli dai una tipologia dal Listino non compare nella scelta dei prodotti del preventivo (lo trovi con la ricerca). I prodotti al metro quadro o a griglia di misure si fanno dal Listino.",
-      "Il modello non ha le colonne di prezzo, costo, IVA e unità: i prodotti nascono a 0 €, con IVA 22%. Il prezzo si mette dal Listino.",
+      "Il modello distingue costo d'acquisto e prezzo di vendita, IVA e unità. Senza prezzi i prodotti nuovi nascono a 0 €, senza IVA indicata si usa il 22%. Le celle vuote non cancellano i valori già salvati.",
     ],
     seEsiste:
-      "Se c'è già un prodotto con lo stesso nome tra quelli senza linea, si aggiorna: cambiano solo i campi che il file compila. Negli altri casi ne nasce uno nuovo.",
+      "Riconosce codice importato o nome anche tra i prodotti già classificati: aggiorna solo i campi compilati, conservando tipologia e linea. Se ci sono omonimi ambigui, segnala la riga senza modificarli.",
     annullare: "Per annullare dovrai eliminarli a mano dal Listino: restano 15 giorni nel cestino.",
     singolare: "prodotto",
     plurale: "prodotti",
@@ -72,7 +71,7 @@ export const DESTINAZIONI_IMPORT: Record<CatalogObjectType, DestinazioneImport> 
  */
 export const COLONNE_NON_LETTE: Record<CatalogObjectType, string[]> = {
   product: [],
-  family: ["code", "parent", "default_margin_pct", "default_markup_pct"],
+  family: ["parent", "default_margin_pct", "default_markup_pct"],
   tariffa: ["codice", "margine_pct", "ore_giornaliere", "valida_dal", "valida_al"],
 };
 

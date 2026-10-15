@@ -17,6 +17,7 @@ import { agevolazioniPreventivo, riepilogoPrezzi } from "../_shared/prezziPreven
 import { dataItalianaBreve, dataItalianaLunga } from "../_shared/dataItaliana.ts";
 import { righeRiepilogoIva } from "../_shared/riepilogoIvaPreventivo.ts";
 import { campiContratto, erroriCampiContratto, leggiValoriContratto } from '../_shared/campiContratto.ts';
+import { segmentoRiga } from '../_shared/flussoRigaPreventivo.ts';
 
 // ─── Helpers ───
 function hexToRgb(hex: string) {
@@ -74,7 +75,7 @@ function winAnsiSafe(str: string): string {
   // trattino, «Ivić» diventa «Ivic»): prima sparivano, e «30% → 40%» usciva
   // «30%  40%». Poi il filtro stretto di sempre, che tiene in piedi il PDF.
   // eslint-disable-next-line no-control-regex
-  return testoPerPdf(String(str)).replace(/[^\x20-\x7E\xA0-\xFF‘’“”–—…€]/g, "");
+  return testoPerPdf(String(str)).replace(/[\r\n\t]+/g, " ").replace(/[^\x20-\x7E\xA0-\xFF‘’“”–—…€]/g, "");
 }
 
 function wrapText(text: string, maxChars: number): string[] {
@@ -781,8 +782,22 @@ Deno.serve(async (req) => {
     // L'immagine di copertina, come logo e timbro, solo dalla cartella dell'azienda:
     // un percorso altrui non fa nemmeno nascere la pagina di copertina.
     const percorsoCopertina = percorsoDellAzienda(t.cover_image_url, aziendaDeiFile);
+    const copertinaPdf = !!(t.show_cover_image && percorsoCopertina?.toLowerCase().endsWith('.pdf'));
+    if (copertinaPdf) {
+      // Percorso verificato dell'azienda, mai URL arbitrari. Embed della sola
+      // pagina grafica: niente moduli, azioni o annotazioni del file sorgente.
+      const { data, error } = await supabaseAdmin.storage.from('quote-template-assets').download(percorsoCopertina);
+      if (error || !data || data.size > 5 * 1024 * 1024) return errorResponse('Copertina PDF non disponibile o troppo grande. Caricala nuovamente nel modello.', 422, corsH);
+      const sorgente = await PDFDocument.load(await data.arrayBuffer());
+      if (sorgente.getPageCount() !== 1) return errorResponse('La copertina PDF deve contenere una sola pagina.', 422, corsH);
+      const [grafica] = await pdfDoc.embedPages([sorgente.getPage(0)]);
+      const cover = pdfDoc.addPage([pageWidth, pageHeight]);
+      const scala = Math.min(pageWidth / grafica.width, pageHeight / grafica.height);
+      cover.drawPage(grafica, { x: (pageWidth - grafica.width * scala) / 2, y: (pageHeight - grafica.height * scala) / 2, width: grafica.width * scala, height: grafica.height * scala });
+      pagineSenzaFooter = 1;
+    }
     const haCopertina = !!(String(t.cover_title ?? "").trim() || String(t.cover_subtitle ?? "").trim() || (t.show_cover_image && percorsoCopertina));
-    if (haCopertina) {
+    if (haCopertina && !copertinaPdf) {
       // Stesso linguaggio del «Piano dei lavori» dei moduli edili: pagina nel colore
       // dell'azienda, foto in tinta, titolo con una parola in corsivo (fra asterischi),
       // barra a segmenti e scheda in basso. Prima era una pagina bianca da modulo.
@@ -1484,13 +1499,15 @@ Deno.serve(async (req) => {
       if (oggetto) {
         titolino("OGGETTO DELL'INTERVENTO", margin, y, contentWidth);
         y -= 22;
-        for (const r of righeDi([{ testo: oggetto, stile: { f: font, size: 9, c: grigioEdC } }], contentWidth).slice(0, 5)) {
+        for (const r of righeDi([{ testo: oggetto, stile: { f: font, size: 9, c: grigioEdC } }], contentWidth)) {
+          ensureSpace(20, "OGGETTO DELL'INTERVENTO");
           disegnaRiga(page, r, margin, y);
           y -= 12.5;
         }
         y -= 10;
       }
       if (luogo) {
+        ensureSpace(45, "LUOGO DEI LAVORI");
         const wEtichetta = spaziato("LUOGO DEI LAVORI", margin, y, 6.5, fontBold, inkMarcaC, 1.2) + 10;
         for (const r of righeDi([{ testo: String(luogo), stile: { f: fontBold, size: 9, c: inchiostroC } }], contentWidth - wEtichetta).slice(0, 2)) {
           disegnaRiga(page, r, margin + wEtichetta, y);
@@ -1520,7 +1537,11 @@ Deno.serve(async (req) => {
 
     if (!classicPremium && quote.description) {
       y -= 10;
-      page.drawText(quote.description.substring(0, 300), { x: boldLeftX, y, size: 9, font, color: grayC, maxWidth: t.layout === "bold" ? contentWidth - 50 : contentWidth }); y -= 14;
+      for (const r of righeDi([{ testo: String(quote.description), stile: { f: font, size: 9, c: grayC } }], contentMaxWidth())) {
+        ensureSpace(20, "OGGETTO DELL'INTERVENTO");
+        disegnaRiga(page, r, boldLeftX, y);
+        y -= 12.5;
+      }
     }
 
     drawWatermark(page);
@@ -1671,6 +1692,41 @@ Deno.serve(async (req) => {
         y -= 14;
         drawTableHeader();
       };
+      const paginaTabellaLegacy = () => {
+        drawWatermark(page);
+        page = pdfDoc.addPage([pageWidth, pageHeight]);
+        y = pageHeight - margin;
+        if (t.layout === "bold") page.drawRectangle({ x: 0, y: 0, width: 80, height: pageHeight, color: primaryC });
+        drawTableHeader();
+      };
+      type RigaFlusso = { altezza: number; disegna: (base: number) => void };
+      // Nessun limite di caratteri/righe: anche una singola descrizione più
+      // lunga di una pagina prosegue sotto un'intestazione ripetuta.
+      const stampaFlusso = (righe: RigaFlusso[], padding: number, prima: (base: number) => void, minimo = 28, nota = false) => {
+        let offset = 0;
+        let primo = true;
+        while (offset < righe.length) {
+          let quanti = segmentoRiga(righe.slice(offset).map(r => r.altezza), y - piedeTabella, padding, minimo);
+          if (!quanti) {
+            if (classicPremium) paginaDopoTabella(); else paginaTabellaLegacy();
+            quanti = segmentoRiga(righe.slice(offset).map(r => r.altezza), y - piedeTabella, padding, minimo);
+            if (!quanti) throw new Error("Una riga non entra nell'area stampabile del preventivo");
+          }
+          const segmento = righe.slice(offset, offset + quanti);
+          const h = Math.max(minimo, padding * 2 + segmento.reduce((s, r) => s + r.altezza, 0));
+          const top = y;
+          if (!nota && zebraOn && rowNumber % 2 === 0) page.drawRectangle({ x: itemLeftX, y: top - h, width: itemWidth, height: h, color: classicPremium ? tintaLeggeraC : accentC });
+          if (!nota && bordiTabella === "all") page.drawRectangle({ x: itemLeftX, y: top - h, width: itemWidth, height: h, borderColor: filettoC, borderWidth: 0.5 });
+          else if (!nota && bordiTabella !== "none") page.drawLine({ start: { x: itemLeftX, y: top - h }, end: { x: itemLeftX + itemWidth, y: top - h }, thickness: 0.5, color: filettoC });
+          let base = top - padding - 7;
+          if (primo) prima(base);
+          for (const riga of segmento) { riga.disegna(base); base -= riga.altezza; }
+          y -= h;
+          offset += quanti;
+          primo = false;
+          if (offset < righe.length) { if (classicPremium) paginaDopoTabella(); else paginaTabellaLegacy(); }
+        }
+      };
       const rigaDelClassico = async (
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         item: any,
@@ -1678,13 +1734,8 @@ Deno.serve(async (req) => {
         tipo: { isNota: boolean; isSubtotale: boolean; isChild: boolean; isOptional: boolean },
       ) => {
         if (tipo.isNota) {
-          const righe = righeDi([{ testo: String(item.name || ""), stile: { f: fontItalic, size: 8, c: grigioEdC } }], cImportoR - cDescX).slice(0, 4);
-          const h = 12 + righe.length * 10.5;
-          if (y - h < piedeTabella) paginaDopoTabella();
-          page.drawRectangle({ x: cDescX - 9, y: y - h + 5, width: 2, height: h - 10, color: fondoEdC });
-          let yy = y - 14;
-          for (const r of righe) { disegnaRiga(page, r, cDescX, yy); yy -= 10.5; }
-          y -= h;
+          const righe = righeDi([{ testo: String(item.name || ""), stile: { f: fontItalic, size: 8, c: grigioEdC } }], cImportoR - cDescX);
+          stampaFlusso(righe.map(r => ({ altezza: 10.5, disegna: base => disegnaRiga(page, r, cDescX, base) })), 6, () => {}, 22, true);
           return;
         }
         if (tipo.isSubtotale) {
@@ -1745,56 +1796,39 @@ Deno.serve(async (req) => {
         const etOpz = "OPZIONALE";
         const wOpz = isOptional ? larghezzaSpaziataDi(etOpz, 5.6, fontBold, 0.7) + 8 : 0;
         const wTesto = cDescW - rientro;
-        const righeNome = righeDi([{ testo: String(item.name || ""), stile: stNome }], wTesto, wTesto - (wOpz ? wOpz + 5 : 0)).slice(0, 3);
+        const righeNome = righeDi([{ testo: String(item.name || " "), stile: stNome }], wTesto, wTesto - (wOpz ? wOpz + 5 : 0));
         const righeDesc = hasDesc
-          ? righeDi([{ testo: String(item.description).replace(/\s+/g, " "), stile: { f: font, size: 7.6, c: grigioEdC } }], wTesto).slice(0, 4)
+          ? righeDi([{ testo: String(item.description), stile: { f: font, size: 7.6, c: grigioEdC } }], wTesto)
           : [];
         const righeDett = dettagli.length
-          ? righeDi([{ testo: dettagli.join("  ·  "), stile: { f: fontItalic, size: 7.2, c: grigioEdC } }], wTesto).slice(0, 2)
+          ? righeDi([{ testo: dettagli.join("  ·  "), stile: { f: fontItalic, size: 7.2, c: grigioEdC } }], wTesto)
           : [];
         const lead = stNome.size + 3.4;
         const discPct = Number(item.discount_percent || 0);
         const conSconto = mostraPrezziRiga && mostraScontoRiga && discPct > 0;
-        const altezzaTesto = stNome.size * 0.72 + (righeNome.length - 1) * lead + righeDesc.length * 10.2 + righeDett.length * 9.4 + (immagineRiga ? 34 : 0);
-        const altezzaValori = stNome.size * 0.72 + (conSconto || isOptional ? 10 : 0);
         const pad = 9 + rowExtra / 2;
-        const h = Math.max(28 + rowExtra, pad * 2 + Math.max(altezzaTesto, altezzaValori) + 2.5);
-        if (y - h < piedeTabella) paginaDopoTabella();
-
-        const top = y;
-        if (zebraOn && rowNumber % 2 === 0) {
-          page.drawRectangle({ x: itemLeftX, y: top - h, width: itemWidth, height: h, color: tintaLeggeraC });
-        }
-        if (bordiTabella === "all") {
-          page.drawRectangle({ x: itemLeftX, y: top - h, width: itemWidth, height: h, borderColor: filettoC, borderWidth: 0.5 });
-        } else if (bordiTabella !== "none") {
-          page.drawLine({ start: { x: itemLeftX, y: top - h }, end: { x: itemLeftX + itemWidth, y: top - h }, thickness: 0.5, color: filettoC });
-        }
-        const yBase = top - pad - stNome.size * 0.72;
+        const flusso: RigaFlusso[] = [
+          ...righeNome.map((r, i) => ({ altezza: lead, disegna: (base: number) => disegnaRiga(page, r, cDescX + rientro + (i === 0 && wOpz ? wOpz + 5 : 0), base) })),
+          ...righeDesc.map(r => ({ altezza: 10.2, disegna: (base: number) => disegnaRiga(page, r, cDescX + rientro, base) })),
+          ...righeDett.map(r => ({ altezza: 9.4, disegna: (base: number) => disegnaRiga(page, r, cDescX + rientro, base) })),
+        ];
+        if (!flusso.length) flusso.push({ altezza: lead, disegna: () => {} });
+        if (immagineRiga) flusso.push({ altezza: 34, disegna: base => {
+          const rap = immagineRiga.width / immagineRiga.height;
+          const w = rap >= 1 ? 28 : 28 * rap, hImg = rap >= 1 ? 28 / rap : 28;
+          page.drawImage(immagineRiga, { x: cDescX + rientro, y: base - hImg + 6, width: w, height: hImg });
+        } });
+        stampaFlusso(flusso, pad, (yBase) => {
         page.drawText(String(rowNumber).padStart(2, "0"), { x: cNumX, y: yBase, size: 7.5, font: fontBold, color: isChild ? grigioEdC : inkMarcaC });
         if (isChild) {
           // La voce figlia (posa, smaltimento…) appesa a quella sopra con un gancio sottile.
-          page.drawLine({ start: { x: cDescX + 3, y: top - 3 }, end: { x: cDescX + 3, y: yBase + 2.5 }, thickness: 0.7, color: lightGrayC });
+          page.drawLine({ start: { x: cDescX + 3, y: yBase + 9 }, end: { x: cDescX + 3, y: yBase + 2.5 }, thickness: 0.7, color: lightGrayC });
           page.drawLine({ start: { x: cDescX + 3, y: yBase + 2.5 }, end: { x: cDescX + 9, y: yBase + 2.5 }, thickness: 0.7, color: lightGrayC });
         }
         if (isOptional) {
           arrotondato(page, cDescX + rientro, yBase - 2.2, wOpz, 9.4, tintaC, 2.5);
           spaziatoSu(page, etOpz, cDescX + rientro + 4, yBase + 0.4, 5.6, fontBold, inkMarcaC, 0.7);
         }
-        let yy = yBase;
-        righeNome.forEach((r, i) => {
-          if (i > 0) yy -= lead;
-          disegnaRiga(page, r, cDescX + rientro + (i === 0 && wOpz ? wOpz + 5 : 0), yy);
-        });
-        for (const r of righeDesc) { yy -= 10.2; disegnaRiga(page, r, cDescX + rientro, yy); }
-        for (const r of righeDett) { yy -= 9.4; disegnaRiga(page, r, cDescX + rientro, yy); }
-        if (immagineRiga) {
-          const lato = 28;
-          const rap = immagineRiga.width / immagineRiga.height;
-          const w = rap >= 1 ? lato : lato * rap, hImg = rap >= 1 ? lato / rap : lato;
-          page.drawImage(immagineRiga, { x: cDescX + rientro, y: yy - 6 - hImg, width: w, height: hImg });
-        }
-
         const coloreValori = isOptional ? grigioEdC : inchiostroC;
         drawRight(page, quantitaDi(item), cQtaR, yBase, 8.5, font, coloreValori);
         if (mostraPrezziRiga) {
@@ -1806,7 +1840,7 @@ Deno.serve(async (req) => {
           drawRight(page, fmtEur(importoDi(item)), cImportoR, yBase, 9, fontBold, coloreValori);
           if (isOptional) drawRight(page, "non incluso", cImportoR, yBase - 10, 6.6, fontItalic, grigioEdC);
         }
-        y -= h;
+        }, 32 + rowExtra);
       };
 
       if (!soloTotale) {
@@ -1836,8 +1870,8 @@ Deno.serve(async (req) => {
 
           // Nota row: italic text only
           if (isNota) {
-            page.drawText((item.name || "").substring(0, 90), { x: descX, y, size: 8, font: fontItalic, color: grayC, maxWidth: itemWidth - 30 });
-            y -= 14;
+            const righe = righeDi([{ testo: String(item.name || ""), stile: { f: fontItalic, size: sz(8), c: grayC } }], itemWidth - 30);
+            stampaFlusso(righe.map(r => ({ altezza: 11, disegna: base => disegnaRiga(page, r, descX, base) })), 6, () => {}, 22, true);
             continue;
           }
 
@@ -1897,7 +1931,8 @@ Deno.serve(async (req) => {
           // Misure + attributi possono superare una riga: si va a capo (max 2 righe)
           // invece di tagliare a metà «Tipo apertura: Wasistas classi».
           const rigaDettagli = dettagli.join("  ·  ");
-          const righeDettagli = rigaDettagli ? wrapText(rigaDettagli, 95).slice(0, 2) : [];
+          const larghezzaDescrizione = Math.max(60, qtyRight - 38 - descX);
+          const righeDettagli = rigaDettagli ? righeDi([{ testo: rigaDettagli, stile: { f: fontItalic, size: sz(7), c: grayC } }], larghezzaDescrizione) : [];
           const conFoto = item as { image_url?: string | null; article_template_id?: string | null; family_id?: string | null };
           const immagineRiga = opzione("pdf_mostra_immagini", false) && !isNota && !isSubtotale
             ? await immagineProdotto(
@@ -1907,24 +1942,12 @@ Deno.serve(async (req) => {
                   || "",
               )
             : null;
-          const rowH = (hasDesc ? 29 : 18) + rowExtra + righeDettagli.length * 11 + (immagineRiga ? 30 : 0);
-
-          // Bordo completo di riga (template "tutti i bordi"), sotto il testo
-          if (bordiTabella === "all") {
-            page.drawRectangle({ x: itemLeftX, y: y - (rowH - 12), width: itemWidth, height: rowH, borderColor: lightGrayC, borderWidth: 0.4 });
-          }
-          // Alternate row background (zebra), disattivabile dal template
-          if (zebraOn && rowNumber % 2 === 1) {
-            page.drawRectangle({ x: itemLeftX, y: y - (rowH - 12), width: itemWidth, height: rowH, color: isChild ? rgb(0.97, 0.97, 0.97) : (classicPremium ? tintaC : accentC) });
-          }
-
           // Name prefix for child rows / optional
           let namePrefix = "";
           if (isChild) namePrefix = "  - "; // niente U+2514: non \u00e8 WinAnsi, pdf-lib lancerebbe
           if (isOptional) namePrefix += "[OPZIONALE] ";
 
           const rawName = namePrefix + (item.name || "");
-          const nameText = rawName.length > 42 ? rawName.slice(0, 41) + "…" : rawName;
           const rowColor = isChild ? grayC : textC;
 
           // Q.tà formato italiano, U.M. in colonna separata, sconto riga accodato al prezzo
@@ -1952,47 +1975,35 @@ Deno.serve(async (req) => {
             ? Number(ltRaw)
             : Number(item.quantity) * Number(item.unit_price) * (1 - discPct / 100);
 
-          page.drawText(String(rowNumber), { x: nX, y, size: sz(8.5), font, color: grayC });
-          page.drawText(nameText, { x: descX, y, size: sz(8.5), font, color: rowColor });
+          const righeNome = righeDi([{ testo: rawName, stile: { f: font, size: sz(8.5), c: rowColor } }], larghezzaDescrizione);
+          const righeDesc = hasDesc ? righeDi([{ testo: String(item.description), stile: { f: font, size: sz(7), c: grayC } }], larghezzaDescrizione) : [];
+          const flusso: RigaFlusso[] = [
+            ...righeNome.map(r => ({ altezza: Math.max(12, sz(8.5) + 3), disegna: (base: number) => disegnaRiga(page, r, descX, base) })),
+            ...righeDesc.map(r => ({ altezza: Math.max(11, sz(7) + 3), disegna: (base: number) => disegnaRiga(page, r, descX, base) })),
+            ...righeDettagli.map(r => ({ altezza: Math.max(11, sz(7) + 3), disegna: (base: number) => disegnaRiga(page, r, descX, base) })),
+          ];
+          if (!flusso.length) flusso.push({ altezza: 12, disegna: () => {} });
+          if (immagineRiga) flusso.push({ altezza: 34, disegna: base => {
+            const rap = immagineRiga.width / immagineRiga.height;
+            const w = rap >= 1 ? 26 : 26 * rap, h = rap >= 1 ? 26 / rap : 26;
+            page.drawImage(immagineRiga, { x: descX, y: base - h + 6, width: w, height: h });
+          } });
+          stampaFlusso(flusso, 7 + rowExtra / 2, (base) => {
+          page.drawText(String(rowNumber), { x: nX, y: base, size: sz(8.5), font, color: grayC });
           // Col prezzo scritto a mano le righe sono a 0€: prezzo/IVA/totale di
           // riga non si mostrano mai, a prescindere dall'impostazione del
           // preventivo (che qui non avrebbe niente di vero da mostrare).
           const showPrezziRiga = !prezzoManualeAttivo && (quote as any).pdf_mostra_prezzi_per_riga !== false;
-          drawRight(page, qtyText, qtyRight, y, sz(8.5), font, rowColor);
-          page.drawText(umText, { x: umX, y, size: sz(8.5), font, color: rowColor });
+          drawRight(page, qtyText, qtyRight, base, sz(8.5), font, rowColor);
+          page.drawText(umText, { x: umX, y: base, size: sz(8.5), font, color: rowColor });
           if (showPrezziRiga) {
-            drawRight(page, priceText, priceRight, y, sz(8.5), font, rowColor);
-            drawRight(page, vatText, ivaRight, y, sz(8.5), font, rowColor);
+            drawRight(page, priceText, priceRight, base, sz(8.5), font, rowColor);
+            drawRight(page, vatText, ivaRight, base, sz(8.5), font, rowColor);
           }
           if (!prezzoManualeAttivo) {
-            drawRight(page, fmtEur(lineTotal), totRight, y, sz(8.5), fontBold, isOptional ? grayC : textC);
+            drawRight(page, fmtEur(lineTotal), totRight, base, sz(8.5), fontBold, isOptional ? grayC : textC);
           }
-          y -= 12;
-
-          if (hasDesc) {
-            page.drawText(item.description.substring(0, 85), { x: descX, y, size: sz(7), font, color: grayC });
-            y -= 11;
-          }
-          for (const rd of righeDettagli) {
-            page.drawText(rd, { x: descX, y, size: sz(7), font: fontItalic, color: grayC });
-            y -= 11;
-          }
-          if (immagineRiga) {
-            const lato = 26;
-            const rap = immagineRiga.width / immagineRiga.height;
-            const w = rap >= 1 ? lato : lato * rap, h = rap >= 1 ? lato / rap : lato;
-            page.drawImage(immagineRiga, { x: descX, y: y - h + 4, width: w, height: h });
-            y -= 30;
-          }
-          y -= 6 + rowExtra;
-          // Filetto orizzontale tra le righe (template "orizzontali" o "tutti")
-          // `y` è già la linea di base della riga DOPO: il confine fra le due
-          // righe sta 12pt più su (dove comincia il fondo zebrato). A `y + 4`
-          // il filetto attraversava il testo della riga successiva, che usciva
-          // barrata (dal 02/09/2026, su ogni riga pari e sul subtotale).
-          if (bordiTabella === "horizontal") {
-            page.drawLine({ start: { x: itemLeftX, y: y + 12 }, end: { x: itemLeftX + itemWidth, y: y + 12 }, thickness: 0.35, color: lightGrayC });
-          }
+          }, 28 + rowExtra);
         }
       }
 

@@ -207,6 +207,15 @@ function buildRow(
   fixed.forEach((c) => {
     if (!(c.key in normalized)) normalized[c.key] = null;
   });
+  // Compatibilità con i listini prodotti già distribuiti: «Descrizione» era
+  // il nome dell'articolo. Non scartare quel file passando al Listino visibile.
+  if (opts.objectType === 'family' && !headers.some(h => ['nome_famiglia', 'name'].includes(headerKey(h)))) {
+    normalized.name = normalized.description;
+    // Nel vecchio file questo è il nome, non una nuova descrizione estesa:
+    // non deve sovrascrivere i testi già curati nel Listino.
+    normalized.description = null;
+    if (!normalized.name) errors.push('Campo obbligatorio mancante: "Descrizione / Nome Famiglia"');
+  }
 
   return {
     rowIndex: rowIdx,
@@ -229,6 +238,7 @@ export function findMissingRequiredColumns(headers: string[], opts: ParseOpts): 
   const mappedFixedKeys = new Set(
     [...hmap.values()].filter((m) => m.kind === "fixed").map((m) => m.key),
   );
+  if (opts.objectType === 'family' && mappedFixedKeys.has('description') && !headers.some(h => ['nome_famiglia', 'name'].includes(headerKey(h)))) mappedFixedKeys.add('name');
   return FIXED_COLUMNS[opts.objectType]
     .filter((c) => c.required && !mappedFixedKeys.has(c.key))
     .map((c) => c.label);

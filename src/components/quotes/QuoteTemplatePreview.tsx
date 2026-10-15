@@ -171,6 +171,7 @@ function OfferCover({ template: t, companyName, primary, logoSrc, coverSrc, logo
   template: Partial<QuoteTemplate>; companyName: string; primary: string; logoSrc?: string; coverSrc?: string; logoTransparent?: boolean;
 }) {
   const [failedPhoto, setFailedPhoto] = React.useState<string | null>(null);
+  if (t.show_cover_image && t.cover_image_url?.endsWith('.pdf')) return <div style={{ position: 'absolute', inset: 0, background: '#f8fafc', color: '#334155', display: 'grid', placeContent: 'center', padding: 48, textAlign: 'center' }}><strong>Copertina PDF personalizzata</strong><p>La grafica originale è visibile nell'anteprima PDF.</p></div>;
   const photo = t.show_cover_image && coverSrc !== failedPhoto ? coverSrc : undefined;
   const title = t.cover_title?.trim() || 'La nostra *offerta* per voi.';
   return (
