@@ -76,6 +76,15 @@ jobs:
           src/test/logic/convertiPreventivoInCantiere.test.ts
           src/test/ui/quoteLineKindFields.test.tsx
 
+      - name: Run module conversion and multi-company regressions
+        run: >-
+          bunx vitest run --maxWorkers=1 --testTimeout=15000
+          src/test/logic/moduliCommessaAtomic.test.ts
+          src/test/logic/convertiInCommessa.test.ts
+          src/test/ui/convertiInCommessaCard.test.tsx
+          src/test/logic/convertiAvvio.test.ts
+          src/test/logic/avviaCommessa.test.ts
+
       - name: Run sidebar preview regression tests
         run: >-
           bunx vitest run --maxWorkers=1

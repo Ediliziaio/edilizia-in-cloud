@@ -1,58 +1,21 @@
-// src/test/ui/convertiInCommessaCard.test.tsx
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const stato = vi.hoisted(() => ({ converti: vi.fn(), convertiFv: vi.fn() }));
-vi.mock("@/lib/moduli/convertiInCommessa", () => ({
-  convertiRstInCommessa: stato.converti,
-  convertiFvInCommessa: stato.convertiFv,
-}));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" } }) }));
-vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-
-import { ConvertiInCommessaCard } from "@/components/moduli/ConvertiInCommessaCard";
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  stato.converti.mockResolvedValue({ orderId: "o1", righe: 4 });
-  stato.convertiFv.mockResolvedValue({ orderId: "o2", righe: 2 });
-});
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest';
+const stato=vi.hoisted(()=>({preview:vi.fn(),rst:vi.fn(),fv:vi.fn(),navigate:vi.fn()}));
+vi.mock('@/lib/moduli/convertiInCommessa',()=>({anteprimaConversioneModulo:stato.preview,convertiRstInCommessa:stato.rst,convertiFvInCommessa:stato.fv}));
+vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>({user:{id:'u1'}})}));
+vi.mock('react-router-dom',()=>({useNavigate:()=>stato.navigate}));
+vi.mock('sonner',()=>({toast:{success:vi.fn(),warning:vi.fn(),error:vi.fn()}}));
+import { ConvertiInCommessaCard } from '@/components/moduli/ConvertiInCommessaCard';
+const preview={materiali:[],fasi:[{name:'Posa pavimento',notes:'85.5 mq'}],imponibile:1000,aliquota:22,totale:1220,impronta:'v1',esclusi:1,descrizione:'Casa'};
+beforeEach(()=>{vi.clearAllMocks();stato.preview.mockResolvedValue(preview);stato.rst.mockResolvedValue({orderId:'o1',righe:0,lavorazioni:1});stato.fv.mockResolvedValue({orderId:'o1',righe:0,lavorazioni:1});});
 afterEach(cleanup);
-
-describe("ConvertiInCommessaCard", () => {
-  it("ristrutturazione con più capitoli: «una fase per capitolo» è già spuntata e va alla conversione", async () => {
-    render(<ConvertiInCommessaCard modulo="rst" progettoId="p1" capitoli={3} />);
-    expect(screen.getByRole("checkbox", { name: "Una fase per ogni capitolo" })).toBeChecked();
-    expect(screen.getByText(/Una fase per ognuno dei 3 capitoli del computo/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Crea la commessa/ }));
-    await waitFor(() => expect(stato.converti).toHaveBeenCalledWith("p1", "u1", { fasiDaCapitoli: true }));
-  });
-
-  it("si può togliere la spunta", async () => {
-    render(<ConvertiInCommessaCard modulo="rst" progettoId="p1" capitoli={3} />);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Una fase per ogni capitolo" }));
-    fireEvent.click(screen.getByRole("button", { name: /Crea la commessa/ }));
-    await waitFor(() => expect(stato.converti).toHaveBeenCalledWith("p1", "u1", { fasiDaCapitoli: false }));
-  });
-
-  it("con un capitolo solo (o nessuno) non si offre, e non si chiede", async () => {
-    render(<ConvertiInCommessaCard modulo="rst" progettoId="p1" capitoli={1} />);
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Crea la commessa/ }));
-    await waitFor(() => expect(stato.converti).toHaveBeenCalledWith("p1", "u1", { fasiDaCapitoli: false }));
-  });
-
-  it("il fotovoltaico non ha capitoli: stessa conversione di sempre", async () => {
-    render(<ConvertiInCommessaCard modulo="fv" progettoId="p2" capitoli={5} />);
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Crea la commessa/ }));
-    await waitFor(() => expect(stato.convertiFv).toHaveBeenCalledWith("p2", "u1"));
-    expect(stato.converti).not.toHaveBeenCalled();
-  });
-
-  it("se la conversione è bloccata la scelta non compare", () => {
-    render(<ConvertiInCommessaCard modulo="rst" progettoId="p1" capitoli={3} bloccoMotivo="Aggiungi voci al computo." />);
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-  });
+const apri=async()=>{fireEvent.click(screen.getByRole('button',{name:/Controlla e crea/}));await screen.findByRole('dialog');};
+describe('riepilogo prima della conversione',()=>{
+ it('non converte al primo clic, mostra fasi e assenza di acquisti',async()=>{render(<ConvertiInCommessaCard modulo="rst" progettoId="p1" capitoli={3}/>);await apri();expect(stato.rst).not.toHaveBeenCalled();expect(screen.getByText('Posa pavimento')).toBeInTheDocument();expect(screen.getByText(/Nessun materiale da ordinare/)).toBeInTheDocument();expect(screen.getByText(/Contratto invariato/)).toHaveTextContent('1.220,00');expect(screen.getByText(/quantità nulla o negativa/)).toBeInTheDocument();});
+ it('conferma conserva opzione capitoli e versione mostrata',async()=>{render(<ConvertiInCommessaCard modulo="rst" progettoId="p1" capitoli={3}/>);await apri();fireEvent.click(screen.getByRole('button',{name:'Conferma e crea commessa'}));await waitFor(()=>expect(stato.rst).toHaveBeenCalledWith('p1','u1',{fasiDaCapitoli:true,impronta:'v1'}));});
+ it('senza raggruppamento le singole lavorazioni restano fasi',async()=>{render(<ConvertiInCommessaCard modulo="rst" progettoId="p1" capitoli={3}/>);fireEvent.click(screen.getByRole('checkbox'));await apri();expect(stato.preview).toHaveBeenCalledWith('rst','p1',false);});
+ it('fotovoltaico conferma la versione senza raggruppamento capitoli',async()=>{render(<ConvertiInCommessaCard modulo="fv" progettoId="p1"/>);await apri();fireEvent.click(screen.getByRole('button',{name:'Conferma e crea commessa'}));await waitFor(()=>expect(stato.fv).toHaveBeenCalledWith('p1','u1','v1'));});
+ it('preventivo cambiato richiede aggiornamento del riepilogo e non naviga',async()=>{stato.rst.mockRejectedValue(new Error('Il preventivo è cambiato'));render(<ConvertiInCommessaCard modulo="rst" progettoId="p1"/>);await apri();fireEvent.click(screen.getByRole('button',{name:'Conferma e crea commessa'}));await screen.findByRole('alert');expect(stato.navigate).not.toHaveBeenCalled();expect(screen.getByRole('button',{name:'Aggiorna riepilogo'})).toBeInTheDocument();});
+ it('annullamento non crea commesse',async()=>{render(<ConvertiInCommessaCard modulo="rst" progettoId="p1"/>);await apri();fireEvent.click(screen.getByRole('button',{name:'Torna al preventivo'}));expect(stato.rst).not.toHaveBeenCalled();});
+ it('blocco iniziale impedisce anche anteprima',()=>{render(<ConvertiInCommessaCard modulo="rst" progettoId="p1" bloccoMotivo="Completa i dati"/>);expect(screen.getByRole('button',{name:/Controlla e crea/})).toBeDisabled();});
 });

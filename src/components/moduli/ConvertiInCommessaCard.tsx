@@ -2,10 +2,8 @@
  * "Il cliente ha accettato? Crea la commessa" per i moduli Fotovoltaico e
  * Ristrutturazione, sullo stesso modello che Serramenti ha da maggio 2026.
  *
- * Prima il preventivo di modulo finiva firmato e poi la commessa si rifaceva a
- * mano, riscrivendo cliente, importi e righe. Qui nasce con le voci del
- * computo (o dei componenti) già dentro, e i due record restano legati: il
- * bottone sparisce e lascia il posto al collegamento alla commessa.
+ * Mostra il riepilogo del server prima di creare fasi e materiali nella
+ * stessa transazione. I due record restano legati per evitare doppioni.
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -16,7 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import { convertiFvInCommessa, convertiRstInCommessa } from "@/lib/moduli/convertiInCommessa";
+import { anteprimaConversioneModulo, type AnteprimaConversioneModulo, convertiFvInCommessa, convertiRstInCommessa } from "@/lib/moduli/convertiInCommessa";
+
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { ModuleConversionSummary } from "./ModuleConversionSummary";
 
 interface Props {
   modulo: "fv" | "rst";
@@ -35,28 +36,41 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
   const { user } = useAuth();
   const navigate = useNavigate();
   const [inCorso, setInCorso] = useState(false);
+  const [riepilogo, setRiepilogo] = useState<AnteprimaConversioneModulo | null>(null);
+  const [dialog, setDialog] = useState(false);
+  const [errore, setErrore] = useState("");
   // Di partenza sì: i capitoli del computo sono già il modo in cui il lavoro è diviso.
   const [fasiCapitoli, setFasiCapitoli] = useState(true);
   const offriFasi = modulo === "rst" && capitoli >= 2;
 
+  const mostraRiepilogo = async () => {
+    setInCorso(true); setErrore("");
+    try {
+      setRiepilogo(await anteprimaConversioneModulo(modulo, progettoId, offriFasi && fasiCapitoli));
+      setDialog(true);
+    } catch (e) {
+      toast.error("Riepilogo non disponibile", { description: e instanceof Error ? e.message : "Riprova." });
+    } finally { setInCorso(false); }
+  };
+
   const converti = async () => {
+    if (!riepilogo) return;
     if (!user?.id) { toast.error("Sessione scaduta: accedi di nuovo"); return; }
     setInCorso(true);
     try {
       const esito = modulo === "fv"
-        ? await convertiFvInCommessa(progettoId, user.id)
-        : await convertiRstInCommessa(progettoId, user.id, { fasiDaCapitoli: offriFasi && fasiCapitoli });
+        ? await convertiFvInCommessa(progettoId, user.id, riepilogo.impronta)
+        : await convertiRstInCommessa(progettoId, user.id, { fasiDaCapitoli: offriFasi && fasiCapitoli, impronta: riepilogo.impronta });
       toast.success("Commessa creata", {
-        description: esito.righe > 0
-          ? `${esito.righe} rig${esito.righe === 1 ? "a" : "he"} portate dal preventivo.`
-          : "Il dettaglio delle righe si aggiunge dalla commessa.",
+        description: `Lavorazioni trasferite: ${esito.lavorazioni} · Materiali da ordinare: ${esito.righe}.`,
       });
-      // La commessa c'è, ma cliente e indirizzo non sono passati: chi ha cliccato lo deve sapere.
+      // Segnala l'eventuale problema nell'avvio delle rate della commessa già creata.
       if (esito.avviso) toast.warning(esito.avviso, { duration: 12000 });
+      setDialog(false);
       onConvertito?.(esito.orderId);
       navigate(`/azienda/ordini/${esito.orderId}`);
     } catch (e) {
-      toast.error("Conversione non riuscita", { description: e instanceof Error ? e.message : "Riprova." });
+      setErrore(e instanceof Error ? e.message : "Conversione non riuscita. Riprova.");
     } finally {
       setInCorso(false);
     }
@@ -84,19 +98,19 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
   }
 
   return (
-    // Sul telefono una riga sola; se è bloccata sparisce: il passo dice già cosa manca.
-    <Card className={cn("border-orange-200 bg-orange-50/60 dark:border-orange-900/50 dark:bg-orange-950/20", bloccoMotivo && "max-md:hidden")}>
-      <CardContent className="flex flex-wrap items-center gap-3 p-4 max-md:flex-nowrap max-md:gap-2 max-md:px-3 max-md:py-2">
+    // Anche su mobile la scelta del raggruppamento resta disponibile.
+    <><Card className={cn("border-orange-200 bg-orange-50/60 dark:border-orange-900/50 dark:bg-orange-950/20", bloccoMotivo && "max-md:hidden")}>
+      <CardContent className="flex flex-wrap items-center gap-3 p-4 max-md:gap-2 max-md:px-3 max-md:py-2">
         <HardHat className="h-5 w-5 shrink-0 text-orange-600 max-md:hidden" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-orange-900 dark:text-orange-200 max-md:truncate max-md:text-[13px]">Il cliente ha accettato?</p>
           <p className="text-xs text-orange-800/80 dark:text-orange-300/80 max-md:hidden">
-            {bloccoMotivo ?? "La commessa nasce con cliente, importi e righe già dentro. Acconto e saldo si impostano dopo."}
+            {bloccoMotivo ?? "Controlla le lavorazioni e i materiali prima di creare la commessa. Il contratto mantiene il suo importo."}
           </p>
           {offriFasi && !bloccoMotivo && (
-            <label className="mt-1.5 flex items-center gap-2 text-xs text-orange-900 dark:text-orange-200 max-md:hidden">
+            <label className="mt-1.5 flex items-center gap-2 text-xs text-orange-900 dark:text-orange-200">
               <Checkbox checked={fasiCapitoli} onCheckedChange={(v) => setFasiCapitoli(v === true)} aria-label="Una fase per ogni capitolo" />
-              Una fase per ognuno dei {capitoli} capitoli del computo, con il suo importo
+              Raggruppa le lavorazioni nei {capitoli} capitoli del computo
             </label>
           )}
         </div>
@@ -104,14 +118,27 @@ export function ConvertiInCommessaCard({ modulo, progettoId, ordineId, bloccoMot
           size="sm"
           className="gap-1.5 bg-orange-500 text-white hover:bg-orange-600 tap-compact max-md:h-8 max-md:shrink-0 max-md:text-xs"
           disabled={inCorso || !!bloccoMotivo}
-          onClick={() => { void converti(); }}
+          onClick={() => { void mostraRiepilogo(); }}
           title={bloccoMotivo ?? undefined}
         >
           {inCorso ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <HardHat className="h-3.5 w-3.5 max-md:hidden" />}
-          <span className="max-md:hidden">Crea la commessa</span>
+          <span className="max-md:hidden">Controlla e crea commessa</span>
           <span className="md:hidden">Crea commessa</span>
         </Button>
       </CardContent>
     </Card>
+    <Dialog open={dialog} onOpenChange={(v) => { if (!inCorso) setDialog(v); }}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader><DialogTitle>Dal preventivo alla commessa</DialogTitle>
+          <DialogDescription>Verifica cosa verrà trasferito nel cantiere.</DialogDescription></DialogHeader>
+        {riepilogo && <ModuleConversionSummary riepilogo={riepilogo} />}
+        {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
+        <DialogFooter>
+          <Button variant="outline" disabled={inCorso} onClick={() => setDialog(false)}>Torna al preventivo</Button>
+          {errore ? <Button disabled={inCorso} onClick={() => { void mostraRiepilogo(); }}>Aggiorna riepilogo</Button>
+            : <Button disabled={inCorso || !riepilogo} onClick={() => { void converti(); }}>{inCorso ? "Creazione…" : "Conferma e crea commessa"}</Button>}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog></>
   );
 }

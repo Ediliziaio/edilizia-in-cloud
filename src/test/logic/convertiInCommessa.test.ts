@@ -1,77 +1,14 @@
-/**
- * Conversione preventivo di modulo → commessa.
- *
- * Il punto delicato è l'aliquota: `fv_progetti.iva_aliquota` è una FRAZIONE
- * (0,10 = 10%) mentre `rst_progetti.iva_pct` è una percentuale (22). Scambiarle
- * significa una commessa con IVA allo 0,1% o al 2200%.
- */
-import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
-const SORGENTE = readFileSync(join(__dirname, "../../lib/moduli/convertiInCommessa.ts"), "utf8");
-
-/** Copia fedele della funzione interna: se cambia lì, questo test va aggiornato. */
-function aliquotaInPercentuale(valore: unknown, predefinita = 22): number {
-  const n = Number(valore);
-  if (!Number.isFinite(n) || n <= 0) return predefinita;
-  return n <= 1 ? Math.round(n * 10000) / 100 : n;
-}
-
-describe("aliquota IVA dei moduli", () => {
-  it("la frazione del fotovoltaico diventa percentuale", () => {
-    expect(aliquotaInPercentuale(0.1, 10)).toBe(10);
-    expect(aliquotaInPercentuale(0.22, 10)).toBe(22);
-    expect(aliquotaInPercentuale(0.04, 10)).toBe(4);
-  });
-
-  it("una percentuale già scritta come tale resta com'è", () => {
-    expect(aliquotaInPercentuale(22, 22)).toBe(22);
-    expect(aliquotaInPercentuale(10, 22)).toBe(10);
-  });
-
-  it("valori mancanti o assurdi ricadono sul predefinito, mai su zero", () => {
-    expect(aliquotaInPercentuale(null, 22)).toBe(22);
-    expect(aliquotaInPercentuale(0, 10)).toBe(10);
-    expect(aliquotaInPercentuale(-5, 22)).toBe(22);
-    expect(aliquotaInPercentuale("", 22)).toBe(22);
-  });
-});
-
-describe("guardie della conversione", () => {
-  it("rifiuta la seconda conversione dello stesso preventivo", () => {
-    expect(SORGENTE).toContain("è già diventato una commessa");
-    // Il controllo deve esserci in entrambi i moduli.
-    expect(SORGENTE.match(/già diventato una commessa/g)?.length).toBe(2);
-  });
-
-  it("rifiuta un preventivo senza importo invece di creare una commessa a zero", () => {
-    expect(SORGENTE).toContain("non ha un prezzo di vendita");
-    expect(SORGENTE).toContain("Il computo è vuoto");
-  });
-
-  it("passa dalla RPC atomica, non da insert sparsi su orders", () => {
-    expect(SORGENTE).toContain('supabase.rpc("create_order_atomic"');
-    expect(SORGENTE).not.toContain('.from("order_items").insert');
-  });
-
-  it("passa uno stato iniziale: lo storico stati non ammette il nullo", () => {
-    // Collaudo del 2026-09-02: senza current_status_id la RPC falliva con
-    // "null value in column status_id of relation order_status_history".
-    expect(SORGENTE).toContain("current_status_id: statoIniziale");
-    expect(SORGENTE).toContain("order_statuses");
-  });
-
-  it("collega la commessa al preventivo nei due sensi", () => {
-    // Il legame lo scrive un solo punto (legaCommessaAlPreventivo: orders.<colonna> e <tabella>.ordine_id), usato da
-    // entrambe le conversioni ognuna con la sua colonna e la sua tabella. Che il legame arrivi davvero in tutti e due i
-    // sensi, e anche quando cliente e indirizzo non si scrivono, lo prova convertiInCommessaCliente.test.ts.
-    expect(SORGENTE).toContain("[params.colonnaCommessa]: params.progettoId");
-    expect(SORGENTE).toContain("ordine_id: params.orderId");
-    expect(SORGENTE).toContain('colonnaCommessa: "fv_progetto_id"');
-    expect(SORGENTE).toContain('colonnaCommessa: "rst_progetto_id"');
-    expect(SORGENTE).toContain('tabella: "fv_progetti"');
-    expect(SORGENTE).toContain('tabella: "rst_progetti"');
-    expect(SORGENTE.match(/await legaCommessaAlPreventivo\(\{/g)?.length).toBe(2);
-  });
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+const rpc=vi.hoisted(()=>vi.fn());
+vi.mock('@/integrations/supabase/client',()=>({supabase:{rpc}}));
+import { anteprimaConversioneModulo,convertiFvInCommessa,convertiRstInCommessa } from '@/lib/moduli/convertiInCommessa';
+const preview={materiali:[{name:'Pannello',quantity:12,unit_price:140,description:null}],fasi:[{name:'Posa',notes:'7.5 h'}],imponibile:10000,aliquota:10,totale:11000,impronta:'versione-1',esclusi:0,descrizione:'Impianto'};
+beforeEach(()=>{rpc.mockReset();rpc.mockImplementation(async(fn:string,args:any)=>({data:fn==='commessa_avvia'?{fasi:0,rate:2}:{...preview,...(!args.p_anteprima?{id:'o1'}:{})},error:null}));});
+describe('client conversione atomica dei moduli',()=>{
+ it('anteprima non chiede alcuna scrittura né passa prezzi dal browser',async()=>{expect(await anteprimaConversioneModulo('fv','p1')).toEqual(preview);expect(rpc).toHaveBeenCalledExactlyOnceWith('converti_modulo_commessa_atomic',{p_modulo:'fv',p_progetto_id:'p1',p_raggruppa_capitoli:false,p_anteprima:true,p_impronta:null});});
+ it('conferma usa la versione mostrata e avvia rate solo dopo il salvataggio',async()=>{expect(await convertiFvInCommessa('p1','u1','versione-1')).toMatchObject({orderId:'o1',righe:1,lavorazioni:1,avviso:null});expect(rpc.mock.calls.map(c=>c[0])).toEqual(['converti_modulo_commessa_atomic','commessa_avvia']);expect(rpc.mock.calls[0][1]).toMatchObject({p_anteprima:false,p_impronta:'versione-1'});});
+ it('vecchi chiamanti senza anteprima ricevono una verifica server prima di convertire',async()=>{await convertiRstInCommessa('p2','u1',{fasiDaCapitoli:true});expect(rpc.mock.calls[0][1]).toMatchObject({p_anteprima:true,p_raggruppa_capitoli:true});expect(rpc.mock.calls[1][1]).toMatchObject({p_anteprima:false,p_impronta:'versione-1',p_raggruppa_capitoli:true});});
+ it('errore atomico propagato senza avviare rate o altri aggiornamenti',async()=>{rpc.mockResolvedValue({data:null,error:{message:'Accesso scaduto'}});await expect(convertiFvInCommessa('p1','u1','versione-1')).rejects.toThrow('Accesso scaduto');expect(rpc).toHaveBeenCalledTimes(1);});
+ it('sessione mancante non chiama la conversione',async()=>{await expect(convertiFvInCommessa('p1','')).rejects.toThrow('Sessione');expect(rpc).not.toHaveBeenCalled();});
+ it('fallimento avvio rate segnalato senza fingere che la commessa sia fallita',async()=>{rpc.mockImplementation(async(fn:string)=>fn==='commessa_avvia'?{error:{message:'rete'},data:null}:{data:{...preview,id:'o1'},error:null});expect(await convertiFvInCommessa('p1','u1','versione-1')).toMatchObject({orderId:'o1',avviso:expect.stringContaining('Verifica le rate')});});
 });
