@@ -31,6 +31,19 @@ function apri() {
   return onPick;
 }
 describe("Tariffe nel preventivo: tutto il catalogo attivo", () => {
+  it("richiede una vendita esplicita anche quando il costo d’acquisto è noto", () => {
+    const onPick = vi.fn();
+    const voce = { ...voci[0], prezzo_vendita: 0, prezzo_costo: 78 };
+    render(<TariffePickerDialog open onClose={vi.fn()} onPick={onPick} tariffe={[voce]} />);
+    fireEvent.click(screen.getByRole("button", { name: /Voce 0/ }));
+    const prezzo = screen.getByLabelText(/Prezzo di vendita/);
+    expect(prezzo).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Aggiungi servizio" })).toBeDisabled();
+    fireEvent.change(prezzo, { target: { value: "95,5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi servizio" }));
+    expect(onPick).toHaveBeenCalledWith(voce, 1, 95.5);
+    expect(voce.prezzo_vendita).toBe(0);
+  });
   it("permette di scegliere una tariffa oltre le prime 50 senza includere le archiviate", () => {
     const onPick = apri();
     expect(screen.getByRole("status")).toHaveTextContent(

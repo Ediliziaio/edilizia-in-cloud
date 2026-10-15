@@ -19,7 +19,7 @@ vi.mock("@/hooks/useEffectiveCompanyId", () => ({
 }));
 vi.mock("@/hooks/useFamilies", () => ({
   useFamilies: () => ({
-    families: [] as Array<{ id: string }>,
+    families: (stato.righe.article_families ?? []) as Array<{ id: string }>,
     isLoading: false,
     error: null as null,
     refetch: vi.fn(),
@@ -29,7 +29,7 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: (opts: Query) => {
     stato.queries.push(opts);
     return {
-      data: undefined as undefined,
+      data: opts.queryKey.includes("article-templates") ? stato.righe.article_templates : undefined,
       isLoading: false,
       error: null as null,
       refetch: vi.fn(),
@@ -79,6 +79,16 @@ beforeEach(() => {
 afterEach(cleanup);
 const ctx = () => ({ signal: new AbortController().signal });
 describe("Letture del catalogo del preventivo", () => {
+  it("usa la famiglia come voce unica e non riattiva le famiglie escluse tramite il template", () => {
+    stato.righe.article_families = [{ id: "attiva", nome: "Collante", attivo: true }];
+    stato.righe.article_templates = [
+      { id: "duplicato", family_id: "attiva", name: "Collante" },
+      { id: "non-pubblicabile", family_id: "inattiva", name: "Monoblocco" },
+      { id: "legacy", family_id: null, name: "Articolo senza famiglia" },
+    ];
+    const { result } = renderHook(() => useCatalogItems());
+    expect(result.current.items.map(item => item.id).sort()).toEqual(["attiva", "legacy"]);
+  });
   it("legge tutte le etichette di area con isolamento aziendale", async () => {
     stato.righe.listino_macrocategorie = Array.from(
       { length: 1050 },

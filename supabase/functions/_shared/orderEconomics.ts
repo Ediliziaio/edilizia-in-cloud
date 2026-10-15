@@ -34,10 +34,12 @@ export interface EconomicsQualityIssue {
     | "source_unavailable"
     | "missing_revenue"
     | "no_registered_costs"
+    | "materials_not_committed"
     | "warehouse_movements_without_cost"
     | "pending_mileage_reimbursements"
     | "items_without_cost"
     | "employees_without_cost"
+    | "labor_without_budget"
     | "teams_without_cost";
   label: string;
   count?: number;
@@ -106,7 +108,7 @@ export function assessOrderEconomicsQuality(input: {
   sourceAvailable: boolean;
   actual: CanonicalOrderEconomics;
   items: EconItem[];
-  employees: { total_cost: number }[];
+  employees: { total_cost: number; cost_preventivo?: number | null }[];
   teams: { total_cost: number }[];
 }): EconomicsQuality {
   const issues: EconomicsQualityIssue[] = [];
@@ -120,6 +122,10 @@ export function assessOrderEconomicsQuality(input: {
   }
   if (actual.revenue > 0 && actual.costs <= 0) {
     issues.push({ code: "no_registered_costs", label: "Nessun costo registrato" });
+  }
+  const plannedMaterials = items.reduce((sum, item) => sum + Math.max(0, finite(item.purchase_price)) * Math.max(0, finite(item.quantity)), 0);
+  if (plannedMaterials > 0 && actual.purchases + actual.warehouseMaterials <= 0) {
+    issues.push({ code: "materials_not_committed", label: "Materiali previsti ma nessun acquisto o consumo registrato" });
   }
   if (actual.warehouseMovementsWithoutCost > 0) {
     const count = actual.warehouseMovementsWithoutCost;
@@ -150,6 +156,10 @@ export function assessOrderEconomicsQuality(input: {
   }
 
   const employeesWithoutCost = employees.filter((employee) => finite(employee.total_cost) <= 0).length;
+  const laborWithoutBudget = employees.filter((employee) => employee.cost_preventivo !== undefined && finite(employee.cost_preventivo) <= 0).length;
+  if (laborWithoutBudget > 0) {
+    issues.push({ code: "labor_without_budget", label: `${laborWithoutBudget} assegnazioni di manodopera senza costo previsto`, count: laborWithoutBudget });
+  }
   if (employeesWithoutCost > 0) {
     issues.push({
       code: "employees_without_cost",
@@ -190,7 +200,7 @@ export function assessOrderEconomicsQuality(input: {
       - Math.min(20, teamsWithoutCost * 5));
 
   const labels: Record<EconomicsQualityStatus, string> = {
-    ready: "Dati attendibili",
+    ready: "Costi registrati valorizzati",
     partial: "Dati parziali",
     missing: "Dati da completare",
     unavailable: "Dati non disponibili",

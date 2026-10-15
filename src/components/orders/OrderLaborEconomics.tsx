@@ -81,7 +81,7 @@ export function OrderLaborEconomics({ orderId }: { orderId: string }) {
     </Card>
     <details className="rounded-lg border p-3 text-sm"><summary className="cursor-pointer font-medium">Come si formano questi costi</summary>
       <ul className="mt-3 list-disc space-y-2 pl-5 text-muted-foreground">
-        <li>I rapportini approvati alimentano le ore e i costi registrati. Le rettifiche manuali già presenti sono incluse nello stesso registro; i rapportini in attesa non vengono aggiunti di nuovo.</li>
+        <li>I rapportini approvati e le rettifiche manuali alimentano le ore e i costi registrati. Le ore possono quindi esistere anche senza un rapportino: verifica le rettifiche nelle assegnazioni. I rapportini in attesa non vengono aggiunti di nuovo.</li>
         <li>La tariffa attuale è un riferimento per i prossimi rapportini. Il costo medio deriva dai totali già registrati e può differire dalla tariffa di oggi.</li>
         <li>Le ore delle presenze di squadra sostituiscono quelle dell'autore: non si sommano due volte. Più cantieri mantengono registri separati.</li>
         <li>Straordinari: il motore attuale usa la stessa tariffa base. Maggiorazioni, trasferte e viaggi non vengono inventati né aggiunti automaticamente a questi importi.</li>

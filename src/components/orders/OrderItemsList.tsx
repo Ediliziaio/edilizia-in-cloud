@@ -330,7 +330,7 @@ export function OrderItemsList({
 
   // Fetch suppliers to display names and get VAT rates
   const { data: suppliers = [] } = useQuery({
-    queryKey: ["suppliers", companyId],
+    queryKey: ["order-item-suppliers", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
@@ -1619,12 +1619,12 @@ export function OrderItemsList({
                           <span className="inline-flex items-center gap-1">
                             <Package className="h-3.5 w-3.5" />
                             {item.supplier_id || item.supplier_name
-                              ? `Fornitore: ${item.supplier_name || getSupplierName(item.supplier_id) || "—"}`
+                              ? `Fornitore: ${item.supplier_name || getSupplierName(item.supplier_id) || "Anagrafica da verificare"}`
                               : "Da fornitore"}
                           </span>
                         )}
                         {item.stock_item_id && (item.supplier_id || item.supplier_name) && (
-                          <span>Fornitore: {item.supplier_name || getSupplierName(item.supplier_id) || "—"}</span>
+                          <span>Fornitore: {item.supplier_name || getSupplierName(item.supplier_id) || "Anagrafica da verificare"}</span>
                         )}
                       </p>
                       {item.description && (

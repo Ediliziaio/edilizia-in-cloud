@@ -1,6 +1,6 @@
 export const ORDER_CONTROL_TASK_PREFIX = "Controllo commessa · ";
 
-export type OrderControlKey = "revenue" | "costs" | "dates" | "vehicles" | "mileage";
+export type OrderControlKey = "revenue" | "costs" | "materials" | "labor-budget" | "dates" | "vehicles" | "mileage";
 
 export interface OrderControlCheck {
   key: OrderControlKey;

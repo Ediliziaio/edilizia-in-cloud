@@ -158,6 +158,7 @@ export function useCatalogItems(params: UseCatalogItemsParams = {}) {
       });
 
     const artItems: CatalogItemArticle[] = (articoli ?? [])
+      .filter((a) => !a.family_id)
       .filter((a) => !categoriaId || a.categoria_id === categoriaId)
       .map((a) => ({
         source: "article" as const,

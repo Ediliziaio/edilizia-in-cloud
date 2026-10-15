@@ -16,6 +16,8 @@
  * `parent_temp_id → quote_items.parent_item_id` al SAVE.
  */
 import { useMemo, useState } from "react";
+import { descrizioneCommerciale } from "@/lib/preventivi/configurazioneSemplice";
+import { haManodoperaConfigurata } from "@/lib/preventivi/avvisiInserimento";
 import { ArrowLeft, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,7 +72,7 @@ export function ArticleConfigurator({
   const [altezza, setAltezza] = useState<string>("1000");
   const [quantita, setQuantita] = useState<string>("1");
   const [includePosa, setIncludePosa] = useState<boolean>(
-    item.ha_montaggio_automatico && item.posa_linked,
+    haManodoperaConfigurata(item),
   );
 
   const lMm = Number(larghezza);
@@ -113,7 +115,7 @@ export function ArticleConfigurator({
   /** Tariffa montaggio default dell'articolo (se configurata). */
   const tariffaPosa = useMemo<TariffaPro | null>(() => {
     if (!article.montaggio_tariffa_id) return null;
-    return tariffe.find((t) => t.id === article.montaggio_tariffa_id) ?? null;
+    return tariffe.find((t) => t.id === article.montaggio_tariffa_id && t.attivo !== false && t.attiva !== false) ?? null;
   }, [article.montaggio_tariffa_id, tariffe]);
 
   const posaUnit = tariffaPosa?.prezzo_vendita ?? 0;
@@ -127,15 +129,16 @@ export function ArticleConfigurator({
   const posaTotale = includePosa && tariffaPosa ? posaUnit * posaQtyPerPezzo * qty : 0;
 
   const totaleCompleto = totaleVendita + posaTotale;
-  const canConfirm = misureValide && qty > 0;
+  const canConfirm = misureValide && qty > 0 && (!includePosa || !!tariffaPosa);
 
   function handleConfirm(): void {
+    if (!canConfirm) return;
     const prodottoTempId = uuid();
     const baseSort = currentSortOrder;
 
     // Descrizione arricchita con misure per modalità mq/misura_libera.
     const descrParts: string[] = [];
-    if (article.description) descrParts.push(article.description);
+    if (article.description) descrParts.push(descrizioneCommerciale(article.description));
     if (showMisure) descrParts.push(`${lMm}×${hMm}mm`);
     const descrizione = descrParts.join(" — ");
 
@@ -262,7 +265,7 @@ export function ArticleConfigurator({
 
       <CampoQuantita value={quantita} onChange={setQuantita} />
 
-      {item.ha_montaggio_automatico && item.posa_linked && (
+      {haManodoperaConfigurata(item) && (
         <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3">
           <Checkbox
             id="includi-posa"
@@ -273,10 +276,12 @@ export function ArticleConfigurator({
             <Label htmlFor="includi-posa" className="cursor-pointer">
               Includi montaggio nel preventivo
             </Label>
-            <p className="text-xs text-muted-foreground max-sm:hidden">
-              Il montaggio resterà legato a questo prodotto: cambiando quantità
-              o eliminandolo, anche il montaggio verrà aggiornato.
+            <p className="text-xs text-muted-foreground">
+              {tariffaPosa && `${tariffaPosa.nome} · Prezzo cliente ${formatCurrency(posaUnit)}/${posaUm}. `}
+              {item.posa_linked ? "Verrà aggiunta una riga di montaggio collegata al prodotto: quantità ed eliminazione seguiranno il prodotto." : "Verrà aggiunta una riga separata di montaggio, modificabile indipendentemente."}
             </p>
+            {!tariffaPosa && <p role="alert" className="text-xs text-destructive">La tariffa di montaggio non è disponibile o è inattiva. Correggi il collegamento oppure deseleziona il montaggio per inserire solo il prodotto.</p>}
+            {includePosa && tariffaPosa && posaUnit <= 0 && <p role="status" className="text-xs text-amber-800">Prezzo cliente del montaggio da completare sulla riga. Il costo d’acquisto resta interno.</p>}
           </div>
         </div>
       )}

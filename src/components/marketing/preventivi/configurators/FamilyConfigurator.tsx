@@ -12,6 +12,8 @@
  * Al conferma restituisce 1-2 `ConfiguredItem` (prodotto + posa opzionale).
  */
 import { conAssiVisibili, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
+import { descrizioneCommerciale } from "@/lib/preventivi/configurazioneSemplice";
+import { haManodoperaConfigurata } from "@/lib/preventivi/avvisiInserimento";
 import { useMemo, useState } from "react";
 import { ArrowLeft, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -103,7 +105,7 @@ export function FamilyConfigurator({
   // Solo le varianti che si vedono con le scelte fatte (il monoblocco accende altezza cassonetto, tapparella…).
   const familyBase = useMemo(() => conAssiVisibili(famigliaCompleta, selection), [famigliaCompleta, selection]);
   const [includePosa, setIncludePosa] = useState<boolean>(
-    item.ha_posa_automatica && item.posa_linked,
+    haManodoperaConfigurata(item),
   );
 
   const { data: grigliaPunti = [] } = useFamilyGrid(familyBase.id);
@@ -161,7 +163,7 @@ export function FamilyConfigurator({
   const tariffaPosa = useMemo<TariffaPro | null>(() => {
     if (manodoperaMod !== "tariffa") return null;
     if (!family.posa_tariffa_default_id) return null;
-    return tariffe.find((t) => t.id === family.posa_tariffa_default_id) ?? null;
+    return tariffe.find((t) => t.id === family.posa_tariffa_default_id && t.attivo !== false && t.attiva !== false) ?? null;
   }, [manodoperaMod, family.posa_tariffa_default_id, tariffe]);
 
   const posaUnit = manodoperaManuale
@@ -178,9 +180,7 @@ export function FamilyConfigurator({
     ? "Manodopera (importo manuale)"
     : (tariffaPosa?.nome ?? "Manodopera");
   const posaQtyUnit = family.posa_quantita_default ?? 1;
-  const posaDisponibile = manodoperaManuale
-    ? manodoperaManuale.vendita > 0 || manodoperaManuale.costo > 0
-    : !!tariffaPosa;
+  const posaDisponibile = !!manodoperaManuale || !!tariffaPosa;
   const posaTotale =
     includePosa && posaDisponibile ? posaUnit * posaQtyUnit * qty : 0;
 
@@ -197,7 +197,7 @@ export function FamilyConfigurator({
 
   // Misura fuori listino: il prodotto non si fa a quella misura, e una riga a
   // 0 € nel preventivo non deve partire senza che nessuno se ne accorga.
-  const canConfirm = misureValide && qty > 0 && !pricing.fuori_listino && pricing.calcolo_disponibile !== false && !colori.stato?.blocca;
+  const canConfirm = misureValide && qty > 0 && !pricing.fuori_listino && pricing.calcolo_disponibile !== false && !colori.stato?.blocca && (!includePosa || posaDisponibile);
   // Gli avvisi del calcolo (misura arrotondata, variante obbligatoria non
   // scelta, griglia vuota…): prima si calcolavano e non si vedevano.
   const avvisi = [
@@ -227,7 +227,7 @@ export function FamilyConfigurator({
       item_type: "product",
       item_category: "prodotto",
       name: family.nome,
-      description: [family.descrizione, colori.testi?.interno && `Colore interno: ${colori.testi.interno}`, colori.testi?.esterno && `Colore esterno: ${colori.testi.esterno}`, ...(colori.stato?.avvisi ?? [])].filter(Boolean).join("\n"),
+      description: [descrizioneCommerciale(family.descrizione), colori.testi?.interno && `Colore interno: ${colori.testi.interno}`, colori.testi?.esterno && `Colore esterno: ${colori.testi.esterno}`, ...(colori.stato?.avvisi ?? [])].filter(Boolean).join("\n"),
       quantity: qty,
       unit_price: pricing.unit_price_vendita,
       discount_percent: 0,
@@ -382,7 +382,7 @@ export function FamilyConfigurator({
 
       <CampoQuantita value={quantita} onChange={setQuantita} />
 
-      {item.ha_posa_automatica && item.posa_linked && (
+      {haManodoperaConfigurata(item) && (
         <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-3">
           <Checkbox
             id="includi-posa"
@@ -393,15 +393,16 @@ export function FamilyConfigurator({
             <Label htmlFor="includi-posa" className="cursor-pointer">
               Includi manodopera nel preventivo
             </Label>
-            <p className="text-xs text-muted-foreground max-sm:hidden">
+            <p className="text-xs text-muted-foreground">
               {manodoperaManuale
-                ? `Costo cliente: ${formatCurrency(posaUnit)}/${posaUm}. `
+                ? `Prezzo cliente: ${formatCurrency(posaUnit)}/${posaUm}. `
                 : tariffaPosa
                   ? `Tariffa: ${tariffaPosa.nome} (${formatCurrency(posaUnit)}/${posaUm}). `
                   : ""}
-              La riga manodopera resterà legata a questo prodotto: cambiando
-              quantità o eliminandolo, anche la manodopera verrà aggiornata.
+              {item.posa_linked ? "Verrà aggiunta una riga separata collegata al prodotto: quantità ed eliminazione seguiranno il prodotto." : "Verrà aggiunta una riga separata, modificabile indipendentemente dal prodotto."}
             </p>
+            {!posaDisponibile && <p role="alert" className="text-xs text-destructive">La tariffa collegata non è disponibile o è inattiva. Correggi il collegamento oppure deseleziona la manodopera per inserire solo il prodotto.</p>}
+            {includePosa && posaDisponibile && posaUnit <= 0 && <p role="status" className="text-xs text-amber-800">Prezzo cliente della manodopera da completare sulla riga. Il costo d’acquisto non verrà usato come vendita.</p>}
           </div>
         </div>
       )}

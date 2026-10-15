@@ -41,7 +41,7 @@ export function OrderFinancialOverview(props: Props) {
     : loading
       ? "Caricamento costi…"
       : quality.status === "ready"
-        ? "Margine diretto · IVA esclusa"
+        ? "Sui costi registrati · IVA esclusa"
         : firstIssue ?? quality.label;
   const marginTone = marginReady
     ? actual.margin < 0

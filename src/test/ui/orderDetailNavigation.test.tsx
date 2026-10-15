@@ -64,7 +64,7 @@ describe("navigazione commessa reale (Radix + React Router)", () => {
     expect(screen.getByRole("tab", { name: "Panoramica" })).toHaveAttribute("aria-selected", "true");
   });
 
-  it("cambia pannello, conserva gli altri parametri e supporta Indietro/Avanti", () => {
+  it("cambia pannello, conserva gli altri parametri e supporta Indietro/Avanti", async () => {
     mount("?from=agenda");
     selectTab("Cantiere");
     expect(screen.getByRole("heading", { name: "Lavorazioni" })).toBeVisible();
@@ -72,9 +72,9 @@ describe("navigazione commessa reale (Radix + React Router)", () => {
     selectTab("Materiali e acquisti");
     expect(screen.getByRole("heading", { name: "Materiali" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Indietro" }));
-    expect(screen.getByRole("tab", { name: "Cantiere" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Cantiere" })).toHaveAttribute("aria-selected", "true"));
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
-    expect(screen.getByRole("tab", { name: "Materiali e acquisti" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Materiali e acquisti" })).toHaveAttribute("aria-selected", "true"));
   });
 
   it.each([

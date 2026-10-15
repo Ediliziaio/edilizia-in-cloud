@@ -69,8 +69,8 @@ export function OrderSerialsTrackingCard({
         </div>
         {!expanded && (
           <CardDescription className="hidden text-xs ml-6 md:block">
-            Assegna i seriali dei pannelli/prodotti specifici a ogni riga della commessa.
-            Scannerizza il QR del bancale o inserisci manualmente i seriali per garanzie individuali.
+            Assegna matricole o numeri di serie ai prodotti della commessa che li prevedono.
+            Scansiona l'etichetta del prodotto oppure inserisci il seriale per tracciabilità e garanzia.
           </CardDescription>
         )}
         <Button variant="outline" className="min-h-11 w-full justify-between border-slate-300 font-semibold text-blue-950"

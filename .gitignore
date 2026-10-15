@@ -61,3 +61,5 @@ backups/
 /work/*-tests.json
 docs/mobile-store-assets/android/*.aab
 *.tsbuildinfo
+__pycache__/
+*.py[cod]

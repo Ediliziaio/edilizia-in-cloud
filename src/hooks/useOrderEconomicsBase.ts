@@ -59,10 +59,10 @@ export function useOrderEconomicsBase(orderId: string, totalAmount: number, item
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_employees")
-        .select("total_cost")
+        .select("total_cost, cost_preventivo")
         .eq("order_id", orderId);
       if (error) throw error;
-      return (data ?? []) as { total_cost: number }[];
+      return (data ?? []) as { total_cost: number; cost_preventivo: number | null }[];
     },
   });
 

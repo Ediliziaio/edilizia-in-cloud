@@ -1,4 +1,9 @@
 import { useMemo, useState } from "react";
+import { haManodoperaConfigurata } from "@/lib/preventivi/avvisiInserimento";
+import {
+  descrizioneCommerciale,
+  prodottoSemplice,
+} from "@/lib/preventivi/configurazioneSemplice";
 import { MiniaturaDisegnoFamiglia } from "@/components/serramenti/AnteprimaDisegnoFamiglia";
 import { haDisegno } from "@/lib/serramenti/disegnoDaFamiglia";
 import {
@@ -34,6 +39,8 @@ interface Props {
   prodotti?: CatalogItem[];
   ambito?: string;
   nomeArea?: string;
+  selectedIds?: Set<string>;
+  onToggleItem?: (item: CatalogItem) => void;
 }
 const DIMENSIONE_PAGINA = 30;
 const CATEGORIE_VUOTE: CatalogCategory[] = [];
@@ -46,6 +53,8 @@ export function ProductPicker({
   prodotti,
   ambito = "all",
   nomeArea,
+  selectedIds,
+  onToggleItem,
 }: Props) {
   const [cerca, setCerca] = useState("");
   const [filtroCategoria, setFiltroCategoria] = useState({ ambito, id: "" });
@@ -124,28 +133,32 @@ export function ProductPicker({
             <p className="mb-3 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Categorie e linee
             </p>
-            <nav aria-label="Categorie dei prodotti" className="space-y-1">
+            <nav
+              aria-label="Categorie dei prodotti"
+              className="divide-y divide-border/60"
+            >
               {[
                 { id: "", nome: "Tutti i prodotti", conteggio: items.length },
                 ...categorieNavigabili,
               ].map((c) => (
-                <button
-                  type="button"
-                  key={c.id || "all"}
-                  aria-pressed={categoriaId === c.id}
-                  aria-label={`${c.nome} ${c.conteggio}`}
-                  onClick={() => cambiaCategoria(c.id)}
-                  className={cn(
-                    "flex w-full items-start justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition hover:bg-muted",
-                    categoriaId === c.id &&
-                      "bg-primary/10 font-semibold text-primary",
-                  )}
-                >
-                  <span>{c.nome}</span>
-                  <span className="shrink-0 text-xs tabular-nums opacity-70">
-                    {c.conteggio}
-                  </span>
-                </button>
+                <div key={c.id || "all"} className="py-1 first:pt-0 last:pb-0">
+                  <button
+                    type="button"
+                    aria-pressed={categoriaId === c.id}
+                    aria-label={`${c.nome} ${c.conteggio}`}
+                    onClick={() => cambiaCategoria(c.id)}
+                    className={cn(
+                      "flex w-full items-start justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition hover:bg-muted",
+                      categoriaId === c.id &&
+                        "bg-primary/10 font-semibold text-primary",
+                    )}
+                  >
+                    <span>{c.nome}</span>
+                    <span className="shrink-0 text-xs tabular-nums opacity-70">
+                      {c.conteggio}
+                    </span>
+                  </button>
+                </div>
               ))}
             </nav>
           </aside>
@@ -273,93 +286,143 @@ export function ProductPicker({
               </div>
             ) : (
               <div className="space-y-2">
+                {onToggleItem && (
+                  <div className="flex items-center justify-between gap-2 px-1 py-2 text-xs text-muted-foreground">
+                    <span>
+                      Spunta più prodotti per modificarli insieme. Le voci con
+                      varianti si configurano singolarmente.
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        visibili
+                          .filter(prodottoSemplice)
+                          .filter(
+                            (item) =>
+                              !selectedIds?.has(`${item.source}:${item.id}`),
+                          )
+                          .forEach(onToggleItem)
+                      }
+                    >
+                      Seleziona questa pagina
+                    </Button>
+                  </div>
+                )}
                 {visibili.map((item) => {
                   const d = dettagliProdottoCatalogo(item, categorie);
                   return (
-                    <button
-                      type="button"
+                    <div
                       key={`${item.source}-${item.id}`}
-                      onClick={() =>
-                        onSelectItem(
-                          item,
-                          [d.categoria, d.linea, d.marca]
-                            .filter(Boolean)
-                            .join(" · "),
-                        )
-                      }
-                      className="group grid w-full grid-cols-[56px_minmax(0,1fr)] items-center gap-3 rounded-lg border bg-background p-3 text-left transition hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[56px_minmax(0,1fr)_160px_20px]"
+                      className="flex items-center gap-2"
                     >
-                      <div className="h-14 w-14 overflow-hidden rounded-md bg-muted">
-                        {item.source === "family" &&
-                        item.family &&
-                        haDisegno(item.family) ? (
-                          <div className="h-full w-full bg-white p-1">
-                            <MiniaturaDisegnoFamiglia
-                              family={item.family}
-                              className="h-full w-full"
-                            />
-                          </div>
-                        ) : item.immagine_url ? (
-                          <img
-                            src={item.immagine_url}
-                            alt=""
-                            className="h-full w-full object-contain"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center">
-                            <Package className="h-6 w-6 text-muted-foreground" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold leading-snug">
-                          {item.nome}
-                        </p>
-                        {[d.categoria, d.linea, d.marca].some(Boolean) && (
-                          <p className="mt-1 text-xs font-medium text-primary">
-                            {[d.categoria, d.linea, d.marca]
+                      {onToggleItem && (
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 shrink-0 accent-orange-500"
+                          aria-label={`Seleziona ${item.nome}`}
+                          disabled={!prodottoSemplice(item)}
+                          checked={
+                            selectedIds?.has(`${item.source}:${item.id}`) ??
+                            false
+                          }
+                          onChange={() => onToggleItem(item)}
+                        />
+                      )}
+                      <button
+                        type="button"
+                        key={`${item.source}-${item.id}`}
+                        onClick={() =>
+                          onSelectItem(
+                            item,
+                            [d.categoria, d.linea, d.marca]
                               .filter(Boolean)
-                              .join(" · ")}
-                          </p>
-                        )}
-                        {d.codice && (
-                          <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                            {d.codice}
-                          </p>
-                        )}
-                        {item.descrizione && (
-                          <p
-                            className="mt-1 line-clamp-1 text-xs text-muted-foreground"
-                            title={item.descrizione}
-                          >
-                            {item.descrizione}
-                          </p>
-                        )}
-                        <p className="mt-1 text-xs font-medium sm:hidden">
-                          {prezzoProdottoCatalogo(item)}
-                        </p>
-                      </div>
-                      <div className="hidden text-right sm:block">
-                        <p
-                          className={cn(
-                            "text-sm font-semibold tabular-nums",
-                            !item.prezzo_base_vendita && "text-amber-700",
+                              .join(" · "),
+                          )
+                        }
+                        className="group grid w-full grid-cols-[56px_minmax(0,1fr)] items-center gap-3 rounded-lg border bg-background p-3 text-left transition hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[56px_minmax(0,1fr)_160px_20px]"
+                      >
+                        <div className="h-14 w-14 overflow-hidden rounded-md bg-muted">
+                          {item.source === "family" &&
+                          item.family &&
+                          haDisegno(item.family) ? (
+                            <div className="h-full w-full bg-white p-1">
+                              <MiniaturaDisegnoFamiglia
+                                family={item.family}
+                                className="h-full w-full"
+                              />
+                            </div>
+                          ) : item.immagine_url ? (
+                            <img
+                              src={item.immagine_url}
+                              alt=""
+                              className="h-full w-full object-contain"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center">
+                              <Package className="h-6 w-6 text-muted-foreground" />
+                            </div>
                           )}
-                        >
-                          {prezzoProdottoCatalogo(item)}
-                        </p>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {item.source === "family"
-                            ? "Configura misure e varianti"
-                            : "Imposta la quantità"}
-                        </p>
-                      </div>
-                      <ArrowRight
-                        className="hidden h-4 w-4 text-muted-foreground group-hover:text-primary sm:block"
-                        aria-hidden
-                      />
-                    </button>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold leading-snug">
+                            {item.nome}
+                          </p>
+                          {haManodoperaConfigurata(item) && (
+                            <span className="mt-1 inline-block rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                              Manodopera / montaggio previsto
+                            </span>
+                          )}
+                          {[d.categoria, d.linea, d.marca].some(Boolean) && (
+                            <p className="mt-1 text-xs font-medium text-primary">
+                              {[d.categoria, d.linea, d.marca]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          )}
+                          {d.codice && (
+                            <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                              {d.codice}
+                            </p>
+                          )}
+                          {descrizioneCommerciale(item.descrizione) &&
+                            descrizioneCommerciale(item.descrizione) !==
+                              item.nome && (
+                              <p
+                                className="mt-1 line-clamp-1 text-xs text-muted-foreground"
+                                title={descrizioneCommerciale(item.descrizione)}
+                              >
+                                {descrizioneCommerciale(item.descrizione)}
+                              </p>
+                            )}
+                          <p className="mt-1 text-xs font-medium sm:hidden">
+                            {prezzoProdottoCatalogo(item)}
+                          </p>
+                        </div>
+                        <div className="hidden text-right sm:block">
+                          <p
+                            className={cn(
+                              "text-sm font-semibold tabular-nums",
+                              !item.prezzo_base_vendita && "text-amber-700",
+                            )}
+                          >
+                            {prezzoProdottoCatalogo(item)}
+                          </p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {prodottoSemplice(item)
+                              ? "Quantità e prezzo cliente"
+                              : item.source === "family"
+                                ? "Configura misure e varianti"
+                                : "Imposta la quantità"}
+                          </p>
+                        </div>
+                        <ArrowRight
+                          className="hidden h-4 w-4 text-muted-foreground group-hover:text-primary sm:block"
+                          aria-hidden
+                        />
+                      </button>
+                    </div>
                   );
                 })}
               </div>

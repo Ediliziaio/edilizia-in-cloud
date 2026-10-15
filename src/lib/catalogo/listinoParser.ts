@@ -184,7 +184,7 @@ function buildRow(
         "default_markup_pct",
       ]);
       if (numberFields.has(mapping.key) && vRaw) {
-        const n = parseListinoNumber(vRaw);
+        const n = parseListinoNumber(mapping.key === "vat_rate" || mapping.key === "margin_pct" ? vRaw.replace(/%\s*$/, "") : vRaw);
         if (!Number.isFinite(n)) {
           errors.push(`"${mapping.fixedDef?.label}": valore non numerico ("${vRaw}")`);
           normalized[mapping.key] = vRaw;
@@ -298,6 +298,15 @@ export async function parseExcel(buffer: ArrayBuffer, opts: ParseOpts): Promise<
         str = raw.toISOString().slice(0, 10);
       } else {
         str = raw.toString();
+      }
+      const mapped = hmap.get(colNumber - 1);
+      const numericValue = typeof raw === "number" ? raw : raw && typeof raw === "object" && "result" in raw ? raw.result : null;
+      // Le celle numeriche Excel sono già numeri, non testi italiani:
+      // 25.207 è un costo con tre decimali, non 25.207 euro di migliaia.
+      if (typeof numericValue === "number") str = String(numericValue).replace(".", ",");
+      if (mapped?.kind === "fixed" && ["vat_rate", "margin_pct", "margine_pct", "default_margin_pct", "default_markup_pct"].includes(mapped.key)
+        && typeof numericValue === "number" && cell.numFmt?.includes("%")) {
+        str = String(Math.round(numericValue * 100 * 1e8) / 1e8);
       }
       vals[colNumber - 1] = str;
     });

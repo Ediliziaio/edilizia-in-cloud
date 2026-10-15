@@ -13,6 +13,8 @@
  */
 import { FamilyConfigurator } from "./FamilyConfigurator";
 import { ArticleConfigurator } from "./ArticleConfigurator";
+import { SimpleProductConfigurator } from "./SimpleProductConfigurator";
+import { prodottoSemplice } from "@/lib/preventivi/configurazioneSemplice";
 import type { TariffaPro } from "@/hooks/usePreventivoCosti";
 import type { CatalogItem, ConfiguredItem } from "@/types/catalogItem";
 
@@ -27,6 +29,7 @@ interface ProductConfiguratorProps {
 
 export function ProductConfigurator(props: ProductConfiguratorProps) {
   const { item } = props;
+  if (prodottoSemplice(item)) return <SimpleProductConfigurator {...props} />;
 
   if (item.source === "family") {
     return (

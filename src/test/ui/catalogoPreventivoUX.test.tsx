@@ -168,13 +168,56 @@ describe("Catalogo prodotti nel preventivo", () => {
   });
 });
 describe("Prodotti e servizi nello stesso flusso", () => {
+  it("controlla i prodotti duplicati anche nella selezione multipla", () => {
+    stato.items = [{ ...prodotto("ALU-01"), modalita_prezzo: "pz", prezzo_base_vendita: 100 }];
+    const aggiungi = vi.fn();
+    dialogo({ onAddItems: aggiungi, existingItems: [{ item_type: "product", item_category: "prodotto", family_id: "ALU-01", name: "Finestra 1 Anta" }] });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Seleziona Finestra 1 Anta" }));
+    fireEvent.click(screen.getByRole("button", { name: "Modifica selezionati (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi 1 prodotti al preventivo" }));
+    expect(aggiungi).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Prodotto già presente");
+    fireEvent.click(screen.getByRole("button", { name: "Annulla inserimento" }));
+    expect(screen.getByLabelText("Prezzo cliente Finestra 1 Anta")).toHaveValue("100");
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi 1 prodotti al preventivo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi comunque" }));
+    expect(aggiungi).toHaveBeenCalledOnce();
+  });
+  it("richiede conferma prima di aggiungere una tariffa già conteggiata", () => {
+    const api = dialogo({ initialTab: "manodopera", existingItems: [{ item_type: "service", item_category: "posa", name: tariffa.nome, tariffa_id: tariffa.id }] });
+    fireEvent.click(screen.getByRole("button", { name: /Posa pavimento/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi servizio" }));
+    expect(api.onAddTariffa).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Possibile doppia voce");
+    fireEvent.click(screen.getByRole("button", { name: "Annulla inserimento" }));
+    expect(api.onAddTariffa).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Posa pavimento/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi servizio" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi comunque" }));
+    expect(api.onAddTariffa).toHaveBeenCalledOnce();
+  });
+  it("seleziona più prodotti senza ridimensionare la finestra e li apre nella tabella comune", () => {
+    stato.items = stato.items.map(item => ({ ...item, modalita_prezzo: "pz" }));
+    dialogo();
+    const dimensioni = screen.getByRole("dialog").className;
+    const selezioni = screen.getAllByRole("checkbox", { name: /Seleziona Finestra/ });
+    fireEvent.click(selezioni[0]);
+    fireEvent.click(selezioni[1]);
+    fireEvent.click(screen.getByRole("button", { name: "Modifica selezionati (2)" }));
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByRole("dialog").className).toBe(dimensioni);
+    fireEvent.click(screen.getByRole("button", { name: "Torna alla selezione" }));
+    expect(screen.getByRole("button", { name: "Modifica selezionati (2)" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Finestra 1 Anta PVC Salamander/ }));
+    expect(screen.getByRole("dialog").className).toBe(dimensioni);
+  });
   it("conserva la ricerca cambiando scheda e distingue il prodotto anche nella configurazione", () => {
     dialogo();
     const ricerca = screen.getByRole("textbox", {
       name: "Cerca nel catalogo prodotti",
     });
     fireEvent.change(ricerca, { target: { value: "Salamander" } });
-    fireEvent.click(screen.getByRole("tab", { name: /Manodopera e servizi/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Manodopera/ }));
     fireEvent.click(screen.getByRole("tab", { name: "Prodotti" }));
     expect(
       screen.getByRole("textbox", { name: "Cerca nel catalogo prodotti" }),
@@ -189,7 +232,7 @@ describe("Prodotti e servizi nello stesso flusso", () => {
     ).toHaveValue("Salamander");
   });
   it("aggiunge più servizi con quantità e totale verificati, senza chiudere il catalogo", () => {
-    const api = dialogo({ initialTab: "servizi" });
+    const api = dialogo({ initialTab: "manodopera" });
     fireEvent.click(screen.getByRole("button", { name: /Posa pavimento/ }));
     expect(api.onAddTariffa).not.toHaveBeenCalled();
     fireEvent.change(
@@ -210,7 +253,7 @@ describe("Prodotti e servizi nello stesso flusso", () => {
     expect(screen.getByText(/2 voci inserite/)).toBeInTheDocument();
   });
   it("blocca quantità zero o invalide", () => {
-    dialogo({ initialTab: "servizi" });
+    dialogo({ initialTab: "manodopera" });
     fireEvent.click(screen.getByRole("button", { name: /Posa pavimento/ }));
     for (const value of ["0", "-1", "abc"]) {
       fireEvent.change(
@@ -224,7 +267,7 @@ describe("Prodotti e servizi nello stesso flusso", () => {
   });
   it("una tariffa a corpo usa un intervento, con importo fisso", () => {
     const t = { ...tariffa, unita: "fisso", unita_fatturazione: "a_corpo" };
-    const api = dialogo({ initialTab: "servizi", tariffe: [t] });
+    const api = dialogo({ initialTab: "manodopera", tariffe: [t] });
     fireEvent.click(screen.getByRole("button", { name: /Posa pavimento/ }));
     expect(
       screen.getByRole("textbox", { name: "Quantità servizio" }),
@@ -258,7 +301,7 @@ describe("Prodotti e servizi nello stesso flusso", () => {
     const prodotti = screen.getByRole("tab", { name: "Prodotti" });
     fireEvent.keyDown(prodotti, { key: "ArrowRight" });
     expect(
-      screen.getByRole("tab", { name: /Manodopera e servizi/ }),
+      screen.getByRole("tab", { name: /Manodopera/ }),
     ).toHaveAttribute("aria-selected", "true");
   });
 });
@@ -335,7 +378,7 @@ describe("Aree condivise fra prodotti e servizi", () => {
       screen.getByRole("button", { name: "Bagni: 1 prodotto · 1 servizio" }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(
-      screen.getByRole("tab", { name: /Manodopera e servizi/ }),
+      screen.getByRole("tab", { name: /Servizi/ }),
     ).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("button", { name: /Posa infissi/ })).toBeNull();
   });
@@ -352,11 +395,13 @@ describe("Aree condivise fra prodotti e servizi", () => {
     expect(
       screen.queryByRole("button", { name: /Finestra 1 Anta PVC Aluplast/ }),
     ).toBeNull();
-    fireEvent.click(screen.getByRole("tab", { name: /Manodopera e servizi/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Servizi/ }));
     expect(screen.queryByRole("button", { name: /Posa infissi/ })).toBeNull();
     expect(
       screen.getByRole("button", { name: /Trasporto comune/ }),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: /Manodopera/ }));
+    expect(screen.queryByRole("button", { name: /Trasporto comune/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Posa pavimento/ }));
     fireEvent.change(
       screen.getByRole("textbox", { name: "Quantità servizio" }),

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { descrizioneCommerciale, prezziVenditaCompleti } from "@/lib/preventivi/configurazioneSemplice";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -480,7 +481,7 @@ export default function QuoteBuilder() {
   // entry point "+ Aggiungi voce" che apre la macchina a stati
   // Macrocategoria → Prodotto → Configura.
   const [addItemOpen, setAddItemOpen] = useState(false);
-  const [addItemTab, setAddItemTab] = useState<"prodotti" | "servizi">("prodotti");
+  const [addItemTab, setAddItemTab] = useState<"prodotti" | "manodopera" | "servizi">("prodotti");
   const preventivatoreUnifiedOn = isPreventivatoreUnifiedOn();
 
   // Step 2: Documents + PDF settings
@@ -1105,7 +1106,7 @@ export default function QuoteBuilder() {
     return { quantity: quantita, unit_price: unita.prezzo_vendita, prezzo_acquisto: unita.prezzo_acquisto };
   };
 
-  const addTariffa = (tariffa: TariffaPro, category: string, quantita?: number) => {
+  const addTariffa = (tariffa: TariffaPro, category: string, quantita?: number, prezzoVendita?: number) => {
     const riga = prezziRigaTariffa(tariffa);
     setItems((prev) => [
       ...prev,
@@ -1113,9 +1114,9 @@ export default function QuoteBuilder() {
         item_type: "service",
         item_category: category,
         name: tariffa.nome,
-        description: tariffa.descrizione ?? "",
+        description: descrizioneCommerciale(tariffa.descrizione),
         quantity: unitaTariffa(tariffa) === "a_corpo" ? 1 : quantita ?? riga.quantity,
-        unit_price: riga.unit_price,
+        unit_price: prezzoVendita ?? riga.unit_price,
         discount_percent: 0,
         vat_rate: ivaPredefinita(),
         // L'unità con cui la tariffa si conta (unitaTariffa), non la legacy.
@@ -1884,6 +1885,10 @@ export default function QuoteBuilder() {
   // Save
   const handleSave = async (status: string = "bozza", opts?: { anteprima?: boolean; autosave?: boolean; complete?: boolean }) => {
     if (!companyId || !user) return;
+    if ((opts?.anteprima || opts?.complete || status !== "bozza") && !prezziVenditaCompleti(items, prezzoManuale)) {
+      toast.error("Completa i prezzi di vendita", { description: "I costi d’acquisto non sono prezzi cliente. Puoi comunque salvare una bozza." });
+      return;
+    }
     if (isEdit && (!existingQuote || !existingItemsLoaded || !existingAttachmentsLoaded)) {
       if (!opts?.autosave) toast.error("Caricamento incompleto", {
         description: "Attendi il caricamento di righe e allegati. Se il problema continua, ricarica la pagina prima di salvare.",
@@ -2211,7 +2216,7 @@ export default function QuoteBuilder() {
   const productLines = items.filter((item) => !["nota", "subtotale", "sconto"].includes(item.item_category));
   const productsReady = productLines.length > 0 && productLines.every((item) => !!item.name.trim());
   const paymentError = paymentPlanError(paymentPhases);
-  const quoteReady = clientReady && productsReady && !paymentError;
+  const quoteReady = clientReady && productsReady && !paymentError && prezziVenditaCompleti(items, prezzoManuale);
 
   // Prima le voci, poi la definizione del prezzo: stessa sequenza in modifica e riepilogo.
   const priceAndDiscountPanel = productLines.length > 0 ? (
@@ -2700,8 +2705,11 @@ export default function QuoteBuilder() {
                       <Button size="sm" variant="brand" className="max-sm:min-w-0 max-sm:flex-1" onClick={() => {setAddItemTab("prodotti"); setAddItemOpen(true);}}>
                         <Plus className="h-4 w-4 mr-1" /> Prodotti
                       </Button>
+                      <Button type="button" size="sm" variant="outline" className="max-sm:flex-1" onClick={() => {setAddItemTab("manodopera"); setAddItemOpen(true);}}>
+                        <Plus className="h-4 w-4 mr-1" /> Manodopera
+                      </Button>
                       <Button type="button" size="sm" variant="outline" className="max-sm:flex-1" onClick={() => {setAddItemTab("servizi"); setAddItemOpen(true);}}>
-                        <Plus className="h-4 w-4 mr-1" /> Manodopera e servizi
+                        <Plus className="h-4 w-4 mr-1" /> Servizi
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -3278,6 +3286,12 @@ export default function QuoteBuilder() {
           className="max-sm:p-3"
         >
           <div className="space-y-6 max-sm:space-y-4">
+            {!prezziVenditaCompleti(items, prezzoManuale) && (
+              <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <span>Completa i prezzi di vendita prima di preparare l’offerta. I costi d’acquisto restano interni; puoi salvare una bozza.</span>
+                <Button size="sm" variant="outline" onClick={() => setStep(1)}>Completa prezzi</Button>
+              </div>
+            )}
             {(!clientReady || !productsReady) && (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 max-sm:gap-2 max-sm:p-2.5 max-sm:text-xs">
                 <span>{!clientReady ? "Inserisci il nome del cliente per preparare il PDF." : "Aggiungi almeno un prodotto o servizio e completa i nomi delle righe."}</span>
@@ -4052,12 +4066,13 @@ export default function QuoteBuilder() {
         <AddItemDialog
           open={addItemOpen}
           initialTab={addItemTab}
+          existingItems={items}
           onClose={() => setAddItemOpen(false)}
           tariffe={tariffe}
           currentSortOrder={items.length}
           quantitaInizialeTariffa={t => quantitaInizialeTariffa(t, kmCantiere).quantita}
           prezzoUnitarioTariffa={t => calcolaTariffaAutomatica(t, 1, pianoInstallazione).prezzo_vendita}
-          onAddTariffa={(t, q) => { const ammesse = new Set(["posa", "trasporto", "tiro_piano", "smaltimento", "nolo", "pratica"]); addTariffa(t, ammesse.has(t.tipo) ? t.tipo : "posa", q); }}
+          onAddTariffa={(t, q, prezzo) => { const ammesse = new Set(["posa", "trasporto", "tiro_piano", "smaltimento", "nolo", "pratica"]); addTariffa(t, ammesse.has(t.tipo) ? t.tipo : "posa", q, prezzo); }}
           onAddItems={(configured: ConfiguredItem[]) => {
             // I ConfiguredItem portano già `client_temp_id`/`parent_temp_id`
             // nel loro `quote_item`: li preserviamo as-is in `items` per poi

@@ -170,12 +170,28 @@ export function OrderEconomicsSummary({
       fixTo: `/azienda/ordini/${orderId}?tab=articoli`,
     },
     {
+      key: "materials",
+      label: "Materiali previsti con acquisti o consumi registrati",
+      taskLabel: "Verifica gli acquisti dei materiali previsti",
+      done: consuntivo.materialiPianificati <= 0 || actual.purchases + actual.warehouseMaterials > 0,
+      priority: "alta",
+      fixTo: `/azienda/ordini/${orderId}?tab=articoli&vista_materiali=acquisti`,
+    },
+    {
       key: "dates",
       label: "Data di inizio lavori impostata",
       taskLabel: "Imposta la data di inizio lavori",
       done: Boolean(workStartDate),
       priority: "normale",
       fixTo: `/azienda/ordini/${orderId}?tab=cantiere&section=section-pianificazione`,
+    },
+    {
+      key: "labor-budget",
+      label: "Costi previsti della manodopera definiti",
+      taskLabel: "Completa i costi previsti della manodopera",
+      done: !quality.issues.some(issue => issue.code === "labor_without_budget"),
+      priority: "alta",
+      fixTo: `/azienda/ordini/${orderId}?tab=finanza&vista_economia=manodopera`,
     },
     {
       key: "vehicles",
@@ -195,7 +211,7 @@ export function OrderEconomicsSummary({
       priority: "alta",
       fixTo: "/azienda/personale?tab=richieste",
     },
-  ], [actual.costs, actual.pendingMileageReimbursementsCount, actual.revenue, orderId, vehicleCosts, workStartDate]);
+  ], [actual.costs, actual.purchases, actual.warehouseMaterials, actual.pendingMileageReimbursementsCount, actual.revenue, consuntivo.materialiPianificati, quality.issues, orderId, vehicleCosts, workStartDate]);
   const controlWorkflow = useOrderControlTasks(orderId, controlChecks);
   const completedControlChecks = controlWorkflow.controls.filter((check) => check.resolved).length;
 
@@ -322,7 +338,7 @@ export function OrderEconomicsSummary({
                     ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                     : "border-orange-200 bg-orange-50 text-orange-700"}
                 >
-                  {completedControlChecks}/{controlWorkflow.controls.length} sotto controllo
+                  {completedControlChecks}/{controlWorkflow.controls.length} verifiche completate
                 </Badge>
               </div>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
@@ -490,8 +506,9 @@ export function OrderEconomicsSummary({
                 return (
                   <div className="mt-1.5 flex items-center justify-between border-t pt-1.5">
                     <span className="font-medium text-foreground">
-                      Di questo passo, a fine lavori
+                      Scenario proporzionale ai costi registrati
                       <span className="ml-1 font-normal text-muted-foreground">· lavori {alPct(avanzamentoPct)}</span>
+                      <span className="block text-xs font-normal text-muted-foreground">Acquisti anticipati e costi mancanti possono alterare la stima: non è il budget a finire.</span>
                     </span>
                     <span
                       className={`font-semibold ${

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { descrizioneCommerciale } from "@/lib/preventivi/configurazioneSemplice";
 import {
   Search,
   Wrench,
@@ -36,7 +37,11 @@ import {
 
 interface Props {
   tariffe: TariffaPro[];
-  onPick: (tariffa: TariffaPro, quantita: number) => void;
+  onPick: (
+    tariffa: TariffaPro,
+    quantita: number,
+    prezzoVendita?: number,
+  ) => void;
   quantitaIniziale?: (t: TariffaPro) => number;
   prezzoUnitario?: (t: TariffaPro) => number;
   attivo?: boolean;
@@ -76,6 +81,7 @@ export function TariffePicker({
   const setPagina = (numero: number) => setFiltroPagina({ ambito, numero });
   const setSceltaId = (id: string | null) => setSelezione({ ambito, id });
   const [quantita, setQuantita] = useState("1");
+  const [venditaManuale, setVenditaManuale] = useState<string | null>(null);
   const attive = useMemo(
     () => tariffe.filter((t) => t.attivo !== false && t.attiva !== false),
     [tariffe],
@@ -120,16 +126,19 @@ export function TariffePicker({
   const aCorpo = scelta && unitaTariffa(scelta) === "a_corpo";
   const qty = aCorpo ? 1 : Number(quantita.replace(",", "."));
   const prezzo = scelta
-    ? (prezzoUnitario?.(scelta) ?? scelta.prezzo_vendita)
+    ? venditaManuale !== null
+      ? Number(venditaManuale.replace(",", "."))
+      : (prezzoUnitario?.(scelta) ?? scelta.prezzo_vendita ?? 0)
     : 0;
   const valida =
     !!scelta &&
     Number.isFinite(qty) &&
     qty > 0 &&
     Number.isFinite(prezzo) &&
-    prezzo >= 0 &&
+    prezzo > 0 &&
     Number.isFinite(qty * prezzo);
   function seleziona(t: TariffaPro) {
+    setVenditaManuale(null);
     setSceltaId(t.id);
     setQuantita(
       String(unitaTariffa(t) === "a_corpo" ? 1 : (quantitaIniziale?.(t) ?? 1)),
@@ -148,28 +157,34 @@ export function TariffePicker({
         <p className="mb-3 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Lavorazioni e servizi
         </p>
-        <nav aria-label="Gruppi dei servizi" className="space-y-1">
+        <nav
+          aria-label="Gruppi dei servizi"
+          className="divide-y divide-border/60"
+        >
           {[
             { id: "all", nome: "Tutti i servizi", count: attive.length },
             ...gruppi,
           ].map((g) => (
-            <button
-              type="button"
-              key={g.id}
-              aria-pressed={gruppo === g.id}
-              aria-label={`${g.nome} ${g.count}`}
-              onClick={() => {
-                setGruppo(g.id);
-                setPagina(0);
-              }}
-              className={cn(
-                "flex w-full items-start justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-muted",
-                gruppo === g.id && "bg-primary/10 font-semibold text-primary",
-              )}
-            >
-              <span>{g.nome}</span>
-              <span className="text-xs tabular-nums opacity-70">{g.count}</span>
-            </button>
+            <div key={g.id} className="py-1 first:pt-0 last:pb-0">
+              <button
+                type="button"
+                aria-pressed={gruppo === g.id}
+                aria-label={`${g.nome} ${g.count}`}
+                onClick={() => {
+                  setGruppo(g.id);
+                  setPagina(0);
+                }}
+                className={cn(
+                  "flex w-full items-start justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-muted",
+                  gruppo === g.id && "bg-primary/10 font-semibold text-primary",
+                )}
+              >
+                <span>{g.nome}</span>
+                <span className="text-xs tabular-nums opacity-70">
+                  {g.count}
+                </span>
+              </button>
+            </div>
           ))}
         </nav>
       </aside>
@@ -271,9 +286,11 @@ export function TariffePicker({
                 </span>
                 <span className="shrink-0 text-right">
                   <span className="block text-sm font-semibold tabular-nums">
-                    {formatPrezzoUnitario(
-                      prezzoUnitario?.(t) ?? t.prezzo_vendita,
-                    )}
+                    {(prezzoUnitario?.(t) ?? t.prezzo_vendita ?? 0) > 0
+                      ? formatPrezzoUnitario(
+                          prezzoUnitario?.(t) ?? t.prezzo_vendita,
+                        )
+                      : "Da definire"}
                   </span>
                   <span className="mt-1 block text-[11px] text-muted-foreground">
                     / {unitaLeggibile(t)}
@@ -373,7 +390,7 @@ export function TariffePicker({
                 {scelta.nome}
               </h3>
               <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
-                {scelta.descrizione ||
+                {descrizioneCommerciale(scelta.descrizione) ||
                   "Descrizione non presente nel listino. Potrai completarla sulla riga del preventivo."}
               </p>
               {scelta.fonte && (
@@ -383,12 +400,20 @@ export function TariffePicker({
               )}
             </div>
             <div className="rounded-lg border bg-background p-3">
-              <p className="text-xs text-muted-foreground">Prezzo di vendita</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums">
-                {formatPrezzoUnitario(prezzo)}{" "}
-                <span className="text-xs font-normal text-muted-foreground">
-                  / {unitaLeggibile(scelta)}
-                </span>
+              <Label htmlFor="servizio-vendita">
+                Prezzo di vendita (€ / {unitaLeggibile(scelta)})
+              </Label>
+              <Input
+                id="servizio-vendita"
+                className="mt-2"
+                inputMode="decimal"
+                placeholder="Inserisci il prezzo cliente"
+                value={venditaManuale ?? (prezzo > 0 ? String(prezzo) : "")}
+                onChange={(e) => setVenditaManuale(e.target.value)}
+              />
+              <p className="mt-2 text-xs text-muted-foreground">
+                IVA esclusa · solo per questo preventivo. Nessun costo
+                d’acquisto viene usato come prezzo cliente.
               </p>
             </div>
             <div className="space-y-1.5">
@@ -410,15 +435,15 @@ export function TariffePicker({
                   Importo fisso per l’intero intervento.
                 </p>
               )}
-              {!valida && (
+              {(!Number.isFinite(qty) || qty <= 0) && (
                 <p className="text-xs text-destructive">
                   Inserisci una quantità maggiore di zero.
                 </p>
               )}
             </div>
-            {prezzo === 0 && (
+            {(!Number.isFinite(prezzo) || prezzo <= 0) && (
               <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-                Prezzo da completare nel preventivo.
+                Inserisci il prezzo cliente per aggiungere questa voce.
               </p>
             )}
             <div className="mt-auto space-y-3 border-t pt-4">
@@ -433,7 +458,8 @@ export function TariffePicker({
                 disabled={!valida}
                 onClick={() => {
                   if (scelta && valida) {
-                    onPick(scelta, qty);
+                    if (venditaManuale !== null) onPick(scelta, qty, prezzo);
+                    else onPick(scelta, qty);
                     setSceltaId(null);
                   }
                 }}
@@ -476,8 +502,9 @@ export function TariffePickerDialog({
         <div className="min-h-0 flex-1 p-4">
           <TariffePicker
             {...props}
-            onPick={(t, q) => {
-              props.onPick(t, q);
+            onPick={(t, q, prezzo) => {
+              if (prezzo !== undefined) props.onPick(t, q, prezzo);
+              else props.onPick(t, q);
               onClose();
             }}
           />

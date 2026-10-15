@@ -223,6 +223,7 @@ function getOrderAlerts(
 // ── Types ────────────────────────────────────────────────────────
 
 interface OrderDetail {
+  deleted_at?: string | null;
   id: string;
   order_code: string | null;
   description: string;
@@ -1018,7 +1019,7 @@ function OrderDetailInner() {
 
   const handleAttachmentsRefresh = () => { refetchAttachments(); };
 
-  const linkedDocumentsCount = fattureCollegate.length + documentiCommessa.length;
+  const linkedDocumentsCount = fattureCollegate.length;
 
   const formatFiscalType = (tipo: string) => {
     const labels: Record<string, string> = {
@@ -1198,6 +1199,15 @@ function OrderDetailInner() {
         <Button className="mt-4" onClick={() => navigate("/azienda/ordini")}>Torna alle commesse</Button>
       </div>
     );
+  }
+
+  if (order.deleted_at) {
+    return <section className="m-4 rounded-xl border border-amber-300 bg-amber-50 p-6" aria-label="Commessa nel cestino">
+      <h1 className="text-xl font-semibold">{order.order_code} · Commessa nel cestino</h1>
+      <p className="mt-2">{order.description}</p>
+      <p className="mt-3 text-sm">Questa commessa è stata cestinata. Le azioni operative e i solleciti sono sospesi. Documenti e storico restano conservati; per riprendere il lavoro ripristina la commessa dal cestino.</p>
+      <Button className="mt-4" onClick={() => navigate("/azienda/ordini")}>Torna alle commesse</Button>
+    </section>;
   }
 
   const collectedAmount = calculateCollectedNetFromInstallments({
@@ -1569,7 +1579,7 @@ function OrderDetailInner() {
             {activeMaterialiView === "articoli" && <>
             <div id="section-materiali" className="scroll-mt-24">
               {/* Controllo misure: solo se ci sono articoli su misura (altrimenti null) */}
-              <ErrorBoundary fallback={<></>}>
+              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Controllo misure non disponibile. Ricarica la pagina per riprovare.</p>}>
                 <OrderMeasureControl orderId={id!} />
               </ErrorBoundary>
             </div>
@@ -1709,7 +1719,7 @@ function OrderDetailInner() {
             {/* Conto economico: riepilogo a colpo d'occhio, sempre in cima */}
             {/* Conto economico = costi + margine → solo a chi può vederli. */}
             {activeEconomiaView === "margini" && (permissions.canViewCosts || permissions.canViewMargins) && (
-              <ErrorBoundary fallback={<></>}>
+              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Conto economico non disponibile. Ricarica la pagina per riprovare.</p>}>
                 <OrderEconomicsSummary
                   orderId={id!}
                   totalAmount={order.total_amount}
@@ -1763,7 +1773,7 @@ function OrderDetailInner() {
                 Vendite+costi → entrambi i permessi. L'ancora serve alla fascia
                 verdetto in Panoramica, su tutti i dispositivi. */}
             {permissions.canViewOrderAmounts && permissions.canViewCosts && (
-              <ErrorBoundary fallback={<></>}>
+              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Movimenti di cassa non disponibili. Ricarica la pagina per riprovare.</p>}>
                 <EsposizioneCommessa
                   orderId={id!}
                   totalAmount={agreedAmount}
@@ -1814,11 +1824,11 @@ function OrderDetailInner() {
                           <strong>{formatCurrency(collectedGross)}</strong>) non
                           copre i materiali (
                           <strong>{formatCurrency(costoMaterialiGross)}</strong>
-                          ): anticipi circa{" "}
+                          ): se paghi tutti i materiali prima dei prossimi incassi, il fabbisogno stimato è{" "}
                           <strong>
                             {formatCurrency(Math.abs(cassaDopoMateriali))}
                           </strong>
-                          {saldoDate ? (
+                        {saldoDate && new Date(saldoDate).getTime() >= Date.now() ? (
                             <>
                               {" "}
                               fino al saldo del{" "}

@@ -26,7 +26,7 @@ export function OrderScheduleBadge({ orderId, className }: OrderScheduleBadgePro
   let label: string;
   let tone: string;
   if (health.stato === "in_ritardo") {
-    label = `In ritardo di ${giorni}gg${health.fase_critica ? ` — ${health.fase_critica}` : ""}`;
+    label = `Avanzamento sotto il previsto${health.fase_critica ? ` — ${health.fase_critica}` : ""}`;
     tone = "border-red-300 bg-red-50 text-red-700";
   } else if (health.stato === "in_anticipo") {
     label = `In anticipo (+${giorni}gg)`;
@@ -51,6 +51,7 @@ export function OrderScheduleBadge({ orderId, className }: OrderScheduleBadgePro
       <TooltipTrigger asChild>{badge}</TooltipTrigger>
       <TooltipContent className="max-w-xs">
         <p className="mb-1 font-semibold">Fasi indietro rispetto al previsto</p>
+        <p className="mb-1 text-xs">Scostamento equivalente a {giorni} giorni di lavoro previsto. Il ritardo di calendario è mostrato nel cronoprogramma.</p>
         <ul className="space-y-0.5">
           {problematiche.map((f) => (
             <li key={f.id} className="text-xs">

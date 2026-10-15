@@ -83,6 +83,7 @@ export function useCatalogCategories(opts: UseCatalogCategoriesOptions = {}) {
             .select("id,categoria_id")
             .eq("company_id", companyId!)
             .eq("attivo", true)
+            .is("family_id", null)
             .order("id")
             .range(from, to),
         ),

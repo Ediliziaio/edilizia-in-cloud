@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   orderDetailLocation,
@@ -12,6 +12,10 @@ import {
 export function useOrderDetailNavigation(ready: boolean) {
   const location = useLocation();
   const navigate = useNavigate();
+  const navigation = useRef(location.pathname + location.search + location.hash);
+  useLayoutEffect(() => {
+    navigation.current = location.pathname + location.search + location.hash;
+  }, [location.key, location.pathname, location.search, location.hash]);
   const { tab, section } = resolveOrderDetailDestination(
     location.search,
     location.hash,
@@ -22,10 +26,16 @@ export function useOrderDetailNavigation(ready: boolean) {
 
   const navigateTo = useCallback(
     (destination: OrderDetailDestination) => {
-      navigate({
+      const next = {
         pathname: location.pathname,
         ...orderDetailLocation(location.search, destination),
-      });
+      };
+      const href = next.pathname + next.search + next.hash;
+      // Radix fires both focus and mousedown when selecting a tab. Do not
+      // push the same destination twice, otherwise browser Back appears stuck.
+      if (navigation.current === href) return;
+      navigation.current = href;
+      navigate(next);
     },
     [location.pathname, location.search, navigate],
   );

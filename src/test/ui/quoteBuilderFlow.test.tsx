@@ -33,11 +33,11 @@ describe("preventivo classico: inserimento continuo", () => {
     render(<Harness />);
     fireEvent.change(screen.getByRole("textbox", { name: "Cerca nel catalogo prodotti" }), { target: { value: "PVC" } });
     fireEvent.click(screen.getByRole("button", { name: /Finestra PVC/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Aggiungi e continua" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi e scegli un altro" }));
     expect(screen.getByRole("textbox", { name: "Cerca nel catalogo prodotti" })).toHaveValue("PVC");
     expect(close).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /Finestra PVC/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Aggiungi e continua" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi e scegli un altro" }));
     expect(receive).toHaveBeenCalledTimes(2);
     expect(receive.mock.calls[1][1]).toBe(4);
     expect(receive.mock.calls[1][0][1].quote_item.parent_temp_id).toBe(receive.mock.calls[1][0][0].quote_item.client_temp_id);
@@ -51,8 +51,8 @@ describe("preventivo classico: inserimento continuo", () => {
     const receive = vi.fn();
     render(<AddItemDialog open onClose={close} tariffe={[]} currentSortOrder={0} onAddItems={receive} />);
     fireEvent.click(screen.getByRole("button", { name: /Finestra PVC/ }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Continua ad aggiungere prodotti" }));
-    fireEvent.click(screen.getByRole("button", { name: "Aggiungi e chiudi" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Aggiungi altri prodotti dopo questo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi al preventivo" }));
     expect(receive).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
   });
