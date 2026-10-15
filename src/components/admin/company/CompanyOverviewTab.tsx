@@ -87,6 +87,7 @@ const HEALTH_CRITERIA: Record<string, string> = {
 
 function getHealthInfo(days: number | null) {
   if (days === null) return { color: "text-muted-foreground", label: "N/A", bgClass: "bg-muted/50", ring: "ring-muted" };
+  if (days < 0) return { color: "text-muted-foreground", label: "data futura", bgClass: "bg-muted/50", ring: "ring-muted" };
   if (days <= 7) return { color: "text-green-600", label: `${days}g fa`, bgClass: "bg-green-500/10", ring: "ring-green-500/20" };
   if (days <= 30) return { color: "text-yellow-600", label: `${days}g fa`, bgClass: "bg-yellow-500/10", ring: "ring-yellow-500/20" };
   return { color: "text-red-600", label: `${days}g fa`, bgClass: "bg-red-500/10", ring: "ring-red-500/20" };
@@ -164,7 +165,7 @@ export function CompanyOverviewTab({
 }: CompanyOverviewTabProps) {
   const { data: serverHealth } = useCompanyHealthScore(companyId);
   const { data: credits } = useCompanyCreditsSnapshot(companyId);
-  const { data: lastActivity } = useCompanyLastActivity(companyId);
+  const { data: lastActivity, isLoading: isLastActivityLoading, isError: isLastActivityError } = useCompanyLastActivity(companyId);
 
   // Period selector per il chart principale (default 6m = comportamento legacy)
   const [chartPeriod, setChartPeriod] = useState<OverviewPeriod>("6m");
@@ -675,12 +676,12 @@ export function CompanyOverviewTab({
                     })}
                   </p>
                   <p className="text-[10px] text-muted-foreground truncate">
-                    {lastActivity.last_login_user_name ?? "Utente"}
+                    {lastActivity.last_login_user_name ?? "Accessi all’azienda"}
                   </p>
                 </>
               ) : (
                 <p className="text-sm font-medium text-muted-foreground">
-                  Nessun login registrato
+                  {isLastActivityLoading ? "Caricamento accessi…" : isLastActivityError ? "Accessi non disponibili" : "Nessun login registrato"}
                 </p>
               )}
             </div>

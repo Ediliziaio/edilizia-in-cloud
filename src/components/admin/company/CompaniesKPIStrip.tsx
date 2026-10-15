@@ -16,6 +16,7 @@ interface KPIStripProps {
     subscription_plans: { price_monthly: number; price_yearly?: number | null } | null;
   }>;
   healthData: Record<string, { score: number; health: string }>;
+  healthStatus?: "loading" | "error";
   /** True mentre i dati caricano: mostra skeleton invece di "0" finti. */
   isLoading?: boolean;
   /** Quale KPI è attualmente highlighted (matcha il filtro applicato) */
@@ -34,12 +35,12 @@ interface KPIStripProps {
  *
  * Active state: ring-2 + bg accentato. Hover: lift + shadow.
  */
-export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onKpiClick, isLoading = false }: KPIStripProps) {
+export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onKpiClick, isLoading = false, healthStatus }: KPIStripProps) {
   // Durante il load i KPI mostravano "0"/"0,00 €" come fossero dati reali —
   // skeleton finché i numeri non sono veri.
   if (isLoading && companies.length === 0) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-5 gap-3">
         {Array.from({ length: 5 }).map((_, i) => (
           <Card key={i} className="p-4 flex items-center gap-3">
             <div className="h-10 w-10 shrink-0 animate-pulse rounded-lg bg-muted" />
@@ -64,6 +65,8 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
     const h = healthData[c.id];
     return h && (h.health === "at_risk" || h.health === "critical");
   }).length;
+
+  const unknownHealthCount = companies.filter((company) => !healthData[company.id]).length;
 
   const kpis: Array<{
     key: "active" | "paying" | "mrr" | "excluded" | "atRisk";
@@ -123,18 +126,21 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
     {
       key: "atRisk",
       label: "A Rischio",
-      value: atRiskCount.toLocaleString("it-IT"),
-      sub: atRiskCount > 0 ? "richiedono attenzione" : "tutto sotto controllo",
+      value: healthStatus === "loading" ? "…" : healthStatus === "error" ? "N/D" : atRiskCount.toLocaleString("it-IT"),
+      sub: healthStatus === "loading" ? "Valutazioni in caricamento"
+        : healthStatus === "error" ? "Valutazioni non disponibili"
+        : unknownHealthCount > 0 ? `${unknownHealthCount} ${unknownHealthCount === 1 ? "azienda senza valutazione" : "aziende senza valutazione"}`
+        : atRiskCount > 0 ? "richiedono attenzione" : "tutto sotto controllo",
       icon: AlertTriangle,
       accent: atRiskCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground",
       grad: atRiskCount > 0 ? "from-amber-500 to-orange-400" : "from-emerald-500 to-teal-400",
       ring: "ring-amber-500/40",
-      onClick: () => onKpiClick?.("atRisk"),
+      onClick: healthStatus ? undefined : () => onKpiClick?.("atRisk"),
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-5 gap-3">
       {kpis.map((kpi, i) => {
         const isActive = activeKpi === kpi.key;
         const isClickable = !!kpi.onClick;
@@ -142,7 +148,7 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
           <Card
             key={kpi.key}
             className={cn(
-              "group relative overflow-hidden p-4 flex items-center gap-3 transition-all duration-200",
+              "group relative p-4 flex flex-col items-start gap-3 transition-colors duration-200",
               // Ultima card di un numero dispari → span pieno su mobile: niente
               // mezza colonna vuota (feedback_no_white_space).
               i === kpis.length - 1 && kpis.length % 2 === 1 && "col-span-2 md:col-span-1",
@@ -165,18 +171,18 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
                   <div className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white shadow-sm transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3", kpi.grad)}>
               <kpi.icon className="h-5 w-5" />
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 w-full flex-1">
               <div className="flex items-center gap-1.5">
-                <p className="text-xs text-muted-foreground font-medium truncate">{kpi.label}</p>
+                <p className="text-xs text-muted-foreground font-medium">{kpi.label}</p>
                 {isActive && (
                   <Badge variant="secondary" className="h-4 px-1 text-[9px] gap-0.5 shrink-0">
                     <X className="h-2.5 w-2.5" /> attivo
                   </Badge>
                 )}
               </div>
-              <p className={`text-xl font-bold tracking-tight truncate ${kpi.accent}`}>{kpi.value}</p>
+              <p className={`text-xl font-bold tracking-tight tabular-nums break-words ${kpi.accent}`}>{kpi.value}</p>
               {kpi.sub && (
-                <p className="text-[10px] text-muted-foreground/80 truncate" title={kpi.sub}>{kpi.sub}</p>
+                <p className="text-xs leading-relaxed text-muted-foreground" title={kpi.sub}>{kpi.sub}</p>
               )}
             </div>
           </Card>

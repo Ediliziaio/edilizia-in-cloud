@@ -5,6 +5,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Building2, Plus, Search, LogIn, ExternalLink, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart, AlertTriangle, CreditCard, UserX, ChevronLeft, ChevronRight, SlidersHorizontal, X, ChevronRight as ChevronRightIcon, Filter } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { escapeCsvCell } from "@/lib/csvExport";
+import { useHealthScores } from "@/hooks/useHealthScores";
+import { buildCompanyHealthMap } from "@/lib/companyHealthConsistency";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -24,7 +26,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { format, differenceInDays, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
-import { sectorLabels, statusConfig, sectors, calculateHealthScore } from "@/lib/companyUtils";
+import { sectorLabels, statusConfig, sectors } from "@/lib/companyUtils";
 import type { CompanyStatus } from "@/types/auth";
 import type { CompanyOrderStats, CompanyUserCount, CompanyUserCountV2, CompanyHealthData, CompanyLastAccess } from "@/types/adminRpc";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
@@ -117,7 +119,7 @@ const REVENUE_LABELS_MAP: Record<RevenueFilter, string> = {
 };
 type ColKey = "sector" | "plan" | "mrr" | "users" | "customers" | "orders" | "lastAccess" | "trial" | "health" | "tags";
 type SavedView = { name: string; params: string };
-type CompanyHealthMap = Record<string, { score: number; health: string; lastOrderDate: string | null; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean; orders_last_30d?: number }>;
+type CompanyHealthMap = ReturnType<typeof buildCompanyHealthMap>;
 
 const ALL_COLUMNS: { key: ColKey; label: string }[] = [
   { key: "sector", label: "Settore" },
@@ -403,7 +405,7 @@ export default function CompaniesList() {
       .map((c) => c.id);
   }, [revenueFilter, allCompaniesSummary]);
 
-  const { data: rawHealthRows = [], isLoading: isHealthRowsLoading, isError: isHealthRowsError } = useQuery({
+  const { data: rawHealthRows = [], isLoading: isRawHealthRowsLoading, isError: isRawHealthRowsError } = useQuery({
     queryKey: queryKeys.admin.companiesHealth,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_company_health_data");
@@ -413,22 +415,14 @@ export default function CompaniesList() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const healthData: CompanyHealthMap = useMemo(() => {
-    const map: CompanyHealthMap = {};
-    rawHealthRows.forEach((h) => {
-      const input = {
-        order_count: Number(h.order_count) || 0,
-        user_count: Number(h.user_count) || 0,
-        has_customers: !!h.has_customers,
-        has_staff: !!h.has_staff,
-        orders_last_30d: h.orders_last_30d,
-        last_order_date: h.last_order_date,
-      };
-      const { score, health } = calculateHealthScore(input);
-      map[h.company_id] = { score, health, lastOrderDate: h.last_order_date, ...input };
-    });
-    return map;
-  }, [rawHealthRows]);
+  const { data: serverHealthRows = [], isLoading: isServerHealthLoading, isError: isServerHealthError } = useHealthScores();
+  const healthData: CompanyHealthMap = useMemo(
+    () => buildCompanyHealthMap(rawHealthRows, serverHealthRows),
+    [rawHealthRows, serverHealthRows],
+  );
+
+  const isHealthRowsLoading = isRawHealthRowsLoading || isServerHealthLoading;
+  const isHealthRowsError = isRawHealthRowsError || isServerHealthError;
 
   const healthFilterIds = useMemo<string[] | null>(() => {
     if (healthFilter === "all") return null;
@@ -1287,6 +1281,7 @@ export default function CompaniesList() {
           subscription_plans: c.subscription_plans as { price_monthly: number } | null,
         }))}
         healthData={healthData}
+        healthStatus={isHealthRowsLoading ? "loading" : isHealthRowsError ? "error" : undefined}
         isLoading={summaryLoading}
         activeKpi={
           revenueFilter === "paying" ? "paying"
