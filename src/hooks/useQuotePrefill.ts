@@ -113,6 +113,7 @@ export function useQuotePrefill(quoteId: string | null | undefined) {
       const bonusLines = parseBonusLines(q.bonus_lines);
 
       const quoteTyped = quote as {
+        title?: string | null;
         description?: string | null;
         quote_number?: string | null;
         client_name?: string | null;
