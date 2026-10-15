@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { adminTasksQueryKey, fetchAdminTasks, type AdminTask as CSTask } from "@/lib/adminTasks";
 import { adminTaskStatusPatch, matchesAdminTaskStatus } from "@/lib/adminTaskState";
+import { PLATFORM_ADMIN_COMPANY_ID } from "@/lib/adminConstants";
 import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -491,7 +492,7 @@ export default function AdminCSTasks() {
                       task={task}
                       selected={selected.has(task.id)}
                       onToggleSelect={() => toggleOne(task.id)}
-                      companyName={companyMap.get(task.company_id ?? "") ?? "—"}
+                      companyName={companyMap.get(task.company_id ?? "")}
                       statusIcon={statusIcon(task.status)}
                       priorityBadge={priorityBadge(task.priority)}
                       isOverdue={isOverdue(task)}
@@ -572,14 +573,14 @@ export default function AdminCSTasks() {
                           })()}
                         </TableCell>
                         <TableCell className="text-sm">
-                          {task.company_id ? <Link
+                          {task.company_id && companyMap.has(task.company_id) ? <Link
                             to={`/admin/aziende/${task.company_id}`}
                             className="inline-flex items-center gap-1 text-primary hover:underline"
                             title="Apri scheda azienda"
                           >
                             {companyMap.get(task.company_id ?? "") ?? "—"}
                             <ExternalLink className="h-3 w-3 opacity-60" />
-                          </Link> : <span className="text-muted-foreground">Attività interna</span>}
+                          </Link> : <span className="text-muted-foreground">{!task.company_id || task.company_id === PLATFORM_ADMIN_COMPANY_ID ? "Attività interna" : "Azienda non disponibile"}</span>}
                         </TableCell>
                         <TableCell>{priorityBadge(task.priority)}</TableCell>
                         <TableCell className={cn(
@@ -668,7 +669,7 @@ function MobileRow({
   task: CSTask;
   selected: boolean;
   onToggleSelect: () => void;
-  companyName: string;
+  companyName?: string;
   statusIcon: React.ReactNode;
   priorityBadge: React.ReactNode;
   isOverdue: boolean;
@@ -687,9 +688,9 @@ function MobileRow({
         {priorityBadge}
       </div>
       <div className="flex items-center justify-between text-xs text-muted-foreground pl-10">
-        {task.company_id ? <Link to={`/admin/aziende/${task.company_id}`} className="text-primary hover:underline">
+        {task.company_id && companyName ? <Link to={`/admin/aziende/${task.company_id}`} className="text-primary hover:underline">
           {companyName}
-        </Link> : <span>Attività interna</span>}
+        </Link> : <span>{!task.company_id || task.company_id === PLATFORM_ADMIN_COMPANY_ID ? "Attività interna" : "Azienda non disponibile"}</span>}
         <span className={overdue ? "text-destructive font-medium" : ""}>
           {task.due_date ? format(new Date(task.due_date), "dd/MM/yy") : ""}
         </span>
