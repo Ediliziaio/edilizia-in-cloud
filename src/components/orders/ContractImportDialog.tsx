@@ -1,3 +1,4 @@
+import { useContractWorkflowProfile } from "@/hooks/useContractWorkflowProfile";
 /**
  * ContractImportDialog — "Carica contratto / copia commissione".
  *
@@ -60,6 +61,7 @@ function fmtBytes(b: number): string {
 
 export function ContractImportDialog({ open, onOpenChange, companyId, onApply, initialAnalysisId }: Props) {
   const { effectiveCompany } = useAuth();
+  const workflowProfilo = useContractWorkflowProfile();
   const { offerti: modelliFasi } = useFasiDiPartenza();
   const [file, setFile] = useState<File | null>(null);
   // Il file dell'analisi Silvio (se si arriva da lì): riusato da storage.
@@ -498,7 +500,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
   };
 
   const apply = async () => {
-    if (!extract) return;
+    if (!extract || !workflowProfilo.data) return;
     // Anche il file riusato da Silvio deve finire nei Documenti: se non c'è
     // un File locale, lo si scarica da storage e lo si passa come tale.
     let sorgente: File | null = file;
@@ -600,7 +602,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
           </div>
         ) : (
           <div className="space-y-3">
-            <ContractPreparationCard piano={prepareContract(extract, modelliFasi)} />
+            {workflowProfilo.data ? <ContractPreparationCard piano={prepareContract(extract, modelliFasi, workflowProfilo.data)} /> : <p role="status">{workflowProfilo.isError ? "Configurazione aziendale non disponibile. Riprova prima di applicare il contratto." : "Caricamento configurazione aziendale…"}</p>}
             {extract.summary && (
               <div className="rounded-lg border border-orange-100 bg-orange-50 p-3 text-sm text-slate-700">{extract.summary}</div>
             )}
@@ -722,7 +724,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                     Crea Ordine d'Acquisto
                   </Button>
                 )}
-                <Button onClick={apply} className="gap-1"><CheckCircle2 className="h-4 w-4" /> Applica alla commessa</Button>
+                <Button onClick={apply} disabled={!workflowProfilo.data} className="gap-1"><CheckCircle2 className="h-4 w-4" /> Applica alla commessa</Button>
               </div>
             </div>
           </div>

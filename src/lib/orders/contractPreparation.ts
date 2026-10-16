@@ -11,10 +11,14 @@ export function storedContractFromDraft(value: unknown, companyId: string): Stor
   return {bucket:s.bucket, path:s.path, name:s.name, mime:s.mime};
 }
 
+export type ContractWorkflowProfile = "standard" | "manutenzione_stradale_su_ordine";
+export const contractWorkflowProfile = (value: unknown): ContractWorkflowProfile => value === "manutenzione_stradale_su_ordine" ? value : "standard";
+
 export interface OfficeStep { nome: string; controlli: string[] }
 export interface ContractPreparation {
   extract: ContractExtract;
-  organizzazione: "interventi_su_ordine" | "lavoro_singolo";
+  profilo: ContractWorkflowProfile;
+  organizzazione: "da_confermare" | "interventi_su_ordine" | "lavoro_singolo";
   motivo: string;
   standardId: string | null;
   standardNome: string | null;
@@ -33,7 +37,8 @@ const ufficioRicorrente: OfficeStep[] = [
 ];
 
 /** Selezione solo tra gli standard dell'azienda caricati. Una parità non diventa una scelta arbitraria. */
-export function prepareContract(extract: ContractExtract, modelli: readonly ModelloFasi[]): ContractPreparation {
+export function prepareContract(extract: ContractExtract, modelli: readonly ModelloFasi[], profilo: ContractWorkflowProfile = "standard"): ContractPreparation {
+  if (profilo !== "manutenzione_stradale_su_ordine") return { extract, profilo: "standard", organizzazione: "da_confermare", motivo: "Organizzazione e standard da scegliere secondo il flusso dell’azienda.", standardId: null, standardNome: null, ufficio: [], cantiere: [] };
   const testo = norm(`${extract.descrizione_lavori} ${extract.summary}`);
   const ricorrente = extract.natura_documento !== "offerta_fornitore" && /manutenzione ricorrente|interventi (?:su |a )ordin|pluriennal/.test(testo);
   const stradale = /strad|viabilita|bitum|fresatur|pavimentazion/.test(testo);
@@ -52,7 +57,7 @@ export function prepareContract(extract: ContractExtract, modelli: readonly Mode
   }).filter(x => x.score >= 3).sort((a,b) => b.score-a.score);
   const modello = ranked.length && ranked[0].score > (ranked[1]?.score ?? -1) ? ranked[0].m : null;
   return {
-    extract, organizzazione: ricorrente ? "interventi_su_ordine" : "lavoro_singolo",
+    extract, profilo, organizzazione: ricorrente ? "interventi_su_ordine" : "lavoro_singolo",
     motivo: ricorrente
       ? "Il documento descrive manutenzione ricorrente o interventi su ordinazione: il contratto raccoglie più interventi. Verifica questa organizzazione prima di usarla."
       : "Proposta per un singolo lavoro; verifica che il documento non riguardi interventi ricorrenti.",
@@ -102,7 +107,7 @@ export function contractPreparationNotes(p: ContractPreparation, confermati: Con
   const a = p.extract.appalto_pubblico;
   return [
     "IMPORTAZIONE CONTRATTO — PROPOSTA DA VERIFICARE",
-    p.organizzazione === "interventi_su_ordine" ? "Organizzazione: contratto ricorrente con interventi su ordine." : "Organizzazione: singolo lavoro.",
+    p.organizzazione === "interventi_su_ordine" ? "Organizzazione: contratto ricorrente con interventi su ordine." : p.organizzazione === "lavoro_singolo" ? "Organizzazione: singolo lavoro." : "Organizzazione: da confermare secondo il flusso aziendale.",
     `Standard: ${p.standardNome ?? "da scegliere"}.`,
     ...(a?.presente ? [`Riferimenti: ${[a.contratto_applicativo && `Applicativo ${a.contratto_applicativo}`, a.cig && `CIG ${a.cig}`, a.cig_derivato && `CIG derivato ${a.cig_derivato}`, a.sil && `SIL ${a.sil}`].filter(Boolean).join(" · ")}.`, ...(a.importo_totale_appalto_eur != null ? [`Importo complessivo appalto/RTI letto dall’AI, DA VERIFICARE con ribasso e oneri di sicurezza: ${a.importo_totale_appalto_eur.toLocaleString("it-IT")} EUR; non attribuito automaticamente all’azienda.`] : [])] : []),
     "DA CONFERMARE", ...contractConfirmations(p, confermati).map(x => `- ${x.testo}`),

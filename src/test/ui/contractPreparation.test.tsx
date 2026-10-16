@@ -8,7 +8,7 @@ import { parseContractExtract } from "@/lib/orders/contractExtract";
 afterEach(cleanup);
 describe("conferme del contratto nel modulo", () => {
   it("mostra ufficio e cantiere separati e i dati mancanti in italiano", () => {
-    render(<ContractPreparationCard piano={prepareContract(parseContractExtract({ descrizione_lavori:"Manutenzione ricorrente ANAS", appalto_pubblico:{ presente:true, ruolo_azienda_importatrice:"mandante" } }),[])} />);
+    render(<ContractPreparationCard piano={prepareContract(parseContractExtract({ descrizione_lavori:"Manutenzione ricorrente ANAS", appalto_pubblico:{ presente:true, ruolo_azienda_importatrice:"mandante" } }),[],"manutenzione_stradale_su_ordine")} />);
     expect(screen.getByRole("region",{name:"Dati da confermare"})).toHaveTextContent("Confermare aliquota e regime IVA");
     expect(screen.getByRole("region",{name:"Adempimenti ufficio"})).toHaveTextContent("Non modificano l’avanzamento");
     expect(screen.getByRole("region",{name:"Lavorazioni cantiere"})).toHaveTextContent("Nessuna lavorazione esecutiva avviata");

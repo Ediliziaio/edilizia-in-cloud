@@ -16,7 +16,7 @@ export async function saveContractOfficeTasks(companyId: string, orderId: string
     id: await contractOfficeTaskId(orderId, s.nome), company_id: companyId, order_id: orderId,
     title: CONTRACT_OFFICE_PREFIX+s.nome, notes: `Adempimento di ufficio proposto dal contratto, da verificare e assegnare. Non concorre all’avanzamento delle lavorazioni.\n${s.controlli.map(c => `- ${c}`).join("\n")}`,
     status: "da_fare", priority: "normale", category: "ordini", created_by: userId,
-    assigned_to: null, due_date: null,
+    assigned_to: null as string | null, due_date: null as string | null,
   })));
   const ids = rows.map(r => r.id);
   const { data, error } = await supabase.from("tasks").select("id").eq("company_id",companyId).eq("order_id",orderId).in("id",ids);

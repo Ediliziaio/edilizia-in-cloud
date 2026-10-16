@@ -1,3 +1,4 @@
+import { useContractWorkflowProfile } from "@/hooks/useContractWorkflowProfile";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { logger } from "@/utils/logger";
 import { friendlyPostgresError } from "@/lib/postgresErrors";
@@ -260,7 +261,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const { bonusMultipli: bonusMultipliEnabled } = useBonusFiscaliFlags();
   // Le fasi con cui parte la commessa: il modello di partenza dell'azienda, se ne ha scelto uno.
   const fasiDiPartenza = useFasiDiPartenza();
-  const pianoContratto = useMemo(() => contrattoImportato ? prepareContract(contrattoImportato, fasiDiPartenza.offerti) : null, [contrattoImportato, fasiDiPartenza.offerti]);
+  const workflowProfilo = useContractWorkflowProfile();
+  const pianoContratto = useMemo(() => contrattoImportato && workflowProfilo.data ? prepareContract(contrattoImportato, fasiDiPartenza.offerti, workflowProfilo.data) : null, [contrattoImportato, fasiDiPartenza.offerti, workflowProfilo.data]);
   const standardApplicatoRef = useRef<ContractExtract | null>(null);
   const scegliModelloFasi = fasiDiPartenza.scegli;
   const [fasiPersonalizzate, setFasiPersonalizzate] = useState<FaseModello[] | null>(null);
@@ -268,7 +270,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const [durataLavori, setDurataLavori] = useState("");
   const [settimanaLavorativa, setSettimanaLavorativa] = useState<SettimanaLavorativa>(5);
   useEffect(() => {
-    if (!pianoContratto || !fasiDiPartenza.offerti.length || standardApplicatoRef.current === contrattoImportato) return;
+    if (!pianoContratto || pianoContratto.profilo === "standard" || !fasiDiPartenza.offerti.length || standardApplicatoRef.current === contrattoImportato) return;
     standardApplicatoRef.current = contrattoImportato;
     scegliModelloFasi(pianoContratto.organizzazione === "interventi_su_ordine" ? "" : pianoContratto.standardId ?? "");
     setFasiPersonalizzate(pianoContratto.cantiere);
@@ -462,10 +464,11 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
   // AI: applica i dati estratti dal contratto / copia commissione alla commessa.
   const applyContractExtract = (ex: ContractExtract, sourceFile?: File | null, source?: StoredContractFile | null) => {
+    if (!workflowProfilo.data) { toast.error("Configurazione aziendale non disponibile. Riprova prima di applicare il contratto."); return; }
     setContractSource(source ?? null);
     setContrattoImportato(ex);
     standardApplicatoRef.current = null;
-    const piano = prepareContract(ex, fasiDiPartenza.offerti);
+    const piano = prepareContract(ex, fasiDiPartenza.offerti, workflowProfilo.data);
     setValue("internal_notes", contractPreparationNotes(piano));
     setValue("customer_id", "");
     setValue("financing_cost", "");
@@ -832,6 +835,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       if (createdOrderIdRef.current) return { id: createdOrderIdRef.current, success: true };
       if (!effectiveCompany?.id) throw new Error("Company not found");
 
+      if (contrattoImportato && !workflowProfilo.data) throw new Error("Attendi il caricamento della configurazione aziendale prima di salvare.");
       const values = getValues();
       if (invoiceId) {
         if (!invoiceSource.data || isNotaCredito(invoiceSource.data.document_type)) throw new Error("Questa fattura non può generare una nuova commessa.");
@@ -1354,6 +1358,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       <CreateOrderChecklist checks={completionChecks} />
 
       <form onSubmit={rhfHandleSubmit(onSubmit, onFormError)} className="space-y-6">
+        {contrattoImportato && !workflowProfilo.data && <p role="status">{workflowProfilo.isError ? "Configurazione aziendale non disponibile: riprova prima di salvare il contratto." : "Caricamento configurazione aziendale…"}</p>}
         {pianoContratto && <ContractPreparationCard piano={pianoContratto} confermati={{ cliente: !!customerId, importo: total > 0, iva: !!vatRate?.trim(), rate: installments.length > 0 }} />}
         <fieldset disabled={createOrderMutation.isPending || !!createdOrderId} className="min-w-0 space-y-6">
         {/* ── Importa da preventivo: precompila righe, prezzi e spina misure ── */}

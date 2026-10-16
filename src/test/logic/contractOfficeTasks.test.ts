@@ -4,7 +4,7 @@ const db = vi.hoisted(() => ({ rows: [] as Record<string, unknown>[], fail: fals
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => ({
   select: () => {
     const filters: Record<string, unknown> = {};
-    const q = { eq: (key: string, value: unknown) => { filters[key]=value; return q; }, in: async (_key: string, ids: string[]) => ({ data: db.rows.filter(r => Object.entries(filters).every(([k,v])=>r[k]===v) && ids.includes(String(r.id))).map(r=>({id:r.id})), error: null }) };
+    const q = { eq: (key: string, value: unknown) => { filters[key]=value; return q; }, in: async (_key: string, ids: string[]) => ({ data: db.rows.filter(r => Object.entries(filters).every(([k,v])=>r[k]===v) && ids.includes(String(r.id))).map(r=>({id:r.id})), error: null as null }) };
     return q;
   },
   insert: async (rows: Record<string, unknown>[]) => { db.writes++; if(db.fail)return {error:{message:"Permission denied",code:"42501"}}; db.rows.push(...rows); return {error:null}; },

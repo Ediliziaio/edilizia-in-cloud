@@ -1,13 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { parseContractExtract, contractImponibile, contractToInstallments, contractCoherenceWarnings } from "@/lib/orders/contractExtract";
-import { prepareContract, contractConfirmations, contractPreparationNotes, storedContractFromDraft } from "@/lib/orders/contractPreparation";
+import { prepareContract as prepareConfiguredContract, contractConfirmations, contractPreparationNotes, storedContractFromDraft } from "@/lib/orders/contractPreparation";
 import type { ModelloFasi } from "@/lib/orders/modelliFasi";
+
+const prepareContract = (ex: Parameters<typeof prepareConfiguredContract>[0], models: readonly ModelloFasi[]) => prepareConfiguredContract(ex, models, "manutenzione_stradale_su_ordine");
 
 const model = (id: string, nome: string): ModelloFasi => ({ id, nome, origine: "azienda", descrizione: "", fasi: [{ nome: "Fresatura", sottofasi: [{ nome: "Controllo quote", peso: 1 }] }] });
 const modelli = [model("generale", "Lavori stradali e manutenzione viabilità"), model("anas", "Impresa - Manutenzione ricorrente ANAS"), model("asfalto", "Impresa - Fresatura e bitumatura")];
 const recurring = () => parseContractExtract({ descrizione_lavori: "Manutenzione ricorrente del corpo stradale ANAS", appalto_pubblico: { presente: true, ruolo_azienda_importatrice: "mandante", importo_totale_appalto_eur: 123456, cig: "123", quota_azienda_eur: null, informazioni_da_confermare: ["quota_azienda_eur"] }, iva_pct: null, fasi_pagamento: [] });
 
 describe("preparazione da contratto e separazione ufficio/cantiere", () => {
+  it("non applica le regole Pistilli ad aziende senza opt-in, anche con lo stesso contratto e standard", () => {
+    for (const profile of [undefined, "standard"] as const) {
+      const p = prepareConfiguredContract(recurring(), modelli, profile);
+      expect(p.organizzazione).toBe("da_confermare");
+      expect(p.standardId).toBeNull(); expect(p.ufficio).toEqual([]); expect(p.cantiere).toEqual([]);
+    }
+  });
   it("sceglie lo standard ricorrente senza trasformare gli adempimenti in lavori eseguiti", () => {
     const p = prepareContract(recurring(), modelli);
     expect(p.standardId).toBe("anas"); expect(p.organizzazione).toBe("interventi_su_ordine");
