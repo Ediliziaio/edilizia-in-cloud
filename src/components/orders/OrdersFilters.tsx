@@ -79,7 +79,7 @@ export function OrdersFilters({
       role="group"
       aria-label="Filtri commesse"
     >
-      <div className="relative col-span-2 min-w-0 sm:w-[140px] sm:shrink-0">
+      <div className="relative col-span-2 min-w-0 sm:w-[180px] sm:shrink-0">
         <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <Input
           placeholder="Cerca commessa…"
@@ -93,7 +93,7 @@ export function OrdersFilters({
       <Select value={statusFilter} onValueChange={onStatusFilterChange}>
         <SelectTrigger
           aria-label="Stato commessa"
-          className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[124px] sm:px-2 sm:text-xs sm:shrink-0"
+          className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[132px] sm:px-2 sm:text-xs sm:shrink-0"
         >
           <SelectValue placeholder="Stato" />
         </SelectTrigger>
@@ -123,7 +123,7 @@ export function OrdersFilters({
       >
         <SelectTrigger
           aria-label="Stato pagamento"
-          className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[132px] sm:px-2 sm:text-xs sm:shrink-0"
+          className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[142px] sm:px-2 sm:text-xs sm:shrink-0"
         >
           <SelectValue placeholder="Pagamenti" />
         </SelectTrigger>
@@ -168,7 +168,7 @@ export function OrdersFilters({
       <Select value={monthFilter} onValueChange={onMonthFilterChange}>
         <SelectTrigger
           aria-label="Mese commesse"
-          className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[112px] sm:px-2 sm:text-xs sm:shrink-0"
+          className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[140px] sm:px-2 sm:text-xs sm:shrink-0"
         >
           <CalendarDays className="h-4 w-4 mr-1 shrink-0 text-slate-400" />
           <SelectValue placeholder="Mese" />
