@@ -1,3 +1,4 @@
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 /**
  * Hook React Query — Stato Patrimoniale Riclassificato + Rating bancario.
  * Le RPC sottostanti sono SECURITY DEFINER: passiamo solo l'anno, la company
@@ -59,8 +60,10 @@ export interface SPResult {
 }
 
 export function useStatoPatrimoniale(anno: number) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: queryKeys.controlloGestione.sp(anno),
+    queryKey: [...queryKeys.controlloGestione.sp(anno), "reconciled-v1", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<SPResult> => {
       const { data, error } = await cgRpc<SPResult>("cg_get_sp_safe", { p_anno: anno });
       if (error) throw error;
@@ -86,6 +89,8 @@ export interface RatingIndicatore {
 }
 
 export interface RatingResult {
+  attendibile?: boolean;
+  motivi?: string[];
   anno: number;
   classe: RatingClasse;
   livello: RatingLivello;
@@ -94,8 +99,10 @@ export interface RatingResult {
 }
 
 export function useRating(anno: number) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: queryKeys.controlloGestione.rating(anno),
+    queryKey: [...queryKeys.controlloGestione.rating(anno), "reconciled-v1", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<RatingResult> => {
       const { data, error } = await cgRpc<RatingResult>("cg_get_rating_safe", { p_anno: anno });
       if (error) throw error;
@@ -114,8 +121,10 @@ export interface SPMultiAnnoRow {
 }
 
 export function useSPMultiAnno(anniDaConfrontare: number[]) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "sp-multi-anno", anniDaConfrontare] as const,
+    queryKey: ["cg", "sp-multi-anno", anniDaConfrontare, "reconciled-v1", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<SPMultiAnnoRow[]> => {
       const results = await Promise.all(
         anniDaConfrontare.map(async (anno) => {

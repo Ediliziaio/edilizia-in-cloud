@@ -20,8 +20,10 @@ export interface PFNResult {
   serie: Array<{ label: string; pfn: number }>;
 }
 export function usePFN(anno: number) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "pfn", anno] as const,
+    queryKey: ["cg", "pfn", anno, "reconciled-v1", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<PFNResult> => {
       const { data, error } = await cgRpc<PFNResult>("cg_get_pfn_safe", { p_anno: anno });
       if (error) throw error;
@@ -55,7 +57,7 @@ export interface Loan {
 export function useLoans() {
   const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "loans", companyId] as const,
+    queryKey: ["cg", "loans", companyId],
     enabled: !!companyId,
     queryFn: async (): Promise<Loan[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -163,8 +165,10 @@ export interface AgingResult {
   righe: AgingRiga[];
 }
 export function useAging(direction: "in" | "out") {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "aging", direction] as const,
+    queryKey: ["cg", "aging", direction, "reconciled-v1", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<AgingResult> => {
       const { data, error } = await cgRpc<AgingResult>("cg_get_aging_safe", {
         p_direction: direction,

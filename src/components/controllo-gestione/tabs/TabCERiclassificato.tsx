@@ -748,7 +748,7 @@ function CEMensileView({ anno }: { anno: number }) {
           <CardTitle className="text-base">CE Mensile · {anno}</CardTitle>
           <p className="text-xs text-muted-foreground">
             Clicca un valore per vedere le sub-righe (fatture, costi, cedolini, cespiti) che lo
-            compongono.
+            compongono. I mesi sono differenze tra progressivi: le rettifiche delle imposte gestionali IRES/IRAP mantengono il totale allineato al CE annuale.
           </p>
         </CardHeader>
         <CardContent>

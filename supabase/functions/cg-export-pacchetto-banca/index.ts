@@ -27,6 +27,7 @@ interface SPResp {
   quadratura: { differenza: number; quadrato: boolean; };
 }
 interface RTResp {
+  attendibile?: boolean; motivi?: string[];
   classe: string; livello: string; score: number;
   indicatori: Array<{ codice: string; label: string; valore: number; punteggio: number; soglia_top: number; }>;
 }
@@ -251,15 +252,15 @@ function drawSPColumns(ctx: DrawCtx, sp: SPResp) {
 }
 
 function drawRatingPage(ctx: DrawCtx, rt: RTResp) {
-  const { page, y } = newPage(ctx, "Rating Bancario");
+  const { page, y } = newPage(ctx, rt.attendibile === true ? "Valutazione interna" : "Valutazione interna PROVVISORIA");
   page.drawText(`Classe: ${rt.classe} · Score ${rt.score}/100 · Livello ${rt.livello}`,
     { x: 50, y, size: 12, font: ctx.fontBold, color: NAVY });
 
   // Box gauge stilizzato
   page.drawRectangle({ x: 40, y: y - 80, width: 515, height: 60, color: LIGHT });
-  page.drawText(rt.classe, { x: 60, y: y - 60, size: 32, font: ctx.fontBold, color: NAVY });
-  page.drawText(`Score ${rt.score}/100 — Livello: ${rt.livello.replace("_", " ")}`,
-    { x: 150, y: y - 50, size: 10, font: ctx.fontReg, color: TEXT });
+  page.drawText(rt.attendibile === true ? rt.classe : "NON VALIDATO", { x: 60, y: y - 60, size: rt.attendibile === true ? 32 : 16, font: ctx.fontBold, color: NAVY });
+  page.drawText(rt.attendibile === true ? `Score ${rt.score}/100 — Livello: ${rt.livello.replace("_", " ")}` : `Stima ${rt.classe} - riconciliare i dati prima dell'uso`,
+    { x: rt.attendibile === true ? 150 : 250, y: y - 50, size: 10, font: ctx.fontReg, color: TEXT });
 
   // Tabella indicatori
   let yy = y - 110;

@@ -361,8 +361,8 @@ export function TabDashboard({ anno }: Props) {
     saldoMinimo: worstCashMonth?.saldo_fine ?? null,
     meseSaldoMinimo: worstCashMonth ? MESI_LABELS[worstCashMonth.mese - 1] : null,
     pfn: pfn.data?.pfn ?? null,
-    ratingClasse: rt.data?.classe ?? null,
-    ratingScore: rt.data?.score ?? null,
+    ratingClasse: rt.data?.attendibile === true ? rt.data.classe : null,
+    ratingScore: rt.data?.attendibile === true ? rt.data.score : null,
     commesseInPerdita: com.data?.kpi.n_in_perdita ?? 0,
     margineAttesoCommesse: com.data?.kpi.margine_atteso_totale ?? null,
     budgetRicaviVariancePct: budgetRicavi?.variance_pct ?? null,
@@ -446,6 +446,12 @@ export function TabDashboard({ anno }: Props) {
         </div>
       )}
 
+      {rt.data && rt.data.attendibile !== true && (
+        <div role="alert" className="sm:order-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <strong>Dati da riconciliare.</strong> Il rating è provvisorio. {(rt.data.motivi ?? []).join(" · ")}{" "}
+          <Link className="underline" to="/azienda/controllo-gestione/health">Apri controlli dei dati</Link>
+        </div>
+      )}
       {/* Top: 6 KPI macro (tre per riga da 768: a due per riga erano tre righe) */}
       <div className="grid grid-cols-2 gap-3 sm:order-2 md:grid-cols-3 xl:grid-cols-6">
         <KPIMacro
@@ -490,10 +496,10 @@ export function TabDashboard({ anno }: Props) {
         />
         <KPIMacro
           label="Rating bancario"
-          value={rt.data?.classe ?? "—"}
-          sub={rt.data ? `Score ${rt.data.score.toFixed(1)} / livello: ${rt.data.livello}` : "—"}
+          value={rt.data ? rt.data.attendibile === true ? rt.data.classe : "Da riconciliare" : "—"}
+          sub={rt.data ? rt.data.attendibile === true ? `Score ${rt.data.score.toFixed(1)} · valutazione interna` : `Stima ${rt.data.classe} non validata` : "—"}
           icon={<Shield className="h-4 w-4" />}
-          tone={!rt.data ? "neutral"
+          tone={!rt.data ? "neutral" : rt.data.attendibile !== true ? "amber"
                 : (rt.data.classe === "AAA" || rt.data.classe === "AA" || rt.data.classe === "A") ? "green"
                 : (rt.data.classe === "BBB" || rt.data.classe === "BB") ? "blue"
                 : "red"}
@@ -592,7 +598,7 @@ export function TabDashboard({ anno }: Props) {
               <ul className="space-y-3 text-sm">
                 <li className="flex items-center gap-2">
                   <Building className="h-4 w-4 text-muted-foreground" />
-                  <span className="flex-1">In corso</span>
+                  <span className="flex-1">Da completare</span>
                   <Badge variant="outline">{com.data.kpi.n_in_corso}</Badge>
                 </li>
                 <li className="flex items-center gap-2">

@@ -1,3 +1,4 @@
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 /**
  * Hook React Query per le RPC del modulo Controllo di Gestione.
  *
@@ -72,8 +73,10 @@ export interface CEMensileRow {
 // ── Hooks ────────────────────────────────────────────────────────────────────
 
 export function useCEriclassificato(anno: number, meseDa = 1, meseA = 12) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: queryKeys.controlloGestione.ce(anno, meseDa, meseA),
+    queryKey: [...queryKeys.controlloGestione.ce(anno, meseDa, meseA), "reconciled-v1", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<CEriclassificato> => {
       const { data, error } = await cgRpc<CEriclassificato>(
         "cg_get_ce_safe",
@@ -87,8 +90,10 @@ export function useCEriclassificato(anno: number, meseDa = 1, meseA = 12) {
 }
 
 export function useBEP(anno: number) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: queryKeys.controlloGestione.bep(anno),
+    queryKey: [...queryKeys.controlloGestione.bep(anno), "reconciled-v1", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<BEPResult> => {
       const { data, error } = await cgRpc<BEPResult>("cg_get_bep_safe", { p_anno: anno });
       if (error) throw error;
@@ -99,8 +104,10 @@ export function useBEP(anno: number) {
 }
 
 export function useCEMensile(anno: number) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: queryKeys.controlloGestione.mens(anno),
+    queryKey: [...queryKeys.controlloGestione.mens(anno), "reconciled-v1", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<CEMensileRow[]> => {
       const { data, error } = await cgRpc<CEMensileRow[]>("cg_get_ce_mensile", { p_anno: anno });
       if (error) throw error;
@@ -124,8 +131,10 @@ export interface CEMensileDettaglioResult {
 }
 
 export function useCEMensileDettaglio(anno: number) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "ce-mensile-dettaglio", anno] as const,
+    queryKey: ["cg", "ce-mensile-dettaglio", anno, "reconciled-v1", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<CEMensileDettaglioResult> => {
       const { data, error } = await cgRpc<CEMensileDettaglioResult>(
         "cg_get_ce_mensile_dettaglio",
@@ -148,8 +157,10 @@ export interface CEMultiAnnoRow {
 }
 
 export function useCEMultiAnno(anniDaConfrontare: number[]) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "ce-multi-anno", anniDaConfrontare] as const,
+    queryKey: ["cg", "ce-multi-anno", anniDaConfrontare, "reconciled-v1", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<CEMultiAnnoRow[]> => {
       const results = await Promise.all(
         anniDaConfrontare.map(async (anno) => {

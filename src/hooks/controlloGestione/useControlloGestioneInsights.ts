@@ -133,7 +133,7 @@ export function useControlloGestioneInsights(anno: number) {
     // Cantieri "attivi" = non completati, con un margine valutabile: il margine
     // atteso a fine lavori se proiettabile, altrimenti quello corrente.
     const cantieri: CantiereLite[] = (commesse.data?.righe ?? [])
-      .filter((r) => r.pct_avanzamento < 1)
+      .filter((r) => r.work_state === "open")
       .map((r) => ({
         id: r.id,
         nome: r.order_code ? `${r.order_code} ${r.description}` : r.description,

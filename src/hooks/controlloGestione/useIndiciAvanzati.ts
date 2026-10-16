@@ -1,3 +1,4 @@
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 /**
  * Hook React Query — Indici finanziari avanzati: DSO/DPO/DSI/CCC + Altman + DSCR.
  */
@@ -25,6 +26,8 @@ export interface AltmanData {
 }
 
 export interface DSCRData {
+  imposte_ce?: number;
+  flusso_disponibile?: number;
   valore: number | null;
   servizio_debito: number;
   rate_anno: number;
@@ -41,8 +44,10 @@ export interface IndiciAvanzatiResult {
 }
 
 export function useIndiciAvanzati(anno: number) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "indici-avanzati", anno] as const,
+    queryKey: ["cg", "indici-avanzati", anno, "reconciled-v1", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<IndiciAvanzatiResult> => {
             const { data, error } = await cgRpc("cg_get_indici_avanzati_safe", { p_anno: anno });
       if (error) throw error;

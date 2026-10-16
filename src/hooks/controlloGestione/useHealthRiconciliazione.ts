@@ -1,3 +1,4 @@
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 /**
  * Hook React Query — Health-check Dati + Riconciliazione Commercialista.
  */
@@ -23,12 +24,15 @@ export interface HealthResult {
   score: number;
   max_score: number;
   percentuale: number;
+  report_ready?: boolean;
   checks: HealthCheck[];
 }
 
 export function useHealthCheck(anno: number) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "health-check", anno] as const,
+    queryKey: ["cg", "health-check", anno, "reconciled-v1", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<HealthResult> => {
             const { data, error } = await cgRpc("cg_get_health_check_safe", { p_anno: anno });
       if (error) throw error;
@@ -71,8 +75,10 @@ export interface RiconciliazioneResult {
 }
 
 export function useRiconciliazione(anno: number) {
+  const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "riconciliazione", anno] as const,
+    queryKey: ["cg", "riconciliazione", anno, "reconciled-v1", companyId],
+    enabled: !!companyId,
     queryFn: async (): Promise<RiconciliazioneResult> => {
             const { data, error } = await cgRpc("cg_get_riconciliazione_safe", { p_anno: anno });
       if (error) throw error;
